@@ -110,7 +110,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   private func disposeView() {
     if #available(iOS 26.0, *) { ContinuedSessionTasks.shared.finishAll(owner: owner) }
     attachmentTask?.cancel(); attachmentTask = nil
-    for promise in commands.values { fail(promise, "runtime_replaced", "通信层已重建，发送结果请以同步记录为准") }; commands.removeAll()
+    for promise in commands.values { fail(promise, "runtime_replaced", LodyStrings.text("native.runtime.replaced")) }; commands.removeAll()
     timer?.invalidate(); timer = nil
     grantTask?.cancel(); grantTask = nil
     pingPending = false
@@ -218,7 +218,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       command("sendTurn", payload: payload, promise: promise); return
     }
     guard health.ready, let workspace, let sessionId, args["sessionId"] as? String == sessionId, attachmentTask == nil else {
-      promise.resolve(#"{"state":"not_sent","reason":"会话尚未就绪，请稍后重试"}"#); return
+      promise.resolve(notSentJSON("native.runtime.sessionNotReady")); return
     }
     if #available(iOS 26.0, *), !backgrounded {
       args["backgroundTaskId"] = ContinuedSessionTasks.shared.begin(owner: owner)
@@ -233,7 +233,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         await MainActor.run { [weak self] in
           guard let self, self.generation == generation, self.sessionId == sessionId, !Task.isCancelled else {
             if #available(iOS 26.0, *), let backgroundTaskId { ContinuedSessionTasks.shared.finish(backgroundTaskId, success: false) }
-            promise.resolve(#"{"state":"not_sent","reason":"连接已切换，消息尚未发送"}"#); return
+            promise.resolve(notSentJSON("native.runtime.connectionSwitched")); return
           }
           self.attachmentTask = nil
           self.command("sendTurn", payload: prepared, promise: promise)
@@ -255,7 +255,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       data: JSONSerialization.data(withJSONObject: ["workspaceId": workspace]),
       encoding: .utf8
     ) else {
-      fail(promise, "not_ready", "尚未连接工作区")
+      fail(promise, "not_ready", LodyStrings.text("native.runtime.notConnected"))
       return
     }
     command("probeSchema", payload: payload, promise: promise)
@@ -316,9 +316,9 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
             ? args["sessionId"] as? String == sessionId
             : args["workspaceId"] as? String == workspace) else {
       if method == "sendTurn" {
-        promise.resolve(#"{"state":"not_sent","reason":"会话尚未同步，请稍后重试"}"#)
+        promise.resolve(notSentJSON("native.runtime.sessionNotSyncedRetry"))
       } else {
-        fail(promise, "not_ready", "会话尚未同步")
+        fail(promise, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
       }
       return
     }
@@ -330,7 +330,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     DispatchQueue.main.asyncAfter(deadline: .now() + 45) { [weak self] in
       guard let self, let pending = self.commands.removeValue(forKey: id) else { return }
       if #available(iOS 26.0, *), let backgroundTaskId { ContinuedSessionTasks.shared.finish(backgroundTaskId, success: false) }
-      self.fail(pending, "send_timeout", "发送结果未知，请查看同步记录，不要重复发送")
+      self.fail(pending, "send_timeout", LodyStrings.text("native.runtime.sendTimeout"))
     }
     // A JS throw reaches Swift as a WKError with no usable message, so the
     // runtime reports failures as a value instead of an exception.
@@ -429,7 +429,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   private var probeBackgroundUpdates = 0
   func debugBackground(_ action: String, promise: Promise) {
     guard ProcessInfo.processInfo.arguments.contains("--ui-verify"), workspace == nil || backgroundProbe else {
-      fail(promise, "probe_unavailable", "仅限独立离线验收"); return
+      fail(promise, "probe_unavailable", "offline acceptance builds only"); return
     }
     switch action {
     case "start":
@@ -473,4 +473,11 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   func debugRestart() { recover("debug_process_loss") }
   #endif
   deinit { for observer in observers { NotificationCenter.default.removeObserver(observer) }; timer?.invalidate() }
+}
+
+private func notSentJSON(_ key: String) -> String {
+  let payload: [String: Any] = ["state": "not_sent", "reason": LodyStrings.text(key)]
+  guard let data = try? JSONSerialization.data(withJSONObject: payload),
+        let json = String(data: data, encoding: .utf8) else { return #"{"state":"not_sent"}"# }
+  return json
 }

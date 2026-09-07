@@ -1,3 +1,5 @@
+import { t } from '../i18n/index.ts';
+
 export type Project = {
   id: string;
   machineId: string;
@@ -112,8 +114,11 @@ export function projectRows(rows: Row[], mode: string): Catalog {
       resume: text(value.acpSessionId),
       id: text(value.id) || id.slice(8),
       machineId,
-      title: text(value.title) || '未命名会话',
-      status: text(value.status) || text(object(value.status).type) || '未知',
+      title: text(value.title) || t('session.untitled'),
+      status:
+        text(value.status) ||
+        text(object(value.status).type) ||
+        t('session.statusUnknown'),
       archived: value.isArchived === true,
       pinned: value.isPinned === true,
       projectId,
@@ -127,7 +132,7 @@ export function projectRows(rows: Row[], mode: string): Catalog {
     projects.push({
       id: projectId,
       machineId,
-      name: repo || (localId ? '本地项目' : '未归属项目'),
+      name: repo || (localId ? t('project.local') : t('project.unassigned')),
       rootPath: '',
     });
   }

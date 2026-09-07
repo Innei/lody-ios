@@ -7,6 +7,9 @@ import {
   requestDeviceCode,
   getStreamsGrant,
 } from '../src/cloud/auth.ts';
+import { setLocale } from '../src/i18n/index.ts';
+
+setLocale('zh-Hans');
 
 const code = { device_code: 'synthetic', interval: 1, expires_in: 30 };
 test('device authorization honors pending, slow down, expiry, denial and cancellation', async () => {

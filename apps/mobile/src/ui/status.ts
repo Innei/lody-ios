@@ -1,3 +1,5 @@
+import { t, type TranslationKey } from '../i18n/index.ts';
+
 export type SessionState =
   'live' | 'attention' | 'failed' | 'idle' | 'done' | 'archived';
 
@@ -35,17 +37,21 @@ export function agentName(agentType = '') {
   return agentNames[agentType] ?? agentType;
 }
 
-export const stateLabel: Record<SessionState, string> = {
-  live: '进行中',
-  attention: '等待确认',
-  failed: '执行失败',
-  idle: '待命',
-  done: '已完成',
-  archived: '已归档',
+const stateKeys: Record<SessionState, TranslationKey> = {
+  live: 'session.state.live',
+  attention: 'session.state.attention',
+  failed: 'session.state.failed',
+  idle: 'session.state.idle',
+  done: 'session.state.done',
+  archived: 'session.state.archived',
 };
 
+export function stateLabel(state: SessionState) {
+  return t(stateKeys[state]);
+}
+
 export function sessionStatus(status: string) {
-  return stateLabel[sessionState(status)];
+  return stateLabel(sessionState(status));
 }
 
 export const stateSymbol: Record<SessionState, string> = {
@@ -72,6 +78,6 @@ export function stateTint(state: SessionState, accent: string) {
 
 /** Row subtitle: state word only where it earns the space, then project and time. */
 export function stateSubtitle(state: SessionState, ...rest: string[]) {
-  const lead = state === 'done' ? [] : [stateLabel[state]];
+  const lead = state === 'done' ? [] : [stateLabel(state)];
   return [...lead, ...rest.filter(Boolean)].join(' · ');
 }

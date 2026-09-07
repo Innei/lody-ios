@@ -57,7 +57,11 @@ final class ContinuedSessionTasks {
       return nil
     }
     work[id] = Work(owner: owner)
-    let request = BGContinuedProcessingTaskRequest(identifier: id, title: "同步会话回复", subtitle: "正在发送")
+    let request = BGContinuedProcessingTaskRequest(
+      identifier: id,
+      title: LodyStrings.text("native.session.sync.title"),
+      subtitle: LodyStrings.text("native.session.sync.sending")
+    )
     request.strategy = .fail
     do {
       #if DEBUG
@@ -80,7 +84,10 @@ final class ContinuedSessionTasks {
           let state = value["state"] as? String else { return }
     switch state {
     case "completed", "waiting":
-      current.task?.updateTitle("同步会话回复", subtitle: state == "waiting" ? "等待你的确认" : "回复已同步")
+      current.task?.updateTitle(
+        LodyStrings.text("native.session.sync.title"),
+        subtitle: LodyStrings.text(state == "waiting" ? "native.session.sync.needsApproval" : "native.session.sync.synced")
+      )
       finish(id, success: true)
     case "failed": finish(id, success: false)
     case "sent", "receiving":
@@ -97,8 +104,14 @@ final class ContinuedSessionTasks {
   }
 
   private func updateTitle(_ task: BGContinuedProcessingTask, completed: Int64) {
-    let subtitles = [0: "正在发送", 1: "等待回复"]
-    task.updateTitle("同步会话回复", subtitle: subtitles[Int(completed)] ?? "正在接收回复")
+    let subtitles = [
+      0: LodyStrings.text("native.session.sync.sending"),
+      1: LodyStrings.text("native.session.sync.waitingReply"),
+    ]
+    task.updateTitle(
+      LodyStrings.text("native.session.sync.title"),
+      subtitle: subtitles[Int(completed)] ?? LodyStrings.text("native.session.sync.receiving")
+    )
   }
 
   func finish(_ id: String, success: Bool) {

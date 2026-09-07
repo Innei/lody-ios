@@ -16,13 +16,14 @@ const config: ExpoConfig = {
     infoPlist: {
       BGTaskSchedulerPermittedIdentifiers: ['app.innei.lody.session-sync.*'],
       UIBackgroundModes: ['processing'],
-      NSPhotoLibraryUsageDescription: '选择照片作为消息附件。',
     },
   },
   plugins: [
     'expo-router',
     ['expo-dev-client', { toolsButton: false }],
     './plugins/withMarkdownView',
+    './plugins/withLocales',
+    'expo-localization',
   ],
   experiments: { typedRoutes: true, reactCompiler: true },
   runtimeVersion: { policy: 'fingerprint' },

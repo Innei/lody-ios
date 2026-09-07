@@ -19,6 +19,7 @@ import {
   type SavedCatalog,
 } from './local';
 import type { Catalog } from './model';
+import { t } from '../i18n/index.ts';
 
 const empty: Catalog = { projects: [], sessions: [], machineIds: [] };
 function valid(saved: SavedCatalog | null): saved is SavedCatalog {
@@ -109,7 +110,7 @@ function useCatalogState() {
             () => {
               if (active && !saveErrorShown) {
                 saveErrorShown = true;
-                showToast('本地数据保存失败，下次启动可能需要重新同步');
+                showToast(t('catalog.toast.localSaveFailed'));
               }
             },
           );
@@ -150,7 +151,7 @@ function useCatalogState() {
     if (!account) return;
     setChoice({ user: account.user.id, workspace: id });
     void writeLocal(selectionKey(account.user.id), id).catch(() =>
-      showToast('未能保存工作区选择'),
+      showToast(t('catalog.toast.workspaceSaveFailed')),
     );
   }
   return {

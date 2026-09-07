@@ -73,7 +73,9 @@ assert(noticeTranscript.rows().map(\.kind) == ["summary", "text", "changesHeader
 assert(noticeTranscript.rows().last?.fileDiff?.path == "docs/.diff-check.md")
 assert(noticeTranscript.rows().last?.fileDiff?.add == 1)
 assert(noticeTranscript.rows().last?.group == "only")
-assert(noticeTranscript.rows().contains { $0.kind == "changesHeader" && $0.text == "1 个文件" })
+// A CLI harness has no compiled catalog, so plural rows fall back to the key;
+// the strings check covers the Foundation substitution itself.
+assert(noticeTranscript.rows().contains { $0.kind == "changesHeader" && $0.text == "native.chat.transcript.fileCount" })
 assert(noticeTranscript.rows(processEntryID: "warning").isEmpty)
 assert(!noticeTranscript.rows(processEntryID: "done").contains { $0.kind == "changes" || $0.kind == "changesHeader" })
 let cachedNotice = completedWithNotice.replacingOccurrences(of: ",\"name\":\"agent_warning\"", with: "")
@@ -92,7 +94,7 @@ let twoFiles = completedWithNotice.replacingOccurrences(
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(twoFiles.utf8))
 let grouped = transcript.rows().filter { $0.kind == "changes" || $0.kind == "changesHeader" }
 assert(grouped.map(\.kind) == ["changesHeader", "changes", "changes"])
-assert(grouped[0].text == "2 个文件" && grouped[0].fileDiff?.add == 15 && grouped[0].fileDiff?.del == 5)
+assert(grouped[0].text == "native.chat.transcript.fileCount" && grouped[0].fileDiff?.add == 15 && grouped[0].fileDiff?.del == 5)
 assert(grouped.dropFirst().map(\.group) == ["first", "last"])
 print("File group: header totals and first/last membership passed")
 

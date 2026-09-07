@@ -5,26 +5,31 @@ import type { SessionState } from '../../ui/status.ts';
 // does not resolve the `@/` alias. Keep it free of aliased value imports.
 import { agentName, sessionState, stateTint } from '../../ui/status.ts';
 import { activityBucket, relativeTime } from '../../ui/time.ts';
+import { t, type TranslationKey } from '../../i18n/index.ts';
 
 const groups = [
-  { id: 'attention', header: '需要你确认' },
-  { id: 'live', header: '进行中' },
-  { id: 'unread', header: '已完成 · 待查看' },
-  { id: 'today', header: '今天' },
-  { id: 'yesterday', header: '昨天' },
-  { id: 'week', header: '一周内' },
-  { id: 'month', header: '上个月' },
-  { id: 'older', header: '更早' },
+  { id: 'attention', header: 'inbox.section.attention' },
+  { id: 'live', header: 'inbox.section.live' },
+  { id: 'unread', header: 'inbox.section.unread' },
+  { id: 'today', header: 'inbox.section.today' },
+  { id: 'yesterday', header: 'inbox.section.yesterday' },
+  { id: 'week', header: 'inbox.section.week' },
+  { id: 'month', header: 'inbox.section.month' },
+  { id: 'older', header: 'inbox.section.older' },
 ] as const;
 
 export const activityAt = (session: Session) =>
   session.lastMessageAt ?? Date.parse(session.createdAt);
 export const byActivity = (a: Session, b: Session) =>
   Number(b.pinned) - Number(a.pinned) || activityAt(b) - activityAt(a);
-const badges: Partial<Record<SessionState, string>> = {
-  attention: '等你确认',
-  failed: '执行失败',
-  archived: '已归档',
+const badges: Partial<Record<SessionState, TranslationKey>> = {
+  attention: 'inbox.badge.attention',
+  failed: 'inbox.badge.failed',
+  archived: 'inbox.badge.archived',
+};
+const badgeOf = (state: SessionState) => {
+  const key = badges[state];
+  return key && t(key);
 };
 const unreadOf = (session: Session) =>
   session.lastMessageAt !== undefined &&
@@ -85,7 +90,7 @@ export function inboxSections(
         subtitle: names.get(session.projectId) ?? '',
         value: relativeTime(activityAt(session), now),
         unread: unreadOf(session),
-        badge: badges[state],
+        badge: badgeOf(state),
         imageTint:
           state === 'live' || badges[state]
             ? stateTint(state, accent)
@@ -96,18 +101,18 @@ export function inboxSections(
         leadingActions: [pinAction(session.pinned)],
       };
     });
-    return rows.length ? [{ id: group.id, header: group.header, rows }] : [];
+    return rows.length ? [{ id: group.id, header: t(group.header), rows }] : [];
   });
 }
 
 export const archiveAction = (archived: boolean) => ({
   id: 'archive',
-  title: archived ? '取消归档' : '归档',
+  title: t(archived ? 'session.action.unarchive' : 'session.action.archive'),
   symbol: archived ? 'tray.and.arrow.up' : 'archivebox',
 });
 export const pinAction = (pinned: boolean) => ({
   id: 'pin',
-  title: pinned ? '取消置顶' : '置顶',
+  title: t(pinned ? 'session.action.unpin' : 'session.action.pin'),
   symbol: pinned ? 'pin.slash.fill' : 'pin.fill',
   tint: 'yellow',
 });
@@ -128,7 +133,7 @@ export function sessionRow(
     diff: session.diff,
     value: relativeTime(activityAt(session), now),
     unread: unreadOf(session),
-    badge: badges[state],
+    badge: badgeOf(state),
     imageTint: ['live', 'attention', 'failed'].includes(state)
       ? stateTint(state, accent)
       : undefined,
@@ -158,7 +163,7 @@ export function projectSections(
     if (open && sessions.length > 5) {
       rows.push({
         id: `project:${project.id}`,
-        title: '更多',
+        title: t('common.more'),
         action: true,
         disclosure: true,
         navigates: true,
@@ -196,7 +201,7 @@ export function searchSections(
   return [
     {
       id: 'projects',
-      header: '项目',
+      header: t('inbox.section.projects'),
       rows: projects.map((p) => ({
         id: `project:${p.id}`,
         title: p.name,
@@ -209,7 +214,7 @@ export function searchSections(
     },
     {
       id: 'sessions',
-      header: '会话',
+      header: t('inbox.section.sessions'),
       rows: sessions.map((s) => sessionRow(s, accent, names.get(s.projectId))),
     },
   ].filter((section) => section.rows.length);

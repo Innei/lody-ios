@@ -15,6 +15,7 @@ import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
 import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
+import { t, type TranslationKey } from '../../../i18n/index.ts';
 
 export type FileDiffParams = {
   sessionId: string;
@@ -25,12 +26,17 @@ export type FileDiffParams = {
 type DiffStyle = 'unified' | 'split';
 const STYLE_KEY = 'diffStyle';
 
-const REASONS: Record<string, string> = {
-  not_changed: '该文件在本轮没有改动',
-  base_unavailable: '电脑上没有可比较的基线版本',
-  transient_io: '读取文件失败，请重试',
-  unsupported_binary: '二进制文件无法显示 diff',
+const REASONS: Record<string, TranslationKey> = {
+  not_changed: 'diff.reason.notChanged',
+  base_unavailable: 'diff.reason.baseUnavailable',
+  transient_io: 'diff.reason.transientIo',
+  unsupported_binary: 'diff.reason.unsupportedBinary',
 };
+
+function reasonText(reason: string, message?: string) {
+  const key = REASONS[reason];
+  return key ? t(key) : (message ?? t('diff.error.fetch'));
+}
 
 function FileDiffScreen() {
   const { params } = usePageRuntime<FileDiffParams>();
@@ -63,8 +69,8 @@ function FileDiffScreen() {
         if (!active) return;
         setError(
           /permission_denied/.test(String(cause))
-            ? '此会话已归档，无法读取文件'
-            : '电脑离线，无法取回改动',
+            ? t('files.error.archived')
+            : t('diff.error.offline'),
         );
       });
     return () => {
@@ -89,7 +95,10 @@ function FileDiffScreen() {
   if (error)
     body = (
       <Notice text={error}>
-        <Button label="重试" onPress={() => setRevision((n) => n + 1)} />
+        <Button
+          label={t('common.retry')}
+          onPress={() => setRevision((n) => n + 1)}
+        />
       </Notice>
     );
   else if (!diff)
@@ -98,20 +107,26 @@ function FileDiffScreen() {
     );
   else if (diff.status === 'unavailable')
     body = (
-      <Notice text={REASONS[diff.reason] ?? diff.message ?? '无法取回改动'}>
+      <Notice text={reasonText(diff.reason, diff.message)}>
         {diff.reason === 'unsupported_binary' ? (
-          <Button label="预览文件" onPress={() => void preview()} />
+          <Button
+            label={t('diff.action.previewFile')}
+            onPress={() => void preview()}
+          />
         ) : null}
       </Notice>
     );
   else if (diff.newKind === 'binary' || diff.oldKind === 'binary')
     body = (
-      <Notice text="二进制文件无法显示 diff">
-        <Button label="预览文件" onPress={() => void preview()} />
+      <Notice text={t('diff.reason.unsupportedBinary')}>
+        <Button
+          label={t('diff.action.previewFile')}
+          onPress={() => void preview()}
+        />
       </Notice>
     );
   else if (diff.newKind === 'too_large' || diff.oldKind === 'too_large')
-    body = <Notice text="文件超过 1 MiB，无法内联显示" />;
+    body = <Notice text={t('diff.error.tooLarge')} />;
   else
     body = (
       <NativeDiff
@@ -119,7 +134,7 @@ function FileDiffScreen() {
         path={params.path}
         handle={diff.handle}
         diffStyle={style}
-        onFail={() => setError('渲染失败，请重试')}
+        onFail={() => setError(t('diff.error.render'))}
       />
     );
 
@@ -137,7 +152,9 @@ function FileDiffScreen() {
           }}
           add={diff.add ?? 0}
           del={diff.del ?? 0}
-          base={diff.base === 'turn' ? '本轮' : '当前'}
+          base={t(
+            diff.base === 'turn' ? 'diff.base.turn' : 'diff.base.current',
+          )}
           diffStyle={style}
           onStyleChange={({ nativeEvent }) => changeStyle(nativeEvent.style)}
         />
@@ -167,7 +184,7 @@ function Notice({ text, children }: { text: string; children?: ReactNode }) {
 
 export const fileDiffPage = definePage<FileDiffParams>({
   id: 'file-diff',
-  title: '改动',
+  title: t('diff.title'),
   Component: FileDiffScreen,
   parseRouteParams: () => {
     throw new Error('请从本轮改动打开');

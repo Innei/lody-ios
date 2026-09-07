@@ -8,6 +8,7 @@ import { acceptEnvelope } from './acceptEnvelope';
 import { localGeneration, readLocal } from '../../cloud/local';
 import { showToast } from '../../ui/toast';
 import type { EntrySummary, Envelope, ItemSummary } from './transcript/types';
+import { t } from '../../i18n/index.ts';
 
 export type Snapshot = Omit<Envelope, 'v'>;
 
@@ -68,7 +69,7 @@ export function useSessionRuntime(
       if (!active || localVersion !== localGeneration()) return;
       if (event.reason === 'session_cache_failed' && !saveErrorShown) {
         saveErrorShown = true;
-        showToast('对话未能保存到本地，下次打开需要重新同步');
+        showToast(t('session.toast.localSaveFailed'));
       }
       if (event.sessionId === sessionId && event.session) {
         try {

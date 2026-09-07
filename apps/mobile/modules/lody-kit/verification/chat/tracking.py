@@ -3,6 +3,9 @@ import json
 import subprocess
 import sys
 import time
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / 'verification/ui'))
+import catalog
 
 udid = sys.argv[1]
 
@@ -40,7 +43,7 @@ assert common, 'No stable history row visible while tracking is released'
 drift = max(abs(before[key]['frame']['y'] - after[key]['frame']['y']) for key in common)
 assert drift <= 1, ('New streamed text pulled the reader out of history', drift)
 assert 'chat-scroll-to-bottom' in axe('describe-ui'), 'History must offer a return-to-bottom button'
-axe('tap', '--label', '回到底部')
+axe('tap', '--label', catalog.text('native.chat.scrollToBottom'))
 time.sleep(2)
 assert 'preview:answer' in snapshot(), 'Returning to the tail must reveal the conclusion'
 screenshot('tracking-resumed')
@@ -71,7 +74,7 @@ axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y'
 time.sleep(1)
 assert 'chat-scroll-to-bottom' in axe('describe-ui'), 'Completed history must also offer return to bottom'
 screenshot('completed-button')
-axe('tap', '--label', '回到底部')
+axe('tap', '--label', catalog.text('native.chat.scrollToBottom'))
 time.sleep(1)
 assert 'preview:answer' in snapshot(), 'The button must return to the completed conclusion'
 assert 'chat-scroll-to-bottom' not in axe('describe-ui'), 'The button must disappear at the bottom'

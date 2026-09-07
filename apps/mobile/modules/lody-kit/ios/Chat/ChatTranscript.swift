@@ -132,7 +132,10 @@ struct ChatTranscript {
           let title = processTitle(needsPermission: needsPermission, failed: failed, running: running)
           let firstGroup = index == groups.keys.min()
           result.append(ChatRow(id: entry.id + ":process" + (firstGroup ? "" : ":" + entry.items[index].itemId), entryID: entry.id, kind: "summary",
-            text: title + (tools > 0 ? " · \(tools) 项操作" : ""), symbol: "chevron.right",
+            text: tools > 0
+              ? LodyStrings.text("native.chat.transcript.summary", ["title": title, "tools": LodyStrings.plural("native.chat.transcript.toolCount", tools)])
+              : title,
+            symbol: "chevron.right",
             processStartID: entry.finished ? "" : entry.items[index].itemId,
             actionable: true, running: running, attention: needsPermission || failed))
           continue
@@ -149,18 +152,18 @@ struct ChatTranscript {
         case "tool_call":
           row.symbol = ["read": "doc.text.magnifyingglass", "search": "magnifyingglass", "edit": "square.and.pencil",
             "write": "square.and.pencil", "execute": "terminal", "bash": "terminal", "fetch": "globe"][item.kind ?? ""] ?? "wrench.and.screwdriver"
-          row.text = item.title.flatMap { $0.isEmpty ? nil : $0 } ?? item.path ?? "调用工具"
-          if item.permission?.pending == true { row.text = "等待批准 · " + row.text }
-          else if item.status == "failed" { row.text = "失败 · " + row.text }
+          row.text = item.title.flatMap { $0.isEmpty ? nil : $0 } ?? item.path ?? LodyStrings.text("native.chat.transcript.tool")
+          if item.permission?.pending == true { row.text = LodyStrings.text("native.chat.transcript.pending", ["text": row.text]) }
+          else if item.status == "failed" { row.text = LodyStrings.text("native.chat.transcript.failed", ["text": row.text]) }
           row.actionable = item.hasDetail == true || item.permission?.pending == true
         case "plan":
           row.text = (item.entries ?? []).map { planPrefix($0.status) + $0.content }.joined(separator: "\n")
         case "subagent_task":
           row.symbol = "person.2"
-          row.text = item.description ?? item.actor ?? "子任务"
-          if item.status == "failed" { row.text = "失败 · " + row.text }
+          row.text = item.description ?? item.actor ?? LodyStrings.text("native.chat.transcript.subtask")
+          if item.status == "failed" { row.text = LodyStrings.text("native.chat.transcript.failed", ["text": row.text]) }
         default:
-          row.text = item.title ?? "会话事件"
+          row.text = item.title ?? LodyStrings.text("native.chat.transcript.event")
           row.symbol = "info.circle"
         }
         if !row.text.isEmpty { result.append(row) }
@@ -172,7 +175,7 @@ struct ChatTranscript {
           let del = files.reduce(0) { $0 + ($1.del ?? 0) }
           result.append(ChatRow(
             id: entry.id + ":changes", entryID: entry.id, kind: "changesHeader",
-            text: "\(files.count) 个文件",
+            text: LodyStrings.plural("native.chat.transcript.fileCount", files.count),
             fileDiff: ChatFileDiff(path: "", add: add, del: del, status: nil)
           ))
           for (index, file) in files.enumerated() {
@@ -191,10 +194,10 @@ struct ChatTranscript {
 }
 
 private func processTitle(needsPermission: Bool, failed: Bool, running: Bool) -> String {
-  if needsPermission { return "等待批准" }
-  if failed { return "处理失败" }
-  if running { return "正在处理" }
-  return "执行过程"
+  if needsPermission { return LodyStrings.text("native.chat.transcript.status.pending") }
+  if failed { return LodyStrings.text("native.chat.transcript.status.failed") }
+  if running { return LodyStrings.text("native.chat.transcript.status.running") }
+  return LodyStrings.text("native.chat.transcript.status.done")
 }
 
 private func planPrefix(_ status: String?) -> String {

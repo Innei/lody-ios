@@ -1,4 +1,5 @@
 import type { ItemSummary } from './types.ts';
+import { t } from '../../../i18n/index.ts';
 
 export type PlanEntry = { content: string; status: string; priority?: string };
 
@@ -21,11 +22,17 @@ export type Row =
     };
 
 const CATEGORIES = {
-  read: { symbol: 'doc.text.magnifyingglass', label: '读取了文件' },
-  edit: { symbol: 'square.and.pencil', label: '编辑了文件' },
-  execute: { symbol: 'terminal', label: '执行了命令' },
-  fetch: { symbol: 'globe', label: '访问了网络' },
-  tool: { symbol: 'wrench.and.screwdriver', label: '调用了工具' },
+  read: {
+    symbol: 'doc.text.magnifyingglass',
+    label: 'activity.category.read',
+  },
+  edit: { symbol: 'square.and.pencil', label: 'activity.category.edit' },
+  execute: { symbol: 'terminal', label: 'activity.category.execute' },
+  fetch: { symbol: 'globe', label: 'activity.category.fetch' },
+  tool: {
+    symbol: 'wrench.and.screwdriver',
+    label: 'activity.category.tool',
+  },
 } as const;
 
 type Category = keyof typeof CATEGORIES;
@@ -56,10 +63,23 @@ function categoryOf(item: ItemSummary): Category {
 }
 
 function editLabel(item: Tool) {
-  const parts = [`编辑了 ${item.path}`];
+  const parts = [t('activity.editedPath', { path: item.path ?? '' })];
   if (item.added) parts.push(`+${item.added}`);
   if (item.removed) parts.push(`−${item.removed}`);
   return parts.join(' ');
+}
+
+function activityLabel(
+  categories: Category[],
+  failed: boolean,
+  only: Tool | undefined,
+) {
+  const separator = t('common.listSeparator');
+  const names = categories.map((c) => t(CATEGORIES[c].label));
+  if (failed) return t('activity.failed', { items: names.join(separator) });
+  if (only && categories[0] === 'edit' && only.path) return editLabel(only);
+  const items = names.slice(0, 3).join(separator);
+  return categories.length > 3 ? t('activity.andMore', { items }) : items;
 }
 
 function activityRow(group: ItemSummary[]): Row {
@@ -72,14 +92,7 @@ function activityRow(group: ItemSummary[]): Row {
   const failed = tools.some((t) => t.status === 'failed');
   const running = tools.some((t) => t.status === 'in_progress');
   const only = group.length === 1 ? tools[0] : undefined;
-  const label = failed
-    ? `失败：${categories.map((c) => CATEGORIES[c].label).join('、')}`
-    : only && categories[0] === 'edit' && only.path
-      ? editLabel(only)
-      : categories
-          .slice(0, 3)
-          .map((c) => CATEGORIES[c].label)
-          .join('、') + (categories.length > 3 ? '等' : '');
+  const label = activityLabel(categories, failed, only);
   return {
     kind: 'activity',
     itemId: group[0].itemId,

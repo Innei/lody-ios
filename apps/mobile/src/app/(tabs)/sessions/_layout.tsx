@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { softScrollEdgeEffects } from '@/ui/Screen';
+import { t } from '../../../i18n/index.ts';
 export default function Layout() {
   return (
     <Stack
@@ -11,7 +12,7 @@ export default function Layout() {
     >
       <Stack.Screen
         name="index"
-        options={{ title: '会话', headerLargeTitle: false }}
+        options={{ title: t('tabs.sessions'), headerLargeTitle: false }}
       />
     </Stack>
   );

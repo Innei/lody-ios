@@ -1,6 +1,7 @@
 import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
+import { t } from '../../i18n/index.ts';
 
 export type PickerOption = {
   id: string;
@@ -40,7 +41,7 @@ function PickerScreen() {
       accent={colors.accent}
       transparent
       sections={sections}
-      placeholder={params.placeholder ?? '没有可选项'}
+      placeholder={params.placeholder ?? t('picker.empty')}
       onRowPress={({ nativeEvent }) => finish(nativeEvent.id)}
     />
   );
@@ -48,7 +49,7 @@ function PickerScreen() {
 
 export const pickerPage = definePage<Params, string>({
   id: 'picker',
-  title: '选择',
+  title: t('picker.title'),
   Component: PickerScreen,
   parseRouteParams: () => {
     throw new Error('请从表单打开');

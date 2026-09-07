@@ -1,34 +1,27 @@
 """Dynamic inbox groups keep confirmation, live, unread-completed and dated history apart."""
 import sys
 from driver import UI
+import catalog
 
-HEADERS = (
-    '需要你确认',
-    '进行中',
-    '已完成 · 待查看',
-    '今天',
-    '昨天',
-    '一周内',
-    '上个月',
-    '更早',
-)
+SECTIONS = ('attention', 'live', 'unread', 'today', 'yesterday', 'week', 'month', 'older')
+HEADERS = tuple(catalog.text(f'inbox.section.{name}') for name in SECTIONS)
 ORDER = (
-    ('header', '需要你确认'),
+    ('header', catalog.text('inbox.section.attention')),
     ('row', 'inbox-wait'),
     ('row', 'inbox-awaiting'),
-    ('header', '进行中'),
+    ('header', catalog.text('inbox.section.live')),
     ('row', 'inbox-live'),
-    ('header', '已完成 · 待查看'),
+    ('header', catalog.text('inbox.section.unread')),
     ('row', 'inbox-unread'),
-    ('header', '今天'),
+    ('header', catalog.text('inbox.section.today')),
     ('row', 'inbox-today'),
-    ('header', '昨天'),
+    ('header', catalog.text('inbox.section.yesterday')),
     ('row', 'inbox-yesterday'),
-    ('header', '一周内'),
+    ('header', catalog.text('inbox.section.week')),
     ('row', 'inbox-week'),
-    ('header', '上个月'),
+    ('header', catalog.text('inbox.section.month')),
     ('row', 'inbox-month'),
-    ('header', '更早'),
+    ('header', catalog.text('inbox.section.older')),
     ('row', 'inbox-older'),
 )
 TITLES = {
@@ -44,10 +37,10 @@ TITLES = {
 }
 # Conversation rows: title, optional pill, project, time. No status sentence, no chevron.
 LABELS = {
-    'inbox-wait': ('权限确认会话', '等你确认', 'lody-ios', '刚刚'),
-    'inbox-awaiting': ('完成后等确认', '等你确认', 'lody-ios', '刚刚'),
-    'inbox-live': ('正在运行的任务', 'lody-ios', '刚刚'),
-    'inbox-unread': ('刚完成未查看', 'lody-ios', '1 分钟前'),
+    'inbox-wait': ('权限确认会话', catalog.text('inbox.badge.attention'), 'lody-ios', catalog.text('time.justNow')),
+    'inbox-awaiting': ('完成后等确认', catalog.text('inbox.badge.attention'), 'lody-ios', catalog.text('time.justNow')),
+    'inbox-live': ('正在运行的任务', 'lody-ios', catalog.text('time.justNow')),
+    'inbox-unread': ('刚完成未查看', 'lody-ios', catalog.plural('time.minutesAgo', 1)),
 }
 
 ui = UI(sys.argv[1], sys.argv[2])
@@ -95,8 +88,8 @@ for _ in range(12):
         if found[1] in LABELS:
             for part in LABELS[found[1]]:
                 assert part in label, (found[1], label)
-            assert '进行中' not in label
-            assert '等待确认' not in label
+            assert catalog.text('session.state.live') not in label
+            assert catalog.text('session.state.attention') not in label
     if all(found in seen for found in ORDER):
         break
     ui.axe(
@@ -118,7 +111,7 @@ else:
     raise AssertionError(f'Inbox groups were incomplete: {seen}')
 
 assert seen == list(ORDER), seen
-assert seen.index(('row', 'inbox-unread')) < seen.index(('header', '今天'))
-assert seen.index(('row', 'inbox-awaiting')) < seen.index(('header', '进行中'))
+assert seen.index(('row', 'inbox-unread')) < seen.index(('header', catalog.text('inbox.section.today')))
+assert seen.index(('row', 'inbox-awaiting')) < seen.index(('header', catalog.text('inbox.section.live')))
 ui.capture('groups')
 print('Inbox confirmation, unread-completed and dated history groups passed')

@@ -4,6 +4,7 @@ import { useRef } from 'react';
 import { useCatalog } from '@/cloud/CatalogProvider';
 import { newSession } from '@/features/sessions/navigation';
 import { showToast } from '@/ui/toast';
+import { t } from '../../i18n/index.ts';
 export default function TabsLayout() {
   const colors = usePalette();
   const { selected, catalog } = useCatalog();
@@ -12,23 +13,27 @@ export default function TabsLayout() {
     <NativeTabs tintColor={colors.accent} backBehavior="history">
       <NativeTabs.Trigger name="sessions" disablePopToTop disableScrollToTop>
         <NativeTabs.Trigger.Icon sf="bubble.left.and.text.bubble.right" />
-        <NativeTabs.Trigger.Label>会话</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>
+          {t('tabs.sessions')}
+        </NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings">
         <NativeTabs.Trigger.Icon sf="gearshape" />
-        <NativeTabs.Trigger.Label>设置</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>
+          {t('tabs.settings')}
+        </NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger
         name="search"
         role="search"
         disabled
         testID="new-session-tab"
-        accessibilityLabel="新建会话"
+        accessibilityLabel={t('tabs.newSession')}
         listeners={{
           tabPress: async () => {
             if (creating.current) return;
             if (!selected) {
-              showToast('请先登录并选择工作区');
+              showToast(t('tabs.toast.signInFirst'));
               return;
             }
             creating.current = true;
@@ -41,7 +46,9 @@ export default function TabsLayout() {
         }}
       >
         <NativeTabs.Trigger.Icon sf="square.and.pencil" />
-        <NativeTabs.Trigger.Label>新建会话</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>
+          {t('tabs.newSession')}
+        </NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );

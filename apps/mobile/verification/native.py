@@ -12,13 +12,14 @@ parser.add_argument('--udid', required=True)
 args = parser.parse_args()
 sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'], text=True).strip()
 checks = {
-    'chat': ['Chat/ChatTranscript.swift', 'Chat/ChatStream.swift', 'Chat/ChatTextFade.swift'],
+    'strings': ['LodyStrings.swift'],
+    'chat': ['LodyStrings.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatStream.swift', 'Chat/ChatTextFade.swift'],
     'watchdog': ['Cloud/RuntimeHealth.swift'],
     'local-store': ['Cloud/LocalStore.swift'],
     'content-store': ['Cloud/ContentStore.swift'],
     'chat-render': ['Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift'],
-    'composer': ['UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatAttachmentSheet.swift', 'Chat/ChatComposerView.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'LodyTint.swift'],
-    'attachments': ['Cloud/SessionAttachments.swift'],
+    'composer': ['LodyStrings.swift', 'UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatAttachmentSheet.swift', 'Chat/ChatComposerView.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'LodyTint.swift'],
+    'attachments': ['LodyStrings.swift', 'Cloud/SessionAttachments.swift'],
     'diff-font': ['Diff/DiffWebTypography.swift'],
 }
 with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:

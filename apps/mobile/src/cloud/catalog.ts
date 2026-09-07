@@ -3,6 +3,7 @@ import { fromByteArray } from 'base64-js';
 import { decodeFlock } from '@lody-ios/kit';
 import { getStreamsGrant, record } from './auth.ts';
 import type { Catalog } from './model.ts';
+import { t } from '../i18n/index.ts';
 
 async function readCatalog(
   grant: { token: string; gatewayBaseUrl: string },
@@ -21,7 +22,9 @@ async function readCatalog(
   if (!bootstrap.ok && bootstrap.result.code === 'not_found' && mode !== 'meta')
     return { projects: [], sessions: [], machineIds: [] };
   if (!bootstrap.ok)
-    throw new Error(`工作区读取失败（${bootstrap.result.code}）`);
+    throw new Error(
+      t('workspace.error.bootstrapFailed', { code: bootstrap.result.code }),
+    );
   const data = bootstrap.result;
   const snapshot =
     data.snapshotOffset !== '-1' ? data.snapshot?.body : undefined;
@@ -38,18 +41,20 @@ async function readCatalog(
   ) {
     const response = await client.read({ offset, signal });
     if (!response.ok)
-      throw new Error(`工作区增量读取失败（${response.result.code}）`);
+      throw new Error(
+        t('workspace.error.incrementalFailed', { code: response.result.code }),
+      );
     const next = response.result;
     if (next.nextOffset === offset && !next.upToDate)
-      throw new Error('同步游标没有推进');
+      throw new Error(t('workspace.error.cursorStalled'));
     updates.push(next.payload.body);
     size += next.payload.body.length;
     offset = next.nextOffset;
     complete = next.upToDate;
   }
   if (!complete || size > 8 * 1024 * 1024)
-    throw new Error('工作区超出 POC 单次读取上限，未展示不完整数据');
-  if (signal.aborted) throw new Error('已取消');
+    throw new Error(t('workspace.error.tooLarge'));
+  if (signal.aborted) throw new Error(t('common.cancelled'));
   const result = record(
     JSON.parse(
       await decodeFlock(
@@ -59,13 +64,13 @@ async function readCatalog(
       ),
     ),
   );
-  if (signal.aborted) throw new Error('已取消');
+  if (signal.aborted) throw new Error(t('common.cancelled'));
   if (
     !Array.isArray(result.projects) ||
     !Array.isArray(result.sessions) ||
     !Array.isArray(result.machineIds)
   )
-    throw new Error('无效的目录数据');
+    throw new Error(t('workspace.error.invalidCatalog'));
   return result as unknown as Catalog;
 }
 export async function loadCatalog(

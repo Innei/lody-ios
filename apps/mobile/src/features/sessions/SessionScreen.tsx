@@ -22,6 +22,7 @@ import { changedFiles } from './transcript/changes';
 import { permissionPage } from './detail/permissionPage';
 import { useProcessSheet } from './detail/processPage';
 import type { ModelChoice } from './ModelScreen';
+import { t } from '../../i18n/index.ts';
 
 function composerPlaceholder({
   archived,
@@ -34,9 +35,9 @@ function composerPlaceholder({
   overflow: boolean;
   live: boolean;
 }) {
-  if (archived) return '此会话已归档';
-  if (!disconnected && !overflow && !live) return '正在连接，可先输入…';
-  return '给 Lody 发消息…';
+  if (archived) return t('chat.composer.archived');
+  if (!disconnected && !overflow && !live) return t('chat.composer.connecting');
+  return t('chat.composer.placeholder');
 }
 
 type SessionParams = {
@@ -131,23 +132,27 @@ function SessionScreen() {
   const showDetails = () =>
     Alert.alert(
       currentSession.title,
-      [project?.name, project?.rootPath, `电脑：${currentSession.machineId}`]
+      [
+        project?.name,
+        project?.rootPath,
+        t('session.detail.machine', { name: currentSession.machineId }),
+      ]
         .filter(Boolean)
         .join('\n'),
       browsable && account
         ? [
             {
-              text: '项目文件',
+              text: t('session.action.projectFiles'),
               onPress: () =>
                 void present(filesPage, {
                   workspaceId: selected.id,
                   sessionId: session.id,
                   userId: account.user.id,
                   path: '',
-                  title: project?.name ?? '项目文件',
+                  title: project?.name ?? t('session.action.projectFiles'),
                 }),
             },
-            { text: '好', style: 'cancel' },
+            { text: t('common.ok'), style: 'cancel' },
           ]
         : undefined,
     );
@@ -222,7 +227,10 @@ function SessionScreen() {
 
   const onActivityPress = (entryId: string, itemId: string) => {
     if (snapshot.status !== 'live') {
-      Alert.alert('正在同步', '对话已保存在本地，详细活动将在连接恢复后可用。');
+      Alert.alert(
+        t('session.alert.syncing.title'),
+        t('session.alert.syncing.message'),
+      );
       return;
     }
     const entry = snapshot.entries.find((e) => e.id === entryId);
@@ -260,8 +268,9 @@ function SessionScreen() {
   );
   const openProcess = useProcessSheet(entriesJSON, onActivityPress);
   let notice = '';
-  if (overflow) notice = '同步已停止 · 内容可能不是最新';
-  else if (disconnected && !send.sending) notice = '连接已暂停 · 点此重新同步';
+  if (overflow) notice = t('chat.notice.syncStopped');
+  else if (disconnected && !send.sending)
+    notice = t('chat.notice.connectionPaused');
   const composerJSON = JSON.stringify({
     editable: !currentSession.archived,
     canSend: send.canSend,
@@ -295,7 +304,10 @@ function SessionScreen() {
         }}
       />
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu icon="ellipsis.circle" accessibilityLabel="更多">
+        <Stack.Toolbar.Menu
+          icon="ellipsis.circle"
+          accessibilityLabel={t('common.more')}
+        >
           <Stack.Toolbar.MenuAction
             icon="square.and.pencil"
             onPress={() => {
@@ -303,7 +315,7 @@ function SessionScreen() {
                 void newSession(selected.id, catalog, currentSession.projectId);
             }}
           >
-            新建会话
+            {t('session.action.newSession')}
           </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction
             icon={currentSession.pinned ? 'pin.slash' : 'pin'}
@@ -317,7 +329,11 @@ function SessionScreen() {
                 );
             }}
           >
-            {currentSession.pinned ? '取消置顶' : '置顶'}
+            {t(
+              currentSession.pinned
+                ? 'session.action.unpin'
+                : 'session.action.pin',
+            )}
           </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction
             icon={currentSession.archived ? 'tray.and.arrow.up' : 'archivebox'}
@@ -331,7 +347,11 @@ function SessionScreen() {
                 );
             }}
           >
-            {currentSession.archived ? '取消归档' : '归档'}
+            {t(
+              currentSession.archived
+                ? 'session.action.unarchive'
+                : 'session.action.archive',
+            )}
           </Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
@@ -357,8 +377,8 @@ function SessionScreen() {
         restoreDraftToken={send.restoreDraftToken}
         emptyText={
           snapshot.status === 'live'
-            ? '想继续做些什么？\n消息会与电脑同步，随时接着聊。'
-            : '正在取回对话…'
+            ? t('chat.empty.prompt')
+            : t('chat.empty.loading')
         }
         onSend={({ nativeEvent }) =>
           send.submit({
@@ -401,7 +421,7 @@ function SessionScreen() {
 }
 export const sessionPage = definePage<SessionParams>({
   id: 'session',
-  title: '消息',
+  title: t('session.title'),
   Component: SessionScreen,
   parseRouteParams: () => {
     throw new Error('请从会话列表打开');

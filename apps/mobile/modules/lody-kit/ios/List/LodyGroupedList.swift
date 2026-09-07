@@ -556,7 +556,7 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
         if view.accessories.isEmpty {
           view.accessories = [.customView(configuration: .init(customView: arrow, placement: .trailing()))]
         }
-        view.accessibilityValue = expanded ? "已展开" : "已折叠"
+        view.accessibilityValue = LodyStrings.text(expanded ? "native.list.expanded" : "native.list.collapsed")
       } else {
         view.accessories = [.disclosureIndicator()]
       }

@@ -5,6 +5,7 @@ import { useSheetHeader } from '@/presentation/SheetStack';
 import type { Project } from '@/cloud/model';
 import { usePalette } from '@/theme/palette';
 import { directoryPage } from './DirectoryScreen';
+import { t } from '../../i18n/index.ts';
 
 type Params = { workspaceId: string; projects: Project[]; selectedId: string };
 function ProjectPickerScreen() {
@@ -16,7 +17,7 @@ function ProjectPickerScreen() {
       {
         type: 'button' as const,
         icon: { type: 'sfSymbol' as const, name: 'folder.badge.plus' },
-        accessibilityLabel: '浏览电脑上的文件夹',
+        accessibilityLabel: t('projectPicker.browse.accessibility'),
         onPress: async () => {
           if (opening.current) return;
           opening.current = true;
@@ -40,14 +41,14 @@ function ProjectPickerScreen() {
       style={{ flex: 1 }}
       transparent
       accent={colors.accent}
-      placeholder="还没有项目，点右上角浏览电脑上的文件夹。"
+      placeholder={t('projectPicker.empty')}
       sections={[
         {
           id: 'projects',
           rows: params.projects.map((p) => ({
             id: p.id,
             title: p.name,
-            subtitle: p.rootPath || '云端项目',
+            subtitle: p.rootPath || t('project.cloud'),
             subtitleMono: !!p.rootPath,
             image: p.id === params.selectedId ? 'checkmark' : undefined,
             action: true,
@@ -63,7 +64,7 @@ function ProjectPickerScreen() {
 }
 export const projectPickerPage = definePage<Params, Project>({
   id: 'project-picker',
-  title: '选择项目',
+  title: t('create.row.selectProject'),
   Component: ProjectPickerScreen,
   parseRouteParams: () => {
     throw new Error('请从新建会话打开');

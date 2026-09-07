@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[4] / 'verification/ui'))
 from driver import UI
+import catalog
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('udid')
@@ -16,7 +17,8 @@ ui.axe('tap', '--id', 'session-input')
 ui.axe('type', 'Offline draft\nKeep the attachment')
 draft = ui.element('session-input')['AXValue']
 def attachments(items):
-    return [i['AXLabel'] for i in items if (i.get('AXLabel') or '').startswith('预览附件 ')]
+    prefix = catalog.text('native.chat.attachment.preview', name='')
+    return [i['AXLabel'] for i in items if (i.get('AXLabel') or '').startswith(prefix)]
 picked = attachments(ui.state())
 assert picked, 'Synthetic attachment missing'
 ui.capture('draft')
@@ -32,7 +34,7 @@ if args.expect == 'failure':
     ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-input' and i.get('AXValue') == draft for i in items), 'Exact draft not restored')
     assert attachments(ui.state()) == picked and ui.element('session-send')['enabled']
 else:
-    ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-send' and i.get('AXLabel') == '发送' for i in items), 'Send did not settle')
+    ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-send' and i.get('AXLabel') == catalog.text('native.chat.composer.send') for i in items), 'Send did not settle')
     assert not ui.element('session-input').get('AXValue') and not attachments(ui.state())
 assert ui.element('composer-result')['AXLabel'] == 'Requests: 1', 'Double tap must produce one request'
 ui.capture('settled')

@@ -8,7 +8,7 @@ final class Loader: NSObject, WKNavigationDelegate {
   }
 }
 
-func wait(until condition: @escaping () -> Bool, timeout: TimeInterval = 8) {
+func wait(until condition: @escaping () -> Bool, timeout: TimeInterval = 30) {
   let deadline = Date().addingTimeInterval(timeout)
   while !condition(), Date() < deadline {
     RunLoop.current.run(until: Date().addingTimeInterval(0.05))

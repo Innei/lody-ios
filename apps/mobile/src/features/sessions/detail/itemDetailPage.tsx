@@ -8,6 +8,7 @@ import { Button } from '@/ui/Button';
 import { Screen } from '@/ui/Screen';
 import type { Envelope } from '../transcript/types';
 import { Blocks, RawBlock, type DetailResponse } from './DetailBlocks';
+import { t } from '../../../i18n/index.ts';
 
 export type ItemDetailParams = {
   sessionId: string;
@@ -55,7 +56,7 @@ function ItemDetailScreen() {
       }));
       setError('');
     } catch {
-      if (at === generation.current) setError('取回详情失败');
+      if (at === generation.current) setError(t('detail.error.load'));
     } finally {
       if (at === generation.current) setLoading(false);
     }
@@ -112,13 +113,13 @@ function ItemDetailScreen() {
         return (
           <View key={itemId} style={{ gap: 12 }}>
             <Blocks blocks={detail.blocks} />
-            <RawBlock title="原始输入" value={detail.rawInput} />
-            <RawBlock title="原始输出" value={detail.rawOutput} />
+            <RawBlock title={t('detail.rawInput')} value={detail.rawInput} />
+            <RawBlock title={t('detail.rawOutput')} value={detail.rawOutput} />
             {detail.truncated ? (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <AppText variant="meta">内容已截断</AppText>
+                <AppText variant="meta">{t('detail.truncated')}</AppText>
                 <Button
-                  label="继续加载"
+                  label={t('detail.loadMore')}
                   onPress={() => void load(itemId, detail.nextCursor)}
                 />
               </View>
@@ -131,7 +132,7 @@ function ItemDetailScreen() {
           <AppText variant="meta" style={{ color: colors.danger }}>
             {error}
           </AppText>
-          <Button label="重试" onPress={loadAll} />
+          <Button label={t('common.retry')} onPress={loadAll} />
         </View>
       ) : null}
     </Screen>
@@ -140,7 +141,7 @@ function ItemDetailScreen() {
 
 export const itemDetailPage = definePage<ItemDetailParams>({
   id: 'session-item-detail',
-  title: '详情',
+  title: t('detail.title'),
   Component: ItemDetailScreen,
   parseRouteParams: () => {
     throw new Error('请从会话页打开');

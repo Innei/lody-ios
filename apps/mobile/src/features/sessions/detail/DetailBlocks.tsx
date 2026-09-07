@@ -3,6 +3,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { NativeDiff } from '@lody-ios/kit';
 import { usePalette } from '@/theme/palette';
 import { AppText } from '@/ui/AppText';
+import { t } from '../../../i18n/index.ts';
 
 export type DetailBlock = {
   type: string;
@@ -90,7 +91,7 @@ export function OutputBlock({ block }: { block: DetailBlock }) {
     >
       {typeof code === 'number' && code !== 0 ? (
         <AppText variant="meta" style={{ color: colors.danger }}>
-          退出码 {code}
+          {t('detail.exitCode', { code })}
         </AppText>
       ) : null}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -113,7 +114,7 @@ export function RawBlock({ title, value }: { title: string; value: unknown }) {
         style={{ minHeight: 44, justifyContent: 'center' }}
       >
         <AppText variant="meta" style={{ color: colors.accent }}>
-          {expanded ? `收起${title}` : `查看${title}`}
+          {t(expanded ? 'detail.collapse' : 'detail.expand', { title })}
         </AppText>
       </Pressable>
       {expanded ? (

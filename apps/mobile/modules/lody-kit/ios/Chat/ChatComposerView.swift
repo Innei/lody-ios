@@ -7,7 +7,7 @@ private struct ChatComposerState: Decodable {
   var sending = false
   var notice = ""
   var reconnect = false
-  var placeholder = "给 Lody 发消息…"
+  var placeholder = LodyStrings.text("native.chat.composer.placeholder")
 }
 
 private struct ChatComposerOption: Decodable {
@@ -24,12 +24,13 @@ private struct ChatComposerOptions: Decodable {
 
 private extension ChatComposerOptions {
   var modelTitle: String {
-    models.first { $0.id == modelId }?.title ?? (modelId.isEmpty ? "默认模型" : modelId)
+    models.first { $0.id == modelId }?.title
+      ?? (modelId.isEmpty ? LodyStrings.text("native.chat.composer.defaultModel") : modelId)
   }
   var effortTitle: String {
     let title = efforts.first { $0.id == effort }?.title ?? effort
     switch title.lowercased() {
-    case "": return "默认"
+    case "": return LodyStrings.text("native.chat.composer.defaultEffort")
     case "xhigh": return "Extra High"
     default: return title.replacingOccurrences(of: "_", with: " ").capitalized
     }
@@ -234,7 +235,7 @@ private final class ChatComposerPopover: UIViewController, UIPopoverPresentation
     view.backgroundColor = .secondarySystemGroupedBackground
     model.showsMenuAsPrimaryAction = true
     model.accessibilityIdentifier = "composer-model-menu"
-    slider.accessibilityLabel = "思考强度"
+    slider.accessibilityLabel = LodyStrings.text("native.chat.composer.effort")
     slider.accessibilityIdentifier = "composer-effort-slider"
     slider.addTarget(self, action: #selector(changeEffort), for: .valueChanged)
     for child in [model, slider] {
@@ -275,9 +276,12 @@ private final class ChatComposerPopover: UIViewController, UIPopoverPresentation
       return attributes
     }
     model.configuration = configuration
-    model.accessibilityLabel = "选择模型，\(options.modelTitle)，\(options.effortTitle)"
+    model.accessibilityLabel = LodyStrings.text(
+      "native.chat.composer.modelPicker",
+      ["model": options.modelTitle, "effort": options.effortTitle]
+    )
     model.menu = UIMenu(children: [
-      UIAction(title: "默认模型", state: options.modelId.isEmpty ? .on : .off) { [weak self] _ in self?.onModel?("") },
+      UIAction(title: LodyStrings.text("native.chat.composer.defaultModel"), state: options.modelId.isEmpty ? .on : .off) { [weak self] _ in self?.onModel?("") },
     ] + options.models.map { option in
       UIAction(title: option.title, state: option.id == options.modelId ? .on : .off) { [weak self] _ in self?.onModel?(option.id) }
     })
@@ -400,7 +404,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     input.textContainerInset = UIEdgeInsets(top: 13, left: 16, bottom: 13, right: 46)
     input.delegate = self
     input.accessibilityIdentifier = "session-input"
-    input.accessibilityLabel = "消息"
+    input.accessibilityLabel = LodyStrings.text("native.chat.composer.input")
     hint.text = state.placeholder
     hint.font = input.font
     hint.textColor = .placeholderText
@@ -416,7 +420,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       sendSpinner.centerXAnchor.constraint(equalTo: send.centerXAnchor),
       sendSpinner.centerYAnchor.constraint(equalTo: send.centerYAnchor),
     ])
-    send.accessibilityLabel = "发送"
+    send.accessibilityLabel = LodyStrings.text("native.chat.composer.send")
     send.accessibilityIdentifier = "session-send"
     send.addTarget(self, action: #selector(submit), for: .touchUpInside)
     NotificationCenter.default.addObserver(self, selector: #selector(appDidEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
@@ -424,16 +428,16 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     attach.configuration = .plain()
     attach.configuration?.cornerStyle = .capsule
     attach.tintColor = .secondaryLabel
-    attach.accessibilityLabel = "添加附件"
+    attach.accessibilityLabel = LodyStrings.text("native.chat.composer.attach")
     attach.accessibilityIdentifier = "session-attach"
     attach.showsMenuAsPrimaryAction = true
     attach.menu = UIMenu(children: [
-      UIAction(title: "最近照片", image: UIImage(systemName: "photo")) { [weak self] _ in self?.presentRecentPhotos() },
-      UIAction(title: "照片图库", image: UIImage(systemName: "photo.on.rectangle.angled")) { [weak self] _ in
+      UIAction(title: LodyStrings.text("native.chat.composer.recentPhotos"), image: UIImage(systemName: "photo")) { [weak self] _ in self?.presentRecentPhotos() },
+      UIAction(title: LodyStrings.text("native.chat.composer.photoLibrary"), image: UIImage(systemName: "photo.on.rectangle.angled")) { [weak self] _ in
         guard let self, let controller = self.presenter() else { return }
         self.libraryPicker.present(from: controller)
       },
-      UIAction(title: "文件", image: UIImage(systemName: "folder")) { [weak self] _ in
+      UIAction(title: LodyStrings.text("native.chat.composer.files"), image: UIImage(systemName: "folder")) { [weak self] _ in
         guard let self, let controller = self.presenter() else { return }
         self.filePicker.files(from: controller)
       },
@@ -664,10 +668,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     hint.text = state.placeholder
     hint.isHidden = !input.text.isEmpty
     send.isEnabled = failedDraft == nil && displayError == nil && state.editable && state.canSend && !sending && (!input.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty)
-    send.accessibilityLabel = sending ? "正在发送" : "发送"
+    send.accessibilityLabel = LodyStrings.text(sending ? "native.chat.composer.sending" : "native.chat.composer.send")
     send.setImage(sending ? nil : UIImage(systemName: "arrow.up.circle.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 26, weight: .medium)), for: .normal)
     if sending { sendSpinner.startAnimating() } else { sendSpinner.stopAnimating() }
-    let noticeText = failedDraft == nil ? (displayError ?? state.notice) : "有一条未发出的消息 · 点此合并到草稿"
+    let noticeText = failedDraft == nil ? (displayError ?? state.notice) : LodyStrings.text("native.chat.composer.failedDraft")
     let canReconnect = failedDraft != nil || displayError != nil || state.reconnect
     notice.setTitle(noticeText, for: .normal)
     notice.setTitleColor(canReconnect ? .systemBlue : .secondaryLabel, for: .normal)
@@ -707,7 +711,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     configuration.baseForegroundColor = .secondaryLabel
     configuration.titleLineBreakMode = .byTruncatingTail
     modelButton.configuration = configuration
-    modelButton.accessibilityLabel = "模型与强度，" + title.string
+    modelButton.accessibilityLabel = LodyStrings.text("native.chat.composer.modelButton", ["summary": title.string])
     optionsPopover?.render(composerOptions)
     if !modelButton.isEnabled { optionsPopover?.dismiss(animated: true) }
   }

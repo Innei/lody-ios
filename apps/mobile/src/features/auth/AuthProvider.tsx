@@ -35,6 +35,7 @@ import {
   type SavedAccount,
   type SavedCatalog,
 } from '@/cloud/local';
+import { t } from '../../i18n/index.ts';
 
 type Account = { token: string; user: User; workspaces: Workspace[] };
 type AuthState = {
@@ -119,18 +120,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
         update(signal, { initialCatalog: null, initialWorkspace: '' });
       }
       await writeLocal('account', account).catch(() =>
-        showToast('本地账号保存失败，下次启动可能需要联网恢复'),
+        showToast(t('auth.toast.accountSaveFailed')),
       );
       update(signal, { account: { token, ...account } });
     } catch (error) {
       if (error instanceof AuthError && !signal.aborted) {
         update(signal, { account: null, initialCatalog: null });
         await Promise.all([clearLocal(), clearAuthToken()]).catch(() =>
-          showToast('无法完全清除本地登录信息，请重试'),
+          showToast(t('auth.toast.clearLocalFailed')),
         );
       }
       update(signal, {
-        error: error instanceof Error ? error.message : '登录恢复失败',
+        error:
+          error instanceof Error
+            ? error.message
+            : t('auth.error.restoreFailed'),
       });
     } finally {
       update(signal, { busy: false, localReady: true });
@@ -144,21 +148,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
     try {
       const code = await requestDeviceCode(signal);
       update(signal, { code });
-      if (signal.aborted) throw new Error('已取消');
+      if (signal.aborted) throw new Error(t('common.cancelled'));
       await openAuthBrowser(code.verification_uri_complete);
       const token = await pollDeviceToken(code, signal);
       const account = await getAccount(token, signal);
-      if (signal.aborted) throw new Error('已取消');
+      if (signal.aborted) throw new Error(t('common.cancelled'));
       await clearLocal();
       await saveAuthToken(token);
       await writeLocal('account', account).catch(() =>
-        showToast('本地账号保存失败，下次启动可能需要联网恢复'),
+        showToast(t('auth.toast.accountSaveFailed')),
       );
-      if (signal.aborted) throw new Error('已取消');
+      if (signal.aborted) throw new Error(t('common.cancelled'));
       update(signal, { account: { token, ...account }, code: null });
     } catch (error) {
       update(signal, {
-        error: error instanceof Error ? error.message : '登录失败',
+        error:
+          error instanceof Error ? error.message : t('auth.error.signInFailed'),
         code: null,
       });
     } finally {
@@ -183,7 +188,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (token) await authRequest('/sign-out', { token, body: {}, signal });
     } catch {
       update(signal, {
-        error: '退出未完全完成，请重试；本机凭据是否清除以当前登录状态为准',
+        error: t('auth.error.signOutIncomplete'),
       });
     } finally {
       update(signal, { busy: false, localReady: true });
@@ -194,7 +199,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     try {
       await openAuthBrowser(state.code.verification_uri_complete);
     } catch {
-      setState((s) => ({ ...s, error: '无法打开授权页，请取消后重试' }));
+      setState((s) => ({ ...s, error: t('auth.error.openAuthorizePage') }));
     }
   }
   useEffect(() => {

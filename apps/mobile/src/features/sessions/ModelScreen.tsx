@@ -3,6 +3,7 @@ import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
 import type { Capability } from '@/cloud/model';
+import { t } from '../../i18n/index.ts';
 
 export type ModelChoice = {
   modelId?: string;
@@ -33,7 +34,7 @@ export function hasModelTabs(capability: Capability) {
 export function modelSummary(capability: Capability, value: ModelChoice) {
   const model = capability.models.find((m) => m.id === value.modelId);
   const mode = capability.modes.find((m) => m.id === value.modeId);
-  return [model?.name ?? '默认模型', value.effort, mode?.name]
+  return [model?.name ?? t('model.default'), value.effort, mode?.name]
     .filter(Boolean)
     .join(' · ');
 }
@@ -49,11 +50,15 @@ function ModelScreen() {
 
   const tabs = hasModelTabs(capability)
     ? [
-        { id: 'model', title: '模型' },
-        ...(efforts.length ? [{ id: 'effort', title: '强度' }] : []),
-        ...(capability.modes.length ? [{ id: 'mode', title: '模式' }] : []),
+        { id: 'model', title: t('model.tab.model') },
+        ...(efforts.length
+          ? [{ id: 'effort', title: t('model.tab.effort') }]
+          : []),
+        ...(capability.modes.length
+          ? [{ id: 'mode', title: t('model.tab.mode') }]
+          : []),
       ]
-    : [{ id: 'model', title: '模型' }];
+    : [{ id: 'model', title: t('model.tab.model') }];
   const [tab, setTab] = useState(0);
   const active = tabs[Math.min(tab, tabs.length - 1)]!.id;
 
@@ -70,7 +75,7 @@ function ModelScreen() {
   }[];
   if (active === 'model') {
     rows = [
-      { id: DEFAULT, title: '使用助手默认', selected: !value.modelId },
+      { id: DEFAULT, title: t('model.useDefault'), selected: !value.modelId },
       ...capability.models.map((model) => ({
         id: model.id,
         title: model.name,
@@ -80,7 +85,7 @@ function ModelScreen() {
     ];
   } else if (active === 'effort') {
     rows = [
-      { id: DEFAULT, title: '使用助手默认', selected: !value.effort },
+      { id: DEFAULT, title: t('model.useDefault'), selected: !value.effort },
       ...efforts.map((effort) => ({
         id: effort,
         title: effort,
@@ -89,7 +94,7 @@ function ModelScreen() {
     ];
   } else {
     rows = [
-      { id: DEFAULT, title: '使用助手默认', selected: !value.modeId },
+      { id: DEFAULT, title: t('model.useDefault'), selected: !value.modeId },
       ...capability.modes.map((mode) => ({
         id: mode.id,
         title: mode.name,
@@ -100,9 +105,9 @@ function ModelScreen() {
   }
 
   const footers = {
-    effort: '推理强度只对支持它的模型生效。',
-    mode: '模式决定助手能不能直接改文件和执行命令。',
-    model: '换模型会重置为该模型支持的推理强度。',
+    effort: t('model.footer.effort'),
+    mode: t('model.footer.mode'),
+    model: t('model.footer.model'),
   };
 
   const sections: NativeListSection[] = [
@@ -143,7 +148,7 @@ function ModelScreen() {
 
 export const modelPage = definePage<Params>({
   id: 'model',
-  title: '模型',
+  title: t('model.title'),
   Component: ModelScreen,
   parseRouteParams: () => {
     throw new Error('请从新建会话打开');

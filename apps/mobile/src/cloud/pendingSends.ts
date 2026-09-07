@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { ChatDraftAttachment } from '@lody-ios/kit';
 import type { Session } from './model';
 import { localGeneration, readLocal, writeLocal } from './local';
+import { t } from '../i18n/index.ts';
 
 export type PendingSend = {
   id: string;
@@ -68,7 +69,7 @@ function createStore(key: string, generation: number) {
               send: {
                 ...record.send,
                 phase: 'unknown' as const,
-                reason: '操作结果待确认，请等待同步，不要重复发送。',
+                reason: t('send.reason.awaitingConfirmation'),
               },
             };
           });

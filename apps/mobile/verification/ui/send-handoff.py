@@ -1,6 +1,7 @@
 """Real form-sheet dismissal/root push with the same local native message."""
 import sys
 from driver import UI
+import catalog
 ui = UI(*sys.argv[1:])
 ui.axe('tap', '--id', 'create-session-input')
 ui.axe('type', 'Carry this message\nInto the new conversation')
@@ -16,7 +17,7 @@ ui.capture('target-offline')
 ui.axe('tap', '--id', 'send-connect')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 1 · creating' for i in items), 'Creation did not start')
 ui.axe('tap', '--id', 'send-fail')
-ui.wait(lambda items: any(i.get('AXLabel') == '消息尚未发送' for i in items), 'Creation failure missing')
+ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('send.alert.title') for i in items), 'Creation failure missing')
 ui.axe('tap', '--label', 'OK')
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-input' and i.get('AXValue') == draft for i in items), 'Cross-page failed draft not restored')
 assert not any(i.get('AXUniqueId') in [turn + ':user', turn + ':pending'] for i in ui.state())

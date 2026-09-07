@@ -8,6 +8,9 @@ import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / 'verification/ui'))
+import catalog
 
 udid, output = sys.argv[1:]
 out = pathlib.Path(output)
@@ -64,7 +67,7 @@ time.sleep(1)
 shot('ultra-flow')
 frame = element('composer-effort-slider')['frame']
 axe('swipe', '--start-x', str(frame['x'] + frame['width'] - 16), '--start-y', str(frame['y'] + 22), '--end-x', str(frame['x'] + 16), '--end-y', str(frame['y'] + 22), '--duration', '0.6')
-assert '默认' in element('composer-model-menu')['AXLabel']
+assert catalog.text('native.chat.composer.defaultEffort') in element('composer-model-menu')['AXLabel']
 time.sleep(1)
 recording.send_signal(signal.SIGINT)
 recording.wait(timeout=10)
@@ -74,7 +77,7 @@ axe('tap', '--id', 'composer-model-menu')
 shot('models')
 axe('tap', '--label', 'GPT-6 Astra', '--element-type', 'Button')
 time.sleep(0.5)
-assert 'GPT-6 Astra，默认' in element('composer-model-menu')['AXLabel'], 'Model switch must reset effort'
+assert catalog.text('native.chat.composer.modelPicker', model='GPT-6 Astra', effort=catalog.text('native.chat.composer.defaultEffort')) == element('composer-model-menu')['AXLabel'], 'Model switch must reset effort'
 slide(2 / 5)
 assert 'Medium' in element('composer-model-menu')['AXLabel']
 shot('panel')
@@ -83,6 +86,6 @@ axe('tap', '-x', '20', '-y', '160')
 time.sleep(0.5)
 assert 'GPT-6 Astra Medium' in element('session-model')['AXLabel']
 axe('tap', '--id', 'session-model', '--post-delay', '0.5')
-assert 'GPT-6 Astra，Medium' in element('composer-model-menu')['AXLabel']
+assert catalog.text('native.chat.composer.modelPicker', model='GPT-6 Astra', effort='Medium') == element('composer-model-menu')['AXLabel']
 shot('reopened')
 print('PASS: combined entry, effort endpoints, drag to default, model switch, RN echo and reopen')

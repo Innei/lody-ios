@@ -8,11 +8,15 @@ import { useConnection } from '@/cloud/connection';
 import { usePalette } from '@/theme/palette';
 import { relativeTime } from '@/ui/time';
 import { showToast } from '@/ui/toast';
+import { t, tp } from '../../i18n/index.ts';
 
 const connectionRow = {
-  live: { symbol: 'circle.fill', label: '已连接' },
-  syncing: { symbol: 'circle', label: '正在同步' },
-  offline: { symbol: 'xmark.octagon.fill', label: '连接已中断' },
+  live: { symbol: 'circle.fill', label: 'settings.connection.live' },
+  syncing: { symbol: 'circle', label: 'settings.connection.syncing' },
+  offline: {
+    symbol: 'xmark.octagon.fill',
+    label: 'settings.connection.offline',
+  },
 } as const;
 
 export default function SettingsScreen() {
@@ -29,12 +33,13 @@ export default function SettingsScreen() {
   const sections: NativeListSection[] = [
     {
       id: 'account',
-      header: '账号',
+      header: t('settings.section.account'),
       rows: [
         {
           id: 'account',
-          title: auth.account?.user.name ?? '欢迎使用 Lody',
-          subtitle: auth.account?.user.email ?? '登录后连接你的工作区',
+          title: auth.account?.user.name ?? t('settings.account.welcome'),
+          subtitle:
+            auth.account?.user.email ?? t('settings.account.signInHint'),
           image: 'person.crop.circle',
           action: true,
           disclosure: true,
@@ -44,16 +49,18 @@ export default function SettingsScreen() {
     },
     {
       id: 'connection',
-      header: '连接',
+      header: t('settings.section.connection'),
       rows: [
         {
           id: 'connection',
-          title: `${connection.machines} 台电脑`,
+          title: tp('settings.machineCount', connection.machines, {
+            count: connection.machines,
+          }),
           subtitle: [
-            shape.label,
+            t(shape.label),
             connection.state === 'offline'
-              ? '点按重新同步'
-              : synced && `同步于 ${synced}`,
+              ? t('settings.connection.tapToResync')
+              : synced && t('settings.connection.syncedAt', { time: synced }),
           ]
             .filter(Boolean)
             .join(' · '),
@@ -69,7 +76,7 @@ export default function SettingsScreen() {
     },
     {
       id: 'about',
-      header: '关于',
+      header: t('settings.section.about'),
       rows: [
         {
           id: 'about',
@@ -83,13 +90,13 @@ export default function SettingsScreen() {
     },
     {
       id: 'credits',
-      header: '致谢',
-      footer: '感谢 FlowDown 为原生聊天体验带来的启发。',
+      header: t('settings.section.thanks'),
+      footer: t('settings.thanks.footer'),
       rows: [
         {
           id: 'credit-flowdown',
           title: 'FlowDown',
-          subtitle: '聊天架构与流式文字展示参考',
+          subtitle: t('settings.thanks.flowdown'),
           image: 'arrow.up.right.square',
           action: true,
         },
@@ -100,8 +107,8 @@ export default function SettingsScreen() {
   if (__DEV__)
     sections.push({
       id: 'developer',
-      header: '开发者',
-      footer: '仅开发构建显示。',
+      header: t('settings.section.developer'),
+      footer: t('settings.developer.footer'),
       rows: [
         {
           id: 'debug-open',
@@ -127,7 +134,7 @@ export default function SettingsScreen() {
         if (nativeEvent.id === 'connection') refresh();
         if (nativeEvent.id === 'credit-flowdown')
           void Linking.openURL('https://github.com/Lakr233/FlowDown').catch(
-            () => showToast('暂时无法打开项目链接'),
+            () => showToast(t('settings.toast.openProjectLinkFailed')),
           );
       }}
     />

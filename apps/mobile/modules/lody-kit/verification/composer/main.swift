@@ -127,7 +127,7 @@ typingInput.text = "下一条新草稿"
 typingComposer.textViewDidChange(typingInput)
 typingComposer.setPendingSend(rejected)
 precondition(typingInput.text == "下一条新草稿" && !typingSend.isEnabled, "Failed sending must preserve the next draft and require merging before another send")
-let merge = descendants(typingComposer).compactMap { $0 as? UIButton }.first { $0.title(for: .normal)?.contains("合并到草稿") == true }!
+let merge = descendants(typingComposer).compactMap { $0 as? UIButton }.first { $0.title(for: .normal)?.contains("native.chat.composer.failedDraft") == true }!
 for action in merge.actions(forTarget: typingComposer, forControlEvent: .touchUpInside) ?? [] {
   typingComposer.perform(NSSelectorFromString(action))
 }

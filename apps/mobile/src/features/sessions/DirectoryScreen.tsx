@@ -10,6 +10,7 @@ import { useSheetHeader } from '@/presentation/SheetStack';
 import type { Project } from '@/cloud/model';
 import type { Directory } from '../../../modules/lody-kit/data-runtime/local-projects';
 import { usePalette } from '@/theme/palette';
+import { t } from '../../i18n/index.ts';
 
 type Machine = { id: string; name: string };
 type Params = {
@@ -22,14 +23,14 @@ type Params = {
 
 function directoryFooter(error: string, saving: boolean, loading: boolean) {
   if (error) return error;
-  if (saving) return '正在登记文件夹…';
-  if (loading) return '正在读取文件夹…';
+  if (saving) return t('directory.saving');
+  if (loading) return t('directory.loading');
 }
 
 function directoryPlaceholder(loading: boolean, hasMachine: boolean) {
-  if (loading) return '读取中…';
-  if (hasMachine) return '此文件夹没有子文件夹';
-  return '没有可用的电脑';
+  if (loading) return t('common.reading');
+  if (hasMachine) return t('directory.empty');
+  return t('directory.noMachine');
 }
 
 function DirectoryScreen() {
@@ -90,9 +91,7 @@ function DirectoryScreen() {
       } catch {
         if (active)
           setError(
-            machine
-              ? '无法读取文件夹，请确认电脑在线且有访问权限。'
-              : '无法读取电脑列表，请稍后重试。',
+            machine ? t('directory.error.read') : t('directory.error.machines'),
           );
       } finally {
         if (active) setLoading(false);
@@ -127,8 +126,8 @@ function DirectoryScreen() {
       if (mounted.current)
         setError(
           String(cause).includes('project_write_unknown')
-            ? '项目登记结果暂时无法确认。请关闭后查看项目列表，避免重复登记。'
-            : '无法使用此文件夹，请确认电脑连接和目录权限后重试。',
+            ? t('directory.error.registerUnknown')
+            : t('directory.error.register'),
         );
     } finally {
       busy.current = false;
@@ -145,7 +144,11 @@ function DirectoryScreen() {
               variant: 'prominent' as const,
               tintColor: PlatformColor('systemBlue'),
               icon: { type: 'sfSymbol' as const, name: 'checkmark' },
-              accessibilityLabel: saving ? '正在使用文件夹' : '使用此文件夹',
+              accessibilityLabel: t(
+                saving
+                  ? 'directory.accessibility.using'
+                  : 'directory.accessibility.use',
+              ),
               disabled: !directory || loading || saving,
               onPress: () => void confirm(),
             },
@@ -164,13 +167,15 @@ function DirectoryScreen() {
           rows: [
             {
               id: 'path',
-              title: directory?.path ?? params.path ?? '用户主目录',
-              subtitle: '输入路径…',
+              title: directory?.path ?? params.path ?? t('directory.home'),
+              subtitle: t('directory.enterPath'),
               subtitleMono: true,
               action: !saving,
               image: 'folder',
             },
-            ...(error ? [{ id: 'retry', title: '重试', action: !saving }] : []),
+            ...(error
+              ? [{ id: 'retry', title: t('common.retry'), action: !saving }]
+              : []),
           ],
         },
         {
@@ -179,7 +184,7 @@ function DirectoryScreen() {
             id: `entry:${i}`,
             title: entry.name,
             image: 'folder',
-            subtitle: entry.error ? '无访问权限' : undefined,
+            subtitle: entry.error ? t('directory.entry.noAccess') : undefined,
             action: !entry.error && !saving,
             navigates: true,
             disclosure: true,
@@ -192,7 +197,7 @@ function DirectoryScreen() {
                 rows: [
                   {
                     id: 'more',
-                    title: loading ? '读取中…' : '加载更多',
+                    title: t(loading ? 'common.reading' : 'common.loadMore'),
                     action: !loading && !saving,
                   },
                 ],
@@ -213,7 +218,9 @@ function DirectoryScreen() {
               navigates: true,
               disclosure: true,
             })),
-            ...(error ? [{ id: 'retry', title: '重试', action: true }] : []),
+            ...(error
+              ? [{ id: 'retry', title: t('common.retry'), action: true }]
+              : []),
           ],
         },
       ];
@@ -240,7 +247,7 @@ function DirectoryScreen() {
           ],
         });
     } catch {
-      if (mounted.current) setError('读取更多文件夹失败，请重试。');
+      if (mounted.current) setError(t('directory.error.loadMore'));
     } finally {
       if (mounted.current) setLoading(false);
     }
@@ -269,12 +276,12 @@ function DirectoryScreen() {
             );
         } else if (id === 'path') {
           Alert.prompt(
-            '输入电脑上的路径',
-            '请输入绝对路径',
+            t('directory.prompt.title'),
+            t('directory.prompt.message'),
             [
-              { text: '取消', style: 'cancel' },
+              { text: t('common.cancel'), style: 'cancel' },
               {
-                text: '打开',
+                text: t('common.open'),
                 onPress: (path?: string) => {
                   if (path?.trim()) enter(path.trim());
                 },
@@ -296,7 +303,7 @@ function DirectoryScreen() {
 
 export const directoryPage = definePage<Params, Project>({
   id: 'directory',
-  title: '选择文件夹',
+  title: t('directory.title'),
   Component: DirectoryScreen,
   parseRouteParams: () => {
     throw new Error('请从选择项目打开');

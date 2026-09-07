@@ -15,7 +15,26 @@ const PACKAGES = [
   },
 ];
 
-const header = `plugin 'cocoapods-spm'
+const header = `require 'cocoapods/project'
+# CocoaPods' sequential UUID list drops Xcodeproj's uniqueness filter, so objects
+# added late (cocoapods-spm's SPM target dependencies) reuse the project object's
+# own UUID and leave rootObject pointing at a PBXTargetDependency Xcode rejects.
+module LodyUniqueProjectUUIDs
+  def generate_available_uuid_list(count = 100)
+    @lody_uuid_cursor ||= @generated_uuids.size
+    taken = (@generated_uuids + uuids).to_set
+    uniques = []
+    while uniques.size < count
+      candidate = format('%.6s%07X0', @uuid_prefix, @lody_uuid_cursor)
+      @lody_uuid_cursor += 1
+      uniques << candidate unless taken.include?(candidate)
+    end
+    @generated_uuids += uniques
+    @available_uuids += uniques
+  end
+end
+Pod::Project.prepend(LodyUniqueProjectUUIDs)
+plugin 'cocoapods-spm'
 require 'cocoapods-spm/hooks/helpers/update_script'
 # cocoapods-spm 0.1.20 appends to the app target's xcfilelists, which Expo's
 # generated project never creates; touch them so the hook does not raise.
@@ -49,7 +68,7 @@ module.exports = function withMarkdownView(config) {
         'Podfile',
       );
       let contents = fs.readFileSync(podfile, 'utf8');
-      if (!contents.includes("plugin 'cocoapods-spm'"))
+      if (!contents.includes('LodyUniqueProjectUUIDs'))
         contents = header + contents;
       for (const pkg of PACKAGES) {
         if (contents.includes(`spm_pkg "${pkg.name}"`)) continue;

@@ -11,6 +11,7 @@ import {
 import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
 import { filePage } from './filePage';
+import { t, type TranslationKey } from '../../../i18n/index.ts';
 
 export type FilesParams = {
   workspaceId: string;
@@ -22,12 +23,12 @@ export type FilesParams = {
 
 const join = (base: string, name: string) => (base ? `${base}/${name}` : name);
 
-const READ_ERRORS: Record<string, string> = {
-  too_large: '文件太大，无法预览',
-  file_not_found: '文件不存在',
-  permission_denied: '没有读取权限',
-  path_not_allowed: '路径不在项目内',
-  decode_error: '文件内容无法解码',
+const READ_ERRORS: Record<string, TranslationKey> = {
+  too_large: 'files.error.tooLarge',
+  file_not_found: 'files.error.notFound',
+  permission_denied: 'files.error.permissionDenied',
+  path_not_allowed: 'files.error.pathNotAllowed',
+  decode_error: 'files.error.decode',
 };
 
 function FilesScreen() {
@@ -57,8 +58,8 @@ function FilesScreen() {
         if (active)
           setError(
             /permission_denied/.test(String(cause))
-              ? '此会话已归档，无法读取文件'
-              : '无法读取文件夹，请确认电脑在线。',
+              ? t('files.error.archived')
+              : t('files.error.directory'),
           );
       });
     return () => {
@@ -81,7 +82,8 @@ function FilesScreen() {
     try {
       const file = await readFile({ sessionId: params.sessionId, path });
       if (file.status !== 'ok') {
-        showToast(READ_ERRORS[file.code] ?? file.message ?? '无法读取文件');
+        const key = READ_ERRORS[file.code];
+        showToast(key ? t(key) : (file.message ?? t('files.error.read')));
         return;
       }
       if (file.kind === 'image' || file.kind === 'binary')
@@ -93,7 +95,7 @@ function FilesScreen() {
           { title: entry.name },
         );
     } catch {
-      showToast('电脑离线，无法读取文件');
+      showToast(t('files.error.offline'));
     } finally {
       setOpening('');
     }
@@ -102,7 +104,7 @@ function FilesScreen() {
   const sections: NativeListSection[] = [
     {
       id: 'entries',
-      footer: error || (truncated ? '目录过大，仅显示前 2000 项' : undefined),
+      footer: error || (truncated ? t('files.truncated') : undefined),
       rows: [
         ...(entries ?? []).map((entry) => ({
           id: `entry:${entry.name}`,
@@ -113,7 +115,9 @@ function FilesScreen() {
           navigates: entry.type === 'directory',
           disclosure: entry.type === 'directory',
         })),
-        ...(error ? [{ id: 'retry', title: '重试', action: true }] : []),
+        ...(error
+          ? [{ id: 'retry', title: t('common.retry'), action: true }]
+          : []),
       ],
     },
   ];
@@ -123,7 +127,7 @@ function FilesScreen() {
       style={{ flex: 1 }}
       accent={colors.accent}
       sections={sections}
-      placeholder={entries ? '空文件夹' : '读取中…'}
+      placeholder={t(entries ? 'files.emptyFolder' : 'common.reading')}
       onRowPress={({ nativeEvent: { id } }) => {
         if (id === 'retry') {
           setRevision((n) => n + 1);
@@ -138,7 +142,7 @@ function FilesScreen() {
 
 export const filesPage = definePage<FilesParams>({
   id: 'files',
-  title: '项目文件',
+  title: t('files.title'),
   Component: FilesScreen,
   parseRouteParams: () => {
     throw new Error('请从会话打开');

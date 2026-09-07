@@ -26,6 +26,7 @@ import type {
 import { PageRuntimeProvider } from './page';
 import type { PresentationResult } from './presentationStore';
 import { present, type PresentationSession } from './presentationStore';
+import { t } from '../i18n/index.ts';
 
 type HeaderItems = ScreenStackHeaderConfigProps['headerRightBarButtonItems'];
 const SheetHeader = createContext<((items: HeaderItems) => void) | null>(null);
@@ -149,7 +150,9 @@ export function SheetStack({
             session.presentation,
             showClose && !headerItems ? (
               <NativeCloseButton
-                label={`关闭${session.page.title}`}
+                label={t('accessibility.closeSheet', {
+                  title: session.page.title,
+                })}
                 onPress={runtime.cancel}
                 style={{ width: 30, height: 30 }}
               />

@@ -4,6 +4,8 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / 'verification/ui'))
+import catalog
 
 udid, output = sys.argv[1], Path(sys.argv[2])
 output.mkdir(parents=True, exist_ok=True)
@@ -27,13 +29,15 @@ def capture(name):
 
 items = elements()
 height = items[0]['frame']['height']
-source = next(item for item in items if (item.get('AXLabel') or '').startswith('图片，')
+IMAGE = catalog.text('native.chat.image.label', name='')
+CLOSE = catalog.text('native.chat.image.closePreview')
+source = next(item for item in items if (item.get('AXLabel') or '').startswith(IMAGE)
               and item['frame']['y'] > 100 and item['frame']['y'] + item['frame']['height'] < height - 110)
 source_id = source['AXUniqueId']
 assert source_id == 'preview-image:user', 'Use the offline image fixture'
-name = source['AXLabel'].removeprefix('图片，')
+name = source['AXLabel'].removeprefix(IMAGE)
 axe('tap', '--id', source_id, '--post-delay', '1')
-assert any(item.get('AXLabel') == '关闭图片预览' for item in elements()), 'Image must open the lightbox'
+assert any(item.get('AXLabel') == CLOSE for item in elements()), 'Image must open the lightbox'
 capture('opened')
 
 
@@ -52,17 +56,17 @@ zoomed = double_tap()
 assert int(zoomed['AXValue'].rstrip('%')) > 100, 'Double tap must enlarge the image'
 capture('zoomed')
 assert double_tap()['AXValue'] == '100%', 'Second double tap must restore fit'
-axe('tap', '--label', '关闭图片预览', '--post-delay', '0.7')
-assert not any(item.get('AXLabel') == '关闭图片预览' for item in elements())
+axe('tap', '--label', CLOSE, '--post-delay', '0.7')
+assert not any(item.get('AXLabel') == CLOSE for item in elements())
 assert any(item.get('AXUniqueId') == source_id for item in elements()), 'Closing must return to the message'
 capture('closed')
 axe('tap', '--id', source_id, '--post-delay', '1')
-assert any(item.get('AXLabel') == '关闭图片预览' for item in elements())
+assert any(item.get('AXLabel') == CLOSE for item in elements())
 # Explicit HID drag reliably delivers move events to UIKit's interactive transition.
 axe('drag', '--start-x', str(items[0]['frame']['width'] / 2), '--start-y', str(height * 0.45),
     '--end-x', str(items[0]['frame']['width'] / 2), '--end-y', str(height * 0.85),
     '--duration', '0.6', '--post-delay', '2')
-assert not any(item.get('AXLabel') == '关闭图片预览' for item in elements()), 'Drag must dismiss the preview'
+assert not any(item.get('AXLabel') == CLOSE for item in elements()), 'Drag must dismiss the preview'
 assert any(item.get('AXUniqueId') == source_id for item in elements())
 capture('drag-closed')
 print(json.dumps({'open': True, 'doubleTapZoom': zoomed['AXValue'], 'restoreFit': True,

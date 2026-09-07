@@ -5,12 +5,13 @@ import { showToast } from '@/ui/toast';
 import type { Catalog, Session } from '@/cloud/model';
 import { sessionPage } from './SessionScreen';
 import { createSessionPage } from './CreateSessionScreen';
+import { t } from '../../i18n/index.ts';
 
 export async function openSession(session: Session) {
   try {
     await present(sessionPage, { session }, { title: session.title });
   } catch {
-    showToast('暂时无法打开会话，请重试。');
+    showToast(t('session.toast.openFailed'));
   }
 }
 export async function newSession(
@@ -36,7 +37,7 @@ export async function newSession(
         { title: result.value.session.title },
       );
   } catch {
-    showToast('暂时无法新建会话，请重试。');
+    showToast(t('session.toast.createFailed'));
   }
 }
 export async function setArchived(
@@ -48,10 +49,16 @@ export async function setArchived(
     await archiveSession(
       JSON.stringify({ workspaceId, sessionId: session.id, archived }),
     );
-    showToast(archived ? '已归档' : '已取消归档');
+    showToast(
+      t(archived ? 'session.toast.archived' : 'session.toast.unarchived'),
+    );
   } catch {
     showToast(
-      archived ? '暂时无法归档，请重试。' : '暂时无法取消归档，请重试。',
+      t(
+        archived
+          ? 'session.toast.archiveFailed'
+          : 'session.toast.unarchiveFailed',
+      ),
     );
   }
 }
@@ -65,7 +72,9 @@ export async function setPinned(
       JSON.stringify({ workspaceId, sessionId: session.id, pinned }),
     );
   } catch {
-    showToast(pinned ? '暂时无法置顶，请重试。' : '暂时无法取消置顶，请重试。');
+    showToast(
+      t(pinned ? 'session.toast.pinFailed' : 'session.toast.unpinFailed'),
+    );
   }
 }
 export function sessionRowAction(

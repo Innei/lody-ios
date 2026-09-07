@@ -35,7 +35,7 @@ private final class ChatPhotoCell: UICollectionViewCell {
     badge.layer.shadowOpacity = selected ? 0 : 0.3
     image.layer.borderWidth = selected ? 2 : 0
     image.layer.borderColor = UIColor.systemBlue.resolvedColor(with: traitCollection).cgColor
-    accessibilityValue = selected ? "已选择" : nil
+    accessibilityValue = selected ? LodyStrings.text("native.chat.attachment.selected") : nil
   }
 }
 
@@ -83,7 +83,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
     status.alignment = .center
     status.addArrangedSubview(statusLabel)
     status.addArrangedSubview(statusAction)
-    manage.setTitle("管理所选照片", for: .normal)
+    manage.setTitle(LodyStrings.text("native.chat.attachment.managePhotos"), for: .normal)
     manage.isHidden = true
     manage.addAction(UIAction { [weak self] _ in self?.manageLimited() }, for: .touchUpInside)
     confirm.configuration?.cornerStyle = .capsule
@@ -126,13 +126,13 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
     case .notDetermined:
       assets = nil
       status.isHidden = false
-      statusLabel.text = "允许访问照片后可在这里直接选取最近照片"
-      statusAction.setTitle("允许访问", for: .normal)
+      statusLabel.text = LodyStrings.text("native.chat.attachment.limitedAccess")
+      statusAction.setTitle(LodyStrings.text("native.chat.attachment.allowAccess"), for: .normal)
     default:
       assets = nil
       status.isHidden = false
-      statusLabel.text = "照片访问已关闭，可在「设置」中开启"
-      statusAction.setTitle("打开设置", for: .normal)
+      statusLabel.text = LodyStrings.text("native.chat.attachment.accessDenied")
+      statusAction.setTitle(LodyStrings.text("native.chat.attachment.openSettings"), for: .normal)
     }
     grid.reloadData()
   }
@@ -168,7 +168,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
     guard let asset = assets?.object(at: indexPath.item) else { return cell }
     cell.assetID = asset.localIdentifier
     cell.mark(selected: selection.contains(asset.localIdentifier))
-    cell.accessibilityLabel = "照片 \(indexPath.item + 1)"
+    cell.accessibilityLabel = LodyStrings.text("native.chat.attachment.photoIndex", ["index": indexPath.item + 1])
     let side = thumbnailSide(in: collectionView) * (view.window?.screen.scale ?? 2)
     let options = PHImageRequestOptions()
     options.isNetworkAccessAllowed = true
@@ -201,7 +201,12 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
 
   private func updateConfirm() {
     let visible = !selection.isEmpty
-    if visible { confirm.setTitle("添加 \(selection.count) 项", for: .normal) }
+    if visible {
+      confirm.setTitle(
+        LodyStrings.plural("native.chat.attachment.addCount", selection.count),
+        for: .normal
+      )
+    }
     grid.contentInset.bottom = visible ? 74 : 0
     UIView.animate(withDuration: 0.2) {
       self.confirm.alpha = visible ? 1 : 0

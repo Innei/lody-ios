@@ -156,13 +156,13 @@ final class ChatAttachmentBar: UIScrollView {
     ]))
     config.titleLineBreakMode = .byTruncatingMiddle
     let button = UIButton(configuration: config)
-    button.accessibilityLabel = "预览附件 \(item.name)"
+    button.accessibilityLabel = LodyStrings.text("native.chat.attachment.preview", ["name": item.name])
     button.addAction(UIAction { [weak self] _ in self?.onPreview?(item.id) }, for: .touchUpInside)
     let remove = UIButton(type: .system)
     remove.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
     remove.setPreferredSymbolConfiguration(UIImage.SymbolConfiguration(pointSize: 13), forImageIn: .normal)
     remove.tintColor = .tertiaryLabel
-    remove.accessibilityLabel = "移除附件 \(item.name)"
+    remove.accessibilityLabel = LodyStrings.text("native.chat.attachment.remove", ["name": item.name])
     remove.addAction(UIAction { [weak self] _ in self?.onRemove?(item.id) }, for: .touchUpInside)
     let surface = UIVisualEffectView(effect: nil)
     if #available(iOS 26.0, *) {

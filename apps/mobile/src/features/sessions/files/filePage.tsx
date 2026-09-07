@@ -3,6 +3,7 @@ import { PlatformColor, View } from 'react-native';
 import { NativeCodeView } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { AppText } from '@/ui/AppText';
+import { t } from '../../../i18n/index.ts';
 
 export type FileParams = { path: string; handle: string; bytes: number };
 
@@ -25,8 +26,8 @@ function FileScreen() {
           onFail={({ nativeEvent }) =>
             setError(
               nativeEvent.message === 'content_expired'
-                ? '内容已过期，请返回重新打开'
-                : '渲染失败，请返回重试',
+                ? t('file.error.stale')
+                : t('file.error.render'),
             )
           }
         />
@@ -37,7 +38,7 @@ function FileScreen() {
 
 export const filePage = definePage<FileParams>({
   id: 'file',
-  title: '文件',
+  title: t('file.title'),
   Component: FileScreen,
   parseRouteParams: () => {
     throw new Error('请从项目文件打开');

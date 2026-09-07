@@ -8,15 +8,18 @@ import type {
 } from '@/cloud/pendingSends';
 import type { Session } from '@/cloud/model';
 import type { Snapshot } from './useSessionRuntime';
+import { t } from '../../i18n/index.ts';
 
 export function pendingSendStatus(send: PendingSend, live: boolean) {
-  if (send.phase === 'unknown') return '正在确认发送结果…';
-  if (send.phase === 'creating') return '正在创建会话…';
+  if (send.phase === 'unknown') return t('send.status.unknown');
+  if (send.phase === 'creating') return t('send.status.creating');
   if (send.phase === 'sending')
-    return send.attachments.length ? '正在上传附件…' : '正在发送…';
+    return t(
+      send.attachments.length ? 'send.status.uploading' : 'send.status.sending',
+    );
   if (send.phase === 'accepted' || send.phase === 'uploaded')
-    return '等待回复…';
-  return live ? '正在准备…' : '等待连接…';
+    return t('send.status.waiting');
+  return t(live ? 'send.status.preparing' : 'send.status.awaitingConnection');
 }
 
 const network = { createSession, sendSessionTurn };
@@ -114,7 +117,7 @@ export function useSessionSend({
               send: { ...send, creation: undefined, phase: 'waiting' },
             });
           } else if (result.state === 'rejected') {
-            await fail('会话未创建，内容已恢复，请检查电脑配置后重试。');
+            await fail(t('send.error.sessionNotCreated'));
           } else {
             await outbox.put({
               ...record,
@@ -143,7 +146,7 @@ export function useSessionSend({
           ),
         );
         if (result.state === 'not_sent') {
-          await fail(result.reason || '消息尚未发送，内容已恢复。');
+          await fail(result.reason || t('send.error.notSent'));
         } else {
           const phase = ['accepted', 'uploaded'].includes(result.state)
             ? result.state
@@ -160,7 +163,7 @@ export function useSessionSend({
             .put({ ...record, send: { ...send, phase: 'unknown' } })
             .catch(() => {});
         } else {
-          await fail('未能保存待发送内容，消息尚未发送。');
+          await fail(t('send.error.draftSaveFailed'));
         }
       } finally {
         working.current = false;
@@ -170,7 +173,7 @@ export function useSessionSend({
         await outbox
           .put({ session, send: { ...send, phase: 'failed', reason } })
           .catch(() => {});
-        Alert.alert('消息尚未发送', reason);
+        Alert.alert(t('send.alert.title'), reason);
       }
     })();
   }, [
@@ -208,7 +211,7 @@ export function useSessionSend({
               ...next,
               creation: send?.creation,
               phase: 'failed',
-              reason: '未能保存待发送内容',
+              reason: t('send.error.draftSaveShort'),
             },
           })
           .catch(() => {});

@@ -8,6 +8,9 @@ import {
   stateSymbol,
   stateTint,
 } from '../src/ui/status.ts';
+import { setLocale } from '../src/i18n/index.ts';
+
+setLocale('zh-Hans');
 
 const ACCENT = '#3B4FD9';
 const now = Date.parse('2026-09-06T15:00:00+08:00');

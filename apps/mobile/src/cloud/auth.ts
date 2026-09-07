@@ -1,3 +1,5 @@
+import { t } from '../i18n/index.ts';
+
 // Public production endpoints observed in the official Lody web client.
 export const AUTH_ORIGIN = 'https://backend.lody.ai';
 export const DEVICE_CLIENT_ID = 'lody-cli';
@@ -13,12 +15,12 @@ export type DeviceCode = {
 export class AuthError extends Error {}
 export function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw new Error('服务返回了无效数据');
+    throw new Error(t('auth.error.invalidResponse'));
   return value as Record<string, unknown>;
 }
 export function requiredString(value: unknown): string {
   if (typeof value !== 'string' || !value.trim())
-    throw new Error('服务返回了缺失字段');
+    throw new Error(t('auth.error.missingFields'));
   return value;
 }
 export async function authRequest(
@@ -38,9 +40,9 @@ export async function authRequest(
       : { body: JSON.stringify(options.body) }),
   });
   const data: unknown = await response.json();
-  if (response.status === 401) throw new AuthError('登录已过期，请重新登录');
+  if (response.status === 401) throw new AuthError(t('auth.error.expired'));
   if (!response.ok && path !== '/device/token')
-    throw new Error(`登录服务请求失败（${response.status}）`);
+    throw new Error(t('auth.error.requestFailed', { status: response.status }));
   return data;
 }
 export async function requestDeviceCode(
@@ -59,7 +61,7 @@ export async function requestDeviceCode(
     url.username ||
     url.password
   )
-    throw new Error('无效的官方授权地址');
+    throw new Error(t('auth.error.invalidAuthorizeUrl'));
   if (
     typeof data.expires_in !== 'number' ||
     !Number.isFinite(data.expires_in) ||
@@ -68,7 +70,7 @@ export async function requestDeviceCode(
     !Number.isFinite(data.interval) ||
     data.interval <= 0
   )
-    throw new Error('无效的授权有效期');
+    throw new Error(t('auth.error.invalidExpiry'));
   // The auth site redirects to this official web UI; match the CLI's direct device-page link.
   url.hostname = 'lody.ai';
   return {
@@ -81,10 +83,10 @@ export async function requestDeviceCode(
 }
 export function wait(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (signal.aborted) throw new Error('已取消');
+    if (signal.aborted) throw new Error(t('common.cancelled'));
     const abort = () => {
       clearTimeout(timer);
-      reject(new Error('已取消登录'));
+      reject(new Error(t('auth.error.cancelledSignIn')));
     };
     const timer = setTimeout(() => {
       signal.removeEventListener('abort', abort);
@@ -105,7 +107,7 @@ export async function pollDeviceToken(
       Math.min(interval, deadline - dependencies.now()),
       signal,
     );
-    if (signal.aborted) throw new Error('已取消');
+    if (signal.aborted) throw new Error(t('common.cancelled'));
     if (dependencies.now() >= deadline) break;
     const data = record(
       await dependencies.request('/device/token', {
@@ -124,21 +126,23 @@ export async function pollDeviceToken(
       interval += 5000;
       continue;
     }
-    if (data.error === 'access_denied') throw new Error('你已拒绝授权');
+    if (data.error === 'access_denied')
+      throw new Error(t('auth.error.accessDenied'));
     if (data.error === 'expired_token') break;
-    throw new Error('设备授权失败，请重新登录');
+    throw new Error(t('auth.error.deviceAuthFailed'));
   }
-  throw new Error('授权码已过期，请重新登录');
+  throw new Error(t('auth.error.codeExpired'));
 }
 export async function getAccount(
   token: string,
   signal?: AbortSignal,
 ): Promise<{ user: User; workspaces: Workspace[] }> {
   const session = await authRequest('/get-session', { token, signal });
-  if (session === null) throw new AuthError('登录已过期，请重新登录');
+  if (session === null) throw new AuthError(t('auth.error.expired'));
   const user = record(record(session).user);
   const list = await authRequest('/organization/list', { token, signal });
-  if (!Array.isArray(list)) throw new Error('无效的工作区列表');
+  if (!Array.isArray(list))
+    throw new Error(t('auth.error.invalidWorkspaceList'));
   return {
     user: {
       id: requiredString(user.id),
@@ -171,8 +175,11 @@ export async function getStreamsGrant(
     },
     body: JSON.stringify({ workspaceId }),
   });
-  if (response.status === 401) throw new AuthError('登录已过期，请重新登录');
-  if (!response.ok) throw new Error(`无法读取此工作区（${response.status}）`);
+  if (response.status === 401) throw new AuthError(t('auth.error.expired'));
+  if (!response.ok)
+    throw new Error(
+      t('auth.error.workspaceUnavailable', { status: response.status }),
+    );
   const grant = record(await response.json());
   const url = new URL(requiredString(grant.gatewayBaseUrl));
   if (
@@ -182,7 +189,7 @@ export async function getStreamsGrant(
     url.search ||
     url.hash
   )
-    throw new Error('无效的同步服务地址');
+    throw new Error(t('auth.error.invalidStreamsUrl'));
   return {
     token: requiredString(grant.token),
     gatewayBaseUrl: url.href.replace(/\/$/, ''),

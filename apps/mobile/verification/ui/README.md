@@ -19,10 +19,13 @@ xcrun simctl boot SIMULATOR_UDID
 xcrun simctl bootstatus SIMULATOR_UDID -b
 pnpm verify:native --udid SIMULATOR_UDID
 pnpm verify:ui --udid SIMULATOR_UDID --app /absolute/path/to/Lody.app
+pnpm verify:ui --udid SIMULATOR_UDID --app /absolute/path/to/Lody.app --language zh-Hans --output .artifacts/ui-zh
 ```
 
 Requires Python 3, AXe 1.8.0, Xcode 26.5 and the workspace dependencies.
-`--case layout` selects one case (still both appearances). `--port 8098` changes
+`--case layout` selects one case (still both appearances). `--language` picks the
+App Language the run launches with (`en` by default) and the catalog the scenes
+assert against; run both before claiming bilingual coverage. `--port 8098` changes
 the isolated Metro port; occupied ports are rejected. `--output PATH` selects an
 artifact directory; use a new path for each run. The runner owns only its Metro
 process group and the supplied app process. A small host-only CoreSimulator helper disconnects hardware keyboard input for
@@ -49,8 +52,10 @@ preferences are changed. Remove the disposable Simulator when finished. It never
 | composer-failure | NativeChat composer                       | Exact text and attachment restoration after rejection                                                                     |
 
 Every case starts a fresh app process and navigates from Debug. Both light and
-dark appearances run with default text size and English system controls. Fixture
-content remains Chinese. Composer requests remain pending until the driver taps
+dark appearances run with default text size and English system controls. Product
+copy is asserted through `catalog.text` / `catalog.plural`, which read the same
+`apps/mobile/locales` catalog the app ships, so a scene proves the selected
+language rather than a hardcoded sentence. Fixture content remains Chinese. Composer requests remain pending until the driver taps
 Complete Request, so request timing cannot hide the busy state. These scenes
 exercise production native draft contracts; they do not claim to cover cloud
 persistence or Machine RPC. Those retain their existing behavior tests.

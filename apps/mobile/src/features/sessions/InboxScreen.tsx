@@ -19,6 +19,7 @@ import { inboxSections, projectSections, searchSections } from './inbox';
 import { openCatalogRow, sessionRowAction } from './navigation';
 import { definePage, present, usePageRuntime } from '@/presentation';
 import { showToast } from '@/ui/toast';
+import { currentLocale, t } from '../../i18n/index.ts';
 
 export default function InboxScreen() {
   const { account, localReady } = useAuth();
@@ -45,18 +46,20 @@ export default function InboxScreen() {
     );
   return (
     <>
-      <Stack.Screen options={{ title: selected?.name ?? '会话' }} />
+      <Stack.Screen options={{ title: selected?.name ?? t('tabs.sessions') }} />
       <Stack.SearchBar
         placement="stacked"
-        placeholder="搜索项目或会话"
+        placeholder={t('search.field.placeholder')}
         hideWhenScrolling={false}
         onChangeText={({ nativeEvent }) => setQuery(nativeEvent.text)}
         onCancelButtonPress={() => setQuery('')}
       />
       <Stack.Title asChild>
         <NativeTitleMenu
-          accessibilityName={`切换工作区，${selected?.name ?? '工作区'}`}
-          label={selected?.name ?? '工作区'}
+          accessibilityName={t('inbox.workspaceSwitch.accessibility', {
+            name: selected?.name ?? t('common.workspace'),
+          })}
+          label={selected?.name ?? t('common.workspace')}
           items={account.workspaces.map((workspace) => ({
             id: workspace.id,
             title: workspace.name,
@@ -67,7 +70,7 @@ export default function InboxScreen() {
       </Stack.Title>
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button
-          accessibilityLabel="首页设置"
+          accessibilityLabel={t('inbox.settings.accessibility')}
           icon="slider.horizontal.3"
           tintColor={colors.accent}
           onPress={async () => {
@@ -78,7 +81,7 @@ export default function InboxScreen() {
                 saveInboxView(result.value);
               }
             } catch {
-              showToast('暂时无法打开首页设置，请重试。');
+              showToast(t('inbox.toast.settingsFailed'));
             }
           }}
         />
@@ -126,27 +129,40 @@ function InboxSettingsScreen() {
       sections={[
         {
           id: 'view',
-          header: '首页视图',
-          rows: ['项目', '动态'].map((title, index) => ({
+          header: t('inbox.settings.section.view'),
+          rows: (
+            [
+              'inbox.settings.view.projects',
+              'inbox.settings.view.activity',
+            ] as const
+          ).map((key, index) => ({
             id: String(index),
-            title,
+            title: t(key),
             image: params.mode === index ? 'checkmark' : undefined,
             action: true,
           })),
         },
         {
           id: 'sync',
-          header: '同步',
+          header: t('inbox.settings.section.sync'),
           rows: [
             {
               id: 'sync',
-              title: {
-                offline: '离线，点按重试',
-                syncing: '正在同步',
-                live: '已同步',
-              }[connection.state],
+              title: t(
+                (
+                  {
+                    offline: 'inbox.settings.sync.offline',
+                    syncing: 'inbox.settings.sync.syncing',
+                    live: 'inbox.settings.sync.live',
+                  } as const
+                )[connection.state],
+              ),
               subtitle: connection.syncedAt
-                ? `上次同步：${new Date(connection.syncedAt).toLocaleString()}`
+                ? t('inbox.settings.sync.lastSynced', {
+                    time: new Date(connection.syncedAt).toLocaleString(
+                      currentLocale(),
+                    ),
+                  })
                 : undefined,
               image: 'arrow.clockwise',
               action: true,
@@ -164,7 +180,7 @@ function InboxSettingsScreen() {
 
 const inboxSettingsPage = definePage<{ mode: number }, number>({
   id: 'inbox-settings',
-  title: '首页设置',
+  title: t('inbox.settings.title'),
   Component: InboxSettingsScreen,
   parseRouteParams: () => {
     throw new Error('请从首页打开');

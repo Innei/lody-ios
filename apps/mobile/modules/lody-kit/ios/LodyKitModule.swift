@@ -143,12 +143,12 @@ public final class LodyKitModule: Module {
     }.runOnQueue(.main)
     AsyncFunction("decodeFlock") { (snapshot: String, updates: [String], mode: String, promise: Promise) in
       guard snapshot.utf8.count + updates.reduce(0, { $0 + $1.utf8.count }) <= 12 * 1024 * 1024 else {
-        promise.reject("DECODE_LIMIT", "工作区快照超过 POC 的解码上限"); return
+        promise.reject("DECODE_LIMIT", "workspace snapshot exceeds the decode limit"); return
       }
       _ = FlockDecoder(snapshot: snapshot, updates: updates, mode: mode) { result in
         switch result {
         case .success(let value): promise.resolve(value)
-        case .failure: promise.reject("DECODE_FAILED", "工作区快照解码失败")
+        case .failure: promise.reject("DECODE_FAILED", "workspace snapshot decode failed")
         }
       }
     }.runOnQueue(.main)

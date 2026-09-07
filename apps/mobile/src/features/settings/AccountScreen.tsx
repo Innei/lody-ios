@@ -5,6 +5,7 @@ import { definePage } from '@/presentation';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { usePalette } from '@/theme/palette';
 import { Stack, useRouter } from 'expo-router';
+import { t } from '../../i18n/index.ts';
 function AccountScreen() {
   const auth = useAuth();
   const colors = usePalette();
@@ -14,11 +15,11 @@ function AccountScreen() {
   }, [auth.account, router]);
   return (
     <>
-      <Stack.Screen options={{ title: '账号' }} />
+      <Stack.Screen options={{ title: t('account.title') }} />
       <NativeGroupedList
         style={{ flex: 1 }}
         accent={colors.accent}
-        placeholder="尚未登录"
+        placeholder={t('account.placeholder')}
         sections={
           auth.account
             ? [
@@ -39,7 +40,9 @@ function AccountScreen() {
                   rows: [
                     {
                       id: 'logout',
-                      title: auth.busy ? '正在退出…' : '退出登录',
+                      title: t(
+                        auth.busy ? 'account.signingOut' : 'account.signOut',
+                      ),
                       destructive: true,
                       action: !auth.busy,
                     },
@@ -49,16 +52,20 @@ function AccountScreen() {
             : []
         }
         onRowPress={() =>
-          Alert.alert('退出登录？', '退出后此设备将停止同步。', [
-            { text: '取消', style: 'cancel' },
-            {
-              text: '退出登录',
-              style: 'destructive',
-              onPress: () => {
-                void auth.logout();
+          Alert.alert(
+            t('account.signOutConfirm.title'),
+            t('account.signOutConfirm.message'),
+            [
+              { text: t('common.cancel'), style: 'cancel' },
+              {
+                text: t('account.signOut'),
+                style: 'destructive',
+                onPress: () => {
+                  void auth.logout();
+                },
               },
-            },
-          ])
+            ],
+          )
         }
       />
     </>
@@ -66,6 +73,6 @@ function AccountScreen() {
 }
 export const accountPage = definePage({
   id: 'account',
-  title: '账号',
+  title: t('account.title'),
   Component: AccountScreen,
 });

@@ -7,6 +7,7 @@ import { useAuth } from '@/features/auth/AuthProvider';
 import { searchPlaceholder } from '@/ui/listState';
 import { searchSections } from './inbox';
 import { openCatalogRow } from './navigation';
+import { t } from '../../i18n/index.ts';
 
 export default function SearchScreen() {
   const { catalog, loading, connected } = useCatalog();
@@ -17,7 +18,7 @@ export default function SearchScreen() {
     <>
       <Stack.SearchBar
         placement="automatic"
-        placeholder="搜索项目或会话"
+        placeholder={t('search.field.placeholder')}
         hideWhenScrolling={false}
         onChangeText={({ nativeEvent }) => setQuery(nativeEvent.text)}
         onCancelButtonPress={() => setQuery('')}

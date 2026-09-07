@@ -3,6 +3,7 @@ import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
 import type { ChangedFile } from '../transcript/changes';
 import { fileDiffPage } from './fileDiffPage';
+import { t, tp } from '../../../i18n/index.ts';
 
 export type TurnChangesParams = {
   sessionId: string;
@@ -23,7 +24,9 @@ function TurnChangesScreen() {
   const sections: NativeListSection[] = [
     {
       id: 'files',
-      header: `${params.files.length} 个文件`,
+      header: tp('changes.fileCount', params.files.length, {
+        count: params.files.length,
+      }),
       headerValue: `+${add} −${del}`,
       rows: params.files.map((file) => ({
         id: file.path,
@@ -43,7 +46,7 @@ function TurnChangesScreen() {
       style={{ flex: 1 }}
       accent={colors.accent}
       sections={sections}
-      placeholder="本轮没有改动文件"
+      placeholder={t('changes.empty')}
       onRowPress={({ nativeEvent: { id } }) =>
         void push(
           fileDiffPage,
@@ -57,7 +60,7 @@ function TurnChangesScreen() {
 
 export const turnChangesPage = definePage<TurnChangesParams>({
   id: 'turn-changes',
-  title: '本轮改动',
+  title: t('changes.title'),
   Component: TurnChangesScreen,
   parseRouteParams: () => {
     throw new Error('请从会话打开');

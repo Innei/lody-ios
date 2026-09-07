@@ -2,15 +2,19 @@
 import sys
 import time
 from driver import UI
+import catalog
 
 ui = UI(sys.argv[1], sys.argv[2])
 ui.axe('tap', '--label', 'Diff Fixture')
 paths = ['docs/superpowers/.diff-check.md', 'src/very-long-directory-name/nested/components/another-long-file-name.ts']
 header = ui.element('diff-preview:changes')
-assert '2 个文件' in header['AXLabel'] and '新增 2 行' in header['AXLabel']
+assert header['AXLabel'] == catalog.text(
+    'native.chat.file.diffStats',
+    text=catalog.plural('native.chat.transcript.fileCount', 2), add=2, **{'del': 2}
+)
 for path in paths:
     card = ui.element('diff-preview:changes:' + path)
-    assert path in card['AXLabel'] and '新增 1 行，删除 1 行' in card['AXLabel']
+    assert card['AXLabel'] == catalog.text('native.chat.file.diffStats', text=path, add=1, **{'del': 1})
     assert card['frame']['height'] >= 64
 answer = ui.element('diff-preview:answer')
 first_id = 'diff-preview:changes:' + paths[0]
@@ -38,7 +42,7 @@ def group_settled(items):
 header, first, second = ui.wait(group_settled, 'File group header did not settle above the first file')
 items = ui.state()
 assert not any((i.get('AXUniqueId') or '').startswith(('diff-warning:', 'diff-cached-warning:')) for i in items)
-assert not any('正在处理' in (i.get('AXLabel') or '') for i in items)
+assert not any(catalog.text('native.chat.transcript.status.running') in (i.get('AXLabel') or '') for i in items)
 ui.capture('cards')
 for index, path in enumerate(paths):
     ui.axe('tap', '--id', 'diff-preview:changes:' + path)

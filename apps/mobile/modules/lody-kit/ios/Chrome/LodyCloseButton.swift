@@ -7,7 +7,7 @@ final class LodyCloseButton: ExpoView {
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
-    button.accessibilityLabel = "关闭"
+    button.accessibilityLabel = LodyStrings.text("native.close")
     button.addTarget(self, action: #selector(close), for: .primaryActionTriggered)
     addSubview(button)
   }

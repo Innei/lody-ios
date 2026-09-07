@@ -33,6 +33,7 @@ import {
   modelPage,
   modelSummary,
 } from './ModelScreen';
+import { t } from '../../i18n/index.ts';
 
 type Params = {
   workspaceId: string;
@@ -41,13 +42,13 @@ type Params = {
 };
 
 function pickTitle(loading: boolean, idle: string) {
-  return loading ? '读取中…' : idle;
+  return loading ? t('common.reading') : idle;
 }
 
 function agentFooter(loading: boolean, hasAgent: boolean) {
-  if (loading) return '正在读取电脑配置…';
-  if (hasAgent) return '模型与运行模式使用助手默认值，稍后可在电脑上更改。';
-  return '点按重新读取电脑配置。';
+  if (loading) return t('create.machineConfig.loading');
+  if (hasAgent) return t('create.machineConfig.ready');
+  return t('create.machineConfig.retry');
 }
 
 function createNotice({
@@ -57,8 +58,8 @@ function createNotice({
   loading: boolean;
   hasAgent: boolean;
 }) {
-  if (loading) return '正在准备助手，你可以先写下任务。';
-  if (!hasAgent) return '选择可用的助手后即可发送。';
+  if (loading) return t('create.composer.loading');
+  if (!hasAgent) return t('create.composer.needAgent');
   return '';
 }
 
@@ -138,8 +139,8 @@ function CreateSessionScreen() {
         if (!active) return;
         showToast(
           __DEV__
-            ? `读取电脑配置失败：${String(error)}`
-            : '暂时无法读取电脑配置，请确认连接后重试。',
+            ? t('create.error.machineConfigDetail', { error: String(error) })
+            : t('create.error.machineConfig'),
         );
       })
       .finally(() => {
@@ -193,7 +194,7 @@ function CreateSessionScreen() {
     }
     if (github && !branch.trim()) {
       setRestoreDraftToken((n) => n + 1);
-      showToast('GitHub 项目需要填写起始分支。');
+      showToast(t('create.toast.branchRequired'));
       return;
     }
     busy.current = true;
@@ -235,7 +236,11 @@ function CreateSessionScreen() {
       void outbox
         .put({
           session,
-          send: { ...send, phase: 'failed', reason: '未能保存待发送内容' },
+          send: {
+            ...send,
+            phase: 'failed',
+            reason: t('send.error.draftSaveShort'),
+          },
         })
         .catch(() => {});
     });
@@ -248,8 +253,8 @@ function CreateSessionScreen() {
       rows: [
         {
           id: 'project',
-          title: project?.name ?? '选择项目',
-          subtitle: '项目',
+          title: project?.name ?? t('create.row.selectProject'),
+          subtitle: t('create.label.project'),
           image: 'folder',
           action: true,
           disclosure: true,
@@ -264,8 +269,10 @@ function CreateSessionScreen() {
             rows: [
               {
                 id: 'machine',
-                title: machine?.name ?? pickTitle(loading, '选择电脑'),
-                subtitle: '电脑',
+                title:
+                  machine?.name ??
+                  pickTitle(loading, t('create.row.selectMachine')),
+                subtitle: t('create.label.machine'),
                 image: 'desktopcomputer',
                 action: true,
                 disclosure: true,
@@ -283,8 +290,8 @@ function CreateSessionScreen() {
       rows: [
         {
           id: 'agent',
-          title: agent?.name ?? pickTitle(loading, '选择助手'),
-          subtitle: github ? '助手' : machine?.name,
+          title: agent?.name ?? pickTitle(loading, t('create.row.selectAgent')),
+          subtitle: github ? t('create.label.agent') : machine?.name,
           image: 'sparkles',
           action: true,
           disclosure: true,
@@ -292,8 +299,10 @@ function CreateSessionScreen() {
         },
         {
           id: 'model',
-          title: capability ? modelSummary(capability, choice) : '默认模型',
-          subtitle: '模型',
+          title: capability
+            ? modelSummary(capability, choice)
+            : t('model.default'),
+          subtitle: t('create.label.model'),
           image: 'cpu',
           action: !!capability,
           disclosure: !!capability,
@@ -327,13 +336,13 @@ function CreateSessionScreen() {
     const result = await push(
       pickerPage,
       {
-        title: '选择电脑',
-        header: '电脑',
+        title: t('create.row.selectMachine'),
+        header: t('create.label.machine'),
         selectedId: machine?.id,
-        placeholder: '没有已连接的电脑。',
+        placeholder: t('create.picker.machine.placeholder'),
         options: machines.map((m) => ({ id: m.id, title: m.name })),
       },
-      { title: '选择电脑' },
+      { title: t('create.row.selectMachine') },
     );
     if (result.status !== 'completed') return;
     setMachineId(result.value);
@@ -349,7 +358,9 @@ function CreateSessionScreen() {
       { capability, value: choice, onChange: setChoice },
       // A single tab needs no segmented control, so the title names it instead.
       {
-        title: hasModelTabs(capability) ? (agent?.name ?? '模型') : '选择模型',
+        title: hasModelTabs(capability)
+          ? (agent?.name ?? t('model.title'))
+          : t('create.row.selectModel'),
       },
     );
   }
@@ -362,17 +373,17 @@ function CreateSessionScreen() {
     const result = await push(
       pickerPage,
       {
-        title: '选择助手',
-        header: '助手',
+        title: t('create.row.selectAgent'),
+        header: t('create.label.agent'),
         selectedId: agentKey,
-        placeholder: '没有可用的助手配置，请先在电脑上添加。',
+        placeholder: t('create.picker.agent.placeholder'),
         options: agents.map((a) => ({
           id: `${a.machineId}:${a.id}`,
           title: a.name,
           subtitle: a.machineName,
         })),
       },
-      { title: '选择助手' },
+      { title: t('create.row.selectAgent') },
     );
     if (result.status !== 'completed') return;
     setAgentKey(result.value);
@@ -397,10 +408,10 @@ function CreateSessionScreen() {
       />
       {github ? (
         <View style={{ paddingHorizontal: 16, paddingBottom: 12, gap: 4 }}>
-          <AppText variant="meta">起始分支</AppText>
+          <AppText variant="meta">{t('create.branch.label')}</AppText>
           <TextInput
-            accessibilityLabel="起始分支"
-            placeholder="例如 main"
+            accessibilityLabel={t('create.branch.label')}
+            placeholder={t('create.branch.placeholder')}
             placeholderTextColor={colors.tertiaryLabel}
             value={branch}
             onChangeText={setBranch}
@@ -428,7 +439,7 @@ function CreateSessionScreen() {
           sending,
           notice: createNotice({ loading, hasAgent: !!agent }),
           reconnect: false,
-          placeholder: '描述你要做什么…',
+          placeholder: t('create.composer.placeholder'),
         })}
         composerOptionsJSON={JSON.stringify({
           modelId: choice.modelId ?? '',
@@ -462,7 +473,7 @@ function CreateSessionScreen() {
 
 export const createSessionPage = definePage<Params, CreatedSession>({
   id: 'create-session',
-  title: '新建会话',
+  title: t('create.title'),
   Component: CreateSessionScreen,
   parseRouteParams: () => {
     throw new Error('请从会话列表打开');

@@ -2,6 +2,7 @@ import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native';
 import { usePalette } from '@/theme/palette';
 import { useAuth } from './AuthProvider';
 import { Button } from '@/ui/Button';
+import { t } from '../../i18n/index.ts';
 export function LoginPanel() {
   const auth = useAuth(),
     colors = usePalette();
@@ -24,12 +25,12 @@ export function LoginPanel() {
             letterSpacing: -0.7,
           }}
         >
-          把工作，带在身边。
+          {t('login.headline')}
         </Text>
         <Text
           style={{ color: colors.secondaryLabel, fontSize: 16, lineHeight: 25 }}
         >
-          连接 Lody，查看项目进展，{'\n'}与电脑上的智能助手继续对话。
+          {t('login.subhead')}
         </Text>
       </View>
       {auth.code ? (
@@ -42,7 +43,7 @@ export function LoginPanel() {
           }}
         >
           <Text style={{ color: colors.secondaryLabel }}>
-            请在授权页面核对代码
+            {t('login.verifyCode')}
           </Text>
           <Text
             selectable
@@ -55,17 +56,19 @@ export function LoginPanel() {
           >
             {auth.code.user_code}
           </Text>
-          <Button onPress={() => void auth.reopen()}>重新打开授权页面</Button>
+          <Button onPress={() => void auth.reopen()}>
+            {t('login.reopen')}
+          </Button>
         </View>
       ) : null}
       {auth.busy ? (
         <View style={{ gap: 12, alignItems: 'center' }}>
           <ActivityIndicator color={colors.accent} />
           <Text style={{ color: colors.secondaryLabel }}>
-            {auth.code ? '等待浏览器确认授权…' : '正在连接…'}
+            {t(auth.code ? 'login.waiting' : 'login.connecting')}
           </Text>
           <Button testID="auth-cancel" onPress={auth.cancel}>
-            取消
+            {t('common.cancel')}
           </Button>
         </View>
       ) : (
@@ -84,22 +87,23 @@ export function LoginPanel() {
           <Text
             style={{ color: colors.onAccent, fontSize: 17, fontWeight: '600' }}
           >
-            连接 Lody Cloud　→
+            {t('login.connect')}
           </Text>
         </Pressable>
       )}
       <Text
         style={{ color: colors.secondaryLabel, fontSize: 12, lineHeight: 19 }}
       >
-        登录将在官方授权页完成。目前使用 lody-cli
-        设备授权，页面会显示该客户端名称。
+        {t('login.footnote')}
       </Text>
       {auth.error ? (
         <View>
           <Text style={{ color: colors.danger, lineHeight: 22 }}>
             {auth.error}
           </Text>
-          <Button onPress={() => void auth.restore()}>重试连接</Button>
+          <Button onPress={() => void auth.restore()}>
+            {t('login.retry')}
+          </Button>
         </View>
       ) : null}
     </View>

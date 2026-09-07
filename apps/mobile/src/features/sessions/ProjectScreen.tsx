@@ -5,6 +5,7 @@ import { useCatalog } from '@/cloud/CatalogProvider';
 import { usePalette } from '@/theme/palette';
 import { byActivity, sessionRow } from './inbox';
 import { newSession, openCatalogRow, sessionRowAction } from './navigation';
+import { t } from '../../i18n/index.ts';
 
 function ProjectScreen() {
   const {
@@ -19,25 +20,28 @@ function ProjectScreen() {
   const sections = [false, true]
     .map((archived) => ({
       id: archived ? 'archived' : 'sessions',
-      header: archived ? '已归档' : undefined,
+      header: archived ? t('session.state.archived') : undefined,
       rows: sessions
         .filter((s) => s.archived === archived)
         .map((s) => sessionRow(s, colors.accent)),
     }))
     .filter((section) => section.rows.length);
-  let placeholder = '还没有会话，点右上角开始';
-  if (loading) placeholder = '正在载入…';
-  else if (!connected) placeholder = '连接已中断，下拉重新同步';
+  let placeholder = t('project.empty');
+  if (loading) placeholder = t('common.loading');
+  else if (!connected) placeholder = t('project.offline');
   return (
     <>
       <Stack.Screen
-        options={{ title: project?.name ?? '项目', headerLargeTitle: false }}
+        options={{
+          title: project?.name ?? t('project.title'),
+          headerLargeTitle: false,
+        }}
       />
       {project && !project.id.endsWith(':unassigned') ? (
         <Stack.Toolbar placement="right">
           <Stack.Toolbar.Button
             icon="plus"
-            accessibilityLabel="在此项目新建会话"
+            accessibilityLabel={t('project.newSession.accessibility')}
             onPress={() => {
               if (selected) void newSession(selected.id, catalog, projectId);
             }}
@@ -64,7 +68,7 @@ function ProjectScreen() {
 }
 export const projectPage = definePage<{ projectId: string }>({
   id: 'project',
-  title: '项目',
+  title: t('project.title'),
   Component: ProjectScreen,
   parseRouteParams: ({ projectId }) => ({
     projectId: (Array.isArray(projectId) ? projectId[0] : projectId) ?? '',

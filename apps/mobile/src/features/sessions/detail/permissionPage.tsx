@@ -7,6 +7,7 @@ import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
 import { CommandBlock, type DetailResponse } from './DetailBlocks';
 import { fetchDetail } from './itemDetailPage';
+import { t, type TranslationKey } from '../../../i18n/index.ts';
 
 export type PermissionParams = {
   sessionId: string;
@@ -19,13 +20,13 @@ export type PermissionParams = {
   path?: string;
 };
 
-const HEADINGS: Record<string, string> = {
-  execute: '允许执行命令？',
-  bash: '允许执行命令？',
-  edit: '允许编辑文件？',
-  write: '允许编辑文件？',
-  delete: '允许编辑文件？',
-  move: '允许编辑文件？',
+const HEADINGS: Record<string, TranslationKey> = {
+  execute: 'permission.heading.execute',
+  bash: 'permission.heading.execute',
+  edit: 'permission.heading.edit',
+  write: 'permission.heading.edit',
+  delete: 'permission.heading.edit',
+  move: 'permission.heading.edit',
 };
 
 function PermissionScreen() {
@@ -37,7 +38,7 @@ function PermissionScreen() {
   useEffect(() => {
     void fetchDetail(params)
       .then(setDetail)
-      .catch(() => setError('无法读取权限选项'));
+      .catch(() => setError(t('permission.error.options')));
   }, [params.sessionId, params.entryId, params.itemId]);
 
   const answer = async (optionId: string) => {
@@ -59,14 +60,14 @@ function PermissionScreen() {
       else
         setError(
           result.state === 'stale'
-            ? '这个请求已经失效'
-            : '已经在别处作答，以那次为准',
+            ? t('permission.error.stale')
+            : t('permission.error.answered'),
         );
     } catch (caught) {
       setError(
         String(caught).includes('invalid_option')
-          ? '选项已失效'
-          : '发送失败，请重试',
+          ? t('permission.error.invalidOption')
+          : t('permission.error.send'),
       );
     } finally {
       setSubmitting('');
@@ -77,7 +78,7 @@ function PermissionScreen() {
   return (
     <View style={{ padding: 16, gap: 16 }}>
       <AppText variant="title">
-        {HEADINGS[params.kind] ?? '允许调用工具？'}
+        {t(HEADINGS[params.kind] ?? 'permission.heading.tool')}
       </AppText>
       {params.title ? (
         <AppText variant="secondary">{params.title}</AppText>
@@ -126,7 +127,7 @@ function PermissionScreen() {
 
 export const permissionPage = definePage<PermissionParams, void>({
   id: 'session-permission',
-  title: '权限请求',
+  title: t('permission.title'),
   Component: PermissionScreen,
   parseRouteParams: () => {
     throw new Error('请从会话页打开');

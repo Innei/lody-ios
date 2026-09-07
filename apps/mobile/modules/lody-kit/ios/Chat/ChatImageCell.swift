@@ -22,7 +22,7 @@ final class ChatImageCell: UICollectionViewCell {
     if #available(iOS 17.0, *) {
       registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (cell: ChatImageCell, _) in cell.setNeedsLayout() }
     }
-    failure.text = "图片暂时无法显示"
+    failure.text = LodyStrings.text("native.chat.image.failed")
     failure.font = .preferredFont(forTextStyle: .caption1)
     failure.textColor = .secondaryLabel
     failure.textAlignment = .center
@@ -32,7 +32,7 @@ final class ChatImageCell: UICollectionViewCell {
     photo.addSubview(failure)
     isAccessibilityElement = true
     accessibilityTraits = [.image, .button]
-    accessibilityHint = "打开全屏预览"
+    accessibilityHint = LodyStrings.text("native.chat.image.openPreview")
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
@@ -48,7 +48,7 @@ final class ChatImageCell: UICollectionViewCell {
     if row.localImageURI != nil { handoffEntryID = row.entryID }
     else if !hadLocalImage { handoffEntryID = nil }
     accessibilityIdentifier = row.id
-    accessibilityLabel = "图片，\(image.fileName)"
+    accessibilityLabel = LodyStrings.text("native.chat.image.label", ["name": image.fileName])
     setNeedsLayout()
     if let uri = row.localImageURI, let url = URL(string: uri), url.isFileURL {
       ChatSendHandoff.hold(id: row.entryID + ":image:" + image.id, target: photo)
@@ -203,7 +203,7 @@ final class ChatImagePreview: UIViewController, UIScrollViewDelegate {
     config.baseBackgroundColor = UIColor(white: 0.18, alpha: 0.9)
     config.cornerStyle = .capsule
     close.configuration = config
-    close.accessibilityLabel = "关闭图片预览"
+    close.accessibilityLabel = LodyStrings.text("native.chat.image.closePreview")
     close.addAction(UIAction { [weak self] _ in self?.dismiss(animated: true) }, for: .touchUpInside)
     close.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(close)
@@ -214,7 +214,7 @@ final class ChatImagePreview: UIViewController, UIScrollViewDelegate {
     ])
     spinner.color = .white
     view.addSubview(spinner)
-    retry.setTitle("图片加载失败，轻点重试", for: .normal)
+    retry.setTitle(LodyStrings.text("native.chat.image.retry"), for: .normal)
     retry.tintColor = .white
     retry.backgroundColor = UIColor(white: 0.15, alpha: 0.9)
     retry.layer.cornerRadius = 12

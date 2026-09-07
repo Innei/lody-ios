@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { NativeChat } from '@lody-ios/kit';
 import { definePage, present, usePageRuntime } from '@/presentation';
+import { t } from '../../../i18n/index.ts';
 
 type ProcessParams = {
   entryId: string;
@@ -63,7 +64,7 @@ function ProcessScreen() {
       processStartId={params.startItemId}
       composerJSON="{}"
       clearDraftToken={0}
-      emptyText="暂无执行过程"
+      emptyText={t('process.empty')}
       onSend={() => {}}
       onActivityPress={({ nativeEvent }) =>
         params.onActivityPress(nativeEvent.entryId, nativeEvent.itemId)
@@ -75,7 +76,7 @@ function ProcessScreen() {
 
 const processPage = definePage<ProcessParams>({
   id: 'session-process',
-  title: '执行过程',
+  title: t('process.title'),
   Component: ProcessScreen,
   parseRouteParams: () => {
     throw new Error('请从会话页打开');

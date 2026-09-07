@@ -38,6 +38,7 @@ parser.add_argument('--app', required=True, type=Path)
 parser.add_argument('--output', type=Path, default=ROOT / '.artifacts/ui')
 parser.add_argument('--port', type=int, default=8097)
 parser.add_argument('--case', choices=CASES)
+parser.add_argument('--language', choices=['en', 'zh-Hans'], default='en', help='App Language for this run; scenes assert the matching catalog')
 args = parser.parse_args()
 args.output = args.output.resolve()
 args.output.mkdir(parents=True, exist_ok=True)
@@ -47,7 +48,7 @@ ui = UI(args.udid, args.output)
 home_results = []
 if args.case is None:
     home_output = args.output / 'home'
-    subprocess.run([sys.executable, __file__, '--udid', args.udid, '--app', str(args.app), '--output', str(home_output), '--port', str(args.port), '--case', 'home'], check=True)
+    subprocess.run([sys.executable, __file__, '--udid', args.udid, '--app', str(args.app), '--output', str(home_output), '--port', str(args.port), '--case', 'home', '--language', args.language], check=True)
     home_results = json.loads((home_output / 'results.json').read_text())
 
 def sim(*command, check=True):
@@ -80,7 +81,7 @@ try:
             raise TimeoutError('Metro did not become ready')
         time.sleep(.5)
     (args.output / 'environment.json').write_text(json.dumps({
-        'udid': args.udid, 'app': str(args.app.resolve()),
+        'udid': args.udid, 'app': str(args.app.resolve()), 'language': args.language,
         'baseCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
         'worktreeDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True).strip()),
         'xcode': subprocess.check_output(['xcodebuild', '-version'], text=True).strip(),
@@ -100,10 +101,10 @@ try:
             ui = UI(args.udid, output)
             recording = None
             started = time.monotonic()
-            result = {'case': case, 'appearance': appearance, 'status': 'failed'}
+            result = {'case': case, 'appearance': appearance, 'language': args.language, 'status': 'failed'}
             try:
                 sim('terminate', args.udid, 'app.innei.lody', check=False)
-                sim('launch', args.udid, 'app.innei.lody', '--ui-verify', '--initialUrl', f'http://localhost:{args.port}?disableOnboarding=1', '-expo.devlauncher.hasGrantedNetworkPermission', 'YES', '-AppleLanguages', '(en)', '-AppleLocale', 'en_US')
+                sim('launch', args.udid, 'app.innei.lody', '--ui-verify', '--initialUrl', f'http://localhost:{args.port}?disableOnboarding=1', '-expo.devlauncher.hasGrantedNetworkPermission', 'YES', '-AppleLanguages', f'({args.language})', '-AppleLocale', 'en_US' if args.language == 'en' else 'zh_CN')
                 ui.element('ui-verify-ready', timeout=90)
                 preview = PREVIEW.get(case, 'chat-preview')
                 ready = 'new-session-tab' if case == 'home' else READY.get(case, 'chat-navigation-title')
@@ -141,7 +142,8 @@ try:
                 else:
                     command += [str(output)]
                 with (output / 'check.log').open('w') as log:
-                    subprocess.run(command, check=True, timeout=180, stdout=log, stderr=subprocess.STDOUT)
+                    subprocess.run(command, check=True, timeout=180, stdout=log, stderr=subprocess.STDOUT,
+                                   env={**os.environ, 'LODY_UI_LANGUAGE': args.language})
                 ui.capture('after')
                 result['status'] = 'passed'
             except Exception as error:
