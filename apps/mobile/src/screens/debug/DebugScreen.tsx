@@ -1,13 +1,13 @@
-import { openSendPreview } from './SendPreview';
-import { backgroundPreviewPage } from './BackgroundPreview';
+import { openSendPreview } from './SendPreviewScreen';
+import { BackgroundPreviewScreen } from './BackgroundPreviewScreen';
 import { uiVerify } from './uiVerify';
-import { composerPreviewPage } from './ComposerPreview';
-import { chatPreviewPage } from './ChatPreview';
-import { shinePreviewPage } from './ShinePreview';
-import { inboxPreviewPage } from './InboxPreview';
+import { ComposerPreviewScreen } from './ComposerPreviewScreen';
+import { ChatPreviewScreen } from './ChatPreviewScreen';
+import { ShinePreviewScreen } from './ShinePreviewScreen';
+import { InboxPreviewScreen } from './InboxPreviewScreen';
 import { Link, useTheme } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text, View as RNView } from 'react-native';
 import {
   NativeCloseButton,
   dataRuntimeStatus,
@@ -26,7 +26,7 @@ import {
 import { Screen } from '@/ui/Screen';
 import { Button } from '@/ui/Button';
 
-export default function DebugScreen() {
+function View() {
   const [runtime, setRuntime] = useState('正在读取');
   useEffect(() => {
     if (uiVerify) return;
@@ -87,14 +87,14 @@ export default function DebugScreen() {
       </Button>
       <Button
         testID="inbox-preview"
-        onPress={() => void present(inboxPreviewPage, {})}
+        onPress={() => void present(InboxPreviewScreen, {})}
       >
         动态分组验收
       </Button>
       {uiVerify && (
         <Button
           testID="background-preview"
-          onPress={() => void present(backgroundPreviewPage, {})}
+          onPress={() => void present(BackgroundPreviewScreen, {})}
         >
           后台连接验收
         </Button>
@@ -102,7 +102,7 @@ export default function DebugScreen() {
       <Button
         testID="composer-preview"
         onPress={() =>
-          void present(composerPreviewPage, {
+          void present(ComposerPreviewScreen, {
             host: 'sheet',
             outcome: 'failure',
           })
@@ -114,7 +114,7 @@ export default function DebugScreen() {
         testID="composer-success"
         onPress={() =>
           void present(
-            composerPreviewPage,
+            ComposerPreviewScreen,
             { host: 'chat', outcome: 'success' },
             { style: 'push' },
           )
@@ -126,7 +126,7 @@ export default function DebugScreen() {
         testID="composer-failure"
         onPress={() =>
           void present(
-            composerPreviewPage,
+            ComposerPreviewScreen,
             { host: 'chat', outcome: 'failure' },
             { style: 'push' },
           )
@@ -136,13 +136,13 @@ export default function DebugScreen() {
       </Button>
       <Button
         testID="chat-preview"
-        onPress={() => void present(chatPreviewPage, {})}
+        onPress={() => void present(ChatPreviewScreen, {})}
       >
         原生聊天预览
       </Button>
       <Button
         testID="chat-shine-preview"
-        onPress={() => void present(shinePreviewPage, {})}
+        onPress={() => void present(ShinePreviewScreen, {})}
       >
         过程高光
       </Button>
@@ -227,7 +227,7 @@ function OverlayScreen() {
   const { colors } = useTheme();
   const { cancel, finish } = usePageRuntime();
   return (
-    <View
+    <RNView
       style={{
         flex: 1,
         justifyContent: 'center',
@@ -235,7 +235,7 @@ function OverlayScreen() {
         backgroundColor: 'rgba(0,0,0,0.35)',
       }}
     >
-      <View
+      <RNView
         style={{
           backgroundColor: colors.card,
           padding: 24,
@@ -253,8 +253,8 @@ function OverlayScreen() {
         <Button testID="overlay-finish" onPress={() => finish()}>
           完成并返回
         </Button>
-      </View>
-    </View>
+      </RNView>
+    </RNView>
   );
 }
 const overlayPage = definePage({
@@ -266,4 +266,11 @@ const overlayPage = definePage({
     headerShown: false,
     animationType: 'fade',
   },
+});
+
+export const DebugScreen = definePage({
+  id: 'debug',
+  title: 'Debug',
+  Component: View,
+  presentation: { style: 'push', headerVariant: 'transparent' },
 });

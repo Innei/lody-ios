@@ -1,4 +1,7 @@
-import { homeVerify, HomePreviewProviders } from '@/features/debug/HomePreview';
+import {
+  homeVerify,
+  HomePreviewProviders,
+} from '@/screens/debug/HomePreviewScreen';
 import type { PropsWithChildren } from 'react';
 import { Stack, ThemeProvider } from 'expo-router';
 import { CatalogProvider } from '@/cloud/catalog/CatalogProvider';

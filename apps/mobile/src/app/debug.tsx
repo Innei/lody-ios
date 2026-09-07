@@ -1,1 +1,2 @@
-export { default } from '@/features/debug/DebugScreen';
+import { DebugScreen } from '@/screens/debug/DebugScreen';
+export default DebugScreen.Route;

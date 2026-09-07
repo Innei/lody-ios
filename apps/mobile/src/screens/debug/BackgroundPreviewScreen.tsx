@@ -10,7 +10,7 @@ import { definePage } from '@/presentation';
 import { Screen } from '@/ui/Screen';
 import { Button } from '@/ui/Button';
 
-function BackgroundPreview() {
+function View() {
   const { colors } = useTheme();
   const [status, setStatus] = useState<DataRuntimeEvent>();
   const [error, setError] = useState('');
@@ -80,9 +80,9 @@ function BackgroundPreview() {
   );
 }
 
-export const backgroundPreviewPage = definePage({
+export const BackgroundPreviewScreen = definePage({
   id: 'background-preview',
   title: '后台连接',
-  Component: BackgroundPreview,
+  Component: View,
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

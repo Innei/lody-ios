@@ -78,7 +78,7 @@ const permissionService: PermissionService = {
   respond: async () => 'accepted',
 };
 
-function ChatPreview() {
+function View() {
   const [showImage, setShowImage] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
   const [length, setLength] = useState(totalLength);
@@ -405,9 +405,9 @@ function ChatPreview() {
     </>
   );
 }
-export const chatPreviewPage = definePage({
+export const ChatPreviewScreen = definePage({
   id: 'chat-preview',
   title: '原生聊天预览',
-  Component: ChatPreview,
+  Component: View,
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

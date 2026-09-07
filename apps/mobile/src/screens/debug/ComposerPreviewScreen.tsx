@@ -1,6 +1,6 @@
 import { Button } from '@/ui/Button';
 import { useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text, View as RNView } from 'react-native';
 import { NativeChat, NativeComposer } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
@@ -8,7 +8,7 @@ import { usePalette } from '@/theme/palette';
 type Params = { host: 'chat' | 'sheet'; outcome: 'success' | 'failure' };
 
 // Keep the request pending until the driver completes it: no race against CI speed.
-function ComposerPreview() {
+function View() {
   const { params } = usePageRuntime<Params>();
   const colors = usePalette();
   const [restoreDraftToken, setRestoreDraftToken] = useState(0);
@@ -33,8 +33,8 @@ function ComposerPreview() {
     },
   };
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <View
+    <RNView style={{ flex: 1, backgroundColor: colors.background }}>
+      <RNView
         style={{
           marginTop: params.host === 'chat' ? 104 : 56,
           paddingHorizontal: 16,
@@ -53,7 +53,7 @@ function ComposerPreview() {
         >
           Complete Request
         </Button>
-      </View>
+      </RNView>
       <Text
         testID="composer-result"
         style={{ color: colors.label, padding: 16 }}
@@ -78,17 +78,17 @@ function ComposerPreview() {
         />
       ) : (
         <>
-          <View style={{ flex: 1 }} />
+          <RNView style={{ flex: 1 }} />
           <NativeComposer {...props} />
         </>
       )}
-    </View>
+    </RNView>
   );
 }
-export const composerPreviewPage = definePage<Params>({
+export const ComposerPreviewScreen = definePage<Params>({
   id: 'composer-preview',
   title: '输入框验收',
-  Component: ComposerPreview,
+  Component: View,
   parseRouteParams: () => {
     throw new Error('Open from Debug');
   },

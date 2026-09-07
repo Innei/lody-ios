@@ -1,4 +1,3 @@
-import { uiVerify } from '@/features/debug/uiVerify';
 import {
   createContext,
   useContext,
@@ -33,6 +32,8 @@ import { accountKey } from './persist';
 import type { SavedAccount } from '../../models/auth.ts';
 import type { SavedCatalog } from '../../models/catalog.ts';
 import { t } from '../../i18n/index.ts';
+
+const uiVerify = __DEV__ && process.env.EXPO_PUBLIC_UI_VERIFY === '1';
 
 type Account = { token: string; user: User; workspaces: Workspace[] };
 type AuthState = {

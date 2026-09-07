@@ -1,5 +1,5 @@
 import { NativeGroupedList } from '@lody-ios/kit';
-import { View } from 'react-native';
+import { View as RNView } from 'react-native';
 import { definePage } from '@/presentation';
 import { usePalette } from '@/theme/palette';
 import { inboxSections } from '@/features/sessions/inbox';
@@ -68,10 +68,10 @@ const catalog: Catalog = {
   machineIds: ['m1'],
 };
 
-function InboxPreview() {
+function View() {
   const colors = usePalette();
   return (
-    <View testID="inbox-preview-ready" style={{ flex: 1 }}>
+    <RNView testID="inbox-preview-ready" style={{ flex: 1 }}>
       <NativeGroupedList
         style={{ flex: 1 }}
         accent={colors.accent}
@@ -80,13 +80,13 @@ function InboxPreview() {
         refreshing={false}
         onRowPress={() => {}}
       />
-    </View>
+    </RNView>
   );
 }
 
-export const inboxPreviewPage = definePage({
+export const InboxPreviewScreen = definePage({
   id: 'inbox-preview',
   title: '动态分组验收',
-  Component: InboxPreview,
+  Component: View,
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

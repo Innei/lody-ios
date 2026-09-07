@@ -27,7 +27,7 @@ const entriesJSON = JSON.stringify([
   },
 ]);
 
-function ShinePreview() {
+function View() {
   return (
     <NativeChat
       style={{ flex: 1 }}
@@ -50,9 +50,9 @@ function ShinePreview() {
   );
 }
 
-export const shinePreviewPage = definePage({
+export const ShinePreviewScreen = definePage({
   id: 'chat-shine-preview',
   title: '过程高光',
-  Component: ShinePreview,
+  Component: View,
   presentation: { style: 'push', headerVariant: 'transparent' },
 });
