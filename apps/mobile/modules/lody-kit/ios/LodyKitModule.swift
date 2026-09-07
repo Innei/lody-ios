@@ -332,5 +332,14 @@ public final class LodyKitModule: Module {
         view.setDisabled(disabled)
       }
     }
+
+    View(LodyGlassSurface.self) {
+      Prop("radius") { (view: LodyGlassSurface, radius: Double) in
+        view.setRadius(radius)
+      }
+      Prop("tint") { (view: LodyGlassSurface, tint: String) in
+        view.setTint(tint)
+      }
+    }
   }
 }

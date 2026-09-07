@@ -274,6 +274,7 @@
   "permission.heading.execute": "Allow running commands?",
   "permission.heading.edit": "Allow editing files?",
   "permission.heading.tool": "Allow using tools?",
+  "permission.waiting": "Loading the request…",
   "permission.error.options": "Could not load the permission options",
   "permission.error.stale": "This request is no longer valid",
   "permission.error.answered": "It was already answered elsewhere, and that answer stands",

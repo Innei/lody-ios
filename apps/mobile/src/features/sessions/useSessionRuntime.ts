@@ -7,22 +7,10 @@ import {
 import { acceptEnvelope } from './acceptEnvelope';
 import { localGeneration, readLocal } from '../../cloud/local';
 import { showToast } from '../../ui/toast';
-import type { EntrySummary, Envelope, ItemSummary } from './transcript/types';
+import type { Envelope } from './transcript/types';
 import { t } from '../../i18n/index.ts';
 
 export type Snapshot = Omit<Envelope, 'v'>;
-
-export function pendingPermission(entry: EntrySummary, requestId?: string) {
-  for (const item of entry.items)
-    if (
-      item.type === 'tool_call' &&
-      'permission' in item &&
-      item.permission?.pending &&
-      (!requestId || item.permission.requestId === requestId)
-    )
-      return item as Extract<ItemSummary, { type: 'tool_call' }>;
-  return undefined;
-}
 
 export function useSessionRuntime(
   sessionId: string,

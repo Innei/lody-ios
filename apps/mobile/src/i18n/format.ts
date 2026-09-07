@@ -34,5 +34,7 @@ export function formatTemplate(template: string, vars?: TemplateVars) {
  * here: English separates 1, Simplified Chinese never does.
  */
 export function pluralSuffix(locale: Locale, count: number) {
-  return locale === 'en' && count === 1 ? ('.one' as const) : ('.other' as const);
+  return locale === 'en' && count === 1
+    ? ('.one' as const)
+    : ('.other' as const);
 }

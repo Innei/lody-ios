@@ -7,6 +7,14 @@ import { definePage, present } from '@/presentation';
 import { fileDiffPage } from '@/features/sessions/changes/fileDiffPage';
 import { basename } from '@/features/sessions/changes/turnChangesPage';
 import { useProcessSheet } from '@/features/sessions/detail/processPage';
+import {
+  permissionPage,
+  type PermissionService,
+} from '@/features/sessions/detail/permissionPage';
+import type {
+  PermissionTarget,
+  PermissionTargetSource,
+} from '@/features/sessions/detail/permissionTarget';
 
 const answer = `## 原生聊天布局\n\n列表使用 **UICollectionView**，正文直接由 UIKit 渲染。\n\n- 输入区始终可见，跟随键盘移动\n- 执行过程在 Sheet 中平铺\n- 完成后保持回答和过程入口\n\n### 代码示例\n\n\`\`\`swift\nlet layout = UICollectionViewFlowLayout()\nlet list = UICollectionView(\n  frame: .zero,\n  collectionViewLayout: layout\n)\n\`\`\`\n\n这是一条用于检查换行、**粗体**和 \`inline code\` 的较长段落。切换浅色和深色外观，正文和输入框都应清晰可读。\n\n> 引用块用于确认左侧竖条与次级文字颜色。\n\n1. 有序列表\n   - 嵌套的无序项\n   - [x] 已完成的任务\n   - [ ] 未完成的任务\n2. 第二项，见 [Apple HIG](https://developer.apple.com/design/human-interface-guidelines/)\n\n| 节点 | 状态 |\n| --- | --- |\n| 表格 | 原生 GridView |\n| 公式 | $E = mc^2$ |\n\n---\n\n分割线之后的收尾段落。`;
 const history = Array.from({ length: 80 }, (_, index) => ({
@@ -33,6 +41,42 @@ function editStatus(mode: 'normal' | 'attention', length: number) {
   if (length < 240) return 'in_progress';
   return 'completed';
 }
+
+const permissionTarget: PermissionTarget = {
+  entryId: 'preview',
+  itemId: 'edit',
+  requestId: 'ui-verify-request',
+  kind: 'execute',
+  title: '在 lody-ios 中执行命令',
+  path: undefined,
+};
+
+/** Resolves late on purpose: the sheet must open before the target is known. */
+const permissionSource: PermissionTargetSource = (onState) => {
+  onState({ ready: false });
+  const timer = setTimeout(
+    () => onState({ ready: true, target: permissionTarget }),
+    2000,
+  );
+  return () => clearTimeout(timer);
+};
+
+const permissionService: PermissionService = {
+  detail: async () => ({
+    options: [
+      { optionId: 'allow', name: 'Allow once', kind: 'allow_once' },
+      { optionId: 'always', name: 'Always allow', kind: 'allow_always' },
+      { optionId: 'reject', name: 'Reject', kind: 'reject_once' },
+    ],
+    command: {
+      type: 'terminal_command',
+      command: 'pnpm',
+      args: ['verify:ui'],
+      cwd: '/Users/lody/lody-ios',
+    },
+  }),
+  respond: async () => 'accepted',
+};
 
 function ChatPreview() {
   const [showImage, setShowImage] = useState(false);
@@ -260,6 +304,20 @@ function ChatPreview() {
               setShowChanges(false);
               setShowImage(true);
             }}
+          />
+        )}
+        {uiVerify && (
+          <Stack.Toolbar.Button
+            accessibilityLabel="Permission Fixture"
+            icon="lock.open"
+            onPress={() =>
+              void present(permissionPage, {
+                sessionId: 'ui-verify-permission',
+                generation: 0,
+                source: permissionSource,
+                service: permissionService,
+              })
+            }
           />
         )}
         <Stack.Toolbar.Button

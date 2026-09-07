@@ -274,6 +274,7 @@
   "permission.heading.execute": "允许执行命令？",
   "permission.heading.edit": "允许编辑文件？",
   "permission.heading.tool": "允许调用工具？",
+  "permission.waiting": "正在读取请求…",
   "permission.error.options": "无法读取权限选项",
   "permission.error.stale": "这个请求已经失效",
   "permission.error.answered": "已经在别处作答，以那次为准",

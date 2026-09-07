@@ -1,9 +1,9 @@
-import { NativePressable } from '@lody-ios/kit';
+import { NativeGlassSurface, NativePressable } from '@lody-ios/kit';
 import type { ColorValue, StyleProp, ViewStyle } from 'react-native';
 import { usePalette } from '@/theme/palette';
 import { AppText } from './AppText';
 
-export type ButtonVariant = 'filled' | 'plain';
+export type ButtonVariant = 'filled' | 'glass' | 'plain';
 
 export function Button({
   label,
@@ -25,7 +25,9 @@ export function Button({
   style?: StyleProp<ViewStyle>;
 }) {
   const colors = usePalette();
+  const glass = variant === 'glass';
   const filled = variant === 'filled';
+  const surface = filled || glass;
   const text = label ?? children ?? '';
   let color: ColorValue = colors.accent;
   if (filled) color = colors.onAccent;
@@ -39,7 +41,7 @@ export function Button({
       style={[
         {
           minHeight: 44,
-          paddingHorizontal: filled ? 20 : 0,
+          paddingHorizontal: surface ? 20 : 0,
           borderRadius: filled ? 12 : 0,
           borderCurve: 'continuous',
           alignItems: 'center',
@@ -50,11 +52,12 @@ export function Button({
         style,
       ]}
     >
+      {glass ? <NativeGlassSurface radius={14} /> : null}
       <AppText
         variant="body"
         style={{
           color,
-          fontWeight: filled ? '600' : '400',
+          fontWeight: surface ? '600' : '400',
         }}
       >
         {text}

@@ -16,6 +16,21 @@ class UI:
             raise RuntimeError(output)
         return output
 
+    def type_into(self, identifier, text):
+        """A Chinese App Language activates the pinyin IME, which holds typed Latin
+        fixture text as composition instead of committing it. Switch to the English
+        keyboard and retype only when the field disagrees, so a run never toggles a
+        keyboard that is already Latin."""
+        import catalog
+        self.axe('type', text)
+        if catalog.LANGUAGE == 'en' or self.element(identifier).get('AXValue') == text:
+            return
+        self.axe('tap', '--label', catalog.system('nextKeyboard'), '--post-delay', '.6')
+        for _ in range(len(text) + 4):
+            self.axe('key', '42')
+        self.axe('type', text)
+        assert self.element(identifier).get('AXValue') == text, 'Typed text did not commit'
+
     def state(self):
         def walk(node):
             if isinstance(node, dict):

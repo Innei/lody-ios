@@ -8,12 +8,12 @@ import select
 import subprocess
 import sys
 import time
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 from driver import UI
 
 ROOT = Path(__file__).resolve().parents[4]
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
-CASES = ['send', 'send-handoff', 'layout', 'tracking', 'model-options', 'image-preview', 'composer', 'composer-success', 'composer-failure', 'markdown', 'changes', 'inbox', 'background', 'home']
+CASES = ['send', 'send-handoff', 'layout', 'tracking', 'model-options', 'image-preview', 'composer', 'composer-success', 'composer-failure', 'markdown', 'changes', 'inbox', 'background', 'permission', 'home']
 PREVIEW = {
     'send': 'send-preview',
     'send-handoff': 'send-handoff',
@@ -31,6 +31,7 @@ READY = {
     'composer-success': 'session-input',
     'composer-failure': 'session-input',
     'inbox': 'inbox-wait',
+    'permission': 'session-input',
 }
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--udid', required=True, help='Disposable simulator, never a personal device')
@@ -80,6 +81,11 @@ try:
         if time.monotonic() > deadline:
             raise TimeoutError('Metro did not become ready')
         time.sleep(.5)
+    request = Request(f'http://localhost:{args.port}/?disableOnboarding=1', headers={'expo-platform': 'ios', 'accept': 'application/expo+json'})
+    with urlopen(request, timeout=30) as response:
+        manifest = json.load(response)
+    with urlopen(manifest['launchAsset']['url'], timeout=90) as response:
+        response.read()
     (args.output / 'environment.json').write_text(json.dumps({
         'udid': args.udid, 'app': str(args.app.resolve()), 'language': args.language,
         'baseCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
@@ -88,6 +94,9 @@ try:
         'axe': subprocess.check_output(['axe', '--version'], text=True).strip(),
     }, indent=2))
     sim('spawn', args.udid, 'defaults', 'write', 'com.apple.keyboard.preferences', 'AutomaticMinimizationEnabled', '-bool', 'false')
+    # A Chinese App Language otherwise brings up the pinyin IME, which buffers typed
+    # fixture text as composition instead of committing it to the field.
+    sim('spawn', args.udid, 'defaults', 'write', 'com.apple.Preferences', 'AppleKeyboards', '-array', 'en_US@sw=QWERTY')
     keyboard = args.output / 'software-keyboard'
     subprocess.run(['xcrun', 'clang', '-fobjc-arc', '-framework', 'Foundation', str(Path(__file__).with_name('software-keyboard.m')), '-o', str(keyboard)], check=True, timeout=60)
     subprocess.run([str(keyboard), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), args.udid], check=True, timeout=30)
@@ -104,7 +113,8 @@ try:
             result = {'case': case, 'appearance': appearance, 'language': args.language, 'status': 'failed'}
             try:
                 sim('terminate', args.udid, 'app.innei.lody', check=False)
-                sim('launch', args.udid, 'app.innei.lody', '--ui-verify', '--initialUrl', f'http://localhost:{args.port}?disableOnboarding=1', '-expo.devlauncher.hasGrantedNetworkPermission', 'YES', '-AppleLanguages', f'({args.language})', '-AppleLocale', 'en_US' if args.language == 'en' else 'zh_CN')
+                sim('launch', args.udid, 'app.innei.lody', '--ui-verify', '--initialUrl', f'http://localhost:{args.port}?disableOnboarding=1', '-expo.devlauncher.hasGrantedNetworkPermission', 'YES', '-AppleLanguages', f'({args.language})', '-AppleLocale', 'en_US' if args.language == 'en' else 'zh_CN',
+                    '-AppleKeyboards', '(en_US@sw=QWERTY)')
                 ui.element('ui-verify-ready', timeout=90)
                 preview = PREVIEW.get(case, 'chat-preview')
                 ready = 'new-session-tab' if case == 'home' else READY.get(case, 'chat-navigation-title')
@@ -133,7 +143,7 @@ try:
                 else:
                     raise TimeoutError('Video recorder did not start')
                 ui.capture('before')
-                script = Path(__file__).with_name(f'{case}.py') if case in ['send', 'send-handoff', 'composer', 'markdown', 'changes', 'background', 'inbox', 'home'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                script = Path(__file__).with_name(f'{case}.py') if case in ['send', 'send-handoff', 'composer', 'markdown', 'changes', 'background', 'inbox', 'permission', 'home'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
                 command = [sys.executable, str(script), args.udid]
                 if case.startswith('composer-'):
                     command += ['--expect', case.removeprefix('composer-'), '--output', str(output)]

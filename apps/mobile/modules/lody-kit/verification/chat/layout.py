@@ -2,12 +2,15 @@
 import json
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[4] / 'verification/ui'))
+from driver import UI
 import catalog
 
 udid = sys.argv[1]
+ui = UI(udid, tempfile.mkdtemp(prefix='layout-ui-'))
 
 def axe(*args):
     return subprocess.check_output(['axe', *args, '--udid', udid], text=True)
@@ -24,7 +27,7 @@ def rows(node):
 
 axe('tap', '--id', 'chat-navigation-title', '--post-delay', '0.3')
 assert '原生 titleView 点击正常' in axe('describe-ui'), 'Native title must keep its tap action'
-axe('tap', '--label', 'OK', '--post-delay', '0.3')
+axe('tap', '--label', catalog.system('ok'), '--post-delay', '0.3')
 axe('tap', '--label', 'Retry')
 observations = []
 saw_running = False
@@ -65,7 +68,7 @@ if '--send' in sys.argv:
     # This path sends only to the local development preview, never a real session.
     assert '原生聊天预览' in axe('describe-ui')
     axe('tap', '--id', 'session-input', '--post-delay', '0.5')
-    axe('type', 'Keep this message at the top.')
+    ui.type_into('session-input', 'keep this message at the top.')
     time.sleep(1)
     axe('tap', '--id', 'session-send')
     time.sleep(0.7)

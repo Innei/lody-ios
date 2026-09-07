@@ -3,7 +3,7 @@ import { usePendingSends } from '@/cloud/pendingSends';
 import { useConnection } from '@/cloud/connection';
 import { useSessionSend } from './useSessionSend';
 import { useCatalog } from '@/cloud/CatalogProvider';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Alert } from 'react-native';
 import { usePalette } from '@/theme/palette';
 import { NativeChat, sessionCreationOptions } from '@lody-ios/kit';
@@ -12,14 +12,21 @@ import { localProjectIdOf } from '@lody-ios/kit';
 import { newSession, setArchived, setPinned } from './navigation';
 import { useAuth } from '@/features/auth/AuthProvider';
 import type { Capability, CreationOptions, Session } from '@/cloud/model';
-import type { EntrySummary, ItemSummary } from './transcript/types';
-import { pendingPermission, useSessionRuntime } from './useSessionRuntime';
+
+import { useSessionRuntime } from './useSessionRuntime';
 import { itemDetailPage } from './detail/itemDetailPage';
 import { basename } from './changes/turnChangesPage';
 import { fileDiffPage } from './changes/fileDiffPage';
 import { filesPage } from './files/FilesScreen';
 import { changedFiles } from './transcript/changes';
 import { permissionPage } from './detail/permissionPage';
+import {
+  createPermissionGate,
+  firstPermissionTarget,
+  type PermissionTarget,
+  type PermissionTargetSource,
+  type PermissionTargetState,
+} from './detail/permissionTarget';
 import { useProcessSheet } from './detail/processPage';
 import type { ModelChoice } from './ModelScreen';
 import { t } from '../../i18n/index.ts';
@@ -196,33 +203,45 @@ function SessionScreen() {
     userId: account?.user.id ?? '',
     overflow,
   });
-  const answered = useRef(new Set<string>());
+  const gate = useRef(createPermissionGate()).current;
+  const listeners = useRef(new Set<(state: PermissionTargetState) => void>());
+  const targetState = useRef<PermissionTargetState>({ ready: false });
+  const permissionSource = useCallback<PermissionTargetSource>((onState) => {
+    listeners.current.add(onState);
+    onState(targetState.current);
+    return () => {
+      listeners.current.delete(onState);
+    };
+  }, []);
 
-  const askPermission = (
-    entry: EntrySummary,
-    item: Extract<ItemSummary, { type: 'tool_call' }>,
-  ) =>
-    void present(permissionPage, {
-      sessionId: session.id,
-      entryId: entry.id,
-      itemId: item.itemId,
-      requestId: item.permission!.requestId,
-      generation: cursor.current.generation,
-      kind: item.kind,
-      title: item.title,
-      path: item.path,
-    });
+  const askPermission = async (target?: PermissionTarget) => {
+    gate.opened();
+    try {
+      gate.settled(
+        await present(permissionPage, {
+          sessionId: session.id,
+          generation: cursor.current.generation,
+          target,
+          source: target ? undefined : permissionSource,
+        }),
+      );
+    } catch {
+      gate.settled({ status: 'cancelled' });
+    }
+  };
+
+  // Opening on entry beats waiting for the replica: the sheet resolves its own
+  // target through `permissionSource` once the transcript arrives.
+  useEffect(() => {
+    if (session.awaitingUserSince != null) void askPermission();
+  }, []);
 
   useEffect(() => {
-    if (snapshot.status !== 'live' || !snapshot.awaitingUserSince) return;
-    for (const entry of snapshot.entries) {
-      const item = pendingPermission(entry);
-      const requestId = item?.permission?.requestId;
-      if (!item || !requestId || answered.current.has(requestId)) continue;
-      answered.current.add(requestId);
-      askPermission(entry, item);
-      return;
-    }
+    const ready = snapshot.status === 'live';
+    const target = ready ? firstPermissionTarget(snapshot.entries) : undefined;
+    targetState.current = { ready, target };
+    for (const notify of listeners.current) notify(targetState.current);
+    if (target && gate.shouldOpen(target)) void askPermission(target);
   }, [snapshot]);
 
   const onActivityPress = (entryId: string, itemId: string) => {
@@ -236,13 +255,9 @@ function SessionScreen() {
     const entry = snapshot.entries.find((e) => e.id === entryId);
     const item = entry?.items.find((i) => i.itemId === itemId);
     if (!entry || !item) return;
-    if (
-      entry &&
-      item?.type === 'tool_call' &&
-      'permission' in item &&
-      item.permission?.pending
-    ) {
-      askPermission(entry, item as Extract<ItemSummary, { type: 'tool_call' }>);
+    const target = firstPermissionTarget([{ ...entry, items: [item] }]);
+    if (target) {
+      void askPermission(target);
       return;
     }
     void present(itemDetailPage, {

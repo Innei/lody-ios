@@ -63,6 +63,11 @@ export {
 } from './press/NativePressable';
 
 export {
+  NativeGlassSurface,
+  type NativeGlassSurfaceProps,
+} from './press/NativeGlassSurface';
+
+export {
   initialInboxView,
   saveInboxView,
   readInboxExpansion,

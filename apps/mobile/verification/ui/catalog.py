@@ -20,3 +20,14 @@ def text(key, **variables):
 def plural(key, count, **variables):
     category = 'one' if LANGUAGE == 'en' and count == 1 else 'other'
     return text(f'{key}.{category}', count=count, **variables)
+
+
+# UIKit's own controls follow the same App Language; these are not app copy.
+SYSTEM = {
+    'en': {'clear': 'Clear text', 'close': 'Close', 'ok': 'OK', 'copy': 'copy', 'nextKeyboard': 'Next keyboard'},
+    'zh-Hans': {'clear': '清除文本', 'close': '关闭', 'ok': '好', 'copy': '拷贝', 'nextKeyboard': '下一个键盘'},
+}
+
+
+def system(name):
+    return SYSTEM[LANGUAGE][name]

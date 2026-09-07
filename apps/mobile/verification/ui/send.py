@@ -23,7 +23,7 @@ ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 1 · sending' for i in ite
 ui.axe('tap', '--id', 'send-fail')
 ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('send.alert.title') for i in items), 'Definite failure not surfaced')
 ui.capture('failure-alert')
-ui.axe('tap', '--label', 'OK')
+ui.axe('tap', '--label', catalog.system('ok'))
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-input' and i.get('AXValue') == draft for i in items), 'Text was not restored')
 assert [i['AXLabel'] for i in ui.state() if (i.get('AXLabel') or '').startswith(PREVIEW)] == attachments
 assert not any(i.get('AXUniqueId') in [turn + ':user', turn + ':pending'] for i in ui.state()), 'Failed rows remain'
@@ -37,16 +37,16 @@ ui.axe('tap', '--id', 'send-reply')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 2 · idle' for i in items), 'Reply did not reconcile local pending')
 assert not any((i.get('AXUniqueId') or '').endswith(':pending') for i in ui.state())
 ui.axe('tap', '--id', 'session-input')
-ui.axe('type', 'next draft')
+ui.type_into('session-input', 'next draft')
 assert ui.element('session-input')['AXValue'] == 'next draft', 'Acknowledged draft re-locked input'
 ui.capture('reconciled')
 ui.axe('tap', '--id', 'session-send')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 3 · sending' for i in items), 'Third send missing')
-ui.axe('type', 'followup')
+ui.type_into('session-input', 'followup')
 assert ui.element('session-input')['AXValue'] == 'followup', 'Pending send dismissed or locked input'
 ui.axe('tap', '--id', 'send-fail')
 ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('send.alert.title') for i in items), 'Failure alert missing')
-ui.axe('tap', '--label', 'OK')
+ui.axe('tap', '--label', catalog.system('ok'))
 assert ui.element('session-input')['AXValue'] == 'followup', 'Failure overwrote next draft'
 assert not ui.element('session-send')['enabled'], 'Unmerged failed draft must be retained'
 ui.axe('tap', '--label', catalog.text('native.chat.composer.failedDraft'))

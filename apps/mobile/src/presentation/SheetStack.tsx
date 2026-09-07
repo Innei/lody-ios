@@ -134,10 +134,10 @@ export function SheetStack({
 
   const rootRuntime = useMemo(() => ({ ...runtime, push }), [runtime, push]);
 
+  // A sheet that refuses the swipe still needs a way out, so the close button
+  // does not depend on `dismissible`.
   const showClose =
-    session.presentation.style !== 'push' &&
-    session.presentation.headerShown &&
-    session.presentation.dismissible;
+    session.presentation.style !== 'push' && session.presentation.headerShown;
 
   return (
     <ScreenStack style={StyleSheet.absoluteFill}>
