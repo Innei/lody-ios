@@ -1,16 +1,18 @@
-import type { CreationOptions, Project } from '@/cloud/model';
+import type { Project } from '../../models/catalog.ts';
+import type {
+  CreatePrefs,
+  CreationOptions,
+  ModelChoice,
+  ProjectPrefs,
+} from '../../models/send.ts';
 // Relative on purpose: this module is imported directly by node --test.
 import { capabilityFor } from '../../cloud/model.ts';
-import type { ModelChoice } from './ModelScreen';
 
-export type ProjectPrefs = ModelChoice & {
-  machineId?: string;
-  agentKey?: string;
-};
-export type CreatePrefs = {
-  projectId?: string;
-  projects?: Record<string, ProjectPrefs>;
-};
+export type {
+  CreatePrefs,
+  ModelChoice,
+  ProjectPrefs,
+} from '../../models/send.ts';
 
 export const createPrefsKey = (userId: string, workspaceId: string) =>
   `create:${userId}:${workspaceId}`;

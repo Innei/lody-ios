@@ -1,31 +1,9 @@
 import { useSyncExternalStore } from 'react';
-import type { ChatDraftAttachment } from '@lody-ios/kit';
-import type { Session } from './model';
+import type { PendingSend, PendingSession } from '../models/send.ts';
 import { localGeneration, readLocal, writeLocal } from './local';
 import { t } from '../i18n/index.ts';
 
-export type PendingSend = {
-  id: string;
-  text: string;
-  attachments: ChatDraftAttachment[];
-  phase:
-    | 'waiting'
-    | 'creating'
-    | 'sending'
-    | 'accepted'
-    | 'uploaded'
-    | 'unknown'
-    | 'failed';
-  reason?: string;
-  creation?: string;
-  choice: {
-    modelId?: string | null;
-    effort?: string | null;
-    modeId?: string;
-    reasoningEffortConfigId?: string;
-  };
-};
-export type PendingSession = { session: Session; send: PendingSend };
+export type { PendingSend, PendingSession } from '../models/send.ts';
 type Snapshot = { records: readonly PendingSession[]; ready: boolean };
 const stores = new Map<string, ReturnType<typeof createStore>>();
 let storeGeneration = localGeneration();

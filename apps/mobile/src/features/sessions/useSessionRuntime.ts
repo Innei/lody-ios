@@ -7,10 +7,10 @@ import {
 import { acceptEnvelope } from './acceptEnvelope';
 import { localGeneration, readLocal } from '../../cloud/local';
 import { showToast } from '../../ui/toast';
-import type { Envelope } from './transcript/types';
+import type { Envelope, Snapshot } from '../../models/session.ts';
 import { t } from '../../i18n/index.ts';
 
-export type Snapshot = Omit<Envelope, 'v'>;
+export type { Snapshot } from '../../models/session.ts';
 
 export function useSessionRuntime(
   sessionId: string,

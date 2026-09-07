@@ -4,30 +4,9 @@ import { NativeDiff } from '@lody-ios/kit';
 import { usePalette } from '@/theme/palette';
 import { AppText } from '@/ui/AppText';
 import { t } from '../../../i18n/index.ts';
+import type { DetailBlock, DetailResponse } from '../../../models/session.ts';
 
-export type DetailBlock = {
-  type: string;
-  path?: string;
-  oldText?: string;
-  newText?: string;
-  command?: string;
-  args?: string[];
-  cwd?: string;
-  output?: string;
-  exitStatus?: { exitCode?: number | null; signal?: string | null };
-};
-
-export type DetailResponse = {
-  itemId: string;
-  rev: number;
-  blocks: DetailBlock[];
-  rawInput?: unknown;
-  rawOutput?: unknown;
-  options?: { optionId: string; name: string; kind: string }[];
-  outcome?: unknown;
-  truncated: boolean;
-  nextCursor?: string;
-};
+export type { DetailBlock, DetailResponse } from '../../../models/session.ts';
 
 function Mono({ children, color }: { children: string; color?: unknown }) {
   return (

@@ -3,13 +3,10 @@ import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
 import type { Capability } from '@/cloud/model';
+import type { ModelChoice } from '../../models/send.ts';
 import { t } from '../../i18n/index.ts';
 
-export type ModelChoice = {
-  modelId?: string;
-  effort?: string;
-  modeId?: string;
-};
+export type { ModelChoice } from '../../models/send.ts';
 
 type Params = {
   capability: Capability;

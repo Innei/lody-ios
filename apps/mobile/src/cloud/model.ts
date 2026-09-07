@@ -1,34 +1,13 @@
 import { t } from '../i18n/index.ts';
+import type { Catalog, Project, Session } from '../models/catalog.ts';
+import type { CreationOptions } from '../models/send.ts';
 
-export type Project = {
-  id: string;
-  machineId: string;
-  name: string;
-  rootPath: string;
-};
-export type Session = {
-  cliType?: string;
-  agentType?: string;
-  resume?: string;
-  id: string;
-  machineId: string;
-  title: string;
-  status: string;
-  archived: boolean;
-  pinned: boolean;
-  projectId: string;
-  createdAt: string;
-  lastMessageAt?: number;
-  lastReadAt?: number;
-  awaitingUserSince?: number;
-  branchName?: string;
-  diff?: { add: number; del: number };
-};
-export type Catalog = {
-  projects: Project[];
-  sessions: Session[];
-  machineIds: string[];
-};
+export type { Catalog, Project, Session } from '../models/catalog.ts';
+export type {
+  Capability,
+  CapabilityChoice,
+  CreationOptions,
+} from '../models/send.ts';
 type Row = { key: unknown[]; value?: unknown };
 const object = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value)
@@ -142,38 +121,6 @@ export function projectRows(rows: Row[], mode: string): Catalog {
     machineIds: [...machineIds],
   };
 }
-
-export type CapabilityChoice = {
-  id: string;
-  name: string;
-  description?: string;
-};
-
-/** Published per machine under `acpCapability`, keyed by cliType + agentType. */
-export type Capability = {
-  machineId: string;
-  cliType: string;
-  agentType: string;
-  models: CapabilityChoice[];
-  modes: CapabilityChoice[];
-  /** modelId -> reasoning effort levels; only some agents publish this. */
-  reasoningEfforts: Record<string, string[]>;
-  reasoningEffortConfigId?: string;
-};
-
-export type CreationOptions = {
-  sessionId: string;
-  project: Project;
-  agents: {
-    id: string;
-    name: string;
-    machineId: string;
-    machineName: string;
-    cliType: string;
-    agentType: string;
-  }[];
-  capabilities: Capability[];
-};
 
 export function capabilityFor(
   options: Pick<CreationOptions, 'capabilities'> | undefined,

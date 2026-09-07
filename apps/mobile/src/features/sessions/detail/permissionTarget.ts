@@ -1,26 +1,21 @@
 // Relative on purpose: this module is imported directly by node --test, which
 // does not resolve the `@/` alias. Keep it free of aliased value imports.
-import type { EntrySummary } from '../transcript/types.ts';
+import type {
+  EntrySummary,
+  PermissionResult,
+  PermissionTarget,
+  PermissionTargetState,
+} from '../../../models/session.ts';
 
-export type PermissionTarget = {
-  entryId: string;
-  itemId: string;
-  requestId: string;
-  kind: string;
-  title: string;
-  path?: string;
-};
-
-export type PermissionTargetState = {
-  ready: boolean;
-  target?: PermissionTarget;
-};
+export type {
+  PermissionResult,
+  PermissionTarget,
+  PermissionTargetState,
+} from '../../../models/session.ts';
 
 export type PermissionTargetSource = (
   onState: (state: PermissionTargetState) => void,
 ) => () => void;
-
-export type PermissionResult = { requestId: string } | undefined;
 
 type Settlement =
   { status: 'cancelled' } | { status: 'completed'; value: PermissionResult };

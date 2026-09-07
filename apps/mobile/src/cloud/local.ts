@@ -3,11 +3,8 @@ import {
   writeLocalValue,
   clearLocalValues,
 } from '@lody-ios/kit';
-import type { User, Workspace } from './auth';
-import type { Catalog } from './model';
-
-export type SavedAccount = { user: User; workspaces: Workspace[] };
-export type SavedCatalog = { catalog: Catalog; syncedAt: number };
+export type { SavedAccount } from '../models/auth.ts';
+export type { SavedCatalog } from '../models/catalog.ts';
 let generation = 0;
 let writes = Promise.resolve();
 export const localGeneration = () => generation;

@@ -6,25 +6,21 @@ import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
 import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
-import { CommandBlock, type DetailBlock } from './DetailBlocks';
+import { CommandBlock } from './DetailBlocks';
 import { fetchDetail } from './itemDetailPage';
 import type {
+  PermissionDetail,
+  PermissionOption,
   PermissionResult,
   PermissionTarget,
-  PermissionTargetSource,
-} from './permissionTarget';
+} from '../../../models/session.ts';
+import type { PermissionTargetSource } from './permissionTarget';
 import { t, type TranslationKey } from '../../../i18n/index.ts';
 
-export type PermissionOption = {
-  optionId: string;
-  name: string;
-  kind: string;
-};
-
-export type PermissionDetail = {
-  options: PermissionOption[];
-  command?: DetailBlock;
-};
+export type {
+  PermissionDetail,
+  PermissionOption,
+} from '../../../models/session.ts';
 
 export type PermissionService = {
   detail: (

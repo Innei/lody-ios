@@ -1,10 +1,7 @@
 import { useSyncExternalStore } from 'react';
+import type { Connection } from '../models/catalog.ts';
 
-export type Connection = {
-  state: 'live' | 'syncing' | 'offline';
-  machines: number;
-  syncedAt?: number;
-};
+export type { Connection } from '../models/catalog.ts';
 
 const listeners = new Set<() => void>();
 let connection: Connection = { state: 'syncing', machines: 0 };

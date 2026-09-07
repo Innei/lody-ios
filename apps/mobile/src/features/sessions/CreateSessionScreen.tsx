@@ -33,7 +33,10 @@ import {
   modelPage,
   modelSummary,
 } from './ModelScreen';
+import type { CreatedSession } from '../../models/send.ts';
 import { t } from '../../i18n/index.ts';
+
+export type { CreatedSession } from '../../models/send.ts';
 
 type Params = {
   workspaceId: string;
@@ -65,12 +68,6 @@ function createNotice({
 
 /** Unassigned projects carry no working directory, so no session can start there. */
 const creatable = (project: Project) => !project.id.endsWith(':unassigned');
-export type CreatedSession = {
-  session: Session;
-  modelId?: string;
-  effort?: string;
-  modeId?: string;
-};
 
 function CreateSessionScreen() {
   const { params, finish, push } = usePageRuntime<Params, CreatedSession>();

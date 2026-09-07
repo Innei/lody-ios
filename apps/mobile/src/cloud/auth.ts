@@ -3,15 +3,14 @@ import { t } from '../i18n/index.ts';
 // Public production endpoints observed in the official Lody web client.
 export const AUTH_ORIGIN = 'https://backend.lody.ai';
 export const DEVICE_CLIENT_ID = 'lody-cli';
-export type User = { id: string; name: string; email: string };
-export type Workspace = { id: string; name: string; slug: string | null };
-export type DeviceCode = {
-  device_code: string;
-  user_code: string;
-  verification_uri_complete: string;
-  expires_in: number;
-  interval: number;
-};
+import type { DeviceCode, User, Workspace } from '../models/auth.ts';
+
+export type {
+  DeviceCode,
+  SavedAccount,
+  User,
+  Workspace,
+} from '../models/auth.ts';
 export class AuthError extends Error {}
 export function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
