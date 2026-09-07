@@ -43,11 +43,20 @@ final class ChatFadeLayout: TextLabel.Layout {
 
 /// Fades newly rendered graphemes in while a message streams. Ticks only redraw;
 /// they never touch the attributed string or the layout.
-final class ChatFadeLabelView: TextLabelView {
+final class ChatFadeLabelView: TextLabelView, UIGestureRecognizerDelegate {
   private var fade = ChatTextFade()
   private var timer: Timer?
   private var animateNext = false
   private var resetNext = false
+  private var renderedLayout: TextLabel.Layout?
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    let longPress = UILongPressGestureRecognizer(target: self, action: #selector(selectWord(_:)))
+    longPress.cancelsTouchesInView = false
+    longPress.delegate = self
+    addGestureRecognizer(longPress)
+  }
 
   func prepare(animate: Bool, reset: Bool) {
     animateNext = animate
@@ -66,8 +75,32 @@ final class ChatFadeLabelView: TextLabelView {
   override func makeTextLayout(_ attributedText: NSAttributedString) -> TextLabel.Layout {
     let layout = ChatFadeLayout(attributedString: attributedText)
     layout.fades = { [weak self] in self?.fade.active ?? [] }
+    renderedLayout = layout
     return layout
   }
+
+  @objc private func selectWord(_ gesture: UILongPressGestureRecognizer) {
+    guard gesture.state == .began, let layout = renderedLayout else { return }
+    let point = gesture.location(in: self)
+    let layoutPoint = CGPoint(x: point.x, y: layout.containerSize.height - point.y)
+    guard let index = layout.textIndex(at: layoutPoint) else { return }
+    let text = layout.attributedString.string as NSString
+    var selected = NSRange(location: NSNotFound, length: 0)
+    text.enumerateSubstrings(
+      in: NSRange(location: 0, length: text.length),
+      options: [.byWords, .substringNotRequired]
+    ) { _, range, _, stop in
+      guard NSLocationInRange(index, range) else { return }
+      selected = range
+      stop.pointee = true
+    }
+    if selected.location != NSNotFound { selectionRange = selected }
+  }
+
+  func gestureRecognizer(
+    _ gestureRecognizer: UIGestureRecognizer,
+    shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+  ) -> Bool { true }
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
