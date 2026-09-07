@@ -31,7 +31,6 @@ READY = {
     'composer-success': 'session-input',
     'composer-failure': 'session-input',
     'inbox': 'inbox-wait',
-    'permission': 'session-input',
 }
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--udid', required=True, help='Disposable simulator, never a personal device')
@@ -117,7 +116,7 @@ try:
                     '-AppleKeyboards', '(en_US@sw=QWERTY)')
                 ui.element('ui-verify-ready', timeout=90)
                 preview = PREVIEW.get(case, 'chat-preview')
-                ready = 'new-session-tab' if case == 'home' else READY.get(case, 'chat-navigation-title')
+                ready = 'new-session-tab' if case == 'home' else READY.get(case, 'session-input')
                 if case != 'home':
                     ui.axe('tap', '--id', preview, '--pre-delay', '0.8', '--post-delay', '0.8', *(['--tap-style', 'physical'] if case == 'background' else []))
                 try:

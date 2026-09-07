@@ -285,8 +285,8 @@ function ChatPreview() {
   );
   return (
     <>
-      <Stack.Toolbar placement="right">
-        {uiVerify && (
+      {uiVerify && (
+        <Stack.Toolbar placement="left">
           <Stack.Toolbar.Button
             accessibilityLabel="Diff Fixture"
             icon="doc.text"
@@ -295,8 +295,6 @@ function ChatPreview() {
               setShowChanges(true);
             }}
           />
-        )}
-        {uiVerify && (
           <Stack.Toolbar.Button
             accessibilityLabel="Image Fixture"
             icon="photo"
@@ -305,8 +303,6 @@ function ChatPreview() {
               setShowImage(true);
             }}
           />
-        )}
-        {uiVerify && (
           <Stack.Toolbar.Button
             accessibilityLabel="Permission Fixture"
             icon="lock.open"
@@ -319,7 +315,9 @@ function ChatPreview() {
               })
             }
           />
-        )}
+        </Stack.Toolbar>
+      )}
+      <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button
           accessibilityLabel="Fast Replay"
           icon="forward.end"
