@@ -3,10 +3,8 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { NativeDiff } from '@lody-ios/kit';
 import { usePalette } from '@/theme/palette';
 import { AppText } from '@/ui/AppText';
-import { t } from '../../../i18n/index.ts';
-import type { DetailBlock, DetailResponse } from '../../../models/session.ts';
-
-export type { DetailBlock, DetailResponse } from '../../../models/session.ts';
+import { t } from '../i18n/index.ts';
+import type { DetailBlock } from '../models/session.ts';
 
 function Mono({ children, color }: { children: string; color?: unknown }) {
   return (

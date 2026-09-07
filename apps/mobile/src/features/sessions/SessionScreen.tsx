@@ -16,7 +16,7 @@ import type { Capability, CreationOptions } from '@/models/send';
 
 import { useSessionRuntime } from './useSessionRuntime';
 import { itemDetailPage } from './detail/itemDetailPage';
-import { basename } from './changes/turnChangesPage';
+import { basename } from './path';
 import { fileDiffPage } from './changes/fileDiffPage';
 import { filesPage } from './files/FilesScreen';
 import { changedFiles } from './transcript/changes';

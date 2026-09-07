@@ -7,7 +7,7 @@ import {
   stateSubtitle,
   stateSymbol,
   stateTint,
-} from '../src/ui/status.ts';
+} from '../src/features/sessions/status.ts';
 import { setLocale } from '../src/i18n/index.ts';
 
 setLocale('zh-Hans');

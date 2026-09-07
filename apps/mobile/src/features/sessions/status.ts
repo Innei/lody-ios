@@ -1,4 +1,4 @@
-import { t, type TranslationKey } from '../i18n/index.ts';
+import { t, type TranslationKey } from '../../i18n/index.ts';
 
 export type SessionState =
   'live' | 'attention' | 'failed' | 'idle' | 'done' | 'archived';

@@ -5,7 +5,7 @@ import { Alert } from 'react-native';
 import { NativeChat } from '@lody-ios/kit';
 import { definePage, present } from '@/presentation';
 import { fileDiffPage } from '@/features/sessions/changes/fileDiffPage';
-import { basename } from '@/features/sessions/changes/turnChangesPage';
+import { basename } from '@/features/sessions/path';
 import { useProcessSheet } from '@/features/sessions/detail/processPage';
 import {
   permissionPage,

@@ -1,9 +1,7 @@
 import type { NativeListSection } from '@lody-ios/kit';
 import type { Catalog, Session } from '../../models/catalog.ts';
-import type { SessionState } from '../../ui/status.ts';
-// Relative on purpose: this module is imported directly by node --test, which
-// does not resolve the `@/` alias. Keep it free of aliased value imports.
-import { agentName, sessionState, stateTint } from '../../ui/status.ts';
+import type { SessionState } from './status.ts';
+import { agentName, sessionState, stateTint } from './status.ts';
 import { activityBucket, relativeTime } from '../../ui/time.ts';
 import { t, type TranslationKey } from '../../i18n/index.ts';
 

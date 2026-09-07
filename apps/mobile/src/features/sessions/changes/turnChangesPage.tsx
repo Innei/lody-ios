@@ -3,6 +3,7 @@ import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
 import type { ChangedFile } from '../transcript/changes';
 import { fileDiffPage } from './fileDiffPage';
+import { basename, dirname } from '../path';
 import { t, tp } from '../../../i18n/index.ts';
 
 export type TurnChangesParams = {
@@ -10,11 +11,6 @@ export type TurnChangesParams = {
   entryId: string;
   files: ChangedFile[];
 };
-
-export const basename = (path: string) =>
-  path.split(/[\\/]/).filter(Boolean).at(-1) || path;
-export const dirname = (path: string) =>
-  path.split(/[\\/]/).filter(Boolean).slice(0, -1).join('/');
 
 function TurnChangesScreen() {
   const { params, push } = usePageRuntime<TurnChangesParams>();

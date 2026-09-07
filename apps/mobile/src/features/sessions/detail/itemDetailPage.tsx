@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { addDataRuntimeListener, sessionItemDetail } from '@lody-ios/kit';
+import { addDataRuntimeListener } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
 import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
 import { Screen } from '@/ui/Screen';
 import type { Envelope } from '../transcript/types';
-import { Blocks, RawBlock, type DetailResponse } from './DetailBlocks';
+import { Blocks, RawBlock } from '@/ui/DetailBlocks';
+import type { DetailResponse } from '../../../models/session.ts';
+import { fetchDetail } from '../itemDetail';
 import { t } from '../../../i18n/index.ts';
 
 export type ItemDetailParams = {
@@ -16,15 +18,6 @@ export type ItemDetailParams = {
   itemIds: string[];
   generation: number;
 };
-
-export async function fetchDetail(
-  params: Omit<ItemDetailParams, 'itemIds' | 'generation'> & {
-    itemId: string;
-    cursor?: string;
-  },
-): Promise<DetailResponse> {
-  return JSON.parse(await sessionItemDetail(JSON.stringify(params)));
-}
 
 function ItemDetailScreen() {
   const { params } = usePageRuntime<ItemDetailParams>();

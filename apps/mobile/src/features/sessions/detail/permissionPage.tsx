@@ -6,8 +6,8 @@ import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
 import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
-import { CommandBlock } from './DetailBlocks';
-import { fetchDetail } from './itemDetailPage';
+import { CommandBlock } from '@/ui/DetailBlocks';
+import { fetchDetail } from '../itemDetail';
 import type {
   PermissionDetail,
   PermissionOption,
