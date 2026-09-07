@@ -6,7 +6,7 @@ import { usePalette } from '@/theme/palette';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { searchPlaceholder } from '@/ui/listState';
 import { searchSections } from './inbox';
-import { openCatalogRow } from './navigation';
+import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
 import { t } from '../../i18n/index.ts';
 
 export default function SearchScreen() {

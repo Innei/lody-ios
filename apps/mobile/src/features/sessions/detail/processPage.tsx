@@ -1,18 +1,18 @@
-import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 import { NativeChat } from '@lody-ios/kit';
-import { definePage, present, usePageRuntime } from '@/presentation';
+import { definePage, usePageRuntime } from '@/presentation';
 import { t } from '../../../i18n/index.ts';
 
 type ProcessParams = {
   entryId: string;
   startItemId?: string;
-  source: ReturnType<typeof createSource>;
+  source: ReturnType<typeof createProcessSource>;
   onActivityPress: (entryId: string, itemId: string) => void;
 };
 
 // The owning session keeps its one runtime subscription. A presented page reads
 // the same projection; dismissing it never unwatches the underlying session.
-function createSource(initial: string) {
+export function createProcessSource(initial: string) {
   let value = initial;
   const listeners = new Set<() => void>();
   return {
@@ -29,25 +29,6 @@ function createSource(initial: string) {
       listeners.forEach((listener) => listener());
     },
   };
-}
-
-export function useProcessSheet(
-  entriesJSON: string,
-  onActivityPress: ProcessParams['onActivityPress'],
-) {
-  const source = useMemo(() => createSource(entriesJSON), []);
-  const activity = useRef(onActivityPress);
-  useLayoutEffect(() => {
-    activity.current = onActivityPress;
-    source.update(entriesJSON);
-  }, [entriesJSON, onActivityPress, source]);
-  return (entryId: string, startItemId?: string) =>
-    void present(processPage, {
-      entryId,
-      startItemId,
-      source,
-      onActivityPress: (entry, item) => activity.current(entry, item),
-    });
 }
 
 function ProcessScreen() {
@@ -74,7 +55,7 @@ function ProcessScreen() {
   );
 }
 
-const processPage = definePage<ProcessParams>({
+export const processPage = definePage<ProcessParams>({
   id: 'session-process',
   title: t('process.title'),
   Component: ProcessScreen,

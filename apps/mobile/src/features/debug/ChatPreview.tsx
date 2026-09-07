@@ -6,7 +6,7 @@ import { NativeChat } from '@lody-ios/kit';
 import { definePage, present } from '@/presentation';
 import { fileDiffPage } from '@/features/sessions/changes/fileDiffPage';
 import { basename } from '@/features/sessions/path';
-import { useProcessSheet } from '@/features/sessions/detail/processPage';
+import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
 import {
   permissionPage,
   type PermissionService,

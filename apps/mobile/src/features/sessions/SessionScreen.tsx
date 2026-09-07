@@ -9,7 +9,8 @@ import { usePalette } from '@/theme/palette';
 import { NativeChat, sessionCreationOptions } from '@lody-ios/kit';
 import { definePage, present, usePageRuntime } from '@/presentation';
 import { localProjectIdOf } from '@lody-ios/kit';
-import { newSession, setArchived, setPinned } from './navigation';
+import { requestNewSession } from './sessionNav';
+import { setArchived, setPinned } from './sessionActions';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import type { Session } from '@/models/catalog';
 import type { Capability, CreationOptions } from '@/models/send';
@@ -28,7 +29,7 @@ import {
   type PermissionTargetSource,
   type PermissionTargetState,
 } from './detail/permissionTarget';
-import { useProcessSheet } from './detail/processPage';
+import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
 import type { ModelChoice } from './ModelScreen';
 import { t } from '../../i18n/index.ts';
 
@@ -328,7 +329,11 @@ function SessionScreen() {
             icon="square.and.pencil"
             onPress={() => {
               if (selected)
-                void newSession(selected.id, catalog, currentSession.projectId);
+                void requestNewSession(
+                  selected.id,
+                  catalog,
+                  currentSession.projectId,
+                );
             }}
           >
             {t('session.action.newSession')}

@@ -2,10 +2,12 @@ import { usePalette } from '@/theme/palette';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useRef } from 'react';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
-import { newSession } from '@/features/sessions/navigation';
+import { requestNewSession } from '@/features/sessions/sessionNav';
+import { useBindSessionNav } from '@/hooks/screens/useBindSessionNav';
 import { showToast } from '@/ui/toast';
 import { t } from '../../i18n/index.ts';
 export default function TabsLayout() {
+  useBindSessionNav();
   const colors = usePalette();
   const { selected, catalog } = useCatalog();
   const creating = useRef(false);
@@ -38,7 +40,7 @@ export default function TabsLayout() {
             }
             creating.current = true;
             try {
-              await newSession(selected.id, catalog);
+              await requestNewSession(selected.id, catalog);
             } finally {
               creating.current = false;
             }

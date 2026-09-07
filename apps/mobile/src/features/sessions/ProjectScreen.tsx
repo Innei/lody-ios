@@ -4,7 +4,9 @@ import { definePage, usePageRuntime } from '@/presentation';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { usePalette } from '@/theme/palette';
 import { byActivity, sessionRow } from './inbox';
-import { newSession, openCatalogRow, sessionRowAction } from './navigation';
+import { requestNewSession } from './sessionNav';
+import { sessionRowAction } from './sessionActions';
+import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
 import { t } from '../../i18n/index.ts';
 
 function ProjectScreen() {
@@ -43,7 +45,8 @@ function ProjectScreen() {
             icon="plus"
             accessibilityLabel={t('project.newSession.accessibility')}
             onPress={() => {
-              if (selected) void newSession(selected.id, catalog, projectId);
+              if (selected)
+                void requestNewSession(selected.id, catalog, projectId);
             }}
           />
         </Stack.Toolbar>
