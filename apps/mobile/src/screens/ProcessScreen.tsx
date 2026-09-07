@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { NativeChat } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
-import { t } from '../../../i18n/index.ts';
+import { t } from '../i18n/index.ts';
 
 type ProcessParams = {
   entryId: string;
@@ -31,7 +31,7 @@ export function createProcessSource(initial: string) {
   };
 }
 
-function ProcessScreen() {
+function View() {
   const { params } = usePageRuntime<ProcessParams>();
   const entriesJSON = useSyncExternalStore(
     params.source.subscribe,
@@ -55,10 +55,10 @@ function ProcessScreen() {
   );
 }
 
-export const processPage = definePage<ProcessParams>({
+export const ProcessScreen = definePage<ProcessParams>({
   id: 'session-process',
   title: t('process.title'),
-  Component: ProcessScreen,
+  Component: View,
   parseRouteParams: () => {
     throw new Error('请从会话页打开');
   },

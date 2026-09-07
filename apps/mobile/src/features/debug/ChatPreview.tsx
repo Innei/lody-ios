@@ -4,17 +4,17 @@ import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import { NativeChat } from '@lody-ios/kit';
 import { definePage, present } from '@/presentation';
-import { fileDiffPage } from '@/features/sessions/changes/fileDiffPage';
+import { FileDiffScreen } from '@/screens/FileDiffScreen';
 import { basename } from '@/features/sessions/path';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
 import {
-  permissionPage,
+  PermissionScreen,
   type PermissionService,
-} from '@/features/sessions/detail/permissionPage';
+} from '@/screens/PermissionScreen';
 import type {
   PermissionTarget,
   PermissionTargetSource,
-} from '@/features/sessions/detail/permissionTarget';
+} from '@/features/sessions/permissionTarget';
 
 const answer = `## 原生聊天布局\n\n列表使用 **UICollectionView**，正文直接由 UIKit 渲染。\n\n- 输入区始终可见，跟随键盘移动\n- 执行过程在 Sheet 中平铺\n- 完成后保持回答和过程入口\n\n### 代码示例\n\n\`\`\`swift\nlet layout = UICollectionViewFlowLayout()\nlet list = UICollectionView(\n  frame: .zero,\n  collectionViewLayout: layout\n)\n\`\`\`\n\n这是一条用于检查换行、**粗体**和 \`inline code\` 的较长段落。切换浅色和深色外观，正文和输入框都应清晰可读。\n\n> 引用块用于确认左侧竖条与次级文字颜色。\n\n1. 有序列表\n   - 嵌套的无序项\n   - [x] 已完成的任务\n   - [ ] 未完成的任务\n2. 第二项，见 [Apple HIG](https://developer.apple.com/design/human-interface-guidelines/)\n\n| 节点 | 状态 |\n| --- | --- |\n| 表格 | 原生 GridView |\n| 公式 | $E = mc^2$ |\n\n---\n\n分割线之后的收尾段落。`;
 const history = Array.from({ length: 80 }, (_, index) => ({
@@ -307,7 +307,7 @@ function ChatPreview() {
             accessibilityLabel="Permission Fixture"
             icon="lock.open"
             onPress={() =>
-              void present(permissionPage, {
+              void present(PermissionScreen, {
                 sessionId: 'ui-verify-permission',
                 generation: 0,
                 source: permissionSource,
@@ -389,7 +389,7 @@ function ChatPreview() {
         onTurnChangesPress={({ nativeEvent }) => {
           if (showChanges)
             void present(
-              fileDiffPage,
+              FileDiffScreen,
               {
                 sessionId: 'ui-verify-diff',
                 entryId: nativeEvent.entryId,

@@ -1,7 +1,7 @@
 import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
-import { t } from '../../i18n/index.ts';
+import { t } from '../i18n/index.ts';
 
 export type PickerOption = {
   id: string;
@@ -18,7 +18,7 @@ type Params = {
   placeholder?: string;
 };
 
-function PickerScreen() {
+function View() {
   const { params, finish } = usePageRuntime<Params, string>();
   const colors = usePalette();
   const sections: NativeListSection[] = [
@@ -47,10 +47,10 @@ function PickerScreen() {
   );
 }
 
-export const pickerPage = definePage<Params, string>({
+export const PickerScreen = definePage<Params, string>({
   id: 'picker',
   title: t('picker.title'),
-  Component: PickerScreen,
+  Component: View,
   parseRouteParams: () => {
     throw new Error('请从表单打开');
   },

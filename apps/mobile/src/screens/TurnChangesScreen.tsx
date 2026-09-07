@@ -1,10 +1,10 @@
 import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
-import type { ChangedFile } from '../transcript/changes';
-import { fileDiffPage } from './fileDiffPage';
-import { basename, dirname } from '../path';
-import { t, tp } from '../../../i18n/index.ts';
+import type { ChangedFile } from '@/features/sessions/transcript/changes';
+import { FileDiffScreen } from '@/screens/FileDiffScreen';
+import { basename, dirname } from '@/features/sessions/path';
+import { t, tp } from '../i18n/index.ts';
 
 export type TurnChangesParams = {
   sessionId: string;
@@ -12,7 +12,7 @@ export type TurnChangesParams = {
   files: ChangedFile[];
 };
 
-function TurnChangesScreen() {
+function View() {
   const { params, push } = usePageRuntime<TurnChangesParams>();
   const colors = usePalette();
   const add = params.files.reduce((sum, file) => sum + file.add, 0);
@@ -45,7 +45,7 @@ function TurnChangesScreen() {
       placeholder={t('changes.empty')}
       onRowPress={({ nativeEvent: { id } }) =>
         void push(
-          fileDiffPage,
+          FileDiffScreen,
           { sessionId: params.sessionId, entryId: params.entryId, path: id },
           { title: basename(id) },
         )
@@ -54,10 +54,10 @@ function TurnChangesScreen() {
   );
 }
 
-export const turnChangesPage = definePage<TurnChangesParams>({
+export const TurnChangesScreen = definePage<TurnChangesParams>({
   id: 'turn-changes',
   title: t('changes.title'),
-  Component: TurnChangesScreen,
+  Component: View,
   parseRouteParams: () => {
     throw new Error('请从会话打开');
   },

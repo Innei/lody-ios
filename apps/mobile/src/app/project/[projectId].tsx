@@ -1,2 +1,2 @@
-import { projectPage } from '@/features/sessions/ProjectScreen';
-export default projectPage.Route;
+import { ProjectScreen } from '@/screens/ProjectScreen';
+export default ProjectScreen.Route;

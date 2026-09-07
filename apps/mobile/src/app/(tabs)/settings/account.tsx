@@ -1,2 +1,2 @@
-import { accountPage } from '@/features/settings/AccountScreen';
-export default accountPage.Route;
+import { AccountScreen } from '@/screens/AccountScreen';
+export default AccountScreen.Route;

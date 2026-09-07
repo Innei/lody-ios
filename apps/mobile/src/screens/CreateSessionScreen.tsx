@@ -1,6 +1,6 @@
-import { projectPickerPage } from './ProjectPickerScreen';
+import { ProjectPickerScreen } from './ProjectPickerScreen';
 import { useEffect, useRef, useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { TextInput, View as RNView } from 'react-native';
 import {
   NativeGroupedList,
   NativeComposer,
@@ -19,25 +19,25 @@ import { AppText } from '@/ui/AppText';
 import { showToast } from '@/ui/toast';
 import { readLocal, writeLocal } from '@/cloud/kv';
 import { usePendingSends } from '@/cloud/send/pendingSends';
-import { draftTitle } from './draftTitle';
+import { draftTitle } from '@/features/sessions/draftTitle';
 import {
   type CreatePrefs,
   createPrefsKey,
   rememberedProject,
   restoreSelection,
   withSelection,
-} from './createPrefs';
-import { pickerPage } from './PickerScreen';
+} from '@/features/sessions/createPrefs';
+import { PickerScreen } from './PickerScreen';
 import {
   hasModelTabs,
   type ModelChoice,
-  modelPage,
+  ModelScreen,
   modelSummary,
 } from './ModelScreen';
-import type { CreatedSession } from '../../models/send.ts';
-import { t } from '../../i18n/index.ts';
+import type { CreatedSession } from '../models/send.ts';
+import { t } from '../i18n/index.ts';
 
-export type { CreatedSession } from '../../models/send.ts';
+export type { CreatedSession } from '../models/send.ts';
 
 type Params = {
   workspaceId: string;
@@ -70,7 +70,7 @@ function createNotice({
 /** Unassigned projects carry no working directory, so no session can start there. */
 const creatable = (project: Project) => !project.id.endsWith(':unassigned');
 
-function CreateSessionScreen() {
+function View() {
   const { params, finish, push } = usePageRuntime<Params, CreatedSession>();
   const { account } = useAuth();
   const colors = usePalette();
@@ -311,7 +311,7 @@ function CreateSessionScreen() {
   ];
 
   async function pickProject() {
-    const result = await push(projectPickerPage, {
+    const result = await push(ProjectPickerScreen, {
       workspaceId: params.workspaceId,
       projects,
       selectedId: projectId,
@@ -332,7 +332,7 @@ function CreateSessionScreen() {
       return;
     }
     const result = await push(
-      pickerPage,
+      PickerScreen,
       {
         title: t('create.row.selectMachine'),
         header: t('create.label.machine'),
@@ -352,7 +352,7 @@ function CreateSessionScreen() {
   async function pickModel() {
     if (!capability) return;
     await push(
-      modelPage,
+      ModelScreen,
       { capability, value: choice, onChange: setChoice },
       // A single tab needs no segmented control, so the title names it instead.
       {
@@ -369,7 +369,7 @@ function CreateSessionScreen() {
       return;
     }
     const result = await push(
-      pickerPage,
+      PickerScreen,
       {
         title: t('create.row.selectAgent'),
         header: t('create.label.agent'),
@@ -389,7 +389,7 @@ function CreateSessionScreen() {
   }
 
   const form = (
-    <View style={{ flex: 1 }}>
+    <RNView style={{ flex: 1 }}>
       <NativeGroupedList
         style={{ flex: 1 }}
         accent={colors.accent}
@@ -405,7 +405,7 @@ function CreateSessionScreen() {
         }}
       />
       {github ? (
-        <View style={{ paddingHorizontal: 16, paddingBottom: 12, gap: 4 }}>
+        <RNView style={{ paddingHorizontal: 16, paddingBottom: 12, gap: 4 }}>
           <AppText variant="meta">{t('create.branch.label')}</AppText>
           <TextInput
             accessibilityLabel={t('create.branch.label')}
@@ -428,7 +428,7 @@ function CreateSessionScreen() {
               fontSize: typeScale.mono.size,
             }}
           />
-        </View>
+        </RNView>
       ) : null}
       <NativeComposer
         composerJSON={JSON.stringify({
@@ -463,16 +463,16 @@ function CreateSessionScreen() {
           }))
         }
       />
-    </View>
+    </RNView>
   );
 
   return form;
 }
 
-export const createSessionPage = definePage<Params, CreatedSession>({
+export const CreateSessionScreen = definePage<Params, CreatedSession>({
   id: 'create-session',
   title: t('create.title'),
-  Component: CreateSessionScreen,
+  Component: View,
   parseRouteParams: () => {
     throw new Error('请从会话列表打开');
   },

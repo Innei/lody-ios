@@ -8,9 +8,9 @@ import {
 import { definePage, usePageRuntime } from '@/presentation';
 import { useSheetHeader } from '@/presentation/SheetStack';
 import type { Project } from '@/models/catalog';
-import type { Directory } from '../../../modules/lody-kit/data-runtime/local-projects';
+import type { Directory } from '../../modules/lody-kit/data-runtime/local-projects';
 import { usePalette } from '@/theme/palette';
-import { t } from '../../i18n/index.ts';
+import { t } from '../i18n/index.ts';
 
 type Machine = { id: string; name: string };
 type Params = {
@@ -33,7 +33,7 @@ function directoryPlaceholder(loading: boolean, hasMachine: boolean) {
   return t('directory.noMachine');
 }
 
-function DirectoryScreen() {
+function View() {
   const { params, finish, push } = usePageRuntime<Params, Project>();
   const colors = usePalette();
   const [machine, setMachine] = useState(params.machine);
@@ -106,7 +106,7 @@ function DirectoryScreen() {
     (path: string) => {
       if (!machine || busy.current) return;
       void push(
-        directoryPage,
+        DirectoryScreen,
         { ...params, machine, path, select },
         { title: path.split(/[\\/]/).filter(Boolean).at(-1) || path },
       );
@@ -270,7 +270,7 @@ function DirectoryScreen() {
           const picked = machines.find((m) => m.id === id);
           if (picked)
             void push(
-              directoryPage,
+              DirectoryScreen,
               { ...params, machine: picked, select },
               { title: picked.name },
             );
@@ -301,10 +301,10 @@ function DirectoryScreen() {
   );
 }
 
-export const directoryPage = definePage<Params, Project>({
+export const DirectoryScreen = definePage<Params, Project>({
   id: 'directory',
   title: t('directory.title'),
-  Component: DirectoryScreen,
+  Component: View,
   parseRouteParams: () => {
     throw new Error('请从选择项目打开');
   },

@@ -1,37 +1,37 @@
 import { Stack } from 'expo-router';
 import { usePendingSends } from '@/cloud/send/pendingSends';
 import { useConnection } from '@/cloud/catalog/connection';
-import { useSessionSend } from './useSessionSend';
+import { useSessionSend } from '@/features/sessions/useSessionSend';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Alert } from 'react-native';
+import { View as RNView, Alert } from 'react-native';
 import { usePalette } from '@/theme/palette';
 import { NativeChat, sessionCreationOptions } from '@lody-ios/kit';
 import { definePage, present, usePageRuntime } from '@/presentation';
 import { localProjectIdOf } from '@lody-ios/kit';
-import { requestNewSession } from './sessionNav';
-import { setArchived, setPinned } from './sessionActions';
+import { requestNewSession } from '@/features/sessions/sessionNav';
+import { setArchived, setPinned } from '@/features/sessions/sessionActions';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import type { Session } from '@/models/catalog';
 import type { Capability, CreationOptions } from '@/models/send';
 
-import { useSessionRuntime } from './useSessionRuntime';
-import { itemDetailPage } from './detail/itemDetailPage';
-import { basename } from './path';
-import { fileDiffPage } from './changes/fileDiffPage';
-import { filesPage } from './files/FilesScreen';
-import { changedFiles } from './transcript/changes';
-import { permissionPage } from './detail/permissionPage';
+import { useSessionRuntime } from '@/features/sessions/useSessionRuntime';
+import { ItemDetailScreen } from '@/screens/ItemDetailScreen';
+import { basename } from '@/features/sessions/path';
+import { FileDiffScreen } from '@/screens/FileDiffScreen';
+import { FilesScreen } from '@/screens/FilesScreen';
+import { changedFiles } from '@/features/sessions/transcript/changes';
+import { PermissionScreen } from '@/screens/PermissionScreen';
 import {
   createPermissionGate,
   firstPermissionTarget,
   type PermissionTarget,
   type PermissionTargetSource,
   type PermissionTargetState,
-} from './detail/permissionTarget';
+} from '@/features/sessions/permissionTarget';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
 import type { ModelChoice } from './ModelScreen';
-import { t } from '../../i18n/index.ts';
+import { t } from '../i18n/index.ts';
 
 function composerPlaceholder({
   archived,
@@ -56,7 +56,7 @@ type SessionParams = {
   modeId?: string;
 };
 
-function SessionScreen() {
+function View() {
   const {
     params: { session, modelId, effort, modeId },
   } = usePageRuntime<SessionParams>();
@@ -153,7 +153,7 @@ function SessionScreen() {
             {
               text: t('session.action.projectFiles'),
               onPress: () =>
-                void present(filesPage, {
+                void present(FilesScreen, {
                   workspaceId: selected.id,
                   sessionId: session.id,
                   userId: account.user.id,
@@ -170,7 +170,7 @@ function SessionScreen() {
     if (!entry) return;
     if (!changedFiles(entry).some((file) => file.path === path)) return;
     void present(
-      fileDiffPage,
+      FileDiffScreen,
       { sessionId: session.id, entryId, path },
       { title: basename(path) },
     );
@@ -220,7 +220,7 @@ function SessionScreen() {
     gate.opened();
     try {
       gate.settled(
-        await present(permissionPage, {
+        await present(PermissionScreen, {
           sessionId: session.id,
           generation: cursor.current.generation,
           target,
@@ -262,7 +262,7 @@ function SessionScreen() {
       void askPermission(target);
       return;
     }
-    void present(itemDetailPage, {
+    void present(ItemDetailScreen, {
       sessionId: session.id,
       entryId,
       itemIds: [itemId],
@@ -314,7 +314,7 @@ function SessionScreen() {
     efforts: efforts.map((id) => ({ id, title: id })),
   });
   return (
-    <View style={{ flex: 1, backgroundColor: colors.reading }}>
+    <RNView style={{ flex: 1, backgroundColor: colors.reading }}>
       <Stack.Screen
         options={{
           title: currentSession.title,
@@ -437,13 +437,13 @@ function SessionScreen() {
           }));
         }}
       />
-    </View>
+    </RNView>
   );
 }
-export const sessionPage = definePage<SessionParams>({
+export const SessionScreen = definePage<SessionParams>({
   id: 'session',
   title: t('session.title'),
-  Component: SessionScreen,
+  Component: View,
   parseRouteParams: () => {
     throw new Error('请从会话列表打开');
   },

@@ -3,10 +3,10 @@ import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
 import type { Capability } from '@/models/send';
-import type { ModelChoice } from '../../models/send.ts';
-import { t } from '../../i18n/index.ts';
+import type { ModelChoice } from '../models/send.ts';
+import { t } from '../i18n/index.ts';
 
-export type { ModelChoice } from '../../models/send.ts';
+export type { ModelChoice } from '../models/send.ts';
 
 type Params = {
   capability: Capability;
@@ -36,7 +36,7 @@ export function modelSummary(capability: Capability, value: ModelChoice) {
     .join(' · ');
 }
 
-function ModelScreen() {
+function View() {
   const { params } = usePageRuntime<Params>();
   const colors = usePalette();
   const [value, setValue] = useState(params.value);
@@ -143,10 +143,10 @@ function ModelScreen() {
   );
 }
 
-export const modelPage = definePage<Params>({
+export const ModelScreen = definePage<Params>({
   id: 'model',
   title: t('model.title'),
-  Component: ModelScreen,
+  Component: View,
   parseRouteParams: () => {
     throw new Error('请从新建会话打开');
   },

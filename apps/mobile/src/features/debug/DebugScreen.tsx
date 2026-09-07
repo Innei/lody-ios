@@ -16,7 +16,7 @@ import {
   debugProbeSchema,
   debugRestartDataRuntime,
 } from '@lody-ios/kit';
-import { environmentPage } from '@/features/environment/EnvironmentScreen';
+import { EnvironmentScreen } from '@/screens/EnvironmentScreen';
 import {
   definePage,
   usePageRuntime,
@@ -55,7 +55,7 @@ export default function DebugScreen() {
   async function open(style: PagePresentationOptions['style']) {
     try {
       const result = await present(
-        environmentPage,
+        EnvironmentScreen,
         { message: '从 Debug 传入的参数' },
         { style },
       );

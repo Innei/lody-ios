@@ -2,8 +2,8 @@ import { useEffect } from 'react';
 import { present } from '@/presentation';
 import { showToast } from '@/ui/toast';
 import { subscribeSessionNav } from '@/features/sessions/sessionNav';
-import { sessionPage } from '@/features/sessions/SessionScreen';
-import { createSessionPage } from '@/features/sessions/CreateSessionScreen';
+import { SessionScreen } from '@/screens/SessionScreen';
+import { CreateSessionScreen } from '@/screens/CreateSessionScreen';
 import { t } from '../../i18n/index.ts';
 
 export function useBindSessionNav() {
@@ -12,20 +12,20 @@ export function useBindSessionNav() {
       try {
         if (intent.kind === 'open') {
           await present(
-            sessionPage,
+            SessionScreen,
             { session: intent.session },
             { title: intent.session.title },
           );
           return;
         }
-        const result = await present(createSessionPage, {
+        const result = await present(CreateSessionScreen, {
           workspaceId: intent.workspaceId,
           projects: intent.catalog.projects,
           projectId: intent.projectId,
         });
         if (result.status === 'completed')
           await present(
-            sessionPage,
+            SessionScreen,
             {
               session: result.value.session,
               modelId: result.value.modelId,

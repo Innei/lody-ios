@@ -8,7 +8,8 @@ import { useConnection } from '@/cloud/catalog/connection';
 import { usePalette } from '@/theme/palette';
 import { relativeTime } from '@/ui/time';
 import { showToast } from '@/ui/toast';
-import { t, tp } from '../../i18n/index.ts';
+import { definePage } from '@/presentation';
+import { t, tp } from '../i18n/index.ts';
 
 const connectionRow = {
   live: { symbol: 'circle.fill', label: 'settings.connection.live' },
@@ -19,7 +20,7 @@ const connectionRow = {
   },
 } as const;
 
-export default function SettingsScreen() {
+function View() {
   const auth = useAuth();
   const router = useRouter();
   const colors = usePalette();
@@ -140,3 +141,10 @@ export default function SettingsScreen() {
     />
   );
 }
+
+export const SettingsScreen = definePage({
+  id: 'settings',
+  title: t('tabs.settings'),
+  Component: View,
+  presentation: { style: 'push', headerVariant: 'transparent' },
+});

@@ -1,4 +1,3 @@
-import { useConnection } from '@/cloud/catalog/connection';
 import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
@@ -15,14 +14,19 @@ import { LoginPanel } from '@/features/auth/LoginPanel';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { usePalette } from '@/theme/palette';
 import { listPlaceholder, searchPlaceholder } from '@/ui/listState';
-import { inboxSections, projectSections, searchSections } from './inbox';
+import {
+  inboxSections,
+  projectSections,
+  searchSections,
+} from '@/features/sessions/inbox';
 import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
-import { sessionRowAction } from './sessionActions';
-import { definePage, present, usePageRuntime } from '@/presentation';
+import { sessionRowAction } from '@/features/sessions/sessionActions';
+import { definePage, present } from '@/presentation';
 import { showToast } from '@/ui/toast';
-import { currentLocale, t } from '../../i18n/index.ts';
+import { t } from '../i18n/index.ts';
+import { InboxSettingsScreen } from './InboxSettingsScreen';
 
-export default function InboxScreen() {
+function View() {
   const { account, localReady } = useAuth();
   const colors = usePalette();
   const { catalog, selected, setWorkspaceId, loading, connected, refresh } =
@@ -76,7 +80,7 @@ export default function InboxScreen() {
           tintColor={colors.accent}
           onPress={async () => {
             try {
-              const result = await present(inboxSettingsPage, { mode });
+              const result = await present(InboxSettingsScreen, { mode });
               if (result.status === 'completed') {
                 setMode(result.value);
                 saveInboxView(result.value);
@@ -117,79 +121,9 @@ export default function InboxScreen() {
   );
 }
 
-function InboxSettingsScreen() {
-  const { params, finish } = usePageRuntime<{ mode: number }, number>();
-  const colors = usePalette();
-  const connection = useConnection();
-  const { refresh } = useCatalog();
-  return (
-    <NativeGroupedList
-      style={{ flex: 1 }}
-      transparent
-      accent={colors.accent}
-      sections={[
-        {
-          id: 'view',
-          header: t('inbox.settings.section.view'),
-          rows: (
-            [
-              'inbox.settings.view.projects',
-              'inbox.settings.view.activity',
-            ] as const
-          ).map((key, index) => ({
-            id: String(index),
-            title: t(key),
-            image: params.mode === index ? 'checkmark' : undefined,
-            action: true,
-          })),
-        },
-        {
-          id: 'sync',
-          header: t('inbox.settings.section.sync'),
-          rows: [
-            {
-              id: 'sync',
-              title: t(
-                (
-                  {
-                    offline: 'inbox.settings.sync.offline',
-                    syncing: 'inbox.settings.sync.syncing',
-                    live: 'inbox.settings.sync.live',
-                  } as const
-                )[connection.state],
-              ),
-              subtitle: connection.syncedAt
-                ? t('inbox.settings.sync.lastSynced', {
-                    time: new Date(connection.syncedAt).toLocaleString(
-                      currentLocale(),
-                    ),
-                  })
-                : undefined,
-              image: 'arrow.clockwise',
-              action: true,
-            },
-          ],
-        },
-      ]}
-      onRowPress={({ nativeEvent: { id } }) => {
-        if (id === 'sync') refresh();
-        else if (id === '0' || id === '1') finish(Number(id));
-      }}
-    />
-  );
-}
-
-const inboxSettingsPage = definePage<{ mode: number }, number>({
-  id: 'inbox-settings',
-  title: t('inbox.settings.title'),
-  Component: InboxSettingsScreen,
-  parseRouteParams: () => {
-    throw new Error('请从首页打开');
-  },
-  presentation: {
-    style: 'formSheet',
-    headerVariant: 'transparent',
-    sheetAllowedDetents: [0.5, 1],
-    sheetGrabberVisible: true,
-  },
+export const InboxScreen = definePage({
+  id: 'inbox',
+  title: t('tabs.sessions'),
+  Component: View,
+  presentation: { style: 'push', headerVariant: 'transparent' },
 });

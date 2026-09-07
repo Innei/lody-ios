@@ -5,13 +5,13 @@ import type {
   PermissionResult,
   PermissionTarget,
   PermissionTargetState,
-} from '../../../models/session.ts';
+} from '../../models/session.ts';
 
 export type {
   PermissionResult,
   PermissionTarget,
   PermissionTargetState,
-} from '../../../models/session.ts';
+} from '../../models/session.ts';
 
 export type PermissionTargetSource = (
   onState: (state: PermissionTargetState) => void,

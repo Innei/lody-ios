@@ -4,11 +4,11 @@ import { definePage, usePageRuntime } from '@/presentation';
 import { useSheetHeader } from '@/presentation/SheetStack';
 import type { Project } from '@/models/catalog';
 import { usePalette } from '@/theme/palette';
-import { directoryPage } from './DirectoryScreen';
-import { t } from '../../i18n/index.ts';
+import { DirectoryScreen } from './DirectoryScreen';
+import { t } from '../i18n/index.ts';
 
 type Params = { workspaceId: string; projects: Project[]; selectedId: string };
-function ProjectPickerScreen() {
+function View() {
   const { params, finish, present } = usePageRuntime<Params, Project>();
   const colors = usePalette();
   const opening = useRef(false);
@@ -22,7 +22,7 @@ function ProjectPickerScreen() {
           if (opening.current) return;
           opening.current = true;
           try {
-            const result = await present(directoryPage, {
+            const result = await present(DirectoryScreen, {
               workspaceId: params.workspaceId,
               browserId: `${Date.now()}-${Math.random()}`,
             });
@@ -62,10 +62,10 @@ function ProjectPickerScreen() {
     />
   );
 }
-export const projectPickerPage = definePage<Params, Project>({
+export const ProjectPickerScreen = definePage<Params, Project>({
   id: 'project-picker',
   title: t('create.row.selectProject'),
-  Component: ProjectPickerScreen,
+  Component: View,
   parseRouteParams: () => {
     throw new Error('请从新建会话打开');
   },

@@ -14,7 +14,7 @@ import { Screen } from '@/ui/Screen';
 
 type EnvironmentParams = { message: string };
 
-export default function EnvironmentScreen() {
+function View() {
   const { colors } = useTheme();
   const { params, source, finish, cancel, present } = usePageRuntime<
     EnvironmentParams,
@@ -38,7 +38,7 @@ export default function EnvironmentScreen() {
   async function nested() {
     try {
       const result = await present(
-        environmentPage,
+        EnvironmentScreen,
         { message: '来自上一层 Sheet' },
         { style: 'formSheet' },
       );
@@ -85,10 +85,10 @@ export default function EnvironmentScreen() {
   );
 }
 
-export const environmentPage = definePage<EnvironmentParams, RuntimeInfo>({
+export const EnvironmentScreen = definePage<EnvironmentParams, RuntimeInfo>({
   id: 'environment',
   title: '运行环境',
-  Component: EnvironmentScreen,
+  Component: View,
   parseRouteParams: ({ message }) => ({
     message: (Array.isArray(message) ? message[0] : message) ?? '直接路由入口',
   }),

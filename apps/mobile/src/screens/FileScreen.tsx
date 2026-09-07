@@ -1,17 +1,17 @@
 import { useState } from 'react';
-import { PlatformColor, View } from 'react-native';
+import { PlatformColor, View as RNView } from 'react-native';
 import { NativeCodeView } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { AppText } from '@/ui/AppText';
-import { t } from '../../../i18n/index.ts';
+import { t } from '../i18n/index.ts';
 
 export type FileParams = { path: string; handle: string; bytes: number };
 
-function FileScreen() {
+function View() {
   const { params } = usePageRuntime<FileParams>();
   const [error, setError] = useState('');
   return (
-    <View
+    <RNView
       style={{ flex: 1, backgroundColor: PlatformColor('systemBackground') }}
     >
       {error ? (
@@ -32,14 +32,14 @@ function FileScreen() {
           }
         />
       )}
-    </View>
+    </RNView>
   );
 }
 
-export const filePage = definePage<FileParams>({
+export const FileScreen = definePage<FileParams>({
   id: 'file',
   title: t('file.title'),
-  Component: FileScreen,
+  Component: View,
   parseRouteParams: () => {
     throw new Error('请从项目文件打开');
   },

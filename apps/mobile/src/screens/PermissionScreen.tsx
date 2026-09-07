@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View as RNView } from 'react-native';
 import { Screen } from '@/ui/Screen';
 import { respondSessionPermission } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
@@ -7,20 +7,17 @@ import { usePalette } from '@/theme/palette';
 import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
 import { CommandBlock } from '@/ui/DetailBlocks';
-import { fetchDetail } from '../itemDetail';
+import { fetchDetail } from '@/features/sessions/itemDetail';
 import type {
   PermissionDetail,
   PermissionOption,
   PermissionResult,
   PermissionTarget,
-} from '../../../models/session.ts';
-import type { PermissionTargetSource } from './permissionTarget';
-import { t, type TranslationKey } from '../../../i18n/index.ts';
+} from '../models/session.ts';
+import type { PermissionTargetSource } from '@/features/sessions/permissionTarget';
+import { t, type TranslationKey } from '../i18n/index.ts';
 
-export type {
-  PermissionDetail,
-  PermissionOption,
-} from '../../../models/session.ts';
+export type { PermissionDetail, PermissionOption } from '../models/session.ts';
 
 export type PermissionService = {
   detail: (
@@ -93,7 +90,7 @@ function useTarget(params: PermissionParams, giveUp: () => void) {
   return target;
 }
 
-function PermissionScreen() {
+function View() {
   const { params, finish } = usePageRuntime<
     PermissionParams,
     PermissionResult
@@ -169,19 +166,19 @@ function PermissionScreen() {
           {error}
         </AppText>
       ) : null}
-      <View style={{ gap: 8 }}>
+      <RNView style={{ gap: 8 }}>
         {options.map((option, index) => {
           const allow = option.kind.startsWith('allow');
           const filled =
             allow &&
             options.findIndex((o) => o.kind.startsWith('allow')) === index;
           return submitting === option.optionId ? (
-            <View
+            <RNView
               key={option.optionId}
               style={{ minHeight: 44, justifyContent: 'center' }}
             >
               <ActivityIndicator />
-            </View>
+            </RNView>
           ) : (
             <Button
               key={option.optionId}
@@ -193,15 +190,15 @@ function PermissionScreen() {
             />
           );
         })}
-      </View>
+      </RNView>
     </Screen>
   );
 }
 
-export const permissionPage = definePage<PermissionParams, PermissionResult>({
+export const PermissionScreen = definePage<PermissionParams, PermissionResult>({
   id: 'session-permission',
   title: t('permission.title'),
-  Component: PermissionScreen,
+  Component: View,
   parseRouteParams: () => {
     throw new Error('请从会话页打开');
   },

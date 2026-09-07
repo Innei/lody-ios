@@ -10,8 +10,8 @@ import {
 } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
-import { filePage } from './filePage';
-import { t, type TranslationKey } from '../../../i18n/index.ts';
+import { FileScreen } from '@/screens/FileScreen';
+import { t, type TranslationKey } from '../i18n/index.ts';
 
 export type FilesParams = {
   workspaceId: string;
@@ -31,7 +31,7 @@ const READ_ERRORS: Record<string, TranslationKey> = {
   decode_error: 'files.error.decode',
 };
 
-function FilesScreen() {
+function View() {
   const { params, push } = usePageRuntime<FilesParams>();
   const colors = usePalette();
   const [entries, setEntries] = useState<DirectoryEntry[]>();
@@ -71,7 +71,7 @@ function FilesScreen() {
     const path = join(params.path, entry.name);
     if (entry.type === 'directory') {
       void push(
-        filesPage,
+        FilesScreen,
         { ...params, path, title: entry.name },
         { title: entry.name },
       );
@@ -90,7 +90,7 @@ function FilesScreen() {
         await previewContent(file.handle);
       else
         void push(
-          filePage,
+          FileScreen,
           { path, handle: file.handle, bytes: file.bytes },
           { title: entry.name },
         );
@@ -140,10 +140,10 @@ function FilesScreen() {
   );
 }
 
-export const filesPage = definePage<FilesParams>({
+export const FilesScreen = definePage<FilesParams>({
   id: 'files',
   title: t('files.title'),
-  Component: FilesScreen,
+  Component: View,
   parseRouteParams: () => {
     throw new Error('请从会话打开');
   },

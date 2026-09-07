@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View as RNView } from 'react-native';
 import { addDataRuntimeListener } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
 import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
 import { Screen } from '@/ui/Screen';
-import type { Envelope } from '../transcript/types';
+import type { Envelope } from '@/features/sessions/transcript/types';
 import { Blocks, RawBlock } from '@/ui/DetailBlocks';
-import type { DetailResponse } from '../../../models/session.ts';
-import { fetchDetail } from '../itemDetail';
-import { t } from '../../../i18n/index.ts';
+import type { DetailResponse } from '../models/session.ts';
+import { fetchDetail } from '@/features/sessions/itemDetail';
+import { t } from '../i18n/index.ts';
 
 export type ItemDetailParams = {
   sessionId: string;
@@ -19,7 +19,7 @@ export type ItemDetailParams = {
   generation: number;
 };
 
-function ItemDetailScreen() {
+function View() {
   const { params } = usePageRuntime<ItemDetailParams>();
   const colors = usePalette();
   const [details, setDetails] = useState<Record<string, DetailResponse>>({});
@@ -104,38 +104,38 @@ function ItemDetailScreen() {
         const detail = details[itemId];
         if (!detail) return null;
         return (
-          <View key={itemId} style={{ gap: 12 }}>
+          <RNView key={itemId} style={{ gap: 12 }}>
             <Blocks blocks={detail.blocks} />
             <RawBlock title={t('detail.rawInput')} value={detail.rawInput} />
             <RawBlock title={t('detail.rawOutput')} value={detail.rawOutput} />
             {detail.truncated ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <RNView style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <AppText variant="meta">{t('detail.truncated')}</AppText>
                 <Button
                   label={t('detail.loadMore')}
                   onPress={() => void load(itemId, detail.nextCursor)}
                 />
-              </View>
+              </RNView>
             ) : null}
-          </View>
+          </RNView>
         );
       })}
       {error ? (
-        <View style={{ gap: 8, alignItems: 'center' }}>
+        <RNView style={{ gap: 8, alignItems: 'center' }}>
           <AppText variant="meta" style={{ color: colors.danger }}>
             {error}
           </AppText>
           <Button label={t('common.retry')} onPress={loadAll} />
-        </View>
+        </RNView>
       ) : null}
     </Screen>
   );
 }
 
-export const itemDetailPage = definePage<ItemDetailParams>({
+export const ItemDetailScreen = definePage<ItemDetailParams>({
   id: 'session-item-detail',
   title: t('detail.title'),
-  Component: ItemDetailScreen,
+  Component: View,
   parseRouteParams: () => {
     throw new Error('请从会话页打开');
   },

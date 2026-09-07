@@ -1,1 +1,2 @@
-export { default } from '@/features/sessions/InboxScreen';
+import { InboxScreen } from '@/screens/InboxScreen';
+export default InboxScreen.Route;

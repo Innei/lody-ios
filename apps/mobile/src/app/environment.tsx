@@ -1,2 +1,2 @@
-import { environmentPage } from '@/features/environment/EnvironmentScreen';
-export default environmentPage.Route;
+import { EnvironmentScreen } from '@/screens/EnvironmentScreen';
+export default EnvironmentScreen.Route;

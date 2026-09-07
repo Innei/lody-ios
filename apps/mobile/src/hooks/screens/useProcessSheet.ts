@@ -1,9 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { present } from '@/presentation';
-import {
-  createProcessSource,
-  processPage,
-} from '@/features/sessions/detail/processPage';
+import { createProcessSource, ProcessScreen } from '@/screens/ProcessScreen';
 
 export function useProcessSheet(
   entriesJSON: string,
@@ -16,7 +13,7 @@ export function useProcessSheet(
     source.update(entriesJSON);
   }, [entriesJSON, onActivityPress, source]);
   return (entryId: string, startItemId?: string) =>
-    void present(processPage, {
+    void present(ProcessScreen, {
       entryId,
       startItemId,
       source,

@@ -1,1 +1,2 @@
-export { default } from '@/features/sessions/SearchScreen';
+import { SearchScreen } from '@/screens/SearchScreen';
+export default SearchScreen.Route;

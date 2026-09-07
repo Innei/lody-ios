@@ -5,11 +5,12 @@ import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { usePalette } from '@/theme/palette';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { searchPlaceholder } from '@/ui/listState';
-import { searchSections } from './inbox';
+import { searchSections } from '@/features/sessions/inbox';
 import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
-import { t } from '../../i18n/index.ts';
+import { definePage } from '@/presentation';
+import { t } from '../i18n/index.ts';
 
-export default function SearchScreen() {
+function View() {
   const { catalog, loading, connected } = useCatalog();
   const { account } = useAuth();
   const colors = usePalette();
@@ -41,3 +42,10 @@ export default function SearchScreen() {
     </>
   );
 }
+
+export const SearchScreen = definePage({
+  id: 'search',
+  title: t('tabs.search'),
+  Component: View,
+  presentation: { style: 'push', headerVariant: 'transparent' },
+});

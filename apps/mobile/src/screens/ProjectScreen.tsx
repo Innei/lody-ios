@@ -3,13 +3,13 @@ import { NativeGroupedList } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { usePalette } from '@/theme/palette';
-import { byActivity, sessionRow } from './inbox';
-import { requestNewSession } from './sessionNav';
-import { sessionRowAction } from './sessionActions';
+import { byActivity, sessionRow } from '@/features/sessions/inbox';
+import { requestNewSession } from '@/features/sessions/sessionNav';
+import { sessionRowAction } from '@/features/sessions/sessionActions';
 import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
-import { t } from '../../i18n/index.ts';
+import { t } from '../i18n/index.ts';
 
-function ProjectScreen() {
+function View() {
   const {
     params: { projectId },
   } = usePageRuntime<{ projectId: string }>();
@@ -69,10 +69,10 @@ function ProjectScreen() {
     </>
   );
 }
-export const projectPage = definePage<{ projectId: string }>({
+export const ProjectScreen = definePage<{ projectId: string }>({
   id: 'project',
   title: t('project.title'),
-  Component: ProjectScreen,
+  Component: View,
   parseRouteParams: ({ projectId }) => ({
     projectId: (Array.isArray(projectId) ? projectId[0] : projectId) ?? '',
   }),

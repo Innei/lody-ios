@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View as RNView } from 'react-native';
 import {
   NativeDiff,
   NativeDiffToolbar,
@@ -15,7 +15,7 @@ import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
 import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
-import { t, type TranslationKey } from '../../../i18n/index.ts';
+import { t, type TranslationKey } from '../i18n/index.ts';
 
 export type FileDiffParams = {
   sessionId: string;
@@ -38,7 +38,7 @@ function reasonText(reason: string, message?: string) {
   return key ? t(key) : (message ?? t('diff.error.fetch'));
 }
 
-function FileDiffScreen() {
+function View() {
   const { params } = usePageRuntime<FileDiffParams>();
   const colors = usePalette();
   const [diff, setDiff] = useState<DiffContent>();
@@ -139,7 +139,7 @@ function FileDiffScreen() {
     );
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.reading }}>
+    <RNView style={{ flex: 1, backgroundColor: colors.reading }}>
       {body}
       {diff?.status === 'ok' ? (
         <NativeDiffToolbar
@@ -159,13 +159,13 @@ function FileDiffScreen() {
           onStyleChange={({ nativeEvent }) => changeStyle(nativeEvent.style)}
         />
       ) : null}
-    </View>
+    </RNView>
   );
 }
 
 function Notice({ text, children }: { text: string; children?: ReactNode }) {
   return (
-    <View
+    <RNView
       style={{
         flex: 1,
         alignItems: 'center',
@@ -178,14 +178,14 @@ function Notice({ text, children }: { text: string; children?: ReactNode }) {
         {text}
       </AppText>
       {children}
-    </View>
+    </RNView>
   );
 }
 
-export const fileDiffPage = definePage<FileDiffParams>({
+export const FileDiffScreen = definePage<FileDiffParams>({
   id: 'file-diff',
   title: t('diff.title'),
-  Component: FileDiffScreen,
+  Component: View,
   parseRouteParams: () => {
     throw new Error('请从本轮改动打开');
   },

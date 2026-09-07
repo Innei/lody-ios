@@ -5,8 +5,8 @@ import { definePage } from '@/presentation';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { usePalette } from '@/theme/palette';
 import { Stack, useRouter } from 'expo-router';
-import { t } from '../../i18n/index.ts';
-function AccountScreen() {
+import { t } from '../i18n/index.ts';
+function View() {
   const auth = useAuth();
   const colors = usePalette();
   const router = useRouter();
@@ -71,8 +71,8 @@ function AccountScreen() {
     </>
   );
 }
-export const accountPage = definePage({
+export const AccountScreen = definePage({
   id: 'account',
   title: t('account.title'),
-  Component: AccountScreen,
+  Component: View,
 });

@@ -1,1 +1,2 @@
-export { default } from '@/features/settings/SettingsScreen';
+import { SettingsScreen } from '@/screens/SettingsScreen';
+export default SettingsScreen.Route;
