@@ -16,17 +16,17 @@
 └────────────────────────────────┘
 ```
 
-`src/app` 只维护路由与导航布局。业务页面与 `definePage` 放在 `src/features`。`src/presentation` 是共享呈现机制。
+`src/app` 只维护路由与导航布局。业务页面与 `definePage` 放在 `src/screens`。`src/features` 是领域逻辑，不得引用 screens。打开会话经 `sessionNav` mailbox，由 `hooks/screens` 调用 `present`。`src/screens/` 只有 `*Screen` 文件（`debug/` 可另放 `uiVerify.ts`）。`src/presentation` 是共享呈现机制。
 
 ### 定义一次，两种入口
 
-实际示例在 `src/features/environment/EnvironmentScreen.tsx`：
+实际示例在 `src/screens/EnvironmentScreen.tsx`：
 
 ```tsx
-export const environmentPage = definePage<EnvironmentParams, RuntimeInfo>({
+export const EnvironmentScreen = definePage<EnvironmentParams, RuntimeInfo>({
   id: 'environment',
   title: '运行环境',
-  Component: EnvironmentScreen,
+  Component: View,
   parseRouteParams: ({ message }) => ({
     message: (Array.isArray(message) ? message[0] : message) ?? '直接路由入口',
   }),
@@ -34,13 +34,13 @@ export const environmentPage = definePage<EnvironmentParams, RuntimeInfo>({
 });
 ```
 
-稳定 URL 的路由文件 `src/app/environment.tsx` 导出 `environmentPage.Route`。调用 `router.push('/environment')` 或 `<Link href="/environment">` 即可打开。URL 参数在 `parseRouteParams` 中解析、验证；直接路由的 `finish` 返回上一页，不向调用者返回结果。冷启动没有上一页时返回根入口。
+稳定 URL 的路由文件 `src/app/environment.tsx` 导出 `EnvironmentScreen.Route`。调用 `router.push('/environment')` 或 `<Link href="/environment">` 即可打开。URL 参数在 `parseRouteParams` 中解析、验证；直接路由的 `finish` 返回上一页，不向调用者返回结果。冷启动没有上一页时返回根入口。
 
 ### 等待 Sheet 的结果
 
 ```tsx
 const result = await present(
-  environmentPage,
+  EnvironmentScreen,
   { message: '从设置传入的参数' },
   {
     style: 'formSheet',
@@ -150,8 +150,8 @@ pnpm ios        # Swift 更改后重新编译，不仅刷新 Metro
 
 ## Cloud POC 数据入口
 
-`src/features/auth/AuthProvider.tsx` 管理设备授权、恢复与退出；`src/cloud/auth.ts` 访问官方 Better Auth。凭据通过 Kit 的 `readAuthToken` / `saveAuthToken` / `clearAuthToken` 保存在 Keychain，`openAuthBrowser` / `closeAuthBrowser` 使用 Swift 的 SFSafariViewController。
+`src/cloud/auth/AuthProvider.tsx` 管理设备授权、恢复与退出；`src/cloud/auth/api.ts` 访问官方 Better Auth。凭据通过 Kit 的 `readAuthToken` / `saveAuthToken` / `clearAuthToken` 保存在 Keychain，`openAuthBrowser` / `closeAuthBrowser` 使用 Swift 的 SFSafariViewController。
 
-`src/cloud/runtime.ts` 订阅 Swift DataRuntime 的投影事件。原生端从 Keychain 获取 Better Auth session token，仅把短期 Streams grant 交给本地 WebView。`modules/lody-kit/data-runtime` 持有 Flock、副本游标和增量请求，`src/cloud/model.ts` 负责必要字段投影。旧 `catalog.ts` 与离线 `decodeFlock` 保留作比较路径，项目页不再使用它们。
+`src/cloud/catalog` 订阅 Swift DataRuntime 的投影事件。原生端从 Keychain 获取 Better Auth session token，仅把短期 Streams grant 交给本地 WebView。`modules/lody-kit/data-runtime` 持有 Flock、副本游标和增量请求，`src/cloud/catalog/model.ts` 负责必要字段投影。旧离线 `decodeFlock` 保留作比较路径，项目页不再使用它们。
 
-项目页持续订阅目录；点击项目仍调用 `present(projectSessionsPage, { project, sessions })`，Sheet 展示打开时的 Session 元数据。点击会话通过 `present(sessionPage, { session })` 打开正文。Kit 内 Loro WASM 订阅会话流；发送持久化用户历史与派发指针，再通过 Machine RPC 通知目标机器。RN 只渲染投影。Swift 看门狗负责重建，详见 [运行时验收](webview-runtime-poc.md)。
+项目页持续订阅目录。点击会话通过 `requestOpenSession` 进入 mailbox，Tab 上的 bind hook 再 `present(SessionScreen, { session })` 打开正文。Kit 内 Loro WASM 订阅会话流；发送持久化用户历史与派发指针，再通过 Machine RPC 通知目标机器。RN 只渲染投影。Swift 看门狗负责重建，详见 [运行时验收](webview-runtime-poc.md)。

@@ -7,7 +7,7 @@
 - Keep normal Xcode signing enabled, including simulator validation. Do not use `CODE_SIGNING_ALLOWED=NO`.
 - Cloud integration targets official Lody Cloud. Do not import `@lody/shared` or `@lody/loro-streams-rpc` root entries: the prior POC found Node/CRDT/Zstd dependencies that Metro cannot bundle. Use verified RN-safe public subpaths when available. Do not use absolute imports from another checkout or private backend packages.
 - Credentials belong in Keychain through LodyKit. Never copy desktop credentials, tokens, transcripts, or private service configuration into this repository.
-- Routes live in `src/app`, feature screens in `src/features`, shared UI in `src/ui`. Keep cloud protocol code separate from UI and native code; add state libraries only when needed.
+- Routes live in `src/app`, screens in `src/screens`, domain in `src/features`, shapes in `src/models`, cloud protocol in `src/cloud` (auth / catalog / send + kv), shared UI in `src/ui`. Features must not import screens; opening a session goes through the `sessionNav` mailbox. `src/screens/` holds only `*Screen` files. Keep cloud protocol code separate from UI and native code; add state libraries only when needed.
 - Native stack headers use transparent headers and soft scroll edges; scrolling screens use `ScrollViewMarker` with the shared `softScrollEdgeEffects` and automatic content insets.
 - Preserve user edits. Before destructive revert/restore/rollback, inspect the working tree and obtain explicit confirmation.
 - Verify with `pnpm check`, `pnpm bundle`, and an iOS simulator build when changing native code. Prefer behavioral checks over implementation snapshots.
