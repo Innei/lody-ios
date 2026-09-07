@@ -1,6 +1,8 @@
 name: Ship (OTA or TestFlight)
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       notes:
@@ -83,9 +85,9 @@ jobs:
           CURRENT: ${{ steps.fp.outputs.hash }}
           BASELINE: ${{ steps.baseline.outputs.hash }}
         run: |
-          if [ "$FORCE" = "true" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "push" ] || [ "$FORCE" = "true" ]; then
             echo "route=testflight" >> "$GITHUB_OUTPUT"
-            echo "Forced TestFlight"
+            echo "TestFlight requested"
           elif [ -z "$BASELINE" ]; then
             echo "route=testflight" >> "$GITHUB_OUTPUT"
             echo "No fingerprint baseline artifact; first ship is TestFlight"
