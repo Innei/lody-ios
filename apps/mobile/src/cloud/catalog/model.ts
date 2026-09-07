@@ -1,13 +1,7 @@
-import { t } from '../i18n/index.ts';
-import type { Catalog, Project, Session } from '../models/catalog.ts';
-import type { CreationOptions } from '../models/send.ts';
+import { t } from '../../i18n/index.ts';
+import type { Catalog, Project, Session } from '../../models/catalog.ts';
 
-export type { Catalog, Project, Session } from '../models/catalog.ts';
-export type {
-  Capability,
-  CapabilityChoice,
-  CreationOptions,
-} from '../models/send.ts';
+export type { Catalog, Project, Session } from '../../models/catalog.ts';
 type Row = { key: unknown[]; value?: unknown };
 const object = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value)
@@ -120,17 +114,4 @@ export function projectRows(rows: Row[], mode: string): Catalog {
     sessions,
     machineIds: [...machineIds],
   };
-}
-
-export function capabilityFor(
-  options: Pick<CreationOptions, 'capabilities'> | undefined,
-  agent: { machineId: string; cliType: string; agentType: string } | undefined,
-) {
-  if (!options || !agent) return undefined;
-  return options.capabilities.find(
-    (c) =>
-      c.machineId === agent.machineId &&
-      c.cliType === agent.cliType &&
-      c.agentType === agent.agentType,
-  );
 }

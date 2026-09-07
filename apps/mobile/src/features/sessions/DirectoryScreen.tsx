@@ -7,7 +7,7 @@ import {
 } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { useSheetHeader } from '@/presentation/SheetStack';
-import type { Project } from '@/cloud/model';
+import type { Project } from '@/models/catalog';
 import type { Directory } from '../../../modules/lody-kit/data-runtime/local-projects';
 import { usePalette } from '@/theme/palette';
 import { t } from '../../i18n/index.ts';

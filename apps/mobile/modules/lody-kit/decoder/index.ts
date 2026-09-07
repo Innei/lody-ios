@@ -1,7 +1,7 @@
 import { decodeFrames } from './frames';
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import { decompress } from 'fzstd';
-import { projectRows } from '../../../src/cloud/model';
+import { projectRows } from '../../../src/cloud/catalog/model.ts';
 
 const bytes = (value: string) =>
   Uint8Array.from(atob(value), (c) => c.charCodeAt(0));

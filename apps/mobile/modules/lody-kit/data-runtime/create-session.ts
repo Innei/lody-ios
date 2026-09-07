@@ -1,12 +1,12 @@
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import type { StreamsClient } from '@loro-dev/streams-client';
+import type { Session } from '../../../src/models/catalog.ts';
 import type {
   Capability,
   CapabilityChoice,
   CreationOptions,
-  Session,
-} from '../../../src/cloud/model';
-import { projectRows } from '../../../src/cloud/model';
+} from '../../../src/models/send.ts';
+import { projectRows } from '../../../src/cloud/catalog/model.ts';
 import { encodeFrame } from '../decoder/frames';
 import { clientFor } from './session';
 

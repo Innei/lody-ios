@@ -1,9 +1,9 @@
 import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { NativeGroupedList } from '@lody-ios/kit';
-import { useCatalog } from '@/cloud/CatalogProvider';
+import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { usePalette } from '@/theme/palette';
-import { useAuth } from '@/features/auth/AuthProvider';
+import { useAuth } from '@/cloud/auth/AuthProvider';
 import { searchPlaceholder } from '@/ui/listState';
 import { searchSections } from './inbox';
 import { openCatalogRow } from './navigation';

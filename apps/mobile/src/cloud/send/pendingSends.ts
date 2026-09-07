@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from 'react';
-import type { PendingSend, PendingSession } from '../models/send.ts';
-import { localGeneration, readLocal, writeLocal } from './local';
-import { t } from '../i18n/index.ts';
+import type { PendingSend, PendingSession } from '../../models/send.ts';
+import { localGeneration, readLocal, writeLocal } from '../kv.ts';
+import { t } from '../../i18n/index.ts';
 
-export type { PendingSend, PendingSession } from '../models/send.ts';
+export type { PendingSend, PendingSession } from '../../models/send.ts';
 type Snapshot = { records: readonly PendingSession[]; ready: boolean };
 const stores = new Map<string, ReturnType<typeof createStore>>();
 let storeGeneration = localGeneration();

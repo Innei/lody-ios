@@ -26,15 +26,12 @@ import {
   type DeviceCode,
   type User,
   type Workspace,
-} from '@/cloud/auth';
+} from './api';
 
-import {
-  writeLocal,
-  parseLocal,
-  clearLocal,
-  type SavedAccount,
-  type SavedCatalog,
-} from '@/cloud/local';
+import { writeLocal, parseLocal, clearLocal } from '../kv';
+import { accountKey } from './persist';
+import type { SavedAccount } from '../../models/auth.ts';
+import type { SavedCatalog } from '../../models/catalog.ts';
 import { t } from '../../i18n/index.ts';
 
 type Account = { token: string; user: User; workspaces: Workspace[] };
@@ -119,7 +116,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         await clearLocal();
         update(signal, { initialCatalog: null, initialWorkspace: '' });
       }
-      await writeLocal('account', account).catch(() =>
+      await writeLocal(accountKey, account).catch(() =>
         showToast(t('auth.toast.accountSaveFailed')),
       );
       update(signal, { account: { token, ...account } });
@@ -155,7 +152,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (signal.aborted) throw new Error(t('common.cancelled'));
       await clearLocal();
       await saveAuthToken(token);
-      await writeLocal('account', account).catch(() =>
+      await writeLocal(accountKey, account).catch(() =>
         showToast(t('auth.toast.accountSaveFailed')),
       );
       if (signal.aborted) throw new Error(t('common.cancelled'));

@@ -5,7 +5,7 @@ import {
   unwatchSession,
 } from '@lody-ios/kit';
 import { acceptEnvelope } from './acceptEnvelope';
-import { localGeneration, readLocal } from '../../cloud/local';
+import { localGeneration, readLocal } from '../../cloud/kv';
 import { showToast } from '../../ui/toast';
 import type { Envelope, Snapshot } from '../../models/session.ts';
 import { t } from '../../i18n/index.ts';

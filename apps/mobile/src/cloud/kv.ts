@@ -3,8 +3,7 @@ import {
   writeLocalValue,
   clearLocalValues,
 } from '@lody-ios/kit';
-export type { SavedAccount } from '../models/auth.ts';
-export type { SavedCatalog } from '../models/catalog.ts';
+
 let generation = 0;
 let writes = Promise.resolve();
 export const localGeneration = () => generation;
@@ -37,6 +36,3 @@ export async function clearLocal() {
   writes = clear.catch(() => {});
   await clear;
 }
-export const catalogKey = (userId: string, workspaceId: string) =>
-  `catalog:${userId}:${workspaceId}`;
-export const selectionKey = (userId: string) => `workspace:${userId}`;

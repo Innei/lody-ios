@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import { NativeGroupedList } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { useSheetHeader } from '@/presentation/SheetStack';
-import type { Project } from '@/cloud/model';
+import type { Project } from '@/models/catalog';
 import { usePalette } from '@/theme/palette';
 import { directoryPage } from './DirectoryScreen';
 import { t } from '../../i18n/index.ts';

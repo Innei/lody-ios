@@ -43,7 +43,7 @@ test('pending sends publish before durable writes, merge hydration, isolate scop
   };
   const bundle = await build({
     entryPoints: [
-      new URL('../src/cloud/pendingSends.ts', import.meta.url).pathname,
+      new URL('../src/cloud/send/pendingSends.ts', import.meta.url).pathname,
     ],
     bundle: true,
     format: 'esm',
@@ -52,7 +52,7 @@ test('pending sends publish before durable writes, merge hydration, isolate scop
       {
         name: 'local',
         setup(b) {
-          b.onResolve({ filter: /^(react|\.\/local)$/ }, ({ path }) => ({
+          b.onResolve({ filter: /^(react|.*\/kv\.ts)$/ }, ({ path }) => ({
             path,
             namespace: 'mock',
           }));

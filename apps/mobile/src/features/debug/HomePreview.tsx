@@ -1,8 +1,8 @@
 import { View } from 'react-native';
 import type { PropsWithChildren } from 'react';
-import { AuthContext } from '@/features/auth/AuthProvider';
-import { CatalogContext } from '@/cloud/CatalogProvider';
-import type { Catalog } from '@/cloud/model';
+import { AuthContext } from '@/cloud/auth/AuthProvider';
+import { CatalogContext } from '@/cloud/catalog/CatalogProvider';
+import type { Catalog } from '@/models/catalog';
 
 export const homeVerify =
   __DEV__ &&

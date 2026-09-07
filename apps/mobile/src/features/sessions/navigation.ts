@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { archiveSession, pinSession } from '@lody-ios/kit';
 import { present } from '@/presentation';
 import { showToast } from '@/ui/toast';
-import type { Catalog, Session } from '@/cloud/model';
+import type { Catalog, Session } from '@/models/catalog';
 import { sessionPage } from './SessionScreen';
 import { createSessionPage } from './CreateSessionScreen';
 import { t } from '../../i18n/index.ts';

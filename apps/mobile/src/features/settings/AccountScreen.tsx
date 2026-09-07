@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Alert } from 'react-native';
 import { NativeGroupedList } from '@lody-ios/kit';
 import { definePage } from '@/presentation';
-import { useAuth } from '@/features/auth/AuthProvider';
+import { useAuth } from '@/cloud/auth/AuthProvider';
 import { usePalette } from '@/theme/palette';
 import { Stack, useRouter } from 'expo-router';
 import { t } from '../../i18n/index.ts';

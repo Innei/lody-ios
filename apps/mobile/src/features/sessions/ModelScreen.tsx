@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
 import { usePalette } from '@/theme/palette';
-import type { Capability } from '@/cloud/model';
+import type { Capability } from '@/models/send';
 import type { ModelChoice } from '../../models/send.ts';
 import { t } from '../../i18n/index.ts';
 

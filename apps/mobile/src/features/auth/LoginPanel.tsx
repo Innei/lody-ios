@@ -1,6 +1,6 @@
 import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native';
 import { usePalette } from '@/theme/palette';
-import { useAuth } from './AuthProvider';
+import { useAuth } from '@/cloud/auth/AuthProvider';
 import { Button } from '@/ui/Button';
 import { t } from '../../i18n/index.ts';
 export function LoginPanel() {

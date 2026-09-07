@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { NativeChat, NativeComposer } from '@lody-ios/kit';
 import { definePage, present, usePageRuntime } from '@/presentation';
-import { usePendingSends } from '@/cloud/pendingSends';
+import { usePendingSends } from '@/cloud/send/pendingSends';
 import { useSessionSend } from '@/features/sessions/useSessionSend';
-import type { Session } from '@/cloud/model';
+import type { Session } from '@/models/catalog';
 import type { Snapshot } from '@/features/sessions/useSessionRuntime';
 import { Button } from '@/ui/Button';
 import { usePalette } from '@/theme/palette';
@@ -240,7 +240,7 @@ const targetPage = definePage({
 });
 
 export async function openSendPreview(source: boolean) {
-  const { getPendingSendStore } = await import('@/cloud/pendingSends');
+  const { getPendingSendStore } = await import('@/cloud/send/pendingSends');
   await getPendingSendStore('ui-send-preview', 'fixture').remove(session.id);
   if (source) {
     const result = await present(sourcePage);

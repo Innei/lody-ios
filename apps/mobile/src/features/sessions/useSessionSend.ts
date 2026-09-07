@@ -5,8 +5,8 @@ import type {
   PendingSend,
   PendingSession,
   usePendingSends,
-} from '@/cloud/pendingSends';
-import type { Session } from '@/cloud/model';
+} from '@/cloud/send/pendingSends';
+import type { Session } from '@/models/catalog';
 import type { Snapshot } from './useSessionRuntime';
 import { t } from '../../i18n/index.ts';
 

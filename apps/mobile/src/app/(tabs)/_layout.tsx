@@ -1,7 +1,7 @@
 import { usePalette } from '@/theme/palette';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useRef } from 'react';
-import { useCatalog } from '@/cloud/CatalogProvider';
+import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { newSession } from '@/features/sessions/navigation';
 import { showToast } from '@/ui/toast';
 import { t } from '../../i18n/index.ts';

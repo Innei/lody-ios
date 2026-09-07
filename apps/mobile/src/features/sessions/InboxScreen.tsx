@@ -1,4 +1,4 @@
-import { useConnection } from '@/cloud/connection';
+import { useConnection } from '@/cloud/catalog/connection';
 import { Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
@@ -10,9 +10,9 @@ import {
   saveInboxExpansion,
 } from '@lody-ios/kit';
 import { Screen } from '@/ui/Screen';
-import { useAuth } from '@/features/auth/AuthProvider';
+import { useAuth } from '@/cloud/auth/AuthProvider';
 import { LoginPanel } from '@/features/auth/LoginPanel';
-import { useCatalog } from '@/cloud/CatalogProvider';
+import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { usePalette } from '@/theme/palette';
 import { listPlaceholder, searchPlaceholder } from '@/ui/listState';
 import { inboxSections, projectSections, searchSections } from './inbox';

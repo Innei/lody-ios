@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'esbuild';
+import { catalogKey } from '../src/cloud/catalog/persist.ts';
 
 test('logout drains in-flight persistence and cancels queued old-account writes', async () => {
   const db = new Map();
@@ -17,7 +18,7 @@ test('logout drains in-flight persistence and cancels queued old-account writes'
     clearLocalValues: async () => db.clear(),
   };
   const bundle = await build({
-    entryPoints: ['apps/mobile/src/cloud/local.ts'],
+    entryPoints: ['apps/mobile/src/cloud/kv.ts'],
     bundle: true,
     format: 'esm',
     write: false,
@@ -53,9 +54,6 @@ test('logout drains in-flight persistence and cancels queued old-account writes'
   assert.equal(await store.readLocal('account'), 'new');
   db.set('corrupt', '{');
   assert.equal(await store.readLocal('corrupt'), null);
-  assert.notEqual(
-    store.catalogKey('a', 'workspace'),
-    store.catalogKey('b', 'workspace'),
-  );
+  assert.notEqual(catalogKey('a', 'workspace'), catalogKey('b', 'workspace'));
   delete globalThis.__localTestKit;
 });

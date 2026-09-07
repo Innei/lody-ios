@@ -1,16 +1,16 @@
-import { t } from '../i18n/index.ts';
+import { t } from '../../i18n/index.ts';
 
 // Public production endpoints observed in the official Lody web client.
 export const AUTH_ORIGIN = 'https://backend.lody.ai';
 export const DEVICE_CLIENT_ID = 'lody-cli';
-import type { DeviceCode, User, Workspace } from '../models/auth.ts';
+import type { DeviceCode, User, Workspace } from '../../models/auth.ts';
 
 export type {
   DeviceCode,
   SavedAccount,
   User,
   Workspace,
-} from '../models/auth.ts';
+} from '../../models/auth.ts';
 export class AuthError extends Error {}
 export function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))

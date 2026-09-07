@@ -1,8 +1,8 @@
 import { Stack } from 'expo-router';
-import { usePendingSends } from '@/cloud/pendingSends';
-import { useConnection } from '@/cloud/connection';
+import { usePendingSends } from '@/cloud/send/pendingSends';
+import { useConnection } from '@/cloud/catalog/connection';
 import { useSessionSend } from './useSessionSend';
-import { useCatalog } from '@/cloud/CatalogProvider';
+import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Alert } from 'react-native';
 import { usePalette } from '@/theme/palette';
@@ -10,8 +10,9 @@ import { NativeChat, sessionCreationOptions } from '@lody-ios/kit';
 import { definePage, present, usePageRuntime } from '@/presentation';
 import { localProjectIdOf } from '@lody-ios/kit';
 import { newSession, setArchived, setPinned } from './navigation';
-import { useAuth } from '@/features/auth/AuthProvider';
-import type { Capability, CreationOptions, Session } from '@/cloud/model';
+import { useAuth } from '@/cloud/auth/AuthProvider';
+import type { Session } from '@/models/catalog';
+import type { Capability, CreationOptions } from '@/models/send';
 
 import { useSessionRuntime } from './useSessionRuntime';
 import { itemDetailPage } from './detail/itemDetailPage';

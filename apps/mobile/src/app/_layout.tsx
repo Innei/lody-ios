@@ -1,8 +1,8 @@
 import { homeVerify, HomePreviewProviders } from '@/features/debug/HomePreview';
 import type { PropsWithChildren } from 'react';
 import { Stack, ThemeProvider } from 'expo-router';
-import { CatalogProvider } from '@/cloud/CatalogProvider';
-import { AuthProvider } from '@/features/auth/AuthProvider';
+import { CatalogProvider } from '@/cloud/catalog/CatalogProvider';
+import { AuthProvider } from '@/cloud/auth/AuthProvider';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 import { nativePresentationOptions } from '@/presentation';

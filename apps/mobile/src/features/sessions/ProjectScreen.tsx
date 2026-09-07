@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { NativeGroupedList } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
-import { useCatalog } from '@/cloud/CatalogProvider';
+import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { usePalette } from '@/theme/palette';
 import { byActivity, sessionRow } from './inbox';
 import { newSession, openCatalogRow, sessionRowAction } from './navigation';

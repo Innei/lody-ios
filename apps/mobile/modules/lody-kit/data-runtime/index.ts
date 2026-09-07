@@ -19,7 +19,8 @@ import {
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import { StreamsClient } from '@loro-dev/streams-client';
 import { decompress } from 'fzstd';
-import { projectRows, type Catalog } from '../../../src/cloud/model';
+import type { Catalog } from '../../../src/models/catalog.ts';
+import { projectRows } from '../../../src/cloud/catalog/model.ts';
 import {
   openSession,
   closeSession,

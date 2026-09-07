@@ -6,20 +6,14 @@ import {
   type PropsWithChildren,
 } from 'react';
 import { showToast } from '@/ui/toast';
-import { useAuth } from '@/features/auth/AuthProvider';
+import { useAuth } from '@/cloud/auth/AuthProvider';
 import { subscribeCatalog } from './runtime';
-import { usePendingSends } from './pendingSends';
+import { usePendingSends } from '../send/pendingSends';
 import { publishConnection } from './connection';
-import {
-  catalogKey,
-  localGeneration,
-  selectionKey,
-  readLocal,
-  writeLocal,
-  type SavedCatalog,
-} from './local';
-import type { Catalog } from './model';
-import { t } from '../i18n/index.ts';
+import { localGeneration, readLocal, writeLocal } from '../kv';
+import { catalogKey, selectionKey } from './persist';
+import type { Catalog, SavedCatalog } from '../../models/catalog.ts';
+import { t } from '../../i18n/index.ts';
 
 const empty: Catalog = { projects: [], sessions: [], machineIds: [] };
 function valid(saved: SavedCatalog | null): saved is SavedCatalog {

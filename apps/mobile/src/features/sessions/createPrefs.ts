@@ -6,7 +6,7 @@ import type {
   ProjectPrefs,
 } from '../../models/send.ts';
 // Relative on purpose: this module is imported directly by node --test.
-import { capabilityFor } from '../../cloud/model.ts';
+import { capabilityFor } from '../../cloud/send/capability.ts';
 
 export type {
   CreatePrefs,

@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { definePage } from '@/presentation';
 import { usePalette } from '@/theme/palette';
 import { inboxSections } from '@/features/sessions/inbox';
-import type { Catalog, Session } from '@/cloud/model';
+import type { Catalog, Session } from '@/models/catalog';
 
 const NOW = Date.parse('2026-09-06T15:00:00+08:00');
 const start = new Date(NOW);
