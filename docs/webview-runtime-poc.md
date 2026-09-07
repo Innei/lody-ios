@@ -6,7 +6,7 @@
 - WebView 加载随 App 打包的代码，负责 Flock 副本、Streams bootstrap、long-poll、游标和网络重试。长效登录凭据保留在 Keychain，Swift 只向当前 WebView 交付短期工作区 grant。
 - 主框架事件及异步回调校验当前 WebView 身份，已被替换的进程不能覆盖新进程的数据。网络失败标为 offline，不当作 JS 卡死。
 - Swift 每 2 秒调用 JS ping，启动超时 20 秒、心跳超时 8 秒。Timer 运行在 common run-loop mode，滚动不暂停检测。60 秒内最多自动重建 3 次，随后熔断；手动重新同步开启新的重试预算。
-- 后台主动释放 WebView，前台重新 bootstrap。不会把后台挂起时间算作心跳超时。注销会停止运行时；对已取消的授权请求不交付旧结果。
+- 切后台保留 WebView，暂停 watchdog 判断；前台恢复心跳宽限，同一 WebView 继续运行，只有进程丢失才重新 bootstrap。注销仍停止运行时。iOS 26 在用户发送时申请 `BGContinuedProcessingTask`，按发送、接收和完成报告真实阶段；回复完成、等待用户确认、失败或系统到期后释放。申请失败不阻止前台发送，不自动重放写入。
 - RN 保留用于展示的投影，重建或网络故障期间它可能过期。恢复会重新读取服务端，不自动重放写操作。
 
 现在可从项目 → 会话 → 消息页读取 Session 正文并发送纯文本。一个活动会话由 WebView 中的 Loro WASM 副本管理；Swift 记住订阅，在进程恢复后重新 bootstrap。关闭消息页释放该订阅，不停止目录。RN 使用稳定消息 ID 渲染增量文本，按 `userTurnId` 关联排列回复；非文本块显示类型占位。
@@ -19,7 +19,7 @@
 
 Debug 构建在 iOS 16.4+ 对每次创建的运行时 WebView 设置 `isInspectable = true`。重新编译并安装 App，进入工作区后，在 Mac Safari 的「开发 → 模拟器或设备 → Lody Data Runtime」中连接。WebView 继续离屏运行，无需添加到界面。真机需要开启 Safari 的 Web 检查器；模拟器默认开启。Release 构建不开放检查。
 
-进入后台会释放 WebView，前台恢复或看门狗重建后需重新连接。断点暂停超过心跳期限仍会触发看门狗，调试入口不改变恢复策略。
+进入后台保留 WebView；系统回收进程或看门狗重建后需重新连接。断点暂停超过心跳期限仍会触发看门狗，调试入口不改变恢复策略。
 
 ## 自动检查
 
@@ -57,7 +57,7 @@ JS 检查使用真实 Flock/Loro WASM 与受控 Streams 响应，验证副本更
 2. 点击「POC：卡死 WebView JS」。不操作刷新，等待约 8 秒检测超时及网络重新同步；应恢复 `live`，代数增加，原因 `heartbeat_timeout`。
 3. 点击「POC：模拟进程丢失」可测试同一重建入口；它是模拟故障按钮，真实进程终止另由系统 delegate 回调处理。
 4. 快速连续触发四次模拟进程丢失，应显示 `failed / restart_limit`，代数停止增长。点击「重新同步项目与会话」应恢复。
-5. Home 进入后台，停留超过心跳期限后重新打开 App。应自动恢复订阅，原因 `foreground`，不计为失败重启。
+5. Home 进入后台，停留超过心跳期限后重新打开 App。健康 WebView 的代数应不变，不计为失败重启；若系统实际回收了 WebContent，则前台重新 bootstrap。
 
 此记录是模拟器与合成协议用例的证据，不是长时间真机后台、内存压力或电量验证。前台每 2 秒唤醒离屏 JS 的开销需要后续真机测量。
 

@@ -68,7 +68,7 @@ if '--send' in sys.argv:
     time.sleep(0.7)
     def find_user(node):
         if isinstance(node, dict):
-            if (node.get('AXUniqueId') or '').startswith('preview-user-'):
+            if (node.get('AXUniqueId') or '').endswith(':user') and 'keep this message at the top.' in (node.get('AXLabel') or '').lower():
                 return node
             for value in node.values():
                 found = find_user(value)

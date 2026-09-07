@@ -4,6 +4,7 @@ import UIKit
 /// they never rebuild attributed strings, remeasure cells or refresh the list.
 final class ChatTextView: UIView {
   private let storage = NSTextStorage()
+  var attributedTextValue: NSAttributedString { NSAttributedString(attributedString: storage) }
   private let manager = NSLayoutManager()
   private let container = NSTextContainer(size: .zero)
   private var fade = ChatTextFade()

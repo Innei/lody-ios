@@ -1,5 +1,5 @@
 import { NativePressable } from '@lody-ios/kit';
-import type { StyleProp, ViewStyle } from 'react-native';
+import type { ColorValue, StyleProp, ViewStyle } from 'react-native';
 import { usePalette } from '@/theme/palette';
 import { AppText } from './AppText';
 
@@ -27,6 +27,9 @@ export function Button({
   const colors = usePalette();
   const filled = variant === 'filled';
   const text = label ?? children ?? '';
+  let color: ColorValue = colors.accent;
+  if (filled) color = colors.onAccent;
+  else if (destructive) color = colors.danger;
   return (
     <NativePressable
       testID={testID}
@@ -50,11 +53,7 @@ export function Button({
       <AppText
         variant="body"
         style={{
-          color: filled
-            ? colors.onAccent
-            : destructive
-              ? colors.danger
-              : colors.accent,
+          color,
           fontWeight: filled ? '600' : '400',
         }}
       >

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { inboxSections } from '../src/features/sessions/inbox.ts';
-import { listPlaceholder } from '../src/ui/listState.ts';
+import { listPlaceholder, searchPlaceholder } from '../src/ui/listState.ts';
 import { draftTitle } from '../src/features/sessions/draftTitle.ts';
 
 const ACCENT = '#3B4FD9';
@@ -27,21 +27,24 @@ const catalog = (sessions, projects = [{ id: 'p1', name: 'lody-ios' }]) => ({
 const build = (data, options = {}) =>
   inboxSections(data, { accent: ACCENT, now, ...options });
 
-test('groups run attention, live, recent in that order', () => {
+test('groups run attention, live, unread completed, then dated history', () => {
   const sections = build(
     catalog([
-      session('done-1', 'completed'),
+      session('done-1', 'completed', {
+        lastMessageAt: now - 60_000,
+        lastReadAt: now,
+      }),
       session('live-1', 'running'),
       session('wait-1', 'waiting'),
     ]),
   );
   assert.deepEqual(
     sections.map((s) => s.id),
-    ['attention', 'live', 'recent'],
+    ['attention', 'live', 'today'],
   );
   assert.deepEqual(
     sections.map((s) => s.header),
-    ['需要你', '进行中', '最近'],
+    ['需要你确认', '进行中', '今天'],
   );
 });
 
@@ -53,11 +56,12 @@ test('empty groups are not rendered at all', () => {
   );
 });
 
-test('errors join waiting under 需要你', () => {
+test('errors join waiting under 需要你确认', () => {
   const [first] = build(
     catalog([session('err', 'error'), session('wait', 'waiting')]),
   );
   assert.equal(first.id, 'attention');
+  assert.equal(first.header, '需要你确认');
   assert.equal(first.rows.length, 2);
 });
 
@@ -73,31 +77,109 @@ test('search matches the project name, not only the title', () => {
   assert.deepEqual(build(data, { keyword: 'yohaku' }), []);
 });
 
-test('subtitle reads state, project, then relative time', () => {
+test('subtitle is the project; time and status sit in trailing slots', () => {
   const [group] = build(catalog([session('s1', 'waiting')]));
-  assert.equal(group.rows[0].subtitle, '等待确认 · lody-ios · 1 小时前');
+  assert.equal(group.rows[0].subtitle, 'lody-ios');
+  assert.equal(group.rows[0].value, '1 小时前');
+  assert.equal(group.rows[0].badge, '等你确认');
+  assert.equal(group.rows[0].disclosure, undefined);
+  assert.equal(group.rows[0].image, undefined);
 });
 
 test('only live rows carry the accent tint', () => {
   const sections = build(
     catalog([session('live', 'running'), session('wait', 'waiting')]),
   );
-  const tints = sections.flatMap((s) => s.rows.map((r) => r.imageTint));
-  assert.equal(tints.filter((tint) => tint === ACCENT).length, 1);
+  const rows = Object.fromEntries(
+    sections.flatMap((s) => s.rows.map((row) => [row.id, row])),
+  );
+  assert.equal(rows.live.imageTint, ACCENT);
+  assert.equal(rows.live.badge, undefined);
+  assert.equal(rows.wait.imageTint, 'warning');
+  assert.equal(rows.wait.badge, '等你确认');
 });
 
-test('recent is capped; attention and live are not', () => {
-  const many = (status, n) =>
-    Array.from({ length: n }, (_, i) => session(`${status}-${i}`, status));
+test('unread completed sits in 待查看 and is not also dated', () => {
   const sections = build(
-    catalog([...many('completed', 30), ...many('waiting', 30)]),
-    {
-      limit: 20,
-    },
+    catalog([
+      session('fresh', 'completed', { lastMessageAt: now - 60_000 }),
+      session('seen', 'completed', {
+        lastMessageAt: now - 60_000,
+        lastReadAt: now,
+      }),
+    ]),
+  );
+  assert.deepEqual(
+    sections.map((s) => [s.id, s.header, s.rows.map((r) => r.id)]),
+    [
+      ['unread', '已完成 · 待查看', ['fresh']],
+      ['today', '今天', ['seen']],
+    ],
+  );
+  assert.equal(sections[0].rows[0].unread, true);
+  assert.equal(sections[1].rows[0].unread, false);
+});
+
+test('awaiting user beats unread completed', () => {
+  const [group] = build(
+    catalog([
+      session('review', 'completed', {
+        lastMessageAt: now - 60_000,
+        awaitingUserSince: now - 60_000,
+      }),
+    ]),
+  );
+  assert.equal(group.id, 'attention');
+  assert.equal(group.rows[0].id, 'review');
+});
+
+test('read history splits across today, yesterday, week, month and older', () => {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const today = start.getTime();
+  const day = 24 * 60 * 60 * 1000;
+  const read = (id, at) =>
+    session(id, 'completed', { lastMessageAt: at, lastReadAt: at + 1 });
+  const sections = build(
+    catalog([
+      read('today', today + 12 * 60 * 60 * 1000),
+      read('yesterday', today - day + 12 * 60 * 60 * 1000),
+      read('week', today - 4 * day),
+      read('month', today - 18 * day),
+      read('older', today - 40 * day),
+    ]),
+  );
+  assert.deepEqual(
+    sections.map((s) => [s.id, s.header, s.rows.map((r) => r.id)]),
+    [
+      ['today', '今天', ['today']],
+      ['yesterday', '昨天', ['yesterday']],
+      ['week', '一周内', ['week']],
+      ['month', '上个月', ['month']],
+      ['older', '更早', ['older']],
+    ],
+  );
+});
+
+test('attention, unread completed and dated history are not capped', () => {
+  const many = (status, n, extra = {}) =>
+    Array.from({ length: n }, (_, i) =>
+      session(`${status}-${i}`, status, extra),
+    );
+  const sections = build(
+    catalog([
+      ...many('completed', 30, {
+        lastMessageAt: now - 60_000,
+        lastReadAt: now,
+      }),
+      ...many('completed', 12, { lastMessageAt: now - 30_000 }),
+      ...many('waiting', 30),
+    ]),
   );
   const byId = Object.fromEntries(sections.map((s) => [s.id, s.rows.length]));
-  assert.equal(byId.recent, 20);
   assert.equal(byId.attention, 30);
+  assert.equal(byId.unread, 12);
+  assert.equal(byId.today, 30);
 });
 
 test('newest sessions come first inside a group', () => {
@@ -118,6 +200,51 @@ test('placeholder covers loading, empty search, offline and first run', () => {
   assert.match(listPlaceholder({ filtered: true }), /没有匹配/);
   assert.match(listPlaceholder({ connected: false }), /连接已中断/);
   assert.match(listPlaceholder({}), /连接电脑/);
+  assert.match(
+    searchPlaceholder({
+      signedIn: false,
+      query: '',
+      loading: false,
+      connected: true,
+    }),
+    /登录后/,
+  );
+  assert.match(
+    searchPlaceholder({
+      signedIn: true,
+      query: '',
+      loading: false,
+      connected: true,
+    }),
+    /包括已归档/,
+  );
+  assert.match(
+    searchPlaceholder({
+      signedIn: true,
+      query: 'x',
+      loading: true,
+      connected: true,
+    }),
+    /载入/,
+  );
+  assert.match(
+    searchPlaceholder({
+      signedIn: true,
+      query: 'x',
+      loading: false,
+      connected: false,
+    }),
+    /连接已中断/,
+  );
+  assert.match(
+    searchPlaceholder({
+      signedIn: true,
+      query: 'x',
+      loading: false,
+      connected: true,
+    }),
+    /没有匹配/,
+  );
 });
 
 test('the session title comes from the first line of the first message', () => {
@@ -193,9 +320,9 @@ test('project rows carry branch or agent, diff, activity time, unread and a badg
   assert.equal(busy.value, '10 分钟前');
   assert.equal(busy.unread, true);
   assert.equal(busy.badge, '等你确认');
-  assert.equal(busy.image, 'circle.fill');
+  assert.equal(busy.image, undefined);
   assert.equal(busy.imageTint, 'warning');
-  assert.equal(busy.disclosure, false);
+  assert.equal(busy.disclosure, undefined);
   assert.equal(quiet.subtitle, 'Claude Code');
   assert.equal(quiet.subtitleMono, false);
   assert.equal(quiet.unread, false);

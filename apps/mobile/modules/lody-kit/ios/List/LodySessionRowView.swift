@@ -20,8 +20,6 @@ private final class PillLabel: UILabel {
 }
 
 final class LodySessionRowView: UIView, UIContentView {
-  private let halo = UIView()
-  private let dot = UIView()
   private let title = UILabel()
   private let subtitle = UILabel()
   private let time = UILabel()
@@ -34,20 +32,23 @@ final class LodySessionRowView: UIView, UIContentView {
   init(_ configuration: LodySessionRowContent) {
     self.configuration = configuration
     super.init(frame: .zero)
-    directionalLayoutMargins = .init(top: 12, leading: 0, bottom: 12, trailing: 14)
+    insetsLayoutMarginsFromSafeArea = false
+    preservesSuperviewLayoutMargins = false
+    directionalLayoutMargins = .init(top: 13, leading: 4, bottom: 13, trailing: 0)
+    title.font = .preferredFont(forTextStyle: .body)
+    title.numberOfLines = 2
     title.adjustsFontForContentSizeCategory = true
     subtitle.adjustsFontForContentSizeCategory = true
     subtitle.font = .preferredFont(forTextStyle: .footnote)
-    time.font = .preferredFont(forTextStyle: .subheadline)
+    time.font = .preferredFont(forTextStyle: .footnote)
     time.adjustsFontForContentSizeCategory = true
     time.textColor = .secondaryLabel
+    time.textAlignment = .right
     pill.font = .preferredFont(forTextStyle: .caption1).withWeight(.medium)
     pill.adjustsFontForContentSizeCategory = true
     pill.layer.cornerRadius = 10
     pill.layer.cornerCurve = .continuous
     pill.clipsToBounds = true
-    halo.layer.cornerRadius = 7
-    dot.layer.cornerRadius = 4
     for label in [title, subtitle, time] {
       label.lineBreakMode = .byTruncatingTail
     }
@@ -55,36 +56,26 @@ final class LodySessionRowView: UIView, UIContentView {
     subtitle.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     time.setContentCompressionResistancePriority(.required, for: .horizontal)
     pill.setContentCompressionResistancePriority(.required, for: .horizontal)
-    for view in [halo, dot, title, subtitle, time, pill] {
+    for view in [title, subtitle, time, pill] {
       view.translatesAutoresizingMaskIntoConstraints = false
     }
-    addSubview(halo)
-    addSubview(dot)
     addSubview(title)
     addSubview(subtitle)
     addSubview(time)
     addSubview(pill)
     let margin = layoutMarginsGuide
     NSLayoutConstraint.activate([
-      halo.widthAnchor.constraint(equalToConstant: 14),
-      halo.heightAnchor.constraint(equalToConstant: 14),
-      halo.centerXAnchor.constraint(equalTo: margin.leadingAnchor, constant: 11),
-      halo.centerYAnchor.constraint(equalTo: title.centerYAnchor),
-      dot.widthAnchor.constraint(equalToConstant: 8),
-      dot.heightAnchor.constraint(equalToConstant: 8),
-      dot.centerXAnchor.constraint(equalTo: halo.centerXAnchor),
-      dot.centerYAnchor.constraint(equalTo: halo.centerYAnchor),
       title.topAnchor.constraint(equalTo: margin.topAnchor),
-      title.leadingAnchor.constraint(equalTo: margin.leadingAnchor, constant: 22),
-      title.trailingAnchor.constraint(lessThanOrEqualTo: time.leadingAnchor, constant: -8),
-      subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 2),
+      title.leadingAnchor.constraint(equalTo: margin.leadingAnchor, constant: 16),
+      title.trailingAnchor.constraint(lessThanOrEqualTo: time.leadingAnchor, constant: -10),
+      subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 3),
       subtitle.leadingAnchor.constraint(equalTo: title.leadingAnchor),
       subtitle.trailingAnchor.constraint(lessThanOrEqualTo: pill.leadingAnchor, constant: -8),
       subtitle.bottomAnchor.constraint(equalTo: margin.bottomAnchor),
       time.firstBaselineAnchor.constraint(equalTo: title.firstBaselineAnchor),
-      time.trailingAnchor.constraint(equalTo: margin.trailingAnchor),
-      pill.topAnchor.constraint(equalTo: time.bottomAnchor, constant: 2),
-      pill.trailingAnchor.constraint(equalTo: margin.trailingAnchor),
+      time.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -22),
+      pill.topAnchor.constraint(equalTo: time.bottomAnchor, constant: 4),
+      pill.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -22),
       pill.bottomAnchor.constraint(lessThanOrEqualTo: margin.bottomAnchor),
     ])
     apply()
@@ -96,25 +87,40 @@ final class LodySessionRowView: UIView, UIContentView {
   private func apply() {
     guard let content = configuration as? LodySessionRowContent else { return }
     let row = content.row
-    title.text = row.title
-    title.font = .preferredFont(forTextStyle: row.unread ? .headline : .body)
-    title.textColor = row.destructive ? .systemRed : .label
+    let tint = content.dot ?? .secondaryLabel
+    title.attributedText = Self.title(for: row, live: content.live, tint: tint)
     subtitle.attributedText = Self.subtitle(for: row)
     subtitle.isHidden = subtitle.attributedText?.length == 0
     time.text = row.value
     pill.text = row.badge
     pill.isHidden = row.badge.isEmpty
-    let tint = content.dot ?? .secondaryLabel
     pill.textColor = tint
     pill.backgroundColor = tint.withAlphaComponent(0.16)
-    dot.backgroundColor = content.dot
-    dot.isHidden = content.dot == nil
-    halo.backgroundColor = content.dot?.withAlphaComponent(0.22)
-    halo.isHidden = !content.live
     isAccessibilityElement = true
     accessibilityLabel = [row.title, row.badge, subtitle.attributedText?.string ?? "", row.value]
       .filter { !$0.isEmpty }
       .joined(separator: ", ")
+  }
+
+  private static func title(for row: LodyListRow, live: Bool, tint: UIColor) -> NSAttributedString {
+    let font = UIFont.preferredFont(forTextStyle: row.unread ? .headline : .body)
+    let color: UIColor = row.destructive ? .systemRed : .label
+    let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
+    let text = NSMutableAttributedString()
+    if live {
+      let mark: CGFloat = 8
+      let image = UIGraphicsImageRenderer(size: CGSize(width: mark, height: mark)).image { _ in
+        tint.setFill()
+        UIBezierPath(ovalIn: CGRect(origin: .zero, size: CGSize(width: mark, height: mark))).fill()
+      }
+      let attachment = NSTextAttachment()
+      attachment.image = image
+      attachment.bounds = CGRect(x: 0, y: (font.capHeight - mark) / 2, width: mark, height: mark)
+      text.append(NSAttributedString(attachment: attachment))
+      text.append(NSAttributedString(string: "\u{00A0}", attributes: attributes))
+    }
+    text.append(NSAttributedString(string: row.title, attributes: attributes))
+    return text
   }
 
   private static func subtitle(for row: LodyListRow) -> NSAttributedString {
@@ -132,7 +138,7 @@ final class LodySessionRowView: UIView, UIContentView {
       if text.length > 0 {
         text.append(NSAttributedString(string: " · ", attributes: [.font: footnote, .foregroundColor: UIColor.tertiaryLabel]))
       }
-      text.append(NSAttributedString(string: "+\(add)", attributes: [.font: mono, .foregroundColor: UIColor.systemGreen]))
+      text.append(NSAttributedString(string: "+\(add)", attributes: [.font: mono, .foregroundColor: UIColor.systemBlue]))
       text.append(NSAttributedString(string: " −\(del)", attributes: [.font: mono, .foregroundColor: UIColor.systemRed]))
     }
     return text

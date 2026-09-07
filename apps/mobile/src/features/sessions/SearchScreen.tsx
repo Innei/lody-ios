@@ -4,6 +4,7 @@ import { NativeGroupedList } from '@lody-ios/kit';
 import { useCatalog } from '@/cloud/CatalogProvider';
 import { usePalette } from '@/theme/palette';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { searchPlaceholder } from '@/ui/listState';
 import { searchSections } from './inbox';
 import { openCatalogRow } from './navigation';
 
@@ -24,18 +25,14 @@ export default function SearchScreen() {
       <NativeGroupedList
         style={{ flex: 1 }}
         accent={colors.accent}
+        contentStyle
         sections={account ? searchSections(catalog, query, colors.accent) : []}
-        placeholder={
-          !account
-            ? '登录后搜索你的项目和会话'
-            : !query.trim()
-              ? '搜索当前工作区的项目和会话，包括已归档会话'
-              : loading
-                ? '正在载入…'
-                : !connected
-                  ? '连接已中断，请在会话页重新同步'
-                  : '没有匹配的项目或会话'
-        }
+        placeholder={searchPlaceholder({
+          signedIn: !!account,
+          query,
+          loading,
+          connected,
+        })}
         onRowPress={({ nativeEvent }) =>
           openCatalogRow(nativeEvent.id, catalog)
         }

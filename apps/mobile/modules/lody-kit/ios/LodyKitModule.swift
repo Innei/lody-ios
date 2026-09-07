@@ -43,7 +43,28 @@ public final class LodyKitModule: Module {
         let params = try? JSONSerialization.jsonObject(with: data) as? [String: String],
         params["sessionId"] == "ui-verify-diff", params["entryId"] == "diff-preview",
         let path = params["path"], ["docs/superpowers/.diff-check.md", "src/very-long-directory-name/nested/components/another-long-file-name.ts"].contains(path) {
-        let contents = try JSONSerialization.data(withJSONObject: ["old": "a\nb\nc\n", "new": "a\nhello\nc\n"])
+        let added = path.hasSuffix(".ts")
+          ? """
+            import { readFileSync } from 'node:fs';
+            import { hashPassword } from './auth/password.mjs';
+            import pg from 'pg';
+
+            const password = readFileSync(new URL('./.tmp-alice.secret', import.meta.url), 'utf8').trim();
+            const hash = await hashPassword(password);
+            const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+            await client.connect();
+            const r = await client.query(
+              `UPDATE auth_account SET password_hash = $1 WHERE email = $2 AND deleted_at IS NULL RETURNING id`,
+              [hash, 'alice@test.dev'],
+            );
+            console.log(r.rowCount, r.rows[0]?.id);
+            await client.end();
+            """
+          : "a\nhello\nc\n"
+        let contents = try JSONSerialization.data(withJSONObject: [
+          "old": path.hasSuffix(".ts") ? "" : "a\nb\nc\n",
+          "new": added,
+        ])
         let handle = ContentStore.shared.put(StoredContent(data: contents, kind: "diff", path: path, session: "ui-verify-diff", mimeType: nil))
         let result = try JSONSerialization.data(withJSONObject: ["status": "ok", "handle": handle, "base": "turn", "oldKind": "text", "newKind": "text", "add": 1, "del": 1])
         promise.resolve(String(decoding: result, as: UTF8.self))
@@ -68,6 +89,13 @@ public final class LodyKitModule: Module {
     AsyncFunction("debugProbeSchema") { (promise: Promise) in
       #if DEBUG
       self.dataRuntime.debugProbeSchema(promise: promise)
+      #else
+      promise.resolve("{}")
+      #endif
+    }.runOnQueue(.main)
+    AsyncFunction("debugBackgroundDataRuntime") { (action: String, promise: Promise) in
+      #if DEBUG
+      self.dataRuntime.debugBackground(action, promise: promise)
       #else
       promise.resolve("{}")
       #endif
@@ -181,6 +209,7 @@ public final class LodyKitModule: Module {
       Prop("navigationSubtitle") { (view: LodyChatView, value: String) in view.setNavigationSubtitle(value) }
       Prop("attachmentContextJSON") { (view: LodyChatView, value: String) in view.setAttachmentContext(value) }
       Prop("entriesJSON") { (view: LodyChatView, value: String) in view.setEntries(value) }
+      Prop("pendingSendJSON") { (view: LodyChatView, value: String) in view.setPendingSendJSON(value) }
       Prop("processStartId") { (view: LodyChatView, value: String) in view.setProcessStartID(value) }
       Prop("processEntryId") { (view: LodyChatView, value: String) in view.setProcessEntryID(value) }
       Prop("composerJSON") { (view: LodyChatView, value: String) in view.setComposerState(value) }

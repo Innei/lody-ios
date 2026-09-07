@@ -84,6 +84,10 @@ test('persistent runtime applies live increments to the existing replica and adv
   await import(
     `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
   );
+  assert.deepEqual(
+    await globalThis.dataRuntime.sendTurn({ sessionId: 's1', text: 'hello' }),
+    { state: 'not_sent', reason: 'metadata_not_ready' },
+  );
   const first = catalogEvent();
   globalThis.dataRuntime.start('synthetic-workspace');
   assert.equal(JSON.parse((await first).catalog).sessions[0].title, 'Before');

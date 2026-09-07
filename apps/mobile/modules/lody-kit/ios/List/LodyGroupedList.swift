@@ -135,9 +135,13 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
   }
 
   private let sessionRegistration = UICollectionView.CellRegistration<UICollectionViewListCell, LodyListRow> { cell, _, row in
-    let dot = row.image.isEmpty ? nil : (lodyTint(row.imageTint) ?? LodyGroupedList.accent)
-    cell.contentConfiguration = LodySessionRowContent(row: row, dot: dot, live: dot != nil && row.imageTint.hasPrefix("#"))
-    cell.accessories = row.disclosure ? [.disclosureIndicator()] : []
+    let tint = lodyTint(row.imageTint)
+    cell.contentConfiguration = LodySessionRowContent(
+      row: row,
+      dot: tint,
+      live: tint != nil && row.imageTint.hasPrefix("#") && row.badge.isEmpty
+    )
+    cell.accessories = []
     cell.accessibilityIdentifier = row.id
     cell.accessibilityTraits = row.action ? .button : .staticText
   }

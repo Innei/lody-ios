@@ -518,16 +518,17 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   func setInitialDraft(_ text: String) {
     guard !hasInitialDraft else { return }
     hasInitialDraft = true
+    guard pendingDraft == nil else { return }
     input.text = text
     updateComposer()
   }
   func setStoredDraft(_ text: String) {
-    guard !text.isEmpty, pendingDraft == nil, input.text.isEmpty else { return }
+    guard !text.isEmpty, input.text.isEmpty else { return }
     input.text = text
     updateComposer()
   }
   private func saveDraft() {
-    onDraftChange?(pendingDraft?.text ?? input.text ?? "")
+    onDraftChange?(input.text ?? "")
   }
   @objc private func appDidEnterBackground() { saveDraft() }
   override func didMoveToWindow() {
@@ -545,28 +546,73 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     guard let drafts = try? JSONDecoder().decode([DraftAttachment].self, from: Data(json.utf8)),
       drafts.allSatisfy({ $0.uri.isFileURL && ($0.kind == "image" || $0.kind == "file") }) else { return }
     hasInitialAttachments = true
+    guard pendingDraft == nil else { return }
     attachments = drafts.map { ChatAttachment(id: $0.id, name: $0.name, url: $0.uri, isImage: $0.kind == "image") }
     updateComposer()
   }
   func clearDraft(token: Int) {
     guard token > lastClearToken else { return }
     lastClearToken = token
+    guard pendingDraft != nil else { return }
+    acknowledgedSendID = pendingSendID
     pendingDraft = nil
-    input.text = ""
-    attachments = []
+    pendingSendID = nil
     updateComposer()
-    onDraftChange?("")
+    saveDraft()
   }
   func restoreDraft(token: Int) {
     guard token > lastRestoreToken else { return }
     lastRestoreToken = token
+    let id = pendingSendID ?? UUID().uuidString.lowercased()
+    ChatSendHandoff.cancel(id: id)
+    pendingSendID = nil
     if let draft = pendingDraft {
-      input.text = draft.text
-      attachments = draft.attachments
+      if (input.text ?? "").isEmpty && attachments.isEmpty {
+        input.text = draft.text
+        attachments = draft.attachments
+      } else {
+        failedDraft = ChatPendingSend(id: id, text: draft.text, attachments: draft.attachments.map { item in
+          ChatPendingSend.Attachment(id: item.id, name: item.name, uri: item.url.absoluteString, kind: item.isImage ? "image" : "file")
+        }, status: "", failed: true)
+      }
       pendingDraft = nil
     }
     updateComposer()
   }
+  private var pendingSendID: String?
+  private var acknowledgedSendID: String?
+  private var restoredSendID: String?
+  private var failedDraft: ChatPendingSend?
+
+  func setPendingSend(_ pending: ChatPendingSend) {
+    guard pending.id != restoredSendID, pending.id != acknowledgedSendID else { return }
+    if pending.failed == true {
+      if pendingSendID == pending.id {
+        restoreDraft(token: lastRestoreToken + 1)
+        restoredSendID = pending.id
+      } else if (input.text ?? "").isEmpty && attachments.isEmpty {
+        input.text = pending.text
+        attachments = pending.attachments.compactMap { item in
+          guard let url = URL(string: item.uri), url.isFileURL else { return nil }
+          return ChatAttachment(id: item.id, name: item.name, url: url, isImage: item.kind == "image")
+        }
+        restoredSendID = pending.id
+        updateComposer()
+      } else {
+        failedDraft = pending
+        updateComposer()
+      }
+      return
+    }
+    guard pendingSendID != pending.id else { return }
+    pendingSendID = pending.id
+    pendingDraft = (pending.text, pending.attachments.compactMap { item in
+      guard let url = URL(string: item.uri), url.isFileURL else { return nil }
+      return ChatAttachment(id: item.id, name: item.name, url: url, isImage: item.kind == "image")
+    })
+    updateComposer()
+  }
+
   private func takeDraft() {
     guard pendingDraft == nil else { return }
     pendingDraft = (input.text ?? "", attachments)
@@ -609,7 +655,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     let expansionChanged = composerExpanded != expanded
     if expansionChanged && window != nil { layoutIfNeeded() }
     composerExpanded = expanded
-    input.isEditable = state.editable && !sending
+    input.isEditable = state.editable
     attach.isEnabled = state.editable && !sending
     attach.alpha = attach.isEnabled ? 1 : 0.5
     attachmentBar.isUserInteractionEnabled = state.editable && !sending
@@ -617,12 +663,12 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     attachmentHeight.constant = attachments.isEmpty ? 0 : 42
     hint.text = state.placeholder
     hint.isHidden = !input.text.isEmpty
-    send.isEnabled = displayError == nil && state.editable && state.canSend && !sending && (!input.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty)
+    send.isEnabled = failedDraft == nil && displayError == nil && state.editable && state.canSend && !sending && (!input.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty)
     send.accessibilityLabel = sending ? "正在发送" : "发送"
     send.setImage(sending ? nil : UIImage(systemName: "arrow.up.circle.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 26, weight: .medium)), for: .normal)
     if sending { sendSpinner.startAnimating() } else { sendSpinner.stopAnimating() }
-    let noticeText = displayError ?? state.notice
-    let canReconnect = displayError != nil || state.reconnect
+    let noticeText = failedDraft == nil ? (displayError ?? state.notice) : "有一条未发出的消息 · 点此合并到草稿"
+    let canReconnect = failedDraft != nil || displayError != nil || state.reconnect
     notice.setTitle(noticeText, for: .normal)
     notice.setTitleColor(canReconnect ? .systemBlue : .secondaryLabel, for: .normal)
     notice.isUserInteractionEnabled = canReconnect
@@ -704,15 +750,33 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   }
   @objc private func submit() {
     guard send.isEnabled else { return }
+    let id = UUID().uuidString.lowercased()
+    let body = ([input.text ?? ""] + attachments.filter { !$0.isImage }.map(\.name)).filter { !$0.isEmpty }.joined(separator: "\n")
+    if !body.isEmpty { ChatSendHandoff.begin(id: id, text: body, source: input) }
+    ChatSendHandoff.beginImages(id: id, attachments: attachments, source: attachmentBar)
     takeDraft()
+    saveDraft()
+    pendingSendID = id
     guard let draft = pendingDraft else { return }
     updateComposer()
     onSend?([
+      "id": id,
       "text": draft.text,
       "attachments": draft.attachments.map {
         ["id": $0.id, "name": $0.name, "uri": $0.url.absoluteString, "kind": $0.isImage ? "image" : "file"]
       },
     ])
   }
-  @objc private func reconnect() { onReconnect?() }
+  @objc private func reconnect() {
+    guard let failed = failedDraft else { onReconnect?(); return }
+    input.text = [input.text ?? "", failed.text].filter { !$0.isEmpty }.joined(separator: "\n\n")
+    for item in failed.attachments where !attachments.contains(where: { $0.id == item.id }) {
+      guard let url = URL(string: item.uri), url.isFileURL else { continue }
+      attachments.append(ChatAttachment(id: item.id, name: item.name, url: url, isImage: item.kind == "image"))
+    }
+    restoredSendID = failed.id
+    failedDraft = nil
+    updateComposer()
+    saveDraft()
+  }
 }

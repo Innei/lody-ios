@@ -8,6 +8,7 @@ import {
 import { showToast } from '@/ui/toast';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { subscribeCatalog } from './runtime';
+import { usePendingSends } from './pendingSends';
 import { publishConnection } from './connection';
 import {
   catalogKey,
@@ -36,6 +37,7 @@ function useCatalogState() {
   const selected =
     account?.workspaces.find((w) => w.id === workspaceId) ??
     account?.workspaces[0];
+  const pending = usePendingSends(account?.user.id ?? '', selected?.id ?? '');
   const key =
     account && selected ? catalogKey(account.user.id, selected.id) : '';
   const [snapshot, setSnapshot] = useState({
@@ -118,7 +120,9 @@ function useCatalogState() {
         const connected = !['offline', 'failed', 'stopped'].includes(
           event.state,
         );
-        state = !connected ? 'offline' : loading ? 'syncing' : 'live';
+        if (!connected) state = 'offline';
+        else if (loading) state = 'syncing';
+        else state = 'live';
         setSnapshot((old) => ({
           key,
           catalog: data ?? (old.key === key ? old.catalog : empty),
@@ -151,6 +155,21 @@ function useCatalogState() {
   }
   return {
     ...current,
+    serverSessions: current.catalog.sessions,
+    catalog: {
+      ...current.catalog,
+      sessions: [
+        ...current.catalog.sessions,
+        ...pending.records
+          .filter(
+            (record) =>
+              !current.catalog.sessions.some(
+                (session) => session.id === record.session.id,
+              ),
+          )
+          .map((record) => record.session),
+      ],
+    },
     selected,
     setWorkspaceId,
     refresh: () => setRevision((n) => n + 1),
@@ -166,3 +185,5 @@ export function useCatalog() {
   if (!value) throw new Error('Missing CatalogProvider');
   return value;
 }
+
+export { Context as CatalogContext };

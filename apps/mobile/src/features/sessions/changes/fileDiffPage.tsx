@@ -124,7 +124,7 @@ function FileDiffScreen() {
     );
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1, backgroundColor: colors.reading }}>
       {body}
       {diff?.status === 'ok' ? (
         <NativeDiffToolbar

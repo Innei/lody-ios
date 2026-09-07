@@ -25,6 +25,9 @@ function ProjectScreen() {
         .map((s) => sessionRow(s, colors.accent)),
     }))
     .filter((section) => section.rows.length);
+  let placeholder = '还没有会话，点右上角开始';
+  if (loading) placeholder = '正在载入…';
+  else if (!connected) placeholder = '连接已中断，下拉重新同步';
   return (
     <>
       <Stack.Screen
@@ -48,13 +51,7 @@ function ProjectScreen() {
         sections={sections}
         refreshing={loading}
         onRefresh={refresh}
-        placeholder={
-          loading
-            ? '正在载入…'
-            : !connected
-              ? '连接已中断，下拉重新同步'
-              : '还没有会话，点右上角开始'
-        }
+        placeholder={placeholder}
         onRowPress={({ nativeEvent }) =>
           openCatalogRow(nativeEvent.id, catalog)
         }

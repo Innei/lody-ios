@@ -20,6 +20,18 @@ type Params = {
   select?: (project: Project) => void;
 };
 
+function directoryFooter(error: string, saving: boolean, loading: boolean) {
+  if (error) return error;
+  if (saving) return '正在登记文件夹…';
+  if (loading) return '正在读取文件夹…';
+}
+
+function directoryPlaceholder(loading: boolean, hasMachine: boolean) {
+  if (loading) return '读取中…';
+  if (hasMachine) return '此文件夹没有子文件夹';
+  return '没有可用的电脑';
+}
+
 function DirectoryScreen() {
   const { params, finish, push } = usePageRuntime<Params, Project>();
   const colors = usePalette();
@@ -148,13 +160,7 @@ function DirectoryScreen() {
         {
           id: 'location',
           header: machine.name,
-          footer:
-            error ||
-            (saving
-              ? '正在登记文件夹…'
-              : loading
-                ? '正在读取文件夹…'
-                : undefined),
+          footer: directoryFooter(error, saving, loading),
           rows: [
             {
               id: 'path',
@@ -246,13 +252,7 @@ function DirectoryScreen() {
       transparent
       accent={colors.accent}
       sections={sections}
-      placeholder={
-        loading
-          ? '读取中…'
-          : machine
-            ? '此文件夹没有子文件夹'
-            : '没有可用的电脑'
-      }
+      placeholder={directoryPlaceholder(loading, !!machine)}
       onRowPress={({ nativeEvent: { id } }) => {
         if (busy.current) return;
         if (id === 'retry') {

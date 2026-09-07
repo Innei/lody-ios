@@ -2,10 +2,11 @@ import UIKit
 
 /// A separate row keeps image geometry out of text measurement and message bubbles.
 final class ChatImageCell: UICollectionViewCell {
-  private let photo = UIImageView()
+  private var photo = UIImageView()
   private let spinner = UIActivityIndicatorView(style: .medium)
   private let failure = UILabel()
   private var image: ChatImage?
+  private var handoffEntryID: String?
   private var requestURL: URL?
   private var requestID = UUID()
   private var task: URLSessionDataTask?
@@ -13,7 +14,7 @@ final class ChatImageCell: UICollectionViewCell {
   override init(frame: CGRect) {
     super.init(frame: frame)
     photo.contentMode = .scaleAspectFit
-    photo.backgroundColor = .secondarySystemBackground
+    photo.backgroundColor = .lodyInset
     photo.layer.cornerRadius = 16
     photo.layer.cornerCurve = .continuous
     photo.clipsToBounds = true
@@ -42,10 +43,21 @@ final class ChatImageCell: UICollectionViewCell {
   }
   func configure(_ row: ChatRow, workspace: String, session: String) {
     guard let image = row.image else { return }
+    let hadLocalImage = requestURL?.isFileURL == true && handoffEntryID == row.entryID
     self.image = image
+    if row.localImageURI != nil { handoffEntryID = row.entryID }
+    else if !hadLocalImage { handoffEntryID = nil }
     accessibilityIdentifier = row.id
     accessibilityLabel = "图片，\(image.fileName)"
     setNeedsLayout()
+    if let uri = row.localImageURI, let url = URL(string: uri), url.isFileURL {
+      ChatSendHandoff.hold(id: row.entryID + ":image:" + image.id, target: photo)
+      if requestURL == url, photo.image != nil { return }
+      task?.cancel(); task = nil; requestURL = url; requestID = UUID()
+      photo.image = ChatAttachment.thumbnail(url)
+      spinner.stopAnimating(); failure.isHidden = photo.image != nil
+      return
+    }
     #if DEBUG
     if ProcessInfo.processInfo.arguments.contains("--ui-verify"), image.id == "ui-verify-image" {
       task?.cancel(); task = nil; requestURL = nil; requestID = UUID()
@@ -66,7 +78,9 @@ final class ChatImageCell: UICollectionViewCell {
     let url = URL(string: "https://api.lody.ai/api/workspaces/\(components[0])/session-images/\(components[1])/\(components[2])/thumbnail?width=768&fit=scale-down&quality=85")!
     if requestURL == url && (task != nil || photo.image != nil) { return }
     let requestID = UUID(); self.requestID = requestID
-    task?.cancel(); requestURL = url; photo.image = nil; failure.isHidden = true
+    task?.cancel(); requestURL = url
+    if !hadLocalImage { photo.image = nil }
+    failure.isHidden = true
     guard let token = try? AuthKeychain.read() else { failure.isHidden = false; return }
     var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -101,6 +115,10 @@ final class ChatImageCell: UICollectionViewCell {
     }
     #endif
     guard let image, let requestURL, controller.presentedViewController == nil else { return }
+    if requestURL.isFileURL {
+      controller.present(ChatImagePreview(image: photo.image, name: image.fileName, url: nil), animated: true)
+      return
+    }
     var components = URLComponents(url: requestURL, resolvingAgainstBaseURL: false)!
     components.queryItems = [URLQueryItem(name: "width", value: "2048"), URLQueryItem(name: "fit", value: "scale-down"), URLQueryItem(name: "quality", value: "95")]
     let preview = ChatImagePreview(image: photo.image, name: image.fileName, url: components.url!)
@@ -112,6 +130,22 @@ final class ChatImageCell: UICollectionViewCell {
     }
     controller.present(preview, animated: true)
   }
+  func deliverPendingImage() {
+    guard let id = handoffEntryID, let image else { return }
+    ChatSendHandoff.deliverImage(id: id, attachmentID: image.id, to: photo) { [weak self] content in
+      guard let self, self.handoffEntryID == id else { content.removeFromSuperview(); return }
+      let frame = self.photo.frame
+      self.photo.removeFromSuperview()
+      self.photo = content
+      self.contentView.insertSubview(content, at: 0)
+      content.frame = frame
+      content.accessibilityElementsHidden = false
+      content.addSubview(self.spinner)
+      content.addSubview(self.failure)
+      self.setNeedsLayout()
+    }
+  }
+
   override func layoutSubviews() {
     super.layoutSubviews()
     guard let image else { return }

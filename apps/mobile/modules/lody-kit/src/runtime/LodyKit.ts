@@ -14,6 +14,10 @@ export type DataRuntimeEvent = {
   reason: string;
   acknowledgements: number;
   lastStartReason?: string;
+  probeUpdates?: number;
+  probeBackgroundUpdates?: number;
+  backgroundTaskState?: string;
+  backgroundTaskCount?: number;
   catalog?: string;
   revision?: number;
 };
@@ -54,6 +58,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   watchCatalog(workspace: string, owner: string, userId: string): Promise<void>;
   unwatchCatalog(owner: string): Promise<void>;
   dataRuntimeStatus(): Promise<DataRuntimeEvent>;
+  debugBackgroundDataRuntime(action: string): Promise<string>;
   debugHangDataRuntime(): Promise<void>;
   debugProbeSchema(): Promise<string>;
   debugRestartDataRuntime(): Promise<void>;
@@ -148,3 +153,6 @@ export const clearLocalValues = () => native.clearLocalValues();
 export const readLocalStartup = () => native.readLocalStartup();
 
 export const localProjects = (payload: string) => native.localProjects(payload);
+
+export const debugBackgroundDataRuntime = (action: string) =>
+  native.debugBackgroundDataRuntime(action);

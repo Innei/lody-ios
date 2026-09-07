@@ -58,16 +58,16 @@ export const stateSymbol: Record<SessionState, string> = {
 };
 
 /** Accent carries "live" only; every other state uses a system semantic color. */
+const tints: Record<SessionState, string> = {
+  live: 'accent',
+  attention: 'warning',
+  failed: 'danger',
+  archived: 'tertiary',
+  idle: 'secondary',
+  done: 'secondary',
+};
 export function stateTint(state: SessionState, accent: string) {
-  return state === 'live'
-    ? accent
-    : state === 'attention'
-      ? 'warning'
-      : state === 'failed'
-        ? 'danger'
-        : state === 'archived'
-          ? 'tertiary'
-          : 'secondary';
+  return state === 'live' ? accent : tints[state];
 }
 
 /** Row subtitle: state word only where it earns the space, then project and time. */

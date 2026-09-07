@@ -125,6 +125,7 @@ test('send persists user before dispatch; duplicate incremental imports preserve
     `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
   );
   const events = [];
+  const background = [];
   let resolveLive;
   const nextLive = () =>
     new Promise((resolve) => {
@@ -139,6 +140,8 @@ test('send persists user before dispatch; duplicate incremental imports preserve
       gatewayBaseUrl: 'https://example.invalid',
     }),
     (e) => {
+      if (e.backgroundWork) background.push(e.backgroundWork);
+      if (!e.session) return;
       const value = JSON.parse(e.session);
       events.push(value);
       if (value.status === 'live') resolveLive?.(value);
@@ -176,19 +179,42 @@ test('send persists user before dispatch; duplicate incremental imports preserve
   });
   assert.equal(invalid.state, 'not_sent');
   assert.equal(appends, 0);
-  const result = await runtime.sendTurn({
+  const turn = {
+    id: '2B066292-A94B-4383-B3C5-A0A7522F31CD',
     sessionId: 's1',
     machineId: 'm1',
     userId: 'u1',
     text: 'POC hello',
+    backgroundTaskId: 'background-test',
     attachmentBlocks: attachments,
     cliType: 'builtin',
     agentType: 'codex',
     modelId: 'gpt-test',
     reasoningEffort: 'high',
     reasoningEffortConfigId: 'effort',
-  });
+  };
+  assert.equal(
+    (await runtime.sendTurn({ ...turn, id: 'not-a-uuid' })).state,
+    'not_sent',
+  );
+  assert.equal(appends, 0);
+  const sending = runtime.sendTurn(turn);
+  assert.equal(
+    (await runtime.sendTurn(turn)).reason,
+    'turn_already_exists',
+    'an in-flight duplicate must not be treated as safe to retry',
+  );
+  const result = await sending;
   assert.equal(result.state, 'accepted');
+  assert.equal(result.id, turn.id);
+  assert.equal(rpc.params.userTurnId, turn.id);
+  const firstRPC = rpc;
+  const repeatedTurn = await runtime.sendTurn(turn);
+  assert.equal(repeatedTurn.state, 'unknown');
+  assert.equal(repeatedTurn.reason, 'turn_already_exists');
+  assert.equal(rpc, firstRPC, 'duplicate identity must not dispatch again');
+  assert.equal(background.at(-1).state, 'sent'); // Machine ACK is not completion.
+  assert.equal(background.at(-1).id, 'background-test');
   assert.equal(appends, 1);
   const user = server.toJSON().history[0];
   assert.equal(user.items[0].text, 'POC hello');
@@ -216,18 +242,35 @@ test('send persists user before dispatch; duplicate incremental imports preserve
   const version = server.version();
   const entry = server.getList('history').pushContainer(new LoroMap());
   entry.set('id', 'reply');
+  entry.set('userTurnId', 'another-turn');
   const item = entry
     .setContainer('items', new LoroList())
     .pushContainer(new LoroMap());
   item.set('type', 'text');
   item.setContainer('text', new LoroText()).insert(0, 'stream');
   entry.set('role', 'assistant');
-  entry.set('finished', false);
+  entry.set('finished', true);
   server.commit();
   const update = server.export({ mode: 'update', from: version });
   const firstReply = nextLive();
   sessionRead(live({ body: frame(update) }));
   assert.equal((await firstReply).entries[1].items[0].text, 'stream');
+  assert.equal(background.at(-1).state, 'sent'); // Another turn's completion cannot end this task.
+  const correlatedVersion = server.version();
+  entry.set('userTurnId', result.id);
+  entry.set('finished', false);
+  server.commit();
+  const correlated = nextLive();
+  sessionRead(
+    live(
+      {
+        body: frame(server.export({ mode: 'update', from: correlatedVersion })),
+      },
+      '2a',
+    ),
+  );
+  await correlated;
+  assert.equal(background.at(-1).state, 'receiving');
   const v2 = server.version();
   entry.get('items').get(0).get('text').insert(6, ' complete');
   entry.set('finished', true);
@@ -236,6 +279,7 @@ test('send persists user before dispatch; duplicate incremental imports preserve
   const finalReply = nextLive();
   sessionRead(live({ body: frame(fullUpdate) }, '3'));
   const final = await finalReply;
+  assert.equal(background.at(-1).state, 'completed');
   assert.equal(final.entries.length, 2);
   assert.equal(final.entries[1].items[0].text, 'stream complete');
   assert.equal(final.entries[1].finished, true);
@@ -257,9 +301,9 @@ test('send persists user before dispatch; duplicate incremental imports preserve
   const oldRead = sessionRead;
   runtime.stopSessions();
   oldRead(live({ body: frame(update) }, '5'));
-  await assert.rejects(
-    runtime.sendTurn({ sessionId: 's1', text: 'no' }),
-    /session_not_ready/,
+  assert.equal(
+    (await runtime.sendTurn({ sessionId: 's1', text: 'no' })).state,
+    'not_sent',
   );
   assert.equal(appends, 1);
   const reopen = nextLive();
@@ -294,6 +338,11 @@ test('send persists user before dispatch; duplicate incremental imports preserve
     1,
   );
   assert.equal(appends, 2);
+  assert.equal(
+    (await runtime.sendTurn({ ...turn, id: uncertain.id })).reason,
+    'turn_already_exists',
+  );
+  assert.equal(appends, 2, 'ambiguous append must not be replayed');
   runtime.stopSessions();
   delete globalThis.__sessionClient;
 });
@@ -643,9 +692,9 @@ test(
       3,
       'no foreground means only three subscriptions',
     );
-    await assert.rejects(
-      runtime.sendTurn({ sessionId: 'b', text: 'hidden' }),
-      /session_not_ready/,
+    assert.equal(
+      (await runtime.sendTurn({ sessionId: 'b', text: 'hidden' })).state,
+      'not_sent',
     );
     const afterClose = until(
       (e) =>

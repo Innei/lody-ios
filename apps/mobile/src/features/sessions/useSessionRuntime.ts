@@ -27,6 +27,7 @@ export function useSessionRuntime(
   sessionId: string,
   userId: string,
   workspaceId: string,
+  enabled = true,
 ) {
   const key = `session:${JSON.stringify([userId, workspaceId, sessionId])}`;
   const [snapshot, setSnapshot] = useState<Snapshot>({
@@ -36,10 +37,12 @@ export function useSessionRuntime(
   });
   const [overflow, setOverflow] = useState(false);
   const cursor = useRef({ generation: -1, revision: -1 });
-  const reconnect = () =>
+  const reconnect = () => {
+    if (!enabled) return;
     void watchSession(sessionId).catch(() =>
       setSnapshot((old) => ({ ...old, status: 'offline' })),
     );
+  };
   useEffect(() => {
     let active = true;
     let received = false;
@@ -48,7 +51,7 @@ export function useSessionRuntime(
     cursor.current = { generation: -1, revision: -1 };
     setSnapshot({ status: 'syncing', revision: -1, entries: [] });
     setOverflow(false);
-    if (!userId || !workspaceId) return;
+    if (!enabled || !userId || !workspaceId) return;
     void readLocal<Envelope>(key).then((saved) => {
       if (
         !active ||
@@ -103,6 +106,6 @@ export function useSessionRuntime(
       subscription.remove();
       void unwatchSession(sessionId);
     };
-  }, [key]);
+  }, [key, enabled]);
   return { snapshot, overflow, cursor, reconnect };
 }

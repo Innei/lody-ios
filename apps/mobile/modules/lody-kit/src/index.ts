@@ -25,6 +25,7 @@ export {
   unwatchCatalog,
   addDataRuntimeListener,
   dataRuntimeStatus,
+  debugBackgroundDataRuntime,
   debugHangDataRuntime,
   debugProbeSchema,
   debugRestartDataRuntime,

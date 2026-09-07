@@ -564,7 +564,8 @@ Object.assign(globalThis, {
     itemDetail,
     respondPermission,
     sendTurn(args: Parameters<typeof sendSessionTurn>[0]) {
-      if (!metaReplica) throw new Error('metadata_not_ready');
+      if (!metaReplica)
+        return { state: 'not_sent', reason: 'metadata_not_ready' };
       return sendSessionTurn(args);
     },
     start(id: string) {

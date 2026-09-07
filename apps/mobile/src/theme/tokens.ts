@@ -18,6 +18,12 @@ export const opaqueCard = {
   dark: '#1C1C1E',
 } as const;
 
+/** Recessed chat chips; light `neutral-100`, dark `secondarySystemBackground`. */
+export const inset = {
+  light: '#F5F5F5',
+  dark: '#1C1C1E',
+} as const;
+
 export const label = {
   light: '#000000',
   dark: '#FFFFFF',

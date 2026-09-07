@@ -1,3 +1,4 @@
+import ImageIO
 import PhotosUI
 import QuickLook
 import UIKit
@@ -8,6 +9,16 @@ struct ChatAttachment: Equatable {
   let name: String
   let url: URL
   let isImage: Bool
+
+  static func thumbnail(_ url: URL) -> UIImage? {
+    guard url.isFileURL, let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+      let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+        kCGImageSourceCreateThumbnailFromImageAlways: true,
+        kCGImageSourceCreateThumbnailWithTransform: true,
+        kCGImageSourceThumbnailMaxPixelSize: 768,
+      ] as CFDictionary) else { return nil }
+    return UIImage(cgImage: image)
+  }
 
   static func store(_ url: URL) -> URL? {
     let destination = FileManager.default.temporaryDirectory
@@ -125,6 +136,12 @@ final class ChatAttachmentBar: UIScrollView {
     rendered = items
     stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
     for item in items { stack.addArrangedSubview(pill(item)) }
+  }
+
+  func attachmentFrame(id: String) -> CGRect? {
+    guard let index = rendered.firstIndex(where: { $0.id == id }), index < stack.arrangedSubviews.count else { return nil }
+    let view = stack.arrangedSubviews[index]
+    return view.convert(view.bounds, to: self)
   }
 
   private func pill(_ item: ChatAttachment) -> UIView {

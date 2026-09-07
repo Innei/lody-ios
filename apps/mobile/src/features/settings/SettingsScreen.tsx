@@ -59,12 +59,11 @@ export default function SettingsScreen() {
             .join(' · '),
           image: shape.symbol,
           action: connection.state === 'offline',
-          imageTint:
-            connection.state === 'live'
-              ? colors.accent
-              : connection.state === 'offline'
-                ? 'danger'
-                : 'secondary',
+          imageTint: {
+            live: colors.accent,
+            offline: 'danger',
+            syncing: 'secondary',
+          }[connection.state],
         },
       ],
     },

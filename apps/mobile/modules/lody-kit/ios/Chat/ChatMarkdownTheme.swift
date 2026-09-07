@@ -18,7 +18,7 @@ enum ChatMarkdownTheme {
     theme.colors.code = theme.colors.body
     theme.colors.highlight = .systemBlue
     theme.colors.emphasis = .systemBlue
-    theme.colors.codeBackground = .secondarySystemBackground
+    theme.colors.codeBackground = .lodyInset
     theme.colors.selectionBackground = UIColor.systemBlue.withAlphaComponent(0.2)
     theme.spacings.paragraph = 8
     theme.spacings.headingBefore = 12

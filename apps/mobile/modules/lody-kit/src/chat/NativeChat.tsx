@@ -12,6 +12,7 @@ export type ChatDraftAttachment = {
 export const NativeChat: ComponentType<
   ViewProps & {
     entriesJSON: string;
+    pendingSendJSON?: string;
     attachmentContextJSON?: string;
     navigationTitle?: string;
     navigationSubtitle?: string;
@@ -28,6 +29,7 @@ export const NativeChat: ComponentType<
     emptyText: string;
     onSend: (
       event: NativeSyntheticEvent<{
+        id: string;
         text: string;
         attachments: ChatDraftAttachment[];
       }>,

@@ -1,14 +1,12 @@
 import { Stack } from 'expo-router';
+import { usePendingSends } from '@/cloud/pendingSends';
+import { useConnection } from '@/cloud/connection';
+import { useSessionSend } from './useSessionSend';
 import { useCatalog } from '@/cloud/CatalogProvider';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Alert } from 'react-native';
 import { usePalette } from '@/theme/palette';
-import {
-  NativeChat,
-  type ChatDraftAttachment,
-  sendSessionTurn,
-  sessionCreationOptions,
-} from '@lody-ios/kit';
+import { NativeChat, sessionCreationOptions } from '@lody-ios/kit';
 import { definePage, present, usePageRuntime } from '@/presentation';
 import { localProjectIdOf } from '@lody-ios/kit';
 import { newSession, setArchived, setPinned } from './navigation';
@@ -25,10 +23,24 @@ import { permissionPage } from './detail/permissionPage';
 import { useProcessSheet } from './detail/processPage';
 import type { ModelChoice } from './ModelScreen';
 
+function composerPlaceholder({
+  archived,
+  disconnected,
+  overflow,
+  live,
+}: {
+  archived: boolean;
+  disconnected: boolean;
+  overflow: boolean;
+  live: boolean;
+}) {
+  if (archived) return '此会话已归档';
+  if (!disconnected && !overflow && !live) return '正在连接，可先输入…';
+  return '给 Lody 发消息…';
+}
+
 type SessionParams = {
   session: Session;
-  initialDraft?: string;
-  initialAttachments?: ChatDraftAttachment[];
   modelId?: string;
   effort?: string;
   modeId?: string;
@@ -36,18 +48,16 @@ type SessionParams = {
 
 function SessionScreen() {
   const {
-    params: {
-      session,
-      initialDraft,
-      initialAttachments,
-      modelId,
-      effort,
-      modeId,
-    },
+    params: { session, modelId, effort, modeId },
   } = usePageRuntime<SessionParams>();
   const { account } = useAuth(),
     colors = usePalette();
-  const { catalog, selected } = useCatalog();
+  const { catalog, selected, serverSessions, refresh } = useCatalog();
+  const connection = useConnection();
+  const outbox = usePendingSends(account?.user.id ?? '', selected?.id ?? '');
+  const pending = outbox.records.find(
+    (record) => record.session.id === session.id,
+  );
   const project = catalog.projects.find((p) => p.id === session.projectId);
   const currentSession =
     catalog.sessions.find((s) => s.id === session.id) ?? session;
@@ -60,6 +70,19 @@ function SessionScreen() {
   const choiceHydrated = useRef(
     modelId !== undefined || effort !== undefined || modeId !== undefined,
   );
+
+  const restoredChoice = useRef('');
+  useEffect(() => {
+    if (!outbox.ready || !pending || restoredChoice.current === pending.send.id)
+      return;
+    restoredChoice.current = pending.send.id;
+    choiceHydrated.current = true;
+    setChoice({
+      modelId: pending.send.choice.modelId ?? undefined,
+      effort: pending.send.choice.effort ?? undefined,
+      modeId: pending.send.choice.modeId,
+    });
+  }, [outbox.ready, pending]);
 
   useEffect(() => {
     if (
@@ -102,6 +125,7 @@ function SessionScreen() {
   ]);
   const browsable =
     !!selected &&
+    !pending?.send.creation &&
     !currentSession.archived &&
     !!localProjectIdOf(session.projectId);
   const showDetails = () =>
@@ -141,23 +165,33 @@ function SessionScreen() {
     session.id,
     account?.user.id ?? '',
     selected?.id ?? '',
+    outbox.ready && !pending?.send.creation,
   );
   useEffect(() => {
-    if (choiceHydrated.current || !snapshot.composer) return;
+    if (
+      !outbox.ready ||
+      pending ||
+      choiceHydrated.current ||
+      !snapshot.composer
+    )
+      return;
     choiceHydrated.current = true;
     setChoice(snapshot.composer);
-  }, [snapshot.composer]);
+  }, [snapshot.composer, outbox.ready, pending]);
   const activeChoice = choiceHydrated.current
     ? choice
     : (snapshot.composer ?? choice);
-  const [clearDraftToken, setClearDraftToken] = useState(0),
-    [restoreDraftToken, setRestoreDraftToken] = useState(0),
-    [sending, setSending] = useState(false),
-    [receipt, setReceipt] = useState('');
-  const [uncertain, setUncertain] = useState(false);
-  const busy = useRef(false),
-    autoSent = useRef(false),
-    answered = useRef(new Set<string>());
+  const send = useSessionSend({
+    outbox,
+    session: currentSession,
+    record: pending,
+    snapshot,
+    connected: connection.state === 'live',
+    serverCreated: serverSessions.some((entry) => entry.id === session.id),
+    userId: account?.user.id ?? '',
+    overflow,
+  });
+  const answered = useRef(new Set<string>());
 
   const askPermission = (
     entry: EntrySummary,
@@ -186,15 +220,6 @@ function SessionScreen() {
     }
   }, [snapshot]);
 
-  const hasInitialDraft = !!initialDraft || !!initialAttachments?.length;
-  useEffect(() => {
-    if (autoSent.current || !hasInitialDraft || snapshot.status !== 'live')
-      return;
-    autoSent.current = true;
-    void submit(initialDraft ?? '', initialAttachments);
-    // Dispatch once when the new session first goes live; never replay on reconnect.
-  }, [snapshot.status, initialDraft, initialAttachments, hasInitialDraft]);
-
   const onActivityPress = (entryId: string, itemId: string) => {
     if (snapshot.status !== 'live') {
       Alert.alert('正在同步', '对话已保存在本地，详细活动将在连接恢复后可用。');
@@ -220,78 +245,6 @@ function SessionScreen() {
     });
   };
 
-  async function submit(
-    draft: string,
-    attachments: ChatDraftAttachment[] = [],
-  ) {
-    if (busy.current) return;
-    if (
-      !account ||
-      (!draft.trim() && !attachments.length) ||
-      snapshot.status !== 'live' ||
-      currentSession.archived ||
-      overflow ||
-      uncertain
-    ) {
-      setRestoreDraftToken((token) => token + 1);
-      return;
-    }
-    busy.current = true;
-    setSending(true);
-
-    try {
-      const result = JSON.parse(
-        await sendSessionTurn(
-          JSON.stringify({
-            sessionId: session.id,
-            machineId: session.machineId,
-            userId: account.user.id,
-            text: draft,
-            attachments,
-            cliType: session.cliType,
-            agentType: session.agentType,
-            resume: session.resume,
-            modelId: capability
-              ? (activeChoice.modelId ?? null)
-              : activeChoice.modelId,
-            modeId: activeChoice.modeId,
-            reasoningEffort: capability
-              ? (activeChoice.effort ?? null)
-              : activeChoice.effort,
-            reasoningEffortConfigId: capability?.reasoningEffortConfigId,
-          }),
-        ),
-      );
-      if (result.state === 'not_sent') {
-        setRestoreDraftToken((token) => token + 1);
-        setReceipt(result.reason || '附件上传失败，请重试');
-        Alert.alert('消息尚未发送', result.reason || '附件上传失败，请重试');
-        return;
-      }
-      if (result.state !== 'unknown') setClearDraftToken((token) => token + 1);
-      else setRestoreDraftToken((token) => token + 1);
-      setUncertain(result.state !== 'accepted');
-      setReceipt(
-        result.state === 'accepted'
-          ? '机器已接收'
-          : `${result.state === 'uploaded' ? '消息已保存，正在等待电脑确认。' : '发送结果暂时无法确认，草稿已保留。'}请等待同步，不要重复发送。`,
-      );
-    } catch {
-      setRestoreDraftToken((token) => token + 1);
-      setUncertain(true);
-      setReceipt('发送结果暂时无法确认，请等待同步，不要重复发送。');
-    } finally {
-      busy.current = false;
-      setSending(false);
-    }
-  }
-  const canSend =
-    !!account &&
-    !overflow &&
-    snapshot.status === 'live' &&
-    !currentSession.archived &&
-    !sending &&
-    !uncertain;
   const disconnected = ['offline', 'failed', 'stopped'].includes(
     snapshot.status,
   );
@@ -306,27 +259,21 @@ function SessionScreen() {
     [snapshot.entries],
   );
   const openProcess = useProcessSheet(entriesJSON, onActivityPress);
+  let notice = '';
+  if (overflow) notice = '同步已停止 · 内容可能不是最新';
+  else if (disconnected && !send.sending) notice = '连接已暂停 · 点此重新同步';
   const composerJSON = JSON.stringify({
-    editable:
-      !sending &&
-      !uncertain &&
-      !currentSession.archived &&
-      (!hasInitialDraft || autoSent.current),
-    canSend,
-    sending,
-    notice: uncertain
-      ? receipt
-      : overflow
-        ? '同步已停止 · 内容可能不是最新'
-        : disconnected
-          ? '连接已暂停 · 点此重新同步'
-          : '',
+    editable: !currentSession.archived,
+    canSend: send.canSend,
+    sending: send.sending,
+    notice,
     reconnect: disconnected || overflow,
-    placeholder: currentSession.archived
-      ? '此会话已归档'
-      : !disconnected && !overflow && snapshot.status !== 'live'
-        ? '正在连接，可先输入…'
-        : '给 Lody 发消息…',
+    placeholder: composerPlaceholder({
+      archived: currentSession.archived,
+      disconnected,
+      overflow,
+      live: snapshot.status === 'live',
+    }),
   });
   const efforts = activeChoice.modelId
     ? (capability?.reasoningEfforts[activeChoice.modelId] ?? [])
@@ -341,7 +288,7 @@ function SessionScreen() {
     efforts: efforts.map((id) => ({ id, title: id })),
   });
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1, backgroundColor: colors.reading }}>
       <Stack.Screen
         options={{
           title: currentSession.title,
@@ -360,6 +307,7 @@ function SessionScreen() {
           </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction
             icon={currentSession.pinned ? 'pin.slash' : 'pin'}
+            disabled={!!pending?.send.creation}
             onPress={() => {
               if (selected)
                 void setPinned(
@@ -373,6 +321,7 @@ function SessionScreen() {
           </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction
             icon={currentSession.archived ? 'tray.and.arrow.up' : 'archivebox'}
+            disabled={!!pending?.send.creation}
             onPress={() => {
               if (selected)
                 void setArchived(
@@ -398,22 +347,36 @@ function SessionScreen() {
         entriesJSON={entriesJSON}
         composerJSON={composerJSON}
         composerOptionsJSON={composerOptionsJSON}
-        initialDraft={initialDraft}
         draftKey={
           account && selected
             ? `draft:${account.user.id}:${selected.id}:${session.id}`
             : ''
         }
-        initialAttachmentsJSON={JSON.stringify(initialAttachments ?? [])}
-        clearDraftToken={clearDraftToken}
-        restoreDraftToken={restoreDraftToken}
+        pendingSendJSON={send.pendingSendJSON}
+        clearDraftToken={send.clearDraftToken}
+        restoreDraftToken={send.restoreDraftToken}
         emptyText={
           snapshot.status === 'live'
             ? '想继续做些什么？\n消息会与电脑同步，随时接着聊。'
             : '正在取回对话…'
         }
         onSend={({ nativeEvent }) =>
-          void submit(nativeEvent.text, nativeEvent.attachments)
+          send.submit({
+            id: nativeEvent.id,
+            text: nativeEvent.text,
+            attachments: nativeEvent.attachments,
+            phase: 'waiting',
+            choice: {
+              modelId: capability
+                ? (activeChoice.modelId ?? null)
+                : activeChoice.modelId,
+              effort: capability
+                ? (activeChoice.effort ?? null)
+                : activeChoice.effort,
+              modeId: activeChoice.modeId,
+              reasoningEffortConfigId: capability?.reasoningEffortConfigId,
+            },
+          })
         }
         onActivityPress={({ nativeEvent }) =>
           nativeEvent.itemId
@@ -423,7 +386,7 @@ function SessionScreen() {
         onTurnChangesPress={({ nativeEvent }) =>
           onTurnChangesPress(nativeEvent.entryId, nativeEvent.path)
         }
-        onReconnect={reconnect}
+        onReconnect={pending?.send.creation ? refresh : reconnect}
         onComposerOptionChange={({ nativeEvent }) => {
           choiceHydrated.current = true;
           setChoice((current) => ({

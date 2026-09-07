@@ -1,3 +1,5 @@
+import { homeVerify, HomePreviewProviders } from '@/features/debug/HomePreview';
+import type { PropsWithChildren } from 'react';
 import { Stack, ThemeProvider } from 'expo-router';
 import { CatalogProvider } from '@/cloud/CatalogProvider';
 import { AuthProvider } from '@/features/auth/AuthProvider';
@@ -16,31 +18,39 @@ export default function RootLayout() {
       : navigationThemes.light;
   return (
     <ThemeProvider value={theme}>
-      <AuthProvider>
-        <CatalogProvider>
-          <StatusBar style="auto" />
-          <Stack
-            screenOptions={{
-              headerTransparent: true,
-              headerLargeTitle: false,
-              headerBackButtonDisplayMode: 'minimal',
-              headerShadowVisible: false,
-              scrollEdgeEffects: softScrollEdgeEffects,
-            }}
-          >
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="debug" options={{ title: 'Debug' }} />
-            <Stack.Screen name="environment" options={{ title: '运行环境' }} />
-            <Stack.Screen
-              name="presented/[presentationId]"
-              options={({ route }) =>
-                nativePresentationOptions(route.params, theme.colors.background)
-              }
-            />
-          </Stack>
-        </CatalogProvider>
-      </AuthProvider>
+      <Providers>
+        <StatusBar style="auto" />
+        <Stack
+          screenOptions={{
+            headerTransparent: true,
+            headerLargeTitle: false,
+            headerBackButtonDisplayMode: 'minimal',
+            headerShadowVisible: false,
+            scrollEdgeEffects: softScrollEdgeEffects,
+          }}
+        >
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="debug" options={{ title: 'Debug' }} />
+          <Stack.Screen name="environment" options={{ title: '运行环境' }} />
+          <Stack.Screen
+            name="presented/[presentationId]"
+            options={({ route }) =>
+              nativePresentationOptions(route.params, theme.colors.background)
+            }
+          />
+        </Stack>
+      </Providers>
     </ThemeProvider>
+  );
+}
+
+function Providers({ children }: PropsWithChildren) {
+  if (homeVerify)
+    return <HomePreviewProviders>{children}</HomePreviewProviders>;
+  return (
+    <AuthProvider>
+      <CatalogProvider>{children}</CatalogProvider>
+    </AuthProvider>
   );
 }

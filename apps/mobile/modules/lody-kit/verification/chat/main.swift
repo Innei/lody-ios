@@ -69,11 +69,13 @@ let completedWithNotice = """
 let noticeEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(completedWithNotice.utf8))
 let noticeTranscript = ChatTranscript(entries: noticeEntries)
 assert(!noticeEntries.contains(where: \.isRunning), "A system notice is not an active assistant turn")
-assert(noticeTranscript.rows().map(\.kind) == ["summary", "text", "changes"])
+assert(noticeTranscript.rows().map(\.kind) == ["summary", "text", "changesHeader", "changes"])
 assert(noticeTranscript.rows().last?.fileDiff?.path == "docs/.diff-check.md")
 assert(noticeTranscript.rows().last?.fileDiff?.add == 1)
+assert(noticeTranscript.rows().last?.group == "only")
+assert(noticeTranscript.rows().contains { $0.kind == "changesHeader" && $0.text == "1 个文件" })
 assert(noticeTranscript.rows(processEntryID: "warning").isEmpty)
-assert(!noticeTranscript.rows(processEntryID: "done").contains { $0.kind == "changes" })
+assert(!noticeTranscript.rows(processEntryID: "done").contains { $0.kind == "changes" || $0.kind == "changesHeader" })
 let cachedNotice = completedWithNotice.replacingOccurrences(of: ",\"name\":\"agent_warning\"", with: "")
 let cachedEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(cachedNotice.utf8))
 assert(ChatTranscript(entries: cachedEntries).rows() == noticeTranscript.rows())
@@ -82,6 +84,17 @@ noticeStream.receive(noticeEntries, animate: false)
 noticeStream.receive(noticeEntries, animate: true)
 assert(!noticeStream.hasPending)
 print("Completed answer: file cards follow the answer; live and cached warnings never start processing")
+
+let twoFiles = completedWithNotice.replacingOccurrences(
+  of: "\"fileDiffs\":[{\"path\":\"docs/.diff-check.md\",\"add\":1,\"del\":1}]",
+  with: "\"fileDiffs\":[{\"path\":\"src/a.ts\",\"add\":12,\"del\":4},{\"path\":\"src/b.ts\",\"add\":3,\"del\":1}]"
+)
+transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(twoFiles.utf8))
+let grouped = transcript.rows().filter { $0.kind == "changes" || $0.kind == "changesHeader" }
+assert(grouped.map(\.kind) == ["changesHeader", "changes", "changes"])
+assert(grouped[0].text == "2 个文件" && grouped[0].fileDiff?.add == 15 && grouped[0].fileDiff?.del == 5)
+assert(grouped.dropFirst().map(\.group) == ["first", "last"])
+print("File group: header totals and first/last membership passed")
 
 var stream = ChatStream()
 stream.receive([], animate: true)
@@ -163,3 +176,22 @@ assert(pictureRows.last?.text == "What is this?", "Attachment filenames must not
 imageTranscript.entries[0].items.removeFirst()
 assert(imageTranscript.rows().map(\.kind) == ["image"], "Image-only messages must not add an empty bubble")
 print("Chat image rows: media before caption, stable anchor, and image-only layout passed")
+
+let localPending = try! JSONDecoder().decode(ChatPendingSend.self, from: Data(#"{"id":"local-send","text":"hello","attachments":[{"id":"photo","name":"cat.png","uri":"file:///tmp/cat.png","kind":"image"}],"status":"正在上传…"}"#.utf8))
+let pendingRows = localPending.rows(entries: [])
+precondition(pendingRows.map(\.kind) == ["image", "user", "summary"], "A send must show its attachment, text and processing immediately")
+precondition(pendingRows.first?.localImageURI == "file:///tmp/cat.png" && pendingRows.last?.running == true)
+let authoritative = ChatEntry(id: "local-send", role: "user", status: "completed", finished: true, endedAt: nil, startedAt: nil, items: [], fileDiffs: nil)
+precondition(localPending.rows(entries: [authoritative]).map(\.kind) == ["summary"], "Authoritative history must replace the pending user row without duplicating it")
+var failedPending = localPending
+failedPending.failed = true
+precondition(failedPending.rows(entries: []).isEmpty, "A failed draft must leave the transcript for restoration")
+print("Pending send: immediate text and attachment, processing, stable history takeover and failure passed")
+
+var disconnectedPending = localPending
+disconnectedPending.reconnect = true
+let reconnectRows = disconnectedPending.rows(entries: [])
+precondition(reconnectRows.count == pendingRows.count, "Reconnection must reuse the existing pending status row")
+precondition(reconnectRows.last?.actionable == true && reconnectRows.last?.running == true, "Disconnected pending state must offer reconnect while retaining its animated status")
+precondition(pendingRows.last?.actionable == false, "Ordinary pending status must not open the execution process")
+print("Pending reconnect: one actionable status row while disconnected passed")

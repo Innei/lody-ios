@@ -6,7 +6,6 @@ import {
   NativeComposer,
   type ChatDraftAttachment,
   type NativeListSection,
-  createSession,
   sessionCreationOptions,
 } from '@lody-ios/kit';
 import { definePage, usePageRuntime } from '@/presentation';
@@ -18,6 +17,7 @@ import { type as typeScale } from '@/theme/tokens';
 import { AppText } from '@/ui/AppText';
 import { showToast } from '@/ui/toast';
 import { readLocal, writeLocal } from '@/cloud/local';
+import { usePendingSends } from '@/cloud/pendingSends';
 import { draftTitle } from './draftTitle';
 import {
   type CreatePrefs,
@@ -40,12 +40,32 @@ type Params = {
   projectId?: string;
 };
 
+function pickTitle(loading: boolean, idle: string) {
+  return loading ? '读取中…' : idle;
+}
+
+function agentFooter(loading: boolean, hasAgent: boolean) {
+  if (loading) return '正在读取电脑配置…';
+  if (hasAgent) return '模型与运行模式使用助手默认值，稍后可在电脑上更改。';
+  return '点按重新读取电脑配置。';
+}
+
+function createNotice({
+  loading,
+  hasAgent,
+}: {
+  loading: boolean;
+  hasAgent: boolean;
+}) {
+  if (loading) return '正在准备助手，你可以先写下任务。';
+  if (!hasAgent) return '选择可用的助手后即可发送。';
+  return '';
+}
+
 /** Unassigned projects carry no working directory, so no session can start there. */
 const creatable = (project: Project) => !project.id.endsWith(':unassigned');
 export type CreatedSession = {
   session: Session;
-  draft: string;
-  attachments: ChatDraftAttachment[];
   modelId?: string;
   effort?: string;
   modeId?: string;
@@ -55,6 +75,7 @@ function CreateSessionScreen() {
   const { params, finish, push } = usePageRuntime<Params, CreatedSession>();
   const { account } = useAuth();
   const colors = usePalette();
+  const outbox = usePendingSends(account?.user.id ?? '', params.workspaceId);
   const [projects, setProjects] = useState(() =>
     params.projects.filter(creatable),
   );
@@ -72,7 +93,6 @@ function CreateSessionScreen() {
   const prefsKey = createPrefsKey(account?.user.id ?? '', params.workspaceId);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [uncertain, setUncertain] = useState(false);
   const [revision, setRevision] = useState(0);
   const busy = useRef(false);
 
@@ -157,13 +177,16 @@ function CreateSessionScreen() {
     void writeLocal(prefsKey, prefs.current);
   }, [options, agent, agentKey, choice, projectId, prefsKey]);
 
-  async function submit(draft: string, attachments: ChatDraftAttachment[]) {
+  function submit(
+    id: string,
+    draft: string,
+    attachments: ChatDraftAttachment[],
+  ) {
     const ready =
       !!agent &&
       !!options &&
       !!account &&
-      (!!draft.trim() || attachments.length > 0) &&
-      !uncertain;
+      (!!draft.trim() || attachments.length > 0);
     if (busy.current || !ready) {
       setRestoreDraftToken((n) => n + 1);
       return;
@@ -175,48 +198,48 @@ function CreateSessionScreen() {
     }
     busy.current = true;
     setSending(true);
-    try {
-      const result = JSON.parse(
-        await createSession(
-          JSON.stringify({
-            workspaceId: params.workspaceId,
-            projectId,
-            sessionId: options!.sessionId,
-            machineId: agent!.machineId,
-            agentConfigId: agent!.id,
-            userId: account!.user.id,
-            title: draftTitle(draft),
-            ...(github ? { branch: branch.trim() } : {}),
-          }),
-        ),
-      );
-      if (result.state === 'created') {
-        finish({
-          session: result.session,
-          draft,
-          attachments,
-          modelId: choice.modelId,
-          effort: choice.effort,
-          modeId: choice.modeId,
-        });
-        return;
-      }
-      setRestoreDraftToken((n) => n + 1);
-      if (result.state === 'rejected') {
-        showToast('尚未创建会话，请重新读取电脑配置后重试。');
-        setRevision((n) => n + 1);
-      } else {
-        setUncertain(true);
-        showToast('创建结果暂时无法确认。请回到会话列表查看，不要重复创建。');
-      }
-    } catch {
-      setRestoreDraftToken((n) => n + 1);
-      setUncertain(true);
-      showToast('创建结果暂时无法确认。请回到会话列表查看，不要重复创建。');
-    } finally {
-      busy.current = false;
-      setSending(false);
-    }
+    const session: Session = {
+      id: options!.sessionId,
+      projectId,
+      machineId: agent!.machineId,
+      cliType: agent!.cliType,
+      agentType: agent!.agentType,
+      title: draftTitle(draft),
+      status: 'idle',
+      archived: false,
+      pinned: false,
+      createdAt: new Date().toISOString(),
+    };
+    const send = {
+      id,
+      text: draft,
+      attachments,
+      phase: 'waiting' as const,
+      choice: {
+        ...choice,
+        reasoningEffortConfigId: capability?.reasoningEffortConfigId,
+      },
+      creation: JSON.stringify({
+        workspaceId: params.workspaceId,
+        projectId,
+        sessionId: session.id,
+        machineId: session.machineId,
+        agentConfigId: agent!.id,
+        userId: account!.user.id,
+        title: session.title,
+        ...(github ? { branch: branch.trim() } : {}),
+      }),
+    };
+    // Publish locally before closing the sheet. Persistence gates dispatch, never navigation.
+    void outbox.put({ session, send }).catch(() => {
+      void outbox
+        .put({
+          session,
+          send: { ...send, phase: 'failed', reason: '未能保存待发送内容' },
+        })
+        .catch(() => {});
+    });
+    finish({ session, ...choice });
   }
 
   const sections: NativeListSection[] = [
@@ -241,7 +264,7 @@ function CreateSessionScreen() {
             rows: [
               {
                 id: 'machine',
-                title: machine?.name ?? (loading ? '读取中…' : '选择电脑'),
+                title: machine?.name ?? pickTitle(loading, '选择电脑'),
                 subtitle: '电脑',
                 image: 'desktopcomputer',
                 action: true,
@@ -256,15 +279,11 @@ function CreateSessionScreen() {
       id: 'agent',
       // Model and mode live in the session's inputConfig and are inherited from
       // the previous user turn; a new session has none, so the machine decides.
-      footer: loading
-        ? '正在读取电脑配置…'
-        : agent
-          ? '模型与运行模式使用助手默认值，稍后可在电脑上更改。'
-          : '点按重新读取电脑配置。',
+      footer: agentFooter(loading, !!agent),
       rows: [
         {
           id: 'agent',
-          title: agent?.name ?? (loading ? '读取中…' : '选择助手'),
+          title: agent?.name ?? pickTitle(loading, '选择助手'),
           subtitle: github ? '助手' : machine?.name,
           image: 'sparkles',
           action: true,
@@ -369,7 +388,7 @@ function CreateSessionScreen() {
         sections={sections}
         placeholder=""
         onRowPress={({ nativeEvent }) => {
-          if (sending || uncertain) return;
+          if (sending) return;
           if (nativeEvent.id === 'project') void pickProject();
           if (nativeEvent.id === 'machine') void pickMachine();
           if (nativeEvent.id === 'model') void pickModel();
@@ -388,7 +407,7 @@ function CreateSessionScreen() {
             maxLength={255}
             autoCapitalize="none"
             autoCorrect={false}
-            editable={!sending && !uncertain}
+            editable={!sending}
             style={{
               color: colors.label,
               backgroundColor: colors.card,
@@ -404,16 +423,10 @@ function CreateSessionScreen() {
       ) : null}
       <NativeComposer
         composerJSON={JSON.stringify({
-          editable: !uncertain,
-          canSend: !!agent && !!account && !loading && !uncertain,
+          editable: true,
+          canSend: !!agent && !!account && !loading,
           sending,
-          notice: uncertain
-            ? '请关闭并查看会话列表，确认创建结果。'
-            : loading
-              ? '正在准备助手，你可以先写下任务。'
-              : !agent
-                ? '选择可用的助手后即可发送。'
-                : '',
+          notice: createNotice({ loading, hasAgent: !!agent }),
           reconnect: false,
           placeholder: '描述你要做什么…',
         })}
@@ -431,7 +444,7 @@ function CreateSessionScreen() {
         })}
         restoreDraftToken={restoreDraftToken}
         onSend={({ nativeEvent }) =>
-          void submit(nativeEvent.text, nativeEvent.attachments)
+          submit(nativeEvent.id, nativeEvent.text, nativeEvent.attachments)
         }
         onComposerOptionChange={({ nativeEvent }) =>
           setChoice((current) => ({

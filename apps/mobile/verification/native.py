@@ -17,19 +17,22 @@ checks = {
     'local-store': ['Cloud/LocalStore.swift'],
     'content-store': ['Cloud/ContentStore.swift'],
     'chat-render': ['Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift'],
-    'composer': ['UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatAttachmentSheet.swift', 'Chat/ChatComposerView.swift'],
+    'composer': ['UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatAttachmentSheet.swift', 'Chat/ChatComposerView.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'LodyTint.swift'],
     'attachments': ['Cloud/SessionAttachments.swift'],
+    'diff-font': ['Diff/DiffWebTypography.swift'],
 }
 with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
     for name, files in checks.items():
         binary = str(Path(output) / name)
-        simulator = name in ['chat-render', 'composer', 'attachments']
+        simulator = name in ['chat-render', 'composer', 'attachments', 'diff-font']
         command = ['xcrun', '--sdk', 'iphonesimulator', 'swiftc'] if simulator else ['xcrun', 'swiftc']
         if simulator:
             arch = 'arm64' if platform.machine() == 'arm64' else 'x86_64'
             command += ['-sdk', sdk, '-target', f'{arch}-apple-ios18.0-simulator']
         if name == 'attachments':
             command += ['-parse-as-library']
+        if name == 'diff-font':
+            command += ['-framework', 'WebKit']
         if name == 'local-store':
             command += ['-lsqlite3']
         command += [str(kit / 'ios' / file) for file in files]

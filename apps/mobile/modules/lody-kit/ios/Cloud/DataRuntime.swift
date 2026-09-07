@@ -19,6 +19,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   private var workspace: String?
   private var owner = ""
   private var generation = 0
+  private var backgrounded = false
   private var phase = "stopped"
   private var reason = ""
   private var lastStartReason = ""
@@ -33,22 +34,28 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     super.init()
     observers.append(NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
       guard let self, self.workspace != nil else { return }
-      self.disposeView()
-      self.publish("background", reason: "paused")
+      self.backgrounded = true
+      self.health.suspend()
     })
     observers.append(NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { _ in
       ContentStore.shared.clearAll()
     })
     observers.append(NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-      guard let self, self.workspace != nil, self.phase == "background" else { return }
-      self.build(reason: "foreground")
+      guard let self, self.workspace != nil, self.backgrounded else { return }
+      self.backgrounded = false
+      self.health.resume(at: self.now)
+      self.pingPending = false
+      if self.webView == nil { self.build(reason: "foreground") }
+      else { self.tick() }
     })
   }
   func start(workspace: String, owner: String, userId: String) {
+    disposeView()
     if self.workspace != workspace || self.userId != userId { sessionId = nil; retainedSessions = [] }
     self.userId = userId; cacheErrorShown = false
     self.workspace = workspace; self.owner = owner; health = RuntimeHealth()
-    if UIApplication.shared.applicationState == .background { disposeView(); publish("background", reason: "paused") }
+    backgrounded = UIApplication.shared.applicationState == .background
+    if backgrounded { publish("background", reason: "paused") }
     else { build(reason: "subscribe") }
   }
   func stop(owner: String? = nil) {
@@ -56,7 +63,18 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     workspace = nil; sessionId = nil; retainedSessions = []; userId = ""; disposeView(); publish("stopped", reason: "unsubscribe")
   }
   func status() -> [String: Any] {
-    ["owner": owner, "generation": generation, "state": phase, "reason": reason, "acknowledgements": acknowledgements, "lastStartReason": lastStartReason]
+    var value: [String: Any] = ["owner": owner, "generation": generation, "state": phase, "reason": reason, "acknowledgements": acknowledgements, "lastStartReason": lastStartReason]
+    #if DEBUG
+    if backgroundProbe {
+      value["probeBackgroundUpdates"] = probeBackgroundUpdates
+      value["probeUpdates"] = probeUpdates
+      if #available(iOS 26.0, *) {
+        value["backgroundTaskState"] = ContinuedSessionTasks.shared.debugState
+        value["backgroundTaskCount"] = ContinuedSessionTasks.shared.debugCount
+      }
+    }
+    #endif
+    return value
   }
   private func publish(_ state: String, reason: String, extra: [String: Any] = [:]) {
     self.phase = state; self.reason = reason
@@ -77,6 +95,12 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     publish("starting", reason: reason)
     timer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in self?.tick() }
     if let timer { RunLoop.main.add(timer, forMode: .common) }
+    #if DEBUG
+    if backgroundProbe {
+      view.loadHTMLString(Self.backgroundProbeHTML, baseURL: URL(string: "https://lody.ai"))
+      return
+    }
+    #endif
     do {
       guard let url = Bundle(for: LodyKitModule.self).url(forResource: "DataRuntime", withExtension: "html") ?? Bundle.main.url(forResource: "DataRuntime", withExtension: "html") else { throw NSError(domain: "MissingDataRuntime", code: 1) }
       // A bundled document with the official site's origin; no remote scripts are loaded.
@@ -84,6 +108,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     } catch { disposeView(); publish("failed", reason: "missing_resource") }
   }
   private func disposeView() {
+    if #available(iOS 26.0, *) { ContinuedSessionTasks.shared.finishAll(owner: owner) }
     attachmentTask?.cancel(); attachmentTask = nil
     for promise in commands.values { fail(promise, "runtime_replaced", "通信层已重建，发送结果请以同步记录为准") }; commands.removeAll()
     timer?.invalidate(); timer = nil
@@ -96,11 +121,12 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   }
   private func recover(_ reason: String) {
     guard workspace != nil else { return }
+    if backgrounded { disposeView(); publish("background", reason: reason); return }
     if health.allowRestart(at: now) { build(reason: reason) }
     else { disposeView(); publish("failed", reason: "restart_limit") }
   }
   private func tick() {
-    guard let view = webView else { return }
+    guard !backgrounded, let view = webView else { return }
     if health.timedOut(at: now) { recover(health.ready ? "heartbeat_timeout" : "startup_timeout"); return }
     guard health.ready, !pingPending else { return }
     pingPending = true
@@ -125,6 +151,13 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
           view.callAsyncJavaScript("globalThis.dataRuntime.restoreSessions(ids, current)", arguments: ["ids": self.retainedSessions, "current": self.sessionId as Any? ?? NSNull()], in: nil, in: .page, completionHandler: nil)
         }
       }
+    #if DEBUG
+    case "backgroundProbe":
+      guard backgroundProbe else { return }
+      probeUpdates += 1
+      if UIApplication.shared.applicationState == .background { probeBackgroundUpdates += 1 }
+      emit(status())
+    #endif
     case "diagnostic":
       #if DEBUG
       NSLog("LodyRuntime stage=%@ stream=%@", body["stage"] as? String ?? "", body["stream"] as? String ?? "")
@@ -132,6 +165,9 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     case "sessionSubscriptions":
       if let ids = body["ids"] as? [String] { retainedSessions = ids }
     case "session", "sessionCache":
+      if #available(iOS 26.0, *), let work = body["backgroundWork"] as? [String: Any] {
+        ContinuedSessionTasks.shared.update(work, owner: owner)
+      }
       guard let id = body["sessionId"] as? String,
             let session = body["session"] as? String else { return }
       let fits = session.utf8.count <= 12 * 1024 * 1024
@@ -184,6 +220,10 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     guard health.ready, let workspace, let sessionId, args["sessionId"] as? String == sessionId, attachmentTask == nil else {
       promise.resolve(#"{"state":"not_sent","reason":"会话尚未就绪，请稍后重试"}"#); return
     }
+    if #available(iOS 26.0, *), !backgrounded {
+      args["backgroundTaskId"] = ContinuedSessionTasks.shared.begin(owner: owner)
+    }
+    let backgroundTaskId = args["backgroundTaskId"] as? String
     let generation = self.generation
     attachmentTask = Task.detached { [weak self] in
       do {
@@ -192,6 +232,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         let prepared = String(data: try JSONSerialization.data(withJSONObject: args), encoding: .utf8)!
         await MainActor.run { [weak self] in
           guard let self, self.generation == generation, self.sessionId == sessionId, !Task.isCancelled else {
+            if #available(iOS 26.0, *), let backgroundTaskId { ContinuedSessionTasks.shared.finish(backgroundTaskId, success: false) }
             promise.resolve(#"{"state":"not_sent","reason":"连接已切换，消息尚未发送"}"#); return
           }
           self.attachmentTask = nil
@@ -201,6 +242,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         let result = (try? JSONSerialization.data(withJSONObject: ["state": "not_sent", "reason": error.localizedDescription])) ?? Data()
         await MainActor.run { [weak self] in
           if let self, self.generation == generation, self.sessionId == sessionId, !Task.isCancelled { self.attachmentTask = nil }
+          if #available(iOS 26.0, *), let backgroundTaskId { ContinuedSessionTasks.shared.finish(backgroundTaskId, success: false) }
           promise.resolve(String(data: result, encoding: .utf8)!)
         }
       }
@@ -269,15 +311,26 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   private static let contentCommands: Set<String> = ["turnDiff", "fileDiff", "readFile"]
   func command(_ method: String, payload: String, promise: Promise) {
     guard health.ready, let view = webView, let data = payload.data(using: .utf8), data.count <= 128 * 1024,
-          let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          var args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           (Self.sessionCommands.contains(method)
             ? args["sessionId"] as? String == sessionId
             : args["workspaceId"] as? String == workspace) else {
-      fail(promise, "not_ready", "会话尚未同步"); return
+      if method == "sendTurn" {
+        promise.resolve(#"{"state":"not_sent","reason":"会话尚未同步，请稍后重试"}"#)
+      } else {
+        fail(promise, "not_ready", "会话尚未同步")
+      }
+      return
     }
     let id = UUID(); commands[id] = promise
+    if method == "sendTurn", args["backgroundTaskId"] == nil, #available(iOS 26.0, *), !backgrounded {
+      args["backgroundTaskId"] = ContinuedSessionTasks.shared.begin(owner: owner)
+    }
+    let backgroundTaskId = args["backgroundTaskId"] as? String
     DispatchQueue.main.asyncAfter(deadline: .now() + 45) { [weak self] in
-      self?.commands.removeValue(forKey: id).map { self?.fail($0, "send_timeout", "发送结果未知，请查看同步记录，不要重复发送") }
+      guard let self, let pending = self.commands.removeValue(forKey: id) else { return }
+      if #available(iOS 26.0, *), let backgroundTaskId { ContinuedSessionTasks.shared.finish(backgroundTaskId, success: false) }
+      self.fail(pending, "send_timeout", "发送结果未知，请查看同步记录，不要重复发送")
     }
     // A JS throw reaches Swift as a WKError with no usable message, so the
     // runtime reports failures as a value instead of an exception.
@@ -297,6 +350,14 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     """
     view.callAsyncJavaScript(script, arguments: ["args": args, "method": method], in: nil, in: .page) { [weak self, weak view] result in
       guard let self, let view, self.webView === view, let pending = self.commands.removeValue(forKey: id) else { return }
+      if #available(iOS 26.0, *), let backgroundTaskId {
+        let value = try? result.get() as? String
+        let data = value?.data(using: .utf8)
+        let reply = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        if reply?["state"] as? String != "accepted" {
+          ContinuedSessionTasks.shared.finish(backgroundTaskId, success: false)
+        }
+      }
       switch result {
       case .success(let value):
         if let text = value as? String, text.contains("__commandError"),
@@ -363,6 +424,51 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { if self.webView === webView { recover("navigation_failed") } }
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { if self.webView === webView { recover("navigation_failed") } }
   #if DEBUG
+  private var backgroundProbe = false
+  private var probeUpdates = 0
+  private var probeBackgroundUpdates = 0
+  func debugBackground(_ action: String, promise: Promise) {
+    guard ProcessInfo.processInfo.arguments.contains("--ui-verify"), workspace == nil || backgroundProbe else {
+      fail(promise, "probe_unavailable", "仅限独立离线验收"); return
+    }
+    switch action {
+    case "start":
+      backgroundProbe = true; probeUpdates = 0; probeBackgroundUpdates = 0
+      start(workspace: "background-fixture", owner: "background-fixture", userId: "")
+      sessionId = "background-fixture"
+    case "send":
+      command("sendTurn", payload: #"{"sessionId":"background-fixture"}"#, promise: promise)
+      return
+    case "complete": webView?.evaluateJavaScript("globalThis.dataRuntime.complete()", completionHandler: nil)
+    case "expire":
+      if #available(iOS 26.0, *) { ContinuedSessionTasks.shared.debugExpire() }
+    case "stop": stop(); backgroundProbe = false
+    default: break
+    }
+    promise.resolve("{}")
+  }
+  // Synthetic server boundary, exercising the production WebView owner and scheduler.
+  private static let backgroundProbeHTML = #"""
+  <script>
+  const post = value => webkit.messageHandlers.dataRuntime.postMessage(value);
+  let work;
+  globalThis.dataRuntime = {
+    ping: () => true,
+    start() { post({type: 'synced'}); },
+    restoreSessions() {},
+    sendTurn(args) { work = args.backgroundTaskId; return {state: 'accepted', id: 'fixture-turn'}; },
+    complete() {
+      post({type: 'sessionCache', backgroundWork: {id: work, state: 'completed'}});
+      work = undefined;
+    }
+  };
+  setInterval(() => {
+    if (work) post({type: 'sessionCache', backgroundWork: {id: work, state: 'receiving'}});
+    post({type: 'backgroundProbe'});
+  }, 1000);
+  post({type: 'ready'});
+  </script>
+  """#
   func debugHang() { webView?.evaluateJavaScript("while (true) {}", completionHandler: nil) }
   func debugRestart() { recover("debug_process_loss") }
   #endif

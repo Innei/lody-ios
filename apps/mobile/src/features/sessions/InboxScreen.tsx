@@ -14,9 +14,9 @@ import { useAuth } from '@/features/auth/AuthProvider';
 import { LoginPanel } from '@/features/auth/LoginPanel';
 import { useCatalog } from '@/cloud/CatalogProvider';
 import { usePalette } from '@/theme/palette';
-import { listPlaceholder } from '@/ui/listState';
-import { inboxSections, projectSections } from './inbox';
-import { newSession, openCatalogRow, sessionRowAction } from './navigation';
+import { listPlaceholder, searchPlaceholder } from '@/ui/listState';
+import { inboxSections, projectSections, searchSections } from './inbox';
+import { openCatalogRow, sessionRowAction } from './navigation';
 import { definePage, present, usePageRuntime } from '@/presentation';
 import { showToast } from '@/ui/toast';
 
@@ -27,6 +27,8 @@ export default function InboxScreen() {
     useCatalog();
   const [mode, setMode] = useState(initialInboxView);
   const [expanded, setExpanded] = useState(readInboxExpansion);
+  const [query, setQuery] = useState('');
+  const searching = !!query.trim();
   const sections = useMemo(
     () =>
       mode === 0
@@ -44,6 +46,13 @@ export default function InboxScreen() {
   return (
     <>
       <Stack.Screen options={{ title: selected?.name ?? '会话' }} />
+      <Stack.SearchBar
+        placement="stacked"
+        placeholder="搜索项目或会话"
+        hideWhenScrolling={false}
+        onChangeText={({ nativeEvent }) => setQuery(nativeEvent.text)}
+        onCancelButtonPress={() => setQuery('')}
+      />
       <Stack.Title asChild>
         <NativeTitleMenu
           accessibilityName={`切换工作区，${selected?.name ?? '工作区'}`}
@@ -73,23 +82,21 @@ export default function InboxScreen() {
             }
           }}
         />
-        <Stack.Toolbar.Button
-          accessibilityLabel="新建会话"
-          icon="plus"
-          tintColor={colors.accent}
-          onPress={() => {
-            if (selected) void newSession(selected.id, catalog);
-          }}
-        />
       </Stack.Toolbar>
       <NativeGroupedList
         style={{ flex: 1 }}
         accent={colors.accent}
-        sections={sections}
+        sections={
+          searching ? searchSections(catalog, query, colors.accent) : sections
+        }
         refreshing={false}
-        placeholder={listPlaceholder({ loading, connected })}
+        placeholder={
+          searching
+            ? searchPlaceholder({ signedIn: true, query, loading, connected })
+            : listPlaceholder({ loading, connected })
+        }
         onRefresh={refresh}
-        contentStyle={mode === 0}
+        contentStyle
         onRowPress={({ nativeEvent: { id } }) => {
           if (id.startsWith('toggle:')) {
             const projectId = id.slice(7);
@@ -133,12 +140,11 @@ function InboxSettingsScreen() {
           rows: [
             {
               id: 'sync',
-              title:
-                connection.state === 'offline'
-                  ? '离线，点按重试'
-                  : connection.state === 'syncing'
-                    ? '正在同步'
-                    : '已同步',
+              title: {
+                offline: '离线，点按重试',
+                syncing: '正在同步',
+                live: '已同步',
+              }[connection.state],
               subtitle: connection.syncedAt
                 ? `上次同步：${new Date(connection.syncedAt).toLocaleString()}`
                 : undefined,

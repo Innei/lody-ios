@@ -14,6 +14,8 @@ const config: ExpoConfig = {
     supportsTablet: false,
     config: { usesNonExemptEncryption: false },
     infoPlist: {
+      BGTaskSchedulerPermittedIdentifiers: ['app.innei.lody.session-sync.*'],
+      UIBackgroundModes: ['processing'],
       NSPhotoLibraryUsageDescription: '选择照片作为消息附件。',
     },
   },

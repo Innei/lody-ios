@@ -3,22 +3,19 @@ import type { Catalog, Session } from '@/cloud/model';
 import type { SessionState } from '../../ui/status.ts';
 // Relative on purpose: this module is imported directly by node --test, which
 // does not resolve the `@/` alias. Keep it free of aliased value imports.
-import {
-  agentName,
-  sessionState,
-  stateSubtitle,
-  stateSymbol,
-  stateTint,
-} from '../../ui/status.ts';
-import { relativeTime } from '../../ui/time.ts';
+import { agentName, sessionState, stateTint } from '../../ui/status.ts';
+import { activityBucket, relativeTime } from '../../ui/time.ts';
 
 const groups = [
-  { id: 'attention', header: '需要你', states: ['attention', 'failed'] },
-  { id: 'live', header: '进行中', states: ['live'] },
-  { id: 'recent', header: '最近', states: ['idle', 'done', 'archived'] },
+  { id: 'attention', header: '需要你确认' },
+  { id: 'live', header: '进行中' },
+  { id: 'unread', header: '已完成 · 待查看' },
+  { id: 'today', header: '今天' },
+  { id: 'yesterday', header: '昨天' },
+  { id: 'week', header: '一周内' },
+  { id: 'month', header: '上个月' },
+  { id: 'older', header: '更早' },
 ] as const;
-
-export const RECENT_LIMIT = 20;
 
 export const activityAt = (session: Session) =>
   session.lastMessageAt ?? Date.parse(session.createdAt);
@@ -29,17 +26,35 @@ const badges: Partial<Record<SessionState, string>> = {
   failed: '执行失败',
   archived: '已归档',
 };
+const unreadOf = (session: Session) =>
+  session.lastMessageAt !== undefined &&
+  (session.lastReadAt === undefined ||
+    session.lastMessageAt > session.lastReadAt);
+
+const stateOf = (session: Session) =>
+  sessionState(
+    session.status,
+    session.archived,
+    session.awaitingUserSince !== undefined,
+  );
+
+const inboxGroup = (session: Session, now?: number) => {
+  const state = stateOf(session);
+  if (state === 'attention' || state === 'failed') return 'attention';
+  if (state === 'live') return 'live';
+  if (unreadOf(session)) return 'unread';
+  return activityBucket(activityAt(session), now);
+};
 
 export type InboxOptions = {
   keyword?: string;
   accent: string;
   now?: number;
-  limit?: number;
 };
 
 export function inboxSections(
   catalog: Catalog,
-  { keyword = '', accent, now, limit = RECENT_LIMIT }: InboxOptions,
+  { keyword = '', accent, now }: InboxOptions,
 ): NativeListSection[] {
   const names = new Map(catalog.projects.map((p) => [p.id, p.name]));
   const term = keyword.trim().toLocaleLowerCase();
@@ -54,33 +69,33 @@ export function inboxSections(
     .filter(matches)
     .sort(byActivity);
 
+  const buckets = new Map<string, Session[]>();
+  for (const session of visible) {
+    const id = inboxGroup(session, now);
+    const bucket = buckets.get(id);
+    if (bucket) bucket.push(session);
+    else buckets.set(id, [session]);
+  }
   return groups.flatMap((group) => {
-    const rows = visible
-      .filter((session) =>
-        (group.states as readonly string[]).includes(
-          sessionState(session.status, session.archived),
-        ),
-      )
-      .slice(0, group.id === 'recent' ? limit : undefined)
-      .map((session) => {
-        const state = sessionState(session.status, session.archived);
-        return {
-          id: session.id,
-          title: session.title,
-          subtitle: stateSubtitle(
-            state,
-            names.get(session.projectId) ?? '',
-            relativeTime(activityAt(session), now),
-          ),
-          image: stateSymbol[state],
-          imageTint: stateTint(state, accent),
-          action: true,
-          disclosure: true,
-          navigates: true,
-          actions: [archiveAction(session.archived)],
-          leadingActions: [pinAction(session.pinned)],
-        };
-      });
+    const rows = (buckets.get(group.id) ?? []).map((session) => {
+      const state = stateOf(session);
+      return {
+        id: session.id,
+        title: session.title,
+        subtitle: names.get(session.projectId) ?? '',
+        value: relativeTime(activityAt(session), now),
+        unread: unreadOf(session),
+        badge: badges[state],
+        imageTint:
+          state === 'live' || badges[state]
+            ? stateTint(state, accent)
+            : undefined,
+        action: true,
+        navigates: true,
+        actions: [archiveAction(session.archived)],
+        leadingActions: [pinAction(session.pinned)],
+      };
+    });
     return rows.length ? [{ id: group.id, header: group.header, rows }] : [];
   });
 }
@@ -103,11 +118,7 @@ export function sessionRow(
   projectName = '',
   now?: number,
 ) {
-  const state = sessionState(
-    session.status,
-    session.archived,
-    session.awaitingUserSince !== undefined,
-  );
+  const state = stateOf(session);
   const lead = session.branchName ?? agentName(session.agentType);
   return {
     id: session.id,
@@ -116,17 +127,12 @@ export function sessionRow(
     subtitleMono: session.branchName !== undefined,
     diff: session.diff,
     value: relativeTime(activityAt(session), now),
-    unread:
-      session.lastMessageAt !== undefined &&
-      (session.lastReadAt === undefined ||
-        session.lastMessageAt > session.lastReadAt),
+    unread: unreadOf(session),
     badge: badges[state],
-    image: ['live', 'attention', 'failed'].includes(state)
-      ? 'circle.fill'
+    imageTint: ['live', 'attention', 'failed'].includes(state)
+      ? stateTint(state, accent)
       : undefined,
-    imageTint: stateTint(state, accent),
     action: true,
-    disclosure: true,
     navigates: true,
     actions: [archiveAction(session.archived)],
     leadingActions: [pinAction(session.pinned)],
@@ -144,31 +150,27 @@ export function projectSections(
       .filter((s) => s.projectId === project.id && !s.archived)
       .sort(byActivity);
     const open = expanded[project.id] ?? true;
+    const rows: NativeListSection['rows'] = open
+      ? sessions
+          .slice(0, 5)
+          .map((session) => sessionRow(session, accent, '', now))
+      : [];
+    if (open && sessions.length > 5) {
+      rows.push({
+        id: `project:${project.id}`,
+        title: '更多',
+        action: true,
+        disclosure: true,
+        navigates: true,
+      });
+    }
     return {
       id: project.id,
       header: project.name,
       headerValue: open ? undefined : String(sessions.length),
       headerActionId: `toggle:${project.id}`,
       headerExpanded: open,
-      rows: open
-        ? [
-            ...sessions.slice(0, 5).map((session) => ({
-              ...sessionRow(session, accent, '', now),
-              disclosure: false,
-            })),
-            ...(sessions.length > 5
-              ? [
-                  {
-                    id: `project:${project.id}`,
-                    title: '更多',
-                    action: true,
-                    disclosure: true,
-                    navigates: true,
-                  },
-                ]
-              : []),
-          ]
-        : [],
+      rows,
     };
   });
 }

@@ -78,7 +78,7 @@ final class LodyDiffView: ExpoView {
       showsFileHeaders: false,
       inlineChangeStyle: .wordAlt,
       allowsSelection: true,
-      fontScale: UIFont.preferredFont(forTextStyle: .body).pointSize / 17,
+      fontScale: UIFont.dynamicScale(compatibleWith: traitCollection),
       isEmbedded: true
     )
   }
@@ -103,6 +103,7 @@ final class LodyDiffView: ExpoView {
     if let webView {
       webView.scrollView.isScrollEnabled = scrollEnabled
       webView.scrollView.contentInsetAdjustmentBehavior = scrollEnabled ? .automatic : .never
+      DiffWebTypography.pin(webView)
       contentObservation = webView.scrollView.observe(\.contentSize, options: [.new]) { [weak self] scrollView, _ in
         self?.reportHeight(scrollView.contentSize.height)
         self?.restToTop()
@@ -150,6 +151,7 @@ final class LodyDiffView: ExpoView {
   private func handle(_ event: DiffEvent) {
     switch event {
     case .didRender(let summary):
+      if let webView { DiffWebTypography.pin(webView) }
       onRender(["fileCount": summary.fileCount, "contentHeight": Double(webView?.scrollView.contentSize.height ?? 0)])
     case .didFail(let error):
       onFail(["message": error.message])

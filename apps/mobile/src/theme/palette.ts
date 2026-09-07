@@ -3,6 +3,7 @@ import { DarkTheme, DefaultTheme } from 'expo-router';
 import {
   accent,
   danger,
+  inset,
   label,
   onAccent,
   opaqueCard,
@@ -19,7 +20,9 @@ export type ColorRole =
   | 'warning'
   | 'danger'
   | 'background'
+  | 'reading'
   | 'card'
+  | 'inset'
   | 'separator'
   | 'fill'
   | 'onAccent';
@@ -35,7 +38,9 @@ export function usePalette() {
     warning: PlatformColor('systemOrange'),
     danger: PlatformColor('systemRed'),
     background: PlatformColor('systemGroupedBackground'),
+    reading: PlatformColor('systemBackground'),
     card: PlatformColor('secondarySystemGroupedBackground'),
+    inset: inset[theme],
     separator: PlatformColor('separator'),
     fill: PlatformColor('tertiarySystemFill'),
     onAccent,

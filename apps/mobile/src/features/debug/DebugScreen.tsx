@@ -1,7 +1,10 @@
+import { openSendPreview } from './SendPreview';
+import { backgroundPreviewPage } from './BackgroundPreview';
 import { uiVerify } from './uiVerify';
 import { composerPreviewPage } from './ComposerPreview';
 import { chatPreviewPage } from './ChatPreview';
 import { shinePreviewPage } from './ShinePreview';
+import { inboxPreviewPage } from './InboxPreview';
 import { Link, useTheme } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
@@ -75,6 +78,26 @@ export default function DebugScreen() {
     <Screen>
       {uiVerify && (
         <Text testID="ui-verify-ready">Offline UI verification</Text>
+      )}
+      <Button testID="send-preview" onPress={() => void openSendPreview(false)}>
+        离线发送验收
+      </Button>
+      <Button testID="send-handoff" onPress={() => void openSendPreview(true)}>
+        新建发送交接
+      </Button>
+      <Button
+        testID="inbox-preview"
+        onPress={() => void present(inboxPreviewPage, {})}
+      >
+        动态分组验收
+      </Button>
+      {uiVerify && (
+        <Button
+          testID="background-preview"
+          onPress={() => void present(backgroundPreviewPage, {})}
+        >
+          后台连接验收
+        </Button>
       )}
       <Button
         testID="composer-preview"

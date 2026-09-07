@@ -170,13 +170,10 @@ export async function listDir(
         (entry.type === 'file' || entry.type === 'directory'),
     )
     .map(({ name, type }) => ({ name, type }))
-    .sort((a, b) =>
-      a.type === b.type
-        ? a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
-        : a.type === 'directory'
-          ? -1
-          : 1,
-    );
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
   return { entries, truncated: !!result.truncated };
 }
 

@@ -62,49 +62,57 @@ function ModelScreen() {
     params.onChange(next);
   }
 
-  const rows =
-    active === 'model'
-      ? [
-          { id: DEFAULT, title: '使用助手默认', selected: !value.modelId },
-          ...capability.models.map((model) => ({
-            id: model.id,
-            title: model.name,
-            subtitle: model.description,
-            selected: model.id === value.modelId,
-          })),
-        ]
-      : active === 'effort'
-        ? [
-            { id: DEFAULT, title: '使用助手默认', selected: !value.effort },
-            ...efforts.map((effort) => ({
-              id: effort,
-              title: effort,
-              selected: effort === value.effort,
-            })),
-          ]
-        : [
-            { id: DEFAULT, title: '使用助手默认', selected: !value.modeId },
-            ...capability.modes.map((mode) => ({
-              id: mode.id,
-              title: mode.name,
-              subtitle: mode.description,
-              selected: mode.id === value.modeId,
-            })),
-          ];
+  let rows: {
+    id: string;
+    title: string;
+    subtitle?: string;
+    selected: boolean;
+  }[];
+  if (active === 'model') {
+    rows = [
+      { id: DEFAULT, title: '使用助手默认', selected: !value.modelId },
+      ...capability.models.map((model) => ({
+        id: model.id,
+        title: model.name,
+        subtitle: model.description,
+        selected: model.id === value.modelId,
+      })),
+    ];
+  } else if (active === 'effort') {
+    rows = [
+      { id: DEFAULT, title: '使用助手默认', selected: !value.effort },
+      ...efforts.map((effort) => ({
+        id: effort,
+        title: effort,
+        selected: effort === value.effort,
+      })),
+    ];
+  } else {
+    rows = [
+      { id: DEFAULT, title: '使用助手默认', selected: !value.modeId },
+      ...capability.modes.map((mode) => ({
+        id: mode.id,
+        title: mode.name,
+        subtitle: mode.description,
+        selected: mode.id === value.modeId,
+      })),
+    ];
+  }
+
+  const footers = {
+    effort: '推理强度只对支持它的模型生效。',
+    mode: '模式决定助手能不能直接改文件和执行命令。',
+    model: '换模型会重置为该模型支持的推理强度。',
+  };
 
   const sections: NativeListSection[] = [
     {
       id: active,
-      footer:
-        active === 'effort'
-          ? '推理强度只对支持它的模型生效。'
-          : active === 'mode'
-            ? '模式决定助手能不能直接改文件和执行命令。'
-            : '换模型会重置为该模型支持的推理强度。',
+      footer: footers[active as keyof typeof footers] ?? footers.model,
       rows: rows.map((row) => ({
         id: row.id,
         title: row.title,
-        subtitle: 'subtitle' in row ? row.subtitle : undefined,
+        subtitle: row.subtitle,
         image: row.selected ? 'checkmark' : undefined,
         action: true,
       })),

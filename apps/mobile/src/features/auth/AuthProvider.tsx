@@ -217,3 +217,5 @@ export function useAuth() {
   if (!value) throw new Error('Missing AuthProvider');
   return value;
 }
+
+export { Context as AuthContext };

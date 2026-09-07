@@ -15,6 +15,7 @@ type SessionState = {
   controller: AbortController;
   ready: boolean;
   sending: boolean;
+  backgroundWork?: { id: string; turnId: string };
   status: string;
   reason?: string;
   pending?: ReturnType<typeof setTimeout>;
@@ -39,6 +40,30 @@ function signalOf(state: SessionState, status: string) {
   const awaiting = state.doc.getMap('session').get('awaitingUserSince') != null;
   return `${status}|${awaiting}|${finished}`;
 }
+function backgroundStatus(
+  state: SessionState,
+  reply: { finished?: boolean } | undefined,
+) {
+  if (state.status === 'offline') return 'failed';
+  if (state.status !== 'live') return 'syncing';
+  if (!reply) return 'sent';
+  if (reply.finished === true) return 'completed';
+  if (state.doc.getMap('session').get('awaitingUserSince') != null)
+    return 'waiting';
+  return 'receiving';
+}
+function backgroundProgress(state: SessionState) {
+  const work = state.backgroundWork;
+  if (!work) return undefined;
+  const history = state.doc.getList('history').toJSON() as any[];
+  const reply = history.findLast(
+    (entry) => entry?.role === 'assistant' && entry.userTurnId === work.turnId,
+  );
+  const status = backgroundStatus(state, reply);
+  if (['completed', 'waiting', 'failed'].includes(status))
+    state.backgroundWork = undefined;
+  return { id: work.id, state: status };
+}
 function flush(state: SessionState) {
   clearTimeout(state.pending);
   state.pending = undefined;
@@ -48,6 +73,7 @@ function flush(state: SessionState) {
     type: active === state ? 'session' : 'sessionCache',
     sessionId: state.id,
     synced: state.status === 'live',
+    backgroundWork: backgroundProgress(state),
     session: JSON.stringify(
       projectSession(state.doc, state.status, state.reason),
     ),
@@ -74,6 +100,14 @@ function scheduleEmit(state: SessionState, status: string, reason?: string) {
   state.pending = setTimeout(() => flush(state), foreground ? 100 : 1000);
 }
 function evict(state: SessionState) {
+  if (state.backgroundWork) {
+    state.emit({
+      type: 'sessionCache',
+      sessionId: state.id,
+      backgroundWork: { id: state.backgroundWork.id, state: 'failed' },
+    });
+    state.backgroundWork = undefined;
+  }
   // Keep the last complete display snapshot even when its coalescing timer is pending.
   if (state.ready) flush(state);
   clearTimeout(state.pending);
@@ -261,6 +295,8 @@ export function appendUserTurn(
   doc.commit();
 }
 export async function sendTurn(args: {
+  id?: string;
+  backgroundTaskId?: string;
   sessionId: string;
   machineId: string;
   userId: string;
@@ -275,8 +311,25 @@ export async function sendTurn(args: {
   reasoningEffortConfigId?: string;
 }) {
   const state = active;
-  if (!state || state.id !== args.sessionId || !state.ready || state.sending)
-    throw new Error('session_not_ready');
+  if (!state || state.id !== args.sessionId || !state.ready)
+    return { state: 'not_sent', reason: 'session_not_ready' };
+  if (
+    args.id !== undefined &&
+    (typeof args.id !== 'string' ||
+      !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(args.id))
+  )
+    return { state: 'not_sent', reason: 'invalid_message_id' };
+  if (
+    args.id &&
+    (state.doc.toJSON().history as any[] | undefined)?.some(
+      (entry) => entry.id === args.id,
+    )
+  )
+    // The local entry may come from a lost append ACK. Never replay its write.
+    return { id: args.id, state: 'unknown', reason: 'turn_already_exists' };
+  if (state.sending) return { state: 'not_sent', reason: 'session_not_ready' };
+  if (typeof args.text !== 'string')
+    return { state: 'not_sent', reason: 'invalid_message' };
   const text = args.text.trim();
   const attachments = args.attachmentBlocks ?? [];
   if (
@@ -318,11 +371,12 @@ export async function sendTurn(args: {
         !args.reasoningEffortConfigId ||
         args.reasoningEffortConfigId.length > 128))
   )
-    throw new Error('invalid_message');
-  const id = crypto.randomUUID(),
+    return { state: 'not_sent', reason: 'invalid_message' };
+  const id = args.id ?? crypto.randomUUID(),
     timestamp = new Date().toISOString();
   state.sending = true;
   let uploaded = false;
+  let writeStarted = false;
   try {
     const previous =
       (state.doc.toJSON().history as any[] | undefined)?.findLast(
@@ -360,6 +414,7 @@ export async function sendTurn(args: {
       resume: args.resume,
     };
     const before = state.doc.version();
+    writeStarted = true;
     appendUserTurn(state.doc, id, text, args.userId, inputConfig, timestamp);
     const result = await state.client.append({
       part: {
@@ -369,6 +424,16 @@ export async function sendTurn(args: {
     });
     if (!result.ok) throw new Error(result.result.code);
     uploaded = true;
+    if (state.backgroundWork) {
+      state.emit({
+        type: 'sessionCache',
+        sessionId: state.id,
+        backgroundWork: { id: state.backgroundWork.id, state: 'failed' },
+      });
+    }
+    state.backgroundWork = args.backgroundTaskId
+      ? { id: args.backgroundTaskId, turnId: id }
+      : undefined;
     await state.markDispatch(state.id, id);
     if (active !== state) throw new Error('runtime_replaced');
     scheduleEmit(state, 'live');
@@ -441,9 +506,12 @@ export async function sendTurn(args: {
     throw new Error('ack_timeout');
   } catch (error) {
     // No automatic write replay: a lost HTTP ACK may still mean a durable write.
+    let delivery = 'not_sent';
+    if (writeStarted) delivery = 'unknown';
+    if (uploaded) delivery = 'uploaded';
     return {
       id,
-      state: uploaded ? 'uploaded' : 'unknown',
+      state: delivery,
       reason: error instanceof Error ? error.message : 'send_failed',
     };
   } finally {

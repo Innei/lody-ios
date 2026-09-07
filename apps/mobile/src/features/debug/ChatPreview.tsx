@@ -28,6 +28,12 @@ const history = Array.from({ length: 80 }, (_, index) => ({
 
 const totalLength = answer.length + 240;
 
+function editStatus(mode: 'normal' | 'attention', length: number) {
+  if (mode === 'attention') return 'failed';
+  if (length < 240) return 'in_progress';
+  return 'completed';
+}
+
 function ChatPreview() {
   const [showImage, setShowImage] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
@@ -39,7 +45,11 @@ function ChatPreview() {
     effort: 'medium',
   });
   const [clearDraftToken, setClearDraftToken] = useState(0);
-  const [sent, setSent] = useState<{ text: string; id: number } | null>(null);
+  const [sent, setSent] = useState<{
+    text: string;
+    id: number;
+    messageID: string;
+  } | null>(null);
   useEffect(() => {
     if (length >= totalLength) return;
     const timer = setInterval(
@@ -75,7 +85,7 @@ function ChatPreview() {
     ...(sent
       ? [
           {
-            id: `preview-user-${sent.id}`,
+            id: sent.messageID,
             role: 'user',
             status: 'completed',
             finished: true,
@@ -146,12 +156,7 @@ function ChatPreview() {
                 type: 'tool_call',
                 kind: 'edit',
                 title: '修改 ChatView.swift',
-                status:
-                  mode === 'attention'
-                    ? 'failed'
-                    : length < 240
-                      ? 'in_progress'
-                      : 'completed',
+                status: editStatus(mode, length),
                 hasDetail: true,
               },
             ]
@@ -314,6 +319,7 @@ function ChatPreview() {
           setStep(48);
           setSent((old) => ({
             text: nativeEvent.text,
+            messageID: nativeEvent.id,
             id: (old?.id ?? 0) + 1,
           }));
           setClearDraftToken((old) => old + 1);

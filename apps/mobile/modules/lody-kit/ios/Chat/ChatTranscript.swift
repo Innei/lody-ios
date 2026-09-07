@@ -58,8 +58,11 @@ struct ChatRow: Equatable {
   var running = false
   var attention = false
   var streaming = false
+  var localImageURI: String? = nil
   var image: ChatImage? = nil
   var fileDiff: ChatFileDiff? = nil
+  /// `only` / `first` / `middle` / `last` for consecutive file rows in one group.
+  var group = ""
 }
 
 /// Stable identities belong to the protocol, never to the streamed text.
@@ -126,7 +129,7 @@ struct ChatTranscript {
           let needsPermission = process.contains { $0.permission?.pending == true }
           let failed = process.contains { $0.status == "failed" }
           let running = entry.isRunning && indices.last == entry.items.indices.last
-          let title = needsPermission ? "等待批准" : failed ? "处理失败" : running ? "正在处理" : "执行过程"
+          let title = processTitle(needsPermission: needsPermission, failed: failed, running: running)
           let firstGroup = index == groups.keys.min()
           result.append(ChatRow(id: entry.id + ":process" + (firstGroup ? "" : ":" + entry.items[index].itemId), entryID: entry.id, kind: "summary",
             text: title + (tools > 0 ? " · \(tools) 项操作" : ""), symbol: "chevron.right",
@@ -151,7 +154,7 @@ struct ChatTranscript {
           else if item.status == "failed" { row.text = "失败 · " + row.text }
           row.actionable = item.hasDetail == true || item.permission?.pending == true
         case "plan":
-          row.text = (item.entries ?? []).map { ($0.status == "completed" ? "✓ " : $0.status == "in_progress" ? "› " : "○ ") + $0.content }.joined(separator: "\n")
+          row.text = (item.entries ?? []).map { planPrefix($0.status) + $0.content }.joined(separator: "\n")
         case "subagent_task":
           row.symbol = "person.2"
           row.text = item.description ?? item.actor ?? "子任务"
@@ -163,12 +166,87 @@ struct ChatTranscript {
         if !row.text.isEmpty { result.append(row) }
       }
       if entry.role == "assistant", entry.finished, !processOnly {
-        for file in entry.fileDiffs ?? [] where !file.path.isEmpty {
-          result.append(ChatRow(id: entry.id + ":changes:" + file.path, entryID: entry.id, kind: "changes",
-            text: file.path, symbol: "doc.text", actionable: true, fileDiff: file))
+        let files = (entry.fileDiffs ?? []).filter { !$0.path.isEmpty }
+        if !files.isEmpty {
+          let add = files.reduce(0) { $0 + ($1.add ?? 0) }
+          let del = files.reduce(0) { $0 + ($1.del ?? 0) }
+          result.append(ChatRow(
+            id: entry.id + ":changes", entryID: entry.id, kind: "changesHeader",
+            text: "\(files.count) 个文件",
+            fileDiff: ChatFileDiff(path: "", add: add, del: del, status: nil)
+          ))
+          for (index, file) in files.enumerated() {
+            var row = ChatRow(
+              id: entry.id + ":changes:" + file.path, entryID: entry.id, kind: "changes",
+              text: file.path, symbol: "doc.text", actionable: true, fileDiff: file
+            )
+            row.group = fileGroup(index: index, count: files.count)
+            result.append(row)
+          }
         }
       }
       return result
     }
+  }
+}
+
+private func processTitle(needsPermission: Bool, failed: Bool, running: Bool) -> String {
+  if needsPermission { return "等待批准" }
+  if failed { return "处理失败" }
+  if running { return "正在处理" }
+  return "执行过程"
+}
+
+private func planPrefix(_ status: String?) -> String {
+  switch status {
+  case "completed": return "✓ "
+  case "in_progress": return "› "
+  default: return "○ "
+  }
+}
+
+private func fileGroup(index: Int, count: Int) -> String {
+  if count == 1 { return "only" }
+  if index == 0 { return "first" }
+  if index == count - 1 { return "last" }
+  return "middle"
+}
+
+/// Local visual state uses the dispatch ID, so authoritative history takes its place.
+struct ChatPendingSend: Decodable {
+  struct Attachment: Decodable {
+    let id: String
+    let name: String
+    let uri: String
+    let kind: String
+  }
+  let id: String
+  let text: String
+  let attachments: [Attachment]
+  let status: String
+  var failed: Bool? = nil
+  var reconnect: Bool? = nil
+
+  func rows(entries: [ChatEntry]) -> [ChatRow] {
+    guard failed != true else { return [] }
+    var result: [ChatRow] = []
+    if !entries.contains(where: { $0.id == id }) {
+      for attachment in attachments where attachment.kind == "image" {
+        guard URL(string: attachment.uri)?.isFileURL == true else { continue }
+        result.append(ChatRow(id: result.isEmpty ? id + ":user" : id + ":" + attachment.id,
+          entryID: id, kind: "image", text: attachment.name, localImageURI: attachment.uri,
+          image: ChatImage(id: attachment.id, fileName: attachment.name, storageSessionId: nil, width: nil, height: nil)))
+      }
+      let body = ([text] + attachments.filter { $0.kind != "image" }.map(\.name)).filter { !$0.isEmpty }.joined(separator: "\n")
+      if !body.isEmpty {
+        result.append(ChatRow(id: id + (result.isEmpty ? ":user" : ":user-text"), entryID: id, kind: "user", text: body))
+      }
+    }
+    let acceptedIndex = entries.firstIndex { $0.id == id }
+    let hasReply = acceptedIndex.map { entries.dropFirst($0 + 1).contains { $0.role == "assistant" } } ?? false
+    if !hasReply {
+      result.append(ChatRow(id: id + ":pending", entryID: id, kind: "summary", text: status, actionable: reconnect == true, running: true))
+    }
+    return result
   }
 }

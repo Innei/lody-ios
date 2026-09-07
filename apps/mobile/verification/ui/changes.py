@@ -6,13 +6,36 @@ from driver import UI
 ui = UI(sys.argv[1], sys.argv[2])
 ui.axe('tap', '--label', 'Diff Fixture')
 paths = ['docs/superpowers/.diff-check.md', 'src/very-long-directory-name/nested/components/another-long-file-name.ts']
+header = ui.element('diff-preview:changes')
+assert '2 个文件' in header['AXLabel'] and '新增 2 行' in header['AXLabel']
 for path in paths:
     card = ui.element('diff-preview:changes:' + path)
     assert path in card['AXLabel'] and '新增 1 行，删除 1 行' in card['AXLabel']
-    assert card['frame']['height'] >= 44
+    assert card['frame']['height'] >= 64
 answer = ui.element('diff-preview:answer')
-card = ui.element('diff-preview:changes:' + paths[0])
-assert card['frame']['y'] >= answer['frame']['y'] + answer['frame']['height']
+first_id = 'diff-preview:changes:' + paths[0]
+second_id = 'diff-preview:changes:' + paths[1]
+
+def group_settled(items):
+    header_item = next((i for i in items if i.get('AXUniqueId') == 'diff-preview:changes'), None)
+    first_item = next((i for i in items if i.get('AXUniqueId') == first_id), None)
+    second_item = next((i for i in items if i.get('AXUniqueId') == second_id), None)
+    if not header_item or not first_item or not second_item:
+        return None
+    header_frame = header_item['frame']
+    first_frame = first_item['frame']
+    second_frame = second_item['frame']
+    header_bottom = header_frame['y'] + header_frame['height']
+    first_bottom = first_frame['y'] + first_frame['height']
+    if first_frame['y'] < answer['frame']['y'] + answer['frame']['height']:
+        return None
+    if header_bottom > first_frame['y'] + 2:
+        return None
+    if abs(second_frame['y'] - first_bottom) > 2:
+        return None
+    return header_item, first_item, second_item
+
+header, first, second = ui.wait(group_settled, 'File group header did not settle above the first file')
 items = ui.state()
 assert not any((i.get('AXUniqueId') or '').startswith(('diff-warning:', 'diff-cached-warning:')) for i in items)
 assert not any('正在处理' in (i.get('AXLabel') or '') for i in items)

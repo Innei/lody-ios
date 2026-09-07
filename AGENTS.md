@@ -11,6 +11,7 @@
 - Native stack headers use transparent headers and soft scroll edges; scrolling screens use `ScrollViewMarker` with the shared `softScrollEdgeEffects` and automatic content insets.
 - Preserve user edits. Before destructive revert/restore/rollback, inspect the working tree and obtain explicit confirmation.
 - Verify with `pnpm check`, `pnpm bundle`, and an iOS simulator build when changing native code. Prefer behavioral checks over implementation snapshots.
+- Do not nest ternary expressions. One `cond ? a : b` is fine; a `?` inside either branch is not. Map a closed set with a dictionary, and use `if` / `switch` for ordered or overlapping conditions. Optional chaining and `??` are not ternaries.
 
 ## UI baseline
 
@@ -36,7 +37,7 @@
 
 - Device Flow uses the currently registered `lody-cli` client transparently; do not claim a dedicated iOS client until the server registers one. Never substitute desktop credentials for app authorization.
 - `data-runtime` in LodyKit owns the POC's catalog replicas, Streams reads, cursors and retry. RN subscribes to projected catalog events; do not add a second live replica in RN. The old offline decoder is retained only as a comparison path.
-- Swift owns the offscreen WebView and watchdog. Keep startup/heartbeat deadlines outside JS, ignore callbacks from replaced views, and bound automatic restarts. Background suspension is not a watchdog failure; recreate and bootstrap on foreground.
+- Swift owns the offscreen WebView and watchdog. Keep startup/heartbeat deadlines outside JS, ignore callbacks from replaced views, and bound automatic restarts. Background suspension is not a watchdog failure: retain the WebView and reset its heartbeat deadline on foreground; recreate only a missing or failed runtime. iOS 26 continued processing is tied to a user-started send through reply synchronization, never idle connection keepalive.
 - Only short-lived workspace Streams grants enter the bundled WebView; long-lived Better Auth credentials stay in Keychain. Never load remote scripts or expose tokens in diagnostics. Logout and unsubscribe must stop the owned runtime.
 - This POC reads catalogs and session history, and sends text turns. CRDT replicas restore from server bootstrap. App account/workspace context and complete catalog display projections restore from SQLite in LodyKit before background authentication and sync; credentials remain in Keychain. Loro/Flock updates use uint32 big-endian length frames; never append raw WASM exports. Persist the user history before the durable dispatch pointer and Machine RPC. A machine ACK is delivery, not completion. Never automatically replay writes across runtime recovery. Catalogs have an explicit 8 MiB per-replica input ceiling; do not label an incomplete or failed sync as live.
 - Generate native runtime assets before prebuild/build. Preserve dependency licenses beside generated resources. Native watchdog behavior has a deterministic Swift check in `modules/lody-kit/verification/watchdog`.

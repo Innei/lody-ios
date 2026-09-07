@@ -15,4 +15,11 @@ assert(!health.allowRestart(at: 160)) // No infinite restart loop.
 assert(health.allowRestart(at: 188))
 health.started(at: 1000) // Foreground recreation must not charge time spent suspended.
 assert(!health.timedOut(at: 1001))
+health.acknowledged(at: 1001)
+health.suspend()
+assert(!health.timedOut(at: 5000))
+health.resume(at: 5000)
+assert(health.ready) // Retained WebView does not need another ready callback.
+assert(!health.timedOut(at: 5007.9))
+assert(health.timedOut(at: 5008)) // A genuinely wedged view still recovers.
 print("PASS: startup/heartbeat deadlines, restart budget, foreground grace")

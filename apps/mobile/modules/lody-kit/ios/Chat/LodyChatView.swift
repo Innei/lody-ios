@@ -3,19 +3,19 @@ import MarkdownView
 import UIKit
 
 final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
-  let label = ChatTextView()
-  let bubble = UIView()
+  var messageContent = ChatMessageContent(frame: .zero)
+  var label: ChatTextView { messageContent.label }
+  var bubble: UIView { messageContent.bubble }
   let icon = UIImageView()
   let spinner = UIActivityIndicatorView(style: .medium)
   var row: ChatRow?
   var onInteraction: (() -> Void)?
   override init(frame: CGRect) {
     super.init(frame: frame)
-    bubble.backgroundColor = .secondarySystemGroupedBackground
+    bubble.backgroundColor = .lodyUserBubble
     bubble.layer.cornerRadius = 19
     bubble.layer.cornerCurve = .continuous
-    contentView.addSubview(bubble)
-    contentView.addSubview(label)
+    contentView.addSubview(messageContent)
     contentView.addSubview(icon)
     contentView.addSubview(spinner)
     icon.contentMode = .center
@@ -26,15 +26,28 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   func configure(_ row: ChatRow, text: NSAttributedString) {
     label.setText(text, animate: row.streaming, reset: self.row?.id != row.id)
     self.row = row
+    if row.kind == "user" { ChatSendHandoff.hold(id: row.entryID, target: messageContent) }
+    else { messageContent.isHidden = false }
     bubble.isHidden = row.kind != "user"
     icon.image = row.symbol.isEmpty ? nil : UIImage(systemName: row.symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 13))
-    icon.tintColor = row.attention ? .systemOrange : row.kind == "changes" || (row.kind == "summary" && row.running) ? .systemBlue : .secondaryLabel
+    icon.tintColor = chromeColor(for: row)
     row.running && row.kind != "summary" ? spinner.startAnimating() : spinner.stopAnimating()
     accessibilityIdentifier = row.id
     accessibilityLabel = text.string
     accessibilityTraits = row.actionable ? .button : .staticText
-    accessibilityHint = row.kind == "summary" ? "打开执行过程" : row.kind == "changes" ? "打开文件改动" : nil
+    accessibilityHint = hint(for: row)
     label.setShine(row.kind == "summary" && row.running && !row.attention)
+    setNeedsLayout()
+  }
+  func adopt(_ content: ChatMessageContent) {
+    let frame = messageContent.frame
+    messageContent.removeFromSuperview()
+    messageContent = content
+    contentView.insertSubview(content, at: 0)
+    content.frame = frame
+    content.isHidden = false
+    content.isUserInteractionEnabled = true
+    content.accessibilityElementsHidden = false
     setNeedsLayout()
   }
   override func prepareForReuse() {
@@ -42,7 +55,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     label.setShine(false)
   }
   func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
-    guard let row, row.kind == "user", bubble.frame.contains(location) else { return nil }
+    guard let row, row.kind == "user", messageContent.frame.contains(location) else { return nil }
     onInteraction?()
     return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
       UIMenu(children: [UIAction(title: "复制", image: UIImage(systemName: "doc.on.doc")) { _ in
@@ -63,8 +76,8 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
 
   private func contextPreview() -> UITargetedPreview? {
     let parameters = UIPreviewParameters()
-    parameters.backgroundColor = .secondarySystemGroupedBackground
-    let rect = bubble.frame
+    parameters.backgroundColor = .lodyUserBubble
+    let rect = messageContent.frame
     guard let preview = contentView.resizableSnapshotView(from: rect, afterScreenUpdates: false, withCapInsets: .zero) else { return nil }
     parameters.visiblePath = UIBezierPath(roundedRect: CGRect(origin: .zero, size: rect.size), cornerRadius: 19)
     return UITargetedPreview(view: preview, parameters: parameters,
@@ -76,7 +89,9 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   }
   static func textWidth(_ row: ChatRow, width: CGFloat) -> CGFloat {
     // Reserve the status slot even after completion: status cannot rewrap text.
-    max(1, row.kind == "user" ? width * 0.84 - 26 : width - leading(row) - (row.kind == "text" || row.kind == "thought" || row.kind == "summary" ? 0 : 28))
+    let reserved: CGFloat = row.kind == "text" || row.kind == "thought" || row.kind == "summary" ? 0 : 28
+    if row.kind == "user" { return max(1, width * 0.84 - 26) }
+    return max(1, width - leading(row) - reserved)
   }
 
   override func layoutSubviews() {
@@ -85,9 +100,11 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     let width = contentView.bounds.width
     if row.kind == "user" {
       let size = label.sizeThatFits(CGSize(width: width * 0.84 - 26, height: .greatestFiniteMagnitude))
-      bubble.frame = CGRect(x: width - size.width - 26, y: 12, width: size.width + 26, height: size.height + 20)
-      label.frame = bubble.frame.insetBy(dx: 13, dy: 10)
+      messageContent.frame = CGRect(x: width - size.width - 26, y: 12, width: size.width + 26, height: size.height + 20)
+      messageContent.layoutIfNeeded()
     } else {
+      messageContent.frame = contentView.bounds
+      messageContent.layoutIfNeeded()
       let inset = Self.leading(row)
       let textWidth = Self.textWidth(row, width: width)
       let height = label.sizeThatFits(CGSize(width: textWidth, height: .greatestFiniteMagnitude)).height
@@ -96,6 +113,62 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
       icon.frame = CGRect(x: 0, y: y, width: 16, height: min(height, 20))
     }
     spinner.frame = CGRect(x: width - 24, y: (bounds.height - 20) / 2, width: 20, height: 20)
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    guard previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle else { return }
+    bubble.backgroundColor = .lodyUserBubble
+  }
+}
+
+final class ChatFileCell: UICollectionViewListCell {
+  private let chrome = UIView()
+  private let separator = UIView()
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    automaticallyUpdatesBackgroundConfiguration = false
+    backgroundConfiguration = .clear()
+    chrome.isUserInteractionEnabled = false
+    chrome.layer.cornerCurve = .continuous
+    chrome.layer.masksToBounds = true
+    insertSubview(chrome, belowSubview: contentView)
+    separator.backgroundColor = .separator
+    contentView.addSubview(separator)
+  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  func apply(group: String, selected: Bool) {
+    backgroundConfiguration = .clear()
+    chrome.backgroundColor = selected ? .lodyFileGroupSelected : .lodyFileGroup
+    chrome.layer.cornerRadius = group == "middle" ? 0 : 12
+    switch group {
+    case "first":
+      chrome.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+    case "last":
+      chrome.layer.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+    case "middle":
+      chrome.layer.maskedCorners = []
+    default:
+      chrome.layer.maskedCorners = [
+        .layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMaxYCorner,
+      ]
+    }
+    separator.isHidden = group == "last" || group == "only" || group.isEmpty
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    chrome.frame = bounds
+    let scale = max(traitCollection.displayScale, 1)
+    let inset = directionalLayoutMargins.leading + 36
+    separator.frame = CGRect(
+      x: inset,
+      y: bounds.height - 1 / scale,
+      width: max(0, bounds.width - inset - 16),
+      height: 1 / scale
+    )
   }
 }
 
@@ -113,6 +186,11 @@ private final class ChatCollectionView: UICollectionView {
 private final class ChatNavigationController: UIViewController {
   var updateTitle: (() -> Void)?
   var onWillAppear: ((Bool, UIViewControllerTransitionCoordinator?) -> Void)?
+  var onDidAppear: (() -> Void)?
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    onDidAppear?()
+  }
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
     updateTitle?()
@@ -171,24 +249,41 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   private var anchorScrollInFlight = false
   private var laidOutHeight: CGFloat = 0
   private var hasInitialDraft = false
+  private var pendingSend: ChatPendingSend?
+  private var publishedPendingID: String?
+  private var handoffID: String?
+  private var hasAppeared = false
 
-  private let fileRegistration = UICollectionView.CellRegistration<UICollectionViewListCell, ChatRow> { cell, _, row in
+  private let fileHeaderRegistration = UICollectionView.CellRegistration<UICollectionViewListCell, ChatRow> { cell, _, row in
+    var content = UIListContentConfiguration.groupedHeader()
+    content.text = row.text
+    content.textProperties.font = .preferredFont(forTextStyle: .footnote)
+    content.textProperties.color = .secondaryLabel
+    content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 10, leading: 4, bottom: 6, trailing: 4)
+    cell.contentConfiguration = content
+    cell.backgroundConfiguration = .clear()
+    if let file = row.fileDiff {
+      let counts = UILabel()
+      counts.font = .monospacedDigitSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize, weight: .regular)
+      let value = NSMutableAttributedString(string: "+\(file.add ?? 0)", attributes: [.foregroundColor: UIColor.systemBlue])
+      value.append(NSAttributedString(string: "  −\(file.del ?? 0)", attributes: [.foregroundColor: UIColor.systemRed]))
+      counts.attributedText = value
+      cell.accessories = [.customView(configuration: .init(customView: counts, placement: .trailing()))]
+      cell.accessibilityLabel = "\(row.text)，新增 \(file.add ?? 0) 行，删除 \(file.del ?? 0) 行"
+    }
+    cell.isAccessibilityElement = true
+    cell.accessibilityIdentifier = row.id
+    cell.accessibilityTraits = .header
+  }
+
+  private let fileRegistration = UICollectionView.CellRegistration<ChatFileCell, ChatRow> { cell, _, row in
     guard let file = row.fileDiff else { return }
     let path = file.path.replacingOccurrences(of: "\\", with: "/") as NSString
-    var content = UIListContentConfiguration.subtitleCell()
+    var content = chatFileRowContent()
     cell.directionalLayoutMargins.leading = content.directionalLayoutMargins.leading
     cell.directionalLayoutMargins.trailing = content.directionalLayoutMargins.leading
     content.text = path.lastPathComponent
     content.secondaryText = path.deletingLastPathComponent
-    content.textProperties.font = .preferredFont(forTextStyle: .subheadline)
-    content.textProperties.numberOfLines = 1
-    content.textProperties.lineBreakMode = .byTruncatingMiddle
-    content.secondaryTextProperties.font = .preferredFont(forTextStyle: .caption1)
-    content.secondaryTextProperties.numberOfLines = 1
-    content.secondaryTextProperties.lineBreakMode = .byTruncatingMiddle
-    content.image = UIImage(systemName: "doc.text")
-    content.imageProperties.tintColor = .secondaryLabel
-    content.imageProperties.preferredSymbolConfiguration = .init(textStyle: .body)
     cell.contentConfiguration = content
     let counts = UILabel()
     counts.font = .monospacedDigitSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize, weight: .regular)
@@ -197,11 +292,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     counts.attributedText = value
     cell.accessories = [.customView(configuration: .init(customView: counts, placement: .trailing())), .disclosureIndicator()]
     cell.configurationUpdateHandler = { cell, state in
-      var background = UIBackgroundConfiguration.listGroupedCell()
-      background.cornerRadius = 12
-      background.backgroundInsets = NSDirectionalEdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0)
-      background.backgroundColor = state.isHighlighted || state.isSelected ? .tertiarySystemFill : .secondarySystemGroupedBackground
-      cell.backgroundConfiguration = background
+      (cell as? ChatFileCell)?.apply(group: row.group, selected: state.isHighlighted || state.isSelected)
       cell.accessibilityTraits = state.isSelected ? [.button, .selected] : .button
     }
     cell.isAccessibilityElement = true
@@ -223,10 +314,14 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     navigation.view = UIView(frame: .zero)
     navigation.view.isUserInteractionEnabled = false
     navigation.updateTitle = { [weak self] in self?.attachTitle() }
+    navigation.onDidAppear = { [weak self] in
+      self?.hasAppeared = true
+      self?.deliverPendingContent()
+    }
     navigation.onWillAppear = { [weak self] animated, coordinator in
       self?.deselectFileOnReturn(animated: animated, coordinator: coordinator)
     }
-    backgroundColor = .systemGroupedBackground
+    backgroundColor = .systemBackground
     collection.backgroundColor = .clear
     collection.alwaysBounceVertical = true
     collection.keyboardDismissMode = .interactive
@@ -246,7 +341,10 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     collection.register(ChatMarkdownCell.self, forCellWithReuseIdentifier: "markdown")
     dataSource = UICollectionViewDiffableDataSource<String, String>(collectionView: collection) { [weak self] collection, index, id in
       guard let self, let row = self.rows[id] else { return nil }
-      if row.fileDiff != nil {
+      if row.kind == "changesHeader" {
+        return collection.dequeueConfiguredReusableCell(using: self.fileHeaderRegistration, for: index, item: row)
+      }
+      if row.kind == "changes" {
         return collection.dequeueConfiguredReusableCell(using: self.fileRegistration, for: index, item: row)
       }
       if row.image != nil {
@@ -276,6 +374,10 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     composer.attachScrollEdge(to: collection)
     composer.onSend = { [weak self] payload in
       guard let self else { return }
+      if let data = try? JSONSerialization.data(withJSONObject: payload.merging(["status": "正在发送…"]) { _, new in new }),
+         let pending = try? JSONDecoder().decode(ChatPendingSend.self, from: data) {
+        self.setPendingSend(pending)
+      }
       self.awaitingUserAnchor = true
       self.trackingPausedByGesture = false
       self.followsBottom = true
@@ -344,6 +446,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     }
     attachTitle()
     updateBottomButton()
+    deliverPendingContent()
     if updateBottomInset(), followsBottom { scrollToBottom() }
     if abs(laidOutHeight - collection.bounds.height) > 0.5 {
       laidOutHeight = collection.bounds.height
@@ -453,6 +556,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   override func didMoveToWindow() {
     super.didMoveToWindow()
     if window == nil {
+      if let handoffID { ChatSendHandoff.cancel(id: handoffID) }
       anchorScrollInFlight = false
       liveEntryID = nil
       update?.cancel(); update = nil
@@ -580,10 +684,12 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     let lineHeight = (row.kind == "user" ? 25 : 18) * scale
     paragraph.minimumLineHeight = lineHeight
     paragraph.maximumLineHeight = lineHeight
+    let font = UIFont.dynamic(of: row.kind == "user" ? 17 : 13, compatibleWith: traitCollection)
     return NSAttributedString(string: row.text, attributes: [
-      .font: UIFont.dynamic(of: row.kind == "user" ? 17 : 13, compatibleWith: traitCollection),
-      .foregroundColor: row.attention ? UIColor.systemOrange : row.kind == "changes" || (row.kind == "summary" && row.running) ? UIColor.systemBlue : row.kind == "user" ? UIColor.label : UIColor.secondaryLabel,
+      .font: font,
+      .foregroundColor: textColor(for: row),
       .paragraphStyle: paragraph,
+      .baselineOffset: (lineHeight - font.lineHeight) / 2,
     ])
   }
 
@@ -591,7 +697,11 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     guard !applying else { needsApply = true; return }
     applying = true
     let previousOffset = collection.contentOffset.y
-    let projected = transcript.rows(processEntryID: processEntryID, processStartID: processStartID)
+    if composerHasAcknowledgedSend, let pendingSend, pendingSend.rows(entries: transcript.entries).isEmpty {
+      self.pendingSend = nil
+    }
+    var projected = transcript.rows(processEntryID: processEntryID, processStartID: processStartID)
+    if processEntryID.isEmpty, let pendingSend { projected += pendingSend.rows(entries: transcript.entries) }
     let liveEntryID = transcript.entries.last { $0.isRunning && (processEntryID.isEmpty || $0.id == processEntryID) }?.id
     let starting = self.liveEntryID == nil && liveEntryID != nil
     let nearTail = collection.contentSize.height - collection.bounds.height + collection.adjustedContentInset.bottom - previousOffset < CGFloat(ChatScroll.resumeDistance)
@@ -618,10 +728,12 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     store.retain(Set(rows.keys))
     var snapshot = NSDiffableDataSourceSnapshot<String, String>()
     let grouped = Dictionary(grouping: projected, by: \.entryID)
-    for entry in transcript.entries {
-      guard let entryRows = grouped[entry.id], !entryRows.isEmpty else { continue }
-      snapshot.appendSections([entry.id])
-      snapshot.appendItems(entryRows.map(\.id), toSection: entry.id)
+    var entryIDs = transcript.entries.map(\.id)
+    if let pendingSend, !entryIDs.contains(pendingSend.id) { entryIDs.append(pendingSend.id) }
+    for id in entryIDs {
+      guard let entryRows = grouped[id], !entryRows.isEmpty else { continue }
+      snapshot.appendSections([id])
+      snapshot.appendItems(entryRows.map(\.id), toSection: id)
     }
     snapshot.reconfigureItems(projected.filter { previous[$0.id] != nil && previous[$0.id] != $0 }.map(\.id))
     empty.isHidden = !projected.isEmpty
@@ -634,6 +746,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
         self.collection.contentOffset.y = max(-self.collection.adjustedContentInset.top, frame.minY - offset)
       }
       self.updateBottomButton()
+      self.deliverPendingContent()
     }
     let finish = { [weak self] in
       guard let self else { return }
@@ -658,8 +771,13 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     }
   }
 
+  func collectionView(_ collectionView: UICollectionView, shouldHighlightItemAt indexPath: IndexPath) -> Bool {
+    guard let id = dataSource.itemIdentifier(for: indexPath), let row = rows[id] else { return false }
+    return row.kind == "changes" || row.actionable || row.image != nil
+  }
+
   func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-    if let id = dataSource.itemIdentifier(for: indexPath), let row = rows[id], let file = row.fileDiff {
+    if let id = dataSource.itemIdentifier(for: indexPath), let row = rows[id], row.kind == "changes", let file = row.fileDiff {
       onTurnChangesPress(["entryId": row.entryID, "path": file.path])
       return
     }
@@ -670,6 +788,10 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
       return
     }
     guard let id = dataSource.itemIdentifier(for: indexPath), let row = rows[id], row.actionable else { return }
+    if let pendingSend, id == pendingSend.id + ":pending", pendingSend.reconnect == true {
+      onReconnect([:])
+      return
+    }
     onActivityPress(["entryId": row.entryID, "itemId": row.itemID, "processStartId": row.processStartID])
   }
 
@@ -774,9 +896,11 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   func collectionView(_ collectionView: UICollectionView, layout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
     let width = max(1, collectionView.bounds.width - 40)
     guard let id = dataSource.itemIdentifier(for: indexPath), let row = rows[id] else { return CGSize(width: width, height: 0) }
+    if row.kind == "changesHeader" {
+      return CGSize(width: width, height: 32)
+    }
     if row.kind == "changes" {
-      let height = UIFont.preferredFont(forTextStyle: .subheadline).lineHeight + UIFont.preferredFont(forTextStyle: .caption1).lineHeight + 32
-      return CGSize(width: width, height: max(64, ceil(height)))
+      return CGSize(width: width, height: chatFileRowHeight())
     }
     let measured = measure(row, width: width)
     return CGSize(width: width, height: max(row.actionable || row.kind == "summary" ? 44 : 0, measured + (row.kind == "user" ? 44 : 12)))
@@ -813,6 +937,62 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
       DispatchQueue.main.async { self?.composer.setStoredDraft(text) }
     }
   }
+  private func deliverPendingContent() {
+    guard let id = handoffID, window != nil else { return }
+    guard hasAppeared else { return }
+    collection.layoutIfNeeded()
+    for cell in collection.visibleCells {
+      if let image = cell as? ChatImageCell { image.layoutIfNeeded(); image.deliverPendingImage() }
+      guard let cell = cell as? ChatCell, cell.row?.entryID == id, cell.row?.kind == "user" else { continue }
+      cell.layoutIfNeeded()
+      ChatSendHandoff.deliver(id: id, to: cell.messageContent) { [weak cell] content in
+        guard let cell, cell.row?.entryID == id else { content.removeFromSuperview(); return }
+        cell.adopt(content)
+      }
+    }
+  }
+
+  func setPendingSendJSON(_ json: String) {
+    guard !json.isEmpty else {
+      // A stale initial empty prop must not erase a send handled in this native frame.
+      if let publishedPendingID, let pendingSend, pendingSend.id == publishedPendingID {
+        // entriesJSON is decoded off-main. Keep the local rows until the same
+        // authoritative rows arrive, even if React retires its pending prop first.
+        if pendingSend.rows(entries: transcript.entries).isEmpty { self.pendingSend = nil }
+        self.publishedPendingID = nil
+        applyRows()
+      }
+      return
+    }
+    guard let value = try? JSONDecoder().decode(ChatPendingSend.self, from: Data(json.utf8)), !value.id.isEmpty else { return }
+    publishedPendingID = value.id
+    composer.setPendingSend(value)
+    if value.failed == true {
+      ChatSendHandoff.cancel(id: value.id)
+      if pendingSend?.id == value.id { pendingSend = nil }
+      applyRows()
+      return
+    }
+    setPendingSend(value)
+  }
+
+  private var composerHasAcknowledgedSend = false
+  private var lastAcknowledgedDraftToken = 0
+  private var lastRestoredDraftToken = 0
+  private func setPendingSend(_ value: ChatPendingSend) {
+    let changed = pendingSend?.id != value.id
+    pendingSend = value
+    if changed {
+      composerHasAcknowledgedSend = false
+      handoffID = value.id
+      anchoredUserID = value.id + ":user"
+      pendingAnchorAnimation = false
+      followsBottom = true
+      trackingPausedByGesture = false
+    }
+    applyRows()
+  }
+
   func setInitialDraft(_ text: String) {
     guard !hasInitialDraft else { return }
     hasInitialDraft = true
@@ -820,9 +1000,77 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     awaitingUserAnchor = !text.isEmpty
   }
   func setInitialAttachments(_ json: String) { composer.setInitialAttachments(json) }
-  func clearDraft(token: Int) { composer.clearDraft(token: token) }
-  func restoreDraft(token: Int) { composer.restoreDraft(token: token) }
+  func clearDraft(token: Int) {
+    guard token > lastAcknowledgedDraftToken else { return }
+    lastAcknowledgedDraftToken = token
+    composerHasAcknowledgedSend = true
+    composer.clearDraft(token: token)
+    applyRows()
+  }
+  func restoreDraft(token: Int) {
+    guard token > lastRestoredDraftToken else { return }
+    lastRestoredDraftToken = token
+    if let pendingSend {
+      ChatSendHandoff.cancel(id: pendingSend.id)
+      self.pendingSend = nil
+      applyRows()
+    }
+    composer.restoreDraft(token: token)
+  }
   func setComposerState(_ json: String) { composer.setComposerState(json) }
   func setComposerOptions(_ json: String) { composer.setComposerOptions(json) }
   func setEmptyText(_ text: String) { empty.text = text }
+}
+
+private func chatFileRowContent() -> UIListContentConfiguration {
+  var content = UIListContentConfiguration.subtitleCell()
+  content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
+  content.textProperties.font = .preferredFont(forTextStyle: .subheadline)
+  content.textProperties.numberOfLines = 1
+  content.textProperties.lineBreakMode = .byTruncatingMiddle
+  content.secondaryTextProperties.font = .preferredFont(forTextStyle: .caption1)
+  content.secondaryTextProperties.color = .secondaryLabel
+  content.secondaryTextProperties.numberOfLines = 1
+  content.secondaryTextProperties.lineBreakMode = .byTruncatingMiddle
+  content.image = UIImage(systemName: "doc.text")
+  content.imageProperties.tintColor = .secondaryLabel
+  content.imageProperties.preferredSymbolConfiguration = .init(textStyle: .body)
+  return content
+}
+
+private func chatFileRowHeight() -> CGFloat {
+  var content = chatFileRowContent()
+  content.text = "Filename"
+  content.secondaryText = "path"
+  let view = UIListContentView(configuration: content)
+  let height = view.systemLayoutSizeFitting(
+    CGSize(width: 320, height: UIView.layoutFittingCompressedSize.height),
+    withHorizontalFittingPriority: .fittingSizeLevel,
+    verticalFittingPriority: .fittingSizeLevel
+  ).height
+  return max(64, ceil(height))
+}
+
+private func chromeColor(for row: ChatRow) -> UIColor {
+  if row.attention { return .systemOrange }
+  if row.kind == "changes" || (row.kind == "summary" && row.running) { return .systemBlue }
+  return .secondaryLabel
+}
+
+private func textColor(for row: ChatRow) -> UIColor {
+  if row.attention { return .systemOrange }
+  if row.kind == "changes" || (row.kind == "summary" && row.running) { return .systemBlue }
+  if row.kind == "user" { return .label }
+  return .secondaryLabel
+}
+
+private func hint(for row: ChatRow) -> String? {
+  if row.id == row.entryID + ":pending" {
+    return row.actionable ? "重新连接并继续发送" : nil
+  }
+  switch row.kind {
+  case "summary": return "打开执行过程"
+  case "changes": return "打开文件改动"
+  default: return nil
+  }
 }
