@@ -30,7 +30,7 @@ export function Button({
   const surface = filled || glass;
   const text = label ?? children ?? '';
   let color: ColorValue = colors.accent;
-  if (filled) color = colors.onAccent;
+  if (surface) color = colors.onAccent;
   else if (destructive) color = colors.danger;
   return (
     <NativePressable
@@ -52,7 +52,7 @@ export function Button({
         style,
       ]}
     >
-      {glass ? <NativeGlassSurface radius={14} /> : null}
+      {glass ? <NativeGlassSurface radius={14} tint={colors.accent} /> : null}
       <AppText
         variant="body"
         style={{
