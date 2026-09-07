@@ -63,7 +63,9 @@ jobs:
           node-version: 22
 
       - name: Install asc
-        run: brew install asc
+        uses: rudrankriyam/setup-asc@5358c70a27a3f0d1517604b0f1fdc43e70c1cc4d # v1
+        with:
+          version: 4.11.0
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
