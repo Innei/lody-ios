@@ -5,12 +5,12 @@ import {
   formatTemplate,
   matchLocale,
   pluralSuffix,
-} from '../src/i18n/format.ts';
+} from '../../src/i18n/format.ts';
 
 const catalog = (name) =>
   JSON.parse(
     fs.readFileSync(
-      new URL(`../locales/${name}.json`, import.meta.url),
+      new URL(`../../locales/${name}.json`, import.meta.url),
       'utf8',
     ),
   );

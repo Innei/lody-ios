@@ -18,7 +18,7 @@ const {
   getPresentationSession,
   completePresentation,
   cancelPresentation,
-} = await import('../src/presentation/presentationStore.ts');
+} = await import('../../src/presentation/presentationStore.ts');
 const page = {
   id: 'test',
   Component: () => null,

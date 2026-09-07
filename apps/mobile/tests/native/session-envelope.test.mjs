@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LoroMap, LoroList } from 'loro-crdt/base64';
-import { acceptEnvelope } from '../src/features/sessions/acceptEnvelope.ts';
-import { openTestSession } from './helpers.mjs';
+import { acceptEnvelope } from '../../src/features/sessions/acceptEnvelope.ts';
+import { openTestSession } from '../helpers.mjs';
 
 test('信封校验：版本、generation、revision 三道闸', () => {
   const at = (generation, revision) => ({ generation, revision });

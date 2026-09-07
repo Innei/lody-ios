@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { relativeTime } from '../src/ui/time.ts';
+import { relativeTime } from '../../src/ui/time.ts';
 import {
   agentName,
   sessionState,
   stateSubtitle,
   stateSymbol,
   stateTint,
-} from '../src/features/sessions/status.ts';
-import { setLocale } from '../src/i18n/index.ts';
+} from '../../src/features/sessions/status.ts';
+import { setLocale } from '../../src/i18n/index.ts';
 
 setLocale('zh-Hans');
 

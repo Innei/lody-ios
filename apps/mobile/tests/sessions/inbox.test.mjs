@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { inboxSections } from '../src/features/sessions/inbox.ts';
-import { listPlaceholder, searchPlaceholder } from '../src/ui/listState.ts';
-import { draftTitle } from '../src/features/sessions/draftTitle.ts';
-import { setLocale } from '../src/i18n/index.ts';
+import { inboxSections } from '../../src/features/sessions/inbox.ts';
+import { listPlaceholder, searchPlaceholder } from '../../src/ui/listState.ts';
+import { draftTitle } from '../../src/features/sessions/draftTitle.ts';
+import { setLocale } from '../../src/i18n/index.ts';
 
 setLocale('zh-Hans');
 
@@ -258,7 +258,8 @@ test('the session title comes from the first line of the first message', () => {
 });
 
 test('projects default to expanded, honor saved collapse, and show More only beyond five sessions', async () => {
-  const { projectSections } = await import('../src/features/sessions/inbox.ts');
+  const { projectSections } =
+    await import('../../src/features/sessions/inbox.ts');
   for (const count of [0, 5, 6]) {
     const data = catalog([
       ...Array.from({ length: count }, (_, i) =>
@@ -295,7 +296,7 @@ test('projects default to expanded, honor saved collapse, and show More only bey
 
 test('project rows carry branch or agent, diff, activity time, unread and a badge', async () => {
   const { projectSections, sessionRow } =
-    await import('../src/features/sessions/inbox.ts');
+    await import('../../src/features/sessions/inbox.ts');
   const at = (iso) => Date.parse(iso);
   const data = catalog([
     session('quiet', 'idle', {
@@ -338,7 +339,8 @@ test('project rows carry branch or agent, diff, activity time, unread and a badg
 });
 
 test('search finds empty projects and archived sessions without the inbox limit', async () => {
-  const { searchSections } = await import('../src/features/sessions/inbox.ts');
+  const { searchSections } =
+    await import('../../src/features/sessions/inbox.ts');
   const data = catalog(
     Array.from({ length: 25 }, (_, i) =>
       session(`work-${i}`, 'completed', { archived: true }),

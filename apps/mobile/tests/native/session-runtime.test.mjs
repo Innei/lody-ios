@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { LoroDoc, LoroMap, LoroList, LoroText } from 'loro-crdt/base64';
-import { openTestSession, loadRuntime, frame } from './helpers.mjs';
+import { openTestSession, loadRuntime, frame } from '../helpers.mjs';
 
 test('system notice identity survives projection updates without changing the completed reply', async () => {
   const { projectSession } = await loadRuntime();
@@ -350,7 +350,7 @@ test('send persists user before dispatch; duplicate incremental imports preserve
 async function loadProject() {
   const bundle = await build({
     entryPoints: [
-      new URL('../modules/lody-kit/data-runtime/project.ts', import.meta.url)
+      new URL('../../modules/lody-kit/data-runtime/project.ts', import.meta.url)
         .pathname,
     ],
     bundle: true,

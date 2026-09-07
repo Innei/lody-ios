@@ -6,7 +6,7 @@ import { Flock } from '@loro-dev/flock-wasm/base64';
 const bundle = await build({
   entryPoints: [
     new URL(
-      '../modules/lody-kit/data-runtime/archive-session.ts',
+      '../../modules/lody-kit/data-runtime/archive-session.ts',
       import.meta.url,
     ).pathname,
   ],

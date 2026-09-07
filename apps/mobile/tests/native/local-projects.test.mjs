@@ -5,7 +5,7 @@ import { build } from 'esbuild';
 const bundle = await build({
   entryPoints: [
     new URL(
-      '../modules/lody-kit/data-runtime/local-projects.ts',
+      '../../modules/lody-kit/data-runtime/local-projects.ts',
       import.meta.url,
     ).pathname,
   ],

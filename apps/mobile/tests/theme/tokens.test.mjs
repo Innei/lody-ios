@@ -7,7 +7,7 @@ import {
   space,
   systemBackground,
   type as typeScale,
-} from '../src/theme/tokens.ts';
+} from '../../src/theme/tokens.ts';
 
 test('accent stays legible on both system backgrounds', () => {
   assert.ok(

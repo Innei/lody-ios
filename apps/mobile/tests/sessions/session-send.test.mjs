@@ -97,7 +97,7 @@ async function load(hooks, native) {
   globalThis.__sendNative = native;
   const bundle = await build({
     entryPoints: [
-      new URL('../src/features/sessions/useSessionSend.ts', import.meta.url)
+      new URL('../../src/features/sessions/useSessionSend.ts', import.meta.url)
         .pathname,
     ],
     bundle: true,

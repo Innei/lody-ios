@@ -6,7 +6,7 @@ import { usePalette } from '@/theme/palette';
 import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
 import { Screen } from '@/ui/Screen';
-import type { Envelope } from '@/features/sessions/transcript/types';
+import type { Envelope } from '@/models/session';
 import { Blocks, RawBlock } from '@/ui/DetailBlocks';
 import type { DetailResponse } from '../models/session.ts';
 import { fetchDetail } from '@/features/sessions/itemDetail';

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { aggregate } from '../src/features/sessions/transcript/aggregate.ts';
-import { setLocale } from '../src/i18n/index.ts';
+import { aggregate } from '../../src/features/sessions/transcript/aggregate.ts';
+import { setLocale } from '../../src/i18n/index.ts';
 
 setLocale('zh-Hans');
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createPermissionGate,
   firstPermissionTarget,
-} from '../src/features/sessions/permissionTarget.ts';
+} from '../../src/features/sessions/permissionTarget.ts';
 
 const tool = (id, extra = {}) => ({
   itemId: id,

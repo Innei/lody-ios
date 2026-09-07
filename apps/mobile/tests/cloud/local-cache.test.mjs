@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'esbuild';
-import { catalogKey } from '../src/cloud/catalog/persist.ts';
+import { catalogKey } from '../../src/cloud/catalog/persist.ts';
 
 test('logout drains in-flight persistence and cancels queued old-account writes', async () => {
   const db = new Map();

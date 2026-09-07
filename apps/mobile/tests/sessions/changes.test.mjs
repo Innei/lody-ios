@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { changedFiles } from '../src/features/sessions/transcript/changes.ts';
+import { changedFiles } from '../../src/features/sessions/transcript/changes.ts';
 
 const tool = (kind, path, added, removed) => ({
   itemId: `${kind}:${path}`,

@@ -6,7 +6,7 @@ import { build } from 'esbuild';
 const bundle = await build({
   stdin: {
     contents: "export * from './files'; export * from './machine-rpc';",
-    resolveDir: new URL('../modules/lody-kit/data-runtime/', import.meta.url)
+    resolveDir: new URL('../../modules/lody-kit/data-runtime/', import.meta.url)
       .pathname,
     loader: 'ts',
   },

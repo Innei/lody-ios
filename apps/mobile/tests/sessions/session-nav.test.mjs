@@ -3,7 +3,7 @@ import test from 'node:test';
 import {
   requestOpenSession,
   subscribeSessionNav,
-} from '../src/features/sessions/sessionNav.ts';
+} from '../../src/features/sessions/sessionNav.ts';
 
 const session = {
   id: 's1',

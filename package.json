@@ -16,7 +16,7 @@
     "i18n:check": "node apps/mobile/scripts/check-locales.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --experimental-strip-types --experimental-test-module-mocks --test apps/mobile/tests/*.test.mjs",
+    "test": "node --experimental-strip-types --experimental-test-module-mocks --test apps/mobile/tests/**/*.test.mjs",
     "verify:ui": "python3 apps/mobile/verification/ui/run.py",
     "verify:native": "python3 apps/mobile/verification/native.py"
   },

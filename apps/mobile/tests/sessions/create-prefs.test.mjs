@@ -4,7 +4,7 @@ import {
   rememberedProject,
   restoreSelection,
   withSelection,
-} from '../src/features/sessions/createPrefs.ts';
+} from '../../src/features/sessions/createPrefs.ts';
 
 const options = {
   sessionId: 's',

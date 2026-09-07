@@ -6,8 +6,8 @@ import {
   pollDeviceToken,
   requestDeviceCode,
   getStreamsGrant,
-} from '../src/cloud/auth/api.ts';
-import { setLocale } from '../src/i18n/index.ts';
+} from '../../src/cloud/auth/api.ts';
+import { setLocale } from '../../src/i18n/index.ts';
 
 setLocale('zh-Hans');
 

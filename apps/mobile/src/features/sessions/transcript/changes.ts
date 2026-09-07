@@ -1,4 +1,4 @@
-import type { EntrySummary, ItemSummary } from './types.ts';
+import type { EntrySummary, ItemSummary } from '../../../models/session.ts';
 
 export type ChangedFile = {
   path: string;
