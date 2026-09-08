@@ -20,7 +20,6 @@ def lody_push_extension(bundle_id)
   project_path = Dir[File.join(root, '*.xcodeproj')].first
   project = Xcodeproj::Project.open(project_path)
   app = project.targets.find { |t| t.product_type == 'com.apple.product-type.application' }
-  app.build_configurations.each { |c| c.build_settings['INFOPLIST_KEY_UIBackgroundModes'] = 'remote-notification' }
   deployment = app.build_configurations.first.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] || '16.4'
   target = project.targets.find { |t| t.name == name } || project.new_target(:app_extension, name, :ios, deployment)
   folder = File.join(root, name)
