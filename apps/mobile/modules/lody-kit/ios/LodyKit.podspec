@@ -15,6 +15,11 @@ Pod::Spec.new do |s|
   s.static_framework = true
   s.libraries = 'sqlite3'
   s.dependency 'ExpoModulesCore'
+  # Precompiled ExpoModulesCore skips autolinking's macro-plugin injection.
+  macros_plugin = File.join(File.dirname(`node --print "require.resolve('@expo/expo-modules-macros-plugin/package.json')"`.strip), 'apple')
+  s.pod_target_xcconfig = {
+    'OTHER_SWIFT_FLAGS' => "$(inherited) -Xfrontend -load-plugin-executable -Xfrontend \"#{macros_plugin}/ExpoModulesMacros-tool#ExpoModulesMacros\""
+  }
   s.spm_dependency 'MarkdownView/MarkdownView'
   s.spm_dependency 'MarkdownView/MarkdownParser'
   s.source_files = '**/*.swift'

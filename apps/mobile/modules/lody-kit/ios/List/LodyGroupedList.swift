@@ -1,35 +1,39 @@
 import ExpoModulesCore
 import UIKit
 
-struct LodyListAction: Record {
-  @Field var id: String = ""
-  @Field var title: String = ""
-  @Field var symbol: String = ""
-  @Field var tint: String = ""
-  @Field var destructive: Bool = false
+@Record
+struct LodyListAction {
+  var id: String = ""
+  var title: String = ""
+  var symbol: String = ""
+  var tint: String = ""
+  var destructive: Bool = false
 }
 
-struct LodyListRow: Record {
-  @Field var id: String = ""
-  @Field var title: String = ""
-  @Field var subtitle: String = ""
-  @Field var value: String = ""
-  @Field var image: String = ""
-  @Field var filePath: String = ""
-  @Field var imageTint: String = ""
-  @Field var subtitleMono: Bool = false
-  @Field var unread: Bool = false
-  @Field var badge: String = ""
-  @Field var diff: [String: Int] = [:]
-  @Field var action: Bool = false
-  @Field var navigates: Bool = false
-  @Field var disclosure: Bool = false
-  @Field var destructive: Bool = false
-  @Field var parent: Bool = false
-  @Field var monogram: String = ""
-  @Field var pinned: Bool = false
-  @Field var actions: [LodyListAction] = []
-  @Field var leadingActions: [LodyListAction] = []
+@Record
+struct LodyListRow {
+  var id: String = ""
+  var title: String = ""
+  var subtitle: String = ""
+  var value: String = ""
+  var image: String = ""
+  var filePath: String = ""
+  var imageTint: String = ""
+  var subtitleMono: Bool = false
+  var unread: Bool = false
+  var badge: String = ""
+  var diff: [String: Int] = [:]
+  var action: Bool = false
+  var navigates: Bool = false
+  var disclosure: Bool = false
+  var destructive: Bool = false
+  var parent: Bool = false
+  var monogram: String = ""
+  var pinned: Bool = false
+  var actions: [LodyListAction] = []
+  var leadingActions: [LodyListAction] = []
+  var menuActions: [LodyListAction] = []
+  var preview: String = ""
 }
 
 struct LodyListSection: Record {
@@ -91,6 +95,8 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
   private var bottomInset: CGFloat = 0
   private var transparent = false
   private var contentStyle = false
+  var previewUserId = ""
+  var previewWorkspaceId = ""
   private var rowsByID: [ListItemID: LodyListRow] = [:]
   private var dataSource: UICollectionViewDiffableDataSource<String, ListItemID>!
 
@@ -539,6 +545,14 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
     collection.verticalScrollIndicatorInsets.bottom = wanted
   }
 
+  func setPreviewUserId(_ value: String) {
+    previewUserId = value
+  }
+
+  func setPreviewWorkspaceId(_ value: String) {
+    previewWorkspaceId = value
+  }
+
   func setAccent(_ value: String) {
     guard let color = lodyTint(value), color != LodyGroupedList.accent else { return }
     LodyGroupedList.accent = color
@@ -732,7 +746,7 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
     })
   }
 
-  private func row(at index: IndexPath) -> LodyListRow? {
+  func row(at index: IndexPath) -> LodyListRow? {
     dataSource.itemIdentifier(for: index).flatMap { rowsByID[$0] }
   }
 
@@ -748,6 +762,81 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
     // Outline parents toggle through UIKit; the expansion handlers report the change.
     if row.parent && !row.navigates { return }
     onRowPress(["id": row.id])
+  }
+
+  func collectionView(
+    _ collectionView: UICollectionView,
+    contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
+    point: CGPoint
+  ) -> UIContextMenuConfiguration? {
+    guard let indexPath = indexPaths.first else { return nil }
+    return menuConfiguration(at: indexPath)
+  }
+
+  func collectionView(
+    _ collectionView: UICollectionView,
+    contextMenuConfigurationForItemAt indexPath: IndexPath,
+    point: CGPoint
+  ) -> UIContextMenuConfiguration? {
+    menuConfiguration(at: indexPath)
+  }
+
+  func collectionView(
+    _ collectionView: UICollectionView,
+    willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
+    animator: UIContextMenuInteractionCommitAnimating
+  ) {
+    guard let id = configuration.identifier as? String else { return }
+    animator.addCompletion { [weak self] in
+      self?.commitMenu(id)
+    }
+  }
+
+  private func menuConfiguration(at indexPath: IndexPath) -> UIContextMenuConfiguration? {
+    guard let row = row(at: indexPath), !row.menuActions.isEmpty else { return nil }
+    let identifier = row.id as NSString
+    let previewSession = row.preview == "session"
+    let userId = previewUserId
+    let workspaceId = previewWorkspaceId
+    return UIContextMenuConfiguration(identifier: identifier, previewProvider: {
+      guard previewSession else { return nil }
+      return ChatTranscriptPreviewController(
+        sessionId: row.id,
+        title: row.title,
+        userId: userId,
+        workspaceId: workspaceId
+      )
+    }, actionProvider: { [weak self] _ in
+      self?.menu(for: row)
+    })
+  }
+
+  private func menu(for row: LodyListRow) -> UIMenu {
+    UIMenu(children: row.menuActions.map { action in
+      UIAction(
+        title: action.title,
+        image: action.symbol.isEmpty ? nil : UIImage(systemName: action.symbol),
+        attributes: action.destructive ? [.destructive] : []
+      ) { [weak self] _ in
+        self?.performMenu(row, action)
+      }
+    })
+  }
+
+  private func performMenu(_ row: LodyListRow, _ action: LodyListAction) {
+    if action.id == "copyPath" {
+      UIPasteboard.general.string = row.subtitle
+      return
+    }
+    onRowAction(["id": row.id, "actionId": action.id])
+  }
+
+  private func commitMenu(_ id: String) {
+    if id.hasPrefix("toggle:") {
+      onRowPress(["id": "project:" + String(id.dropFirst(7))])
+      return
+    }
+    onRowPress(["id": id])
   }
 
   private func indexPath(for id: String) -> IndexPath? {

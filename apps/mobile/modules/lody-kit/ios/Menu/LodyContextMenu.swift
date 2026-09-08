@@ -1,11 +1,12 @@
 import ExpoModulesCore
 import UIKit
 
-struct LodyContextMenuAction: Record {
-  @Field var id: String = ""
-  @Field var title: String = ""
-  @Field var symbol: String = ""
-  @Field var destructive: Bool = false
+@Record
+struct LodyContextMenuAction {
+  var id: String = ""
+  var title: String = ""
+  var symbol: String = ""
+  var destructive: Bool = false
 }
 
 final class LodyContextMenu: ExpoView, UIContextMenuInteractionDelegate {
