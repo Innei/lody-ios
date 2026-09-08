@@ -1,0 +1,64 @@
+# Native OneSignal integration
+
+The iOS-only app keeps bundle ID `app.innei.lody` and uses the public OneSignal App
+ID `e383bf31-7c8e-4641-b3f6-3486e77b9a82`. `LODY_ONESIGNAL_APP_ID` can override it at
+prebuild time (an empty value disables initialization). No REST API key or APNs
+private key is shipped in the app.
+
+OneSignal iOS **5.5.1 Stable**, selected from the official
+https://onesignal.github.io/sdk-releases/releases.json, is pinned in LodyKit's podspec
+and the config plugin. CocoaPods installs the native SDK; there is no RN OneSignal
+bridge. LodyKit owns initialization, identity, subscription observation, click
+buffering and foreground policy. The Notification Service Extension uses the same
+SDK version and App Group `group.app.innei.lody.onesignal`.
+
+## Build and configure
+
+1. Configure this OneSignal App's iOS platform for `app.innei.lody` and its APNs key.
+2. Keep automatic signing and choose your Apple team. Register Push Notifications
+   and the App Group for the app, and the same group for the NSE identifier
+   `app.innei.lody.notifications`.
+3. Run `pnpm prebuild`, then `pnpm --filter @lody-ios/mobile pods`. The Podfile helper
+   idempotently creates the generated NSE target before CocoaPods analyzes it.
+4. Build the signed workspace (`pnpm ios`, or `xcodebuild` with normal signing).
+   The app embeds `LodyNotificationService.appex`. Changing the OneSignal App ID or
+   native configuration requires a new native build, not an OTA update.
+5. Configure Convex's generic `ONE_SIGNAL_APPS` inventory and the new app's secret
+   API key as documented in that backend's `PUSH_NOTIFICATIONS.md`.
+
+## Runtime behavior
+
+After account restoration, the native SDK uses the Better Auth user ID as its
+external ID. Login never prompts for permission; Settings → Notifications is the
+contextual permission entry. Logout detaches and opts out the current subscription,
+clears delivered notifications, and drops buffered clicks. Offline logout cannot
+synchronously revoke a remote provider binding; use neutral lock-screen previews.
+
+The SDK's Web launch URL is suppressed. RN handles `data.route` after auth and
+navigation become ready, checks the recipient and workspace, selects the workspace,
+then resolves the real Session from its catalog. Missing sessions wait during sync;
+completed sync reports an unavailable session. Foreground notifications for the
+focused session are suppressed. Permission data opens the session rather than
+executing an approval from a notification.
+
+The Debug page's **Verify OneSignal subscription** action observes a real server
+subscription (nonempty, not `local-`) and shows the official integration dialog once
+per process; the button can request permission. This developer-only scaffolding is
+kept out of product flows. Only subscription readiness is exposed, not token/ID data.
+Live Activities, in-app messages, email/SMS, and tags are not enabled by this change.
+
+## Verification
+
+- `pnpm check`, `pnpm test`, `pnpm bundle`, signed iOS Simulator build.
+- `pnpm verify:native --udid <disposable simulator>`.
+- `pnpm verify:ui --udid <disposable simulator> --app <Debug.app> --case notifications`.
+  Both appearances exercise the production settings with injected outcomes. The
+  native SDK is disabled under `--ui-verify`, so these checks create no subscriptions.
+- With real APNs configured, use a normal install/relaunch preserving app data.
+  Log in, grant permission, send a test notification to this installation, and check
+  foreground/background, cold-start navigation, account switching, and an image
+  notification (NSE). Check signed Push/App Group entitlements and extension embedding.
+  Never uninstall/reset just to repeat OneSignal registration verification.
+
+Offline checks prove local behavior and build wiring, not provider delivery. Real
+push delivery and backend activation require the configured OneSignal/APNs account.

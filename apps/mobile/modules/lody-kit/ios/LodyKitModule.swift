@@ -11,8 +11,9 @@ public final class LodyKitModule: Module {
   public func definition() -> ModuleDefinition {
     Name("LodyKit")
 
-    Events("onAppActive", "onDataRuntime")
+    Events("onAppActive", "onDataRuntime", "onPushClick")
     OnCreate {
+      PushNotifications.shared.onClickAvailable = { [weak self] in self?.sendEvent("onPushClick", [:]) }
       ContentPreview.clearAll()
       #if DEBUG
       if ProcessInfo.processInfo.arguments.contains("--lody-offline") {
@@ -122,7 +123,7 @@ public final class LodyKitModule: Module {
       self.dataRuntime.debugRestart()
       #endif
     }.runOnQueue(.main)
-    OnDestroy { DispatchQueue.main.async { self.dataRuntime.stop() } }
+    OnDestroy { DispatchQueue.main.async { self.dataRuntime.stop(); PushNotifications.shared.onClickAvailable = nil } }
 
     AsyncFunction("readLocalStartup") { try self.localStore.startup() }.runOnQueue(LocalStore.queue)
     AsyncFunction("readLocalValue") { (key: String) in try self.localStore.read(key) }.runOnQueue(LocalStore.queue)
@@ -136,9 +137,25 @@ public final class LodyKitModule: Module {
       }
     }.runOnQueue(.main)
 
+    AsyncFunction("verifyPushSubscription") {
+      #if DEBUG
+      guard let controller = self.appContext?.utilities?.currentViewController() else { return }
+      PushNotifications.shared.onRegistered = { [weak controller] in
+        if let controller { PushNotifications.shared.verify(from: controller) }
+      }
+      PushNotifications.shared.verify(from: controller)
+      #endif
+    }.runOnQueue(.main)
+    AsyncFunction("setPushUser") { (userId: String?) in PushNotifications.shared.identify(userId) }.runOnQueue(.main)
+    AsyncFunction("pushStatus") { (promise: Promise) in PushNotifications.shared.status { promise.resolve($0) } }.runOnQueue(.main)
+    AsyncFunction("requestPushPermission") { (promise: Promise) in PushNotifications.shared.request { promise.resolve($0) } }.runOnQueue(.main)
+    AsyncFunction("pendingPushClick") { PushNotifications.shared.readPending() }.runOnQueue(.main)
+    AsyncFunction("acknowledgePushClick") { (id: String) in PushNotifications.shared.acknowledge(id) }.runOnQueue(.main)
+    AsyncFunction("setPushVisibleRoute") { (route: String) in PushNotifications.shared.visibleRoute = route }.runOnQueue(.main)
+
     AsyncFunction("readAuthToken") { try AuthKeychain.read() }.runOnQueue(.main)
     AsyncFunction("saveAuthToken") { (token: String) in try AuthKeychain.save(token) }.runOnQueue(.main)
-    AsyncFunction("clearAuthToken") { self.dataRuntime.stop(); try AuthKeychain.clear() }.runOnQueue(.main)
+    AsyncFunction("clearAuthToken") { self.dataRuntime.stop(); PushNotifications.shared.identify(nil); try AuthKeychain.clear() }.runOnQueue(.main)
     AsyncFunction("openAuthBrowser") { (address: String) in
       guard let url = URL(string: address), url.scheme == "https", url.host == "lody.ai",
             url.user == nil, url.password == nil,

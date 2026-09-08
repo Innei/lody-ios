@@ -3,6 +3,7 @@ import {
   HomePreviewProviders,
 } from '@/screens/debug/HomePreviewScreen';
 import type { PropsWithChildren } from 'react';
+import { PushCoordinator } from '@/features/notifications/PushCoordinator';
 import { Stack, ThemeProvider } from 'expo-router';
 import { CatalogProvider } from '@/cloud/catalog/CatalogProvider';
 import { AuthProvider } from '@/cloud/auth/AuthProvider';
@@ -25,6 +26,7 @@ export default function RootLayout() {
     <ThemeProvider value={theme}>
       <Providers>
         <Bindings />
+        <PushCoordinator />
         <StatusBar style="auto" />
         <Stack
           screenOptions={{

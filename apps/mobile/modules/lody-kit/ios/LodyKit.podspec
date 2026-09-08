@@ -15,6 +15,7 @@ Pod::Spec.new do |s|
   s.static_framework = true
   s.libraries = 'sqlite3'
   s.dependency 'ExpoModulesCore'
+  s.dependency 'OneSignalXCFramework/OneSignal', '5.5.1'
   s.spm_dependency 'MarkdownView/MarkdownView'
   s.spm_dependency 'MarkdownView/MarkdownParser'
   s.spm_dependency 'YiTong/YiTong'

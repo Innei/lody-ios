@@ -50,3 +50,16 @@
 - UI changes must add/update a behavior check in `apps/mobile/verification/ui` or reuse the existing native checks. Shared controls must be exercised in each affected host.
 - Local checks omit `--udid` to lease a `Lody * Verify` Simulator. Wrap build + multi-check flows with `pnpm verify:simulator --name '<current verify>' -- <command>` and use `$LODY_VERIFY_UDID`; never call `simctl create` directly. Explicit `--udid` is for caller-owned devices such as CI. See `apps/mobile/verification/ui/README.md`.
 - Capture screenshots for visual states and video for temporal behavior. Missing scenes/timeouts fail verification; screenshots alone do not establish visual correctness.
+
+## Push notifications
+
+- Native OneSignal SDK ownership stays in LodyKit `Notifications/PushNotifications.swift`;
+  `PushAppDelegateSubscriber` initializes before RN, retains SDK listeners and caches
+  clicks until JS acknowledges them. RN subscriptions are removed on unmount.
+- `plugins/withPushNotifications.js` and `push-extension.rb` persist the NSE, App Group,
+  SDK pin and entitlements across prebuild. Never fix only generated `ios/` files.
+- Notification navigation accepts only the legacy workspace/session route and resolves
+  against the signed-in user's catalog. `recipientUserId` fences clicks after an
+  account switch; old payloads use the SDK's current external ID as a compatibility fallback.
+- Debug's offline notification fixture never initializes OneSignal or requests real
+  permission. See `apps/mobile/PUSH_NOTIFICATIONS.md` for setup and verification limits.

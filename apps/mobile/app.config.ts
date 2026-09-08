@@ -24,6 +24,14 @@ const config: ExpoConfig = {
     './plugins/withMarkdownView',
     './plugins/withLocales',
     'expo-localization',
+    [
+      './plugins/withPushNotifications',
+      {
+        appId:
+          process.env.LODY_ONESIGNAL_APP_ID ??
+          'e383bf31-7c8e-4641-b3f6-3486e77b9a82',
+      },
+    ],
   ],
   experiments: { typedRoutes: true, reactCompiler: true },
   runtimeVersion: { policy: 'fingerprint' },

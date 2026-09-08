@@ -1,3 +1,5 @@
+import { setPushVisibleRoute } from '@lody-ios/kit';
+import { useFocusEffect } from 'expo-router';
 import { Stack } from 'expo-router';
 import { usePendingSends } from '@/cloud/send/pendingSends';
 import { useConnection } from '@/cloud/catalog/connection';
@@ -66,6 +68,16 @@ function View() {
   const { account } = useAuth(),
     colors = usePalette();
   const { catalog, selected, serverSessions, refresh } = useCatalog();
+  useFocusEffect(
+    useCallback(() => {
+      void setPushVisibleRoute(
+        selected?.slug ? `/${selected.slug}/sessions/${session.id}` : '',
+      );
+      return () => {
+        void setPushVisibleRoute('');
+      };
+    }, [selected?.slug, session.id]),
+  );
   const connection = useConnection();
   const outbox = usePendingSends(account?.user.id ?? '', selected?.id ?? '');
   const pending = outbox.records.find(

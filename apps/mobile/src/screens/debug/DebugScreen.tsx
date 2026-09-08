@@ -4,6 +4,8 @@ import { writeLocal } from '@/cloud/kv';
 import { createPrefsKey } from '@/features/sessions/createPrefs';
 import { openSendPreview } from './SendPreviewScreen';
 import { BackgroundPreviewScreen } from './BackgroundPreviewScreen';
+import { pushStatus, verifyPushSubscription } from '@lody-ios/kit';
+import { NotificationPreviewScreen } from './NotificationPreviewScreen';
 import { uiVerify } from './uiVerify';
 import { ComposerPreviewScreen } from './ComposerPreviewScreen';
 import { ChatPreviewScreen } from './ChatPreviewScreen';
@@ -97,6 +99,13 @@ function View() {
       id: 'ui',
       header: '界面验收',
       rows: [
+        openRow('notification-preview', '通知权限验收', 'bell'),
+        {
+          id: 'push-subscription-verify',
+          title: '验证 OneSignal 订阅',
+          image: 'bell.badge',
+          action: true,
+        },
         openRow('permission-preview', '权限验收', 'hand.raised'),
         openRow('file-preview', '文件预览验收', 'doc'),
         openRow('onboarding-preview', '登录引导验收', 'hand.wave'),
@@ -191,6 +200,20 @@ function View() {
   );
 
   const actions: Record<string, () => void> = {
+    'notification-preview': () => {
+      void present(NotificationPreviewScreen, {});
+    },
+    'push-subscription-verify': () => {
+      void pushStatus().then(async (status) => {
+        await verifyPushSubscription();
+        if (!status.registered)
+          setResult(
+            status.configured
+              ? 'OneSignal 尚未完成服务端订阅注册'
+              : '当前构建未初始化 OneSignal',
+          );
+      });
+    },
     'permission-preview': () => void present(ChatPreviewScreen, {}),
     'file-preview': () => void present(FilePreviewScreen, {}),
     'onboarding-preview': () => void present(OnboardingPreviewScreen, {}),

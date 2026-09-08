@@ -22,10 +22,20 @@ export type DataRuntimeEvent = {
   revision?: number;
 };
 type Events = {
+  onPushClick: () => void;
   onAppActive: () => void;
   onDataRuntime: (event: DataRuntimeEvent) => void;
 };
 declare class LodyKitNativeModule extends NativeModule<Events> {
+  verifyPushSubscription(): Promise<void>;
+  setPushUser(userId: string | null): Promise<void>;
+  pushStatus(): Promise<import('../notifications/notifications').PushStatus>;
+  requestPushPermission(): Promise<boolean>;
+  pendingPushClick(): Promise<
+    import('../notifications/notifications').PushClick | null
+  >;
+  acknowledgePushClick(id: string): Promise<void>;
+  setPushVisibleRoute(route: string): Promise<void>;
   readLocalStartup(): Promise<{
     account?: string;
     workspace?: string;
@@ -79,7 +89,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
     mode: string,
   ): Promise<string>;
 }
-const native = requireNativeModule<LodyKitNativeModule>('LodyKit');
+export const native = requireNativeModule<LodyKitNativeModule>('LodyKit');
 export const remoteSettingsRaw = (payload: string): Promise<string> =>
   native.remoteSettings(payload);
 export const runtimeInfo = native.runtimeInfo;

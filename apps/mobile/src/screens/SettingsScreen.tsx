@@ -1,3 +1,4 @@
+import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
 import { useRouter } from 'expo-router';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { AccountScreen } from './AccountScreen';
@@ -78,6 +79,19 @@ function View() {
             offline: 'danger',
             syncing: 'secondary',
           }[connection.state],
+        },
+      ],
+    },
+    {
+      id: 'notifications',
+      rows: [
+        {
+          id: 'notifications',
+          title: '通知',
+          image: 'bell',
+          action: true,
+          disclosure: true,
+          navigates: true,
         },
       ],
     },
@@ -176,6 +190,8 @@ function View() {
             { title: settingsTitle(kind) },
           );
         }
+        if (nativeEvent.id === 'notifications')
+          void push(NotificationSettingsScreen, {});
         if (nativeEvent.id === 'archived') void push(ArchivedSessionsScreen);
         if (nativeEvent.id === 'debug-open') {
           cancel();
