@@ -44,11 +44,12 @@ checks = {
         'Toast/LodySessionBannerView.swift',
     ],
     'chat-title': ['Chat/ChatNavigationTitle.swift'],
+    'live-activity': ['../live-activity/LodyActivityAttributes.swift'],
 }
 with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
     for name, files in checks.items():
         binary = str(Path(output) / name)
-        simulator = name in ['chat-render', 'composer', 'attachments', 'inline-diff', 'list', 'banner', 'chat-title']
+        simulator = name in ['chat-render', 'composer', 'attachments', 'inline-diff', 'list', 'banner', 'chat-title', 'live-activity']
         command = ['xcrun', '--sdk', 'iphonesimulator', 'swiftc'] if simulator else ['xcrun', 'swiftc']
         command += ['-swift-version', '6']
         if simulator:
