@@ -142,6 +142,7 @@ precondition(route.absoluteString == "lody:///my%20space/sessions/a%2Fb%20c", ro
 
 print("PASS: activity payload tolerance, focus priority and tie-break, others cap, activity lifetimes, millisecond timestamps, deep-link encoding")
 
+let labels = LiveActivityCatalog.Labels(permission: "需要你授权", running: "正在工作")
 let catalog = LiveActivityCatalog.state(catalogJSON: """
 {
   "projects": [],
@@ -155,7 +156,7 @@ let catalog = LiveActivityCatalog.state(catalogJSON: """
     { "id": "nameless", "title": "No agent", "status": "pending", "lastMessageAt": 1757000005000 }
   ]
 }
-""")
+""", labels: labels)
 precondition(catalog.items.map(\.id) == ["run", "await", "queued", "nameless"], "idle and archived sessions are skipped")
 precondition(catalog.totalCount == 4)
 precondition(catalog.statusCounts.running == 3 && catalog.statusCounts.permission == 1)
@@ -172,9 +173,9 @@ precondition(catalog.items.map(\.agentLogoText) == ["CX", "CC", "GE", "AC"], "cl
 precondition(catalog.items[2].agentLogoKind == "gemini")
 precondition(catalog.items.allSatisfy { $0.permissionCommand == nil })
 
-let emptyCatalog = LiveActivityCatalog.state(catalogJSON: #"{"sessions": []}"#)
+let emptyCatalog = LiveActivityCatalog.state(catalogJSON: #"{"sessions": []}"#, labels: labels)
 precondition(emptyCatalog.items.isEmpty && !emptyCatalog.isActive && emptyCatalog.totalCount == 0)
-precondition(!LiveActivityCatalog.state(catalogJSON: "not json").isActive, "a broken catalog starts nothing")
+precondition(!LiveActivityCatalog.state(catalogJSON: "not json", labels: labels).isActive, "a broken catalog starts nothing")
 
 precondition(
   LodyActivityAttributes.activityId(workspaceId: "ws1", userId: "u1") == "lody-conversations:v5:ws1:u1"
