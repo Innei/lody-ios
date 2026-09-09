@@ -141,3 +141,42 @@ let route = LodyActivityAttributes.route(workspaceSlug: "my space", sessionId: "
 precondition(route.absoluteString == "lody:///my%20space/sessions/a%2Fb%20c", route.absoluteString)
 
 print("PASS: activity payload tolerance, focus priority and tie-break, others cap, activity lifetimes, millisecond timestamps, deep-link encoding")
+
+let catalog = LiveActivityCatalog.state(catalogJSON: """
+{
+  "projects": [],
+  "machineIds": ["m1"],
+  "sessions": [
+    { "id": "run", "title": "Build the widget", "status": "running", "lastMessageAt": 1757000002000, "agentType": "codex" },
+    { "id": "await", "title": "Approve force push", "status": "running", "awaitingUserSince": 1757000003000, "lastMessageAt": 1757000001000, "agentType": "claude" },
+    { "id": "idle", "title": "Old thread", "status": "completed", "lastMessageAt": 1757000000000, "agentType": "claude" },
+    { "id": "queued", "title": "Waiting to run", "status": "queued", "lastMessageAt": 1757000004000, "cliType": "gemini" },
+    { "id": "nameless", "title": "No agent", "status": "pending", "lastMessageAt": 1757000005000 }
+  ]
+}
+""")
+precondition(catalog.items.map(\.id) == ["run", "await", "queued", "nameless"], "idle sessions are skipped")
+precondition(catalog.totalCount == 4)
+precondition(catalog.statusCounts.running == 3 && catalog.statusCounts.permission == 1)
+precondition(catalog.statusCounts.question == 0 && catalog.statusCounts.unread == 0)
+precondition(catalog.isActive && catalog.needsAttention)
+precondition(catalog.focus?.id == "await", "awaiting sessions outrank running ones")
+precondition(catalog.items[1].status == .permission, "awaitingUserSince wins over a running status")
+precondition(catalog.items[1].statusLabel == "需要你授权")
+precondition(catalog.items[0].statusLabel == "正在工作")
+precondition(catalog.items[1].updatedAt == 1757000003000, "awaiting time is the newer stamp")
+precondition(catalog.items[0].updatedAt == 1757000002000)
+precondition(catalog.items[0].title == "Build the widget")
+precondition(catalog.items.map(\.agentLogoText) == ["CX", "CC", "GE", "AC"], "cliType stands in for a missing agentType")
+precondition(catalog.items[2].agentLogoKind == "gemini")
+precondition(catalog.items.allSatisfy { $0.permissionCommand == nil })
+
+let emptyCatalog = LiveActivityCatalog.state(catalogJSON: #"{"sessions": []}"#)
+precondition(emptyCatalog.items.isEmpty && !emptyCatalog.isActive && emptyCatalog.totalCount == 0)
+precondition(!LiveActivityCatalog.state(catalogJSON: "not json").isActive, "a broken catalog starts nothing")
+
+precondition(
+  LodyActivityAttributes.activityId(workspaceId: "ws1", userId: "u1") == "lody-conversations:v5:ws1:u1"
+)
+
+print("PASS: catalog mapping skips idle sessions, ranks awaiting first, and maps agent glyphs")

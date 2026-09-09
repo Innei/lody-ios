@@ -18,6 +18,8 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   private var health = RuntimeHealth()
   private var pingPending = false
   private var workspace: String?
+  private var workspaceSlug = ""
+  private var workspaceName = ""
   private var owner = ""
   private var generation = 0
   private var backgrounded = false
@@ -54,11 +56,12 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       }
     })
   }
-  func start(workspace: String, owner: String, userId: String) {
+  func start(workspace: String, slug: String, name: String, owner: String, userId: String) {
     disposeView()
     if self.workspace != workspace || self.userId != userId { sessionId = nil; retainedSessions = [] }
     self.userId = userId; cacheErrorShown = false
     self.workspace = workspace; self.owner = owner; health = RuntimeHealth()
+    workspaceSlug = slug; workspaceName = name
     backgrounded = UIApplication.shared.applicationState == .background
     if backgrounded { publish("background", reason: "paused") }
     else { build(reason: "subscribe") }
@@ -205,6 +208,13 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     case "catalog":
       guard let catalog = body["catalog"] as? String, catalog.utf8.count <= 12 * 1024 * 1024 else { return }
       publish("live", reason: "catalog", extra: ["catalog": catalog, "revision": body["revision"] ?? 0])
+      LiveActivities.shared.sync(
+        catalogJSON: catalog,
+        workspaceId: workspace ?? "",
+        workspaceSlug: workspaceSlug,
+        workspaceName: workspaceName,
+        userId: userId
+      )
     case "synced":
       if phase != "live" { publish("live", reason: "synced") }
     case "syncError": publish("offline", reason: body["reason"] as? String ?? "sync_failed")
@@ -448,7 +458,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     switch action {
     case "start":
       backgroundProbe = true; probeUpdates = 0; probeBackgroundUpdates = 0
-      start(workspace: "background-fixture", owner: "background-fixture", userId: "")
+      start(workspace: "background-fixture", slug: "background-fixture", name: "Background", owner: "background-fixture", userId: "")
       sessionId = "background-fixture"
     case "send":
       command("sendTurn", payload: #"{"sessionId":"background-fixture"}"#, promise: promise)

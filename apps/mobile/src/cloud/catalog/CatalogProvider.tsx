@@ -94,6 +94,8 @@ function useCatalogState() {
     });
     const stop = subscribeCatalog(
       selected.id,
+      selected.slug ?? selected.id,
+      selected.name,
       account.user.id,
       (event, data) => {
         if (data) {

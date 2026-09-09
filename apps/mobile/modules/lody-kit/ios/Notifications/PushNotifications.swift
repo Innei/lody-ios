@@ -143,6 +143,7 @@ public final class PushAppDelegateSubscriber: ExpoAppDelegateSubscriber {
 
   public func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
     PushNotifications.shared.start(launchOptions)
+    LiveActivities.shared.start()
     return true
   }
 }
