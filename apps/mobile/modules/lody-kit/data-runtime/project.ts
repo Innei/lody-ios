@@ -367,11 +367,7 @@ export function projectSession(
           ['pending_apply', 'pending', 'seen'].includes(entry.status) &&
           !replies.has(entry.id);
         if (!waitingSteer) return entry;
-        return {
-          ...entry,
-          status: 'queued',
-          canSteer: entry.status === 'pending',
-        };
+        return { ...entry, status: 'queued', canSteer: false };
       }),
       ...(doc.getMovableList('mq').toJSON() as any[])
         .filter(

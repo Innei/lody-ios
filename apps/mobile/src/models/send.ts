@@ -15,6 +15,7 @@ export type Capability = {
   modes: CapabilityChoice[];
   reasoningEfforts: Record<string, string[]>;
   reasoningEffortConfigId?: string;
+  steer: boolean;
 };
 
 export type CreationOptions = {

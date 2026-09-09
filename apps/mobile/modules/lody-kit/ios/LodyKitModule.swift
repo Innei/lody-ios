@@ -2,33 +2,242 @@ import ExpoModulesCore
 import UIKit
 import SafariServices
 
+@Record
+struct LodyRuntimeInfo {
+  var moduleName: String = "LodyKit"
+  var offlineProbe: Bool = false
+  var systemVersion: String = ""
+}
+
+@ExpoModule("LodyKit")
 public final class LodyKitModule: Module {
   private let localStore = LocalStore.shared
   private var authBrowser: SFSafariViewController?
 
   private lazy var dataRuntime = DataRuntime(localStore: localStore) { [weak self] event in self?.sendEvent("onDataRuntime", event) }
 
-  public func definition() -> ModuleDefinition {
-    Name("LodyKit")
+  @Event("onAppActive")
+  var onAppActive: () -> Void
 
-    Events("onAppActive", "onDataRuntime", "onPushClick")
-    OnCreate {
-      PushNotifications.shared.onClickAvailable = { [weak self] in self?.sendEvent("onPushClick", [:]) }
-      ContentPreview.clearAll()
-      #if DEBUG
-      if ProcessInfo.processInfo.arguments.contains("--lody-offline") {
-        URLProtocol.registerClass(OfflineProbe.self)
-      }
-      #endif
+  @JS
+  var initialInboxView: Int {
+    UserDefaults.standard.integer(forKey: "inboxView")
+  }
+
+  @JS
+  var runtimeInfo: LodyRuntimeInfo {
+    var offlineProbe = false
+    #if DEBUG
+    offlineProbe = ProcessInfo.processInfo.arguments.contains("--lody-offline")
+    #endif
+    return LodyRuntimeInfo(
+      moduleName: "LodyKit",
+      offlineProbe: offlineProbe,
+      systemVersion: UIDevice.current.systemVersion
+    )
+  }
+
+  public override func didCreate() {
+    PushNotifications.shared.onClickAvailable = { [weak self] in self?.sendEvent("onPushClick", [:]) }
+    ContentPreview.clearAll()
+    #if DEBUG
+    if ProcessInfo.processInfo.arguments.contains("--lody-offline") {
+      URLProtocol.registerClass(OfflineProbe.self)
     }
+    #endif
+  }
 
-    AsyncFunction("watchCatalog") { (workspace: String, owner: String, userId: String) in
+  public override func willDestroy() {
+    DispatchQueue.main.async { self.dataRuntime.stop(); PushNotifications.shared.onClickAvailable = nil }
+  }
+
+  @JS
+  func watchCatalog(workspace: String, owner: String, userId: String) async throws {
+    try await runOnMain {
       guard !workspace.isEmpty, !owner.isEmpty, !userId.isEmpty else { throw NSError(domain: "InvalidSubscription", code: 1) }
       self.dataRuntime.start(workspace: workspace, owner: owner, userId: userId)
+    }
+  }
+
+  @JS
+  func unwatchCatalog(owner: String) async {
+    await runOnMain { self.dataRuntime.stop(owner: owner) }
+  }
+
+  @JS
+  func watchSession(id: String) async {
+    await runOnMain { self.dataRuntime.openSession(id) }
+  }
+
+  @JS
+  func unwatchSession(id: String) async {
+    await runOnMain { self.dataRuntime.closeSession(id) }
+  }
+
+  @JS
+  func readContentText(handle: String) async -> String? {
+    await runOnMain {
+      ContentStore.shared.get(handle).flatMap { String(data: $0.data, encoding: .utf8) }
+    }
+  }
+
+  @JS
+  func previewContent(handle: String) async throws {
+    try await runOnMain {
+      guard let controller = self.appContext?.utilities?.currentViewController() else {
+        throw NSError(domain: "LodyKit.ContentPreview", code: 2)
+      }
+      try ContentPreview.present(handle: handle, from: controller)
+    }
+  }
+
+  @JS
+  func debugHangDataRuntime() async {
+    await runOnMain {
+      #if DEBUG
+      self.dataRuntime.debugHang()
+      #endif
+    }
+  }
+
+  @JS
+  func debugRestartDataRuntime() async {
+    await runOnMain {
+      #if DEBUG
+      self.dataRuntime.debugRestart()
+      #endif
+    }
+  }
+
+  @JS
+  func readLocalStartup() async throws -> [String: String] {
+    try await runOnStore { try self.localStore.startup() }
+  }
+
+  @JS
+  func readLocalValue(key: String) async throws -> String? {
+    try await runOnStore { try self.localStore.read(key) }
+  }
+
+  @JS
+  func writeLocalValue(key: String, value: String) async throws {
+    try await runOnStore { try self.localStore.write(key, value) }
+  }
+
+  @JS
+  func readAuthToken() async throws -> String? {
+    try await runOnMain { try AuthKeychain.read() }
+  }
+
+  @JS
+  func saveAuthToken(token: String) async throws {
+    try await runOnMain { try AuthKeychain.save(token) }
+  }
+
+  @JS
+  func clearAuthToken() async throws {
+    try await runOnMain {
+      self.dataRuntime.stop()
+      PushNotifications.shared.identify(nil)
+      try AuthKeychain.clear()
+    }
+  }
+
+  @JS
+  func openAuthBrowser(address: String) async throws {
+    try await runOnMain {
+      guard let url = URL(string: address), url.scheme == "https", url.host == "lody.ai",
+            url.user == nil, url.password == nil,
+            let controller = self.appContext?.utilities?.currentViewController() else {
+        throw NSError(domain: "LodyKit.AuthBrowser", code: 1)
+      }
+      let browser = SFSafariViewController(url: url)
+      self.authBrowser = browser
+      controller.present(browser, animated: true)
+    }
+  }
+
+  @JS
+  func closeAuthBrowser() async {
+    await runOnMain {
+      self.authBrowser?.dismiss(animated: true)
+      self.authBrowser = nil
+    }
+  }
+
+  @JS
+  func selectionFeedback() async {
+    await runOnMain { UISelectionFeedbackGenerator().selectionChanged() }
+  }
+
+  @JS
+  func showToast(message: String, kind: String) {
+    if Thread.isMainThread {
+      LodyToastOverlay.shared.show(message: message, kind: kind)
+    } else {
+      DispatchQueue.main.async {
+        LodyToastOverlay.shared.show(message: message, kind: kind)
+      }
+    }
+  }
+
+  @JS
+  func showSessionBanner(title: String, kind: String) {
+    if Thread.isMainThread {
+      LodyToastOverlay.shared.showBanner(title: title, kind: kind)
+    } else {
+      DispatchQueue.main.async {
+        LodyToastOverlay.shared.showBanner(title: title, kind: kind)
+      }
+    }
+  }
+
+  @JS
+  func dismissSessionBanner() {
+    if Thread.isMainThread {
+      LodyToastOverlay.shared.dismissBanner()
+    } else {
+      DispatchQueue.main.async {
+        LodyToastOverlay.shared.dismissBanner()
+      }
+    }
+  }
+
+  @JS
+  func saveInboxView(index: Int) {
+    UserDefaults.standard.set(index == 1 ? 1 : 0, forKey: "inboxView")
+  }
+
+  @JS
+  func readInboxExpansion() -> [String: Bool] {
+    UserDefaults.standard.dictionary(forKey: "inboxExpansion") as? [String: Bool] ?? [:]
+  }
+
+  @JS
+  func saveInboxExpansion(projectID: String, expanded: Bool) {
+    var values = UserDefaults.standard.dictionary(forKey: "inboxExpansion") as? [String: Bool] ?? [:]
+    values[projectID] = expanded
+    UserDefaults.standard.set(values, forKey: "inboxExpansion")
+  }
+
+  public func definition() -> ModuleDefinition {
+    Events("onDataRuntime", "onPushClick")
+    AsyncFunction("verifyPushSubscription") {
+      #if DEBUG
+      guard let controller = self.appContext?.utilities?.currentViewController() else { return }
+      PushNotifications.shared.onRegistered = { [weak controller] in
+        if let controller { PushNotifications.shared.verify(from: controller) }
+      }
+      PushNotifications.shared.verify(from: controller)
+      #endif
     }.runOnQueue(.main)
-    AsyncFunction("unwatchCatalog") { (owner: String) in self.dataRuntime.stop(owner: owner) }.runOnQueue(.main)
-    AsyncFunction("watchSession") { (id: String) in self.dataRuntime.openSession(id) }.runOnQueue(.main)
-    AsyncFunction("unwatchSession") { (id: String) in self.dataRuntime.closeSession(id) }.runOnQueue(.main)
+    AsyncFunction("setPushUser") { (userId: String?) in PushNotifications.shared.identify(userId) }.runOnQueue(.main)
+    AsyncFunction("pushStatus") { (promise: Promise) in PushNotifications.shared.status { promise.resolve($0) } }.runOnQueue(.main)
+    AsyncFunction("requestPushPermission") { (promise: Promise) in PushNotifications.shared.request { promise.resolve($0) } }.runOnQueue(.main)
+    AsyncFunction("pendingPushClick") { PushNotifications.shared.readPending() }.runOnQueue(.main)
+    AsyncFunction("acknowledgePushClick") { (id: String) in PushNotifications.shared.acknowledge(id) }.runOnQueue(.main)
+    AsyncFunction("setPushVisibleRoute") { (route: String) in PushNotifications.shared.visibleRoute = route }.runOnQueue(.main)
+
     AsyncFunction("sessionCreationOptions") { (payload: String, promise: Promise) in self.dataRuntime.command("creationOptions", payload: payload, promise: promise) }.runOnQueue(.main)
     AsyncFunction("localProjects") { (payload: String, promise: Promise) in self.dataRuntime.command("localProjects", payload: payload, promise: promise) }.runOnQueue(.main)
     AsyncFunction("remoteSettings") { (payload: String, promise: Promise) in self.dataRuntime.command("remoteSettings", payload: payload, promise: promise) }.runOnQueue(.main)
@@ -37,7 +246,32 @@ public final class LodyKitModule: Module {
     AsyncFunction("pinSession") { (payload: String, promise: Promise) in self.dataRuntime.command("pinSession", payload: payload, promise: promise) }.runOnQueue(.main)
     AsyncFunction("controlSessionTurn") { (payload: String, promise: Promise) in self.dataRuntime.command("controlTurn", payload: payload, promise: promise) }.runOnQueue(.main)
     AsyncFunction("sendSessionTurn") { (payload: String, promise: Promise) in self.dataRuntime.sendTurn(payload, promise: promise) }.runOnQueue(.main)
-    AsyncFunction("sessionItemDetail") { (payload: String, promise: Promise) in self.dataRuntime.command("itemDetail", payload: payload, promise: promise) }.runOnQueue(.main)
+    AsyncFunction("sessionItemDetail") { (payload: String, promise: Promise) in
+      #if DEBUG
+      if ProcessInfo.processInfo.arguments.contains("--ui-verify"),
+        let data = payload.data(using: .utf8),
+        let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        params["sessionId"] as? String == "ui-verify-diff",
+        params["entryId"] as? String == "diff-preview",
+        params["itemId"] as? String == "edit"
+      {
+        let result = try JSONSerialization.data(withJSONObject: [
+          "itemId": "edit",
+          "rev": 1,
+          "truncated": false,
+          "blocks": [[
+            "type": "diff",
+            "path": "src/inline.ts",
+            "oldText": "export const greeting = 'hi'\n",
+            "newText": "export const greeting = 'hello'\n",
+          ]],
+        ])
+        promise.resolve(String(decoding: result, as: UTF8.self))
+        return
+      }
+      #endif
+      self.dataRuntime.command("itemDetail", payload: payload, promise: promise)
+    }.runOnQueue(.main)
     AsyncFunction("respondSessionPermission") { (payload: String, promise: Promise) in self.dataRuntime.command("respondPermission", payload: payload, promise: promise) }.runOnQueue(.main)
     AsyncFunction("turnDiff") { (payload: String, promise: Promise) in
       #if DEBUG
@@ -89,15 +323,6 @@ public final class LodyKitModule: Module {
       #endif
       self.dataRuntime.command("listDir", payload: payload, promise: promise)
     }.runOnQueue(.main)
-    AsyncFunction("readContentText") { (handle: String) -> String? in
-      ContentStore.shared.get(handle).flatMap { String(data: $0.data, encoding: .utf8) }
-    }.runOnQueue(.main)
-    AsyncFunction("previewContent") { (handle: String) in
-      guard let controller = self.appContext?.utilities?.currentViewController() else {
-        throw NSError(domain: "LodyKit.ContentPreview", code: 2)
-      }
-      try ContentPreview.present(handle: handle, from: controller)
-    }.runOnQueue(.main)
     AsyncFunction("dataRuntimeStatus") { self.dataRuntime.status() }.runOnQueue(.main)
     AsyncFunction("debugProbeSchema") { (promise: Promise) in
       #if DEBUG
@@ -113,21 +338,6 @@ public final class LodyKitModule: Module {
       promise.resolve("{}")
       #endif
     }.runOnQueue(.main)
-    AsyncFunction("debugHangDataRuntime") {
-      #if DEBUG
-      self.dataRuntime.debugHang()
-      #endif
-    }.runOnQueue(.main)
-    AsyncFunction("debugRestartDataRuntime") {
-      #if DEBUG
-      self.dataRuntime.debugRestart()
-      #endif
-    }.runOnQueue(.main)
-    OnDestroy { DispatchQueue.main.async { self.dataRuntime.stop(); PushNotifications.shared.onClickAvailable = nil } }
-
-    AsyncFunction("readLocalStartup") { try self.localStore.startup() }.runOnQueue(LocalStore.queue)
-    AsyncFunction("readLocalValue") { (key: String) in try self.localStore.read(key) }.runOnQueue(LocalStore.queue)
-    AsyncFunction("writeLocalValue") { (key: String, value: String) in try self.localStore.write(key, value) }.runOnQueue(LocalStore.queue)
     AsyncFunction("clearLocalValues") { (promise: Promise) in
       // Stop producers before clearing their queued writes, including background Sessions.
       self.dataRuntime.stop()
@@ -135,40 +345,6 @@ public final class LodyKitModule: Module {
         do { try self.localStore.clear(); promise.resolve(nil) }
         catch { promise.reject(error) }
       }
-    }.runOnQueue(.main)
-
-    AsyncFunction("verifyPushSubscription") {
-      #if DEBUG
-      guard let controller = self.appContext?.utilities?.currentViewController() else { return }
-      PushNotifications.shared.onRegistered = { [weak controller] in
-        if let controller { PushNotifications.shared.verify(from: controller) }
-      }
-      PushNotifications.shared.verify(from: controller)
-      #endif
-    }.runOnQueue(.main)
-    AsyncFunction("setPushUser") { (userId: String?) in PushNotifications.shared.identify(userId) }.runOnQueue(.main)
-    AsyncFunction("pushStatus") { (promise: Promise) in PushNotifications.shared.status { promise.resolve($0) } }.runOnQueue(.main)
-    AsyncFunction("requestPushPermission") { (promise: Promise) in PushNotifications.shared.request { promise.resolve($0) } }.runOnQueue(.main)
-    AsyncFunction("pendingPushClick") { PushNotifications.shared.readPending() }.runOnQueue(.main)
-    AsyncFunction("acknowledgePushClick") { (id: String) in PushNotifications.shared.acknowledge(id) }.runOnQueue(.main)
-    AsyncFunction("setPushVisibleRoute") { (route: String) in PushNotifications.shared.visibleRoute = route }.runOnQueue(.main)
-
-    AsyncFunction("readAuthToken") { try AuthKeychain.read() }.runOnQueue(.main)
-    AsyncFunction("saveAuthToken") { (token: String) in try AuthKeychain.save(token) }.runOnQueue(.main)
-    AsyncFunction("clearAuthToken") { self.dataRuntime.stop(); PushNotifications.shared.identify(nil); try AuthKeychain.clear() }.runOnQueue(.main)
-    AsyncFunction("openAuthBrowser") { (address: String) in
-      guard let url = URL(string: address), url.scheme == "https", url.host == "lody.ai",
-            url.user == nil, url.password == nil,
-            let controller = self.appContext?.utilities?.currentViewController() else {
-        throw NSError(domain: "LodyKit.AuthBrowser", code: 1)
-      }
-      let browser = SFSafariViewController(url: url)
-      self.authBrowser = browser
-      controller.present(browser, animated: true)
-    }.runOnQueue(.main)
-    AsyncFunction("closeAuthBrowser") {
-      self.authBrowser?.dismiss(animated: true)
-      self.authBrowser = nil
     }.runOnQueue(.main)
     AsyncFunction("decodeFlock") { (snapshot: String, updates: [String], mode: String, promise: Promise) in
       guard snapshot.utf8.count + updates.reduce(0, { $0 + $1.utf8.count }) <= 12 * 1024 * 1024 else {
@@ -183,66 +359,7 @@ public final class LodyKitModule: Module {
     }.runOnQueue(.main)
 
     OnAppBecomesActive {
-      self.sendEvent("onAppActive", [:])
-    }
-
-    Function("showToast") { (message: String, kind: String) in
-      if Thread.isMainThread {
-        LodyToastOverlay.shared.show(message: message, kind: kind)
-      } else {
-        DispatchQueue.main.async {
-          LodyToastOverlay.shared.show(message: message, kind: kind)
-        }
-      }
-    }
-
-    Function("showSessionBanner") { (title: String, kind: String) in
-      if Thread.isMainThread {
-        LodyToastOverlay.shared.showBanner(title: title, kind: kind)
-      } else {
-        DispatchQueue.main.async {
-          LodyToastOverlay.shared.showBanner(title: title, kind: kind)
-        }
-      }
-    }
-
-    Function("dismissSessionBanner") {
-      if Thread.isMainThread {
-        LodyToastOverlay.shared.dismissBanner()
-      } else {
-        DispatchQueue.main.async {
-          LodyToastOverlay.shared.dismissBanner()
-        }
-      }
-    }
-
-    AsyncFunction("selectionFeedback") {
-      UISelectionFeedbackGenerator().selectionChanged()
-    }.runOnQueue(.main)
-
-    Function("saveInboxView") { (index: Int) in
-      UserDefaults.standard.set(index == 1 ? 1 : 0, forKey: "inboxView")
-    }
-
-    Function("readInboxExpansion") {
-      UserDefaults.standard.dictionary(forKey: "inboxExpansion") as? [String: Bool] ?? [:]
-    }
-    Function("saveInboxExpansion") { (projectID: String, expanded: Bool) in
-      var values = UserDefaults.standard.dictionary(forKey: "inboxExpansion") as? [String: Bool] ?? [:]
-      values[projectID] = expanded
-      UserDefaults.standard.set(values, forKey: "inboxExpansion")
-    }
-
-    Constants {
-      var offlineProbe = false
-      #if DEBUG
-      offlineProbe = ProcessInfo.processInfo.arguments.contains("--lody-offline")
-      #endif
-      return ["initialInboxView": UserDefaults.standard.integer(forKey: "inboxView"), "runtimeInfo": [
-        "moduleName": "LodyKit",
-        "offlineProbe": offlineProbe,
-        "systemVersion": UIDevice.current.systemVersion,
-      ]]
+      self.onAppActive()
     }
 
     View(LodyComposerView.self) {
@@ -302,14 +419,11 @@ public final class LodyKitModule: Module {
       Prop("path") { (view: LodyCodeView, value: String) in view.setPath(value) }
     }
 
-    View(LodyDiffView.self) {
+    View(LodyInlineDiffView.self) {
       Events("onRender", "onFail")
-      Prop("path") { (view: LodyDiffView, value: String) in view.setPath(value) }
-      Prop("oldText") { (view: LodyDiffView, value: String?) in view.setOldText(value) }
-      Prop("newText") { (view: LodyDiffView, value: String?) in view.setNewText(value) }
-      Prop("handle") { (view: LodyDiffView, value: String?) in view.setHandle(value ?? "") }
-      Prop("diffStyle") { (view: LodyDiffView, value: String?) in view.setStyle(value ?? "unified") }
-      Prop("scrollEnabled") { (view: LodyDiffView, value: Bool?) in view.setScrollEnabled(value ?? true) }
+      Prop("path") { (view: LodyInlineDiffView, value: String) in view.setPath(value) }
+      Prop("oldText") { (view: LodyInlineDiffView, value: String?) in view.setOldText(value) }
+      Prop("newText") { (view: LodyInlineDiffView, value: String?) in view.setNewText(value) }
     }
 
     View(LodyGroupedList.self) {
@@ -337,6 +451,12 @@ public final class LodyKitModule: Module {
       }
       Prop("placeholder") { (view: LodyGroupedList, placeholder: String) in
         view.setPlaceholder(placeholder)
+      }
+      Prop("previewUserId") { (view: LodyGroupedList, value: String) in
+        view.setPreviewUserId(value)
+      }
+      Prop("previewWorkspaceId") { (view: LodyGroupedList, value: String) in
+        view.setPreviewWorkspaceId(value)
       }
     }
     View(LodyMenuButton.self) {
@@ -422,6 +542,32 @@ public final class LodyKitModule: Module {
       }
       Prop("tint") { (view: LodyGlassSurface, tint: String) in
         view.setTint(tint)
+      }
+    }
+  }
+
+  private func runOnMain<T>(_ work: @escaping () throws -> T) async throws -> T {
+    try await withCheckedThrowingContinuation { continuation in
+      DispatchQueue.main.async {
+        do { continuation.resume(returning: try work()) }
+        catch { continuation.resume(throwing: error) }
+      }
+    }
+  }
+
+  private func runOnMain<T>(_ work: @escaping () -> T) async -> T {
+    await withCheckedContinuation { continuation in
+      DispatchQueue.main.async {
+        continuation.resume(returning: work())
+      }
+    }
+  }
+
+  private func runOnStore<T>(_ work: @escaping () throws -> T) async throws -> T {
+    try await withCheckedThrowingContinuation { continuation in
+      LocalStore.queue.async {
+        do { continuation.resume(returning: try work()) }
+        catch { continuation.resume(throwing: error) }
       }
     }
   }

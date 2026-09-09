@@ -53,7 +53,6 @@ await writeFile(
 for (const name of [
   'MarkdownView',
   'Litext',
-  'YiTong',
   'pierre-diffs',
   'MaterialIconTheme',
 ]) {

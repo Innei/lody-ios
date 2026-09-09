@@ -1,13 +1,13 @@
-import type { Flock } from '@loro-dev/flock-wasm/base64';
+import type { Flock, Value } from '@loro-dev/flock-wasm/base64';
 import type { StreamsClient } from '@loro-dev/streams-client';
 import { encodeFrame } from '../decoder/frames';
 import { clientFor } from './session';
 
 type Grant = () => Promise<{ token: string; gatewayBaseUrl: string }>;
 
-function object(value: unknown): Record<string, unknown> {
+function object(value: unknown): { [key: string]: Value } {
   return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
+    ? (value as { [key: string]: Value })
     : {};
 }
 

@@ -108,7 +108,10 @@ function SendSource() {
 }
 
 function SendPreview() {
-  const { params } = usePageRuntime<{ queue?: boolean } | undefined, void>();
+  const { params } = usePageRuntime<
+    { queue?: boolean; steer?: boolean } | undefined,
+    void
+  >();
   const queue = params?.queue === true;
   const colors = usePalette();
   const outbox = usePendingSends('ui-send-preview', 'fixture');
@@ -146,12 +149,18 @@ function SendPreview() {
     resolve: (result: string) => void;
   } | null>(null);
   const [controlRequest, setControlRequest] = useState('');
-  const control = useSessionControl(session, snapshot, false, (payload) => {
-    setControlRequest(payload);
-    return new Promise((resolve) => {
-      controlPending.current = { args: JSON.parse(payload), resolve };
-    });
-  });
+  const control = useSessionControl(
+    session,
+    snapshot,
+    false,
+    params?.steer !== false,
+    (payload) => {
+      setControlRequest(payload);
+      return new Promise((resolve) => {
+        controlPending.current = { args: JSON.parse(payload), resolve };
+      });
+    },
+  );
   const services = useRef({
     createSession: () =>
       new Promise<string>((resolve) => {
@@ -325,6 +334,7 @@ function SendPreview() {
           stopping: control.stopping,
           controlling: control.controlling,
           steerID: control.steerID,
+          steerInterrupts: control.steerInterrupts,
           notice: '',
           reconnect: false,
           placeholder: '断网也可以发送',
@@ -360,7 +370,10 @@ const sourcePage = definePage<undefined, void>({
     sheetAllowedDetents: [0.62, 1],
   },
 });
-const targetPage = definePage<{ queue?: boolean } | undefined, void>({
+const targetPage = definePage<
+  { queue?: boolean; steer?: boolean } | undefined,
+  void
+>({
   id: 'send-preview',
   parseRouteParams: () => undefined,
   title: '发送交接验收',
@@ -368,12 +381,16 @@ const targetPage = definePage<{ queue?: boolean } | undefined, void>({
   presentation: { style: 'push', headerVariant: 'transparent' },
 });
 
-export async function openSendPreview(source: boolean, queue = false) {
+export async function openSendPreview(
+  source: boolean,
+  queue = false,
+  steer = true,
+) {
   const { getPendingSendStore } = await import('@/cloud/send/pendingSends');
   await getPendingSendStore('ui-send-preview', 'fixture').remove(session.id);
   if (source) {
     const result = await present(sourcePage);
     if (result.status !== 'completed') return;
   }
-  await present(targetPage, { queue });
+  await present(targetPage, { queue, steer });
 }

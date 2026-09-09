@@ -30,9 +30,9 @@ checks = {
     'local-store': ['Cloud/LocalStore.swift'],
     'content-store': ['Cloud/ContentStore.swift'],
     'chat-render': ['LodyStrings.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'Chat/ChatThrowCurve.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatCell.swift'],
-    'composer': ['LodyStrings.swift', 'UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatAttachmentSheet.swift', 'Chat/ChatComposerView.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'Chat/ChatThrowCurve.swift', 'LodyTint.swift'],
+    'composer': ['LodyStrings.swift', 'UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatAttachmentSheet.swift', 'Chat/ChatComposerSurfaceLayout.swift', 'Chat/ChatComposerLegacySurfaceLayout.swift', 'Chat/ChatComposerLiquidGlassSurfaceLayout.swift', 'Chat/ChatComposerView.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'Chat/ChatThrowCurve.swift', 'LodyTint.swift'],
     'attachments': ['LodyStrings.swift', 'Cloud/SessionAttachments.swift'],
-    'diff-font': ['Diff/DiffWebTypography.swift'],
+    'inline-diff': ['UIFont+Dynamic.swift', 'Diff/InlineDiffModel.swift', 'Diff/InlineDiffRenderer.swift'],
     'list': [
         'Chrome/LodyMenuButtonStyle.swift',
         'List/LodyListCellBackground.swift',
@@ -42,19 +42,21 @@ checks = {
         'LodyStrings.swift',
         'Toast/LodySessionBannerView.swift',
     ],
+    'chat-title': ['Chat/ChatNavigationTitle.swift'],
 }
 with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
     for name, files in checks.items():
         binary = str(Path(output) / name)
-        simulator = name in ['chat-render', 'composer', 'attachments', 'diff-font', 'list', 'banner']
+        simulator = name in ['chat-render', 'composer', 'attachments', 'inline-diff', 'list', 'banner', 'chat-title']
         command = ['xcrun', '--sdk', 'iphonesimulator', 'swiftc'] if simulator else ['xcrun', 'swiftc']
         if simulator:
             arch = 'arm64' if platform.machine() == 'arm64' else 'x86_64'
-            command += ['-sdk', sdk, '-target', f'{arch}-apple-ios18.0-simulator']
+            ios = '26.0' if name == 'chat-title' else '18.0'
+            command += ['-sdk', sdk, '-target', f'{arch}-apple-ios{ios}-simulator']
         if name == 'attachments':
             command += ['-parse-as-library']
-        if name == 'diff-font':
-            command += ['-framework', 'WebKit']
+        if name == 'inline-diff':
+            command += ['-framework', 'UIKit']
         if name == 'local-store':
             command += ['-lsqlite3']
         command += [str(kit / 'ios' / file) for file in files]

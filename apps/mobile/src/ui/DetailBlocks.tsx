@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import { NativeDiff } from '@lody-ios/kit';
+import { NativeInlineDiff } from '@lody-ios/kit';
 import { usePalette } from '@/lib/theme/palette';
 import { AppText } from '@/ui/AppText';
 import { t } from '../lib/i18n/index.ts';
@@ -25,11 +25,10 @@ export function DiffBlock({ block }: { block: DetailBlock }) {
   return (
     <View style={{ gap: 6 }}>
       {block.path ? <AppText variant="meta">{block.path}</AppText> : null}
-      <NativeDiff
+      <NativeInlineDiff
         path={block.path ?? ''}
         oldText={block.oldText ?? ''}
         newText={block.newText ?? ''}
-        scrollEnabled={false}
         style={{
           height: Math.max(height, 44),
           borderRadius: 12,

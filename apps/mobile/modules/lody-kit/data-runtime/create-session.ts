@@ -112,6 +112,8 @@ export function creationOptions(
           ...(typeof effortOption?.id === 'string' && effortOption.id
             ? { reasoningEffortConfigId: effortOption.id }
             : {}),
+          steer:
+            value.acknowledgedSteer === true && value.provenance === 'runtime',
           fetchedAt,
         });
         continue;

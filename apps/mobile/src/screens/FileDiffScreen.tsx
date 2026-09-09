@@ -1,16 +1,22 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, View as RNView } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  NativeDiff,
+  ActivityIndicator,
+  Text,
+  useColorScheme,
+  View as RNView,
+} from 'react-native';
+import {
   NativeDiffToolbar,
   fileDiff,
   previewContent,
+  readContentText,
   readFile,
   readLocalValue,
   turnDiff,
   writeLocalValue,
   type DiffContent,
 } from '@lody-ios/kit';
+import { DiffView } from '@/features/diff/DiffView';
 import { definePage } from '@/lib/presentation';
 import { usePalette } from '@/lib/theme/palette';
 import { AppText } from '@/ui/AppText';
@@ -43,9 +49,13 @@ function View() {
   const { params } = usePageRuntime<FileDiffParams>();
   const colors = usePalette();
   const [diff, setDiff] = useState<DiffContent>();
+  const [sides, setSides] = useState<{ old: string; new: string }>();
   const [error, setError] = useState('');
   const [style, setStyle] = useState<DiffStyle>('unified');
   const [revision, setRevision] = useState(0);
+  const [renderMs, setRenderMs] = useState<number>();
+  const readyAt = useRef(0);
+  const theme = useColorScheme() === 'dark' ? 'dark' : 'light';
 
   useEffect(() => {
     void readLocalValue(STYLE_KEY)
@@ -56,6 +66,8 @@ function View() {
   useEffect(() => {
     let active = true;
     setDiff(undefined);
+    setSides(undefined);
+    setRenderMs(undefined);
     setError('');
     const request = params.entryId
       ? turnDiff({
@@ -65,7 +77,20 @@ function View() {
         })
       : fileDiff({ sessionId: params.sessionId, path: params.path });
     request
-      .then((value) => active && setDiff(value))
+      .then(async (value) => {
+        if (!active) return;
+        setDiff(value);
+        if (value.status !== 'ok') return;
+        const raw = await readContentText(value.handle);
+        if (!active) return;
+        if (!raw) {
+          setError(t('diff.error.render'));
+          return;
+        }
+        const parsed = JSON.parse(raw) as { old?: string; new?: string };
+        readyAt.current = Date.now();
+        setSides({ old: parsed.old ?? '', new: parsed.new ?? '' });
+      })
       .catch((cause: Error) => {
         if (!active) return;
         setError(
@@ -129,15 +154,50 @@ function View() {
   else if (diff.newKind === 'too_large' || diff.oldKind === 'too_large')
     body = <Notice text={t('diff.error.tooLarge')} />;
   else
-    body = (
-      <NativeDiff
-        style={{ flex: 1 }}
-        path={params.path}
-        handle={diff.handle}
-        diffStyle={style}
-        onFail={() => setError(t('diff.error.render'))}
-      />
-    );
+    body =
+      sides == null ? (
+        <ActivityIndicator style={{ flex: 1 }} color={colors.secondaryLabel} />
+      ) : (
+        <>
+          <DiffView
+            path={params.path}
+            oldText={sides.old}
+            newText={sides.new}
+            diffStyle={style}
+            theme={theme}
+            dom={{
+              shared: true,
+              matchContents: false,
+              scrollEnabled: true,
+              style: { flex: 1 },
+              onMessage: (event) => {
+                try {
+                  const payload = JSON.parse(event.nativeEvent.data) as {
+                    type?: string;
+                  };
+                  if (payload.type === 'lody:diff-rendered') {
+                    const started = readyAt.current || Date.now();
+                    setRenderMs(Math.max(1, Date.now() - started));
+                  }
+                } catch {
+                  /* ignore */
+                }
+              },
+            }}
+          />
+          {renderMs != null ? (
+            <RNView
+              collapsable={false}
+              accessible
+              accessibilityLabel={`${renderMs}`}
+              nativeID="diff-render-ms"
+              testID="diff-render-ms"
+              pointerEvents="none"
+              style={{ position: 'absolute', width: 44, height: 44 }}
+            />
+          ) : null}
+        </>
+      );
 
   return (
     <RNView style={{ flex: 1, backgroundColor: colors.reading }}>

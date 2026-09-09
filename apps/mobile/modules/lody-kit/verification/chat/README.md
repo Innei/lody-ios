@@ -90,8 +90,9 @@ Kansoku's active-turn spacer behavior; Reduce Motion uses immediate positioning.
 
 The preview geometry check also taps the native navigation title and verifies its
 detail action, then checks live segment boundaries and conclusion-only completion.
-The title is installed directly as `UINavigationItem.titleView`, with UIKit owning
-its layout and scroll edge; no React Native header title wrapper is involved.
+The session title is a tappable `UINavigationItem.titleView`. The project name
+lives on `UINavigationItem.subtitle` so it survives react-native-screens clearing
+`titleView` on header updates and during interactive pop.
 
 The first history positions immediately. Subsequent snapshots preserve a visible
 row's screen position before following the new bottom. A display link converges

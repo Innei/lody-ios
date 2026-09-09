@@ -11,6 +11,7 @@ private struct ChatComposerState: Decodable {
   var stopping: Bool?
   var controlling: Bool?
   var steerID: String?
+  var steerInterrupts: Bool?
   var notice = ""
   var reconnect = false
   var placeholder = LodyStrings.text("native.chat.composer.placeholder")
@@ -73,7 +74,7 @@ private final class ChatQueueView: UIVisualEffectView {
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-  func render(_ drafts: [ChatQueuedDraft], enabled: Bool, steeringID: String) {
+  func render(_ drafts: [ChatQueuedDraft], enabled: Bool, steeringID: String, firstOnly: Bool) {
     if rendered != drafts {
       // A row that leaves the queue is on its way into the transcript: hand its
       // frame to the send animation before the row disappears.
@@ -132,9 +133,10 @@ private final class ChatQueueView: UIVisualEffectView {
         rows[draft.id] = row
       }
     }
+    let first = drafts.first(where: \.canSteer)?.id
     for draft in drafts {
       let waiting = steeringID == draft.id || !draft.canSteer
-      buttons[draft.id]?.isEnabled = enabled && draft.canSteer
+      buttons[draft.id]?.isEnabled = enabled && draft.canSteer && (!firstOnly || draft.id == first)
       buttons[draft.id]?.accessibilityHint = waiting ? LodyStrings.text("native.chat.composer.steering") : nil
     }
     isHidden = drafts.isEmpty
@@ -684,8 +686,13 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   var onDraftChange: ((String) -> Void)?
   var onHeightChange: ((CGFloat) -> Void)?
   var displayError: String? { didSet { updateComposer() } }
-  private var inputLeading: NSLayoutConstraint!
   private var measuredWidth: CGFloat = 0
+  private lazy var surfaceLayout: any ChatComposerSurfaceLayout = ChatComposerSurfaceLayoutFactory.make(
+    container: composer,
+    inputSurface: inputSurface,
+    attachSurface: attachSurface,
+    attachButton: attach
+  )
 
   func setInputIdentifier(_ id: String) { input.accessibilityIdentifier = id }
 
@@ -722,29 +729,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   override init(frame: CGRect) {
     super.init(frame: frame)
     composer.backgroundColor = .clear
-    if #available(iOS 26.0, *) {
-      let container = UIGlassContainerEffect()
-      container.spacing = 12
-      composer.effect = container
-      let glass = UIGlassEffect(style: .regular)
-      glass.isInteractive = true
-      inputSurface.effect = glass
-      attachSurface.effect = glass
-    }
     input.backgroundColor = .clear
-    if #available(iOS 26.0, *) {
-      inputSurface.cornerConfiguration = .capsule(maximumRadius: 24)
-      attachSurface.cornerConfiguration = .capsule()
-    } else {
-      inputSurface.layer.cornerRadius = 24
-      inputSurface.layer.cornerCurve = .continuous
-      inputSurface.clipsToBounds = true
-      attachSurface.layer.cornerRadius = 22
-      attachSurface.layer.cornerCurve = .continuous
-      attachSurface.clipsToBounds = true
-      inputSurface.backgroundColor = .secondarySystemBackground
-      attachSurface.backgroundColor = .secondarySystemBackground
-    }
     input.font = .dynamic(of: 17)
     input.textColor = .label
     input.textContainerInset = UIEdgeInsets(top: 13, left: 16, bottom: 13, right: 46)
@@ -831,7 +816,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     noticeHeight = notice.heightAnchor.constraint(equalToConstant: 0)
     attachmentHeight = attachmentBar.heightAnchor.constraint(equalToConstant: 0)
     queueHeight = queueView.heightAnchor.constraint(equalToConstant: 0)
-    inputLeading = inputSurface.leadingAnchor.constraint(equalTo: attachSurface.trailingAnchor, constant: 8)
+    surfaceLayout.activate()
     NSLayoutConstraint.activate([
       composer.topAnchor.constraint(equalTo: topAnchor),
       composer.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -846,10 +831,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       attachmentBar.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
       attachmentBar.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16), attachmentHeight,
       inputSurface.topAnchor.constraint(equalTo: attachmentBar.bottomAnchor, constant: 8),
-      attachSurface.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
       attachSurface.bottomAnchor.constraint(equalTo: inputSurface.bottomAnchor, constant: -2),
       attachSurface.widthAnchor.constraint(equalToConstant: 44), attachSurface.heightAnchor.constraint(equalToConstant: 44),
-      inputLeading,
       inputSurface.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16),
       inputSurface.bottomAnchor.constraint(equalTo: composer.bottomAnchor, constant: -8),
       attach.topAnchor.constraint(equalTo: attachSurface.contentView.topAnchor),
@@ -1021,6 +1004,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     let expansionChanged = composerExpanded != expanded
     if expansionChanged && window != nil { layoutIfNeeded() }
     composerExpanded = expanded
+    surfaceLayout.update(isFocused: expanded)
     input.isEditable = state.editable
     attach.isEnabled = state.editable && !sending
     attach.alpha = attach.isEnabled ? 1 : 0.5
@@ -1047,7 +1031,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     sendVisual.isHidden = false
     sendVisual.alpha = send.isEnabled || loading ? 1 : 0.35
     queueHeight.constant = ChatQueuedDraft.panelHeight(queuedDrafts)
-    queueView.render(queuedDrafts, enabled: state.canStop == true && !sending && state.controlling != true, steeringID: state.steerID ?? "")
+    queueView.render(queuedDrafts, enabled: state.canStop == true && !sending && state.controlling != true, steeringID: state.steerID ?? "", firstOnly: state.steerInterrupts == true)
     let noticeText = failedDraft == nil ? (displayError ?? state.notice) : LodyStrings.text("native.chat.composer.failedDraft")
     let canReconnect = failedDraft != nil || displayError != nil || state.reconnect
     notice.setTitle(noticeText, for: .normal)

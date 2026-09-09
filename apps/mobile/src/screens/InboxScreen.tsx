@@ -21,7 +21,7 @@ import {
 } from '@/features/sessions/inbox';
 import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
 import { requestNewSession } from '@/features/sessions/sessionNav';
-import { sessionRowAction } from '@/features/sessions/sessionActions';
+import { listRowAction } from '@/features/sessions/sessionActions';
 import { definePage, present } from '@/lib/presentation';
 import { showToast } from '@/ui/toast';
 import { t } from '../lib/i18n/index.ts';
@@ -147,6 +147,8 @@ function View() {
         }
         onRefresh={refresh}
         contentStyle
+        previewUserId={account.user.id}
+        previewWorkspaceId={selected?.id}
         onRowPress={({ nativeEvent: { id, expanded: next = true } }) => {
           if (id.startsWith('toggle:')) {
             const projectId = id.slice(7);
@@ -155,7 +157,7 @@ function View() {
           } else openCatalogRow(id, catalog);
         }}
         onRowAction={({ nativeEvent: { id, actionId } }) => {
-          if (selected) sessionRowAction(selected.id, catalog, id, actionId);
+          if (selected) listRowAction(selected.id, catalog, id, actionId);
         }}
       />
     </>

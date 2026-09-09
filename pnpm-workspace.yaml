@@ -1,5 +1,8 @@
 packages:
   - apps/*
+  - packages/*
+overrides:
+  '@expo/dom-webview': link:./packages/dom-webview
 allowBuilds:
   esbuild: true
 nodeLinker: hoisted

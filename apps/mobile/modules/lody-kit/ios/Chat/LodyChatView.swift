@@ -15,6 +15,7 @@ private final class ChatCollectionView: UICollectionView {
 private final class ChatNavigationController: UIViewController {
   var updateTitle: (() -> Void)?
   var onWillAppear: ((Bool, UIViewControllerTransitionCoordinator?) -> Void)?
+  var onWillDisappear: ((UIViewControllerTransitionCoordinator?) -> Void)?
   var onDidAppear: (() -> Void)?
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
@@ -24,6 +25,11 @@ private final class ChatNavigationController: UIViewController {
     super.viewWillAppear(animated)
     updateTitle?()
     onWillAppear?(animated, transitionCoordinator ?? parent?.transitionCoordinator)
+  }
+  override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    let coordinator = transitionCoordinator ?? parent?.transitionCoordinator
+    onWillDisappear?(coordinator)
   }
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
@@ -44,6 +50,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   private let titleButton = UIButton(type: .system)
   private var navigationTitle = ""
   private var navigationSubtitle = ""
+  private var titleDisappearing = false
   private let navigation = ChatNavigationController()
   let collection: UICollectionView
   let measuringText = ChatTextView()
@@ -170,7 +177,20 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
       self?.deliverPendingContent()
     }
     navigation.onWillAppear = { [weak self] animated, coordinator in
+      self?.titleDisappearing = false
       self?.deselectFileOnReturn(animated: animated, coordinator: coordinator)
+    }
+    navigation.onWillDisappear = { [weak self] coordinator in
+      self?.titleDisappearing = true
+      self?.preserveTitleSubtitle()
+      coordinator?.animate(alongsideTransition: nil) { context in
+        guard context.isCancelled else { return }
+        self?.titleDisappearing = false
+        if let owner = self?.scrollOwner {
+          ChatNavigationTitle.clearNativeSubtitle(owner.navigationItem)
+        }
+        self?.attachTitle()
+      }
     }
     backgroundColor = .systemBackground
     collection.backgroundColor = .clear
@@ -285,23 +305,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    if window != nil && scrollOwner == nil {
-      var responder = next
-      while let current = responder {
-        if let controller = current as? UIViewController {
-          controller.setContentScrollView(collection, for: .top)
-          controller.setContentScrollView(collection, for: .bottom)
-          scrollOwner = controller
-          if navigation.parent == nil {
-            controller.addChild(navigation)
-            addSubview(navigation.view)
-            navigation.didMove(toParent: controller)
-          }
-          break
-        }
-        responder = current.next
-      }
-    }
+    bindScrollOwnerIfNeeded()
     attachTitle()
     updateBottomButton()
     if updateBottomInset(), followsBottom { scrollToBottom() }
@@ -325,40 +329,48 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   }
 
   private func updateTitleButton() {
-    var configuration = UIButton.Configuration.plain()
-    configuration.title = navigationTitle
-    configuration.subtitle = navigationSubtitle.isEmpty ? nil : navigationSubtitle
-    configuration.titleAlignment = .leading
-    configuration.titleLineBreakMode = .byTruncatingTail
-    configuration.subtitleLineBreakMode = .byTruncatingMiddle
-    configuration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 0)
-    configuration.baseForegroundColor = .label
-    configuration.titleTextAttributesTransformer = .init { attributes in
-      var attributes = attributes
-      attributes.font = .preferredFont(forTextStyle: .headline)
-      return attributes
+    ChatNavigationTitle.configureButton(titleButton, title: navigationTitle, subtitle: navigationSubtitle)
+    attachTitle()
+  }
+
+  private func bindScrollOwnerIfNeeded() {
+    guard window != nil, scrollOwner == nil else { return }
+    var responder = next
+    while let current = responder {
+      if let controller = current as? UIViewController {
+        controller.setContentScrollView(collection, for: .top)
+        controller.setContentScrollView(collection, for: .bottom)
+        scrollOwner = controller
+        if navigation.parent == nil {
+          controller.addChild(navigation)
+          addSubview(navigation.view)
+          navigation.didMove(toParent: controller)
+        }
+        break
+      }
+      responder = current.next
     }
-    configuration.subtitleTextAttributesTransformer = .init { attributes in
-      var attributes = attributes
-      attributes.font = .preferredFont(forTextStyle: .caption1)
-      attributes.foregroundColor = .secondaryLabel
-      return attributes
-    }
-    titleButton.configuration = configuration
-    titleButton.accessibilityLabel = [navigationTitle, navigationSubtitle]
-      .filter { !$0.isEmpty }.joined(separator: ", ")
-    titleButton.sizeToFit()
-    titleButton.bounds.size.height = 44
-    setNeedsLayout()
   }
 
   private func attachTitle() {
-    guard window != nil, let owner = scrollOwner, !navigationTitle.isEmpty else { return }
-    // Own the UIKit title view directly; no RN header subview wrapper.
-    if owner.navigationItem.titleView !== titleButton {
-      owner.navigationItem.titleView = titleButton
-      owner.navigationItem.style = .browser
+    bindScrollOwnerIfNeeded()
+    guard window != nil, let owner = scrollOwner else { return }
+    guard !navigationTitle.isEmpty || !navigationSubtitle.isEmpty else { return }
+    if titleDisappearing {
+      ChatNavigationTitle.preserveSubtitle(navigationSubtitle, on: owner.navigationItem)
+      return
     }
+    ChatNavigationTitle.apply(
+      title: navigationTitle,
+      subtitle: navigationSubtitle,
+      button: titleButton,
+      to: owner.navigationItem
+    )
+  }
+
+  private func preserveTitleSubtitle() {
+    guard let owner = scrollOwner else { return }
+    ChatNavigationTitle.preserveSubtitle(navigationSubtitle, on: owner.navigationItem)
   }
 
   override func willMove(toSuperview newSuperview: UIView?) {
@@ -407,9 +419,8 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
       frameTimer?.invalidate(); frameTimer = nil
       workDurationTimer?.invalidate(); workDurationTimer = nil
       stream.finish()
-      if scrollOwner?.navigationItem.titleView === titleButton {
-        scrollOwner?.navigationItem.titleView = nil
-        scrollOwner?.navigationItem.style = .navigator
+      if let owner = scrollOwner {
+        ChatNavigationTitle.detach(button: titleButton, from: owner.navigationItem)
       }
       if scrollOwner?.contentScrollView(for: .top) === collection {
         scrollOwner?.setContentScrollView(nil, for: .top)
@@ -423,6 +434,8 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
         scrollProbe = ChatScrollProbe(self)
       }
       #endif
+      bindScrollOwnerIfNeeded()
+      attachTitle()
       if pendingEntries != nil { scheduleUpdate() }
       renderFrame()
     }

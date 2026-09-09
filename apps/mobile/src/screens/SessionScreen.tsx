@@ -304,7 +304,12 @@ function View() {
   if (overflow) notice = t('chat.notice.syncStopped');
   else if (disconnected && !send.sending)
     notice = t('chat.notice.connectionPaused');
-  const control = useSessionControl(currentSession, snapshot, overflow);
+  const control = useSessionControl(
+    currentSession,
+    snapshot,
+    overflow,
+    capability?.steer === true,
+  );
   const composerJSON = JSON.stringify({
     editable: !currentSession.archived,
     canSend: send.canSend,
@@ -314,6 +319,7 @@ function View() {
     stopping: control.stopping,
     controlling: control.controlling,
     steerID: control.steerID,
+    steerInterrupts: control.steerInterrupts,
     notice,
     reconnect: disconnected || overflow,
     placeholder: composerPlaceholder({

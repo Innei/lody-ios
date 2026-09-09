@@ -36,8 +36,18 @@ ui.axe('type', 'Offline draft\nSecond line')
 screen_height = ui.state()[0]['frame']['height']
 keyboard = ui.wait(lambda items: next((i['frame'] for i in items if (i.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar') and i['frame']['y'] < screen_height - 150), None), 'Software keyboard did not appear')
 keyboard_top = min([keyboard['y']] + [i['frame']['y'] for i in ui.state() if i.get('AXLabel') == 'Typing Predictions'])
+field = ui.element('create-session-input')['frame']
+attach = ui.element('session-attach')['frame']
 send = ui.element('session-send')
+model = ui.element('session-model')['frame']
 assert send['frame']['y'] + send['frame']['height'] <= keyboard_top + 1, 'Keyboard covers the send control'
+attach_center = (attach['x'] + attach['width'] / 2, attach['y'] + attach['height'] / 2)
+send_center = (send['frame']['x'] + send['frame']['width'] / 2,
+               send['frame']['y'] + send['frame']['height'] / 2)
+assert abs(attach_center[0] - field['x'] - 24) <= 1, 'Focused Add is not inset 24 points inside the unified input'
+assert abs(field['x'] + field['width'] - send_center[0] - 24) <= 1, 'Focused Send is not inset 24 points inside the unified input'
+assert abs(attach_center[1] - send_center[1]) <= 1, 'Focused Add and Send do not share a baseline'
+assert model['x'] + model['width'] <= send['frame']['x'] + 1, 'Focused model selector moved away from the trailing side'
 draft = ui.element('create-session-input')['AXValue']
 ui.capture('keyboard')
 ui.axe('tap', '--id', 'session-send')

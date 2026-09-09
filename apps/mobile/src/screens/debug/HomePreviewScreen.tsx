@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import type { PropsWithChildren } from 'react';
+import { writeLocalValue } from '@lody-ios/kit';
 import { AuthContext } from '@/cloud/auth/AuthProvider';
 import { CatalogContext } from '@/cloud/catalog/CatalogProvider';
 import type { Catalog } from '@/models/catalog';
@@ -18,6 +20,12 @@ const workspace = {
 const catalog: Catalog = {
   projects: [
     { id: 'ui:unassigned', name: 'Lody iOS', machineId: 'ui', rootPath: '' },
+    {
+      id: 'ui:empty',
+      name: '空盒子',
+      machineId: 'ui',
+      rootPath: '/tmp/empty-box',
+    },
   ],
   sessions: [
     {
@@ -44,8 +52,45 @@ const catalog: Catalog = {
   machineIds: [],
 };
 const noop = async () => {};
+const previewCache = JSON.stringify({
+  v: 1,
+  status: 'live',
+  revision: 1,
+  entries: [
+    {
+      id: 'u1',
+      role: 'user',
+      status: 'completed',
+      finished: true,
+      items: [{ itemId: 't', type: 'text', text: '设计首页' }],
+    },
+    {
+      id: 'a1',
+      role: 'assistant',
+      status: 'completed',
+      finished: true,
+      items: [
+        { itemId: 'think', type: 'thought', text: '先看列表' },
+        {
+          itemId: 'read',
+          type: 'tool_call',
+          kind: 'read',
+          status: 'completed',
+          title: '读取',
+        },
+        { itemId: 'answer', type: 'text', text: '用项目分组。' },
+      ],
+    },
+  ],
+});
 
 export function HomePreviewProviders({ children }: PropsWithChildren) {
+  useEffect(() => {
+    void writeLocalValue(
+      `session:${JSON.stringify(['ui-home', 'ui-home', 'ui-design'])}`,
+      previewCache,
+    );
+  }, []);
   return (
     <AuthContext
       value={{

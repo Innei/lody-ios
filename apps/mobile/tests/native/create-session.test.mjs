@@ -35,6 +35,15 @@ test('create a project session, open its empty history and dispatch the first tu
     models: [{ modelId: 'gpt-test', name: 'GPT Test' }],
     modelReasoningEfforts: { 'gpt-test': ['low', 'high'] },
     configOptions: [{ id: 'effort', category: 'thought_level' }],
+    acknowledgedSteer: true,
+    provenance: 'runtime',
+  });
+  machine.set(['acpCapability', 'grok'], {
+    cliType: 'builtin',
+    agentType: 'grok',
+    fetchedAt: 1,
+    models: [],
+    acknowledgedSteer: true,
   });
   const machines = new Map([['m1', machine]]);
   const remote = new Flock('remote');
@@ -124,6 +133,14 @@ test('create a project session, open its empty history and dispatch the first tu
   const options = runtime.creationOptions('m1:local:p1', meta, machines);
   assert.equal(options.agents.length, 1);
   assert.equal(options.capabilities[0].reasoningEffortConfigId, 'effort');
+  assert.deepEqual(
+    options.capabilities.map((item) => [item.agentType, item.steer]),
+    [
+      ['codex', true],
+      ['grok', false],
+    ],
+    'Only runtime-proven acknowledged steer enables Steer',
+  );
   assert.equal(JSON.stringify(options).includes('never-project'), false);
   const replica = {
     flock: meta,

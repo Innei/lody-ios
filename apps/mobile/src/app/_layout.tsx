@@ -2,7 +2,7 @@ import {
   homeVerify,
   HomePreviewProviders,
 } from '@/screens/debug/HomePreviewScreen';
-import type { PropsWithChildren } from 'react';
+import { type PropsWithChildren, useEffect } from 'react';
 import { PushCoordinator } from '@/features/notifications/PushCoordinator';
 import { Stack, ThemeProvider } from 'expo-router';
 import { CatalogProvider } from '@/cloud/catalog/CatalogProvider';
@@ -12,8 +12,10 @@ import { useColorScheme } from 'react-native';
 import { nativePresentationOptions } from '@/lib/presentation';
 import { navigationThemes } from '@/lib/theme/palette';
 import { softScrollEdgeEffects } from '@/ui/Screen';
+import { DiffWebViewWarmer } from '@/features/diff/DiffWebViewWarmer';
 import { useBindSessionNav } from '@/hooks/screens/useBindSessionNav';
 import { useOnboardingGate } from '@/hooks/screens/useOnboardingGate';
+import { assertVendoredDomWebView } from '@/lib/assert-vendored-dom-webview';
 
 export const unstable_settings = { initialRouteName: 'index' };
 
@@ -55,7 +57,10 @@ export default function RootLayout() {
 function Bindings() {
   useBindSessionNav();
   useOnboardingGate();
-  return null;
+  useEffect(() => {
+    if (__DEV__) assertVendoredDomWebView();
+  }, []);
+  return <DiffWebViewWarmer />;
 }
 
 function Providers({ children }: PropsWithChildren) {

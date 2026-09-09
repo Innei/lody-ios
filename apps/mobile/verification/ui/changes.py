@@ -45,13 +45,40 @@ header, first, second = ui.wait(group_settled, 'File group header did not settle
 items = ui.state()
 assert not any((i.get('AXUniqueId') or '').startswith(('diff-warning:', 'diff-cached-warning:')) for i in items)
 assert not any(catalog.text('native.chat.transcript.status.running') in (i.get('AXLabel') or '') for i in items)
+def probe(items):
+    item = next((i for i in items if i.get('AXUniqueId') == 'diff-webview-probe'), None)
+    if not item:
+        return None
+    parts = (item.get('AXLabel') or '').split()
+    if len(parts) < 2:
+        return None
+    try:
+        return parts[0], int(parts[1])
+    except ValueError:
+        return None
+
 ui.capture('cards')
+probes = []
+times = []
 for index, path in enumerate(paths):
     ui.axe('tap', '--id', 'diff-preview:changes:' + path)
     ui.wait(lambda items: any(i.get('type') == 'Heading' and i.get('AXLabel') == path.split('/')[-1] for i in items), 'Wrong file opened')
     ui.wait(lambda items: any(i.get('AXLabel') == 'Unified' for i in items), 'Diff response did not load')
-    # WebKit's shadow-root code lines are absent from AX. Review the actual
-    # diff pixels in these captures/video; the driver proves routing and controls.
+    current = ui.wait(lambda items: probe(items), 'Shared Diff WebView probe was missing')
+    probes.append(current)
+    rendered = ui.wait(
+        lambda items: next(
+            (
+                i
+                for i in items
+                if i.get('AXUniqueId') == 'diff-render-ms'
+                and (i.get('AXLabel') or '').isdigit()
+            ),
+            None,
+        ),
+        'Diff render timing probe was missing',
+    )
+    times.append(int(rendered['AXLabel']))
     time.sleep(1)
     ui.capture('diff-' + str(index))
     ui.axe('tap', '--label', 'Split')
@@ -66,5 +93,8 @@ for index, path in enumerate(paths):
         ui.capture('cancelled-return')
     ui.axe('tap', '--id', 'BackButton')
     ui.wait(lambda items: any(i.get('AXUniqueId') == 'diff-preview:changes:' + path and 'selected' not in str(i.get('traits') or []).lower() for i in items), 'File row stayed selected after return')
+assert probes[0][0] == probes[1][0], f'reused instance changed {probes}'
+assert probes[1][1] <= probes[0][1], f'second open reloaded the DOM bundle {probes}'
 ui.capture('returned')
 print('File cards, counts, direct diff navigation and completed state passed')
+print('diff-reuse instanceId=%s navigationCount=%s,%s renderMs=%s' % (probes[0][0], probes[0][1], probes[1][1], times))

@@ -385,3 +385,113 @@ precondition(
   "The model trigger chevron must use the compact 5-point symbol size"
 )
 print("Composer: model trigger chevron stays compact")
+
+if #available(iOS 26.0, *) {
+  let glassComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
+  let glassWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+  glassWindow.addSubview(glassComposer)
+  glassWindow.isHidden = false
+  glassComposer.onHeightChange = { height in
+    glassComposer.frame.size.height = height
+  }
+  glassComposer.setComposerState(ready)
+  glassComposer.setComposerOptions(
+    #"{"modelId":"gpt","models":[{"id":"gpt","title":"GPT"}],"effort":"medium","efforts":[{"id":"medium","title":"Medium"}]}"#
+  )
+  glassComposer.layoutIfNeeded()
+
+  let glassInput = descendants(glassComposer).compactMap { $0 as? UITextView }.first!
+  let glassAttach = descendants(glassComposer).compactMap { $0 as? UIButton }.first {
+    $0.accessibilityIdentifier == "session-attach"
+  }!
+  let glassSend = descendants(glassComposer).compactMap { $0 as? UIButton }.first {
+    $0.accessibilityIdentifier == "session-send"
+  }!
+  let glassModel = descendants(glassComposer).compactMap { $0 as? UIButton }.first {
+    $0.accessibilityIdentifier == "session-model"
+  }!
+  let glassInputSurface = glassInput.superview!.superview as! UIVisualEffectView
+  let glassAttachSurface = glassAttach.superview!.superview as! UIVisualEffectView
+
+  precondition(
+    abs(glassInputSurface.frame.minX - glassAttachSurface.frame.maxX - 8) < 0.5,
+    "An unfocused iOS 26 composer must keep the current separate 8-point glass gap"
+  )
+  let glassAttachGlyph = descendants(glassAttach).compactMap { $0 as? UIImageView }.first {
+    $0.accessibilityIdentifier == "session-attach-glyph"
+  }
+  precondition(
+    glassAttachGlyph != nil && glassAttach.image(for: .normal) == nil,
+    "Liquid Glass must own a stable Add glyph view so UIButton relayout cannot reset its scale"
+  )
+  let restingAttachGlyphSize = glassAttachGlyph!.bounds.size
+  precondition(glassInput.becomeFirstResponder(), "The glass composer input must accept focus")
+  RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+  glassComposer.layoutIfNeeded()
+
+  let focusedInputFrame = glassInputSurface.convert(glassInputSurface.bounds, to: glassComposer)
+  let focusedAttachFrame = glassAttachSurface.convert(glassAttachSurface.bounds, to: glassComposer)
+  precondition(
+    abs(focusedInputFrame.minX + 2 - focusedAttachFrame.minX) < 0.5
+      && focusedInputFrame.contains(focusedAttachFrame),
+    "A focused iOS 26 composer must merge the optically inset add glass into one full-width input surface"
+  )
+
+  let attachCenter = glassAttach.convert(
+    CGPoint(x: glassAttach.bounds.midX, y: glassAttach.bounds.midY),
+    to: glassInputSurface
+  )
+  let sendCenter = glassSend.convert(
+    CGPoint(x: glassSend.bounds.midX, y: glassSend.bounds.midY),
+    to: glassInputSurface
+  )
+  let modelFrame = glassModel.convert(glassModel.bounds, to: glassInputSurface)
+  let sendFrame = glassSend.convert(glassSend.bounds, to: glassInputSurface)
+  let attachInset = attachCenter.x
+  let sendInset = glassInputSurface.bounds.maxX - sendCenter.x
+  let baselineDelta = attachCenter.y - sendCenter.y
+  print(
+    "Composer glass metrics: add \(attachInset), send \(sendInset), baseline \(baselineDelta)"
+  )
+  precondition(
+    abs(attachInset - 24) < 0.5
+      && abs(sendInset - 24) < 0.5
+      && abs(baselineDelta) < 0.5,
+    "Focused add and send controls must balance on one baseline with mirrored 24-point centers; "
+      + "got add \(attachInset), send \(sendInset), baseline \(baselineDelta)"
+  )
+  let sendVisualView = descendants(glassSend).first {
+    $0.accessibilityIdentifier == "session-action-visual"
+  }!
+  let sendGlyph = descendants(sendVisualView).compactMap { $0 as? UIImageView }.first {
+    !$0.isHidden && $0.image != nil
+  }!
+  let expectedFocusedScale: CGFloat = 11 / 17
+  let focusedAttachGlyphSize = glassAttachGlyph!.bounds.size
+  precondition(
+    abs(focusedAttachGlyphSize.width / restingAttachGlyphSize.width - expectedFocusedScale) < 0.02
+      && abs(focusedAttachGlyphSize.height / restingAttachGlyphSize.height - expectedFocusedScale) < 0.02,
+    "The focused Add glyph must shrink from 17 points to the optically balanced 11-point size; "
+      + "got \(restingAttachGlyphSize) -> \(focusedAttachGlyphSize)"
+  )
+  let attachGlyphCenter = glassAttachGlyph!.convert(
+    CGPoint(x: glassAttachGlyph!.bounds.midX, y: glassAttachGlyph!.bounds.midY),
+    to: glassInputSurface
+  )
+  let sendGlyphCenter = sendGlyph.convert(
+    CGPoint(x: sendGlyph.bounds.midX, y: sendGlyph.bounds.midY),
+    to: glassInputSurface
+  )
+  precondition(
+    abs(attachGlyphCenter.y - sendGlyphCenter.y) < 0.5,
+    "The focused Add and Send icons must share one baseline; "
+      + "got \(attachGlyphCenter.y) and \(sendGlyphCenter.y)"
+  )
+  precondition(
+    !glassModel.isHidden
+      && modelFrame.midX > glassInputSurface.bounds.midX
+      && modelFrame.maxX <= sendFrame.minX + 0.5,
+    "The focused model selector must remain on the trailing side before Send"
+  )
+  print("Composer glass: focus merges Add into one balanced surface while Model stays trailing")
+}

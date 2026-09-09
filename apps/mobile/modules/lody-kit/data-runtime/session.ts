@@ -3,7 +3,7 @@ import { StreamsClient } from '@loro-dev/streams-client';
 import { decompress } from 'fzstd';
 import { decodeFrames, encodeFrame } from '../decoder/frames';
 import { identityAt, itemRev, projectSession } from './project';
-import { machineRpc } from './machine-rpc';
+import { machineRpc, type RpcReply } from './machine-rpc';
 export { projectSession } from './project';
 
 type Grant = { token: string; gatewayBaseUrl: string };
@@ -683,8 +683,18 @@ export async function controlTurn(args: {
       params,
       state.getGrant,
       AbortSignal.any([state.controller.signal, AbortSignal.timeout(35000)]),
-    );
-    if (reply.error) throw new Error(reply.error.message ?? 'control_failed');
+    ).catch((error: unknown): RpcReply => ({
+      error: {
+        message: error instanceof Error ? error.message : 'control_failed',
+      },
+    }));
+    if (reply.error) {
+      // Past the durable write the machine owns the steer: it requeues proven-
+      // undelivered ones and an ambiguous failure must not be sent again here.
+      if (args.action === 'steer')
+        return { state: 'not_applied', reason: reply.error.message };
+      throw new Error(reply.error.message ?? 'control_failed');
+    }
     const result = reply.result as
       | {
           success?: boolean;
@@ -698,11 +708,8 @@ export async function controlTurn(args: {
         throw new Error(result?.error ?? 'stop_failed');
       return { state: 'stopped' };
     }
-    if (result?.applied !== true) {
-      // The machine requeues proven-undelivered steers. Leave its durable state
-      // in charge; an ambiguous provider failure must not be sent again here.
+    if (result?.applied !== true)
       return { state: 'not_applied', reason: result?.disposition ?? 'unknown' };
-    }
     const before = state.doc.version();
     for (let i = 0; i < history.length; i++) {
       const entry = history.get(i);

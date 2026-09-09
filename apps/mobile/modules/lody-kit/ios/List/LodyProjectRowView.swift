@@ -41,6 +41,11 @@ final class LodyProjectRowView: UIView, UIContentView {
     count.font = .preferredFont(forTextStyle: .footnote)
     count.adjustsFontForContentSizeCategory = true
     count.textColor = .secondaryLabel
+    count.textAlignment = .right
+    count.setContentHuggingPriority(.required, for: .horizontal)
+    count.setContentCompressionResistancePriority(.required, for: .horizontal)
+    chip.setContentHuggingPriority(.required, for: .horizontal)
+    chip.setContentCompressionResistancePriority(.required, for: .horizontal)
     chip.font = .preferredFont(forTextStyle: .caption1).withWeight(.medium)
     chip.adjustsFontForContentSizeCategory = true
     chip.layer.cornerRadius = 10

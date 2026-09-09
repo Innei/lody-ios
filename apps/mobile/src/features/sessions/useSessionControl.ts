@@ -10,6 +10,7 @@ export function useSessionControl(
   session: Session,
   snapshot: Snapshot,
   overflow: boolean,
+  steerable: boolean,
   request = controlSessionTurn,
 ) {
   const turnId = snapshot.entries.findLast(
@@ -44,8 +45,6 @@ export function useSessionControl(
         ),
       );
       if (result.state === 'stopped') setStoppedTurn(turnId!);
-      else if (result.state !== 'applied')
-        showToast(t('native.chat.composer.steerNotApplied'));
     } catch {
       showToast(t('native.chat.composer.controlError'));
     } finally {
@@ -61,7 +60,8 @@ export function useSessionControl(
     controlling: !!busy || stopping,
     stopping: busy === 'stop' || stopping,
     steerID: busy === 'stop' ? '' : busy,
+    steerInterrupts: !steerable,
     stop: () => void act('stop'),
-    steer: (id: string) => void act('steer', id),
+    steer: (id: string) => void (steerable ? act('steer', id) : act('stop')),
   };
 }

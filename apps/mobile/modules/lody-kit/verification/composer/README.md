@@ -8,6 +8,9 @@ xcrun --sdk iphonesimulator swiftc -target arm64-apple-ios18.0-simulator \
   apps/mobile/modules/lody-kit/ios/UIFont+Dynamic.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatAttachments.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatAttachmentSheet.swift \
+  apps/mobile/modules/lody-kit/ios/Chat/ChatComposerSurfaceLayout.swift \
+  apps/mobile/modules/lody-kit/ios/Chat/ChatComposerLegacySurfaceLayout.swift \
+  apps/mobile/modules/lody-kit/ios/Chat/ChatComposerLiquidGlassSurfaceLayout.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatComposerView.swift \
   apps/mobile/modules/lody-kit/verification/composer/main.swift \
   -o /tmp/lody-composer-test

@@ -39,6 +39,10 @@ export type NativeListRow = {
   /** Trailing swipe actions. */
   actions?: NativeListAction[];
   leadingActions?: NativeListAction[];
+  /** Long-press UIKit context menu. */
+  menuActions?: NativeListAction[];
+  /** Session rows may peek a cached transcript. */
+  preview?: 'session';
 };
 
 export type NativeListSection = {
@@ -77,5 +81,7 @@ export const NativeGroupedList: ComponentType<
     onRowAction?: (
       event: NativeSyntheticEvent<{ id: string; actionId: string }>,
     ) => void;
+    previewUserId?: string;
+    previewWorkspaceId?: string;
   }
 > = requireNativeView('LodyKit', 'LodyGroupedList');

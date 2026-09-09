@@ -15,11 +15,13 @@ const control = { sessionId: 's1', machineId: 'm1', turnId: 'active-reply' };
 test('queue controls preserve identity, attachments and FIFO; stale and uncertain requests never replay', async () => {
   let reply = { applied: false, disposition: 'unsupported' };
   let appendFails = false;
+  let rpcFails = false;
   const requests = [];
   const fixture = await openTestSession({
     failAppend: () => appendFails,
     onRpc: async (request) => {
       requests.push(request);
+      if (rpcFails) throw new Error('reply_stream_lost');
       if (request.method === 'session/steer') {
         const { userTurnId, inputConfig } = request.params;
         const raw = fixture.server.toJSON();
@@ -91,16 +93,36 @@ test('queue controls preserve identity, attachments and FIFO; stale and uncertai
       'Unconfirmed intent cannot be duplicated',
     );
     // The CLI confirms non-delivery by returning this same history turn to pending.
-    const pending = fixture.server.getList('history').get(1);
-    pending.set('status', 'pending');
-    fixture.server.commit();
-    await fixture.pushUpdate();
+    const requeue = async () => {
+      const pending = fixture.server.getList('history').get(1);
+      pending.set('status', 'pending');
+      fixture.server.commit();
+      await fixture.pushUpdate();
+    };
+    await requeue();
+    const requeued = fixture.runtime
+      .projectSession(fixture.server, 'live')
+      .entries.find((entry) => entry.id === second.id);
+    assert.equal(requeued.status, 'queued');
     assert.equal(
-      fixture.runtime
-        .projectSession(fixture.server, 'live')
-        .entries.find((entry) => entry.id === second.id).canSteer,
-      true,
+      requeued.canSteer,
+      false,
+      'A requeued steer waits for ordinary dispatch instead of a retry',
     );
+    rpcFails = true;
+    const lost = await fixture.runtime.controlTurn({
+      ...control,
+      action: 'steer',
+      messageId: second.id,
+    });
+    assert.equal(
+      lost.state,
+      'not_applied',
+      'A lost reply after the durable write is not an error: the machine owns the turn',
+    );
+    assert.equal(lost.reason, 'reply_stream_lost');
+    rpcFails = false;
+    await requeue();
     reply = { applied: true };
     assert.equal(
       (
@@ -112,9 +134,11 @@ test('queue controls preserve identity, attachments and FIFO; stale and uncertai
       ).state,
       'applied',
     );
+    assert.equal(requests.length, 3);
     assert.equal(requests[0].method, 'session/steer');
     assert.equal(requests[0].params.expectedTurnId, 'active-reply');
     assert.equal(requests[0].params.userTurnId, second.id);
+    requests.splice(1, 1);
     let projection = fixture.runtime.projectSession(fixture.server, 'live');
     assert.equal(
       projection.entries.find((entry) => entry.id === second.id).status,

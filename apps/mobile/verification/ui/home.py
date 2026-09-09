@@ -1,5 +1,6 @@
 """Home keeps the workspace avatar and view/settings group in the navigation bar, the integrated bottom search beside the create button, long-press Settings opens Debug, and the settings sheet hosts remote and archived pages."""
 import sys
+import time
 from driver import UI
 import catalog
 
@@ -132,6 +133,52 @@ tap_project()
 ui.element('ui-design')
 ui.capture('project-expanded')
 
+empty = ui.element('project:ui:empty')
+empty_label = empty.get('AXLabel') or ''
+if not empty_label:
+    empty_label = ' '.join(
+        child.get('AXLabel') or '' for child in empty.get('children') or []
+    )
+assert '0' in empty_label, empty
+
+
+def hold(identifier):
+    frame = ui.element(identifier)['frame']
+    ui.axe(
+        'touch',
+        '-x', str(frame['x'] + min(120, frame['width'] / 2)),
+        '-y', str(frame['y'] + frame['height'] / 2),
+        '--down', '--up', '--delay', '1.2',
+    )
+    time.sleep(1)
+
+
+hold('project:ui:empty')
+ui.wait(
+    lambda items: any(catalog.text('project.action.copyPath') in (i.get('AXLabel') or '') for i in items),
+    'Project long-press must show the copy-path action',
+)
+assert any(catalog.text('project.action.open') in (i.get('AXLabel') or '') for i in ui.state())
+assert any(catalog.text('session.action.newSession') in (i.get('AXLabel') or '') for i in ui.state())
+ui.capture('project-menu')
+ui.axe('tap', '-x', '24', '-y', '120', '--post-delay', '.6')
+
+hold('ui-design')
+ui.wait(
+    lambda items: any(catalog.text('session.action.pin') in (i.get('AXLabel') or '') for i in items),
+    'Session long-press must show pin',
+)
+assert any(catalog.text('session.action.archive') in (i.get('AXLabel') or '') for i in ui.state())
+ui.wait(
+    lambda items: any(
+        i.get('AXUniqueId') == 'session-preview' or '设计首页' in (i.get('AXLabel') or '')
+        for i in items
+    ),
+    'Session long-press must preview the cached transcript',
+)
+ui.capture('session-menu')
+ui.axe('tap', '-x', '24', '-y', '120', '--post-delay', '.6')
+
 settings_label = catalog.text('tabs.settings')
 
 
@@ -148,8 +195,9 @@ def hold_settings():
         'touch',
         '-x', str(frame['x'] + frame['width'] / 2),
         '-y', str(frame['y'] + frame['height'] / 2),
-        '--down', '--up', '--delay', '.8', '--post-delay', '1',
+        '--down', '--up', '--delay', '1.2',
     )
+    time.sleep(1)
 
 
 hold_settings()

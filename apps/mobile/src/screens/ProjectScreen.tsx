@@ -1,11 +1,12 @@
 import { Stack } from 'expo-router';
 import { NativeGroupedList } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
+import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { usePalette } from '@/lib/theme/palette';
 import { byActivity, sessionRow } from '@/features/sessions/inbox';
 import { requestNewSession } from '@/features/sessions/sessionNav';
-import { sessionRowAction } from '@/features/sessions/sessionActions';
+import { listRowAction } from '@/features/sessions/sessionActions';
 import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
 import { t } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
@@ -15,6 +16,7 @@ function View() {
     params: { projectId },
   } = usePageRuntime<{ projectId: string }>();
   const { catalog, selected, loading, connected, refresh } = useCatalog();
+  const { account } = useAuth();
   const colors = usePalette();
   const project = catalog.projects.find((p) => p.id === projectId);
   const sessions = catalog.sessions
@@ -60,11 +62,13 @@ function View() {
         refreshing={loading}
         onRefresh={refresh}
         placeholder={placeholder}
+        previewUserId={account?.user.id}
+        previewWorkspaceId={selected?.id}
         onRowPress={({ nativeEvent }) =>
           openCatalogRow(nativeEvent.id, catalog)
         }
         onRowAction={({ nativeEvent: { id, actionId } }) => {
-          if (selected) sessionRowAction(selected.id, catalog, id, actionId);
+          if (selected) listRowAction(selected.id, catalog, id, actionId);
         }}
       />
     </>

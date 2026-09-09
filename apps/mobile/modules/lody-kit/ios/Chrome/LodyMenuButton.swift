@@ -1,16 +1,18 @@
 import ExpoModulesCore
 import UIKit
 
-struct LodyMenuItem: Record {
-  @Field var id: String = ""
-  @Field var title: String = ""
-  @Field var symbol: String = ""
-  @Field var selected: Bool = false
+@Record
+struct LodyMenuItem {
+  var id: String = ""
+  var title: String = ""
+  var symbol: String = ""
+  var selected: Bool = false
 }
 
-struct LodyMenuAvatar: Record {
-  @Field var text: String = ""
-  @Field var color: String = ""
+@Record
+struct LodyMenuAvatar {
+  var text: String = ""
+  var color: String = ""
 }
 
 final class LodyMenuButton: ExpoView {

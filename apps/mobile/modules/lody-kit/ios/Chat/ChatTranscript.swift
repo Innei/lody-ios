@@ -126,6 +126,22 @@ enum ChatWorkDuration {
 struct ChatTranscript {
   var entries: [ChatEntry] = []
 
+  private struct CachedEnvelope: Decodable {
+    let entries: [ChatEntry]?
+  }
+
+  static func previewRows(from cache: String) -> [ChatRow] {
+    guard let data = cache.data(using: .utf8) else { return [] }
+    if let envelope = try? JSONDecoder().decode(CachedEnvelope.self, from: data),
+       let entries = envelope.entries {
+      return ChatTranscript(entries: entries).rows()
+    }
+    if let entries = try? JSONDecoder().decode([ChatEntry].self, from: data) {
+      return ChatTranscript(entries: entries).rows()
+    }
+    return []
+  }
+
   func rows(
     processEntryID: String = "",
     processStartID: String = "",
@@ -202,20 +218,12 @@ struct ChatTranscript {
       for index in visible {
         if let indices = groups[index] {
           let process = indices.map { entry.items[$0] }
-          let tools = process.filter { $0.type == "tool_call" }.count
           let needsPermission = process.contains { $0.permission?.pending == true }
           let failed = process.contains { $0.status == "failed" }
           let running = entry.isRunning && indices.last == entry.items.indices.last
-          let title = processTitle(
-            needsPermission: needsPermission,
-            failed: failed,
-            running: running
-          )
           let firstGroup = index == groups.keys.min()
           result.append(ChatRow(id: entry.id + ":process" + (firstGroup ? "" : ":" + entry.items[index].itemId), entryID: entry.id, kind: "summary",
-            text: tools > 0
-              ? LodyStrings.text("native.chat.transcript.summary", ["title": title, "tools": LodyStrings.plural("native.chat.transcript.toolCount", tools)])
-              : title,
+            text: ChatProcessSummary.title(items: process, running: running),
             symbol: "circle.fill",
             processStartID: entry.finished ? "" : entry.items[index].itemId,
             actionable: true, running: running, attention: needsPermission || failed))
@@ -274,15 +282,64 @@ struct ChatTranscript {
   }
 }
 
-private func processTitle(
-  needsPermission: Bool,
-  failed: Bool,
-  running: Bool
-) -> String {
-  if needsPermission { return LodyStrings.text("native.chat.transcript.status.pending") }
-  if failed { return LodyStrings.text("native.chat.transcript.status.failed") }
-  if running { return LodyStrings.text("native.chat.transcript.status.running") }
-  return LodyStrings.text("native.chat.transcript.status.done")
+enum ChatProcessSummary {
+  static func title(items: [ChatItem], running: Bool) -> String {
+    var readPaths = Set<String>()
+    var editPaths = Set<String>()
+    var readWithout = 0
+    var editWithout = 0
+    var commands = 0
+    var searches = 0
+    var fetches = 0
+    var others = 0
+    var hasThought = false
+    for item in items {
+      if item.type == "thought" || item.kind == "think" {
+        hasThought = true
+        continue
+      }
+      guard item.type == "tool_call" else { continue }
+      switch item.kind {
+      case "execute", "bash":
+        commands += 1
+      case "read":
+        if let path = item.path, !path.isEmpty { readPaths.insert(path) }
+        else { readWithout += 1 }
+      case "edit", "write", "delete", "move":
+        if let path = item.path, !path.isEmpty { editPaths.insert(path) }
+        else { editWithout += 1 }
+      case "search":
+        searches += 1
+      case "fetch":
+        fetches += 1
+      default:
+        others += 1
+      }
+    }
+    var parts: [String] = []
+    if hasThought {
+      parts.append(LodyStrings.text(
+        running
+          ? "native.chat.transcript.activity.thinking"
+          : "native.chat.transcript.activity.thought"
+      ))
+    }
+    add(&parts, "native.chat.transcript.activity.commands", commands)
+    add(&parts, "native.chat.transcript.activity.readFiles", readPaths.count + readWithout)
+    add(&parts, "native.chat.transcript.activity.editedFiles", editPaths.count + editWithout)
+    add(&parts, "native.chat.transcript.activity.searches", searches)
+    add(&parts, "native.chat.transcript.activity.fetches", fetches)
+    add(&parts, "native.chat.transcript.activity.tools", others)
+    if parts.isEmpty {
+      return LodyStrings.text("native.chat.transcript.status.done")
+    }
+    return parts.joined(separator: " · ")
+  }
+
+  private static func add(_ parts: inout [String], _ key: String, _ count: Int) {
+    guard count > 0 else { return }
+    parts.append(LodyStrings.plural(key, count))
+  }
 }
 
 private func workDurationTitle(_ milliseconds: Int, running: Bool) -> String {

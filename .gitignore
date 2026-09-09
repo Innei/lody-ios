@@ -13,3 +13,4 @@ apps/mobile/modules/lody-kit/ios/Resources/
 
 *.pyc
 .artifacts/
+packages/dom-webview/build/*

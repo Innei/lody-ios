@@ -24,6 +24,10 @@ let failure = finished.replacingOccurrences(of: "\"status\":\"completed\"", with
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(failure.utf8))
 assert(transcript.rows().contains { $0.kind == "summary" && $0.attention })
 assert(transcript.rows(processEntryID: "reply").contains { $0.itemID == "tool" && $0.attention })
+let failedSummary = transcript.rows().first { $0.kind == "summary" }!
+assert(!failedSummary.text.contains("native.chat.transcript.status.failed"), failedSummary.text)
+assert(failedSummary.text.contains("native.chat.transcript.activity.thought"), failedSummary.text)
+assert(failedSummary.text.contains("native.chat.transcript.activity.tools"), failedSummary.text)
 let permission = finished.replacingOccurrences(of: "\"status\":\"completed\"", with: "\"permission\":{\"requestId\":\"p\",\"pending\":true}")
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(permission.utf8))
 assert(transcript.rows().contains { $0.kind == "summary" && $0.attention })
@@ -174,6 +178,42 @@ assert(grouped.map(\.kind) == ["changesHeader", "changes", "changes"])
 assert(grouped[0].text == "native.chat.transcript.fileCount" && grouped[0].fileDiff?.add == 15 && grouped[0].fileDiff?.del == 5)
 assert(grouped.dropFirst().map(\.group) == ["first", "last"])
 print("File group: header totals and first/last membership passed")
+
+let mixedFail = """
+[{"id":"mixed","role":"assistant","status":"completed","finished":true,"items":[
+{"itemId":"think","type":"thought","text":"先检查"},
+{"itemId":"read1","type":"tool_call","kind":"read","path":"a.ts","status":"completed"},
+{"itemId":"read2","type":"tool_call","kind":"read","path":"a.ts","status":"failed"},
+{"itemId":"edit","type":"tool_call","kind":"edit","path":"b.ts","status":"completed"},
+{"itemId":"run","type":"tool_call","kind":"execute","status":"completed"},
+{"itemId":"answer","type":"text","text":"结论"}]}]
+"""
+transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(mixedFail.utf8))
+let mixedSummary = transcript.rows().first { $0.kind == "summary" }!
+assert(mixedSummary.attention)
+assert(!mixedSummary.text.contains("native.chat.transcript.status.failed"), mixedSummary.text)
+assert(!mixedSummary.text.contains("native.chat.transcript.status.done"), mixedSummary.text)
+assert(mixedSummary.text.contains("native.chat.transcript.activity.thought"), mixedSummary.text)
+assert(mixedSummary.text.contains("native.chat.transcript.activity.readFiles"), mixedSummary.text)
+assert(mixedSummary.text.contains("native.chat.transcript.activity.editedFiles"), mixedSummary.text)
+assert(mixedSummary.text.contains("native.chat.transcript.activity.commands"), mixedSummary.text)
+let liveThink = """
+[{"id":"live","role":"assistant","status":"running","finished":false,"items":[
+{"itemId":"think","type":"thought","text":"分析"},
+{"itemId":"read","type":"tool_call","kind":"read","status":"in_progress"}]}]
+"""
+transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(liveThink.utf8))
+let liveSummary = transcript.rows().first { $0.kind == "summary" }!
+assert(liveSummary.text.contains("native.chat.transcript.activity.thinking"), liveSummary.text)
+assert(!liveSummary.text.contains("native.chat.transcript.status.running"), liveSummary.text)
+let previewCache = "{\"v\":1,\"status\":\"live\",\"revision\":1,\"entries\":" + mixedFail + "}"
+let previewRows = ChatTranscript.previewRows(from: previewCache)
+let previewKinds = Set(previewRows.map(\.kind))
+assert(previewKinds.contains("summary"))
+assert(previewKinds.contains("text"))
+assert(previewRows.contains { $0.kind == "summary" && $0.attention })
+assert(ChatTranscript.previewRows(from: "{}").isEmpty)
+print("Process summary enumerates activity and keeps partial failures off the title")
 
 var stream = ChatStream()
 stream.receive([], animate: true)

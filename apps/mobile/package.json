@@ -2,19 +2,24 @@
   "name": "@lody-ios/mobile",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "main": "index.js",
   "scripts": {
     "start": "expo start --dev-client",
     "ios": "pnpm prebuild && pnpm pods && expo run:ios --no-install",
     "prebuild": "pnpm native:assets && expo prebuild --platform ios --no-install",
     "pods": "cd ios && PATH=\"$(brew --prefix ruby)/bin:$PATH\" bundle exec pod install",
-    "bundle": "pnpm native:assets && expo export --platform ios --output-dir .expo/export-check",
+    "bundle": "pnpm native:assets && EXPO_NO_BUNDLE_SPLITTING=1 expo export --platform ios --output-dir .expo/export-check",
     "typecheck": "tsc --noEmit",
-    "native:assets": "node scripts/build-decoder.mjs"
+    "native:assets": "node scripts/build-decoder.mjs",
+    "licenses:build": "node scripts/build-licenses.mjs",
+    "licenses:check": "node scripts/build-licenses.mjs --check"
   },
   "dependencies": {
     "@loro-dev/flock-wasm": "0.4.3",
     "@loro-dev/streams-client": "0.7.0",
+    "@expo/dom-webview": "workspace:*",
+    "@pierre/diffs": "1.4.1",
     "base64-js": "1.5.1",
     "expo": "~57.0.20",
     "expo-constants": "~57.0.7",
@@ -32,6 +37,7 @@
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
     "react-native-reanimated": "4.5.1",
+    "react-native-web": "^0.21.2",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-worklets": "0.10.1"

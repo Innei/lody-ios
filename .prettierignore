@@ -1,3 +1,6 @@
+packages/dom-webview/build/
+packages/dom-webview/LICENSE
+packages/dom-webview/README.md
 pnpm-lock.yaml
 apps/mobile/ios/
 node_modules/

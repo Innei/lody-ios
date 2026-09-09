@@ -118,7 +118,10 @@ export {
   type DirectoryListing,
 } from './diff/files';
 export { readContentText, previewContent } from './runtime/LodyKit';
-export { NativeDiff, type NativeDiffProps } from './diff/NativeDiff';
+export {
+  NativeInlineDiff,
+  type NativeInlineDiffProps,
+} from './diff/NativeInlineDiff';
 export {
   NativeCodeView,
   type NativeCodeViewProps,

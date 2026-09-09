@@ -28,6 +28,12 @@ function View() {
       reconnect: false,
       placeholder: '离线草稿验收',
     }),
+    composerOptionsJSON: JSON.stringify({
+      modelId: 'gpt-5.6-sol',
+      models: [{ id: 'gpt-5.6-sol', title: 'GPT-5.6 Sol' }],
+      effort: 'high',
+      efforts: [{ id: 'high', title: 'High' }],
+    }),
     restoreDraftToken,
     onSend: () => {
       busy.current = true;

@@ -1,6 +1,7 @@
 {
   "name": "lody-ios",
   "private": true,
+  "license": "AGPL-3.0-only",
   "version": "0.1.0",
   "packageManager": "pnpm@11.10.0",
   "engines": {
@@ -12,11 +13,13 @@
     "prebuild": "pnpm --filter @lody-ios/mobile prebuild",
     "bundle": "pnpm --filter @lody-ios/mobile bundle",
     "typecheck": "pnpm --filter @lody-ios/mobile typecheck",
-    "check": "pnpm typecheck && pnpm i18n:check && pnpm format:check",
+    "check": "pnpm typecheck && pnpm i18n:check && pnpm licenses:check && pnpm format:check",
     "i18n:check": "node apps/mobile/scripts/check-locales.mjs",
+    "licenses:build": "pnpm --filter @lody-ios/mobile licenses:build",
+    "licenses:check": "pnpm --filter @lody-ios/mobile licenses:check",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --experimental-strip-types --experimental-test-module-mocks --test apps/mobile/tests/**/*.test.mjs && python3 apps/mobile/verification/simulator_test.py",
+    "test": "node --experimental-strip-types --experimental-test-module-mocks --test apps/mobile/tests/**/*.test.mjs && python3 apps/mobile/verification/simulator_test.py && pnpm --filter @expo/dom-webview test",
     "verify:ui": "python3 apps/mobile/verification/ui/run.py",
     "verify:native": "python3 apps/mobile/verification/native.py",
     "verify:simulator": "python3 apps/mobile/verification/simulator.py"

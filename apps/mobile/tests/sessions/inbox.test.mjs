@@ -278,7 +278,8 @@ test('projects lead each card as an outline parent, keep children for native col
     assert.equal(parent.monogram, data.projects[0].name.slice(0, 1));
     assert.equal(parent.id, count ? 'toggle:p1' : 'project:p1');
     assert.equal(parent.navigates, count ? undefined : true);
-    assert.equal(parent.value, count ? undefined : '没有会话');
+    assert.equal(parent.value, undefined);
+    assert.equal(parent.badge, count ? undefined : '0');
     assert.equal(
       children.some((row) => row.title === '还有 1 个会话'),
       count > 5,
@@ -291,8 +292,43 @@ test('projects lead each card as an outline parent, keep children for native col
     const [collapsed] = projectSections(data, ACCENT, { p1: false });
     assert.equal(collapsed.headerExpanded, false);
     assert.equal(collapsed.rows.length, group.rows.length);
-    assert.equal(collapsed.rows[0].badge, count ? String(count) : undefined);
+    assert.equal(collapsed.rows[0].badge, String(count));
   }
+});
+
+test('toggle and project row ids resolve to the project', async () => {
+  const { projectIdOfRow } =
+    await import('../../src/features/sessions/inbox.ts');
+  assert.equal(projectIdOfRow('toggle:p1'), 'p1');
+  assert.equal(projectIdOfRow('project:p1'), 'p1');
+  assert.equal(projectIdOfRow('s1'), undefined);
+});
+
+test('project menus offer new session, open, and copy path except unassigned', async () => {
+  const { projectSections } =
+    await import('../../src/features/sessions/inbox.ts');
+  const data = catalog(
+    [session('s1', 'completed')],
+    [
+      { id: 'p1', name: 'lody-ios', rootPath: '/Users/me/git/lody-ios' },
+      { id: 'm1:unassigned', name: '未分配', rootPath: '' },
+    ],
+  );
+  const [local, unassigned] = projectSections(data, ACCENT);
+  assert.deepEqual(
+    local.rows[0].menuActions.map((action) => action.id),
+    ['newSession', 'open', 'copyPath'],
+  );
+  assert.equal(local.rows[0].menuActions[2].title, '拷贝路径');
+  assert.deepEqual(
+    unassigned.rows[0].menuActions.map((action) => action.id),
+    ['open'],
+  );
+  assert.equal(local.rows[1].preview, 'session');
+  assert.deepEqual(
+    local.rows[1].menuActions.map((action) => action.id),
+    ['newSession', 'pin', 'archive'],
+  );
 });
 
 test('project parents summarize the most urgent state and shorten the home path', async () => {

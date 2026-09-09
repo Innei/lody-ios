@@ -2,6 +2,9 @@ import { archiveSession, pinSession } from '@lody-ios/kit';
 import { showToast } from '../../ui/toast.ts';
 import type { Catalog, Session } from '../../models/catalog.ts';
 import { t } from '../../lib/i18n/index.ts';
+import { openCatalogRow } from '../../hooks/screens/openCatalogRow.ts';
+import { requestNewSession } from './sessionNav.ts';
+import { projectIdOfRow } from './inbox.ts';
 
 export async function setArchived(
   workspaceId: string,
@@ -53,4 +56,29 @@ export function sessionRowAction(
   if (actionId === 'archive')
     void setArchived(workspaceId, session, !session.archived);
   if (actionId === 'pin') void setPinned(workspaceId, session, !session.pinned);
+}
+
+export function listRowAction(
+  workspaceId: string,
+  catalog: Catalog,
+  id: string,
+  actionId: string,
+) {
+  if (actionId === 'copyPath') return;
+  if (actionId === 'open') {
+    const projectId = projectIdOfRow(id);
+    openCatalogRow(projectId ? `project:${projectId}` : id, catalog);
+    return;
+  }
+  if (actionId === 'newSession') {
+    const projectId = projectIdOfRow(id);
+    const session = catalog.sessions.find((item) => item.id === id);
+    void requestNewSession(
+      workspaceId,
+      catalog,
+      projectId ?? session?.projectId,
+    );
+    return;
+  }
+  sessionRowAction(workspaceId, catalog, id, actionId);
 }

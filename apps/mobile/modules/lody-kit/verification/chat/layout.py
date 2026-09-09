@@ -25,9 +25,20 @@ def rows(node):
         for value in node:
             yield from rows(value)
 
+def chat_title(items):
+    return next((i for i in items if i.get('role_description') == 'Nav bar' and i.get('AXUniqueId') == '原生聊天预览'), None)
+
+def two_line_title(items):
+    bar = chat_title(items)
+    return bar if bar and bar['frame']['height'] >= 50 else None
+
+ui.wait(two_line_title, 'Project subtitle must be visible when the chat first appears')
+ui.element('chat-navigation-title')
 axe('tap', '--id', 'chat-navigation-title', '--post-delay', '0.3')
 assert '原生 titleView 点击正常' in axe('describe-ui'), 'Native title must keep its tap action'
 axe('tap', '--label', catalog.system('ok'), '--post-delay', '0.3')
+axe('drag', '--start-x', '2', '--start-y', '400', '--end-x', '70', '--end-y', '400', '--duration', '1', '--post-delay', '.8')
+ui.wait(two_line_title, 'Project subtitle must survive a cancelled return')
 axe('tap', '--label', 'Retry')
 observations = []
 saw_running = False
@@ -35,7 +46,7 @@ saw_segments = False
 deadline = time.monotonic() + 45
 while time.monotonic() < deadline:
     items = {item['AXUniqueId']: item for item in rows(json.loads(axe('describe-ui')))}
-    saw_running |= any(catalog.text('native.chat.transcript.status.running') in item.get('AXLabel', '') for item in items.values())
+    saw_running |= any(catalog.text('native.chat.transcript.activity.thinking') in item.get('AXLabel', '') for item in items.values())
     saw_segments |= 'preview:middle' in items and 'preview:process:thought-two' in items
     answer = items.get('preview:answer')
     summary = items.get('preview:process')
@@ -52,7 +63,7 @@ assert answer and '分割线之后的收尾段落' in answer['AXLabel'], 'Conclu
 for _ in range(8):
     items = {item['AXUniqueId']: item for item in rows(json.loads(axe('describe-ui')))}
     summary = items.get('preview:process')
-    if summary and catalog.text('native.chat.transcript.status.done') in summary.get('AXLabel', ''):
+    if summary and catalog.text('native.chat.transcript.activity.thought') in summary.get('AXLabel', ''):
         break
     axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '650', '--duration', '0.5', '--post-delay', '0.4')
 else:

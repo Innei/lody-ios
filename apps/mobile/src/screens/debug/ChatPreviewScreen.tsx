@@ -5,6 +5,7 @@ import { Alert } from 'react-native';
 import { NativeChat } from '@lody-ios/kit';
 import { definePage, present } from '@/lib/presentation';
 import { FileDiffScreen } from '@/screens/FileDiffScreen';
+import { ItemDetailScreen } from '@/screens/ItemDetailScreen';
 import { basename } from '@/features/sessions/path';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
 import {
@@ -331,53 +332,65 @@ function View() {
   );
   return (
     <>
-      {uiVerify && (
-        <Stack.Toolbar placement="left">
-          <Stack.Toolbar.Button
-            accessibilityLabel="Diff Fixture"
-            icon="doc.text"
-            onPress={() => {
-              setDurationFixture(null);
-              setShowImage(false);
-              setShowChanges(true);
-            }}
-          />
-          <Stack.Toolbar.Button
-            accessibilityLabel="Image Fixture"
-            icon="photo"
-            onPress={() => {
-              setDurationFixture(null);
-              setShowChanges(false);
-              setShowImage(true);
-            }}
-          />
-          <Stack.Toolbar.Button
-            accessibilityLabel="Duration Fixture"
-            icon="timer"
-            onPress={() => {
-              setShowImage(false);
-              setShowChanges(false);
-              setDurationFixture({
-                startedAt: Date.now(),
-                finished: false,
-              });
-            }}
-          />
-          <Stack.Toolbar.Button
-            accessibilityLabel="Permission Fixture"
-            icon="lock.open"
-            onPress={() =>
-              void present(PermissionScreen, {
-                sessionId: 'ui-verify-permission',
-                generation: 0,
-                source: permissionSource,
-                service: permissionService,
-              })
-            }
-          />
-        </Stack.Toolbar>
-      )}
       <Stack.Toolbar placement="right">
+        {uiVerify && (
+          <>
+            <Stack.Toolbar.Button
+              accessibilityLabel="Diff Fixture"
+              icon="doc.text"
+              onPress={() => {
+                setDurationFixture(null);
+                setShowImage(false);
+                setShowChanges(true);
+              }}
+            />
+            <Stack.Toolbar.Button
+              accessibilityLabel="Image Fixture"
+              icon="photo"
+              onPress={() => {
+                setDurationFixture(null);
+                setShowChanges(false);
+                setShowImage(true);
+              }}
+            />
+            <Stack.Toolbar.Button
+              accessibilityLabel="Duration Fixture"
+              icon="timer"
+              onPress={() => {
+                setShowImage(false);
+                setShowChanges(false);
+                setDurationFixture({
+                  startedAt: Date.now(),
+                  finished: false,
+                });
+              }}
+            />
+            <Stack.Toolbar.Button
+              accessibilityLabel="Inline Diff Fixture"
+              icon="plusminus"
+              onPress={() =>
+                void present(ItemDetailScreen, {
+                  sessionId: 'ui-verify-diff',
+                  entryId: 'diff-preview',
+                  itemIds: ['edit'],
+                  generation: 0,
+                })
+              }
+            />
+            <Stack.Toolbar.Button
+              accessibilityLabel="Permission Fixture"
+              icon="lock.open"
+              onPress={() =>
+                void present(PermissionScreen, {
+                  sessionId: 'ui-verify-permission',
+                  generation: 0,
+                  source: permissionSource,
+                  service: permissionService,
+                })
+              }
+            />
+          </>
+        )}
         {durationFixture && !durationFixture.finished && (
           <Stack.Toolbar.Button
             accessibilityLabel="Finish Duration Fixture"

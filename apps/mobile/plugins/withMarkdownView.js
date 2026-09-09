@@ -8,11 +8,6 @@ const PACKAGES = [
     url: 'https://github.com/Innei/MarkdownView.git',
     branch: 'lody/inject-text-label-view',
   },
-  {
-    name: 'YiTong',
-    url: 'https://github.com/Innei/YiTong.git',
-    branch: 'lody/single-file',
-  },
 ];
 
 const header = `require 'cocoapods/project'

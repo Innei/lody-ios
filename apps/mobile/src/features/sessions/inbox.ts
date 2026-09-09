@@ -23,6 +23,10 @@ const groups = [
 
 export const activityAt = (session: Session) =>
   session.lastMessageAt ?? Date.parse(session.createdAt);
+export function projectIdOfRow(id: string) {
+  if (id.startsWith('toggle:')) return id.slice(7);
+  if (id.startsWith('project:')) return id.slice(8);
+}
 export const byActivity = (a: Session, b: Session) =>
   Number(b.pinned) - Number(a.pinned) || activityAt(b) - activityAt(a);
 const badges: Partial<Record<SessionState, TranslationKey>> = {
@@ -103,6 +107,7 @@ export function inboxSections(
         navigates: true,
         actions: [archiveAction(session.archived)],
         leadingActions: [pinAction(session.pinned)],
+        ...sessionMenu(session),
       };
     });
     return rows.length ? [{ id: group.id, header: t(group.header), rows }] : [];
@@ -120,6 +125,35 @@ export const pinAction = (pinned: boolean) => ({
   symbol: pinned ? 'pin.slash.fill' : 'pin.fill',
   tint: 'yellow',
 });
+const newSessionAction = () => ({
+  id: 'newSession',
+  title: t('session.action.newSession'),
+  symbol: 'square.and.pencil',
+});
+const sessionMenu = (session: Session) => ({
+  menuActions: [
+    newSessionAction(),
+    pinAction(session.pinned),
+    archiveAction(session.archived),
+  ],
+  preview: 'session' as const,
+});
+const projectMenu = (project: Project) => {
+  const actions: NativeListRow['menuActions'] = [
+    { id: 'open', title: t('project.action.open'), symbol: 'folder' },
+  ];
+  if (!project.id.endsWith(':unassigned')) {
+    actions.unshift(newSessionAction());
+  }
+  if (project.rootPath) {
+    actions.push({
+      id: 'copyPath',
+      title: t('project.action.copyPath'),
+      symbol: 'doc.on.doc',
+    });
+  }
+  return { menuActions: actions };
+};
 
 export function sessionRow(
   session: Session,
@@ -146,6 +180,7 @@ export function sessionRow(
     navigates: true,
     actions: [archiveAction(session.archived)],
     leadingActions: [pinAction(session.pinned)],
+    ...sessionMenu(session),
   };
 }
 
@@ -162,7 +197,7 @@ function projectTrailing(
 ): Partial<NativeListRow> {
   if (!sessions.length) {
     return {
-      value: t('inbox.project.empty'),
+      badge: '0',
       disclosure: true,
       navigates: true,
     };
@@ -197,6 +232,7 @@ function projectRow(
     subtitle: homePath(project.rootPath),
     subtitleMono: true,
     action: true,
+    ...projectMenu(project),
     ...projectTrailing(sessions, open, accent),
   };
 }
@@ -262,6 +298,7 @@ export function searchSections(
         action: true,
         disclosure: true,
         navigates: true,
+        ...projectMenu(p),
       })),
     },
     {
