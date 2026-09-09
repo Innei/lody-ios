@@ -3,14 +3,6 @@ import WidgetKit
 
 typealias LodyItem = LodyActivityAttributes.ContentState.Item
 
-func lodyStatusColor(_ status: LodyItem.Status) -> Color {
-  switch status {
-  case .running: .blue
-  case .permission, .question: .orange
-  case .unread: .green
-  }
-}
-
 struct AgentGlyph: View {
   let text: String
   let size: CGFloat
@@ -98,7 +90,7 @@ struct FocusAccessory: View {
   var body: some View {
     if focus.status == .running, !isStale {
       Text(
-        timerInterval: Date(timeIntervalSince1970: focus.updatedAt)...Date.distantFuture,
+        timerInterval: focus.updatedDate...Date.distantFuture,
         countsDown: false
       )
       .font(.title2.monospacedDigit())
