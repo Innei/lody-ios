@@ -9,6 +9,7 @@ DRAFT = '12345'
 
 
 def open_sheet():
+    ui.axe('tap', '--label', 'Fixtures')
     ui.axe('tap', '--label', 'Permission Fixture', '--post-delay', '0.5')
     ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('permission.waiting') for i in items),
             'Sheet must open before its target resolves', timeout=1)

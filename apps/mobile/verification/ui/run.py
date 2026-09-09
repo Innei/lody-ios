@@ -191,8 +191,9 @@ try:
                     else:
                         raise
                 if case == 'permission':
-                    ui.wait(lambda items: any(i.get('AXLabel') == 'Permission Fixture' for i in items), 'Missing permission fixture toolbar')
+                    ui.wait(lambda items: any(i.get('AXLabel') == 'Fixtures' for i in items), 'Missing permission fixture toolbar')
                 if case == 'image-preview':
+                    ui.axe('tap', '--label', 'Fixtures')
                     ui.axe('tap', '--label', 'Image Fixture')
                     ui.element('preview-image:user')
                 ui.capture('before')

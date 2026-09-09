@@ -27,6 +27,16 @@ def capture(name):
     subprocess.run(['xcrun', 'simctl', 'io', udid, 'screenshot', str(output / f'{name}.png')], check=True)
 
 
+def title_state():
+    items = elements()
+    title = next(item for item in items if item.get('AXUniqueId') == 'chat-navigation-title')
+    bars = [item for item in items if item.get('role_description') == 'Nav bar']
+    assert not any(item.get('type') == 'StaticText' and 'lody-ios' in (item.get('AXLabel') or '')
+                   for bar in bars for item in bar.get('children', [])), 'Duplicate system subtitle'
+    return title['frame'], [(bar.get('AXUniqueId'), bar['frame']) for bar in bars]
+
+
+initial_title = title_state()
 items = elements()
 height = items[0]['frame']['height']
 IMAGE = catalog.text('native.chat.image.label', name='')
@@ -59,6 +69,7 @@ assert double_tap()['AXValue'] == '100%', 'Second double tap must restore fit'
 axe('tap', '--label', CLOSE, '--post-delay', '0.7')
 assert not any(item.get('AXLabel') == CLOSE for item in elements())
 assert any(item.get('AXUniqueId') == source_id for item in elements()), 'Closing must return to the message'
+assert title_state() == initial_title, 'Preview return must preserve the two-line title geometry'
 capture('closed')
 axe('tap', '--id', source_id, '--post-delay', '1')
 assert any(item.get('AXLabel') == CLOSE for item in elements())
@@ -68,6 +79,7 @@ axe('drag', '--start-x', str(items[0]['frame']['width'] / 2), '--start-y', str(h
     '--duration', '0.6', '--post-delay', '2')
 assert not any(item.get('AXLabel') == CLOSE for item in elements()), 'Drag must dismiss the preview'
 assert any(item.get('AXUniqueId') == source_id for item in elements())
+assert title_state() == initial_title, 'Gesture dismissal must preserve the two-line title geometry'
 capture('drag-closed')
 print(json.dumps({'open': True, 'doubleTapZoom': zoomed['AXValue'], 'restoreFit': True,
                   'returnToMessage': True, 'dragDismiss': True}))

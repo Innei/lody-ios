@@ -10,6 +10,7 @@ copy = {
     'zh-Hans': {'working': '正在工作 ', 'worked': '工作了 ', 'finished': '工作了 1分 05秒'},
 }[catalog.LANGUAGE]
 
+ui.axe('tap', '--label', 'Fixtures')
 ui.axe('tap', '--label', 'Duration Fixture', '--post-delay', '.5')
 
 

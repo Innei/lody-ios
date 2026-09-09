@@ -362,9 +362,9 @@ function View() {
     <>
       <Stack.Toolbar placement="right">
         {uiVerify && (
-          <>
-            <Stack.Toolbar.Button
-              accessibilityLabel="Diff Fixture"
+          <Stack.Toolbar.Menu icon="wrench" accessibilityLabel="Fixtures">
+            <Stack.Toolbar.MenuAction
+              children="Diff Fixture"
               icon="doc.text"
               onPress={() => {
                 setDurationFixture(null);
@@ -372,8 +372,8 @@ function View() {
                 setShowChanges(true);
               }}
             />
-            <Stack.Toolbar.Button
-              accessibilityLabel="Image Fixture"
+            <Stack.Toolbar.MenuAction
+              children="Image Fixture"
               icon="photo"
               onPress={() => {
                 setDurationFixture(null);
@@ -381,8 +381,8 @@ function View() {
                 setShowImage(true);
               }}
             />
-            <Stack.Toolbar.Button
-              accessibilityLabel="Duration Fixture"
+            <Stack.Toolbar.MenuAction
+              children="Duration Fixture"
               icon="timer"
               onPress={() => {
                 setShowImage(false);
@@ -393,8 +393,8 @@ function View() {
                 });
               }}
             />
-            <Stack.Toolbar.Button
-              accessibilityLabel="Inline Diff Fixture"
+            <Stack.Toolbar.MenuAction
+              children="Inline Diff Fixture"
               icon="plusminus"
               onPress={() =>
                 void present(ItemDetailScreen, {
@@ -405,8 +405,8 @@ function View() {
                 })
               }
             />
-            <Stack.Toolbar.Button
-              accessibilityLabel="Permission Fixture"
+            <Stack.Toolbar.MenuAction
+              children="Permission Fixture"
               icon="lock.open"
               onPress={() =>
                 void present(PermissionScreen, {
@@ -417,7 +417,7 @@ function View() {
                 })
               }
             />
-          </>
+          </Stack.Toolbar.Menu>
         )}
         {durationFixture && !durationFixture.finished && (
           <Stack.Toolbar.Button

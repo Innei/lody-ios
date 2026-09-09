@@ -5,6 +5,7 @@ from driver import UI
 import catalog
 
 ui = UI(sys.argv[1], sys.argv[2])
+ui.axe('tap', '--label', 'Fixtures')
 ui.axe('tap', '--label', 'Diff Fixture')
 paths = ['docs/superpowers/.diff-check.md', 'src/very-long-directory-name/nested/components/another-long-file-name.ts']
 header = ui.element('diff-preview:changes')
