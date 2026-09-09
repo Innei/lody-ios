@@ -132,7 +132,12 @@ precondition(idle.staleDate(from: now) == now.addingTimeInterval(1800))
 precondition(idle.dismissalDate(from: now) == now.addingTimeInterval(900))
 precondition(mixed.dismissalDate(from: now) == nil, "an active activity never auto-dismisses")
 
+precondition(
+  item("ms", .running, 1_700_000_000_000).updatedDate == Date(timeIntervalSince1970: 1_700_000_000),
+  "updatedAt is milliseconds"
+)
+
 let route = LodyActivityAttributes.route(workspaceSlug: "my space", sessionId: "a/b c")
 precondition(route.absoluteString == "lody:///my%20space/sessions/a%2Fb%20c", route.absoluteString)
 
-print("PASS: activity payload tolerance, focus priority and tie-break, others cap, activity lifetimes, deep-link encoding")
+print("PASS: activity payload tolerance, focus priority and tie-break, others cap, activity lifetimes, millisecond timestamps, deep-link encoding")

@@ -51,6 +51,8 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
       var title: String
       var updatedAt: Double
       var updatedAtLabel: String
+
+      var updatedDate: Date { Date(timeIntervalSince1970: updatedAt / 1000) }
     }
 
     struct PermissionAlert: Codable, Hashable, Sendable {
