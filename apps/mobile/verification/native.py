@@ -65,4 +65,5 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
         command += [str(kit / 'ios' / file) for file in files]
         command += [str(kit / 'verification' / name / 'main.swift'), '-o', binary]
         subprocess.run(command, check=True, timeout=120)
-        subprocess.run(['xcrun', 'simctl', 'spawn', args.udid, binary] if simulator else [binary], check=True, timeout=120)
+        # A cold CI Simulator draws its first text far slower than a warm local one.
+        subprocess.run(['xcrun', 'simctl', 'spawn', args.udid, binary] if simulator else [binary], check=True, timeout=300)
