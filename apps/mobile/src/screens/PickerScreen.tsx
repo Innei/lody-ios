@@ -53,7 +53,7 @@ export const PickerScreen = definePage<Params, string>({
   title: t('picker.title'),
   Component: View,
   parseRouteParams: () => {
-    throw new Error('请从表单打开');
+    throw new Error('Open this page from the form');
   },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

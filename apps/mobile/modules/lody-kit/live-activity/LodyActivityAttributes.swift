@@ -60,10 +60,41 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
       var body: String
     }
 
+    // The widget extension cannot read the app's catalog, so its own copy travels in
+    // the state. Older payloads carry none and fall back to English.
+    struct Copy: Codable, Hashable, Sendable {
+      var stale: String
+      var empty: String
+      var others: String
+
+      init(stale: String, empty: String, others: String) {
+        self.stale = stale
+        self.empty = empty
+        self.others = others
+      }
+
+      init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        stale = try container.decodeIfPresent(String.self, forKey: .stale) ?? "Disconnected"
+        empty = try container.decodeIfPresent(String.self, forKey: .empty) ?? "No active sessions"
+        others = try container.decodeIfPresent(String.self, forKey: .others) ?? "{count} more running"
+      }
+    }
+
     var totalCount: Int
     var statusCounts: Counts
     var items: [Item]
     var permissionAlert: PermissionAlert?
+    var copy: Copy?
+
+    var staleLabel: String { copy?.stale ?? "Disconnected" }
+
+    var emptyLabel: String { copy?.empty ?? "No active sessions" }
+
+    func othersLabel(_ count: Int) -> String {
+      (copy?.others ?? "{count} more running")
+        .replacingOccurrences(of: "{count}", with: "\(count)")
+    }
 
     private var ordered: [Item] {
       items.enumerated().sorted { left, right in

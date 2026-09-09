@@ -68,7 +68,7 @@ export const ProjectPickerScreen = definePage<Params, Project>({
   title: t('create.row.selectProject'),
   Component: View,
   parseRouteParams: () => {
-    throw new Error('请从新建会话打开');
+    throw new Error('Open this page from the new session screen');
   },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

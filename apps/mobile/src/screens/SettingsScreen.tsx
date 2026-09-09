@@ -88,7 +88,7 @@ function View() {
       rows: [
         {
           id: 'notifications',
-          title: '通知',
+          title: t('settings.notifications.title'),
           image: 'bell',
           action: true,
           disclosure: true,

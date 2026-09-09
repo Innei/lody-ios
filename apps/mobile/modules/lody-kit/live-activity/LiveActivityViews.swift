@@ -68,6 +68,7 @@ struct FocusText: View {
   let focus: LodyItem
   let othersCount: Int
   let isStale: Bool
+  let copy: LodyActivityAttributes.ContentState
 
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
@@ -81,7 +82,7 @@ struct FocusText: View {
   @ViewBuilder
   private var statusLine: some View {
     if isStale {
-      Text("已断开")
+      Text(copy.staleLabel)
         .font(.subheadline)
         .foregroundStyle(.secondary)
     } else {
@@ -100,7 +101,7 @@ struct FocusText: View {
 
   private var statusText: String {
     if othersCount > 0 {
-      return "\(focus.statusLabel) · 还有 \(othersCount) 个在跑"
+      return "\(focus.statusLabel) · \(copy.othersLabel(othersCount))"
     }
     return focus.statusLabel
   }
@@ -110,11 +111,12 @@ struct FocusRow: View {
   let focus: LodyItem
   let othersCount: Int
   let isStale: Bool
+  let copy: LodyActivityAttributes.ContentState
 
   var body: some View {
     HStack(spacing: 12) {
       AgentGlyph(text: focus.agentLogoText, size: 28)
-      FocusText(focus: focus, othersCount: othersCount, isStale: isStale)
+      FocusText(focus: focus, othersCount: othersCount, isStale: isStale, copy: copy)
       Spacer(minLength: 0)
     }
   }
@@ -152,11 +154,11 @@ struct LodyLockScreenView: View {
   @ViewBuilder
   private var content: some View {
     if let focus = state.focus {
-      FocusRow(focus: focus, othersCount: state.othersCount, isStale: isStale)
+      FocusRow(focus: focus, othersCount: state.othersCount, isStale: isStale, copy: state)
       .lodyStale(isStale)
       .widgetURL(LodyActivityAttributes.route(workspaceSlug: workspaceSlug, sessionId: focus.id))
     } else {
-      Text("没有活跃会话")
+      Text(state.emptyLabel)
         .font(.subheadline)
         .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity, alignment: .leading)

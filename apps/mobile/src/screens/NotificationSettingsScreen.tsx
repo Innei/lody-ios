@@ -59,7 +59,7 @@ export function NotificationSettingsContent({
       setStatus(next);
       setLive(nextLive);
     } catch {
-      if (alive.current) showToast('暂时无法读取通知设置');
+      if (alive.current) showToast(t('notifications.readFailed'));
     }
   }
   useEffect(() => {
@@ -80,7 +80,7 @@ export function NotificationSettingsContent({
       else await service.settings();
       await refresh();
     } catch {
-      showToast('暂时无法修改通知设置');
+      showToast(t('notifications.changeFailed'));
     } finally {
       pending.current = false;
       if (alive.current) setBusy(false);
@@ -98,15 +98,19 @@ export function NotificationSettingsContent({
       if (alive.current) setLiveBusy(false);
     }
   }
-  let subtitle = '开启后接收会话完成和授权提醒';
-  if (!signedIn) subtitle = '登录后可开启会话提醒';
-  else if (!status) subtitle = '正在读取';
-  else if (!status.configured) subtitle = '当前版本暂不支持通知';
-  else if (status.permission === 'authorized') subtitle = '已允许通知';
+  let subtitle = t('notifications.hint.default');
+  if (!signedIn) subtitle = t('notifications.hint.signedOut');
+  else if (!status) subtitle = t('notifications.hint.loading');
+  else if (!status.configured) subtitle = t('notifications.hint.unsupported');
+  else if (status.permission === 'authorized')
+    subtitle = t('notifications.hint.authorized');
   else if (status.permission === 'denied')
-    subtitle = '通知已关闭，请在系统设置中开启';
-  let title = status?.permission === 'notDetermined' ? '开启通知' : '通知设置';
-  if (busy) title = '请稍候';
+    subtitle = t('notifications.hint.denied');
+  let title =
+    status?.permission === 'notDetermined'
+      ? t('notifications.permission.turnOn')
+      : t('notifications.permission.settings');
+  if (busy) title = t('notifications.permission.busy');
   const liveSupported = !!live?.supported;
   let liveSubtitle = t('settings.liveActivity.hint');
   if (live && !liveSupported)
@@ -119,8 +123,8 @@ export function NotificationSettingsContent({
       sections={[
         {
           id: 'notifications',
-          header: '会话提醒',
-          footer: '通知展示、声音和锁屏预览由系统设置管理。',
+          header: t('notifications.section.header'),
+          footer: t('notifications.section.footer'),
           rows: [
             {
               id: 'notification-permission',
@@ -152,7 +156,7 @@ function NotificationSettings() {
 }
 export const NotificationSettingsScreen = definePage<Record<string, never>>({
   id: 'notification-settings',
-  title: '通知',
+  title: t('settings.notifications.title'),
   Component: NotificationSettings,
   parseRouteParams: () => ({}),
   presentation: { style: 'push' },

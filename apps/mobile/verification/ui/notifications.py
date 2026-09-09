@@ -1,5 +1,7 @@
 """Exercise the production notification settings with resettable service outcomes."""
 import sys
+
+import catalog
 from driver import UI
 ui = UI(sys.argv[1], sys.argv[2])
 
@@ -11,15 +13,15 @@ def tap(value):
     frame = node['frame']
     ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2))
 
-text('开启后接收会话完成和授权提醒')
+text(catalog.text('notifications.hint.default'))
 ui.capture('permission-undetermined')
-tap('开启通知')
-text('通知已关闭，请在系统设置中开启')
+tap(catalog.text('notifications.permission.turnOn'))
+text(catalog.text('notifications.hint.denied'))
 ui.capture('permission-denied')
-tap('通知设置')
+tap(catalog.text('notifications.permission.settings'))
 ui.element('notification-settings-opened')
-text('已允许通知')
+text(catalog.text('notifications.hint.authorized'))
 ui.capture('permission-authorized')
 ui.axe('tap', '--id', 'notification-reset')
-text('开启后接收会话完成和授权提醒')
+text(catalog.text('notifications.hint.default'))
 ui.capture('reset')

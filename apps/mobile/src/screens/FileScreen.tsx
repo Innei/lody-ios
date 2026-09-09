@@ -97,7 +97,7 @@ export const FileScreen = definePage<FileParams>({
   title: t('file.title'),
   Component: View,
   parseRouteParams: () => {
-    throw new Error('请从项目文件打开');
+    throw new Error('Open this page from the project files');
   },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

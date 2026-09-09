@@ -151,7 +151,13 @@ precondition(route.absoluteString == "lody:///my%20space/sessions/a%2Fb%20c", ro
 
 print("PASS: activity payload tolerance, focus priority and tie-break, others cap, activity lifetimes, millisecond timestamps, deep-link encoding")
 
-let labels = LiveActivityCatalog.Labels(permission: "需要你授权", running: "正在工作")
+let labels = LiveActivityCatalog.Labels(
+  permission: "需要你授权",
+  running: "正在工作",
+  stale: "已断开",
+  empty: "没有活跃会话",
+  others: "还有 {count} 个在跑"
+)
 let catalog = LiveActivityCatalog.state(catalogJSON: """
 {
   "projects": [],
@@ -197,5 +203,15 @@ precondition(!LiveActivityCatalog.state(catalogJSON: "not json", labels: labels)
 precondition(
   LodyActivityAttributes.activityId(workspaceId: "ws1", userId: "u1") == "lody-conversations:v5:ws1:u1"
 )
+
+precondition(catalog.staleLabel == "已断开" && catalog.emptyLabel == "没有活跃会话")
+precondition(catalog.othersLabel(3) == "还有 3 个在跑", catalog.othersLabel(3))
+precondition(
+  tolerant.staleLabel == "Disconnected" && tolerant.emptyLabel == "No active sessions",
+  "a payload without widget copy falls back to English rather than rendering blank"
+)
+precondition(tolerant.othersLabel(2) == "2 more running")
+
+print("PASS: widget copy travels in the state and older payloads fall back")
 
 print("PASS: catalog mapping skips idle sessions, ranks awaiting first, and maps agent glyphs")
