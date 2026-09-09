@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   parseNotificationRoute,
+  routeFromDeepLink,
   resolveNotificationClick,
 } from '../src/features/notifications/routing.ts';
 const click = { id: 'notice', route: '/work/sessions/session', userId: 'user' };
@@ -75,4 +76,23 @@ test('account changes and membership removal never open a stale notification', (
     }).kind,
     'wait',
   );
+});
+test('widget and notification links share the route space, ignoring foreign schemes', () => {
+  assert.equal(routeFromDeepLink('lody:///ws/sessions/s1'), '/ws/sessions/s1');
+  assert.equal(routeFromDeepLink('lody://ws/sessions/s1'), '/ws/sessions/s1');
+  assert.equal(
+    routeFromDeepLink('lody:///ws/sessions/s1?from=widget#top'),
+    '/ws/sessions/s1',
+  );
+  assert.deepEqual(
+    parseNotificationRoute(routeFromDeepLink('lody:///my%20ws/sessions/s%2B1')),
+    { workspaceSlug: 'my ws', sessionId: 's+1' },
+  );
+  for (const url of [
+    'https://lody.ai/ws/sessions/s1',
+    'lody-ios:///ws/sessions/s1',
+    'ody:///ws/sessions/s1',
+    '/ws/sessions/s1',
+  ])
+    assert.equal(routeFromDeepLink(url), null);
 });

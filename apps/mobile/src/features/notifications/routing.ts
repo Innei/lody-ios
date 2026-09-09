@@ -22,6 +22,13 @@ export function parseNotificationRoute(
   }
 }
 
+export function routeFromDeepLink(url: string): string | null {
+  const match = /^lody:\/\/(\/?[^?#]*)/i.exec(url);
+  if (!match) return null;
+  const path = match[1]!;
+  return path.startsWith('/') ? path : `/${path}`;
+}
+
 export type PushDestination =
   | { kind: 'wait' }
   | { kind: 'discard'; reason: string }
