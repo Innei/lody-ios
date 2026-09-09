@@ -87,6 +87,7 @@ case "$binary" in
   */ExpoModulesWorklets)
     printf '\\t@rpath/ExpoModulesWorklets.framework/ExpoModulesWorklets (compatibility version 1.0.0, current version 1.0.0)\\n'
     printf '\\t@rpath/React.framework/React (compatibility version 1.0.0, current version 1.0.0)\\n'
+    printf '\\t@rpath/libswiftCore.dylib (compatibility version 1.0.0, current version 1.0.0)\\n'
     ;;
 esac
 `,

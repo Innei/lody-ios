@@ -52,6 +52,9 @@ while IFS= read -r binary; do
       /System/Library/* | /usr/lib/*)
         continue
         ;;
+      @rpath/libswift*.dylib)
+        continue
+        ;;
       @rpath/*)
         suffix="${dependency#@rpath/}"
         resolved="$(find "$bundle" -type f -path "*/$suffix" -print -quit)"
