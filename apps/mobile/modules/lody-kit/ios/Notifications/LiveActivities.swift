@@ -7,32 +7,52 @@ import OneSignalLiveActivities
 final class LiveActivities {
   static let shared = LiveActivities()
   private let defaults = UserDefaults(suiteName: "group.app.innei.lody")
-  private var tokenTasks: [String: Task<Void, Never>] = [:]
+  private var tokenTasks: [String: (stamp: UUID, task: Task<Void, Never>)] = [:]
+  private var pushToStartTask: Task<Void, Never>?
+  private var activityTask: Task<Void, Never>?
 
   var enabled: Bool {
     get { defaults?.object(forKey: "liveActivitiesEnabled") as? Bool ?? true }
     set {
       defaults?.set(newValue, forKey: "liveActivitiesEnabled")
-      if !newValue { endAll(reason: "disabled") }
+      if newValue {
+        registerPushToStart()
+        return
+      }
+      endAll()
+      pushToStartTask?.cancel()
+      pushToStartTask = nil
+      if #available(iOS 17.2, *) {
+        OneSignal.LiveActivities.removePushToStartToken(LodyActivityAttributes.self)
+      }
     }
   }
 
   func start() {
     guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-    if #available(iOS 17.2, *) {
-      Task { @MainActor in
-        for await token in Activity<LodyActivityAttributes>.pushToStartTokenUpdates {
-          OneSignal.LiveActivities.setPushToStartToken(LodyActivityAttributes.self, withToken: Self.hex(token))
-        }
+    registerPushToStart()
+    for activity in Activity<LodyActivityAttributes>.activities { observe(activity) }
+    guard activityTask == nil else { return }
+    activityTask = Task { @MainActor in
+      for await activity in Activity<LodyActivityAttributes>.activityUpdates { observe(activity) }
+    }
+  }
+
+  private func registerPushToStart() {
+    guard enabled, pushToStartTask == nil, ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+    guard #available(iOS 17.2, *) else { return }
+    pushToStartTask = Task { @MainActor in
+      for await token in Activity<LodyActivityAttributes>.pushToStartTokenUpdates {
+        OneSignal.LiveActivities.setPushToStartToken(LodyActivityAttributes.self, withToken: Self.hex(token))
       }
     }
-    for activity in Activity<LodyActivityAttributes>.activities { observe(activity) }
   }
 
   func sync(catalogJSON: String, workspaceId: String, workspaceSlug: String, workspaceName: String, userId: String) {
     guard enabled, !workspaceId.isEmpty, !userId.isEmpty,
           ActivityAuthorizationInfo().areActivitiesEnabled else { return }
     let id = LodyActivityAttributes.activityId(workspaceId: workspaceId, userId: userId)
+    endStale(keeping: id)
     guard !Activity<LodyActivityAttributes>.activities.contains(where: { Self.id(of: $0) == id }) else { return }
     let state = LiveActivityCatalog.state(catalogJSON: catalogJSON)
     guard state.isActive else { return }
@@ -47,24 +67,46 @@ final class LiveActivities {
     observe(activity)
   }
 
-  func endAll(reason: String) {
-    tokenTasks.values.forEach { $0.cancel() }
+  func endAll() {
+    tokenTasks.values.forEach { $0.task.cancel() }
     tokenTasks = [:]
-    for activity in Activity<LodyActivityAttributes>.activities {
+    for activity in Activity<LodyActivityAttributes>.activities where !Self.isDebug(activity.attributes) {
       OneSignal.LiveActivities.exit(Self.id(of: activity))
     }
     Self.endActivities()
   }
 
+  private func endStale(keeping id: String) {
+    var stale = false
+    for activity in Activity<LodyActivityAttributes>.activities where !Self.isDebug(activity.attributes) {
+      let other = Self.id(of: activity)
+      guard other != id else { continue }
+      stale = true
+      OneSignal.LiveActivities.exit(other)
+      tokenTasks.removeValue(forKey: other)?.task.cancel()
+    }
+    guard stale else { return }
+    Self.endActivities { !Self.isDebug($0) && Self.activityId(of: $0) != id }
+  }
+
   // ActivityKit's Activity is not Sendable, so every await on one stays inside a
   // nonisolated task that fetches it itself instead of crossing off the main actor.
-  private nonisolated static func endActivities(workspaceId: String? = nil) {
+  private nonisolated static func endActivities(
+    where matches: @escaping @Sendable (LodyActivityAttributes) -> Bool = { _ in true }
+  ) {
     Task {
-      for activity in Activity<LodyActivityAttributes>.activities
-      where workspaceId == nil || activity.attributes.workspaceId == workspaceId {
+      for activity in Activity<LodyActivityAttributes>.activities where matches(activity.attributes) {
         await activity.end(nil, dismissalPolicy: .immediate)
       }
     }
+  }
+
+  private nonisolated static func isDebug(_ attributes: LodyActivityAttributes) -> Bool {
+    attributes.workspaceId == "debug"
+  }
+
+  private nonisolated static func activityId(of attributes: LodyActivityAttributes) -> String {
+    LodyActivityAttributes.activityId(workspaceId: attributes.workspaceId, userId: attributes.userId)
   }
 
   func status() -> [String: any Sendable] {
@@ -77,13 +119,14 @@ final class LiveActivities {
 
   private func observe(_ activity: Activity<LodyActivityAttributes>) {
     let id = Self.id(of: activity)
-    guard tokenTasks[id] == nil else { return }
-    tokenTasks[id] = Task { @MainActor in
+    guard tokenTasks[id] == nil, !Self.isDebug(activity.attributes) else { return }
+    let stamp = UUID()
+    tokenTasks[id] = (stamp, Task { @MainActor in
       for await token in activity.pushTokenUpdates {
         OneSignal.LiveActivities.enter(id, withToken: Self.hex(token))
       }
-      tokenTasks[id] = nil
-    }
+      if tokenTasks[id]?.stamp == stamp { tokenTasks[id] = nil }
+    })
   }
 
   private static func id(of activity: Activity<LodyActivityAttributes>) -> String {
@@ -115,7 +158,7 @@ final class LiveActivities {
     case "update-permission":
       Self.updateDebugActivities()
     case "end":
-      Self.endActivities(workspaceId: "debug")
+      Self.endActivities(where: Self.isDebug)
     default: break
     }
   }
