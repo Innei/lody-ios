@@ -33,7 +33,10 @@ def two_line_title(items):
     return bar if bar and bar['frame']['height'] >= 50 else None
 
 ui.wait(two_line_title, 'Project subtitle must be visible when the chat first appears')
-ui.element('chat-navigation-title')
+title = ui.element('chat-navigation-title')
+spoken_title = title.get('AXLabel') or ''
+assert 'lody-ios' in spoken_title, 'Navigation title must include the project name'
+assert 'Studio' in spoken_title, 'Navigation title must include the computer name'
 axe('tap', '--id', 'chat-navigation-title', '--post-delay', '0.3')
 tree = axe('describe-ui')
 assert catalog.text('session.debug.title') in tree, 'Title tap must open the debug alert'
