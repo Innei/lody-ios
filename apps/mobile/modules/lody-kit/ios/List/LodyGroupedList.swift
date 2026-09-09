@@ -104,12 +104,13 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
   var previewUserId = ""
   var previewWorkspaceId = ""
   private var rowsByID: [ListItemID: LodyListRow] = [:]
+  private var toggles: [String: RowSwitch] = [:]
   private var dataSource: UICollectionViewDiffableDataSource<String, ListItemID>!
 
   private static let restingCard = UIColor.tertiarySystemGroupedBackground
 
-  private let registration = UICollectionView.CellRegistration<UICollectionViewListCell, LodyListRow> { cell, _, row in
-    LodyGroupedList.configureSystem(cell, row)
+  private lazy var registration = UICollectionView.CellRegistration<UICollectionViewListCell, LodyListRow> { [weak self] cell, _, row in
+    LodyGroupedList.configureSystem(cell, row, toggle: self?.toggle(for: row))
   }
 
   private lazy var sessionRegistration = UICollectionView.CellRegistration<LodyIndentedCell, LodyListRow> { cell, _, row in
@@ -143,7 +144,11 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
     cell.accessibilityTraits = row.action ? .button : .staticText
   }
 
-  private static func configureSystem(_ cell: UICollectionViewListCell, _ row: LodyListRow) {
+  private static func configureSystem(
+    _ cell: UICollectionViewListCell,
+    _ row: LodyListRow,
+    toggle: UISwitch? = nil
+  ) {
     cell.accessibilityIdentifier = row.id
     let accent = LodyGroupedList.accent
     var content = UIListContentConfiguration.subtitleCell()
@@ -185,6 +190,11 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
       options.tintColor = .secondaryLabel
       accessories.append(.label(text: row.value, options: options))
     }
+    if let toggle {
+      accessories.append(
+        .customView(configuration: .init(customView: toggle, placement: .trailing()))
+      )
+    }
     if row.disclosure { accessories.append(.disclosureIndicator()) }
     cell.accessories = accessories
     cell.accessibilityTraits = row.action ? .button : .staticText
@@ -203,6 +213,7 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
     super.init(appContext: appContext)
     // UIKit rejects a registration created inside the cell provider.
     _ = sessionRegistration
+    _ = registration
     collection.backgroundColor = .systemGroupedBackground
     collection.contentInsetAdjustmentBehavior = .automatic
     collection.alwaysBounceVertical = true
@@ -456,6 +467,8 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
     rowsByID = Dictionary(value.flatMap { section in
       section.rows.map { (ListItemID(section: section.id, row: $0.id), $0) }
     }, uniquingKeysWith: { _, latest in latest })
+    let live = Set(rowsByID.keys.map(\.row))
+    toggles = toggles.filter { live.contains($0.key) }
     if contentStyle, value.contains(where: { $0.rows.first?.parent == true }) {
       applyOutline(value, previous: previous)
       updatePlaceholder()
@@ -621,7 +634,7 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
 
   private func configure(_ cell: UICollectionViewListCell, row: LodyListRow) {
     switch kind(of: row) {
-    case .system: Self.configureSystem(cell, row)
+    case .system: Self.configureSystem(cell, row, toggle: toggle(for: row))
     case .session: if let cell = cell as? LodyIndentedCell { Self.configureSession(cell, row) }
     case .project: Self.configureProject(cell, row)
     }
@@ -632,23 +645,26 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
     onRowToggle(["id": sender.rowID, "value": sender.isOn])
   }
 
-  private func attachToggle(_ cell: UICollectionViewListCell, row: LodyListRow) {
-    guard let on = row.toggle else { return }
-    let toggle = RowSwitch()
+  /// Reused per row id so a reconfigure keeps the live switch instead of swapping in a
+  /// fresh one, which reads as a flicker mid-animation.
+  private func toggle(for row: LodyListRow) -> UISwitch? {
+    guard let on = row.toggle else { return nil }
+    let toggle = toggles[row.id] ?? {
+      let created = RowSwitch()
+      created.addTarget(self, action: #selector(rowSwitchChanged(_:)), for: .valueChanged)
+      toggles[row.id] = created
+      return created
+    }()
     toggle.rowID = row.id
-    toggle.isOn = on
+    toggle.setOn(on, animated: false)
     toggle.isEnabled = row.action
     toggle.onTintColor = LodyGroupedList.accent
     toggle.accessibilityIdentifier = row.id + ":toggle"
     toggle.accessibilityLabel = row.title
-    toggle.addTarget(self, action: #selector(rowSwitchChanged(_:)), for: .valueChanged)
-    cell.accessories.append(
-      .customView(configuration: .init(customView: toggle, placement: .trailing()))
-    )
+    return toggle
   }
 
   private func decorate(_ cell: UICollectionViewListCell, row: LodyListRow) {
-    attachToggle(cell, row: row)
     // Outline children carry indentation level 1; the row views own their columns.
     cell.indentationWidth = 0
     cell.configurationUpdateHandler = nil
