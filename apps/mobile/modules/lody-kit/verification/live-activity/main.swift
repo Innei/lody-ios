@@ -150,12 +150,13 @@ let catalog = LiveActivityCatalog.state(catalogJSON: """
     { "id": "run", "title": "Build the widget", "status": "running", "lastMessageAt": 1757000002000, "agentType": "codex" },
     { "id": "await", "title": "Approve force push", "status": "running", "awaitingUserSince": 1757000003000, "lastMessageAt": 1757000001000, "agentType": "claude" },
     { "id": "idle", "title": "Old thread", "status": "completed", "lastMessageAt": 1757000000000, "agentType": "claude" },
+    { "id": "archived", "title": "Archived but running", "status": "running", "archived": true, "lastMessageAt": 1757000006000, "agentType": "claude" },
     { "id": "queued", "title": "Waiting to run", "status": "queued", "lastMessageAt": 1757000004000, "cliType": "gemini" },
     { "id": "nameless", "title": "No agent", "status": "pending", "lastMessageAt": 1757000005000 }
   ]
 }
 """)
-precondition(catalog.items.map(\.id) == ["run", "await", "queued", "nameless"], "idle sessions are skipped")
+precondition(catalog.items.map(\.id) == ["run", "await", "queued", "nameless"], "idle and archived sessions are skipped")
 precondition(catalog.totalCount == 4)
 precondition(catalog.statusCounts.running == 3 && catalog.statusCounts.permission == 1)
 precondition(catalog.statusCounts.question == 0 && catalog.statusCounts.unread == 0)

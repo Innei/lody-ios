@@ -29,7 +29,7 @@ enum LiveActivityCatalog {
   }
 
   private static func item(_ session: [String: Any]) -> Item? {
-    guard let id = session["id"] as? String else { return nil }
+    guard let id = session["id"] as? String, session["archived"] as? Bool != true else { return nil }
     let awaiting = session["awaitingUserSince"] as? Double
     let status = resolveStatus(awaiting: awaiting, status: session["status"] as? String)
     guard let status else { return nil }

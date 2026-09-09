@@ -146,7 +146,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     try await runOnMain {
       self.dataRuntime.stop()
       PushNotifications.shared.identify(nil)
-      LiveActivities.shared.endAll(reason: "logout")
+      LiveActivities.shared.endAll()
       try AuthKeychain.clear()
     }
   }
