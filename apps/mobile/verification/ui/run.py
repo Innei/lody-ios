@@ -101,7 +101,7 @@ def sim(*command, check=True):
 # Never reuse a Metro whose bundle may restore credentials or select another checkout.
 import socket
 try:
-    with socket.create_connection(('localhost', args.port), timeout=2):
+    with socket.create_connection(('127.0.0.1', args.port), timeout=2):
         raise SystemExit(f'Port {args.port} is occupied; choose another --port')
 except OSError:
     pass
@@ -116,7 +116,7 @@ try:
         if metro.poll() is not None:
             raise RuntimeError('Metro exited; inspect metro.log')
         try:
-            with urlopen(f'http://localhost:{args.port}/status', timeout=2) as response:
+            with urlopen(f'http://127.0.0.1:{args.port}/status', timeout=2) as response:
                 if b'packager-status:running' in response.read():
                     break
         except OSError:
@@ -124,7 +124,9 @@ try:
         if time.monotonic() > deadline:
             raise TimeoutError('Metro did not become ready')
         time.sleep(.5)
-    request = Request(f'http://localhost:{args.port}/?disableOnboarding=1', headers={'expo-platform': 'ios', 'accept': 'application/expo+json'})
+    # Metro binds REACT_NATIVE_PACKAGER_HOSTNAME, so the literal address avoids the
+    # Simulator resolving localhost to ::1, connecting, and then never being answered.
+    request = Request(f'http://127.0.0.1:{args.port}/?disableOnboarding=1', headers={'expo-platform': 'ios', 'accept': 'application/expo+json'})
     with urlopen(request, timeout=30) as response:
         manifest = json.load(response)
     with urlopen(manifest['launchAsset']['url'], timeout=90) as response:
@@ -159,7 +161,7 @@ try:
                 if case == 'chat-performance':
                     container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
                     (container / 'tmp/lody-chat-loading.json').unlink(missing_ok=True)
-                sim('launch', args.udid, 'app.innei.lody', '--ui-verify', *(['--ui-verify-scroll'] if case == 'smooth-scroll' else []), *(['--ui-verify-throw'] if case in ['send', 'send-handoff', 'send-rounds', 'send-queue'] else []), '--initialUrl', f'http://localhost:{args.port}?disableOnboarding=1', '-expo.devlauncher.hasGrantedNetworkPermission', 'YES', '-EXDevMenuShowsAtLaunch', 'NO', '-EXDevMenuIsOnboardingFinished', 'YES', '-EXDevMenuShowFloatingActionButton', 'NO', '-AppleLanguages', f'({args.language})', '-AppleLocale', 'en_US' if args.language == 'en' else 'zh_CN',
+                sim('launch', args.udid, 'app.innei.lody', '--ui-verify', *(['--ui-verify-scroll'] if case == 'smooth-scroll' else []), *(['--ui-verify-throw'] if case in ['send', 'send-handoff', 'send-rounds', 'send-queue'] else []), '--initialUrl', f'http://127.0.0.1:{args.port}?disableOnboarding=1', '-expo.devlauncher.hasGrantedNetworkPermission', 'YES', '-EXDevMenuShowsAtLaunch', 'NO', '-EXDevMenuIsOnboardingFinished', 'YES', '-EXDevMenuShowFloatingActionButton', 'NO', '-AppleLanguages', f'({args.language})', '-AppleLocale', 'en_US' if args.language == 'en' else 'zh_CN',
                     '-AppleKeyboards', '(en_US@sw=QWERTY)')
                 ui.element('ui-verify-ready', timeout=180)
                 recording = subprocess.Popen(['xcrun', 'simctl', 'io', args.udid, 'recordVideo', '--codec=h264', str(output / 'run.mp4')], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -206,7 +208,7 @@ try:
                 else:
                     command += [str(output)]
                 with (output / 'check.log').open('w') as log:
-                    subprocess.run(command, check=True, timeout=300 if case == 'chat-stream-performance' else 180, stdout=log, stderr=subprocess.STDOUT,
+                    subprocess.run(command, check=True, timeout=300 if case in ('chat-stream-performance', 'home') else 180, stdout=log, stderr=subprocess.STDOUT,
                                    env={**os.environ, 'LODY_UI_LANGUAGE': args.language})
                 ui.capture('after')
                 result['status'] = 'passed'
