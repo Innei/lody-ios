@@ -18,41 +18,33 @@ struct LodyLiveActivityWidget: Widget {
   private func island(_ context: ActivityViewContext<LodyActivityAttributes>) -> DynamicIsland {
     let state = context.state
     let focus = state.focus
-    let slug = context.attributes.routeSlug
 
     return DynamicIsland {
       DynamicIslandExpandedRegion(.leading) {
         if let focus {
-          AgentGlyph(text: focus.agentLogoText, size: 34)
+          AgentGlyph(text: focus.agentLogoText, size: 20)
             .lodyStale(context.isStale)
         }
       }
-      DynamicIslandExpandedRegion(.center) {
-        if let focus {
-          FocusText(focus: focus, othersCount: state.othersCount, isStale: context.isStale)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .lodyStale(context.isStale)
-        } else {
-          Text("没有活跃会话")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-        }
-      }
-      DynamicIslandExpandedRegion(.trailing) {
-        if let focus {
-          FocusAccessory(focus: focus, needsAttention: state.needsAttention, isStale: context.isStale)
-            .lodyStale(context.isStale)
-        }
-      }
+      // The camera housing splits the top row, so its center is the narrowest track in
+      // the whole view. Everything with real text goes into the full-width bottom.
       DynamicIslandExpandedRegion(.bottom) {
-        VStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
+          if let focus {
+            FocusText(focus: focus, othersCount: state.othersCount, isStale: context.isStale)
+          } else {
+            Text("没有活跃会话")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+          }
+          // The expanded island clips whatever its own height cannot hold, so the
+          // bottom carries the focus block and, at most, the command a pending
+          // permission waits on. The status line carries the other sessions as a count.
           if let command = focus?.permissionCommand, focus?.status == .permission {
             CommandStrip(command: command)
           }
-          if !state.others.isEmpty {
-            OtherRows(items: state.others, workspaceSlug: slug)
-          }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .lodyStale(context.isStale)
       }
     } compactLeading: {
@@ -71,7 +63,7 @@ struct LodyLiveActivityWidget: Widget {
           .lodyStale(context.isStale)
       }
     }
-    .widgetURL(focus.map { LodyActivityAttributes.route(workspaceSlug: slug, sessionId: $0.id) })
+    .widgetURL(focus.map { LodyActivityAttributes.route(workspaceSlug: context.attributes.routeSlug, sessionId: $0.id) })
   }
 }
 
