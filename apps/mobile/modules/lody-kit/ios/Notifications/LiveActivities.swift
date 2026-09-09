@@ -138,8 +138,8 @@ final class LiveActivities {
 
   private nonisolated static var labels: LiveActivityCatalog.Labels {
     .init(
-      permission: LodyStrings.text("liveActivity.status.permission"),
-      running: LodyStrings.text("liveActivity.status.running")
+      permission: LodyStrings.text("native.liveActivity.status.permission"),
+      running: LodyStrings.text("native.liveActivity.status.running")
     )
   }
 
@@ -173,7 +173,7 @@ final class LiveActivities {
   private nonisolated static func updateDebugActivities() {
     let state = debugState(permission: true)
     let alert = AlertConfiguration(
-      title: LocalizedStringResource(stringLiteral: LodyStrings.text("liveActivity.debug.alertTitle")),
+      title: LocalizedStringResource(stringLiteral: LodyStrings.text("native.liveActivity.debug.alertTitle")),
       body: "git push origin main --force",
       sound: .default
     )
@@ -195,14 +195,14 @@ final class LiveActivities {
     return LodyActivityAttributes.ContentState.Item(
       id: id,
       status: status,
-      statusLabel: LodyStrings.text("liveActivity.status.\(status.rawValue)"),
+      statusLabel: LodyStrings.text("native.liveActivity.status.\(status.rawValue)"),
       permissionRequestId: command == nil ? nil : "debug-request",
       permissionCommand: command,
       agentLogoKind: agent == "CC" ? "claude" : "codex",
       agentLogoText: agent,
       title: title,
       updatedAt: updatedAt,
-      updatedAtLabel: LodyStrings.text("liveActivity.debug.updatedAt")
+      updatedAtLabel: LodyStrings.text("native.liveActivity.debug.updatedAt")
     )
   }
 
@@ -211,7 +211,7 @@ final class LiveActivities {
     let second = debugItem(
       "debug-2",
       permission ? .permission : .running,
-      LodyStrings.text("liveActivity.debug.title2"),
+      LodyStrings.text("native.liveActivity.debug.title2"),
       "CX",
       now - 1000,
       command: permission ? "git push origin main --force" : nil
@@ -220,12 +220,12 @@ final class LiveActivities {
       totalCount: 3,
       statusCounts: .init(permission: permission ? 1 : 0, running: permission ? 1 : 2, unread: 1),
       items: [
-        debugItem("debug-1", .running, LodyStrings.text("liveActivity.debug.title1"), "CC", now),
+        debugItem("debug-1", .running, LodyStrings.text("native.liveActivity.debug.title1"), "CC", now),
         second,
-        debugItem("debug-3", .unread, LodyStrings.text("liveActivity.debug.title3"), "CC", now - 2000),
+        debugItem("debug-3", .unread, LodyStrings.text("native.liveActivity.debug.title3"), "CC", now - 2000),
       ],
       permissionAlert: permission
-        ? .init(title: LodyStrings.text("liveActivity.debug.alertTitle"), body: "git push origin main --force")
+        ? .init(title: LodyStrings.text("native.liveActivity.debug.alertTitle"), body: "git push origin main --force")
         : nil
     )
   }
