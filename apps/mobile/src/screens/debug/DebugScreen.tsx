@@ -6,6 +6,7 @@ import { openSendPreview } from './SendPreviewScreen';
 import { BackgroundPreviewScreen } from './BackgroundPreviewScreen';
 import { pushStatus, verifyPushSubscription } from '@lody-ios/kit';
 import { NotificationPreviewScreen } from './NotificationPreviewScreen';
+import { LiveActivityPreviewScreen } from './LiveActivityPreviewScreen';
 import { uiVerify } from './uiVerify';
 import { ComposerPreviewScreen } from './ComposerPreviewScreen';
 import { ChatPreviewScreen } from './ChatPreviewScreen';
@@ -100,6 +101,7 @@ function View() {
       header: '界面验收',
       rows: [
         openRow('notification-preview', '通知权限验收', 'bell'),
+        openRow('live-activity-preview', 'Live Activity 演示', 'sparkles'),
         {
           id: 'push-subscription-verify',
           title: '验证 OneSignal 订阅',
@@ -204,6 +206,7 @@ function View() {
     'notification-preview': () => {
       void present(NotificationPreviewScreen, {});
     },
+    'live-activity-preview': () => void present(LiveActivityPreviewScreen, {}),
     'push-subscription-verify': () => {
       void pushStatus().then(async (status) => {
         await verifyPushSubscription();
