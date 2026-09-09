@@ -59,126 +59,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   @JS
-  func watchCatalog(workspace: String, slug: String, name: String, owner: String, userId: String) async throws {
-    try await runOnMain {
-      guard !workspace.isEmpty, !owner.isEmpty, !userId.isEmpty else { throw NSError(domain: "InvalidSubscription", code: 1) }
-      self.dataRuntime.start(workspace: workspace, slug: slug, name: name, owner: owner, userId: userId)
-    }
-  }
-
-  @JS
-  func unwatchCatalog(owner: String) async {
-    await runOnMain { self.dataRuntime.stop(owner: owner) }
-  }
-
-  @JS
-  func watchSession(id: String) async {
-    await runOnMain { self.dataRuntime.openSession(id) }
-  }
-
-  @JS
-  func unwatchSession(id: String) async {
-    await runOnMain { self.dataRuntime.closeSession(id) }
-  }
-
-  @JS
-  func readContentText(handle: String) async -> String? {
-    await runOnMain {
-      ContentStore.shared.get(handle).flatMap { String(data: $0.data, encoding: .utf8) }
-    }
-  }
-
-  @JS
-  func previewContent(handle: String) async throws {
-    try await runOnMain {
-      guard let controller = self.appContext?.utilities?.currentViewController() else {
-        throw NSError(domain: "LodyKit.ContentPreview", code: 2)
-      }
-      try ContentPreview.present(handle: handle, from: controller)
-    }
-  }
-
-  @JS
-  func debugHangDataRuntime() async {
-    await runOnMain {
-      #if DEBUG
-      self.dataRuntime.debugHang()
-      #endif
-    }
-  }
-
-  @JS
-  func debugRestartDataRuntime() async {
-    await runOnMain {
-      #if DEBUG
-      self.dataRuntime.debugRestart()
-      #endif
-    }
-  }
-
-  @JS
-  func readLocalStartup() async throws -> [String: String] {
-    try await runOnStore { try self.localStore.startup() }
-  }
-
-  @JS
-  func readLocalValue(key: String) async throws -> String? {
-    try await runOnStore { try self.localStore.read(key) }
-  }
-
-  @JS
-  func writeLocalValue(key: String, value: String) async throws {
-    try await runOnStore { try self.localStore.write(key, value) }
-  }
-
-  @JS
-  func readAuthToken() async throws -> String? {
-    try await runOnMain { try AuthKeychain.read() }
-  }
-
-  @JS
-  func saveAuthToken(token: String) async throws {
-    try await runOnMain { try AuthKeychain.save(token) }
-  }
-
-  @JS
-  func clearAuthToken() async throws {
-    try await runOnMain {
-      self.dataRuntime.stop()
-      PushNotifications.shared.identify(nil)
-      LiveActivities.shared.endAll()
-      try AuthKeychain.clear()
-    }
-  }
-
-  @JS
-  func openAuthBrowser(address: String) async throws {
-    try await runOnMain {
-      guard let url = URL(string: address), url.scheme == "https", url.host == "lody.ai",
-            url.user == nil, url.password == nil,
-            let controller = self.appContext?.utilities?.currentViewController() else {
-        throw NSError(domain: "LodyKit.AuthBrowser", code: 1)
-      }
-      let browser = SFSafariViewController(url: url)
-      self.authBrowser = browser
-      controller.present(browser, animated: true)
-    }
-  }
-
-  @JS
-  func closeAuthBrowser() async {
-    await runOnMain {
-      self.authBrowser?.dismiss(animated: true)
-      self.authBrowser = nil
-    }
-  }
-
-  @JS
-  func selectionFeedback() async {
-    await runOnMain { UISelectionFeedbackGenerator().selectionChanged() }
-  }
-
-  @JS
   func showToast(message: String, kind: String) {
     Task { @MainActor in LodyToastOverlay.shared.show(message: message, kind: kind) }
   }
@@ -221,6 +101,80 @@ public final class LodyKitModule: Module, @unchecked Sendable {
 
   public func definition() -> ModuleDefinition {
     Events("onDataRuntime", "onPushClick")
+    AsyncFunction("watchCatalog") { (workspace: String, slug: String, name: String, owner: String, userId: String) in
+      try MainActor.assumeIsolated {
+        guard !workspace.isEmpty, !owner.isEmpty, !userId.isEmpty else {
+          throw NSError(domain: "InvalidSubscription", code: 1)
+        }
+        self.dataRuntime.start(workspace: workspace, slug: slug, name: name, owner: owner, userId: userId)
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("unwatchCatalog") { (owner: String) in
+      MainActor.assumeIsolated { self.dataRuntime.stop(owner: owner) }
+    }.runOnQueue(.main)
+    AsyncFunction("watchSession") { (id: String) in
+      MainActor.assumeIsolated { self.dataRuntime.openSession(id) }
+    }.runOnQueue(.main)
+    AsyncFunction("unwatchSession") { (id: String) in
+      MainActor.assumeIsolated { self.dataRuntime.closeSession(id) }
+    }.runOnQueue(.main)
+    AsyncFunction("readContentText") { (handle: String) -> String? in
+      MainActor.assumeIsolated {
+        ContentStore.shared.get(handle).flatMap { String(data: $0.data, encoding: .utf8) }
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("previewContent") { (handle: String) in
+      try MainActor.assumeIsolated {
+        guard let controller = self.appContext?.utilities?.currentViewController() else {
+          throw NSError(domain: "LodyKit.ContentPreview", code: 2)
+        }
+        try ContentPreview.present(handle: handle, from: controller)
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("debugHangDataRuntime") {
+      #if DEBUG
+      MainActor.assumeIsolated { self.dataRuntime.debugHang() }
+      #endif
+    }.runOnQueue(.main)
+    AsyncFunction("debugRestartDataRuntime") {
+      #if DEBUG
+      MainActor.assumeIsolated { self.dataRuntime.debugRestart() }
+      #endif
+    }.runOnQueue(.main)
+    AsyncFunction("readLocalStartup") { try self.localStore.startup() }.runOnQueue(LocalStore.queue)
+    AsyncFunction("readLocalValue") { (key: String) in try self.localStore.read(key) }.runOnQueue(LocalStore.queue)
+    AsyncFunction("writeLocalValue") { (key: String, value: String) in try self.localStore.write(key, value) }.runOnQueue(LocalStore.queue)
+    AsyncFunction("readAuthToken") { try AuthKeychain.read() }.runOnQueue(.main)
+    AsyncFunction("saveAuthToken") { (token: String) in try AuthKeychain.save(token) }.runOnQueue(.main)
+    AsyncFunction("clearAuthToken") {
+      try MainActor.assumeIsolated {
+        self.dataRuntime.stop()
+        PushNotifications.shared.identify(nil)
+        LiveActivities.shared.endAll()
+        try AuthKeychain.clear()
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("openAuthBrowser") { (address: String) in
+      try MainActor.assumeIsolated {
+        guard let url = URL(string: address), url.scheme == "https", url.host == "lody.ai",
+              url.user == nil, url.password == nil,
+              let controller = self.appContext?.utilities?.currentViewController() else {
+          throw NSError(domain: "LodyKit.AuthBrowser", code: 1)
+        }
+        let browser = SFSafariViewController(url: url)
+        self.authBrowser = browser
+        controller.present(browser, animated: true)
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("closeAuthBrowser") {
+      MainActor.assumeIsolated {
+        self.authBrowser?.dismiss(animated: true)
+        self.authBrowser = nil
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("selectionFeedback") {
+      UISelectionFeedbackGenerator().selectionChanged()
+    }.runOnQueue(.main)
     AsyncFunction("verifyPushSubscription") {
       #if DEBUG
       MainActor.assumeIsolated {
@@ -572,19 +526,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
       Prop("tint") { (view: LodyGlassSurface, tint: String) in
         view.setTint(tint)
-      }
-    }
-  }
-
-  private func runOnMain<T: Sendable>(_ work: @MainActor @Sendable () throws -> T) async rethrows -> T {
-    try await MainActor.run { try work() }
-  }
-
-  private func runOnStore<T>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
-    try await withCheckedThrowingContinuation { continuation in
-      LocalStore.queue.async {
-        do { continuation.resume(returning: try work()) }
-        catch { continuation.resume(throwing: error) }
       }
     }
   }
