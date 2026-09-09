@@ -7,7 +7,7 @@ struct LodyLiveActivityWidget: Widget {
     ActivityConfiguration(for: LodyActivityAttributes.self) { context in
       LodyLockScreenView(
         state: context.state,
-        workspaceSlug: context.attributes.workspaceSlug,
+        workspaceSlug: context.attributes.routeSlug,
         isStale: context.isStale
       )
     } dynamicIsland: { context in
@@ -18,7 +18,7 @@ struct LodyLiveActivityWidget: Widget {
   private func island(_ context: ActivityViewContext<LodyActivityAttributes>) -> DynamicIsland {
     let state = context.state
     let focus = state.focus
-    let slug = context.attributes.workspaceSlug
+    let slug = context.attributes.routeSlug
 
     return DynamicIsland {
       DynamicIslandExpandedRegion(.leading) {

@@ -95,13 +95,16 @@ struct FocusAccessory: View {
       )
       .font(.title2.monospacedDigit())
       .foregroundStyle(.blue)
-      .frame(maxWidth: 64)
+      .lineLimit(1)
+      .minimumScaleFactor(0.6)
+      .multilineTextAlignment(.trailing)
+      .frame(width: 88, alignment: .trailing)
     } else {
       Text("查看")
         .font(.caption.weight(.semibold))
         .foregroundStyle(pillColor)
-        .padding(.horizontal, 10)
         .padding(.vertical, 5)
+        .frame(width: 88)
         .background(Capsule().fill(pillColor.opacity(0.18)))
     }
   }

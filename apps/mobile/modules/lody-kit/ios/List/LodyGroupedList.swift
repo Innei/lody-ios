@@ -660,7 +660,6 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
     toggle.isEnabled = row.action
     toggle.onTintColor = LodyGroupedList.accent
     toggle.accessibilityIdentifier = row.id + ":toggle"
-    toggle.accessibilityLabel = row.title
     return toggle
   }
 

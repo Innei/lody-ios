@@ -27,20 +27,20 @@ lody-conversations:v5:{workspaceId}:{userId}
 
 `LodyActivityAttributes` (fixed for the activity's life):
 
-| field | type |
-| --- | --- |
-| workspaceId | String |
+| field         | type   |
+| ------------- | ------ |
+| workspaceId   | String |
 | workspaceName | String |
-| userId | String |
+| userId        | String |
 
 `ContentState` mirrors the upstream v5 payload field for field and is `Codable`:
 
-| field | type |
-| --- | --- |
-| totalCount | Int |
-| statusCounts | { permission, question, running, unread: Int } |
-| items | [Item] (up to 8) |
-| permissionAlert | { title, body }? |
+| field           | type                                           |
+| --------------- | ---------------------------------------------- |
+| totalCount      | Int                                            |
+| statusCounts    | { permission, question, running, unread: Int } |
+| items           | [Item] (up to 8)                               |
+| permissionAlert | { title, body }?                               |
 
 `Item`: `id`, `status` (`permission` / `question` / `running` / `unread`),
 `statusLabel`, `permissionRequestId?`, `permissionCommand?`, `agentLogoKind`,
@@ -66,11 +66,11 @@ glyph is the two-letter `agentLogoText` on a neutral rounded square.
 
 Leading: focus item's agent glyph. Trailing: a symbol only.
 
-| focus status | trailing |
-| --- | --- |
-| running | indeterminate ring (blue) |
-| permission / question | orange dot |
-| unread | green checkmark |
+| focus status          | trailing                  |
+| --------------------- | ------------------------- |
+| running               | indeterminate ring (blue) |
+| permission / question | orange dot                |
+| unread                | green checkmark           |
 
 Minimal (another app owns the island): the trailing symbol alone.
 
@@ -202,3 +202,9 @@ value.
   tolerate missing optional fields rather than fail.
 - The Lock Screen and StandBy render the same `ActivityConfiguration` content; the
   focus-only layout must remain legible at StandBy scale.
+- Under the single-writer rule the app sets `staleDate` and `dismissalDate` only on the
+  activity it requests itself. ActivityKit does not carry them forward across updates,
+  so every later server-pushed update must send its own `stale-date` and
+  `dismissal-date`. An update that omits them produces an activity that never marks
+  itself stale and never auto-dismisses, and the app will not correct it because it
+  never rewrites an activity it did not start in that pass.

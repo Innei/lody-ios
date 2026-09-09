@@ -11,6 +11,7 @@ from driver import UI
 udid, output = sys.argv[1:3]
 ui = UI(udid, output)
 ALLOW = {'Allow', 'Always Allow', '允许', '始终允许'}
+OPEN = {'Open', '打开'}
 
 
 def status():
@@ -25,12 +26,12 @@ def foreground():
     subprocess.run(['xcrun', 'simctl', 'launch', udid, 'app.innei.lody'], check=True, timeout=30)
 
 
-def allow(timeout):
+def allow(timeout, labels=ALLOW):
     """Starting an activity raises a system consent alert: once per device the first
     time, and again as a "continue to allow" prompt on later runs. Leaving either up
     would swallow the next taps and change the Lock Screen capture."""
     def button(items):
-        return next((i for i in items if i.get('AXLabel') in ALLOW and i.get('type') == 'Button'), None)
+        return next((i for i in items if i.get('AXLabel') in labels and i.get('type') == 'Button'), None)
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         found = button(ui.state())
@@ -75,4 +76,14 @@ ui.element('live-activity-end')
 ui.axe('tap', '--id', 'live-activity-end', '--tap-style', 'physical')
 ui.wait(lambda items: status() == '0 个活动', 'Fixture activity did not end')
 ui.capture('ended')
-print('PASS: island running and permission states captured, switch toggled, activity ended', flush=True)
+
+subprocess.run(['xcrun', 'simctl', 'openurl', udid, 'lody:///debug/sessions/x'], check=True, timeout=30)
+allow(6, OPEN)
+ui.wait(
+    lambda items: not any(i.get('AXUniqueId') == 'live-activity-status' for i in items),
+    'the widget deep link never navigated away from the Live Activity scene',
+)
+labels = [i.get('AXLabel') or '' for i in ui.state()]
+assert not any('Unmatched' in label for label in labels), 'widget deep link landed on the Unmatched Route screen'
+ui.capture('deep-link')
+print('PASS: island running and permission states captured, switch toggled, activity ended, widget deep link avoids the Unmatched Route screen', flush=True)
