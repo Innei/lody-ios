@@ -30,6 +30,7 @@ env:
   MOBILE_DIR: apps/mobile
   APPLE_TEAM_ID: KAMM5N88X3
   LODY_BUNDLE_ID: app.innei.lody
+  EXPO_USE_PRECOMPILED_MODULES: '0'
   ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
   ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
   ASC_BYPASS_KEYCHAIN: '1'
@@ -158,6 +159,9 @@ jobs:
           bundle install
           cd ios
           bundle exec pod install
+
+      - name: Verify compatible native build mode
+        run: /bin/bash .github/scripts/verify-ios-build-mode.sh "$MOBILE_DIR/ios"
 
       - name: Import distribution certificate
         env:
@@ -330,6 +334,17 @@ jobs:
           ipa="$(find "$RUNNER_TEMP/export" -maxdepth 1 -name '*.ipa' -print -quit)"
           test -n "$ipa"
           echo "IPA_PATH=$ipa" >> "$GITHUB_ENV"
+
+      - name: Verify exported IPA
+        run: |
+          set -euo pipefail
+          verification_directory="$RUNNER_TEMP/ipa-verification"
+          rm -rf "$verification_directory"
+          mkdir -p "$verification_directory"
+          /usr/bin/ditto -x -k "$IPA_PATH" "$verification_directory"
+          app="$(find "$verification_directory/Payload" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$app"
+          /bin/bash .github/scripts/verify-apple-bundle-linkage.sh "$app"
 
       - name: Upload to TestFlight
         env:
