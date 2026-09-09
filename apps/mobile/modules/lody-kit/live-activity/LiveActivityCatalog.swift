@@ -9,14 +9,18 @@ extension LodyActivityAttributes {
 enum LiveActivityCatalog {
   private typealias Item = LodyActivityAttributes.ContentState.Item
 
+  struct Labels: Sendable {
+    var permission: String
+    var running: String
+  }
+
   private static let runningStatuses: Set<String> = ["running", "processing", "in_progress", "queued", "pending"]
-  private static let statusLabels: [Item.Status: String] = [.permission: "需要你授权", .running: "正在工作"]
   private static let glyphs = ["codex": "CX", "claude": "CC"]
 
-  static func state(catalogJSON: String) -> LodyActivityAttributes.ContentState {
+  static func state(catalogJSON: String, labels: Labels) -> LodyActivityAttributes.ContentState {
     let root = (try? JSONSerialization.jsonObject(with: Data(catalogJSON.utf8))) as? [String: Any]
     let sessions = (root?["sessions"] as? [[String: Any]]) ?? []
-    let items = sessions.compactMap(item)
+    let items = sessions.compactMap { item($0, labels: labels) }
     var counts = LodyActivityAttributes.ContentState.Counts()
     counts.permission = items.count { $0.status == .permission }
     counts.running = items.count { $0.status == .running }
@@ -28,7 +32,7 @@ enum LiveActivityCatalog {
     )
   }
 
-  private static func item(_ session: [String: Any]) -> Item? {
+  private static func item(_ session: [String: Any], labels: Labels) -> Item? {
     guard let id = session["id"] as? String, session["archived"] as? Bool != true else { return nil }
     let awaiting = session["awaitingUserSince"] as? Double
     let status = resolveStatus(awaiting: awaiting, status: session["status"] as? String)
@@ -37,7 +41,7 @@ enum LiveActivityCatalog {
     return Item(
       id: id,
       status: status,
-      statusLabel: statusLabels[status] ?? "",
+      statusLabel: status == .permission ? labels.permission : labels.running,
       permissionRequestId: nil,
       permissionCommand: nil,
       agentLogoKind: agent,

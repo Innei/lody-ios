@@ -54,7 +54,7 @@ final class LiveActivities {
     let id = LodyActivityAttributes.activityId(workspaceId: workspaceId, userId: userId)
     endStale(keeping: id)
     guard !Activity<LodyActivityAttributes>.activities.contains(where: { Self.id(of: $0) == id }) else { return }
-    let state = LiveActivityCatalog.state(catalogJSON: catalogJSON)
+    let state = LiveActivityCatalog.state(catalogJSON: catalogJSON, labels: Self.labels)
     guard state.isActive else { return }
     let attributes = LodyActivityAttributes(
       workspaceId: workspaceId,
@@ -136,6 +136,13 @@ final class LiveActivities {
     )
   }
 
+  private nonisolated static var labels: LiveActivityCatalog.Labels {
+    .init(
+      permission: LodyStrings.text("liveActivity.status.permission"),
+      running: LodyStrings.text("liveActivity.status.running")
+    )
+  }
+
   private static func hex(_ token: Data) -> String {
     token.map { String(format: "%02x", $0) }.joined()
   }
@@ -166,7 +173,7 @@ final class LiveActivities {
   private nonisolated static func updateDebugActivities() {
     let state = debugState(permission: true)
     let alert = AlertConfiguration(
-      title: "需要你授权",
+      title: LocalizedStringResource(stringLiteral: LodyStrings.text("liveActivity.debug.alertTitle")),
       body: "git push origin main --force",
       sound: .default
     )
@@ -185,20 +192,17 @@ final class LiveActivities {
     _ updatedAt: Double,
     command: String? = nil
   ) -> LodyActivityAttributes.ContentState.Item {
-    let labels: [LodyActivityAttributes.ContentState.Item.Status: String] = [
-      .permission: "需要你授权", .running: "正在工作", .unread: "有新回复", .question: "有问题要问你",
-    ]
     return LodyActivityAttributes.ContentState.Item(
       id: id,
       status: status,
-      statusLabel: labels[status] ?? "",
+      statusLabel: LodyStrings.text("liveActivity.status.\(status.rawValue)"),
       permissionRequestId: command == nil ? nil : "debug-request",
       permissionCommand: command,
       agentLogoKind: agent == "CC" ? "claude" : "codex",
       agentLogoText: agent,
       title: title,
       updatedAt: updatedAt,
-      updatedAtLabel: "刚刚"
+      updatedAtLabel: LodyStrings.text("liveActivity.debug.updatedAt")
     )
   }
 
@@ -207,7 +211,7 @@ final class LiveActivities {
     let second = debugItem(
       "debug-2",
       permission ? .permission : .running,
-      "修复 push-extension 签名",
+      LodyStrings.text("liveActivity.debug.title2"),
       "CX",
       now - 1000,
       command: permission ? "git push origin main --force" : nil
@@ -216,12 +220,12 @@ final class LiveActivities {
       totalCount: 3,
       statusCounts: .init(permission: permission ? 1 : 0, running: permission ? 1 : 2, unread: 1),
       items: [
-        debugItem("debug-1", .running, "重构 composer 键盘避让", "CC", now),
+        debugItem("debug-1", .running, LodyStrings.text("liveActivity.debug.title1"), "CC", now),
         second,
-        debugItem("debug-3", .unread, "写 Live Activity 设计文档", "CC", now - 2000),
+        debugItem("debug-3", .unread, LodyStrings.text("liveActivity.debug.title3"), "CC", now - 2000),
       ],
       permissionAlert: permission
-        ? .init(title: "需要你授权", body: "git push origin main --force")
+        ? .init(title: LodyStrings.text("liveActivity.debug.alertTitle"), body: "git push origin main --force")
         : nil
     )
   }
