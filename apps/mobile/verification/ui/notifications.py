@@ -14,7 +14,12 @@ def tap(value):
     ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2))
 
 text(catalog.text('notifications.hint.default'))
+text(catalog.text('settings.liveActivity.disabled'))
 ui.capture('permission-undetermined')
+tap(catalog.text('settings.liveActivity.title'))
+ui.element('notification-settings-opened')
+ui.axe('tap', '--id', 'notification-reset')
+text(catalog.text('notifications.hint.default'))
 tap(catalog.text('notifications.permission.turnOn'))
 text(catalog.text('notifications.hint.denied'))
 ui.capture('permission-denied')

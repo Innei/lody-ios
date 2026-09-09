@@ -27,7 +27,7 @@ function NotificationPreview() {
         setSettingsOpened(true);
       },
       liveActivity: {
-        status: async () => ({ enabled, supported: true, active: 0 }),
+        status: async () => ({ enabled, supported: false, active: 0 }),
         setEnabled: async (next: boolean) => {
           enabled = next;
         },
@@ -70,5 +70,5 @@ export const NotificationPreviewScreen = definePage<Record<string, never>>({
   title: '通知验收',
   Component: NotificationPreview,
   parseRouteParams: () => ({}),
-  presentation: { style: 'push' },
+  presentation: { style: 'push', headerVariant: 'transparent' },
 });

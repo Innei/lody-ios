@@ -30,11 +30,14 @@ SDK version and App Group `group.app.innei.lody`.
 
 ## Runtime behavior
 
-After account restoration, the native SDK uses the Better Auth user ID as its
-external ID. Login never prompts for permission; Settings → Notifications is the
-contextual permission entry. Logout detaches and opts out the current subscription,
-clears delivered notifications, and drops buffered clicks. Offline logout cannot
-synchronously revoke a remote provider binding; use neutral lock-screen previews.
+The native SDK requests notification permission immediately after OneSignal
+initialization during app launch. iOS displays the system prompt only while the
+authorization status is undetermined; after a denial, Settings → Notifications is the
+manual entry. After account restoration, the SDK uses the Better Auth user ID as its
+external ID. Login does not trigger another permission request. Logout detaches and
+opts out the current subscription, clears delivered notifications, and drops buffered
+clicks. Offline logout cannot synchronously revoke a remote provider binding; use
+neutral lock-screen previews.
 
 The SDK's Web launch URL is suppressed. RN handles `data.route` after auth and
 navigation become ready, checks the recipient and workspace, selects the workspace,

@@ -1,5 +1,11 @@
 import Foundation
 
+var launchPermissionRequests = 0
+PushPermissionLaunchRequest.perform {
+  launchPermissionRequests += 1
+}
+precondition(launchPermissionRequests == 1, "app launch requests notification permission")
+
 var clicks = PushClickBuffer()
 clicks.receive(id: "first", route: "/work/sessions/one", userId: "alice")
 precondition(clicks.pending?["id"] == "first")
@@ -17,4 +23,4 @@ clicks.receive(id: "bad", route: String(repeating: "/", count: 2049), userId: "b
 precondition(clicks.pending == nil)
 for id: String? in [nil, "", "local-placeholder"] { precondition(!PushClickBuffer.isRegistered(id)) }
 precondition(PushClickBuffer.isRegistered("server-assigned-subscription"))
-print("PASS: cold click retention, latest-intent acknowledgement, account/logout isolation, subscription placeholders")
+print("PASS: launch permission request, cold click retention, latest-intent acknowledgement, account/logout isolation, subscription placeholders")

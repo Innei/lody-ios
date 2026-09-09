@@ -27,6 +27,9 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
     configured = true
     OneSignal.Debug.setLogLevel(.LL_NONE)
     OneSignal.initialize(appId, withLaunchOptions: options)
+    PushPermissionLaunchRequest.perform {
+      OneSignal.Notifications.requestPermission({ _ in }, fallbackToSettings: false)
+    }
     OneSignal.User.pushSubscription.addObserver(self)
     evaluateSubscription(OneSignal.User.pushSubscription.id)
     OneSignal.Notifications.addClickListener(self)

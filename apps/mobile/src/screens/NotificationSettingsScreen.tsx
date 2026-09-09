@@ -98,6 +98,17 @@ export function NotificationSettingsContent({
       if (alive.current) setLiveBusy(false);
     }
   }
+  async function openLiveActivitySettings() {
+    if (!signedIn || live?.supported !== false || liveBusy) return;
+    setLiveBusy(true);
+    try {
+      await service.settings();
+    } catch {
+      showToast(t('settings.liveActivity.openSettingsFailed'));
+    } finally {
+      if (alive.current) setLiveBusy(false);
+    }
+  }
   let subtitle = t('notifications.hint.default');
   if (!signedIn) subtitle = t('notifications.hint.signedOut');
   else if (!status) subtitle = t('notifications.hint.loading');
@@ -114,7 +125,7 @@ export function NotificationSettingsContent({
   const liveSupported = !!live?.supported;
   let liveSubtitle = t('settings.liveActivity.hint');
   if (live && !liveSupported)
-    liveSubtitle = t('settings.liveActivity.unsupported');
+    liveSubtitle = t('settings.liveActivity.disabled');
   return (
     <NativeGroupedList
       testID="notification-settings"
@@ -139,13 +150,17 @@ export function NotificationSettingsContent({
               title: t('settings.liveActivity.title'),
               subtitle: liveSubtitle,
               image: 'clock',
-              toggle: !!live?.enabled,
-              action: signedIn && liveSupported && !liveBusy,
+              toggle: liveSupported ? !!live?.enabled : undefined,
+              action: signedIn && !!live && !liveBusy,
+              disclosure: signedIn && !!live && !liveSupported,
             },
           ],
         },
       ]}
-      onRowPress={() => void press()}
+      onRowPress={({ nativeEvent }) => {
+        if (nativeEvent.id === 'notification-permission') void press();
+        if (nativeEvent.id === 'live-activity') void openLiveActivitySettings();
+      }}
       onRowToggle={(event) => void toggleLive(event.nativeEvent.value)}
     />
   );
@@ -159,5 +174,5 @@ export const NotificationSettingsScreen = definePage<Record<string, never>>({
   title: t('settings.notifications.title'),
   Component: NotificationSettings,
   parseRouteParams: () => ({}),
-  presentation: { style: 'push' },
+  presentation: { style: 'push', headerVariant: 'transparent' },
 });
