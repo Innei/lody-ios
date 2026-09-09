@@ -1,2 +1,2 @@
-import { EnvironmentScreen } from '@/screens/EnvironmentScreen';
+import { EnvironmentScreen } from '@/screens/debug/EnvironmentScreen';
 export default EnvironmentScreen.Route;

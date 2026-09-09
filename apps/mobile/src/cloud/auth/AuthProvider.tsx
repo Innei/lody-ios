@@ -110,7 +110,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         return;
       }
       // Match the native grant failure probe without changing product endpoints.
-      if (__DEV__ && runtimeInfo.offlineProbe) throw new Error('网络不可用');
+      if (__DEV__ && runtimeInfo.offlineProbe)
+        throw new Error('Network unavailable');
       const account = await getAccount(token, signal);
       if (signal.aborted) return;
       if (saved && saved.user.id !== account.user.id) {

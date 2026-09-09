@@ -31,9 +31,9 @@ struct LodyLiveActivityWidget: Widget {
       DynamicIslandExpandedRegion(.bottom) {
         VStack(alignment: .leading, spacing: 8) {
           if let focus {
-            FocusText(focus: focus, othersCount: state.othersCount, isStale: context.isStale)
+            FocusText(focus: focus, othersCount: state.othersCount, isStale: context.isStale, copy: state)
           } else {
-            Text("没有活跃会话")
+            Text(state.emptyLabel)
               .font(.subheadline)
               .foregroundStyle(.secondary)
           }

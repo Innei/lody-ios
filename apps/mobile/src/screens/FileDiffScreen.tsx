@@ -248,7 +248,7 @@ export const FileDiffScreen = definePage<FileDiffParams>({
   title: t('diff.title'),
   Component: View,
   parseRouteParams: () => {
-    throw new Error('请从本轮改动打开');
+    throw new Error('Open this page from the turn changes');
   },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

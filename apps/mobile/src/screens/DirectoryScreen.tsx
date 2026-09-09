@@ -307,7 +307,7 @@ export const DirectoryScreen = definePage<Params, Project>({
   title: t('directory.title'),
   Component: View,
   parseRouteParams: () => {
-    throw new Error('请从选择项目打开');
+    throw new Error('Open this page from the project picker');
   },
   presentation: {
     style: 'formSheet',

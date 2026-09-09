@@ -12,6 +12,9 @@ enum LiveActivityCatalog {
   struct Labels: Sendable {
     var permission: String
     var running: String
+    var stale: String
+    var empty: String
+    var others: String
   }
 
   static let runningStatuses: Set<String> = ["running", "processing", "in_progress", "queued", "pending"]
@@ -29,7 +32,8 @@ enum LiveActivityCatalog {
       totalCount: items.count,
       statusCounts: counts,
       items: items,
-      permissionAlert: nil
+      permissionAlert: nil,
+      copy: .init(stale: labels.stale, empty: labels.empty, others: labels.others)
     )
   }
 

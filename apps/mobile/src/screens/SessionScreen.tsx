@@ -518,7 +518,7 @@ export const SessionScreen = definePage<SessionParams>({
   title: t('session.title'),
   Component: View,
   parseRouteParams: () => {
-    throw new Error('请从会话列表打开');
+    throw new Error('Open this page from the session list');
   },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

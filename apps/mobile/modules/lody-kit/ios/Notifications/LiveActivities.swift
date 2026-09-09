@@ -152,7 +152,10 @@ final class LiveActivities {
   private nonisolated static var labels: LiveActivityCatalog.Labels {
     .init(
       permission: LodyStrings.text("native.liveActivity.status.permission"),
-      running: LodyStrings.text("native.liveActivity.status.running")
+      running: LodyStrings.text("native.liveActivity.status.running"),
+      stale: LodyStrings.text("native.liveActivity.stale"),
+      empty: LodyStrings.text("native.liveActivity.empty"),
+      others: LodyStrings.text("native.liveActivity.others")
     )
   }
 
@@ -239,7 +242,8 @@ final class LiveActivities {
       ],
       permissionAlert: permission
         ? .init(title: LodyStrings.text("native.liveActivity.debug.alertTitle"), body: "git push origin main --force")
-        : nil
+        : nil,
+      copy: .init(stale: labels.stale, empty: labels.empty, others: labels.others)
     )
   }
   #endif

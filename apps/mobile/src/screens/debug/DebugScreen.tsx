@@ -32,7 +32,7 @@ import {
   type NativeListRow,
   type NativeListSection,
 } from '@lody-ios/kit';
-import { EnvironmentScreen } from '@/screens/EnvironmentScreen';
+import { EnvironmentScreen } from '@/screens/debug/EnvironmentScreen';
 import {
   definePage,
   present,

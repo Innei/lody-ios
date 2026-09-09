@@ -12,6 +12,7 @@ import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 const uiVerify = __DEV__ && process.env.EXPO_PUBLIC_UI_VERIFY === '1';
 import { requestOpenSession } from '@/features/sessions/sessionNav';
+import { t } from '@/lib/i18n';
 import { showToast } from '@/ui/toast';
 import { resolveNotificationClick, routeFromDeepLink } from './routing';
 
@@ -57,7 +58,7 @@ export function PushCoordinator() {
   useEffect(() => {
     if (uiVerify || !auth.localReady || auth.busy) return;
     void setPushUser(auth.account?.user.id ?? null).catch(() =>
-      showToast('通知账号同步失败，请重新打开 App'),
+      showToast(t('notifications.accountSyncFailed')),
     );
   }, [auth.localReady, auth.busy, auth.account?.user.id]);
   useEffect(() => {

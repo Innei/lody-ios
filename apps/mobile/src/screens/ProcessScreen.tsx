@@ -67,7 +67,7 @@ export const ProcessScreen = definePage<ProcessParams>({
   title: t('process.title'),
   Component: View,
   parseRouteParams: () => {
-    throw new Error('请从会话页打开');
+    throw new Error('Open this page from the session screen');
   },
   presentation: {
     style: 'formSheet',
