@@ -11,6 +11,12 @@
     <img src="https://img.shields.io/badge/CRDT-Loro%20%26%20Flock-orange?style=flat-square" alt="CRDT" />
     <img src="https://img.shields.io/badge/License-AGPL--3.0--only-blue?style=flat-square" alt="License: AGPL-3.0-only" />
   </p>
+
+  <p>
+    <a href="https://testflight.apple.com/join/1rR6Ku8f">
+      <img src="https://img.shields.io/badge/TestFlight-Join%20the%20Beta-0D96F6?style=flat-square&logo=apple" alt="Join the TestFlight Beta" />
+    </a>
+  </p>
 </div>
 
 ![Lody iOS Native Experience and Session Collaboration](https://github.com/user-attachments/assets/16bc1389-6464-494b-95d2-82f8c3a6653c)
@@ -26,6 +32,16 @@
 > **本项目为第三方项目。** Lody iOS 由社区独立维护，与 Lody 官方团队无关，也不代表官方立场；本项目的问题请在本仓库反馈，不要提交给上游。
 >
 > **项目仍在开发中。** 迭代速度较快，接口、同步行为与界面可能随时调整，版本可能不稳定甚至破坏已有会话数据，请在评估风险后使用。
+
+---
+
+## TestFlight Beta
+
+Install the current build on your iPhone through TestFlight:
+
+**<https://testflight.apple.com/join/1rR6Ku8f>**
+
+Requires iOS 16.4 or later. Beta builds track `main` and update automatically; they are pre-release and may be unstable, as described above.
 
 ---
 
@@ -220,7 +236,7 @@ The runner captures screenshots for visual states and video for temporal behavio
 
 ### Releases
 
-Pushing to `main` runs `.github/workflows/ship.yml`. A push always archives a TestFlight build through `.github/workflows/release.yml`; a manual dispatch publishes an OTA update to the configured `expo-updates` server when the Expo fingerprint matches the published baseline, and falls back to TestFlight when it changes. Native runtime assets are regenerated before either route.
+Pushing to `main` runs `.github/workflows/ship.yml`. A push always archives a TestFlight build through `.github/workflows/release.yml`; a manual dispatch publishes an OTA update to the configured `expo-updates` server when the Expo fingerprint matches the published baseline, and falls back to TestFlight when it changes. Native runtime assets are regenerated before either route. Join the beta at <https://testflight.apple.com/join/1rR6Ku8f>.
 
 ---
 
