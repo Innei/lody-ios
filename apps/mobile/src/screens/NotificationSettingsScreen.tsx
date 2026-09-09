@@ -87,6 +87,7 @@ export function NotificationSettingsContent({
     }
   }
   async function toggleLive(enabled: boolean) {
+    setLive((current) => (current ? { ...current, enabled } : current));
     setLiveBusy(true);
     try {
       await service.liveActivity.setEnabled(enabled);
