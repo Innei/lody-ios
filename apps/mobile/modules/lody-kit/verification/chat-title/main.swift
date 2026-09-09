@@ -103,9 +103,15 @@ precondition(
 ChatNavigationTitle.detach(button: button, from: session.navigationItem)
 precondition(session.navigationItem.titleView !== button)
 precondition(session.navigationItem.subtitle == "Project name · Studio", "Detach must not clear the native subtitle")
-ChatNavigationTitle.clearNativeSubtitle(session.navigationItem)
 ChatNavigationTitle.apply(title: "Session title", subtitle: "Project name · Studio", button: button, to: session.navigationItem)
 precondition(session.navigationItem.titleView === button, "Cancelled return must restore the tappable title")
 precondition(session.navigationItem.subtitle == nil, "Restoring titleView must drop the native subtitle so the button stays visible")
+
+// A full-screen preview preserves the fallback without removing our titleView.
+ChatNavigationTitle.preserveSubtitle("Project name · Studio", on: session.navigationItem)
+ChatNavigationTitle.apply(title: "Session title", subtitle: "Project name · Studio", button: button, to: session.navigationItem)
+nav.view.layoutIfNeeded()
+precondition(session.navigationItem.subtitle == nil, "Preview return must not show a second subtitle alongside the retained titleView")
+precondition(session.navigationItem.titleView === button)
 
 print("PASS: chat navigation subtitle shows project and computer names")

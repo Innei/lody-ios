@@ -34,8 +34,8 @@ private final class ChatNavigationController: UIViewController {
   }
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-    updateTitle?()
     onWillAppear?(animated, transitionCoordinator ?? parent?.transitionCoordinator)
+    updateTitle?()
   }
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
@@ -206,9 +206,6 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
       coordinator?.animate(alongsideTransition: nil) { context in
         guard context.isCancelled else { return }
         self?.titleDisappearing = false
-        if let owner = self?.scrollOwner {
-          ChatNavigationTitle.clearNativeSubtitle(owner.navigationItem)
-        }
         self?.attachTitle()
       }
     }

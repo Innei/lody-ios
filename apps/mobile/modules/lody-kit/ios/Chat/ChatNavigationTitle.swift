@@ -35,6 +35,7 @@ enum ChatNavigationTitle {
   }
 
   static func apply(title: String, subtitle: String, button: UIButton, to item: UINavigationItem) {
+    clearNativeSubtitle(item)
     item.style = .browser
     if item.titleView !== button {
       item.titleView = button
@@ -84,7 +85,7 @@ enum ChatNavigationTitle {
   }
 
   private static func symbolAttachment(_ name: String, font: UIFont, color: UIColor) -> NSTextAttachment? {
-    let image = UIImage(systemName: name, withConfiguration: UIImage.SymbolConfiguration(font: font))?
+    let image = UIImage(systemName: name, withConfiguration: UIImage.SymbolConfiguration(font: font.withSize(max(1, font.pointSize - 3))))?
       .withTintColor(color, renderingMode: .alwaysOriginal)
     guard let image else { return nil }
     let attachment = NSTextAttachment()

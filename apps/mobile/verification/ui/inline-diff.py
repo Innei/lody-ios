@@ -3,6 +3,7 @@ import sys
 from driver import UI
 
 ui = UI(sys.argv[1], sys.argv[2])
+ui.axe('tap', '--label', 'Fixtures')
 ui.axe('tap', '--label', 'Inline Diff Fixture')
 ui.wait(
     lambda items: any(
