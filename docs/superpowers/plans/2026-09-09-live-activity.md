@@ -41,6 +41,7 @@ Branch: `feat/live-activity`. Work in `/Users/innei/git/innei-repo/lody-ios`.
 ## Task 1: Scheme, widget extension target, and build plumbing
 
 Files:
+
 - `apps/mobile/app.config.ts`
 - `apps/mobile/plugins/push-extension.rb`
 - `apps/mobile/plugins/withPushNotifications.js`
@@ -48,6 +49,7 @@ Files:
 - `apps/mobile/PUSH_NOTIFICATIONS.md`
 
 Steps:
+
 1. Change `scheme` in `app.config.ts` from `'lody-ios'` to `'lody'`.
 2. Generalize `push-extension.rb`: extract the target-building logic into
    `lody_extension(bundle_id, name:, suffix:, source_dir:, point_identifier:, principal_class:, product_type:)`
@@ -92,6 +94,7 @@ the report).
 ## Task 2: Shared activity contract and deterministic Swift check
 
 Files:
+
 - `apps/mobile/modules/lody-kit/live-activity/LodyActivityAttributes.swift`
 - `apps/mobile/modules/lody-kit/verification/live-activity/main.swift`
 - `apps/mobile/verification/native.py` (add `'live-activity': ['../live-activity/LodyActivityAttributes.swift']`
@@ -136,6 +139,7 @@ unknown extra keys, `updatedAt` arriving as an integer, `statusCounts` missing a
 Use a custom `init(from:)` only where `Codable` synthesis cannot give that tolerance.
 
 Pure functions on `ContentState`:
+
 - `var focus: Item?`: priority `question` > `permission` > `running` > `unread`; ties by
   larger `updatedAt`; nil when `items` is empty.
 - `var others: [Item]`: items minus focus, same ordering rule, capped at 2.
@@ -157,6 +161,7 @@ fills it from the catalog projection.
 
 Verification `main.swift` (mirrors `verification/notifications/main.swift` style:
 plain `precondition`s and a final `print("PASS: ...")`):
+
 - decode a sample JSON with all fields, one with only required fields, one with
   integer `updatedAt` and an unknown top-level key;
 - focus priority and tie-break;
@@ -170,12 +175,14 @@ Run it through `python3 apps/mobile/verification/native.py` on a leased simulato
 ## Task 3: Widget UI
 
 Files:
+
 - `apps/mobile/modules/lody-kit/live-activity/LodyLiveActivityWidget.swift` (replace placeholder)
 - `apps/mobile/modules/lody-kit/live-activity/LiveActivityViews.swift`
   (compact, minimal, expanded, lock screen views; split into a second file if it passes
   300 lines)
 
 Requirements (spec "Presentation"):
+
 - `ActivityConfiguration(for: LodyActivityAttributes.self)`.
 - Lock screen / StandBy content: focus row only: glyph (34 pt rounded square,
   `Color.secondary.opacity(0.2)` fill, `agentLogoText` in `.caption.weight(.semibold)`),
@@ -208,6 +215,7 @@ optional. The deterministic behavior is covered by Task 2; screenshots come in T
 ## Task 4: LodyKit owner and module surface
 
 Files:
+
 - `apps/mobile/modules/lody-kit/ios/Notifications/LiveActivities.swift`
 - `apps/mobile/modules/lody-kit/ios/LodyKitModule.swift`
 - `apps/mobile/modules/lody-kit/ios/Cloud/DataRuntime.swift` (only if a hook is needed)
@@ -219,6 +227,7 @@ Files:
 - `apps/mobile/modules/lody-kit/verification/live-activity/main.swift` (extend)
 
 `LiveActivities` (`@MainActor final class`, `static let shared`):
+
 - `var enabled: Bool` backed by `UserDefaults(suiteName: "group.app.innei.lody")` key
   `liveActivitiesEnabled`, default `true`.
 - `func start()` called from `PushAppDelegateSubscriber.application(_:didFinishLaunchingWithOptions:)`
@@ -262,6 +271,7 @@ Files:
   with `AlertConfiguration`. Never touches OneSignal.
 
 Module surface (`LodyKitModule`, all `.runOnQueue(.main)` + `MainActor.assumeIsolated`):
+
 - `AsyncFunction("liveActivityStatus")` → status dict.
 - `AsyncFunction("setLiveActivitiesEnabled") { (enabled: Bool) in ... }`.
 - `AsyncFunction("debugLiveActivity") { (action: String) in ... }` under `#if DEBUG`.
@@ -274,6 +284,7 @@ TS facade in `notifications.ts`: `liveActivityStatus(): Promise<LiveActivityStat
 Export from `index.ts`.
 
 Tests:
+
 - extend `verification/live-activity/main.swift` with the catalog-to-ContentState
   mapping (put the mapping in `LodyActivityAttributes.swift` or a sibling
   `LiveActivityCatalog.swift` compiled by the check, so it has no ActivityKit
@@ -284,6 +295,7 @@ Tests:
 ## Task 5: React Native settings toggle, deep links, and tests
 
 Files:
+
 - `apps/mobile/src/screens/NotificationSettingsScreen.tsx`
 - `apps/mobile/src/features/notifications/PushCoordinator.tsx`
 - `apps/mobile/src/features/notifications/routing.ts` (only if a helper is needed)
@@ -292,6 +304,7 @@ Files:
   existing i18n pattern in the settings screen; run `node apps/mobile/scripts/check-locales.mjs`)
 
 Requirements:
+
 - Settings: a "灵动岛" row with a native switch under the notification permission row.
   Reads `liveActivityStatus()`; disabled with subtitle "此设备不支持" when
   `supported === false`; toggling calls `setLiveActivitiesEnabled`. Keep the
@@ -312,6 +325,7 @@ Requirements:
 ## Task 6: Debug scene and UI verification
 
 Files:
+
 - `apps/mobile/src/screens/debug/NotificationPreviewScreen.tsx` (extend) or a new
   `LiveActivityPreviewScreen.tsx` if the existing one would pass 300 lines
 - `apps/mobile/src/screens/debug/DebugScreen.tsx`
@@ -320,6 +334,7 @@ Files:
 - `apps/mobile/verification/ui/README.md`
 
 Requirements:
+
 - Debug page row "Live Activity 演示" opening a scene with three rows: "开始（运行中）",
   "切换为需要授权", "结束", calling `debugLiveActivity`. Include the settings toggle
   row rendered through the production `NotificationSettingsContent` with an injected
