@@ -17,6 +17,7 @@ import {
 } from '@lody-ios/kit';
 import { definePage, present } from '@/lib/presentation';
 import { requestNewSession } from '@/features/sessions/sessionNav';
+import { sessionTitleDetails } from '@/features/sessions/sessionTitle';
 import { setArchived, setPinned } from '@/features/sessions/sessionActions';
 import { sessionDebugText } from '@/features/sessions/sessionDebug';
 import { useAuth } from '@/cloud/auth/AuthProvider';
@@ -62,6 +63,8 @@ function composerPlaceholder({
 
 type SessionParams = {
   session: Session;
+  projectName?: string;
+  machineName?: string;
   modelId?: string;
   effort?: string;
   modeId?: string;
@@ -69,7 +72,14 @@ type SessionParams = {
 
 function View() {
   const {
-    params: { session, modelId, effort, modeId },
+    params: {
+      session,
+      projectName: creationProjectName,
+      machineName: creationMachineName,
+      modelId,
+      effort,
+      modeId,
+    },
   } = usePageRuntime<SessionParams>();
   const { account } = useAuth(),
     colors = usePalette();
@@ -89,9 +99,16 @@ function View() {
   const pending = outbox.records.find(
     (record) => record.session.id === session.id,
   );
-  const project = catalog.projects.find((p) => p.id === session.projectId);
   const currentSession =
     catalog.sessions.find((s) => s.id === session.id) ?? session;
+  const { project, projectName, machineName } = sessionTitleDetails(
+    catalog,
+    currentSession,
+    {
+      projectName: creationProjectName,
+      machineName: creationMachineName,
+    },
+  );
   const [capability, setCapability] = useState<Capability>();
   const [choice, setChoice] = useState<ModelChoice>({
     modelId,
@@ -159,7 +176,6 @@ function View() {
     !pending?.send.creation &&
     !currentSession.archived &&
     !!localProjectIdOf(session.projectId);
-  const machineName = catalog.machineNames?.[currentSession.machineId] ?? '';
   const onTurnChangesPress = (entryId: string, path: string) => {
     const entry = snapshot.entries.find((e) => e.id === entryId);
     if (!entry) return;
@@ -427,7 +443,7 @@ function View() {
       <DiffWebViewWarmer />
       <NativeChat
         navigationTitle={currentSession.title}
-        navigationSubtitle={project?.name ?? ''}
+        navigationSubtitle={projectName}
         navigationMachine={machineName}
         onTitlePress={showDetails}
         style={{ flex: 1 }}

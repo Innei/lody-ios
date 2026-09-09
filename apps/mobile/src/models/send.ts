@@ -77,6 +77,8 @@ export type CreatePrefs = {
 
 export type CreatedSession = {
   session: Session;
+  projectName: string;
+  machineName: string;
   modelId?: string;
   effort?: string;
   modeId?: string;
