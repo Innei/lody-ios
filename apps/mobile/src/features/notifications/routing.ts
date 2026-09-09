@@ -22,6 +22,13 @@ export function parseNotificationRoute(
   }
 }
 
+export function routeFromDeepLink(url: string): string | null {
+  const match = /^lody:\/\/(\/?[^?#]*)/i.exec(url);
+  if (!match) return null;
+  const path = match[1]!;
+  return path.startsWith('/') ? path : `/${path}`;
+}
+
 export type PushDestination =
   | { kind: 'wait' }
   | { kind: 'discard'; reason: string }
@@ -47,7 +54,7 @@ export function resolveNotificationClick(
   const route = parseNotificationRoute(click.route);
   if (!route) return { kind: 'discard', reason: '无法识别此通知的会话链接' };
   const workspace = context.workspaces.find(
-    (w) => w.slug === route.workspaceSlug,
+    (w) => w.slug === route.workspaceSlug || w.id === route.workspaceSlug,
   );
   if (!workspace)
     return { kind: 'discard', reason: '当前账号无法访问此工作区' };

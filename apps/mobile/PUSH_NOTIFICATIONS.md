@@ -17,11 +17,13 @@ SDK version and App Group `group.app.innei.lody`.
 1. Configure this OneSignal App's iOS platform for `app.innei.lody` and its APNs key.
 2. Keep automatic signing and choose your Apple team. Register Push Notifications
    and the App Group for the app, and the same group for the NSE identifier
-   `app.innei.lody.notification-service`.
+   `app.innei.lody.notification-service` and the widget extension identifier
+   `app.innei.lody.live-activity`.
 3. Run `pnpm prebuild`, then `pnpm --filter @lody-ios/mobile pods`. The Podfile helper
-   idempotently creates the generated NSE target before CocoaPods analyzes it.
+   idempotently creates the generated NSE and Live Activity widget targets before
+   CocoaPods analyzes them.
 4. Build the signed workspace (`pnpm ios`, or `xcodebuild` with normal signing).
-   The app embeds `LodyNotificationService.appex`. Changing the OneSignal App ID or
+   The app embeds `LodyNotificationService.appex` and `LodyLiveActivity.appex`. Changing the OneSignal App ID or
    native configuration requires a new native build, not an OTA update.
 5. Configure Convex's generic `ONE_SIGNAL_APPS` inventory and the new app's secret
    API key as documented in that backend's `PUSH_NOTIFICATIONS.md`.
@@ -46,6 +48,29 @@ subscription (nonempty, not `local-`) and shows the official integration dialog 
 per process; the button can request permission. This developer-only scaffolding is
 kept out of product flows. Only subscription readiness is exposed, not token/ID data.
 Live Activities, in-app messages, email/SMS, and tags are not enabled by this change.
+
+## Live Activity
+
+The widget extension renders `LodyActivityAttributes` on the Lock Screen and in the
+Dynamic Island. Its rows deep-link with the `lody://` scheme
+(`lody:///{workspaceSlug}/sessions/{sessionId}`); a workspace without a slug routes by
+its id instead, and unmatched paths redirect to the home route. Settings →
+Notifications carries the Live Activity toggle, which stores its state in the App Group
+and ends every running activity when turned off.
+
+Sources live in `modules/lody-kit/live-activity/` and are copied into
+`ios/LodyLiveActivity/` by the Podfile helper, so editing them requires a fresh
+`pod install` before the next build.
+
+The app requests an activity itself with `pushType: .token` and hands the token to
+OneSignal. Push-to-start is registered when the toggle is on, but the backend calling
+it is **unconfirmed**: no server-started activity has been observed from this app.
+Attribute decoding therefore tolerates a missing `workspaceSlug`.
+
+`stale-date` and `dismissal-date` are set only on the activity the app requests. Every
+later server update must carry its own values; ActivityKit does not inherit them from
+the previous content, so an update without them leaves an activity that never goes
+stale and never dismisses.
 
 ## Verification
 

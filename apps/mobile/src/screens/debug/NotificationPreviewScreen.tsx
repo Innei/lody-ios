@@ -15,6 +15,7 @@ function NotificationPreview() {
   const [settingsOpened, setSettingsOpened] = useState(false);
   const service = useMemo<NotificationService>(() => {
     let permission: PushStatus['permission'] = 'notDetermined';
+    let enabled = false;
     return {
       status: async () => ({ configured: true, registered: true, permission }),
       request: async () => {
@@ -24,6 +25,12 @@ function NotificationPreview() {
       settings: async () => {
         permission = 'authorized';
         setSettingsOpened(true);
+      },
+      liveActivity: {
+        status: async () => ({ enabled, supported: true, active: 0 }),
+        setEnabled: async (next: boolean) => {
+          enabled = next;
+        },
       },
     };
   }, [revision]);

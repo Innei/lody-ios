@@ -8,6 +8,8 @@ import type { Catalog } from '../../models/catalog.ts';
 let nextOwner = 0;
 export function subscribeCatalog(
   workspace: string,
+  slug: string,
+  name: string,
   userId: string,
   onEvent: (event: DataRuntimeEvent, catalog?: Catalog) => void,
 ) {
@@ -32,7 +34,7 @@ export function subscribeCatalog(
       onEvent({ ...event, state: 'failed', reason: 'invalid_catalog' });
     }
   });
-  void watchCatalog(workspace, owner, userId).catch(() => {
+  void watchCatalog(workspace, slug, name, owner, userId).catch(() => {
     if (active)
       onEvent({
         owner,

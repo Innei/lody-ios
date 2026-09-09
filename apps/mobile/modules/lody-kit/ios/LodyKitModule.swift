@@ -59,10 +59,10 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   @JS
-  func watchCatalog(workspace: String, owner: String, userId: String) async throws {
+  func watchCatalog(workspace: String, slug: String, name: String, owner: String, userId: String) async throws {
     try await runOnMain {
       guard !workspace.isEmpty, !owner.isEmpty, !userId.isEmpty else { throw NSError(domain: "InvalidSubscription", code: 1) }
-      self.dataRuntime.start(workspace: workspace, owner: owner, userId: userId)
+      self.dataRuntime.start(workspace: workspace, slug: slug, name: name, owner: owner, userId: userId)
     }
   }
 
@@ -146,6 +146,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     try await runOnMain {
       self.dataRuntime.stop()
       PushNotifications.shared.identify(nil)
+      LiveActivities.shared.endAll()
       try AuthKeychain.clear()
     }
   }
@@ -236,6 +237,13 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("requestPushPermission") { (promise: Promise) in MainActor.assumeIsolated { PushNotifications.shared.request { promise.resolve($0) } } }.runOnQueue(.main)
     AsyncFunction("pendingPushClick") { MainActor.assumeIsolated { PushNotifications.shared.readPending() } }.runOnQueue(.main)
     AsyncFunction("acknowledgePushClick") { (id: String) in MainActor.assumeIsolated { PushNotifications.shared.acknowledge(id) } }.runOnQueue(.main)
+    AsyncFunction("liveActivityStatus") { MainActor.assumeIsolated { LiveActivities.shared.status() } }.runOnQueue(.main)
+    AsyncFunction("setLiveActivitiesEnabled") { (enabled: Bool) in MainActor.assumeIsolated { LiveActivities.shared.enabled = enabled } }.runOnQueue(.main)
+    AsyncFunction("debugLiveActivity") { (action: String) in
+      #if DEBUG
+      MainActor.assumeIsolated { LiveActivities.shared.debug(action) }
+      #endif
+    }.runOnQueue(.main)
     AsyncFunction("setPushVisibleRoute") { (route: String) in MainActor.assumeIsolated { PushNotifications.shared.visibleRoute = route } }.runOnQueue(.main)
 
     AsyncFunction("sessionCreationOptions") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("creationOptions", payload: payload, promise: promise) } }.runOnQueue(.main)
@@ -450,7 +458,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("contentStyle") { (view: LodyGroupedList, value: Bool) in
         view.setContentStyle(value)
       }
-      Events("onRowPress", "onRowAction", "onRefresh", "onSegmentChange")
+      Events("onRowPress", "onRowToggle", "onRowAction", "onRefresh", "onSegmentChange")
       Prop("segments") { (view: LodyGroupedList, labels: [String]) in view.setSegments(labels) }
       Prop("selectedSegment") { (view: LodyGroupedList, index: Int) in view.setSelectedSegment(index) }
       Prop("sections") { (view: LodyGroupedList, sections: [LodyListSection]) in
