@@ -17,3 +17,16 @@ export const addPushClickListener = (listener: () => void) =>
   native.addListener('onPushClick', listener);
 
 export const verifyPushSubscription = () => native.verifyPushSubscription();
+
+export type LiveActivityStatus = {
+  enabled: boolean;
+  supported: boolean;
+  active: number;
+};
+export type LiveActivityDebugAction =
+  'start-running' | 'update-permission' | 'end';
+export const liveActivityStatus = () => native.liveActivityStatus();
+export const setLiveActivitiesEnabled = (enabled: boolean) =>
+  native.setLiveActivitiesEnabled(enabled);
+export const debugLiveActivity = (action: LiveActivityDebugAction) =>
+  native.debugLiveActivity(action);

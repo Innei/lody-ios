@@ -1,0 +1,1 @@
+../../live-activity/LiveActivityCatalog.swift

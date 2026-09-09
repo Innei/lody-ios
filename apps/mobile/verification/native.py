@@ -44,7 +44,7 @@ checks = {
         'Toast/LodySessionBannerView.swift',
     ],
     'chat-title': ['Chat/ChatNavigationTitle.swift'],
-    'live-activity': ['../live-activity/LodyActivityAttributes.swift'],
+    'live-activity': ['../live-activity/LodyActivityAttributes.swift', '../live-activity/LiveActivityCatalog.swift'],
 }
 with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
     for name, files in checks.items():

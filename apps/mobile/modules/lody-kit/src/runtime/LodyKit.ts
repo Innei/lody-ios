@@ -67,7 +67,18 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   listDir(payload: string): Promise<string>;
   readContentText(handle: string): Promise<string | null>;
   previewContent(handle: string): Promise<void>;
-  watchCatalog(workspace: string, owner: string, userId: string): Promise<void>;
+  watchCatalog(
+    workspace: string,
+    slug: string,
+    name: string,
+    owner: string,
+    userId: string,
+  ): Promise<void>;
+  liveActivityStatus(): Promise<
+    import('../notifications/notifications').LiveActivityStatus
+  >;
+  setLiveActivitiesEnabled(enabled: boolean): Promise<void>;
+  debugLiveActivity(action: string): Promise<void>;
   unwatchCatalog(owner: string): Promise<void>;
   dataRuntimeStatus(): Promise<DataRuntimeEvent>;
   debugBackgroundDataRuntime(action: string): Promise<string>;
@@ -138,9 +149,11 @@ export const decodeFlock = (
 
 export const watchCatalog = (
   workspace: string,
+  slug: string,
+  name: string,
   owner: string,
   userId: string,
-) => native.watchCatalog(workspace, owner, userId);
+) => native.watchCatalog(workspace, slug, name, owner, userId);
 export const unwatchCatalog = (owner: string) => native.unwatchCatalog(owner);
 export const addDataRuntimeListener = (
   listener: (event: DataRuntimeEvent) => void,
