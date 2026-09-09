@@ -259,7 +259,12 @@ function View() {
         })
         .catch(() => {});
     });
-    finish({ session, ...choice });
+    finish({
+      session,
+      projectName: project?.name ?? options!.project.name,
+      machineName: agent!.machineName,
+      ...choice,
+    });
   }
 
   const sections: NativeListSection[] = [

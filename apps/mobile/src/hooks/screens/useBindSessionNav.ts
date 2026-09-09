@@ -28,6 +28,8 @@ export function useBindSessionNav() {
             SessionScreen,
             {
               session: result.value.session,
+              projectName: result.value.projectName,
+              machineName: result.value.machineName,
               modelId: result.value.modelId,
               effort: result.value.effort,
               modeId: result.value.modeId,
