@@ -1,5 +1,6 @@
 import ActivityKit
 import Foundation
+import os
 import OneSignalFramework
 import OneSignalLiveActivities
 
@@ -54,6 +55,7 @@ final class LiveActivities {
     let id = LodyActivityAttributes.activityId(workspaceId: workspaceId, userId: userId)
     endStale(keeping: id)
     guard !Activity<LodyActivityAttributes>.activities.contains(where: { Self.id(of: $0) == id }) else { return }
+    guard Self.mayBeActive(catalogJSON) else { return }
     let state = LiveActivityCatalog.state(catalogJSON: catalogJSON, labels: Self.labels)
     guard state.isActive else { return }
     let attributes = LodyActivityAttributes(
@@ -63,8 +65,19 @@ final class LiveActivities {
       userId: userId
     )
     let content = ActivityContent(state: state, staleDate: state.staleDate(from: Date()))
-    guard let activity = try? Activity.request(attributes: attributes, content: content, pushType: .token) else { return }
-    observe(activity)
+    do {
+      observe(try Activity.request(attributes: attributes, content: content, pushType: .token))
+    } catch {
+      Self.log.error("activity request failed: \(error.localizedDescription, privacy: .public)")
+    }
+  }
+
+  private nonisolated static let log = Logger(subsystem: "app.innei.lody", category: "live-activity")
+
+  private nonisolated static let activeTokens = ["awaitingUserSince"] + Array(LiveActivityCatalog.runningStatuses)
+
+  private nonisolated static func mayBeActive(_ catalogJSON: String) -> Bool {
+    activeTokens.contains { catalogJSON.contains($0) }
   }
 
   func endAll() {

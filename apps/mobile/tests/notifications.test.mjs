@@ -77,6 +77,20 @@ test('account changes and membership removal never open a stale notification', (
     'wait',
   );
 });
+test('a workspace without a slug still resolves from its id in the link', () => {
+  const context2 = {
+    ...context,
+    workspaces: [{ id: 'workspace', slug: null }],
+  };
+  assert.deepEqual(
+    resolveNotificationClick(
+      { ...click, route: '/workspace/sessions/session' },
+      context2,
+    ),
+    { kind: 'session', session },
+  );
+  assert.equal(resolveNotificationClick(click, context2).kind, 'discard');
+});
 test('widget and notification links share the route space, ignoring foreign schemes', () => {
   assert.equal(routeFromDeepLink('lody:///ws/sessions/s1'), '/ws/sessions/s1');
   assert.equal(routeFromDeepLink('lody://ws/sessions/s1'), '/ws/sessions/s1');

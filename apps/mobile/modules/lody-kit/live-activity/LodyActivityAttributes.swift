@@ -107,6 +107,23 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
   var workspaceName: String
   var userId: String
 
+  init(workspaceId: String, workspaceSlug: String, workspaceName: String, userId: String) {
+    self.workspaceId = workspaceId
+    self.workspaceSlug = workspaceSlug
+    self.workspaceName = workspaceName
+    self.userId = userId
+  }
+
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    workspaceId = try container.decode(String.self, forKey: .workspaceId)
+    workspaceSlug = try container.decodeIfPresent(String.self, forKey: .workspaceSlug) ?? ""
+    workspaceName = try container.decode(String.self, forKey: .workspaceName)
+    userId = try container.decode(String.self, forKey: .userId)
+  }
+
+  var routeSlug: String { workspaceSlug.isEmpty ? workspaceId : workspaceSlug }
+
   static func route(workspaceSlug: String, sessionId: String) -> URL {
     let allowed = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))
     let slug = workspaceSlug.addingPercentEncoding(withAllowedCharacters: allowed) ?? workspaceSlug

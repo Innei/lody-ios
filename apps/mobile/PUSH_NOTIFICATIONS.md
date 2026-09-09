@@ -49,6 +49,29 @@ per process; the button can request permission. This developer-only scaffolding 
 kept out of product flows. Only subscription readiness is exposed, not token/ID data.
 Live Activities, in-app messages, email/SMS, and tags are not enabled by this change.
 
+## Live Activity
+
+The widget extension renders `LodyActivityAttributes` on the Lock Screen and in the
+Dynamic Island. Its rows deep-link with the `lody://` scheme
+(`lody:///{workspaceSlug}/sessions/{sessionId}`); a workspace without a slug routes by
+its id instead, and unmatched paths redirect to the home route. Settings →
+Notifications carries the Live Activity toggle, which stores its state in the App Group
+and ends every running activity when turned off.
+
+Sources live in `modules/lody-kit/live-activity/` and are copied into
+`ios/LodyLiveActivity/` by the Podfile helper, so editing them requires a fresh
+`pod install` before the next build.
+
+The app requests an activity itself with `pushType: .token` and hands the token to
+OneSignal. Push-to-start is registered when the toggle is on, but the backend calling
+it is **unconfirmed**: no server-started activity has been observed from this app.
+Attribute decoding therefore tolerates a missing `workspaceSlug`.
+
+`stale-date` and `dismissal-date` are set only on the activity the app requests. Every
+later server update must carry its own values; ActivityKit does not inherit them from
+the previous content, so an update without them leaves an activity that never goes
+stale and never dismisses.
+
 ## Verification
 
 - `pnpm check`, `pnpm test`, `pnpm bundle`, signed iOS Simulator build.

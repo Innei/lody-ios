@@ -54,7 +54,7 @@ export function resolveNotificationClick(
   const route = parseNotificationRoute(click.route);
   if (!route) return { kind: 'discard', reason: '无法识别此通知的会话链接' };
   const workspace = context.workspaces.find(
-    (w) => w.slug === route.workspaceSlug,
+    (w) => w.slug === route.workspaceSlug || w.id === route.workspaceSlug,
   );
   if (!workspace)
     return { kind: 'discard', reason: '当前账号无法访问此工作区' };

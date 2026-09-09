@@ -137,6 +137,15 @@ precondition(
   "updatedAt is milliseconds"
 )
 
+let pushToStart = try! decoder.decode(LodyActivityAttributes.self, from: Data("""
+{ "workspaceId": "ws1", "workspaceName": "Space", "userId": "u1" }
+""".utf8))
+precondition(pushToStart.workspaceSlug.isEmpty, "push-to-start attributes may omit the slug")
+precondition(pushToStart.routeSlug == "ws1", "an empty slug routes by workspace id")
+precondition(
+  LodyActivityAttributes(workspaceId: "ws1", workspaceSlug: "space", workspaceName: "Space", userId: "u1").routeSlug == "space"
+)
+
 let route = LodyActivityAttributes.route(workspaceSlug: "my space", sessionId: "a/b c")
 precondition(route.absoluteString == "lody:///my%20space/sessions/a%2Fb%20c", route.absoluteString)
 
@@ -153,13 +162,14 @@ let catalog = LiveActivityCatalog.state(catalogJSON: """
     { "id": "idle", "title": "Old thread", "status": "completed", "lastMessageAt": 1757000000000, "agentType": "claude" },
     { "id": "archived", "title": "Archived but running", "status": "running", "archived": true, "lastMessageAt": 1757000006000, "agentType": "claude" },
     { "id": "queued", "title": "Waiting to run", "status": "queued", "lastMessageAt": 1757000004000, "cliType": "gemini" },
-    { "id": "nameless", "title": "No agent", "status": "pending", "lastMessageAt": 1757000005000 }
+    { "id": "nameless", "title": "No agent", "status": "pending", "lastMessageAt": 1757000005000 },
+    { "id": "fresh", "title": "Never spoke", "status": "queued", "agentType": "claude" }
   ]
 }
 """, labels: labels)
-precondition(catalog.items.map(\.id) == ["run", "await", "queued", "nameless"], "idle and archived sessions are skipped")
-precondition(catalog.totalCount == 4)
-precondition(catalog.statusCounts.running == 3 && catalog.statusCounts.permission == 1)
+precondition(catalog.items.map(\.id) == ["run", "await", "queued", "nameless", "fresh"], "idle and archived sessions are skipped")
+precondition(catalog.totalCount == 5)
+precondition(catalog.statusCounts.running == 4 && catalog.statusCounts.permission == 1)
 precondition(catalog.statusCounts.question == 0 && catalog.statusCounts.unread == 0)
 precondition(catalog.isActive && catalog.needsAttention)
 precondition(catalog.focus?.id == "await", "awaiting sessions outrank running ones")
@@ -169,9 +179,16 @@ precondition(catalog.items[0].statusLabel == "正在工作")
 precondition(catalog.items[1].updatedAt == 1757000003000, "awaiting time is the newer stamp")
 precondition(catalog.items[0].updatedAt == 1757000002000)
 precondition(catalog.items[0].title == "Build the widget")
-precondition(catalog.items.map(\.agentLogoText) == ["CX", "CC", "GE", "AC"], "cliType stands in for a missing agentType")
+precondition(catalog.items.map(\.agentLogoText) == ["CX", "CC", "GE", "AC", "CC"], "cliType stands in for a missing agentType")
 precondition(catalog.items[2].agentLogoKind == "gemini")
 precondition(catalog.items.allSatisfy { $0.permissionCommand == nil })
+
+let requestedAt = Date().timeIntervalSince1970 * 1000
+let fresh = catalog.items.first { $0.id == "fresh" }!
+precondition(
+  abs(fresh.updatedAt - requestedAt) < 5000,
+  "a session with neither awaitingUserSince nor lastMessageAt falls back to the request time, not 1970"
+)
 
 let emptyCatalog = LiveActivityCatalog.state(catalogJSON: #"{"sessions": []}"#, labels: labels)
 precondition(emptyCatalog.items.isEmpty && !emptyCatalog.isActive && emptyCatalog.totalCount == 0)
