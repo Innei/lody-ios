@@ -21,25 +21,46 @@ struct AgentGlyph: View {
   }
 }
 
+struct StatusDot: View {
+  let color: Color
+
+  var body: some View {
+    Image(systemName: "circle.fill")
+      .font(.system(size: 10))
+      .foregroundStyle(color)
+  }
+}
+
 struct StatusSymbol: View {
   let status: LodyItem.Status
 
   var body: some View {
     switch status {
+    // WidgetKit has no indeterminate spinner: a circular ProgressView ignores
+    // controlSize and draws an oversized empty ring, so status is a colored dot.
     case .running:
-      ProgressView()
-        .progressViewStyle(.circular)
-        .controlSize(.mini)
-        .tint(.blue)
+      StatusDot(color: .blue)
     case .permission, .question:
-      Circle()
-        .fill(Color.orange)
-        .frame(width: 10, height: 10)
+      StatusDot(color: .orange)
     case .unread:
       Image(systemName: "checkmark")
         .font(.caption.weight(.semibold))
         .foregroundStyle(.green)
     }
+  }
+}
+
+struct FocusTimer: View {
+  let focus: LodyItem
+
+  // A timer Text sizes itself to its whole interval, so an unbounded one running to
+  // distantFuture blows the layout out and leaves the entire container unrendered.
+  var body: some View {
+    Text(timerInterval: focus.updatedDate...Date.distantFuture, countsDown: false)
+      .font(.subheadline.monospacedDigit())
+      .foregroundStyle(.secondary)
+      .lineLimit(1)
+      .frame(width: 56, alignment: .leading)
   }
 }
 
@@ -70,6 +91,9 @@ struct FocusText: View {
           .font(.subheadline)
           .foregroundStyle(.secondary)
           .lineLimit(1)
+        if focus.status == .running {
+          FocusTimer(focus: focus)
+        }
       }
     }
   }
@@ -82,51 +106,16 @@ struct FocusText: View {
   }
 }
 
-struct FocusAccessory: View {
-  let focus: LodyItem
-  let needsAttention: Bool
-  let isStale: Bool
-
-  var body: some View {
-    if focus.status == .running, !isStale {
-      Text(
-        timerInterval: focus.updatedDate...Date.distantFuture,
-        countsDown: false
-      )
-      .font(.title2.monospacedDigit())
-      .foregroundStyle(.blue)
-      .lineLimit(1)
-      .minimumScaleFactor(0.6)
-      .multilineTextAlignment(.trailing)
-      .frame(width: 88, alignment: .trailing)
-    } else {
-      Text("查看")
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(pillColor)
-        .padding(.vertical, 5)
-        .frame(width: 88)
-        .background(Capsule().fill(pillColor.opacity(0.18)))
-    }
-  }
-
-  private var pillColor: Color {
-    needsAttention && !isStale ? .orange : .secondary
-  }
-}
-
 struct FocusRow: View {
   let focus: LodyItem
   let othersCount: Int
-  let needsAttention: Bool
   let isStale: Bool
-  let glyphSize: CGFloat
 
   var body: some View {
     HStack(spacing: 12) {
-      AgentGlyph(text: focus.agentLogoText, size: glyphSize)
+      AgentGlyph(text: focus.agentLogoText, size: 28)
       FocusText(focus: focus, othersCount: othersCount, isStale: isStale)
-      Spacer(minLength: 8)
-      FocusAccessory(focus: focus, needsAttention: needsAttention, isStale: isStale)
+      Spacer(minLength: 0)
     }
   }
 }
@@ -149,29 +138,6 @@ struct CommandStrip: View {
   }
 }
 
-struct OtherRows: View {
-  let items: [LodyItem]
-  let workspaceSlug: String
-
-  var body: some View {
-    VStack(spacing: 6) {
-      Divider()
-      ForEach(items, id: \.id) { item in
-        Link(destination: LodyActivityAttributes.route(workspaceSlug: workspaceSlug, sessionId: item.id)) {
-          HStack(spacing: 8) {
-            AgentGlyph(text: item.agentLogoText, size: 20)
-            Text(item.title)
-              .font(.subheadline)
-              .lineLimit(1)
-            Spacer(minLength: 8)
-            StatusSymbol(status: item.status)
-          }
-        }
-      }
-    }
-  }
-}
-
 struct LodyLockScreenView: View {
   let state: LodyActivityAttributes.ContentState
   let workspaceSlug: String
@@ -186,13 +152,7 @@ struct LodyLockScreenView: View {
   @ViewBuilder
   private var content: some View {
     if let focus = state.focus {
-      FocusRow(
-        focus: focus,
-        othersCount: state.othersCount,
-        needsAttention: state.needsAttention,
-        isStale: isStale,
-        glyphSize: 34
-      )
+      FocusRow(focus: focus, othersCount: state.othersCount, isStale: isStale)
       .lodyStale(isStale)
       .widgetURL(LodyActivityAttributes.route(workspaceSlug: workspaceSlug, sessionId: focus.id))
     } else {
