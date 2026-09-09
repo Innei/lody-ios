@@ -17,11 +17,13 @@ SDK version and App Group `group.app.innei.lody`.
 1. Configure this OneSignal App's iOS platform for `app.innei.lody` and its APNs key.
 2. Keep automatic signing and choose your Apple team. Register Push Notifications
    and the App Group for the app, and the same group for the NSE identifier
-   `app.innei.lody.notification-service`.
+   `app.innei.lody.notification-service` and the widget extension identifier
+   `app.innei.lody.live-activity`.
 3. Run `pnpm prebuild`, then `pnpm --filter @lody-ios/mobile pods`. The Podfile helper
-   idempotently creates the generated NSE target before CocoaPods analyzes it.
+   idempotently creates the generated NSE and Live Activity widget targets before
+   CocoaPods analyzes them.
 4. Build the signed workspace (`pnpm ios`, or `xcodebuild` with normal signing).
-   The app embeds `LodyNotificationService.appex`. Changing the OneSignal App ID or
+   The app embeds `LodyNotificationService.appex` and `LodyLiveActivity.appex`. Changing the OneSignal App ID or
    native configuration requires a new native build, not an OTA update.
 5. Configure Convex's generic `ONE_SIGNAL_APPS` inventory and the new app's secret
    API key as documented in that backend's `PUSH_NOTIFICATIONS.md`.

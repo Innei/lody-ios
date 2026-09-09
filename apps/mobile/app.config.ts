@@ -5,7 +5,7 @@ const config: ExpoConfig = {
   slug: 'lody-ios',
   version: '0.1.0',
   platforms: ['ios'],
-  scheme: 'lody-ios',
+  scheme: 'lody',
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   icon: './assets/icon.png',

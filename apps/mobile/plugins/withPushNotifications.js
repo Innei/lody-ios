@@ -20,6 +20,8 @@ module.exports = function withPushNotifications(config, { appId = '' } = {}) {
     config.modResults.OneSignal_app_groups_key = `group.${config.ios.bundleIdentifier}`;
     // Existing payloads also contain a Web URL. Let our click handler own navigation.
     config.modResults.OneSignal_suppress_launch_urls = true;
+    config.modResults.NSSupportsLiveActivities = true;
+    config.modResults.NSSupportsLiveActivitiesFrequentUpdates = false;
     config.modResults.UIBackgroundModes = [
       ...new Set([
         ...(config.modResults.UIBackgroundModes ?? []),
@@ -46,9 +48,9 @@ module.exports = function withPushNotifications(config, { appId = '' } = {}) {
       const podfile = path.join(root, 'Podfile');
       const marker = '# Lody notification extension';
       let contents = fs.readFileSync(podfile, 'utf8');
-      // Run before CocoaPods reads targets. The helper owns only the generated NSE.
+      // Run before CocoaPods reads targets. The helper owns only the generated extensions.
       if (!contents.includes(marker)) {
-        contents += `\n${marker}\nrequire_relative '../plugins/push-extension'\nlody_push_extension('${config.ios.bundleIdentifier}')\ntarget 'LodyNotificationService' do\n  pod 'OneSignalXCFramework/OneSignal', '5.5.1'\nend\n`;
+        contents += `\n${marker}\nrequire_relative '../plugins/push-extension'\nlody_push_extension('${config.ios.bundleIdentifier}')\nlody_live_activity_extension('${config.ios.bundleIdentifier}')\ntarget 'LodyNotificationService' do\n  pod 'OneSignalXCFramework/OneSignal', '5.5.1'\nend\n`;
       }
       contents = contents.replace(
         /pod 'OneSignalXCFramework\/OneSignal(?:Extension)?', '[^']+'/g,
