@@ -30,7 +30,6 @@ env:
   MOBILE_DIR: apps/mobile
   APPLE_TEAM_ID: KAMM5N88X3
   LODY_BUNDLE_ID: app.innei.lody
-  IOS_PROFILE_NAME: Lody App Store
   ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
   ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
   ASC_BYPASS_KEYCHAIN: '1'
@@ -185,68 +184,90 @@ jobs:
           identities="$(security find-identity -v -p codesigning "$keychain_path")"
           printf '%s\n' "$identities"
           grep -q 'Apple Distribution:' <<< "$identities"
-
-      - name: Install provisioning profile
-        run: |
-          set -euo pipefail
-          profile_id="$(asc profiles list --paginate --output json \
-            | jq -r --arg name "$IOS_PROFILE_NAME" \
-              '[.data[] | select(.attributes.name == $name and .attributes.profileState == "ACTIVE")][0].id // ""')"
-          if [ -z "$profile_id" ]; then
-            echo "::error::No active App Store profile named '$IOS_PROFILE_NAME' in App Store Connect."
+          certificate_serial="$(
+            security find-certificate -c 'Apple Distribution' -p "$keychain_path" |
+              openssl x509 -noout -serial |
+              sed -n 's/^serial=//p'
+          )"
+          if [[ ! "$certificate_serial" =~ ^[[:xdigit:]:]+$ ]]; then
+            echo "::error::Could not read the imported Apple Distribution certificate serial."
             exit 1
           fi
-          profile="$RUNNER_TEMP/lody.mobileprovision"
-          asc profiles download --id "$profile_id" --output "$profile"
-          plist="$RUNNER_TEMP/lody-profile.plist"
-          security cms -D -i "$profile" > "$plist"
-          uuid="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$plist")"
-          app_id="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$plist")"
-          test "$app_id" = "$APPLE_TEAM_ID.$LODY_BUNDLE_ID"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:get-task-allow' "$plist")" = 'false'
-          for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" \
-                     "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
-            mkdir -p "$dir"
-            cp "$profile" "$dir/$uuid.mobileprovision"
-          done
-          echo "IOS_PROFILE_UUID=$uuid" >> "$GITHUB_ENV"
-          echo "Installed $IOS_PROFILE_NAME ($uuid)"
+          echo "IOS_DIST_CERT_SERIAL=$certificate_serial" >> "$GITHUB_ENV"
 
-      - name: Apply App target manual signing
+      - name: Install provisioning profiles
+        run: |
+          set -euo pipefail
+          target_bundle_ids="$(
+            cd "$MOBILE_DIR"
+            node <<'NODE'
+          const { IOSConfig } = require('expo/config-plugins');
+          const project = IOSConfig.XcodeUtils.getPbxproj(process.cwd());
+          const base = process.env.LODY_BUNDLE_ID;
+          const unquote = (value) => String(value ?? '').replace(/^"|"$/g, '');
+          const identifiers = new Set();
+          for (const config of Object.values(project.pbxXCBuildConfigurationSection())) {
+            const settings = config?.buildSettings;
+            if (unquote(config?.name) !== 'Release') continue;
+            const identifier = unquote(settings?.PRODUCT_BUNDLE_IDENTIFIER);
+            if (identifier !== base && !identifier.startsWith(`${base}.`)) continue;
+            identifiers.add(identifier);
+          }
+          if (!identifiers.has(base)) {
+            throw new Error(`Generated project has no Release target for ${base}`);
+          }
+          process.stdout.write([...identifiers].sort().join('\n'));
+          NODE
+          )"
+          export TARGET_BUNDLE_IDS="$target_bundle_ids"
+          /bin/bash .github/scripts/install-app-store-profiles.sh
+
+      - name: Apply manual signing
         working-directory: ${{ env.MOBILE_DIR }}
         run: |
           set -euo pipefail
           node <<'NODE'
           const { IOSConfig } = require('expo/config-plugins');
           const { writeFileSync } = require('node:fs');
-          const { APPLE_TEAM_ID, LODY_BUNDLE_ID, IOS_PROFILE_UUID } = process.env;
-          if (!APPLE_TEAM_ID || !LODY_BUNDLE_ID || !IOS_PROFILE_UUID) {
-            throw new Error('Team, bundle ID and installed profile UUID are required');
+          const { APPLE_TEAM_ID, IOS_PROFILE_MAP } = process.env;
+          if (!APPLE_TEAM_ID || !IOS_PROFILE_MAP) {
+            throw new Error('Team and installed provisioning profiles are required');
           }
+          const profiles = JSON.parse(IOS_PROFILE_MAP);
+          const expected = new Set(Object.keys(profiles));
           const project = IOSConfig.XcodeUtils.getPbxproj(process.cwd());
           const unquote = (value) => String(value).replace(/^"|"$/g, '');
-          let patched = 0;
+          const patched = new Set();
           for (const config of Object.values(project.pbxXCBuildConfigurationSection())) {
             const settings = config?.buildSettings;
-            if (unquote(config?.name) !== 'Release' ||
-                unquote(settings?.PRODUCT_BUNDLE_IDENTIFIER) !== LODY_BUNDLE_ID) continue;
+            if (unquote(config?.name) !== 'Release') continue;
+            const identifier = unquote(settings?.PRODUCT_BUNDLE_IDENTIFIER);
+            if (!expected.has(identifier)) continue;
             Object.assign(settings, {
               CODE_SIGN_STYLE: 'Manual',
               CODE_SIGN_IDENTITY: '"Apple Distribution"',
               DEVELOPMENT_TEAM: APPLE_TEAM_ID,
-              PROVISIONING_PROFILE_SPECIFIER: `"${IOS_PROFILE_UUID}"`,
+              PROVISIONING_PROFILE_SPECIFIER: `"${profiles[identifier]}"`,
             });
-            patched++;
+            patched.add(identifier);
           }
-          if (patched !== 1) throw new Error(`Expected one Lody Release configuration, found ${patched}`);
+          const missing = [...expected].filter((identifier) => !patched.has(identifier));
+          if (missing.length > 0) {
+            throw new Error(`Could not apply signing to: ${missing.join(', ')}`);
+          }
           writeFileSync(project.filepath, project.writeSync());
           NODE
-          xcodebuild -project ios/Lody.xcodeproj -target Lody -configuration Release \
+          xcodebuild -project ios/Lody.xcodeproj -alltargets -configuration Release \
             -sdk iphoneos -showBuildSettings -json > "$RUNNER_TEMP/signing-settings.json"
-          jq -e --arg team "$APPLE_TEAM_ID" --arg profile "$IOS_PROFILE_UUID" \
-            '[.[] | select(.target == "Lody") | .buildSettings] | length == 1 and
-            all(.[]; .CODE_SIGN_STYLE == "Manual" and .CODE_SIGN_IDENTITY == "Apple Distribution"
-              and .DEVELOPMENT_TEAM == $team and .PROVISIONING_PROFILE_SPECIFIER == $profile)' \
+          jq -e --arg team "$APPLE_TEAM_ID" --argjson profiles "$IOS_PROFILE_MAP" \
+            '[.[] | .buildSettings |
+              select($profiles[.PRODUCT_BUNDLE_IDENTIFIER] != null)] as $settings |
+            ($settings | length) == ($profiles | length) and
+            all($settings[];
+              .CODE_SIGN_STYLE == "Manual" and
+              .CODE_SIGN_IDENTITY == "Apple Distribution" and
+              .DEVELOPMENT_TEAM == $team and
+              .PROVISIONING_PROFILE_SPECIFIER == $profiles[.PRODUCT_BUNDLE_IDENTIFIER])' \
             "$RUNNER_TEMP/signing-settings.json"
 
       - name: Archive
@@ -290,24 +311,23 @@ jobs:
       - name: Export IPA
         run: |
           set -euo pipefail
-          cat > "$RUNNER_TEMP/exportOptions.plist" <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>export</string>
-            <key>signingStyle</key><string>manual</string>
-            <key>signingCertificate</key><string>Apple Distribution</string>
-            <key>teamID</key><string>$APPLE_TEAM_ID</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>$LODY_BUNDLE_ID</key><string>$IOS_PROFILE_UUID</string>
-            </dict>
-            <key>manageAppVersionAndBuildNumber</key><false/>
-          </dict>
-          </plist>
-          EOF
+          python3 <<'PY'
+          import json
+          import os
+          import plistlib
+
+          options = {
+              "method": "app-store-connect",
+              "destination": "export",
+              "signingStyle": "manual",
+              "signingCertificate": "Apple Distribution",
+              "teamID": os.environ["APPLE_TEAM_ID"],
+              "provisioningProfiles": json.loads(os.environ["IOS_PROFILE_MAP"]),
+              "manageAppVersionAndBuildNumber": False,
+          }
+          with open(os.path.join(os.environ["RUNNER_TEMP"], "exportOptions.plist"), "wb") as output:
+              plistlib.dump(options, output, sort_keys=False)
+          PY
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Lody.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/exportOptions.plist" \
@@ -357,10 +377,12 @@ jobs:
         run: |
           security delete-keychain "$RUNNER_TEMP/ci.keychain-db" || true
           rm -f "$RUNNER_TEMP/dist.p12" "$RUNNER_TEMP"/AuthKey_*.p8
-          rm -f "$RUNNER_TEMP/lody.mobileprovision" "$RUNNER_TEMP/lody-profile.plist"
-          if [[ "${IOS_PROFILE_UUID:-}" =~ ^[0-9A-Fa-f-]{36}$ ]]; then
-            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$IOS_PROFILE_UUID.mobileprovision"
-            rm -f "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$IOS_PROFILE_UUID.mobileprovision"
+          rm -f "$RUNNER_TEMP"/*.mobileprovision
+          if [ -n "${IOS_PROFILE_MAP:-}" ]; then
+            jq -r '.[]' <<< "$IOS_PROFILE_MAP" | while IFS= read -r uuid; do
+              rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
+              rm -f "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$uuid.mobileprovision"
+            done
           fi
 
   notify:
