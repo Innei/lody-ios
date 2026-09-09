@@ -458,7 +458,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("contentStyle") { (view: LodyGroupedList, value: Bool) in
         view.setContentStyle(value)
       }
-      Events("onRowPress", "onRowAction", "onRefresh", "onSegmentChange")
+      Events("onRowPress", "onRowToggle", "onRowAction", "onRefresh", "onSegmentChange")
       Prop("segments") { (view: LodyGroupedList, labels: [String]) in view.setSegments(labels) }
       Prop("selectedSegment") { (view: LodyGroupedList, index: Int) in view.setSelectedSegment(index) }
       Prop("sections") { (view: LodyGroupedList, sections: [LodyListSection]) in

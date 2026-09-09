@@ -24,6 +24,7 @@ struct LodyListRow {
   var badge: String = ""
   var diff: [String: Int] = [:]
   var action: Bool = false
+  var toggle: Bool? = nil
   var navigates: Bool = false
   var disclosure: Bool = false
   var destructive: Bool = false
@@ -61,6 +62,10 @@ private final class SectionSupplementaryCell: UICollectionViewListCell {
 
 private final class SectionHeaderTap: UITapGestureRecognizer {}
 
+private final class RowSwitch: UISwitch {
+  var rowID = ""
+}
+
 private struct ListItemID: Hashable {
   let section: String
   let row: String
@@ -68,6 +73,7 @@ private struct ListItemID: Hashable {
 
 final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDelegate {
   let onRowPress = EventDispatcher()
+  let onRowToggle = EventDispatcher()
   let onRowAction = EventDispatcher()
   let onRefresh = EventDispatcher()
   let onSegmentChange = EventDispatcher()
@@ -622,7 +628,27 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
     decorate(cell, row: row)
   }
 
+  @objc private func rowSwitchChanged(_ sender: RowSwitch) {
+    onRowToggle(["id": sender.rowID, "value": sender.isOn])
+  }
+
+  private func attachToggle(_ cell: UICollectionViewListCell, row: LodyListRow) {
+    guard let on = row.toggle else { return }
+    let toggle = RowSwitch()
+    toggle.rowID = row.id
+    toggle.isOn = on
+    toggle.isEnabled = row.action
+    toggle.onTintColor = LodyGroupedList.accent
+    toggle.accessibilityIdentifier = row.id + ":toggle"
+    toggle.accessibilityLabel = row.title
+    toggle.addTarget(self, action: #selector(rowSwitchChanged(_:)), for: .valueChanged)
+    cell.accessories.append(
+      .customView(configuration: .init(customView: toggle, placement: .trailing()))
+    )
+  }
+
   private func decorate(_ cell: UICollectionViewListCell, row: LodyListRow) {
+    attachToggle(cell, row: row)
     // Outline children carry indentation level 1; the row views own their columns.
     cell.indentationWidth = 0
     cell.configurationUpdateHandler = nil
@@ -762,11 +788,15 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
     dataSource.itemIdentifier(for: index).flatMap { rowsByID[$0] }
   }
 
+  private func selectable(_ indexPath: IndexPath) -> Bool {
+    guard let row = row(at: indexPath) else { return false }
+    return row.action && row.toggle == nil
+  }
   func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
-    row(at: indexPath)?.action ?? false
+    selectable(indexPath)
   }
   func collectionView(_ collectionView: UICollectionView, shouldHighlightItemAt indexPath: IndexPath) -> Bool {
-    row(at: indexPath)?.action ?? false
+    selectable(indexPath)
   }
   func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
     guard let row = row(at: indexPath) else { return }

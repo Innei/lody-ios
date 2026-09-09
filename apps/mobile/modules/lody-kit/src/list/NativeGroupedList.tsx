@@ -29,6 +29,8 @@ export type NativeListRow = {
   /** Semantic name (warning/danger/secondary/tertiary) or a `#RRGGBB` value. */
   imageTint?: string;
   action?: boolean;
+  /** Trailing UISwitch; the row stops being selectable and `action` gates the switch. */
+  toggle?: boolean;
   disclosure?: boolean;
   navigates?: boolean;
   destructive?: boolean;
@@ -76,6 +78,9 @@ export type NativeGroupedListProps = ViewProps & {
   /** `expanded` accompanies a parent row when UIKit toggles its outline. */
   onRowPress: (
     event: NativeSyntheticEvent<{ id: string; expanded?: boolean }>,
+  ) => void;
+  onRowToggle?: (
+    event: NativeSyntheticEvent<{ id: string; value: boolean }>,
   ) => void;
   onRowAction?: (
     event: NativeSyntheticEvent<{ id: string; actionId: string }>,

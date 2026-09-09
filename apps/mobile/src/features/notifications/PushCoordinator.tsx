@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Linking } from 'react-native';
 import { router, useRootNavigationState } from 'expo-router';
 import {
   acknowledgePushClick,
@@ -12,13 +13,15 @@ import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 const uiVerify = __DEV__ && process.env.EXPO_PUBLIC_UI_VERIFY === '1';
 import { requestOpenSession } from '@/features/sessions/sessionNav';
 import { showToast } from '@/ui/toast';
-import { resolveNotificationClick } from './routing';
+import { resolveNotificationClick, routeFromDeepLink } from './routing';
 
 export function PushCoordinator() {
   const auth = useAuth();
   const catalog = useCatalog();
   const navigation = useRootNavigationState();
   const [click, setClick] = useState<PushClick | null>(null);
+  const [link, setLink] = useState<{ id: string; route: string } | null>(null);
+  const links = useRef(0);
   const handled = useRef('');
   useEffect(() => {
     if (uiVerify) return;
@@ -38,16 +41,34 @@ export function PushCoordinator() {
     };
   }, []);
   useEffect(() => {
+    if (uiVerify) return;
+    const open = (url: string | null) => {
+      const route = url && routeFromDeepLink(url);
+      if (route) setLink({ id: `link:${++links.current}`, route });
+    };
+    void Linking.getInitialURL()
+      .then(open)
+      .catch(() => {});
+    const subscription = Linking.addEventListener('url', (event) =>
+      open(event.url),
+    );
+    return () => subscription.remove();
+  }, []);
+  useEffect(() => {
     if (uiVerify || !auth.localReady || auth.busy) return;
     void setPushUser(auth.account?.user.id ?? null).catch(() =>
       showToast('通知账号同步失败，请重新打开 App'),
     );
   }, [auth.localReady, auth.busy, auth.account?.user.id]);
   useEffect(() => {
-    if (!click || handled.current === click.id) return;
-    const destination = resolveNotificationClick(click, {
+    const userId = auth.account?.user.id;
+    const pending: PushClick | null = link
+      ? { ...link, userId: userId ?? '' }
+      : click;
+    if (!pending || handled.current === pending.id) return;
+    const destination = resolveNotificationClick(pending, {
       ready: !!navigation?.key && auth.localReady && !auth.busy,
-      userId: auth.account?.user.id,
+      userId,
       workspaces: auth.account?.workspaces ?? [],
       selectedId: catalog.selected?.id,
       loading: catalog.loading,
@@ -61,13 +82,15 @@ export function PushCoordinator() {
       catalog.setWorkspaceId(destination.id);
       return;
     }
-    handled.current = click.id;
-    void acknowledgePushClick(click.id).catch(() => {});
+    handled.current = pending.id;
+    if (!link) void acknowledgePushClick(pending.id).catch(() => {});
     if (destination.kind === 'discard') showToast(destination.reason);
     else void requestOpenSession(destination.session);
-    setClick(null);
+    if (link) setLink(null);
+    else setClick(null);
   }, [
     click,
+    link,
     auth.localReady,
     auth.busy,
     auth.account,
