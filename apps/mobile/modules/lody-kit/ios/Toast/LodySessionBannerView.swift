@@ -41,9 +41,12 @@ final class LodySessionBannerView: UIVisualEffectView {
   private let titleLabel = UILabel()
   private let subtitleLabel = UILabel()
   private let glyph = UIImageView()
+  private let drawsCheckmark: Bool
+  private var playedGlyph = false
   private var dragOffset: CGFloat = 0
 
   init(title: String, kind: LodySessionBannerKind) {
+    drawsCheckmark = kind == .completed
     super.init(effect: nil)
     if #available(iOS 26.0, *) {
       let glass = UIGlassEffect(style: .regular)
@@ -104,6 +107,13 @@ final class LodySessionBannerView: UIVisualEffectView {
     fatalError("init(coder:) has not been implemented")
   }
 
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    guard window != nil, drawsCheckmark, !playedGlyph else { return }
+    playedGlyph = true
+    glyph.playDrawOnSymbol()
+  }
+
   func fittedSize(maxWidth: CGFloat) -> CGSize {
     let textWidth = max(1, maxWidth - 64)
     let title = titleLabel.sizeThatFits(CGSize(width: textWidth, height: .greatestFiniteMagnitude))
@@ -160,6 +170,15 @@ final class LodySessionBannerView: UIVisualEffectView {
       }
     default:
       break
+    }
+  }
+}
+
+extension UIImageView {
+  func playDrawOnSymbol() {
+    guard !UIAccessibility.isReduceMotionEnabled else { return }
+    if #available(iOS 26.0, *) {
+      addSymbolEffect(.drawOn, options: .nonRepeating)
     }
   }
 }

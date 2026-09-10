@@ -5,6 +5,8 @@ final class LodyToastPillView: UIView {
   private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
   private let glyph = UIImageView()
   private let label = UILabel()
+  private let drawsCheckmark: Bool
+  private var playedGlyph = false
 
   var showsContent = true {
     didSet {
@@ -17,6 +19,7 @@ final class LodyToastPillView: UIView {
 
   init(message: String, symbol: String, tint: UIColor) {
     self.message = message
+    drawsCheckmark = symbol == "checkmark"
     super.init(frame: .zero)
     layer.cornerCurve = .continuous
     layer.shadowColor = UIColor.black.cgColor
@@ -51,6 +54,13 @@ final class LodyToastPillView: UIView {
   @available(*, unavailable)
   required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
+  }
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    guard window != nil, drawsCheckmark, !playedGlyph else { return }
+    playedGlyph = true
+    glyph.playDrawOnSymbol()
   }
 
   func fittedSize(maxWidth: CGFloat) -> CGSize {
