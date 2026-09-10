@@ -238,7 +238,7 @@ final class ChatComposerModelPanel: UIViewController, UIPopoverPresentationContr
     fastConfiguration.baseForegroundColor = enabled ? .systemBlue : .secondaryLabel
     fastConfiguration.contentInsets = .zero
     if fast.configuration?.image != nil, #available(iOS 26.0, *) {
-      fastConfiguration.symbolContentTransition = .init(.replace)
+      fastConfiguration.symbolContentTransition = .init(.replace.byLayer)
     }
     fast.configuration = fastConfiguration
     fast.accessibilityTraits = enabled ? [.button, .selected] : [.button]

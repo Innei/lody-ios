@@ -27,8 +27,9 @@ final class LodySymbolButton: ExpoView {
   }
 
   func setSymbol(_ value: String) {
+    let previous = symbol
     symbol = value
-    apply()
+    apply(byLayer: previous + ".fill" == value || value + ".fill" == previous)
   }
 
   func setAccessibilityName(_ value: String) {
@@ -52,7 +53,7 @@ final class LodySymbolButton: ExpoView {
     hold.isEnabled = value
   }
 
-  private func apply() {
+  private func apply(byLayer: Bool = false) {
     var configuration = prominent
       ? UIButton.Configuration.filled()
       : UIButton.Configuration.plain()
@@ -64,7 +65,7 @@ final class LodySymbolButton: ExpoView {
     configuration.contentInsets = .zero
     if prominent { configuration.cornerStyle = .capsule }
     if button.configuration?.image != nil, #available(iOS 26.0, *) {
-      configuration.symbolContentTransition = .init(.replace)
+      configuration.symbolContentTransition = .init(byLayer ? .replace.byLayer : .replace)
     }
     button.configuration = configuration
   }
