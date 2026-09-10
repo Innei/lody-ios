@@ -246,10 +246,11 @@ extension LodyChatView {
   }
 
   func rowHeight(_ row: ChatRow, width: CGFloat) -> CGFloat {
+    if row.kind == "meta" { return ChatMetaCell.height(for: row, width: width, traits: traitCollection) }
     if row.kind == "changesHeader" { return 28 }
     if row.kind == "changes" { return ChatFileCell.rowHeight() }
     let measured = measure(row, width: width)
-    return max(row.actionable || row.kind == "summary" ? 44 : 0, measured + (row.kind == "user" ? 44 : 12))
+    return max(row.actionable || row.kind == "summary" ? 44 : 0, measured + ChatCell.rowExtra(for: row))
   }
 
   func setAttachmentContext(_ json: String) {

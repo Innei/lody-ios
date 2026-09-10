@@ -12,7 +12,7 @@ import { clientFor } from './session';
 
 export type CreateSessionArgs = {
   workspaceId: string;
-  projectId: string;
+  projectId?: string;
   sessionId: string;
   machineId: string;
   agentConfigId: string;
@@ -22,7 +22,7 @@ export type CreateSessionArgs = {
 };
 
 export function creationOptions(
-  projectId: string,
+  projectId: string | undefined,
   meta: Flock,
   machines: Map<string, Flock>,
 ): CreationOptions {
@@ -30,10 +30,16 @@ export function creationOptions(
   const projects = [...catalog.projects];
   for (const [id, flock] of machines)
     projects.push(...projectRows(flock.scan(), id).projects);
-  const project = projects.findLast((p) => p.id === projectId);
-  if (!project || (!projectId.startsWith('github:') && !project.rootPath))
+  const chat = !projectId;
+  const project = chat
+    ? undefined
+    : projects.findLast((p) => p.id === projectId);
+  if (
+    !chat &&
+    (!project || (!projectId.startsWith('github:') && !project.rootPath))
+  )
     throw new Error('project_unavailable');
-  if (!projectId.startsWith('github:')) {
+  if (!chat && project && projectId && !projectId.startsWith('github:')) {
     const localId = projectId.slice(`${project.machineId}:local:`.length);
     if (
       machines
@@ -68,7 +74,11 @@ export function creationOptions(
 
   const agents: CreationOptions['agents'] = [];
   for (const [machineId, flock] of machines) {
-    if (!projectId.startsWith('github:') && machineId !== project.machineId)
+    if (
+      !chat &&
+      !projectId.startsWith('github:') &&
+      machineId !== project!.machineId
+    )
       continue;
     for (const row of flock.scan()) {
       const value = row.value as Record<string, unknown> | undefined;
@@ -154,7 +164,7 @@ export function creationOptions(
   }
   return {
     sessionId: crypto.randomUUID(),
-    project,
+    ...(project ? { project } : {}),
     agents,
     capabilities: [...capabilities.values()].map(
       ({ fetchedAt: _fetchedAt, ...capability }) => capability,
@@ -173,10 +183,11 @@ export async function createSession(
   const agent = options.agents.find(
     (a) => a.id === args.agentConfigId && a.machineId === args.machineId,
   );
-  const github = options.project.id.startsWith('github:');
+  const chat = !args.projectId && !options.project;
+  const github = options.project?.id.startsWith('github:') === true;
   if (
     !agent ||
-    args.projectId !== options.project.id ||
+    (!chat && args.projectId !== options.project?.id) ||
     typeof args.sessionId !== 'string' ||
     !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(args.sessionId) ||
     typeof args.userId !== 'string' ||
@@ -196,18 +207,21 @@ export async function createSession(
     replica.flock.get(['e', room]) !== undefined
   )
     throw new Error('session_already_exists');
-  const project: Record<string, string> = github
-    ? {
-        kind: 'github',
-        repoFullName: options.project.id.slice(7),
-        branch: args.branch!.trim(),
-      }
-    : {
-        kind: 'local',
-        localProjectId: options.project.id.slice(
-          `${agent.machineId}:local:`.length,
-        ),
-      };
+  let project: Record<string, string> | undefined;
+  if (!chat && github) {
+    project = {
+      kind: 'github',
+      repoFullName: options.project!.id.slice(7),
+      branch: args.branch!.trim(),
+    };
+  } else if (!chat) {
+    project = {
+      kind: 'local',
+      localProjectId: options.project!.id.slice(
+        `${agent.machineId}:local:`.length,
+      ),
+    };
+  }
   const meta = {
     id: args.sessionId,
     machineId: agent.machineId,
@@ -220,10 +234,10 @@ export async function createSession(
     cliType: agent.cliType,
     agentType: agent.agentType,
     agentConfigId: agent.id,
-    project,
+    ...(project ? { project } : {}),
     ...(github
       ? {
-          repoFullName: options.project.id.slice(7),
+          repoFullName: options.project!.id.slice(7),
           baseBranch: args.branch!.trim(),
           isWorktree: true,
         }
@@ -236,7 +250,7 @@ export async function createSession(
     status: 'idle',
     archived: false,
     pinned: false,
-    projectId: args.projectId,
+    projectId: args.projectId ?? `${agent.machineId}:unassigned`,
     createdAt: meta.createdAt,
     cliType: meta.cliType,
     agentType: meta.agentType,

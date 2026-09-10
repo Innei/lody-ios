@@ -47,6 +47,8 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   readonly runtimeInfo: RuntimeInfo;
   readonly initialInboxView: number;
   saveInboxView(index: number): void;
+  readonly initialInboxProjectSort: number;
+  saveInboxProjectSort(index: number): void;
   readInboxExpansion(): Record<string, boolean>;
   saveInboxExpansion(projectId: string, expanded: boolean): void;
   watchSession(id: string): Promise<void>;
@@ -188,8 +190,15 @@ export const archiveSession = (payload: string) =>
   native.archiveSession(payload);
 export const pinSession = (payload: string) => native.pinSession(payload);
 
-export const initialInboxView = native.initialInboxView === 1 ? 1 : 0;
+export const initialInboxView = [0, 1, 2].includes(native.initialInboxView)
+  ? native.initialInboxView
+  : 0;
 export const saveInboxView = (index: number) => native.saveInboxView(index);
+export const projectSorts = ['name', 'activity', 'urgency'] as const;
+export const initialInboxProjectSort =
+  projectSorts[native.initialInboxProjectSort] ?? 'name';
+export const saveInboxProjectSort = (index: number) =>
+  native.saveInboxProjectSort(index);
 export const readInboxExpansion = () => native.readInboxExpansion();
 export const saveInboxExpansion = (projectId: string, expanded: boolean) =>
   native.saveInboxExpansion(projectId, expanded);

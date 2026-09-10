@@ -355,7 +355,7 @@ extension LodyChatView {
       historyFirstContent = elapsed
       historyFirstRows = rows.count
     }
-    guard !preparingHistory, rows.count == 10_000 else { return }
+    guard !preparingHistory, rows.count == 15_000 else { return }
     let report: [String: Any] = [
       "firstContentMs": historyFirstContent, "firstRows": historyFirstRows,
       "completeMs": elapsed, "rows": rows.count,

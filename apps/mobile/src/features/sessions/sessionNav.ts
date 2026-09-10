@@ -7,6 +7,7 @@ export type SessionNavIntent =
       workspaceId: string;
       catalog: Catalog;
       projectId?: string;
+      context?: 'project' | 'chat';
     };
 
 type Stored = SessionNavIntent & {
@@ -46,8 +47,9 @@ export function requestNewSession(
   workspaceId: string,
   catalog: Catalog,
   projectId?: string,
+  context?: 'project' | 'chat',
 ) {
-  return enqueue({ kind: 'create', workspaceId, catalog, projectId });
+  return enqueue({ kind: 'create', workspaceId, catalog, projectId, context });
 }
 
 export function subscribeSessionNav(

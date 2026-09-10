@@ -16,10 +16,14 @@ const workspace = {
   name: '我的超长工作区名称不能折行',
   slug: null,
 };
-// An unassigned project exercises search without requesting machine configuration.
 const catalog: Catalog = {
   projects: [
-    { id: 'ui:unassigned', name: 'Lody iOS', machineId: 'ui', rootPath: '' },
+    {
+      id: 'ui:local:lody',
+      name: 'Lody iOS',
+      machineId: 'ui',
+      rootPath: '/tmp/lody-ios',
+    },
     {
       id: 'ui:empty',
       name: '空盒子',
@@ -31,7 +35,7 @@ const catalog: Catalog = {
     {
       id: 'ui-design',
       title: '首页交互设计',
-      projectId: 'ui:unassigned',
+      projectId: 'ui:local:lody',
       machineId: 'ui',
       status: 'completed',
       createdAt: '2026-09-07T10:00:00Z',
@@ -41,11 +45,21 @@ const catalog: Catalog = {
     {
       id: 'ui-search',
       title: '搜索历史会话 Search',
-      projectId: 'ui:unassigned',
+      projectId: 'ui:local:lody',
       machineId: 'ui',
       status: 'completed',
       createdAt: '2026-09-07T10:00:00Z',
       archived: true,
+      pinned: false,
+    },
+    {
+      id: 'ui-chat',
+      title: '纯对话草稿',
+      projectId: 'ui:unassigned',
+      machineId: 'ui',
+      status: 'idle',
+      createdAt: '2026-09-07T11:00:00Z',
+      archived: false,
       pinned: false,
     },
   ],

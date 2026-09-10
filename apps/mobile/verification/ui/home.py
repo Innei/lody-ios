@@ -81,11 +81,38 @@ assert abs(after_pull - before_pull) <= 2, 'Pulling the CRDT inbox left a refres
 
 tap_create()
 ui.element('create-session-input')
+ui.element('create-type')
 ui.capture('create')
-# Expand from the sheet's header, leaving the production form untouched.
+
+
+def tap_create_type(index):
+    frame = ui.element('create-type')['frame']
+    x = frame['x'] + frame['width'] * (0.25 if index == 0 else 0.75)
+    y = frame['y'] + frame['height'] / 2
+    ui.axe('tap', '-x', str(x), '-y', str(y), '--post-delay', '1')
+
+
+tap_create_type(1)
+ui.wait(
+    lambda items: any(i.get('AXUniqueId') == 'machine' for i in items),
+    'Chat page must show a computer row',
+)
+assert not any(i.get('AXUniqueId') == 'project' for i in ui.state())
+ui.capture('create-chat')
+tap_create_type(0)
+ui.element('project')
+# Expand from the close control so the title segment does not eat the swipe.
 header = next(item['frame'] for item in ui.state() if item.get('AXLabel') == close_create)
-ui.axe('swipe', '--start-x', '200', '--start-y', str(header['y'] + 10),
-       '--end-x', '200', '--end-y', '100', '--duration', '.6', '--post-delay', '.8')
+start_x = header['x'] + header['width'] / 2
+ui.axe(
+    'swipe',
+    '--start-x', str(start_x),
+    '--start-y', str(header['y'] + header['height'] / 2),
+    '--end-x', str(start_x),
+    '--end-y', '80',
+    '--duration', '.6',
+    '--post-delay', '.8',
+)
 expanded_header = next(item['frame'] for item in ui.state() if item.get('AXLabel') == close_create)
 assert expanded_header['y'] < header['y'] - 100, 'Creation sheet did not expand to the full detent'
 ui.capture('create-full')
@@ -104,7 +131,7 @@ assert not any(i.get('AXUniqueId') == 'ui-design' for i in ui.state())
 ui.capture('search')
 ui.axe('tap', '--label', catalog.system('clear'))
 commit('Lody')
-ui.element('project:ui:unassigned')
+ui.element('project:ui:local:lody')
 ui.capture('project-search')
 ui.axe('tap', '--label', catalog.system('clear'))
 commit('NoSuchSession')
@@ -120,19 +147,27 @@ ui.axe('tap', '--label', view_label, '--post-delay', '.8')
 ui.capture('view-menu')
 ui.axe('tap', '--label', catalog.text('inbox.settings.view.activity'), '--post-delay', '.8')
 ui.element('ui-design')
-assert not any(i.get('AXUniqueId') == 'toggle:ui:unassigned' for i in ui.state())
+assert not any(i.get('AXUniqueId') == 'toggle:ui:local:lody' for i in ui.state())
 ui.capture('activity-view')
 ui.axe('tap', '--label', view_label, '--post-delay', '.8')
+ui.axe('tap', '--label', catalog.text('inbox.settings.view.chat'), '--post-delay', '.8')
+ui.element('ui-chat')
+assert not any(i.get('AXUniqueId') == 'toggle:ui:local:lody' for i in ui.state())
+ui.capture('chat-view')
+ui.axe('tap', '--label', view_label, '--post-delay', '.8')
+ui.axe('tap', '--label', catalog.text('inbox.settings.sort.activity'), '--post-delay', '.8')
+ui.axe('tap', '--label', view_label, '--post-delay', '.8')
 ui.axe('tap', '--label', catalog.text('inbox.settings.view.projects'), '--post-delay', '.8')
-project = ui.element('toggle:ui:unassigned')
+ui.element('toggle:chat')
+project = ui.element('toggle:ui:local:lody')
 # The outline parent is an accessibility container; its content view carries the label.
 assert any('Lody iOS' in (child.get('AXLabel') or '') for child in project.get('children') or []), project
-assert 'Collapse content' in (project.get('custom_actions') or []), project
+assert catalog.system('collapse') in (project.get('custom_actions') or []), project
 
 
 # The outline disclosure accessory shares the parent's identifier, so tap by frame.
 def tap_project():
-    frame = ui.element('toggle:ui:unassigned')['frame']
+    frame = ui.element('toggle:ui:local:lody')['frame']
     ui.axe('tap', '-x', str(frame['x'] + 120), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.8')
 
 
@@ -179,13 +214,14 @@ ui.wait(
     'Session long-press must show pin',
 )
 assert any(catalog.text('session.action.archive') in (i.get('AXLabel') or '') for i in ui.state())
-ui.wait(
-    lambda items: any(
-        i.get('AXUniqueId') == 'session-preview' or '设计首页' in (i.get('AXLabel') or '')
-        for i in items
-    ),
-    'Session long-press must preview the cached transcript',
+user_turn = ui.wait(
+    lambda items: next((i for i in items if (i.get('AXLabel') or '') == '设计首页'), None),
+    'Session long-press must preview the cached user turn',
 )
+answer = next((i for i in ui.state() if (i.get('AXLabel') or '') == '用项目分组。'), None)
+assert answer, 'Preview must show the assistant answer as readable text'
+assert user_turn['frame']['width'] >= 200, user_turn
+assert answer['frame']['width'] >= 200, answer
 ui.capture('session-menu')
 ui.axe('tap', '-x', '24', '-y', '120', '--post-delay', '.6')
 

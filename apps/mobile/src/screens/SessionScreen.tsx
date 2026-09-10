@@ -17,6 +17,7 @@ import {
 } from '@lody-ios/kit';
 import { definePage, present } from '@/lib/presentation';
 import { requestNewSession } from '@/features/sessions/sessionNav';
+import { isChatSession } from '@/features/sessions/inbox';
 import { sessionTitleDetails } from '@/features/sessions/sessionTitle';
 import { setArchived, setPinned } from '@/features/sessions/sessionActions';
 import { sessionDebugText } from '@/features/sessions/sessionDebug';
@@ -386,7 +387,10 @@ function View() {
                 void requestNewSession(
                   selected.id,
                   catalog,
-                  currentSession.projectId,
+                  isChatSession(currentSession)
+                    ? undefined
+                    : currentSession.projectId,
+                  isChatSession(currentSession) ? 'chat' : undefined,
                 );
             }}
           >

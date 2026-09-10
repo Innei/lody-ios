@@ -294,3 +294,121 @@ test('create a project session, open its empty history and dispatch the first tu
   assert.equal(githubMeta.isWorktree, true);
   delete globalThis.__creationClient;
 });
+
+test('chat-only creation lists every machine agent and writes session meta without a project', async () => {
+  const meta = new Flock('meta'),
+    machine = new Flock('machine');
+  meta.set(['e', 'machine-m1'], true);
+  meta.set(['m', 'machine-m1'], { name: 'Test Mac' });
+  machine.set(['agentConfig', 'c1'], {
+    id: 'c1',
+    name: 'Codex',
+    machineId: 'm1',
+    cliType: 'builtin',
+    agentType: 'codex',
+  });
+  machine.set(['acpCapability', 'codex'], {
+    cliType: 'builtin',
+    agentType: 'codex',
+    fetchedAt: 1,
+    models: [{ modelId: 'gpt-test', name: 'GPT Test' }],
+  });
+  const machines = new Map([['m1', machine]]);
+  const remote = new Flock('remote');
+  const ok = (result = {}) => ({ ok: true, result });
+  const unframe = (body) => body.subarray(4);
+  globalThis.__creationClient = class {
+    constructor({ url }) {
+      this.url = decodeURIComponent(url);
+    }
+    async create() {
+      return ok();
+    }
+    async append({ part }) {
+      remote.importJson(
+        JSON.parse(new TextDecoder().decode(unframe(part.body))),
+      );
+      return ok();
+    }
+    async bootstrap() {
+      return ok({
+        snapshotOffset: '-1',
+        nextOffset: '-1',
+        upToDate: true,
+        updates: [],
+      });
+    }
+    readOnce() {
+      return new Promise(() => {});
+    }
+  };
+  const bundle = await build({
+    stdin: {
+      contents: `export * from './apps/mobile/modules/lody-kit/data-runtime/create-session';`,
+      resolveDir: process.cwd(),
+    },
+    bundle: true,
+    format: 'esm',
+    platform: 'browser',
+    write: false,
+    plugins: [
+      {
+        name: 'streams',
+        setup(b) {
+          b.onResolve({ filter: /^@loro-dev\/streams-client$/ }, () => ({
+            path: 'mock',
+            namespace: 'test',
+          }));
+          b.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
+            contents:
+              'export const StreamsClient = globalThis.__creationClient',
+          }));
+        },
+      },
+    ],
+  });
+  const runtime = await import(
+    `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
+  );
+  assert.throws(
+    () => runtime.creationOptions('m1:local:missing', meta, machines),
+    /project_unavailable/,
+  );
+  const options = runtime.creationOptions(undefined, meta, machines);
+  assert.equal(options.project, undefined);
+  assert.equal(options.agents.length, 1);
+  const replica = {
+    flock: meta,
+    client: {
+      async append({ part }) {
+        remote.importJson(
+          JSON.parse(new TextDecoder().decode(unframe(part.body))),
+        );
+        return ok();
+      },
+    },
+  };
+  const result = await runtime.createSession(
+    {
+      workspaceId: 'w1',
+      sessionId: options.sessionId,
+      machineId: 'm1',
+      agentConfigId: 'c1',
+      userId: 'u1',
+      title: '纯对话',
+    },
+    options,
+    replica,
+    async () => ({
+      token: 'synthetic',
+      gatewayBaseUrl: 'https://example.invalid',
+    }),
+  );
+  assert.equal(result.state, 'created');
+  assert.equal(result.session.projectId, 'm1:unassigned');
+  const saved = remote.get(['m', `session-${result.session.id}`]);
+  assert.equal(saved.project, undefined);
+  assert.equal(saved.repoFullName, undefined);
+  assert.equal(saved.isWorktree, undefined);
+  delete globalThis.__creationClient;
+});

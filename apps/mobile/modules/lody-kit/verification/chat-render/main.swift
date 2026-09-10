@@ -77,6 +77,41 @@ precondition(durationSeparator?.frame.maxY == durationCell.contentView.bounds.ma
   "The duration separator must sit directly below the label row")
 print("Chat render: duration separator spans the row below the label")
 
+func chromeHeight(_ row: ChatRow, text: String, width: CGFloat, traits: UITraitCollection) -> CGFloat {
+  let view = ChatTextView()
+  view.setText(NSAttributedString(string: text, attributes: [
+    .font: ChatCell.messageFont(for: row, compatibleWith: traits),
+  ]))
+  return view.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
+}
+
+let spacingTraits = durationCell.traitCollection
+let durationTextHeight = chromeHeight(durationRow, text: durationRow.text, width: 320, traits: spacingTraits)
+precondition(
+  ChatRowPadding.durationBottom == ChatRowPadding.content / 2,
+  "The work-duration trailing gap must be half the body-to-process gap"
+)
+precondition(
+  ChatCell.rowExtra(for: durationRow) == ChatRowPadding.content + ChatRowPadding.durationBottom,
+  "The duration row must size to that half-gap instead of the body-text padding"
+)
+let durationNatural = ChatCell(frame: CGRect(
+  x: 0,
+  y: 0,
+  width: 320,
+  height: durationTextHeight + ChatCell.rowExtra(for: durationRow)
+))
+window.addSubview(durationNatural)
+durationNatural.configure(durationRow, text: NSAttributedString(string: durationRow.text, attributes: [
+  .font: ChatCell.messageFont(for: durationRow, compatibleWith: spacingTraits),
+]))
+durationNatural.layoutIfNeeded()
+precondition(
+  abs((durationNatural.bounds.height - durationNatural.label.frame.maxY) - ChatRowPadding.durationBottom) < 0.6,
+  "The gap below the work-duration label must be half the gap between body text and the process row"
+)
+print("Chat render: duration bottom gap is half the text-to-process gap")
+
 func resolved(_ color: UIColor?, traits: UITraitCollection) -> CGColor? {
   color?.resolvedColor(with: traits).cgColor
 }

@@ -54,8 +54,8 @@ final class ChatMarkdownCell: UICollectionViewCell {
     let textWidth = ChatCell.textWidth(row, width: width)
     markdown.measure(width: textWidth)
     let height = markdown.measuredHeight
-    markdown.frame = CGRect(x: inset, y: 6, width: textWidth, height: height)
-    icon.frame = ChatCell.iconFrame(for: row, textY: 6, textHeight: height)
+    markdown.frame = CGRect(x: inset, y: ChatRowPadding.content, width: textWidth, height: height)
+    icon.frame = ChatCell.iconFrame(for: row, textY: ChatRowPadding.content, textHeight: height)
     spinner.frame = CGRect(x: width - 24, y: (bounds.height - 20) / 2, width: 20, height: 20)
     var view: UIView? = superview
     while let current = view, !(current is UIScrollView) { view = current.superview }

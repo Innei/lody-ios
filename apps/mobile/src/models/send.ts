@@ -20,7 +20,7 @@ export type Capability = {
 
 export type CreationOptions = {
   sessionId: string;
-  project: Project;
+  project?: Project;
   agents: {
     id: string;
     name: string;
@@ -71,6 +71,7 @@ export type ProjectPrefs = ModelChoice & {
 
 export type CreatePrefs = {
   projectId?: string;
+  context?: 'project' | 'chat';
   projects?: Record<string, ProjectPrefs>;
   modelChoices?: Record<string, ModelChoice>;
 };

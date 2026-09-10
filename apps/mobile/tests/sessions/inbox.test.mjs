@@ -314,21 +314,143 @@ test('project menus offer new session, open, and copy path except unassigned', a
       { id: 'm1:unassigned', name: '未分配', rootPath: '' },
     ],
   );
-  const [local, unassigned] = projectSections(data, ACCENT);
+  const [local] = projectSections(data, ACCENT);
+  assert.equal(projectSections(data, ACCENT).length, 1);
   assert.deepEqual(
     local.rows[0].menuActions.map((action) => action.id),
     ['newSession', 'open', 'copyPath'],
   );
   assert.equal(local.rows[0].menuActions[2].title, '拷贝路径');
-  assert.deepEqual(
-    unassigned.rows[0].menuActions.map((action) => action.id),
-    ['open'],
-  );
   assert.equal(local.rows[1].preview, 'session');
   assert.deepEqual(
     local.rows[1].menuActions.map((action) => action.id),
     ['newSession', 'pin', 'archive'],
   );
+});
+
+test('chat-only sessions form a trailing 对话 group instead of an unassigned project', async () => {
+  const { projectSections, CHAT_SECTION_ID } =
+    await import('../../src/features/sessions/inbox.ts');
+  const data = catalog(
+    [
+      session('repo', 'completed', { lastMessageAt: now - 60_000 }),
+      session('talk', 'completed', {
+        projectId: 'm1:unassigned',
+        lastMessageAt: now,
+      }),
+      session('other-machine', 'idle', { projectId: 'm2:unassigned' }),
+    ],
+    [
+      { id: 'zeta', name: 'zeta', rootPath: '/z' },
+      { id: 'p1', name: 'lody-ios', rootPath: '/p' },
+      { id: 'm1:unassigned', name: '未分配', rootPath: '' },
+    ],
+  );
+  const sections = projectSections(data, ACCENT, {}, now);
+  assert.deepEqual(
+    sections.map((s) => s.id),
+    ['p1', 'zeta', CHAT_SECTION_ID],
+  );
+  const chat = sections.at(-1);
+  assert.equal(chat.rows[0].title, '对话');
+  assert.equal(chat.rows[0].id, `toggle:${CHAT_SECTION_ID}`);
+  assert.deepEqual(
+    chat.rows[0].menuActions.map((action) => action.id),
+    ['newChat'],
+  );
+  assert.deepEqual(
+    chat.rows.slice(1).map((row) => row.id),
+    ['talk', 'other-machine'],
+  );
+});
+
+test('an empty 对话 group is omitted and more-than-five opens the chat view', async () => {
+  const { projectSections, CHAT_SECTION_ID } =
+    await import('../../src/features/sessions/inbox.ts');
+  assert.equal(
+    projectSections(
+      catalog([], [{ id: 'm1:unassigned', name: '未分配', rootPath: '' }]),
+      ACCENT,
+    ).length,
+    0,
+  );
+  const many = catalog(
+    Array.from({ length: 6 }, (_, i) =>
+      session(`c${i}`, 'completed', {
+        projectId: 'm1:unassigned',
+        createdAt: `2026-09-0${i + 1}T10:00:00Z`,
+      }),
+    ),
+    [{ id: 'm1:unassigned', name: '未分配', rootPath: '' }],
+  );
+  const [chat] = projectSections(many, ACCENT);
+  assert.equal(chat.id, CHAT_SECTION_ID);
+  assert.equal(chat.rows.at(-1).id, `view:${CHAT_SECTION_ID}`);
+  assert.equal(chat.rows.at(-1).title, '还有 1 个会话');
+});
+
+test('project groups sort by name, activity, or urgency and always keep 对话 last', async () => {
+  const { projectSections, CHAT_SECTION_ID } =
+    await import('../../src/features/sessions/inbox.ts');
+  const data = catalog(
+    [
+      session('quiet', 'completed', {
+        projectId: 'old',
+        lastMessageAt: now - 86_400_000,
+      }),
+      session('hot', 'completed', {
+        projectId: 'fresh',
+        lastMessageAt: now,
+      }),
+      session('wait', 'waiting', {
+        projectId: 'alert',
+        lastMessageAt: now - 3_600_000,
+      }),
+      session('chat', 'idle', {
+        projectId: 'm1:unassigned',
+        lastMessageAt: now,
+      }),
+    ],
+    [
+      { id: 'fresh', name: 'fresh' },
+      { id: 'old', name: 'old' },
+      { id: 'alert', name: 'alert' },
+      { id: 'empty', name: 'empty' },
+    ],
+  );
+  assert.deepEqual(
+    projectSections(data, ACCENT, {}, now, 'name').map((s) => s.id),
+    ['alert', 'empty', 'fresh', 'old', CHAT_SECTION_ID],
+  );
+  assert.deepEqual(
+    projectSections(data, ACCENT, {}, now, 'activity').map((s) => s.id),
+    ['fresh', 'alert', 'old', 'empty', CHAT_SECTION_ID],
+  );
+  assert.deepEqual(
+    projectSections(data, ACCENT, {}, now, 'urgency').map((s) => s.id),
+    ['alert', 'fresh', 'old', 'empty', CHAT_SECTION_ID],
+  );
+});
+
+test('activity and chat views share time buckets; chat-only hides project sessions', () => {
+  const data = catalog([
+    session('repo', 'waiting'),
+    session('talk', 'running', { projectId: 'm1:unassigned' }),
+  ]);
+  assert.deepEqual(
+    build(data).map((s) => [s.id, s.rows.map((r) => r.id)]),
+    [
+      ['attention', ['repo']],
+      ['live', ['talk']],
+    ],
+  );
+  assert.equal(build(data)[0].rows[0].subtitle, 'lody-ios');
+  const chat = build(data, { chatOnly: true });
+  assert.deepEqual(
+    chat.map((s) => [s.id, s.rows.map((r) => r.id)]),
+    [['live', ['talk']]],
+  );
+  assert.equal(chat[0].rows[0].subtitle, '对话');
 });
 
 test('project parents summarize the most urgent state and shorten the home path', async () => {
@@ -395,6 +517,31 @@ test('project rows carry branch or agent, diff, activity time, unread and a badg
     sessionRow(data.sessions[0], ACCENT, 'lody-ios', now).subtitle,
     'lody-ios · Claude Code',
   );
+});
+
+test('search never lists an unassigned project and matches 对话 as a session type', async () => {
+  const { searchSections } =
+    await import('../../src/features/sessions/inbox.ts');
+  const data = catalog(
+    [
+      session('talk', 'idle', { projectId: 'm1:unassigned', title: '闲聊' }),
+      session('repo', 'idle', { title: '仓库任务' }),
+    ],
+    [
+      { id: 'p1', name: 'lody-ios' },
+      { id: 'm1:unassigned', name: '对话', rootPath: '' },
+    ],
+  );
+  const byType = searchSections(data, '对话', ACCENT);
+  assert.equal(
+    byType.find((s) => s.id === 'projects'),
+    undefined,
+  );
+  assert.deepEqual(
+    byType.find((s) => s.id === 'sessions')?.rows.map((r) => r.id),
+    ['talk'],
+  );
+  assert.match(byType[0].rows[0].subtitle, /^对话/);
 });
 
 test('search finds empty projects and archived sessions without the inbox limit', async () => {

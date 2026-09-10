@@ -4,7 +4,7 @@ import type { Catalog, Session } from '../../models/catalog.ts';
 import { t } from '../../lib/i18n/index.ts';
 import { openCatalogRow } from '../../hooks/screens/openCatalogRow.ts';
 import { requestNewSession } from './sessionNav.ts';
-import { projectIdOfRow } from './inbox.ts';
+import { isChatSession, projectIdOfRow } from './inbox.ts';
 
 export async function setArchived(
   workspaceId: string,
@@ -70,9 +70,17 @@ export function listRowAction(
     openCatalogRow(projectId ? `project:${projectId}` : id, catalog);
     return;
   }
+  if (actionId === 'newChat') {
+    void requestNewSession(workspaceId, catalog, undefined, 'chat');
+    return;
+  }
   if (actionId === 'newSession') {
     const projectId = projectIdOfRow(id);
     const session = catalog.sessions.find((item) => item.id === id);
+    if (session && isChatSession(session)) {
+      void requestNewSession(workspaceId, catalog, undefined, 'chat');
+      return;
+    }
     void requestNewSession(
       workspaceId,
       catalog,

@@ -4,6 +4,63 @@ import { build } from 'esbuild';
 import { LoroDoc, LoroMap, LoroList, LoroText } from 'loro-crdt/base64';
 import { openTestSession, loadRuntime, frame } from '../helpers.mjs';
 
+test('reply metadata preserves each recorded model and updates when it arrives after completion', async () => {
+  const { projectSession } = await loadProject();
+  const doc = new LoroDoc();
+  const history = doc.getList('history');
+  history.push({
+    id: 'old',
+    role: 'assistant',
+    finished: true,
+    modelInfo: { modelId: 'old-model', name: 'Old Model' },
+    items: [{ type: 'text', text: 'Earlier answer' }],
+  });
+  history.push({
+    id: 'input',
+    role: 'user',
+    finished: true,
+    inputConfig: { modelId: 'selected-model' },
+    items: [],
+  });
+  const reply = history.pushContainer(new LoroMap());
+  reply.set('id', 'reply');
+  reply.set('role', 'assistant');
+  reply.set('finished', true);
+  reply.set('items', [{ type: 'text', text: 'Answer' }]);
+  doc.commit();
+  const before = projectSession(doc, 'live');
+  assert.equal(before.entries[0].modelInfo.name, 'Old Model');
+  assert.equal(
+    before.entries[2].modelInfo,
+    undefined,
+    'Never infer history metadata from the current composer',
+  );
+  reply.set('modelInfo', {
+    modelId: 'actual-model',
+    name: ' Actual Model ',
+    _meta: { lodyThoughtLevel: ' High ', unrelated: 'not for display' },
+  });
+  doc.commit();
+  const after = projectSession(doc, 'live');
+  assert.equal(after.entries[0].modelInfo.name, 'Old Model');
+  assert.deepEqual(after.entries[2].modelInfo, {
+    modelId: 'actual-model',
+    name: 'Actual Model',
+    thoughtLevel: 'High',
+  });
+  assert.ok(after.entries[2].rev > before.entries[2].rev);
+  reply.set('modelInfo', {
+    modelId: 'id-only',
+    name: 42,
+    _meta: { lodyThoughtLevel: {} },
+  });
+  doc.commit();
+  const sanitized = projectSession(doc, 'live').entries[2].modelInfo;
+  assert.equal(sanitized.modelId, 'id-only');
+  assert.equal(sanitized.name, undefined);
+  assert.equal(sanitized.thoughtLevel, undefined);
+});
+
 test('system notice identity survives projection updates without changing the completed reply', async () => {
   const { projectSession } = await loadRuntime();
   const doc = new LoroDoc();

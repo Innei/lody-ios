@@ -32,7 +32,7 @@ while not loading_path.exists():
 loading = json.loads(loading_path.read_text())
 shutil.copy2(loading_path, ui.output / 'loading.json')
 loading_path.unlink()
-assert loading['rows'] == 10_000, 'History is incomplete'
+assert loading['rows'] == 15_000, 'History is incomplete (including completed reply metadata)'
 assert 0 < loading['firstRows'] < loading['rows'], 'First paint waited for all history'
 assert 0 < loading['firstContentMs'] < loading['completeMs'], 'Missing staged first paint'
 assert len(loading['sliceMs']) > 1, 'History did not yield between measurement batches'
@@ -51,7 +51,7 @@ for run in range(3):
     path = next(iter(paths))
     report = json.loads(path.read_text())
     shutil.copy2(path, ui.output / f'run-{run + 1}.json')
-    assert report['entries'] == 10_000 and report['rows'] == 10_000, 'Incomplete dataset'
+    assert report['entries'] == 10_000 and report['rows'] == 15_000, 'Incomplete dataset'
     assert 20 <= report['seconds'] < 30, 'Incomplete measurement interval'
     samples = report['samples']
     offsets = [s['offset'] for s in samples]

@@ -3,12 +3,14 @@ import { useEffect, useRef, useState } from 'react';
 import { PlatformColor, TextInput, View as RNView } from 'react-native';
 import {
   NativeComposer,
+  initialInboxProjectSort,
   type ChatDraftAttachment,
   type NativeListSection,
   sessionCreationOptions,
 } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { useAuth } from '@/cloud/auth/AuthProvider';
+import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import type { Project, Session } from '@/models/catalog';
 import type { CreationOptions } from '@/models/send';
 import { capabilityFor } from '@/cloud/send/capability';
@@ -22,12 +24,18 @@ import { usePendingSends } from '@/cloud/send/pendingSends';
 import { draftTitle } from '@/features/sessions/draftTitle';
 import {
   type CreatePrefs,
+  CHAT_PREFS_KEY,
   createPrefsKey,
+  rememberedContext,
   rememberedProject,
   rememberedModelChoice,
   restoreSelection,
   withSelection,
 } from '@/features/sessions/createPrefs';
+import {
+  isChatProjectId,
+  sortCatalogProjects,
+} from '@/features/sessions/inbox';
 import { PickerScreen } from './PickerScreen';
 import {
   hasModelTabs,
@@ -45,7 +53,8 @@ type Params = {
   workspaceId: string;
   projects: Project[];
   projectId?: string;
-  loadOptions?: (projectId: string) => Promise<CreationOptions>;
+  context?: 'project' | 'chat';
+  loadOptions?: (projectId?: string) => Promise<CreationOptions>;
 };
 
 function pickTitle(loading: boolean, idle: string) {
@@ -70,16 +79,25 @@ function createNotice({
   return '';
 }
 
-/** Unassigned projects carry no working directory, so no session can start there. */
-const creatable = (project: Project) => !project.id.endsWith(':unassigned');
+/** Chat-only rows are not projects and cannot host a project session. */
+const creatable = (project: Project) => !isChatProjectId(project.id);
 
 function View() {
   const { params, finish, push } = usePageRuntime<Params, CreatedSession>();
   const { account } = useAuth();
+  const { catalog } = useCatalog();
   const colors = usePalette();
   const outbox = usePendingSends(account?.user.id ?? '', params.workspaceId);
+  const locked = !!params.projectId && params.context !== 'chat';
   const [projects, setProjects] = useState(() =>
-    params.projects.filter(creatable),
+    sortCatalogProjects(
+      params.projects.filter(creatable),
+      catalog.sessions,
+      initialInboxProjectSort,
+    ),
+  );
+  const [context, setContext] = useState<'project' | 'chat'>(
+    params.context === 'chat' ? 'chat' : 'project',
   );
   const [projectId, setProjectId] = useState(
     params.projectId ?? projects[0]?.id ?? '',
@@ -98,14 +116,19 @@ function View() {
   const [revision, setRevision] = useState(0);
   const busy = useRef(false);
 
+  const chat = context === 'chat';
   const project = projects.find((p) => p.id === projectId);
-  const github = projectId.startsWith('github:');
+  const githubProject = projectId.startsWith('github:');
+  const github = !chat && githubProject;
+  const prefsTarget = chat ? CHAT_PREFS_KEY : projectId;
 
   useEffect(() => {
     let active = true;
     void readLocal<CreatePrefs>(prefsKey).then((saved) => {
       if (!active) return;
       prefs.current = saved;
+      if (!locked && !params.context && rememberedContext(saved) === 'chat')
+        setContext('chat');
       const remembered = rememberedProject(saved, params.projects);
       if (!params.projectId && remembered) setProjectId(remembered);
       setPrefsLoaded(true);
@@ -117,7 +140,7 @@ function View() {
 
   useEffect(() => {
     if (!prefsLoaded) return;
-    if (!projectId) {
+    if (!chat && !projectId) {
       setLoading(false);
       return;
     }
@@ -125,15 +148,18 @@ function View() {
     setLoading(true);
     setOptions(undefined);
     const request = params.loadOptions
-      ? params.loadOptions(projectId)
+      ? params.loadOptions(chat ? undefined : projectId)
       : sessionCreationOptions(
-          JSON.stringify({ workspaceId: params.workspaceId, projectId }),
+          JSON.stringify({
+            workspaceId: params.workspaceId,
+            ...(chat ? {} : { projectId }),
+          }),
         ).then((raw): CreationOptions => JSON.parse(raw));
     void request
       .then((value) => {
         if (!active) return;
         setOptions(value);
-        const restored = restoreSelection(prefs.current, projectId, value);
+        const restored = restoreSelection(prefs.current, prefsTarget, value);
         setMachineId(restored.machineId);
         setAgentKey(restored.agentKey);
         const selected = value.agents.find(
@@ -156,7 +182,7 @@ function View() {
     return () => {
       active = false;
     };
-  }, [params.workspaceId, projectId, revision, prefsLoaded]);
+  }, [params.workspaceId, projectId, chat, prefsTarget, revision, prefsLoaded]);
 
   // A local project pins its own machine at the projection layer, so only a
   // GitHub project actually has a machine to choose.
@@ -178,11 +204,16 @@ function View() {
   function updateChoice(next: ModelChoice, selectedAgent = agent) {
     setChoice(next);
     if (!selectedAgent) return;
-    prefs.current = withSelection(prefs.current, projectId, {
-      machineId: selectedAgent.machineId,
-      agentKey: `${selectedAgent.machineId}:${selectedAgent.id}`,
-      ...next,
-    });
+    prefs.current = withSelection(
+      prefs.current,
+      prefsTarget,
+      {
+        machineId: selectedAgent.machineId,
+        agentKey: `${selectedAgent.machineId}:${selectedAgent.id}`,
+        ...next,
+      },
+      context,
+    );
     void writeLocal(prefsKey, prefs.current);
   }
 
@@ -215,7 +246,7 @@ function View() {
     setSending(true);
     const session: Session = {
       id: options!.sessionId,
-      projectId,
+      projectId: chat ? `${agent!.machineId}:unassigned` : projectId,
       machineId: agent!.machineId,
       cliType: agent!.cliType,
       agentType: agent!.agentType,
@@ -237,12 +268,12 @@ function View() {
       },
       creation: JSON.stringify({
         workspaceId: params.workspaceId,
-        projectId,
         sessionId: session.id,
         machineId: session.machineId,
         agentConfigId: agent!.id,
         userId: account!.user.id,
         title: session.title,
+        ...(chat ? {} : { projectId }),
         ...(github ? { branch: branch.trim() } : {}),
       }),
     };
@@ -261,13 +292,53 @@ function View() {
     });
     finish({
       session,
-      projectName: project?.name ?? options!.project.name,
+      projectName: chat
+        ? t('inbox.section.chat')
+        : (project?.name ?? options?.project?.name ?? ''),
       machineName: agent!.machineName,
       ...choice,
     });
   }
 
-  const sections: NativeListSection[] = [
+  const machineRow = {
+    id: 'machine',
+    title: machine?.name ?? pickTitle(loading, t('create.row.selectMachine')),
+    subtitle: t('create.label.machine'),
+    image: 'desktopcomputer',
+    action: true,
+    disclosure: true,
+    navigates: true,
+  };
+  const modelRow = {
+    id: 'model',
+    title: capability ? modelSummary(capability, choice) : t('model.default'),
+    subtitle: t('create.label.model'),
+    image: 'cpu',
+    action: !!capability,
+    disclosure: !!capability,
+    navigates: !!capability,
+  };
+
+  function agentSection(subtitle?: string): NativeListSection {
+    return {
+      id: 'agent',
+      footer: agentFooter(loading, !!agent),
+      rows: [
+        {
+          id: 'agent',
+          title: agent?.name ?? pickTitle(loading, t('create.row.selectAgent')),
+          subtitle,
+          image: 'sparkles',
+          action: true,
+          disclosure: true,
+          navigates: true,
+        },
+        modelRow,
+      ],
+    };
+  }
+
+  const projectSections: NativeListSection[] = [
     {
       id: 'project',
       rows: [
@@ -282,58 +353,37 @@ function View() {
         },
       ],
     },
-    ...(github
-      ? [
-          {
-            id: 'machine',
-            rows: [
-              {
-                id: 'machine',
-                title:
-                  machine?.name ??
-                  pickTitle(loading, t('create.row.selectMachine')),
-                subtitle: t('create.label.machine'),
-                image: 'desktopcomputer',
-                action: true,
-                disclosure: true,
-                navigates: true,
-              },
-            ],
-          },
-        ]
-      : []),
-    {
-      id: 'agent',
-      footer: agentFooter(loading, !!agent),
-      rows: [
-        {
-          id: 'agent',
-          title: agent?.name ?? pickTitle(loading, t('create.row.selectAgent')),
-          subtitle: github ? t('create.label.agent') : machine?.name,
-          image: 'sparkles',
-          action: true,
-          disclosure: true,
-          navigates: true,
-        },
-        {
-          id: 'model',
-          title: capability
-            ? modelSummary(capability, choice)
-            : t('model.default'),
-          subtitle: t('create.label.model'),
-          image: 'cpu',
-          action: !!capability,
-          disclosure: !!capability,
-          navigates: !!capability,
-        },
-      ],
-    },
+    ...(githubProject ? [{ id: 'machine', rows: [machineRow] }] : []),
+    agentSection(githubProject ? t('create.label.agent') : machine?.name),
   ];
+  const chatSections: NativeListSection[] = [
+    { id: 'machine', rows: [machineRow] },
+    agentSection(t('create.label.agent')),
+  ];
+  const pages = locked
+    ? undefined
+    : [
+        {
+          id: 'project',
+          title: t('create.type.project'),
+          sections: projectSections,
+        },
+        {
+          id: 'chat',
+          title: t('create.type.chat'),
+          sections: chatSections,
+        },
+      ];
+  const sections = chat ? chatSections : projectSections;
 
   async function pickProject() {
     const result = await push(ProjectPickerScreen, {
       workspaceId: params.workspaceId,
-      projects,
+      projects: sortCatalogProjects(
+        projects,
+        catalog.sessions,
+        initialInboxProjectSort,
+      ),
       selectedId: projectId,
     });
     if (result.status !== 'completed') return;
@@ -429,7 +479,14 @@ function View() {
     <ComposerSheet
       accent={colors.accent}
       sections={sections}
+      pages={pages}
+      selectedPage={chat ? 1 : 0}
       placeholder=""
+      onPageChange={({ nativeEvent }) => {
+        if (sending) return;
+        if (nativeEvent.index === 1) setContext('chat');
+        else setContext('project');
+      }}
       onRowPress={({ nativeEvent }) => {
         if (sending) return;
         if (nativeEvent.id === 'project') void pickProject();

@@ -17,6 +17,13 @@ export type {
 
 export const createPrefsKey = (userId: string, workspaceId: string) =>
   `create:${userId}:${workspaceId}`;
+export const CHAT_PREFS_KEY = 'chat';
+
+export function rememberedContext(
+  prefs: CreatePrefs | null | undefined,
+): 'project' | 'chat' {
+  return prefs?.context === 'chat' ? 'chat' : 'project';
+}
 
 export function rememberedProject(
   prefs: CreatePrefs | null | undefined,
@@ -96,10 +103,13 @@ export function withSelection(
   prefs: CreatePrefs | null | undefined,
   projectId: string,
   selection: ProjectPrefs,
+  context: 'project' | 'chat' = 'project',
 ): CreatePrefs {
   return {
     ...prefs,
-    projectId,
+    ...(context === 'chat'
+      ? { context: 'chat' as const }
+      : { context: 'project' as const, projectId }),
     modelChoices: {
       ...prefs?.modelChoices,
       [modelKey(selection.agentKey ?? '', selection.modelId)]: {

@@ -105,12 +105,14 @@ export function projectRows(rows: Row[], mode: string): Catalog {
       branchName: text(value.branchName) || undefined,
       diff: diffOf(value.diffStats),
     });
-    projects.push({
-      id: projectId,
-      machineId,
-      name: repo || (localId ? t('project.local') : t('project.unassigned')),
-      rootPath: '',
-    });
+    if (localId || repo) {
+      projects.push({
+        id: projectId,
+        machineId,
+        name: repo || t('project.local'),
+        rootPath: '',
+      });
+    }
   }
   return {
     projects: [...new Map(projects.reverse().map((p) => [p.id, p])).values()],

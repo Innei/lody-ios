@@ -21,7 +21,14 @@ public final class LodyKitModule: Module, @unchecked Sendable {
 
   @JS
   var initialInboxView: Int {
-    UserDefaults.standard.integer(forKey: "inboxView")
+    let value = UserDefaults.standard.integer(forKey: "inboxView")
+    return (0...2).contains(value) ? value : 0
+  }
+
+  @JS
+  var initialInboxProjectSort: Int {
+    let value = UserDefaults.standard.integer(forKey: "inboxProjectSort")
+    return (0...2).contains(value) ? value : 0
   }
 
   @JS
@@ -84,7 +91,12 @@ public final class LodyKitModule: Module, @unchecked Sendable {
 
   @JS
   func saveInboxView(index: Int) {
-    UserDefaults.standard.set(index == 1 ? 1 : 0, forKey: "inboxView")
+    UserDefaults.standard.set((0...2).contains(index) ? index : 0, forKey: "inboxView")
+  }
+
+  @JS
+  func saveInboxProjectSort(index: Int) {
+    UserDefaults.standard.set((0...2).contains(index) ? index : 0, forKey: "inboxProjectSort")
   }
 
   @JS
@@ -280,7 +292,12 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("readFile") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
         #if DEBUG
-        if let response = FilePreviewFixture.response(payload) { promise.resolve(response); return }
+        if let response = FilePreviewFixture.response(payload) {
+          // Exercise both slow reads and an immediate Quick Look result during push.
+          let delay = payload.contains("document.pdf") ? 0.0 : 5.0
+          DispatchQueue.main.asyncAfter(deadline: .now() + delay) { promise.resolve(response) }
+          return
+        }
         #endif
         self.dataRuntime.command("readFile", payload: payload, promise: promise)
       }
@@ -405,6 +422,22 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("path") { (view: LodyInlineDiffView, value: String) in view.setPath(value) }
       Prop("oldText") { (view: LodyInlineDiffView, value: String?) in view.setOldText(value) }
       Prop("newText") { (view: LodyInlineDiffView, value: String?) in view.setNewText(value) }
+    }
+
+    View(LodyPagedList.self) {
+      Events("onRowPress", "onPageChange")
+      Prop("pages") { (view: LodyPagedList, pages: [LodyPagedPage]) in view.setPages(pages) }
+      Prop("selectedPage") { (view: LodyPagedList, index: Int) in view.setSelectedPage(index) }
+      Prop("pagingEnabled") { (view: LodyPagedList, enabled: Bool) in
+        view.setPagingEnabled(enabled)
+      }
+      Prop("bottomInset") { (view: LodyPagedList, value: Double) in view.setBottomInset(CGFloat(value)) }
+      Prop("transparent") { (view: LodyPagedList, transparent: Bool) in
+        view.setTransparent(transparent)
+      }
+      Prop("accent") { (view: LodyPagedList, accent: String) in
+        view.setAccent(accent)
+      }
     }
 
     View(LodyGroupedList.self) {

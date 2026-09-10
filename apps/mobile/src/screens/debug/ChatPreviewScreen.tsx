@@ -123,6 +123,8 @@ function View() {
     finished: boolean;
   } | null>(null);
   const [length, setLength] = useState(totalLength);
+  const [navigationTitle, setNavigationTitle] = useState('原生聊天预览');
+  const [sessionActionsReady, setSessionActionsReady] = useState(false);
   const [step, setStep] = useState(48);
   const [mode, setMode] = useState<'normal' | 'attention'>('normal');
   const [composerOptions, setComposerOptions] = useState({
@@ -183,6 +185,11 @@ function View() {
       role: 'assistant',
       status: length < totalLength ? 'running' : 'completed',
       finished: length >= totalLength,
+      modelInfo: {
+        modelId: 'gpt-5.6-sol',
+        name: 'GPT-5.6 Sol',
+        thoughtLevel: 'High',
+      },
       items: [
         {
           itemId: 'intro',
@@ -266,6 +273,11 @@ function View() {
         role: 'assistant',
         status: durationFixture.finished ? 'completed' : 'running',
         finished: durationFixture.finished,
+        modelInfo: {
+          modelId: 'gpt-5.6-sol',
+          name: 'GPT-5.6 Sol',
+          thoughtLevel: 'High',
+        },
         timestamp: new Date(durationFixture.startedAt).toISOString(),
         startedAt: durationFixture.startedAt,
         endedAt: durationFixture.finished
@@ -360,9 +372,20 @@ function View() {
   );
   return (
     <>
+      <Stack.Screen options={{ title: navigationTitle }} />
       <Stack.Toolbar placement="right">
         {uiVerify && (
           <Stack.Toolbar.Menu icon="wrench" accessibilityLabel="Fixtures">
+            <Stack.Toolbar.MenuAction
+              children="Session Created"
+              icon="checkmark"
+              onPress={() => setSessionActionsReady(true)}
+            />
+            <Stack.Toolbar.MenuAction
+              children="Rename Session"
+              icon="pencil"
+              onPress={() => setNavigationTitle('Updated session title')}
+            />
             <Stack.Toolbar.MenuAction
               children="Diff Fixture"
               icon="doc.text"
@@ -461,10 +484,18 @@ function View() {
           <Stack.Toolbar.MenuAction icon="square.and.pencil" onPress={() => {}}>
             {t('session.action.newSession')}
           </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="pin" onPress={() => {}}>
+          <Stack.Toolbar.MenuAction
+            icon="pin"
+            disabled={uiVerify && !sessionActionsReady}
+            onPress={() => {}}
+          >
             {t('session.action.pin')}
           </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="archivebox" onPress={() => {}}>
+          <Stack.Toolbar.MenuAction
+            icon="archivebox"
+            disabled={uiVerify && !sessionActionsReady}
+            onPress={() => {}}
+          >
             {t('session.action.archive')}
           </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.Menu inline>
@@ -475,7 +506,7 @@ function View() {
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
       <NativeChat
-        navigationTitle="原生聊天预览"
+        navigationTitle={navigationTitle}
         navigationSubtitle="lody-ios"
         navigationMachine="Studio"
         onTitlePress={() =>

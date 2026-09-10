@@ -74,6 +74,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   var imageSession = ""
   let empty = UILabel()
   private weak var scrollOwner: UIViewController?
+  private var titleObservation: NSKeyValueObservation?
   var dataSource: UICollectionViewDiffableDataSource<String, String>!
   var transcript = ChatTranscript()
   var processEntryID = ""
@@ -226,9 +227,15 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     }
     collection.register(ChatImageCell.self, forCellWithReuseIdentifier: "image")
     collection.register(ChatCell.self, forCellWithReuseIdentifier: "message")
+    collection.register(ChatMetaCell.self, forCellWithReuseIdentifier: "meta")
     collection.register(ChatMarkdownCell.self, forCellWithReuseIdentifier: "markdown")
     dataSource = UICollectionViewDiffableDataSource<String, String>(collectionView: collection) { [weak self] collection, index, id in
       guard let self, let row = self.rows[id] else { return nil }
+      if row.kind == "meta" {
+        let cell = collection.dequeueReusableCell(withReuseIdentifier: "meta", for: index) as! ChatMetaCell
+        cell.configure(row)
+        return cell
+      }
       if row.kind == "changesHeader" {
         return collection.dequeueConfiguredReusableCell(using: self.fileHeaderRegistration, for: index, item: row)
       }
@@ -373,6 +380,14 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
         controller.setContentScrollView(collection, for: .top)
         controller.setContentScrollView(collection, for: .bottom)
         scrollOwner = controller
+        titleObservation = controller.navigationItem.observe(\.titleView) { [weak self] item, _ in
+          MainActor.assumeIsolated {
+            guard let self, !self.titleDisappearing, item.titleView !== self.titleButton else { return }
+            // Header action updates can clear titleView without laying out the chat.
+            // Restore on the next layout, after screens finishes its header update.
+            self.setNeedsLayout()
+          }
+        }
         if navigation.parent == nil {
           controller.addChild(navigation)
           addSubview(navigation.view)
@@ -453,6 +468,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
       frameTimer?.invalidate(); frameTimer = nil
       workDurationTimer?.invalidate(); workDurationTimer = nil
       stream.finish()
+      titleObservation = nil
       if let owner = scrollOwner {
         ChatNavigationTitle.detach(button: titleButton, from: owner.navigationItem)
       }

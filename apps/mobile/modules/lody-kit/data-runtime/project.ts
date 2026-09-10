@@ -47,6 +47,7 @@ export type EntrySummary = {
   startedAt?: number;
   endedAt?: number;
   permissionWaitMs?: number;
+  modelInfo?: { modelId?: string; name?: string; thoughtLevel?: string };
   items: ItemSummary[];
 };
 
@@ -267,13 +268,23 @@ function summarizeEntry(
       add: Number(diff.add) || 0,
       del: Number(diff.del) || 0,
     }));
+  const model = entry?.modelInfo;
+  const modelInfo = {
+    modelId:
+      typeof model?.modelId === 'string' ? model.modelId.trim() : undefined,
+    name: typeof model?.name === 'string' ? model.name.trim() : undefined,
+    thoughtLevel:
+      typeof model?._meta?.lodyThoughtLevel === 'string'
+        ? model._meta.lodyThoughtLevel.trim()
+        : undefined,
+  };
   const value = {
     id,
     rev: bump(
       projection,
       `entry/${id}`,
       summarizedItems.map((i) => `${i.itemId}:${i.rev}`).join(',') +
-        `|${entry?.status}|${entry?.finished}|${JSON.stringify(fileDiffs)}`,
+        `|${entry?.status}|${entry?.finished}|${JSON.stringify(fileDiffs)}|${JSON.stringify(modelInfo)}`,
     ),
     role: String(entry?.role ?? 'assistant'),
     status: entry?.status ?? (entry?.read ? 'seen' : 'pending'),
@@ -282,6 +293,7 @@ function summarizeEntry(
     startedAt: entry?.startedAt,
     endedAt: entry?.endedAt,
     permissionWaitMs: entry?.permissionWaitMs,
+    modelInfo: modelInfo.name || modelInfo.modelId ? modelInfo : undefined,
     userTurnId: entry?.userTurnId,
     items: summarizedItems,
     ...(fileDiffs.length ? { fileDiffs } : {}),

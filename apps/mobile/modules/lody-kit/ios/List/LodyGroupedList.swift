@@ -77,6 +77,12 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
   let onRowAction = EventDispatcher()
   let onRefresh = EventDispatcher()
   let onSegmentChange = EventDispatcher()
+  var forwardedRowPress: (([String: Any]) -> Void)?
+
+  func emitRowPress(_ body: [String: Any]) {
+    onRowPress(body)
+    forwardedRowPress?(body)
+  }
   private let segments = UISegmentedControl(items: [])
   private let segmentContainer = UIView()
   /// Before iOS 26 the bar has no edge effect to extend, so the strip carries
@@ -226,10 +232,10 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
       self?.supplementary(in: collection, kind: kind, at: index)
     }
     dataSource.sectionSnapshotHandlers.willExpandItem = { [weak self] item in
-      self?.onRowPress(["id": item.row, "expanded": true])
+      self?.emitRowPress(["id": item.row, "expanded": true])
     }
     dataSource.sectionSnapshotHandlers.willCollapseItem = { [weak self] item in
-      self?.onRowPress(["id": item.row, "expanded": false])
+      self?.emitRowPress(["id": item.row, "expanded": false])
     }
     collection.delegate = self
     let layout = UICollectionViewCompositionalLayout { [weak self] index, environment in
@@ -781,7 +787,7 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
 
   @objc private func headerPressed(_ gesture: UITapGestureRecognizer) {
     guard let id = gesture.view?.accessibilityIdentifier, !id.isEmpty else { return }
-    onRowPress(["id": id])
+    emitRowPress(["id": id])
   }
 
   private func swipeActions(at indexPath: IndexPath, leading: Bool) -> UISwipeActionsConfiguration? {
@@ -815,10 +821,14 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
   }
   func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
     guard let row = row(at: indexPath) else { return }
-    if !row.navigates { collectionView.deselectItem(at: indexPath, animated: true) }
+    if row.navigates {
+      collectionView.selectItem(at: indexPath, animated: true, scrollPosition: [])
+    } else {
+      collectionView.deselectItem(at: indexPath, animated: true)
+    }
     // Outline parents toggle through UIKit; the expansion handlers report the change.
     if row.parent && !row.navigates { return }
-    onRowPress(["id": row.id])
+    emitRowPress(["id": row.id])
   }
 
   func collectionView(
@@ -890,10 +900,10 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
 
   private func commitMenu(_ id: String) {
     if id.hasPrefix("toggle:") {
-      onRowPress(["id": "project:" + String(id.dropFirst(7))])
+      emitRowPress(["id": "project:" + String(id.dropFirst(7))])
       return
     }
-    onRowPress(["id": id])
+    emitRowPress(["id": id])
   }
 
   private func indexPath(for id: String) -> IndexPath? {

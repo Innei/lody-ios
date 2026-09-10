@@ -22,6 +22,7 @@ export function useBindSessionNav() {
           workspaceId: intent.workspaceId,
           projects: intent.catalog.projects,
           projectId: intent.projectId,
+          context: intent.context,
         });
         if (result.status === 'completed')
           await present(

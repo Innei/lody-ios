@@ -26,7 +26,7 @@ def rows(node):
             yield from rows(value)
 
 def chat_title(items):
-    return next((i for i in items if i.get('role_description') == 'Nav bar' and i.get('AXUniqueId') == '原生聊天预览'), None)
+    return next((i for i in items if i.get('role_description') == 'Nav bar' and i.get('AXUniqueId') in ['原生聊天预览', 'Updated session title']), None)
 
 def two_line_title(items):
     bar = chat_title(items)
@@ -44,7 +44,9 @@ assert 'session.id: preview' in tree, 'Debug alert must include session identifi
 assert 'project.rootPath:' in tree, 'Debug alert must include project paths'
 assert catalog.text('common.copy') in tree, 'Debug alert must offer Copy'
 subprocess.run(['xcrun', 'simctl', 'pbcopy', udid], input='clipboard sentinel', text=True, check=True, timeout=10)
-axe('tap', '--label', catalog.text('common.copy'), '--element-type', 'Button', '--post-delay', '.3')
+copy_action = next(i for i in ui.state() if i.get('AXLabel') == catalog.text('common.copy') and not i.get('AXUniqueId'))
+frame = copy_action['frame']
+axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.3')
 copied = subprocess.check_output(['xcrun', 'simctl', 'pbpaste', udid], text=True, timeout=10)
 assert 'session.id: preview' in copied, repr(copied)
 assert 'machine.name: Studio' in copied, repr(copied)
@@ -57,6 +59,20 @@ assert catalog.text('session.action.archive') in menu
 axe('tap', '-x', '200', '-y', '400', '--post-delay', '.4')
 axe('drag', '--start-x', '2', '--start-y', '400', '--end-x', '70', '--end-y', '400', '--duration', '1', '--post-delay', '.8')
 ui.wait(two_line_title, 'Project subtitle must survive a cancelled return')
+axe('tap', '--label', 'Fixtures', '--post-delay', '.3')
+axe('tap', '--label', 'Session Created', '--post-delay', '1')
+title = ui.element('chat-navigation-title')
+assert all(text in title.get('AXLabel', '') for text in ['lody-ios', 'Studio']), 'Enabling session actions lost the two-line title'
+ui.capture('created-title')
+axe('tap', '--label', 'Fixtures', '--post-delay', '.3')
+axe('tap', '--label', 'Rename Session', '--post-delay', '1')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'Updated session title' for i in items), 'Router title did not update')
+for _ in range(3):
+    title = ui.element('chat-navigation-title')
+    assert all(text in title.get('AXLabel', '') for text in ['Updated session title', 'lody-ios', 'Studio']), 'Header refresh lost the two-line title'
+    ui.wait(two_line_title, 'Project subtitle must survive a Router header refresh')
+    time.sleep(.3)
+ui.capture('renamed-title')
 axe('tap', '--label', 'Retry')
 observations = []
 saw_running = False
@@ -95,7 +111,7 @@ print(json.dumps({'samples': len(observations), 'nativeTitleAction': True,
 
 if '--send' in sys.argv:
     # This path sends only to the local development preview, never a real session.
-    assert '原生聊天预览' in axe('describe-ui')
+    assert 'Updated session title' in axe('describe-ui')
     axe('tap', '--id', 'session-input', '--post-delay', '0.5')
     ui.type_into('session-input', 'keep this message at the top.')
     time.sleep(1)

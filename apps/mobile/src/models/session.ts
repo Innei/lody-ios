@@ -46,6 +46,7 @@ export type EntrySummary = {
   startedAt?: number;
   endedAt?: number;
   permissionWaitMs?: number;
+  modelInfo?: { modelId?: string; name?: string; thoughtLevel?: string };
   items: ItemSummary[];
   fileDiffs?: { path: string; add: number; del: number }[];
 };

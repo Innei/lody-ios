@@ -21,9 +21,27 @@ const groups = [
   { id: 'older', header: 'inbox.section.older' },
 ] as const;
 
+export const CHAT_SECTION_ID = 'chat';
+export type ProjectSort = 'name' | 'activity' | 'urgency';
+
 export const activityAt = (session: Session) =>
   session.lastMessageAt ?? Date.parse(session.createdAt);
+export function isChatProjectId(id: string) {
+  return id.endsWith(':unassigned');
+}
+export function isChatSession(session: Pick<Session, 'projectId'>) {
+  return isChatProjectId(session.projectId);
+}
+export function isChatSectionRow(id: string) {
+  return (
+    id === CHAT_SECTION_ID ||
+    id === `toggle:${CHAT_SECTION_ID}` ||
+    id === `view:${CHAT_SECTION_ID}` ||
+    id === `project:${CHAT_SECTION_ID}`
+  );
+}
 export function projectIdOfRow(id: string) {
+  if (isChatSectionRow(id) || id.startsWith('view:')) return;
   if (id.startsWith('toggle:')) return id.slice(7);
   if (id.startsWith('project:')) return id.slice(8);
 }
@@ -62,21 +80,28 @@ export type InboxOptions = {
   keyword?: string;
   accent: string;
   now?: number;
+  chatOnly?: boolean;
 };
+
+function sessionPlace(session: Session, names: Map<string, string>) {
+  if (isChatSession(session)) return t('inbox.section.chat');
+  return names.get(session.projectId) ?? '';
+}
 
 export function inboxSections(
   catalog: Catalog,
-  { keyword = '', accent, now }: InboxOptions,
+  { keyword = '', accent, now, chatOnly = false }: InboxOptions,
 ): NativeListSection[] {
   const names = new Map(catalog.projects.map((p) => [p.id, p.name]));
   const term = keyword.trim().toLocaleLowerCase();
   const matches = (session: Session) =>
     !term ||
-    `${session.title} ${names.get(session.projectId) ?? ''}`
+    `${session.title} ${sessionPlace(session, names)}`
       .toLocaleLowerCase()
       .includes(term);
 
   const visible = catalog.sessions
+    .filter((session) => (chatOnly ? isChatSession(session) : true))
     .filter((session) => (session.archived ? term.length > 0 : true))
     .filter(matches)
     .sort(byActivity);
@@ -94,7 +119,7 @@ export function inboxSections(
       return {
         id: session.id,
         title: session.title,
-        subtitle: names.get(session.projectId) ?? '',
+        subtitle: sessionPlace(session, names),
         value: relativeTime(activityAt(session), now),
         unread: unreadOf(session),
         pinned: session.pinned,
@@ -130,6 +155,11 @@ const newSessionAction = () => ({
   title: t('session.action.newSession'),
   symbol: 'square.and.pencil',
 });
+const newChatAction = () => ({
+  id: 'newChat',
+  title: t('session.action.newChat'),
+  symbol: 'square.and.pencil',
+});
 const sessionMenu = (session: Session) => ({
   menuActions: [
     newSessionAction(),
@@ -142,9 +172,7 @@ const projectMenu = (project: Project) => {
   const actions: NativeListRow['menuActions'] = [
     { id: 'open', title: t('project.action.open'), symbol: 'folder' },
   ];
-  if (!project.id.endsWith(':unassigned')) {
-    actions.unshift(newSessionAction());
-  }
+  if (!isChatProjectId(project.id)) actions.unshift(newSessionAction());
   if (project.rootPath) {
     actions.push({
       id: 'copyPath',
@@ -154,6 +182,61 @@ const projectMenu = (project: Project) => {
   }
   return { menuActions: actions };
 };
+
+const urgencyRank = (sessions: Session[]) => {
+  const states = sessions.map(stateOf);
+  if (states.some((state) => state === 'attention' || state === 'failed'))
+    return 0;
+  if (states.some((state) => state === 'live')) return 1;
+  return 2;
+};
+
+const projectActivity = (sessions: Session[]) =>
+  sessions.reduce(
+    (latest, session) => Math.max(latest, activityAt(session)),
+    0,
+  );
+
+export function compareProjects(
+  left: { name: string; sessions: Session[] },
+  right: { name: string; sessions: Session[] },
+  sort: ProjectSort,
+) {
+  if (sort === 'activity' || sort === 'urgency') {
+    if (sort === 'urgency') {
+      const rank = urgencyRank(left.sessions) - urgencyRank(right.sessions);
+      if (rank) return rank;
+    }
+    const activity =
+      projectActivity(right.sessions) - projectActivity(left.sessions);
+    if (activity) return activity;
+  }
+  return left.name.localeCompare(right.name);
+}
+
+export function sortCatalogProjects(
+  projects: Project[],
+  sessions: Session[],
+  sort: ProjectSort,
+) {
+  const grouped = new Map(
+    projects
+      .filter((project) => !isChatProjectId(project.id))
+      .map((project) => [
+        project.id,
+        sessions.filter((s) => s.projectId === project.id && !s.archived),
+      ]),
+  );
+  return [...projects]
+    .filter((project) => !isChatProjectId(project.id))
+    .sort((left, right) =>
+      compareProjects(
+        { name: left.name, sessions: grouped.get(left.id) ?? [] },
+        { name: right.name, sessions: grouped.get(right.id) ?? [] },
+        sort,
+      ),
+    );
+}
 
 export function sessionRow(
   session: Session,
@@ -237,35 +320,80 @@ function projectRow(
   };
 }
 
+function sessionGroup(
+  id: string,
+  parent: NativeListRow,
+  sessions: Session[],
+  accent: string,
+  now?: number,
+  moreId = `project:${id}`,
+): NativeListSection {
+  const rows = [
+    parent,
+    ...sessions
+      .slice(0, 5)
+      .map((session) => sessionRow(session, accent, '', now)),
+  ];
+  const rest = sessions.length - 5;
+  if (rest > 0) {
+    rows.push({
+      id: moreId,
+      title: tp('inbox.project.more', rest, { count: rest }),
+      action: true,
+      disclosure: true,
+      navigates: true,
+    });
+  }
+  return { id, rows };
+}
+
 export function projectSections(
   catalog: Catalog,
   accent: string,
   expanded: Record<string, boolean> = {},
   now?: number,
+  sort: ProjectSort = 'name',
 ): NativeListSection[] {
-  return catalog.projects.map((project) => {
+  const projects = sortCatalogProjects(
+    catalog.projects,
+    catalog.sessions,
+    sort,
+  );
+  const sections = projects.map((project) => {
     const sessions = catalog.sessions
       .filter((s) => s.projectId === project.id && !s.archived)
       .sort(byActivity);
     const open = expanded[project.id] ?? true;
-    const rows = [
-      projectRow(project, sessions, open, accent),
-      ...sessions
-        .slice(0, 5)
-        .map((session) => sessionRow(session, accent, '', now)),
-    ];
-    const rest = sessions.length - 5;
-    if (rest > 0) {
-      rows.push({
-        id: `project:${project.id}`,
-        title: tp('inbox.project.more', rest, { count: rest }),
-        action: true,
-        disclosure: true,
-        navigates: true,
-      });
-    }
-    return { id: project.id, headerExpanded: open, rows };
+    const parent = projectRow(project, sessions, open, accent);
+    const group = sessionGroup(project.id, parent, sessions, accent, now);
+    return { ...group, headerExpanded: open };
   });
+  const chats = catalog.sessions
+    .filter((session) => isChatSession(session) && !session.archived)
+    .sort(byActivity);
+  if (!chats.length) return sections;
+  const open = expanded[CHAT_SECTION_ID] ?? true;
+  const title = t('inbox.section.chat');
+  sections.push({
+    ...sessionGroup(
+      CHAT_SECTION_ID,
+      {
+        id: `toggle:${CHAT_SECTION_ID}`,
+        parent: true,
+        image: 'bubble.left',
+        title,
+        action: true,
+        menuActions: [newChatAction()],
+        ...projectTrailing(chats, open, accent),
+      },
+      chats,
+      accent,
+      now,
+      `view:${CHAT_SECTION_ID}`,
+    ),
+    headerExpanded: open,
+  });
+  return sections;
 }
 
 export function searchSections(
@@ -276,14 +404,12 @@ export function searchSections(
   const term = keyword.trim().toLocaleLowerCase();
   if (!term) return [];
   const names = new Map(catalog.projects.map((p) => [p.id, p.name]));
-  const projects = catalog.projects.filter((p) =>
-    p.name.toLocaleLowerCase().includes(term),
+  const projects = catalog.projects.filter(
+    (p) => !isChatProjectId(p.id) && p.name.toLocaleLowerCase().includes(term),
   );
   const sessions = catalog.sessions
     .filter((s) =>
-      `${s.title} ${names.get(s.projectId) ?? ''}`
-        .toLocaleLowerCase()
-        .includes(term),
+      `${s.title} ${sessionPlace(s, names)}`.toLocaleLowerCase().includes(term),
     )
     .sort(byActivity);
   return [
@@ -304,7 +430,7 @@ export function searchSections(
     {
       id: 'sessions',
       header: t('inbox.section.sessions'),
-      rows: sessions.map((s) => sessionRow(s, accent, names.get(s.projectId))),
+      rows: sessions.map((s) => sessionRow(s, accent, sessionPlace(s, names))),
     },
   ].filter((section) => section.rows.length);
 }

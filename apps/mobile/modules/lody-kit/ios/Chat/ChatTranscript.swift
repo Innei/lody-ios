@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 struct ChatFileDiff: Decodable, Equatable {
@@ -8,6 +9,19 @@ struct ChatFileDiff: Decodable, Equatable {
 }
 
 struct ChatEntry: Decodable {
+  struct ModelInfo: Decodable {
+    let modelId: String?
+    let name: String?
+    let thoughtLevel: String?
+
+    var title: String {
+      let name = self.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      let model = name.isEmpty ? (modelId ?? "") : name
+      return [model, thoughtLevel ?? ""]
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+  }
   let id: String
   let role: String
   let status: String
@@ -17,6 +31,7 @@ struct ChatEntry: Decodable {
   let startedAt: Double?
   var items: [ChatItem]
   let fileDiffs: [ChatFileDiff]?
+  var modelInfo: ModelInfo? = nil
   var canSteer: Bool? = nil
   var isRunning: Bool { role == "assistant" && !finished }
   var isQueued: Bool { role == "user" && status == "queued" }
@@ -65,6 +80,7 @@ struct ChatRow: Equatable {
   var image: ChatImage? = nil
   var fileDiff: ChatFileDiff? = nil
   var workDurationMs: Int? = nil
+  var copyText: String? = nil
   var shines: Bool { kind == "summary" && running && !attention }
   /// `only` / `first` / `middle` / `last` for consecutive file rows in one group.
   var group = ""
@@ -118,6 +134,22 @@ enum ChatWorkDuration {
   }
 }
 
+enum ChatTranscriptPreviewMetrics {
+  static let width: CGFloat = 320
+  static let sectionInset: CGFloat = 16
+  static let symbolGutter: CGFloat = 36
+
+  static func itemWidth(collectionWidth: CGFloat) -> CGFloat {
+    let width = collectionWidth > 1 ? collectionWidth : Self.width
+    return max(1, width - sectionInset * 2)
+  }
+
+  static func textWidth(itemWidth: CGFloat, hasSymbol: Bool) -> CGFloat {
+    if !hasSymbol { return itemWidth }
+    return max(1, itemWidth - symbolGutter)
+  }
+}
+
 /// Stable identities belong to the protocol, never to the streamed text.
 struct ChatTranscript {
   var entries: [ChatEntry] = []
@@ -130,10 +162,10 @@ struct ChatTranscript {
     guard let data = cache.data(using: .utf8) else { return [] }
     if let envelope = try? JSONDecoder().decode(CachedEnvelope.self, from: data),
        let entries = envelope.entries {
-      return ChatTranscript(entries: entries).rows()
+      return ChatTranscript(entries: entries).rows().filter { $0.kind != "meta" }
     }
     if let entries = try? JSONDecoder().decode([ChatEntry].self, from: data) {
-      return ChatTranscript(entries: entries).rows()
+      return ChatTranscript(entries: entries).rows().filter { $0.kind != "meta" }
     }
     return []
   }
@@ -254,6 +286,14 @@ struct ChatTranscript {
         if !row.text.isEmpty { result.append(row) }
       }
       if entry.role == "assistant", entry.finished, !processOnly {
+        let model = entry.modelInfo?.title ?? ""
+        let answer = finalText.flatMap { entry.items[$0].text }
+        if answer != nil || !model.isEmpty {
+          result.append(ChatRow(
+            id: entry.id + ":meta", entryID: entry.id, kind: "meta", text: model,
+            copyText: answer
+          ))
+        }
         let files = (entry.fileDiffs ?? []).filter { !$0.path.isEmpty }
         if !files.isEmpty {
           let add = files.reduce(0) { $0 + ($1.add ?? 0) }

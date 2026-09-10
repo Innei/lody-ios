@@ -24,8 +24,8 @@ def plural(key, count, **variables):
 
 # UIKit's own controls follow the same App Language; these are not app copy.
 SYSTEM = {
-    'en': {'clear': 'Clear text', 'close': 'Close', 'cancel': 'Cancel', 'ok': 'OK', 'copy': 'copy', 'paste': 'Paste', 'nextKeyboard': 'Next keyboard'},
-    'zh-Hans': {'clear': '清除文本', 'close': '关闭', 'cancel': '取消', 'ok': '好', 'copy': '拷贝', 'paste': '粘贴', 'nextKeyboard': '下一个键盘'},
+    'en': {'clear': 'Clear text', 'close': 'Close', 'cancel': 'Cancel', 'ok': 'OK', 'copy': 'copy', 'paste': 'Paste', 'nextKeyboard': 'Next keyboard', 'collapse': 'Collapse content'},
+    'zh-Hans': {'clear': '清除文本', 'close': '关闭', 'cancel': '取消', 'ok': '好', 'copy': '拷贝', 'paste': '粘贴', 'nextKeyboard': '下一个键盘', 'collapse': '折叠内容'},
 }
 
 

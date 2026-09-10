@@ -4,7 +4,11 @@ import { definePage } from '@/lib/presentation';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { usePalette } from '@/lib/theme/palette';
-import { byActivity, sessionRow } from '@/features/sessions/inbox';
+import {
+  byActivity,
+  isChatProjectId,
+  sessionRow,
+} from '@/features/sessions/inbox';
 import { requestNewSession } from '@/features/sessions/sessionNav';
 import { listRowAction } from '@/features/sessions/sessionActions';
 import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
@@ -42,7 +46,7 @@ function View() {
           headerLargeTitle: false,
         }}
       />
-      {project && !project.id.endsWith(':unassigned') ? (
+      {project && !isChatProjectId(project.id) ? (
         <Stack.Toolbar placement="right">
           <Stack.Toolbar.Button
             icon="plus"

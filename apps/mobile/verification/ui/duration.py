@@ -1,5 +1,6 @@
 """Assistant work duration advances while live and freezes when finished."""
 import sys
+import subprocess
 import time
 from driver import UI
 import catalog
@@ -48,6 +49,7 @@ process = ui.element('duration-preview:process')
 assert process['frame']['y'] >= advanced['frame']['y'] + advanced['frame']['height'] - 1
 assert copy['working'] not in process['AXLabel'], process['AXLabel']
 ui.capture('working')
+assert not any((item.get('AXUniqueId') or '').startswith('duration-preview:meta') for item in ui.state()), 'Live replies must not show metadata actions'
 
 ui.axe('tap', '--label', 'Finish Duration Fixture', '--post-delay', '.5')
 finished = ui.wait(
@@ -63,5 +65,15 @@ answer = ui.element('duration-preview:answer')
 finished_process = ui.element('duration-preview:process')
 assert finished_process['frame']['y'] >= finished['frame']['y'] + finished['frame']['height'] - 1
 assert answer['frame']['y'] >= finished_process['frame']['y'] + finished_process['frame']['height'] - 1
+model = ui.element('duration-preview:meta:model')
+copy_button = ui.element('duration-preview:meta:copy')
+assert model['AXLabel'] == 'GPT-5.6 Sol · High'
+assert model['frame']['y'] >= answer['frame']['y'] + answer['frame']['height'] - 1
+assert copy_button['frame']['width'] >= 44 and copy_button['frame']['height'] >= 44
+subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input='sentinel', text=True, check=True)
+ui.axe('tap', '--id', 'duration-preview:meta:copy', '--post-delay', '.3')
+copied = subprocess.check_output(['xcrun', 'simctl', 'pbpaste', ui.udid], text=True)
+assert copied == '计时完成。', repr(copied)
+assert ui.element('duration-preview:meta:copy')['AXLabel'] == catalog.text('native.chat.copied')
 ui.capture('finished')
-print('PASS: live work duration advances and completed duration freezes above the answer')
+print('PASS: duration freezes, completed replies show model metadata and copy only the answer')

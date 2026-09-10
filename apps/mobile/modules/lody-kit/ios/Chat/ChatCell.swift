@@ -1,5 +1,68 @@
 import UIKit
 
+enum ChatRowPadding {
+  static let content: CGFloat = 6
+  static var durationBottom: CGFloat { content / 2 }
+}
+
+final class ChatMetaCell: UICollectionViewCell {
+  private let copyButton = UIButton(type: .system)
+  private let modelLabel = UILabel()
+  private var copyText: String?
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    modelLabel.numberOfLines = 0
+    modelLabel.textAlignment = .right
+    modelLabel.textColor = .secondaryLabel
+    modelLabel.adjustsFontForContentSizeCategory = true
+    copyButton.setPreferredSymbolConfiguration(UIImage.SymbolConfiguration(pointSize: 15), forImageIn: .normal)
+    copyButton.addTarget(self, action: #selector(copyAnswer), for: .touchUpInside)
+    contentView.addSubview(copyButton)
+    contentView.addSubview(modelLabel)
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  func configure(_ row: ChatRow) {
+    copyText = row.copyText
+    copyButton.isHidden = row.copyText == nil
+    copyButton.setImage(UIImage(systemName: "doc.on.doc"), for: .normal)
+    copyButton.accessibilityLabel = LodyStrings.text("native.chat.copy")
+    copyButton.accessibilityIdentifier = row.id + ":copy"
+    modelLabel.text = row.text
+    modelLabel.font = .preferredFont(forTextStyle: .footnote, compatibleWith: traitCollection)
+    modelLabel.isHidden = row.text.isEmpty
+    modelLabel.accessibilityIdentifier = row.id + ":model"
+    setNeedsLayout()
+  }
+
+  @objc private func copyAnswer() {
+    guard let copyText else { return }
+    UIPasteboard.general.string = copyText
+    copyButton.setImage(UIImage(systemName: "checkmark"), for: .normal)
+    copyButton.accessibilityLabel = LodyStrings.text("native.chat.copied")
+    UIAccessibility.post(notification: .announcement, argument: LodyStrings.text("native.chat.copied"))
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    copyButton.frame = CGRect(x: 0, y: (bounds.height - 44) / 2, width: 44, height: 44)
+    let leading: CGFloat = copyButton.isHidden ? 0 : 52
+    modelLabel.frame = CGRect(x: leading, y: 4, width: max(1, bounds.width - leading), height: bounds.height - 8)
+  }
+
+  static func height(for row: ChatRow, width: CGFloat, traits: UITraitCollection) -> CGFloat {
+    let textWidth = max(1, width - (row.copyText == nil ? 0 : 52))
+    let font = UIFont.preferredFont(forTextStyle: .footnote, compatibleWith: traits)
+    let textHeight = (row.text as NSString).boundingRect(
+      with: CGSize(width: textWidth, height: .greatestFiniteMagnitude),
+      options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font], context: nil
+    ).height
+    return max(44, ceil(textHeight) + 8)
+  }
+}
+
 final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   let messageContent = ChatMessageContent(frame: .zero)
   var label: ChatTextView { messageContent.label }
@@ -87,6 +150,12 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     return font
   }
 
+  static func rowExtra(for row: ChatRow) -> CGFloat {
+    if row.kind == "user" { return 44 }
+    if row.kind == "duration" { return ChatRowPadding.content + ChatRowPadding.durationBottom }
+    return ChatRowPadding.content * 2
+  }
+
   static func leading(_ row: ChatRow) -> CGFloat {
     switch row.kind {
     case "text", "user", "duration": return 0
@@ -134,7 +203,12 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
       let inset = Self.leading(row)
       let textWidth = Self.textWidth(row, width: width)
       let height = label.sizeThatFits(CGSize(width: textWidth, height: .greatestFiniteMagnitude)).height
-      let y = row.kind == "text" || row.kind == "thought" ? 6 : max(6, (bounds.height - height) / 2)
+      let y: CGFloat
+      if row.kind == "text" || row.kind == "thought" || row.kind == "duration" {
+        y = ChatRowPadding.content
+      } else {
+        y = max(ChatRowPadding.content, (bounds.height - height) / 2)
+      }
       label.frame = CGRect(x: inset, y: y, width: textWidth, height: height)
       let markHeight = row.kind == "summary"
         ? (label.lineAdvances(width: textWidth).first ?? height)

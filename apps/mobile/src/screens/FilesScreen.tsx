@@ -83,7 +83,7 @@ function View() {
             entry.type === 'file' ? join(params.path, entry.name) : undefined,
           imageTint: entry.type === 'directory' ? undefined : 'secondary',
           action: true,
-          navigates: entry.type === 'directory',
+          navigates: true,
           disclosure: entry.type === 'directory',
         })),
         ...(error

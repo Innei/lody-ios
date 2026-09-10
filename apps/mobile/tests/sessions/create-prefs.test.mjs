@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  CHAT_PREFS_KEY,
+  rememberedContext,
   rememberedProject,
   rememberedModelChoice,
   restoreSelection,
@@ -39,6 +41,25 @@ const options = {
     },
   ],
 };
+
+test('remembers chat context without overwriting the last project', () => {
+  const project = withSelection(null, 'p1', {
+    machineId: 'm1',
+    agentKey: 'm1:c1',
+  });
+  const chat = withSelection(
+    project,
+    CHAT_PREFS_KEY,
+    { machineId: 'm2', agentKey: 'm2:c2' },
+    'chat',
+  );
+  assert.equal(rememberedContext(chat), 'chat');
+  assert.equal(chat.projectId, 'p1');
+  assert.equal(
+    restoreSelection(chat, CHAT_PREFS_KEY, options).agentKey,
+    'm2:c2',
+  );
+});
 
 test('restores the remembered agent and model per project, dropping choices the machine no longer offers', () => {
   const prefs = withSelection({ projectId: 'old' }, 'p1', {

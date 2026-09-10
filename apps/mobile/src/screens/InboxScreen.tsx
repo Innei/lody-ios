@@ -6,6 +6,9 @@ import {
   NativeSymbolButton,
   initialInboxView,
   saveInboxView,
+  initialInboxProjectSort,
+  saveInboxProjectSort,
+  projectSorts,
   readInboxExpansion,
   saveInboxExpansion,
 } from '@lody-ios/kit';
@@ -16,8 +19,10 @@ import { usePalette } from '@/lib/theme/palette';
 import { listPlaceholder, searchPlaceholder } from '@/ui/listState';
 import {
   inboxSections,
+  isChatSectionRow,
   projectSections,
   searchSections,
+  type ProjectSort,
 } from '@/features/sessions/inbox';
 import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
 import { requestNewSession } from '@/features/sessions/sessionNav';
@@ -30,6 +35,21 @@ import { SettingsScreen } from './SettingsScreen';
 const inboxViews = [
   { mode: 0, key: 'inbox.settings.view.projects', icon: 'folder' },
   { mode: 1, key: 'inbox.settings.view.activity', icon: 'clock' },
+  { mode: 2, key: 'inbox.settings.view.chat', icon: 'bubble.left' },
+] as const;
+
+const inboxSorts = [
+  { id: 'name' as const, key: 'inbox.settings.sort.name', icon: 'textformat' },
+  {
+    id: 'activity' as const,
+    key: 'inbox.settings.sort.activity',
+    icon: 'clock',
+  },
+  {
+    id: 'urgency' as const,
+    key: 'inbox.settings.sort.urgency',
+    icon: 'exclamationmark.circle',
+  },
 ] as const;
 
 function View() {
@@ -39,17 +59,19 @@ function View() {
   const { catalog, selected, setWorkspaceId, loading, connected } =
     useCatalog();
   const [mode, setMode] = useState(initialInboxView);
+  const [sort, setSort] = useState<ProjectSort>(initialInboxProjectSort);
   const [expanded, setExpanded] = useState(readInboxExpansion);
   const [query, setQuery] = useState('');
   const creating = useRef(false);
   const searching = !!query.trim();
-  const sections = useMemo(
-    () =>
-      mode === 0
-        ? projectSections(catalog, colors.accent, expanded)
-        : inboxSections(catalog, { accent: colors.accent }),
-    [mode, catalog, colors.accent, expanded],
-  );
+  const sections = useMemo(() => {
+    if (mode === 0)
+      return projectSections(catalog, colors.accent, expanded, undefined, sort);
+    return inboxSections(catalog, {
+      accent: colors.accent,
+      chatOnly: mode === 2,
+    });
+  }, [mode, sort, catalog, colors.accent, expanded]);
   if (!localReady || !account) return <Screen />;
   const workspaceName = selected?.name ?? t('common.workspace');
   return (
@@ -92,6 +114,21 @@ function View() {
               {t(view.key)}
             </Stack.Toolbar.MenuAction>
           ))}
+          <Stack.Toolbar.Menu inline>
+            {inboxSorts.map((item) => (
+              <Stack.Toolbar.MenuAction
+                key={item.id}
+                icon={item.icon}
+                isOn={sort === item.id}
+                onPress={() => {
+                  setSort(item.id);
+                  saveInboxProjectSort(projectSorts.indexOf(item.id));
+                }}
+              >
+                {t(item.key)}
+              </Stack.Toolbar.MenuAction>
+            ))}
+          </Stack.Toolbar.Menu>
         </Stack.Toolbar.Menu>
         <Stack.Toolbar.View>
           <NativeSymbolButton
@@ -126,7 +163,12 @@ function View() {
             }
             creating.current = true;
             try {
-              await requestNewSession(selected.id, catalog);
+              await requestNewSession(
+                selected.id,
+                catalog,
+                undefined,
+                mode === 2 ? 'chat' : undefined,
+              );
             } finally {
               creating.current = false;
             }
@@ -148,11 +190,19 @@ function View() {
         previewUserId={account.user.id}
         previewWorkspaceId={selected?.id}
         onRowPress={({ nativeEvent: { id, expanded: next = true } }) => {
+          if (id === 'view:chat') {
+            setMode(2);
+            saveInboxView(2);
+            return;
+          }
           if (id.startsWith('toggle:')) {
             const projectId = id.slice(7);
             saveInboxExpansion(projectId, next);
             setExpanded((previous) => ({ ...previous, [projectId]: next }));
-          } else openCatalogRow(id, catalog);
+            return;
+          }
+          if (isChatSectionRow(id)) return;
+          openCatalogRow(id, catalog);
         }}
         onRowAction={({ nativeEvent: { id, actionId } }) => {
           if (selected) listRowAction(selected.id, catalog, id, actionId);

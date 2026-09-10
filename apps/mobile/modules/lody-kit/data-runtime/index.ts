@@ -499,7 +499,7 @@ Object.assign(globalThis, {
         userId: args.userId,
       });
     },
-    creationOptions(args: { workspaceId: string; projectId: string }) {
+    creationOptions(args: { workspaceId: string; projectId?: string }) {
       if (args.workspaceId !== workspace || !metaReplica || unhealthy.size)
         throw new Error('metadata_not_ready');
       return creationOptions(

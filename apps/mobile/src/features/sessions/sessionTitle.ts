@@ -1,4 +1,6 @@
 import type { Catalog, Session } from '../../models/catalog.ts';
+import { isChatSession } from './inbox.ts';
+import { t } from '../../lib/i18n/index.ts';
 
 type CreationNames = {
   projectName?: string;
@@ -15,7 +17,9 @@ export function sessionTitleDetails(
   );
   return {
     project,
-    projectName: project?.name || creation.projectName || '',
+    projectName: isChatSession(session)
+      ? creation.projectName || t('inbox.section.chat')
+      : project?.name || creation.projectName || '',
     machineName:
       catalog.machineNames?.[session.machineId] || creation.machineName || '',
   };

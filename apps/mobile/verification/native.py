@@ -45,6 +45,7 @@ checks = {
     ],
     'chat-title': ['Chat/ChatNavigationTitle.swift'],
     'live-activity': ['../live-activity/LodyActivityAttributes.swift', '../live-activity/LiveActivityCatalog.swift'],
+    'page-progress': ['List/LodyPageProgress.swift'],
 }
 with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
     for name, files in checks.items():
