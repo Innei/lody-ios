@@ -117,9 +117,25 @@ proof of typography or animation quality.
 
 ## CI and future UI changes
 
-`.github/workflows/verify.yml` runs Checks and Offline iOS UI on PRs and pushes to
-main. Configure both as required checks in the repository branch rules before
-relying on them to block merges. UI artifacts contain results.json, per-case
+`.github/workflows/verify.yml` runs Checks, Native behavior, one signed Simulator
+build, and three parallel Offline iOS UI batches (`pages`, `send`, `chat`) on PRs
+and pushes to main. UI jobs download the same tarred App, preserving executable
+permissions and symlinks, and run both appearances. Each batch has its own
+Simulator and evidence artifact; a failed batch does not cancel its siblings.
+Configure the Checks, Native behavior, Build iOS Simulator, and all three UI
+checks as required checks in repository branch rules before relying on them to
+block merges. `--batch pages|send|chat` selects the same grouping locally;
+`--case` still runs a single case, and omitting both runs everything. Standalone
+Home/Licenses failures are collected while remaining cases continue.
+
+The runner enables request diagnostics only for its owned Metro. `metro.log`
+records manifest/status request starts, completion/connection-close, status and
+duration without headers, query parameters or bodies. `metro-startup.json` and
+per-case `metro-failure.json` probe host-side status and manifest HEAD/GET with
+10-second deadlines; they do not prove Simulator reachability. Compare these
+with the five-minute `native.log` and failure screenshot to distinguish no
+incoming request, an unfinished server response, and app-side failure.
+`environment.json` records Node, Xcode and AXe versions and the selected batch. UI artifacts contain results.json, per-case
 logs, screenshots, accessibility trees and video, including failures. Missing
 scenes and timeouts fail the job. No login or distribution signing secret is used.
 

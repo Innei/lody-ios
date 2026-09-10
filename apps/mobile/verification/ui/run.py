@@ -16,7 +16,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from simulator import run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
-CASES = ['notifications', 'send-queue', 'send-interrupt', 'send-rounds', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'send', 'send-handoff', 'layout', 'tracking', 'smooth-scroll', 'model-options', 'image-preview', 'composer', 'composer-glass', 'composer-video', 'composer-success', 'composer-failure', 'markdown', 'duration', 'changes', 'inline-diff', 'inbox', 'background', 'permission', 'home', 'licenses', 'model-memory', 'onboarding', 'live-activity']
+BATCHES = {
+    'pages': ['notifications', 'settings', 'inbox', 'background', 'permission', 'home', 'licenses', 'onboarding', 'live-activity'],
+    'send': ['send-queue', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'model-options', 'composer', 'composer-glass', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
+    'chat': ['file-preview', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'changes', 'inline-diff'],
+}
+CASES = [case for batch in BATCHES.values() for case in batch]
 # These run their own HomePreviewProviders bundle and start from the inbox, not Debug.
 STANDALONE = {'home', 'licenses'}
 PREVIEW = {
@@ -73,9 +78,16 @@ parser.add_argument(
 parser.add_argument('--app', required=True, type=Path)
 parser.add_argument('--output', type=Path, default=ROOT / '.artifacts/ui')
 parser.add_argument('--port', type=int, default=8097)
-parser.add_argument('--case', choices=CASES)
+selection = parser.add_mutually_exclusive_group()
+selection.add_argument('--case', choices=CASES)
+selection.add_argument('--batch', choices=BATCHES)
 parser.add_argument('--language', choices=['en', 'zh-Hans'], default='en', help='App Language for this run; scenes assert the matching catalog')
 args = parser.parse_args()
+selected = CASES
+if args.batch:
+    selected = BATCHES[args.batch]
+if args.case:
+    selected = [args.case]
 if args.udid is None:
     verify_name = 'UI'
     if args.case is not None:
@@ -90,10 +102,15 @@ ui = UI(args.udid, args.output)
 standalone_results = []
 if args.case is None:
     # Each standalone case needs its own HomePreviewProviders Metro instance.
-    for standalone in sorted(STANDALONE):
+    for standalone in sorted(STANDALONE.intersection(selected)):
         standalone_output = args.output / standalone
-        subprocess.run([sys.executable, __file__, '--udid', args.udid, '--app', str(args.app), '--output', str(standalone_output), '--port', str(args.port), '--case', standalone, '--language', args.language], check=True)
-        standalone_results += json.loads((standalone_output / 'results.json').read_text())
+        child = subprocess.run([sys.executable, __file__, '--udid', args.udid, '--app', str(args.app), '--output', str(standalone_output), '--port', str(args.port), '--case', standalone, '--language', args.language], check=False)
+        result_path = standalone_output / 'results.json'
+        if result_path.exists():
+            standalone_results += json.loads(result_path.read_text())
+        if child.returncode or not result_path.exists():
+            standalone_results.append({'case': standalone, 'status': 'failed', 'error': f'Standalone runner exited {child.returncode}'})
+        (args.output / 'results.json').write_text(json.dumps(standalone_results, indent=2))
 
 def sim(*command, check=True):
     return subprocess.run(['xcrun', 'simctl', *command], check=check, timeout=60, capture_output=True, text=True)
@@ -107,8 +124,28 @@ except OSError:
     pass
 metro_log = (args.output / 'metro.log').open('w')
 metro = subprocess.Popen(['pnpm', '--filter', '@lody-ios/mobile', 'exec', 'expo', 'start', '--dev-client', '--host', 'lan', '--port', str(args.port)],
-                         cwd=ROOT, env={**os.environ, 'CI': '1', 'EXPO_NO_DOTENV': '1', 'EXPO_PUBLIC_UI_VERIFY': '1', 'EXPO_PUBLIC_UI_VERIFY_HOME': '1' if args.case in STANDALONE else '0', 'REACT_NATIVE_PACKAGER_HOSTNAME': '127.0.0.1'},
+                         cwd=ROOT, env={**os.environ, 'NODE_OPTIONS': os.environ.get('NODE_OPTIONS', '') + f' --require="{Path(__file__).resolve().with_name("metro-diagnostics.cjs")}"', 'LODY_UI_METRO_DIAGNOSTICS': '1', 'CI': '1', 'EXPO_NO_DOTENV': '1', 'EXPO_PUBLIC_UI_VERIFY': '1', 'EXPO_PUBLIC_UI_VERIFY_HOME': '1' if args.case in STANDALONE else '0', 'REACT_NATIVE_PACKAGER_HOSTNAME': '127.0.0.1'},
                          stdout=metro_log, stderr=subprocess.STDOUT, start_new_session=True)
+def diagnose_metro(phase, output=args.output):
+    # Never dump headers, manifests, bundle bodies or the process environment.
+    probes = []
+    for method, path in [('GET', '/status'), ('HEAD', '/?disableOnboarding=1'), ('GET', '/?disableOnboarding=1')]:
+        started = time.monotonic()
+        probe = {'method': method, 'path': path.split('?')[0]}
+        try:
+            request = Request(f'http://127.0.0.1:{args.port}{path}', method=method,
+                              headers={'expo-platform': 'ios', 'accept': 'application/expo+json,application/json'})
+            with urlopen(request, timeout=10) as response:
+                probe['status'] = response.status
+                probe['bytes'] = len(response.read())
+        except Exception as error:
+            probe['error'] = str(error)
+        probe['seconds'] = round(time.monotonic() - started, 3)
+        probes.append(probe)
+    diagnostic = {'phase': phase, 'metroExitCode': metro.poll(), 'probes': probes}
+    (output / f'metro-{phase}.json').write_text(json.dumps(diagnostic, indent=2))
+    print(json.dumps(diagnostic), flush=True)
+
 results = standalone_results
 try:
     deadline = time.monotonic() + 90
@@ -124,6 +161,7 @@ try:
         if time.monotonic() > deadline:
             raise TimeoutError('Metro did not become ready')
         time.sleep(.5)
+    diagnose_metro('startup')
     # Metro binds REACT_NATIVE_PACKAGER_HOSTNAME, so the literal address avoids the
     # Simulator resolving localhost to ::1, connecting, and then never being answered.
     request = Request(f'http://127.0.0.1:{args.port}/?disableOnboarding=1', headers={'expo-platform': 'ios', 'accept': 'application/expo+json'})
@@ -132,6 +170,8 @@ try:
     with urlopen(manifest['launchAsset']['url'], timeout=90) as response:
         response.read()
     (args.output / 'environment.json').write_text(json.dumps({
+        'node': subprocess.check_output(['node', '--version'], text=True).strip(),
+        'batch': args.batch, 'cases': selected,
         'udid': args.udid, 'app': str(args.app.resolve()), 'language': args.language,
         'baseCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
         'worktreeDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True).strip()),
@@ -147,7 +187,7 @@ try:
     subprocess.run([str(keyboard), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), args.udid], check=True, timeout=30)
     sim('install', args.udid, str(args.app.resolve()))
     sim('ui', args.udid, 'content_size', 'large')
-    cases = [args.case] if args.case else [case for case in CASES if case not in STANDALONE]
+    cases = [case for case in selected if args.case or case not in STANDALONE]
     for appearance in ['light', 'dark']:
         sim('ui', args.udid, 'appearance', appearance)
         for case in cases:
@@ -214,7 +254,8 @@ try:
                 result['status'] = 'passed'
             except Exception as error:
                 result['error'] = str(error)
-                native_log = sim('spawn', args.udid, 'log', 'show', '--last', '3m', '--style', 'compact', '--predicate', 'process == "Lody"', check=False)
+                diagnose_metro('failure', output)
+                native_log = sim('spawn', args.udid, 'log', 'show', '--last', '5m', '--style', 'compact', '--predicate', 'process == "Lody"', check=False)
                 (output / 'native.log').write_text(native_log.stdout + native_log.stderr)
                 try:
                     ui.capture('failure')
