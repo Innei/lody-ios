@@ -458,18 +458,33 @@ if #available(iOS 26.0, *) {
     $0.accessibilityIdentifier == "session-attach-glyph"
   }
   precondition(
-    glassAttachGlyph != nil && glassAttach.image(for: .normal) == nil,
+    glassAttachGlyph != nil && glassAttach.image(for: .normal) == nil
+      && glassAttach.configuration?.image == nil,
     "Liquid Glass must own a stable Add glyph view so UIButton relayout cannot reset its scale"
   )
+  glassComposer.setMentionItems("[]")
   let restingAttachGlyphSize = glassAttachGlyph!.bounds.size
   precondition(glassInput.becomeFirstResponder(), "The glass composer input must accept focus")
-  RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+  precondition(glassAttachSurface.effect is UIGlassEffect
+    && !glassAttachSurface.isDescendant(of: glassInputSurface),
+    "The opening transition must retain both glass surfaces until their native merge completes")
+  RunLoop.current.run(until: Date().addingTimeInterval(0.35))
   glassComposer.layoutIfNeeded()
 
+  let mentionEntry = descendants(glassComposer).first { $0.accessibilityIdentifier == "session-mention" }!
+  glassComposer.setComposerState(ready)
+  precondition(!mentionEntry.isHidden, "Ordinary composer state updates must not erase the separately loaded reference catalog")
   let focusedInputFrame = glassInputSurface.convert(glassInputSurface.bounds, to: glassComposer)
   let focusedAttachFrame = glassAttachSurface.convert(glassAttachSurface.bounds, to: glassComposer)
+  precondition(glassAttachSurface.effect == nil,
+    "Merged Add must not retain an independent circular glass effect")
+  glassInputSurface.transform = CGAffineTransform(scaleX: 1.05, y: 1.05)
+  let pressedAttachFrame = glassAttachSurface.convert(glassAttachSurface.bounds, to: glassComposer)
+  precondition(abs(pressedAttachFrame.width - focusedAttachFrame.width * 1.05) < 0.5,
+    "Pressing the input glass must scale the merged Add along with its content")
+  glassInputSurface.transform = .identity
   precondition(
-    abs(focusedInputFrame.minX + 2 - focusedAttachFrame.minX) < 0.5
+    abs(focusedInputFrame.minX + 6 - focusedAttachFrame.minX) < 0.5
       && focusedInputFrame.contains(focusedAttachFrame),
     "A focused iOS 26 composer must merge the optically inset add glass into one full-width input surface"
   )
@@ -491,10 +506,10 @@ if #available(iOS 26.0, *) {
     "Composer glass metrics: add \(attachInset), send \(sendInset), baseline \(baselineDelta)"
   )
   precondition(
-    abs(attachInset - 24) < 0.5
+    abs(attachInset - 28) < 0.5
       && abs(sendInset - 24) < 0.5
       && abs(baselineDelta) < 0.5,
-    "Focused add and send controls must balance on one baseline with mirrored 24-point centers; "
+    "Focused Add must have a 28-point inset and Send a 24-point inset on the same baseline; "
       + "got add \(attachInset), send \(sendInset), baseline \(baselineDelta)"
   )
   let sendVisualView = descendants(glassSend).first {
@@ -503,13 +518,16 @@ if #available(iOS 26.0, *) {
   let sendGlyph = descendants(sendVisualView).compactMap { $0 as? UIImageView }.first {
     !$0.isHidden && $0.image != nil
   }!
-  let expectedFocusedScale: CGFloat = 11 / 17
-  let focusedAttachGlyphSize = glassAttachGlyph!.bounds.size
+  let focusedGlyph = descendants(glassAttach).compactMap { $0 as? UIImageView }.first {
+    $0.accessibilityIdentifier == "session-attach-focused-glyph"
+  }!
+  let mergedImage = focusedGlyph.image!
+  let focusedAttachGlyphSize = focusedGlyph.bounds.size
   precondition(
-    abs(focusedAttachGlyphSize.width / restingAttachGlyphSize.width - expectedFocusedScale) < 0.02
-      && abs(focusedAttachGlyphSize.height / restingAttachGlyphSize.height - expectedFocusedScale) < 0.02,
-    "The focused Add glyph must shrink from 17 points to the optically balanced 11-point size; "
-      + "got \(restingAttachGlyphSize) -> \(focusedAttachGlyphSize)"
+    abs(focusedAttachGlyphSize.width - mergedImage.size.width) < 0.5
+      && abs(focusedAttachGlyphSize.height - mergedImage.size.height) < 0.5
+      && focusedGlyph.alpha == 1 && glassAttachGlyph!.alpha == 0,
+    "Focus must render the regular glyph at its intended size while fading out the separate medium glyph"
   )
   let attachGlyphCenter = glassAttachGlyph!.convert(
     CGPoint(x: glassAttachGlyph!.bounds.midX, y: glassAttachGlyph!.bounds.midY),
@@ -531,4 +549,76 @@ if #available(iOS 26.0, *) {
     "The focused model selector must remain on the trailing side before Send"
   )
   print("Composer glass: focus merges Add into one balanced surface while Model stays trailing")
+  glassInput.resignFirstResponder()
+  RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+  glassComposer.layoutIfNeeded()
+  precondition(glassAttachSurface.effect is UIGlassEffect
+    && !glassAttachSurface.isDescendant(of: glassInputSurface),
+    "Leaving focus must restore Add's separate interactive glass")
+  precondition(glassAttachGlyph!.alpha == 1 && focusedGlyph.alpha == 0
+    && abs(glassAttachGlyph!.bounds.width - restingAttachGlyphSize.width) < 0.5,
+    "Leaving focus must restore the separate medium glyph without retaining the regular overlay")
+  glassInput.becomeFirstResponder()
+  RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+  glassInput.resignFirstResponder()
+  RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+  precondition(glassAttachSurface.effect is UIGlassEffect
+    && !glassAttachSurface.isDescendant(of: glassInputSurface),
+    "Cancelling an opening must not later move the separate Add into the input")
+
 }
+
+// A trigger belongs to the active caret token, never email or selected prose.
+assert(ChatMentionPanel.activeRange(text: "😀 @auth", selection: NSRange(location: 8, length: 0)) == NSRange(location: 3, length: 5))
+assert(ChatMentionPanel.activeRange(text: "mail@host", selection: NSRange(location: 9, length: 0)) == nil)
+assert(ChatMentionPanel.activeRange(text: "@auth ", selection: NSRange(location: 6, length: 0)) == nil)
+assert(ChatMentionPanel.activeRange(text: "@auth", selection: NSRange(location: 1, length: 3)) == nil)
+
+// A cancelled exit must not later hide a reopened picker or clear its layout space.
+let referenceWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+let referenceInput = UITextView(frame: CGRect(x: 0, y: 400, width: 390, height: 60))
+let referencePanel = ChatMentionPanel(frame: CGRect(x: 16, y: 280, width: 358, height: 112))
+referenceWindow.addSubview(referenceInput)
+referenceWindow.addSubview(referencePanel)
+referenceWindow.isHidden = false
+precondition(referenceInput.becomeFirstResponder())
+let referenceItems = [ChatMentionItem(path: "src", name: "src", kind: "directory", subtitle: "Project files")]
+@MainActor func referenceText(_ text: String) {
+  referenceInput.text = text
+  referenceInput.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+  referencePanel.update(input: referenceInput, items: referenceItems)
+}
+referenceText("@")
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+precondition(!referencePanel.isHidden && referencePanel.alpha == 1)
+referenceText("")
+precondition(!referencePanel.isHidden && referencePanel.panelHeight > 0 && !referencePanel.isUserInteractionEnabled,
+             "An exiting panel must retain its content and layout space until its animation finishes")
+RunLoop.current.run(until: Date().addingTimeInterval(0.03))
+referenceText("@")
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+precondition(!referencePanel.isHidden && referencePanel.alpha == 1 && referencePanel.panelHeight > 0,
+             "An interrupted exit must leave the reopened panel visible and usable")
+referenceText("ordinary text")
+RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+precondition(referencePanel.isHidden && referencePanel.panelHeight == 0,
+             "A completed exit must release the reserved layout space")
+referenceInput.text = "@"
+referenceInput.selectedRange = NSRange(location: 1, length: 0)
+referencePanel.update(input: referenceInput, items: [])
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+precondition(!referencePanel.isHidden && referencePanel.panelHeight > 0,
+             "The real reference entry must remain usable while its catalog is loading or empty")
+let referenceList = descendants(referencePanel).compactMap { $0 as? UICollectionView }.first!
+referencePanel.collectionView(referenceList, didSelectItemAt: IndexPath(item: 1, section: 0))
+let skill = ChatMentionItem(path: "/Users/test/skills/auth/SKILL.md", name: "auth-review", kind: "skill", subtitle: "Auth", insertText: "use /auth-review [Skill Path](</Users/test/skills/auth/SKILL.md>)")
+referencePanel.finishBrowse(path: skill.path, selectedItem: skill)
+precondition(referenceInput.text == skill.insertText! + " ",
+             "A remotely selected skill must retain its real path even when the inline catalog has not arrived")
+print("References: empty catalog browse and remote skill insertion passed")
+referenceText("@")
+referencePanel.removeFromSuperview()
+RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+precondition(referencePanel.isHidden && referencePanel.panelHeight == 0,
+             "Removing the host must cancel a queued entrance")
+print("Reference motion: delayed removal, interrupted exit, and host teardown passed")

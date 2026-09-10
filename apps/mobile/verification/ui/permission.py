@@ -1,6 +1,8 @@
 """Permission sheet opens ahead of its target and never costs the composer draft."""
 import sys
+import os
 from driver import UI
+from inspector import inspector
 import catalog
 
 ui = UI(sys.argv[1], sys.argv[2])
@@ -8,11 +10,19 @@ close = catalog.text('accessibility.closeSheet', title=catalog.text('permission.
 DRAFT = '12345'
 
 
+def target(available):
+    inspector(ui.udid, int(os.environ['LODY_UI_METRO_PORT']), 'Runtime.evaluate', {
+        'expression': 'globalThis.__lodyUiVerifyPermissionTarget(' + str(available).lower() + ')',
+    })
+
+
 def open_sheet():
     ui.axe('tap', '--label', 'Fixtures')
     ui.axe('tap', '--label', 'Permission Fixture', '--post-delay', '0.5')
     ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('permission.waiting') for i in items),
-            'Sheet must open before its target resolves', timeout=1)
+            'Sheet must open before its target resolves')
+    ui.capture('waiting')
+    target(True)
     ui.wait(lambda items: any(i.get('AXLabel') == 'Allow once' for i in items),
             'Permission options never arrived')
 
@@ -42,6 +52,7 @@ assert not any(i.get('AXLabel') == 'Allow once' for i in ui.state()), 'Sheet sta
 ui.capture('answered')
 
 open_sheet()
+target(False)
 ui.wait(lambda items: not any(i.get('AXLabel') == 'Allow once' for i in items),
         'Sheet stayed up after the request was answered elsewhere', timeout=15)
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-input' and i.get('AXValue') == DRAFT for i in items),

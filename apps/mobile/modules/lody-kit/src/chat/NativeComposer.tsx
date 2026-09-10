@@ -7,6 +7,9 @@ type Props = ViewProps & { scrollEdge?: boolean } & Pick<
     ComponentProps<typeof NativeChat>,
     | 'composerJSON'
     | 'composerOptionsJSON'
+    | 'mentionItemsJSON'
+    | 'mentionResultJSON'
+    | 'onMentionBrowse'
     | 'restoreDraftToken'
     | 'onSend'
     | 'onComposerOptionChange'

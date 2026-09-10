@@ -17,6 +17,8 @@ assert ui.element(turn + ':user-text')['AXLabel'] == draft
 ui.element(turn + ':attachment:fixture-file')
 assert not ui.element('session-input').get('AXValue')
 ui.capture('offline')
+# Settle keyboard dismissal before tapping a row that moves with the viewport.
+ui.axe('tap', '--id', turn + ':user-text', '--post-delay', '.5')
 ui.axe('tap', '--id', turn + ':pending')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 1 · sending' for i in items), 'Connected send did not start')
 ui.axe('tap', '--id', 'send-fail')

@@ -1,3 +1,6 @@
 const { getDefaultConfig } = require('expo/metro-config');
 
-module.exports = getDefaultConfig(__dirname);
+const config = getDefaultConfig(__dirname);
+// Expo DOM transforms embed absolute paths, so worktrees must not share entries.
+config.cacheVersion += `:${__dirname}`;
+module.exports = config;

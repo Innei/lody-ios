@@ -1,3 +1,4 @@
+import { ProjectHistoryPreviewScreen } from './ProjectHistoryPreviewScreen';
 import { FilePreviewScreen } from './FilePreviewScreen';
 import { CreateSessionScreen } from '../CreateSessionScreen';
 import type { CreationOptions } from '@/models/send';
@@ -19,7 +20,7 @@ import { ShinePreviewScreen } from './ShinePreviewScreen';
 import { InboxPreviewScreen } from './InboxPreviewScreen';
 import { SettingsPreviewScreen } from './SettingsPreviewScreen';
 import { OnboardingPreviewScreen } from './OnboardingPreviewScreen';
-import { useRouter, useTheme } from 'expo-router';
+import { useNavigation, useRouter, useTheme } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Text, View as RNView } from 'react-native';
 import {
@@ -49,6 +50,18 @@ function openRow(id: string, title: string, image: string): NativeListRow {
 
 function View() {
   const router = useRouter();
+  const navigation = useNavigation();
+  useEffect(() => {
+    if (!uiVerify) return;
+    globalThis.__lodyUiVerifyReset = () =>
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'debug' as never, key: `verify-${Date.now()}` }],
+      });
+    return () => {
+      delete globalThis.__lodyUiVerifyReset;
+    };
+  }, [navigation]);
   const colors = usePalette();
   const [runtime, setRuntime] = useState<{
     title: string;
@@ -112,6 +125,11 @@ function View() {
         openRow('permission-preview', '权限验收', 'hand.raised'),
         openRow('file-preview', '文件预览验收', 'doc'),
         openRow('onboarding-preview', '登录引导验收', 'hand.wave'),
+        openRow(
+          'project-history-preview',
+          '项目会话同步验收',
+          'arrow.triangle.2.circlepath',
+        ),
         openRow('settings-preview', '远程设置验收', 'gear'),
         openRow('inbox-preview', '动态分组验收', 'tray'),
         ...(uiVerify
@@ -133,6 +151,8 @@ function View() {
       id: 'chat',
       header: '聊天与输入',
       rows: [
+        openRow('mention-chat', '@ 引用交互 · 聊天', 'at'),
+        openRow('mention-sheet', '@ 引用交互 · 新会话', 'at'),
         openRow('composer-preview', '输入框验收', 'square.and.pencil'),
         openRow('composer-success', '聊天输入成功', 'checkmark.circle'),
         openRow('composer-failure', '聊天输入恢复', 'arrow.uturn.backward'),
@@ -222,6 +242,8 @@ function View() {
     'permission-preview': () => void present(ChatPreviewScreen, {}),
     'file-preview': () => void present(FilePreviewScreen, {}),
     'onboarding-preview': () => void present(OnboardingPreviewScreen, {}),
+    'project-history-preview': () =>
+      void present(ProjectHistoryPreviewScreen, {}),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
     'inbox-preview': () => void present(InboxPreviewScreen, {}),
     'background-preview': () => void present(BackgroundPreviewScreen, {}),
@@ -230,6 +252,18 @@ function View() {
     'chat-stream-performance': () =>
       void present(ChatStreamPerformanceScreen, {}),
     'model-memory': () => void openModelMemory(),
+    'mention-chat': () =>
+      void present(
+        ComposerPreviewScreen,
+        { host: 'chat', outcome: 'failure', mentions: true },
+        { style: 'push' },
+      ),
+    'mention-sheet': () =>
+      void present(ComposerPreviewScreen, {
+        host: 'sheet',
+        outcome: 'failure',
+        mentions: true,
+      }),
     'composer-preview': () =>
       void present(ComposerPreviewScreen, {
         host: 'sheet',

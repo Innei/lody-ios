@@ -58,7 +58,7 @@ time.sleep(0.5)
 assert not any(i.get('AXUniqueId') == 'session-effort' for i in state()), 'One combined entry expected'
 shot('entry')
 axe('tap', '--id', 'session-model')
-recording = subprocess.Popen(['xcrun', 'simctl', 'io', udid, 'recordVideo', '--codec=h264', str(out / 'ultra.mp4')], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+recording = subprocess.Popen(['xcrun', 'simctl', 'io', udid, 'recordVideo', '--codec=hevc', str(out / 'ultra.mp4')], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 atexit.register(lambda: recording.send_signal(signal.SIGINT) if recording.poll() is None else None)
 slide(1)
 assert 'Ultra' in element('composer-model-menu')['AXLabel']

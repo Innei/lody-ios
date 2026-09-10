@@ -6,6 +6,7 @@ import SafariServices
 struct LodyRuntimeInfo {
   var moduleName: String = "LodyKit"
   var offlineProbe: Bool = false
+  var uiVerifyHome: Bool = false
   var systemVersion: String = ""
 }
 
@@ -34,14 +35,18 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   @JS
   var runtimeInfo: LodyRuntimeInfo {
     var offlineProbe = false
+    var uiVerifyHome = false
     #if DEBUG
     offlineProbe = ProcessInfo.processInfo.arguments.contains("--lody-offline")
+    uiVerifyHome = ProcessInfo.processInfo.arguments.contains("--ui-verify")
+      && ProcessInfo.processInfo.arguments.contains("--ui-verify-home")
     #endif
     let version = ProcessInfo.processInfo.operatingSystemVersion
     let components = [version.majorVersion, version.minorVersion, version.patchVersion]
     return LodyRuntimeInfo(
       moduleName: "LodyKit",
       offlineProbe: offlineProbe,
+      uiVerifyHome: uiVerifyHome,
       systemVersion: components.prefix(version.patchVersion == 0 ? 2 : 3).map(String.init).joined(separator: ".")
     )
   }
@@ -212,7 +217,14 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }.runOnQueue(.main)
     AsyncFunction("setPushVisibleRoute") { (route: String) in MainActor.assumeIsolated { PushNotifications.shared.visibleRoute = route } }.runOnQueue(.main)
 
-    AsyncFunction("sessionCreationOptions") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("creationOptions", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("sessionCreationOptions") { (payload: String, promise: Promise) in
+      MainActor.assumeIsolated {
+        #if DEBUG
+        if let response = MentionFixture.response(payload, options: true) { promise.resolve(response); return }
+        #endif
+        self.dataRuntime.command("creationOptions", payload: payload, promise: promise)
+      }
+    }.runOnQueue(.main)
     AsyncFunction("localProjects") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("localProjects", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("remoteSettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("remoteSettings", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("createSession", payload: payload, promise: promise) } }.runOnQueue(.main)
@@ -303,6 +315,14 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         self.dataRuntime.command("readFile", payload: payload, promise: promise)
       }
     }.runOnQueue(.main)
+    AsyncFunction("mentionCatalog") { (payload: String, promise: Promise) in
+      MainActor.assumeIsolated {
+        #if DEBUG
+        if let response = MentionFixture.response(payload) { promise.resolve(response); return }
+        #endif
+        self.dataRuntime.command("mentionCatalog", payload: payload, promise: promise)
+      }
+    }.runOnQueue(.main)
     AsyncFunction("listDir") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
         #if DEBUG
@@ -360,10 +380,17 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       self.onAppActive()
     }
 
+    View(LodyMentionPickerView.self) {
+      Events("onPick", "onQueryReset", "onRetry")
+      Prop("configurationJSON") { (view: LodyMentionPickerView, value: String) in view.configure(value) }
+    }
+
     View(LodyComposerView.self) {
       Prop("scrollEdge") { (view: LodyComposerView, value: Bool) in view.scrollEdge = value }
-      Events("onSend", "onHeightChange", "onComposerOptionChange")
+      Events("onSend", "onHeightChange", "onComposerOptionChange", "onMentionBrowse")
       Prop("composerJSON") { (view: LodyComposerView, value: String) in view.composer.setComposerState(value) }
+      Prop("mentionItemsJSON") { (view: LodyComposerView, value: String) in view.composer.setMentionItems(value) }
+      Prop("mentionResultJSON") { (view: LodyComposerView, value: String) in view.composer.setMentionResult(value) }
       Prop("composerOptionsJSON") { (view: LodyComposerView, value: String) in view.composer.setComposerOptions(value) }
       Prop("restoreDraftToken") { (view: LodyComposerView, value: Int) in view.composer.restoreDraft(token: value) }
     }
@@ -381,7 +408,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         view.performanceProbe = ChatPerformanceProbe(view)
       }
       #endif
-      Events("onStop", "onSteer", "onSend", "onActivityPress", "onFilePress", "onTurnChangesPress", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange")
+      Events("onStop", "onSteer", "onSend", "onActivityPress", "onFilePress", "onTurnChangesPress", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse")
       Prop("navigationTitle") { (view: LodyChatView, value: String) in view.setNavigationTitle(value) }
       Prop("navigationSubtitle") { (view: LodyChatView, value: String) in view.setNavigationSubtitle(value) }
       Prop("navigationMachine") { (view: LodyChatView, value: String) in view.setNavigationMachine(value) }
@@ -391,6 +418,8 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("processStartId") { (view: LodyChatView, value: String) in view.setProcessStartID(value) }
       Prop("processEntryId") { (view: LodyChatView, value: String) in view.setProcessEntryID(value) }
       Prop("composerJSON") { (view: LodyChatView, value: String) in view.setComposerState(value) }
+      Prop("mentionItemsJSON") { (view: LodyChatView, value: String) in view.composer.setMentionItems(value) }
+      Prop("mentionResultJSON") { (view: LodyChatView, value: String) in view.composer.setMentionResult(value) }
       Prop("composerOptionsJSON") { (view: LodyChatView, value: String) in view.setComposerOptions(value) }
       Prop("initialDraft") { (view: LodyChatView, value: String) in view.setInitialDraft(value) }
       Prop("draftKey") { (view: LodyChatView, value: String) in view.setDraftKey(value) }

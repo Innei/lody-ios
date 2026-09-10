@@ -19,10 +19,12 @@ for index, message in enumerate(messages, 1):
     ui.capture(f'round-{index}-draft')
     ui.axe('tap', '--id', 'session-send')
     ui.wait(lambda items: any(i.get('AXLabel') == f'Calls: {index} · sending' for i in items), 'Turn did not dispatch')
-    pending = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':duration')), None), 'Pending row missing')
+    pending = ui.wait(lambda items: next((i for i in items
+        if (i.get('AXUniqueId') or '').endswith(':duration')
+        and i['AXUniqueId'].removesuffix(':duration') not in turns), None), 'New turn duration row missing')
     turn = pending['AXUniqueId'].removesuffix(':duration')
     turns.append(turn)
-    assert message in ui.element(turn + (':user-text' if index == 1 else ':user'))['AXLabel']
+    assert ui.element(turn + (':user-text' if index == 1 else ':user')).get('AXLabel') == message, 'New turn text changed'
     ui.capture(f'round-{index}-sent')
     ui.axe('tap', '--id', 'send-complete')
     ui.wait(lambda items: any(i.get('AXLabel') == f'Calls: {index} · accepted' for i in items), 'Receipt missing')

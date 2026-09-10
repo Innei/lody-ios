@@ -242,8 +242,20 @@ extension LodyChatView {
     if let pendingSend, !entryIDs.contains(pendingSend.id) { entryIDs.append(pendingSend.id) }
     for id in entryIDs {
       guard let entryRows = grouped[id], !entryRows.isEmpty else { continue }
-      snapshot.appendSections([id])
-      snapshot.appendItems(entryRows.map(\.id), toSection: id)
+      if let duration = entryRows.firstIndex(where: { $0.kind == "duration" }) {
+        // The local timer already occupies the reply section. Server takeover
+        // replaces its contents without moving the timer across section insets.
+        if duration > 0 {
+          snapshot.appendSections([id])
+          snapshot.appendItems(entryRows[..<duration].map(\.id), toSection: id)
+        }
+        let replySection = entryRows[duration].id
+        snapshot.appendSections([replySection])
+        snapshot.appendItems(entryRows[duration...].map(\.id), toSection: replySection)
+      } else {
+        snapshot.appendSections([id])
+        snapshot.appendItems(entryRows.map(\.id), toSection: id)
+      }
     }
     snapshot.reconfigureItems(projected.filter { previous[$0.id] != nil && previous[$0.id] != $0 }.map(\.id))
     empty.isHidden = !projected.isEmpty

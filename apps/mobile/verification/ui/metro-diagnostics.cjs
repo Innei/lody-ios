@@ -8,6 +8,7 @@ module.exports =
     if (path === '/' || path === '/status') {
       const started = performance.now();
       const entry = {
+        pid: process.pid,
         method: req.method,
         path,
         startedAt: new Date().toISOString(),

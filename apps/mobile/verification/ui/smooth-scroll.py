@@ -81,6 +81,10 @@ ui.capture('process-stream')
 # Dismiss the production process Sheet with a real grabber drag.
 ui.axe('swipe', '--start-x', '200', '--start-y', '350', '--end-x', '200', '--end-y', '850', '--duration', '.6', '--post-delay', '1')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Finish Trace' for i in items), 'Process Sheet did not dismiss')
+tap('Stream Anchored Turn')
+ui.element('scroll-anchor-user:duration')
+time.sleep(4)
+ui.capture('anchored-stream')
 tap('Finish Trace')
 ui.element('ui-verify-ready')
 
@@ -90,11 +94,25 @@ for path in sorted(set((container / 'tmp').glob('lody-scroll-*.json')) - existin
     traces.append(json.loads(path.read_text()))
 assert traces, 'Missing opt-in native frame samples; rebuild the Debug app'
 
+anchored = next((trace['samples'] for trace in traces
+                 if any('scroll-anchor-user:duration' in s['rows'] for s in trace['samples'])), None)
+assert anchored, 'Missing first-turn streaming samples'
+anchored = [s for s in anchored if s['t'] - anchored[0]['t'] > .3
+            and 'scroll-anchor-user:duration' in s['rows']]
+assert len(anchored) >= 30, 'Missing sustained anchored streaming frames'
+assert max(s['contentHeight'] for s in anchored) - min(s['contentHeight'] for s in anchored) > 20, 'Reply did not grow while anchored'
+anchor_drift = {}
+for row in ['scroll-anchor-user:user', 'scroll-anchor-user:duration']:
+    row_positions = [s['rows'][row]['y'] for s in anchored]
+    drift = max(row_positions) - min(row_positions)
+    anchor_drift[row] = drift
+    assert drift < .1, f'{row} moved {drift}pt while the reply grew (one pixel is already a regression)'
+
 cache = next((trace['samples'] for trace in traces if trace['host'] == 'chat'
-              and any(s['count'] == 13 for s in trace['samples'])
-              and any(s['count'] == 19 and s['following'] for s in trace['samples'])), None)
+              and any('scroll-cache-11:text' in s['rows'] for s in trace['samples'])
+              and any('scroll-new-5:text' in s['rows'] and s['following'] for s in trace['samples'])), None)
 assert cache, 'Missing cache-to-live transition'
-start = next(i for i, sample in enumerate(cache) if sample['count'] == 19)
+start = next(i for i, sample in enumerate(cache) if sample['count'] > cache[0]['count'])
 motion = [s for s in cache[start:] if s['t'] - cache[start]['t'] < 1.5]
 distance = motion[0]['bottom'] - cache[start - 1]['offset']
 steps = [b['offset'] - a['offset'] for a, b in zip(motion, motion[1:])]
@@ -123,6 +141,7 @@ assert {'chat', 'process'} <= {item['host'] for item in growth}, ('Missing conti
 for item in growth:
     assert item['subLineFrames'] >= item['growingFrames'] * .8, ('Height still changes by whole lines', item)
 report = {'cacheDistance': distance, 'cacheMovingFrames': sum(step > .5 for step in steps),
-          'cacheMaxStep': max(steps), 'readingAnchor': anchor, 'growth': growth}
+          'cacheMaxStep': max(steps), 'readingAnchor': anchor, 'growth': growth,
+          'anchoredDriftPt': anchor_drift}
 (ui.output / 'motion-summary.json').write_text(json.dumps(report, indent=2))
 print(json.dumps(report, indent=2))

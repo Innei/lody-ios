@@ -63,6 +63,9 @@ final class LodySymbolButton: ExpoView {
     )
     configuration.contentInsets = .zero
     if prominent { configuration.cornerStyle = .capsule }
+    if button.configuration?.image != nil, #available(iOS 26.0, *) {
+      configuration.symbolContentTransition = .init(.replace)
+    }
     button.configuration = configuration
   }
 

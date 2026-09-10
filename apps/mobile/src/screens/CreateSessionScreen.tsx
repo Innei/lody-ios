@@ -1,3 +1,5 @@
+import { fastModeFor, withFastMode } from '@/cloud/send/capability';
+import { useComposerMentions } from '@/hooks/screens/useComposerMentions';
 import { ProjectPickerScreen } from './ProjectPickerScreen';
 import { useEffect, useRef, useState } from 'react';
 import { PlatformColor, TextInput, View as RNView } from 'react-native';
@@ -83,7 +85,10 @@ function createNotice({
 const creatable = (project: Project) => !isChatProjectId(project.id);
 
 function View() {
-  const { params, finish, push } = usePageRuntime<Params, CreatedSession>();
+  const { params, finish, push, present } = usePageRuntime<
+    Params,
+    CreatedSession
+  >();
   const { account } = useAuth();
   const { catalog } = useCatalog();
   const colors = usePalette();
@@ -200,6 +205,16 @@ function View() {
   );
   const agent = agents.find((a) => `${a.machineId}:${a.id}` === agentKey);
   const capability = capabilityFor(options, agent);
+  const mentions = useComposerMentions(
+    account && machine
+      ? {
+          workspaceId: params.workspaceId,
+          projectId: chat ? undefined : project?.id,
+          machineId: machine.id,
+        }
+      : undefined,
+    present,
+  );
 
   function updateChoice(next: ModelChoice, selectedAgent = agent) {
     setChoice(next);
@@ -522,6 +537,9 @@ function View() {
         </RNView>
       ) : null}
       <NativeComposer
+        mentionItemsJSON={mentions.mentionItemsJSON}
+        mentionResultJSON={mentions.mentionResultJSON}
+        onMentionBrowse={mentions.onMentionBrowse}
         scrollEdge
         composerJSON={JSON.stringify({
           editable: true,
@@ -532,6 +550,7 @@ function View() {
           placeholder: t('create.composer.placeholder'),
         })}
         composerOptionsJSON={JSON.stringify({
+          fast: fastModeFor(capability, choice)?.enabled,
           modelId: choice.modelId ?? '',
           effort: choice.effort ?? '',
           models: (capability?.models ?? []).map((item) => ({
@@ -553,6 +572,10 @@ function View() {
           )
         }
         onComposerOptionChange={({ nativeEvent }) => {
+          if (typeof nativeEvent.fast === 'boolean') {
+            updateChoice(withFastMode(capability, choice, nativeEvent.fast));
+            return;
+          }
           const modelId = nativeEvent.modelId || undefined;
           if (modelId !== choice.modelId) updateChoice(choiceForModel(modelId));
           else

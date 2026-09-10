@@ -142,3 +142,7 @@ export {
 } from './diff/NativeDiffToolbar';
 
 export * from './notifications/notifications';
+
+export { NativeMentionPicker } from './chat/NativeMentionPicker';
+
+export { getMentionCatalog } from './chat/mentions';

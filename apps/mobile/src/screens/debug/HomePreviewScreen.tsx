@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { useAppNavigationState } from '@/lib/presentation/useAppNavigationState';
 import type { PropsWithChildren } from 'react';
-import { writeLocalValue } from '@lody-ios/kit';
+import { runtimeInfo, writeLocalValue } from '@lody-ios/kit';
 import { AuthContext } from '@/cloud/auth/AuthProvider';
 import { CatalogContext } from '@/cloud/catalog/CatalogProvider';
 import type { Catalog } from '@/models/catalog';
@@ -10,7 +10,7 @@ import type { Catalog } from '@/models/catalog';
 export const homeVerify =
   __DEV__ &&
   process.env.EXPO_PUBLIC_UI_VERIFY === '1' &&
-  process.env.EXPO_PUBLIC_UI_VERIFY_HOME === '1';
+  runtimeInfo.uiVerifyHome;
 
 const workspace = {
   id: 'ui-home',
@@ -107,6 +107,7 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
   const [selected, setSelected] =
     useState<(typeof workspaces)[number]>(workspace);
   useEffect(() => {
+    void writeLocalValue('draft:ui-home:ui-home:ui-design', '');
     void writeLocalValue(
       `session:${JSON.stringify(['ui-home', 'ui-home', 'ui-design'])}`,
       previewCache,

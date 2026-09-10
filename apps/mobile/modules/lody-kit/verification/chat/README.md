@@ -7,6 +7,7 @@ swiftc -swift-version 6 apps/mobile/modules/lody-kit/ios/LodyStrings.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatTranscript.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatStream.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatTextFade.swift \
+  apps/mobile/modules/lody-kit/ios/Chat/ChatHaptics.swift \
   apps/mobile/modules/lody-kit/verification/chat/main.swift \
   -o /tmp/lody-chat-test && /tmp/lody-chat-test
 ```

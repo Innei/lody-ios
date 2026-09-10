@@ -235,6 +235,56 @@ function SendPreview() {
     if (record?.send.creation) state = failure ? 'rejected' : 'created';
     resolve(JSON.stringify({ state, session, reason: '验收：明确未发送' }));
   };
+  const reply = (finished: boolean) => {
+    if (queue) {
+      setSnapshot((old) => advanceQueue(old));
+      return;
+    }
+    if (!record) return;
+    setSnapshot((old) => ({
+      status: 'live',
+      revision: old.revision + 1,
+      entries: [
+        ...old.entries,
+        {
+          id: record.send.id,
+          role: 'user',
+          status: '',
+          finished: true,
+          startedAt: record.send.startedAt,
+          rev: 0,
+          items: [
+            {
+              itemId: 'text',
+              type: 'text',
+              rev: 0,
+              text: record.send.text,
+            },
+            ...record.send.attachments.map((attachment, index) => ({
+              itemId: `attachment-${index}`,
+              type: attachment.kind,
+              rev: 0,
+              [attachment.kind]: {
+                id: `server-${attachment.id}`,
+                fileName: attachment.name,
+                width: 800,
+                height: 600,
+              },
+            })),
+          ],
+        },
+        {
+          id: `${record.send.id}:reply`,
+          role: 'assistant',
+          status: '',
+          finished,
+          startedAt: Date.now(),
+          rev: 0,
+          items: [],
+        },
+      ],
+    }));
+  };
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <View
@@ -260,59 +310,10 @@ function SendPreview() {
         <Button testID="send-fail" onPress={() => complete(true)}>
           失败
         </Button>
-        <Button
-          testID="send-reply"
-          onPress={() => {
-            if (queue) {
-              setSnapshot((old) => advanceQueue(old));
-              return;
-            }
-            if (!record) return;
-            setSnapshot((old) => ({
-              status: 'live',
-              revision: old.revision + 1,
-              entries: [
-                ...old.entries,
-                {
-                  id: record.send.id,
-                  role: 'user',
-                  status: '',
-                  finished: true,
-                  startedAt: record.send.startedAt,
-                  rev: 0,
-                  items: [
-                    {
-                      itemId: 'text',
-                      type: 'text',
-                      rev: 0,
-                      text: record.send.text,
-                    },
-                    ...record.send.attachments.map((attachment, index) => ({
-                      itemId: `attachment-${index}`,
-                      type: attachment.kind,
-                      rev: 0,
-                      [attachment.kind]: {
-                        id: `server-${attachment.id}`,
-                        fileName: attachment.name,
-                        width: 800,
-                        height: 600,
-                      },
-                    })),
-                  ],
-                },
-                {
-                  id: `${record.send.id}:reply`,
-                  role: 'assistant',
-                  status: '',
-                  finished: true,
-                  startedAt: Date.now(),
-                  rev: 0,
-                  items: [],
-                },
-              ],
-            }));
-          }}
-        >
+        <Button testID="send-start-reply" onPress={() => reply(false)}>
+          开始回复
+        </Button>
+        <Button testID="send-reply" onPress={() => reply(true)}>
           回复
         </Button>
       </View>

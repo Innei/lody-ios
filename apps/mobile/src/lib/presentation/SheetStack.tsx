@@ -7,10 +7,15 @@ import {
   useState,
 } from 'react';
 import { StyleSheet } from 'react-native';
-import type { ScreenStackHeaderConfigProps } from 'react-native-screens';
+import type {
+  ScreenStackHeaderConfigProps,
+  SearchBarProps,
+} from 'react-native-screens';
 import {
   ScreenStack,
   ScreenStackHeaderRightView,
+  ScreenStackHeaderSearchBarView,
+  SearchBar,
   ScreenStackItem,
 } from 'react-native-screens';
 import { NativeCloseButton } from '@lody-ios/kit';
@@ -34,6 +39,10 @@ export const SheetHeaderContext = createContext<
   ((items: SheetHeaderItems | undefined) => void) | null
 >(null);
 
+export const SheetSearchContext = createContext<
+  ((search: SearchBarProps | undefined) => void) | null
+>(null);
+
 type Level = {
   key: number;
   page: PageDefinitionBase;
@@ -46,6 +55,7 @@ function headerConfig(
   page: PageDefinitionBase,
   presentation: PagePresentationOptions,
   right?: React.ReactNode,
+  search?: SearchBarProps,
 ): ScreenStackHeaderConfigProps {
   return {
     title: presentation.title ?? page.title,
@@ -57,9 +67,18 @@ function headerConfig(
     backgroundColor: 'transparent',
     blurEffect:
       presentation.headerVariant === 'glass' ? 'systemChromeMaterial' : 'none',
-    children: right ? (
-      <ScreenStackHeaderRightView>{right}</ScreenStackHeaderRightView>
-    ) : undefined,
+    children: (
+      <>
+        {right && (
+          <ScreenStackHeaderRightView>{right}</ScreenStackHeaderRightView>
+        )}
+        {search && (
+          <ScreenStackHeaderSearchBarView>
+            <SearchBar {...search} />
+          </ScreenStackHeaderSearchBarView>
+        )}
+      </>
+    ),
   };
 }
 
@@ -76,6 +95,7 @@ export function SheetStack({
   runtime: PageRuntime<unknown, unknown>;
 }) {
   const [headerItems, setHeaderItems] = useState<SheetHeaderItems>();
+  const [search, setSearch] = useState<SearchBarProps>();
   const [levels, setLevels] = useState<readonly Level[]>([]);
   const nextKey = useRef(1);
   const pendingLevels = useRef(levels);
@@ -151,6 +171,7 @@ export function SheetStack({
                 style={{ width: 30, height: 30 }}
               />
             ) : undefined,
+            search,
           ),
           headerRightBarButtonItems: headerItems?.right,
           headerLeftBarButtonItems: headerItems?.left,
@@ -158,7 +179,9 @@ export function SheetStack({
       >
         <SheetHeaderContext value={setHeaderItems}>
           <PageRuntimeProvider value={rootRuntime}>
-            <session.page.Component />
+            <SheetSearchContext value={setSearch}>
+              <session.page.Component />
+            </SheetSearchContext>
           </PageRuntimeProvider>
         </SheetHeaderContext>
       </ScreenStackItem>
@@ -179,6 +202,7 @@ function PushedLevel({
   onDrop: (key: number, result: PresentationResult<unknown>) => void;
 }) {
   const [headerItems, setHeaderItems] = useState<SheetHeaderItems>();
+  const [search, setSearch] = useState<SearchBarProps>();
   const cancel = useCallback(
     () => onDrop(level.key, { status: 'cancelled' }),
     [level.key, onDrop],
@@ -205,7 +229,7 @@ function PushedLevel({
       stackPresentation="push"
       style={StyleSheet.absoluteFill}
       headerConfig={{
-        ...headerConfig(level.page, level.presentation),
+        ...headerConfig(level.page, level.presentation, undefined, search),
         headerRightBarButtonItems: headerItems?.right,
         headerLeftBarButtonItems: headerItems?.left,
       }}
@@ -214,7 +238,9 @@ function PushedLevel({
     >
       <SheetHeaderContext value={setHeaderItems}>
         <PageRuntimeProvider value={runtime}>
-          <level.page.Component />
+          <SheetSearchContext value={setSearch}>
+            <level.page.Component />
+          </SheetSearchContext>
         </PageRuntimeProvider>
       </SheetHeaderContext>
     </ScreenStackItem>

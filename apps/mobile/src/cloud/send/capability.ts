@@ -1,5 +1,6 @@
 import type {
   Capability,
+  ModelChoice,
   ConfigOption,
   CreationOptions,
 } from '../../models/send.ts';
@@ -49,4 +50,30 @@ export function capabilityFor(
       c.cliType === agent.cliType &&
       c.agentType === agent.agentType,
   );
+}
+
+export function fastModeFor(
+  capability: Capability | undefined,
+  choice: ModelChoice,
+) {
+  const option = capability?.configOptions?.find(
+    (item) =>
+      ['fast-mode', 'fast'].includes(item.id) && item.type === 'boolean',
+  );
+  if (!option) return undefined;
+  const value = choice.configOptionValues?.[option.id] ?? option.currentValue;
+  return { id: option.id, enabled: value === true };
+}
+
+export function withFastMode(
+  capability: Capability | undefined,
+  choice: ModelChoice,
+  enabled: boolean,
+): ModelChoice {
+  const mode = fastModeFor(capability, choice);
+  if (!mode) return choice;
+  return {
+    ...choice,
+    configOptionValues: { ...choice.configOptionValues, [mode.id]: enabled },
+  };
 }

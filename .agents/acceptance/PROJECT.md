@@ -16,14 +16,19 @@ Metro currently uses 8081. Generate assets with
 ## 3. Auth
 
 UI regression baselines use `pnpm verify:ui --app <Debug.app>` and automatically
-lease an erased `Lody * Verify` Simulator. For a build plus multiple checks, use
+lease a reusable `Lody * Verify` Simulator. For a build plus multiple checks, use
 `pnpm verify:simulator --name '<current verify>' -- <command>` and target
 `$LODY_VERIFY_UDID`; nested verify commands reuse that lease. Never call
 `simctl create` directly for local verification. Explicit `--udid` is reserved
 for a caller-owned device such as CI, which also owns its cleanup.
-The runner owns an isolated Metro with `EXPO_PUBLIC_UI_VERIFY=1`; account restoration
+For a local full run, `pnpm verify:ui --parallel --app <Debug.app>` starts one
+Metro and three independently leased Simulators. Do not wrap this parallel
+command in a single-device lease. The runner owns an isolated Metro (default
+8097, override with `--port`) with `EXPO_PUBLIC_UI_VERIFY=1`; account restoration
 and login are disabled, and Debug scenes use production components with local fixtures.
-No account, cloud credentials or connected machine is needed. See
+Reuse one `--output` path per verify (retries replace it); never suffix `-1`/`-2`
+unless comparing two builds. Build with `-derivedDataPath /tmp/lody-build`, never
+under `.artifacts`. No account, cloud credentials or connected machine is needed. See
 `apps/mobile/verification/ui/README.md` for cases, evidence and CI setup.
 
 Official Lody Device Flow and simulator Keychain only. Inspect the simulator UI for existing login; never copy desktop credentials. No seeded account is provided. Unauthenticated checks must be reported separately from authenticated flows.
@@ -31,6 +36,11 @@ Official Lody Device Flow and simulator Keychain only. Inspect the simulator UI 
 ## 4. Surfaces
 
 Use AXe with explicit simulator UDID and simctl screenshots. Build workspace apps/mobile/ios/Lody.xcworkspace, scheme Lody, with normal signing. Bundle identifier app.innei.lody. Run pnpm check, pnpm test and pnpm bundle as supporting gates.
+
+UI evidence for a visual or interaction requirement alignment comes from a finished
+`pnpm verify:ui` run exported by `apps/mobile/verification/ui/acceptance-round.py`
+(claims file + `lh acceptance run ingest`). Export and ingest by hand, only for
+that alignment; regression runs stay programmatic gates and are never ingested.
 
 ## 5. Project probes & quick navigation
 

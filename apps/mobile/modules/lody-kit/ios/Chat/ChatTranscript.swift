@@ -97,6 +97,28 @@ struct ChatRow: Equatable {
   var group = ""
 }
 
+enum ChatMetaTime {
+  static let relativeDayLimit = 7
+
+  static func label(_ endedAt: Double?, now: Double, calendar: Calendar = .current) -> String {
+    guard let endedAt, endedAt.isFinite, endedAt > 0, now.isFinite else { return "" }
+    let ended = Date(timeIntervalSince1970: endedAt / 1000)
+    let current = Date(timeIntervalSince1970: now / 1000)
+    if calendar.isDate(ended, inSameDayAs: current) {
+      return ended.formatted(date: .omitted, time: .shortened)
+    }
+    let days = calendar.dateComponents(
+      [.day], from: calendar.startOfDay(for: ended), to: calendar.startOfDay(for: current)
+    ).day
+    guard let days, days >= 1, days < relativeDayLimit else {
+      return ended.formatted(date: .abbreviated, time: .omitted)
+    }
+    let formatter = RelativeDateTimeFormatter()
+    formatter.unitsStyle = .full
+    return formatter.localizedString(from: DateComponents(day: -days))
+  }
+}
+
 enum ChatWorkDuration {
   private static let fractionalTimestamp = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
   private static let timestamp = Date.ISO8601FormatStyle()
@@ -302,10 +324,12 @@ struct ChatTranscript {
       }
       if entry.role == "assistant", entry.finished, !processOnly {
         let model = entry.modelInfo?.title ?? ""
+        let finishedAt = ChatMetaTime.label(entry.endedAt, now: now)
+        let meta = [model, finishedAt].filter { !$0.isEmpty }.joined(separator: " · ")
         let answer = finalText.flatMap { entry.items[$0].text }
-        if answer != nil || !model.isEmpty {
+        if answer != nil || !meta.isEmpty {
           result.append(ChatRow(
-            id: entry.id + ":meta", entryID: entry.id, kind: "meta", text: model,
+            id: entry.id + ":meta", entryID: entry.id, kind: "meta", text: meta,
             copyText: answer
           ))
         }

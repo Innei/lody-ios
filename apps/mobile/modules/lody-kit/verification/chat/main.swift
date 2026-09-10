@@ -134,6 +134,32 @@ assert(
 assert(ChatWorkDuration.format(65_999, hour: "h", minute: "m", second: "s") == "1m 05s")
 assert(ChatWorkDuration.format(999, hour: "h", minute: "m", second: "s") == "0s")
 
+var utc = Calendar(identifier: .gregorian)
+utc.timeZone = TimeZone(identifier: "UTC")!
+let metaNow = utc.date(from: DateComponents(year: 2026, month: 9, day: 10, hour: 12))!
+  .timeIntervalSince1970 * 1000
+let metaDay = 86_400_000.0
+assert(ChatMetaTime.label(nil, now: metaNow) == "", "A reply without an end time shows no timestamp")
+assert(ChatMetaTime.label(-1, now: metaNow) == "")
+let sameDayLabel = ChatMetaTime.label(metaNow - 3_600_000, now: metaNow, calendar: utc)
+let recentLabel = ChatMetaTime.label(metaNow - 3 * metaDay, now: metaNow, calendar: utc)
+let oldLabel = ChatMetaTime.label(
+  metaNow - Double(ChatMetaTime.relativeDayLimit) * metaDay, now: metaNow, calendar: utc
+)
+assert(sameDayLabel.contains(":") && !sameDayLabel.contains("2026"),
+  "Same-day replies show a clock time, not a date")
+assert(!recentLabel.contains("2026") && recentLabel != sameDayLabel,
+  "Replies inside the relative window read as a day count")
+assert(oldLabel.contains("2026") && !oldLabel.contains(":"),
+  "Beyond the relative window the timestamp falls back to a calendar date")
+let sameDayMetaJSON = finishedDurationJSON.replacingOccurrences(
+  of: "\"endedAt\":125000", with: "\"endedAt\":\(Int(metaNow))"
+)
+let sameDayMetaEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(sameDayMetaJSON.utf8))
+let sameDayMetaRow = ChatTranscript(entries: sameDayMetaEntries).rows(now: metaNow).last
+assert(sameDayMetaRow?.kind == "meta" && sameDayMetaRow?.text.contains(":") == true,
+  "The metadata bar carries the finish time even without model info")
+
 let fallbackDurationJSON = """
 [{"id":"timed-fallback","role":"assistant","status":"running","finished":false,
 "startedAt":1000,

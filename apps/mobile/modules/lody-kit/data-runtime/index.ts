@@ -1,3 +1,10 @@
+import { mentionCatalog } from './mentions';
+import type {
+  MentionSource,
+  MentionCategory,
+} from '../../../src/models/mentions';
+import { projectHistory } from './project-history';
+import type { HistoryRequest } from '../../../src/models/project-history.ts';
 import {
   projectControl,
   directoryResult,
@@ -379,6 +386,8 @@ Object.assign(globalThis, {
       workspaceId: string;
       browserId: string;
       action: string;
+      userId: string;
+      history?: HistoryRequest;
       machineId?: string;
       path?: string;
       cursor?: string;
@@ -391,6 +400,22 @@ Object.assign(globalThis, {
         return {};
       }
       if (!metaReplica || unhealthy.size) throw new Error('metadata_not_ready');
+      if (args.action === 'history' && args.history) {
+        let controller = browsers.get(args.browserId);
+        if (!controller) {
+          controller = new AbortController();
+          browsers.set(args.browserId, controller);
+        }
+        return projectHistory(
+          args.history,
+          workspace,
+          args.userId,
+          metaReplica.flock,
+          machineReplicas,
+          getGrant,
+          AbortSignal.any([controller.signal, AbortSignal.timeout(120000)]),
+        );
+      }
       if (args.action === 'machines') {
         return {
           machines: (catalogs.get('meta')?.machineIds ?? []).map((id) => {
@@ -483,6 +508,57 @@ Object.assign(globalThis, {
     },
     readFile(args: { sessionId: string; path: string }) {
       return readFile(machineFor(args.sessionId, args.path), args);
+    },
+    mentionCatalog(
+      args: MentionSource & { category: MentionCategory; userId: string },
+    ) {
+      if (args.workspaceId !== workspace || !metaReplica || unhealthy.size)
+        throw new Error('metadata_not_ready');
+      const session = args.sessionId
+        ? catalogs
+            .get('meta')
+            ?.sessions.find((item) => item.id === args.sessionId)
+        : undefined;
+      if (args.sessionId && !session) throw new Error('session_unavailable');
+      const projectId = session?.projectId ?? args.projectId;
+      const project = [...catalogs.values()]
+        .flatMap((value) => value.projects)
+        .find((item) => item.id === projectId);
+      if (args.projectId && !project) throw new Error('project_unavailable');
+      const machineId =
+        session?.machineId ??
+        (projectId?.startsWith('github:')
+          ? args.machineId
+          : project?.machineId) ??
+        args.machineId;
+      if (!machineId || !machineReplicas.has(machineId))
+        throw new Error('machine_unavailable');
+      const prefix = `${machineId}:local:`;
+      const localProjectId = projectId?.startsWith(prefix)
+        ? projectId.slice(prefix.length)
+        : undefined;
+      if (
+        localProjectId &&
+        machineReplicas
+          .get(machineId)
+          ?.get(['cmd', 'deleteLocalProject', localProjectId]) !== undefined
+      )
+        throw new Error('project_unavailable');
+      return mentionCatalog(
+        {
+          workspaceId: workspace,
+          machineId,
+          localProjectId,
+          repoFullName: projectId?.startsWith('github:')
+            ? projectId.slice('github:'.length)
+            : undefined,
+          sessionId: session?.id,
+          getGrant,
+          signal: AbortSignal.timeout(35000),
+        },
+        args.category,
+        args.userId,
+      );
     },
     listDir(args: {
       workspaceId: string;

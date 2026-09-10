@@ -1,3 +1,5 @@
+import { fastModeFor, withFastMode } from '@/cloud/send/capability';
+import { useComposerMentions } from '@/hooks/screens/useComposerMentions';
 import { setPushVisibleRoute } from '@lody-ios/kit';
 import { useFocusEffect } from 'expo-router';
 import { Stack } from 'expo-router';
@@ -141,6 +143,7 @@ function View() {
       modelId: pending.send.choice.modelId ?? undefined,
       effort: pending.send.choice.effort ?? undefined,
       modeId: pending.send.choice.modeId,
+      configOptionValues: pending.send.choice.configOptionValues,
     });
   }, [outbox.ready, pending]);
 
@@ -318,6 +321,12 @@ function View() {
     overflow,
     capability?.steer === true,
   );
+  const mentions = useComposerMentions(
+    selected && account
+      ? { workspaceId: selected.id, sessionId: currentSession.id }
+      : undefined,
+    present,
+  );
   const composerJSON = JSON.stringify({
     editable: !currentSession.archived,
     canSend: send.canSend,
@@ -339,6 +348,7 @@ function View() {
   });
   const efforts = effortsFor(capability, activeChoice.modelId);
   const composerOptionsJSON = JSON.stringify({
+    fast: fastModeFor(capability, activeChoice)?.enabled,
     modelId: activeChoice.modelId ?? '',
     effort: activeChoice.effort ?? '',
     models: (capability?.models ?? []).map((item) => ({
@@ -455,6 +465,9 @@ function View() {
       </Stack.Toolbar>
       <DiffWebViewWarmer />
       <NativeChat
+        mentionItemsJSON={mentions.mentionItemsJSON}
+        mentionResultJSON={mentions.mentionResultJSON}
+        onMentionBrowse={mentions.onMentionBrowse}
         navigationTitle={currentSession.title}
         navigationSubtitle={projectName}
         navigationMachine={machineName}
@@ -498,6 +511,7 @@ function View() {
                 ? (activeChoice.effort ?? null)
                 : activeChoice.effort,
               modeId: activeChoice.modeId,
+              configOptionValues: activeChoice.configOptionValues,
               reasoningEffortConfigId: capability?.reasoningEffortConfigId,
             },
           })
@@ -517,6 +531,10 @@ function View() {
         onReconnect={pending?.send.creation ? refresh : reconnect}
         onComposerOptionChange={({ nativeEvent }) => {
           choiceHydrated.current = true;
+          if (typeof nativeEvent.fast === 'boolean') {
+            setChoice(withFastMode(capability, activeChoice, nativeEvent.fast));
+            return;
+          }
           setChoice((current) => ({
             ...current,
             modelId: nativeEvent.modelId || undefined,

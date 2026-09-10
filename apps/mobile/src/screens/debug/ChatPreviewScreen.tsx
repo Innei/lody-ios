@@ -90,6 +90,19 @@ const permissionTarget: PermissionTarget = {
 // request the way a desktop answer would, so the sheet must close on its own.
 const permissionSource: PermissionTargetSource = (onState) => {
   onState({ ready: false });
+  if (uiVerify) {
+    // Let the driver observe each state before advancing the fixture.
+    const update = (available: boolean) =>
+      onState({
+        ready: true,
+        target: available ? permissionTarget : undefined,
+      });
+    globalThis.__lodyUiVerifyPermissionTarget = update;
+    return () => {
+      if (globalThis.__lodyUiVerifyPermissionTarget === update)
+        globalThis.__lodyUiVerifyPermissionTarget = undefined;
+    };
+  }
   const resolve = setTimeout(
     () => onState({ ready: true, target: permissionTarget }),
     2000,
@@ -130,6 +143,7 @@ function View() {
   const [composerOptions, setComposerOptions] = useState({
     modelId: 'gpt-5.6-sol',
     effort: 'medium',
+    fast: false,
   });
   const [clearDraftToken, setClearDraftToken] = useState(0);
   const [sent, setSent] = useState<{
@@ -572,7 +586,7 @@ function View() {
             );
         }}
         onComposerOptionChange={({ nativeEvent }) =>
-          setComposerOptions(nativeEvent)
+          setComposerOptions((current) => ({ ...current, ...nativeEvent }))
         }
       />
     </>

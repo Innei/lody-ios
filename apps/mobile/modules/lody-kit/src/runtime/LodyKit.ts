@@ -2,6 +2,7 @@ import { NativeModule, requireNativeModule } from 'expo';
 
 export interface RuntimeInfo {
   offlineProbe?: boolean;
+  uiVerifyHome: boolean;
   moduleName: string;
   systemVersion: string;
 }
@@ -68,6 +69,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   fileDiff(payload: string): Promise<string>;
   readFile(payload: string): Promise<string>;
   listDir(payload: string): Promise<string>;
+  mentionCatalog(payload: string): Promise<string>;
   readContentText(handle: string): Promise<string | null>;
   previewContent(handle: string): Promise<void>;
   watchCatalog(
@@ -179,6 +181,8 @@ export const respondSessionPermission = (payload: string) =>
 export const turnDiffRaw = (payload: string) => native.turnDiff(payload);
 export const fileDiffRaw = (payload: string) => native.fileDiff(payload);
 export const readFileRaw = (payload: string) => native.readFile(payload);
+export const mentionCatalogRaw = (payload: string) =>
+  native.mentionCatalog(payload);
 export const listDirRaw = (payload: string) => native.listDir(payload);
 export const readContentText = (handle: string) =>
   native.readContentText(handle);

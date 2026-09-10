@@ -3,6 +3,7 @@ import UIKit
 final class ChatComposerLegacySurfaceLayout: ChatComposerSurfaceLayout {
   private let attachLeading: NSLayoutConstraint
   private let inputLeading: NSLayoutConstraint
+  private let attachBottom: NSLayoutConstraint
 
   init(
     container: UIVisualEffectView,
@@ -17,6 +18,7 @@ final class ChatComposerLegacySurfaceLayout: ChatComposerSurfaceLayout {
     attachSurface.layer.cornerCurve = .continuous
     attachSurface.clipsToBounds = true
     attachSurface.backgroundColor = .secondarySystemBackground
+    attachBottom = attachSurface.bottomAnchor.constraint(equalTo: inputSurface.bottomAnchor, constant: -2)
     attachLeading = attachSurface.leadingAnchor.constraint(
       equalTo: container.leadingAnchor,
       constant: 16
@@ -28,7 +30,7 @@ final class ChatComposerLegacySurfaceLayout: ChatComposerSurfaceLayout {
   }
 
   func activate() {
-    NSLayoutConstraint.activate([attachLeading, inputLeading])
+    NSLayoutConstraint.activate([attachLeading, inputLeading, attachBottom])
   }
 
   func update(isFocused: Bool) {}

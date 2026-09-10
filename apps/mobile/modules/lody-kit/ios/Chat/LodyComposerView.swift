@@ -6,6 +6,7 @@ final class LodyComposerView: ExpoView {
   let onSend = EventDispatcher()
   let onHeightChange = EventDispatcher()
   let onComposerOptionChange = EventDispatcher()
+  let onMentionBrowse = EventDispatcher()
   let composer = ChatComposerView(frame: .zero)
   private var contentHeight: CGFloat = 64
   private var reportedHeight: CGFloat = 0
@@ -76,6 +77,7 @@ final class LodyComposerView: ExpoView {
       self?.contentHeight = height
       self?.reportHeight()
     }
+    composer.onMentionBrowse = { [weak self] in self?.onMentionBrowse($0) }
     composer.onComposerOptionChange = { [weak self] in self?.onComposerOptionChange($0) }
     addSubview(composer)
     composer.translatesAutoresizingMaskIntoConstraints = false

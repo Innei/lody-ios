@@ -6,6 +6,7 @@ import sys
 import time
 from driver import UI
 import catalog
+from inspector import inspector
 
 udid = sys.argv[1]
 ui = UI(udid, sys.argv[2])
@@ -87,12 +88,7 @@ open_url('ui-home/sessions/ui-design')
 session('首页交互设计')
 swipe_back()
 home('before-restart')
-subprocess.run(['node', '-e', """
-const WebSocket = require('ws');
-const origin = `http://127.0.0.1:${process.argv[1]}`;
-const socket = new WebSocket(origin.replace('http:', 'ws:') + '/message', { origin });
-socket.on('open', () => socket.send(JSON.stringify({ version: 2, method: 'reload' }), () => socket.close()));
-""", os.environ['LODY_UI_METRO_PORT']], check=True, timeout=10)
+inspector(udid, os.environ['LODY_UI_METRO_PORT'], 'Page.reload')
 session('首页交互设计')
 ui.capture('restart-session')
 swipe_back()

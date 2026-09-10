@@ -66,11 +66,13 @@ const text = lines + code;
 
 function View() {
   const { cancel } = usePageRuntime();
-  const [mode, setMode] = useState<'cache' | 'live' | 'stream'>('cache');
+  const [mode, setMode] = useState<'cache' | 'live' | 'stream' | 'anchor'>(
+    'cache',
+  );
   const [length, setLength] = useState(0);
   const [run, setRun] = useState(0);
   useEffect(() => {
-    if (mode !== 'stream') return;
+    if (mode !== 'stream' && mode !== 'anchor') return;
     const timer = setInterval(
       () => setLength((old) => Math.min(text.length, old + 80)),
       450,
@@ -101,6 +103,35 @@ function View() {
         ],
       },
     ];
+  if (mode === 'anchor')
+    entries = [
+      {
+        id: 'scroll-anchor-user',
+        role: 'user',
+        status: 'completed',
+        finished: true,
+        items: [
+          {
+            itemId: 'text',
+            type: 'text',
+            text: '保持这条消息和工作计时的位置。',
+          },
+        ],
+      },
+      {
+        id: 'scroll-anchor-reply',
+        role: 'assistant',
+        status: 'running',
+        finished: false,
+        items: [
+          {
+            itemId: 'body',
+            type: 'text',
+            text: lines.slice(0, Math.min(length, 160)),
+          },
+        ],
+      },
+    ];
   const entriesJSON = JSON.stringify(entries);
   const openProcess = useProcessSheet(entriesJSON, () => {});
   return (
@@ -121,6 +152,15 @@ function View() {
         />
       </Stack.Toolbar>
       <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          accessibilityLabel="Stream Anchored Turn"
+          icon="pin"
+          onPress={() => {
+            setLength(0);
+            setMode('anchor');
+            setRun((old) => old + 1);
+          }}
+        />
         <Stack.Toolbar.Button
           accessibilityLabel="Stream Lines"
           icon="play"
@@ -150,6 +190,16 @@ function View() {
         style={{ flex: 1 }}
         navigationTitle="滚动连续性验收"
         entriesJSON={entriesJSON}
+        pendingSendJSON={
+          mode === 'anchor'
+            ? JSON.stringify({
+                id: 'scroll-anchor-user',
+                text: '保持这条消息和工作计时的位置。',
+                attachments: [],
+                status: '',
+              })
+            : undefined
+        }
         composerJSON='{"editable":true,"canSend":false}'
         clearDraftToken={0}
         emptyText=""

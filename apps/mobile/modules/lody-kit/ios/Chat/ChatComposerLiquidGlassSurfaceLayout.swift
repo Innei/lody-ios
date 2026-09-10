@@ -7,6 +7,8 @@ final class ChatComposerLiquidGlassSurfaceLayout: ChatComposerSurfaceLayout {
   private let attachSurface: UIVisualEffectView
   private let attachButton: UIButton
   private let attachGlyph: UIImageView
+  private let focusedGlyph: UIImageView
+  private let focusedGlyphSize: CGSize
   private let restingGlyphSize: CGSize
   private let glyphWidth: NSLayoutConstraint
   private let glyphHeight: NSLayoutConstraint
@@ -14,6 +16,8 @@ final class ChatComposerLiquidGlassSurfaceLayout: ChatComposerSurfaceLayout {
   private let focusedAttachLeading: NSLayoutConstraint
   private let separateInputLeading: NSLayoutConstraint
   private let focusedInputLeading: NSLayoutConstraint
+  private let attachBottom: NSLayoutConstraint
+  private let attachGlass: UIGlassEffect
   private var isFocused = false
 
   init(
@@ -28,18 +32,26 @@ final class ChatComposerLiquidGlassSurfaceLayout: ChatComposerSurfaceLayout {
     self.attachButton = attachButton
     let attachGlyph = UIImageView(image: attachButton.image(for: .normal))
     self.attachGlyph = attachGlyph
+    let focusedGlyph = UIImageView(image: UIImage(systemName: "plus", withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .regular)))
+    self.focusedGlyph = focusedGlyph
+    focusedGlyphSize = focusedGlyph.image!.size
     restingGlyphSize = attachGlyph.image?.size ?? attachGlyph.intrinsicContentSize
     attachButton.setImage(nil, for: .normal)
+    attachButton.configuration?.image = nil
     let glyphHost = UIView(frame: CGRect(origin: .zero, size: restingGlyphSize))
     glyphHost.translatesAutoresizingMaskIntoConstraints = false
     glyphHost.isUserInteractionEnabled = false
-    glyphHost.addSubview(attachGlyph)
-    attachGlyph.frame = glyphHost.bounds
-    attachGlyph.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    attachGlyph.contentMode = .scaleAspectFit
-    attachGlyph.tintColor = attachButton.tintColor
-    attachGlyph.isUserInteractionEnabled = false
-    attachGlyph.isAccessibilityElement = false
+    for glyph in [attachGlyph, focusedGlyph] {
+      glyphHost.addSubview(glyph)
+      glyph.frame = glyphHost.bounds
+      glyph.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+      glyph.contentMode = .scaleAspectFit
+      glyph.tintColor = attachButton.tintColor
+      glyph.isUserInteractionEnabled = false
+      glyph.isAccessibilityElement = false
+    }
+    focusedGlyph.alpha = 0
+    focusedGlyph.accessibilityIdentifier = "session-attach-focused-glyph"
     attachGlyph.accessibilityIdentifier = "session-attach-glyph"
     attachButton.addSubview(glyphHost)
     glyphWidth = glyphHost.widthAnchor.constraint(equalToConstant: restingGlyphSize.width)
@@ -61,9 +73,11 @@ final class ChatComposerLiquidGlassSurfaceLayout: ChatComposerSurfaceLayout {
     inputSurface.cornerConfiguration = .capsule(maximumRadius: 26)
 
     let attachGlass = UIGlassEffect(style: .regular)
+    self.attachGlass = attachGlass
     attachGlass.isInteractive = true
     attachSurface.effect = attachGlass
     attachSurface.cornerConfiguration = .capsule()
+    attachBottom = attachSurface.bottomAnchor.constraint(equalTo: inputSurface.bottomAnchor, constant: -2)
 
     separateAttachLeading = attachSurface.leadingAnchor.constraint(
       equalTo: container.leadingAnchor,
@@ -71,7 +85,7 @@ final class ChatComposerLiquidGlassSurfaceLayout: ChatComposerSurfaceLayout {
     )
     focusedAttachLeading = attachSurface.leadingAnchor.constraint(
       equalTo: container.leadingAnchor,
-      constant: 18
+      constant: 22
     )
     separateInputLeading = inputSurface.leadingAnchor.constraint(
       equalTo: attachSurface.trailingAnchor,
@@ -84,24 +98,31 @@ final class ChatComposerLiquidGlassSurfaceLayout: ChatComposerSurfaceLayout {
   }
 
   func activate() {
-    NSLayoutConstraint.activate([separateAttachLeading, separateInputLeading])
+    NSLayoutConstraint.activate([separateAttachLeading, separateInputLeading, attachBottom])
   }
 
   func update(isFocused: Bool) {
     guard self.isFocused != isFocused else { return }
     self.isFocused = isFocused
+    let parent = container.contentView
+    let frame = attachSurface.convert(attachSurface.bounds, to: parent)
+    NSLayoutConstraint.deactivate([separateAttachLeading, separateInputLeading, focusedAttachLeading, focusedInputLeading, attachBottom])
+    // Keep both surfaces in the glass container until their native merge finishes.
+    attachGlass.isInteractive = !isFocused
+    attachSurface.effect = attachGlass
+    parent.addSubview(attachSurface)
+    attachSurface.frame = frame
     if isFocused {
-      NSLayoutConstraint.deactivate([separateAttachLeading, separateInputLeading])
-      NSLayoutConstraint.activate([focusedAttachLeading, focusedInputLeading])
-      container.contentView.bringSubviewToFront(attachSurface)
+      NSLayoutConstraint.activate([focusedAttachLeading, focusedInputLeading, attachBottom])
     } else {
-      NSLayoutConstraint.deactivate([focusedAttachLeading, focusedInputLeading])
-      NSLayoutConstraint.activate([separateAttachLeading, separateInputLeading])
+      NSLayoutConstraint.activate([separateAttachLeading, separateInputLeading, attachBottom])
     }
-    let glyphScale: CGFloat = isFocused ? 11 / 17 : 1
-    glyphWidth.constant = restingGlyphSize.width * glyphScale
-    glyphHeight.constant = restingGlyphSize.height * glyphScale
+    let glyphSize = isFocused ? focusedGlyphSize : restingGlyphSize
+    glyphWidth.constant = glyphSize.width
+    glyphHeight.constant = glyphSize.height
     let updateGlyph = {
+      self.attachGlyph.alpha = isFocused ? 0 : 1
+      self.focusedGlyph.alpha = isFocused ? 1 : 0
       self.attachButton.layoutIfNeeded()
     }
     if UIAccessibility.isReduceMotionEnabled || attachGlyph.window == nil {
@@ -113,6 +134,20 @@ final class ChatComposerLiquidGlassSurfaceLayout: ChatComposerSurfaceLayout {
         options: [.beginFromCurrentState, .curveEaseOut],
         animations: updateGlyph
       )
+    }
+  }
+
+  func completeTransition() {
+    guard isFocused, attachSurface.superview !== inputSurface.contentView else { return }
+    // Once merged, hand off to the input's press transform without changing geometry.
+    UIView.performWithoutAnimation {
+      let frame = attachSurface.convert(attachSurface.bounds, to: inputSurface.contentView)
+      NSLayoutConstraint.deactivate([focusedAttachLeading, attachBottom])
+      inputSurface.contentView.addSubview(attachSurface)
+      attachSurface.frame = frame
+      attachSurface.effect = nil
+      NSLayoutConstraint.activate([focusedAttachLeading, attachBottom])
+      container.layoutIfNeeded()
     }
   }
 }

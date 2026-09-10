@@ -57,7 +57,12 @@ export type Envelope = {
   reason?: string;
   revision: number;
   awaitingUserSince?: number;
-  composer?: { modelId?: string; modeId?: string; effort?: string };
+  composer?: {
+    modelId?: string;
+    modeId?: string;
+    effort?: string;
+    configOptionValues?: Record<string, string | boolean>;
+  };
   entries: EntrySummary[];
 };
 

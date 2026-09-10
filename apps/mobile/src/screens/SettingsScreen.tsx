@@ -1,3 +1,4 @@
+import { ProjectHistoryScreen } from './ProjectHistoryScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
 import { useRouter } from 'expo-router';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
@@ -143,6 +144,14 @@ function View() {
       header: t('settings.section.sessions'),
       rows: [
         {
+          id: 'project-history',
+          title: t('settings.history.title'),
+          image: 'arrow.triangle.2.circlepath',
+          action: true,
+          disclosure: true,
+          navigates: true,
+        },
+        {
           id: 'archived',
           title: t('settings.archived.title'),
           image: 'archivebox',
@@ -187,6 +196,8 @@ function View() {
         }
         if (nativeEvent.id === 'notifications')
           void push(NotificationSettingsScreen, {});
+        if (nativeEvent.id === 'project-history')
+          void push(ProjectHistoryScreen);
         if (nativeEvent.id === 'archived') void push(ArchivedSessionsScreen);
         if (nativeEvent.id === 'licenses') void push(LicensesScreen);
         if (nativeEvent.id === 'debug-open') {

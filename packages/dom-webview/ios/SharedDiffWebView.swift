@@ -96,12 +96,14 @@ final class SharedDiffWebView: NSObject, WKNavigationDelegate, WKScriptMessageHa
     self.sourceURL = sourceURL
     ready = false
     navigationCount += 1
+    applyProbe(webView)
   }
 
   func willReload(_ webView: WKWebView) {
     guard self.webView === webView else { return }
     ready = false
     navigationCount += 1
+    applyProbe(webView)
   }
 
   func didBecomeReady(_ webView: WKWebView) {
@@ -256,7 +258,7 @@ final class SharedDiffWebView: NSObject, WKNavigationDelegate, WKScriptMessageHa
     navigationCount = 0
   }
 
-  private func applyProbe(_ webView: DomWKWebView) {
+  private func applyProbe(_ webView: WKWebView) {
     #if DEBUG
     webView.accessibilityIdentifier = "diff-webview-probe"
     webView.accessibilityLabel = "\(instanceId) \(navigationCount)"

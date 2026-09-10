@@ -25,4 +25,5 @@ Pod::Spec.new do |s|
   s.spm_dependency 'MarkdownView/MarkdownParser'
   s.source_files = '**/*.swift'
   s.resources = 'Resources/*'
+  s.resource_bundles = { 'LodyKitShaders' => ['Chat/Shaders/*.metal'] }
 end

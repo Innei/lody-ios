@@ -6,17 +6,19 @@ enum ChatRowPadding {
 }
 
 final class ChatMetaCell: UICollectionViewCell {
+  private static let copyLeading: CGFloat = 22
   private let copyButton = UIButton(type: .system)
   private let modelLabel = UILabel()
   private var copyText: String?
+  private var copyReset: DispatchWorkItem?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
     modelLabel.numberOfLines = 0
-    modelLabel.textAlignment = .right
+    modelLabel.textAlignment = .left
     modelLabel.textColor = .secondaryLabel
     modelLabel.adjustsFontForContentSizeCategory = true
-    copyButton.setPreferredSymbolConfiguration(UIImage.SymbolConfiguration(pointSize: 15), forImageIn: .normal)
+    copyButton.contentHorizontalAlignment = .leading
     copyButton.addTarget(self, action: #selector(copyAnswer), for: .touchUpInside)
     contentView.addSubview(copyButton)
     contentView.addSubview(modelLabel)
@@ -27,8 +29,7 @@ final class ChatMetaCell: UICollectionViewCell {
   func configure(_ row: ChatRow) {
     copyText = row.copyText
     copyButton.isHidden = row.copyText == nil
-    copyButton.setImage(UIImage(systemName: "doc.on.doc"), for: .normal)
-    copyButton.accessibilityLabel = LodyStrings.text("native.chat.copy")
+    showIdleCopy()
     copyButton.accessibilityIdentifier = row.id + ":copy"
     modelLabel.text = row.text
     modelLabel.font = .preferredFont(forTextStyle: .footnote, compatibleWith: traitCollection)
@@ -37,23 +38,50 @@ final class ChatMetaCell: UICollectionViewCell {
     setNeedsLayout()
   }
 
+  private func showIdleCopy(animated: Bool = false) {
+    copyReset?.cancel()
+    copyReset = nil
+    showCopySymbol("doc.on.doc", animated: animated)
+    copyButton.accessibilityLabel = LodyStrings.text("native.chat.copy")
+  }
+
+  private func showCopySymbol(_ name: String, animated: Bool) {
+    var configuration = UIButton.Configuration.plain()
+    configuration.image = UIImage(systemName: name)
+    configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(textStyle: .footnote)
+    configuration.baseForegroundColor = .secondaryLabel
+    configuration.contentInsets = .zero
+    if animated, #available(iOS 26.0, *) {
+      configuration.symbolContentTransition = .init(.replace)
+    }
+    copyButton.configuration = configuration
+  }
+
   @objc private func copyAnswer() {
     guard let copyText else { return }
     UIPasteboard.general.string = copyText
-    copyButton.setImage(UIImage(systemName: "checkmark"), for: .normal)
+    copyReset?.cancel()
+    showCopySymbol("checkmark", animated: true)
     copyButton.accessibilityLabel = LodyStrings.text("native.chat.copied")
     UIAccessibility.post(notification: .announcement, argument: LodyStrings.text("native.chat.copied"))
+    let reset = DispatchWorkItem { [weak self] in self?.showIdleCopy(animated: true) }
+    copyReset = reset
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: reset)
   }
 
   override func layoutSubviews() {
     super.layoutSubviews()
     copyButton.frame = CGRect(x: 0, y: (bounds.height - 44) / 2, width: 44, height: 44)
-    let leading: CGFloat = copyButton.isHidden ? 0 : 52
-    modelLabel.frame = CGRect(x: leading, y: 4, width: max(1, bounds.width - leading), height: bounds.height - 8)
+    let leading: CGFloat = copyButton.isHidden ? 0 : Self.copyLeading
+    let available = max(1, bounds.width - leading)
+    let text = modelLabel.sizeThatFits(CGSize(width: available, height: .greatestFiniteMagnitude))
+    modelLabel.frame = CGRect(
+      x: leading, y: 4, width: min(available, ceil(text.width)), height: bounds.height - 8
+    )
   }
 
   static func height(for row: ChatRow, width: CGFloat, traits: UITraitCollection) -> CGFloat {
-    let textWidth = max(1, width - (row.copyText == nil ? 0 : 52))
+    let textWidth = max(1, width - (row.copyText == nil ? 0 : copyLeading))
     let font = UIFont.preferredFont(forTextStyle: .footnote, compatibleWith: traits)
     let textHeight = (row.text as NSString).boundingRect(
       with: CGSize(width: textWidth, height: .greatestFiniteMagnitude),

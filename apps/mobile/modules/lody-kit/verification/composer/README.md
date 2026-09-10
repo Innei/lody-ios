@@ -1,22 +1,13 @@
 # Shared native composer
 
-Run from the repository root with a booted iOS Simulator:
+Run from the repository root; the runner leases a verification Simulator:
 
 ```sh
-xcrun --sdk iphonesimulator swiftc -swift-version 6 -target arm64-apple-ios18.0-simulator \
-  -sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
-  apps/mobile/modules/lody-kit/ios/UIFont+Dynamic.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatAttachments.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatAttachmentSheet.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatComposerSurfaceLayout.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatComposerLegacySurfaceLayout.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatComposerLiquidGlassSurfaceLayout.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatComposerView.swift \
-  apps/mobile/modules/lody-kit/verification/composer/main.swift \
-  -o /tmp/lody-composer-test
-xcrun simctl spawn booted /tmp/lody-composer-test
+pnpm verify:native
 ```
 
 Exercises the production UIKit input without cloud writes: empty input, duplicate
 send suppression, rejected-draft restoration, accepted-draft clearing, multiline
 height limiting, and uncertain-result locking.
+
+`pnpm verify:native` also compiles the shared `.metal` source into a temporary `LodyKitShaders.bundle` for the native checks. Xcode’s Metal Toolchain is required (`xcodebuild -downloadComponent MetalToolchain` if missing). App builds compile and package the same source through the LodyKit pod resource bundle.

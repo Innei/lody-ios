@@ -59,6 +59,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   let onRetrySend = EventDispatcher()
   let onTitlePress = EventDispatcher()
   let onComposerOptionChange = EventDispatcher()
+  let onMentionBrowse = EventDispatcher()
   private let titleButton = UIButton(type: .system)
   private var navigationTitle = ""
   private var navigationSubtitle = ""
@@ -314,6 +315,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     composer.onStop = { [weak self] in self?.onStop() }
     composer.onSteer = { [weak self] in self?.onSteer(["id": $0]) }
     composer.onReconnect = { [weak self] in self?.onReconnect([:]) }
+    composer.onMentionBrowse = { [weak self] in self?.onMentionBrowse($0) }
     composer.onComposerOptionChange = { [weak self] in self?.onComposerOptionChange($0) }
     empty.numberOfLines = 0
     empty.textAlignment = .center

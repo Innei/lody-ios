@@ -26,7 +26,7 @@ export type NativeListRow = {
   image?: string;
   /** File rows use bundled Material Icon Theme artwork. */
   filePath?: string;
-  /** Semantic name (warning/danger/secondary/tertiary) or a `#RRGGBB` value. */
+  /** Semantic name (blue/warning/danger/secondary/tertiary) or a `#RRGGBB` value. */
   imageTint?: string;
   action?: boolean;
   /** Trailing UISwitch; the row stops being selectable and `action` gates the switch. */

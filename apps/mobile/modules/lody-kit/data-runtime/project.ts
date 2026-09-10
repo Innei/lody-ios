@@ -57,7 +57,12 @@ export type Envelope = {
   reason?: string;
   revision: number;
   awaitingUserSince?: number;
-  composer?: { modelId?: string; modeId?: string; effort?: string };
+  composer?: {
+    modelId?: string;
+    modeId?: string;
+    effort?: string;
+    configOptionValues?: Record<string, string | boolean>;
+  };
   entries: EntrySummary[];
 };
 
@@ -321,6 +326,11 @@ export function projectSession(
     input?.configOptionValues && typeof input.configOptionValues === 'object'
       ? input.configOptionValues
       : {};
+  const fastValues = Object.fromEntries(
+    ['fast', 'fast-mode'].flatMap((id) =>
+      typeof options[id] === 'boolean' ? [[id, options[id]]] : [],
+    ),
+  );
   const effort = [options.reasoning_effort, options.effort].find(
     (value) => typeof value === 'string',
   );
@@ -375,6 +385,9 @@ export function projectSession(
               ? { modeId: input.modeId }
               : {}),
             ...(typeof effort === 'string' ? { effort } : {}),
+            ...(Object.keys(fastValues).length
+              ? { configOptionValues: fastValues }
+              : {}),
           },
         }
       : {}),

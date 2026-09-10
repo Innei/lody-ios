@@ -15,7 +15,9 @@ extension LodyChatView {
       space = max(0, frame.minY - collection.adjustedContentInset.top - naturalBottom)
     }
     let bottom = base + space
-    guard abs(collection.contentInset.bottom - bottom) > 0.5 else { return false }
+    // Compensate even one pixel of reply growth: at 3x, a 0.5pt deadband
+    // lets the bottom follower move the pinned turn by 1px and back again.
+    guard collection.contentInset.bottom != bottom else { return false }
     collection.contentInset.bottom = bottom
     collection.verticalScrollIndicatorInsets.bottom = base
     return true
@@ -298,7 +300,9 @@ extension LodyChatView {
         limit: collapsedMessageHeights[row.entryID] ?? ChatMessageContent.maximumCollapsedHeight,
         expanded: expandedMessages.contains(row.entryID)) + 24
     }
-    return max(row.actionable || row.kind == "summary" || row.kind == "pending" ? 44 : 0, measured + ChatCell.rowExtra(for: row))
+    // A pending timer can offer reconnect. Reserve its touch height before and
+    // after that action disappears so connection changes do not resize the row.
+    return max(row.actionable || row.kind == "summary" || row.kind == "pending" || row.kind == "duration" ? 44 : 0, measured + ChatCell.rowExtra(for: row))
   }
 
   func setAttachmentContext(_ json: String) {

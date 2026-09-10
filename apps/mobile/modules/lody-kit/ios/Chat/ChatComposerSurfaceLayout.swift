@@ -4,6 +4,11 @@ import UIKit
 protocol ChatComposerSurfaceLayout: AnyObject {
   func activate()
   func update(isFocused: Bool)
+  func completeTransition()
+}
+
+extension ChatComposerSurfaceLayout {
+  func completeTransition() {}
 }
 
 @MainActor

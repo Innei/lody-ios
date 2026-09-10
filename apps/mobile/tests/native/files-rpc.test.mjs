@@ -5,7 +5,8 @@ import { build } from 'esbuild';
 
 const bundle = await build({
   stdin: {
-    contents: "export * from './files'; export * from './machine-rpc';",
+    contents:
+      "export * from './files'; export * from './machine-rpc'; export * from './mentions';",
     resolveDir: new URL('../../modules/lody-kit/data-runtime/', import.meta.url)
       .pathname,
     loader: 'ts',
@@ -275,4 +276,84 @@ test('listDir goes through local-project/control and sorts directories first', a
   assert.equal(calls[0].params.request.type, 'local-project/list-dir');
   assert.equal(calls[0].params.request.localProjectId, 'p');
   assert.equal(calls[0].params.request.requestedByUserId, 'u1');
+});
+
+test('real file mentions use the owning project RPC, preserve spaces, and reject escaped paths', async () => {
+  const calls = machine(async (_method, params) => ({
+    result: {
+      ok: true,
+      type: params.request.type,
+      result: {
+        paths: [
+          'src/auth/session.ts',
+          'docs/My Notes.md',
+          '../secret',
+          '/outside',
+          'bad\\path',
+        ],
+        truncated: false,
+      },
+    },
+  }));
+  const result = await runtime.mentionCatalog(
+    { ...ctx(), localProjectId: 'p' },
+    'file',
+    'owner',
+  );
+  assert.equal(calls[0].method, 'local-project/control');
+  assert.equal(calls[0].params.request.type, 'local-project/list-files');
+  assert.equal(calls[0].params.request.localProjectId, 'p');
+  assert.equal(calls[0].params.request.requestedByUserId, 'owner');
+  assert.equal(
+    result.items.find((item) => item.path === 'docs/My Notes.md').insertText,
+    '@"docs/My Notes.md"',
+  );
+  assert(
+    result.items.some(
+      (item) => item.path === 'src/auth' && item.kind === 'directory',
+    ),
+  );
+  assert(
+    !result.items.some(
+      (item) => item.path.includes('secret') || item.path === '/outside',
+    ),
+  );
+  assert(result.incomplete);
+});
+
+test('skills retain the machine path in sendable text and report incomplete results', () => {
+  const result = runtime.skillMentions([
+    {
+      groups: [
+        {
+          dir: '~/.agents/skills',
+          scope: 'global',
+          truncated: true,
+          skills: [
+            {
+              name: 'auth-review',
+              absolutePath: '/Users/test/My Skills/auth/SKILL.md',
+              relativePath: '.agents/skills/auth/SKILL.md',
+              description: 'Review auth',
+            },
+          ],
+        },
+        { dir: '.claude/skills', skills: [], error: 'offline' },
+      ],
+    },
+  ]);
+  assert.equal(result.items.length, 1);
+  assert.equal(
+    result.items[0].insertText,
+    'use /auth-review [Skill Path](</Users/test/My%20Skills/auth/SKILL.md>)',
+  );
+  assert(result.truncated && result.incomplete);
+  assert.throws(
+    () => runtime.skillMentions([{ groups: [{}] }]),
+    /invalid_skill_group/,
+  );
+  assert.throws(
+    () => runtime.fileMentions({ paths: null }),
+    /invalid_file_list/,
+  );
 });

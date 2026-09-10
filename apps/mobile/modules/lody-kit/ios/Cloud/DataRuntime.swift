@@ -343,13 +343,14 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       }
       return
     }
-    if method == "remoteSettings" { args["userId"] = userId }
+    if method == "remoteSettings" || method == "localProjects" || method == "mentionCatalog" { args["userId"] = userId }
     let id = UUID(); commands[id] = promise
     if method == "sendTurn", args["backgroundTaskId"] == nil, !backgrounded {
       args["backgroundTaskId"] = SessionBackgroundTasks.shared.begin(owner: owner)
     }
     let backgroundTaskId = args["backgroundTaskId"] as? String
-    DispatchQueue.main.asyncAfter(deadline: .now() + 45) { [weak self] in
+    let timeout: Double = method == "localProjects" && args["action"] as? String == "history" ? 130 : 45
+    DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
       guard let self, let pending = self.commands.removeValue(forKey: id) else { return }
       if let backgroundTaskId { SessionBackgroundTasks.shared.finish(backgroundTaskId, success: false) }
       self.fail(pending, "send_timeout", LodyStrings.text("native.runtime.sendTimeout"))
