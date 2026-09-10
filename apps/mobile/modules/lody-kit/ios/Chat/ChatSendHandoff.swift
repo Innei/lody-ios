@@ -3,7 +3,19 @@ import UIKit
 /// The flying copy and collection content keep independent layer lifecycles.
 final class ChatMessageContent: UIView {
   let label = ChatTextView()
+  static let maximumCollapsedHeight: CGFloat = 140
   let bubble = UIView()
+  let disclosure = UIButton(type: .system)
+  private let fade = CAGradientLayer()
+  var folded: Bool { expandable && !expanded }
+  var expandable = false
+  var expanded = false
+
+  static func height(textHeight: CGFloat, limit: CGFloat, expanded: Bool) -> CGFloat {
+    let full = textHeight + 20
+    guard full > maximumCollapsedHeight else { return full }
+    return expanded ? full + 44 : limit
+  }
   override init(frame: CGRect) {
     super.init(frame: frame)
     clipsToBounds = true
@@ -12,6 +24,11 @@ final class ChatMessageContent: UIView {
     bubble.layer.cornerCurve = .continuous
     addSubview(bubble)
     addSubview(label)
+    disclosure.titleLabel?.font = .preferredFont(forTextStyle: .caption1)
+    disclosure.setTitleColor(.secondaryLabel, for: .normal)
+    disclosure.contentHorizontalAlignment = .right
+    addSubview(disclosure)
+    fade.colors = [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.clear.cgColor]
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
   override func layoutSubviews() {
@@ -22,7 +39,16 @@ final class ChatMessageContent: UIView {
     // Bubble insets are only for the user send handoff.
     guard !bubble.isHidden else { return }
     UIView.performWithoutAnimation {
+      let title = expanded ? "native.chat.message.collapse" : "native.chat.message.expand"
+      disclosure.setTitle(LodyStrings.text(title), for: .normal)
+      disclosure.isHidden = !expandable
+      disclosure.frame = CGRect(x: 13, y: bounds.height - 44, width: bounds.width - 26, height: 44)
       label.frame = bounds.insetBy(dx: 13, dy: 10)
+      if expanded && expandable { label.frame.size.height -= 44 }
+      label.layer.mask = folded ? fade : nil
+      fade.frame = label.bounds
+      let h = max(1, label.bounds.height)
+      fade.locations = [0, NSNumber(value: Double(max(0, h - 58) / h)), NSNumber(value: Double(max(0, h - 30) / h))]
       label.layer.displayIfNeeded()
     }
   }
@@ -33,7 +59,7 @@ final class ChatSendHandoff {
   private static var active: [String: ChatSendHandoff] = [:]
   let content = ChatMessageContent(frame: .zero)
   private var expiry: DispatchWorkItem?
-  private var photo: UIImageView?
+  private let concealment = CALayer()
   private var sourceSnapshot: UIView?
   private var sourceBackground = UIColor.secondarySystemBackground
   #if DEBUG
@@ -43,15 +69,23 @@ final class ChatSendHandoff {
   private var straight = false
   private weak var target: UIView?
 
+  static func hasWaitingAttachments(id: String) -> Bool {
+    active.contains { $0.key.hasPrefix(id + ":attachment:") && !$0.value.delivering }
+  }
+
+  static func sourceHeight(id: String) -> CGFloat? { active[id]?.content.bounds.height }
+
   static func isWaiting(id: String) -> Bool {
     guard let handoff = active[id] else { return false }
     return !handoff.delivering
   }
 
-  static func hold(id: String, target: UIView) {
-    guard let handoff = active[id] else { target.isHidden = false; return }
-    handoff.target = target
-    target.isHidden = true
+  static func hold(id: String, target: UIView, visualOnly: Bool = false) {
+    let waiting = active[id] != nil
+    // Attachment buttons retain their accessibility identity while their copy flies.
+    if visualOnly { target.layer.mask = active[id]?.concealment }
+    else { target.isHidden = waiting }
+    active[id]?.target = target
   }
 
   static func begin(id: String, text: String, source: UIView, background: UIView? = nil, straight: Bool = false) {
@@ -114,23 +148,18 @@ final class ChatSendHandoff {
     }
   }
 
-  static func beginImages(id: String, attachments: [ChatAttachment], source: ChatAttachmentBar) {
+  static func beginAttachments(id: String, attachments: [ChatAttachment], source: ChatAttachmentBar) {
     guard let window = source.window else { return }
-    for attachment in attachments where attachment.isImage {
-      guard let image = ChatAttachment.thumbnail(attachment.url) else { continue }
+    for attachment in attachments {
+      guard let frame = source.attachmentFrame(id: attachment.id), frame.intersects(source.bounds),
+            let snapshot = source.snapshot(id: attachment.id) else { continue }
       let handoff = ChatSendHandoff()
-      let photo = UIImageView(image: image)
-      photo.contentMode = .scaleAspectFit
-      photo.clipsToBounds = true
-      photo.layer.cornerRadius = 16
-      let sourceFrame = source.convert(source.attachmentFrame(id: attachment.id) ?? source.bounds, to: window)
-      let side = min(42, sourceFrame.height)
-      photo.frame = CGRect(x: sourceFrame.minX + 11, y: sourceFrame.minY, width: side, height: side)
-      photo.isUserInteractionEnabled = false
-      photo.accessibilityElementsHidden = true
-      handoff.photo = photo
-      window.addSubview(photo)
-      let key = id + ":image:" + attachment.id
+      snapshot.frame = source.convert(frame, to: window)
+      snapshot.isUserInteractionEnabled = false
+      snapshot.accessibilityElementsHidden = true
+      handoff.sourceSnapshot = snapshot
+      window.addSubview(snapshot)
+      let key = id + ":attachment:" + attachment.id
       active[key] = handoff
       let expiry = DispatchWorkItem { cancel(id: key) }
       handoff.expiry = expiry
@@ -138,39 +167,76 @@ final class ChatSendHandoff {
     }
   }
 
-  static func deliverImage(id: String, attachmentID: String, to target: UIImageView, adopt: @escaping (UIImageView) -> Void) {
-    let key = id + ":image:" + attachmentID
-    guard let window = target.window, let handoff = active[key], !handoff.delivering, let photo = handoff.photo else { return }
+  static func deliverAttachment(id: String, to target: UIView, scrollDistance: CGFloat) {
+    guard let window = target.window, let handoff = active[id], !handoff.delivering,
+          let source = handoff.sourceSnapshot else { return }
     handoff.delivering = true
     handoff.target = target
     handoff.expiry?.cancel()
-    let destination = target.convert(target.bounds, to: window)
-    target.isHidden = true
-    let finish = {
-      target.isHidden = false
-      guard active[key] === handoff else { photo.removeFromSuperview(); return }
-      active.removeValue(forKey: key)
-      adopt(photo)
+    guard !UIAccessibility.isReduceMotionEnabled else { cancel(id: id); return }
+    // Render synchronously without committing a visible destination frame first.
+    let rendered = UIGraphicsImageRenderer(size: target.bounds.size).image { context in
+      target.layer.mask = nil
+      target.layoutIfNeeded()
+      target.layer.render(in: context.cgContext)
+      target.layer.mask = handoff.concealment
     }
-    if UIAccessibility.isReduceMotionEnabled { finish(); return }
-    UIView.animate(withDuration: 0.35, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState]) {
-      photo.frame = destination
-    } completion: { _ in finish() }
+    let destinationCopy = UIImageView(image: rendered)
+    let destination = target.convert(target.bounds, to: window).offsetBy(dx: 0, dy: -scrollDistance)
+    let start = source.frame
+    let host = UIView(frame: start)
+    host.isUserInteractionEnabled = false
+    host.accessibilityElementsHidden = true
+    host.clipsToBounds = true
+    host.layer.cornerRadius = 12
+    source.removeFromSuperview()
+    source.frame = host.bounds
+    source.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    destinationCopy.frame = host.bounds
+    destinationCopy.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    destinationCopy.alpha = 0
+    host.addSubview(source)
+    host.addSubview(destinationCopy)
+    window.addSubview(host)
+    handoff.sourceSnapshot = host
+    target.layer.mask = handoff.concealment
+    UIView.animate(withDuration: ChatThrowCurve.duration, delay: 0, options: [.curveEaseInOut]) {
+      host.frame = destination
+      source.alpha = 0
+      destinationCopy.alpha = 1
+    } completion: { _ in
+      guard active[id] === handoff else { return }
+      active.removeValue(forKey: id)
+      let landed = handoff.target ?? target
+      landed.layer.mask = nil
+      host.removeFromSuperview()
+      UIAccessibility.post(notification: .layoutChanged, argument: nil)
+      #if DEBUG
+      handoff.probe?.didLand(on: landed)
+      #endif
+    }
+    #if DEBUG
+    if ProcessInfo.processInfo.arguments.contains("--ui-verify-throw"),
+       ProcessInfo.processInfo.arguments.contains("--ui-verify") {
+      handoff.probe = ChatThrowProbe(content: host, target: target, source: start, destination: destination,
+        track: ChatThrowCurve.straightTrack(from: CGPoint(x: start.midX, y: start.midY), to: CGPoint(x: destination.midX, y: destination.midY)),
+        sourceBackground: .clear, destinationBackground: .clear, attachment: true)
+    }
+    #endif
   }
 
   static func cancel(id: String) {
-    for key in active.keys.filter({ $0.hasPrefix(id + ":image:") }) { cancel(id: key) }
+    for key in active.keys.filter({ $0.hasPrefix(id + ":attachment:") }) { cancel(id: key) }
     guard let handoff = active.removeValue(forKey: id) else { return }
     handoff.expiry?.cancel()
     #if DEBUG
     handoff.probe?.stop(cancelled: true)
     #endif
     handoff.target?.isHidden = false
-    handoff.photo?.layer.removeAllAnimations()
+    handoff.target?.layer.mask = nil
     handoff.content.layer.removeAllAnimations()
     handoff.content.removeFromSuperview()
     handoff.sourceSnapshot?.removeFromSuperview()
-    handoff.photo?.removeFromSuperview()
   }
 
   static func deliver(id: String, to target: ChatMessageContent, scrollDistance: CGFloat = 0) {
@@ -182,6 +248,8 @@ final class ChatSendHandoff {
     let sourceFrame = handoff.content.frame
     let destinationBackground = UIColor.lodyUserBubble.resolvedColor(with: target.traitCollection)
     handoff.content.label.setText(target.label.attributedTextValue)
+    handoff.content.expandable = target.expandable
+    handoff.content.expanded = target.expanded
     target.isHidden = true
     let finish = {
       handoff.sourceSnapshot?.removeFromSuperview()
@@ -191,6 +259,7 @@ final class ChatSendHandoff {
       // from UIWindow to a cell leaves one presentation frame in window coordinates.
       UIView.performWithoutAnimation {
         handoff.target?.isHidden = false
+        handoff.target?.layer.mask = nil
         handoff.content.removeFromSuperview()
       }
       #if DEBUG
@@ -244,7 +313,7 @@ final class ChatSendHandoff {
     size.timingFunction = CAMediaTimingFunction(controlPoints: 0.54195118, 0, 0.58, 1)
     content.layer.add(size, forKey: "throw.bounds")
     if let snapshot = handoff.sourceSnapshot {
-      for (layer, from, to) in [(snapshot.layer, Float(1), Float(0)), (content.label.layer, Float(0), Float(1))] {
+      for (layer, from, to) in [(snapshot.layer, Float(1), Float(0)), (content.label.layer, Float(0), Float(1)), (content.disclosure.layer, Float(0), Float(1))] {
         layer.opacity = to
         let fade = CABasicAnimation(keyPath: "opacity")
         fade.fromValue = from
@@ -277,15 +346,17 @@ private final class ChatThrowProbe: NSObject {
   private let track: ChatThrowCurve.PositionTrack
   private let source: CGRect
   private let destination: CGRect
+  private let attachment: Bool
   private let sourceBackground: UIColor
   private let destinationBackground: UIColor
   private var adoptedAt: Double?
   private var samples: [[String: Any]] = []
 
-  init(content: UIView, target: UIView, source: CGRect, destination: CGRect, track: ChatThrowCurve.PositionTrack, sourceBackground: UIColor, destinationBackground: UIColor) {
+  init(content: UIView, target: UIView, source: CGRect, destination: CGRect, track: ChatThrowCurve.PositionTrack, sourceBackground: UIColor, destinationBackground: UIColor, attachment: Bool = false) {
     self.content = content; self.target = target; self.window = content.window
     self.source = source; self.destination = destination; self.track = track; self.duration = track.duration
     self.sourceBackground = sourceBackground; self.destinationBackground = destinationBackground
+    self.attachment = attachment
     super.init()
     let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
     let fps = Float(content.window?.screen.maximumFramesPerSecond ?? 60)
@@ -311,6 +382,7 @@ private final class ChatThrowProbe: NSObject {
   }
 
   func didLand(on target: UIView) {
+    self.target = target
     content = target
     adoptedAt = CACurrentMediaTime() - started
     sample(event: "adopt", timestamp: CACurrentMediaTime(), budget: 0)
@@ -339,7 +411,10 @@ private final class ChatThrowProbe: NSObject {
       sample["textBounds"] = [Double(textLayer.bounds.width), Double(textLayer.bounds.height)]
       sample["textOpacity"] = label.isHidden ? 0 : Double(textLayer.opacity)
     }
-    if let target, target.window === window { sample["targetFrame"] = rect(frame(target, presentation: true)) }
+    if let target, target.window === window {
+      sample["targetFrame"] = rect(frame(target, presentation: true))
+      sample["targetHidden"] = target.isHidden || target.layer.mask != nil
+    }
     samples.append(sample)
   }
 
@@ -354,9 +429,10 @@ private final class ChatThrowProbe: NSObject {
       "sourceBackground": rgba(sourceBackground), "destinationBackground": rgba(destinationBackground),
       "cancelled": cancelled, "samples": samples,
     ]
+    let prefix = attachment ? "lody-attachment" : "lody-throw"
     if let data = try? JSONSerialization.data(withJSONObject: report, options: [.sortedKeys]) {
       try? data.write(to: FileManager.default.temporaryDirectory
-        .appendingPathComponent("lody-throw-\(UUID().uuidString).json"), options: .atomic)
+        .appendingPathComponent("\(prefix)-\(UUID().uuidString).json"), options: .atomic)
     }
   }
 }

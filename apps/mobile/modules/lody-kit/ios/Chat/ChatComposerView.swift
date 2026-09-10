@@ -931,21 +931,9 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   func setPendingSend(_ pending: ChatPendingSend) {
     guard pending.id != restoredSendID, pending.id != acknowledgedSendID else { return }
     if pending.failed == true {
-      if pendingSendID == pending.id {
-        restoreDraft(token: lastRestoreToken + 1)
-        restoredSendID = pending.id
-      } else if (input.text ?? "").isEmpty && attachments.isEmpty {
-        input.text = pending.text
-        attachments = pending.attachments.compactMap { item in
-          guard let url = URL(string: item.uri), url.isFileURL else { return nil }
-          return ChatAttachment(id: item.id, name: item.name, url: url, isImage: item.kind == "image")
-        }
-        restoredSendID = pending.id
-        updateComposer()
-      } else {
-        failedDraft = pending
-        updateComposer()
-      }
+      pendingDraft = nil
+      pendingSendID = nil
+      updateComposer()
       return
     }
     guard pendingSendID != pending.id else { return }
@@ -1046,8 +1034,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     hintLeading.constant = 21
     hintTop.constant = verticalInset
     let height = input.sizeThatFits(CGSize(width: max(1, input.bounds.width), height: .greatestFiniteMagnitude)).height
-    inputHeight.constant = min(140, max(expanded ? 68 : 48, height))
-    input.isScrollEnabled = height > 140
+    inputHeight.constant = min(ChatMessageContent.maximumCollapsedHeight, max(expanded ? 68 : 48, height))
+    input.isScrollEnabled = height > ChatMessageContent.maximumCollapsedHeight
     updateComposerOptions()
     onHeightChange?(queueHeight.constant + noticeHeight.constant + attachmentHeight.constant + inputHeight.constant + accessoryHeight.constant + 16)
     setNeedsLayout()
@@ -1125,10 +1113,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     sendFeedback.impactOccurred(intensity: 0.85)
     let queued = queuesSubmission
     let id = UUID().uuidString.lowercased()
-    let body = ([input.text ?? ""] + attachments.filter { !$0.isImage }.map(\.name)).filter { !$0.isEmpty }.joined(separator: "\n")
+    let body = input.text ?? ""
     if !queued {
       if !body.isEmpty { ChatSendHandoff.begin(id: id, text: body, source: input, background: inputSurface) }
-      ChatSendHandoff.beginImages(id: id, attachments: attachments, source: attachmentBar)
+      ChatSendHandoff.beginAttachments(id: id, attachments: attachments, source: attachmentBar)
     }
     takeDraft()
     saveDraft()

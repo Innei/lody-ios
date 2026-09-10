@@ -43,7 +43,7 @@ function View() {
   return (
     <Screen>
       <Text style={{ color: colors.text }}>
-        离线 WebView 与系统后台任务验收
+        离线 WebView 与无卡片短时后台执行验收
       </Text>
       <Text testID="background-status" style={{ color: colors.text }}>
         {JSON.stringify({

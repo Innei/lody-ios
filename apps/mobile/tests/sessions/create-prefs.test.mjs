@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { effortsFor } from '../../src/cloud/send/capability.ts';
 import test from 'node:test';
 import {
   CHAT_PREFS_KEY,
@@ -193,4 +194,90 @@ test('full access defaults only use modes the assistant actually offers', () => 
     },
   };
   assert.equal(restoreSelection(legacy, 'p1', options).choice.modeId, 'plan');
+});
+
+test('independent permission, boolean and custom choices survive serialization and stay scoped to the agent and model', () => {
+  const select = (id, values, category = id) => ({
+    id,
+    name: id,
+    type: 'select',
+    category,
+    options: values.map((id) => ({ id, name: id })),
+  });
+  const capability = {
+    ...options.capabilities[0],
+    reasoningEfforts: {},
+    configOptions: [
+      select('permission_mode', ['ask', 'always-approve'], '_permission'),
+      { id: 'fast', type: 'boolean', options: [] },
+      select('agent_preset', ['standard', 'coder']),
+      select('effort', ['low', 'high'], 'thought_level'),
+    ],
+  };
+  const values = {
+    permission_mode: 'always-approve',
+    fast: false,
+    agent_preset: 'coder',
+  };
+  let prefs = withSelection(null, 'p1', {
+    agentKey: 'grok',
+    modelId: 'a',
+    effort: 'high',
+    configOptionValues: values,
+  });
+  prefs = withSelection(prefs, 'p2', {
+    agentKey: 'grok',
+    modelId: 'b',
+    configOptionValues: { permission_mode: 'ask' },
+  });
+  prefs = JSON.parse(JSON.stringify(prefs));
+  assert.deepEqual(
+    rememberedModelChoice(prefs, 'grok', capability, 'a').configOptionValues,
+    values,
+  );
+  assert.equal(
+    rememberedModelChoice(prefs, 'grok', capability, 'a').effort,
+    'high',
+  );
+  assert.deepEqual(
+    effortsFor(capability, 'a'),
+    ['low', 'high'],
+    'config-only effort reaches both native hosts',
+  );
+  assert.equal(
+    rememberedModelChoice(prefs, 'other-agent', capability, 'a')
+      .configOptionValues,
+    undefined,
+  );
+  assert.equal(
+    rememberedModelChoice(prefs, 'grok', capability, 'c').configOptionValues,
+    undefined,
+  );
+  const changed = {
+    ...capability,
+    configOptions: [
+      select('permission_mode', ['ask']),
+      select('fast', ['on', 'off']),
+    ],
+  };
+  assert.equal(
+    rememberedModelChoice(prefs, 'grok', changed, 'a').configOptionValues,
+    undefined,
+    'removed values and changed option types are discarded',
+  );
+  prefs = withSelection(prefs, 'p1', {
+    agentKey: 'grok',
+    modelId: 'a',
+    configOptionValues: {},
+  });
+  assert.equal(
+    rememberedModelChoice(
+      JSON.parse(JSON.stringify(prefs)),
+      'grok',
+      capability,
+      'a',
+    ).configOptionValues,
+    undefined,
+    'Use default clears the remembered override',
+  );
 });

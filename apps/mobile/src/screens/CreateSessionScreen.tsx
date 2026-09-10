@@ -13,7 +13,7 @@ import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import type { Project, Session } from '@/models/catalog';
 import type { CreationOptions } from '@/models/send';
-import { capabilityFor } from '@/cloud/send/capability';
+import { capabilityFor, effortsFor } from '@/cloud/send/capability';
 import { usePalette } from '@/lib/theme/palette';
 import { type as typeScale } from '@/lib/theme/tokens';
 import { ComposerSheet } from '@/ui/ComposerSheet';
@@ -538,10 +538,10 @@ function View() {
             id: item.id,
             title: item.name,
           })),
-          efforts: (choice.modelId
-            ? (capability?.reasoningEfforts[choice.modelId] ?? [])
-            : []
-          ).map((id) => ({ id, title: id })),
+          efforts: effortsFor(capability, choice.modelId).map((id) => ({
+            id,
+            title: id,
+          })),
         })}
         restoreDraftToken={restoreDraftToken}
         onSend={({ nativeEvent }) =>

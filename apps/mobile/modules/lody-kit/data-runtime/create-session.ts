@@ -4,9 +4,14 @@ import type { Session } from '../../../src/models/catalog.ts';
 import type {
   Capability,
   CapabilityChoice,
+  ConfigOption,
   CreationOptions,
 } from '../../../src/models/send.ts';
 import { projectRows } from '../../../src/cloud/catalog/model.ts';
+import {
+  isThoughtLevel,
+  validConfigValue,
+} from '../../../src/cloud/send/capability';
 import { encodeFrame } from '../decoder/frames';
 import { clientFor } from './session';
 
@@ -51,7 +56,7 @@ export function creationOptions(
   const capabilities = new Map<string, Capability & { fetchedAt: number }>();
   const choices = (
     value: unknown,
-    idKey: 'id' | 'modelId',
+    idKey: 'id' | 'modelId' | 'value',
   ): CapabilityChoice[] =>
     Array.isArray(value)
       ? value.flatMap((item) => {
@@ -92,21 +97,53 @@ export function creationOptions(
         const fetchedAt = Number(value.fetchedAt) || 0;
         if ((capabilities.get(key)?.fetchedAt ?? -1) >= fetchedAt) continue;
         const efforts = value.modelReasoningEfforts;
-        const effortOption = (
+        const configOptions: ConfigOption[] = (
           Array.isArray(value.configOptions) ? value.configOptions : []
-        ).find((item) => {
+        ).flatMap((item) => {
+          if (!item || typeof item !== 'object') return [];
           const option = item as Record<string, unknown>;
-          return (
-            option.id === 'reasoning_effort' ||
-            option.category === 'thought_level'
-          );
-        }) as Record<string, unknown> | undefined;
+          if (
+            typeof option.id !== 'string' ||
+            !option.id ||
+            /(?:api[_-]?key|auth|bearer|credential|password|passwd|secret|token)/i.test(
+              option.id,
+            ) ||
+            typeof option.name !== 'string' ||
+            !['select', 'boolean'].includes(String(option.type))
+          )
+            return [];
+          const projected: ConfigOption = {
+            id: option.id,
+            name: option.name,
+            type: option.type as ConfigOption['type'],
+            options: choices(option.options, 'value'),
+            ...(typeof option.category === 'string'
+              ? { category: option.category }
+              : {}),
+            ...(typeof option.description === 'string'
+              ? { description: option.description }
+              : {}),
+          };
+          if (projected.type === 'select' && !projected.options.length)
+            return [];
+          if (validConfigValue(projected, option.currentValue))
+            projected.currentValue = option.currentValue as string | boolean;
+          return [projected];
+        });
+        const effortOption = configOptions.find(isThoughtLevel);
+        const modelOption = configOptions.find(
+          (option) => option.category === 'model' && option.type === 'select',
+        );
+        const modeOption = configOptions.find(
+          (option) => option.category === 'mode' && option.type === 'select',
+        );
         capabilities.set(key, {
           machineId,
           cliType,
           agentType,
-          models: choices(value.models, 'modelId'),
-          modes: choices(value.modes, 'id'),
+          models: modelOption?.options ?? choices(value.models, 'modelId'),
+          modes: modeOption?.options ?? choices(value.modes, 'id'),
+          configOptions,
           reasoningEfforts: Object.fromEntries(
             Object.entries(
               (efforts && typeof efforts === 'object' ? efforts : {}) as Record<

@@ -244,7 +244,7 @@ precondition(handoffInput.text.isEmpty && !handoffSend.isEnabled, "A transferred
 var rejected = transferred
 rejected.failed = true
 handoffComposer.setPendingSend(rejected)
-precondition(handoffInput.text == "移交的草稿", "Failure restores a draft across native hosts")
+precondition(handoffInput.text.isEmpty, "Failed sends stay in the transcript rather than jumping back into the composer")
 handoffInput.text = "用户继续修改"
 handoffComposer.setPendingSend(rejected)
 precondition(handoffInput.text == "用户继续修改", "Repeated failed props must not replace user edits")
@@ -263,7 +263,7 @@ let afterNativeSend = Date().timeIntervalSince1970 * 1000
 precondition(UUID(uuidString: generatedID) != nil, "The native click must generate a dispatch identity before emitting send")
 precondition((beforeNativeSend...afterNativeSend).contains(generatedStartedAt),
   "The native send event must carry the timer's durable submission clock")
-print("Composer handoff: destination ownership, failed restore, no-overwrite and send identity passed")
+print("Composer handoff: destination ownership, failed retention, no-overwrite and send identity passed")
 
 handoffComposer.clearDraft(token: 1)
 handoffInput.text = "下一条草稿"
@@ -287,13 +287,8 @@ precondition(typingInput.isEditable && !typingSend.isEnabled, "Pending sends mus
 typingInput.text = "下一条新草稿"
 typingComposer.textViewDidChange(typingInput)
 typingComposer.setPendingSend(rejected)
-precondition(typingInput.text == "下一条新草稿" && !typingSend.isEnabled, "Failed sending must preserve the next draft and require merging before another send")
-let merge = descendants(typingComposer).compactMap { $0 as? UIButton }.first { $0.title(for: .normal)?.contains("native.chat.composer.failedDraft") == true }!
-for action in merge.actions(forTarget: typingComposer, forControlEvent: .touchUpInside) ?? [] {
-  typingComposer.perform(NSSelectorFromString(action))
-}
-precondition(typingInput.text == "下一条新草稿\n\n移交的草稿" && typingSend.isEnabled, "Explicit merging must retain both drafts and unlock sending")
-print("Composer continuity: editable pending input and lossless failed-draft merge passed")
+precondition(typingInput.text == "下一条新草稿", "Failure must preserve the next draft while the transcript owns retry")
+print("Composer continuity: editable pending input and no failed-draft jump passed")
 for action in typingSend.actions(forTarget: typingComposer, forControlEvent: .touchUpInside) ?? [] {
   typingComposer.perform(NSSelectorFromString(action))
 }

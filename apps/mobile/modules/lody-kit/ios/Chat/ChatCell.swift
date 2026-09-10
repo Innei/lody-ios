@@ -72,12 +72,18 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   let separator = UIView()
   var row: ChatRow?
   var onInteraction: (() -> Void)?
+  var onToggle: (() -> Void)?
+  var onActivate: (() -> Void)?
+  var expanded = false
+  var collapsedHeight: CGFloat = ChatMessageContent.maximumCollapsedHeight
+  var expandable = false
   override init(frame: CGRect) {
     super.init(frame: frame)
     bubble.backgroundColor = .lodyUserBubble
     bubble.layer.cornerRadius = 19
     bubble.layer.cornerCurve = .continuous
     contentView.addSubview(messageContent)
+    messageContent.disclosure.addAction(UIAction { [weak self] _ in self?.onToggle?() }, for: .touchUpInside)
     contentView.addSubview(icon)
     contentView.addSubview(spinner)
     contentView.addSubview(separator)
@@ -108,6 +114,13 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     label.setShine(row.shines)
     setNeedsLayout()
   }
+  override func accessibilityActivate() -> Bool {
+    if expandable { onToggle?(); return true }
+    guard row?.actionable == true else { return super.accessibilityActivate() }
+    onActivate?()
+    return true
+  }
+
   override func prepareForReuse() {
     super.prepareForReuse()
     label.setShine(false)
@@ -195,9 +208,31 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     let width = contentView.bounds.width
     if row.kind == "user" {
       let size = label.sizeThatFits(CGSize(width: width * 0.84 - 26, height: .greatestFiniteMagnitude))
-      messageContent.frame = CGRect(x: width - size.width - 26, y: 12, width: size.width + 26, height: size.height + 20)
+      expandable = size.height + 20 > ChatMessageContent.maximumCollapsedHeight
+      messageContent.expandable = expandable
+      messageContent.expanded = expanded
+      isAccessibilityElement = true
+      label.isAccessibilityElement = false
+      label.accessibilityLabel = row.text
+      messageContent.disclosure.accessibilityIdentifier = row.id + ":collapse"
+      messageContent.disclosure.isUserInteractionEnabled = expanded
+      messageContent.disclosure.isAccessibilityElement = false
+      accessibilityTraits = expandable ? .button : .staticText
+      let disclosureKey = expanded ? "native.chat.message.collapse" : "native.chat.message.expand"
+      accessibilityValue = expandable ? LodyStrings.text(disclosureKey) : nil
+      let height = ChatMessageContent.height(textHeight: size.height, limit: collapsedHeight, expanded: expanded)
+      let bubbleWidth = expandable ? width * 0.84 : size.width + 26
+      messageContent.frame = CGRect(x: width - bubbleWidth, y: 12, width: bubbleWidth, height: height)
+      messageContent.setNeedsLayout()
       messageContent.layoutIfNeeded()
     } else {
+      isAccessibilityElement = true
+      label.isAccessibilityElement = false
+      expandable = false
+      messageContent.expandable = false
+      messageContent.disclosure.isHidden = true
+      label.layer.mask = nil
+      accessibilityValue = nil
       messageContent.frame = contentView.bounds
       messageContent.layoutIfNeeded()
       let inset = Self.leading(row)

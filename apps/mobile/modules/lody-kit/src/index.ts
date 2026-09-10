@@ -48,6 +48,7 @@ export {
   createSession,
   archiveSession,
   pinSession,
+  markSessionRead,
   localProjects,
 } from './runtime/LodyKit';
 

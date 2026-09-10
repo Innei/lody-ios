@@ -114,4 +114,48 @@ assert seen == list(ORDER), seen
 assert seen.index(('row', 'inbox-unread')) < seen.index(('header', catalog.text('inbox.section.today')))
 assert seen.index(('row', 'inbox-awaiting')) < seen.index(('header', catalog.text('inbox.section.live')))
 ui.capture('groups')
+
+unread = None
+for _ in range(8):
+    unread = next((item for item in ui.state() if item.get('AXUniqueId') == 'inbox-unread'), None)
+    if unread:
+        break
+    ui.axe(
+        'swipe',
+        '--start-x',
+        '200',
+        '--start-y',
+        '240',
+        '--end-x',
+        '200',
+        '--end-y',
+        '700',
+        '--duration',
+        '.4',
+        '--post-delay',
+        '.3',
+    )
+assert unread, 'Missing unread completed row'
+frame = unread['frame']
+y = frame['y'] + frame['height'] / 2
+ui.axe(
+    'swipe',
+    '--start-x',
+    str(frame['x'] + frame['width'] - 12),
+    '--start-y',
+    str(y),
+    '--end-x',
+    str(frame['x'] + frame['width'] / 2),
+    '--end-y',
+    str(y),
+    '--duration',
+    '.6',
+    '--post-delay',
+    '.5',
+)
+read_label = catalog.text('session.action.read')
+archive_label = catalog.text('session.action.archive')
+ui.wait(lambda items: any(i.get('AXLabel') == read_label for i in items), 'Missing swipe 已读')
+assert any(i.get('AXLabel') == archive_label for i in ui.state()), 'Unread swipe must keep archive beside 已读'
+ui.capture('unread-read-action')
 print('Inbox confirmation, unread-completed and dated history groups passed')

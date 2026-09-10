@@ -12,6 +12,7 @@ import { sessionState } from './status';
 import { t } from '../../lib/i18n/index.ts';
 
 export function pendingSendStatus(send: PendingSend, live: boolean) {
+  if (send.phase === 'failed') return t('native.chat.message.retry');
   if (send.phase === 'queued') return t('native.chat.row.queued');
   if (send.phase === 'unknown') return t('send.status.unknown');
   if (send.phase === 'creating') return t('send.status.creating');
@@ -155,6 +156,7 @@ export function useSessionSend({
               modeId: send.choice.modeId,
               reasoningEffort: send.choice.effort,
               reasoningEffortConfigId: send.choice.reasoningEffortConfigId,
+              configOptionValues: send.choice.configOptionValues,
             }),
           ),
         );
@@ -214,10 +216,16 @@ export function useSessionSend({
       setRestoreDraftToken((token) => token + 1);
       return;
     }
+    // A failed first turn has no remote history to inherit these choices from.
+    const choice = {
+      ...next.choice,
+      configOptionValues:
+        next.choice.configOptionValues ?? send?.choice.configOptionValues,
+    };
     void outbox
       .put({
         session,
-        send: { ...next, creation: send?.creation, phase: 'waiting' },
+        send: { ...next, choice, creation: send?.creation, phase: 'waiting' },
       })
       .catch(() => {
         void outbox
@@ -225,6 +233,7 @@ export function useSessionSend({
             session,
             send: {
               ...next,
+              choice,
               creation: send?.creation,
               phase: 'failed',
               reason: t('send.error.draftSaveShort'),
@@ -236,6 +245,15 @@ export function useSessionSend({
 
   return {
     submit,
+    retry: () => {
+      if (!record || record.send.phase !== 'failed' || working.current) return;
+      void outbox
+        .put({
+          ...record,
+          send: { ...record.send, phase: 'waiting', reason: undefined },
+        })
+        .catch(() => {});
+    },
     clearDraftToken,
     restoreDraftToken,
     sending: hasPending,
@@ -245,6 +263,7 @@ export function useSessionSend({
       outbox.ready &&
       !dispatching &&
       !hasPending &&
+      send?.phase !== 'failed' &&
       !overflow &&
       !session.archived &&
       !!userId,

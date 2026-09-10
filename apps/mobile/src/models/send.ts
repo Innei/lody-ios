@@ -7,6 +7,16 @@ export type CapabilityChoice = {
   description?: string;
 };
 
+export type ConfigOption = {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  type: 'select' | 'boolean';
+  currentValue?: string | boolean;
+  options: CapabilityChoice[];
+};
+
 export type Capability = {
   machineId: string;
   cliType: string;
@@ -15,6 +25,7 @@ export type Capability = {
   modes: CapabilityChoice[];
   reasoningEfforts: Record<string, string[]>;
   reasoningEffortConfigId?: string;
+  configOptions?: ConfigOption[];
   steer: boolean;
 };
 
@@ -54,6 +65,7 @@ export type PendingSend = {
     effort?: string | null;
     modeId?: string;
     reasoningEffortConfigId?: string;
+    configOptionValues?: Record<string, string | boolean>;
   };
 };
 export type PendingSession = { session: Session; send: PendingSend };
@@ -62,6 +74,7 @@ export type ModelChoice = {
   modelId?: string;
   effort?: string;
   modeId?: string;
+  configOptionValues?: Record<string, string | boolean>;
 };
 
 export type ProjectPrefs = ModelChoice & {

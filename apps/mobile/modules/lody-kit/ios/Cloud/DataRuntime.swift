@@ -76,10 +76,8 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     if backgroundProbe {
       value["probeBackgroundUpdates"] = probeBackgroundUpdates
       value["probeUpdates"] = probeUpdates
-      if #available(iOS 26.0, *) {
-        value["backgroundTaskState"] = ContinuedSessionTasks.shared.debugState
-        value["backgroundTaskCount"] = ContinuedSessionTasks.shared.debugCount
-      }
+      value["backgroundTaskState"] = SessionBackgroundTasks.shared.debugState
+      value["backgroundTaskCount"] = SessionBackgroundTasks.shared.debugCount
     }
     #endif
     return value
@@ -124,7 +122,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     } catch { disposeView(); publish("failed", reason: "missing_resource") }
   }
   private func disposeView() {
-    if #available(iOS 26.0, *) { ContinuedSessionTasks.shared.finishAll(owner: owner) }
+    SessionBackgroundTasks.shared.finishAll(owner: owner)
     attachmentTask?.cancel(); attachmentTask = nil
     for promise in commands.values { fail(promise, "runtime_replaced", LodyStrings.text("native.runtime.replaced")) }; commands.removeAll()
     timer?.invalidate(); timer = nil
@@ -181,8 +179,8 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     case "sessionSubscriptions":
       if let ids = body["ids"] as? [String] { retainedSessions = ids }
     case "session", "sessionCache":
-      if #available(iOS 26.0, *), let work = body["backgroundWork"] as? [String: Any] {
-        ContinuedSessionTasks.shared.update(work, owner: owner)
+      if let work = body["backgroundWork"] as? [String: Any] {
+        SessionBackgroundTasks.shared.update(work, owner: owner)
       }
       guard let id = body["sessionId"] as? String,
             let session = body["session"] as? String else { return }
@@ -243,8 +241,8 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     guard health.ready, let workspace, let sessionId, args["sessionId"] as? String == sessionId, attachmentTask == nil else {
       promise.resolve(notSentJSON("native.runtime.sessionNotReady")); return
     }
-    if #available(iOS 26.0, *), !backgrounded {
-      args["backgroundTaskId"] = ContinuedSessionTasks.shared.begin(owner: owner)
+    if !backgrounded {
+      args["backgroundTaskId"] = SessionBackgroundTasks.shared.begin(owner: owner)
     }
     let backgroundTaskId = args["backgroundTaskId"] as? String
     let generation = self.generation
@@ -255,7 +253,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         let prepared = String(data: try JSONSerialization.data(withJSONObject: args), encoding: .utf8)!
         await MainActor.run { [weak self] in
           guard let self, self.generation == generation, self.sessionId == sessionId, !Task.isCancelled else {
-            if #available(iOS 26.0, *), let backgroundTaskId { ContinuedSessionTasks.shared.finish(backgroundTaskId, success: false) }
+            if let backgroundTaskId { SessionBackgroundTasks.shared.finish(backgroundTaskId, success: false) }
             promise.resolve(notSentJSON("native.runtime.connectionSwitched")); return
           }
           self.attachmentTask = nil
@@ -265,7 +263,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         let result = (try? JSONSerialization.data(withJSONObject: ["state": "not_sent", "reason": error.localizedDescription])) ?? Data()
         await MainActor.run { [weak self] in
           if let self, self.generation == generation, self.sessionId == sessionId, !Task.isCancelled { self.attachmentTask = nil }
-          if #available(iOS 26.0, *), let backgroundTaskId { ContinuedSessionTasks.shared.finish(backgroundTaskId, success: false) }
+          if let backgroundTaskId { SessionBackgroundTasks.shared.finish(backgroundTaskId, success: false) }
           promise.resolve(String(data: result, encoding: .utf8)!)
         }
       }
@@ -347,13 +345,13 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     }
     if method == "remoteSettings" { args["userId"] = userId }
     let id = UUID(); commands[id] = promise
-    if method == "sendTurn", args["backgroundTaskId"] == nil, #available(iOS 26.0, *), !backgrounded {
-      args["backgroundTaskId"] = ContinuedSessionTasks.shared.begin(owner: owner)
+    if method == "sendTurn", args["backgroundTaskId"] == nil, !backgrounded {
+      args["backgroundTaskId"] = SessionBackgroundTasks.shared.begin(owner: owner)
     }
     let backgroundTaskId = args["backgroundTaskId"] as? String
     DispatchQueue.main.asyncAfter(deadline: .now() + 45) { [weak self] in
       guard let self, let pending = self.commands.removeValue(forKey: id) else { return }
-      if #available(iOS 26.0, *), let backgroundTaskId { ContinuedSessionTasks.shared.finish(backgroundTaskId, success: false) }
+      if let backgroundTaskId { SessionBackgroundTasks.shared.finish(backgroundTaskId, success: false) }
       self.fail(pending, "send_timeout", LodyStrings.text("native.runtime.sendTimeout"))
     }
     // A JS throw reaches Swift as a WKError with no usable message, so the
@@ -374,12 +372,12 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     """
     view.callAsyncJavaScript(script, arguments: ["args": args, "method": method], in: nil, in: .page) { [weak self, weak view] result in
       guard let self, let view, self.webView === view, let pending = self.commands.removeValue(forKey: id) else { return }
-      if #available(iOS 26.0, *), let backgroundTaskId {
+      if let backgroundTaskId {
         let value = try? result.get() as? String
         let data = value?.data(using: .utf8)
         let reply = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
         if reply?["state"] as? String != "accepted" {
-          ContinuedSessionTasks.shared.finish(backgroundTaskId, success: reply?["state"] as? String == "queued")
+          SessionBackgroundTasks.shared.finish(backgroundTaskId, success: reply?["state"] as? String == "queued")
         }
       }
       switch result {
@@ -465,13 +463,13 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       return
     case "complete": webView?.evaluateJavaScript("globalThis.dataRuntime.complete()", completionHandler: nil)
     case "expire":
-      if #available(iOS 26.0, *) { ContinuedSessionTasks.shared.debugExpire() }
+      SessionBackgroundTasks.shared.debugExpire()
     case "stop": stop(); backgroundProbe = false
     default: break
     }
     promise.resolve("{}")
   }
-  // Synthetic server boundary, exercising the production WebView owner and scheduler.
+  // Synthetic server boundary, exercising the production WebView owner and background allowance.
   private static let backgroundProbeHTML = #"""
   <script>
   const post = value => webkit.messageHandlers.dataRuntime.postMessage(value);

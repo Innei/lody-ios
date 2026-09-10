@@ -3,6 +3,7 @@ import UIKit
 /// A separate row keeps image geometry out of text measurement and message bubbles.
 final class ChatImageCell: UICollectionViewCell {
   private var photo = UIImageView()
+  var compact = false
   private let spinner = UIActivityIndicatorView(style: .medium)
   private let failure = UILabel()
   private var image: ChatImage?
@@ -51,7 +52,6 @@ final class ChatImageCell: UICollectionViewCell {
     accessibilityLabel = LodyStrings.text("native.chat.image.label", ["name": image.fileName])
     setNeedsLayout()
     if let uri = row.localImageURI, let url = URL(string: uri), url.isFileURL {
-      ChatSendHandoff.hold(id: row.entryID + ":image:" + image.id, target: photo)
       if requestURL == url, photo.image != nil { return }
       task?.cancel(); task = nil; requestURL = url; requestID = UUID()
       photo.image = ChatAttachment.thumbnail(url)
@@ -130,28 +130,12 @@ final class ChatImageCell: UICollectionViewCell {
     }
     controller.present(preview, animated: true)
   }
-  func deliverPendingImage() {
-    guard let id = handoffEntryID, let image else { return }
-    ChatSendHandoff.deliverImage(id: id, attachmentID: image.id, to: photo) { [weak self] content in
-      guard let self, self.handoffEntryID == id else { content.removeFromSuperview(); return }
-      let frame = self.photo.frame
-      self.photo.removeFromSuperview()
-      self.photo = content
-      self.contentView.insertSubview(content, at: 0)
-      content.frame = frame
-      content.accessibilityElementsHidden = false
-      content.addSubview(self.spinner)
-      content.addSubview(self.failure)
-      self.setNeedsLayout()
-    }
-  }
-
   override func layoutSubviews() {
     super.layoutSubviews()
     guard let image else { return }
     photo.layer.borderColor = UIColor.separator.resolvedColor(with: traitCollection).cgColor
-    let size = Self.size(image, width: contentView.bounds.width)
-    photo.frame = CGRect(x: contentView.bounds.width - size.width, y: 6, width: size.width, height: size.height)
+    let size = compact ? contentView.bounds.size : Self.size(image, width: contentView.bounds.width)
+    photo.frame = CGRect(x: contentView.bounds.width - size.width, y: compact ? 0 : 6, width: size.width, height: size.height)
     spinner.center = CGPoint(x: size.width / 2, y: size.height / 2)
     failure.frame = photo.bounds.insetBy(dx: 4, dy: 4)
   }

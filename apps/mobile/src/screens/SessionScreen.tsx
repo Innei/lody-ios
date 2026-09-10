@@ -19,11 +19,16 @@ import { definePage, present } from '@/lib/presentation';
 import { requestNewSession } from '@/features/sessions/sessionNav';
 import { isChatSession } from '@/features/sessions/inbox';
 import { sessionTitleDetails } from '@/features/sessions/sessionTitle';
-import { setArchived, setPinned } from '@/features/sessions/sessionActions';
+import {
+  setArchived,
+  setPinned,
+  setRead,
+} from '@/features/sessions/sessionActions';
 import { sessionDebugText } from '@/features/sessions/sessionDebug';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import type { Session } from '@/models/catalog';
 import type { Capability, CreationOptions } from '@/models/send';
+import { effortsFor } from '@/cloud/send/capability';
 
 import { useSessionRuntime } from '@/features/sessions/useSessionRuntime';
 import { ItemDetailScreen } from '@/screens/ItemDetailScreen';
@@ -85,23 +90,29 @@ function View() {
   const { account } = useAuth(),
     colors = usePalette();
   const { catalog, selected, serverSessions, refresh } = useCatalog();
+  const currentSession =
+    catalog.sessions.find((s) => s.id === session.id) ?? session;
   useFocusEffect(
     useCallback(() => {
       void setPushVisibleRoute(
         selected?.slug ? `/${selected.slug}/sessions/${session.id}` : '',
       );
+      if (selected) void setRead(selected.id, currentSession);
       return () => {
         void setPushVisibleRoute('');
       };
-    }, [selected?.slug, session.id]),
+    }, [
+      selected?.id,
+      selected?.slug,
+      session.id,
+      currentSession.lastMessageAt,
+    ]),
   );
   const connection = useConnection();
   const outbox = usePendingSends(account?.user.id ?? '', selected?.id ?? '');
   const pending = outbox.records.find(
     (record) => record.session.id === session.id,
   );
-  const currentSession =
-    catalog.sessions.find((s) => s.id === session.id) ?? session;
   const { project, projectName, machineName } = sessionTitleDetails(
     catalog,
     currentSession,
@@ -326,9 +337,7 @@ function View() {
       live: snapshot.status === 'live',
     }),
   });
-  const efforts = activeChoice.modelId
-    ? (capability?.reasoningEfforts[activeChoice.modelId] ?? [])
-    : [];
+  const efforts = effortsFor(capability, activeChoice.modelId);
   const composerOptionsJSON = JSON.stringify({
     modelId: activeChoice.modelId ?? '',
     effort: activeChoice.effort ?? '',
@@ -504,6 +513,7 @@ function View() {
         onTurnChangesPress={({ nativeEvent }) =>
           onTurnChangesPress(nativeEvent.entryId, nativeEvent.path)
         }
+        onRetrySend={send.retry}
         onReconnect={pending?.send.creation ? refresh : reconnect}
         onComposerOptionChange={({ nativeEvent }) => {
           choiceHydrated.current = true;

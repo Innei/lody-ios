@@ -15,8 +15,9 @@ const config: ExpoConfig = {
     supportsTablet: false,
     config: { usesNonExemptEncryption: false },
     infoPlist: {
-      BGTaskSchedulerPermittedIdentifiers: ['app.innei.lody.session-sync.*'],
-      UIBackgroundModes: ['processing'],
+      // Clear the old continued-processing declarations on incremental prebuilds.
+      BGTaskSchedulerPermittedIdentifiers: [],
+      UIBackgroundModes: [],
     },
   },
   plugins: [

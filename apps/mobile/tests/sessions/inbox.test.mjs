@@ -123,6 +123,55 @@ test('unread completed sits in 待查看 and is not also dated', () => {
   assert.equal(sections[1].rows[0].unread, false);
 });
 
+test('unread trailing swipe puts 已读 at the edge, ahead of archive', () => {
+  const [unread] = build(
+    catalog([session('fresh', 'completed', { lastMessageAt: now - 60_000 })]),
+  );
+  assert.deepEqual(
+    unread.rows[0].actions.map((action) => action.id),
+    ['read', 'archive'],
+  );
+  assert.equal(unread.rows[0].actions[0].title, '已读');
+  const [seen] = build(
+    catalog([
+      session('seen', 'completed', {
+        lastMessageAt: now - 60_000,
+        lastReadAt: now,
+      }),
+    ]),
+  );
+  assert.deepEqual(
+    seen.rows[0].actions.map((action) => action.id),
+    ['archive'],
+  );
+});
+
+test('reading a live session unbolds it but keeps 进行中', () => {
+  const unread = build(
+    catalog([session('live', 'running', { lastMessageAt: now - 60_000 })]),
+  );
+  assert.equal(unread[0].id, 'live');
+  assert.equal(unread[0].rows[0].unread, true);
+  assert.deepEqual(
+    unread[0].rows[0].actions.map((action) => action.id),
+    ['read', 'archive'],
+  );
+  const read = build(
+    catalog([
+      session('live', 'running', {
+        lastMessageAt: now - 60_000,
+        lastReadAt: now,
+      }),
+    ]),
+  );
+  assert.equal(read[0].id, 'live');
+  assert.equal(read[0].rows[0].unread, false);
+  assert.deepEqual(
+    read[0].rows[0].actions.map((action) => action.id),
+    ['archive'],
+  );
+});
+
 test('awaiting user beats unread completed', () => {
   const [group] = build(
     catalog([

@@ -146,9 +146,9 @@ extension LodyChatView {
     var queue = transcript.entries.filter(\.isQueued).map { entry in
       ChatQueuedDraft(
         id: entry.id,
-        text: entry.items.compactMap { $0.type == "image" ? nil : $0.text }.joined(separator: "\n"),
+        text: entry.items.compactMap { $0.type == "text" ? $0.text : nil }.joined(separator: "\n"),
         canSteer: entry.canSteer != false,
-        attachments: entry.items.compactMap { $0.type == "image" ? $0.image?.fileName : nil }
+        attachments: entry.items.compactMap { $0.image?.fileName ?? $0.file?.fileName }
       )
     }
     if let pendingSend, pendingSend.queue == true, pendingSend.failed != true,
@@ -169,7 +169,32 @@ extension LodyChatView {
       turnStartedAt: turnStartedAt
     )
     if processEntryID.isEmpty, let pendingSend { projected += pendingSend.rows(entries: transcript.entries) }
+    for index in projected.indices where projected[index].kind == "attachments" {
+      let entry = projected[index].entryID
+      if projected[index].attachments.contains(where: { $0.localURI != nil }) {
+        localAttachments[entry] = projected[index].attachments
+      } else if let local = localAttachments[entry], local.count == projected[index].attachments.count {
+        for item in projected[index].attachments.indices {
+          let remote = projected[index].attachments[item]
+          let convertedImage = local[item].image != nil && remote.image != nil
+            && (local[item].fileName as NSString).deletingPathExtension == (remote.fileName as NSString).deletingPathExtension
+          guard local[item].fileName == remote.fileName || convertedImage else { continue }
+          projected[index].attachments[item].localURI = local[item].localURI
+          projected[index].attachments[item].localID = local[item].id
+        }
+      }
+    }
+    localAttachments = localAttachments.filter { key, _ in projected.contains { $0.entryID == key } }
     updateWorkDurationTimer(rows: projected)
+    let entryIDsToRetain = Set(projected.map(\.entryID))
+    expandedMessages.formIntersection(entryIDsToRetain)
+    expandedAttachments.formIntersection(entryIDsToRetain)
+    collapsedMessageHeights = collapsedMessageHeights.filter { entryIDsToRetain.contains($0.key) }
+    for row in projected where row.kind == "user" && collapsedMessageHeights[row.entryID] == nil {
+      if let height = ChatSendHandoff.sourceHeight(id: row.entryID) {
+        collapsedMessageHeights[row.entryID] = min(ChatMessageContent.maximumCollapsedHeight, max(68, height))
+      }
+    }
     let retainedIDs = Set(projected.map(\.id))
     projected = prepareHistory(projected)
     let liveEntryID = transcript.entries.last { $0.isRunning && (processEntryID.isEmpty || $0.id == processEntryID) }?.id
@@ -223,6 +248,9 @@ extension LodyChatView {
     snapshot.reconfigureItems(projected.filter { previous[$0.id] != nil && previous[$0.id] != $0 }.map(\.id))
     empty.isHidden = !projected.isEmpty
     let updateLayout = { [self] in
+      // Queue/attachment removal changes the composer's intrinsic height and
+      // therefore the scroll inset used to calculate the flight destination.
+      self.layoutIfNeeded()
       self.collection.collectionViewLayout.invalidateLayout()
       self.collection.layoutIfNeeded()
       self.updateBottomInset()
@@ -242,6 +270,7 @@ extension LodyChatView {
       self.streamPerformanceProbe?.commit(milliseconds: (CACurrentMediaTime() - commitStart) * 1000)
       #endif
       self.applying = false
+      self.deliverPendingContent()
       if let tail = projected.last(where: { $0.streaming }) {
         self.renderTailLength = self.store.tailLength(id: tail.id)
       }

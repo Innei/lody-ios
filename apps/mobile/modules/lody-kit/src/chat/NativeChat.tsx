@@ -55,6 +55,7 @@ export const NativeChat: ComponentType<
       event: NativeSyntheticEvent<{ entryId: string; path: string }>,
     ) => void;
     onReconnect: () => void;
+    onRetrySend?: () => void;
     onComposerOptionChange?: (
       event: NativeSyntheticEvent<{ modelId: string; effort: string }>,
     ) => void;

@@ -8,7 +8,7 @@ import {
   createSession,
   type CreateSessionArgs,
 } from './create-session';
-import { archiveSession, pinSession } from './archive-session';
+import { archiveSession, pinSession, markSessionRead } from './archive-session';
 import { remoteSettings } from './settings';
 import type { SettingsRequest } from '../../../src/models/settings.ts';
 import {
@@ -565,6 +565,21 @@ Object.assign(globalThis, {
         throw new Error('metadata_not_ready');
       const replica = metaReplica;
       await pinSession(args, replica);
+      if (metaReplica === replica) {
+        catalogs.set('meta', projectRows(replica.flock.scan(), 'meta'));
+        publish();
+      }
+      return {};
+    },
+    async markSessionRead(args: {
+      workspaceId: string;
+      sessionId: string;
+      lastReadAt: number;
+    }) {
+      if (args.workspaceId !== workspace || !metaReplica)
+        throw new Error('metadata_not_ready');
+      const replica = metaReplica;
+      await markSessionRead(args, replica);
       if (metaReplica === replica) {
         catalogs.set('meta', projectRows(replica.flock.scan(), 'meta'));
         publish();

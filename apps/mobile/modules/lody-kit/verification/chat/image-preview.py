@@ -44,7 +44,7 @@ CLOSE = catalog.text('native.chat.image.closePreview')
 source = next(item for item in items if (item.get('AXLabel') or '').startswith(IMAGE)
               and item['frame']['y'] > 100 and item['frame']['y'] + item['frame']['height'] < height - 110)
 source_id = source['AXUniqueId']
-assert source_id == 'preview-image:user', 'Use the offline image fixture'
+assert source_id == 'preview-image:attachment:ui-verify-image', 'Use the offline image fixture'
 name = source['AXLabel'].removeprefix(IMAGE)
 axe('tap', '--id', source_id, '--post-delay', '1')
 assert any(item.get('AXLabel') == CLOSE for item in elements()), 'Image must open the lightbox'

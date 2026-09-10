@@ -56,6 +56,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   let onFilePress = EventDispatcher()
   let onTurnChangesPress = EventDispatcher()
   let onReconnect = EventDispatcher()
+  let onRetrySend = EventDispatcher()
   let onTitlePress = EventDispatcher()
   let onComposerOptionChange = EventDispatcher()
   private let titleButton = UIButton(type: .system)
@@ -70,6 +71,10 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   let store = ChatMarkdownStore(traits: .current)
   let composer = ChatComposerView(frame: .zero)
   let bottomButton = UIButton(type: .system)
+  var localAttachments: [String: [ChatMessageAttachment]] = [:]
+  var expandedMessages = Set<String>()
+  var expandedAttachments = Set<String>()
+  var collapsedMessageHeights: [String: CGFloat] = [:]
   var imageWorkspace = ""
   var imageSession = ""
   let empty = UILabel()
@@ -225,6 +230,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
       self.updateBottomInset()
       if self.followsBottom { self.scrollToBottom() }
     }
+    collection.register(ChatMessageAttachmentsCell.self, forCellWithReuseIdentifier: "attachments")
     collection.register(ChatImageCell.self, forCellWithReuseIdentifier: "image")
     collection.register(ChatCell.self, forCellWithReuseIdentifier: "message")
     collection.register(ChatMetaCell.self, forCellWithReuseIdentifier: "meta")
@@ -241,6 +247,20 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
       }
       if row.kind == "changes" {
         return collection.dequeueConfiguredReusableCell(using: self.fileRegistration, for: index, item: row)
+      }
+      if row.kind == "attachments" {
+        let cell = collection.dequeueReusableCell(withReuseIdentifier: "attachments", for: index) as! ChatMessageAttachmentsCell
+        cell.configure(row, workspace: self.imageWorkspace, session: self.imageSession, expanded: self.expandedAttachments.contains(row.entryID))
+        cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
+        cell.onPreview = { [weak self] attachment, image in
+          guard let self, let controller = self.presenter() else { return }
+          self.pauseTracking()
+          if let image { image.presentPreview(from: controller); return }
+          if let uri = attachment.localURI, let url = URL(string: uri), url.isFileURL {
+            controller.present(ChatAttachmentPreview([ChatAttachment(id: attachment.id, name: attachment.fileName, url: url, isImage: false)], index: 0), animated: true)
+          }
+        }
+        return cell
       }
       if row.image != nil {
         let cell = collection.dequeueReusableCell(withReuseIdentifier: "image", for: index) as! ChatImageCell
@@ -263,6 +283,13 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
       }
       let cell = collection.dequeueReusableCell(withReuseIdentifier: "message", for: index) as! ChatCell
       cell.onInteraction = { [weak self] in self?.pauseTracking() }
+      cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
+      cell.onActivate = { [weak self] in
+        guard let self, let index = self.dataSource.indexPath(for: row.id) else { return }
+        self.collectionView(self.collection, didSelectItemAt: index)
+      }
+      cell.expanded = self.expandedMessages.contains(row.entryID)
+      cell.collapsedHeight = self.collapsedMessageHeights[row.entryID] ?? ChatMessageContent.maximumCollapsedHeight
       cell.configure(row, text: self.text(for: row))
       return cell
     }
@@ -523,13 +550,6 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     guard let value = try? JSONDecoder().decode(ChatPendingSend.self, from: Data(json.utf8)), !value.id.isEmpty else { return }
     publishedPendingID = value.id
     composer.setPendingSend(value)
-    if value.failed == true {
-      ChatSendHandoff.cancel(id: value.id)
-      if pendingSend?.id == value.id { pendingSend = nil }
-      turnStartedAt[value.id] = nil
-      applyRows()
-      return
-    }
     setPendingSend(value)
   }
 

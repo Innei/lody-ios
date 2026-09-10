@@ -18,7 +18,7 @@ def sent_as_file(items):
     for item in items:
         uid = item.get('AXUniqueId') or ''
         label = item.get('AXLabel') or ''
-        if (uid.endswith(':user') or uid.endswith(':user-text')) and name in label and not label.startswith(image):
+        if (':attachment:' in uid) and name in label and not label.startswith(image):
             return True
     return False
 

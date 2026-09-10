@@ -37,9 +37,9 @@ class RunnerTest(unittest.TestCase):
                     with self.assertRaises(StopBeforeMetro):
                         runpy.run_path(str(Path(__file__).with_name('run.py')), run_name='__main__')
                 if batch == 'pages':
-                    self.assertEqual(calls, ['home', 'licenses'])
+                    self.assertEqual(calls, ['home', 'licenses', 'navigation'])
                     results = json.loads((Path(output) / 'results.json').read_text())
-                    self.assertEqual([item['status'] for item in results], ['failed', 'passed'])
+                    self.assertEqual([item['status'] for item in results], ['failed', 'passed', 'passed'])
                 else:
                     self.assertEqual(calls, [])
 

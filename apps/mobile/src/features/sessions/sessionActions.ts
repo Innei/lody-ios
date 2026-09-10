@@ -1,4 +1,4 @@
-import { archiveSession, pinSession } from '@lody-ios/kit';
+import { archiveSession, pinSession, markSessionRead } from '@lody-ios/kit';
 import { showToast } from '../../ui/toast.ts';
 import type { Catalog, Session } from '../../models/catalog.ts';
 import { t } from '../../lib/i18n/index.ts';
@@ -45,6 +45,23 @@ export async function setPinned(
   }
 }
 
+export async function setRead(workspaceId: string, session: Session) {
+  if (
+    session.lastMessageAt === undefined ||
+    (session.lastReadAt !== undefined &&
+      session.lastReadAt >= session.lastMessageAt)
+  )
+    return;
+  const lastReadAt = Math.max(Date.now(), session.lastMessageAt);
+  try {
+    await markSessionRead(
+      JSON.stringify({ workspaceId, sessionId: session.id, lastReadAt }),
+    );
+  } catch {
+    showToast(t('session.toast.readFailed'));
+  }
+}
+
 export function sessionRowAction(
   workspaceId: string,
   catalog: Catalog,
@@ -56,6 +73,7 @@ export function sessionRowAction(
   if (actionId === 'archive')
     void setArchived(workspaceId, session, !session.archived);
   if (actionId === 'pin') void setPinned(workspaceId, session, !session.pinned);
+  if (actionId === 'read') void setRead(workspaceId, session);
 }
 
 export function listRowAction(

@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
+import { useAppNavigationState } from '@/lib/presentation/useAppNavigationState';
 import type { PropsWithChildren } from 'react';
 import { writeLocalValue } from '@lody-ios/kit';
 import { AuthContext } from '@/cloud/auth/AuthProvider';
@@ -16,6 +17,10 @@ const workspace = {
   name: '我的超长工作区名称不能折行',
   slug: null,
 };
+const workspaces = [
+  workspace,
+  { id: 'ui-other', name: '另一个工作区', slug: 'other' },
+];
 const catalog: Catalog = {
   projects: [
     {
@@ -99,6 +104,8 @@ const previewCache = JSON.stringify({
 });
 
 export function HomePreviewProviders({ children }: PropsWithChildren) {
+  const [selected, setSelected] =
+    useState<(typeof workspaces)[number]>(workspace);
   useEffect(() => {
     void writeLocalValue(
       `session:${JSON.stringify(['ui-home', 'ui-home', 'ui-design'])}`,
@@ -117,7 +124,7 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
             image:
               'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAL0lEQVR42u3OIQEAAAgDMNJQk6J0gRg3E/Or7bmkEhAQEBAQEBAQEBAQEBAQSAceRa0Al+0rSMYAAAAASUVORK5CYII=',
           },
-          workspaces: [workspace],
+          workspaces,
         },
         busy: false,
         localReady: true,
@@ -136,19 +143,39 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
         value={{
           catalog,
           serverSessions: catalog.sessions,
-          selected: workspace,
+          selected,
           loading: false,
           connected: true,
           syncedAt: undefined,
-          key: 'ui-home',
-          setWorkspaceId: noop,
+          key: selected.id,
+          setWorkspaceId: (id) =>
+            setSelected(workspaces.find((item) => item.id === id) ?? workspace),
           refresh: noop,
         }}
       >
         <View testID="ui-verify-ready" style={{ flex: 1 }}>
           {children}
+          <NavigationProbe />
         </View>
       </CatalogContext>
     </AuthContext>
+  );
+}
+
+function NavigationProbe() {
+  const navigation = useAppNavigationState();
+  return (
+    <View
+      accessible
+      testID="ui-navigation-state"
+      accessibilityLabel="Navigation state"
+      accessibilityValue={{
+        text: JSON.stringify(
+          navigation?.routes.map((route) => route.name) ?? [],
+        ),
+      }}
+      pointerEvents="none"
+      style={{ position: 'absolute', bottom: 0, width: 1, height: 1 }}
+    />
   );
 }

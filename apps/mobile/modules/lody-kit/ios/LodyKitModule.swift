@@ -218,6 +218,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("createSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("archiveSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("archiveSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("pinSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("pinSession", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("markSessionRead") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("markSessionRead", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("controlSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("controlTurn", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("sendSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("sessionItemDetail") { (payload: String, promise: Promise) in
@@ -380,7 +381,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         view.performanceProbe = ChatPerformanceProbe(view)
       }
       #endif
-      Events("onStop", "onSteer", "onSend", "onActivityPress", "onFilePress", "onTurnChangesPress", "onReconnect", "onTitlePress", "onComposerOptionChange")
+      Events("onStop", "onSteer", "onSend", "onActivityPress", "onFilePress", "onTurnChangesPress", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange")
       Prop("navigationTitle") { (view: LodyChatView, value: String) in view.setNavigationTitle(value) }
       Prop("navigationSubtitle") { (view: LodyChatView, value: String) in view.setNavigationSubtitle(value) }
       Prop("navigationMachine") { (view: LodyChatView, value: String) in view.setNavigationMachine(value) }

@@ -41,7 +41,9 @@ class ThrowTrace:
             shutil.copy2(path, self.ui.output / path.name)
             trace = json.loads(path.read_text())
             samples = trace['samples']
-            frames = [s for s in samples if s['event'] == 'frame']
+            # A display-link callback can reference the frame before the flight
+            # began; its fallback model geometry is not an animation frame.
+            frames = [s for s in samples if s['event'] == 'frame' and s['t'] >= 0]
             flight = [s for s in frames if not s['adopted']]
             adopted = [s for s in samples if s['adopted']]
             end = center(trace['destination'])
@@ -62,7 +64,9 @@ class ThrowTrace:
             steps = [b - a for a, b in zip(along, along[1:])]
             # The center follows the designed path; the settle tail is part of it,
             # so only the flight segment must keep moving forward along it.
-            backward = max([0] + [-step for step, sample in zip(steps, flight) if sample['t'] <= flight_time])
+            # Presentation state is read at sampleTime, after CADisplayLink's
+            # previous-frame timestamp. Both endpoints must precede the settle.
+            backward = max([0] + [-step for step, sample in zip(steps, flight[1:]) if sample['sampleTime'] <= flight_time])
             # Origins, not centers: the fixture may re-render the landed row's
             # height afterwards, which is content, not a handoff shift.
             landing = max([0] + [distance(s['modelFrame'][:2], trace['destination'][:2]) for s in adopted])

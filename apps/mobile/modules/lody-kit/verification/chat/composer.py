@@ -18,7 +18,7 @@ ui.axe('type', 'Offline draft\nKeep the attachment')
 draft = ui.element('session-input')['AXValue']
 def attachments(items):
     prefix = catalog.text('native.chat.attachment.preview', name='')
-    return [i['AXLabel'] for i in items if (i.get('AXLabel') or '').startswith(prefix)]
+    return [i['AXLabel'] for i in items if (i.get('AXLabel') or '').startswith(prefix) and ':attachment:' not in (i.get('AXUniqueId') or '')]
 picked = attachments(ui.state())
 assert picked, 'Synthetic attachment missing'
 assert pasted in picked, 'Clipboard file missing from NativeChat composer'

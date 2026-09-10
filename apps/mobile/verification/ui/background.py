@@ -1,4 +1,4 @@
-"""Real WebView lifecycle and iOS scheduler; no cloud or credentials."""
+"""Real WebView lifecycle and short UIKit background allowance; no cloud or credentials."""
 import json
 from pathlib import Path
 import subprocess
@@ -36,34 +36,36 @@ try:
     assert returned['generation'] == initial['generation'], 'Background destroyed the WebView'
     ui.capture('retained')
     tap('send')
-    submitted = wait(lambda s: s.get('task') in ['running', 'unavailable'], 'system scheduler decision')
-    available = submitted['task'] == 'running'
+    submitted = wait(lambda s: s.get('task') == 'running' and s.get('tasks') == 1, 'short background allowance granted')
     ui.capture('task-started')
     ui.axe('button', 'home')
-    time.sleep(40)
+    time.sleep(2)
     ui.capture('background')
+    ui.axe('button', 'lock')
+    time.sleep(2)
+    ui.capture('lockscreen-no-sync-activity')
+    ui.axe('button', 'lock')
+    time.sleep(1)
+    ui.axe('swipe', '--start-x', '200', '--start-y', '780', '--end-x', '200', '--end-y', '300', '--duration', '0.4', '--post-delay', '1.0')
     foreground()
-    resumed = wait(lambda s: s.get('updates', 0) > submitted['updates'], 'returns after 40 seconds')
+    resumed = wait(lambda s: s.get('updates', 0) > submitted['updates'], 'callbacks resume after sending in background')
     assert resumed['generation'] == initial['generation'], 'Resume rebuilt a healthy WebView'
-    if available:
-        assert resumed['backgroundUpdates'] - submitted['backgroundUpdates'] >= 25, 'Granted task did not keep WebView executing'
-    else:
-        print('LIMIT: Simulator rejected BGContinuedProcessingTask; background longevity/cancellation not proven', flush=True)
     ui.capture('after-background')
     tap('complete')
-    wait(lambda s: s.get('tasks') == 0 and (not available or s.get('task') == 'completed'),
-         'completed work releases task' if available else 'foreground usable after unavailable request')
+    wait(lambda s: s.get('tasks') == 0 and s.get('task') == 'completed', 'completed reply releases allowance')
     ui.capture('completed')
-    if available:
-        tap('send')
-        wait(lambda s: s.get('task') == 'running' and s.get('tasks') == 1, 'new user send starts fresh task')
-        tap('expire')
-        wait(lambda s: s.get('task') == 'expired' and s.get('tasks') == 0, 'expiration releases task')
-        ui.capture('expired')
-        time.sleep(2)
-        wait(lambda s: s.get('tasks') == 0, 'late stream updates do not restart expired task')
+    tap('send')
+    wait(lambda s: s.get('task') == 'running' and s.get('tasks') == 1, 'new user send starts fresh allowance')
+    tap('expire')
+    wait(lambda s: s.get('task') == 'expired' and s.get('tasks') == 0, 'expiration releases allowance')
+    ui.capture('expired')
+    tap('complete')
+    time.sleep(2)
+    wait(lambda s: s.get('tasks') == 0 and s.get('task') == 'expired', 'late stream updates do not restart expired allowance')
+    tap('send')
+    wait(lambda s: s.get('tasks') == 1, 'send after expiration remains usable')
     tap('stop')
     wait(lambda s: s.get('state') == 'stopped', 'explicit stop releases runtime')
-    print('PASS: retained WebView, foreground recovery, explicit stop; scheduler available=' + str(available), flush=True)
+    print('PASS: retained WebView, short background allowance, completion, expiration, late updates and stop', flush=True)
 finally:
     Path(output, 'background-evidence.json').write_text(json.dumps(evidence, indent=2))

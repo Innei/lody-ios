@@ -34,7 +34,15 @@ test('create a project session, open its empty history and dispatch the first tu
     fetchedAt: 1,
     models: [{ modelId: 'gpt-test', name: 'GPT Test' }],
     modelReasoningEfforts: { 'gpt-test': ['low', 'high'] },
-    configOptions: [{ id: 'effort', category: 'thought_level' }],
+    configOptions: [
+      {
+        id: 'effort',
+        name: 'Effort',
+        type: 'select',
+        category: 'thought_level',
+        options: [{ value: 'high', name: 'High' }],
+      },
+    ],
     acknowledgedSteer: true,
     provenance: 'runtime',
   });
@@ -43,6 +51,49 @@ test('create a project session, open its empty history and dispatch the first tu
     agentType: 'grok',
     fetchedAt: 1,
     models: [],
+    modes: [],
+    configOptions: [
+      {
+        id: 'model',
+        name: 'Model',
+        category: 'model',
+        type: 'select',
+        currentValue: 'grok',
+        options: [{ value: 'grok', name: 'Grok' }],
+      },
+      {
+        id: 'interaction_mode',
+        name: 'Interaction',
+        category: 'mode',
+        type: 'select',
+        currentValue: 'agent',
+        options: [{ value: 'agent', name: 'Agent' }],
+      },
+      {
+        id: 'permission_mode',
+        name: 'Permission',
+        category: '_permission',
+        type: 'select',
+        currentValue: 'ask',
+        options: [
+          { value: 'ask', name: 'Ask' },
+          { value: 'always-approve', name: 'Always Approve' },
+        ],
+      },
+      {
+        id: 'secret_token',
+        name: 'Private',
+        type: 'select',
+        currentValue: 'never-project',
+        options: [{ value: 'never-project', name: 'Never project' }],
+      },
+      {
+        id: 'invalid',
+        name: 'Invalid',
+        type: 'select',
+        options: [{ value: 3, name: 'Bad' }],
+      },
+    ],
     acknowledgedSteer: true,
   });
   const machines = new Map([['m1', machine]]);
@@ -133,6 +184,26 @@ test('create a project session, open its empty history and dispatch the first tu
   const options = runtime.creationOptions('m1:local:p1', meta, machines);
   assert.equal(options.agents.length, 1);
   assert.equal(options.capabilities[0].reasoningEffortConfigId, 'effort');
+  const grok = options.capabilities.find((item) => item.agentType === 'grok');
+  assert.equal(
+    grok.models[0].id,
+    'grok',
+    'config-only models reach the picker',
+  );
+  assert.equal(
+    grok.modes[0].id,
+    'agent',
+    'config-only interaction mode uses the current wire value',
+  );
+  assert.equal(
+    grok.configOptions.find((item) => item.id === 'permission_mode').options[1]
+      .id,
+    'always-approve',
+  );
+  assert.equal(
+    grok.configOptions.some((item) => item.id === 'invalid'),
+    false,
+  );
   assert.deepEqual(
     options.capabilities.map((item) => [item.agentType, item.steer]),
     [

@@ -23,6 +23,7 @@ extension LodyChatView {
 
   func collectionView(_ collectionView: UICollectionView, shouldHighlightItemAt indexPath: IndexPath) -> Bool {
     guard let id = dataSource.itemIdentifier(for: indexPath), let row = rows[id] else { return false }
+    if let cell = collectionView.cellForItem(at: indexPath) as? ChatCell, cell.expandable && !cell.expanded { return true }
     return row.kind == "changes" || row.actionable || row.image != nil
   }
 
@@ -32,17 +33,56 @@ extension LodyChatView {
       return
     }
     collectionView.deselectItem(at: indexPath, animated: false)
+    if let cell = collectionView.cellForItem(at: indexPath) as? ChatCell,
+       cell.expandable, !cell.expanded, let row = cell.row {
+      toggleExpansion(row)
+      return
+    }
     if let cell = collectionView.cellForItem(at: indexPath) as? ChatImageCell, let controller = presenter() {
       pauseTracking()
       cell.presentPreview(from: controller)
       return
     }
     guard let id = dataSource.itemIdentifier(for: indexPath), let row = rows[id], row.actionable else { return }
-    if let pendingSend, id == pendingSend.id + ":pending", pendingSend.reconnect == true {
+    if let pendingSend, id == pendingSend.id + ":pending", pendingSend.failed == true {
+      onRetrySend([:])
+      return
+    }
+    if let pendingSend, (id == pendingSend.id + ":duration" || id == pendingSend.id + ":pending"), pendingSend.reconnect == true {
       onReconnect([:])
       return
     }
     onActivityPress(["entryId": row.entryID, "itemId": row.itemID, "processStartId": row.processStartID])
+  }
+
+  func toggleExpansion(_ row: ChatRow) {
+    guard let index = dataSource.indexPath(for: row.id), let cell = collection.cellForItem(at: index) else { return }
+    pauseTracking()
+    ChatSendHandoff.cancel(id: row.entryID)
+    if let cell = cell as? ChatMessageAttachmentsCell {
+      if !expandedAttachments.insert(row.entryID).inserted { expandedAttachments.remove(row.entryID) }
+      cell.expanded = expandedAttachments.contains(row.entryID)
+    } else if let cell = cell as? ChatCell {
+      if !expandedMessages.insert(row.entryID).inserted { expandedMessages.remove(row.entryID) }
+      cell.expanded = expandedMessages.contains(row.entryID)
+    }
+    let offset = collection.contentOffset
+    let update = {
+      self.collection.collectionViewLayout.invalidateLayout()
+      self.collection.layoutIfNeeded()
+      cell.setNeedsLayout()
+      cell.layoutIfNeeded()
+      self.updateBottomInset()
+      self.collection.contentOffset.y = min(self.bottomOffset, max(-self.collection.adjustedContentInset.top, offset.y))
+    }
+    if UIAccessibility.isReduceMotionEnabled {
+      update()
+      UIAccessibility.post(notification: .layoutChanged, argument: nil)
+    } else {
+      UIView.animate(withDuration: 0.25, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState], animations: update) { _ in
+        UIAccessibility.post(notification: .layoutChanged, argument: nil)
+      }
+    }
   }
 
   func deselectFileOnReturn(animated: Bool, coordinator: UIViewControllerTransitionCoordinator?) {
@@ -246,11 +286,19 @@ extension LodyChatView {
   }
 
   func rowHeight(_ row: ChatRow, width: CGFloat) -> CGFloat {
+    if row.kind == "attachments" {
+      return ChatMessageAttachmentsCell.height(count: row.attachments.count, width: width, expanded: expandedAttachments.contains(row.entryID))
+    }
     if row.kind == "meta" { return ChatMetaCell.height(for: row, width: width, traits: traitCollection) }
     if row.kind == "changesHeader" { return 28 }
     if row.kind == "changes" { return ChatFileCell.rowHeight() }
     let measured = measure(row, width: width)
-    return max(row.actionable || row.kind == "summary" ? 44 : 0, measured + ChatCell.rowExtra(for: row))
+    if row.kind == "user" {
+      return ChatMessageContent.height(textHeight: measured,
+        limit: collapsedMessageHeights[row.entryID] ?? ChatMessageContent.maximumCollapsedHeight,
+        expanded: expandedMessages.contains(row.entryID)) + 24
+    }
+    return max(row.actionable || row.kind == "summary" || row.kind == "pending" ? 44 : 0, measured + ChatCell.rowExtra(for: row))
   }
 
   func setAttachmentContext(_ json: String) {
@@ -271,10 +319,19 @@ extension LodyChatView {
   }
 
   func deliverPendingContent() {
-    guard window != nil, hasAppeared else { return }
+    guard window != nil, hasAppeared, !applying else { return }
     collection.layoutIfNeeded()
+    let distance = followsBottom ? bottomOffset - collection.contentOffset.y : 0
+    if let handoffID, followsBottom, abs(distance) > 0.5,
+       ChatSendHandoff.isWaiting(id: handoffID) || ChatSendHandoff.hasWaitingAttachments(id: handoffID) {
+      sendScroll = (CACurrentMediaTime(), collection.contentOffset.y)
+      startMotion()
+    }
     for cell in collection.visibleCells {
-      if let image = cell as? ChatImageCell { image.layoutIfNeeded(); image.deliverPendingImage() }
+      if let attachments = cell as? ChatMessageAttachmentsCell {
+        attachments.layoutIfNeeded()
+        attachments.deliverPendingAttachments(scrollDistance: distance)
+      }
       // A steered queue row flies under its own entry id, so any landed user row
       // with a waiting flight is a destination, not only the pending send.
       guard let cell = cell as? ChatCell, let row = cell.row, row.kind == "user",

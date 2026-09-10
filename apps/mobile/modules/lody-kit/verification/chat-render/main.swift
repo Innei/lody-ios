@@ -238,3 +238,44 @@ precondition(glyphWidth(summaryFont, "1") == glyphWidth(summaryFont, "8"),
 precondition(glyphWidth(userFont, "1") < glyphWidth(userFont, "8"),
   "User messages keep proportional digits")
 print("Chat render: duration and process counts use tabular digits")
+
+// A long send lands at its source viewport height without discarding text.
+let longBody = (1...18).map { "Line \($0): a complete message remains available after sending." }.joined(separator: "\n")
+let longRow = ChatRow(id: "long:user", entryID: "long", kind: "user", text: longBody)
+let longCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 350, height: 164))
+window.addSubview(longCell)
+longCell.collapsedHeight = 140
+longCell.configure(longRow, text: NSAttributedString(string: longBody, attributes: [.font: UIFont.systemFont(ofSize: 17)]))
+longCell.layoutIfNeeded()
+precondition(longCell.messageContent.bounds.height == 140 && longCell.label.layer.mask != nil,
+  "Long messages must land in the composer viewport with a text-only fade")
+precondition(longCell.label.attributedTextValue.string == longBody && longCell.expandable,
+  "Folding must preserve all text for expansion and copying")
+longCell.expanded = true
+longCell.setNeedsLayout()
+longCell.layoutIfNeeded()
+precondition(longCell.messageContent.bounds.height > 140 && longCell.label.layer.mask == nil,
+  "Expanding must expose the complete message and remove the fade")
+precondition(longCell.messageContent.disclosure.bounds.height >= 44,
+  "Expanded messages must keep an accessible collapse target")
+longCell.expanded = false
+let narrowBody = Array(repeating: "x", count: 20).joined(separator: "\n")
+longCell.configure(ChatRow(id: "narrow:user", entryID: "narrow", kind: "user", text: narrowBody),
+  text: NSAttributedString(string: narrowBody, attributes: [.font: UIFont.systemFont(ofSize: 17)]))
+longCell.layoutIfNeeded()
+precondition(longCell.messageContent.disclosure.bounds.width >= longCell.messageContent.disclosure.intrinsicContentSize.width,
+  "A narrow multiline message must still have room for its expansion affordance")
+longCell.configure(ChatRow(id: "short:user", entryID: "short", kind: "user", text: "hello"),
+  text: NSAttributedString(string: "hello", attributes: [.font: UIFont.systemFont(ofSize: 17)]))
+longCell.layoutIfNeeded()
+precondition(longCell.messageContent.bounds.height < 68 && !longCell.expandable && longCell.label.layer.mask == nil,
+  "Reusing a folded cell for a short message must restore its natural height and clear the mask")
+print("Chat send: bounded landing, complete expansion, accessible collapse and short-message reuse passed")
+
+let retryCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
+retryCell.configure(ChatRow(id: "failed:pending", entryID: "failed", kind: "pending", text: "Retry", actionable: true), text: NSAttributedString(string: "Retry"))
+retryCell.layoutIfNeeded()
+var activatedRetry = false
+retryCell.onActivate = { activatedRetry = true }
+precondition(retryCell.accessibilityActivate() && activatedRetry, "Accessible status rows must invoke their retry/reconnect action")
+print("Chat render: accessible status actions remain available with expandable messages")

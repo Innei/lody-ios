@@ -59,6 +59,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   createSession(payload: string): Promise<string>;
   archiveSession(payload: string): Promise<string>;
   pinSession(payload: string): Promise<string>;
+  markSessionRead(payload: string): Promise<string>;
   controlSessionTurn(payload: string): Promise<string>;
   sendSessionTurn(payload: string): Promise<string>;
   sessionItemDetail(payload: string): Promise<string>;
@@ -189,6 +190,8 @@ export const createSession = (payload: string) => native.createSession(payload);
 export const archiveSession = (payload: string) =>
   native.archiveSession(payload);
 export const pinSession = (payload: string) => native.pinSession(payload);
+export const markSessionRead = (payload: string) =>
+  native.markSessionRead(payload);
 
 export const initialInboxView = [0, 1, 2].includes(native.initialInboxView)
   ? native.initialInboxView

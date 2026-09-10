@@ -166,12 +166,19 @@ function summarizeItem(
     } as ItemSummary;
   }
   if (type === 'file') {
-    const text = `文件：${String(raw.fileName ?? '附件')}`;
+    const file = {
+      id: String(raw.fileId ?? ''),
+      fileName: String(raw.fileName ?? '附件'),
+      storageSessionId:
+        typeof raw.storageSessionId === 'string'
+          ? raw.storageSessionId
+          : undefined,
+    };
     return {
       itemId,
-      rev: bump(projection, key, text),
-      type: 'text',
-      text,
+      rev: bump(projection, key, JSON.stringify(file)),
+      type,
+      file,
     } as ItemSummary;
   }
 

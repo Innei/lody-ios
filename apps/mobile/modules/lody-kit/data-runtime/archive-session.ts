@@ -112,6 +112,22 @@ export async function pinSession(
   await appendJson(meta.client, meta.flock.exportJson(version));
 }
 
+export async function markSessionRead(
+  args: { sessionId: string; lastReadAt: number },
+  meta: { flock: Flock; client: StreamsClient },
+) {
+  if (typeof args.sessionId !== 'string' || !Number.isFinite(args.lastReadAt))
+    throw new Error('invalid_session');
+  const room = `session-${args.sessionId}`;
+  if (!sessionPresent(meta.flock, room)) throw new Error('session_not_found');
+  const current = meta.flock.get(['m', room, 'lastReadAt']);
+  if (typeof current === 'number' && current >= args.lastReadAt) return;
+  const version = meta.flock.version();
+  meta.flock.set(['m', room, 'lastReadAt'], args.lastReadAt);
+  meta.flock.commit();
+  await appendJson(meta.client, meta.flock.exportJson(version));
+}
+
 export async function archiveSession(
   args: { workspaceId: string; sessionId: string; archived: boolean },
   meta: { flock: Flock; client: StreamsClient },

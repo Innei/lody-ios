@@ -30,7 +30,7 @@ const bundle = await build({
     },
   ],
 });
-const { archiveSession, pinSession } = await import(
+const { archiveSession, pinSession, markSessionRead } = await import(
   `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
 );
 const unframe = (body) =>
@@ -108,6 +108,39 @@ test('archive writes the machine command after the session meta; restore clears 
   await assert.rejects(
     pinSession({ sessionId: 'missing', pinned: true }, replica),
     /session_not_found/,
+  );
+});
+
+test('mark read writes lastReadAt onto the session meta', async () => {
+  const meta = new Flock('meta'),
+    remoteMeta = new Flock('remote-meta');
+  meta.set(['m', 'session-s1'], {
+    id: 's1',
+    machineId: 'm1',
+    lastMessageAt: 100,
+  });
+  remoteMeta.importFile(meta.exportFile());
+  const replica = {
+    flock: meta,
+    client: {
+      async append({ part }) {
+        remoteMeta.importJson(unframe(part.body));
+        return { ok: true, result: {} };
+      },
+    },
+  };
+  await markSessionRead({ sessionId: 's1', lastReadAt: 250 }, replica);
+  assert.equal(remoteMeta.get(['m', 'session-s1', 'lastReadAt']), 250);
+  assert.equal(meta.get(['m', 'session-s1', 'lastReadAt']), 250);
+  await markSessionRead({ sessionId: 's1', lastReadAt: 200 }, replica);
+  assert.equal(meta.get(['m', 'session-s1', 'lastReadAt']), 250);
+  await assert.rejects(
+    markSessionRead({ sessionId: 'missing', lastReadAt: 1 }, replica),
+    /session_not_found/,
+  );
+  await assert.rejects(
+    markSessionRead({ sessionId: 's1', lastReadAt: Number.NaN }, replica),
+    /invalid_session/,
   );
 });
 

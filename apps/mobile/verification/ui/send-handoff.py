@@ -11,8 +11,8 @@ draft = ui.element('create-session-input')['AXValue']
 ui.capture('source')
 ui.axe('tap', '--id', 'session-send')
 ui.element('send-status')
-shiny = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':pending')), None), 'Target pending row missing')
-turn = shiny['AXUniqueId'].removesuffix(':pending')
+shiny = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':duration')), None), 'Target pending row missing')
+turn = shiny['AXUniqueId'].removesuffix(':duration')
 assert draft == ui.element(turn + ':user')['AXLabel']
 assert ui.element('send-status')['AXLabel'] == 'Calls: 0 · waiting', 'Creation waited for network or dispatched offline'
 ui.capture('target-offline')
@@ -21,9 +21,13 @@ ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 1 · creating' for i in it
 ui.axe('tap', '--id', 'send-fail')
 ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('send.alert.title') for i in items), 'Creation failure missing')
 ui.axe('tap', '--label', catalog.system('ok'))
-ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-input' and i.get('AXValue') == draft for i in items), 'Cross-page failed draft not restored')
-assert not any(i.get('AXUniqueId') in [turn + ':user', turn + ':pending'] for i in ui.state())
-ui.capture('target-restored')
-print('PASS: new-session handoff before network, waiting shiny row, creation rejection restores in target composer')
+assert not ui.element('session-input').get('AXValue'), 'Failure jumped into the destination input'
+assert ui.element(turn + ':user')['AXLabel'] == draft
+assert ui.element(turn + ':pending')['AXLabel'] == catalog.text('native.chat.message.retry')
+ui.capture('target-failure-retained')
+ui.axe('tap', '--id', turn + ':pending')
+ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 2 · creating' for i in items), 'Explicit creation retry did not start')
+ui.capture('target-retrying')
+print('PASS: first-turn handoff before network, retained creation failure and explicit retry')
 
 throw_trace.verify(1)

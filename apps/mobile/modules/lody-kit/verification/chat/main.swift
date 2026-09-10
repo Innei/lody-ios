@@ -337,12 +337,12 @@ let imageHistory = """
 """
 var imageTranscript = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(imageHistory.utf8)))
 let pictureRows = imageTranscript.rows()
-assert(pictureRows.map(\.kind) == ["image", "user"])
+assert(pictureRows.map(\.kind) == ["attachments", "user"])
 assert(pictureRows.first?.id == "picture-turn:user")
-assert(pictureRows.first?.image?.id == "image1")
+assert(pictureRows.first?.attachments.first?.image?.id == "image1")
 assert(pictureRows.last?.text == "What is this?", "Attachment filenames must not be flattened into the message bubble")
 imageTranscript.entries[0].items.removeFirst()
-assert(imageTranscript.rows().map(\.kind) == ["image"], "Image-only messages must not add an empty bubble")
+assert(imageTranscript.rows().map(\.kind) == ["attachments"], "Image-only messages must not add an empty bubble")
 print("Chat image rows: media before caption, stable anchor, and image-only layout passed")
 
 // A moving tail must traverse intermediate positions, never overshoot, and
@@ -372,9 +372,9 @@ let localPendingJSON = """
 """
 let localPending = try! JSONDecoder().decode(ChatPendingSend.self, from: Data(localPendingJSON.utf8))
 let pendingRows = localPending.rows(entries: [])
-precondition(pendingRows.map(\.kind) == ["image", "user", "duration"],
+precondition(pendingRows.map(\.kind) == ["attachments", "user", "pending", "duration"],
   "A send must show its attachment, text and a separate static duration immediately")
-precondition(pendingRows.first?.localImageURI == "file:///tmp/cat.png" && pendingRows.last?.running == true)
+precondition(pendingRows.first?.attachments.first?.localURI == "file:///tmp/cat.png" && pendingRows.last?.running == true)
 precondition(pendingRows.last?.id == "local-send:duration")
 precondition((2_400...3_000).contains(pendingRows.last?.workDurationMs ?? -1),
   "The local duration must start at submission time")
@@ -383,11 +383,13 @@ precondition(ChatWorkDuration.needsTimer(pendingRows),
 precondition(ChatWorkDuration.needsTimer(liveDurationRows))
 precondition(!ChatWorkDuration.needsTimer(finishedDurationRows))
 let authoritative = ChatEntry(id: "local-send", role: "user", status: "completed", finished: true, timestamp: nil, endedAt: nil, startedAt: nil, items: [], fileDiffs: nil)
-precondition(localPending.rows(entries: [authoritative]).map(\.kind) == ["duration"],
+precondition(localPending.rows(entries: [authoritative]).map(\.kind) == ["pending", "duration"],
   "Authoritative user history must replace the pending user row without interrupting duration")
 var failedPending = localPending
 failedPending.failed = true
-precondition(failedPending.rows(entries: []).isEmpty, "A failed draft must leave the transcript for restoration")
+let failedRows = failedPending.rows(entries: [])
+precondition(failedRows.first?.attachments == pendingRows.first?.attachments && failedRows.last?.actionable == true,
+  "A definite failure must retain the attachment and offer explicit retry")
 print("Pending send: immediate text and attachment, processing, stable history takeover and failure passed")
 
 var disconnectedPending = localPending

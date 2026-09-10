@@ -4,6 +4,96 @@ import { build } from 'esbuild';
 import { LoroDoc, LoroMap, LoroList, LoroText } from 'loro-crdt/base64';
 import { openTestSession, loadRuntime, frame } from '../helpers.mjs';
 
+test('independent configuration reaches durable history before RPC, inherits on later turns and rejects malformed overrides', async () => {
+  const calls = [];
+  const fixture = await openTestSession({
+    onRpc: (request) => {
+      calls.push(request);
+      const persisted = fixture.server
+        .toJSON()
+        .history.find((entry) => entry.id === request.params.userTurnId);
+      assert.deepEqual(
+        persisted.inputConfig.configOptionValues,
+        request.params.inputConfig.configOptionValues,
+      );
+      return { result: { accepted: true } };
+    },
+  });
+  const args = {
+    sessionId: 's1',
+    machineId: 'm1',
+    userId: 'u1',
+    cliType: 'builtin',
+    agentType: 'grok',
+    text: 'Synthetic configuration check',
+  };
+  try {
+    for (const configOptionValues of [
+      null,
+      [],
+      { fast: 1 },
+      { permission_mode: {} },
+      { secret_token: 'synthetic' },
+    ]) {
+      assert.equal(
+        (await fixture.runtime.sendTurn({ ...args, configOptionValues })).state,
+        'not_sent',
+      );
+    }
+    assert.equal(
+      fixture.appends.length,
+      0,
+      'invalid configuration cannot write or dispatch',
+    );
+    const configOptionValues = {
+      permission_mode: 'always-approve',
+      fast: false,
+      collaboration_mode: 'plan',
+      agent_preset: 'coder',
+    };
+    assert.equal(
+      (
+        await fixture.runtime.sendTurn({
+          ...args,
+          configOptionValues,
+          reasoningEffort: 'high',
+          reasoningEffortConfigId: 'effort',
+        })
+      ).state,
+      'accepted',
+    );
+    assert.deepEqual(calls[0].params.inputConfig.configOptionValues, {
+      ...configOptionValues,
+      effort: 'high',
+    });
+    assert.equal((await fixture.runtime.sendTurn(args)).state, 'queued');
+    assert.deepEqual(
+      fixture.server.toJSON().mq[0].acpSessionConfig.configOptionValues,
+      calls[0].params.inputConfig.configOptionValues,
+    );
+    assert.equal(
+      (
+        await fixture.runtime.sendTurn({
+          ...args,
+          configOptionValues: { permission_mode: 'ask' },
+        })
+      ).state,
+      'queued',
+    );
+    assert.equal(
+      fixture.server.toJSON().mq[1].acpSessionConfig.configOptionValues
+        .permission_mode,
+      'ask',
+    );
+    assert.equal(
+      fixture.server.toJSON().mq[1].acpSessionConfig.configOptionValues.fast,
+      false,
+    );
+  } finally {
+    fixture.close();
+  }
+});
+
 test('reply metadata preserves each recorded model and updates when it arrives after completion', async () => {
   const { projectSession } = await loadProject();
   const doc = new LoroDoc();
@@ -295,6 +385,16 @@ test('send persists user before dispatch; duplicate incremental imports preserve
   assert.equal(projectedImage.image.id, 'img1');
   assert.equal(projectedImage.image.fileName, '照片.png');
   assert.equal(projectedImage.text, undefined);
+  const projectedFile = projection.entries[0].items[2];
+  assert.equal(projectedFile.type, 'file');
+  assert.equal(projectedFile.file.id, attachments[1].fileId);
+  assert.equal(projectedFile.file.fileName, attachments[1].fileName);
+  assert.equal(
+    projectedFile.text,
+    undefined,
+    'Filenames must not be appended to the message text',
+  );
+
   assert.deepEqual(user.inputConfig.mcpServerIds, []);
   const version = server.version();
   const entry = server.getList('history').pushContainer(new LoroMap());

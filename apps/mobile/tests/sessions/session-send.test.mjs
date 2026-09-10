@@ -172,7 +172,12 @@ test('send waits for durable dispatch state and carries the same identity and at
   const disk = deferred();
   const calls = [];
   const { hooks, outbox } = await setup(
-    draft,
+    {
+      ...draft,
+      choice: {
+        configOptionValues: { permission_mode: 'always-approve', fast: false },
+      },
+    },
     {
       createSession() {
         throw Error('unexpected creation');
@@ -191,6 +196,10 @@ test('send waits for durable dispatch state and carries the same identity and at
   assert.equal(calls.length, 1);
   assert.equal(calls[0].id, draft.id);
   assert.deepEqual(calls[0].attachments, draft.attachments);
+  assert.deepEqual(calls[0].configOptionValues, {
+    permission_mode: 'always-approve',
+    fast: false,
+  });
   assert.equal(outbox.records[0].send.phase, 'accepted');
   assert.equal(
     hooks.result.awaitingReply,
@@ -220,6 +229,30 @@ test('a definite send failure retains the draft and an ambiguous result never au
     hooks.update({ snapshot: { status: 'live', entries: [] } });
     await tick();
     assert.equal(calls, 1);
+  }
+});
+
+test('resubmitting a failed first turn keeps independent configuration unless the next draft overrides it', async () => {
+  const saved = { permission_mode: 'always-approve', fast: false };
+  for (const override of [undefined, { permission_mode: 'ask' }]) {
+    const calls = [];
+    const { hooks } = await setup(
+      { ...draft, phase: 'failed', choice: { configOptionValues: saved } },
+      {
+        async sendSessionTurn(payload) {
+          calls.push(JSON.parse(payload));
+          return JSON.stringify({ state: 'accepted' });
+        },
+      },
+    );
+    hooks.result.submit({
+      ...draft,
+      choice: { modelId: 'picked', configOptionValues: override },
+    });
+    await tick();
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].configOptionValues, override ?? saved);
+    assert.equal(calls[0].modelId, 'picked');
   }
 });
 
@@ -323,4 +356,31 @@ test('receipts unlock successive sends while an assistant is running; writes sti
   await tick();
   assert.equal(calls, 2);
   assert.equal(outbox.records[0].send.id, 'next');
+});
+
+test('explicit retry keeps the failed message identity and attachments, and cannot replay an unknown send', async () => {
+  for (const state of ['failed', 'unknown']) {
+    const calls = [];
+    const { hooks, outbox } = await setup(
+      { ...draft, phase: state },
+      {
+        async sendSessionTurn(payload) {
+          calls.push(JSON.parse(payload));
+          return JSON.stringify({ state: 'accepted' });
+        },
+      },
+    );
+    assert.equal(calls.length, 0);
+    hooks.result.retry();
+    await tick();
+    if (state === 'failed') {
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].id, draft.id);
+      assert.deepEqual(calls[0].attachments, draft.attachments);
+      assert.equal(outbox.records[0].send.phase, 'accepted');
+    } else {
+      assert.equal(calls.length, 0);
+      assert.equal(outbox.records[0].send.phase, 'unknown');
+    }
+  }
 });

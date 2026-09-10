@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { Linking } from 'react-native';
-import { router, useRootNavigationState } from 'expo-router';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { router } from 'expo-router';
+import { useAppNavigationState } from '@/lib/presentation/useAppNavigationState';
 import {
   acknowledgePushClick,
   addPushClickListener,
@@ -14,15 +14,19 @@ const uiVerify = __DEV__ && process.env.EXPO_PUBLIC_UI_VERIFY === '1';
 import { requestOpenSession } from '@/features/sessions/sessionNav';
 import { t } from '@/lib/i18n';
 import { showToast } from '@/ui/toast';
-import { resolveNotificationClick, routeFromDeepLink } from './routing';
+import { resolveNotificationClick } from './routing';
+import {
+  acknowledgeDeepLink,
+  pendingDeepLink,
+  subscribeDeepLinks,
+} from './deepLinks';
 
 export function PushCoordinator() {
   const auth = useAuth();
   const catalog = useCatalog();
-  const navigation = useRootNavigationState();
+  const navigation = useAppNavigationState();
   const [click, setClick] = useState<PushClick | null>(null);
-  const [link, setLink] = useState<{ id: string; route: string } | null>(null);
-  const links = useRef(0);
+  const link = useSyncExternalStore(subscribeDeepLinks, pendingDeepLink);
   const handled = useRef('');
   useEffect(() => {
     if (uiVerify) return;
@@ -40,20 +44,6 @@ export function PushCoordinator() {
       active = false;
       listener.remove();
     };
-  }, []);
-  useEffect(() => {
-    if (uiVerify) return;
-    const open = (url: string | null) => {
-      const route = url && routeFromDeepLink(url);
-      if (route) setLink({ id: `link:${++links.current}`, route });
-    };
-    void Linking.getInitialURL()
-      .then(open)
-      .catch(() => {});
-    const subscription = Linking.addEventListener('url', (event) =>
-      open(event.url),
-    );
-    return () => subscription.remove();
   }, []);
   useEffect(() => {
     if (uiVerify || !auth.localReady || auth.busy) return;
@@ -76,10 +66,15 @@ export function PushCoordinator() {
       connected: catalog.connected,
       sessions: catalog.catalog.sessions,
     });
-    if (destination.kind === 'wait') return;
+    if (destination.kind === 'wait' || !navigation) return;
+    if (
+      destination.kind !== 'discard' &&
+      (navigation.routes.length !== 1 || navigation.routes[0]?.name !== 'index')
+    ) {
+      router.dismissTo('/');
+      return;
+    }
     if (destination.kind === 'workspace') {
-      router.dismissAll();
-      router.replace('/');
       catalog.setWorkspaceId(destination.id);
       return;
     }
@@ -87,7 +82,7 @@ export function PushCoordinator() {
     if (!link) void acknowledgePushClick(pending.id).catch(() => {});
     if (destination.kind === 'discard') showToast(destination.reason);
     else void requestOpenSession(destination.session);
-    if (link) setLink(null);
+    if (link) acknowledgeDeepLink(pending.id);
     else setClick(null);
   }, [
     click,
@@ -95,7 +90,7 @@ export function PushCoordinator() {
     auth.localReady,
     auth.busy,
     auth.account,
-    navigation?.key,
+    navigation,
     catalog,
   ]);
   return null;

@@ -150,10 +150,10 @@ ui.capture('ended')
 subprocess.run(['xcrun', 'simctl', 'openurl', udid, 'lody:///debug/sessions/x'], check=True, timeout=30)
 allow(6, OPEN)
 ui.wait(
-    lambda items: not any(i.get('AXUniqueId') == 'live-activity-status' for i in items),
-    'the widget deep link never navigated away from the Live Activity scene',
+    lambda items: any(i.get('AXUniqueId') == 'live-activity-status' for i in items),
+    'An unavailable widget session must leave the current page in place',
 )
 labels = [i.get('AXLabel') or '' for i in ui.state()]
 assert not any('Unmatched' in label for label in labels), 'widget deep link landed on the Unmatched Route screen'
 ui.capture('deep-link')
-print('PASS: island running, permission and both expanded states captured, switch toggled, activity ended, widget deep link avoids the Unmatched Route screen', flush=True)
+print('PASS: island running, permission and both expanded states captured, switch toggled, activity ended, unavailable widget link preserves the current page', flush=True)

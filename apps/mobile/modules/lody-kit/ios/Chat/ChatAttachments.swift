@@ -246,6 +246,12 @@ final class ChatAttachmentBar: UIScrollView {
     return view.convert(view.bounds, to: self)
   }
 
+  func snapshot(id: String) -> UIView? {
+    guard let index = rendered.firstIndex(where: { $0.id == id }), index < stack.arrangedSubviews.count else { return nil }
+    let pill = stack.arrangedSubviews[index]
+    return pill.snapshotView(afterScreenUpdates: false)
+  }
+
   private func pill(_ item: ChatAttachment) -> UIView {
     var config = UIButton.Configuration.plain()
     let fileType = UTType(filenameExtension: (item.name as NSString).pathExtension)
@@ -254,6 +260,9 @@ final class ChatAttachmentBar: UIScrollView {
     else if fileType?.conforms(to: .movie) == true { symbol = "video" }
     else { symbol = "doc" }
     config.image = UIImage(systemName: symbol)
+    if item.isImage, let image = ChatAttachment.thumbnail(item.url) {
+      config.image = image.preparingThumbnail(of: CGSize(width: 28, height: 28))?.withRenderingMode(.alwaysOriginal)
+    }
     config.imagePadding = 5
     config.baseForegroundColor = .label
     config.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 12)

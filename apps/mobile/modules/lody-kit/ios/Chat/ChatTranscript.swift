@@ -45,6 +45,15 @@ struct ChatImage: Decodable, Equatable {
   let height: Double?
 }
 
+struct ChatMessageAttachment: Decodable, Equatable {
+  let id: String
+  let fileName: String
+  var image: ChatImage? = nil
+  var localURI: String? = nil
+  var localID: String? = nil
+  var storageSessionId: String? = nil
+}
+
 struct ChatItem: Decodable {
   struct Permission: Decodable { let requestId: String; let pending: Bool }
   struct Plan: Decodable { let content: String; let status: String }
@@ -62,6 +71,7 @@ struct ChatItem: Decodable {
   let description: String?
   let actor: String?
   let image: ChatImage?
+  var file: ChatMessageAttachment? = nil
 }
 
 struct ChatRow: Equatable {
@@ -79,6 +89,7 @@ struct ChatRow: Equatable {
   var localImageURI: String? = nil
   var image: ChatImage? = nil
   var fileDiff: ChatFileDiff? = nil
+  var attachments: [ChatMessageAttachment] = []
   var workDurationMs: Int? = nil
   var copyText: String? = nil
   var shines: Bool { kind == "summary" && running && !attention }
@@ -186,10 +197,14 @@ struct ChatTranscript {
       if entry.role == "user" {
         if processOnly || entry.isQueued { return [] }
         var result: [ChatRow] = []
-        for item in entry.items where item.type == "image" {
-          guard let image = item.image else { continue }
-          result.append(ChatRow(id: result.isEmpty ? entry.id + ":user" : entry.id + ":" + item.itemId,
-            entryID: entry.id, kind: "image", text: image.fileName, itemID: item.itemId, image: image))
+        let attachments = entry.items.compactMap { item -> ChatMessageAttachment? in
+          if let image = item.image, item.type == "image" {
+            return ChatMessageAttachment(id: image.id, fileName: image.fileName, image: image)
+          }
+          return item.type == "file" ? item.file : nil
+        }
+        if !attachments.isEmpty {
+          result.append(ChatRow(id: entry.id + ":user", entryID: entry.id, kind: "attachments", text: "", attachments: attachments))
         }
         let text = entry.items.compactMap { $0.type == "text" ? $0.text : nil }.joined(separator: "\n\n")
         if !text.isEmpty {
@@ -424,23 +439,36 @@ struct ChatPendingSend: Decodable {
   var queue: Bool? = nil
 
   func rows(entries: [ChatEntry]) -> [ChatRow] {
-    guard failed != true, queue != true, !entries.contains(where: { $0.id == id && $0.isQueued }) else { return [] }
+    guard (queue != true || failed == true), !entries.contains(where: { $0.id == id && $0.isQueued }) else { return [] }
     var result: [ChatRow] = []
     if !entries.contains(where: { $0.id == id }) {
-      for attachment in attachments where attachment.kind == "image" {
-        guard URL(string: attachment.uri)?.isFileURL == true else { continue }
-        result.append(ChatRow(id: result.isEmpty ? id + ":user" : id + ":" + attachment.id,
-          entryID: id, kind: "image", text: attachment.name, localImageURI: attachment.uri,
-          image: ChatImage(id: attachment.id, fileName: attachment.name, storageSessionId: nil, width: nil, height: nil)))
+      let media = attachments.compactMap { attachment -> ChatMessageAttachment? in
+        guard URL(string: attachment.uri)?.isFileURL == true else { return nil }
+        let image = attachment.kind == "image"
+          ? ChatImage(id: attachment.id, fileName: attachment.name, storageSessionId: nil, width: nil, height: nil)
+          : nil
+        return ChatMessageAttachment(id: attachment.id, fileName: attachment.name, image: image, localURI: attachment.uri)
       }
-      let body = ([text] + attachments.filter { $0.kind != "image" }.map(\.name)).filter { !$0.isEmpty }.joined(separator: "\n")
+      if !media.isEmpty {
+        result.append(ChatRow(id: id + ":user", entryID: id, kind: "attachments", text: "", attachments: media))
+      }
+      let body = text
       if !body.isEmpty {
         result.append(ChatRow(id: id + (result.isEmpty ? ":user" : ":user-text"), entryID: id, kind: "user", text: body))
       }
     }
+    if failed == true {
+      result.append(ChatRow(id: id + ":pending", entryID: id, kind: "pending", text: status,
+        actionable: true, attention: true))
+      return result
+    }
     let acceptedIndex = entries.firstIndex { $0.id == id }
     let hasReply = acceptedIndex.map { entries.dropFirst($0 + 1).contains { $0.role == "assistant" } } ?? false
     if !hasReply {
+      if !attachments.isEmpty {
+        result.append(ChatRow(id: id + ":pending", entryID: id, kind: "pending", text: status,
+          actionable: reconnect == true, running: true))
+      }
       let now = Date().timeIntervalSince1970 * 1000
       let start = startedAt.flatMap { $0.isFinite && $0 <= now ? $0 : nil } ?? now
       let duration = Int(now - start)

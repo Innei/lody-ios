@@ -7,7 +7,12 @@ import type {
   ProjectPrefs,
 } from '../../models/send.ts';
 // Relative on purpose: this module is imported directly by node --test.
-import { capabilityFor } from '../../cloud/send/capability.ts';
+import {
+  capabilityFor,
+  effortsFor,
+  extraConfigOptions,
+  validConfigValue,
+} from '../../cloud/send/capability.ts';
 
 export type {
   CreatePrefs,
@@ -76,9 +81,7 @@ export function rememberedModelChoice(
       ? legacy
       : undefined);
   const effort =
-    modelId &&
-    saved?.effort &&
-    capability?.reasoningEfforts[modelId]?.includes(saved.effort)
+    saved?.effort && effortsFor(capability, modelId).includes(saved.effort)
       ? saved.effort
       : undefined;
   let modeId = saved?.modeId;
@@ -96,7 +99,20 @@ export function rememberedModelChoice(
       ].includes(mode.id),
     )?.id;
   }
-  return { modelId, effort, modeId };
+  const configOptionValues = Object.fromEntries(
+    extraConfigOptions(capability).flatMap((option) => {
+      const value = saved?.configOptionValues?.[option.id];
+      return validConfigValue(option, value)
+        ? [[option.id, value as string | boolean]]
+        : [];
+    }),
+  );
+  return {
+    modelId,
+    effort,
+    modeId,
+    ...(Object.keys(configOptionValues).length ? { configOptionValues } : {}),
+  };
 }
 
 export function withSelection(
@@ -116,6 +132,7 @@ export function withSelection(
         modelId: selection.modelId,
         effort: selection.effort,
         modeId: selection.modeId,
+        configOptionValues: selection.configOptionValues,
       },
     },
     projects: { ...prefs?.projects, [projectId]: selection },

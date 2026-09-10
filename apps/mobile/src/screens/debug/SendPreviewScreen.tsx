@@ -118,6 +118,9 @@ function SendPreview() {
   const record = outbox.records.find(
     (entry) => entry.session.id === session.id,
   );
+  const [initialAttachmentsJSON] = useState(() =>
+    record || queue ? undefined : JSON.stringify([attachment]),
+  );
   const [connected, setConnected] = useState(false);
   const [calls, setCalls] = useState(0);
   const [snapshot, setSnapshot] = useState<Snapshot>({
@@ -284,6 +287,17 @@ function SendPreview() {
                       rev: 0,
                       text: record.send.text,
                     },
+                    ...record.send.attachments.map((attachment, index) => ({
+                      itemId: `attachment-${index}`,
+                      type: attachment.kind,
+                      rev: 0,
+                      [attachment.kind]: {
+                        id: `server-${attachment.id}`,
+                        fileName: attachment.name,
+                        width: 800,
+                        height: 600,
+                      },
+                    })),
                   ],
                 },
                 {
@@ -339,15 +353,14 @@ function SendPreview() {
           reconnect: false,
           placeholder: '断网也可以发送',
         })}
-        initialAttachmentsJSON={
-          record || queue ? undefined : JSON.stringify([attachment])
-        }
+        initialAttachmentsJSON={initialAttachmentsJSON}
         clearDraftToken={send.clearDraftToken}
         restoreDraftToken={send.restoreDraftToken}
         emptyText="离线发送验收"
         onActivityPress={() => {}}
         onStop={control.stop}
         onSteer={({ nativeEvent }) => control.steer(nativeEvent.id)}
+        onRetrySend={send.retry}
         onReconnect={() => {
           setConnected(true);
           setSnapshot((old) => ({ ...old, status: 'live' }));

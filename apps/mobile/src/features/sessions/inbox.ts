@@ -130,7 +130,7 @@ export function inboxSections(
             : undefined,
         action: true,
         navigates: true,
-        actions: [archiveAction(session.archived)],
+        actions: trailingActions(session),
         leadingActions: [pinAction(session.pinned)],
         ...sessionMenu(session),
       };
@@ -144,6 +144,16 @@ export const archiveAction = (archived: boolean) => ({
   title: t(archived ? 'session.action.unarchive' : 'session.action.archive'),
   symbol: archived ? 'tray.and.arrow.up' : 'archivebox',
 });
+const readAction = () => ({
+  id: 'read',
+  title: t('session.action.read'),
+  symbol: 'envelope.open',
+});
+const trailingActions = (session: Session) => {
+  const archive = archiveAction(session.archived);
+  if (unreadOf(session)) return [readAction(), archive];
+  return [archive];
+};
 export const pinAction = (pinned: boolean) => ({
   id: 'pin',
   title: t(pinned ? 'session.action.unpin' : 'session.action.pin'),
@@ -261,7 +271,7 @@ export function sessionRow(
       : undefined,
     action: true,
     navigates: true,
-    actions: [archiveAction(session.archived)],
+    actions: trailingActions(session),
     leadingActions: [pinAction(session.pinned)],
     ...sessionMenu(session),
   };

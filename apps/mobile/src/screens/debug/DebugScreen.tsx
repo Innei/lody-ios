@@ -1,5 +1,6 @@
 import { FilePreviewScreen } from './FilePreviewScreen';
 import { CreateSessionScreen } from '../CreateSessionScreen';
+import type { CreationOptions } from '@/models/send';
 import { writeLocal } from '@/cloud/kv';
 import { createPrefsKey } from '@/features/sessions/createPrefs';
 import { openSendPreview } from './SendPreviewScreen';
@@ -344,6 +345,19 @@ export const DebugScreen = definePage({
 });
 
 async function openModelMemory() {
+  const select = (
+    id: string,
+    name: string,
+    values: string[],
+    category = id,
+  ) => ({
+    id,
+    name,
+    category,
+    type: 'select' as const,
+    currentValue: values[0],
+    options: values.map((id) => ({ id, name: id })),
+  });
   const workspaceId = 'ui-model-memory';
   await writeLocal(createPrefsKey('', workspaceId), null);
   const project = {
@@ -356,7 +370,7 @@ async function openModelMemory() {
     workspaceId,
     projects: [project],
     projectId: project.id,
-    loadOptions: async () => ({
+    loadOptions: async (): Promise<CreationOptions> => ({
       sessionId: 'ui-model-memory',
       project,
       agents: [
@@ -368,6 +382,14 @@ async function openModelMemory() {
           cliType: 'builtin',
           agentType: 'codex',
         },
+        ...['grok', 'claude', 'deepseek'].map((agentType) => ({
+          id: agentType,
+          name: agentType,
+          machineId: 'ui',
+          machineName: 'Fixture Mac',
+          cliType: 'builtin',
+          agentType,
+        })),
       ],
       capabilities: [
         {
@@ -383,7 +405,86 @@ async function openModelMemory() {
             { id: 'agent-full-access', name: 'Full Access' },
           ],
           reasoningEfforts: { a: ['low', 'high'], b: ['low', 'high'] },
+          configOptions: [
+            {
+              id: 'fast-mode',
+              name: 'Fast mode',
+              category: 'model_config',
+              type: 'boolean',
+              currentValue: false,
+              options: [],
+            },
+            select('collaboration_mode', 'Collaboration mode', [
+              'default',
+              'plan',
+            ]),
+          ],
           steer: true,
+        },
+        {
+          machineId: 'ui',
+          cliType: 'builtin',
+          agentType: 'grok',
+          models: [
+            { id: 'grok-a', name: 'Grok A' },
+            { id: 'grok-b', name: 'Grok B' },
+          ],
+          modes: [
+            { id: 'agent', name: 'Agent' },
+            { id: 'plan', name: 'Plan' },
+          ],
+          reasoningEfforts: {
+            'grok-a': ['low', 'high'],
+            'grok-b': ['low', 'high'],
+          },
+          configOptions: [
+            select(
+              'interaction_mode',
+              'Interaction Mode',
+              ['agent', 'plan'],
+              'mode',
+            ),
+            select(
+              'permission_mode',
+              'Permission Mode',
+              ['ask', 'auto', 'always-approve'],
+              '_permission',
+            ),
+          ],
+          steer: false,
+        },
+        {
+          machineId: 'ui',
+          cliType: 'builtin',
+          agentType: 'claude',
+          models: [{ id: 'claude', name: 'Claude' }],
+          modes: [],
+          reasoningEfforts: {},
+          configOptions: [
+            select('model', 'Model', ['claude'], 'model'),
+            select('effort', 'Effort', ['low', 'high'], 'thought_level'),
+            {
+              id: 'fast',
+              name: 'Fast mode',
+              category: 'model_config',
+              type: 'boolean',
+              currentValue: false,
+              options: [],
+            },
+          ],
+          steer: false,
+        },
+        {
+          machineId: 'ui',
+          cliType: 'builtin',
+          agentType: 'deepseek',
+          models: [],
+          modes: [],
+          reasoningEfforts: {},
+          configOptions: [
+            select('agent_preset', 'Agent preset', ['standard', 'coder']),
+          ],
+          steer: false,
         },
       ],
     }),

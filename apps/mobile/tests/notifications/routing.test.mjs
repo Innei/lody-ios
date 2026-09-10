@@ -1,10 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { redirectSystemPath } from '../../src/app/+native-intent.ts';
+import {
+  acknowledgeDeepLink,
+  pendingDeepLink,
+  subscribeDeepLinks,
+} from '../../src/features/notifications/deepLinks.ts';
 import {
   parseNotificationRoute,
   routeFromDeepLink,
   resolveNotificationClick,
-} from '../src/features/notifications/routing.ts';
+} from '../../src/features/notifications/routing.ts';
 const click = { id: 'notice', route: '/work/sessions/session', userId: 'user' };
 const session = { id: 'session', title: 'Synthetic' };
 const context = {
@@ -109,4 +115,48 @@ test('widget and notification links share the route space, ignoring foreign sche
     '/ws/sessions/s1',
   ])
     assert.equal(routeFromDeepLink(url), null);
+});
+
+test('native session links survive cold startup and have one navigation owner on every open', () => {
+  const path = 'lody:///work/sessions/session';
+  assert.equal(redirectSystemPath({ path, initial: true }), '/');
+  const cold = pendingDeepLink();
+  assert.equal(cold.route, '/work/sessions/session');
+  assert.equal(
+    resolveNotificationClick({ ...cold, userId: 'user' }, context).kind,
+    'session',
+  );
+
+  let changes = 0;
+  const stop = subscribeDeepLinks(() => changes++);
+  acknowledgeDeepLink(cold.id);
+  assert.equal(pendingDeepLink(), null);
+  // A warm link must not cause Expo Router to push either NotFound or Home.
+  assert.equal(redirectSystemPath({ path, initial: false }), null);
+  const warm = pendingDeepLink();
+  assert.notEqual(warm.id, cold.id);
+  acknowledgeDeepLink(cold.id);
+  assert.equal(
+    pendingDeepLink(),
+    warm,
+    'An old acknowledgement must not erase a new click',
+  );
+  acknowledgeDeepLink(warm.id);
+  assert.equal(changes, 3);
+  stop();
+
+  for (const other of [
+    'lody:///debug',
+    'https://example.com/work/sessions/session',
+    'lody:///work/sessions/%2fother',
+  ]) {
+    assert.equal(redirectSystemPath({ path: other, initial: false }), other);
+    assert.equal(pendingDeepLink(), null);
+  }
+  assert.equal(
+    redirectSystemPath({ path: '/work/sessions/session', initial: false }),
+    null,
+  );
+  acknowledgeDeepLink(pendingDeepLink().id);
+  assert.equal(changes, 3, 'Unmounted subscribers must not receive URL events');
 });

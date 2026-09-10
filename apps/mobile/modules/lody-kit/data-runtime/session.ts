@@ -320,6 +320,7 @@ export async function sendTurn(args: {
   modeId?: string;
   reasoningEffort?: string | null;
   reasoningEffortConfigId?: string;
+  configOptionValues?: Record<string, string | boolean>;
 }) {
   const state = active;
   if (!state || state.id !== args.sessionId || !state.ready)
@@ -345,6 +346,28 @@ export async function sendTurn(args: {
   if (typeof args.text !== 'string')
     return { state: 'not_sent', reason: 'invalid_message' };
   const text = args.text.trim();
+  if (
+    args.configOptionValues !== undefined &&
+    (!args.configOptionValues ||
+      typeof args.configOptionValues !== 'object' ||
+      Array.isArray(args.configOptionValues) ||
+      Object.keys(args.configOptionValues).length > 64 ||
+      Object.entries(args.configOptionValues).some(
+        ([id, value]) =>
+          !id ||
+          id.length > 128 ||
+          /(?:api[_-]?key|auth|bearer|credential|password|passwd|secret|token)/i.test(
+            id,
+          ) ||
+          !(
+            typeof value === 'boolean' ||
+            (typeof value === 'string' &&
+              value.length > 0 &&
+              value.length <= 512)
+          ),
+      ))
+  )
+    return { state: 'not_sent', reason: 'invalid_config_options' };
   const attachments = args.attachmentBlocks ?? [];
   if (
     !Array.isArray(attachments) ||
@@ -404,6 +427,7 @@ export async function sendTurn(args: {
       !Array.isArray(previous.configOptionValues)
         ? previous.configOptionValues
         : {}),
+      ...args.configOptionValues,
     };
     if (args.reasoningEffort !== undefined) {
       const id = args.reasoningEffortConfigId || 'reasoning_effort';

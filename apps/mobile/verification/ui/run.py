@@ -17,14 +17,16 @@ from simulator import run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
-    'pages': ['notifications', 'settings', 'inbox', 'background', 'permission', 'home', 'licenses', 'onboarding', 'live-activity'],
-    'send': ['send-queue', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'model-options', 'composer', 'composer-glass', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
+    'pages': ['notifications', 'settings', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'onboarding', 'live-activity'],
+    'send': ['send-transition', 'send-transition-handoff', 'send-queue', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'model-options', 'composer', 'composer-glass', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
     'chat': ['file-preview', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'changes', 'inline-diff'],
 }
 CASES = [case for batch in BATCHES.values() for case in batch]
 # These run their own HomePreviewProviders bundle and start from the inbox, not Debug.
-STANDALONE = {'home', 'licenses'}
+STANDALONE = {'home', 'licenses', 'navigation'}
 PREVIEW = {
+    'send-transition': 'send-preview',
+    'send-transition-handoff': 'send-handoff',
     'notifications': 'notification-preview',
     'live-activity': 'live-activity-preview',
     'permission': 'permission-preview',
@@ -50,6 +52,8 @@ PREVIEW = {
     'onboarding': 'onboarding-preview',
 }
 READY = {
+    'send-transition': 'send-status',
+    'send-transition-handoff': 'create-session-input',
     'notifications': 'notification-preview-ready',
     'live-activity': 'live-activity-preview-ready',
     'send-queue': 'send-status',
@@ -201,7 +205,7 @@ try:
                 if case == 'chat-performance':
                     container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
                     (container / 'tmp/lody-chat-loading.json').unlink(missing_ok=True)
-                sim('launch', args.udid, 'app.innei.lody', '--ui-verify', *(['--ui-verify-scroll'] if case == 'smooth-scroll' else []), *(['--ui-verify-throw'] if case in ['send', 'send-handoff', 'send-rounds', 'send-queue'] else []), '--initialUrl', f'http://127.0.0.1:{args.port}?disableOnboarding=1', '-expo.devlauncher.hasGrantedNetworkPermission', 'YES', '-EXDevMenuShowsAtLaunch', 'NO', '-EXDevMenuIsOnboardingFinished', 'YES', '-EXDevMenuShowFloatingActionButton', 'NO', '-AppleLanguages', f'({args.language})', '-AppleLocale', 'en_US' if args.language == 'en' else 'zh_CN',
+                sim('launch', args.udid, 'app.innei.lody', '--ui-verify', *(['--ui-verify-scroll'] if case == 'smooth-scroll' else []), *(['--ui-verify-throw'] if case in ['send-transition', 'send-transition-handoff', 'send', 'send-handoff', 'send-rounds', 'send-queue'] else []), '--initialUrl', f'http://127.0.0.1:{args.port}?disableOnboarding=1', '-expo.devlauncher.hasGrantedNetworkPermission', 'YES', '-EXDevMenuShowsAtLaunch', 'NO', '-EXDevMenuIsOnboardingFinished', 'YES', '-EXDevMenuShowFloatingActionButton', 'NO', '-AppleLanguages', f'({args.language})', '-AppleLocale', 'en_US' if args.language == 'en' else 'zh_CN',
                     '-AppleKeyboards', '(en_US@sw=QWERTY)')
                 ui.element('ui-verify-ready', timeout=180)
                 recording = subprocess.Popen(['xcrun', 'simctl', 'io', args.udid, 'recordVideo', '--codec=h264', str(output / 'run.mp4')], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -227,7 +231,7 @@ try:
                 try:
                     ui.element(ready)
                 except AssertionError:
-                    if case in ['inbox', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'send-interrupt', 'smooth-scroll'] and any(item.get('AXUniqueId') == preview for item in ui.state()):
+                    if case in ['send-transition', 'send-transition-handoff', 'inbox', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'send-interrupt', 'smooth-scroll'] and any(item.get('AXUniqueId') == preview for item in ui.state()):
                         ui.axe('tap', '--id', preview, '--tap-style', 'physical', '--pre-delay', '0.5', '--post-delay', '1.2')
                         ui.element(ready)
                     else:
@@ -237,9 +241,11 @@ try:
                 if case == 'image-preview':
                     ui.axe('tap', '--label', 'Fixtures')
                     ui.axe('tap', '--label', 'Image Fixture')
-                    ui.element('preview-image:user')
+                    ui.element('preview-image:attachment:ui-verify-image')
                 ui.capture('before')
-                script = Path(__file__).with_name(f'{case}.py') if case in ['notifications', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'licenses', 'model-memory', 'onboarding', 'live-activity'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                script = Path(__file__).with_name(f'{case}.py') if case in ['notifications', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'licenses', 'navigation', 'model-memory', 'onboarding', 'live-activity'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                if case in ['send-transition', 'send-transition-handoff']:
+                    script = Path(__file__).with_name('send-transition.py')
                 command = [sys.executable, str(script), args.udid]
                 if case in ['composer-success', 'composer-failure']:
                     command += ['--expect', case.removeprefix('composer-'), '--output', str(output)]
@@ -248,8 +254,8 @@ try:
                 else:
                     command += [str(output)]
                 with (output / 'check.log').open('w') as log:
-                    subprocess.run(command, check=True, timeout=300 if case in ('chat-stream-performance', 'home') else 180, stdout=log, stderr=subprocess.STDOUT,
-                                   env={**os.environ, 'LODY_UI_LANGUAGE': args.language})
+                    subprocess.run(command, check=True, timeout=300 if case in ('chat-stream-performance', 'home', 'model-memory') else 180, stdout=log, stderr=subprocess.STDOUT,
+                                   env={**os.environ, 'LODY_UI_LANGUAGE': args.language, 'LODY_UI_METRO_PORT': str(args.port)})
                 ui.capture('after')
                 result['status'] = 'passed'
             except Exception as error:
