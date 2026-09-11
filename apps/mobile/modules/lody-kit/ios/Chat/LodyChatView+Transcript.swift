@@ -373,7 +373,8 @@ extension LodyChatView {
       // next step if individual huge messages dominate, rather than history size.
       repeat {
         let row = rows[next]
-        _ = self.rowHeight(row, width: width)
+        let previousKind = next > 0 ? rows[next - 1].kind : nil
+        _ = self.rowHeight(row, width: width, previousKind: previousKind)
         self.preparedHistory[row.id] = row
         next += 1
       } while next < rows.count && CACurrentMediaTime() < deadline

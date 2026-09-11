@@ -279,7 +279,11 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
         let secondary = row.kind == "thought"
         cell.onLink = { [weak self] in self?.openMessageLink($0) }
         let width = ChatCell.textWidth(row, width: max(1, collection.bounds.width - 40))
-        cell.configure(row, markdown: self.store.view(id: id, text: row.text, secondary: secondary, streaming: row.streaming, width: width))
+        cell.configure(
+          row,
+          markdown: self.store.view(id: id, text: row.text, secondary: secondary, streaming: row.streaming, width: width),
+          previousKind: self.kind(before: id)
+        )
         return cell
       }
       let cell = collection.dequeueReusableCell(withReuseIdentifier: "message", for: index) as! ChatCell

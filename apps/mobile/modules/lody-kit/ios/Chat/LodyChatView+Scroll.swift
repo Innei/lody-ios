@@ -50,7 +50,7 @@ extension LodyChatView {
       onRetrySend([:])
       return
     }
-    if let pendingSend, (id == pendingSend.id + ":duration" || id == pendingSend.id + ":pending"), pendingSend.reconnect == true {
+    if let pendingSend, id == pendingSend.id + ":pending", pendingSend.reconnect == true {
       onReconnect([:])
       return
     }
@@ -287,7 +287,7 @@ extension LodyChatView {
     return CGSize(width: width, height: rowHeight(row, width: width))
   }
 
-  func rowHeight(_ row: ChatRow, width: CGFloat) -> CGFloat {
+  func rowHeight(_ row: ChatRow, width: CGFloat, previousKind: String? = nil) -> CGFloat {
     if row.kind == "attachments" {
       return ChatMessageAttachmentsCell.height(count: row.attachments.count, width: width, expanded: expandedAttachments.contains(row.entryID))
     }
@@ -300,9 +300,17 @@ extension LodyChatView {
         limit: collapsedMessageHeights[row.entryID] ?? ChatMessageContent.maximumCollapsedHeight,
         expanded: expandedMessages.contains(row.entryID)) + 24
     }
-    // A pending timer can offer reconnect. Reserve its touch height before and
-    // after that action disappears so connection changes do not resize the row.
-    return max(row.actionable || row.kind == "summary" || row.kind == "pending" || row.kind == "duration" ? 44 : 0, measured + ChatCell.rowExtra(for: row))
+    // Process and pending status rows are buttons. Duration stays copy-sized
+    // even after the folded process makes it tappable — a 44 pt floor would
+    // leave an empty gap between the timer and the hairline.
+    let tapFloor = row.kind != "duration" && (row.actionable || row.kind == "summary" || row.kind == "pending")
+    return max(tapFloor ? 44 : 0, measured + ChatCell.rowExtra(for: row, previousKind: previousKind ?? kind(before: row.id)))
+  }
+
+  func kind(before id: String) -> String? {
+    let ids = dataSource.snapshot().itemIdentifiers
+    guard let index = ids.firstIndex(of: id), index > 0 else { return nil }
+    return rows[ids[index - 1]]?.kind
   }
 
   func setAttachmentContext(_ json: String) {

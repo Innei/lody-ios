@@ -6,8 +6,16 @@ import catalog
 
 ui = UI(*sys.argv[1:])
 copy = {
-    'en': {'working': 'Working for ', 'worked': 'Worked for ', 'finished': 'Worked for 1m 05s'},
-    'zh-Hans': {'working': '正在工作 ', 'worked': '工作了 ', 'finished': '工作了 1分 05秒'},
+    'en': {
+        'working': 'Working for ',
+        'worked': 'Worked for ',
+        'finished': ('Worked for 1m 04s', 'Worked for 1m 05s', 'Worked for 1m 06s'),
+    },
+    'zh-Hans': {
+        'working': '正在工作 ',
+        'worked': '工作了 ',
+        'finished': ('工作了 1分 04秒', '工作了 1分 05秒', '工作了 1分 06秒'),
+    },
 }[catalog.LANGUAGE]
 
 ui.axe('tap', '--label', 'Fixtures')
@@ -55,15 +63,25 @@ finished = ui.wait(
     lambda items: duration_row(items, copy['worked']),
     'The completed assistant row did not show its frozen work duration',
 )
-assert copy['finished'] in finished['AXLabel'], finished['AXLabel']
+assert any(token in finished['AXLabel'] for token in copy['finished']), finished['AXLabel']
+assert catalog.plural('native.chat.transcript.activity.readFiles', 1) in finished['AXLabel'], finished['AXLabel']
+assert finished['frame']['height'] < 44, (
+    'A finished work row must keep the live timer height, not a 44 pt slot: '
+    + str((advanced['frame'], finished['frame']))
+)
 finished_label = finished['AXLabel']
 time.sleep(1.2)
 assert ui.element('duration-preview:duration')['AXLabel'] == finished_label
 
 answer = ui.element('duration-preview:answer')
-finished_process = ui.element('duration-preview:process')
-assert finished_process['frame']['y'] >= finished['frame']['y'] + finished['frame']['height'] - 1
-assert answer['frame']['y'] >= finished_process['frame']['y'] + finished_process['frame']['height'] - 1
+assert not any(item.get('AXUniqueId') == 'duration-preview:process' for item in ui.state()), (
+    'Completion must absorb the process row into the work duration'
+)
+assert answer['frame']['y'] >= finished['frame']['y'] + finished['frame']['height'] - 1
+assert answer['frame']['height'] >= 36, (
+    'Body copy under the duration hairline must keep a paragraph inset: '
+    + str(answer['frame'])
+)
 model = ui.element('duration-preview:meta:model')
 assert model['AXLabel'].startswith('GPT-5.6 Sol · High · '), model['AXLabel']
 assert ':' in model['AXLabel'].rsplit(' · ', 1)[1], 'A same-day reply ends with a clock time'

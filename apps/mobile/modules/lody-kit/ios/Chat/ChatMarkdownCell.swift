@@ -5,6 +5,7 @@ final class ChatMarkdownCell: UICollectionViewCell {
   private let icon = UIImageView()
   private let spinner = UIActivityIndicatorView(style: .medium)
   private(set) var row: ChatRow?
+  private var topInset = ChatRowPadding.content
   var onLink: ((String) -> Void)?
 
   override init(frame: CGRect) {
@@ -18,8 +19,9 @@ final class ChatMarkdownCell: UICollectionViewCell {
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-  func configure(_ row: ChatRow, markdown: ChatMarkdownView) {
+  func configure(_ row: ChatRow, markdown: ChatMarkdownView, previousKind: String? = nil) {
     self.row = row
+    topInset = ChatRowPadding.top(kind: row.kind, previousKind: previousKind)
     if self.markdown !== markdown {
       if self.markdown?.superview === contentView { self.markdown?.removeFromSuperview() }
       self.markdown = markdown
@@ -39,6 +41,7 @@ final class ChatMarkdownCell: UICollectionViewCell {
   override func prepareForReuse() {
     super.prepareForReuse()
     row = nil
+    topInset = ChatRowPadding.content
     if markdown?.superview === contentView {
       markdown?.onLink = nil
       markdown?.removeFromSuperview()
@@ -54,8 +57,8 @@ final class ChatMarkdownCell: UICollectionViewCell {
     let textWidth = ChatCell.textWidth(row, width: width)
     markdown.measure(width: textWidth)
     let height = markdown.measuredHeight
-    markdown.frame = CGRect(x: inset, y: ChatRowPadding.content, width: textWidth, height: height)
-    icon.frame = ChatCell.iconFrame(for: row, textY: ChatRowPadding.content, textHeight: height)
+    markdown.frame = CGRect(x: inset, y: topInset, width: textWidth, height: height)
+    icon.frame = ChatCell.iconFrame(for: row, textY: topInset, textHeight: height)
     spinner.frame = CGRect(x: width - 24, y: (bounds.height - 20) / 2, width: 20, height: 20)
     var view: UIView? = superview
     while let current = view, !(current is UIScrollView) { view = current.superview }

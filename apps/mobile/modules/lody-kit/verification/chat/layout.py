@@ -92,22 +92,38 @@ while time.monotonic() < deadline:
     time.sleep(0.15)
 assert saw_running and saw_segments, 'Did not observe the live text/process segments'
 assert answer and '分割线之后的收尾段落' in answer['AXLabel'], 'Conclusion did not finish'
-# Rich Markdown can be taller than the viewport. Bring the completed process
-# entry into view before asserting its state; offscreen cells are not in AX.
+# Rich Markdown can be taller than the viewport. Bring the completed work
+# row into view before asserting its state; offscreen cells are not in AX.
+thought = catalog.text('native.chat.transcript.activity.thought')
+worked = catalog.text('native.chat.transcript.status.workedFor').split('{', 1)[0]
 for _ in range(8):
     items = {item['AXUniqueId']: item for item in rows(json.loads(axe('describe-ui')))}
-    summary = items.get('preview:process')
-    if summary and catalog.text('native.chat.transcript.activity.thought') in summary.get('AXLabel', ''):
+    summary = next(
+        (
+            item
+            for item in items.values()
+            if thought in item.get('AXLabel', '') and worked in item.get('AXLabel', '')
+        ),
+        None,
+    )
+    if summary:
         break
     axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '650', '--duration', '0.5', '--post-delay', '0.4')
 else:
-    raise AssertionError('Completed process entry not found')
+    raise AssertionError('Completed work row with folded process not found')
 assert 'preview:intro' not in items and 'preview:middle' not in items, 'Completion must fold intermediate prose'
+assert 'preview:process' not in items, 'Completion must absorb the process row into the work duration'
 observations.append({'summary': summary['AXLabel'], 'summaryFrame': summary['frame']})
 for item in observations:
+    if worked in item.get('summary', ''):
+        continue
     assert abs(item['summaryFrame']['height'] - 44) <= 1, item['summaryFrame']
+assert summary['frame']['height'] < 44, (
+    'The finished work row must stay copy-sized, not grow into a 44 pt slot: '
+    + str(summary['frame'])
+)
 print(json.dumps({'samples': len(observations), 'nativeTitleAction': True,
-                  'summaryHeight': 44, 'streamAndCompletionObserved': True}, indent=2))
+                  'summaryHeight': summary['frame']['height'], 'streamAndCompletionObserved': True}, indent=2))
 
 if '--send' in sys.argv:
     # This path sends only to the local development preview, never a real session.
