@@ -31,9 +31,7 @@ fastOptions.fast = true
 panel.render(fastOptions)
 precondition(fast.accessibilityTraits.contains(.selected))
 precondition(fast.configuration?.image != nil, "Fast must use a button configuration so symbol replace can run")
-if #available(iOS 26.0, *) {
-  precondition(fast.configuration?.symbolContentTransition != nil, "Fast must replace bolt and bolt.fill")
-}
+precondition(fast.configuration?.symbolContentTransition != nil, "Fast must replace bolt and bolt.fill")
 panel.render(ChatComposerOptions())
 fastChanged = nil
 panel.perform(NSSelectorFromString("toggleFast"))

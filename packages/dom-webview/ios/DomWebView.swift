@@ -52,9 +52,7 @@ internal final class DomWebView: ExpoView, UIScrollViewDelegate, WKUIDelegate, W
 
   var webviewDebuggingEnabled: Bool = false {
     didSet {
-      if #available(iOS 16.4, *) {
-        webView?.isInspectable = webviewDebuggingEnabled
-      }
+      webView?.isInspectable = webviewDebuggingEnabled
     }
   }
 
@@ -420,9 +418,7 @@ internal final class DomWebView: ExpoView, UIScrollViewDelegate, WKUIDelegate, W
     scrollView.automaticallyAdjustsScrollIndicatorInsets = automaticallyAdjustsScrollIndicatorInsets
     scrollView.contentInsetAdjustmentBehavior = contentInsetAdjustmentBehavior
 
-    if #available(iOS 16.4, *) {
-      webView.isInspectable = webviewDebuggingEnabled
-    }
+    webView.isInspectable = webviewDebuggingEnabled
 
     self.webView = webView
     sharedSourceLoaded = retained != nil

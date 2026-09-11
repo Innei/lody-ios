@@ -38,10 +38,8 @@ final class LodyMentionPickerView: ExpoView, UICollectionViewDataSource, UIColle
     list.delegate = self
     list.keyboardDismissMode = .onDrag
     list.register(UICollectionViewListCell.self, forCellWithReuseIdentifier: "item")
-    if #available(iOS 26.0, *) {
-      list.topEdgeEffect.style = .soft
-      list.bottomEdgeEffect.style = .soft
-    }
+    list.topEdgeEffect.style = .soft
+    list.bottomEdgeEffect.style = .soft
     empty.text = LodyStrings.text("native.chat.mention.empty")
     empty.textColor = .secondaryLabel
     empty.font = .dynamic(of: 15)

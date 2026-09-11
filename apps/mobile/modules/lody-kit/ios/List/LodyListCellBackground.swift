@@ -25,10 +25,7 @@ enum LodyListCellBackground {
 /// UIKit animates with the section frame.
 final class LodySectionCardView: UICollectionReusableView {
   static let kind = "lody.section.card"
-  static var cornerRadius: CGFloat {
-    if #available(iOS 26.0, *) { return 26 }
-    return 10
-  }
+  static let cornerRadius: CGFloat = 26
 
   override init(frame: CGRect) {
     super.init(frame: frame)

@@ -44,17 +44,10 @@ private final class ChatQueueView: UIVisualEffectView {
   init() {
     super.init(effect: nil)
     accessibilityIdentifier = "session-queue"
-    if #available(iOS 26.0, *) {
-      let glass = UIGlassEffect(style: .regular)
-      glass.isInteractive = true
-      effect = glass
-      cornerConfiguration = .corners(radius: .fixed(20))
-    } else {
-      backgroundColor = .secondarySystemBackground
-      layer.cornerRadius = 20
-      layer.cornerCurve = .continuous
-      clipsToBounds = true
-    }
+    let glass = UIGlassEffect(style: .regular)
+    glass.isInteractive = true
+    effect = glass
+    cornerConfiguration = .corners(radius: .fixed(20))
     stack.axis = .vertical
     scroll.addSubview(stack)
     contentView.addSubview(scroll)
@@ -407,7 +400,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   var onHeightChange: ((CGFloat) -> Void)?
   var displayError: String? { didSet { updateComposer() } }
   private var measuredWidth: CGFloat = 0
-  private lazy var surfaceLayout: any ChatComposerSurfaceLayout = ChatComposerSurfaceLayoutFactory.make(
+  private lazy var surfaceLayout: any ChatComposerSurfaceLayout = ChatComposerLiquidGlassSurfaceLayout(
     container: composer,
     inputSurface: inputSurface,
     attachSurface: attachSurface,
@@ -417,14 +410,12 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   func setInputIdentifier(_ id: String) { input.accessibilityIdentifier = id }
 
   func attachScrollEdge(to scrollView: UIScrollView?) {
-    if #available(iOS 26.0, *) {
-      let existing = composer.interactions.compactMap { $0 as? UIScrollEdgeElementContainerInteraction }.first
-      guard scrollView != nil || existing != nil else { return }
-      let edge = existing ?? UIScrollEdgeElementContainerInteraction()
-      edge.scrollView = scrollView
-      edge.edge = .bottom
-      if edge.view == nil { composer.addInteraction(edge) }
-    }
+    let existing = composer.interactions.compactMap { $0 as? UIScrollEdgeElementContainerInteraction }.first
+    guard scrollView != nil || existing != nil else { return }
+    let edge = existing ?? UIScrollEdgeElementContainerInteraction()
+    edge.scrollView = scrollView
+    edge.edge = .bottom
+    if edge.view == nil { composer.addInteraction(edge) }
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }

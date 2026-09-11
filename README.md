@@ -4,7 +4,7 @@
   <p><b>Independent iOS Native Client</b> · AI Collaboration & Session Companion for Mobile</p>
 
   <p>
-    <img src="https://img.shields.io/badge/Platform-iOS%2016.4%2B-blue?style=flat-square&logo=apple" alt="Platform" />
+    <img src="https://img.shields.io/badge/Platform-iOS%2026%2B-blue?style=flat-square&logo=apple" alt="Platform" />
     <img src="https://img.shields.io/badge/Expo-SDK%2057-000020?style=flat-square&logo=expo" alt="Expo SDK 57" />
     <img src="https://img.shields.io/badge/React%20Native-0.86-61dafb?style=flat-square&logo=react" alt="React Native 0.86" />
     <img src="https://img.shields.io/badge/Swift-5.9-f05138?style=flat-square&logo=swift" alt="Swift 5.9" />
@@ -41,7 +41,7 @@ Install the current build on your iPhone through TestFlight:
 
 **<https://testflight.apple.com/join/1rR6Ku8f>**
 
-Requires iOS 16.4 or later. Beta builds track `main` and update automatically; they are pre-release and may be unstable, as described above.
+Requires iOS 26 or later. Beta builds track `main` and update automatically; they are pre-release and may be unstable, as described above.
 
 ---
 

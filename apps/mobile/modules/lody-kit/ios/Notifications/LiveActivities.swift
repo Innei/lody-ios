@@ -23,9 +23,7 @@ final class LiveActivities {
       endAll()
       pushToStartTask?.cancel()
       pushToStartTask = nil
-      if #available(iOS 17.2, *) {
-        OneSignal.LiveActivities.removePushToStartToken(LodyActivityAttributes.self)
-      }
+      OneSignal.LiveActivities.removePushToStartToken(LodyActivityAttributes.self)
     }
   }
 
@@ -41,7 +39,6 @@ final class LiveActivities {
 
   private func registerPushToStart() {
     guard enabled, pushToStartTask == nil, ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-    guard #available(iOS 17.2, *) else { return }
     pushToStartTask = Task { @MainActor in
       for await token in Activity<LodyActivityAttributes>.pushToStartTokenUpdates {
         OneSignal.LiveActivities.setPushToStartToken(LodyActivityAttributes.self, withToken: Self.hex(token))

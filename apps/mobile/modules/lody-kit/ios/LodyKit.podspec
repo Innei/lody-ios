@@ -9,7 +9,7 @@ Pod::Spec.new do |s|
   s.homepage = 'https://github.com/Innei/lody-ios'
   s.license = { type: 'AGPL-3.0-only' }
   s.authors = 'Innei'
-  s.platform = :ios, '16.4'
+  s.platform = :ios, '26.0'
   s.swift_version = '6.0'
   s.source = { git: 'https://github.com/Innei/lody-ios.git', tag: s.version.to_s }
   s.static_framework = true

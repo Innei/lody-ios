@@ -20,9 +20,7 @@ final class ChatImageCell: UICollectionViewCell {
     photo.layer.cornerCurve = .continuous
     photo.clipsToBounds = true
     photo.layer.borderWidth = 0.5
-    if #available(iOS 17.0, *) {
-      registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (cell: ChatImageCell, _) in cell.setNeedsLayout() }
-    }
+    registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (cell: ChatImageCell, _) in cell.setNeedsLayout() }
     failure.text = LodyStrings.text("native.chat.image.failed")
     failure.font = .preferredFont(forTextStyle: .caption1)
     failure.textColor = .secondaryLabel
@@ -109,7 +107,7 @@ final class ChatImageCell: UICollectionViewCell {
     if ProcessInfo.processInfo.arguments.contains("--ui-verify"), let image, image.id == "ui-verify-image",
        controller.presentedViewController == nil {
       let preview = ChatImagePreview(image: photo.image, name: image.fileName, url: nil)
-      if #available(iOS 18.0, *) { preview.preferredTransition = .zoom { [weak self] _ in self?.photo } }
+      preview.preferredTransition = .zoom { [weak self] _ in self?.photo }
       controller.present(preview, animated: true)
       return
     }
@@ -122,11 +120,9 @@ final class ChatImageCell: UICollectionViewCell {
     var components = URLComponents(url: requestURL, resolvingAgainstBaseURL: false)!
     components.queryItems = [URLQueryItem(name: "width", value: "2048"), URLQueryItem(name: "fit", value: "scale-down"), URLQueryItem(name: "quality", value: "95")]
     let preview = ChatImagePreview(image: photo.image, name: image.fileName, url: components.url!)
-    if #available(iOS 18.0, *) {
-      preview.preferredTransition = .zoom { [weak self] _ in
-        guard let self, self.requestURL == requestURL, self.window != nil else { return nil }
-        return self.photo
-      }
+    preview.preferredTransition = .zoom { [weak self] _ in
+      guard let self, self.requestURL == requestURL, self.window != nil else { return nil }
+      return self.photo
     }
     controller.present(preview, animated: true)
   }

@@ -14,7 +14,6 @@ import {
 
 import type { ColorValue } from 'react-native';
 import { softScrollEdgeEffects } from '@/ui/Screen';
-import { isIOS26 } from '@/ui/platform';
 
 import {
   type PageDefinitionBase,
@@ -123,7 +122,8 @@ export function nativePresentationOptions(
     contentStyle: {
       backgroundColor:
         style === 'overFullScreen' ||
-        (isIOS26 && (style === 'formSheet' || style === 'pageSheet'))
+        style === 'formSheet' ||
+        style === 'pageSheet'
           ? 'transparent'
           : backgroundColor,
     },

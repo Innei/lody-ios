@@ -423,150 +423,147 @@ precondition(
 )
 print("Composer: model trigger chevron stays compact")
 
-if #available(iOS 26.0, *) {
-  let glassComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
-  let glassWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
-  glassWindow.addSubview(glassComposer)
-  glassWindow.isHidden = false
-  glassComposer.onHeightChange = { height in
-    glassComposer.frame.size.height = height
-  }
-  glassComposer.setComposerState(ready)
-  glassComposer.setComposerOptions(
-    #"{"modelId":"gpt","models":[{"id":"gpt","title":"GPT"}],"effort":"medium","efforts":[{"id":"medium","title":"Medium"}]}"#
-  )
-  glassComposer.layoutIfNeeded()
-
-  let glassInput = descendants(glassComposer).compactMap { $0 as? UITextView }.first!
-  let glassAttach = descendants(glassComposer).compactMap { $0 as? UIButton }.first {
-    $0.accessibilityIdentifier == "session-attach"
-  }!
-  let glassSend = descendants(glassComposer).compactMap { $0 as? UIButton }.first {
-    $0.accessibilityIdentifier == "session-send"
-  }!
-  let glassModel = descendants(glassComposer).compactMap { $0 as? UIButton }.first {
-    $0.accessibilityIdentifier == "session-model"
-  }!
-  let glassInputSurface = glassInput.superview!.superview as! UIVisualEffectView
-  let glassAttachSurface = glassAttach.superview!.superview as! UIVisualEffectView
-
-  precondition(
-    abs(glassInputSurface.frame.minX - glassAttachSurface.frame.maxX - 8) < 0.5,
-    "An unfocused iOS 26 composer must keep the current separate 8-point glass gap"
-  )
-  let glassAttachGlyph = descendants(glassAttach).compactMap { $0 as? UIImageView }.first {
-    $0.accessibilityIdentifier == "session-attach-glyph"
-  }
-  precondition(
-    glassAttachGlyph != nil && glassAttach.image(for: .normal) == nil
-      && glassAttach.configuration?.image == nil,
-    "Liquid Glass must own a stable Add glyph view so UIButton relayout cannot reset its scale"
-  )
-  glassComposer.setMentionItems("[]")
-  let restingAttachGlyphSize = glassAttachGlyph!.bounds.size
-  precondition(glassInput.becomeFirstResponder(), "The glass composer input must accept focus")
-  precondition(glassAttachSurface.effect is UIGlassEffect
-    && !glassAttachSurface.isDescendant(of: glassInputSurface),
-    "The opening transition must retain both glass surfaces until their native merge completes")
-  RunLoop.current.run(until: Date().addingTimeInterval(0.35))
-  glassComposer.layoutIfNeeded()
-
-  let mentionEntry = descendants(glassComposer).first { $0.accessibilityIdentifier == "session-mention" }!
-  glassComposer.setComposerState(ready)
-  precondition(!mentionEntry.isHidden, "Ordinary composer state updates must not erase the separately loaded reference catalog")
-  let focusedInputFrame = glassInputSurface.convert(glassInputSurface.bounds, to: glassComposer)
-  let focusedAttachFrame = glassAttachSurface.convert(glassAttachSurface.bounds, to: glassComposer)
-  precondition(glassAttachSurface.effect == nil,
-    "Merged Add must not retain an independent circular glass effect")
-  glassInputSurface.transform = CGAffineTransform(scaleX: 1.05, y: 1.05)
-  let pressedAttachFrame = glassAttachSurface.convert(glassAttachSurface.bounds, to: glassComposer)
-  precondition(abs(pressedAttachFrame.width - focusedAttachFrame.width * 1.05) < 0.5,
-    "Pressing the input glass must scale the merged Add along with its content")
-  glassInputSurface.transform = .identity
-  precondition(
-    abs(focusedInputFrame.minX + 6 - focusedAttachFrame.minX) < 0.5
-      && focusedInputFrame.contains(focusedAttachFrame),
-    "A focused iOS 26 composer must merge the optically inset add glass into one full-width input surface"
-  )
-
-  let attachCenter = glassAttach.convert(
-    CGPoint(x: glassAttach.bounds.midX, y: glassAttach.bounds.midY),
-    to: glassInputSurface
-  )
-  let sendCenter = glassSend.convert(
-    CGPoint(x: glassSend.bounds.midX, y: glassSend.bounds.midY),
-    to: glassInputSurface
-  )
-  let modelFrame = glassModel.convert(glassModel.bounds, to: glassInputSurface)
-  let sendFrame = glassSend.convert(glassSend.bounds, to: glassInputSurface)
-  let attachInset = attachCenter.x
-  let sendInset = glassInputSurface.bounds.maxX - sendCenter.x
-  let baselineDelta = attachCenter.y - sendCenter.y
-  print(
-    "Composer glass metrics: add \(attachInset), send \(sendInset), baseline \(baselineDelta)"
-  )
-  precondition(
-    abs(attachInset - 28) < 0.5
-      && abs(sendInset - 24) < 0.5
-      && abs(baselineDelta) < 0.5,
-    "Focused Add must have a 28-point inset and Send a 24-point inset on the same baseline; "
-      + "got add \(attachInset), send \(sendInset), baseline \(baselineDelta)"
-  )
-  let sendVisualView = descendants(glassSend).first {
-    $0.accessibilityIdentifier == "session-action-visual"
-  }!
-  let sendGlyph = descendants(sendVisualView).compactMap { $0 as? UIImageView }.first {
-    !$0.isHidden && $0.image != nil
-  }!
-  let focusedGlyph = descendants(glassAttach).compactMap { $0 as? UIImageView }.first {
-    $0.accessibilityIdentifier == "session-attach-focused-glyph"
-  }!
-  let mergedImage = focusedGlyph.image!
-  let focusedAttachGlyphSize = focusedGlyph.bounds.size
-  precondition(
-    abs(focusedAttachGlyphSize.width - mergedImage.size.width) < 0.5
-      && abs(focusedAttachGlyphSize.height - mergedImage.size.height) < 0.5
-      && focusedGlyph.alpha == 1 && glassAttachGlyph!.alpha == 0,
-    "Focus must render the regular glyph at its intended size while fading out the separate medium glyph"
-  )
-  let attachGlyphCenter = glassAttachGlyph!.convert(
-    CGPoint(x: glassAttachGlyph!.bounds.midX, y: glassAttachGlyph!.bounds.midY),
-    to: glassInputSurface
-  )
-  let sendGlyphCenter = sendGlyph.convert(
-    CGPoint(x: sendGlyph.bounds.midX, y: sendGlyph.bounds.midY),
-    to: glassInputSurface
-  )
-  precondition(
-    abs(attachGlyphCenter.y - sendGlyphCenter.y) < 0.5,
-    "The focused Add and Send icons must share one baseline; "
-      + "got \(attachGlyphCenter.y) and \(sendGlyphCenter.y)"
-  )
-  precondition(
-    !glassModel.isHidden
-      && modelFrame.midX > glassInputSurface.bounds.midX
-      && modelFrame.maxX <= sendFrame.minX + 0.5,
-    "The focused model selector must remain on the trailing side before Send"
-  )
-  print("Composer glass: focus merges Add into one balanced surface while Model stays trailing")
-  glassInput.resignFirstResponder()
-  RunLoop.current.run(until: Date().addingTimeInterval(0.3))
-  glassComposer.layoutIfNeeded()
-  precondition(glassAttachSurface.effect is UIGlassEffect
-    && !glassAttachSurface.isDescendant(of: glassInputSurface),
-    "Leaving focus must restore Add's separate interactive glass")
-  precondition(glassAttachGlyph!.alpha == 1 && focusedGlyph.alpha == 0
-    && abs(glassAttachGlyph!.bounds.width - restingAttachGlyphSize.width) < 0.5,
-    "Leaving focus must restore the separate medium glyph without retaining the regular overlay")
-  glassInput.becomeFirstResponder()
-  RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-  glassInput.resignFirstResponder()
-  RunLoop.current.run(until: Date().addingTimeInterval(0.3))
-  precondition(glassAttachSurface.effect is UIGlassEffect
-    && !glassAttachSurface.isDescendant(of: glassInputSurface),
-    "Cancelling an opening must not later move the separate Add into the input")
-
+let glassComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
+let glassWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+glassWindow.addSubview(glassComposer)
+glassWindow.isHidden = false
+glassComposer.onHeightChange = { height in
+  glassComposer.frame.size.height = height
 }
+glassComposer.setComposerState(ready)
+glassComposer.setComposerOptions(
+  #"{"modelId":"gpt","models":[{"id":"gpt","title":"GPT"}],"effort":"medium","efforts":[{"id":"medium","title":"Medium"}]}"#
+)
+glassComposer.layoutIfNeeded()
+
+let glassInput = descendants(glassComposer).compactMap { $0 as? UITextView }.first!
+let glassAttach = descendants(glassComposer).compactMap { $0 as? UIButton }.first {
+  $0.accessibilityIdentifier == "session-attach"
+}!
+let glassSend = descendants(glassComposer).compactMap { $0 as? UIButton }.first {
+  $0.accessibilityIdentifier == "session-send"
+}!
+let glassModel = descendants(glassComposer).compactMap { $0 as? UIButton }.first {
+  $0.accessibilityIdentifier == "session-model"
+}!
+let glassInputSurface = glassInput.superview!.superview as! UIVisualEffectView
+let glassAttachSurface = glassAttach.superview!.superview as! UIVisualEffectView
+
+precondition(
+  abs(glassInputSurface.frame.minX - glassAttachSurface.frame.maxX - 8) < 0.5,
+  "An unfocused iOS 26 composer must keep the current separate 8-point glass gap"
+)
+let glassAttachGlyph = descendants(glassAttach).compactMap { $0 as? UIImageView }.first {
+  $0.accessibilityIdentifier == "session-attach-glyph"
+}
+precondition(
+  glassAttachGlyph != nil && glassAttach.image(for: .normal) == nil
+    && glassAttach.configuration?.image == nil,
+  "Liquid Glass must own a stable Add glyph view so UIButton relayout cannot reset its scale"
+)
+glassComposer.setMentionItems("[]")
+let restingAttachGlyphSize = glassAttachGlyph!.bounds.size
+precondition(glassInput.becomeFirstResponder(), "The glass composer input must accept focus")
+precondition(glassAttachSurface.effect is UIGlassEffect
+  && !glassAttachSurface.isDescendant(of: glassInputSurface),
+  "The opening transition must retain both glass surfaces until their native merge completes")
+RunLoop.current.run(until: Date().addingTimeInterval(0.35))
+glassComposer.layoutIfNeeded()
+
+let mentionEntry = descendants(glassComposer).first { $0.accessibilityIdentifier == "session-mention" }!
+glassComposer.setComposerState(ready)
+precondition(!mentionEntry.isHidden, "Ordinary composer state updates must not erase the separately loaded reference catalog")
+let focusedInputFrame = glassInputSurface.convert(glassInputSurface.bounds, to: glassComposer)
+let focusedAttachFrame = glassAttachSurface.convert(glassAttachSurface.bounds, to: glassComposer)
+precondition(glassAttachSurface.effect == nil,
+  "Merged Add must not retain an independent circular glass effect")
+glassInputSurface.transform = CGAffineTransform(scaleX: 1.05, y: 1.05)
+let pressedAttachFrame = glassAttachSurface.convert(glassAttachSurface.bounds, to: glassComposer)
+precondition(abs(pressedAttachFrame.width - focusedAttachFrame.width * 1.05) < 0.5,
+  "Pressing the input glass must scale the merged Add along with its content")
+glassInputSurface.transform = .identity
+precondition(
+  abs(focusedInputFrame.minX + 6 - focusedAttachFrame.minX) < 0.5
+    && focusedInputFrame.contains(focusedAttachFrame),
+  "A focused iOS 26 composer must merge the optically inset add glass into one full-width input surface"
+)
+
+let attachCenter = glassAttach.convert(
+  CGPoint(x: glassAttach.bounds.midX, y: glassAttach.bounds.midY),
+  to: glassInputSurface
+)
+let sendCenter = glassSend.convert(
+  CGPoint(x: glassSend.bounds.midX, y: glassSend.bounds.midY),
+  to: glassInputSurface
+)
+let modelFrame = glassModel.convert(glassModel.bounds, to: glassInputSurface)
+let sendFrame = glassSend.convert(glassSend.bounds, to: glassInputSurface)
+let attachInset = attachCenter.x
+let sendInset = glassInputSurface.bounds.maxX - sendCenter.x
+let baselineDelta = attachCenter.y - sendCenter.y
+print(
+  "Composer glass metrics: add \(attachInset), send \(sendInset), baseline \(baselineDelta)"
+)
+precondition(
+  abs(attachInset - 28) < 0.5
+    && abs(sendInset - 24) < 0.5
+    && abs(baselineDelta) < 0.5,
+  "Focused Add must have a 28-point inset and Send a 24-point inset on the same baseline; "
+    + "got add \(attachInset), send \(sendInset), baseline \(baselineDelta)"
+)
+let sendVisualView = descendants(glassSend).first {
+  $0.accessibilityIdentifier == "session-action-visual"
+}!
+let sendGlyph = descendants(sendVisualView).compactMap { $0 as? UIImageView }.first {
+  !$0.isHidden && $0.image != nil
+}!
+let focusedGlyph = descendants(glassAttach).compactMap { $0 as? UIImageView }.first {
+  $0.accessibilityIdentifier == "session-attach-focused-glyph"
+}!
+let mergedImage = focusedGlyph.image!
+let focusedAttachGlyphSize = focusedGlyph.bounds.size
+precondition(
+  abs(focusedAttachGlyphSize.width - mergedImage.size.width) < 0.5
+    && abs(focusedAttachGlyphSize.height - mergedImage.size.height) < 0.5
+    && focusedGlyph.alpha == 1 && glassAttachGlyph!.alpha == 0,
+  "Focus must render the regular glyph at its intended size while fading out the separate medium glyph"
+)
+let attachGlyphCenter = glassAttachGlyph!.convert(
+  CGPoint(x: glassAttachGlyph!.bounds.midX, y: glassAttachGlyph!.bounds.midY),
+  to: glassInputSurface
+)
+let sendGlyphCenter = sendGlyph.convert(
+  CGPoint(x: sendGlyph.bounds.midX, y: sendGlyph.bounds.midY),
+  to: glassInputSurface
+)
+precondition(
+  abs(attachGlyphCenter.y - sendGlyphCenter.y) < 0.5,
+  "The focused Add and Send icons must share one baseline; "
+    + "got \(attachGlyphCenter.y) and \(sendGlyphCenter.y)"
+)
+precondition(
+  !glassModel.isHidden
+    && modelFrame.midX > glassInputSurface.bounds.midX
+    && modelFrame.maxX <= sendFrame.minX + 0.5,
+  "The focused model selector must remain on the trailing side before Send"
+)
+print("Composer glass: focus merges Add into one balanced surface while Model stays trailing")
+glassInput.resignFirstResponder()
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+glassComposer.layoutIfNeeded()
+precondition(glassAttachSurface.effect is UIGlassEffect
+  && !glassAttachSurface.isDescendant(of: glassInputSurface),
+  "Leaving focus must restore Add's separate interactive glass")
+precondition(glassAttachGlyph!.alpha == 1 && focusedGlyph.alpha == 0
+  && abs(glassAttachGlyph!.bounds.width - restingAttachGlyphSize.width) < 0.5,
+  "Leaving focus must restore the separate medium glyph without retaining the regular overlay")
+glassInput.becomeFirstResponder()
+RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+glassInput.resignFirstResponder()
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+precondition(glassAttachSurface.effect is UIGlassEffect
+  && !glassAttachSurface.isDescendant(of: glassInputSurface),
+  "Cancelling an opening must not later move the separate Add into the input")
 
 // A trigger belongs to the active caret token, never email or selected prose.
 assert(ChatMentionPanel.activeRange(text: "😀 @auth", selection: NSRange(location: 8, length: 0)) == NSRange(location: 3, length: 5))

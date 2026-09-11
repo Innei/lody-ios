@@ -13,24 +13,13 @@ final class LodyDiffToolbar: ExpoView {
   var pendingBase = ""
 
   required init(appContext: AppContext? = nil) {
-    if #available(iOS 26, *) {
-      container = UIVisualEffectView(effect: UIGlassContainerEffect())
-      statsGlass = UIVisualEffectView(effect: UIGlassEffect())
-      let interactive = UIGlassEffect()
-      interactive.isInteractive = true
-      segmentGlass = UIVisualEffectView(effect: interactive)
-      statsGlass.cornerConfiguration = .capsule()
-      segmentGlass.cornerConfiguration = .capsule()
-    } else {
-      container = UIVisualEffectView(effect: nil)
-      statsGlass = UIVisualEffectView(effect: UIBlurEffect(style: .systemChromeMaterial))
-      segmentGlass = UIVisualEffectView(effect: UIBlurEffect(style: .systemChromeMaterial))
-      for glass in [statsGlass, segmentGlass] {
-        glass.layer.cornerRadius = 22
-        glass.layer.cornerCurve = .continuous
-        glass.clipsToBounds = true
-      }
-    }
+    container = UIVisualEffectView(effect: UIGlassContainerEffect())
+    statsGlass = UIVisualEffectView(effect: UIGlassEffect())
+    let interactive = UIGlassEffect()
+    interactive.isInteractive = true
+    segmentGlass = UIVisualEffectView(effect: interactive)
+    statsGlass.cornerConfiguration = .capsule()
+    segmentGlass.cornerConfiguration = .capsule()
     super.init(appContext: appContext)
     backgroundColor = .clear
     stats.font = .monospacedDigitSystemFont(ofSize: 13, weight: .semibold)

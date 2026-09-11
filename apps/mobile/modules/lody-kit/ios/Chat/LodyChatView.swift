@@ -295,10 +295,8 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
       cell.configure(row, text: self.text(for: row))
       return cell
     }
-    if #available(iOS 26.0, *) {
-      collection.topEdgeEffect.style = .soft
-      collection.bottomEdgeEffect.style = .soft
-    }
+    collection.topEdgeEffect.style = .soft
+    collection.bottomEdgeEffect.style = .soft
     composer.attachScrollEdge(to: collection)
     composer.onSend = { [weak self] payload in
       guard let self else { return }
@@ -326,12 +324,16 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     collection.backgroundView = empty
     addSubview(collection)
     addSubview(composer)
-    bottomButton.setImage(UIImage(systemName: "arrow.down"), for: .normal)
+    var bottomConfiguration = UIButton.Configuration.glass()
+    bottomConfiguration.image = UIImage(systemName: "arrow.down")
+    bottomConfiguration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(
+      pointSize: 10,
+      weight: .semibold
+    )
+    bottomConfiguration.cornerStyle = .capsule
+    bottomButton.configuration = bottomConfiguration
     bottomButton.accessibilityLabel = LodyStrings.text("native.chat.scrollToBottom")
     bottomButton.accessibilityIdentifier = "chat-scroll-to-bottom"
-    if #available(iOS 26.0, *) { bottomButton.configuration = .glass() }
-    else { bottomButton.configuration = .gray() }
-    bottomButton.configuration?.cornerStyle = .capsule
     bottomButton.alpha = 0
     bottomButton.isUserInteractionEnabled = false
     bottomButton.addAction(UIAction { [weak self] _ in

@@ -6,7 +6,7 @@ packages:
     path: .work/loro-swift
 settings:
   base:
-    IPHONEOS_DEPLOYMENT_TARGET: '16.4'
+    IPHONEOS_DEPLOYMENT_TARGET: '26.0'
     SWIFT_VERSION: '5.9'
 targets:
   LodyNativeProbe:

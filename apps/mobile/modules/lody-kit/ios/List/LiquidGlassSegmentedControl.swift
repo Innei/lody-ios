@@ -6,8 +6,7 @@ import UIKit
 // _highlightSegment: drives the system lift, and the lens frame is
 // interpolated manually for continuous pager-progress tracking (re-applied
 // after every layout pass via the subclass hook, because UIKit resets it).
-// Selectors resolve at runtime; on iOS 18 or unsupported builds every call
-// no-ops and the stock segmented control remains.
+// Selectors resolve at runtime; unsupported builds no-op and keep the stock control.
 final class LiquidGlassSegmentedControl: UISegmentedControl {
   var applyIndicatorProgressAfterLayout: (() -> Void)?
 

@@ -43,15 +43,11 @@ enum ChatNavigationTitle {
   }
 
   static func preserveSubtitle(_ subtitle: String, on item: UINavigationItem) {
-    if #available(iOS 26.0, *) {
-      item.subtitle = subtitle.isEmpty ? nil : subtitle
-    }
+    item.subtitle = subtitle.isEmpty ? nil : subtitle
   }
 
   static func clearNativeSubtitle(_ item: UINavigationItem) {
-    if #available(iOS 26.0, *) {
-      item.subtitle = nil
-    }
+    item.subtitle = nil
   }
 
   static func detach(button: UIButton, from item: UINavigationItem) {

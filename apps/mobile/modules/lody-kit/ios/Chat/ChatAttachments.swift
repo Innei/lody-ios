@@ -281,17 +281,10 @@ final class ChatAttachmentBar: UIScrollView {
     remove.accessibilityLabel = LodyStrings.text("native.chat.attachment.remove", ["name": item.name])
     remove.addAction(UIAction { [weak self] _ in self?.onRemove?(item.id) }, for: .touchUpInside)
     let surface = UIVisualEffectView(effect: nil)
-    if #available(iOS 26.0, *) {
-      let glass = UIGlassEffect(style: .regular)
-      glass.isInteractive = true
-      surface.effect = glass
-      surface.cornerConfiguration = .capsule()
-    } else {
-      surface.backgroundColor = .secondarySystemBackground
-      surface.layer.cornerRadius = 17
-      surface.layer.cornerCurve = .continuous
-      surface.clipsToBounds = true
-    }
+    let glass = UIGlassEffect(style: .regular)
+    glass.isInteractive = true
+    surface.effect = glass
+    surface.cornerConfiguration = .capsule()
     surface.contentView.addSubview(button)
     surface.contentView.addSubview(remove)
     button.translatesAutoresizingMaskIntoConstraints = false

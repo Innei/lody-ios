@@ -1,6 +1,5 @@
 import UIKit
 
-@available(iOS 26.0, *)
 final class ChatComposerLiquidGlassSurfaceLayout: ChatComposerSurfaceLayout {
   private let container: UIVisualEffectView
   private let inputSurface: UIVisualEffectView

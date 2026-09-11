@@ -31,18 +31,10 @@ final class LodyGlassSurface: ExpoView {
   }
 
   private func apply() {
-    if #available(iOS 26.0, *) {
-      let effect = UIGlassEffect(style: .regular)
-      effect.isInteractive = true
-      effect.tintColor = tint
-      effectView.effect = effect
-      effectView.cornerConfiguration = .capsule(maximumRadius: radius)
-    } else {
-      effectView.effect = UIBlurEffect(style: .systemMaterial)
-      effectView.backgroundColor = tint
-      effectView.layer.cornerRadius = radius
-      effectView.layer.cornerCurve = .continuous
-      effectView.clipsToBounds = true
-    }
+    let effect = UIGlassEffect(style: .regular)
+    effect.isInteractive = true
+    effect.tintColor = tint
+    effectView.effect = effect
+    effectView.cornerConfiguration = .capsule(maximumRadius: radius)
   }
 }

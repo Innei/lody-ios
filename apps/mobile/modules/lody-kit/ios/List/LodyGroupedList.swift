@@ -85,12 +85,6 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
   }
   private let segments = UISegmentedControl(items: [])
   private let segmentContainer = UIView()
-  /// Before iOS 26 the bar has no edge effect to extend, so the strip carries
-  /// the bar's own material and reveals it the way `scrollEdgeAppearance` does.
-  private let segmentMaterial = UIVisualEffectView(
-    effect: UIBlurEffect(style: .systemChromeMaterial)
-  )
-  private let segmentHairline = UIView()
   private var scopeSearch: UISearchController?
   private var segmentLabels: [String] = []
   private var segmentsUseSearchScope = false
@@ -265,10 +259,8 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
     }
     layout.register(LodySectionCardView.self, forDecorationViewOfKind: LodySectionCardView.kind)
     collection.setCollectionViewLayout(layout, animated: false)
-    if #available(iOS 26.0, *) {
-      collection.topEdgeEffect.style = .soft
-      collection.bottomEdgeEffect.style = .soft
-    }
+    collection.topEdgeEffect.style = .soft
+    collection.bottomEdgeEffect.style = .soft
     refreshControl.addTarget(self, action: #selector(refreshPulled), for: .valueChanged)
     placeholder.textAlignment = .center
     placeholder.numberOfLines = 0
@@ -280,23 +272,14 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
     addSubview(placeholder)
     segments.addTarget(self, action: #selector(segmentChanged), for: .valueChanged)
     segmentContainer.isHidden = true
-    if #unavailable(iOS 26.0) {
-      segmentMaterial.alpha = 0
-      segmentHairline.backgroundColor = .separator
-      segmentHairline.alpha = 0
-      segmentContainer.addSubview(segmentMaterial)
-      segmentContainer.addSubview(segmentHairline)
-    }
     segmentContainer.addSubview(segments)
     addSubview(segmentContainer)
-    if #available(iOS 26.0, *) {
-      // Registers the overlay with the scroll view so UIKit shapes the top edge
-      // effect around it. Without this the control floats with nothing behind it.
-      let interaction = UIScrollEdgeElementContainerInteraction()
-      interaction.scrollView = collection
-      interaction.edge = .top
-      segmentContainer.addInteraction(interaction)
-    }
+    // Registers the overlay with the scroll view so UIKit shapes the top edge
+    // effect around it. Without this the control floats with nothing behind it.
+    let interaction = UIScrollEdgeElementContainerInteraction()
+    interaction.scrollView = collection
+    interaction.edge = .top
+    segmentContainer.addInteraction(interaction)
     appearance.view = UIView(frame: .zero)
     appearance.view.isUserInteractionEnabled = false
     appearance.onWillAppear = { [weak self] animated, coordinator in
@@ -314,14 +297,6 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
       let top = max(0, insets.top - collection.contentInset.top)
       segmentContainer.frame = CGRect(x: 0, y: top, width: bounds.width, height: segmentBarHeight)
       segments.frame = segmentContainer.bounds.insetBy(dx: 20, dy: 8)
-      if #unavailable(iOS 26.0) {
-        segmentMaterial.frame = segmentContainer.bounds
-        let hairline = 1 / UIScreen.main.scale
-        segmentHairline.frame = CGRect(
-          x: 0, y: segmentBarHeight - hairline, width: bounds.width, height: hairline
-        )
-        updateSegmentMaterial()
-      }
     }
     placeholder.frame = bounds.inset(by: UIEdgeInsets(top: insets.top + 24, left: 32, bottom: insets.bottom + 24, right: 32))
     attachScrollOwner()
@@ -374,19 +349,6 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
   /// content scrolls under it and the navigation bar supplies the material and
   /// the scroll edge effect. A floating sibling view gets neither.
   private var segmentBarHeight: CGFloat { 52 }
-
-  private func updateSegmentMaterial() {
-    guard #unavailable(iOS 26.0) else { return }
-    let scrolled = collection.contentOffset.y + collection.adjustedContentInset.top > 0.5
-    let alpha: CGFloat = scrolled ? 1 : 0
-    guard segmentMaterial.alpha != alpha else { return }
-    segmentMaterial.alpha = alpha
-    segmentHairline.alpha = alpha
-  }
-
-  func scrollViewDidScroll(_ scrollView: UIScrollView) {
-    updateSegmentMaterial()
-  }
 
   /// The edge effect covers the adjusted content inset region, and
   /// `contentInset` feeds into that — unlike `additionalSafeAreaInsets`, which

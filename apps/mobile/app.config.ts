@@ -10,6 +10,7 @@ const config: ExpoConfig = {
   userInterfaceStyle: 'automatic',
   icon: './assets/icon.png',
   ios: {
+    deploymentTarget: '26.0',
     bundleIdentifier: 'app.innei.lody',
     appleTeamId: 'KAMM5N88X3',
     supportsTablet: false,

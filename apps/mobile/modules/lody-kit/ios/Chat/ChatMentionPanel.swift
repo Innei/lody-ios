@@ -59,12 +59,8 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
     list = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewCompositionalLayout.list(using: config))
     super.init(frame: frame)
     let surface = UIVisualEffectView()
-    if #available(iOS 26.0, *) {
-      surface.effect = UIGlassEffect(style: .regular)
-      surface.cornerConfiguration = .capsule(maximumRadius: 18)
-    } else {
-      surface.effect = UIBlurEffect(style: .systemMaterial)
-    }
+    surface.effect = UIGlassEffect(style: .regular)
+    surface.cornerConfiguration = .capsule(maximumRadius: 18)
     surface.isUserInteractionEnabled = false
     surface.frame = bounds
     surface.autoresizingMask = [.flexibleWidth, .flexibleHeight]
