@@ -26,7 +26,14 @@ right = button('pr.comment')['frame']
 assert left['x'] + left['width'] <= right['x'], 'Bottom actions overlap'
 assert left['y'] > summary['frame']['y'], 'GitHub action must be in bottom toolbar'
 assert abs(left['y'] - right['y']) < 12, 'Bottom actions must share a baseline'
+assert 43.99 <= left['width'] <= 64 and left['height'] >= 43.99, 'GitHub must be an accessible icon-only button'
+files = ui.element('pr-files')
+assert '4 · +229 −16' in str(files), 'Changed-file totals must remain available to VoiceOver'
 ui.capture('pull-request')
+ui.axe('tap', '--label', catalog.text('pr.github'), '--element-type', 'Button', '--post-delay', '.4')
+ui.wait(lambda items: any(item.get('AXLabel') == catalog.text('pr.previewAction') for item in items), 'GitHub icon must invoke the existing open action')
+ui.capture('github-action')
+ui.axe('tap', '--label', catalog.text('common.ok'), '--post-delay', '.4')
 tap('pr-checks')
 failed = ui.element('pr-check-1')
 running = ui.element('pr-check-4')
@@ -62,6 +69,13 @@ ui.capture('returned-session')
 def scenario(label):
     ui.axe('tap', '--label', '更多', '--post-delay', '.4')
     ui.axe('tap', '--label', label, '--post-delay', '.6')
+
+for state in ('merged', 'closed', 'draft'):
+    scenario(catalog.text('pr.state.' + state))
+    assert catalog.text('pr.state.' + state) in str(ui.element('pr-title'))
+    ui.capture('pull-request-' + state)
+    back()
+    ui.element('session-input')
 
 scenario('授权失败预览')
 retry = ui.element('pr-retry')

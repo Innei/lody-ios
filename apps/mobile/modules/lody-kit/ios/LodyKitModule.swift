@@ -536,6 +536,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
 
     View(LodySymbolButton.self) {
       Events("onSymbolPress", "onSymbolLongPress")
+      Prop("imageAsset") { (view: LodySymbolButton, imageAsset: String) in
+        view.setImageAsset(imageAsset)
+      }
       Prop("symbol") { (view: LodySymbolButton, symbol: String) in
         view.setSymbol(symbol)
       }

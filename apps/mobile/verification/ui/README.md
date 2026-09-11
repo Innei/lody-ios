@@ -12,6 +12,9 @@ The `pull-request` case also exercises authorization retry, empty checks, a reje
 comment retaining its draft followed by successful publication to the local fixture,
 and an investigation prompt appended without replacing the session draft. Native
 GitHub transport checks intercept requests and never publish real comments.
+The PR detail captures blue/red addition/deletion totals and Octicons for open,
+merged, closed and draft states. It checks the icon-only GitHub button's 44 pt
+target, VoiceOver label and existing open action.
 
 ## Run locally
 

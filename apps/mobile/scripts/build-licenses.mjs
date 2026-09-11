@@ -94,6 +94,12 @@ const buildTooling = [
  */
 const nativeComponents = [
   {
+    name: 'Octicons',
+    license: 'MIT',
+    url: 'https://github.com/primer/octicons',
+    file: 'modules/lody-kit/licenses/Octicons-LICENSE.txt',
+  },
+  {
     name: 'MarkdownView',
     license: 'MIT',
     url: 'https://github.com/Lakr233/MarkdownView',

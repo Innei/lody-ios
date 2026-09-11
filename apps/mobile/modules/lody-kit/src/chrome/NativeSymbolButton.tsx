@@ -4,7 +4,9 @@ import type { ViewProps } from 'react-native';
 
 export interface NativeSymbolButtonProps extends ViewProps {
   accessibilityName: string;
-  symbol: string;
+  symbol?: string;
+  /** Bundled template artwork; takes precedence over the SF Symbol. */
+  imageAsset?: string;
   prominent?: boolean;
   disabled?: boolean;
   tint?: string;
