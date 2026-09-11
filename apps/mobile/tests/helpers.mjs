@@ -1,5 +1,7 @@
 import { build } from 'esbuild';
 import { LoroDoc } from 'loro-crdt/base64';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 export async function loadRuntime() {
   const bundle = await build({
@@ -15,6 +17,14 @@ export async function loadRuntime() {
       {
         name: 'stream',
         setup(b) {
+          // Fixtures and runtime must share one WASM instance: passing a Loro
+          // container between independently bundled instances corrupts pointers.
+          b.onResolve({ filter: /^loro-crdt\/base64$/ }, () => ({
+            path: pathToFileURL(
+              createRequire(import.meta.url).resolve('loro-crdt/base64'),
+            ).href,
+            external: true,
+          }));
           b.onResolve({ filter: /^@loro-dev\/streams-client$/ }, () => ({
             path: 'mock',
             namespace: 'test',

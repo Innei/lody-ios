@@ -15,6 +15,12 @@ GitHub transport checks intercept requests and never publish real comments.
 
 ## Run locally
 
+The `permission` case also opens the production question card with three offline
+questions. It checks single/multiple choices, previous/next navigation, free text,
+the complete answer payload, failed-upload retry, remote answer dismissal and
+composer draft retention in both appearances. Screenshots and video cover each
+answer state; no real agent request is dispatched.
+
 If a normal signed Debug app is already built, each verification command can lease
 its own iPhone 17 Pro / iOS 26.5 device from the `Lody * Verify` pool:
 
