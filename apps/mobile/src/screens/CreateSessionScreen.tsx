@@ -356,21 +356,32 @@ function useCreationForm(
           title: project?.name ?? t('create.row.selectProject'),
           subtitle: github
             ? 'GitHub'
-            : [project?.rootPath, catalog.machineNames?.[project?.machineId ?? ''] ?? machine?.name ?? project?.machineId].filter(Boolean).join(' · '),
+            : [
+                project?.rootPath,
+                catalog.machineNames?.[project?.machineId ?? ''] ??
+                  machine?.name ??
+                  project?.machineId,
+              ]
+                .filter(Boolean)
+                .join(' · '),
           image: github ? undefined : 'folder',
           imageAsset: github ? 'lody-mark-github' : undefined,
           action: true,
           disclosure: true,
           navigates: true,
         },
-        ...(github ? [{
-          id: 'branch',
-          title: t('create.branch.label'),
-          value: branch || t('create.branch.placeholder'),
-          image: 'arrow.triangle.branch',
-          action: true,
-          disclosure: true,
-        }] : []),
+        ...(github
+          ? [
+              {
+                id: 'branch',
+                title: t('create.branch.label'),
+                value: branch || t('create.branch.placeholder'),
+                image: 'arrow.triangle.branch',
+                action: true,
+                disclosure: true,
+              },
+            ]
+          : []),
       ],
     },
     ...(github ? [{ id: 'machine', rows: [machineRow] }] : []),
@@ -488,67 +499,73 @@ function useCreationForm(
     if (nativeEvent.id === 'machine') void pickMachine();
     if (nativeEvent.id === 'model') void pickModel();
     if (nativeEvent.id === 'agent') void pickAgent();
-    if (nativeEvent.id === 'branch') Alert.prompt(
-      t('create.branch.label'),
-      t('create.branch.placeholder'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('common.done'), onPress: (value?: string) => setBranch((value ?? '').trim().slice(0, 255)) },
-      ],
-      'plain-text', branch,
-    );
+    if (nativeEvent.id === 'branch')
+      Alert.prompt(
+        t('create.branch.label'),
+        t('create.branch.placeholder'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.done'),
+            onPress: (value?: string) =>
+              setBranch((value ?? '').trim().slice(0, 255)),
+          },
+        ],
+        'plain-text',
+        branch,
+      );
   }
 
   const composer = (
-      <NativeComposer
-        mentionItemsJSON={mentions.mentionItemsJSON}
-        mentionResultJSON={mentions.mentionResultJSON}
-        onMentionBrowse={mentions.onMentionBrowse}
-        scrollEdge
-        composerJSON={JSON.stringify({
-          editable: true,
-          canSend: !!agent && !!account && !loading,
-          sending,
-          notice: createNotice({ loading, hasAgent: !!agent }),
-          reconnect: false,
-          placeholder: t('create.composer.placeholder'),
-        })}
-        composerOptionsJSON={JSON.stringify({
-          fast: fastModeFor(capability, choice)?.enabled,
-          modelId: choice.modelId ?? '',
-          effort: choice.effort ?? '',
-          models: (capability?.models ?? []).map((item) => ({
-            id: item.id,
-            title: item.name,
-          })),
-          efforts: effortsFor(capability, choice.modelId).map((id) => ({
-            id,
-            title: id,
-          })),
-        })}
-        restoreDraftToken={restoreDraftToken}
-        onSend={({ nativeEvent }) =>
-          submit(
-            nativeEvent.id,
-            nativeEvent.text,
-            nativeEvent.startedAt,
-            nativeEvent.attachments,
-          )
+    <NativeComposer
+      mentionItemsJSON={mentions.mentionItemsJSON}
+      mentionResultJSON={mentions.mentionResultJSON}
+      onMentionBrowse={mentions.onMentionBrowse}
+      scrollEdge
+      composerJSON={JSON.stringify({
+        editable: true,
+        canSend: !!agent && !!account && !loading,
+        sending,
+        notice: createNotice({ loading, hasAgent: !!agent }),
+        reconnect: false,
+        placeholder: t('create.composer.placeholder'),
+      })}
+      composerOptionsJSON={JSON.stringify({
+        fast: fastModeFor(capability, choice)?.enabled,
+        modelId: choice.modelId ?? '',
+        effort: choice.effort ?? '',
+        models: (capability?.models ?? []).map((item) => ({
+          id: item.id,
+          title: item.name,
+        })),
+        efforts: effortsFor(capability, choice.modelId).map((id) => ({
+          id,
+          title: id,
+        })),
+      })}
+      restoreDraftToken={restoreDraftToken}
+      onSend={({ nativeEvent }) =>
+        submit(
+          nativeEvent.id,
+          nativeEvent.text,
+          nativeEvent.startedAt,
+          nativeEvent.attachments,
+        )
+      }
+      onComposerOptionChange={({ nativeEvent }) => {
+        if (typeof nativeEvent.fast === 'boolean') {
+          updateChoice(withFastMode(capability, choice, nativeEvent.fast));
+          return;
         }
-        onComposerOptionChange={({ nativeEvent }) => {
-          if (typeof nativeEvent.fast === 'boolean') {
-            updateChoice(withFastMode(capability, choice, nativeEvent.fast));
-            return;
-          }
-          const modelId = nativeEvent.modelId || undefined;
-          if (modelId !== choice.modelId) updateChoice(choiceForModel(modelId));
-          else
-            updateChoice({
-              ...choice,
-              effort: nativeEvent.effort || undefined,
-            });
-        }}
-      />
+        const modelId = nativeEvent.modelId || undefined;
+        if (modelId !== choice.modelId) updateChoice(choiceForModel(modelId));
+        else
+          updateChoice({
+            ...choice,
+            effort: nativeEvent.effort || undefined,
+          });
+      }}
+    />
   );
 
   return { sections, composer, onRowPress, sending };
@@ -559,7 +576,9 @@ function View() {
   const { account } = useAuth();
   const colors = usePalette();
   const locked = !!params.projectId && params.context !== 'chat';
-  const [context, setContext] = useState<'project' | 'chat'>(params.context ?? 'project');
+  const [context, setContext] = useState<'project' | 'chat'>(
+    params.context ?? 'project',
+  );
   const prefs = useRef<CreatePrefs | null>(null);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const prefsKey = createPrefsKey(account?.user.id ?? '', params.workspaceId);
@@ -571,7 +590,9 @@ function View() {
       if (!locked && !params.context) setContext(rememberedContext(saved));
       setPrefsLoaded(true);
     });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [prefsKey, locked, params.context]);
 
   // Each page owns its requests, selection and native draft for its entire lifetime.
@@ -582,10 +603,22 @@ function View() {
     <ComposerSheet
       accent={colors.accent}
       sections={selected.sections}
-      pages={locked ? undefined : [
-        { id: 'project', title: t('create.type.project'), sections: project.sections },
-        { id: 'chat', title: t('create.type.chat'), sections: chat.sections },
-      ]}
+      pages={
+        locked
+          ? undefined
+          : [
+              {
+                id: 'project',
+                title: t('create.type.project'),
+                sections: project.sections,
+              },
+              {
+                id: 'chat',
+                title: t('create.type.chat'),
+                sections: chat.sections,
+              },
+            ]
+      }
       selectedPage={context === 'chat' ? 1 : 0}
       onPageChange={({ nativeEvent }) => {
         if (project.sending || chat.sending) return;
@@ -597,9 +630,11 @@ function View() {
       <RNView style={{ display: context === 'project' ? 'flex' : 'none' }}>
         {project.composer}
       </RNView>
-      {!locked && <RNView style={{ display: context === 'chat' ? 'flex' : 'none' }}>
-        {chat.composer}
-      </RNView>}
+      {!locked && (
+        <RNView style={{ display: context === 'chat' ? 'flex' : 'none' }}>
+          {chat.composer}
+        </RNView>
+      )}
     </ComposerSheet>
   );
 }
