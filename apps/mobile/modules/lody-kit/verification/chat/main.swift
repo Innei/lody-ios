@@ -85,6 +85,7 @@ let liveDurationRows = ChatTranscript(entries: liveDurationEntries).rows(now: 65
 assert(liveDurationRows.map(\.kind) == ["duration", "summary"], "Duration must be the first assistant row")
 assert(liveDurationRows[0].running && liveDurationRows[0].workDurationMs == 65_999,
   "A live turn must measure from timestamp to the injected clock")
+assert(liveDurationRows[0].actionable == false, "A live timer must not reserve a reconnect control")
 assert(liveDurationRows[1].workDurationMs == nil,
   "The shiny process row must not own the static duration label")
 assert(!liveDurationRows[0].shines && liveDurationRows[1].shines,
@@ -120,10 +121,16 @@ let finishedDurationJSON = """
 """
 let finishedDurationEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(finishedDurationJSON.utf8))
 let finishedDurationRows = ChatTranscript(entries: finishedDurationEntries).rows(now: 999_999)
-assert(finishedDurationRows.map(\.kind) == ["duration", "summary", "text", "meta"],
-  "Completed duration must remain a separate first row")
+assert(finishedDurationRows.map(\.kind) == ["duration", "text", "meta"],
+  "Completed work absorbs the folded process instead of stacking a second chrome row")
 let finishedDurationRow = finishedDurationRows.first
 assert(finishedDurationRow?.workDurationMs == 125_000, "A finished turn must freeze at endedAt")
+assert(finishedDurationRow?.actionable == true, "The merged work row must open the process")
+assert(
+  finishedDurationRow?.text.contains("native.chat.transcript.activity.tools") == true
+    || finishedDurationRow?.text.contains(" · ") == true,
+  "The folded process title must follow the work duration"
+)
 assert(
   ChatWorkDuration.format(3_665_999, hour: "h", minute: "m", second: "s") == "1h 01m 05s",
   "Duration formatting must match the OSS compact format"
@@ -418,8 +425,10 @@ var disconnectedPending = localPending
 disconnectedPending.reconnect = true
 let reconnectRows = disconnectedPending.rows(entries: [])
 precondition(reconnectRows.count == pendingRows.count, "Reconnection must reuse the existing pending status row")
-precondition(reconnectRows.last?.actionable == true && reconnectRows.last?.running == true,
-  "Disconnected pending state must offer reconnect through the same static duration row")
+precondition(
+  reconnectRows.contains { $0.kind == "pending" && $0.actionable } && reconnectRows.last?.actionable == false,
+  "Disconnected pending state must offer reconnect on the status row, not the timer"
+)
 precondition(pendingRows.last?.actionable == false, "Ordinary pending status must not open the execution process")
 print("Pending reconnect: one actionable status row while disconnected passed")
 

@@ -50,7 +50,7 @@ extension LodyChatView {
       onRetrySend([:])
       return
     }
-    if let pendingSend, (id == pendingSend.id + ":duration" || id == pendingSend.id + ":pending"), pendingSend.reconnect == true {
+    if let pendingSend, id == pendingSend.id + ":pending", pendingSend.reconnect == true {
       onReconnect([:])
       return
     }
@@ -104,8 +104,22 @@ extension LodyChatView {
     if !started { collection.deselectItem(at: index, animated: animated) }
   }
 
+  func scrollViewShouldScrollToTop(_ scrollView: UIScrollView) -> Bool {
+    guard scrollView === collection else { return true }
+    scrollingToTop = true
+    pauseTracking()
+    return true
+  }
+
+  func scrollViewDidScrollToTop(_ scrollView: UIScrollView) {
+    guard scrollView === collection else { return }
+    scrollingToTop = false
+    commitPreparedHistory()
+  }
+
   func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
     guard scrollView === collection else { return }
+    scrollingToTop = false
     pauseTracking()
   }
 
@@ -119,15 +133,18 @@ extension LodyChatView {
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
     guard scrollView === collection else { return }
     updateBottomButton()
+    prefetchHistoryIfNeeded()
   }
 
   func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
     guard scrollView === collection, !decelerate else { return }
+    commitPreparedHistory()
     resumeTrackingAtBottom()
   }
 
   func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
     guard scrollView === collection else { return }
+    commitPreparedHistory()
     resumeTrackingAtBottom()
   }
 
@@ -277,6 +294,17 @@ extension LodyChatView {
     return height
   }
 
+  func collectionView(_ collectionView: UICollectionView, targetContentOffsetForProposedContentOffset proposed: CGPoint) -> CGPoint {
+    guard let (id, offset) = historyLayoutAnchor,
+          let index = dataSource.indexPath(for: id),
+          let frame = collectionView.layoutAttributesForItem(at: index)?.frame else { return proposed }
+    return CGPoint(x: proposed.x, y: max(-collectionView.adjustedContentInset.top, frame.minY - offset))
+  }
+
+  func collectionView(_ collectionView: UICollectionView, layout: UICollectionViewLayout, referenceSizeForHeaderInSection section: Int) -> CGSize {
+    CGSize(width: collectionView.bounds.width, height: section == 0 && processEntryID.isEmpty ? 48 : 0)
+  }
+
   func collectionView(_ collectionView: UICollectionView, layout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
     let width = max(1, collectionView.bounds.width - 40)
     guard let id = dataSource.itemIdentifier(for: indexPath), let row = rows[id] else { return CGSize(width: width, height: 0) }
@@ -287,7 +315,7 @@ extension LodyChatView {
     return CGSize(width: width, height: rowHeight(row, width: width))
   }
 
-  func rowHeight(_ row: ChatRow, width: CGFloat) -> CGFloat {
+  func rowHeight(_ row: ChatRow, width: CGFloat, previousKind: String? = nil) -> CGFloat {
     if row.kind == "attachments" {
       return ChatMessageAttachmentsCell.height(count: row.attachments.count, width: width, expanded: expandedAttachments.contains(row.entryID))
     }
@@ -300,9 +328,17 @@ extension LodyChatView {
         limit: collapsedMessageHeights[row.entryID] ?? ChatMessageContent.maximumCollapsedHeight,
         expanded: expandedMessages.contains(row.entryID)) + 24
     }
-    // A pending timer can offer reconnect. Reserve its touch height before and
-    // after that action disappears so connection changes do not resize the row.
-    return max(row.actionable || row.kind == "summary" || row.kind == "pending" || row.kind == "duration" ? 44 : 0, measured + ChatCell.rowExtra(for: row))
+    // Process and pending status rows are buttons. Duration stays copy-sized
+    // even after the folded process makes it tappable — a 44 pt floor would
+    // leave an empty gap between the timer and the hairline.
+    let tapFloor = row.kind != "duration" && (row.actionable || row.kind == "summary" || row.kind == "pending")
+    return max(tapFloor ? 44 : 0, measured + ChatCell.rowExtra(for: row, previousKind: previousKind ?? kind(before: row.id)))
+  }
+
+  func kind(before id: String) -> String? {
+    let ids = dataSource.snapshot().itemIdentifiers
+    guard let index = ids.firstIndex(of: id), index > 0 else { return nil }
+    return rows[ids[index - 1]]?.kind
   }
 
   func setAttachmentContext(_ json: String) {
@@ -380,11 +416,12 @@ final class ChatScrollProbe: NSObject {
   }
   @objc private func sample(_ link: CADisplayLink) {
     guard let view, samples.count < 10800 else { stop(); return }
-    guard view.rows.keys.contains(where: { $0.hasPrefix("scroll-") }) else { return }
+    guard view.rows.keys.contains(where: { $0.hasPrefix("scroll-") || $0.hasPrefix("perf-") }) else { return }
     let list = view.collection
     var visible: [String: Any] = [:]
     for index in list.indexPathsForVisibleItems {
-      guard let id = view.dataSource.itemIdentifier(for: index), id.hasPrefix("scroll-"),
+      guard let id = view.dataSource.itemIdentifier(for: index),
+            id.hasPrefix("scroll-") || id.hasPrefix("perf-"),
             let cell = list.cellForItem(at: index) else { continue }
       let frame = cell.layer.presentation()?.frame ?? cell.frame
       let offset = list.layer.presentation()?.bounds.minY ?? list.contentOffset.y
@@ -394,6 +431,8 @@ final class ChatScrollProbe: NSObject {
       "bottom": view.bottomOffset, "contentHeight": list.contentSize.height,
       "inset": list.adjustedContentInset.bottom, "following": view.followsBottom,
       "dragging": list.isDragging || list.isDecelerating,
+      "touching": list.isTracking, "panY": list.panGestureRecognizer.translation(in: view.window).y,
+      "paging": view.preparingHistory, "scrollingToTop": view.scrollingToTop,
       "count": view.rows.count, "rows": visible])
   }
   func stop() {
@@ -421,11 +460,12 @@ final class ChatPerformanceProbe: NSObject {
   private var samples: [[String: Double]] = []
   private var memory: [[String: Double]] = []
   private var nextMemory: Double = 0
-  private let baseline = ChatPerformanceProbe.footprint()
+  private var baseline = 0.0
 
   init(_ view: LodyChatView) {
     self.view = view
     super.init()
+    view.scrollProbe?.stop(); view.scrollProbe = nil
     view.setNavigationSubtitle("Preparing · 20s · 8,000 pt/s")
     let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
     self.link = link
@@ -438,9 +478,20 @@ final class ChatPerformanceProbe: NSObject {
     let now = CACurrentMediaTime()
     let list = view.collection
     if started == 0 {
-      guard now - requested < 90 else {
+      guard now - requested < 300 else {
         view.setNavigationSubtitle("Benchmark failed: loading timeout")
         stop(); return
+      }
+      if view.hasEarlierHistory {
+        // Benchmark setup traverses the same top-edge pagination as a reader.
+        // The timed scrolling phase still runs against the complete dataset.
+        view.setNavigationSubtitle("Loading history · \(view.rows.count) rows")
+        view.pauseTracking()
+        if !view.preparingHistory && !view.applying {
+          list.setContentOffset(CGPoint(x: 0, y: -list.adjustedContentInset.top), animated: false)
+          view.prefetchHistoryIfNeeded()
+        }
+        return
       }
       guard view.transcript.entries.count == 10_000,
             !view.preparingHistory,
@@ -449,10 +500,12 @@ final class ChatPerformanceProbe: NSObject {
             view.hasPositionedContent, view.motionLink == nil,
             now - requested >= 2 else { return }
       view.pauseTracking()
+      list.setContentOffset(CGPoint(x: 0, y: view.bottomOffset), animated: false)
       origin = list.contentOffset.y
       started = now
       previous = now
-      memory.append(["t": 0, "mib": Self.footprint()])
+      baseline = Self.footprint()
+      memory.append(["t": 0, "mib": baseline])
       view.setNavigationSubtitle("Running · 20s · 8,000 pt/s")
       return
     }

@@ -107,6 +107,11 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   var applying = false
   var needsApply = false
   var historyPreparation: DispatchWorkItem?
+  var historyStartID: String?
+  var historyTargetID: String?
+  var historyLayoutAnchor: (String, CGFloat)?
+  var scrollingToTop = false
+  var hasEarlierHistory = false
   var preparingHistory = false
   var preparedHistory: [String: ChatRow] = [:]
   var historyWidth: CGFloat = 0
@@ -127,6 +132,8 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   var historyFirstContent = 0.0
   var historyFirstRows = 0
   var historySliceTimes: [Double] = []
+  var historyPages: [[String: Any]] = []
+  var historyAnchorError: CGFloat = 0
   var scrollProbe: ChatScrollProbe?
   var performanceProbe: ChatPerformanceProbe?
   var streamPerformanceProbe: ChatStreamPerformanceProbe?
@@ -239,6 +246,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     }
     collection.register(ChatMessageAttachmentsCell.self, forCellWithReuseIdentifier: "attachments")
     collection.register(ChatImageCell.self, forCellWithReuseIdentifier: "image")
+    collection.register(ChatHistoryHeader.self, forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader, withReuseIdentifier: "history")
     collection.register(ChatCell.self, forCellWithReuseIdentifier: "message")
     collection.register(ChatMetaCell.self, forCellWithReuseIdentifier: "meta")
     collection.register(ChatMarkdownCell.self, forCellWithReuseIdentifier: "markdown")
@@ -279,7 +287,11 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
         let secondary = row.kind == "thought"
         cell.onLink = { [weak self] in self?.openMessageLink($0) }
         let width = ChatCell.textWidth(row, width: max(1, collection.bounds.width - 40))
-        cell.configure(row, markdown: self.store.view(id: id, text: row.text, secondary: secondary, streaming: row.streaming, width: width))
+        cell.configure(
+          row,
+          markdown: self.store.view(id: id, text: row.text, secondary: secondary, streaming: row.streaming, width: width),
+          previousKind: self.kind(before: id)
+        )
         return cell
       }
       let cell = collection.dequeueReusableCell(withReuseIdentifier: "message", for: index) as! ChatCell
@@ -298,6 +310,14 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     collection.topEdgeEffect.style = .soft
     collection.bottomEdgeEffect.style = .soft
     composer.attachScrollEdge(to: collection)
+    dataSource.supplementaryViewProvider = { [weak self] collection, kind, index in
+      let header = collection.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: "history", for: index) as! ChatHistoryHeader
+      if let self {
+        header.configure(loading: self.preparingHistory, hasEarlier: self.hasEarlierHistory)
+        header.load = { [weak self] in self?.loadEarlierHistory() }
+      }
+      return header
+    }
     composer.onSend = { [weak self] payload in
       guard let self else { return }
       if let data = try? JSONSerialization.data(withJSONObject: payload.merging(["status": LodyStrings.text("native.chat.status.sending")]) { _, new in new }),
@@ -338,6 +358,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     bottomButton.isUserInteractionEnabled = false
     bottomButton.addAction(UIAction { [weak self] _ in
       guard let self else { return }
+      self.scrollingToTop = false
       self.collection.setContentOffset(self.collection.contentOffset, animated: false)
       self.trackingPausedByGesture = false
       self.followsBottom = true
@@ -488,6 +509,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   override func didMoveToWindow() {
     super.didMoveToWindow()
     if window == nil {
+      scrollingToTop = false
       historyPreparation?.cancel(); historyPreparation = nil
       if let handoffID { ChatSendHandoff.cancel(id: handoffID) }
       motionLink?.invalidate(); motionLink = nil

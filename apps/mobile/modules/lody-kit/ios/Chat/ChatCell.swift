@@ -3,6 +3,14 @@ import UIKit
 enum ChatRowPadding {
   static let content: CGFloat = 6
   static var durationBottom: CGFloat { content / 2 }
+  /// Body copy after the duration hairline needs a full paragraph inset;
+  /// process rows keep the tighter half-gap under the rule.
+  static var textBelowDuration: CGFloat { content * 2 }
+
+  static func top(kind: String, previousKind: String?) -> CGFloat {
+    if kind == "text" && previousKind == "duration" { return textBelowDuration }
+    return content
+  }
 }
 
 final class ChatMetaCell: UICollectionViewCell {
@@ -148,10 +156,10 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     return font
   }
 
-  static func rowExtra(for row: ChatRow) -> CGFloat {
+  static func rowExtra(for row: ChatRow, previousKind: String? = nil) -> CGFloat {
     if row.kind == "user" { return 44 }
     if row.kind == "duration" { return ChatRowPadding.content + ChatRowPadding.durationBottom }
-    return ChatRowPadding.content * 2
+    return ChatRowPadding.top(kind: row.kind, previousKind: previousKind) + ChatRowPadding.content
   }
 
   static func leading(_ row: ChatRow) -> CGFloat {
@@ -258,6 +266,7 @@ private func hint(for row: ChatRow) -> String? {
     return row.actionable ? LodyStrings.text("native.chat.row.resend") : nil
   }
   switch row.kind {
+  case "duration": return row.actionable ? LodyStrings.text("native.chat.row.openProcess") : nil
   case "summary": return LodyStrings.text("native.chat.row.openProcess")
   case "changes": return LodyStrings.text("native.chat.row.openChanges")
   default: return nil

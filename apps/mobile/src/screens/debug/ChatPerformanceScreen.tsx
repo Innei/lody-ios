@@ -12,6 +12,7 @@ function View() {
         role: index % 2 ? 'assistant' : 'user',
         status: 'completed',
         finished: true,
+        modelInfo: index % 2 ? { name: 'Benchmark model' } : undefined,
         items: [
           {
             itemId: 'text',

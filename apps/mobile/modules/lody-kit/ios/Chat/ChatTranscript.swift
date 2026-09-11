@@ -264,23 +264,33 @@ struct ChatTranscript {
         }
       }
       var result: [ChatRow] = []
+      var absorbedProcess = false
       if entry.role == "assistant", !processOnly {
         let turn = entries[..<entryIndex].last { $0.role == "user" }
         let turnID = turn?.id ?? entry.id
         let start = turnStartedAt[turnID] ?? turn.flatMap(ChatWorkDuration.startMilliseconds)
         if let duration = ChatWorkDuration.milliseconds(for: entry, now: now, startOverride: start) {
-          result.append(ChatRow(
+          var row = ChatRow(
             id: turnID + ":duration",
             entryID: entry.id,
             kind: "duration",
             text: workDurationTitle(duration, running: entry.isRunning),
             running: entry.isRunning,
             workDurationMs: duration
-          ))
+          )
+          if entry.finished, let first = groups.keys.min(), let indices = groups[first] {
+            let process = indices.map { entry.items[$0] }
+            row.text += " · " + ChatProcessSummary.title(items: process, running: false)
+            row.actionable = true
+            row.attention = process.contains { $0.permission?.pending == true || $0.status == "failed" }
+            absorbedProcess = true
+          }
+          result.append(row)
         }
       }
       for index in visible {
         if let indices = groups[index] {
+          if absorbedProcess { continue }
           let process = indices.map { entry.items[$0] }
           let needsPermission = process.contains { $0.permission?.pending == true }
           let failed = process.contains { $0.status == "failed" }
@@ -484,7 +494,7 @@ struct ChatPendingSend: Decodable {
     let acceptedIndex = entries.firstIndex { $0.id == id }
     let hasReply = acceptedIndex.map { entries.dropFirst($0 + 1).contains { $0.role == "assistant" } } ?? false
     if !hasReply {
-      if !attachments.isEmpty {
+      if !attachments.isEmpty || reconnect == true {
         result.append(ChatRow(id: id + ":pending", entryID: id, kind: "pending", text: status,
           actionable: reconnect == true, running: true))
       }
@@ -496,7 +506,6 @@ struct ChatPendingSend: Decodable {
         entryID: id,
         kind: "duration",
         text: workDurationTitle(duration, running: true),
-        actionable: reconnect == true,
         running: true,
         workDurationMs: duration
       ))

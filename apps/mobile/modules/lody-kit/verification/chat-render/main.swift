@@ -140,6 +140,22 @@ precondition(
 )
 print("Chat render: duration bottom gap is half the text-to-process gap")
 
+let answerRow = ChatRow(id: "reply:answer", entryID: "reply", kind: "text", text: "计时完成。")
+precondition(
+  ChatRowPadding.top(kind: "text", previousKind: "duration") == ChatRowPadding.textBelowDuration,
+  "Body copy under the duration hairline must use a full paragraph inset"
+)
+precondition(
+  ChatCell.rowExtra(for: answerRow, previousKind: "duration")
+    == ChatRowPadding.textBelowDuration + ChatRowPadding.content,
+  "A text row after duration must grow by that inset, not the 44 pt button floor"
+)
+precondition(
+  ChatCell.rowExtra(for: answerRow, previousKind: "summary") == ChatRowPadding.content * 2,
+  "Ordinary body copy keeps the compact text padding"
+)
+print("Chat render: text below the duration rule uses a paragraph inset")
+
 func resolved(_ color: UIColor?, traits: UITraitCollection) -> CGColor? {
   color?.resolvedColor(with: traits).cgColor
 }
