@@ -136,6 +136,21 @@ for _ in range(8):
         '.3',
     )
 assert unread, 'Missing unread completed row'
+ui.capture('before-viewing')
+before = {item['AXUniqueId']: item['frame']['y'] for item in ui.state()
+          if item.get('AXUniqueId') in TITLES}
+ui.axe('tap', '--id', 'inbox-unread', '--post-delay', '1')
+ui.element('inbox-viewed-detail')
+ui.capture('viewing')
+ui.axe('tap', '--id', 'BackButton', '--post-delay', '1')
+ui.element('inbox-unread')
+after = {item['AXUniqueId']: item['frame']['y'] for item in ui.state()
+         if item.get('AXUniqueId') in TITLES}
+assert before.keys() == after.keys(), (before, after)
+assert all(abs(before[key] - after[key]) <= 2 for key in before), (before, after)
+assert any(i.get('type') == 'Heading' and i.get('AXLabel') == catalog.text('inbox.section.unread') for i in ui.state())
+ui.capture('viewed-stable-order')
+unread = ui.element('inbox-unread')
 frame = unread['frame']
 y = frame['y'] + frame['height'] / 2
 ui.axe(
@@ -158,4 +173,10 @@ archive_label = catalog.text('session.action.archive')
 ui.wait(lambda items: any(i.get('AXLabel') == read_label for i in items), 'Missing swipe 已读')
 assert any(i.get('AXLabel') == archive_label for i in ui.state()), 'Unread swipe must keep archive beside 已读'
 ui.capture('unread-read-action')
-print('Inbox confirmation, unread-completed and dated history groups passed')
+ui.axe('tap', '--label', read_label, '--post-delay', '1')
+ui.wait(lambda items: not any(i.get('type') == 'Heading' and i.get('AXLabel') == catalog.text('inbox.section.unread') for i in items), 'Explicit read must remove the unread group')
+ui.capture('explicitly-read')
+ui.axe('tap', '--label', '新消息', '--post-delay', '1')
+ui.wait(lambda items: any(i.get('type') == 'Heading' and i.get('AXLabel') == catalog.text('inbox.section.unread') for i in items), 'A new message must restore the unread group')
+ui.capture('new-message-emphasis')
+print('Viewing preserves inbox positions and the explicit read action; only explicit read removes the unread group')

@@ -1,6 +1,11 @@
-import { NativeGroupedList } from '@lody-ios/kit';
+import { NativeGroupedList, NativeChat } from '@lody-ios/kit';
+import { useState } from 'react';
+import { Stack } from 'expo-router';
 import { View as RNView } from 'react-native';
-import { definePage } from '@/lib/presentation';
+import { definePage, present } from '@/lib/presentation';
+import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
+import { useSessionListCatalog } from '@/features/sessions/useSessionListCatalog';
+import { useSessionViewed } from '@/features/sessions/useSessionViewed';
 import { usePalette } from '@/lib/theme/palette';
 import { inboxSections } from '@/features/sessions/inbox';
 import type { Catalog, Session } from '@/models/catalog';
@@ -70,20 +75,87 @@ const catalog: Catalog = {
 
 function View() {
   const colors = usePalette();
+  const [scope] = useState(() => `inbox-preview-${Date.now()}`);
+  const [source, setSource] = useState(catalog);
+  const viewed = useSessionListCatalog(source, scope, scope);
   return (
     <RNView testID="inbox-preview-ready" style={{ flex: 1 }}>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          onPress={() =>
+            setSource((old) => ({
+              ...old,
+              sessions: old.sessions.map((s) =>
+                s.id === 'inbox-unread' ? { ...s, lastMessageAt: NOW + 1 } : s,
+              ),
+            }))
+          }
+        >
+          新消息
+        </Stack.Toolbar.Button>
+      </Stack.Toolbar>
       <NativeGroupedList
         style={{ flex: 1 }}
         accent={colors.accent}
         contentStyle
-        sections={inboxSections(catalog, { accent: colors.accent, now: NOW })}
+        sections={inboxSections(viewed, { accent: colors.accent, now: NOW })}
         previewUserId="ui-home"
         previewWorkspaceId="ui-home"
-        onRowPress={() => {}}
+        onRowPress={({ nativeEvent: { id } }) => {
+          const selected = source.sessions.find((s) => s.id === id);
+          if (selected)
+            void present(InboxViewedPreviewScreen, {
+              scope,
+              session: selected,
+            });
+        }}
+        onRowAction={({ nativeEvent: { id, actionId } }) => {
+          if (actionId === 'read')
+            setSource((old) => ({
+              ...old,
+              sessions: old.sessions.map((s) =>
+                s.id === id ? { ...s, lastReadAt: NOW } : s,
+              ),
+            }));
+        }}
       />
     </RNView>
   );
 }
+
+function ViewedPreview() {
+  const {
+    params: { scope, session },
+  } = usePageRuntime<{ scope: string; session: Session }>();
+  useSessionViewed(scope, scope, session.id, session.lastMessageAt);
+  return (
+    <RNView testID="inbox-viewed-detail" style={{ flex: 1 }}>
+      <NativeChat
+        style={{ flex: 1 }}
+        entriesJSON="[]"
+        composerJSON={JSON.stringify({ editable: false, canSend: false })}
+        clearDraftToken={0}
+        emptyText="本机已查看，返回后仍保留在未读分组。"
+        onSend={() => {}}
+        onActivityPress={() => {}}
+        onReconnect={() => {}}
+      />
+    </RNView>
+  );
+}
+
+const InboxViewedPreviewScreen = definePage<{
+  scope: string;
+  session: Session;
+}>({
+  id: 'inbox-viewed-preview',
+  title: '查看会话',
+  Component: ViewedPreview,
+  parseRouteParams: () => {
+    throw new Error('Open this page from the inbox preview');
+  },
+  presentation: { style: 'push', headerVariant: 'transparent' },
+});
 
 export const InboxPreviewScreen = definePage({
   id: 'inbox-preview',

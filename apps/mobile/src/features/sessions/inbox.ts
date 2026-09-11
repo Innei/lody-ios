@@ -1,5 +1,9 @@
 import type { NativeListRow, NativeListSection } from '@lody-ios/kit';
 import type { Catalog, Project, Session } from '../../models/catalog.ts';
+import {
+  sessionIsUnread as unreadOf,
+  sessionNeedsEmphasis,
+} from './sessionViews.ts';
 import type { SessionState } from './status.ts';
 import { agentName, sessionState, stateTint } from './status.ts';
 import { activityBucket, relativeTime } from '../../ui/time.ts';
@@ -56,11 +60,6 @@ const badgeOf = (state: SessionState) => {
   const key = badges[state];
   return key && t(key);
 };
-const unreadOf = (session: Session) =>
-  session.lastMessageAt !== undefined &&
-  (session.lastReadAt === undefined ||
-    session.lastMessageAt > session.lastReadAt);
-
 const stateOf = (session: Session) =>
   sessionState(
     session.status,
@@ -121,7 +120,7 @@ export function inboxSections(
         title: session.title,
         subtitle: sessionPlace(session, names),
         value: relativeTime(activityAt(session), now),
-        unread: unreadOf(session),
+        unread: sessionNeedsEmphasis(session),
         pinned: session.pinned,
         badge: badgeOf(state),
         imageTint:
@@ -263,7 +262,7 @@ export function sessionRow(
     subtitleMono: session.branchName !== undefined,
     diff: session.diff,
     value: relativeTime(activityAt(session), now),
-    unread: unreadOf(session),
+    unread: sessionNeedsEmphasis(session),
     pinned: session.pinned,
     badge: badgeOf(state),
     imageTint: ['live', 'attention', 'failed'].includes(state)
