@@ -31,6 +31,7 @@ export const NativeChat: ComponentType<
       event: NativeSyntheticEvent<{ category: string; query: string }>,
     ) => void;
     initialDraft?: string;
+    appendDraftJSON?: string;
     draftKey?: string;
     initialAttachmentsJSON?: string;
     clearDraftToken: number;

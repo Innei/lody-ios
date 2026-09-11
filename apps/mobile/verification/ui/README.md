@@ -8,6 +8,11 @@ Native image fixtures additionally require the `--ui-verify` launch argument and
 compile only in Debug. No production credentials are used. The managed verification
 Simulator is reused without erasing between leases.
 
+The `pull-request` case also exercises authorization retry, empty checks, a rejected
+comment retaining its draft followed by successful publication to the local fixture,
+and an investigation prompt appended without replacing the session draft. Native
+GitHub transport checks intercept requests and never publish real comments.
+
 ## Run locally
 
 If a normal signed Debug app is already built, each verification command can lease
@@ -66,6 +71,13 @@ tested. No global Simulator preferences are changed. It never shuts down another
 task's locked Simulator or Metro.
 
 ## Baseline inventory
+
+`pull-request` opens Debug → GitHub PR / CI 预览 with an injected OSS-shaped
+projection. It captures the native chat entry, PR summary, grouped checks,
+individual check and comment editor in both appearances, then verifies native
+back gestures and draft retention when the preview declines to post. It does
+not authenticate to GitHub, publish comments, dispatch assistant turns or claim
+live check/log retrieval.
 
 `smooth-scroll` exercises cached history replacement, anchor preservation while
 reading, streamed paragraphs/code, drag interruption and the production process

@@ -1,4 +1,5 @@
 import { ProjectHistoryPreviewScreen } from './ProjectHistoryPreviewScreen';
+import { PullRequestPreviewScreen } from './PullRequestPreviewScreen';
 import { FilePreviewScreen } from './FilePreviewScreen';
 import { CreateSessionScreen } from '../CreateSessionScreen';
 import type { CreationOptions } from '@/models/send';
@@ -115,6 +116,11 @@ function View() {
       id: 'ui',
       header: '界面验收',
       rows: [
+        openRow(
+          'pull-request-preview',
+          'GitHub PR / CI 预览',
+          'arrow.triangle.pull',
+        ),
         openRow('notification-preview', '通知权限验收', 'bell'),
         openRow('live-activity-preview', 'Live Activity 演示', 'sparkles'),
         {
@@ -252,6 +258,7 @@ function View() {
     'community-notice': () => showCommunityNotice(),
     'project-history-preview': () =>
       void present(ProjectHistoryPreviewScreen, {}),
+    'pull-request-preview': () => void present(PullRequestPreviewScreen, {}),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
     'inbox-preview': () => void present(InboxPreviewScreen, {}),
     'background-preview': () => void present(BackgroundPreviewScreen, {}),

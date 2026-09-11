@@ -217,6 +217,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }.runOnQueue(.main)
     AsyncFunction("setPushVisibleRoute") { (route: String) in MainActor.assumeIsolated { PushNotifications.shared.visibleRoute = route } }.runOnQueue(.main)
 
+    AsyncFunction("githubPullRequest") { (payload: String) async throws -> String in
+      try await GitHubPullRequests.run(payload)
+    }
     AsyncFunction("sessionCreationOptions") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
         #if DEBUG
@@ -424,6 +427,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("composerOptionsJSON") { (view: LodyChatView, value: String) in view.setComposerOptions(value) }
       Prop("initialDraft") { (view: LodyChatView, value: String) in view.setInitialDraft(value) }
       Prop("draftKey") { (view: LodyChatView, value: String) in view.setDraftKey(value) }
+      Prop("appendDraftJSON") { (view: LodyChatView, value: String) in view.composer.appendDraft(value) }
       Prop("initialAttachmentsJSON") { (view: LodyChatView, value: String) in view.setInitialAttachments(value) }
       Prop("clearDraftToken") { (view: LodyChatView, value: Int) in
         view.clearDraft(token: value)

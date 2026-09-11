@@ -20,6 +20,7 @@ export type Session = {
   lastReadAt?: number;
   awaitingUserSince?: number;
   branchName?: string;
+  pullRequests?: import('./pull-request').PullRequestReference[];
   diff?: { add: number; del: number };
 };
 export type Catalog = {

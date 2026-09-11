@@ -45,6 +45,7 @@ export {
   sessionItemDetail,
   respondSessionPermission,
   sessionCreationOptions,
+  githubPullRequest,
   createSession,
   archiveSession,
   pinSession,
