@@ -79,7 +79,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = .systemBackground
+    view.backgroundColor = .lodyBackground
     grid.backgroundColor = .clear
     grid.dataSource = self
     grid.delegate = self

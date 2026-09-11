@@ -22,10 +22,10 @@ final class LodyMentionPickerView: ExpoView, UICollectionViewDataSource, UIColle
 
   required init(appContext: AppContext? = nil) {
     var config = UICollectionLayoutListConfiguration(appearance: .insetGrouped)
-    config.backgroundColor = .systemGroupedBackground
+    config.backgroundColor = .lodyGroupedBackground
     list = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewCompositionalLayout.list(using: config))
     super.init(appContext: appContext)
-    backgroundColor = .systemGroupedBackground
+    backgroundColor = .lodyGroupedBackground
     location.contentHorizontalAlignment = .leading
     location.titleLabel?.font = .dynamic(of: 13, weight: .medium)
     location.tintColor = .secondaryLabel

@@ -8,6 +8,19 @@ assert(menuButton.titleLabel?.numberOfLines == 1, "Workspace menu title must sta
 assert(menuButton.titleLabel?.lineBreakMode == .byTruncatingTail, "Long workspace names must truncate at the tail")
 assert(menuButton.configuration?.titleLineBreakMode == .byTruncatingTail, "The button configuration must not restore wrapping")
 
+let letter = LodyMenuButtonStyle.avatarImage(text: "I", fill: .systemIndigo, photo: nil)
+let avatarSource = UIGraphicsImageRenderer(size: CGSize(width: 80, height: 40)).image { _ in
+  UIColor.red.setFill()
+  UIRectFill(CGRect(x: 0, y: 0, width: 80, height: 40))
+}
+let loaded = LodyMenuButtonStyle.avatarImage(
+  text: "I", fill: .systemIndigo, photo: LodyListPhoto.circular(avatarSource)
+)
+assert(letter.size.width == LodyMenuButtonStyle.avatarSide)
+assert(loaded.size.width == LodyMenuButtonStyle.avatarSide)
+assert(letter.pngData() != loaded.pngData(), "An account photo must replace the letter fallback")
+assert(LodyMenuButtonStyle.trailingInset > 4, "The workspace name needs room after the last glyph")
+
 var swipedState = UICellConfigurationState(traitCollection: UITraitCollection())
 swipedState.isSwiped = true
 swipedState.isSelected = true

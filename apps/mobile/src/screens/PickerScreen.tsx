@@ -31,8 +31,12 @@ function View() {
         title: option.title,
         subtitle: option.subtitle,
         subtitleMono: option.subtitleMono,
-        image: option.id === params.selectedId ? 'checkmark' : undefined,
         action: true,
+        selected: option.id === params.selectedId,
+        accessibilityValue:
+          option.id === params.selectedId
+            ? t('settings.history.selected')
+            : undefined,
       })),
     },
   ];

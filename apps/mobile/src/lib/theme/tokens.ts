@@ -13,6 +13,8 @@ export const systemGroupedBackground = {
   dark: '#000000',
 } as const;
 
+export const softDarkBackground = '#111113';
+
 export const opaqueCard = {
   light: '#FFFFFF',
   dark: '#1C1C1E',

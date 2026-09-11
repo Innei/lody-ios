@@ -2,7 +2,7 @@ import { fastModeFor, withFastMode } from '@/cloud/send/capability';
 import { useComposerMentions } from '@/hooks/screens/useComposerMentions';
 import { ProjectPickerScreen } from './ProjectPickerScreen';
 import { useEffect, useRef, useState } from 'react';
-import { PlatformColor, TextInput, View as RNView } from 'react-native';
+import { Alert, Keyboard, View as RNView } from 'react-native';
 import {
   NativeComposer,
   initialInboxProjectSort,
@@ -17,9 +17,7 @@ import type { Project, Session } from '@/models/catalog';
 import type { CreationOptions } from '@/models/send';
 import { capabilityFor, effortsFor } from '@/cloud/send/capability';
 import { usePalette } from '@/lib/theme/palette';
-import { type as typeScale } from '@/lib/theme/tokens';
 import { ComposerSheet } from '@/ui/ComposerSheet';
-import { AppText } from '@/ui/AppText';
 import { showToast } from '@/ui/toast';
 import { readLocal, writeLocal } from '@/cloud/kv';
 import { usePendingSends } from '@/cloud/send/pendingSends';
@@ -84,7 +82,11 @@ function createNotice({
 /** Chat-only rows are not projects and cannot host a project session. */
 const creatable = (project: Project) => !isChatProjectId(project.id);
 
-function View() {
+function useCreationForm(
+  context: 'project' | 'chat',
+  prefs: React.RefObject<CreatePrefs | null>,
+  prefsLoaded: boolean,
+) {
   const { params, finish, push, present } = usePageRuntime<
     Params,
     CreatedSession
@@ -93,7 +95,6 @@ function View() {
   const { catalog } = useCatalog();
   const colors = usePalette();
   const outbox = usePendingSends(account?.user.id ?? '', params.workspaceId);
-  const locked = !!params.projectId && params.context !== 'chat';
   const [projects, setProjects] = useState(() =>
     sortCatalogProjects(
       params.projects.filter(creatable),
@@ -101,20 +102,16 @@ function View() {
       initialInboxProjectSort,
     ),
   );
-  const [context, setContext] = useState<'project' | 'chat'>(
-    params.context === 'chat' ? 'chat' : 'project',
-  );
   const [projectId, setProjectId] = useState(
     params.projectId ?? projects[0]?.id ?? '',
   );
   const [options, setOptions] = useState<CreationOptions>();
+  const optionsCache = useRef(new Map<string, CreationOptions>());
   const [machineId, setMachineId] = useState('');
   const [agentKey, setAgentKey] = useState('');
   const [choice, setChoice] = useState<ModelChoice>({});
   const [branch, setBranch] = useState('');
   const [restoreDraftToken, setRestoreDraftToken] = useState(0);
-  const prefs = useRef<CreatePrefs | null>(null);
-  const [prefsLoaded, setPrefsLoaded] = useState(false);
   const prefsKey = createPrefsKey(account?.user.id ?? '', params.workspaceId);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -128,20 +125,10 @@ function View() {
   const prefsTarget = chat ? CHAT_PREFS_KEY : projectId;
 
   useEffect(() => {
-    let active = true;
-    void readLocal<CreatePrefs>(prefsKey).then((saved) => {
-      if (!active) return;
-      prefs.current = saved;
-      if (!locked && !params.context && rememberedContext(saved) === 'chat')
-        setContext('chat');
-      const remembered = rememberedProject(saved, params.projects);
-      if (!params.projectId && remembered) setProjectId(remembered);
-      setPrefsLoaded(true);
-    });
-    return () => {
-      active = false;
-    };
-  }, [prefsKey, params.projectId, params.projects]);
+    if (!prefsLoaded) return;
+    const remembered = rememberedProject(prefs.current, params.projects);
+    if (!params.projectId && remembered) setProjectId(remembered);
+  }, [prefsLoaded, params.projectId, params.projects]);
 
   useEffect(() => {
     if (!prefsLoaded) return;
@@ -150,19 +137,23 @@ function View() {
       return;
     }
     let active = true;
-    setLoading(true);
-    setOptions(undefined);
-    const request = params.loadOptions
-      ? params.loadOptions(chat ? undefined : projectId)
-      : sessionCreationOptions(
-          JSON.stringify({
-            workspaceId: params.workspaceId,
-            ...(chat ? {} : { projectId }),
-          }),
-        ).then((raw): CreationOptions => JSON.parse(raw));
+    const cached = optionsCache.current.get(prefsTarget);
+    setLoading(!cached);
+    setOptions(cached);
+    const load = () =>
+      params.loadOptions
+        ? params.loadOptions(chat ? undefined : projectId)
+        : sessionCreationOptions(
+            JSON.stringify({
+              workspaceId: params.workspaceId,
+              ...(chat ? {} : { projectId }),
+            }),
+          ).then((raw): CreationOptions => JSON.parse(raw));
+    const request = cached ? Promise.resolve(cached) : load();
     void request
       .then((value) => {
         if (!active) return;
+        optionsCache.current.set(prefsTarget, value);
         setOptions(value);
         const restored = restoreSelection(prefs.current, prefsTarget, value);
         setMachineId(restored.machineId);
@@ -189,8 +180,8 @@ function View() {
     };
   }, [params.workspaceId, projectId, chat, prefsTarget, revision, prefsLoaded]);
 
-  // A local project pins its own machine at the projection layer, so only a
-  // GitHub project actually has a machine to choose.
+  // Local projects expose only their owning machine; GitHub projects and chats
+  // can choose among the machines returned by the runtime.
   const machines = [
     ...new Map(
       (options?.agents ?? []).map((a) => [
@@ -363,35 +354,32 @@ function View() {
         {
           id: 'project',
           title: project?.name ?? t('create.row.selectProject'),
-          subtitle: t('create.label.project'),
-          image: 'folder',
+          subtitle: github
+            ? 'GitHub'
+            : [project?.rootPath, catalog.machineNames?.[project?.machineId ?? ''] ?? machine?.name ?? project?.machineId].filter(Boolean).join(' · '),
+          image: github ? undefined : 'folder',
+          imageAsset: github ? 'lody-mark-github' : undefined,
           action: true,
           disclosure: true,
           navigates: true,
         },
+        ...(github ? [{
+          id: 'branch',
+          title: t('create.branch.label'),
+          value: branch || t('create.branch.placeholder'),
+          image: 'arrow.triangle.branch',
+          action: true,
+          disclosure: true,
+        }] : []),
       ],
     },
-    ...(githubProject ? [{ id: 'machine', rows: [machineRow] }] : []),
-    agentSection(githubProject ? t('create.label.agent') : machine?.name),
+    ...(github ? [{ id: 'machine', rows: [machineRow] }] : []),
+    agentSection(t('create.label.agent')),
   ];
   const chatSections: NativeListSection[] = [
     { id: 'machine', rows: [machineRow] },
     agentSection(t('create.label.agent')),
   ];
-  const pages = locked
-    ? undefined
-    : [
-        {
-          id: 'project',
-          title: t('create.type.project'),
-          sections: projectSections,
-        },
-        {
-          id: 'chat',
-          title: t('create.type.chat'),
-          sections: chatSections,
-        },
-      ];
   const sections = chat ? chatSections : projectSections;
 
   async function pickProject() {
@@ -411,6 +399,7 @@ function View() {
       picked,
     ]);
     setProjectId(picked.id);
+    if (picked.id !== projectId) setBranch('');
     setChoice({});
   }
 
@@ -493,52 +482,24 @@ function View() {
     );
   }
 
-  const form = (
-    <ComposerSheet
-      accent={colors.accent}
-      sections={sections}
-      pages={pages}
-      selectedPage={chat ? 1 : 0}
-      placeholder=""
-      onPageChange={({ nativeEvent }) => {
-        if (sending) return;
-        if (nativeEvent.index === 1) setContext('chat');
-        else setContext('project');
-      }}
-      onRowPress={({ nativeEvent }) => {
-        if (sending) return;
-        if (nativeEvent.id === 'project') void pickProject();
-        if (nativeEvent.id === 'machine') void pickMachine();
-        if (nativeEvent.id === 'model') void pickModel();
-        if (nativeEvent.id === 'agent') void pickAgent();
-      }}
-    >
-      {github ? (
-        <RNView style={{ paddingHorizontal: 16, paddingBottom: 12, gap: 4 }}>
-          <AppText variant="meta">{t('create.branch.label')}</AppText>
-          <TextInput
-            accessibilityLabel={t('create.branch.label')}
-            placeholder={t('create.branch.placeholder')}
-            placeholderTextColor={colors.tertiaryLabel}
-            value={branch}
-            onChangeText={setBranch}
-            maxLength={255}
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!sending}
-            style={{
-              color: colors.label,
-              backgroundColor: PlatformColor('tertiarySystemGroupedBackground'),
-              borderRadius: 10,
-              borderCurve: 'continuous',
-              paddingHorizontal: 14,
-              minHeight: 44,
-              fontFamily: 'Menlo',
-              fontSize: typeScale.mono.size,
-            }}
-          />
-        </RNView>
-      ) : null}
+  function onRowPress({ nativeEvent }: { nativeEvent: { id: string } }) {
+    if (sending) return;
+    if (nativeEvent.id === 'project') void pickProject();
+    if (nativeEvent.id === 'machine') void pickMachine();
+    if (nativeEvent.id === 'model') void pickModel();
+    if (nativeEvent.id === 'agent') void pickAgent();
+    if (nativeEvent.id === 'branch') Alert.prompt(
+      t('create.branch.label'),
+      t('create.branch.placeholder'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.done'), onPress: (value?: string) => setBranch((value ?? '').trim().slice(0, 255)) },
+      ],
+      'plain-text', branch,
+    );
+  }
+
+  const composer = (
       <NativeComposer
         mentionItemsJSON={mentions.mentionItemsJSON}
         mentionResultJSON={mentions.mentionResultJSON}
@@ -588,10 +549,59 @@ function View() {
             });
         }}
       />
-    </ComposerSheet>
   );
 
-  return form;
+  return { sections, composer, onRowPress, sending };
+}
+
+function View() {
+  const { params } = usePageRuntime<Params, CreatedSession>();
+  const { account } = useAuth();
+  const colors = usePalette();
+  const locked = !!params.projectId && params.context !== 'chat';
+  const [context, setContext] = useState<'project' | 'chat'>(params.context ?? 'project');
+  const prefs = useRef<CreatePrefs | null>(null);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const prefsKey = createPrefsKey(account?.user.id ?? '', params.workspaceId);
+  useEffect(() => {
+    let active = true;
+    void readLocal<CreatePrefs>(prefsKey).then((saved) => {
+      if (!active) return;
+      prefs.current = saved;
+      if (!locked && !params.context) setContext(rememberedContext(saved));
+      setPrefsLoaded(true);
+    });
+    return () => { active = false; };
+  }, [prefsKey, locked, params.context]);
+
+  // Each page owns its requests, selection and native draft for its entire lifetime.
+  const project = useCreationForm('project', prefs, prefsLoaded);
+  const chat = useCreationForm('chat', prefs, prefsLoaded && !locked);
+  const selected = context === 'chat' ? chat : project;
+  return (
+    <ComposerSheet
+      accent={colors.accent}
+      sections={selected.sections}
+      pages={locked ? undefined : [
+        { id: 'project', title: t('create.type.project'), sections: project.sections },
+        { id: 'chat', title: t('create.type.chat'), sections: chat.sections },
+      ]}
+      selectedPage={context === 'chat' ? 1 : 0}
+      onPageChange={({ nativeEvent }) => {
+        if (project.sending || chat.sending) return;
+        Keyboard.dismiss();
+        setContext(nativeEvent.index === 1 ? 'chat' : 'project');
+      }}
+      onRowPress={selected.onRowPress}
+    >
+      <RNView style={{ display: context === 'project' ? 'flex' : 'none' }}>
+        {project.composer}
+      </RNView>
+      {!locked && <RNView style={{ display: context === 'chat' ? 'flex' : 'none' }}>
+        {chat.composer}
+      </RNView>}
+    </ComposerSheet>
+  );
 }
 
 export const CreateSessionScreen = definePage<Params, CreatedSession>({

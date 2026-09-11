@@ -33,6 +33,8 @@ export type NativeListRow = {
   /** Semantic name (blue/purple/warning/danger/secondary/tertiary) or a `#RRGGBB` value. */
   imageTint?: string;
   action?: boolean;
+  selected?: boolean;
+  accessibilityValue?: string;
   /** Trailing UISwitch; the row stops being selectable and `action` gates the switch. */
   toggle?: boolean;
   disclosure?: boolean;

@@ -33,6 +33,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   @JS
+  var initialDarkBackground: String { LodyDarkBackground.current.rawValue }
+
+  @JS
   var runtimeInfo: LodyRuntimeInfo {
     var offlineProbe = false
     var uiVerifyHome = false
@@ -102,6 +105,11 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   @JS
   func saveInboxProjectSort(index: Int) {
     UserDefaults.standard.set((0...2).contains(index) ? index : 0, forKey: "inboxProjectSort")
+  }
+
+  @JS
+  func saveDarkBackground(value: String) {
+    LodyDarkBackground.save(value)
   }
 
   @JS
@@ -219,6 +227,18 @@ public final class LodyKitModule: Module, @unchecked Sendable {
 
     AsyncFunction("githubPullRequest") { (payload: String) async throws -> String in
       try await GitHubPullRequests.run(payload)
+    }
+    AsyncFunction("githubRepositories") { (workspace: String, promise: Promise) in
+      Task { @MainActor in
+        #if DEBUG
+        if workspace == "ui-home", ProcessInfo.processInfo.arguments.contains("--ui-verify"),
+           ProcessInfo.processInfo.arguments.contains("--ui-verify-mentions") {
+          promise.resolve(["LodyAI/FreshProject"]); return
+        }
+        #endif
+        do { promise.resolve(try await GitHubCloud.repositories(workspace: workspace)) }
+        catch { promise.reject(error) }
+      }
     }
     AsyncFunction("sessionCreationOptions") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {

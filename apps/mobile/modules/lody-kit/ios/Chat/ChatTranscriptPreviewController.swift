@@ -24,7 +24,7 @@ final class ChatTranscriptPreviewController: UIViewController {
 
   override func loadView() {
     let root = UIView(frame: CGRect(origin: .zero, size: preferredContentSize))
-    root.backgroundColor = .systemBackground
+    root.backgroundColor = .lodyBackground
     root.accessibilityIdentifier = "session-preview"
     root.accessibilityLabel = sessionTitle
     view = root

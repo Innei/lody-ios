@@ -84,7 +84,11 @@ function View() {
             accessibilityName={t('inbox.workspaceSwitch.accessibility', {
               name: workspaceName,
             })}
-            avatar={{ text: workspaceName.slice(0, 1), color: colors.accent }}
+            avatar={{
+              text: workspaceName.slice(0, 1),
+              color: colors.accent,
+              image: account.user.image,
+            }}
             label={workspaceName}
             items={account.workspaces.map((workspace) => ({
               id: workspace.id,

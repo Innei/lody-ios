@@ -1,5 +1,6 @@
 import { ProjectHistoryScreen } from './ProjectHistoryScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
+import { AppearanceScreen } from '@/screens/AppearanceScreen';
 import { useRouter } from 'expo-router';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { AccountScreen } from './AccountScreen';
@@ -13,6 +14,7 @@ import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { useConnection } from '@/cloud/catalog/connection';
 import { usePalette } from '@/lib/theme/palette';
+import { useAppearance } from '@/lib/theme/appearance';
 import { relativeTime } from '@/ui/time';
 import { showToast } from '@/ui/toast';
 import { definePage } from '@/lib/presentation';
@@ -33,6 +35,7 @@ function View() {
   const router = useRouter();
   const { push, cancel } = usePageRuntime();
   const colors = usePalette();
+  const { darkBackground } = useAppearance();
   const connection = useConnection();
   const { refresh } = useCatalog();
   const shape = connectionRow[connection.state];
@@ -85,8 +88,17 @@ function View() {
       ],
     },
     {
-      id: 'notifications',
+      id: 'preferences',
       rows: [
+        {
+          id: 'appearance',
+          title: t('settings.appearance.title'),
+          value: t(`settings.appearance.${darkBackground}`),
+          image: 'circle.lefthalf.filled',
+          action: true,
+          disclosure: true,
+          navigates: true,
+        },
         {
           id: 'notifications',
           title: t('settings.notifications.title'),
@@ -196,6 +208,7 @@ function View() {
         }
         if (nativeEvent.id === 'notifications')
           void push(NotificationSettingsScreen, {});
+        if (nativeEvent.id === 'appearance') void push(AppearanceScreen, {});
         if (nativeEvent.id === 'project-history')
           void push(ProjectHistoryScreen);
         if (nativeEvent.id === 'archived') void push(ArchivedSessionsScreen);

@@ -125,6 +125,11 @@ assert summary['frame']['height'] < 44, (
 print(json.dumps({'samples': len(observations), 'nativeTitleAction': True,
                   'summaryHeight': summary['frame']['height'], 'streamAndCompletionObserved': True}, indent=2))
 
+# A short transcript has no pagination status or empty header slot at its start.
+axe('tap', '-x', '100', '-y', '20', '--post-delay', '1')
+assert not any(item.get('AXUniqueId') == 'chat-history' for item in ui.state()), 'Short conversation shows an all-messages header'
+ui.capture('short-conversation-start')
+
 if '--send' in sys.argv:
     # This path sends only to the local development preview, never a real session.
     assert 'Updated session title' in axe('describe-ui')

@@ -2,7 +2,7 @@ import {
   homeVerify,
   HomePreviewProviders,
 } from '@/screens/debug/HomePreviewScreen';
-import { type PropsWithChildren, useEffect } from 'react';
+import { type PropsWithChildren, useEffect, useMemo } from 'react';
 import { PushCoordinator } from '@/features/notifications/PushCoordinator';
 import { Stack, ThemeProvider } from 'expo-router';
 import { CatalogProvider } from '@/cloud/catalog/CatalogProvider';
@@ -11,6 +11,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 import { nativePresentationOptions } from '@/lib/presentation';
 import { navigationThemes } from '@/lib/theme/palette';
+import { AppearanceProvider, useAppearance } from '@/lib/theme/appearance';
+import { softDarkBackground } from '@/lib/theme/tokens';
 import { softScrollEdgeEffects } from '@/ui/Screen';
 import { useBindSessionNav } from '@/hooks/screens/useBindSessionNav';
 import { useOnboardingGate } from '@/hooks/screens/useOnboardingGate';
@@ -19,10 +21,27 @@ import { assertVendoredDomWebView } from '@/lib/assert-vendored-dom-webview';
 export const unstable_settings = { initialRouteName: 'index' };
 
 export default function RootLayout() {
-  const theme =
-    useColorScheme() === 'dark'
-      ? navigationThemes.dark
-      : navigationThemes.light;
+  return (
+    <AppearanceProvider>
+      <Root />
+    </AppearanceProvider>
+  );
+}
+
+function Root() {
+  const colorScheme = useColorScheme();
+  const { darkBackground } = useAppearance();
+  const theme = useMemo(() => {
+    if (colorScheme !== 'dark') return navigationThemes.light;
+    if (darkBackground === 'black') return navigationThemes.dark;
+    return {
+      ...navigationThemes.dark,
+      colors: {
+        ...navigationThemes.dark.colors,
+        background: softDarkBackground,
+      },
+    };
+  }, [colorScheme, darkBackground]);
   return (
     <ThemeProvider value={theme}>
       <Providers>

@@ -1,6 +1,8 @@
 export {
   remoteSettingsRaw,
   runtimeInfo,
+  initialDarkBackground,
+  saveDarkBackground,
   selectionFeedback,
   showToast,
   copyText,
@@ -46,6 +48,7 @@ export {
   respondSessionPermission,
   sessionCreationOptions,
   githubPullRequest,
+  githubRepositories,
   createSession,
   archiveSession,
   pinSession,

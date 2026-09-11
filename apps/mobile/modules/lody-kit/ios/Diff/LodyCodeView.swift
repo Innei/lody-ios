@@ -16,7 +16,7 @@ private let languages: [String: String] = [
   "rb.erb": "erb", "vue": "xml", "podspec": "ruby", "gemfile": "ruby",
 ]
 
-final class LodyCodeView: ExpoView, UITextViewDelegate {
+final class LodyCodeView: LodyAppearanceView, UITextViewDelegate {
   let onFail = EventDispatcher()
   let onFilePress = EventDispatcher()
   private let textView = UITextView()
@@ -34,7 +34,7 @@ final class LodyCodeView: ExpoView, UITextViewDelegate {
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
-    backgroundColor = .systemBackground
+    backgroundColor = .lodyBackground
     textView.isEditable = false
     textView.isSelectable = true
     textView.alwaysBounceVertical = true
@@ -198,6 +198,12 @@ final class LodyCodeView: ExpoView, UITextViewDelegate {
     super.traitCollectionDidChange(previous)
     if previous?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory { scheduleRender() }
   }
+
+  override func lodyAppearanceDidChange() {
+    backgroundColor = .lodyBackground
+    gutter.backgroundColor = .lodyBackground
+    scheduleRender()
+  }
 }
 
 // Soft-wrapped continuation fragments carry no number; only paragraph starts do.
@@ -209,7 +215,7 @@ private final class GutterView: UIView {
 
   override init(frame: CGRect) {
     super.init(frame: frame)
-    backgroundColor = .systemBackground
+    backgroundColor = .lodyBackground
     contentMode = .redraw
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }

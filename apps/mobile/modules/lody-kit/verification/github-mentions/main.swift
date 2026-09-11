@@ -1,7 +1,10 @@
 import Foundation
 import os
 
-enum AuthKeychain { static func read() throws -> String? { "synthetic-app-token" } }
+enum AuthKeychain {
+  static let token = OSAllocatedUnfairLock(initialState: "synthetic-app-token")
+  static func read() throws -> String? { token.withLock { $0 } }
+}
 
 final class GitHubProtocol: URLProtocol {
   static let urls = OSAllocatedUnfairLock(initialState: [String]())
@@ -29,14 +32,28 @@ final class GitHubProtocol: URLProtocol {
         }
       }
       let payload = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
-      assert(payload["path"] as? String == "github:getAccessTokenByRepoNameForClient")
       let args = (payload["args"] as! [[String: Any]])[0]
       assert(args["cliToken"] == nil, "Login credentials are not CLI tokens")
-      assert(args["repoFullName"] as? String == "LodyAI/Lody")
       let workspace = args["workspaceId"] as! String
-      if workspace == "unlinked" {
+      if payload["path"] as? String == "github:getWorkspaceRepositories" {
+        assert(request.url?.path == "/api/query")
+        switch workspace {
+        case "empty": body = ["status": "success", "value": []]
+        case "unlinked": body = ["status": "success", "value": NSNull()]
+        case "failure": body = ["status": "error", "errorMessage": "forbidden"]
+        case "malformed": body = ["status": "success", "value": [["fullName": "owner/.."]]]
+        default:
+          body = ["status": "success", "value": [["fullName": "LodyAI/FreshProject", "private": true], ["fullName": "lodyai/freshproject"], ["fullName": "Other/Repo"]]]
+        }
+        if workspace == "account-switch" { AuthKeychain.token.withLock { $0 = "new-account" } }
+      } else if workspace == "unlinked" {
+        assert(payload["path"] as? String == "github:getAccessTokenByRepoNameForClient")
+        assert(args["repoFullName"] as? String == "LodyAI/Lody")
         body = ["status": "success", "value": ["success": false, "errorCode": "repo_not_linked"]]
       } else {
+        assert(request.url?.path == "/api/action")
+        assert(payload["path"] as? String == "github:getAccessTokenByRepoNameForClient")
+        assert(args["repoFullName"] as? String == "LodyAI/Lody")
         body = ["status": "success", "value": ["success": true, "token": "synthetic-repo-" + workspace]]
       }
     } else {
@@ -82,12 +99,23 @@ final class GitHubProtocol: URLProtocol {
     do {
       _ = try await GitHubMentions.load(workspace: "failure", repo: "LodyAI/Lody")
       fatalError("Network failure must not masquerade as an empty connected catalog")
-    } catch { assert(error.localizedDescription == "github_mentions_unavailable") }
+    } catch { assert(error.localizedDescription == "github_unavailable") }
     let after = GitHubProtocol.urls.withLock { $0.count }
-    for repo in ["../repo", "LodyAI/..", "x/y?token=bad", "https://example.invalid", "LodyAI/Lody/extra"] {
+    for repo in ["../repo", "LodyAI/..", "x/y?token=bad", "https://example.invalid", "LodyAI/Lody/extra", "LodyAI/Lody\n"] {
       do { _ = try await GitHubMentions.load(workspace: "linked", repo: repo); fatalError("Invalid repository accepted") } catch {}
     }
     assert(GitHubProtocol.urls.withLock { $0.count } == after)
+    let repositories = try await GitHubCloud.repositories(workspace: "linked")
+    assert(repositories == ["LodyAI/FreshProject", "Other/Repo"], "Discover repositories with no session history and deduplicate names")
+    for workspace in ["empty", "unlinked"] {
+      let empty = try await GitHubCloud.repositories(workspace: workspace)
+      assert(empty.isEmpty)
+    }
+    for workspace in ["failure", "malformed", "account-switch"] {
+      do { _ = try await GitHubCloud.repositories(workspace: workspace); fatalError("Invalid repository response accepted") }
+      catch { assert(error.localizedDescription == "github_unavailable") }
+    }
+    AuthKeychain.token.withLock { $0 = "synthetic-app-token" }
     print("GitHub mentions: Issue/PR references, unconnected project, bounded listing, credential isolation and failure behavior passed")
   }
 }

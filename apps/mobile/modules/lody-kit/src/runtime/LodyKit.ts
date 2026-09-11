@@ -50,12 +50,15 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   saveInboxView(index: number): void;
   readonly initialInboxProjectSort: number;
   saveInboxProjectSort(index: number): void;
+  readonly initialDarkBackground: string;
+  saveDarkBackground(value: string): void;
   readInboxExpansion(): Record<string, boolean>;
   saveInboxExpansion(projectId: string, expanded: boolean): void;
   watchSession(id: string): Promise<void>;
   unwatchSession(id: string): Promise<void>;
   sessionCreationOptions(payload: string): Promise<string>;
   githubPullRequest(payload: string): Promise<string>;
+  githubRepositories(workspaceId: string): Promise<string[]>;
   localProjects(payload: string): Promise<string>;
   remoteSettings(payload: string): Promise<string>;
   createSession(payload: string): Promise<string>;
@@ -111,6 +114,9 @@ export const native = requireNativeModule<LodyKitNativeModule>('LodyKit');
 export const remoteSettingsRaw = (payload: string): Promise<string> =>
   native.remoteSettings(payload);
 export const runtimeInfo = native.runtimeInfo;
+export const initialDarkBackground = native.initialDarkBackground;
+export const saveDarkBackground = (value: string) =>
+  native.saveDarkBackground(value);
 export function selectionFeedback(): Promise<void> {
   return native.selectionFeedback();
 }
@@ -193,6 +199,8 @@ export const sessionCreationOptions = (payload: string) =>
   native.sessionCreationOptions(payload);
 export const githubPullRequest = (payload: string) =>
   native.githubPullRequest(payload);
+export const githubRepositories = (workspaceId: string) =>
+  native.githubRepositories(workspaceId);
 export const createSession = (payload: string) => native.createSession(payload);
 export const archiveSession = (payload: string) =>
   native.archiveSession(payload);

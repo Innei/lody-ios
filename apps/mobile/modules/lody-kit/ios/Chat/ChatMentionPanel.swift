@@ -315,6 +315,9 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
           let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           args["workspaceId"] as? String == "ui-home" else { return nil }
     if options {
+      if (args["projectId"] as? String)?.hasPrefix("github:") == true {
+        return ##"{"sessionId":"ui-github-new","agents":[{"id":"fixture","name":"Fixture Agent","machineId":"ui","machineName":"Fixture Mac","cliType":"builtin","agentType":"codex"},{"id":"shared-agent","name":"Teammate Agent","machineId":"shared","machineName":"Teammate Mac","cliType":"builtin","agentType":"codex"}],"capabilities":[]}"##
+      }
       return ##"{"sessionId":"ui-new","agents":[{"id":"fixture","name":"Fixture Agent","machineId":"ui","machineName":"Fixture Mac","cliType":"builtin","agentType":"codex"}],"capabilities":[]}"##
     }
     switch args["category"] as? String {

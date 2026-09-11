@@ -645,6 +645,14 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     updateComposer()
     saveDraft()
   }
+  func clearPendingSend(id: String) {
+    guard pendingSendID == id else { return }
+    acknowledgedSendID = id
+    pendingDraft = nil
+    pendingSendID = nil
+    updateComposer()
+    saveDraft()
+  }
   func restoreDraft(token: Int) {
     guard token > lastRestoreToken else { return }
     lastRestoreToken = token

@@ -1,4 +1,43 @@
+import ExpoModulesCore
 import UIKit
+
+enum LodyDarkBackground: String {
+  case soft
+  case black
+
+  static var current: Self {
+    Self(rawValue: UserDefaults.standard.string(forKey: "darkBackground") ?? "") ?? .soft
+  }
+
+  static func save(_ value: String) {
+    let next = Self(rawValue: value) ?? .soft
+    guard next != current else { return }
+    UserDefaults.standard.set(next.rawValue, forKey: "darkBackground")
+    DispatchQueue.main.async {
+      NotificationCenter.default.post(name: .lodyAppearanceDidChange, object: nil)
+    }
+  }
+}
+
+extension Notification.Name {
+  static let lodyAppearanceDidChange = Notification.Name("LodyAppearanceDidChange")
+}
+
+class LodyAppearanceView: ExpoView {
+  required init(appContext: AppContext? = nil) {
+    super.init(appContext: appContext)
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(lodyAppearanceDidChange),
+      name: .lodyAppearanceDidChange,
+      object: nil
+    )
+  }
+
+  deinit { NotificationCenter.default.removeObserver(self) }
+
+  @objc func lodyAppearanceDidChange() {}
+}
 
 func lodyTint(_ value: String) -> UIColor? {
   switch value {
@@ -24,6 +63,21 @@ func lodyTint(_ value: String) -> UIColor? {
 }
 
 extension UIColor {
+  static let lodyBackground = UIColor { traits in
+    if traits.userInterfaceStyle != .dark {
+      return UIColor.systemBackground.resolvedColor(with: traits)
+    }
+    return LodyDarkBackground.current == .soft
+      ? UIColor(red: 0x11 / 255, green: 0x11 / 255, blue: 0x13 / 255, alpha: 1)
+      : .black
+  }
+
+  static let lodyGroupedBackground = UIColor { traits in
+    traits.userInterfaceStyle == .dark
+      ? UIColor.lodyBackground.resolvedColor(with: traits)
+      : UIColor.systemGroupedBackground.resolvedColor(with: traits)
+  }
+
   /// Glass sheets resolve grouped semantics to vibrant fills. Rows that still
   /// need to read as cards use these opaque system card values instead.
   static let lodyOpaqueCard = UIColor { traits in
@@ -41,7 +95,7 @@ extension UIColor {
   /// Accent washed with the reading canvas so the user bubble stays tinted, not solid.
   static let lodyUserBubble = UIColor { traits in
     let amount: CGFloat = traits.userInterfaceStyle == .dark ? 0.14 : 0.10
-    return UIColor.lodyAccent.mixed(with: .systemBackground, amount: amount, traits: traits)
+    return UIColor.lodyAccent.mixed(with: .lodyBackground, amount: amount, traits: traits)
   }
 
   /// Recessed chip on the reading canvas. Light is Tailwind `neutral-100`;

@@ -7,7 +7,10 @@ import type {
   ConfigOption,
   CreationOptions,
 } from '../../../src/models/send.ts';
-import { projectRows } from '../../../src/cloud/catalog/model.ts';
+import {
+  githubProject,
+  projectRows,
+} from '../../../src/cloud/catalog/model.ts';
 import {
   isThoughtLevel,
   validConfigValue,
@@ -36,9 +39,12 @@ export function creationOptions(
   for (const [id, flock] of machines)
     projects.push(...projectRows(flock.scan(), id).projects);
   const chat = !projectId;
-  const project = chat
-    ? undefined
-    : projects.findLast((p) => p.id === projectId);
+  let project = projects.findLast((p) => p.id === projectId);
+  if (projectId?.startsWith('github:')) {
+    // Repository discovery comes from Cloud, not existing session history.
+    // Repository access is still checked by the official token broker.
+    project = githubProject(projectId.slice(7));
+  }
   if (
     !chat &&
     (!project || (!projectId.startsWith('github:') && !project.rootPath))

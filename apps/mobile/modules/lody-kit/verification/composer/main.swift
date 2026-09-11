@@ -278,6 +278,18 @@ handoffInput.text = "下一条"
 handoffComposer.textViewDidChange(handoffInput)
 precondition(handoffSend.isEnabled, "A status update for an acknowledged ID must never reacquire the draft lock")
 
+let retiredComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
+retiredComposer.setComposerState(ready)
+let retiredInput = descendants(retiredComposer).compactMap { $0 as? UITextView }.first!
+let retiredSend = descendants(retiredComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }!
+retiredComposer.setPendingSend(transferred)
+retiredComposer.clearPendingSend(id: "another-send")
+precondition(!retiredSend.isEnabled, "A different send must not release the pending composer")
+retiredComposer.clearPendingSend(id: transferred.id)
+retiredInput.text = "已完成后继续发送"
+retiredComposer.textViewDidChange(retiredInput)
+precondition(retiredSend.isEnabled, "Retiring the published send must release the composer without a token transition")
+
 let typingComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
 typingComposer.setComposerState(ready)
 let typingInput = descendants(typingComposer).compactMap { $0 as? UITextView }.first!
