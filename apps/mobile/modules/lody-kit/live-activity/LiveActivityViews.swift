@@ -4,54 +4,97 @@ import WidgetKit
 typealias LodyItem = LodyActivityAttributes.ContentState.Item
 
 struct AgentGlyph: View {
+  let kind: String
   let text: String
   let size: CGFloat
 
+  static let kinds: Set<String> = [
+    "claude", "codex", "kimi", "grok", "deepseek", "minimax", "glm", "mimo", "opencode", "gemini", "openai",
+  ]
+  private static let aliases = ["claude-p": "claude", "kimi-code": "kimi"]
+
   var body: some View {
     RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-      .fill(Color.secondary.opacity(0.2))
+      .fill(image == nil ? Color.secondary.opacity(0.2) : Color.white)
       .frame(width: size, height: size)
-      .overlay(
-        Text(text)
-          .font(.caption.weight(.semibold))
-          .minimumScaleFactor(0.5)
-          .lineLimit(1)
-          .padding(.horizontal, 2)
-      )
+      .overlay(mark)
   }
-}
 
-struct StatusDot: View {
-  let color: Color
+  private var image: String? {
+    let key = kind.lowercased()
+    let canonical = Self.aliases[key] ?? key
+    return Self.kinds.contains(canonical) ? "lody-agent-\(canonical)" : nil
+  }
 
-  var body: some View {
-    Image(systemName: "circle.fill")
-      .font(.system(size: 10))
-      .foregroundStyle(color)
+  @ViewBuilder
+  private var mark: some View {
+    if let image {
+      Image(image)
+        .resizable()
+        .renderingMode(.template)
+        .foregroundStyle(.black)
+        .padding(size * 0.2)
+    } else {
+      Text(text)
+        .font(.caption.weight(.semibold))
+        .minimumScaleFactor(0.5)
+        .lineLimit(1)
+        .padding(.horizontal, 2)
+    }
   }
 }
 
 struct StatusSymbol: View {
   let status: LodyItem.Status
+  var isStale = false
 
   var body: some View {
-    switch status {
     // WidgetKit has no indeterminate spinner: a circular ProgressView ignores
-    // controlSize and draws an oversized empty ring, so status is a colored dot.
-    case .running:
-      StatusDot(color: .blue)
-    case .permission, .question:
-      StatusDot(color: .orange)
-    case .unread:
-      Image(systemName: "checkmark")
+    // controlSize and draws an oversized empty ring, so running is a pulsing dot.
+    switch (isStale, status) {
+    case (true, _):
+      Image(systemName: "wifi.slash")
         .font(.caption.weight(.semibold))
-        .foregroundStyle(.green)
+        .foregroundStyle(.secondary)
+    case (_, .running):
+      Image(systemName: "circle.fill")
+        .font(.system(size: 10))
+        .foregroundStyle(.blue)
+        .symbolEffect(.pulse)
+    case (_, .permission):
+      Image(systemName: "exclamationmark.circle.fill")
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.orange)
+    case (_, .question):
+      Image(systemName: "questionmark.circle.fill")
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.orange)
+    case (_, .unread):
+      Image(systemName: "checkmark.circle.fill")
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.blue)
+    }
+  }
+}
+
+struct MinimalSymbol: View {
+  let status: LodyItem.Status
+  let isStale: Bool
+
+  var body: some View {
+    if isStale || status != .running {
+      StatusSymbol(status: status, isStale: isStale)
+    } else {
+      Circle()
+        .strokeBorder(Color.blue, lineWidth: 3)
+        .frame(width: 14, height: 14)
     }
   }
 }
 
 struct FocusTimer: View {
   let focus: LodyItem
+  var width: CGFloat = 56
 
   // A timer Text sizes itself to its whole interval, so an unbounded one running to
   // distantFuture blows the layout out and leaves the entire container unrendered.
@@ -60,7 +103,34 @@ struct FocusTimer: View {
       .font(.subheadline.monospacedDigit())
       .foregroundStyle(.secondary)
       .lineLimit(1)
-      .frame(width: 56, alignment: .leading)
+      .minimumScaleFactor(0.7)
+      .multilineTextAlignment(.trailing)
+      .frame(width: width, alignment: .trailing)
+  }
+}
+
+struct StatusPill: View {
+  let status: LodyItem.Status
+  let label: String
+
+  var body: some View {
+    HStack(spacing: 4) {
+      StatusSymbol(status: status)
+      Text(label)
+        .font(.footnote.weight(.medium))
+        .lineLimit(1)
+    }
+    .foregroundStyle(tint)
+    .padding(.horizontal, 8)
+    .padding(.vertical, 3)
+    .background(Capsule().fill(tint.opacity(0.18)))
+  }
+
+  private var tint: Color {
+    switch status {
+    case .permission, .question: .orange
+    case .running, .unread: .blue
+    }
   }
 }
 
@@ -71,7 +141,7 @@ struct FocusText: View {
   let copy: LodyActivityAttributes.ContentState
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 2) {
+    VStack(alignment: .leading, spacing: 3) {
       Text(focus.title)
         .font(.headline)
         .lineLimit(1)
@@ -82,24 +152,29 @@ struct FocusText: View {
   @ViewBuilder
   private var statusLine: some View {
     if isStale {
-      Text(copy.staleLabel)
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-    } else {
       HStack(spacing: 5) {
-        StatusSymbol(status: focus.status)
-        Text(statusText)
+        StatusSymbol(status: focus.status, isStale: true)
+        Text(copy.staleLabel)
+        Text("·")
+        Text(copy.lastSyncLabel) + Text(" ") + Text(focus.updatedDate, style: .relative)
+      }
+      .font(.subheadline)
+      .foregroundStyle(.secondary)
+      .lineLimit(1)
+    } else if focus.status == .running {
+      HStack(spacing: 5) {
+        StatusSymbol(status: .running)
+        Text(runningText)
           .font(.subheadline)
           .foregroundStyle(.secondary)
           .lineLimit(1)
-        if focus.status == .running {
-          FocusTimer(focus: focus)
-        }
       }
+    } else {
+      StatusPill(status: focus.status, label: focus.statusLabel)
     }
   }
 
-  private var statusText: String {
+  private var runningText: String {
     if othersCount > 0 {
       return "\(focus.statusLabel) · \(copy.othersLabel(othersCount))"
     }
@@ -108,17 +183,44 @@ struct FocusText: View {
 }
 
 struct FocusRow: View {
+  let state: LodyActivityAttributes.ContentState
   let focus: LodyItem
-  let othersCount: Int
   let isStale: Bool
-  let copy: LodyActivityAttributes.ContentState
+  let glyphSize: CGFloat
 
   var body: some View {
     HStack(spacing: 12) {
-      AgentGlyph(text: focus.agentLogoText, size: 28)
-      FocusText(focus: focus, othersCount: othersCount, isStale: isStale, copy: copy)
-      Spacer(minLength: 0)
+      AgentGlyph(kind: focus.agentLogoKind, text: focus.agentLogoText, size: glyphSize)
+      FocusText(focus: focus, othersCount: state.othersCount, isStale: isStale, copy: state)
+      Spacer(minLength: 4)
+      if !isStale, focus.status != .unread {
+        FocusTimer(focus: focus)
+      }
     }
+  }
+}
+
+struct OthersList: View {
+  let items: [LodyItem]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 5) {
+      ForEach(items, id: \.id) { item in
+        HStack(spacing: 8) {
+          StatusSymbol(status: item.status)
+          Text(item.title)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+          Spacer(minLength: 4)
+          if item.status != .unread {
+            FocusTimer(focus: item)
+          }
+        }
+      }
+    }
+    .padding(.top, 8)
+    .overlay(alignment: .top) { Divider().opacity(0.6) }
   }
 }
 
@@ -135,8 +237,24 @@ struct CommandStrip: View {
       .padding(.vertical, 5)
       .background(
         RoundedRectangle(cornerRadius: 6, style: .continuous)
-          .fill(Color.secondary.opacity(0.2))
+          .fill(Color.orange.opacity(0.16))
       )
+  }
+}
+
+struct AttentionBlock: View {
+  let focus: LodyItem
+  let copy: LodyActivityAttributes.ContentState
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      if let command = focus.permissionCommand, focus.status == .permission {
+        CommandStrip(command: command)
+      }
+      Text(copy.openHintLabel)
+        .font(.caption)
+        .foregroundStyle(.tertiary)
+    }
   }
 }
 
@@ -148,13 +266,20 @@ struct LodyLockScreenView: View {
   var body: some View {
     content
       .padding(.horizontal, 16)
-      .padding(.vertical, 12)
+      .padding(.vertical, 14)
   }
 
   @ViewBuilder
   private var content: some View {
     if let focus = state.focus {
-      FocusRow(focus: focus, othersCount: state.othersCount, isStale: isStale, copy: state)
+      VStack(alignment: .leading, spacing: 10) {
+        FocusRow(state: state, focus: focus, isStale: isStale, glyphSize: 36)
+        if !isStale, state.needsAttention {
+          AttentionBlock(focus: focus, copy: state)
+        } else if !state.others.isEmpty {
+          OthersList(items: state.others)
+        }
+      }
       .lodyStale(isStale)
       .widgetURL(LodyActivityAttributes.route(workspaceSlug: workspaceSlug, sessionId: focus.id))
     } else {
@@ -166,11 +291,17 @@ struct LodyLockScreenView: View {
   }
 }
 
+extension LodyActivityAttributes.ContentState {
+  var backgroundTint: Color? {
+    needsAttention ? Color.orange.opacity(0.22) : nil
+  }
+}
+
 extension View {
   @ViewBuilder
   func lodyStale(_ isStale: Bool) -> some View {
     if isStale {
-      grayscale(1).opacity(0.6)
+      opacity(0.7)
     } else {
       self
     }

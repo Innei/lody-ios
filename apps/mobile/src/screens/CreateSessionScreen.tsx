@@ -22,6 +22,7 @@ import { showToast } from '@/ui/toast';
 import { readLocal, writeLocal } from '@/cloud/kv';
 import { usePendingSends } from '@/cloud/send/pendingSends';
 import { draftTitle } from '@/features/sessions/draftTitle';
+import { agentIcon } from '@/features/sessions/status';
 import {
   type CreatePrefs,
   CHAT_PREFS_KEY,
@@ -338,6 +339,7 @@ function useCreationForm(
           title: agent?.name ?? pickTitle(loading, t('create.row.selectAgent')),
           subtitle,
           image: 'sparkles',
+          imageAsset: agentIcon(agent?.agentType),
           action: true,
           disclosure: true,
           navigates: true,

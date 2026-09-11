@@ -91,6 +91,12 @@ let tolerant = decode("""
 precondition(tolerant.focus == nil && tolerant.others.isEmpty && tolerant.othersCount == 0)
 precondition(!tolerant.isActive && !tolerant.needsAttention)
 precondition(tolerant.dismissalDate(from: Date()) == nil, "no focus means nothing to dismiss")
+precondition(tolerant.lastSyncLabel == "Last synced" && tolerant.openHintLabel == "Tap to review", "missing copy falls back to English")
+
+let partialCopy = decode("""
+{ "totalCount": 0, "statusCounts": {}, "items": [], "copy": { "stale": "已断开", "empty": "无", "others": "{count}" } }
+""")
+precondition(partialCopy.staleLabel == "已断开" && partialCopy.openHintLabel == "Tap to review", "older copy payloads keep their strings and default the new ones")
 
 let mixed = State(
   totalCount: 5,
@@ -156,7 +162,9 @@ let labels = LiveActivityCatalog.Labels(
   running: "正在工作",
   stale: "已断开",
   empty: "没有活跃会话",
-  others: "还有 {count} 个在跑"
+  others: "还有 {count} 个在跑",
+  lastSync: "上次同步",
+  openHint: "点按处理"
 )
 let catalog = LiveActivityCatalog.state(catalogJSON: """
 {
@@ -188,6 +196,7 @@ precondition(catalog.items[0].title == "Build the widget")
 precondition(catalog.items.map(\.agentLogoText) == ["CX", "CC", "GE", "AC", "CC"], "cliType stands in for a missing agentType")
 precondition(catalog.items[2].agentLogoKind == "gemini")
 precondition(catalog.items.allSatisfy { $0.permissionCommand == nil })
+precondition(catalog.lastSyncLabel == "上次同步" && catalog.openHintLabel == "点按处理", "catalog labels travel to the widget")
 
 let requestedAt = Date().timeIntervalSince1970 * 1000
 let fresh = catalog.items.first { $0.id == "fresh" }!

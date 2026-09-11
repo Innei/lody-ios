@@ -91,6 +91,8 @@ assert catalog.text('native.liveActivity.status.running') in running_expanded, \
     'Expanded island never showed the running status'
 assert re.search(r'\d+:\d\d', running_expanded), \
     'Expanded island never showed the elapsed timer'
+assert catalog.text('native.liveActivity.openHint') not in running_expanded, \
+    'A running focus showed the permission hint'
 for over_ceiling in [catalog.text('native.liveActivity.debug.title2'), catalog.text('native.liveActivity.debug.title3')]:
     assert over_ceiling not in running_expanded, \
         f'The island listed {over_ceiling!r}, which pushes it past the height that renders'
@@ -126,6 +128,8 @@ for expected in [
 ]:
     assert expected in expanded, f'Expanded island never showed {expected!r}'
 assert '查看' not in expanded, 'The removed accessory pill is still rendered in the expanded island'
+assert catalog.text('native.liveActivity.openHint') not in expanded, \
+    'The Lock Screen tap hint leaked into the island, which clips its bottom row'
 for over_ceiling in [catalog.text('native.liveActivity.debug.title1'), catalog.text('native.liveActivity.debug.title3')]:
     assert over_ceiling not in expanded, \
         f'The island listed {over_ceiling!r}, which pushes it past the height that renders'

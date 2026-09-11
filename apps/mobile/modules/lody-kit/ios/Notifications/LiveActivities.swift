@@ -152,7 +152,9 @@ final class LiveActivities {
       running: LodyStrings.text("native.liveActivity.status.running"),
       stale: LodyStrings.text("native.liveActivity.stale"),
       empty: LodyStrings.text("native.liveActivity.empty"),
-      others: LodyStrings.text("native.liveActivity.others")
+      others: LodyStrings.text("native.liveActivity.others"),
+      lastSync: LodyStrings.text("native.liveActivity.lastSync"),
+      openHint: LodyStrings.text("native.liveActivity.openHint")
     )
   }
 
@@ -240,7 +242,7 @@ final class LiveActivities {
       permissionAlert: permission
         ? .init(title: LodyStrings.text("native.liveActivity.debug.alertTitle"), body: "git push origin main --force")
         : nil,
-      copy: .init(stale: labels.stale, empty: labels.empty, others: labels.others)
+      copy: .init(stale: labels.stale, empty: labels.empty, others: labels.others, lastSync: labels.lastSync, openHint: labels.openHint)
     )
   }
   #endif

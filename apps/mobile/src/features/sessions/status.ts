@@ -37,6 +37,29 @@ export function agentName(agentType = '') {
   return agentNames[agentType] ?? agentType;
 }
 
+const agentIconKinds = new Set([
+  'claude',
+  'codex',
+  'kimi',
+  'grok',
+  'deepseek',
+  'minimax',
+  'glm',
+  'mimo',
+  'opencode',
+  'gemini',
+  'openai',
+]);
+const agentIconAliases: Record<string, string> = {
+  'claude-p': 'claude',
+  'kimi-code': 'kimi',
+};
+
+export function agentIcon(agentType = '') {
+  const kind = agentIconAliases[agentType] ?? agentType;
+  return agentIconKinds.has(kind) ? `lody-agent-${kind}` : undefined;
+}
+
 const stateKeys: Record<SessionState, TranslationKey> = {
   live: 'session.state.live',
   attention: 'session.state.attention',

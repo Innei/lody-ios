@@ -15,6 +15,8 @@ enum LiveActivityCatalog {
     var stale: String
     var empty: String
     var others: String
+    var lastSync: String
+    var openHint: String
   }
 
   static let runningStatuses: Set<String> = ["running", "processing", "in_progress", "queued", "pending"]
@@ -33,7 +35,7 @@ enum LiveActivityCatalog {
       statusCounts: counts,
       items: items,
       permissionAlert: nil,
-      copy: .init(stale: labels.stale, empty: labels.empty, others: labels.others)
+      copy: .init(stale: labels.stale, empty: labels.empty, others: labels.others, lastSync: labels.lastSync, openHint: labels.openHint)
     )
   }
 

@@ -66,11 +66,15 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
       var stale: String
       var empty: String
       var others: String
+      var lastSync: String
+      var openHint: String
 
-      init(stale: String, empty: String, others: String) {
+      init(stale: String, empty: String, others: String, lastSync: String, openHint: String) {
         self.stale = stale
         self.empty = empty
         self.others = others
+        self.lastSync = lastSync
+        self.openHint = openHint
       }
 
       init(from decoder: any Decoder) throws {
@@ -78,6 +82,8 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
         stale = try container.decodeIfPresent(String.self, forKey: .stale) ?? "Disconnected"
         empty = try container.decodeIfPresent(String.self, forKey: .empty) ?? "No active sessions"
         others = try container.decodeIfPresent(String.self, forKey: .others) ?? "{count} more running"
+        lastSync = try container.decodeIfPresent(String.self, forKey: .lastSync) ?? "Last synced"
+        openHint = try container.decodeIfPresent(String.self, forKey: .openHint) ?? "Tap to review"
       }
     }
 
@@ -90,6 +96,10 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
     var staleLabel: String { copy?.stale ?? "Disconnected" }
 
     var emptyLabel: String { copy?.empty ?? "No active sessions" }
+
+    var lastSyncLabel: String { copy?.lastSync ?? "Last synced" }
+
+    var openHintLabel: String { copy?.openHint ?? "Tap to review" }
 
     func othersLabel(_ count: Int) -> String {
       (copy?.others ?? "{count} more running")

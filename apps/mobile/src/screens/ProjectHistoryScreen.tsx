@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { agentName } from '@/features/sessions/status';
+import { agentIcon, agentName } from '@/features/sessions/status';
 import { relativeTime } from '@/ui/time';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, PlatformColor } from 'react-native';
@@ -288,6 +288,7 @@ export function ProjectHistoryView({
           title: agentName(item.provider.agentType),
           subtitle: t(`settings.history.provider.${item.provider.cliType}`),
           image: 'bubble.left.and.bubble.right',
+          imageAsset: agentIcon(item.provider.agentType),
           imageTint: 'blue',
           disclosure: true,
           navigates: true,

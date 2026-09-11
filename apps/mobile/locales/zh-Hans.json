@@ -275,6 +275,8 @@
   "native.liveActivity.stale": "已断开",
   "native.liveActivity.empty": "没有活跃会话",
   "native.liveActivity.others": "还有 {count} 个在跑",
+  "native.liveActivity.lastSync": "上次同步",
+  "native.liveActivity.openHint": "点按处理",
   "native.liveActivity.debug.title1": "重构 composer 键盘避让",
   "native.liveActivity.debug.title2": "修复 push-extension 签名",
   "native.liveActivity.debug.title3": "写 Live Activity 设计文档",

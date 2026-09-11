@@ -61,9 +61,13 @@ its id instead, and unmatched paths redirect to the home route. Settings →
 Notifications carries the Live Activity toggle, which stores its state in the App Group
 and ends every running activity when turned off.
 
-Sources live in `modules/lody-kit/live-activity/` and are copied into
-`ios/LodyLiveActivity/` by the Podfile helper, so editing them requires a fresh
-`pod install` before the next build.
+Sources and `AgentIcons.xcassets` live in `modules/lody-kit/live-activity/` and are
+copied into `ios/LodyLiveActivity/` by the Podfile helper, so editing them requires a
+fresh `pod install` before the next build. The catalog carries eleven agent marks from
+Lobe Icons (MIT, `modules/lody-kit/licenses/LobeIcons-LICENSE.txt`) as template images
+and is also linked into the application by `withLodyIcons`, where `agentIcon()` picks the
+same names for grouped rows; unknown agents fall back to their two-letter glyph. Widget
+strings travel in the content state's `copy`; missing keys default to English.
 
 The app requests an activity itself with `pushType: .token` and hands the token to
 OneSignal. Push-to-start is registered when the toggle is on, but the backend calling

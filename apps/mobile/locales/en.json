@@ -275,6 +275,8 @@
   "native.liveActivity.stale": "Disconnected",
   "native.liveActivity.empty": "No active sessions",
   "native.liveActivity.others": "{count} more running",
+  "native.liveActivity.lastSync": "Last synced",
+  "native.liveActivity.openHint": "Tap to review",
   "native.liveActivity.debug.title1": "Refactor the composer keyboard avoidance",
   "native.liveActivity.debug.title2": "Fix the push-extension signing",
   "native.liveActivity.debug.title3": "Write the Live Activity design doc",

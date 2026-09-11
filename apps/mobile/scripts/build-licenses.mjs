@@ -118,6 +118,12 @@ const nativeComponents = [
     file: 'modules/lody-kit/licenses/MaterialIconTheme-LICENSE.txt',
   },
   {
+    name: 'Lobe Icons',
+    license: 'MIT',
+    url: 'https://github.com/lobehub/lobe-icons',
+    file: 'modules/lody-kit/licenses/LobeIcons-LICENSE.txt',
+  },
+  {
     name: 'ReachabilitySwift',
     license: 'MIT',
     url: 'https://github.com/ashleymills/Reachability.swift',

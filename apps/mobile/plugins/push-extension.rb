@@ -32,6 +32,13 @@ def lody_extension(bundle_id, name:, suffix:, source_dir:, point_identifier:, di
     file = group.files.find { |f| f.path == basename } || group.new_file(basename)
     target.source_build_phase.add_file_reference(file, true)
   end
+  Dir[File.join(__dir__, '..', source_dir, '*.xcassets')].sort.each do |path|
+    basename = File.basename(path)
+    FileUtils.rm_rf(File.join(folder, basename))
+    FileUtils.cp_r(path, folder)
+    file = group.files.find { |f| f.path == basename } || group.new_file(basename)
+    target.resources_build_phase.add_file_reference(file, true)
+  end
   extension_info = { 'NSExtensionPointIdentifier' => point_identifier }
   extension_info['NSExtensionPrincipalClass'] = principal_class if principal_class
   Xcodeproj::Plist.write_to_path({
