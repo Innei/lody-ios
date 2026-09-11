@@ -16,6 +16,8 @@ export type ItemSummary =
         requestId: string;
         pending: boolean;
         options?: PermissionOption[];
+        kind?: 'permission' | 'ask_user_question';
+        questionMeta?: QuestionMeta;
       };
     }
   | {
@@ -93,6 +95,7 @@ export type DetailResponse = {
 };
 
 export type PermissionTarget = {
+  questionMeta?: QuestionMeta;
   options?: PermissionOption[];
   entryId: string;
   itemId: string;
@@ -119,3 +122,23 @@ export type PermissionDetail = {
 };
 
 export type PermissionResult = { requestId: string } | undefined;
+
+export type Question = {
+  id?: string;
+  header: string;
+  question: string;
+  options: { label: string; description?: string; preview?: string }[];
+  multiSelect: boolean;
+  allowCustomAnswer?: boolean;
+  isSecret?: boolean;
+};
+
+export type QuestionMeta = {
+  source: 'lody' | 'claude' | 'codex';
+  version: number;
+  questions: Question[];
+  allowCustomAnswer: boolean;
+  autoResolveAt?: number;
+};
+
+export type QuestionAnswers = Record<string, string | string[]>;

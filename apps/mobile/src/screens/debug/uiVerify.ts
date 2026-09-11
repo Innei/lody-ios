@@ -6,4 +6,11 @@ declare global {
   var __lodyUiVerifyReset: (() => void) | undefined;
   var __lodyUiVerifyPermissionTarget:
     ((available: boolean) => void) | undefined;
+  var __lodyUiVerifyQuestion:
+    | {
+        remoteAnswer: () => void;
+        answers?: import('../../models/session.ts').QuestionAnswers;
+        attempts: number;
+      }
+    | undefined;
 }

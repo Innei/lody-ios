@@ -371,11 +371,14 @@ extension LodyChatView {
       historyTargetID = nil
       preparingHistory = false
       hasEarlierHistory = false
+      hasPagedHistory = false
       return projected
     }
-    let start = historyStartID.flatMap { entryIDs.firstIndex(of: $0) } ?? max(0, entryIDs.count - 50)
+    let retainedStart = historyStartID.flatMap { entryIDs.firstIndex(of: $0) }
+    let start = retainedStart ?? max(0, entryIDs.count - 50)
     historyStartID = entryIDs[start]
     hasEarlierHistory = start > 0
+    hasPagedHistory = hasEarlierHistory || (retainedStart != nil && hasPagedHistory)
     let width = max(1, collection.bounds.width - 40)
     if width != historyWidth {
       preparedHistory.removeAll()

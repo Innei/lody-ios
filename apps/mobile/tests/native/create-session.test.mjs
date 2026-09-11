@@ -366,7 +366,7 @@ test('create a project session, open its empty history and dispatch the first tu
   delete globalThis.__creationClient;
 });
 
-test('chat-only creation lists every machine agent and writes session meta without a project', async () => {
+test('chat and fresh GitHub repositories can use workspace machines while local projects stay pinned', async () => {
   const meta = new Flock('meta'),
     machine = new Flock('machine');
   meta.set(['e', 'machine-m1'], true);
@@ -481,5 +481,93 @@ test('chat-only creation lists every machine agent and writes session meta witho
   assert.equal(saved.project, undefined);
   assert.equal(saved.repoFullName, undefined);
   assert.equal(saved.isWorktree, undefined);
+  const teammate = new Flock('teammate');
+  meta.set(['e', 'machine-m2'], true);
+  meta.set(['m', 'machine-m2'], { name: 'Teammate Mac', userId: 'other-user' });
+  teammate.set(['agentConfig', 'c2'], {
+    id: 'c2',
+    name: 'Teammate Agent',
+    machineId: 'm2',
+    cliType: 'builtin',
+    agentType: 'codex',
+  });
+  machines.set('m2', teammate);
+  machine.set(['localProject', 'p1'], { name: 'Local', rootPath: '/local' });
+  assert.deepEqual(
+    runtime
+      .creationOptions('m1:local:p1', meta, machines)
+      .agents.map((agent) => agent.machineId),
+    ['m1'],
+  );
+  const github = runtime.creationOptions(
+    'github:LodyAI/FreshProject',
+    meta,
+    machines,
+  );
+  assert.equal(github.project.name, 'LodyAI/FreshProject');
+  assert.deepEqual(
+    github.agents.map((agent) => agent.machineId),
+    ['m1', 'm2'],
+  );
+  for (const repo of [
+    'owner/..',
+    'owner/repo/extra',
+    'owner/repo?token=x',
+    'owner/repo\n',
+  ]) {
+    assert.throws(
+      () => runtime.creationOptions(`github:${repo}`, meta, machines),
+      /project_unavailable/,
+    );
+  }
+  const githubArgs = {
+    workspaceId: 'w1',
+    sessionId: github.sessionId,
+    projectId: github.project.id,
+    machineId: 'm2',
+    agentConfigId: 'c2',
+    userId: 'u1',
+    title: 'First repository task',
+    branch: 'main',
+  };
+  const grant = async () => ({
+    token: 'synthetic',
+    gatewayBaseUrl: 'https://example.invalid',
+  });
+  await assert.rejects(
+    runtime.createSession(
+      { ...githubArgs, branch: '' },
+      github,
+      replica,
+      grant,
+    ),
+    /invalid_session/,
+  );
+  await assert.rejects(
+    runtime.createSession(
+      { ...githubArgs, machineId: 'unavailable' },
+      github,
+      replica,
+      grant,
+    ),
+    /invalid_session/,
+  );
+  const created = await runtime.createSession(
+    githubArgs,
+    github,
+    replica,
+    grant,
+  );
+  assert.equal(created.state, 'created');
+  const githubSaved = remote.get(['m', `session-${created.session.id}`]);
+  assert.equal(githubSaved.machineId, 'm2');
+  assert.equal(githubSaved.agentConfigId, 'c2');
+  assert.deepEqual(githubSaved.project, {
+    kind: 'github',
+    repoFullName: 'LodyAI/FreshProject',
+    branch: 'main',
+  });
+  assert.equal(githubSaved.baseBranch, 'main');
+  assert.equal(githubSaved.isWorktree, true);
   delete globalThis.__creationClient;
 });

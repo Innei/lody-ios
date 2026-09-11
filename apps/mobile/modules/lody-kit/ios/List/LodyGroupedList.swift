@@ -11,12 +11,20 @@ struct LodyListAction {
 }
 
 @Record
+struct LodyListValueSegment {
+  var text: String = ""
+  var tint: String = ""
+}
+
+@Record
 struct LodyListRow {
   var id: String = ""
   var title: String = ""
   var subtitle: String = ""
   var value: String = ""
+  var valueSegments: [LodyListValueSegment] = []
   var image: String = ""
+  var imageAsset: String = ""
   var filePath: String = ""
   var imageTint: String = ""
   var subtitleMono: Bool = false
@@ -24,6 +32,8 @@ struct LodyListRow {
   var badge: String = ""
   var diff: [String: Int] = [:]
   var action: Bool = false
+  var selected: Bool = false
+  var accessibilityValue: String = ""
   var toggle: Bool? = nil
   var navigates: Bool = false
   var disclosure: Bool = false
@@ -71,7 +81,7 @@ private struct ListItemID: Hashable {
   let row: String
 }
 
-final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDelegate {
+final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISearchBarDelegate {
   let onRowPress = EventDispatcher()
   let onRowToggle = EventDispatcher()
   let onRowAction = EventDispatcher()
@@ -177,15 +187,38 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
       } else if let placeholder = UIImage(systemName: "person.crop.circle.fill") {
         LodyListPhoto.apply(&content, image: placeholder, placeholder: true)
       }
-    } else if !row.image.isEmpty {
-      content.image = UIImage(systemName: row.image)
+    } else if !row.imageAsset.isEmpty || !row.image.isEmpty {
+      if !row.imageAsset.isEmpty {
+        content.image = UIImage(named: row.imageAsset, in: Bundle(for: LodyKitModule.self), compatibleWith: nil)?
+          .withRenderingMode(.alwaysTemplate)
+          ?? UIImage(named: row.imageAsset)?.withRenderingMode(.alwaysTemplate)
+        content.imageProperties.maximumSize = CGSize(width: 24, height: 24)
+      } else {
+        content.image = UIImage(systemName: row.image)
+      }
       content.imageProperties.tintColor =
         lodyTint(row.imageTint) ?? (row.destructive ? .systemRed : accent)
       content.imageProperties.preferredSymbolConfiguration = .init(textStyle: .title3)
     }
     cell.contentConfiguration = content
     var accessories: [UICellAccessory] = []
-    if !row.value.isEmpty {
+    cell.accessibilityValue = nil
+    if !row.valueSegments.isEmpty {
+      let label = UILabel()
+      label.font = .preferredFont(forTextStyle: .body)
+      label.adjustsFontForContentSizeCategory = true
+      label.isAccessibilityElement = false
+      let value = NSMutableAttributedString(string: "")
+      for segment in row.valueSegments {
+        value.append(NSAttributedString(string: segment.text, attributes: [
+          .foregroundColor: lodyTint(segment.tint) ?? UIColor.secondaryLabel,
+        ]))
+      }
+      label.attributedText = value
+      label.sizeToFit()
+      cell.accessibilityValue = value.string
+      accessories.append(.customView(configuration: .init(customView: label, placement: .trailing())))
+    } else if !row.value.isEmpty {
       var options = UICellAccessory.LabelOptions()
       options.tintColor = .secondaryLabel
       accessories.append(.label(text: row.value, options: options))
@@ -195,9 +228,16 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
         .customView(configuration: .init(customView: toggle, placement: .trailing()))
       )
     }
+    if row.selected { accessories.append(.checkmark()) }
     if row.disclosure { accessories.append(.disclosureIndicator()) }
     cell.accessories = accessories
-    cell.accessibilityTraits = row.action ? .button : .staticText
+    var traits: UIAccessibilityTraits = row.action ? .button : .staticText
+    if row.selected { traits.insert(.selected) }
+    cell.accessibilityTraits = traits
+    cell.accessibilityValue = row.accessibilityValue.isEmpty ? nil : row.accessibilityValue
+    cell.accessibilityLabel = row.selected && !row.accessibilityValue.isEmpty
+      ? "\(row.title), \(row.accessibilityValue)"
+      : nil
   }
 
   private let headerRegistration = UICollectionView.SupplementaryRegistration<SectionSupplementaryCell>(
@@ -214,7 +254,7 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
     // UIKit rejects a registration created inside the cell provider.
     _ = sessionRegistration
     _ = registration
-    collection.backgroundColor = .systemGroupedBackground
+    collection.backgroundColor = .lodyGroupedBackground
     collection.contentInsetAdjustmentBehavior = .automatic
     collection.alwaysBounceVertical = true
     collection.keyboardDismissMode = .onDrag
@@ -429,7 +469,7 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
     collection.setContentOffset(CGPoint(x: 0, y: -collection.adjustedContentInset.top), animated: false)
   }
 
-  func setSections(_ value: [LodyListSection]) {
+  func setSections(_ value: [LodyListSection], animated: Bool = true) {
     let previous = dataSource.snapshot()
     sections = value
     rowsByID = Dictionary(value.flatMap { section in
@@ -456,7 +496,7 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
             let view = collection.supplementaryView(forElementKind: UICollectionView.elementKindSectionHeader, at: index) as? SectionSupplementaryCell else { continue }
       configureSupplementary(view, section: section, header: true)
     }
-    dataSource.apply(snapshot, animatingDifferences: window != nil && !previous.sectionIdentifiers.isEmpty && !UIAccessibility.isReduceMotionEnabled) { [weak self] in
+    dataSource.apply(snapshot, animatingDifferences: animated && window != nil && !previous.sectionIdentifiers.isEmpty && !UIAccessibility.isReduceMotionEnabled) { [weak self] in
       guard let self else { return }
       for kind in [UICollectionView.elementKindSectionHeader, UICollectionView.elementKindSectionFooter] {
         for index in self.collection.indexPathsForVisibleSupplementaryElements(ofKind: kind) {
@@ -515,8 +555,12 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
   func setTransparent(_ value: Bool) {
     guard value != transparent else { return }
     transparent = value
-    collection.backgroundColor = value ? .clear : .systemGroupedBackground
+    collection.backgroundColor = value ? .clear : .lodyGroupedBackground
     collection.reloadData()
+  }
+
+  override func lodyAppearanceDidChange() {
+    collection.backgroundColor = transparent ? .clear : .lodyGroupedBackground
   }
 
   func setBottomInset(_ height: CGFloat) {

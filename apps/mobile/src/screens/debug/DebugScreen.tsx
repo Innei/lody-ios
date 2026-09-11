@@ -21,6 +21,7 @@ import { ScrollPreviewScreen } from './ScrollPreviewScreen';
 import { ShinePreviewScreen } from './ShinePreviewScreen';
 import { InboxPreviewScreen } from './InboxPreviewScreen';
 import { SettingsPreviewScreen } from './SettingsPreviewScreen';
+import { AppearanceScreen } from '../AppearanceScreen';
 import { OnboardingPreviewScreen } from './OnboardingPreviewScreen';
 import { useNavigation, useRouter, useTheme } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -144,6 +145,7 @@ function View() {
           'arrow.triangle.2.circlepath',
         ),
         openRow('settings-preview', '远程设置验收', 'gear'),
+        openRow('appearance-preview', '外观验收', 'circle.lefthalf.filled'),
         openRow('inbox-preview', '动态分组验收', 'tray'),
         ...(uiVerify
           ? [openRow('background-preview', '后台连接验收', 'moon.zzz')]
@@ -260,6 +262,7 @@ function View() {
       void present(ProjectHistoryPreviewScreen, {}),
     'pull-request-preview': () => void present(PullRequestPreviewScreen, {}),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
+    'appearance-preview': () => void present(AppearanceScreen, {}),
     'inbox-preview': () => void present(InboxPreviewScreen, {}),
     'background-preview': () => void present(BackgroundPreviewScreen, {}),
     'scroll-preview': () => void present(ScrollPreviewScreen, {}),

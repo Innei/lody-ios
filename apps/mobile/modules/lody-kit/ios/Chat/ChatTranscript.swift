@@ -29,6 +29,7 @@ struct ChatEntry: Decodable {
   let timestamp: String?
   let endedAt: Double?
   let startedAt: Double?
+  var permissionWaitMs: Double? = nil
   var items: [ChatItem]
   let fileDiffs: [ChatFileDiff]?
   var modelInfo: ModelInfo? = nil
@@ -134,7 +135,13 @@ enum ChatWorkDuration {
     let end = entry.finished ? entry.endedAt : now
     guard let start, let end, start.isFinite, end.isFinite, end >= start,
           end - start <= Double(Int.max) else { return nil }
-    return Int(end - start)
+    var wait = 0.0
+    if let written = entry.permissionWaitMs, written.isFinite, written > 0,
+       written <= Double(Int.max)
+    {
+      wait = written
+    }
+    return Int(max(0, end - start - wait))
   }
 
   static func needsTimer(_ rows: [ChatRow]) -> Bool {

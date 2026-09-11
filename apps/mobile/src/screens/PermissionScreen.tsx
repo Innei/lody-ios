@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View as RNView } from 'react-native';
 import { Screen } from '@/ui/Screen';
 import { respondSessionPermission } from '@lody-ios/kit';
@@ -17,6 +17,8 @@ import type {
 import type { PermissionTargetSource } from '@/features/sessions/permissionTarget';
 import { t, type TranslationKey } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
+import { QuestionCard } from '@/features/sessions/QuestionCard';
+import type { QuestionAnswers } from '../models/session.ts';
 
 export type { PermissionDetail, PermissionOption } from '../models/session.ts';
 
@@ -29,6 +31,7 @@ export type PermissionService = {
     sessionId: string,
     target: PermissionTarget,
     optionId: string,
+    answers?: QuestionAnswers,
   ) => Promise<'accepted' | 'stale' | 'conflict'>;
 };
 
@@ -52,7 +55,7 @@ const liveService: PermissionService = {
       command: response.blocks.find((b) => b.type === 'terminal_command'),
     };
   },
-  async respond(sessionId, target, optionId) {
+  async respond(sessionId, target, optionId, answers) {
     const result = JSON.parse(
       await respondSessionPermission(
         JSON.stringify({
@@ -61,6 +64,7 @@ const liveService: PermissionService = {
           itemId: target.itemId,
           requestId: target.requestId,
           optionId,
+          answers,
         }),
       ),
     );
@@ -106,12 +110,16 @@ function View() {
   const [detail, setDetail] = useState<PermissionDetail>();
   const [submitting, setSubmitting] = useState('');
   const [error, setError] = useState('');
+  const currentTarget = useRef(target);
+  currentTarget.current = target;
 
   useEffect(() => {
     if (!target) return;
     let active = true;
     setDetail(undefined);
     setError('');
+    setSubmitting('');
+    if (target.questionMeta) return;
     void service
       .detail(params.sessionId, target)
       .then((next) => {
@@ -131,12 +139,18 @@ function View() {
     service,
   ]);
 
-  const answer = async (optionId: string) => {
+  const answer = async (optionId: string, answers?: QuestionAnswers) => {
     if (!target) return;
     setSubmitting(optionId);
     setError('');
     try {
-      const state = await service.respond(params.sessionId, target, optionId);
+      const state = await service.respond(
+        params.sessionId,
+        target,
+        optionId,
+        answers,
+      );
+      if (currentTarget.current?.requestId !== target.requestId) return;
       if (state === 'accepted') finish({ requestId: target.requestId });
       else
         setError(
@@ -145,18 +159,46 @@ function View() {
             : t('permission.error.answered'),
         );
     } catch (caught) {
+      if (currentTarget.current?.requestId !== target.requestId) return;
       setError(
         String(caught).includes('invalid_option')
           ? t('permission.error.invalidOption')
           : t('permission.error.send'),
       );
     } finally {
-      setSubmitting('');
+      if (currentTarget.current?.requestId === target.requestId)
+        setSubmitting('');
     }
   };
 
   // Actions belong to the synced request; optional command details must not gate them.
   const options = target?.options ?? detail?.options ?? [];
+  const submitOption = options.find((o) => o.kind?.startsWith('allow'));
+  if (target?.kind === 'ask_user_question' && !target.questionMeta)
+    return (
+      <Screen>
+        <AppText>{t('permission.error.options')}</AppText>
+      </Screen>
+    );
+  if (target?.questionMeta)
+    return (
+      <Screen automaticallyAdjustKeyboardInsets>
+        <QuestionCard
+          key={`${target.entryId}/${target.itemId}/${target.requestId}`}
+          meta={target.questionMeta}
+          disabled={!!submitting}
+          onSubmit={(answers) => {
+            if (submitOption) void answer(submitOption.optionId, answers);
+            else setError(t('permission.error.options'));
+          }}
+        />
+        {error ? (
+          <AppText variant="meta" style={{ color: colors.danger }}>
+            {error}
+          </AppText>
+        ) : null}
+      </Screen>
+    );
   return (
     <Screen>
       <AppText variant="title">
@@ -221,6 +263,9 @@ export const PermissionScreen = definePage<PermissionParams, PermissionResult>({
     // `fitToContents` cannot measure through SheetStack's absolutely filled
     // inner stack, which leaves the sheet blank and full height.
     sheetAllowedDetents: [0.5, 1],
+    // A late-resolving target may be a multi-question form. Start with enough
+    // room for its navigation and allow the user to collapse the sheet.
+    sheetInitialDetentIndex: 'last',
     sheetGrabberVisible: false,
     // Answering is the way out; the header close button is the escape hatch.
     dismissible: false,

@@ -51,5 +51,24 @@ ui.axe('tap', '--label', catalog.system('ok'))
 assert ui.element('session-input')['AXValue'] == '3 next draft', 'Failure overwrote new input'
 assert not ui.element('session-send')['enabled'], 'Retained failure must not be overwritten by a new send'
 ui.capture('new-draft-preserved')
+
+# A completed Session can retire a published outbox row while the native clear
+# token is unchanged after view restoration. The empty pending prop owns this
+# transition and must release only that published send.
+ui.axe('tap', '--id', 'send-toggle-pending')
+ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 3 · idle' for i in items), 'Failed fixture did not retire')
+ui.axe('tap', '--id', 'send-toggle-pending')
+ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 3 · unknown' for i in items), 'Stale pending fixture did not load')
+assert not ui.element('session-send')['enabled'], 'A pending send must lock duplicate submission'
+ui.capture('stale-pending')
+ui.axe('tap', '--id', 'send-toggle-pending')
+ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 3 · idle' for i in items), 'Completed fixture did not retire pending state')
+send = ui.element('session-send')
+assert send['AXLabel'] == catalog.text('native.chat.composer.send'), 'Completed Session left the composer stuck in Loading'
+if not ui.element('session-input').get('AXValue'):
+    ui.axe('tap', '--id', 'session-input')
+    ui.type_into('session-input', 'after completion')
+assert ui.element('session-send')['enabled'], 'Completed Session did not accept a new draft'
+ui.capture('completed-unlocked')
 trace.verify(2)
 print('PASS: offline media/text, retained failure and explicit retry without another throw, history takeover, new draft preserved')

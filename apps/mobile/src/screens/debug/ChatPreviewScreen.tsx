@@ -128,12 +128,87 @@ const permissionService: PermissionService = {
   respond: async () => 'accepted',
 };
 
+const questionTarget: PermissionTarget = {
+  ...permissionTarget,
+  requestId: 'ui-verify-questions',
+  kind: 'ask_user_question',
+  title: 'Project preferences',
+  questionMeta: {
+    source: 'lody',
+    version: 1,
+    allowCustomAnswer: true,
+    questions: [
+      {
+        id: 'language',
+        header: 'Language',
+        question: 'Which language should we use?',
+        multiSelect: false,
+        options: [
+          { label: 'Swift', description: 'Native iOS implementation' },
+          { label: 'TypeScript', description: 'Shared app logic' },
+        ],
+      },
+      {
+        id: 'checks',
+        header: 'Checks',
+        question: 'Which checks should run?',
+        multiSelect: true,
+        options: [{ label: 'Unit tests' }, { label: 'UI tests' }],
+      },
+      {
+        id: 'notes',
+        header: 'Notes',
+        question: 'Anything else we should know?',
+        multiSelect: false,
+        allowCustomAnswer: true,
+        options: [],
+      },
+    ],
+  },
+};
+
+function openQuestionFixture() {
+  let attempts = 0;
+  const source: PermissionTargetSource = (onState) => {
+    onState({ ready: true, target: questionTarget });
+    const probe = { remoteAnswer: () => onState({ ready: true }), attempts: 0 };
+    if (uiVerify) globalThis.__lodyUiVerifyQuestion = probe;
+    return () => {
+      if (globalThis.__lodyUiVerifyQuestion === probe)
+        globalThis.__lodyUiVerifyQuestion = undefined;
+    };
+  };
+  void present(
+    PermissionScreen,
+    {
+      sessionId: 'ui-verify-question',
+      generation: 0,
+      target: questionTarget,
+      source,
+      service: {
+        detail: async () => ({ options: [] }),
+        respond: async (_session, _target, _option, answers) => {
+          attempts += 1;
+          if (uiVerify && globalThis.__lodyUiVerifyQuestion) {
+            globalThis.__lodyUiVerifyQuestion.answers = answers;
+            globalThis.__lodyUiVerifyQuestion.attempts = attempts;
+          }
+          if (attempts === 1) throw new Error('upload_failed');
+          return 'accepted';
+        },
+      },
+    },
+    { title: t('question.title') },
+  );
+}
+
 function View() {
   const [showImage, setShowImage] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
   const [durationFixture, setDurationFixture] = useState<{
     startedAt: number;
     finished: boolean;
+    permissionWaitMs?: number;
   } | null>(null);
   const [length, setLength] = useState(totalLength);
   const [navigationTitle, setNavigationTitle] = useState('原生聊天预览');
@@ -297,6 +372,7 @@ function View() {
         endedAt: durationFixture.finished
           ? durationFixture.startedAt + 65_000
           : undefined,
+        permissionWaitMs: durationFixture.permissionWaitMs,
         items: [
           {
             itemId: 'work',
@@ -454,6 +530,11 @@ function View() {
                 })
               }
             />
+            <Stack.Toolbar.MenuAction
+              children="Question Fixture"
+              icon="questionmark.bubble"
+              onPress={openQuestionFixture}
+            />
           </Stack.Toolbar.Menu>
         )}
         {durationFixture && !durationFixture.finished && (
@@ -463,6 +544,17 @@ function View() {
             onPress={() =>
               setDurationFixture((current) =>
                 current ? { ...current, finished: true } : current,
+              )
+            }
+          />
+        )}
+        {durationFixture?.finished && !durationFixture.permissionWaitMs && (
+          <Stack.Toolbar.Button
+            accessibilityLabel="Wait Duration Fixture"
+            icon="hourglass"
+            onPress={() =>
+              setDurationFixture((current) =>
+                current ? { ...current, permissionWaitMs: 5_000 } : current,
               )
             }
           />

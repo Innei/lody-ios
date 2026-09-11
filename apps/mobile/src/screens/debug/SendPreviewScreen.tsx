@@ -316,6 +316,28 @@ function SendPreview() {
         <Button testID="send-reply" onPress={() => reply(true)}>
           回复
         </Button>
+        {!queue && (
+          <Button
+            testID="send-toggle-pending"
+            onPress={() =>
+              record
+                ? void outbox.remove(session.id)
+                : void outbox.put({
+                    session,
+                    send: {
+                      id: 'stale-pending',
+                      text: '已完成的残留消息',
+                      startedAt: Date.now(),
+                      attachments: [],
+                      choice: {},
+                      phase: 'unknown',
+                    },
+                  })
+            }
+          >
+            残留
+          </Button>
+        )}
       </View>
       <Text
         testID="send-status"

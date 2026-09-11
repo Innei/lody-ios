@@ -13,6 +13,7 @@ struct LodyMenuItem {
 struct LodyMenuAvatar {
   var text: String = ""
   var color: String = ""
+  var image: String = ""
 }
 
 final class LodyMenuButton: ExpoView {
@@ -20,6 +21,8 @@ final class LodyMenuButton: ExpoView {
   let onSize = EventDispatcher()
   private let button = UIButton(type: .system)
   private var avatar = LodyMenuAvatar()
+  private var photoURL: URL?
+  private var photo: UIImage?
   private var label = ""
 
   required init(appContext: AppContext? = nil) {
@@ -40,6 +43,15 @@ final class LodyMenuButton: ExpoView {
 
   func setAvatar(_ value: LodyMenuAvatar) {
     avatar = value
+    let url = LodyListPhoto.url(value.image)
+    photoURL = url
+    photo = url.flatMap { source in
+      LodyListPhoto.image(for: source, ready: { [weak self] image in
+        guard let self, self.photoURL == source else { return }
+        self.photo = image
+        self.apply()
+      })
+    }
     apply()
   }
 
@@ -61,27 +73,17 @@ final class LodyMenuButton: ExpoView {
     )
   }
 
-  private func avatarImage() -> UIImage {
-    let side: CGFloat = 28
-    let fill = lodyTint(avatar.color) ?? .systemIndigo
-    return UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
-      fill.setFill()
-      context.cgContext.fillEllipse(in: CGRect(x: 0, y: 0, width: side, height: side))
-      let attributes: [NSAttributedString.Key: Any] = [
-        .font: UIFont.systemFont(ofSize: 13, weight: .semibold),
-        .foregroundColor: UIColor.white,
-      ]
-      let text = NSAttributedString(string: avatar.text, attributes: attributes)
-      let size = text.size()
-      text.draw(at: CGPoint(x: (side - size.width) / 2, y: (side - size.height) / 2))
-    }.withRenderingMode(.alwaysOriginal)
-  }
-
   private func apply() {
     var config = UIButton.Configuration.plain()
-    config.image = avatarImage()
+    config.image = LodyMenuButtonStyle.avatarImage(
+      text: avatar.text,
+      fill: lodyTint(avatar.color) ?? .systemIndigo,
+      photo: photo
+    )
     config.imagePadding = 8
-    config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 2, bottom: 4, trailing: 4)
+    config.contentInsets = NSDirectionalEdgeInsets(
+      top: 4, leading: 2, bottom: 4, trailing: LodyMenuButtonStyle.trailingInset
+    )
     config.attributedTitle = AttributedString(
       label,
       attributes: AttributeContainer([

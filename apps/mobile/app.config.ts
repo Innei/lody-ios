@@ -26,6 +26,7 @@ const config: ExpoConfig = {
     ['expo-dev-client', { toolsButton: false }],
     './plugins/withMarkdownView',
     './plugins/withLocales',
+    './plugins/withLodyIcons',
     'expo-localization',
     [
       './plugins/withPushNotifications',

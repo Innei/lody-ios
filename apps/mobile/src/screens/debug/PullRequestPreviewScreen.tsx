@@ -111,8 +111,11 @@ const entries = [
 function View() {
   const { push } = usePageRuntime();
   const [appendDraftJSON, setAppendDraftJSON] = useState('');
-  async function openPreview(mode = 'preview') {
-    let current = data;
+  async function openPreview(
+    mode = 'preview',
+    state: PullRequestPreviewData['state'] = 'open',
+  ) {
+    let current = { ...data, state };
     if (mode === 'empty') current = { ...data, checks: [] };
     let reads = 0;
     let writes = 0;
@@ -175,6 +178,14 @@ function View() {
           <Stack.Toolbar.Badge>!</Stack.Toolbar.Badge>
         </Stack.Toolbar.Button>
         <Stack.Toolbar.Menu icon="ellipsis" accessibilityLabel="更多">
+          {(['merged', 'closed', 'draft'] as const).map((state) => (
+            <Stack.Toolbar.MenuAction
+              key={state}
+              onPress={() => void openPreview('preview', state)}
+            >
+              {t(`pr.state.${state}`)}
+            </Stack.Toolbar.MenuAction>
+          ))}
           <Stack.Toolbar.MenuAction onPress={() => void openPreview('empty')}>
             空检查预览
           </Stack.Toolbar.MenuAction>

@@ -1,5 +1,6 @@
 import { PlatformColor, useColorScheme } from 'react-native';
 import { DarkTheme, DefaultTheme } from 'expo-router';
+import { useAppearance } from './appearance';
 import {
   accent,
   danger,
@@ -8,6 +9,7 @@ import {
   onAccent,
   opaqueCard,
   separator,
+  softDarkBackground,
   systemGroupedBackground,
   type ThemeName,
 } from './tokens';
@@ -29,6 +31,8 @@ export type ColorRole =
 
 export function usePalette() {
   const theme: ThemeName = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const { darkBackground } = useAppearance();
+  const comfortable = theme === 'dark' && darkBackground === 'soft';
   return {
     theme,
     label: PlatformColor('label'),
@@ -37,8 +41,12 @@ export function usePalette() {
     accent: accent[theme],
     warning: PlatformColor('systemOrange'),
     danger: PlatformColor('systemRed'),
-    background: PlatformColor('systemGroupedBackground'),
-    reading: PlatformColor('systemBackground'),
+    background: comfortable
+      ? softDarkBackground
+      : PlatformColor('systemGroupedBackground'),
+    reading: comfortable
+      ? softDarkBackground
+      : PlatformColor('systemBackground'),
     card: PlatformColor('secondarySystemGroupedBackground'),
     inset: inset[theme],
     separator: PlatformColor('separator'),

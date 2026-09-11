@@ -15,6 +15,7 @@ import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
 import { t, type TranslationKey } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
+import { usePalette } from '@/lib/theme/palette';
 
 export type FileParams = {
   path: string;
@@ -31,6 +32,7 @@ const errors: Record<string, TranslationKey> = {
 };
 
 function View() {
+  const colors = usePalette();
   const { params } = usePageRuntime<FileParams>();
   const [file, setFile] = useState<Extract<FileContent, { status: 'ok' }>>();
   const [error, setError] = useState('');
@@ -145,9 +147,7 @@ function View() {
     );
   }
   return (
-    <RNView
-      style={{ flex: 1, backgroundColor: PlatformColor('systemBackground') }}
-    >
+    <RNView style={{ flex: 1, backgroundColor: colors.reading }}>
       {markdown && !inSheet && (
         <Stack.Toolbar placement="right">
           <Stack.Toolbar.Button

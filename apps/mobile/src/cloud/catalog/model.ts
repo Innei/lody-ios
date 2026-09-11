@@ -3,6 +3,18 @@ import { pullRequestReferences } from '../../features/pull-request/references.ts
 import type { Catalog, Project, Session } from '../../models/catalog.ts';
 
 export type { Catalog, Project, Session } from '../../models/catalog.ts';
+
+/** A connected repository can host its first session without a catalog entry. */
+export function githubProject(repo: string): Project | undefined {
+  if (
+    repo.trim() !== repo ||
+    !/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}$/.test(repo) ||
+    ['.', '..'].includes(repo.split('/')[1]!)
+  )
+    return undefined;
+  return { id: `github:${repo}`, name: repo, machineId: '', rootPath: '' };
+}
+
 type Row = { key: unknown[]; value?: unknown };
 const object = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value)

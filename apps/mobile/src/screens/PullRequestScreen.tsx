@@ -1,6 +1,10 @@
 import { Stack } from 'expo-router';
 import { PlatformColor } from 'react-native';
-import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
+import {
+  NativeGroupedList,
+  NativeSymbolButton,
+  type NativeListSection,
+} from '@lody-ios/kit';
 import { definePage, present } from '@/lib/presentation';
 import { PullRequestCommentScreen } from './PullRequestCommentScreen';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
@@ -11,6 +15,13 @@ import { pullRequestError } from '@/features/pull-request/errors';
 import { PullRequestChecksScreen } from './PullRequestChecksScreen';
 import { t } from '@/lib/i18n';
 import { checksSummary, failedCheck } from '@/features/pull-request/checks';
+
+const stateIcons = {
+  open: { imageAsset: 'lody-git-pull-request', imageTint: 'blue' },
+  merged: { imageAsset: 'lody-git-merge', imageTint: 'purple' },
+  closed: { imageAsset: 'lody-git-pull-request-closed', imageTint: 'danger' },
+  draft: { imageAsset: 'lody-git-pull-request-draft', imageTint: 'secondary' },
+} as const;
 
 export type PullRequestParams = {
   source: PullRequestSource;
@@ -54,8 +65,7 @@ function View() {
             subtitle: [t(`pr.state.${data.state}`), data.author]
               .filter(Boolean)
               .join(' · '),
-            image: 'arrow.triangle.pull',
-            imageTint: 'blue',
+            ...stateIcons[data.state],
           },
         ],
         footer: `${data.headRef} → ${data.baseRef}`,
@@ -82,14 +92,18 @@ function View() {
           {
             id: 'pr-files',
             title: t('pr.files'),
-            value: `${data.changedFiles} · +${data.additions} −${data.deletions}`,
+            valueSegments: [
+              { text: `${data.changedFiles} · ` },
+              { text: `+${data.additions}`, tint: 'blue' },
+              { text: ` −${data.deletions}`, tint: 'danger' },
+            ],
             image: 'doc.text',
           },
           {
             id: 'pr-commits',
             title: t('pr.commits'),
             value: String(data.commits),
-            image: 'point.topleft.down.to.point.bottomright.curvepath',
+            imageAsset: 'lody-git-commit',
           },
         ],
         footer: t('pr.head', { sha: data.headSha.slice(0, 7) }),
@@ -157,12 +171,15 @@ function View() {
         }}
       />
       <Stack.Toolbar placement="bottom">
-        <Stack.Toolbar.Button
-          tintColor={PlatformColor('systemBlue')}
-          onPress={() => actions.openGitHub()}
-        >
-          {t('pr.github')}
-        </Stack.Toolbar.Button>
+        <Stack.Toolbar.View>
+          <NativeSymbolButton
+            accessibilityName={t('pr.github')}
+            imageAsset="lody-mark-github"
+            tint="blue"
+            style={{ width: 44, height: 44 }}
+            onPress={() => actions.openGitHub()}
+          />
+        </Stack.Toolbar.View>
         <Stack.Toolbar.Spacer />
         <Stack.Toolbar.Button
           tintColor={PlatformColor('systemBlue')}

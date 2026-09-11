@@ -48,7 +48,7 @@ private final class ChatNavigationController: UIViewController {
   }
 }
 
-final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestureRecognizerDelegate {
+final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout, UIGestureRecognizerDelegate {
   let onSend = EventDispatcher()
   let onStop = EventDispatcher()
   let onSteer = EventDispatcher()
@@ -112,6 +112,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   var historyLayoutAnchor: (String, CGFloat)?
   var scrollingToTop = false
   var hasEarlierHistory = false
+  var hasPagedHistory = false
   var preparingHistory = false
   var preparedHistory: [String: ChatRow] = [:]
   var historyWidth: CGFloat = 0
@@ -229,7 +230,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
         self?.attachTitle()
       }
     }
-    backgroundColor = .systemBackground
+    backgroundColor = .lodyBackground
     collection.backgroundColor = .clear
     collection.alwaysBounceVertical = true
     collection.keyboardDismissMode = .interactive
@@ -347,7 +348,7 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     var bottomConfiguration = UIButton.Configuration.glass()
     bottomConfiguration.image = UIImage(systemName: "arrow.down")
     bottomConfiguration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(
-      pointSize: 10,
+      pointSize: 14,
       weight: .semibold
     )
     bottomConfiguration.cornerStyle = .capsule
@@ -490,6 +491,11 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     refreshTextRendering()
   }
 
+  override func lodyAppearanceDidChange() {
+    backgroundColor = .lodyBackground
+    refreshTextRendering()
+  }
+
   private func refreshTextRendering() {
     store.apply(traits: traitCollection)
     preparedHistory.removeAll()
@@ -576,6 +582,8 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
     guard !json.isEmpty else {
       // A stale initial empty prop must not erase a send handled in this native frame.
       if let publishedPendingID, let pendingSend, pendingSend.id == publishedPendingID {
+        composer.clearPendingSend(id: publishedPendingID)
+        composerHasAcknowledgedSend = true
         // entriesJSON is decoded off-main. Keep the local rows until the same
         // authoritative rows arrive, even if React retires its pending prop first.
         if pendingSend.rows(entries: transcript.entries).isEmpty && (pendingSend.queue != true || transcript.entries.contains(where: { $0.id == pendingSend.id })) { self.pendingSend = nil }

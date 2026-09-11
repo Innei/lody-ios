@@ -302,7 +302,7 @@ extension LodyChatView {
   }
 
   func collectionView(_ collectionView: UICollectionView, layout: UICollectionViewLayout, referenceSizeForHeaderInSection section: Int) -> CGSize {
-    CGSize(width: collectionView.bounds.width, height: section == 0 && processEntryID.isEmpty ? 48 : 0)
+    CGSize(width: collectionView.bounds.width, height: section == 0 && processEntryID.isEmpty && hasPagedHistory ? 48 : 0)
   }
 
   func collectionView(_ collectionView: UICollectionView, layout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {

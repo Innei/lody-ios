@@ -19,6 +19,7 @@ final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewC
   private var bottomInset: CGFloat = 0
   private var transparent = false
   private var offsetObservation: NSKeyValueObservation?
+  private var titleObservation: NSKeyValueObservation?
   private weak var pageScrollView: UIScrollView?
   private weak var host: UIViewController?
 
@@ -56,7 +57,7 @@ final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewC
       rebuild(pages)
     } else {
       for (index, page) in pages.enumerated() {
-        boxes[index].list.setSections(page.sections)
+        boxes[index].list.setSections(page.sections, animated: false)
       }
       rail.setTitles(pages.map(\.title))
     }
@@ -137,9 +138,8 @@ final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewC
     } else {
       direction = .reverse
     }
-    pager.setViewControllers([target], direction: direction, animated: animated)
-    if !animated {
-      commit(index)
+    pager.setViewControllers([target], direction: direction, animated: animated) { [weak self] finished in
+      if finished { self?.commit(index) }
     }
   }
 
@@ -163,6 +163,13 @@ final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewC
       ])
       pager.didMove(toParent: owner)
       host = owner
+      titleObservation = owner.navigationItem.observe(\.titleView) { [weak self] item, _ in
+        MainActor.assumeIsolated {
+          guard let self, self.pagingEnabled, item.titleView !== self.rail else { return }
+          // Screens can reset the header after a cancelled sheet dismissal.
+          self.setNeedsLayout()
+        }
+      }
       observePageScrollView()
     }
     if pagingEnabled { attachRail() }
@@ -170,6 +177,7 @@ final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewC
   }
 
   private func detachHost() {
+    titleObservation = nil
     detachRail()
     offsetObservation = nil
     pageScrollView = nil

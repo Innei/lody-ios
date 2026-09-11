@@ -7,7 +7,9 @@ final class LodySymbolButton: ExpoView {
   private let button = UIButton(type: .system)
   private let hold = UILongPressGestureRecognizer()
   private var symbol = "circle"
+  private var imageAsset = ""
   private var prominent = false
+  private var foreground: UIColor = .label
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -36,6 +38,11 @@ final class LodySymbolButton: ExpoView {
     button.accessibilityLabel = value
   }
 
+  func setImageAsset(_ value: String) {
+    imageAsset = value
+    apply()
+  }
+
   func setProminent(_ value: Bool) {
     prominent = value
     apply()
@@ -46,7 +53,9 @@ final class LodySymbolButton: ExpoView {
   }
 
   func setTint(_ value: String) {
-    button.tintColor = lodyTint(value) ?? .label
+    foreground = lodyTint(value) ?? .label
+    button.tintColor = foreground
+    apply()
   }
 
   func setLongPress(_ value: Bool) {
@@ -57,14 +66,19 @@ final class LodySymbolButton: ExpoView {
     var configuration = prominent
       ? UIButton.Configuration.filled()
       : UIButton.Configuration.plain()
-    configuration.image = UIImage(systemName: symbol)
+    if imageAsset.isEmpty {
+      configuration.image = UIImage(systemName: symbol)
+    } else {
+      configuration.image = UIImage(named: imageAsset)?.withRenderingMode(.alwaysTemplate)
+    }
     configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(
       textStyle: prominent ? .body : .title3,
       scale: .medium
     )
     configuration.contentInsets = .zero
+    if !imageAsset.isEmpty { configuration.baseForegroundColor = foreground }
     if prominent { configuration.cornerStyle = .capsule }
-    if button.configuration?.image != nil {
+    if imageAsset.isEmpty, button.configuration?.image != nil {
       configuration.symbolContentTransition = .init(byLayer ? .replace.byLayer : .replace)
     }
     button.configuration = configuration

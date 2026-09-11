@@ -11,7 +11,7 @@ export type NativeMenuItem = {
 
 export interface NativeMenuButtonProps extends ViewProps {
   accessibilityName: string;
-  avatar: { text: string; color: string };
+  avatar: { text: string; color: string; image?: string };
   label: string;
   items: NativeMenuItem[];
   onSelect: (id: string) => void;

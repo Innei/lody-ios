@@ -261,12 +261,18 @@ function View() {
     gate.opened();
     try {
       gate.settled(
-        await present(PermissionScreen, {
-          sessionId: session.id,
-          generation: cursor.current.generation,
-          target,
-          source: permissionSource,
-        }),
+        await present(
+          PermissionScreen,
+          {
+            sessionId: session.id,
+            generation: cursor.current.generation,
+            target,
+            source: permissionSource,
+          },
+          target?.kind === 'ask_user_question'
+            ? { title: t('question.title') }
+            : undefined,
+        ),
       );
     } catch {
       gate.settled({ status: 'cancelled' });

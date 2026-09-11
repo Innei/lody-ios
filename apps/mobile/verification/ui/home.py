@@ -83,6 +83,37 @@ tap_create()
 ui.element('create-session-input')
 ui.element('create-type')
 ui.capture('create')
+ui.wait(lambda items: any('Fixture Agent' in (i.get('AXLabel') or '') for i in items), 'Creation options did not load')
+# Both tabs expose the machine, including a local project's pinned machine.
+ui.axe('tap', '--id', 'machine', '--post-delay', '.6')
+ui.wait(lambda items: any('Fixture Mac' in (i.get('AXLabel') or '') for i in items), 'Project machine picker is empty')
+ui.axe('tap', '--id', 'ui', '--post-delay', '.6')
+ui.element('create-type')
+
+# Exercise actual paging and a cancelled interactive sheet dismissal, not only
+# segment taps. The video records the intervening cell motion.
+for index in [1, 0, 1, 0]:
+    before = ui.element('agent')['frame']
+    width = ui.element('create-session-input')['frame']['width']
+    start, end = (width - 20, 20) if index == 1 else (20, width - 20)
+    y = before['y'] + before['height'] / 2
+    ui.axe('swipe', '--start-x', str(start), '--start-y', str(y),
+           '--end-x', str(end), '--end-y', str(y), '--duration', '.7', '--post-delay', '.6')
+    ui.element('create-type')
+    assert any(i.get('AXUniqueId') == 'project' for i in ui.state()) == (index == 0), 'Swipe did not commit the expected page'
+    after = ui.element('agent')['frame']
+    ui.capture(f'create-swipe-{index}')
+    time.sleep(.4)
+    settled = ui.element('agent')['frame']
+    assert abs(settled['y'] - after['y']) < 1 and abs(settled['height'] - after['height']) < 1, 'Cell geometry changed after paging settled'
+
+header = next(item['frame'] for item in ui.state() if item.get('AXLabel') == close_create)
+x, y = header['x'] + header['width'] / 2, header['y'] + header['height'] / 2
+ui.axe('swipe', '--start-x', str(x), '--start-y', str(y),
+       '--end-x', str(x), '--end-y', str(y + 45), '--duration', '1', '--post-delay', '1')
+ui.element('create-session-input')
+ui.element('create-type')
+ui.capture('create-dismiss-cancelled')
 
 
 def tap_create_type(index):
@@ -116,6 +147,29 @@ ui.axe(
 expanded_header = next(item['frame'] for item in ui.state() if item.get('AXLabel') == close_create)
 assert expanded_header['y'] < header['y'] - 100, 'Creation sheet did not expand to the full detent'
 ui.capture('create-full')
+
+# A repository with no existing sessions is discoverable, and can run on a
+# teammate's shared machine. Local projects continue to pin their own machine.
+ui.axe('tap', '--id', 'project', '--post-delay', '.5')
+ui.element('github:LodyAI/FreshProject')
+ui.capture('github-repositories')
+ui.axe('tap', '--id', 'github:LodyAI/FreshProject', '--post-delay', '.7')
+ui.axe('tap', '--id', 'machine', '--post-delay', '.5')
+ui.element('shared')
+ui.capture('github-machines')
+ui.axe('tap', '--id', 'shared', '--post-delay', '.7')
+assert 'Teammate Mac' in (ui.element('machine').get('AXLabel') or '')
+assert 'Teammate Agent' in (ui.element('agent').get('AXLabel') or '')
+ui.axe('tap', '--label', catalog.text('create.branch.label'))
+commit('main')
+ui.capture('github-create')
+# Return through the picker while preserving the native sheet navigation.
+ui.axe('tap', '--id', 'project', '--post-delay', '.5')
+ui.axe('tap', '--id', 'ui:local:lody', '--post-delay', '.7')
+ui.axe('tap', '--id', 'machine', '--post-delay', '.5')
+assert not any(i.get('AXUniqueId') == 'shared' for i in ui.state()), 'Local project offered another machine'
+ui.axe('tap', '--id', 'ui', '--post-delay', '.5')
+ui.element('create-type')
 
 ui.axe('tap', '--label', close_create, '--post-delay', '1')
 home_ready()
