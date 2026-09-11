@@ -138,6 +138,40 @@ assert(
 assert(ChatWorkDuration.format(65_999, hour: "h", minute: "m", second: "s") == "1m 05s")
 assert(ChatWorkDuration.format(999, hour: "h", minute: "m", second: "s") == "0s")
 
+let waitedDurationJSON = finishedDurationJSON.replacingOccurrences(
+  of: "\"endedAt\":125000", with: "\"endedAt\":125000,\"permissionWaitMs\":5000"
+)
+let waitedDurationEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(waitedDurationJSON.utf8))
+assert(
+  ChatTranscript(entries: waitedDurationEntries).rows(now: 999_999).first?.workDurationMs == 120_000,
+  "Finished work must subtract permissionWaitMs"
+)
+let liveWaitedJSON = liveDurationJSON.replacingOccurrences(
+  of: "\"timestamp\":\"1970-01-01T00:00:00.000Z\"",
+  with: "\"timestamp\":\"1970-01-01T00:00:00.000Z\",\"permissionWaitMs\":5000"
+)
+let liveWaitedEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(liveWaitedJSON.utf8))
+assert(
+  ChatTranscript(entries: liveWaitedEntries).rows(now: 65_999).first?.workDurationMs == 60_999,
+  "A live timer must subtract permission wait already written on the replica"
+)
+let overWaitJSON = finishedDurationJSON.replacingOccurrences(
+  of: "\"endedAt\":125000", with: "\"endedAt\":125000,\"permissionWaitMs\":200000"
+)
+let overWaitEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(overWaitJSON.utf8))
+assert(
+  ChatTranscript(entries: overWaitEntries).rows(now: 999_999).first?.workDurationMs == 0,
+  "Wait longer than the span must clamp to zero"
+)
+let invalidWaitJSON = finishedDurationJSON.replacingOccurrences(
+  of: "\"endedAt\":125000", with: "\"endedAt\":125000,\"permissionWaitMs\":-1"
+)
+let invalidWaitEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(invalidWaitJSON.utf8))
+assert(
+  ChatTranscript(entries: invalidWaitEntries).rows(now: 999_999).first?.workDurationMs == 125_000,
+  "Illegal permissionWaitMs must be treated as zero"
+)
+
 var utc = Calendar(identifier: .gregorian)
 utc.timeZone = TimeZone(identifier: "UTC")!
 let metaNow = utc.date(from: DateComponents(year: 2026, month: 9, day: 10, hour: 12))!

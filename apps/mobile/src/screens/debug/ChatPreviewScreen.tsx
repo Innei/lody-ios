@@ -208,6 +208,7 @@ function View() {
   const [durationFixture, setDurationFixture] = useState<{
     startedAt: number;
     finished: boolean;
+    permissionWaitMs?: number;
   } | null>(null);
   const [length, setLength] = useState(totalLength);
   const [navigationTitle, setNavigationTitle] = useState('原生聊天预览');
@@ -371,6 +372,7 @@ function View() {
         endedAt: durationFixture.finished
           ? durationFixture.startedAt + 65_000
           : undefined,
+        permissionWaitMs: durationFixture.permissionWaitMs,
         items: [
           {
             itemId: 'work',
@@ -542,6 +544,17 @@ function View() {
             onPress={() =>
               setDurationFixture((current) =>
                 current ? { ...current, finished: true } : current,
+              )
+            }
+          />
+        )}
+        {durationFixture?.finished && !durationFixture.permissionWaitMs && (
+          <Stack.Toolbar.Button
+            accessibilityLabel="Wait Duration Fixture"
+            icon="hourglass"
+            onPress={() =>
+              setDurationFixture((current) =>
+                current ? { ...current, permissionWaitMs: 5_000 } : current,
               )
             }
           />

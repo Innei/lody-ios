@@ -81,7 +81,7 @@
 | done | 列表 pin / archive / mark read         | `sessionActions.ts`、`SessionScreen.tsx`                                   | `isPinned` / `isArchived` / `lastReadAt`                         |
 | done | 搜索（含归档）                         | `InboxScreen.tsx`                                                          | OSS home / archive 过滤                                          |
 | done | 文件树、回合变更、全文 diff            | `FilesScreen.tsx`、`TurnChangesScreen.tsx`、`FileDiffScreen.tsx`           | 移动端预期能力（README）                                         |
-| done | Worked-for 紧凑格式                    | `ChatWorkDuration`、`verification/chat/main.swift`                         | `1h 01m 05s`；**减法见偏移**                                     |
+| done | Worked-for 紧凑格式                    | `ChatWorkDuration`、`verification/chat/main.swift`                         | `1h 01m 05s`；减法见 #8                                          |
 | done | 推送 + Dynamic Island                  | `PushNotifications.swift`、`live-activity/`                                | 官方 README 的 mobile 职责；岛内批准见缺失                       |
 | done | 模型 / effort / mode / permission      | `ModelScreen.tsx`、`ChatComposerModelPanel.swift`                          | 同一 ACP capability；UI 不同                                     |
 | done | @ mentions（七类）                     | `mentions.ts`、`ChatMentionPanel.swift`、`MentionPickerScreen.tsx`         | 原生目录、短引用与发送时 expansion，见 `docs/mentions-design.md` |
@@ -184,7 +184,7 @@
 
 | 状态    | 项                | 本仓现在                                                                     | OSS                                                                                       | 锚点                                                                                                |
 | ------- | ----------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| drift   | 时长含权限等待    | Swift 用 `end - start`，**不减** `permissionWaitMs`                          | `resolveSessionHistoryDurationMs`：`endedAt - timestamp - permissionWaitMs`（`4d6eaca3`） | 字段已在 `project.ts` / `src/models/session.ts`；`ChatEntry` / `ChatWorkDuration.milliseconds` 未用 |
+| done    | 时长减去权限等待  | `max(0, span - permissionWaitMs)`；缺失/非法 wait 当 0                       | `resolveSessionHistoryDurationMs`：`endedAt - timestamp - permissionWaitMs`（`4d6eaca3`） | `ChatWorkDuration.milliseconds`；#8 |
 | adapted | Mentions 插入形态 | 原生纯文本草稿使用 `@session:id` / `@role:id`；skill 为 `$token`，发送时展开 | OSS 用可读 slug + 稳定 id range                                                           | `docs/mentions-design.md`                                                                           |
 | drift   | MCP / Role 继承   | 抄上一回合 MCP / `taskToolsEnabled`；有 Role 则拒发                          | 可改 MCP；Role 可继承或重选                                                               | `session.ts` `inputConfig`                                                                          |
 | drift   | 项目历史          | 手动批量导入 + 冲突确认                                                      | 导入 UI 在桌面 / 本机；手机读已导入会话                                                   | README「不是自动镜像」；`settings.history.hint`                                                     |
@@ -254,3 +254,4 @@ iOS 自己的边界（不是 OSS 差距）：无 Android、不自动重放写入
 | 2026-09-11 | 初稿。对照 OSS `4400744a` 与当时 iOS 工作区。                                                                                      |
 | 2026-09-11 | 拆成 GitHub #7–#29。写法跟 lobe-chat Linear skill；父子嵌套 + Blocked by / Relates + 上游链接。                                    |
 | 2026-09-11 | #11：七类 Mentions 与持久化前 expansion；专项对照 `63ae7ad5`，保留其他领域基线。原生短引用的刻意差异见 `docs/mentions-design.md`。 |
+| 2026-09-11 | #8：Worked-for 减去 `permissionWaitMs`，完成态与 live tick 共用同一公式。 |

@@ -10,11 +10,13 @@ copy = {
         'working': 'Working for ',
         'worked': 'Worked for ',
         'finished': ('Worked for 1m 04s', 'Worked for 1m 05s', 'Worked for 1m 06s'),
+        'waited': ('Worked for 59s', 'Worked for 1m 00s', 'Worked for 1m 01s'),
     },
     'zh-Hans': {
         'working': '正在工作 ',
         'worked': '工作了 ',
         'finished': ('工作了 1分 04秒', '工作了 1分 05秒', '工作了 1分 06秒'),
+        'waited': ('工作了 59秒', '工作了 1分 00秒', '工作了 1分 01秒'),
     },
 }[catalog.LANGUAGE]
 
@@ -88,4 +90,21 @@ assert ':' in model['AXLabel'].rsplit(' · ', 1)[1], 'A same-day reply ends with
 assert model['frame']['y'] >= answer['frame']['y'] + answer['frame']['height'] - 1
 assert abs(model['frame']['x'] - answer['frame']['x']) <= 1, (model['frame'], answer['frame'])
 ui.capture('finished')
+
+ui.axe('tap', '--label', 'Wait Duration Fixture', '--post-delay', '.5')
+waited = ui.wait(
+    lambda items: next(
+        (
+            item for item in [duration_row(items, copy['worked'])]
+            if item is not None
+            and any(token in (item.get('AXLabel') or '') for token in copy['waited'])
+        ),
+        None,
+    ),
+    'Subtracting permissionWaitMs did not freeze the OSS duration',
+)
+time.sleep(1.2)
+assert ui.element('duration-preview:duration')['AXLabel'] == waited['AXLabel']
+ui.capture('waited')
 print('PASS: duration freezes and the metadata bar reads left-aligned under the answer')
+print('PASS: permission wait is subtracted from the frozen work duration')
