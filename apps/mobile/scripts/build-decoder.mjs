@@ -55,6 +55,7 @@ for (const name of [
   'Litext',
   'pierre-diffs',
   'MaterialIconTheme',
+  'Octicons',
 ]) {
   await writeFile(
     output + '/' + name + '-LICENSE.txt',

@@ -1,4 +1,9 @@
 import type { LoroDoc, LoroList, LoroMap } from 'loro-crdt/base64';
+import {
+  parseQuestionMeta,
+  samePermissionOutcome,
+} from '../../../src/cloud/permissionQuestions.ts';
+import type { QuestionMeta } from '../../../src/models/session.ts';
 
 export type ItemSummary =
   | { itemId: string; rev: number; type: 'text'; text: string }
@@ -18,6 +23,8 @@ export type ItemSummary =
         requestId: string;
         pending: boolean;
         options?: { optionId: string; name: string; kind?: string }[];
+        kind?: 'permission' | 'ask_user_question';
+        questionMeta?: QuestionMeta;
       };
     }
   | {
@@ -189,11 +196,20 @@ function summarizeItem(
 
   if (type === 'tool_call') {
     const diff = countDiff(raw.content);
+    const questionMeta = parseQuestionMeta(raw.permissionRequest?._meta);
+    const isQuestion =
+      !!questionMeta ||
+      raw.permissionRequest?.kind === 'ask_user_question' ||
+      raw.kind === 'ask_user_question';
     const permission = raw.permissionRequest
       ? {
           requestId: String(raw.permissionRequest.requestId ?? ''),
           pending: raw.permissionRequest.outcome == null,
           options: raw.permissionRequest.options,
+          kind: isQuestion
+            ? ('ask_user_question' as const)
+            : ('permission' as const),
+          questionMeta,
         }
       : undefined;
     const summary = {
@@ -252,8 +268,34 @@ function summarizeEntry(
   history: LoroList,
   entry: any,
   index: number,
+  pendingOutcomes?: ReadonlyMap<string, unknown>,
 ) {
   const id = String(entry?.id ?? identityAt(history, index));
+  if (pendingOutcomes?.size && Array.isArray(entry?.items)) {
+    const container = history.get(index) as LoroMap | undefined;
+    const items =
+      container && typeof container.get === 'function'
+        ? (container.get('items') as LoroList)
+        : undefined;
+    entry = {
+      ...entry,
+      items: entry.items.map((item: any, i: number) => {
+        const request = item?.permissionRequest;
+        let itemId = `idx:${index}:${i}`;
+        if (items && typeof items.getIdAt === 'function')
+          itemId = identityAt(items, i);
+        if (item?.type === 'tool_call' && typeof item.toolCallId === 'string')
+          itemId = item.toolCallId;
+        const key = `${id}/${itemId}/${request?.requestId}`;
+        if (
+          !pendingOutcomes.has(key) ||
+          !samePermissionOutcome(request?.outcome, pendingOutcomes.get(key))
+        )
+          return item;
+        return { ...item, permissionRequest: { ...request, outcome: null } };
+      }),
+    };
+  }
   const fingerprint = JSON.stringify(entry);
   const cached = projection.entries.get(id);
   if (cached && cached.fingerprint === fingerprint) return cached.value;
@@ -318,6 +360,7 @@ export function projectSession(
   doc: LoroDoc,
   status: string,
   reason?: string,
+  pendingOutcomes?: ReadonlyMap<string, unknown>,
 ): Envelope {
   const history = doc.getList('history') as LoroList;
   const raw = history.toJSON() as any[];
@@ -335,7 +378,7 @@ export function projectSession(
     (value) => typeof value === 'string',
   );
   const summarized = raw.map((entry, index) =>
-    summarizeEntry(projectionFor(doc), history, entry, index),
+    summarizeEntry(projectionFor(doc), history, entry, index, pendingOutcomes),
   );
 
   // A daemon history-sync timeout can place a concurrent reply before its input.

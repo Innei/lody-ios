@@ -1,4 +1,13 @@
 {
+  "question.freeText": "请输入你的答案",
+  "question.title": "回答问题",
+  "question.progress": "第 {current} 题，共 {total} 题",
+  "question.single": "请选择一个答案",
+  "question.multiple": "请选择一个或多个答案",
+  "question.custom": "你的答案",
+  "question.previous": "上一题",
+  "question.next": "下一题",
+  "question.submit": "提交答案",
   "pr.send": "发送",
   "pr.discard": "放弃评论",
   "pr.commentPlaceholder": "留下评论…",

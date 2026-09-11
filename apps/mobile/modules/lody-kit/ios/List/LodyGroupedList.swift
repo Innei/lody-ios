@@ -11,12 +11,20 @@ struct LodyListAction {
 }
 
 @Record
+struct LodyListValueSegment {
+  var text: String = ""
+  var tint: String = ""
+}
+
+@Record
 struct LodyListRow {
   var id: String = ""
   var title: String = ""
   var subtitle: String = ""
   var value: String = ""
+  var valueSegments: [LodyListValueSegment] = []
   var image: String = ""
+  var imageAsset: String = ""
   var filePath: String = ""
   var imageTint: String = ""
   var subtitleMono: Bool = false
@@ -177,15 +185,38 @@ final class LodyGroupedList: ExpoView, UICollectionViewDelegate, UISearchBarDele
       } else if let placeholder = UIImage(systemName: "person.crop.circle.fill") {
         LodyListPhoto.apply(&content, image: placeholder, placeholder: true)
       }
-    } else if !row.image.isEmpty {
-      content.image = UIImage(systemName: row.image)
+    } else if !row.imageAsset.isEmpty || !row.image.isEmpty {
+      if !row.imageAsset.isEmpty {
+        content.image = UIImage(named: row.imageAsset, in: Bundle(for: LodyKitModule.self), compatibleWith: nil)?
+          .withRenderingMode(.alwaysTemplate)
+          ?? UIImage(named: row.imageAsset)?.withRenderingMode(.alwaysTemplate)
+        content.imageProperties.maximumSize = CGSize(width: 24, height: 24)
+      } else {
+        content.image = UIImage(systemName: row.image)
+      }
       content.imageProperties.tintColor =
         lodyTint(row.imageTint) ?? (row.destructive ? .systemRed : accent)
       content.imageProperties.preferredSymbolConfiguration = .init(textStyle: .title3)
     }
     cell.contentConfiguration = content
     var accessories: [UICellAccessory] = []
-    if !row.value.isEmpty {
+    cell.accessibilityValue = nil
+    if !row.valueSegments.isEmpty {
+      let label = UILabel()
+      label.font = .preferredFont(forTextStyle: .body)
+      label.adjustsFontForContentSizeCategory = true
+      label.isAccessibilityElement = false
+      let value = NSMutableAttributedString(string: "")
+      for segment in row.valueSegments {
+        value.append(NSAttributedString(string: segment.text, attributes: [
+          .foregroundColor: lodyTint(segment.tint) ?? UIColor.secondaryLabel,
+        ]))
+      }
+      label.attributedText = value
+      label.sizeToFit()
+      cell.accessibilityValue = value.string
+      accessories.append(.customView(configuration: .init(customView: label, placement: .trailing())))
+    } else if !row.value.isEmpty {
       var options = UICellAccessory.LabelOptions()
       options.tintColor = .secondaryLabel
       accessories.append(.label(text: row.value, options: options))

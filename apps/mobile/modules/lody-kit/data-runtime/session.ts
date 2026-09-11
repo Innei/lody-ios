@@ -5,6 +5,11 @@ import { decodeFrames, encodeFrame } from '../decoder/frames';
 import { identityAt, itemRev, projectSession } from './project';
 import { machineRpc, type RpcReply } from './machine-rpc';
 import { retrySessionRead } from './session-read';
+import {
+  parseQuestionMeta,
+  questionOutcome,
+  samePermissionOutcome,
+} from '../../../src/cloud/permissionQuestions.ts';
 export { projectSession } from './project';
 
 type Grant = { token: string; gatewayBaseUrl: string };
@@ -24,7 +29,13 @@ type SessionState = {
   pending?: ReturnType<typeof setTimeout>;
   firstQueuedAt: number;
   lastSignal: string;
-  unsent: Map<string, ReturnType<LoroDoc['version']>>;
+  unsent: Map<
+    string,
+    {
+      version: ReturnType<LoroDoc['version']>;
+      outcome: Record<string, unknown>;
+    }
+  >;
   getGrant: () => Promise<Grant>;
   markDispatch: (
     sessionId: string,
@@ -76,14 +87,18 @@ function flush(state: SessionState) {
   state.pending = undefined;
   state.firstQueuedAt = 0;
   if (sessions.get(state.id) !== state) return;
+  const snapshot = projectSession(
+    state.doc,
+    state.status,
+    state.reason,
+    new Map([...state.unsent].map(([key, pending]) => [key, pending.outcome])),
+  );
   state.emit({
     type: active === state ? 'session' : 'sessionCache',
     sessionId: state.id,
     synced: state.status === 'live',
     backgroundWork: backgroundProgress(state),
-    session: JSON.stringify(
-      projectSession(state.doc, state.status, state.reason),
-    ),
+    session: JSON.stringify(snapshot),
   });
 }
 function scheduleEmit(state: SessionState, status: string, reason?: string) {
@@ -868,6 +883,7 @@ export async function respondPermission(args: {
   itemId: string;
   requestId: string;
   optionId: string;
+  answers?: import('../../../src/models/session.ts').QuestionAnswers;
 }) {
   const state = active;
   if (!state || state.id !== args.sessionId || !state.ready)
@@ -882,18 +898,35 @@ export async function respondPermission(args: {
   if (!options.some((o) => o?.optionId === args.optionId))
     throw new Error('invalid_option');
   const key = `${args.entryId}/${args.itemId}/${args.requestId}`;
+  const meta = parseQuestionMeta(current._meta);
+  const selected = options.find((o) => o?.optionId === args.optionId);
+  const isReject = selected?.kind?.startsWith('reject');
+  if (
+    !meta &&
+    (current.kind === 'ask_user_question' ||
+      item.get('kind') === 'ask_user_question') &&
+    !isReject
+  )
+    throw new Error('invalid_answers');
+  let outcome: Record<string, unknown> = {
+    outcome: 'selected',
+    optionId: args.optionId,
+  };
+  if (meta && !isReject)
+    outcome = questionOutcome(args.optionId, meta, args.answers);
   if (current.outcome != null) {
-    if (current.outcome.optionId !== args.optionId)
+    if (!samePermissionOutcome(current.outcome, outcome))
       return { state: 'conflict' as const };
     if (!state.unsent.has(key)) return { state: 'accepted' as const };
   }
-  const before = state.unsent.get(key) ?? state.doc.version();
+  const before = state.unsent.get(key)?.version ?? state.doc.version();
   if (current.outcome == null) {
-    const outcome = { outcome: 'selected', optionId: args.optionId };
     if (request instanceof LoroMap) request.set('outcome', outcome);
     else item.set('permissionRequest', { ...current, outcome });
     state.doc.commit();
   }
+  // Register before awaiting: a thrown transport error also needs explicit retry.
+  state.unsent.set(key, { version: before, outcome });
   const result = await state.client.append({
     part: {
       contentType: 'application/octet-stream',
@@ -902,7 +935,7 @@ export async function respondPermission(args: {
   });
   if (!result.ok) {
     // A user-initiated retry re-exports from this version; nothing replays on its own.
-    state.unsent.set(key, before);
+    state.unsent.set(key, { version: before, outcome });
     throw new Error('upload_failed');
   }
   state.unsent.delete(key);

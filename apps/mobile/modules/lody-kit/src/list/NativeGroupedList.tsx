@@ -18,15 +18,19 @@ export type NativeListRow = {
   /** Paths, branches and ids read as data, not prose. */
   subtitleMono?: boolean;
   value?: string;
+  /** Styled trailing value; text is also exposed together to VoiceOver. */
+  valueSegments?: { text: string; tint?: string }[];
   /** Session rows only: bold title, trailing pill, +N −N after the subtitle. */
   unread?: boolean;
   badge?: string;
   diff?: { add: number; del: number };
   /** SF Symbol name, or an https/file/data image URL for a circular photo. */
   image?: string;
+  /** Bundled template asset, rendered with the same semantic tint as SF Symbols. */
+  imageAsset?: string;
   /** File rows use bundled Material Icon Theme artwork. */
   filePath?: string;
-  /** Semantic name (blue/warning/danger/secondary/tertiary) or a `#RRGGBB` value. */
+  /** Semantic name (blue/purple/warning/danger/secondary/tertiary) or a `#RRGGBB` value. */
   imageTint?: string;
   action?: boolean;
   /** Trailing UISwitch; the row stops being selectable and `action` gates the switch. */

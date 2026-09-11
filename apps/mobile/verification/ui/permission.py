@@ -1,6 +1,7 @@
 """Permission sheet opens ahead of its target and never costs the composer draft."""
 import sys
 import os
+import json
 from driver import UI
 from inspector import inspector
 import catalog
@@ -59,3 +60,52 @@ ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-input' and i.get('AXVa
         'Remote answer lost the composer draft')
 ui.capture('answered-elsewhere')
 print('PASS: sheet opens before its target, keeps the draft through close, answer and remote answer')
+
+
+def question_probe(expression):
+    return inspector(ui.udid, int(os.environ['LODY_UI_METRO_PORT']), 'Runtime.evaluate', {
+        'expression': expression, 'returnByValue': True,
+    })['result'].get('value')
+
+
+def open_questions():
+    ui.axe('tap', '--label', 'Fixtures')
+    ui.axe('tap', '--label', 'Question Fixture', '--post-delay', '1')
+    ui.wait(lambda items: any(i.get('AXUniqueId') == 'question-option-0' for i in items), 'Question card missing')
+
+
+open_questions()
+ui.capture('question-single')
+ui.axe('tap', '--id', 'question-option-0')
+ui.axe('tap', '--id', 'question-next')
+ui.wait(lambda items: any(i.get('AXLabel') == 'Which checks should run?' for i in items), 'Next must reach the multi-select question')
+ui.axe('tap', '--id', 'question-option-0')
+ui.axe('tap', '--id', 'question-option-1')
+ui.capture('question-multiple')
+assert question_probe('globalThis.__lodyUiVerifyQuestion.attempts') == 0, 'Choosing options must never submit automatically'
+ui.axe('tap', '--id', 'question-previous')
+ui.wait(lambda items: any(i.get('AXLabel') == 'Which language should we use?' for i in items), 'Previous answer page missing')
+ui.axe('tap', '--id', 'question-next')
+ui.axe('tap', '--id', 'question-next')
+ui.wait(lambda items: any(i.get('AXLabel') == 'Anything else we should know?' for i in items), 'Next must reach the free-text question')
+ui.axe('tap', '--id', 'question-custom')
+ui.axe('type', 'Keep it native')
+ui.capture('question-text')
+ui.axe('tap', '--id', 'question-submit', '--post-delay', '1')
+ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('permission.error.send') for i in items), 'Upload failure must retain the card')
+observed_answers = question_probe('globalThis.__lodyUiVerifyQuestion.answers')
+assert observed_answers == {
+    'language': 'Swift', 'checks': ['Unit tests', 'UI tests'], 'notes': 'Keep it native',
+}, 'The production card did not submit the full answer set'
+print('Observed answer payload: ' + json.dumps(observed_answers), flush=True)
+assert question_probe('globalThis.__lodyUiVerifyQuestion.attempts') == 1
+ui.capture('question-retry')
+ui.axe('tap', '--id', 'question-submit', '--post-delay', '1')
+ui.wait(lambda items: not any(i.get('AXUniqueId') == 'question-submit' for i in items), 'Successful retry did not close the card')
+ui.capture('question-answered')
+open_questions()
+question_probe('globalThis.__lodyUiVerifyQuestion.remoteAnswer()')
+ui.wait(lambda items: not any(i.get('AXUniqueId') == 'question-submit' for i in items), 'Desktop answer did not close the question card')
+ui.capture('question-answered-elsewhere')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-input' and i.get('AXValue') == DRAFT for i in items), 'Question resolution lost the composer draft')
+print('PASS: multi-question answers, navigation, failed upload, retry and desktop resolution')

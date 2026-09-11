@@ -1,4 +1,13 @@
 {
+  "question.freeText": "Type your answer",
+  "question.title": "Questions",
+  "question.progress": "Question {current} of {total}",
+  "question.single": "Choose one answer",
+  "question.multiple": "Choose one or more answers",
+  "question.custom": "Your answer",
+  "question.previous": "Previous",
+  "question.next": "Next",
+  "question.submit": "Submit answers",
   "pr.send": "Send",
   "pr.discard": "Discard Comment",
   "pr.commentPlaceholder": "Leave a comment…",

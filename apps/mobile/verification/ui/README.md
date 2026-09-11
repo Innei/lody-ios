@@ -12,8 +12,17 @@ The `pull-request` case also exercises authorization retry, empty checks, a reje
 comment retaining its draft followed by successful publication to the local fixture,
 and an investigation prompt appended without replacing the session draft. Native
 GitHub transport checks intercept requests and never publish real comments.
+The PR detail captures blue/red addition/deletion totals and Octicons for open,
+merged, closed and draft states. It checks the icon-only GitHub button's 44 pt
+target, VoiceOver label and existing open action.
 
 ## Run locally
+
+The `permission` case also opens the production question card with three offline
+questions. It checks single/multiple choices, previous/next navigation, free text,
+the complete answer payload, failed-upload retry, remote answer dismissal and
+composer draft retention in both appearances. Screenshots and video cover each
+answer state; no real agent request is dispatched.
 
 If a normal signed Debug app is already built, each verification command can lease
 its own iPhone 17 Pro / iOS 26.5 device from the `Lody * Verify` pool:

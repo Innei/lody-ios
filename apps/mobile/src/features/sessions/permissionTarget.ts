@@ -30,7 +30,13 @@ export function firstPermissionTarget(entries: readonly EntrySummary[]) {
         itemId: item.itemId,
         requestId: item.permission.requestId,
         options: item.permission.options,
-        kind: item.kind,
+        kind:
+          item.permission.kind === 'ask_user_question'
+            ? 'ask_user_question'
+            : item.kind,
+        ...(item.permission.questionMeta
+          ? { questionMeta: item.permission.questionMeta }
+          : {}),
         title: item.title,
         path: item.path,
       } satisfies PermissionTarget;
