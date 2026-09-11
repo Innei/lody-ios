@@ -15,6 +15,7 @@ import {
 import { Screen } from '@/ui/Screen';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
+import { useSessionListCatalog } from '@/features/sessions/useSessionListCatalog';
 import { usePalette } from '@/lib/theme/palette';
 import { listPlaceholder, searchPlaceholder } from '@/ui/listState';
 import {
@@ -56,8 +57,18 @@ function View() {
   const router = useRouter();
   const { account, localReady } = useAuth();
   const colors = usePalette();
-  const { catalog, selected, setWorkspaceId, loading, connected } =
-    useCatalog();
+  const {
+    catalog: sourceCatalog,
+    selected,
+    setWorkspaceId,
+    loading,
+    connected,
+  } = useCatalog();
+  const catalog = useSessionListCatalog(
+    sourceCatalog,
+    account?.user.id ?? '',
+    selected?.id ?? '',
+  );
   const [mode, setMode] = useState(initialInboxView);
   const [sort, setSort] = useState<ProjectSort>(initialInboxProjectSort);
   const [expanded, setExpanded] = useState(readInboxExpansion);

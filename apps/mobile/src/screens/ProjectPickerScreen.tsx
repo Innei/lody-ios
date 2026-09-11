@@ -53,10 +53,17 @@ function View() {
   const row = (project: Project): NativeListRow => ({
     id: project.id,
     title: project.name,
-    subtitle: [project.rootPath, catalog.machineNames?.[project.machineId] ?? project.machineId].filter(Boolean).join(' · '),
+    subtitle: [
+      project.rootPath,
+      catalog.machineNames?.[project.machineId] ?? project.machineId,
+    ]
+      .filter(Boolean)
+      .join(' · '),
     subtitleMono: !!project.rootPath,
     image: project.id.startsWith('github:') ? undefined : 'folder',
-    imageAsset: project.id.startsWith('github:') ? 'lody-mark-github' : undefined,
+    imageAsset: project.id.startsWith('github:')
+      ? 'lody-mark-github'
+      : undefined,
     selected: project.id === params.selectedId,
     action: true,
   });

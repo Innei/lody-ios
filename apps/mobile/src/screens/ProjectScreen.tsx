@@ -3,6 +3,7 @@ import { NativeGroupedList } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
+import { useSessionListCatalog } from '@/features/sessions/useSessionListCatalog';
 import { usePalette } from '@/lib/theme/palette';
 import {
   byActivity,
@@ -19,8 +20,13 @@ function View() {
   const {
     params: { projectId },
   } = usePageRuntime<{ projectId: string }>();
-  const { catalog, selected, loading, connected } = useCatalog();
+  const { catalog: sourceCatalog, selected, loading, connected } = useCatalog();
   const { account } = useAuth();
+  const catalog = useSessionListCatalog(
+    sourceCatalog,
+    account?.user.id ?? '',
+    selected?.id ?? '',
+  );
   const colors = usePalette();
   const project = catalog.projects.find((p) => p.id === projectId);
   const sessions = catalog.sessions

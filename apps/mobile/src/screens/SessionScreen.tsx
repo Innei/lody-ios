@@ -21,11 +21,8 @@ import { definePage, present } from '@/lib/presentation';
 import { requestNewSession } from '@/features/sessions/sessionNav';
 import { isChatSession } from '@/features/sessions/inbox';
 import { sessionTitleDetails } from '@/features/sessions/sessionTitle';
-import {
-  setArchived,
-  setPinned,
-  setRead,
-} from '@/features/sessions/sessionActions';
+import { setArchived, setPinned } from '@/features/sessions/sessionActions';
+import { useSessionViewed } from '@/features/sessions/useSessionViewed';
 import { sessionDebugText } from '@/features/sessions/sessionDebug';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import type { Session } from '@/models/catalog';
@@ -112,21 +109,21 @@ function View() {
   );
   const pullRequests = currentSession.pullRequests ?? [];
   const prAttention = pullRequests.some((pr) => pr.ci === 'f' || pr.ci === 'e');
+  useSessionViewed(
+    account?.user.id ?? '',
+    selected?.id ?? '',
+    session.id,
+    currentSession.lastMessageAt,
+  );
   useFocusEffect(
     useCallback(() => {
       void setPushVisibleRoute(
         selected?.slug ? `/${selected.slug}/sessions/${session.id}` : '',
       );
-      if (selected) void setRead(selected.id, currentSession);
       return () => {
         void setPushVisibleRoute('');
       };
-    }, [
-      selected?.id,
-      selected?.slug,
-      session.id,
-      currentSession.lastMessageAt,
-    ]),
+    }, [selected?.id, selected?.slug, session.id]),
   );
   const connection = useConnection();
   const outbox = usePendingSends(account?.user.id ?? '', selected?.id ?? '');

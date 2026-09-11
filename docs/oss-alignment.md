@@ -182,15 +182,15 @@
 
 做了，但和 OSS 不是同一套语义。修的时候优先对协议，不要只改文案。
 
-| 状态    | 项                | 本仓现在                                                                     | OSS                                                                                       | 锚点                                                                                                |
-| ------- | ----------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| done    | 时长减去权限等待  | `max(0, span - permissionWaitMs)`；缺失/非法 wait 当 0                       | `resolveSessionHistoryDurationMs`：`endedAt - timestamp - permissionWaitMs`（`4d6eaca3`） | `ChatWorkDuration.milliseconds`；#8 |
-| adapted | Mentions 插入形态 | 原生纯文本草稿使用 `@session:id` / `@role:id`；skill 为 `$token`，发送时展开 | OSS 用可读 slug + 稳定 id range                                                           | `docs/mentions-design.md`                                                                           |
-| drift   | MCP / Role 继承   | 抄上一回合 MCP / `taskToolsEnabled`；有 Role 则拒发                          | 可改 MCP；Role 可继承或重选                                                               | `session.ts` `inputConfig`                                                                          |
-| drift   | 项目历史          | 手动批量导入 + 冲突确认                                                      | 导入 UI 在桌面 / 本机；手机读已导入会话                                                   | README「不是自动镜像」；`settings.history.hint`                                                     |
-| drift   | 权限 UI           | 单请求、单列选项                                                             | 多题卡 + 自动继续                                                                         | `PermissionScreen.tsx`                                                                              |
-| drift   | 目录 / 文件上限   | 副本 8 MiB；目录前 2000 条                                                   | 桌面无此移动端天花板                                                                      | AGENTS.md；`files.ts` `listDir`                                                                     |
-| drift   | Auth 客户端身份   | `lody-cli` Device Flow                                                       | 官方 App 有独立客户端                                                                     | 等服务端注册再改声称                                                                                |
+| 状态    | 项                | 本仓现在                                                                     | OSS                                                                                       | 锚点                                            |
+| ------- | ----------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| done    | 时长减去权限等待  | `max(0, span - permissionWaitMs)`；缺失/非法 wait 当 0                       | `resolveSessionHistoryDurationMs`：`endedAt - timestamp - permissionWaitMs`（`4d6eaca3`） | `ChatWorkDuration.milliseconds`；#8             |
+| adapted | Mentions 插入形态 | 原生纯文本草稿使用 `@session:id` / `@role:id`；skill 为 `$token`，发送时展开 | OSS 用可读 slug + 稳定 id range                                                           | `docs/mentions-design.md`                       |
+| drift   | MCP / Role 继承   | 抄上一回合 MCP / `taskToolsEnabled`；有 Role 则拒发                          | 可改 MCP；Role 可继承或重选                                                               | `session.ts` `inputConfig`                      |
+| drift   | 项目历史          | 手动批量导入 + 冲突确认                                                      | 导入 UI 在桌面 / 本机；手机读已导入会话                                                   | README「不是自动镜像」；`settings.history.hint` |
+| drift   | 权限 UI           | 单请求、单列选项                                                             | 多题卡 + 自动继续                                                                         | `PermissionScreen.tsx`                          |
+| drift   | 目录 / 文件上限   | 副本 8 MiB；目录前 2000 条                                                   | 桌面无此移动端天花板                                                                      | AGENTS.md；`files.ts` `listDir`                 |
+| drift   | Auth 客户端身份   | `lody-cli` Device Flow                                                       | 官方 App 有独立客户端                                                                     | 等服务端注册再改声称                            |
 
 ---
 
@@ -254,4 +254,4 @@ iOS 自己的边界（不是 OSS 差距）：无 Android、不自动重放写入
 | 2026-09-11 | 初稿。对照 OSS `4400744a` 与当时 iOS 工作区。                                                                                      |
 | 2026-09-11 | 拆成 GitHub #7–#29。写法跟 lobe-chat Linear skill；父子嵌套 + Blocked by / Relates + 上游链接。                                    |
 | 2026-09-11 | #11：七类 Mentions 与持久化前 expansion；专项对照 `63ae7ad5`，保留其他领域基线。原生短引用的刻意差异见 `docs/mentions-design.md`。 |
-| 2026-09-11 | #8：Worked-for 减去 `permissionWaitMs`，完成态与 live tick 共用同一公式。 |
+| 2026-09-11 | #8：Worked-for 减去 `permissionWaitMs`，完成态与 live tick 共用同一公式。                                                          |
