@@ -987,9 +987,103 @@ test(
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(
       bootstraps.length,
-      before + 1,
-      'opening an offline retained Session retries bootstrap',
+      before,
+      'opening a reconnecting Session reuses its automatic retry',
     );
+  },
+);
+
+test(
+  'session bootstrap and stream reads recover without another watch or writes',
+  { timeout: 8000 },
+  async (t) => {
+    let bootstraps = 0;
+    const reads = [];
+    const events = [];
+    const history = new LoroDoc();
+    let recovered;
+    const recovery = new Promise((resolve) => {
+      recovered = resolve;
+    });
+    globalThis.__sessionClient = class {
+      async bootstrap() {
+        if (++bootstraps === 1) throw new Error('network unavailable');
+        return {
+          ok: true,
+          result: {
+            snapshotOffset: '7',
+            snapshot: { body: history.export({ mode: 'snapshot' }) },
+            updates: [],
+            nextOffset: '7',
+            cursor: 'cursor-7',
+            upToDate: true,
+          },
+        };
+      }
+      async readOnce(request) {
+        reads.push({ offset: request.offset, cursor: request.cursor });
+        if (reads.length === 1)
+          return { ok: false, result: { code: 'network_error' } };
+        if (reads.length === 2)
+          return {
+            ok: true,
+            result: {
+              nextOffset: '8',
+              cursor: 'cursor-8',
+              upToDate: true,
+              closed: false,
+            },
+          };
+        recovered();
+        return new Promise((resolve, reject) => {
+          request.signal.addEventListener(
+            'abort',
+            () => reject(request.signal.reason),
+            { once: true },
+          );
+        });
+      }
+      append() {
+        assert.fail('read recovery must never append');
+      }
+    };
+    const runtime = await loadRuntime();
+    runtime.appendUserTurn(
+      history,
+      'saved-turn',
+      'Existing message',
+      'u1',
+      {},
+      '2026-09-11T00:00:00Z',
+    );
+    t.after(() => {
+      runtime.stopSessions();
+      delete globalThis.__sessionClient;
+    });
+    await runtime.openSession(
+      'recovery',
+      'w1',
+      async () => ({
+        token: 'synthetic',
+        gatewayBaseUrl: 'https://x.invalid',
+      }),
+      (event) => events.push(JSON.parse(event.session)),
+      async () => {
+        assert.fail('read recovery must never dispatch');
+      },
+    );
+    await recovery;
+    assert.equal(bootstraps, 2);
+    assert.deepEqual(reads, [
+      { offset: '7', cursor: 'cursor-7' },
+      { offset: '7', cursor: 'cursor-7' },
+      { offset: '8', cursor: 'cursor-8' },
+    ]);
+    assert.equal(events.at(-1).status, 'live');
+    const firstLive = events.find((event) => event.status === 'live');
+    assert.equal(firstLive.entries.length, 1);
+    assert.deepEqual(events.at(-1).entries, firstLive.entries);
+    assert.ok(events.every((event) => event.status !== 'offline'));
   },
 );
 
