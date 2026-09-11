@@ -20,8 +20,7 @@ let finished = json.replacingOccurrences(of: "\"finished\":false", with: "\"fini
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(finished.utf8))
 assert(!streaming.contains { $0.kind == "meta" }, "A live reply must not offer completed-message actions")
 assert(transcript.rows().filter { $0.kind != "meta" }.map(\.id) == streaming.map(\.id), "Completion preserves existing main-list rows")
-assert(transcript.rows().last?.copyText == "最终答案", "Copy uses the final answer, excluding process and thoughts")
-assert(transcript.rows().last?.text == "", "Old replies do not invent model metadata")
+assert(!transcript.rows().contains { $0.kind == "meta" }, "Old replies do not invent model metadata")
 assert(transcript.rows(processEntryID: "reply").map(\.id) == process.map(\.id), "The process sheet stays flat after completion")
 let failure = finished.replacingOccurrences(of: "\"status\":\"completed\"", with: "\"status\":\"failed\"")
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(failure.utf8))
@@ -62,9 +61,8 @@ assert(transcript.rows().map(\.kind) == ["text", "summary", "text", "summary", "
 assert(transcript.rows(processEntryID: "steps", processStartID: "think1").map(\.itemID) == ["think1", "read"])
 assert(transcript.rows(processEntryID: "steps", processStartID: "think2").map(\.itemID) == ["think2", "write"])
 transcript.entries[0].finished = true
-assert(transcript.rows().map(\.kind) == ["summary", "text", "meta"])
+assert(transcript.rows().map(\.kind) == ["summary", "text"])
 assert(transcript.rows().last(where: { $0.kind == "text" })?.itemID == "final")
-assert(transcript.rows().last?.copyText == "结论")
 transcript.entries[0].modelInfo = ChatEntry.ModelInfo(modelId: "actual", name: "Actual Model", thoughtLevel: "High")
 assert(transcript.rows().last?.text == "Actual Model · High")
 let modelOnlyJSON = """
@@ -72,8 +70,7 @@ let modelOnlyJSON = """
 "modelInfo":{"modelId":"id-only"},"items":[]}]
 """
 let modelOnlyRows = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(modelOnlyJSON.utf8))).rows()
-assert(modelOnlyRows.last?.text == "id-only" && modelOnlyRows.last?.copyText == nil,
-  "Model-only replies have metadata but no empty Copy action")
+assert(modelOnlyRows.last?.text == "id-only", "Model-only replies still show metadata")
 assert(transcript.rows(processEntryID: "steps").map(\.itemID) == ["first", "think1", "read", "middle", "think2", "write"])
 assert(transcript.rows(processEntryID: "steps", processStartID: "think1").map(\.itemID) == ["think1", "read"], "An open segment must not change scope on completion")
 print("Chat folding: live text boundaries, scoped process, and conclusion-only completion passed")
@@ -189,7 +186,7 @@ let completedWithNotice = """
 let noticeEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(completedWithNotice.utf8))
 let noticeTranscript = ChatTranscript(entries: noticeEntries)
 assert(!noticeEntries.contains(where: \.isRunning), "A system notice is not an active assistant turn")
-assert(noticeTranscript.rows().map(\.kind) == ["summary", "text", "meta", "changesHeader", "changes"])
+assert(noticeTranscript.rows().map(\.kind) == ["summary", "text", "changesHeader", "changes"])
 assert(noticeTranscript.rows().last?.fileDiff?.path == "docs/.diff-check.md")
 assert(noticeTranscript.rows().last?.fileDiff?.add == 1)
 assert(noticeTranscript.rows().last?.group == "only")
@@ -282,7 +279,6 @@ assert(!ChatTranscript(entries: stream.presentation).rows().contains { $0.kind =
 for _ in 0..<30 { stream.advance() }
 assert(!stream.hasPending && stream.presentation[0].finished)
 assert(stream.presentation[0].items[2].text == "最终答案")
-assert(ChatTranscript(entries: stream.presentation).rows().last?.copyText == "最终答案")
 var historyStream = ChatStream()
 historyStream.receive(live, animate: true)
 assert(!historyStream.hasPending, "Opening history must not replay it")

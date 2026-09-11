@@ -78,6 +78,12 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   var collapsedMessageHeights: [String: CGFloat] = [:]
   var imageWorkspace = ""
   var imageSession = ""
+  var mentionRepository = "" {
+    didSet {
+      guard oldValue != mentionRepository else { return }
+      refreshTextRendering()
+    }
+  }
   let empty = UILabel()
   private weak var scrollOwner: UIViewController?
   private var titleObservation: NSKeyValueObservation?
@@ -271,19 +277,14 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
       if row.kind == "text" || row.kind == "thought" {
         let cell = collection.dequeueReusableCell(withReuseIdentifier: "markdown", for: index) as! ChatMarkdownCell
         let secondary = row.kind == "thought"
-        cell.onLink = { [weak self] href in
-          if let target = ChatFileLink(href) {
-            self?.onFilePress(["path": target.path, "line": target.line ?? 0])
-          } else if let url = URL(string: href), ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
-            UIApplication.shared.open(url)
-          }
-        }
+        cell.onLink = { [weak self] in self?.openMessageLink($0) }
         let width = ChatCell.textWidth(row, width: max(1, collection.bounds.width - 40))
         cell.configure(row, markdown: self.store.view(id: id, text: row.text, secondary: secondary, streaming: row.streaming, width: width))
         return cell
       }
       let cell = collection.dequeueReusableCell(withReuseIdentifier: "message", for: index) as! ChatCell
       cell.onInteraction = { [weak self] in self?.pauseTracking() }
+      cell.label.onLink = row.kind == "user" ? { [weak self] in self?.openMessageLink($0) } : nil
       cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
       cell.onActivate = { [weak self] in
         guard let self, let index = self.dataSource.indexPath(for: row.id) else { return }
@@ -460,11 +461,13 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
-    guard previousTraitCollection?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory else { return }
-    applyDynamicType()
+    guard previousTraitCollection?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory
+      || previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle
+      || previousTraitCollection?.accessibilityContrast != traitCollection.accessibilityContrast else { return }
+    refreshTextRendering()
   }
 
-  private func applyDynamicType() {
+  private func refreshTextRendering() {
     store.apply(traits: traitCollection)
     preparedHistory.removeAll()
     measurements.removeAll()
@@ -521,6 +524,14 @@ final class LodyChatView: ExpoView, UICollectionViewDelegateFlowLayout, UIGestur
   }
 
   @objc private func dismissKeyboard() { endEditing(true) }
+  func openMessageLink(_ href: String) {
+    pauseTracking()
+    if let target = ChatFileLink(href) {
+      onFilePress(["path": target.path, "line": target.line ?? 0])
+    } else if let url = URL(string: href), ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
+      UIApplication.shared.open(url)
+    }
+  }
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
     !(touch.view is UITextView)
   }

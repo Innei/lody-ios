@@ -10,6 +10,17 @@ import type {
 } from '@/models/mentions';
 import { t } from '@/lib/i18n';
 
+const labels = {
+  file: 'files',
+  skill: 'skills',
+  session: 'sessions',
+  role: 'roles',
+  issue: 'issues',
+  pr: 'prs',
+  cmd: 'commands',
+} as const;
+const categories = Object.keys(labels) as MentionCategory[];
+
 export function useComposerMentions(
   source: MentionSource | undefined,
   present: PageRuntime['present'],
@@ -20,12 +31,16 @@ export function useComposerMentions(
       active: true,
       pending: new Map<MentionCategory, Promise<MentionCatalog>>(),
       catalogs: new Map<MentionCategory, MentionCatalog>(),
+      failed: new Set<MentionCategory>(),
     }),
     [
       source?.workspaceId,
       source?.sessionId,
       source?.projectId,
       source?.machineId,
+      source?.agentConfigId,
+      source?.cliType,
+      source?.agentType,
     ],
   );
   const current = useRef(context);
@@ -45,6 +60,7 @@ export function useComposerMentions(
           context.active &&
           context.pending.get(category) === pending
         ) {
+          context.failed.delete(category);
           context.catalogs.set(category, result);
           update();
         }
@@ -53,6 +69,10 @@ export function useComposerMentions(
       .catch((error) => {
         if (context.pending.get(category) === pending)
           context.pending.delete(category);
+        if (current.current === context && context.active) {
+          context.failed.add(category);
+          update();
+        }
         throw error;
       });
     context.pending.set(category, pending);
@@ -61,8 +81,7 @@ export function useComposerMentions(
   useEffect(() => {
     context.active = true;
     if (context.source) {
-      void load('file').catch(() => {});
-      void load('skill').catch(() => {});
+      for (const category of categories) void load(category).catch(() => {});
     }
     return () => {
       context.active = false;
@@ -72,7 +91,28 @@ export function useComposerMentions(
     () =>
       JSON.stringify(
         context.source
-          ? [...context.catalogs.values()].flatMap((value) => value.items)
+          ? [
+              ...categories
+                .filter(
+                  (category) =>
+                    ['file', 'skill', 'session'].includes(category) ||
+                    context.failed.has(category) ||
+                    !!context.catalogs.get(category)?.items.length,
+                )
+                .map((category) => {
+                  const value = context.catalogs.get(category);
+                  let subtitle = '';
+                  if (value?.incomplete) subtitle = t('mentions.incomplete');
+                  else if (value?.truncated) subtitle = t('mentions.truncated');
+                  return {
+                    path: category,
+                    name: t(`native.chat.mention.${labels[category]}`),
+                    kind: 'category',
+                    subtitle,
+                  };
+                }),
+              ...[...context.catalogs.values()].flatMap((value) => value.items),
+            ]
           : null,
       ),
     [context, revision],
@@ -83,7 +123,10 @@ export function useComposerMentions(
     onMentionBrowse: async ({
       nativeEvent,
     }: NativeSyntheticEvent<{ category: string; query: string }>) => {
-      if (!context.source || !['file', 'skill'].includes(nativeEvent.category))
+      if (
+        !context.source ||
+        !categories.includes(nativeEvent.category as MentionCategory)
+      )
         return;
       const category = nativeEvent.category as MentionCategory;
       const result = await present(
@@ -95,9 +138,7 @@ export function useComposerMentions(
           load: (refresh: boolean) => load(category, refresh),
         },
         {
-          title: t(
-            `native.chat.mention.${category === 'skill' ? 'skills' : 'files'}`,
-          ),
+          title: t(`native.chat.mention.${labels[category]}`),
         },
       );
       if (current.current !== context || !context.active) return;

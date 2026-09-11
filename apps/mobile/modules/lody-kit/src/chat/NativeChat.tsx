@@ -19,6 +19,7 @@ export const NativeChat: ComponentType<
     navigationTitle?: string;
     navigationSubtitle?: string;
     navigationMachine?: string;
+    mentionRepository?: string;
     onTitlePress?: () => void;
     processEntryId?: string;
     processStartId?: string;

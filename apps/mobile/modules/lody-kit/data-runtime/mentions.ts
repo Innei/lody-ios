@@ -153,57 +153,76 @@ export function skillMentions(
   let truncated = false,
     incomplete = false;
   let budget = 2 * 1024 * 1024;
-  for (const value of values) {
+  const groups = values.flatMap((value) => {
     if (!Array.isArray(value.groups)) throw new Error('invalid_skill_list');
-    for (const raw of value.groups) {
-      const group = object(raw);
-      if (!Array.isArray(group.skills)) throw new Error('invalid_skill_group');
-      truncated ||= group.truncated === true;
-      incomplete ||= !!group.error;
-      for (const rawSkill of group.skills) {
-        const skill = object(rawSkill);
-        const path = skill.absolutePath ?? skill.relativePath;
-        if (
-          !safeText(path) ||
-          !(
-            path.startsWith('/') ||
-            path.startsWith('~/') ||
-            relativePath(path)
-          ) ||
-          !safeText(skill.name, 256)
-        ) {
-          incomplete = true;
-          continue;
-        }
-        if (!path.toLowerCase().endsWith('/skill.md')) {
-          incomplete = true;
-          continue;
-        }
-        budget -= new TextEncoder().encode(
-          JSON.stringify({
-            path,
-            name: skill.name,
-            description: skill.description,
-          }),
-        ).length;
-        if (budget < 0 || items.size >= 5000) {
-          truncated = true;
-          break;
-        }
-        const token = skill.name.trim().replace(/\s+/g, '-');
-        const destination = path.replace(/[%<>\s()\\]/g, (c) =>
-          encodeURIComponent(c),
-        );
-        items.set(path, {
+    return value.groups.map(object);
+  });
+  const scopeRank: Record<string, number> = {
+    project: 0,
+    global: 1,
+    system: 2,
+  };
+  groups.sort(
+    (a, b) =>
+      (scopeRank[String(a.scope)] ?? 3) - (scopeRank[String(b.scope)] ?? 3) ||
+      String(a.dir ?? '').localeCompare(String(b.dir ?? '')),
+  );
+  for (const group of groups) {
+    if (!Array.isArray(group.skills)) throw new Error('invalid_skill_group');
+    truncated ||= group.truncated === true;
+    incomplete ||= !!group.error;
+    for (const rawSkill of group.skills) {
+      const skill = object(rawSkill);
+      const path =
+        group.scope === 'project'
+          ? skill.relativePath
+          : (skill.absolutePath ?? skill.relativePath);
+      if (
+        !safeText(path) ||
+        !(
+          path.startsWith('/') ||
+          path.startsWith('~/') ||
+          relativePath(path)
+        ) ||
+        !safeText(skill.name, 256)
+      ) {
+        incomplete = true;
+        continue;
+      }
+      if (!path.toLowerCase().endsWith('/skill.md')) {
+        incomplete = true;
+        continue;
+      }
+      budget -= new TextEncoder().encode(
+        JSON.stringify({
           path,
           name: skill.name,
-          kind: 'skill',
-          subtitle: safeText(skill.description, 4096)
-            ? skill.description
-            : String(group.dir ?? ''),
-          insertText: `use /${token} [Skill Path](<${destination}>)`,
-        });
+          description: skill.description,
+        }),
+      ).length;
+      if (budget < 0 || items.size >= 5000) {
+        truncated = true;
+        break;
       }
+      const name = skill.name.trim();
+      let token = name;
+      if (!name || /\s/.test(name))
+        token = String(skill.relativePath ?? path)
+          .replace(/\/SKILL\.md$/i, '')
+          .split('/')
+          .filter(Boolean)
+          .pop()!
+          .replace(/\s+/g, '-');
+      if (items.has(token)) continue;
+      items.set(token, {
+        path,
+        name: skill.name,
+        kind: 'skill',
+        subtitle: safeText(skill.description, 4096)
+          ? skill.description
+          : String(group.dir ?? ''),
+        insertText: `$${token}`,
+      });
     }
   }
   return { items: [...items.values()], truncated, incomplete };
@@ -262,4 +281,45 @@ export async function mentionCatalog(
     ...result,
     incomplete: result.incomplete || good.length !== requests.length,
   };
+}
+
+export function sessionMentions(
+  sessions: import('../../../src/models/catalog').Session[],
+  projects: import('../../../src/models/catalog').Project[],
+  currentId?: string,
+): MentionCatalog {
+  const names = new Map(projects.map((project) => [project.id, project.name]));
+  const items = sessions
+    .filter((session) => session.id !== currentId && safeText(session.id, 256))
+    .sort(
+      (a, b) =>
+        Number(a.archived) - Number(b.archived) ||
+        (b.lastMessageAt ?? (Date.parse(b.createdAt) || 0)) -
+          (a.lastMessageAt ?? (Date.parse(a.createdAt) || 0)),
+    )
+    .map((session) => ({
+      path: session.id,
+      name: session.title,
+      kind: 'session' as const,
+      subtitle: names.get(session.projectId) ?? '',
+      insertText: `@session:${session.id}`,
+    }));
+  return { items, truncated: false, incomplete: false };
+}
+
+export function commandMentions(commands: unknown): MentionCatalog {
+  const items = new Map<string, MentionItem>();
+  for (const raw of Array.isArray(commands) ? commands : []) {
+    const command = object(raw);
+    if (!safeText(command.name, 128) || !/^[\w:.-]+$/.test(command.name))
+      continue;
+    items.set(command.name, {
+      path: command.name,
+      name: command.name,
+      kind: 'cmd',
+      subtitle: safeText(command.description, 4096) ? command.description : '',
+      insertText: `/${command.name}`,
+    });
+  }
+  return { items: [...items.values()], truncated: false, incomplete: false };
 }

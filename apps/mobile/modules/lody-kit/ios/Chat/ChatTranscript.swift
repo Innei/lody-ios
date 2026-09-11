@@ -91,7 +91,6 @@ struct ChatRow: Equatable {
   var fileDiff: ChatFileDiff? = nil
   var attachments: [ChatMessageAttachment] = []
   var workDurationMs: Int? = nil
-  var copyText: String? = nil
   var shines: Bool { kind == "summary" && running && !attention }
   /// `only` / `first` / `middle` / `last` for consecutive file rows in one group.
   var group = ""
@@ -326,12 +325,8 @@ struct ChatTranscript {
         let model = entry.modelInfo?.title ?? ""
         let finishedAt = ChatMetaTime.label(entry.endedAt, now: now)
         let meta = [model, finishedAt].filter { !$0.isEmpty }.joined(separator: " · ")
-        let answer = finalText.flatMap { entry.items[$0].text }
-        if answer != nil || !meta.isEmpty {
-          result.append(ChatRow(
-            id: entry.id + ":meta", entryID: entry.id, kind: "meta", text: meta,
-            copyText: answer
-          ))
+        if !meta.isEmpty {
+          result.append(ChatRow(id: entry.id + ":meta", entryID: entry.id, kind: "meta", text: meta))
         }
         let files = (entry.fileDiffs ?? []).filter { !$0.path.isEmpty }
         if !files.isEmpty {

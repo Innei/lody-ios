@@ -22,6 +22,7 @@ if args.udid is None:
     raise SystemExit(run_with_simulator(SimulatorPool(), 'Native', command))
 sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'], text=True).strip()
 checks = {
+    'github-mentions': ['Cloud/GitHubMentions.swift'],
     'notifications': ['Notifications/PushPermissionLaunchRequest.swift', 'Notifications/PushClickBuffer.swift'],
     'file-link': ['Chat/ChatFileLink.swift'],
     'strings': ['LodyStrings.swift'],
@@ -29,7 +30,7 @@ checks = {
     'watchdog': ['Cloud/RuntimeHealth.swift'],
     'local-store': ['Cloud/LocalStore.swift'],
     'content-store': ['Cloud/ContentStore.swift'],
-    'chat-render': ['LodyStrings.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'Chat/ChatThrowCurve.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatCell.swift'],
+    'chat-render': ['LodyStrings.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'Chat/ChatThrowCurve.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatCell.swift', 'Chat/ChatUserMentions.swift'],
     'model-panel': ['LodyStrings.swift', 'UIFont+Dynamic.swift', 'Chat/ChatComposerModelPanel.swift'],
     'composer': ['LodyStrings.swift', 'UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatAttachmentSheet.swift', 'Chat/ChatComposerSurfaceLayout.swift', 'Chat/ChatComposerLegacySurfaceLayout.swift', 'Chat/ChatComposerLiquidGlassSurfaceLayout.swift', 'Chat/ChatMentionPanel.swift', 'Chat/ChatComposerModelPanel.swift', 'Chat/ChatComposerView.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'Chat/ChatThrowCurve.swift', 'LodyTint.swift'],
     'attachments': ['LodyStrings.swift', 'Cloud/SessionAttachments.swift'],
@@ -63,7 +64,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             arch = 'arm64' if platform.machine() == 'arm64' else 'x86_64'
             ios = '26.0' if name == 'chat-title' else '18.0'
             command += ['-sdk', sdk, '-target', f'{arch}-apple-ios{ios}-simulator']
-        if name == 'attachments':
+        if name in ['attachments', 'github-mentions']:
             command += ['-parse-as-library']
         if name == 'inline-diff':
             command += ['-framework', 'UIKit']

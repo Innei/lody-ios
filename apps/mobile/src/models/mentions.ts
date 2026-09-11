@@ -1,8 +1,9 @@
-export type MentionCategory = 'file' | 'skill';
+export type MentionCategory =
+  'file' | 'skill' | 'session' | 'role' | 'issue' | 'pr' | 'cmd';
 export type MentionItem = {
   path: string;
   name: string;
-  kind: 'file' | 'directory' | 'skill';
+  kind: MentionCategory | 'directory';
   subtitle: string;
   insertText?: string;
 };
@@ -11,6 +12,9 @@ export type MentionSource = {
   sessionId?: string;
   projectId?: string;
   machineId?: string;
+  agentConfigId?: string;
+  cliType?: string;
+  agentType?: string;
 };
 export type MentionCatalog = {
   items: MentionItem[];

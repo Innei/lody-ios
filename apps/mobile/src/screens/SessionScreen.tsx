@@ -323,7 +323,12 @@ function View() {
   );
   const mentions = useComposerMentions(
     selected && account
-      ? { workspaceId: selected.id, sessionId: currentSession.id }
+      ? {
+          workspaceId: selected.id,
+          sessionId: currentSession.id,
+          cliType: currentSession.cliType,
+          agentType: currentSession.agentType,
+        }
       : undefined,
     present,
   );
@@ -478,6 +483,11 @@ function View() {
           sessionId: session.id,
         })}
         entriesJSON={entriesJSON}
+        mentionRepository={
+          session.projectId?.startsWith('github:')
+            ? session.projectId.slice(7)
+            : ''
+        }
         composerJSON={composerJSON}
         composerOptionsJSON={composerOptionsJSON}
         draftKey={

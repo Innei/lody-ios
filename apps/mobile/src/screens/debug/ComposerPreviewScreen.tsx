@@ -1,4 +1,5 @@
 import type { MentionItem } from '@/models/mentions';
+import { expandMentionText } from '../../../modules/lody-kit/data-runtime/mention-expansion';
 import { MentionPickerPreviewScreen } from './MentionPickerPreviewScreen';
 import { PickerScreen } from '../PickerScreen';
 import { ComposerSheet } from '@/ui/ComposerSheet';
@@ -41,20 +42,65 @@ const mentionItems: MentionItem[] = [
   {
     path: 'skills/auth-review/SKILL.md',
     name: 'auth-review',
+    insertText: '$auth-review',
     kind: 'skill',
     subtitle: '检查登录、会话与权限边界',
   },
   {
     path: 'skills/swiftui-pro/SKILL.md',
     name: 'swiftui-pro',
+    insertText: '$swiftui-pro',
     kind: 'skill',
     subtitle: '构建符合 Apple 平台习惯的界面',
   },
   {
     path: 'skills/code-review/SKILL.md',
     name: 'code-review',
+    insertText: '$code-review',
     kind: 'skill',
     subtitle: '审查代码并指出可执行的改进',
+  },
+  {
+    path: 'session-review',
+    name: 'Review authentication',
+    kind: 'session',
+    subtitle: 'Lody iOS',
+    insertText: '@session:session-review',
+  },
+  {
+    path: 'session-followup',
+    name: 'Follow up',
+    kind: 'session',
+    subtitle: 'Lody iOS',
+    insertText: '@session:session-followup',
+  },
+  {
+    path: 'role-reviewer',
+    name: 'Reviewer',
+    kind: 'role',
+    subtitle: 'Review changes',
+    insertText: '@role:role-reviewer',
+  },
+  {
+    path: 'issue:11',
+    name: 'Mentions alignment',
+    kind: 'issue',
+    subtitle: 'LodyAI/Lody #11',
+    insertText: '#11',
+  },
+  {
+    path: 'pr:12',
+    name: 'Review implementation',
+    kind: 'pr',
+    subtitle: 'LodyAI/Lody #12',
+    insertText: '#12',
+  },
+  {
+    path: 'compact',
+    name: 'compact',
+    kind: 'cmd',
+    subtitle: 'Compact this conversation',
+    insertText: '/compact',
   },
 ];
 
@@ -67,6 +113,7 @@ function View() {
   const [sending, setSending] = useState(false);
   const [fast, setFast] = useState(false);
   const [count, setCount] = useState(0);
+  const [sent, setSent] = useState<{ id: string; text: string }>();
   const busy = useRef(false);
   const [mentionResultJSON, setMentionResultJSON] = useState('');
   const mentionResultID = useRef(0);
@@ -78,7 +125,20 @@ function View() {
       const result = await present(
         MentionPickerPreviewScreen,
         { ...nativeEvent, items: mentionItems },
-        { title: nativeEvent.category === 'skill' ? '技能' : '文件或目录' },
+        {
+          title:
+            (
+              {
+                file: '文件或目录',
+                skill: '技能',
+                session: '会话',
+                role: 'Agent Role',
+                issue: 'Issue',
+                pr: 'Pull Request',
+                cmd: '命令',
+              } as Record<string, string>
+            )[nativeEvent.category] ?? '引用',
+        },
       );
       setMentionResultJSON(
         JSON.stringify({
@@ -89,7 +149,7 @@ function View() {
     },
     composerJSON: JSON.stringify({
       editable: !sending,
-      canSend: !sending && !params.mentions,
+      canSend: !sending,
       sending,
       notice: '',
       reconnect: false,
@@ -109,7 +169,17 @@ function View() {
       efforts: [{ id: 'high', title: 'High' }],
     }),
     restoreDraftToken,
-    onSend: () => {
+    onSend: ({
+      nativeEvent,
+    }: NativeSyntheticEvent<{ id: string; text: string }>) => {
+      if (params.mentions) {
+        setSent({
+          id: nativeEvent.id,
+          text: expandMentionText(nativeEvent.text, mentionItems),
+        });
+        setClearDraftToken((value) => value + 1);
+        return;
+      }
       busy.current = true;
       setSending(true);
       setCount((value) => value + 1);
@@ -151,11 +221,24 @@ function View() {
           style={{ color: colors.label, padding: 16 }}
         >{`Requests: ${count}`}</Text>
       )}
-      {params.host === 'chat' ? (
+      {params.host === 'chat' || sent ? (
         <NativeChat
           {...props}
+          mentionRepository="LodyAI/Lody"
           style={{ flex: 1 }}
-          entriesJSON="[]"
+          entriesJSON={JSON.stringify(
+            sent
+              ? [
+                  {
+                    id: sent.id,
+                    role: 'user',
+                    status: 'completed',
+                    finished: true,
+                    items: [{ itemId: 'text', type: 'text', text: sent.text }],
+                  },
+                ]
+              : [],
+          )}
           clearDraftToken={clearDraftToken}
           initialAttachmentsJSON={JSON.stringify(
             params.mentions

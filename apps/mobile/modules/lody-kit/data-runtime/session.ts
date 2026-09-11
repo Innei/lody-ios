@@ -16,6 +16,7 @@ type SessionState = {
   controller: AbortController;
   ready: boolean;
   sending: boolean;
+  sendingId?: string;
   backgroundWork?: { id: string; turnId: string };
   status: string;
   reason?: string;
@@ -304,24 +305,27 @@ export function appendUserTurn(
     if (value !== undefined) input.set(key, value);
   doc.commit();
 }
-export async function sendTurn(args: {
-  id?: string;
-  backgroundTaskId?: string;
-  queue?: boolean;
-  sessionId: string;
-  machineId: string;
-  userId: string;
-  text: string;
-  attachmentBlocks?: Record<string, any>[];
-  cliType: string;
-  agentType: string;
-  resume?: string;
-  modelId?: string | null;
-  modeId?: string;
-  reasoningEffort?: string | null;
-  reasoningEffortConfigId?: string;
-  configOptionValues?: Record<string, string | boolean>;
-}) {
+export async function sendTurn(
+  args: {
+    id?: string;
+    backgroundTaskId?: string;
+    queue?: boolean;
+    sessionId: string;
+    machineId: string;
+    userId: string;
+    text: string;
+    attachmentBlocks?: Record<string, any>[];
+    cliType: string;
+    agentType: string;
+    resume?: string;
+    modelId?: string | null;
+    modeId?: string;
+    reasoningEffort?: string | null;
+    reasoningEffortConfigId?: string;
+    configOptionValues?: Record<string, string | boolean>;
+  },
+  expand: (text: string) => Promise<string> = async (text) => text,
+) {
   const state = active;
   if (!state || state.id !== args.sessionId || !state.ready)
     return { state: 'not_sent', reason: 'session_not_ready' };
@@ -333,19 +337,20 @@ export async function sendTurn(args: {
     return { state: 'not_sent', reason: 'invalid_message_id' };
   if (
     args.id &&
-    [
-      ...((state.doc.toJSON().history as any[]) ?? []),
-      ...((state.doc.toJSON().mq as any[]) ?? []).map((item) => ({
-        id: item.userTurnId,
-      })),
-    ].some((entry) => entry.id === args.id)
+    (state.sendingId === args.id ||
+      [
+        ...((state.doc.toJSON().history as any[]) ?? []),
+        ...((state.doc.toJSON().mq as any[]) ?? []).map((item) => ({
+          id: item.userTurnId,
+        })),
+      ].some((entry) => entry.id === args.id))
   )
     // The local entry may come from a lost append ACK. Never replay its write.
     return { id: args.id, state: 'unknown', reason: 'turn_already_exists' };
   if (state.sending) return { state: 'not_sent', reason: 'session_not_ready' };
   if (typeof args.text !== 'string')
     return { state: 'not_sent', reason: 'invalid_message' };
-  const text = args.text.trim();
+  let text = args.text.trim();
   if (
     args.configOptionValues !== undefined &&
     (!args.configOptionValues ||
@@ -412,9 +417,13 @@ export async function sendTurn(args: {
   const id = args.id ?? crypto.randomUUID(),
     timestamp = new Date().toISOString();
   state.sending = true;
+  state.sendingId = id;
   let uploaded = false;
   let writeStarted = false;
   try {
+    text = await expand(text);
+    if (active !== state || !state.ready) throw new Error('session_not_ready');
+    if (text.length > 32000) throw new Error('invalid_message');
     const previous =
       (state.doc.toJSON().history as any[] | undefined)?.findLast(
         (entry) => entry.role === 'user',
@@ -591,6 +600,7 @@ export async function sendTurn(args: {
     };
   } finally {
     state.sending = false;
+    state.sendingId = undefined;
   }
 }
 

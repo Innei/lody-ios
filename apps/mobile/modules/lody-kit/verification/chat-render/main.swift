@@ -1,5 +1,33 @@
 import UIKit
 
+let mentionText = "#30 @src/app.ts @\"folder/my file.swift\" use /review [Skill Path](/skills/review/SKILL.md)"
+let mentionSource = NSAttributedString(string: mentionText, attributes: [.font: UIFont.systemFont(ofSize: 17)])
+let richMentions = ChatUserMentions.decorate(mentionSource, repository: "Innei/lody-ios", traits: .current)
+precondition(mentionSource.string == mentionText, "Decorating must not change the stored or copied prompt")
+precondition(richMentions.string.contains("$review") && !richMentions.string.contains("[Skill Path]"))
+let mentionView = ChatTextView(frame: CGRect(x: 0, y: 0, width: 180, height: 400))
+mentionView.setText(richMentions)
+var mentionOpened = ""
+mentionView.onLink = { mentionOpened = $0 }
+precondition(mentionView.link(at: CGPoint(x: 5, y: 12)) == "https://github.com/Innei/lody-ios/issues/30")
+precondition(mentionView.linkActions.map(\.name) == ["#30", "@src/app.ts", "@folder/my file.swift", "$review"])
+precondition(mentionView.linkActions.last!.actionHandler!(mentionView.linkActions.last!))
+precondition(mentionOpened == "/skills/review/SKILL.md", "The skill must open its file, not execute an instruction")
+mentionView.linkHitHeight = 0
+precondition(mentionView.link(at: CGPoint(x: 5, y: 12)) == nil, "Faded or collapsed text must not intercept touches")
+let literal = "`#30 @src/app.ts` `` @src/app.ts #30 `` ```\n@src/app.ts\n#30\n``` https://example.org/#30 someone@example.org \\#30 \\@src/app.ts @session:id @role:id"
+let unchanged = ChatUserMentions.decorate(NSAttributedString(string: literal), repository: "Innei/lody-ios", traits: .current)
+precondition(unchanged.string == literal, "Code, URLs, emails, escaped text and other mention types stay literal")
+let localNumber = ChatUserMentions.decorate(NSAttributedString(string: "#30"), repository: "", traits: .current)
+precondition(localNumber.string == "#30", "A number cannot link to a repository outside this session")
+let punctuation = ChatUserMentions.decorate(NSAttributedString(string: "@file.swift, then @Dockerfile."), repository: "", traits: .current)
+precondition(punctuation.string.replacingOccurrences(of: "\u{FFFC}\u{00a0}", with: "") == "@file.swift, then @Dockerfile.", "Reference styling preserves adjacent punctuation")
+let longPath = "@src/" + String(repeating: "long-segment/", count: 12) + "View.swift"
+mentionView.setText(ChatUserMentions.decorate(NSAttributedString(string: longPath, attributes: [.font: UIFont.systemFont(ofSize: 17)]), repository: "", traits: .current))
+let mentionSize = mentionView.sizeThatFits(CGSize(width: 180, height: 1000))
+precondition(mentionSize.width <= 181 && mentionSize.height > 44, "Long file references wrap within the message width")
+print("User mentions: rich labels, file and GitHub targets, VoiceOver actions, wrapping and literal-text boundaries passed")
+
 // A partially offscreen text view must retain every line when scrolling exposes it.
 let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 400))
 let view = ChatTextView(frame: CGRect(x: 0, y: 350, width: 350, height: 600))

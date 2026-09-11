@@ -574,6 +574,11 @@ assert(ChatMentionPanel.activeRange(text: "mail@host", selection: NSRange(locati
 assert(ChatMentionPanel.activeRange(text: "@auth ", selection: NSRange(location: 6, length: 0)) == nil)
 assert(ChatMentionPanel.activeRange(text: "@auth", selection: NSRange(location: 1, length: 3)) == nil)
 
+assert(ChatMentionPanel.activeRange(text: "😀 $auth", selection: NSRange(location: 8, length: 0)) == NSRange(location: 3, length: 5))
+assert(ChatMentionPanel.activeRange(text: "/compact", selection: NSRange(location: 8, length: 0)) == NSRange(location: 0, length: 8))
+assert(ChatMentionPanel.activeRange(text: "read /tmp", selection: NSRange(location: 9, length: 0)) == nil)
+assert(ChatMentionPanel.activeRange(text: "/tmp/file", selection: NSRange(location: 9, length: 0)) == nil)
+
 // A cancelled exit must not later hide a reopened picker or clear its layout space.
 let referenceWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
 let referenceInput = UITextView(frame: CGRect(x: 0, y: 400, width: 390, height: 60))
@@ -611,11 +616,31 @@ precondition(!referencePanel.isHidden && referencePanel.panelHeight > 0,
              "The real reference entry must remain usable while its catalog is loading or empty")
 let referenceList = descendants(referencePanel).compactMap { $0 as? UICollectionView }.first!
 referencePanel.collectionView(referenceList, didSelectItemAt: IndexPath(item: 1, section: 0))
-let skill = ChatMentionItem(path: "/Users/test/skills/auth/SKILL.md", name: "auth-review", kind: "skill", subtitle: "Auth", insertText: "use /auth-review [Skill Path](</Users/test/skills/auth/SKILL.md>)")
+let skill = ChatMentionItem(path: "/Users/test/skills/auth/SKILL.md", name: "auth-review", kind: "skill", subtitle: "Auth", insertText: "$auth-review")
 referencePanel.finishBrowse(path: skill.path, selectedItem: skill)
 precondition(referenceInput.text == skill.insertText! + " ",
-             "A remotely selected skill must retain its real path even when the inline catalog has not arrived")
+             "A remotely selected skill must insert only its short token even when the inline catalog has not arrived")
 print("References: empty catalog browse and remote skill insertion passed")
+precondition(referenceInput.becomeFirstResponder())
+referenceInput.text = "/"
+referenceInput.selectedRange = NSRange(location: 1, length: 0)
+referencePanel.update(input: referenceInput, items: [skill])
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+precondition(referencePanel.isHidden, "An agent without commands must not show an empty slash menu")
+let command = ChatMentionItem(path: "compact", name: "compact", kind: "cmd", subtitle: "Compact", insertText: "/compact")
+referencePanel.update(input: referenceInput, items: [skill, command])
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+precondition(!referencePanel.isHidden)
+precondition(referencePanel.collectionView(referenceList, numberOfItemsInSection: 0) == 1, "Slash must open commands directly")
+referencePanel.collectionView(referenceList, didSelectItemAt: IndexPath(item: 0, section: 0))
+precondition(referenceInput.text == "/compact ")
+referenceInput.text = "$"
+referenceInput.selectedRange = NSRange(location: 1, length: 0)
+referencePanel.update(input: referenceInput, items: [skill, command])
+precondition(referencePanel.collectionView(referenceList, numberOfItemsInSection: 0) == 1, "Dollar must open skills directly")
+referencePanel.collectionView(referenceList, didSelectItemAt: IndexPath(item: 0, section: 0))
+precondition(referenceInput.text == "$auth-review ")
+
 referenceText("@")
 referencePanel.removeFromSuperview()
 RunLoop.current.run(until: Date().addingTimeInterval(0.25))

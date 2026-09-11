@@ -6,11 +6,7 @@ enum ChatRowPadding {
 }
 
 final class ChatMetaCell: UICollectionViewCell {
-  private static let copyLeading: CGFloat = 22
-  private let copyButton = UIButton(type: .system)
   private let modelLabel = UILabel()
-  private var copyText: String?
-  private var copyReset: DispatchWorkItem?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -18,19 +14,12 @@ final class ChatMetaCell: UICollectionViewCell {
     modelLabel.textAlignment = .left
     modelLabel.textColor = .secondaryLabel
     modelLabel.adjustsFontForContentSizeCategory = true
-    copyButton.contentHorizontalAlignment = .leading
-    copyButton.addTarget(self, action: #selector(copyAnswer), for: .touchUpInside)
-    contentView.addSubview(copyButton)
     contentView.addSubview(modelLabel)
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   func configure(_ row: ChatRow) {
-    copyText = row.copyText
-    copyButton.isHidden = row.copyText == nil
-    showIdleCopy()
-    copyButton.accessibilityIdentifier = row.id + ":copy"
     modelLabel.text = row.text
     modelLabel.font = .preferredFont(forTextStyle: .footnote, compatibleWith: traitCollection)
     modelLabel.isHidden = row.text.isEmpty
@@ -38,56 +27,18 @@ final class ChatMetaCell: UICollectionViewCell {
     setNeedsLayout()
   }
 
-  private func showIdleCopy(animated: Bool = false) {
-    copyReset?.cancel()
-    copyReset = nil
-    showCopySymbol("doc.on.doc", animated: animated)
-    copyButton.accessibilityLabel = LodyStrings.text("native.chat.copy")
-  }
-
-  private func showCopySymbol(_ name: String, animated: Bool) {
-    var configuration = UIButton.Configuration.plain()
-    configuration.image = UIImage(systemName: name)
-    configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(textStyle: .footnote)
-    configuration.baseForegroundColor = .secondaryLabel
-    configuration.contentInsets = .zero
-    if animated, #available(iOS 26.0, *) {
-      configuration.symbolContentTransition = .init(.replace)
-    }
-    copyButton.configuration = configuration
-  }
-
-  @objc private func copyAnswer() {
-    guard let copyText else { return }
-    UIPasteboard.general.string = copyText
-    copyReset?.cancel()
-    showCopySymbol("checkmark", animated: true)
-    copyButton.accessibilityLabel = LodyStrings.text("native.chat.copied")
-    UIAccessibility.post(notification: .announcement, argument: LodyStrings.text("native.chat.copied"))
-    let reset = DispatchWorkItem { [weak self] in self?.showIdleCopy(animated: true) }
-    copyReset = reset
-    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: reset)
-  }
-
   override func layoutSubviews() {
     super.layoutSubviews()
-    copyButton.frame = CGRect(x: 0, y: (bounds.height - 44) / 2, width: 44, height: 44)
-    let leading: CGFloat = copyButton.isHidden ? 0 : Self.copyLeading
-    let available = max(1, bounds.width - leading)
-    let text = modelLabel.sizeThatFits(CGSize(width: available, height: .greatestFiniteMagnitude))
-    modelLabel.frame = CGRect(
-      x: leading, y: 4, width: min(available, ceil(text.width)), height: bounds.height - 8
-    )
+    modelLabel.frame = CGRect(x: 0, y: 4, width: bounds.width, height: bounds.height - 8)
   }
 
   static func height(for row: ChatRow, width: CGFloat, traits: UITraitCollection) -> CGFloat {
-    let textWidth = max(1, width - (row.copyText == nil ? 0 : copyLeading))
     let font = UIFont.preferredFont(forTextStyle: .footnote, compatibleWith: traits)
     let textHeight = (row.text as NSString).boundingRect(
-      with: CGSize(width: textWidth, height: .greatestFiniteMagnitude),
+      with: CGSize(width: max(1, width), height: .greatestFiniteMagnitude),
       options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font], context: nil
     ).height
-    return max(44, ceil(textHeight) + 8)
+    return max(24, ceil(textHeight) + 8)
   }
 }
 
@@ -136,7 +87,8 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
       : spinner.stopAnimating()
     separator.isHidden = row.kind != "duration"
     accessibilityIdentifier = row.id
-    accessibilityLabel = text.string
+    accessibilityLabel = text.string.replacingOccurrences(of: "\u{FFFC}", with: "")
+    accessibilityCustomActions = label.linkActions
     accessibilityTraits = row.actionable ? .button : .staticText
     accessibilityHint = hint(for: row)
     label.setShine(row.shines)
@@ -152,9 +104,11 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   override func prepareForReuse() {
     super.prepareForReuse()
     label.setShine(false)
+    label.onLink = nil
+    accessibilityCustomActions = nil
   }
   func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
-    guard let row, row.kind == "user", messageContent.frame.contains(location) else { return nil }
+    guard let row, row.kind == "user" || row.kind == "text", messageContent.frame.contains(location) else { return nil }
     onInteraction?()
     return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
       UIMenu(children: [UIAction(title: LodyStrings.text("native.chat.copy"), image: UIImage(systemName: "doc.on.doc")) { _ in
@@ -175,10 +129,13 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
 
   private func contextPreview() -> UITargetedPreview? {
     let parameters = UIPreviewParameters()
-    parameters.backgroundColor = .lodyUserBubble
+    let bubbled = row?.kind == "user"
+    parameters.backgroundColor = bubbled ? .lodyUserBubble : .clear
     let rect = messageContent.frame
     guard let preview = contentView.resizableSnapshotView(from: rect, afterScreenUpdates: false, withCapInsets: .zero) else { return nil }
-    parameters.visiblePath = UIBezierPath(roundedRect: CGRect(origin: .zero, size: rect.size), cornerRadius: 19)
+    parameters.visiblePath = UIBezierPath(
+      roundedRect: CGRect(origin: .zero, size: rect.size), cornerRadius: bubbled ? 19 : 8
+    )
     return UITargetedPreview(view: preview, parameters: parameters,
       target: UIPreviewTarget(container: contentView, center: CGPoint(x: rect.midX, y: rect.midY)))
   }

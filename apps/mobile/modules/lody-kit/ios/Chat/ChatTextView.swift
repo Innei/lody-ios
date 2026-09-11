@@ -10,6 +10,10 @@ final class ChatTextView: UIView {
   private var fade = ChatTextFade()
   private var timer: Timer?
   private var shineEnabled = false
+  var onLink: ((String) -> Void)? {
+    didSet { isUserInteractionEnabled = onLink != nil }
+  }
+  var linkHitHeight: CGFloat = .greatestFiniteMagnitude
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -20,8 +24,44 @@ final class ChatTextView: UIView {
     container.lineBreakMode = .byWordWrapping
     manager.addTextContainer(container)
     storage.addLayoutManager(manager)
+    addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(openLink(_:))))
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  var linkActions: [UIAccessibilityCustomAction] {
+    var actions: [UIAccessibilityCustomAction] = []
+    storage.enumerateAttribute(.link, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+      guard let href = value as? String else { return }
+      let label = (storage.string as NSString).substring(with: range).replacingOccurrences(of: "\u{FFFC}", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+      actions.append(UIAccessibilityCustomAction(name: label) { [weak self] _ in self?.onLink?(href); return true })
+    }
+    return actions
+  }
+
+  func link(at point: CGPoint) -> String? {
+    guard bounds.contains(point), point.y < linkHitHeight else { return nil }
+    layout(width: bounds.width)
+    var closest: (href: String, distance: CGFloat)?
+    storage.enumerateAttribute(.link, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+      guard let href = value as? String else { return }
+      let glyphs = manager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+      manager.enumerateEnclosingRects(forGlyphRange: glyphs, withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0), in: container) { rect, _ in
+        let hit = rect.insetBy(dx: min(0, (rect.width - 44) / 2), dy: min(0, (rect.height - 44) / 2))
+        guard hit.contains(point), rect.minY < self.linkHitHeight else { return }
+        let distance = hypot(max(rect.minX - point.x, point.x - rect.maxX, 0), max(rect.minY - point.y, point.y - rect.maxY, 0))
+        if closest == nil || distance < closest!.distance { closest = (href, distance) }
+      }
+    }
+    return closest?.href
+  }
+
+  override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+    onLink != nil && link(at: point) != nil
+  }
+
+  @objc private func openLink(_ gesture: UITapGestureRecognizer) {
+    if let href = link(at: gesture.location(in: self)) { onLink?(href) }
+  }
 
   func setText(_ text: NSAttributedString, animate: Bool = false, reset: Bool = false) {
     fade.update(text.string, animate: animate && window != nil && !UIAccessibility.isReduceMotionEnabled,

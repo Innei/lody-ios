@@ -321,7 +321,7 @@ test('real file mentions use the owning project RPC, preserve spaces, and reject
   assert(result.incomplete);
 });
 
-test('skills retain the machine path in sendable text and report incomplete results', () => {
+test('skills retain the machine path behind a short token and report incomplete results', () => {
   const result = runtime.skillMentions([
     {
       groups: [
@@ -343,10 +343,7 @@ test('skills retain the machine path in sendable text and report incomplete resu
     },
   ]);
   assert.equal(result.items.length, 1);
-  assert.equal(
-    result.items[0].insertText,
-    'use /auth-review [Skill Path](</Users/test/My%20Skills/auth/SKILL.md>)',
-  );
+  assert.equal(result.items[0].insertText, '$auth-review');
   assert(result.truncated && result.incomplete);
   assert.throws(
     () => runtime.skillMentions([{ groups: [{}] }]),

@@ -22,7 +22,7 @@ CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
     'pages': ['mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'onboarding', 'live-activity'],
     'send': ['root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
-    'chat': ['file-preview', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'changes', 'inline-diff'],
+    'chat': ['user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'changes', 'inline-diff'],
 }
 CASES = [case for batch in BATCHES.values() for case in batch]
 # These select HomePreviewProviders at app launch, using the same shared bundle.
@@ -38,6 +38,7 @@ PREVIEW = {
     'send-queue': 'send-queue',
     'send-interrupt': 'send-interrupt',
     'send-rounds': 'send-preview',
+    'user-mentions': 'file-preview',
     'file-preview': 'file-preview',
     'chat-performance': 'chat-performance',
     'chat-stream-performance': 'chat-stream-performance',
@@ -70,6 +71,7 @@ READY = {
     'send-queue': 'send-status',
     'send-interrupt': 'send-status',
     'send-rounds': 'send-status',
+    'user-mentions': 'file-links:answer',
     'file-preview': 'file-links:answer',
     'project-history': 'history-project:["studio","demo"]',
     'settings': 'settings-machine',
@@ -228,7 +230,7 @@ with metro_context:
                         ui.axe('tap', '--label', 'Image Fixture')
                         ui.element('preview-image:attachment:ui-verify-image')
                     ui.capture('before')
-                    script = Path(__file__).with_name(f'{case}.py') if case in ['project-history-entry', 'project-history', 'notifications', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'licenses', 'navigation', 'model-memory', 'onboarding', 'live-activity'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                    script = Path(__file__).with_name(f'{case}.py') if case in ['project-history-entry', 'project-history', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'licenses', 'navigation', 'model-memory', 'onboarding', 'live-activity'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
                     if case in ['fast-chat', 'fast-sheet']:
                         script = Path(__file__).with_name('fast.py')
                     if case == 'composer-glass-chat':
@@ -249,7 +251,7 @@ with metro_context:
                     else:
                         command += [str(output)]
                     with (output / 'check.log').open('w') as log:
-                        subprocess.run(command, check=True, timeout=300 if case in ('chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet') else 180, stdout=log, stderr=subprocess.STDOUT,
+                        subprocess.run(command, check=True, timeout=300 if case in ('chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production') else 180, stdout=log, stderr=subprocess.STDOUT,
                                        env={**os.environ, 'LODY_UI_LANGUAGE': args.language, 'LODY_UI_METRO_PORT': str(args.port)})
                     ui.capture('after')
                     result['status'] = 'passed'

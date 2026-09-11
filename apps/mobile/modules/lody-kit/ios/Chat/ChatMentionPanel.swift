@@ -7,6 +7,11 @@ struct ChatMentionItem: Decodable, Equatable {
   let subtitle: String
   var insertText: String?
 
+  var category: String { kind == "directory" ? "file" : kind }
+  static let categories = ["file", "skill", "session", "role", "issue", "pr", "cmd"]
+  static let labels = ["file": "files", "skill": "skills", "session": "sessions", "role": "roles", "issue": "issues", "pr": "prs", "cmd": "commands"]
+  static let glyphs = ["file": "doc.text", "directory": "folder", "skill": "sparkles", "session": "bubble.left.and.bubble.right", "role": "person.crop.rectangle", "issue": "exclamationmark.circle", "pr": "arrow.triangle.branch", "cmd": "command"]
+
   func matches(_ query: String) -> Bool {
     query.isEmpty || (name + " " + path + " " + subtitle).localizedStandardContains(query)
   }
@@ -19,9 +24,7 @@ struct ChatMentionItem: Decodable, Equatable {
     content.secondaryTextProperties.font = .dynamic(of: 13)
     content.secondaryTextProperties.color = .secondaryLabel
     content.secondaryTextProperties.numberOfLines = 1
-    let glyphs = ["file": "doc.text", "directory": "folder", "skill": "sparkles", "category": "folder"]
-    var glyph = glyphs[kind] ?? "doc.text"
-    if kind == "category" && path == "skill" { glyph = "sparkles" }
+    let glyph = Self.glyphs[kind == "category" ? path : kind] ?? "doc.text"
     content.image = UIImage(systemName: glyph, withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .regular))
     content.imageProperties.tintColor = .secondaryLabel
     content.imageProperties.maximumSize = CGSize(width: 20, height: 20)
@@ -156,8 +159,8 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
     let text = text as NSString
     guard selection.length == 0, selection.location > 0, selection.location <= text.length else { return nil }
     let prefix = text.substring(to: selection.location)
-    guard let token = prefix.range(of: "(?:^|\\s)@[^\\s@]*$", options: .regularExpression),
-          let at = prefix[token].firstIndex(of: "@") else { return nil }
+    guard let token = prefix.range(of: "(?:^|\\s)[@$][^\\s@$]*$|^/[^\\s/]*$", options: .regularExpression),
+          let at = prefix[token].firstIndex(where: { "@$/".contains($0) }) else { return nil }
     return NSRange(at..<prefix.endIndex, in: prefix)
   }
 
@@ -177,20 +180,36 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
       return
     }
     query = ((input.text ?? "") as NSString).substring(with: NSRange(location: range.location + 1, length: range.length - 1))
+    let trigger = ((input.text ?? "") as NSString).substring(with: NSRange(location: range.location, length: 1))
+    var scoped: String?
+    if trigger == "$" { scoped = "skill" }
+    if trigger == "/" { scoped = "cmd" }
+    if trigger == "@", let colon = query.firstIndex(of: ":") {
+      let namespace = String(query[..<colon])
+      if ChatMentionItem.categories.contains(namespace) {
+        scoped = namespace
+        query = String(query[query.index(after: colon)...])
+      }
+    }
     let nextRows: [ChatMentionItem]
-    if query.isEmpty {
-      nextRows = [
-        ChatMentionItem(path: "file", name: LodyStrings.text("native.chat.mention.files"), kind: "category", subtitle: ""),
-        ChatMentionItem(path: "skill", name: LodyStrings.text("native.chat.mention.skills"), kind: "category", subtitle: ""),
-      ]
+    if query.isEmpty && scoped == nil {
+      let provided = items.filter { $0.kind == "category" }
+      if !provided.isEmpty { nextRows = provided }
+      else {
+        nextRows = ChatMentionItem.categories.filter { category in
+          category == "file" || category == "skill" || items.contains { $0.category == category }
+        }.map { category in
+          ChatMentionItem(path: category, name: LodyStrings.text("native.chat.mention." + (ChatMentionItem.labels[category] ?? category)), kind: "category", subtitle: "")
+        }
+      }
     } else {
-      nextRows = items.filter { $0.matches(query) }
+      nextRows = items.filter { $0.kind != "category" && (scoped == nil || $0.category == scoped) && $0.matches(query) }
     }
     guard !nextRows.isEmpty else {
       setVisible(false)
       return
     }
-    panelHeight = min(240, CGFloat(nextRows.count) * (query.isEmpty ? 50 : 58) + 12)
+    panelHeight = min(240, CGFloat(nextRows.count) * (nextRows.first?.kind == "category" ? 50 : 58) + 12)
     if rows != nextRows {
       rows = nextRows
       if showing && motion == nil {
@@ -201,6 +220,7 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
         list.reloadData()
       }
     }
+    if !showing { list.setContentOffset(CGPoint(x: 0, y: -list.adjustedContentInset.top), animated: false) }
     setVisible(true)
   }
 
@@ -230,8 +250,7 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
   }
 
   private func insert(_ item: ChatMentionItem, into input: UITextView, range: NSRange) {
-    let label = item.kind == "skill" ? item.name : item.path
-    let text = (item.insertText ?? ("@" + label)) + " "
+    let text = (item.insertText ?? ("@" + item.path)) + " "
     let currentLength = ((input.text ?? "") as NSString).length
     guard NSMaxRange(range) <= currentLength, currentLength - range.length + (text as NSString).length <= 32000 else { return }
     applyingEdit = true
@@ -249,16 +268,18 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
     let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "candidate", for: indexPath) as! UICollectionViewListCell
     var content = item.content
     if item.kind == "category" {
-      content.secondaryText = nil
+      content.secondaryText = item.subtitle.isEmpty ? nil : item.subtitle
       content.textProperties.font = .dynamic(of: 15)
-      let glyph = item.path == "file" ? "folder" : "sparkles"
+      let glyph = ChatMentionItem.glyphs[item.path] ?? "folder"
       content.image = UIImage(systemName: glyph, withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .regular))
       content.imageProperties.maximumSize = CGSize(width: 16, height: 16)
       content.imageProperties.reservedLayoutSize = CGSize(width: 20, height: 20)
       content.imageToTextPadding = 12
       content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 15, leading: 16, bottom: 15, trailing: 16)
     } else {
-      content.text = "@" + (item.kind == "skill" ? item.name : item.path)
+      content.text = item.name
+      if item.kind == "file" || item.kind == "directory" { content.text = "@" + item.path }
+      if item.kind == "skill" || item.kind == "cmd" { content.text = item.insertText ?? item.name }
     }
     cell.contentConfiguration = content
     cell.backgroundConfiguration = .clear()
@@ -298,12 +319,26 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
           let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           args["workspaceId"] as? String == "ui-home" else { return nil }
     if options {
-      return #"{"sessionId":"ui-new","agents":[{"id":"fixture","name":"Fixture Agent","machineId":"ui","machineName":"Fixture Mac","cliType":"builtin","agentType":"codex"}],"capabilities":[]}"#
+      return ##"{"sessionId":"ui-new","agents":[{"id":"fixture","name":"Fixture Agent","machineId":"ui","machineName":"Fixture Mac","cliType":"builtin","agentType":"codex"}],"capabilities":[]}"##
     }
-    if args["category"] as? String == "skill" {
-      return #"{"items":[{"path":"/fixture/skills/auth/SKILL.md","name":"auth-review","kind":"skill","subtitle":"Review authentication","insertText":"use /auth-review [Skill Path](</fixture/skills/auth/SKILL.md>)"}],"truncated":false,"incomplete":false}"#
+    switch args["category"] as? String {
+    case "skill":
+      return ##"{"items":[{"path":"/fixture/skills/auth/SKILL.md","name":"auth-review","kind":"skill","subtitle":"Review authentication","insertText":"$auth-review"}],"truncated":false,"incomplete":false}"##
+    case "session":
+      return ##"{"items":[{"path":"ui-review","name":"Review authentication","kind":"session","subtitle":"Lody iOS","insertText":"@session:ui-review"},{"path":"ui-followup","name":"Follow up","kind":"session","subtitle":"Lody iOS","insertText":"@session:ui-followup"}],"truncated":false,"incomplete":false}"##
+    case "role":
+      return ##"{"items":[{"path":"role-reviewer","name":"Reviewer","kind":"role","subtitle":"Review changes and report regressions","insertText":"@role:role-reviewer"}],"truncated":false,"incomplete":false}"##
+    case "issue":
+      return ##"{"items":[{"path":"issue:11","name":"Mentions alignment","kind":"issue","subtitle":"LodyAI/Lody #11","insertText":"#11"}],"truncated":false,"incomplete":false}"##
+    case "pr":
+      return ##"{"items":[{"path":"pr:12","name":"Review implementation","kind":"pr","subtitle":"LodyAI/Lody #12","insertText":"#12"}],"truncated":false,"incomplete":false}"##
+    case "cmd":
+      return ##"{"items":[{"path":"compact","name":"compact","kind":"cmd","subtitle":"Compact this conversation","insertText":"/compact"}],"truncated":false,"incomplete":false}"##
+    case "file":
+      return ##"{"items":[{"path":"src","name":"src","kind":"directory","subtitle":""},{"path":"src/session.ts","name":"session.ts","kind":"file","subtitle":"src","insertText":"@src/session.ts"}],"truncated":true,"incomplete":false}"##
+    default:
+      return ##"{"items":[],"truncated":false,"incomplete":false}"##
     }
-    return #"{"items":[{"path":"src","name":"src","kind":"directory","subtitle":""},{"path":"src/session.ts","name":"session.ts","kind":"file","subtitle":"src","insertText":"@src/session.ts"}],"truncated":false,"incomplete":false}"#
   }
 }
 #endif

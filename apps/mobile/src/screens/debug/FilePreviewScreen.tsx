@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { useState } from 'react';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { FilesScreen } from '@/screens/FilesScreen';
 import { NativeChat } from '@lody-ios/kit';
@@ -27,13 +28,34 @@ const entriesJSON = JSON.stringify([
     ],
   },
 ]);
+const userMentionsJSON = JSON.stringify([
+  {
+    id: 'user-mentions',
+    role: 'user',
+    finished: true,
+    status: 'completed',
+    items: [
+      {
+        itemId: 'text',
+        type: 'text',
+        text: '#30\n@docs/report.md\nuse /review [Skill Path](skills/review/SKILL.md)\n@docs/sample.swift',
+      },
+    ],
+  },
+]);
 function View() {
+  const [userMentions, setUserMentions] = useState(false);
   const { push } = usePageRuntime();
   const openFile = useOpenFile('ui-verify-files');
   const openProcess = useProcessSheet(entriesJSON, () => {}, 'ui-verify-files');
   return (
     <>
       <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          icon="at"
+          accessibilityLabel="User Mentions"
+          onPress={() => setUserMentions((value) => !value)}
+        />
         <Stack.Toolbar.Button
           icon="folder"
           accessibilityLabel="File Browser"
@@ -50,7 +72,8 @@ function View() {
       </Stack.Toolbar>
       <NativeChat
         style={{ flex: 1 }}
-        entriesJSON={entriesJSON}
+        entriesJSON={userMentions ? userMentionsJSON : entriesJSON}
+        mentionRepository="Innei/lody-ios"
         composerJSON="{}"
         clearDraftToken={0}
         emptyText=""

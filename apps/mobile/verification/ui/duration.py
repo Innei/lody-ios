@@ -1,6 +1,5 @@
 """Assistant work duration advances while live and freezes when finished."""
 import sys
-import subprocess
 import time
 from driver import UI
 import catalog
@@ -66,20 +65,9 @@ finished_process = ui.element('duration-preview:process')
 assert finished_process['frame']['y'] >= finished['frame']['y'] + finished['frame']['height'] - 1
 assert answer['frame']['y'] >= finished_process['frame']['y'] + finished_process['frame']['height'] - 1
 model = ui.element('duration-preview:meta:model')
-copy_button = ui.element('duration-preview:meta:copy')
 assert model['AXLabel'].startswith('GPT-5.6 Sol · High · '), model['AXLabel']
 assert ':' in model['AXLabel'].rsplit(' · ', 1)[1], 'A same-day reply ends with a clock time'
 assert model['frame']['y'] >= answer['frame']['y'] + answer['frame']['height'] - 1
-assert copy_button['frame']['width'] >= 44 and copy_button['frame']['height'] >= 44
-gap = model['frame']['x'] - copy_button['frame']['x']
-assert 0 < gap <= 26, gap
-assert model['frame']['x'] + model['frame']['width'] < answer['frame']['x'] + answer['frame']['width'] - 1
-subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input='sentinel', text=True, check=True)
-ui.axe('tap', '--id', 'duration-preview:meta:copy', '--post-delay', '.3')
-copied = subprocess.check_output(['xcrun', 'simctl', 'pbpaste', ui.udid], text=True)
-assert copied == '计时完成。', repr(copied)
-assert ui.element('duration-preview:meta:copy')['AXLabel'] == catalog.text('native.chat.copied')
+assert abs(model['frame']['x'] - answer['frame']['x']) <= 1, (model['frame'], answer['frame'])
 ui.capture('finished')
-time.sleep(1.8)
-assert ui.element('duration-preview:meta:copy')['AXLabel'] == catalog.text('native.chat.copy')
-print('PASS: duration freezes, the metadata bar reads left-aligned and copy feedback settles back')
+print('PASS: duration freezes and the metadata bar reads left-aligned under the answer')

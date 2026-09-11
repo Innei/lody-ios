@@ -15,6 +15,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   private var timer: Timer?
   private var attachmentTask: Task<Void, Never>?
   private var grantTask: URLSessionDataTask?
+  private var githubTasks: [String: Task<Void, Never>] = [:]
   private var health = RuntimeHealth()
   private var pingPending = false
   private var workspace: String?
@@ -127,6 +128,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     for promise in commands.values { fail(promise, "runtime_replaced", LodyStrings.text("native.runtime.replaced")) }; commands.removeAll()
     timer?.invalidate(); timer = nil
     grantTask?.cancel(); grantTask = nil
+    githubTasks.values.forEach { $0.cancel() }; githubTasks.removeAll()
     pingPending = false
     let old = webView; webView = nil
     old?.configuration.userContentController.removeScriptMessageHandler(forName: "dataRuntime")
@@ -202,6 +204,20 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       guard type == "session", id == sessionId else { return }
       let payload = fits ? session : #"{"v":1,"overflow":true}"#
       emitStatus(["sessionId": id, "session": payload])
+    case "githubMentions":
+      guard let workspace, body["workspaceId"] as? String == workspace,
+            let id = body["id"] as? String, UUID(uuidString: id) != nil,
+            let repo = body["repoFullName"] as? String, githubTasks[id] == nil else { return }
+      guard githubTasks.count < 4 else {
+        view.callAsyncJavaScript("globalThis.dataRuntime.githubMentionsResult(id, null)", arguments: ["id": id], in: nil, in: .page, completionHandler: nil)
+        return
+      }
+      githubTasks[id] = Task { [weak self, weak view] in
+        let result = try? await GitHubMentions.load(workspace: workspace, repo: repo)
+        guard !Task.isCancelled, let self, let view, self.webView === view, self.workspace == workspace else { return }
+        self.githubTasks.removeValue(forKey: id)
+        view.callAsyncJavaScript("globalThis.dataRuntime.githubMentionsResult(id, value)", arguments: ["id": id, "value": result as Any? ?? NSNull()], in: nil, in: .page, completionHandler: nil)
+      }
     case "grant": fetchGrant(view: view)
     case "catalog":
       guard let catalog = body["catalog"] as? String, catalog.utf8.count <= 12 * 1024 * 1024 else { return }
@@ -349,7 +365,11 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       args["backgroundTaskId"] = SessionBackgroundTasks.shared.begin(owner: owner)
     }
     let backgroundTaskId = args["backgroundTaskId"] as? String
-    let timeout: Double = method == "localProjects" && args["action"] as? String == "history" ? 130 : 45
+    var timeout: Double = 45
+    if method == "localProjects" && args["action"] as? String == "history" { timeout = 130 }
+    // Catalog expansion precedes the durable send and has its own bounded read.
+    if method == "sendTurn", let text = args["text"] as? String,
+       text.contains("$") || text.contains("@session:") || text.contains("@role:") { timeout = 90 }
     DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
       guard let self, let pending = self.commands.removeValue(forKey: id) else { return }
       if let backgroundTaskId { SessionBackgroundTasks.shared.finish(backgroundTaskId, success: false) }

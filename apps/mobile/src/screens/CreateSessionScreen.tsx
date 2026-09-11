@@ -211,6 +211,9 @@ function View() {
           workspaceId: params.workspaceId,
           projectId: chat ? undefined : project?.id,
           machineId: machine.id,
+          agentConfigId: agent?.id,
+          cliType: agent?.cliType,
+          agentType: agent?.agentType,
         }
       : undefined,
     present,

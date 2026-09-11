@@ -46,6 +46,7 @@ final class ChatMessageContent: UIView {
       label.frame = bounds.insetBy(dx: 13, dy: 10)
       if expanded && expandable { label.frame.size.height -= 44 }
       label.layer.mask = folded ? fade : nil
+      label.linkHitHeight = folded ? max(0, label.bounds.height - 58) : label.bounds.height
       fade.frame = label.bounds
       let h = max(1, label.bounds.height)
       fade.locations = [0, NSNumber(value: Double(max(0, h - 58) / h)), NSNumber(value: Double(max(0, h - 30) / h))]

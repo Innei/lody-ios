@@ -100,7 +100,7 @@ final class LodyMentionPickerView: ExpoView, UICollectionViewDataSource, UIColle
     struct Configuration: Decodable { let category: String; let items: [ChatMentionItem]; var query: String?; var notice: String? }
     guard let data = json.data(using: .utf8), let value = try? JSONDecoder().decode(Configuration.self, from: data) else { return }
     category = value.category
-    items = value.items.filter { ($0.kind == "skill") == (category == "skill") }
+    items = value.items.filter { $0.category == category }
     query = value.query ?? ""
     notice.setTitle(value.notice, for: .normal)
     notice.isHidden = value.notice?.isEmpty != false
@@ -114,7 +114,7 @@ final class LodyMentionPickerView: ExpoView, UICollectionViewDataSource, UIColle
       return item.matches(query)
     }
     location.setImage(path.isEmpty ? nil : UIImage(systemName: "chevron.left"), for: .normal)
-    location.setTitle(path.isEmpty ? LodyStrings.text("native.chat.mention." + (category == "skill" ? "skills" : "files")) : "  " + path, for: .normal)
+    location.setTitle(path.isEmpty ? LodyStrings.text("native.chat.mention." + (ChatMentionItem.labels[category] ?? category)) : "  " + path, for: .normal)
     location.isEnabled = !path.isEmpty
     location.isHidden = path.isEmpty
     breadcrumbHeight.constant = path.isEmpty ? 0 : 44

@@ -187,6 +187,8 @@ export function useSessionSend({
         setDispatching(false);
       }
       async function fail(reason: string) {
+        if (reason === 'mention_expansion_failed')
+          reason = t('send.error.mentions');
         await outbox
           .put({ session, send: { ...send, phase: 'failed', reason } })
           .catch(() => {});

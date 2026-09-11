@@ -1,5 +1,8 @@
-import { mentionCatalog } from './mentions';
+import { mentionCatalog, sessionMentions, commandMentions } from './mentions';
+import { expandMentions } from './mention-expansion';
+import { workspaceRoleMentions } from './agent-roles';
 import type {
+  MentionCatalog,
   MentionSource,
   MentionCategory,
 } from '../../../src/models/mentions';
@@ -49,6 +52,28 @@ let grantReject: ((error: Error) => void) | undefined;
 let grant: Grant | undefined,
   expiresAt = 0;
 let grantPending: Promise<Grant> | undefined;
+const githubReplies = new Map<string, (value: MentionCatalog | null) => void>();
+const githubPending = new Map<string, Promise<MentionCatalog>>();
+function githubMentions(repoFullName: string): Promise<MentionCatalog> {
+  const key = `${workspace}:${repoFullName}`;
+  const pending = githubPending.get(key);
+  if (pending) return pending;
+  const id = crypto.randomUUID();
+  const request = new Promise<MentionCatalog>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      githubReplies.delete(id);
+      reject(new Error('github_mentions_unavailable'));
+    }, 35000);
+    githubReplies.set(id, (value) => {
+      clearTimeout(timer);
+      if (value) resolve(value);
+      else reject(new Error('github_mentions_unavailable'));
+    });
+    send({ type: 'githubMentions', id, workspaceId: workspace, repoFullName });
+  }).finally(() => githubPending.delete(key));
+  githubPending.set(key, request);
+  return request;
+}
 async function getGrant() {
   if (grant && Date.now() < expiresAt) return grant;
   if (!grantPending) {
@@ -308,9 +333,112 @@ function machineFor(
     signal: AbortSignal.timeout(35000),
   };
 }
+async function getMentions(
+  args: MentionSource & { category: MentionCategory; userId: string },
+) {
+  if (args.workspaceId !== workspace || !metaReplica || unhealthy.size)
+    throw new Error('metadata_not_ready');
+  if (args.category === 'session')
+    return sessionMentions(
+      catalogs.get('meta')?.sessions ?? [],
+      [...catalogs.values()].flatMap((value) => value.projects),
+      args.sessionId,
+    );
+  const session = args.sessionId
+    ? catalogs.get('meta')?.sessions.find((item) => item.id === args.sessionId)
+    : undefined;
+  if (args.sessionId && !session) throw new Error('session_unavailable');
+  const projectId = session?.projectId ?? args.projectId;
+  const project = [...catalogs.values()]
+    .flatMap((value) => value.projects)
+    .find((item) => item.id === projectId);
+  if (args.projectId && !project) throw new Error('project_unavailable');
+  const machineId =
+    session?.machineId ??
+    (projectId?.startsWith('github:') ? args.machineId : project?.machineId) ??
+    args.machineId;
+  if (!machineId || !machineReplicas.has(machineId))
+    throw new Error('machine_unavailable');
+  const prefix = `${machineId}:local:`;
+  const localProjectId = projectId?.startsWith(prefix)
+    ? projectId.slice(prefix.length)
+    : undefined;
+  if (
+    localProjectId &&
+    machineReplicas
+      .get(machineId)
+      ?.get(['cmd', 'deleteLocalProject', localProjectId]) !== undefined
+  )
+    throw new Error('project_unavailable');
+  if (args.category === 'issue' || args.category === 'pr') {
+    if (!projectId?.startsWith('github:'))
+      return { items: [], truncated: false, incomplete: false };
+    const result = await githubMentions(projectId.slice(7));
+    return {
+      ...result,
+      items: result.items.filter((item) => item.kind === args.category),
+    };
+  }
+  if (args.category === 'cmd') {
+    const metadata = session
+      ? (metaReplica.flock.get(['m', `session-${session.id}`]) as
+          Record<string, unknown> | undefined)
+      : undefined;
+    const configId = session
+      ? (metaReplica.flock.get([
+          'm',
+          `session-${session.id}`,
+          'agentConfigId',
+        ]) ?? metadata?.agentConfigId)
+      : args.agentConfigId;
+    if (typeof configId !== 'string') return commandMentions([]);
+    const capability = machineReplicas
+      .get(machineId)
+      ?.get(['acpCapability', configId]) as Record<string, unknown> | undefined;
+    if (
+      !capability ||
+      capability.cliType !== (args.cliType ?? session?.cliType) ||
+      capability.agentType !== (args.agentType ?? session?.agentType)
+    )
+      return commandMentions([]);
+    return commandMentions(capability.availableCommands);
+  }
+  if (args.category === 'role') {
+    const pinned =
+      projectId?.startsWith(`${machineId}:local:`) ||
+      (session && projectId?.startsWith('github:'));
+    return workspaceRoleMentions(
+      workspace,
+      args.userId,
+      machineReplicas,
+      pinned ? machineId : undefined,
+      getGrant,
+    );
+  }
+  return mentionCatalog(
+    {
+      workspaceId: workspace,
+      machineId,
+      localProjectId,
+      repoFullName: projectId?.startsWith('github:')
+        ? projectId.slice('github:'.length)
+        : undefined,
+      sessionId: session?.id,
+      getGrant,
+      signal: AbortSignal.timeout(35000),
+    },
+    args.category,
+    args.userId,
+  );
+}
 Object.assign(globalThis, {
   dataRuntime: {
     ping: () => true,
+    githubMentionsResult(id: string, value: MentionCatalog | null) {
+      const reply = githubReplies.get(id);
+      githubReplies.delete(id);
+      reply?.(value);
+    },
     async remoteSettings(args: SettingsRequest & { userId: string }) {
       if (args.workspaceId !== workspace || !metaReplica || unhealthy.size)
         throw new Error('metadata_not_ready');
@@ -509,57 +637,7 @@ Object.assign(globalThis, {
     readFile(args: { sessionId: string; path: string }) {
       return readFile(machineFor(args.sessionId, args.path), args);
     },
-    mentionCatalog(
-      args: MentionSource & { category: MentionCategory; userId: string },
-    ) {
-      if (args.workspaceId !== workspace || !metaReplica || unhealthy.size)
-        throw new Error('metadata_not_ready');
-      const session = args.sessionId
-        ? catalogs
-            .get('meta')
-            ?.sessions.find((item) => item.id === args.sessionId)
-        : undefined;
-      if (args.sessionId && !session) throw new Error('session_unavailable');
-      const projectId = session?.projectId ?? args.projectId;
-      const project = [...catalogs.values()]
-        .flatMap((value) => value.projects)
-        .find((item) => item.id === projectId);
-      if (args.projectId && !project) throw new Error('project_unavailable');
-      const machineId =
-        session?.machineId ??
-        (projectId?.startsWith('github:')
-          ? args.machineId
-          : project?.machineId) ??
-        args.machineId;
-      if (!machineId || !machineReplicas.has(machineId))
-        throw new Error('machine_unavailable');
-      const prefix = `${machineId}:local:`;
-      const localProjectId = projectId?.startsWith(prefix)
-        ? projectId.slice(prefix.length)
-        : undefined;
-      if (
-        localProjectId &&
-        machineReplicas
-          .get(machineId)
-          ?.get(['cmd', 'deleteLocalProject', localProjectId]) !== undefined
-      )
-        throw new Error('project_unavailable');
-      return mentionCatalog(
-        {
-          workspaceId: workspace,
-          machineId,
-          localProjectId,
-          repoFullName: projectId?.startsWith('github:')
-            ? projectId.slice('github:'.length)
-            : undefined,
-          sessionId: session?.id,
-          getGrant,
-          signal: AbortSignal.timeout(35000),
-        },
-        args.category,
-        args.userId,
-      );
-    },
+    mentionCatalog: getMentions,
     listDir(args: {
       workspaceId: string;
       sessionId: string;
@@ -686,7 +764,18 @@ Object.assign(globalThis, {
     sendTurn(args: Parameters<typeof sendSessionTurn>[0]) {
       if (!metaReplica)
         return { state: 'not_sent', reason: 'metadata_not_ready' };
-      return sendSessionTurn(args);
+      const source = {
+        workspaceId: workspace,
+        sessionId: args.sessionId,
+        userId: args.userId,
+        cliType: args.cliType,
+        agentType: args.agentType,
+      };
+      return sendSessionTurn(args, (text) =>
+        expandMentions(text, (category) =>
+          getMentions({ ...source, category }),
+        ),
+      );
     },
     start(id: string) {
       workspace = id;

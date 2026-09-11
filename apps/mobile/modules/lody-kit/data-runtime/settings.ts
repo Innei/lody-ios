@@ -16,7 +16,11 @@ const text = (value: unknown) => (typeof value === 'string' ? value : '');
 
 // Settings are read on demand inside the native-owned runtime. A fresh bootstrap
 // before an edit preserves fields changed by another client while the editor was open.
-async function openSettings(stream: string, grant: Grant, signal: AbortSignal) {
+export async function openSettings(
+  stream: string,
+  grant: Grant,
+  signal: AbortSignal,
+) {
   const client = await clientFor(stream, grant);
   const initial = await client.bootstrap({ signal });
   if (!initial.ok) throw new Error(initial.result.code);

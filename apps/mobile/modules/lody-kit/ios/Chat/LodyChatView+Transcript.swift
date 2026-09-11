@@ -123,12 +123,14 @@ extension LodyChatView {
     paragraph.minimumLineHeight = lineHeight
     paragraph.maximumLineHeight = lineHeight
     let font = ChatCell.messageFont(for: row, compatibleWith: traitCollection)
-    return NSAttributedString(string: row.text, attributes: [
+    let text = NSAttributedString(string: row.text, attributes: [
       .font: font,
       .foregroundColor: textColor(for: row),
       .paragraphStyle: paragraph,
       .baselineOffset: (lineHeight - font.lineHeight) / 2,
     ])
+    if row.kind == "user" { return ChatUserMentions.decorate(text, repository: mentionRepository, traits: traitCollection) }
+    return text
   }
 
   func applyRows() {
