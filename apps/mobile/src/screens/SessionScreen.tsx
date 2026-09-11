@@ -52,6 +52,7 @@ import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
 import type { ModelChoice } from './ModelScreen';
 import { t } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
+import { useOpenPullRequest } from '@/hooks/screens/useOpenPullRequest';
 
 function composerPlaceholder({
   archived,
@@ -94,6 +95,23 @@ function View() {
   const { catalog, selected, serverSessions, refresh } = useCatalog();
   const currentSession =
     catalog.sessions.find((s) => s.id === session.id) ?? session;
+  const [appendDraftJSON, setAppendDraftJSON] = useState('');
+  const openPullRequest = useOpenPullRequest(
+    selected?.id ?? '',
+    account?.user.id ?? '',
+    (text) => {
+      if (currentSession.archived || send.sending) {
+        Alert.alert(t('pr.investigate'), t('pr.draftUnavailable'));
+        return false;
+      }
+      setAppendDraftJSON(
+        JSON.stringify({ id: `${Date.now()}:${Math.random()}`, text }),
+      );
+      return true;
+    },
+  );
+  const pullRequests = currentSession.pullRequests ?? [];
+  const prAttention = pullRequests.some((pr) => pr.ci === 'f' || pr.ci === 'e');
   useFocusEffect(
     useCallback(() => {
       void setPushVisibleRoute(
@@ -400,6 +418,26 @@ function View() {
         }}
       />
       <Stack.Toolbar placement="right">
+        {pullRequests.length === 1 && (
+          <Stack.Toolbar.Button
+            accessibilityLabel={`PR #${pullRequests[0].number}`}
+            onPress={() => void openPullRequest(pullRequests[0])}
+          >
+            {`PR #${pullRequests[0].number}`}
+            {prAttention ? <Stack.Toolbar.Badge>!</Stack.Toolbar.Badge> : null}
+          </Stack.Toolbar.Button>
+        )}
+        {pullRequests.length > 1 && (
+          <Stack.Toolbar.Menu accessibilityLabel={t('pr.pullRequests')}>
+            <Stack.Toolbar.Label>{`PR · ${pullRequests.length}`}</Stack.Toolbar.Label>
+            {pullRequests.map((pr) => (
+              <Stack.Toolbar.MenuAction
+                key={pr.url}
+                onPress={() => void openPullRequest(pr)}
+              >{`${pr.repository} #${pr.number} · ${t(`pr.state.${pr.status}`)}`}</Stack.Toolbar.MenuAction>
+            ))}
+          </Stack.Toolbar.Menu>
+        )}
         <Stack.Toolbar.Menu
           icon="ellipsis"
           accessibilityLabel={t('common.more')}
@@ -470,6 +508,7 @@ function View() {
       </Stack.Toolbar>
       <DiffWebViewWarmer />
       <NativeChat
+        appendDraftJSON={appendDraftJSON}
         mentionItemsJSON={mentions.mentionItemsJSON}
         mentionResultJSON={mentions.mentionResultJSON}
         onMentionBrowse={mentions.onMentionBrowse}

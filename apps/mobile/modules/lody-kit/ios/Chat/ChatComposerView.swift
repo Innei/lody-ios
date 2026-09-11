@@ -591,6 +591,18 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     input.text = text
     updateComposer()
   }
+  private var lastAppendedDraftID = ""
+  func appendDraft(_ json: String) {
+    guard let data = json.data(using: .utf8), let value = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+          let id = value["id"], !id.isEmpty, id != lastAppendedDraftID,
+          let text = value["text"], !text.isEmpty else { return }
+    lastAppendedDraftID = id
+    // Keep the user's existing text AND attachments. Sending remains explicit.
+    input.text = [input.text ?? "", text].filter { !$0.isEmpty }.joined(separator: "\n\n")
+    input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
+    updateComposer()
+    saveDraft()
+  }
   func setStoredDraft(_ text: String) {
     guard !text.isEmpty, input.text.isEmpty else { return }
     input.text = text

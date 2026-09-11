@@ -644,3 +644,13 @@ RunLoop.current.run(until: Date().addingTimeInterval(0.25))
 precondition(referencePanel.isHidden && referencePanel.panelHeight == 0,
              "Removing the host must cancel a queued entrance")
 print("Reference motion: delayed removal, interrupted exit, and host teardown passed")
+
+let prDraft = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 402, height: 180))
+prDraft.setInitialDraft("Existing draft")
+var savedPRDraft = ""
+prDraft.onDraftChange = { savedPRDraft = $0 }
+prDraft.appendDraft(#"{"id":"pr-1","text":"Investigate CI"}"#)
+precondition(savedPRDraft == "Existing draft\n\nInvestigate CI")
+prDraft.appendDraft(#"{"id":"pr-1","text":"Investigate CI"}"#)
+precondition(savedPRDraft == "Existing draft\n\nInvestigate CI", "A prop replay must not append twice")
+print("PR investigation: existing draft preserved, appended text saved and prop replay ignored")

@@ -1,4 +1,5 @@
 import { t } from '../../lib/i18n/index.ts';
+import { pullRequestReferences } from '../../features/pull-request/references.ts';
 import type { Catalog, Project, Session } from '../../models/catalog.ts';
 
 export type { Catalog, Project, Session } from '../../models/catalog.ts';
@@ -103,6 +104,10 @@ export function projectRows(rows: Row[], mode: string): Catalog {
       lastReadAt: stamp(value.lastReadAt),
       awaitingUserSince: stamp(value.awaitingUserSince),
       branchName: text(value.branchName) || undefined,
+      pullRequests: pullRequestReferences(
+        value.pullRequests,
+        value.pullRequestState,
+      ),
       diff: diffOf(value.diffStats),
     });
     if (localId || repo) {

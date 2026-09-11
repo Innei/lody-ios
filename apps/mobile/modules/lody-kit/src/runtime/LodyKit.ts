@@ -55,6 +55,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   watchSession(id: string): Promise<void>;
   unwatchSession(id: string): Promise<void>;
   sessionCreationOptions(payload: string): Promise<string>;
+  githubPullRequest(payload: string): Promise<string>;
   localProjects(payload: string): Promise<string>;
   remoteSettings(payload: string): Promise<string>;
   createSession(payload: string): Promise<string>;
@@ -190,6 +191,8 @@ export const previewContent = (handle: string) => native.previewContent(handle);
 
 export const sessionCreationOptions = (payload: string) =>
   native.sessionCreationOptions(payload);
+export const githubPullRequest = (payload: string) =>
+  native.githubPullRequest(payload);
 export const createSession = (payload: string) => native.createSession(payload);
 export const archiveSession = (payload: string) =>
   native.archiveSession(payload);

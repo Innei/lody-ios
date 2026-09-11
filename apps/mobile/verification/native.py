@@ -23,6 +23,7 @@ if args.udid is None:
 sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'], text=True).strip()
 checks = {
     'github-mentions': ['Cloud/GitHubMentions.swift'],
+    'github-pr': ['Cloud/GitHubPullRequests.swift'],
     'notifications': ['Notifications/PushPermissionLaunchRequest.swift', 'Notifications/PushClickBuffer.swift'],
     'file-link': ['Chat/ChatFileLink.swift'],
     'strings': ['LodyStrings.swift'],
@@ -64,7 +65,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             arch = 'arm64' if platform.machine() == 'arm64' else 'x86_64'
             ios = '26.0'
             command += ['-sdk', sdk, '-target', f'{arch}-apple-ios{ios}-simulator']
-        if name in ['attachments', 'github-mentions']:
+        if name in ['attachments', 'github-mentions', 'github-pr']:
             command += ['-parse-as-library']
         if name == 'inline-diff':
             command += ['-framework', 'UIKit']
