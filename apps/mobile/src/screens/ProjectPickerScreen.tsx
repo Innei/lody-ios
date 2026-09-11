@@ -54,8 +54,8 @@ function View() {
     id: project.id,
     title: project.name,
     subtitle: [
-      project.rootPath,
       catalog.machineNames?.[project.machineId] ?? project.machineId,
+      project.rootPath,
     ]
       .filter(Boolean)
       .join(' · '),

@@ -1,5 +1,10 @@
 export type User = { id: string; name: string; email: string; image?: string };
-export type Workspace = { id: string; name: string; slug: string | null };
+export type Workspace = {
+  id: string;
+  name: string;
+  slug: string | null;
+  image?: string;
+};
 export type DeviceCode = {
   device_code: string;
   user_code: string;

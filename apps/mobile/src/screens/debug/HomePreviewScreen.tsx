@@ -12,10 +12,13 @@ export const homeVerify =
   process.env.EXPO_PUBLIC_UI_VERIFY === '1' &&
   runtimeInfo.uiVerifyHome;
 
+const previewPhoto =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAL0lEQVR42u3OIQEAAAgDMNJQk6J0gRg3E/Or7bmkEhAQEBAQEBAQEBAQEBAQSAceRa0Al+0rSMYAAAAASUVORK5CYII=';
 const workspace = {
   id: 'ui-home',
   name: '我的超长工作区名称不能折行',
   slug: null,
+  image: previewPhoto,
 };
 const workspaces = [
   workspace,
@@ -122,8 +125,7 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
             id: 'ui-home',
             name: 'UI Preview',
             email: '',
-            image:
-              'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAL0lEQVR42u3OIQEAAAgDMNJQk6J0gRg3E/Or7bmkEhAQEBAQEBAQEBAQEBAQSAceRa0Al+0rSMYAAAAASUVORK5CYII=',
+            image: previewPhoto,
           },
           workspaces,
         },

@@ -84,11 +84,9 @@ ui.element('create-session-input')
 ui.element('create-type')
 ui.capture('create')
 ui.wait(lambda items: any('Fixture Agent' in (i.get('AXLabel') or '') for i in items), 'Creation options did not load')
-# Both tabs expose the machine, including a local project's pinned machine.
-ui.axe('tap', '--id', 'machine', '--post-delay', '.6')
-ui.wait(lambda items: any('Fixture Mac' in (i.get('AXLabel') or '') for i in items), 'Project machine picker is empty')
-ui.axe('tap', '--id', 'ui', '--post-delay', '.6')
-ui.element('create-type')
+# Local machine ownership is explained on the project, not a one-choice picker.
+assert 'Fixture Mac' in ui.element('project')['AXLabel']
+assert not any(i.get('AXUniqueId') == 'machine' for i in ui.state())
 
 # Exercise actual paging and a cancelled interactive sheet dismissal, not only
 # segment taps. The video records the intervening cell motion.
@@ -160,15 +158,33 @@ ui.capture('github-machines')
 ui.axe('tap', '--id', 'shared', '--post-delay', '.7')
 assert 'Teammate Mac' in (ui.element('machine').get('AXLabel') or '')
 assert 'Teammate Agent' in (ui.element('agent').get('AXLabel') or '')
-ui.axe('tap', '--label', catalog.text('create.branch.label'))
+ui.axe('tap', '--id', 'branch')
 commit('main')
+ui.axe('tap', '--label', catalog.text('common.ok'), '--post-delay', '.5')
+assert ui.element('branch')['AXValue'] == 'main'
 ui.capture('github-create')
+# Configuration stays page-local while one native input carries the shared draft.
+f = ui.element('create-session-input')['frame']
+ui.axe('tap', '-x', str(f['x'] + f['width']/2), '-y', str(f['y'] + f['height']/2), '--post-delay', '.5')
+commit('Shared draft')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'create-session-input' and i.get('AXValue') == 'Shared draft' for i in items), 'Draft did not enter the visible input')
+ui.capture('shared-draft-project')
+tap_create_type(1)
+assert 'Fixture Mac' in ui.element('machine')['AXLabel']
+assert ui.element('create-session-input')['AXValue'] == 'Shared draft', 'Switching to chat cleared the shared draft'
+commit(' from chat')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'create-session-input' and i.get('AXValue') == 'Shared draft from chat' for i in items), 'Chat did not continue the shared draft')
+ui.capture('shared-draft-chat')
+tap_create_type(0)
+assert 'Teammate Mac' in ui.element('machine')['AXLabel']
+assert ui.element('branch')['AXValue'] == 'main'
+assert ui.element('create-session-input')['AXValue'] == 'Shared draft from chat', 'Switching to project cleared the shared draft'
+ui.capture('project-state-retained')
 # Return through the picker while preserving the native sheet navigation.
 ui.axe('tap', '--id', 'project', '--post-delay', '.5')
 ui.axe('tap', '--id', 'ui:local:lody', '--post-delay', '.7')
-ui.axe('tap', '--id', 'machine', '--post-delay', '.5')
-assert not any(i.get('AXUniqueId') == 'shared' for i in ui.state()), 'Local project offered another machine'
-ui.axe('tap', '--id', 'ui', '--post-delay', '.5')
+assert not any(i.get('AXUniqueId') in ('machine', 'branch') for i in ui.state()), 'Local project retained GitHub configuration'
+assert 'Fixture Mac' in ui.element('project')['AXLabel']
 ui.element('create-type')
 
 ui.axe('tap', '--label', close_create, '--post-delay', '1')

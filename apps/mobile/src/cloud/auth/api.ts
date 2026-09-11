@@ -168,6 +168,7 @@ export async function getAccount(
         id: requiredString(item.id),
         name: requiredString(item.name),
         slug: typeof item.slug === 'string' ? item.slug : null,
+        image: optionalHttpsUrl(item.logo),
       };
     }),
   };

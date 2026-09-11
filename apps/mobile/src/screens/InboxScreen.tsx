@@ -98,7 +98,7 @@ function View() {
             avatar={{
               text: workspaceName.slice(0, 1),
               color: colors.accent,
-              image: account.user.image,
+              image: selected?.image,
             }}
             label={workspaceName}
             items={account.workspaces.map((workspace) => ({

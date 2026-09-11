@@ -195,6 +195,36 @@ test('account photo keeps https avatars and drops other image values', async (t)
   assert.equal((await getAccount('token')).user.image, undefined);
 });
 
+test('workspace photo keeps https logos and drops other image values', async (t) => {
+  const logos = [
+    'https://cdn.lody.ai/org.png',
+    'http://cdn.lody.ai/org.png',
+    'javascript:alert(1)',
+    '',
+  ];
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    if (String(url).includes('/get-session')) {
+      return new Response(
+        JSON.stringify({
+          user: { id: 'u1', email: 'i@innei.in', name: 'Innei' },
+        }),
+      );
+    }
+    return new Response(
+      JSON.stringify([
+        { id: 'w1', name: 'Innei', slug: 'innei', logo: logos.shift() },
+      ]),
+    );
+  });
+  assert.equal(
+    (await getAccount('token')).workspaces[0].image,
+    'https://cdn.lody.ai/org.png',
+  );
+  assert.equal((await getAccount('token')).workspaces[0].image, undefined);
+  assert.equal((await getAccount('token')).workspaces[0].image, undefined);
+  assert.equal((await getAccount('token')).workspaces[0].image, undefined);
+});
+
 test('workspace grant accepts the device session bearer directly', async (t) => {
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     assert.equal(new URL(url).pathname, '/api/loro-streams/token');

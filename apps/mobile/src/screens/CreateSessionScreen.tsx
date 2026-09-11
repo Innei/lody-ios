@@ -1,8 +1,8 @@
 import { fastModeFor, withFastMode } from '@/cloud/send/capability';
 import { useComposerMentions } from '@/hooks/screens/useComposerMentions';
 import { ProjectPickerScreen } from './ProjectPickerScreen';
-import { useEffect, useRef, useState } from 'react';
-import { Alert, Keyboard, View as RNView } from 'react-native';
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import { Alert } from 'react-native';
 import {
   NativeComposer,
   initialInboxProjectSort,
@@ -85,8 +85,9 @@ const creatable = (project: Project) => !isChatProjectId(project.id);
 
 function useCreationForm(
   context: 'project' | 'chat',
-  prefs: React.RefObject<CreatePrefs | null>,
+  prefs: RefObject<CreatePrefs | null>,
   prefsLoaded: boolean,
+  composerDraft: { restoreToken: number; restore: () => void },
 ) {
   const { params, finish, push, present } = usePageRuntime<
     Params,
@@ -94,7 +95,6 @@ function useCreationForm(
   >();
   const { account } = useAuth();
   const { catalog } = useCatalog();
-  const colors = usePalette();
   const outbox = usePendingSends(account?.user.id ?? '', params.workspaceId);
   const [projects, setProjects] = useState(() =>
     sortCatalogProjects(
@@ -112,7 +112,6 @@ function useCreationForm(
   const [agentKey, setAgentKey] = useState('');
   const [choice, setChoice] = useState<ModelChoice>({});
   const [branch, setBranch] = useState('');
-  const [restoreDraftToken, setRestoreDraftToken] = useState(0);
   const prefsKey = createPrefsKey(account?.user.id ?? '', params.workspaceId);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -159,11 +158,7 @@ function useCreationForm(
         const restored = restoreSelection(prefs.current, prefsTarget, value);
         setMachineId(restored.machineId);
         setAgentKey(restored.agentKey);
-        const selected = value.agents.find(
-          (a) => `${a.machineId}:${a.id}` === restored.agentKey,
-        );
-        if (selected) updateChoice(restored.choice, selected);
-        else setChoice(restored.choice);
+        setChoice(restored.choice);
       })
       .catch((error: unknown) => {
         if (!active) return;
@@ -243,11 +238,11 @@ function useCreationForm(
       !!account &&
       (!!draft.trim() || attachments.length > 0);
     if (busy.current || !ready) {
-      setRestoreDraftToken((n) => n + 1);
+      composerDraft.restore();
       return;
     }
     if (github && !branch.trim()) {
-      setRestoreDraftToken((n) => n + 1);
+      composerDraft.restore();
       showToast(t('create.toast.branchRequired'));
       return;
     }
@@ -359,10 +354,10 @@ function useCreationForm(
           subtitle: github
             ? 'GitHub'
             : [
-                project?.rootPath,
                 catalog.machineNames?.[project?.machineId ?? ''] ??
                   machine?.name ??
                   project?.machineId,
+                project?.rootPath,
               ]
                 .filter(Boolean)
                 .join(' · '),
@@ -378,6 +373,7 @@ function useCreationForm(
                 id: 'branch',
                 title: t('create.branch.label'),
                 value: branch || t('create.branch.placeholder'),
+                accessibilityValue: branch || t('create.branch.placeholder'),
                 image: 'arrow.triangle.branch',
                 action: true,
                 disclosure: true,
@@ -412,8 +408,14 @@ function useCreationForm(
       picked,
     ]);
     setProjectId(picked.id);
-    if (picked.id !== projectId) setBranch('');
-    setChoice({});
+    if (picked.id !== projectId) {
+      setBranch('');
+      setOptions(undefined);
+      setAgentKey('');
+      setMachineId('');
+      setLoading(true);
+      setChoice({});
+    }
   }
 
   async function pickMachine() {
@@ -508,7 +510,7 @@ function useCreationForm(
         [
           { text: t('common.cancel'), style: 'cancel' },
           {
-            text: t('common.done'),
+            text: t('common.ok'),
             onPress: (value?: string) =>
               setBranch((value ?? '').trim().slice(0, 255)),
           },
@@ -545,7 +547,7 @@ function useCreationForm(
           title: id,
         })),
       })}
-      restoreDraftToken={restoreDraftToken}
+      restoreDraftToken={composerDraft.restoreToken}
       onSend={({ nativeEvent }) =>
         submit(
           nativeEvent.id,
@@ -597,9 +599,19 @@ function View() {
     };
   }, [prefsKey, locked, params.context]);
 
-  // Each page owns its requests, selection and native draft for its entire lifetime.
-  const project = useCreationForm('project', prefs, prefsLoaded);
-  const chat = useCreationForm('chat', prefs, prefsLoaded && !locked);
+  const [restoreToken, setRestoreToken] = useState(0);
+  const composerDraft = {
+    restoreToken,
+    restore: () => setRestoreToken((value) => value + 1),
+  };
+  // Each page owns its requests and selection; the native composer stays shared.
+  const project = useCreationForm('project', prefs, prefsLoaded, composerDraft);
+  const chat = useCreationForm(
+    'chat',
+    prefs,
+    prefsLoaded && !locked,
+    composerDraft,
+  );
   const selected = context === 'chat' ? chat : project;
   return (
     <ComposerSheet
@@ -624,19 +636,14 @@ function View() {
       selectedPage={context === 'chat' ? 1 : 0}
       onPageChange={({ nativeEvent }) => {
         if (project.sending || chat.sending) return;
-        Keyboard.dismiss();
-        setContext(nativeEvent.index === 1 ? 'chat' : 'project');
+        const next = nativeEvent.index === 1 ? 'chat' : 'project';
+        setContext(next);
+        prefs.current = { ...prefs.current, context: next };
+        void writeLocal(prefsKey, prefs.current);
       }}
       onRowPress={selected.onRowPress}
     >
-      <RNView style={{ display: context === 'project' ? 'flex' : 'none' }}>
-        {project.composer}
-      </RNView>
-      {!locked && (
-        <RNView style={{ display: context === 'chat' ? 'flex' : 'none' }}>
-          {chat.composer}
-        </RNView>
-      )}
+      {selected.composer}
     </ComposerSheet>
   );
 }
