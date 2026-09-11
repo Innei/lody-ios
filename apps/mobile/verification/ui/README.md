@@ -195,8 +195,10 @@ The iOS `react-native-screens` patch ignores late sheet-wrapper layout callbacks
 ### 10,000-message performance demo
 
 Settings → Debug → **10,000-message performance test** (`10,000 条消息性能测试` in the UI) loads 5,000 user messages and
-5,000 Markdown answers through the production `NativeChat` collection. Tap the
-play button to run a 20-second scroll at 8,000 pt/s (10 seconds away from the
+5,000 Markdown answers through the production `NativeChat` collection. Near the top, the list loads 50 earlier entries at a time and preserves the
+reading position. Measurement runs during scrolling; insertion waits until the
+gesture, deceleration or status-bar return has settled. The header exposes loading and end-of-history feedback. Tap the
+play button to traverse all history pages first, then run a 20-second scroll at 8,000 pt/s (10 seconds away from the
 current position, then back). Start at the bottom for the standard baseline.
 The timed run visits part of the 10,000-entry dataset, not every message.
 
@@ -207,9 +209,10 @@ pnpm verify:ui --app <Debug.app> \
 
 The recording starts before navigation. `loading.json` records native prop receipt
 to first layout and complete history layout, the initial row count, and individual
-measurement slices. It excludes JS fixture generation. The check requires a partial
-first layout before all 10,000 rows, multiple history measurement slices, and a
-stable reading position when history arrives after scrolling during loading. A slice
+measurement slices. It excludes JS fixture generation; complete history time
+includes the driven scrolling and waits, so it is not eager-load latency. The check requires 50 complete entries at first paint, real top-edge navigation
+to earlier messages, presentation-layer frame continuity during manual pagination,
+all 200 contiguous pages, a stable reading position on every prepend, and a visible first message with end-of-history feedback. A slice
 targets 4 ms; one indivisible message layout may exceed that budget.
 
 The scroll check repeats three times in each appearance. `performance-summary.json`
@@ -222,8 +225,8 @@ Performance values are reported without an arbitrary pass/fail threshold.
 FPS measures `CADisplayLink` main-run-loop callback delivery, not GPU-presented
 frames. Memory is the whole App process's `TASK_VM_INFO.phys_footprint` in MiB,
 sampled every 250 ms; short spikes between samples can be missed. Baseline is
-captured when play is pressed, after the dataset is loaded, not an empty-app
-baseline. The sampler and video recording add overhead. Simulator Debug results
+captured when timed scrolling starts, after all pages have loaded, not an
+empty-app baseline. The sampler and video recording add overhead. Simulator Debug results
 are regression baselines, not physical-device Release performance or proof of
 absence of leaks. Native instrumentation is compiled only in Debug and stops
 when its view leaves the window.

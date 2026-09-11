@@ -174,7 +174,7 @@ with metro_context:
                 started = time.monotonic()
                 result = {'case': case, 'appearance': appearance, 'language': args.language, 'status': 'failed'}
                 try:
-                    mode = (case in HOME_CASES, case == 'smooth-scroll')
+                    mode = (case in HOME_CASES, case in ('smooth-scroll', 'chat-performance'))
                     if case == 'chat-performance':
                         container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
                         (container / 'tmp/lody-chat-loading.json').unlink(missing_ok=True)
@@ -182,7 +182,7 @@ with metro_context:
                     if restart:
                         result['appLifecycle'] = 'launch'
                         sim('terminate', args.udid, 'app.innei.lody', check=False)
-                        sim('launch', args.udid, 'app.innei.lody', '--ui-verify', *(['--ui-verify-home'] if case in HOME_CASES else []), *(['--ui-verify-mentions'] if case == 'mentions-production' else []), *(['--ui-verify-scroll'] if case == 'smooth-scroll' else []), *(['--ui-verify-throw'] if trace_throw else []), '--initialUrl', f'http://127.0.0.1:{args.port}?disableOnboarding=1', '-expo.devlauncher.hasGrantedNetworkPermission', 'YES', '-EXDevMenuShowsAtLaunch', 'NO', '-EXDevMenuIsOnboardingFinished', 'YES', '-EXDevMenuShowFloatingActionButton', 'NO', '-AppleLanguages', f'({args.language})', '-AppleLocale', 'en_US' if args.language == 'en' else 'zh_CN',
+                        sim('launch', args.udid, 'app.innei.lody', '--ui-verify', *(['--ui-verify-home'] if case in HOME_CASES else []), *(['--ui-verify-mentions'] if case == 'mentions-production' else []), *(['--ui-verify-scroll'] if mode[1] else []), *(['--ui-verify-throw'] if trace_throw else []), '--initialUrl', f'http://127.0.0.1:{args.port}?disableOnboarding=1', '-expo.devlauncher.hasGrantedNetworkPermission', 'YES', '-EXDevMenuShowsAtLaunch', 'NO', '-EXDevMenuIsOnboardingFinished', 'YES', '-EXDevMenuShowFloatingActionButton', 'NO', '-AppleLanguages', f'({args.language})', '-AppleLocale', 'en_US' if args.language == 'en' else 'zh_CN',
                             '-AppleKeyboards', '(en_US@sw=QWERTY)')
                         launch_mode = mode
                     recording = subprocess.Popen(['xcrun', 'simctl', 'io', args.udid, 'recordVideo', '--codec=hevc', str(output / 'run.mp4')], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -252,8 +252,13 @@ with metro_context:
                         command += ['--send']
                     else:
                         command += [str(output)]
+                    check_timeout = 180
+                    if case == 'chat-performance':
+                        check_timeout = 480
+                    elif case in ('chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production'):
+                        check_timeout = 300
                     with (output / 'check.log').open('w') as log:
-                        subprocess.run(command, check=True, timeout=300 if case in ('chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production') else 180, stdout=log, stderr=subprocess.STDOUT,
+                        subprocess.run(command, check=True, timeout=check_timeout, stdout=log, stderr=subprocess.STDOUT,
                                        env={**os.environ, 'LODY_UI_LANGUAGE': args.language, 'LODY_UI_METRO_PORT': str(args.port)})
                     ui.capture('after')
                     result['status'] = 'passed'

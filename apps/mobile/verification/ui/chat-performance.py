@@ -7,44 +7,59 @@ import subprocess
 import sys
 import time
 from driver import UI
+import catalog
 
 ui = UI(sys.argv[1], sys.argv[2])
 container = Path(subprocess.check_output(['xcrun', 'simctl', 'get_app_container', ui.udid, 'app.innei.lody', 'data'], text=True).strip())
 loading_path = container / 'tmp/lody-chat-loading.json'
-ui.capture('loading-state')
+ui.capture('recent-messages')
 ui.element('perf-9998:user')
-ui.axe('swipe', '--start-x', '200', '--start-y', '400', '--end-x', '200', '--end-y', '550', '--duration', '.4', '--post-delay', '.5')
-anchor_y = ui.element('perf-9998:user')['frame']['y']
-stable = 0
-deadline = time.monotonic() + 10
-while stable < 3:
-    assert time.monotonic() < deadline, 'Scroll did not settle during loading'
-    time.sleep(.2)
-    current_y = ui.element('perf-9998:user')['frame']['y']
-    stable = stable + 1 if abs(current_y - anchor_y) < .5 else 0
-    anchor_y = current_y
-assert not loading_path.exists(), 'Reading-position check missed history preparation'
-ui.capture('loading-scrolled')
-deadline = time.monotonic() + 90
-while not loading_path.exists():
-    assert time.monotonic() < deadline, 'History preparation did not finish'
-    time.sleep(.2)
-loading = json.loads(loading_path.read_text())
-shutil.copy2(loading_path, ui.output / 'loading.json')
-loading_path.unlink()
-assert loading['rows'] == 15_000, 'History is incomplete (including completed reply metadata)'
-assert 0 < loading['firstRows'] < loading['rows'], 'First paint waited for all history'
-assert 0 < loading['firstContentMs'] < loading['completeMs'], 'Missing staged first paint'
-assert len(loading['sliceMs']) > 1, 'History did not yield between measurement batches'
-ui.element('perf-9999:text')
-assert abs(ui.element('perf-9998:user')['frame']['y'] - anchor_y) < 3, 'History insertion moved the reading position'
-ui.capture('history-ready')
-ui.axe('tap', '--id', 'chat-scroll-to-bottom', '--post-delay', '1')
+# The initial tail remains usable while older pages are still undisplayed.
+time.sleep(1)
+assert not loading_path.exists(), 'History was eagerly loaded without scrolling'
+existing_traces = set((container / 'tmp').glob('lody-scroll-*.json'))
+def earlier_visible(items):
+    return any((item.get('AXUniqueId') or '').startswith('perf-')
+               and int(item['AXUniqueId'].split(':')[0].split('-')[1]) < 9950
+               for item in items)
+
+# Real finger drags must cross the boundary without a layout jump on release.
+for _ in range(30):
+    ui.axe('swipe', '--start-x', '200', '--start-y', '240', '--end-x', '200', '--end-y', '720', '--duration', '.25', '--post-delay', '1')
+    if earlier_visible(ui.state()):
+        break
+else:
+    raise AssertionError('Dragging to the top never exposed earlier messages')
+time.sleep(1)
+ui.axe('tap', '-x', '100', '-y', '20', '--post-delay', '2')
+ui.capture('earlier-page')
+def verify_pagination_frames():
+    deadline = time.monotonic() + 5
+    while not (traces := sorted(set((container / 'tmp').glob('lody-scroll-*.json')) - existing_traces)):
+        assert time.monotonic() < deadline, 'Missing native pagination frame trace'
+        time.sleep(.1)
+    transitions = []
+    for trace in traces:
+        shutil.copy2(trace, ui.output / trace.name)
+        samples = json.loads(trace.read_text())['samples']
+        for before, after in zip(samples, samples[1:]):
+            if after['count'] <= before['count'] or not before['count']:
+                continue
+            assert not after['dragging'] and not after['touching'] and not after['scrollingToTop'], 'History inserted during an active scroll'
+            common = before['rows'].keys() & after['rows'].keys()
+            assert common, 'Pagination blanked or replaced the viewport'
+            drift = max(abs(after['rows'][key]['y'] - before['rows'][key]['y']) for key in common)
+            transitions.append(drift)
+    assert transitions and max(transitions) < 3, ('History visibly jumped between frames', transitions)
+    (ui.output / 'pagination-frames.json').write_text(json.dumps({'prependCount': len(transitions), 'maxFrameDrift': max(transitions)}, indent=2))
+
 reports = []
 for run in range(3):
     existing = set((container / 'tmp').glob('lody-chat-performance-*.json'))
     ui.axe('tap', '--label', 'Run Chat Benchmark', '--post-delay', '.2')
-    deadline = time.monotonic() + 110
+    if run == 0:
+        verify_pagination_frames()
+    deadline = time.monotonic() + 330
     while not (paths := set((container / 'tmp').glob('lody-chat-performance-*.json')) - existing):
         assert time.monotonic() < deadline, 'Native benchmark did not complete'
         time.sleep(1)
@@ -67,6 +82,19 @@ for run in range(3):
     report['visitedSectionRange'] = [min(s['firstSection'] for s in samples), max(s['lastSection'] for s in samples)]
     reports.append({k: v for k, v in report.items() if k not in ['samples', 'memory']})
     ui.capture(f'run-{run + 1}-complete')
+loading = json.loads(loading_path.read_text())
+shutil.copy2(loading_path, ui.output / 'loading.json')
+assert loading['rows'] == 15_000, 'History is incomplete'
+assert loading['firstRows'] == 75, 'First layout must contain 50 complete entries'
+assert loading['anchorError'] < 3, 'Prepending history moved the reading position'
+pages = loading['pages']
+assert [p['rows'] for p in pages] == list(range(75, 15_001, 75)), 'Missing or duplicate history page'
+assert [p['firstEntry'] for p in pages] == [f'perf-{i}' for i in range(9950, -1, -50)], 'History boundaries skipped messages'
+assert len(loading['sliceMs']) > 1, 'Page preparation did not yield'
+ui.axe('tap', '-x', '100', '-y', '20', '--post-delay', '2')
+ui.element('perf-0:user')
+assert ui.element('chat-history')['AXLabel'] == catalog.text('native.chat.history.start'), 'Missing end-of-history feedback'
+ui.capture('conversation-start')
 summary = {'runs': reports, 'medianFPS': statistics.median(r['fps'] for r in reports)}
 (ui.output / 'performance-summary.json').write_text(json.dumps(summary, indent=2))
 print(json.dumps(summary, indent=2))

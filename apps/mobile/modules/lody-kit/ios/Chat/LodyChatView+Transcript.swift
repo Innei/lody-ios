@@ -140,6 +140,7 @@ extension LodyChatView {
     let commitStart = CACurrentMediaTime()
     #endif
     let previousOffset = collection.contentOffset.y
+    let previousHistoryStart = historyStartID
     if composerHasAcknowledgedSend, let pendingSend,
        transcript.entries.contains(where: { $0.id == pendingSend.id }),
        pendingSend.rows(entries: transcript.entries).isEmpty {
@@ -199,6 +200,14 @@ extension LodyChatView {
     }
     let retainedIDs = Set(projected.map(\.id))
     projected = prepareHistory(projected)
+    let insertingHistory = previousHistoryStart != nil && previousHistoryStart != historyStartID
+    // Starting/waiting for a page changes only the header, not the collection.
+    if preparingHistory, projected.count == rows.count,
+       projected.allSatisfy({ rows[$0.id] == $0 }) {
+      applying = false
+      updateHistoryHeader()
+      return
+    }
     let liveEntryID = transcript.entries.last { $0.isRunning && (processEntryID.isEmpty || $0.id == processEntryID) }?.id
     let previousLive = self.liveEntryID
     let starting = previousLive == nil && liveEntryID != nil
@@ -271,6 +280,11 @@ extension LodyChatView {
       if !folding || !self.followsBottom, let (id, offset) = anchor, let index = self.dataSource.indexPath(for: id), let frame = self.collection.layoutAttributesForItem(at: index)?.frame {
         self.collection.contentOffset.y = max(-self.collection.adjustedContentInset.top, frame.minY - offset)
       }
+      #if DEBUG
+      if !self.followsBottom, let (id, offset) = anchor, let index = self.dataSource.indexPath(for: id), let frame = self.collection.layoutAttributesForItem(at: index)?.frame {
+        self.historyAnchorError = max(self.historyAnchorError, abs(frame.minY - self.collection.contentOffset.y - offset))
+      }
+      #endif
       if self.followsBottom { self.scrollToBottom() }
       if !projected.isEmpty { self.hasPositionedContent = true }
       if !self.rowHeights.isEmpty { self.startMotion() }
@@ -284,6 +298,8 @@ extension LodyChatView {
       self.streamPerformanceProbe?.commit(milliseconds: (CACurrentMediaTime() - commitStart) * 1000)
       #endif
       self.applying = false
+      self.updateHistoryHeader()
+      self.prefetchHistoryIfNeeded()
       self.deliverPendingContent()
       if let tail = projected.last(where: { $0.streaming }) {
         self.renderTailLength = self.store.tailLength(id: tail.id)
@@ -300,6 +316,16 @@ extension LodyChatView {
         self.dataSource.apply(snapshot, animatingDifferences: false)
         updateLayout()
       } completion: { _ in finish() }
+    } else if insertingHistory {
+      // Resolve the viewport inside UIKit's update, before the first new frame.
+      historyLayoutAnchor = anchor
+      UIView.performWithoutAnimation {
+        dataSource.apply(snapshot, animatingDifferences: true) {
+          updateLayout()
+          self.historyLayoutAnchor = nil
+          finish()
+        }
+      }
     } else {
       dataSource.apply(snapshot, animatingDifferences: false) {
         updateLayout()
@@ -332,30 +358,73 @@ private func textColor(for row: ChatRow) -> UIColor {
 }
 
 extension LodyChatView {
-  /// Flow layout measures every item, including offscreen Markdown. Commit the
-  /// recent tail first, then warm the same sizing cache in bounded main-run-loop
-  /// slices before inserting history. UIKit text measurement stays on main.
+  /// Keep the displayed boundary by entry ID so live appends do not evict history.
+  /// Only the next page is measured; UIKit text measurement stays on main.
   func prepareHistory(_ projected: [ChatRow]) -> [ChatRow] {
     historyPreparation?.cancel()
     historyPreparation = nil
-    guard preparingHistory || (!hasPositionedContent && projected.count > 80) else { return projected }
+    let entryIDs = projected.reduce(into: [String]()) { ids, row in
+      if ids.last != row.entryID { ids.append(row.entryID) }
+    }
+    guard !entryIDs.isEmpty else {
+      historyStartID = nil
+      historyTargetID = nil
+      preparingHistory = false
+      hasEarlierHistory = false
+      return projected
+    }
+    let start = historyStartID.flatMap { entryIDs.firstIndex(of: $0) } ?? max(0, entryIDs.count - 50)
+    historyStartID = entryIDs[start]
+    hasEarlierHistory = start > 0
     let width = max(1, collection.bounds.width - 40)
     if width != historyWidth {
       preparedHistory.removeAll()
       historyWidth = width
     }
-    let historical = projected.dropLast(40)
-    let remaining = historical.reversed().filter { preparedHistory[$0.id] != $0 }
-    guard !remaining.isEmpty else {
-      preparingHistory = false
-      preparedHistory.removeAll()
-      return projected
+    if preparingHistory {
+      let target = min(start, historyTargetID.flatMap { entryIDs.firstIndex(of: $0) } ?? max(0, start - 50))
+      historyTargetID = entryIDs[target]
+      let page = Set(entryIDs[target..<start])
+      let remaining = projected.filter { page.contains($0.entryID) && preparedHistory[$0.id] != $0 }
+      if remaining.isEmpty && !historyScrollIsMoving {
+        historyStartID = historyTargetID
+        historyTargetID = nil
+        preparingHistory = false
+        preparedHistory.removeAll()
+        hasEarlierHistory = target > 0
+      } else if !remaining.isEmpty, window != nil {
+        prepareHistorySlice(remaining, index: 0, width: width)
+      }
     }
+    let boundary = projected.firstIndex { $0.entryID == historyStartID } ?? 0
+    return Array(projected[boundary...])
+  }
+
+  var historyScrollIsMoving: Bool {
+    collection.isTracking || collection.isDecelerating || scrollingToTop
+  }
+
+  func commitPreparedHistory() {
+    if preparingHistory { applyRows() }
+  }
+
+  func loadEarlierHistory() {
+    guard hasEarlierHistory, !preparingHistory, !applying, window != nil else { return }
+    pauseTracking()
     preparingHistory = true
-    if window != nil {
-      prepareHistorySlice(remaining, index: 0, width: width)
+    applyRows()
+  }
+
+  func prefetchHistoryIfNeeded() {
+    guard !followsBottom, hasPositionedContent,
+          collection.contentOffset.y + collection.adjustedContentInset.top < collection.bounds.height else { return }
+    loadEarlierHistory()
+  }
+
+  func updateHistoryHeader() {
+    for case let header as ChatHistoryHeader in collection.visibleSupplementaryViews(ofKind: UICollectionView.elementKindSectionHeader) {
+      header.configure(loading: preparingHistory, hasEarlier: hasEarlierHistory)
     }
-    return Array(projected.suffix(40))
   }
 
   private func prepareHistorySlice(_ rows: [ChatRow], index: Int, width: CGFloat) {
@@ -382,7 +451,7 @@ extension LodyChatView {
       self.historySliceTimes.append((CACurrentMediaTime() - started) * 1000)
       #endif
       if next == rows.count {
-        self.applyRows()
+        if !self.historyScrollIsMoving { self.applyRows() }
       } else {
         self.prepareHistorySlice(rows, index: next, width: width)
       }
@@ -399,11 +468,14 @@ extension LodyChatView {
       historyFirstContent = elapsed
       historyFirstRows = rows.count
     }
-    guard !preparingHistory, rows.count == 15_000 else { return }
+    if !preparingHistory, historyPages.last?["rows"] as? Int != rows.count {
+      historyPages.append(["rows": rows.count, "firstEntry": historyStartID ?? "", "elapsedMs": elapsed])
+    }
+    guard !preparingHistory, !hasEarlierHistory, rows.count == 15_000 else { return }
     let report: [String: Any] = [
       "firstContentMs": historyFirstContent, "firstRows": historyFirstRows,
       "completeMs": elapsed, "rows": rows.count,
-      "sliceMs": historySliceTimes,
+      "sliceMs": historySliceTimes, "pages": historyPages, "anchorError": historyAnchorError,
       "metric": "Native entries prop to layout completion; excludes JS fixture creation",
     ]
     if let data = try? JSONSerialization.data(withJSONObject: report, options: .sortedKeys) {
