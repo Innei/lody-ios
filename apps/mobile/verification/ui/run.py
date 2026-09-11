@@ -20,7 +20,7 @@ from simulator import run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
-    'pages': ['mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'onboarding', 'live-activity'],
+    'pages': ['mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'onboarding', 'community-notice', 'live-activity'],
     'send': ['root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
     'chat': ['user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'changes', 'inline-diff'],
 }
@@ -60,6 +60,7 @@ PREVIEW = {
     'composer-failure': 'composer-failure',
     'inbox': 'inbox-preview',
     'onboarding': 'onboarding-preview',
+    'community-notice': 'community-notice',
 }
 READY = {
     'mention-chat': 'session-input',
@@ -89,6 +90,7 @@ READY = {
     'composer-failure': 'session-input',
     'inbox': 'inbox-wait',
     'onboarding': 'onboarding-connect',
+    'community-notice': 'community-notice',
 }
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
@@ -230,7 +232,7 @@ with metro_context:
                         ui.axe('tap', '--label', 'Image Fixture')
                         ui.element('preview-image:attachment:ui-verify-image')
                     ui.capture('before')
-                    script = Path(__file__).with_name(f'{case}.py') if case in ['project-history-entry', 'project-history', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'licenses', 'navigation', 'model-memory', 'onboarding', 'live-activity'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                    script = Path(__file__).with_name(f'{case}.py') if case in ['project-history-entry', 'project-history', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
                     if case in ['fast-chat', 'fast-sheet']:
                         script = Path(__file__).with_name('fast.py')
                     if case == 'composer-glass-chat':

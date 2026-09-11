@@ -3,6 +3,7 @@ import { FilePreviewScreen } from './FilePreviewScreen';
 import { CreateSessionScreen } from '../CreateSessionScreen';
 import type { CreationOptions } from '@/models/send';
 import { writeLocal } from '@/cloud/kv';
+import { showCommunityNotice } from '@/features/community/notice';
 import { createPrefsKey } from '@/features/sessions/createPrefs';
 import { openSendPreview } from './SendPreviewScreen';
 import { BackgroundPreviewScreen } from './BackgroundPreviewScreen';
@@ -125,6 +126,12 @@ function View() {
         openRow('permission-preview', '权限验收', 'hand.raised'),
         openRow('file-preview', '文件预览验收', 'doc'),
         openRow('onboarding-preview', '登录引导验收', 'hand.wave'),
+        {
+          id: 'community-notice',
+          title: '社区声明验收',
+          image: 'star',
+          action: true,
+        },
         openRow(
           'project-history-preview',
           '项目会话同步验收',
@@ -242,6 +249,7 @@ function View() {
     'permission-preview': () => void present(ChatPreviewScreen, {}),
     'file-preview': () => void present(FilePreviewScreen, {}),
     'onboarding-preview': () => void present(OnboardingPreviewScreen, {}),
+    'community-notice': () => showCommunityNotice(),
     'project-history-preview': () =>
       void present(ProjectHistoryPreviewScreen, {}),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
