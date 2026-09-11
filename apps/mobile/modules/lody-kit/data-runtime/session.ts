@@ -4,6 +4,7 @@ import { decompress } from 'fzstd';
 import { decodeFrames, encodeFrame } from '../decoder/frames';
 import { identityAt, itemRev, projectSession } from './project';
 import { machineRpc, type RpcReply } from './machine-rpc';
+import { retrySessionRead } from './session-read';
 export { projectSession } from './project';
 
 type Grant = { token: string; gatewayBaseUrl: string };
@@ -205,17 +206,27 @@ export async function openSession(
   const event = (status: string, reason?: string) => {
     scheduleEmit(state, status, reason);
   };
+  const retrying = (error: unknown) => {
+    state.ready = false;
+    event('syncing', error instanceof Error ? error.message : 'sync_failed');
+  };
   event('syncing');
   void (async () => {
     try {
-      state.client = await clientFor(`${workspace}:s:${id}`, getGrant);
-      controller.signal.throwIfAborted();
-      const initial = await state.client.bootstrap({
-        signal: controller.signal,
-      });
-      if (!initial.ok) throw new Error(initial.result.code);
+      const data = await retrySessionRead(
+        controller.signal,
+        async () => {
+          state.client = await clientFor(`${workspace}:s:${id}`, getGrant);
+          controller.signal.throwIfAborted();
+          const initial = await state.client.bootstrap({
+            signal: controller.signal,
+          });
+          if (!initial.ok) throw new Error(initial.result.code);
+          return initial.result;
+        },
+        retrying,
+      );
       if (sessions.get(id) !== state) return;
-      const data = initial.result;
       let size = 0;
       const consume = (bytes: Uint8Array, snapshot = false) => {
         size += bytes.length;
@@ -241,13 +252,20 @@ export async function openSession(
           event('syncing');
           if (++pages > 100) throw new Error('session_limit');
         }
-        const next = await state.client.readOnce({
-          offset,
-          cursor,
-          signal: controller.signal,
-          ...(upToDate ? { live: 'long-poll' as const } : {}),
-        });
-        if (!next.ok) throw new Error(next.result.code);
+        const next = await retrySessionRead(
+          controller.signal,
+          async () => {
+            const result = await state.client.readOnce({
+              offset,
+              cursor,
+              signal: controller.signal,
+              ...(upToDate ? { live: 'long-poll' as const } : {}),
+            });
+            if (!result.ok) throw new Error(result.result.code);
+            return result;
+          },
+          retrying,
+        );
         if (sessions.get(id) !== state) return;
         if (next.result.payload) {
           consume(next.result.payload.body);
@@ -263,6 +281,7 @@ export async function openSession(
           await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     } catch (error) {
+      if (controller.signal.aborted || sessions.get(id) !== state) return;
       state.ready = false;
       event('offline', error instanceof Error ? error.message : 'sync_failed');
     }
