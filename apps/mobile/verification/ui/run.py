@@ -24,7 +24,10 @@ BATCHES = {
     'send': ['root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
     'chat': ['user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'changes', 'inline-diff'],
 }
-CASES = [case for batch in BATCHES.values() for case in batch] + ['ipad', 'ipad-chrome', 'native-shell', 'native-collection']
+PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
+# These lease an iPad. `--case` still accepts them; the default phone run must not.
+PAD_CASES = ['ipad', 'ipad-chrome', 'native-shell', 'native-collection']
+CASES = PHONE_CASES + PAD_CASES
 # These select HomePreviewProviders at app launch, using the same shared bundle.
 HOME_CASES = {'mentions-production', 'home', 'licenses', 'navigation', 'project-history-entry', 'ipad', 'ipad-chrome'}
 PREVIEW = {
@@ -134,7 +137,7 @@ if args.parallel:
     }
     with managed_metro(ROOT, args.port, args.output):
         raise SystemExit(run_batches(commands, args.output))
-selected = CASES
+selected = PHONE_CASES
 if args.batch:
     selected = BATCHES[args.batch]
 if args.case:
@@ -144,7 +147,7 @@ if args.udid is None:
     if args.case is not None:
         verify_name = args.case.replace('-', ' ').title()
     command = [sys.executable, __file__, *sys.argv[1:]]
-    device_type = DEVICE_TYPES['ipad'] if args.case in {'ipad', 'ipad-chrome', 'native-shell', 'native-collection'} else DEVICE_TYPES['iphone']
+    device_type = DEVICE_TYPES['ipad'] if args.case in PAD_CASES else DEVICE_TYPES['iphone']
     raise SystemExit(
         run_with_simulator(
             SimulatorPool(device_type=device_type), verify_name, command

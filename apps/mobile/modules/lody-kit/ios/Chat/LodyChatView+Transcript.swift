@@ -379,7 +379,7 @@ extension LodyChatView {
     historyStartID = entryIDs[start]
     hasEarlierHistory = start > 0
     hasPagedHistory = hasEarlierHistory || (retainedStart != nil && hasPagedHistory)
-    let width = max(1, collection.bounds.width - 40)
+    let width = ChatReadingColumn.itemWidth(in: collection.bounds.width)
     if width != historyWidth {
       preparedHistory.removeAll()
       historyWidth = width
@@ -434,7 +434,7 @@ extension LodyChatView {
     let work = DispatchWorkItem { [weak self] in
       guard let self, self.window != nil else { return }
       self.historyPreparation = nil
-      guard max(1, self.collection.bounds.width - 40) == width else {
+      guard ChatReadingColumn.itemWidth(in: self.collection.bounds.width) == width else {
         self.applyRows()
         return
       }

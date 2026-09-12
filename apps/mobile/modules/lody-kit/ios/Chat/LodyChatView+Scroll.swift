@@ -268,7 +268,7 @@ extension LodyChatView {
       rowHeights.removeAll()
       return
     }
-    let width = max(1, collection.bounds.width - 40)
+    let width = ChatReadingColumn.itemWidth(in: collection.bounds.width)
     for row in projected where row != previous[row.id] {
       // Long replies grow at the content-commit cadence. Animating their height
       // would invalidate the entire collection at display refresh rate; the
@@ -315,12 +315,22 @@ extension LodyChatView {
     return CGPoint(x: proposed.x, y: max(-collectionView.adjustedContentInset.top, frame.minY - offset))
   }
 
+  func collectionView(_ collectionView: UICollectionView, layout: UICollectionViewLayout, insetForSectionAt section: Int) -> UIEdgeInsets {
+    let inset = ChatReadingColumn.horizontalInset(in: collectionView.bounds.width)
+    return UIEdgeInsets(
+      top: ChatReadingColumn.sectionTop,
+      left: inset,
+      bottom: ChatReadingColumn.sectionBottom,
+      right: inset
+    )
+  }
+
   func collectionView(_ collectionView: UICollectionView, layout: UICollectionViewLayout, referenceSizeForHeaderInSection section: Int) -> CGSize {
     CGSize(width: collectionView.bounds.width, height: section == 0 && processEntryID.isEmpty && hasPagedHistory ? 48 : 0)
   }
 
   func collectionView(_ collectionView: UICollectionView, layout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
-    let width = max(1, collectionView.bounds.width - 40)
+    let width = ChatReadingColumn.itemWidth(in: collectionView.bounds.width)
     guard let id = dataSource.itemIdentifier(for: indexPath), let row = rows[id] else { return CGSize(width: width, height: 0) }
     if let height = rowHeights[id], height.width == width {
       return CGSize(width: width, height: height.current)

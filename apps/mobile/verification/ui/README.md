@@ -30,7 +30,10 @@ composer draft retention in both appearances. Screenshots and video cover each
 answer state; no real agent request is dispatched.
 
 If a normal signed Debug app is already built, each verification command can lease
-its own iPhone 17 Pro / iOS 26.5 device from the `Lody * Verify` pool:
+its own iPhone 17 Pro / iOS 26.5 device from the `Lody * Verify` pool. The documented
+command without `--case` or `--batch` is that phone lease only. Pad-only cases
+(`ipad`, `ipad-chrome`, `native-shell`, `native-collection`) stay behind an explicit
+`--case` so they lease an iPad instead of asserting a wide screen on an iPhone.
 
 ```sh
 pnpm verify:native
@@ -43,8 +46,11 @@ pnpm verify:ui --app /absolute/path/to/Lody.app --language zh-Hans --output .art
 
 The current `ipad-chrome` case leases an iPad Air 11-inch (M2), separately from
 phone batches. It exercises the production `PadHomeScreen`: independent native
-sidebar, selected session and outline restoration, project push/back, top search,
+sidebar, selected session and outline restoration, project push/back with the
+navigating row held until return, top search,
 bottom workspace/new-session actions, and a window-level creation form.
+A wide detail keeps the 760 pt reading column centered, but the transcript
+scroll view stays full-bleed so the vertical indicator sits on the screen edge.
 Switching to an empty workspace must remove the old conversation; a real
 `lody://` system deep link then resolves the original workspace and opens its
 session in the right column without adding a phone route. The creation flow uses

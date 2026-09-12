@@ -25,7 +25,7 @@ def tap_row(identifier):
     ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--tap-style', 'physical', '--post-delay', '.5')
 
 
-def assert_selected(stage):
+def assert_selected(stage, identifier='ui-design', selected=True):
     # AXe 1.8 drops the Selected trait even when UIKit reports traits == 9.
     # Read the real cell, without changing app state or introducing a test API.
     processes = subprocess.check_output(['xcrun', 'simctl', 'spawn', ui.udid, 'launchctl', 'list'], text=True)
@@ -37,21 +37,25 @@ def assert_selected(stage):
       NSMutableArray *result = [NSMutableArray array];
       for (NSUInteger i = 0; i < [q count]; i++) {
         UIView *v = q[i];
-        if ([[v accessibilityIdentifier] isEqualToString:@"ui-design"] && [v isKindOfClass:[UICollectionViewCell class]]) {
+        if ([[v accessibilityIdentifier] isEqualToString:@"IDENTIFIER"] && [v isKindOfClass:[UICollectionViewCell class]]) {
           [result addObject:@{@"selected": @([(UICollectionViewCell *)v isSelected]),
             @"selectedTrait": @(([v accessibilityTraits] & UIAccessibilityTraitSelected) != 0)}];
         }
         [q addObjectsFromArray:(NSArray *)[v subviews]];
       }
       [@"SIDEBAR_STATE=" stringByAppendingString:[[NSString alloc] initWithData:[NSJSONSerialization dataWithJSONObject:result options:0 error:nil] encoding:NSUTF8StringEncoding]];
-    })'''
+    })'''.replace('IDENTIFIER', identifier)
     result = subprocess.run(['lldb', '--batch', '-p', pid, '-o', 'expr -l objc++ -- @import UIKit',
                              '-o', 'expr -l objc++ -O -- ' + expression.replace('\n', ' '), '-o', 'detach'],
                             text=True, capture_output=True, timeout=45)
     (ui.output / f'{stage}-native-selection.log').write_text(result.stdout + result.stderr)
     assert result.returncode == 0, result.stderr
     rows = json.loads(result.stdout.rsplit('SIDEBAR_STATE=', 1)[1].splitlines()[0])
-    assert len(rows) == 1 and rows[0]['selected'] and rows[0]['selectedTrait'], (stage, rows)
+    assert len(rows) == 1, (stage, identifier, rows)
+    if selected:
+        assert rows[0]['selected'] and rows[0]['selectedTrait'], (stage, identifier, rows)
+    else:
+        assert not rows[0]['selected'] and not rows[0]['selectedTrait'], (stage, identifier, rows)
 
 
 ui.element('ipad-detail-placeholder')
@@ -97,6 +101,9 @@ screen = ui.state()[0]['frame']
 message = ui.element('a1:answer')['frame']
 assert 740 <= message['width'] <= 760.5, ('Message column is not width-limited', message)
 assert abs(message['x'] + message['width'] / 2 - screen['x'] - screen['width'] / 2) < 2, ('Message column is not centered', message, screen)
+transcript = ui.element('chat-transcript')['frame']
+assert abs(transcript['width'] - screen['width']) < 2, ('Transcript must span the screen so the scrollbar stays on the edge', transcript, screen)
+assert abs(transcript['x'] - screen['x']) < 2, ('Transcript must start at the screen edge', transcript, screen)
 attach = ui.element('session-attach')['frame']
 field = ui.element('session-input')['frame']
 assert abs(attach['x'] - message['x']) <= 5
@@ -127,9 +134,13 @@ ui.capture('sidebar-selection-restored')
 ui.axe('tap', '--id', 'project:ui:empty', '--tap-style', 'physical', '--post-delay', '.6')
 ui.element('ipad-project-list')
 labeled(catalog.text('project.empty'))
+assert_selected('empty-project-push', 'project:ui:empty')
+assert_selected('empty-project-session-yields', selected=False)
 ui.capture('sidebar-project')
 ui.axe('tap', '--id', 'BackButton', '--tap-style', 'physical', '--post-delay', '.6')
 ui.element('ipad-inbox-list')
+assert_selected('empty-project-return', 'project:ui:empty', selected=False)
+assert_selected('empty-project-session-restored')
 
 # Business entry points share the same owner: workspace switching clears both
 # columns, then a real system deep link resolves its workspace and opens detail.
@@ -166,7 +177,14 @@ ui.axe('tap', '-x', str(search['x'] + search['width'] / 2), '-y', str(search['y'
 ui.axe('type', 'lody')
 ui.element('ui-design')
 ui.wait(lambda items: not any(item.get('AXUniqueId') == 'project:ui:empty' for item in items), 'Search did not filter projects')
+ui.element('project:ui:local:lody')
 ui.capture('sidebar-search')
+ui.axe('tap', '--id', 'project:ui:local:lody', '--tap-style', 'physical', '--post-delay', '.6')
+ui.element('ipad-project-list')
+assert_selected('search-project-push', 'project:ui:local:lody')
+ui.axe('tap', '--id', 'BackButton', '--tap-style', 'physical', '--post-delay', '.6')
+ui.element('ipad-inbox-list')
+assert_selected('search-project-return', 'project:ui:local:lody', selected=False)
 ui.axe('tap', '--id', 'ui-design', '--tap-style', 'physical', '--post-delay', '.8')
 ui.element('session-input')
 ui.element('chat-navigation-title')
@@ -196,4 +214,4 @@ ui.element('session-input')
 ui.capture('handoff-landed')
 trace.verify(1)
 
-print('PASS: Native toolbar, window form navigation, search, and first-message handoff into the iPad detail.')
+print('PASS: Native toolbar, window form navigation, search, navigating-row selection until return, and first-message handoff into the iPad detail.')

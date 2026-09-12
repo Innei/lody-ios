@@ -125,5 +125,15 @@ class AcceptanceRoundTest(unittest.TestCase):
         self.assertEqual(failed['summary']['verdict'], 'fail')
 
 
+class CaseSelectionTest(unittest.TestCase):
+    def test_default_phone_run_excludes_pad_device_cases(self):
+        source = Path(__file__).with_name('run.py').read_text()
+        self.assertIn('PHONE_CASES', source)
+        self.assertIn("PAD_CASES = ['ipad', 'ipad-chrome', 'native-shell', 'native-collection']", source)
+        self.assertIn('selected = PHONE_CASES', source)
+        self.assertNotIn('selected = CASES', source)
+        self.assertIn('if args.case in PAD_CASES', source)
+
+
 if __name__ == '__main__':
     unittest.main()

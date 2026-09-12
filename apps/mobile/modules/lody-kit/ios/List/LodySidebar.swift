@@ -6,6 +6,14 @@ private struct SidebarItemID: Hashable {
   let row: String
 }
 
+private final class SidebarAppearanceController: UIViewController {
+  var onWillAppear: ((Bool, UIViewControllerTransitionCoordinator?) -> Void)?
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    onWillAppear?(animated, transitionCoordinator ?? parent?.transitionCoordinator)
+  }
+}
+
 /// Owns sidebar layout, outline expansion and persistent detail selection.
 /// The grouped host is deliberately not in this view's rendering path.
 final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
@@ -17,6 +25,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
   private var rows: [SidebarItemID: LodyListRow] = [:]
   private var selectedRowId = ""
   private var accent: UIColor = .systemBlue
+  private let appearance = SidebarAppearanceController()
   private weak var scrollOwner: UIViewController?
   private let collection: UICollectionView
   private let placeholder = UILabel()
@@ -85,6 +94,11 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     placeholder.textAlignment = .center
     placeholder.numberOfLines = 0
     addSubview(placeholder)
+    appearance.view = UIView(frame: .zero)
+    appearance.view.isUserInteractionEnabled = false
+    appearance.onWillAppear = { [weak self] animated, coordinator in
+      self?.deselectOnReturn(animated: animated, coordinator: coordinator)
+    }
   }
 
   override func layoutSubviews() {
@@ -93,6 +107,15 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     let inset = collection.adjustedContentInset
     placeholder.frame = bounds.inset(by: .init(top: inset.top + 24, left: 24, bottom: inset.bottom + 24, right: 24))
     attachScrollOwner()
+  }
+
+  override func willMove(toSuperview newSuperview: UIView?) {
+    if newSuperview == nil, appearance.parent != nil {
+      appearance.willMove(toParent: nil)
+      appearance.view.removeFromSuperview()
+      appearance.removeFromParent()
+    }
+    super.willMove(toSuperview: newSuperview)
   }
 
   override func didMoveToWindow() {
@@ -116,6 +139,11 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
         controller.setContentScrollView(collection, for: .top)
         controller.setContentScrollView(collection, for: .bottom)
         scrollOwner = controller
+        if appearance.parent == nil {
+          controller.addChild(appearance)
+          addSubview(appearance.view)
+          appearance.didMove(toParent: controller)
+        }
         return
       }
       responder = current.next
@@ -164,11 +192,30 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
   }
 
   private func synchronizeSelection() {
+    if let current = collection.indexPathsForSelectedItems?.first,
+       let row = row(at: current), row.navigates, row.preview != "session" {
+      return
+    }
     let index = rows.keys.first { $0.row == selectedRowId }.flatMap { dataSource.indexPath(for: $0) }
     let selection = index.map { [$0] } ?? []
     if (collection.indexPathsForSelectedItems ?? []) != selection {
       collection.selectItem(at: index, animated: false, scrollPosition: [])
     }
+  }
+
+  private func indexPath(for id: String) -> IndexPath? {
+    rows.keys.first { $0.row == id }.flatMap { dataSource.indexPath(for: $0) }
+  }
+
+  private func navigatingSelection() -> LodyListRow? {
+    guard let current = collection.indexPathsForSelectedItems?.first,
+          let row = row(at: current), row.navigates, row.preview != "session" else { return nil }
+    return row
+  }
+
+  private func rowAppearsSelected(_ row: LodyListRow) -> Bool {
+    if let navigating = navigatingSelection() { return row.id == navigating.id }
+    return row.id == selectedRowId
   }
 
   func setAccent(_ value: String) {
@@ -203,7 +250,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     cell.indentationWidth = 16
     cell.accessibilityIdentifier = row.id
     cell.accessibilityTraits = project ? [.button, .header] : .button
-    if row.id == selectedRowId { cell.accessibilityTraits.insert(.selected) }
+    if rowAppearsSelected(row) { cell.accessibilityTraits.insert(.selected) }
     if row.parent && !row.navigates {
       cell.accessories = [.outlineDisclosure(options: .init(style: .header, tintColor: .tertiaryLabel))]
     } else if project && row.navigates {
@@ -214,7 +261,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     cell.automaticallyUpdatesBackgroundConfiguration = false
     cell.configurationUpdateHandler = { [weak self] cell, state in
       var visual = state
-      visual.isSelected = row.id == self?.selectedRowId
+      visual.isSelected = self?.rowAppearsSelected(row) ?? false
       cell.backgroundConfiguration = LodySidebarCellBackground.configuration(for: visual)
       cell.accessibilityTraits = project ? [.button, .header] : .button
       if visual.isSelected { cell.accessibilityTraits.insert(.selected) }
@@ -240,9 +287,39 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
       collectionView.deselectItem(at: indexPath, animated: false)
       return
     }
-    if row.preview == "session" { setSelectedRowId(row.id) }
-    else { collectionView.deselectItem(at: indexPath, animated: true) }
+    if row.preview == "session" {
+      setSelectedRowId(row.id)
+    } else if row.navigates {
+      collectionView.selectItem(at: indexPath, animated: true, scrollPosition: [])
+      updateVisibleRows()
+    } else {
+      collectionView.deselectItem(at: indexPath, animated: true)
+    }
     onRowPress(["id": row.id])
+  }
+
+  private func deselectOnReturn(animated: Bool, coordinator: UIViewControllerTransitionCoordinator?) {
+    guard let index = collection.indexPathsForSelectedItems?.first else { return }
+    guard let row = row(at: index), row.navigates, row.preview != "session" else { return }
+    let id = row.id
+    guard let coordinator else {
+      collection.deselectItem(at: index, animated: animated)
+      updateVisibleRows()
+      return
+    }
+    let started = coordinator.animate(alongsideTransition: { [weak self] _ in
+      guard let self, let current = self.indexPath(for: id) else { return }
+      self.collection.deselectItem(at: current, animated: animated)
+      self.updateVisibleRows()
+    }, completion: { [weak self] context in
+      guard context.isCancelled, let self, let current = self.indexPath(for: id) else { return }
+      self.collection.selectItem(at: current, animated: false, scrollPosition: [])
+      self.updateVisibleRows()
+    })
+    if !started {
+      collection.deselectItem(at: index, animated: animated)
+      updateVisibleRows()
+    }
   }
 
   private func swipes(at index: IndexPath, leading: Bool) -> UISwipeActionsConfiguration? {

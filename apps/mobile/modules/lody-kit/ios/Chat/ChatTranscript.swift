@@ -180,6 +180,27 @@ enum ChatWorkDuration {
   }
 }
 
+/// Conversation stays readable on wide hosts; the scroll view itself stays full-bleed
+/// so the vertical indicator remains on the screen edge.
+enum ChatReadingColumn {
+  static let maximumWidth: CGFloat = 800
+  static let cellMargin: CGFloat = 20
+  static let sectionTop: CGFloat = 4
+  static let sectionBottom: CGFloat = 4
+
+  static func columnWidth(in collectionWidth: CGFloat) -> CGFloat {
+    min(max(1, collectionWidth), maximumWidth)
+  }
+
+  static func horizontalInset(in collectionWidth: CGFloat) -> CGFloat {
+    (max(0, collectionWidth - columnWidth(in: collectionWidth)) / 2) + cellMargin
+  }
+
+  static func itemWidth(in collectionWidth: CGFloat) -> CGFloat {
+    max(1, collectionWidth - horizontalInset(in: collectionWidth) * 2)
+  }
+}
+
 enum ChatTranscriptPreviewMetrics {
   static let width: CGFloat = 320
   static let sectionInset: CGFloat = 16

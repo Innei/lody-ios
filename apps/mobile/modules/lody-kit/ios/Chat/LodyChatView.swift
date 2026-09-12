@@ -211,7 +211,12 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     let layout = ChatCollectionLayout()
     layout.minimumLineSpacing = 0
     layout.minimumInteritemSpacing = 0
-    layout.sectionInset = UIEdgeInsets(top: 4, left: 20, bottom: 4, right: 20)
+    layout.sectionInset = UIEdgeInsets(
+      top: ChatReadingColumn.sectionTop,
+      left: ChatReadingColumn.cellMargin,
+      bottom: ChatReadingColumn.sectionBottom,
+      right: ChatReadingColumn.cellMargin
+    )
     let collection = ChatCollectionView(frame: .zero, collectionViewLayout: layout)
     self.collection = collection
     super.init(appContext: appContext)
@@ -240,6 +245,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     }
     backgroundColor = .lodyBackground
     collection.backgroundColor = .clear
+    collection.accessibilityIdentifier = "chat-transcript"
     collection.alwaysBounceVertical = true
     collection.keyboardDismissMode = .interactive
     let tap = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
@@ -293,7 +299,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
         let cell = collection.dequeueReusableCell(withReuseIdentifier: "markdown", for: index) as! ChatMarkdownCell
         let secondary = row.kind == "thought"
         cell.onLink = { [weak self] in self?.openMessageLink($0) }
-        let width = ChatCell.textWidth(row, width: max(1, collection.bounds.width - 40))
+        let width = ChatCell.textWidth(row, width: ChatReadingColumn.itemWidth(in: collection.bounds.width))
         cell.configure(
           row,
           markdown: self.store.view(id: id, text: row.text, secondary: secondary, streaming: row.streaming, width: width),
@@ -375,19 +381,19 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     bottomButton.translatesAutoresizingMaskIntoConstraints = false
     collection.translatesAutoresizingMaskIntoConstraints = false
     composer.translatesAutoresizingMaskIntoConstraints = false
-    let columnWidth = collection.widthAnchor.constraint(equalTo: widthAnchor)
-    columnWidth.priority = .defaultHigh
+    let composerWidth = composer.widthAnchor.constraint(equalTo: widthAnchor)
+    composerWidth.priority = .defaultHigh
     NSLayoutConstraint.activate([
       bottomButton.centerXAnchor.constraint(equalTo: composer.centerXAnchor),
       bottomButton.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
       bottomButton.widthAnchor.constraint(equalToConstant: 44), bottomButton.heightAnchor.constraint(equalToConstant: 44),
       collection.topAnchor.constraint(equalTo: topAnchor),
-      collection.centerXAnchor.constraint(equalTo: centerXAnchor),
-      // Existing 20 pt cell margins leave a maximum 760 pt reading width.
-      collection.widthAnchor.constraint(lessThanOrEqualToConstant: 800),
-      columnWidth,
+      collection.leadingAnchor.constraint(equalTo: leadingAnchor),
+      collection.trailingAnchor.constraint(equalTo: trailingAnchor),
       collection.bottomAnchor.constraint(equalTo: bottomAnchor),
-      composer.leadingAnchor.constraint(equalTo: collection.leadingAnchor), composer.trailingAnchor.constraint(equalTo: collection.trailingAnchor),
+      composer.centerXAnchor.constraint(equalTo: centerXAnchor),
+      composer.widthAnchor.constraint(lessThanOrEqualToConstant: ChatReadingColumn.maximumWidth),
+      composerWidth,
       composer.bottomAnchor.constraint(equalTo: keyboardLayoutGuide.topAnchor),
     ])
   }
