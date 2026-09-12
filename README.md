@@ -19,7 +19,7 @@
   </p>
 </div>
 
-![Lody iOS Native Experience and Session Collaboration](https://github.com/user-attachments/assets/16bc1389-6464-494b-95d2-82f8c3a6653c)
+![Lody on iPad and iPhone](https://github.com/user-attachments/assets/e4b1b2ad-434d-4a47-bf62-c9a6bb5c5cc9)
 
 ---
 
