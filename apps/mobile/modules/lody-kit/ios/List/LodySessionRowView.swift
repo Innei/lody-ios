@@ -46,6 +46,7 @@ final class LodySessionRowView: UIView, UIContentView {
   private let meta = UILabel()
   private let model = UILabel()
   private let pill = PillLabel()
+  private let metaRow = UIStackView()
   private let time = UILabel()
   private let title = UILabel()
   private var withMeta: [NSLayoutConstraint] = []
@@ -89,7 +90,12 @@ final class LodySessionRowView: UIView, UIContentView {
     model.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
     time.setContentCompressionResistancePriority(.required, for: .horizontal)
     pill.setContentCompressionResistancePriority(.required, for: .horizontal)
-    for view in [ring, dot, meta, model, pill, time, title] {
+    metaRow.axis = .horizontal
+    metaRow.alignment = .center
+    metaRow.spacing = 0
+    metaRow.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    for item in [meta, model, pill] { metaRow.addArrangedSubview(item) }
+    for view in [ring, dot, metaRow, time, title] {
       view.translatesAutoresizingMaskIntoConstraints = false
       addSubview(view)
     }
@@ -104,22 +110,17 @@ final class LodySessionRowView: UIView, UIContentView {
       dot.heightAnchor.constraint(equalToConstant: 8),
       dot.centerXAnchor.constraint(equalTo: ring.centerXAnchor),
       dot.centerYAnchor.constraint(equalTo: ring.centerYAnchor),
-      meta.topAnchor.constraint(equalTo: margin.topAnchor),
-      meta.leadingAnchor.constraint(equalTo: margin.leadingAnchor),
-      meta.heightAnchor.constraint(greaterThanOrEqualTo: model.heightAnchor),
-      model.leadingAnchor.constraint(equalTo: meta.trailingAnchor),
-      model.firstBaselineAnchor.constraint(equalTo: meta.firstBaselineAnchor),
-      pill.leadingAnchor.constraint(equalTo: model.trailingAnchor, constant: 5),
-      pill.centerYAnchor.constraint(equalTo: meta.centerYAnchor),
-      pill.trailingAnchor.constraint(lessThanOrEqualTo: time.leadingAnchor, constant: -10),
+      metaRow.topAnchor.constraint(equalTo: margin.topAnchor),
+      metaRow.leadingAnchor.constraint(equalTo: margin.leadingAnchor),
+      metaRow.trailingAnchor.constraint(lessThanOrEqualTo: time.leadingAnchor, constant: -10),
       time.trailingAnchor.constraint(equalTo: margin.trailingAnchor),
       title.leadingAnchor.constraint(equalTo: margin.leadingAnchor),
       title.bottomAnchor.constraint(equalTo: margin.bottomAnchor),
       ring.centerYAnchor.constraint(equalTo: title.firstBaselineAnchor, constant: -5),
     ])
     withMeta = [
-      time.firstBaselineAnchor.constraint(equalTo: meta.firstBaselineAnchor),
-      title.topAnchor.constraint(equalTo: meta.bottomAnchor, constant: 3),
+      time.centerYAnchor.constraint(equalTo: metaRow.centerYAnchor),
+      title.topAnchor.constraint(equalTo: metaRow.bottomAnchor, constant: 3),
       title.trailingAnchor.constraint(equalTo: margin.trailingAnchor),
     ]
     withoutMeta = [
@@ -156,15 +157,25 @@ final class LodySessionRowView: UIView, UIContentView {
     title.textColor = row.destructive ? .systemRed : .label
     let metaText = Self.meta(for: row, density: content.density)
     meta.attributedText = metaText
-    let modelPrefix = metaText.length > 0 ? " · " : ""
-    model.text = row.modelName.isEmpty ? nil : modelPrefix + row.modelName
-    let hasMeta = metaText.length > 0 || !row.modelName.isEmpty || !row.badge.isEmpty
-    meta.isHidden = !hasMeta
+    let hasText = metaText.length > 0
+    let hasModel = !row.modelName.isEmpty
+    let hasBadge = !row.badge.isEmpty
+    let modelPrefix = hasText ? " · " : ""
+    model.text = hasModel ? modelPrefix + row.modelName : nil
+    let hasMeta = hasText || hasModel || hasBadge
+    meta.isHidden = !hasText
+    model.isHidden = !hasModel
+    pill.isHidden = !hasBadge
+    metaRow.isHidden = !hasMeta
+    if hasModel {
+      metaRow.setCustomSpacing(5, after: model)
+    } else {
+      metaRow.setCustomSpacing(hasText && hasBadge ? 5 : 0, after: meta)
+    }
     NSLayoutConstraint.deactivate(hasMeta ? withoutMeta : withMeta)
     NSLayoutConstraint.activate(hasMeta ? withMeta : withoutMeta)
     time.text = row.value
     pill.text = row.badge
-    pill.isHidden = row.badge.isEmpty
     pill.textColor = tint
     pill.backgroundColor = tint.withAlphaComponent(0.16)
     dot.backgroundColor = tint

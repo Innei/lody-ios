@@ -136,10 +136,12 @@ func sessionMark(in view: UIView) -> UIView {
   view.subviews.first { $0.layer.cornerRadius == 7 }!
 }
 
+func labels(in view: UIView) -> [UILabel] {
+  [view as? UILabel].compactMap { $0 } + view.subviews.flatMap(labels(in:))
+}
+
 func sessionLabel(_ view: UIView, _ text: String) -> UILabel {
-  view.subviews.compactMap { $0 as? UILabel }.first {
-    ($0.text ?? $0.attributedText?.string) == text
-  }!
+  labels(in: view).first { ($0.text ?? $0.attributedText?.string) == text }!
 }
 
 func midY(_ inner: UIView, in outer: UIView) -> CGFloat {
@@ -184,6 +186,49 @@ assert(
 )
 
 print("PASS: session live mark sits in front of the title")
+
+func frame(_ inner: UIView, in outer: UIView) -> CGRect {
+  inner.convert(inner.bounds, to: outer)
+}
+
+let badgeOnly = laidOutSessionRow(
+  LodySessionRowContent(
+    row: LodyListRow(title: "Conversation opening greeting", value: "Yesterday", badge: "Archived"),
+    dot: nil,
+    live: false
+  )
+)
+let withProject = laidOutSessionRow(
+  LodySessionRowContent(
+    row: LodyListRow(title: "hihi", subtitle: "lody-ios", value: "Yesterday", badge: "Archived"),
+    dot: nil,
+    live: false
+  )
+)
+let badge = sessionLabel(badgeOnly, "Archived")
+let badgeTitle = sessionLabel(badgeOnly, "Conversation opening greeting")
+let badgeTime = sessionLabel(badgeOnly, "Yesterday")
+let badgeFrame = frame(badge, in: badgeOnly)
+let badgeTitleFrame = frame(badgeTitle, in: badgeOnly)
+assert(
+  badgeFrame.maxY <= badgeTitleFrame.minY + 1,
+  "A badge with no project name must keep its own line above the title"
+)
+assert(
+  abs(badgeFrame.minX - badgeTitleFrame.minX) < 2,
+  "A leading badge must line up with the title, not sit on an empty meta label"
+)
+assert(
+  abs(midY(badgeTime, in: badgeOnly) - midY(badge, in: badgeOnly))
+    < abs(midY(badgeTime, in: badgeOnly) - midY(badgeTitle, in: badgeOnly)),
+  "Time stays on the badge line when the session has no project name"
+)
+assert(
+  abs(badgeOnly.bounds.height - withProject.bounds.height) < 8,
+  "A chat row with only a badge keeps the two-line session height"
+)
+
+print("PASS: a badge without a project name keeps the two-line session row")
 
 // Compare the same real content view at the same width, including reuse back
 // into the default host. Sidebar typography can shrink, but not text or touch targets.
@@ -236,3 +281,37 @@ densityProject.configuration = projectContent
 assert(sessionLabel(projectText, "Lody").font == groupedProjectFont, "Reuse must restore the phone project size")
 assert(abs(fittedHeight(densityProject) - groupedProjectHeight) < 0.5)
 print("PASS: sidebar uses quieter typography with complete text and 44 pt targets; grouped reuse restores its font and spacing")
+
+assert(
+  LodyListSectionAnimation.itemCountsCrossEmpty(previous: ["settings": 0], next: ["settings": 3]),
+  "Filling an empty section must skip the footer interpolation"
+)
+assert(
+  LodyListSectionAnimation.itemCountsCrossEmpty(previous: ["settings": 3], next: ["settings": 0]),
+  "Clearing a section must skip the footer interpolation"
+)
+assert(
+  !LodyListSectionAnimation.itemCountsCrossEmpty(previous: ["settings": 3], next: ["settings": 4]),
+  "Growing a populated section can keep its row animation"
+)
+assert(
+  !LodyListSectionAnimation.itemCountsCrossEmpty(previous: ["help": 0], next: ["help": 0]),
+  "A footer-only section that stays empty is not a crossing"
+)
+assert(
+  !LodyListSectionAnimation.itemCountsCrossEmpty(previous: ["a": 2], next: ["a": 2, "b": 3]),
+  "A newly inserted populated section never parked a footer at the top"
+)
+assert(
+  LodyListSectionAnimation.hidesEmptyFooter(rowCount: 0, placeholder: "Loading remote settings…"),
+  "An empty section with a placeholder must not park its description at the top"
+)
+assert(
+  !LodyListSectionAnimation.hidesEmptyFooter(rowCount: 3, placeholder: "Loading remote settings…"),
+  "A populated section keeps its footer under the card"
+)
+assert(
+  !LodyListSectionAnimation.hidesEmptyFooter(rowCount: 0, placeholder: ""),
+  "A footer-only help section stays visible when the host has no placeholder"
+)
+print("PASS: empty-to-populated list sections skip the footer interpolation")

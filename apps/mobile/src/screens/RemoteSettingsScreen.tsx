@@ -1,33 +1,49 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, PlatformColor, View as RNView } from 'react-native';
 import { NativeGroupedList } from '@lody-ios/kit';
+import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { requestSettings } from '@/cloud/settings';
+import { readLocal, writeLocal } from '@/cloud/kv';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
+import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
 import { usePalette } from '@/lib/theme/palette';
-import type { RemoteSetting, SettingsRequest } from '@/models/settings';
+import type { RemoteSetting } from '@/models/settings';
 import { t } from '../lib/i18n/index.ts';
-import { agentUsageRows } from '@/features/settings/agent-usage';
+import {
+  loadRemoteSettings,
+  parseSavedRemoteSettings,
+  remoteSettingId,
+  remoteSettingsKey,
+  remoteSettingsPlaceholder,
+  remoteSettingsSections,
+  type SavedRemoteSettings,
+  type SettingsListCache,
+  type SettingsService,
+} from '@/features/settings/remote-settings';
 import type { Catalog } from '@/models/catalog';
 import { RemoteSettingEditorScreen } from './RemoteSettingEditorScreen';
 
-export type SettingsService = (
-  request: SettingsRequest,
-) => Promise<RemoteSetting[]>;
+export type { SettingsService };
 type Params = { kind: RemoteSetting['kind'] };
 export const settingsTitle = (kind: RemoteSetting['kind']) =>
   t(`settings.remote.${kind}`);
 
-const settingId = (item: RemoteSetting) =>
-  `setting:${item.kind}:${item.machineId ?? ''}:${item.id}`;
-
-function settingValue(item: RemoteSetting) {
-  if (item.kind !== 'mcp') return undefined;
-  return t(
-    item.enabledByDefault
-      ? 'settings.remote.enabled'
-      : 'settings.remote.disabled',
-  );
+function localRemoteSettingsCache(userId: string): SettingsListCache {
+  return {
+    async read(workspaceId, kind) {
+      return parseSavedRemoteSettings(
+        await readLocal<SavedRemoteSettings>(
+          remoteSettingsKey(userId, workspaceId, kind),
+        ),
+        kind,
+      );
+    },
+    write(workspaceId, kind, snapshot) {
+      void writeLocal(remoteSettingsKey(userId, workspaceId, kind), snapshot);
+    },
+  };
 }
 
 export function RemoteSettingsView({
@@ -37,76 +53,107 @@ export function RemoteSettingsView({
   agentUsage,
   connected = true,
   refreshUsage,
-  machineNames,
+  cache,
 }: Params & {
   workspaceId: string;
   service?: SettingsService;
   agentUsage?: Catalog['agentUsage'];
   connected?: boolean;
   refreshUsage?: () => void;
-  machineNames?: Catalog['machineNames'];
+  cache?: SettingsListCache;
 }) {
   const colors = usePalette();
   const { present } = usePageRuntime();
-  const [items, setItems] = useState<RemoteSetting[] | null>(null);
+  const [items, setItems] = useState<RemoteSetting[]>([]);
+  const [syncedAt, setSyncedAt] = useState<number>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const requestId = useRef(0);
-  const visibleItems: RemoteSetting[] =
-    items !== null || kind !== 'agent'
-      ? (items ?? [])
-      : Object.entries(agentUsage ?? {}).flatMap(([machineId, usage]) =>
-          usage.configs.map((config) => ({
-            kind: 'agent' as const,
-            id: config.id,
-            name: config.name,
-            machineId,
-            machineName: machineNames?.[machineId] ?? machineId,
-            detail: config.provider,
-          })),
-        );
-  const settingRows = visibleItems.map((item) => ({
-    id: settingId(item),
-    title: item.name || item.id,
-    subtitle: [
-      item.detail,
-      item.machineName,
-      item.readOnly ? t('settings.remote.readOnly') : undefined,
-    ]
-      .filter(Boolean)
-      .join(' · '),
-    value: settingValue(item),
-    disclosure: items !== null && !item.readOnly,
-    action: items !== null && !loading && !error && !item.readOnly,
-  }));
-  async function load() {
+  const scope = `${workspaceId}:${kind}`;
+  const scopeRef = useRef(scope);
+  const snapshotRef = useRef<SavedRemoteSettings | null>(null);
+  snapshotRef.current =
+    items.length && syncedAt !== undefined ? { items, syncedAt } : null;
+
+  function apply(saved: SavedRemoteSettings) {
+    snapshotRef.current = saved;
+    setItems(saved.items);
+    setSyncedAt(saved.syncedAt);
+  }
+
+  function refresh(reuse: SavedRemoteSettings | null) {
     const id = ++requestId.current;
     setLoading(true);
     setError('');
-    try {
-      const result = await service({ workspaceId, kind });
-      if (id === requestId.current) setItems(result);
-    } catch (cause) {
-      if (id === requestId.current)
-        setError(
-          cause instanceof Error
-            ? cause.message
-            : t('settings.remote.loadFailed'),
-        );
-    } finally {
-      if (id === requestId.current) setLoading(false);
-    }
+    void loadRemoteSettings({
+      workspaceId,
+      kind,
+      service,
+      cache,
+      reuse,
+      onCached: (saved) => {
+        if (id === requestId.current) apply(saved);
+      },
+    }).then((result) => {
+      if (id !== requestId.current) return;
+      if (result.live) apply(result.live);
+      setError(result.error ?? '');
+      setLoading(false);
+    });
   }
+
   useEffect(() => {
-    setItems(null);
-    void load();
+    const switched = scopeRef.current !== scope;
+    scopeRef.current = scope;
+    if (switched) {
+      snapshotRef.current = null;
+      setItems([]);
+      setSyncedAt(undefined);
+    }
+    refresh(switched ? null : snapshotRef.current);
     return () => {
       requestId.current++;
     };
-  }, [workspaceId, kind, service]);
-  let placeholder = t('settings.remote.empty');
-  if (loading) placeholder = t('settings.remote.loading');
-  if (error) placeholder = '';
+  }, [scope, service, cache]);
+
+  const headerRight = useMemo(
+    () =>
+      loading
+        ? []
+        : [
+            {
+              type: 'button' as const,
+              icon: { type: 'sfSymbol' as const, name: 'arrow.clockwise' },
+              accessibilityLabel: t('settings.remote.refresh'),
+              tintColor: PlatformColor('systemBlue'),
+              onPress: () => {
+                refreshUsage?.();
+                refresh(snapshotRef.current);
+              },
+            },
+          ],
+    [loading, refreshUsage],
+  );
+  const headerSpinner = useMemo(
+    () =>
+      loading ? (
+        <RNView
+          style={{
+            width: 44,
+            height: 44,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          accessibilityRole="progressbar"
+          accessibilityLabel={t('settings.remote.loading')}
+        >
+          <ActivityIndicator color={PlatformColor('secondaryLabel')} />
+        </RNView>
+      ) : undefined,
+    [loading],
+  );
+  useSheetHeader(headerRight, undefined, headerSpinner);
+
   return (
     <NativeGroupedList
       style={{ flex: 1 }}
@@ -114,58 +161,25 @@ export function RemoteSettingsView({
       refreshing={loading}
       onRefresh={() => {
         refreshUsage?.();
-        void load();
+        refresh(snapshotRef.current);
       }}
-      placeholder={placeholder}
-      sections={[
-        ...(kind === 'agent'
-          ? visibleItems.map((item, index) => {
-              const usageRows = agentUsageRows(
-                item,
-                agentUsage?.[item.machineId ?? ''],
-              );
-              let footer: string | undefined;
-              if (usageRows.length)
-                footer = connected
-                  ? t('settings.usage.shared')
-                  : t('settings.usage.offline');
-              return {
-                id: settingId(item),
-                rows: [settingRows[index]!, ...usageRows],
-                footer,
-              };
-            })
-          : [
-              {
-                id: 'settings',
-                footer: error ? undefined : t(`settings.remote.${kind}Hint`),
-                rows: settingRows,
-              },
-            ]),
-        ...(error
-          ? [
-              {
-                id: 'error',
-                footer: error,
-                rows: [
-                  {
-                    id: 'retry',
-                    title: t('settings.remote.retry'),
-                    action: true,
-                    image: 'arrow.clockwise',
-                  },
-                ],
-              },
-            ]
-          : []),
-      ]}
+      placeholder={remoteSettingsPlaceholder({ items, loading, error })}
+      sections={remoteSettingsSections({
+        kind,
+        items,
+        loading,
+        error,
+        connected,
+        agentUsage,
+        syncedAt,
+      })}
       onRowPress={({ nativeEvent: { id } }) => {
         if (id === 'retry') {
-          void load();
+          refresh(snapshotRef.current);
           return;
         }
-        const item = items?.find((item) => settingId(item) === id);
-        if (!item || item.readOnly || loading || error) return;
+        const item = items.find((item) => remoteSettingId(item) === id);
+        if (!item || item.readOnly) return;
         void present(
           RemoteSettingEditorScreen,
           {
@@ -179,7 +193,7 @@ export function RemoteSettingsView({
             sheetGrabberVisible: kind !== 'agent',
           },
         ).then((result) => {
-          if (result.status === 'completed') void load();
+          if (result.status === 'completed') refresh(snapshotRef.current);
         });
       }}
     />
@@ -188,7 +202,13 @@ export function RemoteSettingsView({
 
 function View() {
   const { params, cancel } = usePageRuntime<Params>();
+  const { account } = useAuth();
   const { selected, catalog, connected, refresh } = useCatalog();
+  const userId = account?.user.id;
+  const cache = useMemo(
+    () => (userId ? localRemoteSettingsCache(userId) : undefined),
+    [userId],
+  );
   useEffect(() => {
     if (!selected) cancel();
   }, [selected, cancel]);
@@ -201,7 +221,7 @@ function View() {
       agentUsage={catalog.agentUsage}
       connected={connected}
       refreshUsage={refresh}
-      machineNames={catalog.machineNames}
+      cache={cache}
     />
   );
 }

@@ -232,9 +232,14 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       configuration.backgroundColor = .clear
       // `.firstItemInSection` splits the inset card into a header card and an
       // items card; a parent row is a plain first item so the card stays whole.
-      let outline = self?.section(at: index)?.rows.first?.parent ?? false
+      let model = self?.section(at: index)
+      let outline = model?.rows.first?.parent ?? false
+      let hideEmptyFooter = LodyListSectionAnimation.hidesEmptyFooter(
+        rowCount: model?.rows.count ?? 0,
+        placeholder: self?.placeholderText ?? ""
+      )
       configuration.headerMode = outline ? .none : .supplementary
-      configuration.footerMode = outline ? .none : .supplementary
+      configuration.footerMode = outline || hideEmptyFooter ? .none : .supplementary
       configuration.leadingSwipeActionsConfigurationProvider = { indexPath in
         self?.swipeActions(at: indexPath, leading: true)
       }
@@ -436,6 +441,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       updatePlaceholder()
       return
     }
+    // Footer mode depends on placeholder visibility; resolve it before apply.
+    updatePlaceholder()
     var snapshot = NSDiffableDataSourceSnapshot<String, ListItemID>()
     for section in value {
       snapshot.appendSections([section.id])
@@ -450,7 +457,15 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
             let view = collection.supplementaryView(forElementKind: UICollectionView.elementKindSectionHeader, at: index) as? SectionSupplementaryCell else { continue }
       configureSupplementary(view, section: section, header: true)
     }
-    dataSource.apply(snapshot, animatingDifferences: animated && window != nil && !previous.sectionIdentifiers.isEmpty && !UIAccessibility.isReduceMotionEnabled) { [weak self] in
+    let animate = animated
+      && window != nil
+      && !previous.sectionIdentifiers.isEmpty
+      && !UIAccessibility.isReduceMotionEnabled
+      && !LodyListSectionAnimation.itemCountsCrossEmpty(
+        previous: itemCounts(in: previous),
+        next: itemCounts(in: snapshot)
+      )
+    let finish: () -> Void = { [weak self] in
       guard let self else { return }
       for kind in [UICollectionView.elementKindSectionHeader, UICollectionView.elementKindSectionFooter] {
         for index in self.collection.indexPathsForVisibleSupplementaryElements(ofKind: kind) {
@@ -462,7 +477,20 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       }
       self.collection.collectionViewLayout.invalidateLayout()
     }
-    updatePlaceholder()
+    if animate {
+      dataSource.apply(snapshot, animatingDifferences: true, completion: finish)
+    } else {
+      UIView.performWithoutAnimation {
+        self.dataSource.apply(snapshot, animatingDifferences: false, completion: finish)
+        self.collection.layoutIfNeeded()
+      }
+    }
+  }
+
+  private func itemCounts(in snapshot: NSDiffableDataSourceSnapshot<String, ListItemID>) -> [String: Int] {
+    Dictionary(uniqueKeysWithValues: snapshot.sectionIdentifiers.map {
+      ($0, snapshot.itemIdentifiers(inSection: $0).count)
+    })
   }
 
   /// Section snapshots own expansion, so a parent row collapses its children
@@ -571,8 +599,13 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   private func updatePlaceholder() {
     let empty = sections.isEmpty || sections.allSatisfy { $0.rows.isEmpty && $0.headerActionId.isEmpty }
+    let hide = !empty || placeholderText.isEmpty
+    let visibilityChanged = placeholder.isHidden != hide
     placeholder.text = placeholderText
-    placeholder.isHidden = !empty || placeholderText.isEmpty
+    placeholder.isHidden = hide
+    if visibilityChanged {
+      collection.collectionViewLayout.invalidateLayout()
+    }
   }
 
   @objc private func refreshPulled() {

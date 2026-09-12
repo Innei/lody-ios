@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from 'react';
 import { StyleSheet } from 'react-native';
 import type {
@@ -34,7 +35,11 @@ import { t } from '../i18n/index.ts';
 
 export type HeaderItems =
   ScreenStackHeaderConfigProps['headerRightBarButtonItems'];
-export type SheetHeaderItems = { right: HeaderItems; left?: HeaderItems };
+export type SheetHeaderItems = {
+  right: HeaderItems;
+  left?: HeaderItems;
+  rightView?: ReactNode;
+};
 export const SheetHeaderContext = createContext<
   ((items: SheetHeaderItems | undefined) => void) | null
 >(null);
@@ -162,15 +167,16 @@ export function SheetStack({
           ...headerConfig(
             session.page,
             session.presentation,
-            showClose && !headerItems ? (
-              <NativeCloseButton
-                label={t('accessibility.closeSheet', {
-                  title: session.page.title,
-                })}
-                onPress={runtime.cancel}
-                style={{ width: 30, height: 30 }}
-              />
-            ) : undefined,
+            headerItems?.rightView ??
+              (showClose && !headerItems ? (
+                <NativeCloseButton
+                  label={t('accessibility.closeSheet', {
+                    title: session.page.title,
+                  })}
+                  onPress={runtime.cancel}
+                  style={{ width: 30, height: 30 }}
+                />
+              ) : undefined),
             search,
           ),
           headerRightBarButtonItems: headerItems?.right,
@@ -229,7 +235,12 @@ function PushedLevel({
       stackPresentation="push"
       style={StyleSheet.absoluteFill}
       headerConfig={{
-        ...headerConfig(level.page, level.presentation, undefined, search),
+        ...headerConfig(
+          level.page,
+          level.presentation,
+          headerItems?.rightView,
+          search,
+        ),
         headerRightBarButtonItems: headerItems?.right,
         headerLeftBarButtonItems: headerItems?.left,
       }}

@@ -560,6 +560,8 @@
   "settings.usage.offline": "离线 · 显示最近同步的订阅用量。",
   "settings.remote.mcpHint": "同步其他客户端新建会话时的默认 MCP 选择。当前 iOS 会话暂未接入 MCP。",
   "settings.remote.loading": "正在读取远程设置…",
+  "settings.remote.refresh": "刷新",
+  "settings.remote.syncedAt": "更新于 {time}",
   "settings.remote.empty": "暂无可用设置",
   "settings.remote.retry": "重试",
   "settings.remote.enabled": "开启",

@@ -1,7 +1,8 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { NativeGroupedList } from '@lody-ios/kit';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { definePage } from '@/lib/presentation';
+import { memoryRemoteSettingsCache } from '@/features/settings/remote-settings';
 import {
   RemoteSettingsView,
   settingsTitle,
@@ -128,6 +129,7 @@ const SettingsListPreviewScreen = definePage<{
     }>();
     const [offline, setOffline] = useState(false);
     const [percent, setPercent] = useState(32);
+    const cache = useMemo(memoryRemoteSettingsCache, []);
     const agentUsage = previewUsage(percent);
     const service = useCallback<SettingsService>(
       async (request) => {
@@ -143,7 +145,7 @@ const SettingsListPreviewScreen = definePage<{
         workspaceId="offline-settings"
         agentUsage={agentUsage}
         connected={!offline}
-        machineNames={{ m1: 'Studio Mac' }}
+        cache={cache}
         refreshUsage={() => {
           if (offline) setPercent(72);
           setOffline(!offline);
