@@ -121,11 +121,7 @@ export function nativePresentationOptions(
     animation: style === 'push' ? 'default' : nativeAnimation(animationType),
     contentStyle: {
       backgroundColor:
-        style === 'overFullScreen' ||
-        style === 'formSheet' ||
-        style === 'pageSheet'
-          ? 'transparent'
-          : backgroundColor,
+        style === 'overFullScreen' ? 'transparent' : backgroundColor,
     },
     gestureEnabled: dismissible,
     // Sheets own their inner stack; pushed pages keep the router

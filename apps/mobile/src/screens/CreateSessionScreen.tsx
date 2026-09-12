@@ -51,6 +51,7 @@ import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 export type { CreatedSession } from '../models/send.ts';
 
 type Params = {
+  sendHandoff?: boolean;
   workspaceId: string;
   projects: Project[];
   projectId?: string;
@@ -522,6 +523,7 @@ function useCreationForm(
 
   const composer = (
     <NativeComposer
+      sendHandoff={params.sendHandoff ?? true}
       mentionItemsJSON={mentions.mentionItemsJSON}
       mentionResultJSON={mentions.mentionResultJSON}
       onMentionBrowse={mentions.onMentionBrowse}

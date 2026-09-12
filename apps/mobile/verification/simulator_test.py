@@ -181,6 +181,35 @@ class ReusableDeviceTests(unittest.TestCase):
 
         self.assertEqual([device['udid'] for device in devices], ['VALID'])
 
+    def test_ipad_checks_select_only_the_pinned_ipad_model(self):
+        simulator = load_simulator_module()
+        inventory = {
+            'devices': {
+                simulator.RUNTIME: [
+                    {
+                        'udid': 'PHONE',
+                        'name': 'Lody Phone Verify',
+                        'state': 'Shutdown',
+                        'isAvailable': True,
+                        'deviceTypeIdentifier': simulator.DEVICE_TYPES['iphone'],
+                    },
+                    {
+                        'udid': 'PAD',
+                        'name': 'Lody Pad Verify',
+                        'state': 'Shutdown',
+                        'isAvailable': True,
+                        'deviceTypeIdentifier': simulator.DEVICE_TYPES['ipad'],
+                    },
+                ]
+            }
+        }
+
+        devices = simulator.reusable_devices(
+            inventory, simulator.DEVICE_TYPES['ipad']
+        )
+
+        self.assertEqual([device['udid'] for device in devices], ['PAD'])
+
     def test_invalid_verify_names_are_rejected_before_creating_a_device(self):
         simulator = load_simulator_module()
 

@@ -18,6 +18,10 @@ import { ChatPerformanceScreen } from './ChatPerformanceScreen';
 import { ChatStreamPerformanceScreen } from './ChatStreamPerformanceScreen';
 import { BannerPreviewScreen } from './BannerPreviewScreen';
 import { ScrollPreviewScreen } from './ScrollPreviewScreen';
+import {
+  NativeCollectionPreviewScreen,
+  NativeShellPreviewScreen,
+} from './NativeShellPreviewScreen';
 import { ShinePreviewScreen } from './ShinePreviewScreen';
 import { InboxPreviewScreen } from './InboxPreviewScreen';
 import { SettingsPreviewScreen } from './SettingsPreviewScreen';
@@ -150,6 +154,12 @@ function View() {
         ...(uiVerify
           ? [openRow('background-preview', '后台连接验收', 'moon.zzz')]
           : []),
+        openRow('native-shell-poc', 'Native Shell POC', 'sidebar.left'),
+        openRow(
+          'native-collection-poc',
+          'Native Collection POC',
+          'list.bullet',
+        ),
         openRow('scroll-preview', '滚动连续性验收', 'arrow.up.and.down'),
         openRow('chat-performance', '10,000 条消息性能测试', 'gauge.medium'),
         openRow(
@@ -265,6 +275,9 @@ function View() {
     'appearance-preview': () => void present(AppearanceScreen, {}),
     'inbox-preview': () => void present(InboxPreviewScreen, {}),
     'background-preview': () => void present(BackgroundPreviewScreen, {}),
+    'native-shell-poc': () => void present(NativeShellPreviewScreen, {}),
+    'native-collection-poc': () =>
+      void present(NativeCollectionPreviewScreen, {}),
     'scroll-preview': () => void present(ScrollPreviewScreen, {}),
     'chat-performance': () => void present(ChatPerformanceScreen, {}),
     'chat-stream-performance': () =>

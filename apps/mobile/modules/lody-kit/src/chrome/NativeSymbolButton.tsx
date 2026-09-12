@@ -8,6 +8,7 @@ export interface NativeSymbolButtonProps extends ViewProps {
   /** Bundled template artwork; takes precedence over the SF Symbol. */
   imageAsset?: string;
   prominent?: boolean;
+  glass?: boolean;
   disabled?: boolean;
   tint?: string;
   onPress: () => void;

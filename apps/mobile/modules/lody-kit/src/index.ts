@@ -75,6 +75,20 @@ export {
   NativeSymbolButton,
   type NativeSymbolButtonProps,
 } from './chrome/NativeSymbolButton';
+export {
+  NativeSearchToolbar,
+  type NativeSearchToolbarProps,
+} from './chrome/NativeSearchToolbar';
+export {
+  NativeSplit,
+  NativeSplitContent,
+  type NativeSplitLayout,
+  type NativeSplitFrame,
+} from './chrome/NativeSplit';
+export {
+  NativeEmbeddedSheet,
+  type NativeEmbeddedSheetProps,
+} from './chrome/NativeFloatingPanel';
 
 export {
   NativePressable,
@@ -152,3 +166,6 @@ export * from './notifications/notifications';
 export { NativeMentionPicker } from './chat/NativeMentionPicker';
 
 export { getMentionCatalog } from './chat/mentions';
+export { NativeShellPOC, NativePagePOC } from './chrome/NativeShellPOC';
+
+export { NativeSidebar, type NativeSidebarProps } from './list/NativeSidebar';

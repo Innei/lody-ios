@@ -666,5 +666,12 @@
   "pr.pullRequests": "关联的 PR",
   "pr.investigatePrompt": "请排查这个 PR 的 CI 检查问题，先说明失败原因和建议修复：",
   "pr.draftAdded": "排查请求已追加到会话草稿。返回会话后可以编辑并发送，原有文字和附件会保留。",
-  "pr.draftUnavailable": "会话已归档或正在发送，请稍后重试。"
+  "pr.draftUnavailable": "会话已归档或正在发送，请稍后重试。",
+  "ipad.detail.title": "选择会话",
+  "ipad.detail.message": "从悬浮面板中选择一个会话，在这里打开。",
+  "ipad.panel.collapse": "收起会话面板",
+  "ipad.panel.expand": "展开会话面板",
+  "ipad.sheet.resize": "调整面板高度",
+  "ipad.sheet.medium": "半屏",
+  "ipad.sheet.large": "全屏"
 }

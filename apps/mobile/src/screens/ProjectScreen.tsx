@@ -1,84 +1,58 @@
 import { Stack } from 'expo-router';
 import { NativeGroupedList } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
-import { useAuth } from '@/cloud/auth/AuthProvider';
-import { useCatalog } from '@/cloud/catalog/CatalogProvider';
-import { useSessionListCatalog } from '@/features/sessions/useSessionListCatalog';
-import { usePalette } from '@/lib/theme/palette';
 import {
-  byActivity,
-  isChatProjectId,
-  sessionRow,
-} from '@/features/sessions/inbox';
-import { requestNewSession } from '@/features/sessions/sessionNav';
-import { listRowAction } from '@/features/sessions/sessionActions';
+  useProjectModel,
+  type ProjectModel,
+} from '@/features/sessions/useProjectModel';
+import { isChatProjectId } from '@/features/sessions/inbox';
 import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
-import { t } from '../lib/i18n/index.ts';
+import { t } from '@/lib/i18n';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
+
+function ProjectList({ model }: { model: ProjectModel }) {
+  return (
+    <NativeGroupedList
+      style={{ flex: 1 }}
+      accent={model.colors.accent}
+      contentStyle
+      sections={model.sections}
+      placeholder={model.placeholder}
+      previewUserId={model.account?.user.id}
+      previewWorkspaceId={model.selected?.id}
+      onRowPress={({ nativeEvent: { id } }) =>
+        openCatalogRow(id, model.catalog)
+      }
+      onRowAction={({ nativeEvent: { id, actionId } }) =>
+        model.rowAction(id, actionId)
+      }
+    />
+  );
+}
 
 function View() {
   const {
     params: { projectId },
   } = usePageRuntime<{ projectId: string }>();
-  const { catalog: sourceCatalog, selected, loading, connected } = useCatalog();
-  const { account } = useAuth();
-  const catalog = useSessionListCatalog(
-    sourceCatalog,
-    account?.user.id ?? '',
-    selected?.id ?? '',
-  );
-  const colors = usePalette();
-  const project = catalog.projects.find((p) => p.id === projectId);
-  const sessions = catalog.sessions
-    .filter((s) => s.projectId === projectId)
-    .sort(byActivity);
-  const sections = [false, true]
-    .map((archived) => ({
-      id: archived ? 'archived' : 'sessions',
-      header: archived ? t('session.state.archived') : undefined,
-      rows: sessions
-        .filter((s) => s.archived === archived)
-        .map((s) => sessionRow(s, colors.accent)),
-    }))
-    .filter((section) => section.rows.length);
-  let placeholder = t('project.empty');
-  if (loading) placeholder = t('common.loading');
-  else if (!connected) placeholder = t('project.offline');
+  const model = useProjectModel(projectId);
   return (
     <>
       <Stack.Screen
         options={{
-          title: project?.name ?? t('project.title'),
+          title: model.project?.name ?? t('project.title'),
           headerLargeTitle: false,
         }}
       />
-      {project && !isChatProjectId(project.id) ? (
+      {model.project && !isChatProjectId(model.project.id) ? (
         <Stack.Toolbar placement="right">
           <Stack.Toolbar.Button
             icon="plus"
             accessibilityLabel={t('project.newSession.accessibility')}
-            onPress={() => {
-              if (selected)
-                void requestNewSession(selected.id, catalog, projectId);
-            }}
+            onPress={model.newSession}
           />
         </Stack.Toolbar>
       ) : null}
-      <NativeGroupedList
-        style={{ flex: 1 }}
-        accent={colors.accent}
-        contentStyle
-        sections={sections}
-        placeholder={placeholder}
-        previewUserId={account?.user.id}
-        previewWorkspaceId={selected?.id}
-        onRowPress={({ nativeEvent }) =>
-          openCatalogRow(nativeEvent.id, catalog)
-        }
-        onRowAction={({ nativeEvent: { id, actionId } }) => {
-          if (selected) listRowAction(selected.id, catalog, id, actionId);
-        }}
-      />
+      <ProjectList model={model} />
     </>
   );
 }

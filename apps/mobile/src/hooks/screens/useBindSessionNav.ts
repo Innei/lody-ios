@@ -2,42 +2,51 @@ import { useEffect } from 'react';
 import { present } from '@/lib/presentation';
 import { showToast } from '@/ui/toast';
 import { subscribeSessionNav } from '@/features/sessions/sessionNav';
-import { SessionScreen } from '@/screens/SessionScreen';
+import { SessionScreen, type SessionParams } from '@/screens/SessionScreen';
 import { CreateSessionScreen } from '@/screens/CreateSessionScreen';
+import { useAuth } from '@/cloud/auth/AuthProvider';
+import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { t } from '../../lib/i18n/index.ts';
 
-export function useBindSessionNav() {
+export function useBindSessionNav({
+  enabled = true,
+  openSession,
+}: {
+  enabled?: boolean;
+  openSession?: (params: SessionParams) => void;
+} = {}) {
+  const { account } = useAuth();
+  const { selected } = useCatalog();
   useEffect(() => {
-    return subscribeSessionNav(async (intent) => {
+    if (!enabled) return;
+    const open = async (params: SessionParams) => {
+      if (openSession) openSession(params);
+      else
+        await present(SessionScreen, params, { title: params.session.title });
+    };
+    return subscribeSessionNav(async (intent, signal) => {
       try {
         if (intent.kind === 'open') {
-          await present(
-            SessionScreen,
-            { session: intent.session },
-            { title: intent.session.title },
-          );
+          await open({ session: intent.session });
           return;
         }
-        const result = await present(CreateSessionScreen, {
-          workspaceId: intent.workspaceId,
-          projects: intent.catalog.projects,
-          projectId: intent.projectId,
-          context: intent.context,
-        });
-        if (result.status === 'completed')
-          await present(
-            SessionScreen,
-            {
-              session: result.value.session,
-              projectName: result.value.projectName,
-              machineName: result.value.machineName,
-              modelId: result.value.modelId,
-              effort: result.value.effort,
-              modeId: result.value.modeId,
-            },
-            { title: result.value.session.title },
-          );
+        if (intent.workspaceId !== selected?.id) return;
+        const result = await present(
+          CreateSessionScreen,
+          {
+            workspaceId: intent.workspaceId,
+            projects: intent.catalog.projects,
+            projectId: intent.projectId,
+            context: intent.context,
+          },
+          openSession
+            ? { sheetAllowedDetents: [1], sheetGrabberVisible: false }
+            : undefined,
+        );
+        if (!signal.aborted && result.status === 'completed')
+          await open(result.value);
       } catch {
+        if (signal.aborted) return;
         showToast(
           t(
             intent.kind === 'open'
@@ -47,5 +56,5 @@ export function useBindSessionNav() {
         );
       }
     });
-  }, []);
+  }, [enabled, openSession, account?.user.id, selected?.id]);
 }

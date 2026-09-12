@@ -185,15 +185,54 @@ assert(
 
 print("PASS: session live mark sits in front of the title")
 
-let named = laidOutSessionRow(
-  LodySessionRowContent(
-    row: LodyListRow(title: "Review", subtitle: "lody-ios", modelName: "GPT-6", value: "Now"),
-    dot: .systemBlue,
-    live: false
-  )
-)
-assert(
-  named.accessibilityLabel.contains("GPT-6"),
-  "Session rows must speak the last model"
-)
-print("PASS: session rows expose the last model")
+// Compare the same real content view at the same width, including reuse back
+// into the default host. Sidebar typography can shrink, but not text or touch targets.
+@MainActor func fittedHeight(_ view: UIView) -> CGFloat {
+  view.systemLayoutSizeFitting(
+    CGSize(width: 288, height: 0),
+    withHorizontalFittingPriority: .required,
+    verticalFittingPriority: .fittingSizeLevel
+  ).height
+}
+
+let densityRow = LodyListRow(title: "Review sidebar", subtitle: "feature/sidebar", modelName: "GPT-6", value: "Now")
+let sessionContent = LodySessionRowContent(row: densityRow, dot: .systemBlue, live: true)
+let densitySession = LodySessionRowView(sessionContent)
+let groupedSessionHeight = fittedHeight(densitySession)
+let groupedSessionLabel = densitySession.accessibilityLabel
+let groupedTitleFont = sessionLabel(densitySession, densityRow.title).font!
+var sidebarSession = sessionContent
+sidebarSession.density = .compact
+densitySession.configuration = sidebarSession
+assert(fittedHeight(densitySession) <= groupedSessionHeight - 8, "Sidebar must fit more rows at the same width")
+assert(fittedHeight(densitySession) >= 44, "Compact rows must keep a 44 pt touch target")
+assert(densitySession.accessibilityLabel == groupedSessionLabel, "Sidebar must retain all session information")
+assert(sessionLabel(densitySession, densityRow.title).font.pointSize < groupedTitleFont.pointSize, "Sidebar title must be quieter than the grouped title")
+assert(sessionLabel(densitySession, densityRow.title).adjustsFontForContentSizeCategory)
+let groupedMetaFont = LodySessionRowView.meta(for: densityRow).attribute(.font, at: 0, effectiveRange: nil) as! UIFont
+let sidebarMetaFont = sessionLabel(densitySession, densityRow.subtitle).attributedText!.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
+assert(sidebarMetaFont.pointSize < groupedMetaFont.pointSize, "Attributed branch text must follow sidebar density too")
+densitySession.configuration = sessionContent
+assert(sessionLabel(densitySession, densityRow.title).font == groupedTitleFont, "Reuse must restore the phone title size")
+assert(abs(fittedHeight(densitySession) - groupedSessionHeight) < 0.5, "Reuse must restore grouped row spacing")
+sidebarSession.row = LodyListRow(title: "No metadata")
+densitySession.configuration = sidebarSession
+assert(fittedHeight(densitySession) >= 44, "A one-line sidebar row must still be tappable")
+
+let projectContent = LodyProjectRowContent(row: LodyListRow(title: "Lody", subtitle: "/tmp/lody", monogram: "L"), accent: .systemBlue)
+let densityProject = LodyProjectRowView(projectContent)
+let groupedProjectHeight = fittedHeight(densityProject)
+let groupedProjectLabel = densityProject.accessibilityLabel
+let projectText = densityProject.subviews.first { $0 is UIStackView }!
+let groupedProjectFont = sessionLabel(projectText, "Lody").font!
+var sidebarProject = projectContent
+sidebarProject.density = .compact
+densityProject.configuration = sidebarProject
+assert(fittedHeight(densityProject) <= groupedProjectHeight - 8)
+assert(fittedHeight(densityProject) >= 44)
+assert(densityProject.accessibilityLabel == groupedProjectLabel)
+assert(sessionLabel(projectText, "Lody").font.pointSize < groupedProjectFont.pointSize)
+densityProject.configuration = projectContent
+assert(sessionLabel(projectText, "Lody").font == groupedProjectFont, "Reuse must restore the phone project size")
+assert(abs(fittedHeight(densityProject) - groupedProjectHeight) < 0.5)
+print("PASS: sidebar uses quieter typography with complete text and 44 pt targets; grouped reuse restores its font and spacing")

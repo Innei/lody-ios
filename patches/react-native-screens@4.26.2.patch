@@ -29,7 +29,17 @@ index 192f5d2c77192f323844b0d11ee179081891e7a4..c899353593a6f0658bede1d102d7346b
    [RNSScreenStackHeaderConfig willShowViewController:viewController
                                              animated:animated
                                            withConfig:screenView.findHeaderConfig];
-@@ -986,6 +989,8 @@ - (void)navigationController:(UINavigationController *)navigationController
+@@ -726,4 +729,8 @@ - (void)layoutSubviews
+ - (void)layoutSubviews
+ {
+   [super layoutSubviews];
+-  _controller.view.frame = self.bounds;
++  // An owning UIKit container (such as UISplitViewController) lays out a
++  // directly adopted navigation controller. Only size our own child view.
++  if (_controller.view.superview == self || _controller.parentViewController == nil) {
++    _controller.view.frame = self.bounds;
++  }
+@@ -986,6 +993,8 @@ - (void)navigationController:(UINavigationController *)navigationController
         didShowViewController:(UIViewController *)viewController
                      animated:(BOOL)animated
  {

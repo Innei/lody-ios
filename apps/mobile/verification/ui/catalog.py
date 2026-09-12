@@ -31,3 +31,7 @@ SYSTEM = {
 
 def system(name):
     return SYSTEM[LANGUAGE][name]
+
+
+SYSTEM['en'].update(showSidebar='Show Sidebar', hideSidebar='Hide Sidebar')
+SYSTEM['zh-Hans'].update(showSidebar='显示边栏', hideSidebar='隐藏边栏')

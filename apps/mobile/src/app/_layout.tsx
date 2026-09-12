@@ -8,7 +8,7 @@ import { Stack, ThemeProvider } from 'expo-router';
 import { CatalogProvider } from '@/cloud/catalog/CatalogProvider';
 import { AuthProvider } from '@/cloud/auth/AuthProvider';
 import { StatusBar } from 'expo-status-bar';
-import { useColorScheme } from 'react-native';
+import { Platform, useColorScheme } from 'react-native';
 import { nativePresentationOptions } from '@/lib/presentation';
 import { navigationThemes } from '@/lib/theme/palette';
 import { AppearanceProvider, useAppearance } from '@/lib/theme/appearance';
@@ -73,7 +73,7 @@ function Root() {
 }
 
 function Bindings() {
-  useBindSessionNav();
+  useBindSessionNav({ enabled: !(Platform.OS === 'ios' && Platform.isPad) });
   useOnboardingGate();
   useEffect(() => {
     if (__DEV__) assertVendoredDomWebView();

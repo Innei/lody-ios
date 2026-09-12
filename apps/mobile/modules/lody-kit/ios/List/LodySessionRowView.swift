@@ -4,6 +4,12 @@ struct LodySessionRowContent: UIContentConfiguration {
   var row: LodyListRow
   var dot: UIColor?
   var live: Bool
+  var density: LodyRowDensity = .regular
+
+  @MainActor var accessibilityLabel: String {
+    [row.title, row.badge, LodySessionRowView.meta(for: row).string, row.modelName, row.value]
+      .filter { !$0.isEmpty }.joined(separator: ", ")
+  }
 
   func makeContentView() -> UIView & UIContentView { LodySessionRowView(self) }
   func updated(for state: UIConfigurationState) -> LodySessionRowContent { self }
@@ -45,6 +51,7 @@ final class LodySessionRowView: UIView, UIContentView {
   private var withMeta: [NSLayoutConstraint] = []
   private var withoutMeta: [NSLayoutConstraint] = []
   private var markCenter: NSLayoutConstraint!
+  private var minimumHeight: NSLayoutConstraint!
 
   var configuration: UIContentConfiguration {
     didSet { apply() }
@@ -87,6 +94,7 @@ final class LodySessionRowView: UIView, UIContentView {
       addSubview(view)
     }
     let margin = layoutMarginsGuide
+    minimumHeight = heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
     markCenter = ring.centerXAnchor.constraint(equalTo: leadingAnchor)
     NSLayoutConstraint.activate([
       markCenter,
@@ -129,12 +137,24 @@ final class LodySessionRowView: UIView, UIContentView {
     guard let content = configuration as? LodySessionRowContent else { return }
     let row = content.row
     let tint = content.dot ?? .secondaryLabel
-    directionalLayoutMargins.leading = LodyIndentedCell.textLeading
-    markCenter.constant = LodyIndentedCell.markCenter
+    let compact = content.density == .compact
+    directionalLayoutMargins = compact
+      ? .init(top: 5, leading: 22, bottom: 5, trailing: 10)
+      : .init(top: 11, leading: LodyIndentedCell.textLeading, bottom: 11, trailing: 16)
+    minimumHeight.isActive = compact
+    markCenter.constant = compact ? 10 : LodyIndentedCell.markCenter
     title.text = row.title
-    title.font = .preferredFont(forTextStyle: row.unread ? .headline : .body)
+    if compact {
+      title.font = UIFont.preferredFont(forTextStyle: .subheadline).withWeight(row.unread ? .semibold : .regular)
+    } else {
+      title.font = .preferredFont(forTextStyle: row.unread ? .headline : .body)
+    }
+    let metadataFont = UIFont.preferredFont(forTextStyle: compact ? .caption1 : .footnote)
+    meta.font = metadataFont
+    model.font = metadataFont
+    time.font = metadataFont
     title.textColor = row.destructive ? .systemRed : .label
-    let metaText = Self.meta(for: row)
+    let metaText = Self.meta(for: row, density: content.density)
     meta.attributedText = metaText
     let modelPrefix = metaText.length > 0 ? " · " : ""
     model.text = row.modelName.isEmpty ? nil : modelPrefix + row.modelName
@@ -152,13 +172,11 @@ final class LodySessionRowView: UIView, UIContentView {
     ring.backgroundColor = tint.withAlphaComponent(0.14)
     ring.isHidden = !content.live
     isAccessibilityElement = true
-    accessibilityLabel = [row.title, row.badge, metaText.string, row.modelName, row.value]
-      .filter { !$0.isEmpty }
-      .joined(separator: ", ")
+    accessibilityLabel = content.accessibilityLabel
   }
 
-  private static func meta(for row: LodyListRow) -> NSAttributedString {
-    let footnote = UIFont.preferredFont(forTextStyle: .footnote)
+  static func meta(for row: LodyListRow, density: LodyRowDensity = .regular) -> NSAttributedString {
+    let footnote = UIFont.preferredFont(forTextStyle: density == .compact ? .caption1 : .footnote)
     let base: UIFont = row.subtitleMono
       ? .monospacedSystemFont(ofSize: footnote.pointSize, weight: .regular)
       : footnote

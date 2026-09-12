@@ -55,3 +55,42 @@ test('presentation keeps callbacks outside URLs, isolates nested sessions, settl
   assert.equal(getPresentationSession(currentId()), undefined);
   navigationError = undefined;
 });
+
+test('local native hosts share completion, cancellation and failure cleanup without routing', async () => {
+  let session;
+  const previousRoute = target;
+  const result = present(
+    page,
+    { draft: 'keep me' },
+    {
+      host: (value) => {
+        session = value;
+      },
+    },
+  );
+  assert.equal(target, previousRoute);
+  assert.equal(session.params.draft, 'keep me');
+  assert.equal(completePresentation(session.id, 'created'), true);
+  assert.deepEqual(await result, { status: 'completed', value: 'created' });
+  assert.equal(cancelPresentation(session.id), false);
+
+  const cancelled = present(page, undefined, {
+    host: (value) => {
+      session = value;
+    },
+  });
+  assert.equal(cancelPresentation(session.id), true);
+  assert.deepEqual(await cancelled, { status: 'cancelled' });
+  assert.equal(getPresentationSession(session.id), undefined);
+
+  await assert.rejects(
+    present(page, undefined, {
+      host: (value) => {
+        session = value;
+        throw new Error('host unavailable');
+      },
+    }),
+    /host unavailable/,
+  );
+  assert.equal(getPresentationSession(session.id), undefined);
+});

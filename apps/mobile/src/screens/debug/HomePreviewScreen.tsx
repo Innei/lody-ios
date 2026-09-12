@@ -77,6 +77,7 @@ const catalog: Catalog = {
   machineIds: [],
 };
 const noop = async () => {};
+const emptyCatalog: Catalog = { projects: [], sessions: [], machineIds: [] };
 const previewCache = JSON.stringify({
   v: 1,
   status: 'live',
@@ -112,6 +113,7 @@ const previewCache = JSON.stringify({
 export function HomePreviewProviders({ children }: PropsWithChildren) {
   const [selected, setSelected] =
     useState<(typeof workspaces)[number]>(workspace);
+  const selectedCatalog = selected.id === workspace.id ? catalog : emptyCatalog;
   useEffect(() => {
     void writeLocalValue('draft:ui-home:ui-home:ui-design', '');
     void writeLocalValue(
@@ -147,8 +149,8 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
     >
       <CatalogContext
         value={{
-          catalog,
-          serverSessions: catalog.sessions,
+          catalog: selectedCatalog,
+          serverSessions: selectedCatalog.sessions,
           selected,
           loading: false,
           connected: true,

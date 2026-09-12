@@ -265,6 +265,27 @@ precondition((beforeNativeSend...afterNativeSend).contains(generatedStartedAt),
   "The native send event must carry the timer's durable submission clock")
 print("Composer handoff: destination ownership, failed retention, no-overwrite and send identity passed")
 
+let panelComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
+actionWindow.addSubview(panelComposer)
+panelComposer.sendHandoff = false
+panelComposer.setComposerState(ready)
+let panelInput = descendants(panelComposer).compactMap { $0 as? UITextView }.first!
+let panelSend = descendants(panelComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }!
+panelInput.text = "Keep this draft visible"
+panelComposer.textViewDidChange(panelInput)
+var panelPayload: [String: Any] = [:]
+panelComposer.onSend = { panelPayload = $0 }
+panelSend.sendActions(for: .touchUpInside)
+precondition(panelPayload["text"] as? String == "Keep this draft visible")
+precondition(!ChatSendHandoff.isWaiting(id: panelPayload["id"] as! String),
+  "Cross-container creation must not leave a flying copy in the window")
+precondition(panelInput.text == "Keep this draft visible" && !panelInput.isEditable && !panelSend.isEnabled,
+  "Cross-container sends retain and lock the source draft until dismissal")
+panelComposer.restoreDraft(token: 1)
+precondition(panelInput.text == "Keep this draft visible" && panelInput.isEditable && panelSend.isEnabled,
+  "Rejected creation unlocks the same draft without duplicating it")
+panelComposer.removeFromSuperview()
+
 handoffComposer.clearDraft(token: 1)
 handoffInput.text = "下一条草稿"
 handoffComposer.clearDraft(token: 2)

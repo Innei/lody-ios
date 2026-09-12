@@ -1,89 +1,47 @@
 import { Stack, useRouter } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
 import {
   NativeGroupedList,
   NativeMenuButton,
   NativeSymbolButton,
-  initialInboxView,
-  saveInboxView,
-  initialInboxProjectSort,
-  saveInboxProjectSort,
-  projectSorts,
-  readInboxExpansion,
-  saveInboxExpansion,
 } from '@lody-ios/kit';
 import { Screen } from '@/ui/Screen';
-import { useAuth } from '@/cloud/auth/AuthProvider';
-import { useCatalog } from '@/cloud/catalog/CatalogProvider';
-import { useSessionListCatalog } from '@/features/sessions/useSessionListCatalog';
-import { usePalette } from '@/lib/theme/palette';
-import { listPlaceholder, searchPlaceholder } from '@/ui/listState';
 import {
-  inboxSections,
-  isChatSectionRow,
-  projectSections,
-  searchSections,
-  type ProjectSort,
-} from '@/features/sessions/inbox';
+  useInboxModel,
+  inboxViews,
+  inboxSorts,
+  type InboxModel,
+} from '@/features/sessions/useInboxModel';
 import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
-import { requestNewSession } from '@/features/sessions/sessionNav';
-import { listRowAction } from '@/features/sessions/sessionActions';
 import { definePage, present } from '@/lib/presentation';
-import { showToast } from '@/ui/toast';
-import { t } from '../lib/i18n/index.ts';
+import { t } from '@/lib/i18n';
 import { SettingsScreen } from './SettingsScreen';
 
-const inboxViews = [
-  { mode: 0, key: 'inbox.settings.view.projects', icon: 'folder' },
-  { mode: 1, key: 'inbox.settings.view.activity', icon: 'clock' },
-  { mode: 2, key: 'inbox.settings.view.chat', icon: 'bubble.left' },
-] as const;
-
-const inboxSorts = [
-  { id: 'name' as const, key: 'inbox.settings.sort.name', icon: 'textformat' },
-  {
-    id: 'activity' as const,
-    key: 'inbox.settings.sort.activity',
-    icon: 'clock',
-  },
-  {
-    id: 'urgency' as const,
-    key: 'inbox.settings.sort.urgency',
-    icon: 'exclamationmark.circle',
-  },
-] as const;
-
-function View() {
-  const router = useRouter();
-  const { account, localReady } = useAuth();
-  const colors = usePalette();
-  const {
-    catalog: sourceCatalog,
-    selected,
-    setWorkspaceId,
-    loading,
-    connected,
-  } = useCatalog();
-  const catalog = useSessionListCatalog(
-    sourceCatalog,
-    account?.user.id ?? '',
-    selected?.id ?? '',
+function InboxList({ model }: { model: InboxModel }) {
+  if (!model.ready || !model.account) return <Screen />;
+  return (
+    <NativeGroupedList
+      style={{ flex: 1 }}
+      accent={model.colors.accent}
+      sections={model.sections}
+      placeholder={model.placeholder}
+      contentStyle
+      previewUserId={model.account.user.id}
+      previewWorkspaceId={model.selected?.id}
+      onRowPress={({ nativeEvent: { id, expanded } }) => {
+        if (!model.consumeRowPress(id, expanded))
+          openCatalogRow(id, model.catalog);
+      }}
+      onRowAction={({ nativeEvent: { id, actionId } }) =>
+        model.rowAction(id, actionId)
+      }
+    />
   );
-  const [mode, setMode] = useState(initialInboxView);
-  const [sort, setSort] = useState<ProjectSort>(initialInboxProjectSort);
-  const [expanded, setExpanded] = useState(readInboxExpansion);
-  const [query, setQuery] = useState('');
-  const creating = useRef(false);
-  const searching = !!query.trim();
-  const sections = useMemo(() => {
-    if (mode === 0)
-      return projectSections(catalog, colors.accent, expanded, undefined, sort);
-    return inboxSections(catalog, {
-      accent: colors.accent,
-      chatOnly: mode === 2,
-    });
-  }, [mode, sort, catalog, colors.accent, expanded]);
-  if (!localReady || !account) return <Screen />;
+}
+
+function RouterChrome({ model }: { model: InboxModel }) {
+  const router = useRouter();
+  const { account, colors, mode, selected, sort } = model;
+  if (!model.ready || !account) return null;
   const workspaceName = selected?.name ?? t('common.workspace');
   return (
     <>
@@ -106,7 +64,7 @@ function View() {
               title: workspace.name,
               selected: workspace.id === selected?.id,
             }))}
-            onSelect={setWorkspaceId}
+            onSelect={model.setWorkspaceId}
           />
         </Stack.Toolbar.View>
       </Stack.Toolbar>
@@ -121,10 +79,7 @@ function View() {
               key={view.mode}
               icon={view.icon}
               isOn={mode === view.mode}
-              onPress={() => {
-                setMode(view.mode);
-                saveInboxView(view.mode);
-              }}
+              onPress={() => model.setView(view.mode)}
             >
               {t(view.key)}
             </Stack.Toolbar.MenuAction>
@@ -135,10 +90,7 @@ function View() {
                 key={item.id}
                 icon={item.icon}
                 isOn={sort === item.id}
-                onPress={() => {
-                  setSort(item.id);
-                  saveInboxProjectSort(projectSorts.indexOf(item.id));
-                }}
+                onPress={() => model.setProjectSort(item.id)}
               >
                 {t(item.key)}
               </Stack.Toolbar.MenuAction>
@@ -159,8 +111,8 @@ function View() {
         placement="integrated"
         placeholder={t('search.field.placeholder')}
         hideWhenScrolling={false}
-        onChangeText={({ nativeEvent }) => setQuery(nativeEvent.text)}
-        onCancelButtonPress={() => setQuery('')}
+        onChangeText={({ nativeEvent }) => model.setQuery(nativeEvent.text)}
+        onCancelButtonPress={() => model.setQuery('')}
       />
       <Stack.Toolbar>
         <Stack.Toolbar.SearchBarSlot />
@@ -170,59 +122,19 @@ function View() {
           separateBackground
           tintColor={colors.accent}
           accessibilityLabel={t('tabs.newSession')}
-          onPress={async () => {
-            if (creating.current) return;
-            if (!selected) {
-              showToast(t('tabs.toast.signInFirst'));
-              return;
-            }
-            creating.current = true;
-            try {
-              await requestNewSession(
-                selected.id,
-                catalog,
-                undefined,
-                mode === 2 ? 'chat' : undefined,
-              );
-            } finally {
-              creating.current = false;
-            }
-          }}
+          onPress={() => void model.newSession()}
         />
       </Stack.Toolbar>
-      <NativeGroupedList
-        style={{ flex: 1 }}
-        accent={colors.accent}
-        sections={
-          searching ? searchSections(catalog, query, colors.accent) : sections
-        }
-        placeholder={
-          searching
-            ? searchPlaceholder({ signedIn: true, query, loading, connected })
-            : listPlaceholder({ loading, connected })
-        }
-        contentStyle
-        previewUserId={account.user.id}
-        previewWorkspaceId={selected?.id}
-        onRowPress={({ nativeEvent: { id, expanded: next = true } }) => {
-          if (id === 'view:chat') {
-            setMode(2);
-            saveInboxView(2);
-            return;
-          }
-          if (id.startsWith('toggle:')) {
-            const projectId = id.slice(7);
-            saveInboxExpansion(projectId, next);
-            setExpanded((previous) => ({ ...previous, [projectId]: next }));
-            return;
-          }
-          if (isChatSectionRow(id)) return;
-          openCatalogRow(id, catalog);
-        }}
-        onRowAction={({ nativeEvent: { id, actionId } }) => {
-          if (selected) listRowAction(selected.id, catalog, id, actionId);
-        }}
-      />
+    </>
+  );
+}
+
+function View() {
+  const model = useInboxModel();
+  return (
+    <>
+      <RouterChrome model={model} />
+      <InboxList model={model} />
     </>
   );
 }

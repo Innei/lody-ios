@@ -383,6 +383,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private var composerOptions = ChatComposerOptions()
   private var composerExpanded = false
   private var pendingDraft: (text: String, attachments: [ChatAttachment])?
+  var sendHandoff = true
   private var lastRestoreToken = 0
   private var hasInitialDraft = false
   private var hasInitialAttachments = false
@@ -660,7 +661,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     ChatSendHandoff.cancel(id: id)
     pendingSendID = nil
     if let draft = pendingDraft {
-      if (input.text ?? "").isEmpty && attachments.isEmpty {
+      if !sendHandoff || ((input.text ?? "").isEmpty && attachments.isEmpty) {
         input.text = draft.text
         attachments = draft.attachments
       } else {
@@ -697,6 +698,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private func takeDraft() {
     guard pendingDraft == nil else { return }
     pendingDraft = (input.text ?? "", attachments)
+    // Cross-container creation keeps its draft visible while its host dismisses.
+    guard sendHandoff else { return }
     input.text = ""
     attachments = []
   }
@@ -746,7 +749,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     if expansionChanged && window != nil { layoutIfNeeded() }
     composerExpanded = expanded
     surfaceLayout.update(isFocused: expanded)
-    input.isEditable = state.editable
+    input.isEditable = state.editable && (sendHandoff || !sending)
     attach.isEnabled = state.editable && !sending
     attach.alpha = attach.isEnabled ? 1 : 0.5
     attachmentBar.isUserInteractionEnabled = state.editable && !sending
@@ -904,7 +907,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     let queued = queuesSubmission
     let id = UUID().uuidString.lowercased()
     let body = input.text ?? ""
-    if !queued {
+    if !queued && sendHandoff {
       if !body.isEmpty { ChatSendHandoff.begin(id: id, text: body, source: input, background: inputSurface) }
       ChatSendHandoff.beginAttachments(id: id, attachments: attachments, source: attachmentBar)
     }

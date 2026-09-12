@@ -11,13 +11,22 @@ def has_label(text):
 
 
 connect = ui.element('onboarding-connect')
+screen = ui.state()[0]['frame']
+sheet = ui.element('onboarding-sheet')['frame']
+if screen['width'] >= 700:
+    assert sheet['width'] < screen['width'] - 80, ('iPad welcome must have side margins', sheet, screen)
+    assert sheet['height'] < screen['height'] - 80, ('iPad welcome must have top and bottom margins', sheet, screen)
+    assert abs(sheet['x'] + sheet['width'] / 2 - screen['x'] - screen['width'] / 2) < 4, ('Welcome is not horizontally centered', sheet, screen)
+    # UIKit's form sheet uses the available area around system safe areas.
+    assert abs(sheet['y'] + sheet['height'] / 2 - screen['y'] - screen['height'] / 2) < 16, ('Welcome is not vertically centered', sheet, screen)
 assert connect['frame']['height'] >= 44
 assert not any(item.get('AXUniqueId') == 'xmark' or item.get('AXLabel') == catalog.system('close') for item in ui.state()), 'Welcome sheet must not offer a close button'
 for key in ('onboarding.sessions.title', 'onboarding.reply.title', 'onboarding.privacy.title'):
     ui.wait(lambda items, key=key: any(catalog.text(key) in (item.get('AXLabel') or '') for item in items), f'Missing feature {key}')
 ui.capture('idle')
 
-ui.axe('swipe', '--start-x', '200', '--start-y', '120', '--end-x', '200', '--end-y', '700', '--duration', '.5', '--post-delay', '1')
+ui.axe('swipe', '--start-x', str(sheet['x'] + sheet['width'] / 2), '--start-y', str(sheet['y'] + 20),
+       '--end-x', str(sheet['x'] + sheet['width'] / 2), '--end-y', str(sheet['y'] + sheet['height'] - 20), '--duration', '.5', '--post-delay', '1')
 ui.element('onboarding-connect')
 ui.capture('after-swipe')
 

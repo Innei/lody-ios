@@ -375,14 +375,19 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     bottomButton.translatesAutoresizingMaskIntoConstraints = false
     collection.translatesAutoresizingMaskIntoConstraints = false
     composer.translatesAutoresizingMaskIntoConstraints = false
+    let columnWidth = collection.widthAnchor.constraint(equalTo: widthAnchor)
+    columnWidth.priority = .defaultHigh
     NSLayoutConstraint.activate([
       bottomButton.centerXAnchor.constraint(equalTo: composer.centerXAnchor),
       bottomButton.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
       bottomButton.widthAnchor.constraint(equalToConstant: 44), bottomButton.heightAnchor.constraint(equalToConstant: 44),
       collection.topAnchor.constraint(equalTo: topAnchor),
-      collection.leadingAnchor.constraint(equalTo: leadingAnchor), collection.trailingAnchor.constraint(equalTo: trailingAnchor),
+      collection.centerXAnchor.constraint(equalTo: centerXAnchor),
+      // Existing 20 pt cell margins leave a maximum 760 pt reading width.
+      collection.widthAnchor.constraint(lessThanOrEqualToConstant: 800),
+      columnWidth,
       collection.bottomAnchor.constraint(equalTo: bottomAnchor),
-      composer.leadingAnchor.constraint(equalTo: leadingAnchor), composer.trailingAnchor.constraint(equalTo: trailingAnchor),
+      composer.leadingAnchor.constraint(equalTo: collection.leadingAnchor), composer.trailingAnchor.constraint(equalTo: collection.trailingAnchor),
       composer.bottomAnchor.constraint(equalTo: keyboardLayoutGuide.topAnchor),
     ])
   }
@@ -462,7 +467,10 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   private func attachTitle() {
     bindScrollOwnerIfNeeded()
     guard window != nil, let owner = scrollOwner else { return }
-    guard !navigationTitle.isEmpty || !navigationSubtitle.isEmpty || !navigationMachine.isEmpty else { return }
+    guard !navigationTitle.isEmpty || !navigationSubtitle.isEmpty || !navigationMachine.isEmpty else {
+      ChatNavigationTitle.detach(button: titleButton, from: owner.navigationItem)
+      return
+    }
     if titleDisappearing {
       ChatNavigationTitle.preserveSubtitle(titleSubtitle(), on: owner.navigationItem)
       return

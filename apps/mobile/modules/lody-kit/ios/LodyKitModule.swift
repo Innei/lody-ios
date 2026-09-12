@@ -405,12 +405,24 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       self.onAppActive()
     }
 
+    #if DEBUG
+    View(LodyNativeShellPOC.self) {
+      Events("onAction")
+      Prop("collectionSidebar") { (view: LodyNativeShellPOC, value: Bool) in view.collectionSidebar = value }
+    }
+    View(LodyNativePagePOC.self) {
+      Prop("layoutRoot") { (_: LodyNativePagePOC, _: Bool) in }
+      Prop("pageKind") { (view: LodyNativePagePOC, value: String) in view.pageKind = value }
+    }
+    #endif
+
     View(LodyMentionPickerView.self) {
       Events("onPick", "onQueryReset", "onRetry")
       Prop("configurationJSON") { (view: LodyMentionPickerView, value: String) in view.configure(value) }
     }
 
     View(LodyComposerView.self) {
+      Prop("sendHandoff") { (view: LodyComposerView, value: Bool?) in view.composer.sendHandoff = value ?? true }
       Prop("scrollEdge") { (view: LodyComposerView, value: Bool) in view.scrollEdge = value }
       Events("onSend", "onHeightChange", "onComposerOptionChange", "onMentionBrowse")
       Prop("composerJSON") { (view: LodyComposerView, value: String) in view.composer.setComposerState(value) }
@@ -497,6 +509,16 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
     }
 
+    View(LodySidebar.self) {
+      Events("onRowPress", "onRowAction")
+      Prop("sections") { (view: LodySidebar, value: [LodyListSection]) in view.setSections(value) }
+      Prop("selectedRowId") { (view: LodySidebar, value: String?) in view.setSelectedRowId(value ?? "") }
+      Prop("placeholder") { (view: LodySidebar, value: String) in view.setPlaceholder(value) }
+      Prop("accent") { (view: LodySidebar, value: String) in view.setAccent(value) }
+      Prop("previewUserId") { (view: LodySidebar, value: String) in view.previewUserId = value }
+      Prop("previewWorkspaceId") { (view: LodySidebar, value: String) in view.previewWorkspaceId = value }
+    }
+
     View(LodyGroupedList.self) {
       Prop("bottomInset") { (view: LodyGroupedList, value: Double) in view.setBottomInset(CGFloat(value)) }
       Prop("contentStyle") { (view: LodyGroupedList, value: Bool) in
@@ -557,6 +579,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }
 
     View(LodySymbolButton.self) {
+      Prop("glass") { (view: LodySymbolButton, value: Bool) in
+        view.setGlass(value)
+      }
       Events("onSymbolPress", "onSymbolLongPress")
       Prop("imageAsset") { (view: LodySymbolButton, imageAsset: String) in
         view.setImageAsset(imageAsset)
@@ -578,6 +603,52 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
       Prop("longPress") { (view: LodySymbolButton, value: Bool) in
         view.setLongPress(value)
+      }
+    }
+
+    View(LodySearchToolbar.self) {
+      Events("onSearchChange", "onAction")
+      Prop("placeholder") { (view: LodySearchToolbar, value: String) in
+        view.setPlaceholder(value)
+      }
+      Prop("actionAccessibilityName") { (view: LodySearchToolbar, value: String) in
+        view.setActionAccessibilityName(value)
+      }
+      Prop("tint") { (view: LodySearchToolbar, value: String) in
+        view.setTint(value)
+      }
+      Prop("visible") { (view: LodySearchToolbar, value: Bool) in
+        view.setVisible(value)
+      }
+    }
+
+    View(LodySplitView.self) {
+      Events("onColumnLayout")
+      Prop("hasDetail") { (view: LodySplitView, value: Bool) in
+        view.setHasDetail(value)
+      }
+      Prop("detailRequest") { (view: LodySplitView, value: Int) in
+        view.setDetailRequest(value)
+      }
+    }
+
+    View(LodyEmbeddedSheet.self) {
+      Events("onDismiss")
+      Prop("mediumFraction") { (view: LodyEmbeddedSheet, value: Double) in
+        view.setMediumFraction(value)
+      }
+      Prop("dismissRequest") { (view: LodyEmbeddedSheet, value: Int) in
+        view.setDismissRequest(value)
+      }
+      Prop("grabberAccessibilityIdentifier") { (view: LodyEmbeddedSheet, value: String) in
+        view.setGrabberAccessibilityIdentifier(value)
+      }
+      Prop("grabberAccessibility") { (view: LodyEmbeddedSheet, value: [String: String]) in
+        view.setGrabberAccessibility(
+          label: value["label"] ?? "",
+          medium: value["medium"] ?? "",
+          large: value["large"] ?? ""
+        )
       }
     }
 

@@ -89,13 +89,17 @@ ui.axe('tap', '--id', 'BackButton', '--post-delay', '1')
 home('relinked-return')
 
 # Sheets and an old workspace must not remain below the newly opened session.
+avatar = catalog.text('inbox.workspaceSwitch.accessibility', name='我的超长工作区名称不能折行')
+ui.axe('tap', '--label', avatar, '--post-delay', '.5')
+ui.axe('tap', '--label', '另一个工作区', '--post-delay', '.6')
+ui.wait(lambda items: not any(i.get('AXUniqueId') == 'ui-design' for i in items), 'Old workspace catalog remained visible')
 ui.axe('tap', '--label', catalog.text('tabs.settings'), '--post-delay', '1')
 ui.element('account')
-open_url('other/sessions/ui-design')
+open_url('ui-home/sessions/ui-design')
 session('首页交互设计')
 swipe_back()
 home('workspace-return')
-avatar = catalog.text('inbox.workspaceSwitch.accessibility', name='另一个工作区')
+avatar = catalog.text('inbox.workspaceSwitch.accessibility', name='我的超长工作区名称不能折行')
 ui.wait(lambda items: any(i.get('AXLabel') == avatar for i in items), 'Link did not select the target workspace')
 
 # Missing Router pages return to the existing root, never replace the top with another Home.

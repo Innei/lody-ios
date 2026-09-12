@@ -16,7 +16,7 @@ from inspector import inspector
 
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from simulator import run_with_simulator, SimulatorPool
+from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
@@ -24,10 +24,12 @@ BATCHES = {
     'send': ['root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
     'chat': ['user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'changes', 'inline-diff'],
 }
-CASES = [case for batch in BATCHES.values() for case in batch]
+CASES = [case for batch in BATCHES.values() for case in batch] + ['ipad', 'ipad-chrome', 'native-shell', 'native-collection']
 # These select HomePreviewProviders at app launch, using the same shared bundle.
-HOME_CASES = {'mentions-production', 'home', 'licenses', 'navigation', 'project-history-entry'}
+HOME_CASES = {'mentions-production', 'home', 'licenses', 'navigation', 'project-history-entry', 'ipad', 'ipad-chrome'}
 PREVIEW = {
+    'native-shell': 'native-shell-poc',
+    'native-collection': 'native-collection-poc',
     'pull-request': 'pull-request-preview',
     'mention-chat': 'mention-chat',
     'mention-sheet': 'mention-sheet',
@@ -66,6 +68,8 @@ PREVIEW = {
     'community-notice': 'community-notice',
 }
 READY = {
+    'native-shell': 'native-shell-ready',
+    'native-collection': 'poc-native-collection',
     'pull-request': 'session-input',
     'mention-chat': 'session-input',
     'mention-sheet': 'create-session-input',
@@ -140,7 +144,12 @@ if args.udid is None:
     if args.case is not None:
         verify_name = args.case.replace('-', ' ').title()
     command = [sys.executable, __file__, *sys.argv[1:]]
-    raise SystemExit(run_with_simulator(SimulatorPool(), verify_name, command))
+    device_type = DEVICE_TYPES['ipad'] if args.case in {'ipad', 'ipad-chrome', 'native-shell', 'native-collection'} else DEVICE_TYPES['iphone']
+    raise SystemExit(
+        run_with_simulator(
+            SimulatorPool(device_type=device_type), verify_name, command
+        )
+    )
 def sim(*command, check=True):
     return subprocess.run(['xcrun', 'simctl', *command], check=check, timeout=60, capture_output=True, text=True)
 
@@ -170,7 +179,7 @@ with metro_context:
         cases = sorted(HOME_CASES.intersection(selected)) + [case for case in selected if case not in HOME_CASES]
         launch_mode = None
         app_pid = None
-        trace_throw = bool(set(selected).intersection({'send-transition', 'send-transition-handoff', 'send', 'send-handoff', 'send-rounds', 'send-queue'}))
+        trace_throw = bool(set(selected).intersection({'send-transition', 'send-transition-handoff', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'ipad-chrome'}))
         for appearance in ['light', 'dark']:
             sim('ui', args.udid, 'appearance', appearance)
             for case in cases:
@@ -188,7 +197,7 @@ with metro_context:
                     if restart:
                         result['appLifecycle'] = 'launch'
                         sim('terminate', args.udid, 'app.innei.lody', check=False)
-                        sim('launch', args.udid, 'app.innei.lody', '--ui-verify', *(['--ui-verify-home'] if case in HOME_CASES else []), *(['--ui-verify-mentions'] if case in {'mentions-production', 'home'} else []), *(['--ui-verify-scroll'] if mode[1] else []), *(['--ui-verify-throw'] if trace_throw else []), '--initialUrl', f'http://127.0.0.1:{args.port}?disableOnboarding=1', '-expo.devlauncher.hasGrantedNetworkPermission', 'YES', '-EXDevMenuShowsAtLaunch', 'NO', '-EXDevMenuIsOnboardingFinished', 'YES', '-EXDevMenuShowFloatingActionButton', 'NO', '-AppleLanguages', f'({args.language})', '-AppleLocale', 'en_US' if args.language == 'en' else 'zh_CN',
+                        sim('launch', args.udid, 'app.innei.lody', '--ui-verify', *(['--ui-verify-home'] if case in HOME_CASES else []), *(['--ui-verify-mentions'] if case in {'mentions-production', 'home', 'ipad', 'ipad-chrome'} else []), *(['--ui-verify-scroll'] if mode[1] else []), *(['--ui-verify-throw'] if trace_throw else []), '--initialUrl', f'http://127.0.0.1:{args.port}?disableOnboarding=1', '-expo.devlauncher.hasGrantedNetworkPermission', 'YES', '-EXDevMenuShowsAtLaunch', 'NO', '-EXDevMenuIsOnboardingFinished', 'YES', '-EXDevMenuShowFloatingActionButton', 'NO', '-AppleLanguages', f'({args.language})', '-AppleLocale', 'en_US' if args.language == 'en' else 'zh_CN',
                             '-AppleKeyboards', '(en_US@sw=QWERTY)')
                         launch_mode = mode
                     recording = subprocess.Popen(['xcrun', 'simctl', 'io', args.udid, 'recordVideo', '--codec=hevc', str(output / 'run.mp4')], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -238,7 +247,9 @@ with metro_context:
                         ui.axe('tap', '--label', 'Image Fixture')
                         ui.element('preview-image:attachment:ui-verify-image')
                     ui.capture('before')
-                    script = Path(__file__).with_name(f'{case}.py') if case in ['pull-request', 'project-history-entry', 'project-history', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                    script = Path(__file__).with_name(f'{case}.py') if case in ['pull-request', 'project-history-entry', 'project-history', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                    if case in {'native-shell', 'native-collection', 'ipad-chrome'}:
+                        script = Path(__file__).with_name(f'{case}.py')
                     if case in ['fast-chat', 'fast-sheet']:
                         script = Path(__file__).with_name('fast.py')
                     if case == 'composer-glass-chat':

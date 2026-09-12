@@ -35,10 +35,27 @@ its own iPhone 17 Pro / iOS 26.5 device from the `Lody * Verify` pool:
 ```sh
 pnpm verify:native
 pnpm verify:ui --app /absolute/path/to/Lody.app
+pnpm verify:ui --case ipad --app /absolute/path/to/Lody.app --output .artifacts/ipad
 # One Metro, three concurrent leased Simulators, all batches:
 pnpm verify:ui --parallel --app /absolute/path/to/Lody.app --output .artifacts/ui-parallel
 pnpm verify:ui --app /absolute/path/to/Lody.app --language zh-Hans --output .artifacts/ui-zh
 ```
+
+The current `ipad-chrome` case leases an iPad Air 11-inch (M2), separately from
+phone batches. It exercises the production `PadHomeScreen`: independent native
+sidebar, selected session and outline restoration, project push/back, top search,
+bottom workspace/new-session actions, and a window-level creation form.
+Switching to an empty workspace must remove the old conversation; a real
+`lody://` system deep link then resolves the original workspace and opens its
+session in the right column without adding a phone route. The creation flow uses
+offline service outcomes and retains its first message in that same column.
+Screenshots and video cover light/dark states; no cloud turn is dispatched.
+
+`NativeSidebar` and `NativeGroupedList` are separate containers. They share row
+content, row interactions, and the Inbox/Project business models, not device
+layout. The native `list` check exercises shared content at both densities;
+`home` verifies the iPhone grouped host. The older `ipad` script records the
+superseded panel-local sheet experiment and is not current business acceptance.
 
 For a verified build, wrap the build and checks so Xcode cannot select a personal
 Simulator. The wrapper exposes its device as `LODY_VERIFY_UDID`; nested verify
@@ -106,6 +123,7 @@ visual smoothness. The probe contains fixture IDs and geometry only.
 | project-history        | ProjectHistoryView + NativeGroupedList                | Device/project/agent drill-down, delayed loading vs failed/empty results, native toolbar placement and disabled states, select/deselect all, partial import retry, conflict confirmation and return-time toolbar cleanup                                                                                                                                                                                                                                                                                                          |
 | settings               | RemoteSettingsView + RemoteSettingEditorScreen        | Leading Cancel/trailing Save while typing, compact Machine/MCP sheets, Agent prompt, failed load retry, failed-save Toast with draft retention, and saved-value readback                                                                                                                                                                                                                                                                                                                                                          |
 | home                   | InboxScreen header + glass FAB + settings Sheet       | Workspace chip loads `user.image` (letter fallback); inbox header search, archived results, cancellation restore; view menu switches Projects / Activity / Chat and project sort; chat-only sessions sit in a trailing 对话 group; empty project shows `0`; project/session long-press context menus and session transcript peek; bottom-right glass create opens a 项目 / 对话 title segment and cancels back; long-press Settings opens Debug and returns; push remote settings and archive in settings sheet with close/return |
+| ipad                   | PadHomeScreen + native panel stack + session detail   | Floating responsive panel, panel-local New Session sheet with two detents and swipe dismissal, project push/back with its own native header, session detail behind the retained panel, collapse/restore, opaque centered Settings sheet, portrait/landscape rotation, and light/dark appearance                                                                                                                                                                                                                                   |
 | licenses               | Settings sheet + LicensesScreen + LicenseDetailScreen | App AGPL notice first, then the alphabetical bundled-library list with license ids and versions, full license text on push, back to the list and sheet close                                                                                                                                                                                                                                                                                                                                                                      |
 | onboarding             | OnboardingScreen (non-dismissable pageSheet)          | No close button, swipe-down resists, connect → waiting code → cancel error → retry, sheet closes itself on sign-in                                                                                                                                                                                                                                                                                                                                                                                                                |
 | community-notice       | Community notice Alert (Debug + first signed-in use)  | Title, unofficial-community copy, Star / Not Now actions; Not Now dismisses; Debug row shows the same alert again                                                                                                                                                                                                                                                                                                                                                                                                                 |
