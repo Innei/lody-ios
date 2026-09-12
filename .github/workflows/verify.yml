@@ -86,12 +86,8 @@ jobs:
           bundle exec pod install
       - name: Build signed Simulator app
         run: |
-          mkdir -p .artifacts/ui-build
-          set -o pipefail
-          xcodebuild -workspace apps/mobile/ios/Lody.xcworkspace -scheme Lody \
-            -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath "$RUNNER_TEMP/lody-build" build 2>&1 | tee .artifacts/ui-build/build.log
-          tar -czf "$RUNNER_TEMP/lody-simulator.tar.gz" -C "$RUNNER_TEMP/lody-build/Build/Products/Debug-iphonesimulator" Lody.app
+          APP=$(pnpm --silent verify:build --derived-data "$RUNNER_TEMP/lody-build")
+          tar -czf "$RUNNER_TEMP/lody-simulator.tar.gz" -C "$(dirname "$APP")" Lody.app
       - name: Upload Simulator app
         uses: actions/upload-artifact@v4
         with:

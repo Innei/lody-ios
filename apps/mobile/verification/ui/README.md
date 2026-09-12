@@ -64,21 +64,22 @@ layout. The native `list` check exercises shared content at both densities;
 superseded panel-local sheet experiment and is not current business acceptance.
 
 For a verified build, wrap the build and checks so Xcode cannot select a personal
-Simulator. The wrapper exposes its device as `LODY_VERIFY_UDID`; nested verify
-commands use that lease automatically:
+Simulator. The wrapper exposes its device as `LODY_VERIFY_UDID`; `pnpm
+verify:build` builds for that lease and prints the App path, and nested verify
+commands reuse the same lease:
 
 ```sh
 pnpm verify:simulator --name 'File Preview' -- zsh -euc '
-  pnpm --filter @lody-ios/mobile native:assets
-  xcodebuild -workspace apps/mobile/ios/Lody.xcworkspace -scheme Lody \
-    -configuration Debug -sdk iphonesimulator \
-    -destination "id=$LODY_VERIFY_UDID" \
-    -derivedDataPath /tmp/lody-build build
   pnpm verify:native
-  pnpm verify:ui --app /tmp/lody-build/Build/Products/Debug-iphonesimulator/Lody.app \
+  pnpm verify:ui --app "$(pnpm --silent verify:build)" \
     --case file-preview --output .artifacts/file-preview
 '
 ```
+
+`pnpm verify:build` writes the App path to stdout and progress plus the
+xcodebuild log location to stderr; `--json` returns the app, build-cache and log
+paths together. The build cache stays in Xcode's DerivedData, never under
+`.artifacts`.
 
 The allocator serializes selection and locks each leased device. It only considers
 available, matching `Lody * Verify` devices; personal devices, other projects and
@@ -100,8 +101,12 @@ assert against; run both before claiming bilingual coverage. `--port 8098` chang
 the isolated Metro port; occupied ports are rejected. `--output PATH` selects an
 artifact directory; a previous run at that path is deleted and replaced, so reuse
 the same path across retries and pick a distinct path only for an A/B comparison.
-Keep `-derivedDataPath` outside `.artifacts` (reuse `/tmp/lody-build`); a build
-cache there is several GB that no one reviews. The runner owns only its Metro
+Keep one build cache per checkout: `pnpm verify:build` reuses the workspace's
+Xcode DerivedData, so a rebuild after a source change reuses the previous
+products. Do not pass a per-task `-derivedDataPath` and do not copy the checkout
+into the temp directory to build; both leave a multi-GB directory that nothing
+reviews. `pnpm verify:clean` reports those leftovers with their sizes, and
+`--apply` removes them. The runner owns only its Metro
 process group and app process. A small host-only CoreSimulator helper disconnects
 hardware keyboard input for the leased device so keyboard geometry is actually
 tested. No global Simulator preferences are changed. It never shuts down another
@@ -127,7 +132,7 @@ visual smoothness. The probe contains fixture IDs and geometry only.
 | ---------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | notifications          | NotificationSettingsContent                           | Permission request, denial, settings return and reset                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | project-history        | ProjectHistoryView + NativeGroupedList                | Device/project/agent drill-down, delayed loading vs failed/empty results, native toolbar placement and disabled states, select/deselect all, partial import retry, conflict confirmation and return-time toolbar cleanup                                                                                                                                                                                                                                                                                                          |
-| settings               | RemoteSettingsView + RemoteSettingEditorScreen        | Leading Cancel/trailing Save while typing, compact Machine/MCP sheets, Agent prompt, empty loading until a confirmed list exists, navigation refresh with a loading indicator, refresh time on cached/live rows, failed load retry, failed-save Toast with draft retention, and saved-value readback                                                                                                                                                                                                                                  |
+| settings               | RemoteSettingsView + RemoteSettingEditorScreen        | Leading Cancel/trailing Save while typing, compact Machine/MCP sheets, Agent prompt, empty loading until a confirmed list exists, navigation refresh with a loading indicator, refresh time on cached/live rows, failed load retry, failed-save Toast with draft retention, and saved-value readback                                                                                                                                                                                                                              |
 | home                   | InboxScreen header + glass FAB + settings Sheet       | Workspace chip loads `user.image` (letter fallback); inbox header search, archived results, cancellation restore; view menu switches Projects / Activity / Chat and project sort; chat-only sessions sit in a trailing 对话 group; empty project shows `0`; project/session long-press context menus and session transcript peek; bottom-right glass create opens a 项目 / 对话 title segment and cancels back; long-press Settings opens Debug and returns; push remote settings and archive in settings sheet with close/return |
 | ipad                   | PadHomeScreen + native panel stack + session detail   | Floating responsive panel, panel-local New Session sheet with two detents and swipe dismissal, project push/back with its own native header, session detail behind the retained panel, collapse/restore, opaque centered Settings sheet, portrait/landscape rotation, and light/dark appearance                                                                                                                                                                                                                                   |
 | licenses               | Settings sheet + LicensesScreen + LicenseDetailScreen | App AGPL notice first, then the alphabetical bundled-library list with license ids and versions, full license text on push, back to the list and sheet close                                                                                                                                                                                                                                                                                                                                                                      |

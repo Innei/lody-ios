@@ -19,10 +19,12 @@
     "licenses:check": "pnpm --filter @lody-ios/mobile licenses:check",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --experimental-strip-types --experimental-test-module-mocks --test apps/mobile/tests/**/*.test.mjs && python3 apps/mobile/verification/ui/runner_test.py && python3 apps/mobile/verification/simulator_test.py && pnpm --filter @expo/dom-webview test",
+    "test": "node --experimental-strip-types --experimental-test-module-mocks --test apps/mobile/tests/**/*.test.mjs && python3 apps/mobile/verification/ui/runner_test.py && python3 apps/mobile/verification/simulator_test.py && python3 apps/mobile/verification/build_test.py && pnpm --filter @expo/dom-webview test",
+    "verify:build": "python3 apps/mobile/verification/build.py",
     "verify:ui": "python3 apps/mobile/verification/ui/run.py",
     "verify:native": "python3 apps/mobile/verification/native.py",
-    "verify:simulator": "python3 apps/mobile/verification/simulator.py"
+    "verify:simulator": "python3 apps/mobile/verification/simulator.py",
+    "verify:clean": "python3 apps/mobile/verification/clean.py"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",

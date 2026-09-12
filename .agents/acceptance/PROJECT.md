@@ -27,15 +27,21 @@ command in a single-device lease. The runner owns an isolated Metro (default
 8097, override with `--port`) with `EXPO_PUBLIC_UI_VERIFY=1`; account restoration
 and login are disabled, and Debug scenes use production components with local fixtures.
 Reuse one `--output` path per verify (retries replace it); never suffix `-1`/`-2`
-unless comparing two builds. Build with `-derivedDataPath /tmp/lody-build`, never
-under `.artifacts`. No account, cloud credentials or connected machine is needed. See
+unless comparing two builds. Build with `pnpm verify:build`, which reuses the
+workspace Xcode DerivedData and prints the App path for `--app`; keep one build
+cache per checkout, and never copy the checkout into the temp directory to build
+(`pnpm verify:clean` reports and reclaims those leftovers). No account, cloud
+credentials or connected machine is needed. See
 `apps/mobile/verification/ui/README.md` for cases, evidence and CI setup.
 
 Official Lody Device Flow and simulator Keychain only. Inspect the simulator UI for existing login; never copy desktop credentials. No seeded account is provided. Unauthenticated checks must be reported separately from authenticated flows.
 
 ## 4. Surfaces
 
-Use AXe with explicit simulator UDID and simctl screenshots. Build workspace apps/mobile/ios/Lody.xcworkspace, scheme Lody, with normal signing. Bundle identifier app.innei.lody. Run pnpm check, pnpm test and pnpm bundle as supporting gates.
+Use AXe with explicit simulator UDID and simctl screenshots. `pnpm verify:build`
+builds workspace apps/mobile/ios/Lody.xcworkspace, scheme Lody, Debug, with normal
+signing and one shared DerivedData; the app bundle identifier is app.innei.lody.
+Run pnpm check, pnpm test and pnpm bundle as supporting gates.
 
 UI evidence for a visual or interaction requirement alignment comes from a finished
 `pnpm verify:ui` run exported by `apps/mobile/verification/ui/acceptance-round.py`
