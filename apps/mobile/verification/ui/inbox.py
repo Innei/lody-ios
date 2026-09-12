@@ -86,7 +86,8 @@ for _ in range(12):
         assert item['frame']['height'] >= 44, (found[1], item['frame'])
         assert TITLES[found[1]] in label, (found[1], label)
         if found[1] == 'inbox-yesterday':
-            assert catalog.text('session.modelUnknown') in label, label
+            assert catalog.text('session.modelUnknown') not in label, label
+            assert 'GPT-6' not in label and 'gpt-6' not in label, label
             ui.capture('model-unknown')
         elif found[1] == 'inbox-today':
             assert 'gpt-6' in label and 'feature/' not in label, label

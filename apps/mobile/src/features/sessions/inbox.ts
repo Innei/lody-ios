@@ -268,11 +268,10 @@ export function sortCatalogProjects(
 }
 
 function sessionMetadata(session: Session, projectName = '') {
-  let modelName = t('session.modelUnknown');
+  let modelName = '';
   if (session.lastModel === null) modelName = t('session.notRun');
   else if (session.lastModel) {
-    modelName =
-      session.lastModel.name || session.lastModel.modelId || modelName;
+    modelName = session.lastModel.name || session.lastModel.modelId || '';
   }
   return {
     subtitle: [projectName, session.branchName].filter(Boolean).join(' · '),

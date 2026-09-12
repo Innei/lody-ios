@@ -52,12 +52,12 @@ test('catalog model changes reach every session row without loading a transcript
   flock.set(['m', 'session-s1', 'lastModel'], null);
   assert.equal(sessionRow(read().sessions[0], 'blue').modelName, '尚未运行');
   flock.set(['m', 'session-s1', 'lastModel'], { name: 42 });
-  assert.equal(sessionRow(read().sessions[0], 'blue').modelName, '模型未知');
+  assert.equal(sessionRow(read().sessions[0], 'blue').modelName, '');
   const legacy = {
     ...data.sessions[0],
     branchName: undefined,
     lastModel: undefined,
   };
-  assert.equal(sessionRow(legacy, 'blue').modelName, '模型未知');
+  assert.equal(sessionRow(legacy, 'blue').modelName, '');
   assert.equal(sessionRow(legacy, 'blue').subtitle, '');
 });

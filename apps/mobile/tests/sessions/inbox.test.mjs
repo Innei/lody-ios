@@ -592,7 +592,7 @@ test('project rows carry branch or agent, diff, activity time, unread and a badg
   assert.equal(busy.imageTint, 'warning');
   assert.equal(busy.disclosure, undefined);
   assert.equal(quiet.subtitle, '');
-  assert.equal(quiet.modelName, '模型未知');
+  assert.equal(quiet.modelName, '');
   assert.equal(quiet.subtitleMono, false);
   assert.equal(quiet.unread, false);
   assert.equal(quiet.badge, undefined);
