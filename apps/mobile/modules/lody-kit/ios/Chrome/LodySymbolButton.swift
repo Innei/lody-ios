@@ -10,6 +10,8 @@ final class LodySymbolButton: ExpoView {
   private var imageAsset = ""
   private var prominent = false
   private var glass = false
+  private var loading = false
+  private var disabled = false
   private var foreground: UIColor = .label
 
   required init(appContext: AppContext? = nil) {
@@ -55,7 +57,15 @@ final class LodySymbolButton: ExpoView {
   }
 
   func setDisabled(_ value: Bool) {
-    button.isEnabled = !value
+    disabled = value
+    syncEnabled()
+  }
+
+  func setLoading(_ value: Bool) {
+    guard value != loading else { return }
+    loading = value
+    syncEnabled()
+    apply()
   }
 
   func setTint(_ value: String) {
@@ -88,7 +98,13 @@ final class LodySymbolButton: ExpoView {
     if imageAsset.isEmpty, button.configuration?.image != nil {
       configuration.symbolContentTransition = .init(byLayer ? .replace.byLayer : .replace)
     }
+    configuration.showsActivityIndicator = loading
     button.configuration = configuration
+    syncEnabled()
+  }
+
+  private func syncEnabled() {
+    button.isEnabled = !disabled && !loading
   }
 
   @objc private func pressed() {

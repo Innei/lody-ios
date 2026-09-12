@@ -598,6 +598,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("disabled") { (view: LodySymbolButton, disabled: Bool) in
         view.setDisabled(disabled)
       }
+      Prop("loading") { (view: LodySymbolButton, loading: Bool) in
+        view.setLoading(loading)
+      }
       Prop("tint") { (view: LodySymbolButton, tint: String) in
         view.setTint(tint)
       }

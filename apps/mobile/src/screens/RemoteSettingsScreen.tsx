@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, PlatformColor, View as RNView } from 'react-native';
-import { NativeGroupedList } from '@lody-ios/kit';
+import { NativeGroupedList, NativeSymbolButton } from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { requestSettings } from '@/cloud/settings';
@@ -116,43 +115,25 @@ export function RemoteSettingsView({
     };
   }, [scope, service, cache]);
 
-  const headerRight = useMemo(
-    () =>
-      loading
-        ? []
-        : [
-            {
-              type: 'button' as const,
-              icon: { type: 'sfSymbol' as const, name: 'arrow.clockwise' },
-              accessibilityLabel: t('settings.remote.refresh'),
-              tintColor: PlatformColor('systemBlue'),
-              onPress: () => {
-                refreshUsage?.();
-                refresh(snapshotRef.current);
-              },
-            },
-          ],
+  const headerRefresh = useMemo(
+    () => (
+      <NativeSymbolButton
+        accessibilityName={
+          loading ? t('settings.remote.loading') : t('settings.remote.refresh')
+        }
+        symbol="arrow.clockwise"
+        tint="blue"
+        loading={loading}
+        style={{ width: 44, height: 44 }}
+        onPress={() => {
+          refreshUsage?.();
+          refresh(snapshotRef.current);
+        }}
+      />
+    ),
     [loading, refreshUsage],
   );
-  const headerSpinner = useMemo(
-    () =>
-      loading ? (
-        <RNView
-          style={{
-            width: 44,
-            height: 44,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          accessibilityRole="progressbar"
-          accessibilityLabel={t('settings.remote.loading')}
-        >
-          <ActivityIndicator color={PlatformColor('secondaryLabel')} />
-        </RNView>
-      ) : undefined,
-    [loading],
-  );
-  useSheetHeader(headerRight, undefined, headerSpinner);
+  useSheetHeader(undefined, undefined, headerRefresh);
 
   return (
     <NativeGroupedList

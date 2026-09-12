@@ -10,6 +10,7 @@ export interface NativeSymbolButtonProps extends ViewProps {
   prominent?: boolean;
   glass?: boolean;
   disabled?: boolean;
+  loading?: boolean;
   tint?: string;
   onPress: () => void;
   onLongPress?: () => void;
