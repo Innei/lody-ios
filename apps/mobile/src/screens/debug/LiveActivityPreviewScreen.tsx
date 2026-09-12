@@ -77,6 +77,18 @@ function LiveActivityPreview() {
         <Button testID="live-activity-end" onPress={run('end')}>
           结束
         </Button>
+        <Button
+          testID="live-activity-complete-one"
+          onPress={run('complete-one')}
+        >
+          完成一个任务
+        </Button>
+        <Button
+          testID="live-activity-complete-all"
+          onPress={run('complete-all')}
+        >
+          全部完成
+        </Button>
       </View>
       <NotificationSettingsContent service={service} signedIn />
     </View>

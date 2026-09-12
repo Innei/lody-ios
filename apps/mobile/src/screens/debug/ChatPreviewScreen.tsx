@@ -204,6 +204,7 @@ function openQuestionFixture() {
 
 function View() {
   const [showImage, setShowImage] = useState(false);
+  const [assistantImages, setAssistantImages] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
   const [durationFixture, setDurationFixture] = useState<{
     startedAt: number;
@@ -239,13 +240,19 @@ function View() {
       ? [
           {
             id: 'preview-image',
-            role: 'user',
+            role: assistantImages ? 'assistant' : 'user',
             status: 'completed',
             finished: true,
             items: [
               {
                 itemId: 'photo',
-                type: 'image',
+                type: assistantImages ? 'image_group' : 'image',
+                images: ['first.png', 'second.png'].map((fileName) => ({
+                  id: 'ui-verify-image',
+                  fileName,
+                  width: 600,
+                  height: 400,
+                })),
                 image: {
                   id: 'ui-verify-image',
                   fileName: 'fixture.png',
@@ -492,6 +499,17 @@ function View() {
                 setDurationFixture(null);
                 setShowChanges(false);
                 setShowImage(true);
+                setAssistantImages(false);
+              }}
+            />
+            <Stack.Toolbar.MenuAction
+              children="MCP Image Fixture"
+              icon="photo.on.rectangle"
+              onPress={() => {
+                setDurationFixture(null);
+                setShowChanges(false);
+                setShowImage(true);
+                setAssistantImages(true);
               }}
             />
             <Stack.Toolbar.MenuAction

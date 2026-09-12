@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
-import { createSession, sendSessionTurn } from '@lody-ios/kit';
+import {
+  createSession,
+  sendSessionTurn,
+  addAttachmentUploadProgressListener,
+  type AttachmentUploadProgress,
+} from '@lody-ios/kit';
 import type {
   PendingSend,
   PendingSession,
@@ -25,7 +30,11 @@ export function pendingSendStatus(send: PendingSend, live: boolean) {
   return t(live ? 'send.status.preparing' : 'send.status.awaitingConnection');
 }
 
-const network = { createSession, sendSessionTurn };
+const network = {
+  createSession,
+  sendSessionTurn,
+  addAttachmentUploadProgressListener,
+};
 
 /** UI publication precedes persistence; dispatch follows persistence and readiness. */
 export function useSessionSend({
@@ -47,7 +56,11 @@ export function useSessionSend({
   serverCreated: boolean;
   userId: string;
   overflow: boolean;
-  services?: typeof network;
+  services?: {
+    createSession: typeof createSession;
+    sendSessionTurn: typeof sendSessionTurn;
+    addAttachmentUploadProgressListener?: typeof addAttachmentUploadProgressListener;
+  };
 }) {
   const [clearDraftToken, setClearDraftToken] = useState(0);
   const [restoreDraftToken, setRestoreDraftToken] = useState(0);
@@ -58,6 +71,46 @@ export function useSessionSend({
   const live = snapshot.status === 'live';
   const hasPending =
     !!send && !['failed', 'accepted', 'queued'].includes(send.phase);
+  const [uploadProgress, setUploadProgress] = useState<
+    Record<string, AttachmentUploadProgress>
+  >({});
+
+  useEffect(() => {
+    setUploadProgress({});
+    if (send?.phase !== 'sending' || !send.attachments.length) return;
+    let active = true;
+    const subscription = services.addAttachmentUploadProgressListener?.(
+      (event) => {
+        if (
+          !active ||
+          event.sessionId !== session.id ||
+          event.sendId !== send.id ||
+          !send.attachments.some(
+            (attachment) => attachment.id === event.attachmentId,
+          )
+        )
+          return;
+        setUploadProgress((old) => {
+          const previous = old[event.attachmentId];
+          if (
+            previous?.phase === event.phase &&
+            previous.percent === event.percent
+          )
+            return old;
+          return { ...old, [event.attachmentId]: event };
+        });
+      },
+    );
+    return () => {
+      active = false;
+      subscription?.remove();
+    };
+  }, [
+    send?.id,
+    send?.phase,
+    session.id,
+    services.addAttachmentUploadProgressListener,
+  ]);
 
   useEffect(() => {
     if (!record || !outbox.ready || working.current) return;
@@ -272,6 +325,7 @@ export function useSessionSend({
     pendingSendJSON: send
       ? JSON.stringify({
           ...send,
+          uploadProgress: send.phase === 'sending' ? uploadProgress : undefined,
           queue:
             send.phase === 'queued' ||
             (send.queue === true &&

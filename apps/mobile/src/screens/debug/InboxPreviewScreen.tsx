@@ -31,6 +31,8 @@ function session(
     pinned: false,
     projectId: 'p1',
     createdAt: new Date(NOW).toISOString(),
+    branchName: 'feature/session-model-with-a-very-long-branch-name',
+    lastModel: { modelId: 'gpt-6', name: 'GPT-6' },
     ...extra,
   };
 }
@@ -50,10 +52,13 @@ const catalog: Catalog = {
       lastMessageAt: NOW - 60_000,
     }),
     session('inbox-today', '今天已读会话', 'completed', {
+      branchName: undefined,
+      lastModel: { modelId: 'gpt-6' },
       lastMessageAt: today + 12 * 60 * 60 * 1000,
       lastReadAt: today + 13 * 60 * 60 * 1000,
     }),
     session('inbox-yesterday', '昨天已读会话', 'completed', {
+      lastModel: undefined,
       lastMessageAt: today - DAY + 12 * 60 * 60 * 1000,
       lastReadAt: today,
     }),

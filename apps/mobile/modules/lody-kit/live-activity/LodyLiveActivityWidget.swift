@@ -8,6 +8,7 @@ struct LodyLiveActivityWidget: Widget {
       LodyLockScreenView(
         state: context.state,
         workspaceSlug: context.attributes.routeSlug,
+        overviewRoute: context.attributes.overviewRoute,
         isStale: context.isStale
       )
       .activityBackgroundTint(context.isStale ? nil : context.state.backgroundTint)
@@ -25,7 +26,9 @@ struct LodyLiveActivityWidget: Widget {
       // The expanded island's corner radius runs under both top regions, so their
       // content is inset off the curve instead of sitting flush against it.
       DynamicIslandExpandedRegion(.leading) {
-        if let focus {
+        if state.showsOverview {
+          Image(systemName: "square.stack.3d.up").padding(.leading, 10).padding(.top, 8)
+        } else if let focus {
           AgentGlyph(kind: focus.agentLogoKind, text: focus.agentLogoText, size: 22)
             .padding(.leading, 10)
             .padding(.top, 8)
@@ -33,7 +36,13 @@ struct LodyLiveActivityWidget: Widget {
         }
       }
       DynamicIslandExpandedRegion(.trailing) {
-        if let focus, !isStale, focus.status != .unread {
+        if !isStale, state.needsAttention, state.statusCounts.running > 0 {
+          Text(state.runningSummary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.trailing, 10)
+            .padding(.top, 8)
+        } else if let focus, !state.showsOverview, !isStale, focus.status != .unread {
           FocusTimer(focus: focus)
             .padding(.trailing, 10)
             .padding(.top, 8)
@@ -46,7 +55,9 @@ struct LodyLiveActivityWidget: Widget {
       // other sessions stay on the Lock Screen, where the card has the height.
       DynamicIslandExpandedRegion(.bottom) {
         VStack(alignment: .leading, spacing: 8) {
-          if let focus {
+          if state.showsOverview {
+            Text(isStale ? state.staleLabel : state.runningSummary).font(.headline)
+          } else if let focus {
             FocusText(focus: focus, othersCount: state.othersCount, isStale: isStale, copy: state)
             if !isStale, focus.status == .permission, let command = focus.permissionCommand {
               CommandStrip(command: command)
@@ -63,7 +74,9 @@ struct LodyLiveActivityWidget: Widget {
         .lodyStale(isStale)
       }
     } compactLeading: {
-      if let focus {
+      if state.showsOverview {
+        Image(systemName: "square.stack.3d.up")
+      } else if let focus {
         AgentGlyph(kind: focus.agentLogoKind, text: focus.agentLogoText, size: 20)
           .lodyStale(isStale)
       }
@@ -77,7 +90,7 @@ struct LodyLiveActivityWidget: Widget {
           .lodyStale(isStale)
       }
     }
-    .widgetURL(focus.map { LodyActivityAttributes.route(workspaceSlug: context.attributes.routeSlug, sessionId: $0.id) })
+    .widgetURL(context.attributes.route(for: state))
   }
 
   @ViewBuilder
@@ -85,10 +98,10 @@ struct LodyLiveActivityWidget: Widget {
     if isStale || focus.status != .running {
       StatusSymbol(status: focus.status, isStale: isStale)
         .lodyStale(isStale)
-    } else if state.totalCount > 1 {
+    } else if state.activeCount > 1 {
       HStack(spacing: 4) {
         StatusSymbol(status: .running)
-        Text("\(state.totalCount)")
+        Text("\(state.activeCount)")
           .font(.caption.weight(.semibold))
           .padding(.horizontal, 5)
           .background(Capsule().fill(Color.white.opacity(0.16)))

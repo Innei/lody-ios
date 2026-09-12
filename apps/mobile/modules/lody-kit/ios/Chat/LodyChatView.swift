@@ -272,9 +272,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
           guard let self, let controller = self.presenter() else { return }
           self.pauseTracking()
           if let image { image.presentPreview(from: controller); return }
-          if let uri = attachment.localURI, let url = URL(string: uri), url.isFileURL {
-            controller.present(ChatAttachmentPreview([ChatAttachment(id: attachment.id, name: attachment.fileName, url: url, isImage: false)], index: 0), animated: true)
-          }
+          self.openAttachment(attachment)
         }
         return cell
       }

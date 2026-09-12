@@ -5,7 +5,7 @@ import {
   sessionNeedsEmphasis,
 } from './sessionViews.ts';
 import type { SessionState } from './status.ts';
-import { agentName, sessionState, stateTint } from './status.ts';
+import { sessionState, stateTint } from './status.ts';
 import { activityBucket, relativeTime } from '../../ui/time.ts';
 import {
   t,
@@ -82,6 +82,26 @@ export type InboxOptions = {
   chatOnly?: boolean;
 };
 
+export function activeSessionSections(catalog: Catalog, accent: string) {
+  const sessions = catalog.sessions.filter((session) => {
+    if (session.archived || ['completed', 'error'].includes(session.status))
+      return false;
+    return (
+      session.awaitingUserSince !== undefined ||
+      [
+        'running',
+        'initializing',
+        'processing',
+        'in_progress',
+        'queued',
+        'waiting',
+        'requestPermission',
+      ].includes(session.status)
+    );
+  });
+  return inboxSections({ ...catalog, sessions }, { accent });
+}
+
 function sessionPlace(session: Session, names: Map<string, string>) {
   if (isChatSession(session)) return t('inbox.section.chat');
   return names.get(session.projectId) ?? '';
@@ -118,7 +138,7 @@ export function inboxSections(
       return {
         id: session.id,
         title: session.title,
-        subtitle: sessionPlace(session, names),
+        ...sessionMetadata(session, sessionPlace(session, names)),
         value: relativeTime(activityAt(session), now),
         unread: sessionNeedsEmphasis(session),
         pinned: session.pinned,
@@ -247,6 +267,20 @@ export function sortCatalogProjects(
     );
 }
 
+function sessionMetadata(session: Session, projectName = '') {
+  let modelName = t('session.modelUnknown');
+  if (session.lastModel === null) modelName = t('session.notRun');
+  else if (session.lastModel) {
+    modelName =
+      session.lastModel.name || session.lastModel.modelId || modelName;
+  }
+  return {
+    subtitle: [projectName, session.branchName].filter(Boolean).join(' · '),
+    subtitleMono: !!session.branchName,
+    modelName,
+  };
+}
+
 export function sessionRow(
   session: Session,
   accent: string,
@@ -254,12 +288,10 @@ export function sessionRow(
   now?: number,
 ) {
   const state = stateOf(session);
-  const lead = session.branchName ?? agentName(session.agentType);
   return {
     id: session.id,
     title: session.title,
-    subtitle: [projectName, lead].filter(Boolean).join(' · '),
-    subtitleMono: session.branchName !== undefined,
+    ...sessionMetadata(session, projectName),
     diff: session.diff,
     value: relativeTime(activityAt(session), now),
     unread: sessionNeedsEmphasis(session),

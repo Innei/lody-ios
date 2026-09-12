@@ -155,32 +155,45 @@ function summarizeItem(
     } as ItemSummary;
   }
 
-  if (type === 'image') {
-    const image = {
-      id: String(raw.imageId ?? ''),
-      fileName: String(raw.fileName ?? '图片'),
-      storageSessionId:
-        typeof raw.storageSessionId === 'string'
-          ? raw.storageSessionId
-          : undefined,
-      width:
-        typeof raw.width === 'number' && raw.width > 0 ? raw.width : undefined,
-      height:
-        typeof raw.height === 'number' && raw.height > 0
-          ? raw.height
-          : undefined,
-    };
+  if (type === 'image' || type === 'image_group') {
+    const sources = type === 'image' ? [raw] : raw.images;
+    const images = (Array.isArray(sources) ? sources : [])
+      .filter(
+        (image: any) =>
+          typeof image?.imageId === 'string' && image.imageId.length > 0,
+      )
+      .map((raw: any) => ({
+        id: String(raw.imageId ?? ''),
+        fileName: String(raw.fileName ?? '图片'),
+        storageSessionId:
+          typeof raw.storageSessionId === 'string'
+            ? raw.storageSessionId
+            : undefined,
+        width:
+          typeof raw.width === 'number' && raw.width > 0
+            ? raw.width
+            : undefined,
+        height:
+          typeof raw.height === 'number' && raw.height > 0
+            ? raw.height
+            : undefined,
+      }));
+    const media = type === 'image' ? { image: images[0] } : { images };
     return {
       itemId,
-      rev: bump(projection, key, JSON.stringify(image)),
+      rev: bump(projection, key, JSON.stringify(media)),
       type,
-      image,
+      ...media,
     } as ItemSummary;
   }
   if (type === 'file') {
     const file = {
       id: String(raw.fileId ?? ''),
       fileName: String(raw.fileName ?? '附件'),
+      transport: typeof raw.transport === 'string' ? raw.transport : undefined,
+      sizeBytes: Number.isSafeInteger(raw.sizeBytes)
+        ? raw.sizeBytes
+        : undefined,
       storageSessionId:
         typeof raw.storageSessionId === 'string'
           ? raw.storageSessionId

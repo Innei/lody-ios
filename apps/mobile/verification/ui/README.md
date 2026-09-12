@@ -18,6 +18,11 @@ target, VoiceOver label and existing open action.
 
 ## Run locally
 
+`mcp-files` verifies uploaded text/PDF/video previews, video playback, download
+retry, missing/pending files, user attachments and cancellation in both appearances.
+It uses `ffmpeg` to create an offline MP4 in the leased Simulator; no account or
+cloud upload is involved.
+
 The `permission` case also opens the production question card with three offline
 questions. It checks single/multiple choices, previous/next navigation, free text,
 the complete answer payload, failed-upload retry, remote answer dismissal and
@@ -203,7 +208,13 @@ Remote settings details now have an independent offline scene. It injects servic
 outcomes and checks the submitted values, but does not claim live cloud persistence.
 Product catalog navigation and live cloud workflows still need separate acceptance.
 
-The live-activity case runs via `--case live-activity` against the fixture activity in workspace `debug`; no OneSignal, cloud access or credentials are involved, and the settings toggle row is driven through an injected `liveActivity` service, so the case switches it off and back on and asserts the accessibility value flips both ways without ending the fixture. iOS hides a Live Activity from the Dynamic Island while its own app is in the foreground, so each island capture backgrounds the app first: `island-running` and `island-permission` show the compact island over the Home screen, and `lockscreen-permission` locks the device and captures the Lock Screen card. The first fixture activity on a pool device raises the one-time system "Allow Live Activities" consent alert; pool devices are only shut down and rebooted, never erased, and `run.py` installs once for both appearances, so that alert appears on the first run against a device and never again. The case polls for its Allow button after starting the fixture and once more after locking, and taps it when present, so the captures and the later taps do not depend on which run this is. Push-to-start, remote updates and dismissal timing are not covered here and need a real device.
+The `settings` case also checks native Agent subscription meters, independent Spark
+limits, read-only viewing, missing usage and custom-API exclusion. Pulling to refresh
+first simulates an offline fetch with cached usage, then reconnects with a changed
+percentage. Its fixtures pass through the production catalog projector; screenshots
+and video cover both appearances without provider credentials or live quota queries.
+
+The `live-activity` case uses the offline `debug` workspace and production activity reconciliation, without OneSignal or credentials. It checks the injected settings toggle, a multiple-task overview, permission priority, removal of a completed turn, ending all work and starting again. Island captures background the app first; the Lock Screen captures include the completion summary and its 10-second dismissal. Both appearances record video. The runner handles the system's Live Activity consent prompt on reused pool devices. Overview links reject an unavailable account, and unavailable session links preserve the current page. Push-to-start and remote background updates still require a real device; these local checks do not establish APNs delivery.
 
 The background case runs via `--case background`, dwelling on the Simulator Home screen for 40 seconds. Counts originate from real offscreen WebView callbacks; cloud events are substituted with local scripts without network or credential access. If the system denies sustained background tasks, this case only verifies retention/restoration and request-failure degradation, and cannot be used to claim that sustained background execution has passed. Prolonged physical-device network connectivity and power consumption require separate real-device testing.
 
@@ -309,6 +320,16 @@ without an empty bubble. Both appearances record screenshots and video;
 checks that the destination stays hidden during its flight and lands within 1.5 pt.
 The `send` and `send-handoff` cases retain definite failures in the transcript and
 retry explicitly. Unknown delivery results are never replayed by this control.
+
+The transition cases also drive per-attachment upload percentages through the
+production send subscription. They check 25% and 65%, the verifying spinner,
+independent completion and removal before acknowledgement, in both hosts and
+appearances. Progress stays on the attachment tile without a status row. These
+UI events are injected; the native attachment check separately uses an 8 MiB
+loopback upload to prove actual URLSession byte callbacks, and intercepted cloud
+requests to check image/file phases, cumulative multipart progress and failure.
+`pnpm verify:native --case attachments` owns its local `progress-server.py`
+receiver; no account or cloud connection is needed.
 
 ### Unified @ references
 

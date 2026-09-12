@@ -38,6 +38,7 @@ final class LodySessionRowView: UIView, UIContentView {
   private let ring = UIView()
   private let dot = UIView()
   private let meta = UILabel()
+  private let model = UILabel()
   private let pill = PillLabel()
   private let time = UILabel()
   private let title = UILabel()
@@ -60,6 +61,9 @@ final class LodySessionRowView: UIView, UIContentView {
     title.adjustsFontForContentSizeCategory = true
     meta.adjustsFontForContentSizeCategory = true
     meta.font = .preferredFont(forTextStyle: .footnote)
+    model.font = .preferredFont(forTextStyle: .footnote)
+    model.adjustsFontForContentSizeCategory = true
+    model.textColor = .secondaryLabel
     time.font = .preferredFont(forTextStyle: .footnote)
     time.adjustsFontForContentSizeCategory = true
     time.textColor = .secondaryLabel
@@ -71,13 +75,14 @@ final class LodySessionRowView: UIView, UIContentView {
     pill.clipsToBounds = true
     ring.layer.cornerRadius = 7
     dot.layer.cornerRadius = 4
-    for label in [title, meta, time] {
+    for label in [title, meta, model, time] {
       label.lineBreakMode = .byTruncatingTail
     }
     meta.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    model.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
     time.setContentCompressionResistancePriority(.required, for: .horizontal)
     pill.setContentCompressionResistancePriority(.required, for: .horizontal)
-    for view in [ring, dot, meta, pill, time, title] {
+    for view in [ring, dot, meta, model, pill, time, title] {
       view.translatesAutoresizingMaskIntoConstraints = false
       addSubview(view)
     }
@@ -93,7 +98,10 @@ final class LodySessionRowView: UIView, UIContentView {
       dot.centerYAnchor.constraint(equalTo: ring.centerYAnchor),
       meta.topAnchor.constraint(equalTo: margin.topAnchor),
       meta.leadingAnchor.constraint(equalTo: margin.leadingAnchor),
-      pill.leadingAnchor.constraint(equalTo: meta.trailingAnchor, constant: 5),
+      meta.heightAnchor.constraint(greaterThanOrEqualTo: model.heightAnchor),
+      model.leadingAnchor.constraint(equalTo: meta.trailingAnchor),
+      model.firstBaselineAnchor.constraint(equalTo: meta.firstBaselineAnchor),
+      pill.leadingAnchor.constraint(equalTo: model.trailingAnchor, constant: 5),
       pill.centerYAnchor.constraint(equalTo: meta.centerYAnchor),
       pill.trailingAnchor.constraint(lessThanOrEqualTo: time.leadingAnchor, constant: -10),
       time.trailingAnchor.constraint(equalTo: margin.trailingAnchor),
@@ -128,7 +136,9 @@ final class LodySessionRowView: UIView, UIContentView {
     title.textColor = row.destructive ? .systemRed : .label
     let metaText = Self.meta(for: row)
     meta.attributedText = metaText
-    let hasMeta = metaText.length > 0 || !row.badge.isEmpty
+    let modelPrefix = metaText.length > 0 ? " · " : ""
+    model.text = row.modelName.isEmpty ? nil : modelPrefix + row.modelName
+    let hasMeta = metaText.length > 0 || !row.modelName.isEmpty || !row.badge.isEmpty
     meta.isHidden = !hasMeta
     NSLayoutConstraint.deactivate(hasMeta ? withoutMeta : withMeta)
     NSLayoutConstraint.activate(hasMeta ? withMeta : withoutMeta)
@@ -142,7 +152,7 @@ final class LodySessionRowView: UIView, UIContentView {
     ring.backgroundColor = tint.withAlphaComponent(0.14)
     ring.isHidden = !content.live
     isAccessibilityElement = true
-    accessibilityLabel = [row.title, row.badge, metaText.string, row.value]
+    accessibilityLabel = [row.title, row.badge, metaText.string, row.modelName, row.value]
       .filter { !$0.isEmpty }
       .joined(separator: ", ")
   }
@@ -172,8 +182,6 @@ final class LodySessionRowView: UIView, UIContentView {
       }
       text.append(NSAttributedString(string: "+\(add)", attributes: [.font: mono, .foregroundColor: UIColor.systemBlue]))
       text.append(NSAttributedString(string: " −\(del)", attributes: [.font: mono, .foregroundColor: UIColor.systemRed]))
-    } else if !row.badge.isEmpty, !row.subtitle.isEmpty {
-      text.append(NSAttributedString(string: " ·", attributes: [.font: footnote, .foregroundColor: UIColor.tertiaryLabel]))
     }
     return text
   }

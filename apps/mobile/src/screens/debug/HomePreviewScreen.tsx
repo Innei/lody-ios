@@ -42,6 +42,8 @@ const catalog: Catalog = {
   sessions: [
     {
       id: 'ui-design',
+      branchName: 'feature/session-model-with-a-very-long-branch-name',
+      lastModel: { modelId: 'gpt-6', name: 'GPT-6' },
       title: '首页交互设计',
       projectId: 'ui:local:lody',
       machineId: 'ui',
@@ -62,6 +64,7 @@ const catalog: Catalog = {
     },
     {
       id: 'ui-chat',
+      lastModel: null,
       title: '纯对话草稿',
       projectId: 'ui:unassigned',
       machineId: 'ui',

@@ -11,6 +11,7 @@ final class LiveActivities {
   private var tokenTasks: [String: (stamp: UUID, task: Task<Void, Never>)] = [:]
   private var pushToStartTask: Task<Void, Never>?
   private var activityTask: Task<Void, Never>?
+  private var syncTask: Task<Void, Never>?
 
   var enabled: Bool {
     get { defaults?.object(forKey: "liveActivitiesEnabled") as? Bool ?? true }
@@ -30,7 +31,7 @@ final class LiveActivities {
   func start() {
     guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
     registerPushToStart()
-    for activity in Activity<LodyActivityAttributes>.activities { observe(activity) }
+    observeCurrentActivities()
     guard activityTask == nil else { return }
     activityTask = Task { @MainActor in
       for await activity in Activity<LodyActivityAttributes>.activityUpdates { observe(activity) }
@@ -51,33 +52,69 @@ final class LiveActivities {
           ActivityAuthorizationInfo().areActivitiesEnabled else { return }
     let id = LodyActivityAttributes.activityId(workspaceId: workspaceId, userId: userId)
     endStale(keeping: id)
-    guard !Activity<LodyActivityAttributes>.activities.contains(where: { Self.id(of: $0) == id }) else { return }
-    guard Self.mayBeActive(catalogJSON) else { return }
-    let state = LiveActivityCatalog.state(catalogJSON: catalogJSON, labels: Self.labels)
-    guard state.isActive else { return }
+    guard let root = try? JSONSerialization.jsonObject(with: Data(catalogJSON.utf8)) as? [String: Any],
+          let sessions = root["sessions"] as? [[String: Any]] else { return }
+    let state = LiveActivityCatalog.state(sessions: sessions, labels: Self.labels)
     let attributes = LodyActivityAttributes(
       workspaceId: workspaceId,
       workspaceSlug: workspaceSlug,
       workspaceName: workspaceName,
       userId: userId
     )
-    let content = ActivityContent(state: state, staleDate: state.staleDate(from: Date()))
+    let previous = syncTask
+    previous?.cancel()
+    syncTask = Task {
+      await previous?.value
+      guard !Task.isCancelled else { return }
+      await Self.reconcile(attributes: attributes, state: state)
+    }
+  }
+
+  private nonisolated static func reconcile(
+    attributes: LodyActivityAttributes,
+    state: LodyActivityAttributes.ContentState
+  ) async {
+    let id = activityId(of: attributes)
+    let existing = Activity<LodyActivityAttributes>.activities.filter {
+      activityId(of: $0.attributes) == id && ($0.activityState == .active || $0.activityState == .stale)
+    }
+    let now = Date()
+    var summary = state
+    summary.items = state.visibleItems
+    summary.totalCount = state.activeCount
+    summary.statusCounts.unread = 0
+    let content = ActivityContent(state: summary, staleDate: state.staleDate(from: now))
+    for activity in existing {
+      guard !Task.isCancelled else { return }
+      if state.isActive {
+        await activity.update(content)
+      } else {
+        if !isDebug(attributes) { await shared.unregister(id) }
+        await activity.end(content, dismissalPolicy: .after(state.dismissalDate(from: now) ?? now))
+      }
+    }
+    guard !Task.isCancelled, existing.isEmpty, state.isActive else { return }
+    for activity in Activity<LodyActivityAttributes>.activities where activityId(of: activity.attributes) == id && activity.activityState == .ended {
+      await activity.end(nil, dismissalPolicy: .immediate)
+    }
+    guard !Task.isCancelled else { return }
     do {
-      observe(try Activity.request(attributes: attributes, content: content, pushType: .token))
+      _ = try Activity.request(attributes: attributes, content: content, pushType: isDebug(attributes) ? nil : .token)
+      if !Task.isCancelled { await shared.observeCurrentActivities() }
     } catch {
-      Self.log.error("activity request failed: \(error.localizedDescription, privacy: .public)")
+      log.error("activity request failed: \(error.localizedDescription, privacy: .public)")
     }
   }
 
   private nonisolated static let log = Logger(subsystem: "app.innei.lody", category: "live-activity")
 
-  private nonisolated static let activeTokens = ["awaitingUserSince"] + Array(LiveActivityCatalog.runningStatuses)
-
-  private nonisolated static func mayBeActive(_ catalogJSON: String) -> Bool {
-    activeTokens.contains { catalogJSON.contains($0) }
+  private func unregister(_ id: String) {
+    tokenTasks.removeValue(forKey: id)?.task.cancel()
+    OneSignal.LiveActivities.exit(id)
   }
 
   func endAll() {
+    syncTask?.cancel()
     tokenTasks.values.forEach { $0.task.cancel() }
     tokenTasks = [:]
     for activity in Activity<LodyActivityAttributes>.activities where !Self.isDebug(activity.attributes) {
@@ -123,13 +160,14 @@ final class LiveActivities {
     [
       "enabled": enabled,
       "supported": ActivityAuthorizationInfo().areActivitiesEnabled,
-      "active": Activity<LodyActivityAttributes>.activities.count,
+      "active": Activity<LodyActivityAttributes>.activities.filter { $0.activityState == .active || $0.activityState == .stale }.count,
     ]
   }
 
   private func observe(_ activity: Activity<LodyActivityAttributes>) {
     let id = Self.id(of: activity)
-    guard tokenTasks[id] == nil, !Self.isDebug(activity.attributes) else { return }
+    guard enabled, tokenTasks[id] == nil, !Self.isDebug(activity.attributes),
+          activity.activityState == .active || activity.activityState == .stale else { return }
     let stamp = UUID()
     tokenTasks[id] = (stamp, Task { @MainActor in
       for await token in activity.pushTokenUpdates {
@@ -137,6 +175,11 @@ final class LiveActivities {
       }
       if tokenTasks[id]?.stamp == stamp { tokenTasks[id] = nil }
     })
+  }
+
+  private func observeCurrentActivities() {
+    guard !Task.isCancelled else { return }
+    for activity in Activity<LodyActivityAttributes>.activities { observe(activity) }
   }
 
   private static func id(of activity: Activity<LodyActivityAttributes>) -> String {
@@ -148,13 +191,14 @@ final class LiveActivities {
 
   private nonisolated static var labels: LiveActivityCatalog.Labels {
     .init(
-      permission: LodyStrings.text("native.liveActivity.status.permission"),
+      permission: LodyStrings.text("native.liveActivity.status.attention"),
       running: LodyStrings.text("native.liveActivity.status.running"),
       stale: LodyStrings.text("native.liveActivity.stale"),
       empty: LodyStrings.text("native.liveActivity.empty"),
       others: LodyStrings.text("native.liveActivity.others"),
       lastSync: LodyStrings.text("native.liveActivity.lastSync"),
-      openHint: LodyStrings.text("native.liveActivity.openHint")
+      openHint: LodyStrings.text("native.liveActivity.openHint"),
+      runningSummary: LodyStrings.text("native.liveActivity.runningSummary")
     )
   }
 
@@ -171,12 +215,15 @@ final class LiveActivities {
   )
 
   func debug(_ action: String) {
-    let existing = Activity<LodyActivityAttributes>.activities.filter { $0.attributes.workspaceId == "debug" }
     switch action {
     case "start-running":
-      guard existing.isEmpty, ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-      let content = ActivityContent(state: Self.debugState(), staleDate: nil)
-      _ = try? Activity.request(attributes: Self.debugAttributes, content: content, pushType: nil)
+      Task { await Self.reconcile(attributes: Self.debugAttributes, state: Self.debugState()) }
+    case "complete-one", "complete-all":
+      var state = Self.debugState()
+      state.items = action == "complete-one" ? Array(state.items.filter { $0.status == .running }.dropFirst()) : []
+      state.totalCount = state.items.count
+      state.statusCounts = .init(running: state.items.count)
+      Task { await Self.reconcile(attributes: Self.debugAttributes, state: state) }
     case "update-permission":
       Self.updateDebugActivities()
     case "end":
@@ -232,18 +279,23 @@ final class LiveActivities {
       command: permission ? "git push origin main --force" : nil
     )
     return LodyActivityAttributes.ContentState(
-      totalCount: 3,
-      statusCounts: .init(permission: permission ? 1 : 0, running: permission ? 1 : 2, unread: 1),
+      totalCount: 2,
+      statusCounts: .init(permission: permission ? 1 : 0, running: permission ? 1 : 2),
       items: [
         debugItem("debug-1", .running, LodyStrings.text("native.liveActivity.debug.title1"), "CC", now),
         second,
-        debugItem("debug-3", .unread, LodyStrings.text("native.liveActivity.debug.title3"), "CC", now - 2000),
       ],
       permissionAlert: permission
         ? .init(title: LodyStrings.text("native.liveActivity.debug.alertTitle"), body: "git push origin main --force")
         : nil,
-      copy: .init(stale: labels.stale, empty: labels.empty, others: labels.others, lastSync: labels.lastSync, openHint: labels.openHint)
+      copy: debugCopy
     )
+  }
+
+  private nonisolated static var debugCopy: LodyActivityAttributes.ContentState.Copy {
+    var copy = LodyActivityAttributes.ContentState.Copy(stale: labels.stale, empty: labels.empty, others: labels.others, lastSync: labels.lastSync, openHint: labels.openHint)
+    copy.runningSummary = labels.runningSummary
+    return copy
   }
   #endif
 }

@@ -1,4 +1,5 @@
 import { t } from '../../lib/i18n/index.ts';
+import { projectAgentUsage, legacyAgentQuotas } from './agent-usage.ts';
 import { pullRequestReferences } from '../../features/pull-request/references.ts';
 import type { Catalog, Project, Session } from '../../models/catalog.ts';
 
@@ -24,6 +25,15 @@ const text = (value: unknown): string =>
   typeof value === 'string' ? value : '';
 const stamp = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+const modelOf = (value: unknown): Session['lastModel'] => {
+  if (value === null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+  const model = object(value);
+  return {
+    modelId: text(model.modelId).trim() || undefined,
+    name: text(model.name).trim() || undefined,
+  };
+};
 const diffOf = (value: unknown) => {
   const change = object(object(value).allChange);
   const add = stamp(change.add) ?? 0,
@@ -31,6 +41,7 @@ const diffOf = (value: unknown) => {
   return add || del ? { add, del } : undefined;
 };
 export function projectRows(rows: Row[], mode: string): Catalog {
+  const agentUsage: NonNullable<Catalog['agentUsage']> = {};
   const projects: Project[] = [],
     sessions: Session[] = [],
     machineIds = new Set<string>(),
@@ -48,7 +59,13 @@ export function projectRows(rows: Row[], mode: string): Catalog {
           rootPath: text(value.rootPath),
         });
     }
-    return { projects, sessions, machineIds: [], machineNames };
+    return {
+      projects,
+      sessions,
+      machineIds: [],
+      machineNames,
+      agentUsage: { [mode]: projectAgentUsage(rows, mode) },
+    };
   }
   const active = new Set<string>();
   const metadata = new Map<string, Record<string, unknown>>();
@@ -69,6 +86,10 @@ export function projectRows(rows: Row[], mode: string): Catalog {
     if (!active.has(id)) continue;
     if (id.startsWith('machine-')) {
       const machineId = id.slice(8);
+      agentUsage[machineId] = {
+        configs: [],
+        quotas: legacyAgentQuotas(value.raceLimits),
+      };
       machineIds.add(machineId);
       const name = text(value.name);
       if (name) machineNames[machineId] = name;
@@ -98,6 +119,7 @@ export function projectRows(rows: Row[], mode: string): Catalog {
           ? `github:${repo}`
           : `${machineId}:unassigned`;
     sessions.push({
+      lastModel: modelOf(value.lastModel),
       cliType: text(value.cliType),
       agentType: text(value.agentType),
       resume: text(value.acpSessionId),
@@ -136,5 +158,6 @@ export function projectRows(rows: Row[], mode: string): Catalog {
     sessions,
     machineIds: [...machineIds],
     machineNames,
+    agentUsage,
   };
 }

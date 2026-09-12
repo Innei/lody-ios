@@ -24,7 +24,11 @@ export type LiveActivityStatus = {
   active: number;
 };
 export type LiveActivityDebugAction =
-  'start-running' | 'update-permission' | 'end';
+  | 'start-running'
+  | 'update-permission'
+  | 'complete-one'
+  | 'complete-all'
+  | 'end';
 export const liveActivityStatus = () => native.liveActivityStatus();
 export const setLiveActivitiesEnabled = (enabled: boolean) =>
   native.setLiveActivitiesEnabled(enabled);

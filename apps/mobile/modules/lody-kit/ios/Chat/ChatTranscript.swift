@@ -53,6 +53,8 @@ struct ChatMessageAttachment: Decodable, Equatable {
   var localURI: String? = nil
   var localID: String? = nil
   var storageSessionId: String? = nil
+  var transport: String? = nil
+  var sizeBytes: Int? = nil
 }
 
 struct ChatItem: Decodable {
@@ -73,6 +75,9 @@ struct ChatItem: Decodable {
   let actor: String?
   let image: ChatImage?
   var file: ChatMessageAttachment? = nil
+  var images: [ChatImage]? = nil
+  var isImage: Bool { type == "image" || type == "image_group" }
+  var isAttachment: Bool { isImage || type == "file" }
 }
 
 struct ChatRow: Equatable {
@@ -89,8 +94,10 @@ struct ChatRow: Equatable {
   var streaming = false
   var localImageURI: String? = nil
   var image: ChatImage? = nil
+  var file: ChatMessageAttachment? = nil
   var fileDiff: ChatFileDiff? = nil
   var attachments: [ChatMessageAttachment] = []
+  var uploadProgress: [String: ChatAttachmentUploadProgress] = [:]
   var workDurationMs: Int? = nil
   var shines: Bool { kind == "summary" && running && !attention }
   /// `only` / `first` / `middle` / `last` for consecutive file rows in one group.
@@ -248,19 +255,21 @@ struct ChatTranscript {
         visible = Array(entry.items.indices)
       } else if processOnly {
         if !processStartID.isEmpty, let start = entry.items.firstIndex(where: { $0.itemId == processStartID }) {
-          let end = entry.items.indices.dropFirst(start + 1).first { entry.items[$0].type == "text" } ?? entry.items.endIndex
-          visible = Array(start..<end)
+          let end = entry.items.indices.dropFirst(start + 1).first { entry.items[$0].type == "text" || entry.items[$0].isAttachment } ?? entry.items.endIndex
+          visible = Array(start..<end).filter { !entry.items[$0].isAttachment }
         } else {
-          visible = entry.items.indices.filter { $0 != finalText }
+          visible = entry.items.indices.filter { $0 != finalText && !entry.items[$0].isAttachment }
         }
       } else if entry.finished {
-        let process = entry.items.indices.filter { $0 != finalText }
+        let process = entry.items.indices.filter { $0 != finalText && !entry.items[$0].isAttachment }
         if let first = process.first { groups[first] = process }
         visible = process.first.map { [$0] } ?? []
         if let finalText { visible.append(finalText) }
+        visible.append(contentsOf: entry.items.indices.filter { entry.items[$0].isAttachment })
+        visible.sort()
       } else {
         for index in entry.items.indices {
-          if entry.items[index].type == "text" {
+          if entry.items[index].type == "text" || entry.items[index].isAttachment {
             visible.append(index)
           } else if let previous = visible.last, groups[previous] != nil {
             groups[previous]!.append(index)
@@ -311,12 +320,26 @@ struct ChatTranscript {
           continue
         }
         let item = entry.items[index]
+        if item.isImage {
+          let images = item.type == "image" ? item.image.map { [$0] } ?? [] : item.images ?? []
+          for (imageIndex, image) in images.enumerated() {
+            result.append(ChatRow(id: entry.id + ":" + item.itemId + ":image:\(imageIndex)",
+              entryID: entry.id, kind: "image", text: "", itemID: item.itemId, image: image))
+          }
+          continue
+        }
         let attention = item.status == "failed" || item.permission?.pending == true
         var row = ChatRow(id: entry.id + ":" + item.itemId, entryID: entry.id,
           kind: item.type, text: item.text ?? "", itemID: item.itemId,
           running: entry.isRunning && item.status == "in_progress", attention: attention,
           streaming: entry.isRunning && (item.type == "text" || item.type == "thought"))
         switch item.type {
+        case "file":
+          guard let file = item.file else { continue }
+          row.file = file
+          row.text = file.fileName
+          row.symbol = "doc"
+          row.actionable = true
         case "text": break
         case "thought": row.symbol = "brain"
         case "tool_call":
@@ -458,6 +481,11 @@ private func fileGroup(index: Int, count: Int) -> String {
 }
 
 /// Local visual state uses the dispatch ID, so authoritative history takes its place.
+struct ChatAttachmentUploadProgress: Decodable, Equatable {
+  let phase: String
+  let percent: Int?
+}
+
 struct ChatPendingSend: Decodable {
   struct Attachment: Decodable {
     let id: String
@@ -473,6 +501,8 @@ struct ChatPendingSend: Decodable {
   var failed: Bool? = nil
   var reconnect: Bool? = nil
   var queue: Bool? = nil
+  var phase: String? = nil
+  var uploadProgress: [String: ChatAttachmentUploadProgress]? = nil
 
   func rows(entries: [ChatEntry]) -> [ChatRow] {
     guard (queue != true || failed == true), !entries.contains(where: { $0.id == id && $0.isQueued }) else { return [] }
@@ -486,7 +516,9 @@ struct ChatPendingSend: Decodable {
         return ChatMessageAttachment(id: attachment.id, fileName: attachment.name, image: image, localURI: attachment.uri)
       }
       if !media.isEmpty {
-        result.append(ChatRow(id: id + ":user", entryID: id, kind: "attachments", text: "", attachments: media))
+        result.append(ChatRow(id: id + ":user", entryID: id, kind: "attachments", text: status,
+          running: failed != true && reconnect != true && !["accepted", "uploaded", "unknown"].contains(phase ?? ""),
+          attachments: media, uploadProgress: uploadProgress ?? [:]))
       }
       let body = text
       if !body.isEmpty {
@@ -501,7 +533,7 @@ struct ChatPendingSend: Decodable {
     let acceptedIndex = entries.firstIndex { $0.id == id }
     let hasReply = acceptedIndex.map { entries.dropFirst($0 + 1).contains { $0.role == "assistant" } } ?? false
     if !hasReply {
-      if !attachments.isEmpty || reconnect == true {
+      if reconnect == true {
         result.append(ChatRow(id: id + ":pending", entryID: id, kind: "pending", text: status,
           actionable: reconnect == true, running: true))
       }

@@ -31,6 +31,8 @@ export {
   watchCatalog,
   unwatchCatalog,
   addDataRuntimeListener,
+  addAttachmentUploadProgressListener,
+  type AttachmentUploadProgress,
   dataRuntimeStatus,
   debugBackgroundDataRuntime,
   debugHangDataRuntime,

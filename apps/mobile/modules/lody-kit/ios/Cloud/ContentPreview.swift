@@ -4,7 +4,7 @@ import UIKit
 @MainActor
 final class ContentPreview: NSObject, QLPreviewControllerDataSource, @MainActor QLPreviewControllerDelegate {
   private static var current: ContentPreview?
-  private nonisolated static var root: URL { FileManager.default.temporaryDirectory.appendingPathComponent("preview", isDirectory: true) }
+  nonisolated static var root: URL { FileManager.default.temporaryDirectory.appendingPathComponent("preview", isDirectory: true) }
   private let url: URL
 
   private init(url: URL) { self.url = url }
@@ -42,11 +42,133 @@ final class ContentPreview: NSObject, QLPreviewControllerDataSource, @MainActor 
   }
 }
 
+/// Quick Look provides video playback, document previews and the system share action.
+@MainActor
+final class SessionFilePreview: QLPreviewController, QLPreviewControllerDataSource, @MainActor QLPreviewControllerDelegate {
+  private let file: ChatMessageAttachment
+  private let workspace: String
+  private let session: String
+  private let directory = ContentPreview.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
+  private var url: URL?
+  private var download: Task<Void, Never>?
+  #if DEBUG
+  private var fixtureAttempt = 0
+  #endif
+
+  init(file: ChatMessageAttachment, workspace: String, session: String) {
+    self.file = file
+    self.workspace = workspace
+    self.session = file.storageSessionId ?? session
+    super.init(nibName: nil, bundle: nil)
+  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    dataSource = self
+    delegate = self
+    load()
+  }
+
+  private func load() {
+    download?.cancel()
+    var loading = UIContentUnavailableConfiguration.loading()
+    loading.text = LodyStrings.text("native.attachment.preview.loading")
+    loading.background.backgroundColor = .systemBackground
+    loading.button.title = LodyStrings.text("native.close")
+    loading.buttonProperties.primaryAction = UIAction { [weak self] _ in self?.dismiss(animated: true) }
+    contentUnavailableConfiguration = loading
+    #if DEBUG
+    fixtureAttempt += 1
+    let attempt = fixtureAttempt
+    #endif
+    download = Task { [weak self, file, workspace, session, directory] in
+      do {
+        guard file.transport == nil || file.transport == "r2" else {
+          throw SessionAttachments.error(LodyStrings.text("native.attachment.error.pending"))
+        }
+        let url: URL
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-verify"), session == "ui-verify-attachments" {
+          try await Task.sleep(for: .milliseconds(file.id == "cancel" ? 4000 : 1200))
+          url = try FilePreviewFixture.attachment(file.id, attempt: attempt, directory: directory)
+        } else {
+          url = try await SessionAttachments.download(workspace: workspace, session: session, fileId: file.id,
+            fileName: file.fileName, sizeBytes: file.sizeBytes, directory: directory)
+        }
+        #else
+        url = try await SessionAttachments.download(workspace: workspace, session: session, fileId: file.id,
+          fileName: file.fileName, sizeBytes: file.sizeBytes, directory: directory)
+        #endif
+        try Task.checkCancellation()
+        guard let self else { try? FileManager.default.removeItem(at: directory); return }
+        self.url = url
+        self.contentUnavailableConfiguration = nil
+        self.reloadData()
+      } catch {
+        try? FileManager.default.removeItem(at: directory)
+        guard !Task.isCancelled, let self else { return }
+        var failed = UIContentUnavailableConfiguration.empty()
+        failed.background.backgroundColor = .systemBackground
+        failed.image = UIImage(systemName: "doc.badge.ellipsis")
+        failed.text = file.fileName
+        failed.secondaryText = error.localizedDescription
+        failed.secondaryButton.title = LodyStrings.text("native.close")
+        failed.secondaryButtonProperties.primaryAction = UIAction { [weak self] _ in self?.dismiss(animated: true) }
+        if file.transport != "local" {
+          failed.button.title = LodyStrings.text("native.attachment.preview.retry")
+          failed.buttonProperties.primaryAction = UIAction { [weak self] _ in self?.load() }
+        }
+        self.contentUnavailableConfiguration = failed
+      }
+    }
+  }
+
+  func previewControllerDidDismiss(_ controller: QLPreviewController) {
+    download?.cancel()
+    try? FileManager.default.removeItem(at: directory)
+  }
+
+  deinit {
+    download?.cancel()
+    try? FileManager.default.removeItem(at: directory)
+  }
+
+  func numberOfPreviewItems(in controller: QLPreviewController) -> Int { url == nil ? 0 : 1 }
+  func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+    url! as NSURL
+  }
+}
+
 #if DEBUG
 import UIKit
 
 @MainActor
 enum FilePreviewFixture {
+  static func attachment(_ id: String, attempt: Int, directory: URL) throws -> URL {
+    if id == "missing" { throw SessionAttachments.error(LodyStrings.text("native.attachment.error.unavailable")) }
+    if id == "retry", attempt == 1 { throw SessionAttachments.error(LodyStrings.text("native.attachment.error.download")) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    if id == "video" {
+      let source = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("ui-verify-attachment.mp4")
+      let url = directory.appendingPathComponent("video.mp4")
+      try FileManager.default.copyItem(at: source, to: url)
+      return url
+    }
+    if id == "pdf" {
+      let url = directory.appendingPathComponent("report.pdf")
+      let body = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 400, height: 500)).pdfData { context in
+        context.beginPage()
+        ("MCP attachment preview" as NSString).draw(at: CGPoint(x: 32, y: 60), withAttributes: [.font: UIFont.systemFont(ofSize: 24)])
+      }
+      try body.write(to: url)
+      return url
+    }
+    let url = directory.appendingPathComponent("report.txt")
+    try Data("MCP attachment preview\n\nDownloaded files open with native Quick Look.\n".utf8).write(to: url)
+    return url
+  }
+
   static func response(_ payload: String, listing: Bool = false) -> String? {
     guard ProcessInfo.processInfo.arguments.contains("--ui-verify"),
       let data = payload.data(using: .utf8),

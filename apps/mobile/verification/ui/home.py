@@ -47,6 +47,13 @@ def assert_swipe_has_no_selection(action_label):
 close_create = catalog.text('accessibility.closeSheet', title=catalog.text('create.title'))
 
 home_ready()
+def assert_model_row():
+    item = ui.element('ui-design')
+    labels = [item.get('AXLabel') or ''] + [child.get('AXLabel') or '' for child in item.get('children') or []]
+    label = ' '.join(labels)
+    assert label.index('feature/session-model') < label.index('GPT-6'), label
+
+assert_model_row()
 if any(i.get('AXUniqueId') == 'xmark' and i.get('AXLabel') == catalog.system('close') for i in ui.state()):
     ui.axe('tap', '--id', 'xmark', '--post-delay', '1')
 ui.capture('home')
@@ -219,9 +226,12 @@ ui.axe('tap', '--label', catalog.text('inbox.settings.view.activity'), '--post-d
 ui.element('ui-design')
 assert not any(i.get('AXUniqueId') == 'toggle:ui:local:lody' for i in ui.state())
 ui.capture('activity-view')
+assert_model_row()
 ui.axe('tap', '--label', view_label, '--post-delay', '.8')
 ui.axe('tap', '--label', catalog.text('inbox.settings.view.chat'), '--post-delay', '.8')
 ui.element('ui-chat')
+chat = ui.element('ui-chat')
+assert catalog.text('session.notRun') in str(chat), chat
 assert not any(i.get('AXUniqueId') == 'toggle:ui:local:lody' for i in ui.state())
 ui.capture('chat-view')
 ui.axe('tap', '--label', view_label, '--post-delay', '.8')

@@ -84,10 +84,31 @@ if source == 'create-session-input':
     ui.wait(lambda items: any((item.get('AXLabel') or '').endswith(' · creating') for item in items), 'Creation did not start')
     ui.axe('tap', '--id', 'send-complete')
 ui.wait(lambda items: any((item.get('AXLabel') or '').endswith(' · sending') for item in items), 'Send did not start')
+uploading = [item for item in ui.state() if (item.get('AXUniqueId') or '').startswith(turn + ':attachment:')]
+assert uploading and all(item.get('AXValue') == catalog.text('send.status.uploading') for item in uploading), 'Attachment tiles must expose their upload state'
+assert not any(item.get('AXUniqueId') == turn + ':pending' for item in ui.state()), 'Upload must not create a separate status cell'
+ui.capture('attachment-uploading')
+for step, percent in enumerate([25, 65]):
+    ui.axe('tap', '--id', 'send-upload-progress')
+    expected = catalog.text('native.chat.attachment.uploadProgress', percent=str(percent))
+    ui.wait(lambda items: any((item.get('AXUniqueId') or '').startswith(turn + ':attachment:') and item.get('AXValue') == expected for item in items), 'Real tile did not receive injected upload progress')
+    tiles = [item for item in ui.state() if (item.get('AXUniqueId') or '').startswith(turn + ':attachment:')]
+    assert [item.get('AXValue') for item in sorted(tiles, key=lambda item: item['frame']['x'])] == [catalog.text('native.chat.attachment.uploadProgress', percent=str(percent + i)) for i in range(len(tiles))], 'Progress must be per attachment'
+    assert not any(item.get('AXUniqueId') == turn + ':pending' for item in ui.state())
+    ui.capture(f'attachment-progress-{percent}')
+ui.axe('tap', '--id', 'send-upload-progress')
+ui.wait(lambda items: any(item.get('AXValue') == catalog.text('native.chat.attachment.verifying') for item in items), 'Upload must wait for server verification')
+first_file = next(item for item in ui.state() if (item.get('AXUniqueId') or '').startswith(turn + ':attachment:') and '01-notes.txt' in (item.get('AXLabel') or ''))
+assert not first_file.get('AXValue'), 'One finished attachment must clear independently while another is still verifying'
+ui.capture('attachment-verifying')
+ui.axe('tap', '--id', 'send-upload-progress')
+ui.wait(lambda items: all(not item.get('AXValue') for item in items if (item.get('AXUniqueId') or '').startswith(turn + ':attachment:')), 'Completed uploads must clear their indicators before message acknowledgement')
+ui.capture('attachments-uploaded')
 ui.axe('tap', '--id', 'send-complete')
 ui.wait(lambda items: any((item.get('AXLabel') or '').endswith(' · accepted') for item in items), 'Receipt missing')
 ui.axe('tap', '--id', 'send-reply')
 ui.wait(lambda items: any((item.get('AXLabel') or '').endswith(' · idle') for item in items), 'History did not reconcile')
+assert all(not item.get('AXValue') for item in ui.state() if (item.get('AXUniqueId') or '').startswith(turn + ':attachment:')), 'History takeover must clear tile loading'
 assert abs(ui.element(message_id)['frame']['height'] - message['frame']['height']) < 1.5
 ui.capture('history-reconciled')
 
@@ -95,10 +116,12 @@ ui.capture('history-reconciled')
 ui.paste_file('session-input')
 ui.capture('file-only-source')
 ui.axe('tap', '--id', 'session-send')
-status = ui.wait(lambda items: next((item for item in items if (item.get('AXUniqueId') or '').endswith(':pending') and not (item.get('AXUniqueId') or '').startswith(turn)), None), 'Attachment-only send missing')
-file_turn = status['AXUniqueId'].removesuffix(':pending')
+status = ui.wait(lambda items: next((item for item in items if (item.get('AXUniqueId') or '').endswith(':duration') and not (item.get('AXUniqueId') or '').startswith(turn)), None), 'Attachment-only send missing')
+file_turn = status['AXUniqueId'].removesuffix(':duration')
 file_items = [item for item in ui.state() if (item.get('AXUniqueId') or '').startswith(file_turn + ':attachment:')]
 assert len(file_items) == 1 and 'clipboard-fixture.txt' in file_items[0]['AXLabel']
+assert file_items[0].get('AXValue') == catalog.text('send.status.uploading'), 'File-only tile must show loading'
+assert not any(item.get('AXUniqueId') == file_turn + ':pending' for item in ui.state()), 'File-only upload added a status cell'
 assert not any(item.get('AXUniqueId') == file_turn + ':user-text' for item in ui.state()), 'Attachment-only send added an empty bubble'
 ui.capture('file-only-landed')
 

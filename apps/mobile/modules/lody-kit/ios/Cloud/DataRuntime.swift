@@ -14,6 +14,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   private var commands: [UUID: Promise] = [:]
   private var timer: Timer?
   private var attachmentTask: Task<Void, Never>?
+  private var attachmentAttempt: UUID?
   private var grantTask: URLSessionDataTask?
   private var githubTasks: [String: Task<Void, Never>] = [:]
   private var health = RuntimeHealth()
@@ -30,11 +31,14 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   private var acknowledgements = 0
   private let observers = NotificationObservers()
   private let emit: ([String: Any]) -> Void
+  private let emitUploadProgress: ([String: Any]) -> Void
   private var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
 
-  init(localStore: LocalStore, emit: @escaping ([String: Any]) -> Void) {
+  init(localStore: LocalStore, emit: @escaping ([String: Any]) -> Void,
+    emitUploadProgress: @escaping ([String: Any]) -> Void) {
     self.localStore = localStore
     self.emit = emit
+    self.emitUploadProgress = emitUploadProgress
     super.init()
     observers.add(NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
       MainActor.assumeIsolated {
@@ -262,9 +266,21 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     }
     let backgroundTaskId = args["backgroundTaskId"] as? String
     let generation = self.generation
+    let sendID = args["id"] as? String ?? ""
+    let attempt = UUID()
+    attachmentAttempt = attempt
     attachmentTask = Task.detached { [weak self] in
       do {
-        args["attachmentBlocks"] = try await SessionAttachments.upload(attachments, workspace: workspace, session: sessionId)
+        args["attachmentBlocks"] = try await SessionAttachments.upload(attachments, workspace: workspace, session: sessionId) { [weak self] attachmentID, phase, percent in
+          DispatchQueue.main.async { [weak self] in
+            guard let self, self.generation == generation, self.workspace == workspace,
+              self.sessionId == sessionId, self.attachmentAttempt == attempt, self.attachmentTask != nil else { return }
+            var event: [String: Any] = ["sessionId": sessionId, "sendId": sendID,
+              "attachmentId": attachmentID, "phase": phase]
+            if let percent { event["percent"] = percent }
+            self.emitUploadProgress(event)
+          }
+        }
         try Task.checkCancellation()
         let prepared = String(data: try JSONSerialization.data(withJSONObject: args), encoding: .utf8)!
         await MainActor.run { [weak self] in

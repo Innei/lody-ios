@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
-import { NativeChat, NativeComposer } from '@lody-ios/kit';
+import {
+  NativeChat,
+  NativeComposer,
+  type AttachmentUploadProgress,
+} from '@lody-ios/kit';
 import { definePage, present } from '@/lib/presentation';
 import { usePendingSends } from '@/cloud/send/pendingSends';
 import { useSessionSend } from '@/features/sessions/useSessionSend';
@@ -147,6 +151,10 @@ function SendPreview() {
       : [],
   });
   const completion = useRef<((result: string) => void) | null>(null);
+  const uploadListener = useRef<
+    ((event: AttachmentUploadProgress) => void) | null
+  >(null);
+  const uploadStep = useRef(0);
   const controlPending = useRef<{
     args: { action: string; turnId: string; messageId?: string };
     resolve: (result: string) => void;
@@ -165,6 +173,18 @@ function SendPreview() {
     },
   );
   const services = useRef({
+    addAttachmentUploadProgressListener: (
+      listener: (event: AttachmentUploadProgress) => void,
+    ) => {
+      uploadListener.current = listener;
+      uploadStep.current = 0;
+      return {
+        remove: () => {
+          if (uploadListener.current === listener)
+            uploadListener.current = null;
+        },
+      };
+    },
     createSession: () =>
       new Promise<string>((resolve) => {
         setCalls((n) => n + 1);
@@ -339,6 +359,28 @@ function SendPreview() {
           </Button>
         )}
       </View>
+      <Button
+        testID="send-upload-progress"
+        onPress={() => {
+          if (record?.send.phase !== 'sending') return;
+          const step = uploadStep.current++ % 4;
+          const phase = ['uploading', 'uploading', 'verifying', 'complete'][
+            step
+          ] as AttachmentUploadProgress['phase'];
+          record.send.attachments.forEach((attachment, index) => {
+            const percent = step < 2 ? 25 + step * 40 + index : 100;
+            uploadListener.current?.({
+              sessionId: session.id,
+              sendId: record.send.id,
+              attachmentId: attachment.id,
+              phase: step === 2 && index === 0 ? 'complete' : phase,
+              percent,
+            });
+          });
+        }}
+      >
+        上传进度
+      </Button>
       <Text
         testID="send-status"
         style={{ color: colors.label, padding: 12 }}

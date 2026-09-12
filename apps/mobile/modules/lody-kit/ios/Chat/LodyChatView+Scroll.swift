@@ -46,6 +46,10 @@ extension LodyChatView {
       return
     }
     guard let id = dataSource.itemIdentifier(for: indexPath), let row = rows[id], row.actionable else { return }
+    if let file = row.file {
+      openAttachment(file)
+      return
+    }
     if let pendingSend, id == pendingSend.id + ":pending", pendingSend.failed == true {
       onRetrySend([:])
       return
@@ -55,6 +59,16 @@ extension LodyChatView {
       return
     }
     onActivityPress(["entryId": row.entryID, "itemId": row.itemID, "processStartId": row.processStartID])
+  }
+
+  func openAttachment(_ attachment: ChatMessageAttachment) {
+    guard let controller = presenter(), controller.presentedViewController == nil else { return }
+    pauseTracking()
+    if let uri = attachment.localURI, let url = URL(string: uri), url.isFileURL {
+      controller.present(ChatAttachmentPreview([ChatAttachment(id: attachment.id, name: attachment.fileName, url: url, isImage: false)], index: 0), animated: true)
+      return
+    }
+    controller.present(SessionFilePreview(file: attachment, workspace: imageWorkspace, session: imageSession), animated: true)
   }
 
   func toggleExpansion(_ row: ChatRow) {

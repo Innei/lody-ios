@@ -408,6 +408,50 @@ imageTranscript.entries[0].items.removeFirst()
 assert(imageTranscript.rows().map(\.kind) == ["attachments"], "Image-only messages must not add an empty bubble")
 print("Chat image rows: media before caption, stable anchor, and image-only layout passed")
 
+let assistantImages = """
+[{"id":"upload","role":"assistant","status":"running","finished":false,"items":[
+{"itemId":"tool","type":"tool_call","title":"Upload images","status":"completed"},
+{"itemId":"photos","type":"image_group","images":[{"id":"one","fileName":"one.png","storageSessionId":"source","width":600,"height":400},{"id":"two","fileName":"two.png"}]},
+{"itemId":"answer","type":"text","text":"Uploaded"},
+{"itemId":"last","type":"image","image":{"id":"three","fileName":"three.png"}}
+]}]
+"""
+var uploadedTranscript = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(assistantImages.utf8)))
+let liveImageRows = uploadedTranscript.rows().filter { $0.image != nil }
+precondition(liveImageRows.compactMap { $0.image?.id } == ["one", "two", "three"])
+precondition(liveImageRows.first?.image?.storageSessionId == "source")
+uploadedTranscript.entries[0].finished = true
+precondition(uploadedTranscript.rows().filter { $0.image != nil } == liveImageRows,
+  "Completion must preserve every uploaded image and its row identity")
+precondition(uploadedTranscript.rows().map(\.kind) == ["summary", "image", "image", "text", "image"])
+precondition(uploadedTranscript.rows(processEntryID: "upload").map(\.kind) == ["tool_call"],
+  "Uploaded images belong in the conversation, not the collapsed process")
+precondition(ChatTranscript.previewRows(from: assistantImages).filter { $0.image != nil } == liveImageRows)
+uploadedTranscript.entries[0].items.removeAll { !$0.isImage }
+precondition(uploadedTranscript.rows().map(\.kind) == ["image", "image", "image"],
+  "Standalone MCP uploads must render without a tool or final text")
+print("MCP images: multiple images, completion, standalone upload and cache restore passed")
+
+let assistantFiles = """
+[{"id":"files","role":"assistant","status":"running","finished":false,"items":[
+{"itemId":"tool","type":"tool_call","title":"Upload files","status":"completed"},
+{"itemId":"video","type":"file","file":{"id":"video","fileName":"clip.mp4","storageSessionId":"source","transport":"r2","sizeBytes":1024}},
+{"itemId":"answer","type":"text","text":"Uploaded"},
+{"itemId":"pdf","type":"file","file":{"id":"pdf","fileName":"report.pdf","transport":"local"}}
+]}]
+"""
+var fileTranscript = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(assistantFiles.utf8)))
+let liveFiles = fileTranscript.rows().filter { $0.file != nil }
+precondition(liveFiles.map(\.text) == ["clip.mp4", "report.pdf"] && liveFiles.allSatisfy(\.actionable))
+precondition(liveFiles.first?.file?.storageSessionId == "source" && liveFiles.first?.file?.sizeBytes == 1024)
+fileTranscript.entries[0].finished = true
+precondition(fileTranscript.rows().filter { $0.file != nil } == liveFiles)
+precondition(fileTranscript.rows(processEntryID: "files").map(\.kind) == ["tool_call"])
+precondition(ChatTranscript.previewRows(from: assistantFiles).filter { $0.file != nil } == liveFiles)
+fileTranscript.entries[0].items.removeAll { !$0.isAttachment }
+precondition(fileTranscript.rows().map(\.kind) == ["file", "file"])
+print("MCP files: inline preview actions, completion, standalone upload and cache restore passed")
+
 // A moving tail must traverse intermediate positions, never overshoot, and
 // converge to the same place on different refresh-rate displays.
 func follow(_ rate: Int) -> Double {
@@ -435,7 +479,7 @@ let localPendingJSON = """
 """
 let localPending = try! JSONDecoder().decode(ChatPendingSend.self, from: Data(localPendingJSON.utf8))
 let pendingRows = localPending.rows(entries: [])
-precondition(pendingRows.map(\.kind) == ["attachments", "user", "pending", "duration"],
+precondition(pendingRows.map(\.kind) == ["attachments", "user", "duration"],
   "A send must show its attachment, text and a separate static duration immediately")
 precondition(pendingRows.first?.attachments.first?.localURI == "file:///tmp/cat.png" && pendingRows.last?.running == true)
 precondition(pendingRows.last?.id == "local-send:duration")
@@ -446,11 +490,23 @@ precondition(ChatWorkDuration.needsTimer(pendingRows),
 precondition(ChatWorkDuration.needsTimer(liveDurationRows))
 precondition(!ChatWorkDuration.needsTimer(finishedDurationRows))
 let authoritative = ChatEntry(id: "local-send", role: "user", status: "completed", finished: true, timestamp: nil, endedAt: nil, startedAt: nil, items: [], fileDiffs: nil)
-precondition(localPending.rows(entries: [authoritative]).map(\.kind) == ["pending", "duration"],
+precondition(localPending.rows(entries: [authoritative]).map(\.kind) == ["duration"],
   "Authoritative user history must replace the pending user row without interrupting duration")
 var failedPending = localPending
 failedPending.failed = true
 let failedRows = failedPending.rows(entries: [])
+var uploadingPending = localPending
+uploadingPending.phase = "sending"
+uploadingPending.uploadProgress = ["photo": ChatAttachmentUploadProgress(phase: "uploading", percent: 37)]
+let uploadingRows = uploadingPending.rows(entries: [])
+precondition(uploadingRows.first?.uploadProgress["photo"]?.percent == 37 && uploadingRows.first?.running == true)
+precondition(uploadingRows.first?.attachments == pendingRows.first?.attachments,
+  "Progress must not replace attachment identities or restart image loaders")
+uploadingPending.phase = "accepted"
+precondition(uploadingPending.rows(entries: []).first?.running == false,
+  "An accepted send must stop upload indicators before history arrives")
+precondition(pendingRows.first?.running == true && failedRows.first?.running == false,
+  "Loading belongs to attachment tiles and must stop on failure")
 precondition(failedRows.first?.attachments == pendingRows.first?.attachments && failedRows.last?.actionable == true,
   "A definite failure must retain the attachment and offer explicit retry")
 print("Pending send: immediate text and attachment, processing, stable history takeover and failure passed")
@@ -458,7 +514,8 @@ print("Pending send: immediate text and attachment, processing, stable history t
 var disconnectedPending = localPending
 disconnectedPending.reconnect = true
 let reconnectRows = disconnectedPending.rows(entries: [])
-precondition(reconnectRows.count == pendingRows.count, "Reconnection must reuse the existing pending status row")
+precondition(reconnectRows.count == pendingRows.count + 1 && reconnectRows.first?.running == false,
+  "Reconnection replaces tile loading with an actionable status row")
 precondition(
   reconnectRows.contains { $0.kind == "pending" && $0.actionable } && reconnectRows.last?.actionable == false,
   "Disconnected pending state must offer reconnect on the status row, not the timer"

@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { inboxSections } from '../../src/features/sessions/inbox.ts';
+import {
+  activeSessionSections,
+  inboxSections,
+} from '../../src/features/sessions/inbox.ts';
 import { listPlaceholder, searchPlaceholder } from '../../src/ui/listState.ts';
 import { draftTitle } from '../../src/features/sessions/draftTitle.ts';
 import { setLocale } from '../../src/lib/i18n/index.ts';
@@ -29,6 +32,37 @@ const catalog = (sessions, projects = [{ id: 'p1', name: 'lody-ios' }]) => ({
 
 const build = (data, options = {}) =>
   inboxSections(data, { accent: ACCENT, now, ...options });
+
+test('live activity overview removes finished turns and keeps work awaiting input', () => {
+  const data = catalog([
+    session('a', 'running'),
+    session('b', 'running'),
+    session('approval', 'waiting', { awaitingUserSince: now }),
+    session('draft', 'pending'),
+    session('old', 'completed', { awaitingUserSince: now }),
+    session('archived', 'running', { archived: true }),
+  ]);
+  const ids = () =>
+    activeSessionSections(data, ACCENT)
+      .flatMap((section) => section.rows.map((row) => row.id))
+      .sort();
+  assert.deepEqual(ids(), ['a', 'approval', 'b']);
+  data.sessions[0].status = 'completed';
+  assert.deepEqual(ids(), ['approval', 'b']);
+  data.sessions[1].status = 'error';
+  data.sessions[2].status = 'completed';
+  assert.deepEqual(ids(), []);
+});
+
+test('queued work appears in the active group, not dated idle history', () => {
+  const sections = activeSessionSections(
+    catalog([session('queued', 'queued')]),
+    ACCENT,
+  );
+  assert.equal(sections.length, 1);
+  assert.equal(sections[0].id, 'live');
+  assert.equal(sections[0].rows[0].id, 'queued');
+});
 
 test('groups run attention, live, unread completed, then dated history', () => {
   const sections = build(
@@ -557,14 +591,15 @@ test('project rows carry branch or agent, diff, activity time, unread and a badg
   assert.equal(busy.image, undefined);
   assert.equal(busy.imageTint, 'warning');
   assert.equal(busy.disclosure, undefined);
-  assert.equal(quiet.subtitle, 'Claude Code');
+  assert.equal(quiet.subtitle, '');
+  assert.equal(quiet.modelName, '模型未知');
   assert.equal(quiet.subtitleMono, false);
   assert.equal(quiet.unread, false);
   assert.equal(quiet.badge, undefined);
   assert.equal(quiet.image, undefined);
   assert.equal(
     sessionRow(data.sessions[0], ACCENT, 'lody-ios', now).subtitle,
-    'lody-ios · Claude Code',
+    'lody-ios',
   );
 });
 

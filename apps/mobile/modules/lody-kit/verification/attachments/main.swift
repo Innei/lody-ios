@@ -7,6 +7,20 @@ final class UploadRecorder: @unchecked Sendable {
   private let lock = NSLock()
   private var storedRequests: [URLRequest] = []
   private var storedFailPart = false
+  private var storedProgress: [(String, String, Int?)] = []
+  private var storedBytes: [Int64] = []
+  var progress: [(String, String, Int?)] {
+    lock.lock(); defer { lock.unlock() }; return storedProgress
+  }
+  var bytes: [Int64] {
+    lock.lock(); defer { lock.unlock() }; return storedBytes
+  }
+  func record(_ id: String, _ phase: String, _ percent: Int?) {
+    lock.lock(); defer { lock.unlock() }; storedProgress.append((id, phase, percent))
+  }
+  func recordBytes(_ sent: Int64) {
+    lock.lock(); defer { lock.unlock() }; storedBytes.append(sent)
+  }
   var requests: [URLRequest] {
     get { lock.lock(); defer { lock.unlock() }; return storedRequests }
     set { lock.lock(); storedRequests = newValue; lock.unlock() }
@@ -32,6 +46,19 @@ final class UploadProtocol: URLProtocol {
   override func startLoading() {
     Self.requests.append(request)
     assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer synthetic-test-token")
+    if request.httpMethod == "GET" {
+      let status: Int
+      switch request.url!.lastPathComponent {
+      case "missing": status = 404
+      case "failed": status = 503
+      default: status = 200
+      }
+      client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil,
+        headerFields: ["Content-Length": "3"])!, cacheStoragePolicy: .notAllowed)
+      client?.urlProtocol(self, didLoad: Data("hi!".utf8))
+      client?.urlProtocolDidFinishLoading(self)
+      return
+    }
     var uploaded = request.httpBody ?? Data()
     if let stream = request.httpBodyStream {
       stream.open(); defer { stream.close() }
@@ -87,15 +114,21 @@ final class UploadProtocol: URLProtocol {
     let file = root.appendingPathComponent("test.txt")
     try Data("hi!".utf8).write(to: file)
     func attachment(_ url: URL, _ kind: String = "file") -> [String: Any] {
-      ["uri": url.absoluteString, "name": url.lastPathComponent, "kind": kind]
+      ["id": url.lastPathComponent, "uri": url.absoluteString, "name": url.lastPathComponent, "kind": kind]
     }
-    let small = try await SessionAttachments.upload([attachment(file)], workspace: "w1", session: "s1")
+    let smallProgress = UploadRecorder()
+    let small = try await SessionAttachments.upload([attachment(file)], workspace: "w1", session: "s1", onProgress: smallProgress.record)
+    assert(smallProgress.progress.first?.1 == "preparing" && smallProgress.progress.last?.1 == "complete")
+    assert(smallProgress.progress.allSatisfy { $0.0 == "test.txt" })
     assert(small[0]["fileId"] as? String == "file1")
     assert(UploadProtocol.requests.last!.value(forHTTPHeaderField: "x-file-sha256") == "c0ddd62c7717180e7ffb8a15bb9674d3ec92592e0b7ac7d1d5289836b4553be2")
     let image = root.appendingPathComponent("photo.png")
     let renderer = UIGraphicsImageRenderer(size: CGSize(width: 10, height: 10))
     try renderer.pngData { context in UIColor.blue.setFill(); context.fill(CGRect(x: 0, y: 0, width: 10, height: 10)) }.write(to: image)
-    let images = try await SessionAttachments.upload([attachment(image, "image")], workspace: "w1", session: "s1")
+    let imageProgress = UploadRecorder()
+    let images = try await SessionAttachments.upload([attachment(image, "image")], workspace: "w1", session: "s1", onProgress: imageProgress.record)
+    assert(imageProgress.progress.contains { $0.1 == "uploading" && $0.2 == 0 })
+    assert(imageProgress.progress.last?.0 == "photo.png" && imageProgress.progress.last?.1 == "complete")
     assert(images[0]["imageId"] as? String == "image1")
     let video = root.appendingPathComponent("IMG_3933.mov")
     try Data("hi!".utf8).write(to: video)
@@ -106,19 +139,61 @@ final class UploadProtocol: URLProtocol {
     assert(!UploadProtocol.requests.contains { $0.url!.path.contains("session-images") })
     try Data(repeating: 65, count: 16 * 1024 * 1024 + 1).write(to: file)
     UploadProtocol.requests = []
-    _ = try await SessionAttachments.upload([attachment(file)], workspace: "w1", session: "s1")
+    let multipartProgress = UploadRecorder()
+    _ = try await SessionAttachments.upload([attachment(file)], workspace: "w1", session: "s1", onProgress: multipartProgress.record)
+    let percentages = multipartProgress.progress.compactMap { $0.2 }
+    assert(percentages == percentages.sorted() && percentages.first == 0 && percentages.last == 100,
+      "Multipart progress must accumulate across parts without resetting")
+    assert(multipartProgress.progress.last?.1 == "complete")
     assert(UploadProtocol.requests.map { $0.url!.lastPathComponent } == ["create", "1", "2", "complete"])
     assert(UploadProtocol.requests[2].value(forHTTPHeaderField: "x-file-part-size-bytes") == "1")
     UploadProtocol.failPart = true
+    let failedProgress = UploadRecorder()
     do {
-      _ = try await SessionAttachments.upload([attachment(file)], workspace: "w1", session: "s1")
+      _ = try await SessionAttachments.upload([attachment(file)], workspace: "w1", session: "s1", onProgress: failedProgress.record)
       fatalError("Failed upload must not produce an attachment")
     } catch { assert(UploadProtocol.requests.last!.url!.lastPathComponent == "abort") }
+    assert(!failedProgress.progress.contains { $0.1 == "complete" }, "A failed upload must never report completion")
     let before = UploadProtocol.requests.count
     do {
       _ = try await SessionAttachments.upload([attachment(URL(fileURLWithPath: "/etc/passwd"))], workspace: "w1", session: "s1")
       fatalError("Must reject files outside picker storage")
     } catch { assert(UploadProtocol.requests.count == before) }
-    print("PASS: native image/file upload, SHA256, multipart boundaries, abort and local-file guard")
+    let downloadDirectory = root.appendingPathComponent("download")
+    let downloaded = try await SessionAttachments.download(workspace: "w /1", session: "source", fileId: "f /1",
+      fileName: "../../report.txt", sizeBytes: 3, directory: downloadDirectory)
+    assert(downloaded == downloadDirectory.appendingPathComponent("report.txt"))
+    let downloadedBytes = try Data(contentsOf: downloaded)
+    assert(downloadedBytes == Data("hi!".utf8))
+    assert(UploadProtocol.requests.last!.url!.absoluteString == "https://api.lody.ai/api/workspaces/w%20%2F1/session-files/source/f%20%2F1")
+    for (id, size) in [("missing", 3), ("failed", 3), ("incomplete", 4)] {
+      let failedDirectory = root.appendingPathComponent(id)
+      do {
+        _ = try await SessionAttachments.download(workspace: "w1", session: "s1", fileId: id,
+          fileName: "report.txt", sizeBytes: size, directory: failedDirectory)
+        fatalError("Failed or incomplete downloads must not become previews")
+      } catch { assert(!FileManager.default.fileExists(atPath: failedDirectory.path)) }
+    }
+    let requestCount = UploadProtocol.requests.count
+    do {
+      _ = try await SessionAttachments.download(workspace: "w1", session: "s1", fileId: "huge",
+        fileName: "movie.mp4", sizeBytes: 100 * 1024 * 1024 + 1, directory: root.appendingPathComponent("huge"))
+      fatalError("Reject oversized downloads before requesting them")
+    } catch { assert(UploadProtocol.requests.count == requestCount) }
+    guard let endpoint = ProcessInfo.processInfo.environment["LODY_UPLOAD_TEST_URL"], endpoint.hasPrefix("http://127.0.0.1:") else {
+      fatalError("Run with the loopback progress-server.py fixture")
+    }
+    let transportProgress = UploadRecorder()
+    let body = Data(repeating: 65, count: 8 * 1024 * 1024)
+    _ = try await SessionAttachments.request(endpoint, token: "synthetic-test-token", headers: [:], body: body) { sent, total in
+      assert(total == body.count)
+      transportProgress.recordBytes(sent)
+    }
+    let sent = transportProgress.bytes
+    assert(sent.first == 0 && sent.last == Int64(body.count))
+    assert(sent.contains { $0 > 0 && $0 < body.count }, "Must observe actual URLSession byte callbacks before completion")
+    assert(sent == sent.sorted(), "Upload bytes must progress monotonically")
+    print("PASS: real loopback URLSession callbacks, image/file phases, cumulative multipart progress and failed-upload cleanup")
+    print("PASS: native image/file upload and disk download, authorization, safe filenames, failed/incomplete responses and size limits")
   }
 }

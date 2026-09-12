@@ -22,7 +22,15 @@ export type DataRuntimeEvent = {
   catalog?: string;
   revision?: number;
 };
+export type AttachmentUploadProgress = {
+  sessionId: string;
+  sendId: string;
+  attachmentId: string;
+  phase: 'preparing' | 'uploading' | 'verifying' | 'complete';
+  percent?: number;
+};
 type Events = {
+  onAttachmentUploadProgress: (event: AttachmentUploadProgress) => void;
   onPushClick: () => void;
   onAppActive: () => void;
   onDataRuntime: (event: DataRuntimeEvent) => void;
@@ -170,6 +178,9 @@ export const unwatchCatalog = (owner: string) => native.unwatchCatalog(owner);
 export const addDataRuntimeListener = (
   listener: (event: DataRuntimeEvent) => void,
 ) => native.addListener('onDataRuntime', listener);
+export const addAttachmentUploadProgressListener = (
+  listener: (event: AttachmentUploadProgress) => void,
+) => native.addListener('onAttachmentUploadProgress', listener);
 export const dataRuntimeStatus = () => native.dataRuntimeStatus();
 export const debugHangDataRuntime = () => native.debugHangDataRuntime();
 export const debugProbeSchema = () => native.debugProbeSchema();

@@ -83,3 +83,18 @@ assert title_state() == initial_title, 'Gesture dismissal must preserve the two-
 capture('drag-closed')
 print(json.dumps({'open': True, 'doubleTapZoom': zoomed['AXValue'], 'restoreFit': True,
                   'returnToMessage': True, 'dragDismiss': True}))
+
+axe('tap', '--label', 'Fixtures')
+axe('tap', '--label', 'MCP Image Fixture', '--post-delay', '1')
+for index in range(2):
+    image_id = f'preview-image:photo:image:{index}'
+    assert any(item.get('AXUniqueId') == image_id for item in elements()), 'Every MCP image must stay inline'
+capture('mcp-inline')
+axe('tap', '--id', 'preview-image:photo:image:0', '--post-delay', '1')
+assert any(item.get('AXLabel') == CLOSE for item in elements()), 'MCP image must open the lightbox'
+capture('mcp-opened')
+axe('tap', '--label', CLOSE, '--post-delay', '0.7')
+assert any(item.get('AXUniqueId') == 'preview-image:photo:image:0' for item in elements())
+assert title_state() == initial_title
+capture('mcp-closed')
+print(json.dumps({'mcpImagesInline': 2, 'mcpPreview': True, 'mcpReturn': True}))

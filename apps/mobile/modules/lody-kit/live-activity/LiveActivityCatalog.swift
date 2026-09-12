@@ -17,25 +17,32 @@ enum LiveActivityCatalog {
     var others: String
     var lastSync: String
     var openHint: String
+    var runningSummary: String = "{count} running"
   }
 
-  static let runningStatuses: Set<String> = ["running", "processing", "in_progress", "queued", "pending"]
+  static let runningStatuses: Set<String> = ["running", "initializing", "processing", "in_progress", "queued"]
   private static let glyphs = ["codex": "CX", "claude": "CC"]
 
   static func state(catalogJSON: String, labels: Labels) -> LodyActivityAttributes.ContentState {
     let root = (try? JSONSerialization.jsonObject(with: Data(catalogJSON.utf8))) as? [String: Any]
     let sessions = (root?["sessions"] as? [[String: Any]]) ?? []
+    return state(sessions: sessions, labels: labels)
+  }
+
+  static func state(sessions: [[String: Any]], labels: Labels) -> LodyActivityAttributes.ContentState {
     let requestedAt = Date().timeIntervalSince1970 * 1000
     let items = sessions.compactMap { item($0, labels: labels, requestedAt: requestedAt) }
     var counts = LodyActivityAttributes.ContentState.Counts()
     counts.permission = items.count { $0.status == .permission }
     counts.running = items.count { $0.status == .running }
+    var copy = LodyActivityAttributes.ContentState.Copy(stale: labels.stale, empty: labels.empty, others: labels.others, lastSync: labels.lastSync, openHint: labels.openHint)
+    copy.runningSummary = labels.runningSummary
     return LodyActivityAttributes.ContentState(
       totalCount: items.count,
       statusCounts: counts,
       items: items,
       permissionAlert: nil,
-      copy: .init(stale: labels.stale, empty: labels.empty, others: labels.others, lastSync: labels.lastSync, openHint: labels.openHint)
+      copy: copy
     )
   }
 
@@ -61,6 +68,8 @@ enum LiveActivityCatalog {
   }
 
   private static func resolveStatus(awaiting: Double?, status: String?) -> Item.Status? {
+    if ["completed", "error"].contains(status ?? "") { return nil }
+    if status == "requestPermission" || status == "waiting" { return .permission }
     if awaiting != nil { return .permission }
     guard let status, runningStatuses.contains(status) else { return nil }
     return .running

@@ -14,6 +14,7 @@ final class ChatMessageAttachmentsCell: UICollectionViewCell {
   static let tileHeight: CGFloat = 76
   static let gap: CGFloat = 8
   private var tiles: [UIView] = []
+  private var loadingBadges: [UIVisualEffectView] = []
   private var accessibleTiles: [ChatAttachmentAccessibilityElement] = []
   private lazy var accessibleToggle = ChatAttachmentAccessibilityElement(accessibilityContainer: contentView)
   private var rendered: [ChatMessageAttachment] = []
@@ -81,24 +82,35 @@ final class ChatMessageAttachmentsCell: UICollectionViewCell {
           }
           config.baseForegroundColor = .label
           let button = UIButton(configuration: config)
-          button.isUserInteractionEnabled = attachment.localURI != nil
-          button.accessibilityTraits = attachment.localURI == nil ? .staticText : .button
+          button.accessibilityTraits = .button
           button.backgroundColor = .secondarySystemBackground
           button.layer.cornerRadius = 12
           button.addAction(UIAction { [weak self] _ in self?.onPreview?(attachment, nil) }, for: .touchUpInside)
           tile = button
         }
         tile.accessibilityIdentifier = row.entryID + ":attachment:" + (attachment.localID ?? attachment.id)
-        if attachment.image == nil && attachment.localURI == nil {
-          tile.accessibilityLabel = attachment.fileName
-        } else {
-          let key = attachment.image == nil ? "native.chat.attachment.preview" : "native.chat.image.label"
-          tile.accessibilityLabel = LodyStrings.text(key, ["name": attachment.fileName])
-        }
+        let key = attachment.image == nil ? "native.chat.attachment.preview" : "native.chat.image.label"
+        tile.accessibilityLabel = LodyStrings.text(key, ["name": attachment.fileName])
         contentView.addSubview(tile)
         return tile
       }
       rendered = row.attachments
+      loadingBadges = tiles.map { tile in
+        let badge = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
+        badge.isUserInteractionEnabled = false
+        badge.layer.cornerRadius = 16
+        badge.clipsToBounds = true
+        let spinner = UIActivityIndicatorView(style: .medium)
+        spinner.frame = CGRect(x: 14, y: 6, width: 20, height: 20)
+        badge.contentView.addSubview(spinner)
+        let percent = UILabel(frame: CGRect(x: 0, y: 0, width: 48, height: 32))
+        percent.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
+        percent.textColor = .label
+        percent.textAlignment = .center
+        badge.contentView.addSubview(percent)
+        tile.addSubview(badge)
+        return badge
+      }
       // Visual flight masks must not remove controls from the accessibility tree.
       accessibleTiles = tiles.enumerated().map { index, tile in
         let element = ChatAttachmentAccessibilityElement(accessibilityContainer: contentView)
@@ -106,11 +118,30 @@ final class ChatMessageAttachmentsCell: UICollectionViewCell {
         element.accessibilityLabel = tile.accessibilityLabel
         element.accessibilityTraits = tile.accessibilityTraits
         let attachment = row.attachments[index]
-        if attachment.image != nil || attachment.localURI != nil {
-          element.activate = { [weak self, weak tile] in self?.onPreview?(attachment, tile as? ChatImageCell) }
-        }
+        element.activate = { [weak self, weak tile] in self?.onPreview?(attachment, tile as? ChatImageCell) }
         return element
       }
+    }
+    for (index, badge) in loadingBadges.enumerated() {
+      let attachment = rendered[index]
+      let progress = row.uploadProgress[attachment.localID ?? attachment.id]
+      let loading = row.running && progress?.phase != "complete"
+      let percent = progress?.phase == "uploading" ? progress?.percent : nil
+      badge.isHidden = !loading
+      let spinner = badge.contentView.subviews.first as? UIActivityIndicatorView
+      let label = badge.contentView.subviews.last as? UILabel
+      label?.text = percent.map { "\(min(100, max(0, $0)))%" }
+      label?.isHidden = percent == nil
+      if loading && percent == nil { spinner?.startAnimating() } else { spinner?.stopAnimating() }
+      var status = row.text
+      if let percent {
+        status = LodyStrings.text("native.chat.attachment.uploadProgress", ["percent": min(100, max(0, percent))])
+      } else if progress?.phase == "preparing" {
+        status = LodyStrings.text("native.chat.attachment.preparing")
+      } else if progress?.phase == "verifying" {
+        status = LodyStrings.text("native.chat.attachment.verifying")
+      }
+      accessibleTiles[index].accessibilityValue = loading ? status : nil
     }
     contentView.bringSubviewToFront(toggle)
     setNeedsLayout()
@@ -136,6 +167,8 @@ final class ChatMessageAttachmentsCell: UICollectionViewCell {
       tile.frame = CGRect(x: leading + CGFloat(index % columns) * (tileWidth + Self.gap),
         y: 6 + CGFloat(index / columns) * (Self.tileHeight + Self.gap), width: tileWidth, height: Self.tileHeight)
       tile.layoutIfNeeded()
+      loadingBadges[index].frame = CGRect(x: (tile.bounds.width - 48) / 2,
+        y: rendered[index].image == nil ? 6 : (tile.bounds.height - 32) / 2, width: 48, height: 32)
       accessibleTiles[index].accessibilityFrameInContainerSpace = tile.frame
       if index < count { ChatSendHandoff.hold(id: entryID + ":attachment:" + (rendered[index].localID ?? rendered[index].id), target: tile, visualOnly: true) }
     }

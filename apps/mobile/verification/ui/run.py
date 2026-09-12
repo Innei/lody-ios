@@ -22,7 +22,7 @@ CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
     'pages': ['pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'onboarding', 'community-notice', 'live-activity'],
     'send': ['root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
-    'chat': ['user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'changes', 'inline-diff'],
+    'chat': ['user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'changes', 'inline-diff'],
 }
 CASES = [case for batch in BATCHES.values() for case in batch]
 # These select HomePreviewProviders at app launch, using the same shared bundle.
@@ -41,6 +41,7 @@ PREVIEW = {
     'send-rounds': 'send-preview',
     'user-mentions': 'file-preview',
     'file-preview': 'file-preview',
+    'mcp-files': 'file-preview',
     'chat-performance': 'chat-performance',
     'chat-stream-performance': 'chat-stream-performance',
     'project-history': 'project-history-preview',
@@ -77,6 +78,7 @@ READY = {
     'send-rounds': 'send-status',
     'user-mentions': 'file-links:answer',
     'file-preview': 'file-links:answer',
+    'mcp-files': 'file-links:answer',
     'project-history': 'history-project:["studio","demo"]',
     'settings': 'settings-machine',
     'appearance': 'dark-background-soft',

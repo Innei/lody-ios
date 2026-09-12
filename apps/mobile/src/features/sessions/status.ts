@@ -7,6 +7,8 @@ const states: Record<string, SessionState> = {
   running: 'live',
   initializing: 'live',
   processing: 'live',
+  in_progress: 'live',
+  queued: 'live',
   requestPermission: 'attention',
   waiting: 'attention',
   error: 'failed',

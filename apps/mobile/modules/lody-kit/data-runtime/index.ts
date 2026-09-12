@@ -33,6 +33,7 @@ import { StreamsClient } from '@loro-dev/streams-client';
 import { decompress } from 'fzstd';
 import type { Catalog } from '../../../src/models/catalog.ts';
 import { projectRows } from '../../../src/cloud/catalog/model.ts';
+import { mergeAgentQuotas } from '../../../src/cloud/catalog/agent-usage.ts';
 import {
   openSession,
   closeSession,
@@ -170,6 +171,21 @@ function publish() {
     for (const p of catalogs.get(id)!.projects) projects.set(p.id, p);
   const catalog = JSON.stringify({
     ...meta,
+    agentUsage: Object.fromEntries(
+      meta.machineIds.map((id) => {
+        const usage = catalogs.get(id)?.agentUsage?.[id];
+        return [
+          id,
+          {
+            configs: usage?.configs ?? [],
+            quotas: mergeAgentQuotas(
+              meta.agentUsage?.[id]?.quotas ?? [],
+              usage?.quotas ?? [],
+            ),
+          },
+        ];
+      }),
+    ),
     projects: [...projects.values()].sort((a, b) =>
       a.name.localeCompare(b.name),
     ),

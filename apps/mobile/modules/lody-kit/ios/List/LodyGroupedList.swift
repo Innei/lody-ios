@@ -21,7 +21,9 @@ struct LodyListRow {
   var id: String = ""
   var title: String = ""
   var subtitle: String = ""
+  var modelName: String = ""
   var value: String = ""
+  var progress: Double? = nil
   var valueSegments: [LodyListValueSegment] = []
   var image: String = ""
   var imageAsset: String = ""
@@ -123,18 +125,18 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     LodyGroupedList.configureSystem(cell, row, toggle: self?.toggle(for: row))
   }
 
-  private lazy var sessionRegistration = UICollectionView.CellRegistration<LodyIndentedCell, LodyListRow> { cell, _, row in
-    LodyGroupedList.configureSession(cell, row)
+  private lazy var sessionRegistration = UICollectionView.CellRegistration<LodyIndentedCell, LodyListRow> { [weak self] cell, _, row in
+    self?.configureSession(cell, row)
   }
 
   private var outline: Bool { sections.contains { $0.rows.first?.parent == true } }
 
-  private let projectRegistration = UICollectionView.CellRegistration<LodyIndentedCell, LodyListRow> { cell, _, row in
-    LodyGroupedList.configureProject(cell, row)
+  private lazy var projectRegistration = UICollectionView.CellRegistration<LodyIndentedCell, LodyListRow> { [weak self] cell, _, row in
+    self?.configureProject(cell, row)
   }
 
-  private static func configureProject(_ cell: UICollectionViewListCell, _ row: LodyListRow) {
-    cell.contentConfiguration = LodyProjectRowContent(row: row, accent: accent)
+  private func configureProject(_ cell: UICollectionViewListCell, _ row: LodyListRow) {
+    cell.contentConfiguration = LodyProjectRowContent(row: row, accent: Self.accent)
     cell.accessories = row.navigates
       ? [.disclosureIndicator()]
       : [.outlineDisclosure(options: .init(style: .header, tintColor: .tertiaryLabel))]
@@ -142,7 +144,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     cell.accessibilityTraits = [.button, .header]
   }
 
-  private static func configureSession(_ cell: LodyIndentedCell, _ row: LodyListRow) {
+  private func configureSession(_ cell: LodyIndentedCell, _ row: LodyListRow) {
     let tint = lodyTint(row.imageTint)
     cell.contentConfiguration = LodySessionRowContent(
       row: row,
@@ -161,6 +163,15 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   ) {
     cell.accessibilityIdentifier = row.id
     let accent = LodyGroupedList.accent
+    if let progress = row.progress, progress.isFinite {
+      cell.contentConfiguration = LodyProgressRowContent(row: row)
+      cell.accessories = []
+      cell.isAccessibilityElement = true
+      cell.accessibilityLabel = [row.title, row.value, row.subtitle].filter { !$0.isEmpty }.joined(separator: ", ")
+      cell.accessibilityValue = nil
+      cell.accessibilityTraits = .staticText
+      return
+    }
     var content = UIListContentConfiguration.subtitleCell()
     content.text = row.title
     let subtitle = [row.subtitle, row.badge].filter { !$0.isEmpty }.joined(separator: " · ")
@@ -253,6 +264,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     super.init(appContext: appContext)
     // UIKit rejects a registration created inside the cell provider.
     _ = sessionRegistration
+    _ = projectRegistration
     _ = registration
     collection.backgroundColor = .lodyGroupedBackground
     collection.contentInsetAdjustmentBehavior = .automatic
@@ -647,8 +659,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private func configure(_ cell: UICollectionViewListCell, row: LodyListRow) {
     switch kind(of: row) {
     case .system: Self.configureSystem(cell, row, toggle: toggle(for: row))
-    case .session: if let cell = cell as? LodyIndentedCell { Self.configureSession(cell, row) }
-    case .project: Self.configureProject(cell, row)
+    case .session: if let cell = cell as? LodyIndentedCell { configureSession(cell, row) }
+    case .project: configureProject(cell, row)
     }
     decorate(cell, row: row)
   }

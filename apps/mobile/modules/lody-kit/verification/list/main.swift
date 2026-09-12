@@ -96,6 +96,7 @@ assert(LodySectionCardView(frame: .zero).layer.cornerRadius > 0, "The section ca
 struct LodyListRow {
   var title = ""
   var subtitle = ""
+  var modelName = ""
   var value = ""
   var unread = false
   var destructive = false
@@ -103,6 +104,14 @@ struct LodyListRow {
   var subtitleMono = false
   var pinned = false
   var diff: [String: Int] = [:]
+  var monogram = ""
+  var imageTint = ""
+}
+
+// Layout-only harness: project status colors are outside this check.
+func lodyTint(_ value: String) -> UIColor? {
+  precondition(value.isEmpty)
+  return nil
 }
 
 func laidOutSessionRow(_ content: LodySessionRowContent) -> LodySessionRowView {
@@ -175,3 +184,16 @@ assert(
 )
 
 print("PASS: session live mark sits in front of the title")
+
+let named = laidOutSessionRow(
+  LodySessionRowContent(
+    row: LodyListRow(title: "Review", subtitle: "lody-ios", modelName: "GPT-6", value: "Now"),
+    dot: .systemBlue,
+    live: false
+  )
+)
+assert(
+  named.accessibilityLabel.contains("GPT-6"),
+  "Session rows must speak the last model"
+)
+print("PASS: session rows expose the last model")

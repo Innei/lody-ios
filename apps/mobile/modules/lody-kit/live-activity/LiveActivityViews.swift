@@ -202,20 +202,25 @@ struct FocusRow: View {
 
 struct OthersList: View {
   let items: [LodyItem]
+  let workspaceSlug: String
 
   var body: some View {
     VStack(alignment: .leading, spacing: 5) {
       ForEach(items, id: \.id) { item in
-        HStack(spacing: 8) {
-          StatusSymbol(status: item.status)
-          Text(item.title)
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-          Spacer(minLength: 4)
-          if item.status != .unread {
-            FocusTimer(focus: item)
+        Link(destination: LodyActivityAttributes.route(workspaceSlug: workspaceSlug, sessionId: item.id)) {
+          HStack(spacing: 8) {
+            StatusSymbol(status: item.status)
+            Text(item.title)
+              .font(.footnote)
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+            Spacer(minLength: 4)
+            if item.status != .unread {
+              FocusTimer(focus: item)
+            }
           }
+          .frame(minHeight: 44)
+          .contentShape(Rectangle())
         }
       }
     }
@@ -261,6 +266,7 @@ struct AttentionBlock: View {
 struct LodyLockScreenView: View {
   let state: LodyActivityAttributes.ContentState
   let workspaceSlug: String
+  var overviewRoute: URL = URL(string: "lody:///activity")!
   let isStale: Bool
 
   var body: some View {
@@ -273,15 +279,27 @@ struct LodyLockScreenView: View {
   private var content: some View {
     if let focus = state.focus {
       VStack(alignment: .leading, spacing: 10) {
-        FocusRow(state: state, focus: focus, isStale: isStale, glyphSize: 36)
-        if !isStale, state.needsAttention {
-          AttentionBlock(focus: focus, copy: state)
-        } else if !state.others.isEmpty {
-          OthersList(items: state.others)
+        if state.showsOverview {
+          Text(isStale ? state.staleLabel : state.runningSummary)
+            .font(.headline)
+          OthersList(items: state.visibleItems, workspaceSlug: workspaceSlug)
+        } else {
+          Link(destination: LodyActivityAttributes.route(workspaceSlug: workspaceSlug, sessionId: focus.id)) {
+            FocusRow(state: state, focus: focus, isStale: isStale, glyphSize: 36)
+              .frame(minHeight: 44)
+          }
+          if !isStale, state.needsAttention {
+            AttentionBlock(focus: focus, copy: state)
+            if state.statusCounts.running > 0 {
+              Text(state.runningSummary).font(.caption).foregroundStyle(.secondary)
+            }
+          } else if !state.others.isEmpty {
+            OthersList(items: state.others, workspaceSlug: workspaceSlug)
+          }
         }
       }
       .lodyStale(isStale)
-      .widgetURL(LodyActivityAttributes.route(workspaceSlug: workspaceSlug, sessionId: focus.id))
+      .widgetURL(state.showsOverview ? overviewRoute : LodyActivityAttributes.route(workspaceSlug: workspaceSlug, sessionId: focus.id))
     } else {
       Text(state.emptyLabel)
         .font(.subheadline)

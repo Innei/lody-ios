@@ -131,7 +131,7 @@ final class ChatImageCell: UICollectionViewCell {
     guard let image else { return }
     photo.layer.borderColor = UIColor.separator.resolvedColor(with: traitCollection).cgColor
     let size = compact ? contentView.bounds.size : Self.size(image, width: contentView.bounds.width)
-    photo.frame = CGRect(x: contentView.bounds.width - size.width, y: compact ? 0 : 6, width: size.width, height: size.height)
+    photo.frame = CGRect(x: 0, y: compact ? 0 : 6, width: size.width, height: size.height)
     spinner.center = CGPoint(x: size.width / 2, y: size.height / 2)
     failure.frame = photo.bounds.insetBy(dx: 4, dy: 4)
   }

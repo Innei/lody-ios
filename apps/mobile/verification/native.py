@@ -11,6 +11,7 @@ from simulator import run_with_simulator, SimulatorPool
 root = Path(__file__).resolve().parents[3]
 kit = root / 'apps/mobile/modules/lody-kit'
 parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--case', help='Run one named native check, such as attachments or chat')
 parser.add_argument(
     '--udid',
     default=os.environ.get('LODY_VERIFY_UDID') or None,
@@ -41,6 +42,7 @@ checks = {
         'List/LodyListCellBackground.swift',
         'List/LodyListPhoto.swift',
         'List/LodySessionRowView.swift',
+        'List/LodyProjectRowView.swift',
     ],
     'banner': [
         'LodyStrings.swift',
@@ -50,6 +52,10 @@ checks = {
     'live-activity': ['../live-activity/LodyActivityAttributes.swift', '../live-activity/LiveActivityCatalog.swift'],
     'page-progress': ['List/LodyPageProgress.swift'],
 }
+if args.case:
+    if args.case not in checks:
+        parser.error(f'Unknown check {args.case}; choose from {", ".join(checks)}')
+    checks = {args.case: checks[args.case]}
 with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
     shader_bundle = Path(output) / 'LodyKitShaders.bundle'
     shader_bundle.mkdir()
@@ -75,4 +81,13 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
         command += [str(kit / 'verification' / name / 'main.swift'), '-o', binary]
         subprocess.run(command, check=True, timeout=120)
         # A cold CI Simulator draws its first text far slower than a warm local one.
-        subprocess.run(['xcrun', 'simctl', 'spawn', args.udid, binary] if simulator else [binary], check=True, timeout=300)
+        command = ['xcrun', 'simctl', 'spawn', args.udid, binary] if simulator else [binary]
+        if name == 'attachments':
+            with subprocess.Popen([sys.executable, str(kit / 'verification/attachments/progress-server.py')], stdout=subprocess.PIPE, text=True) as server:
+                try:
+                    endpoint = server.stdout.readline().strip()
+                    subprocess.run(command, check=True, timeout=300, env={**os.environ, 'SIMCTL_CHILD_LODY_UPLOAD_TEST_URL': endpoint})
+                finally:
+                    server.terminate()
+        else:
+            subprocess.run(command, check=True, timeout=300)

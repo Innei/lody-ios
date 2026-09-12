@@ -85,6 +85,13 @@ for _ in range(12):
         label = spoken(item)
         assert item['frame']['height'] >= 44, (found[1], item['frame'])
         assert TITLES[found[1]] in label, (found[1], label)
+        if found[1] == 'inbox-yesterday':
+            assert catalog.text('session.modelUnknown') in label, label
+            ui.capture('model-unknown')
+        elif found[1] == 'inbox-today':
+            assert 'gpt-6' in label and 'feature/' not in label, label
+        else:
+            assert label.index('lody-ios') < label.index('feature/session-model') < label.index('GPT-6'), label
         if found[1] in LABELS:
             for part in LABELS[found[1]]:
                 assert part in label, (found[1], label)

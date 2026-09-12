@@ -68,6 +68,7 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
       var others: String
       var lastSync: String
       var openHint: String
+      var runningSummary: String?
 
       init(stale: String, empty: String, others: String, lastSync: String, openHint: String) {
         self.stale = stale
@@ -84,6 +85,7 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
         others = try container.decodeIfPresent(String.self, forKey: .others) ?? "{count} more running"
         lastSync = try container.decodeIfPresent(String.self, forKey: .lastSync) ?? "Last synced"
         openHint = try container.decodeIfPresent(String.self, forKey: .openHint) ?? "Tap to review"
+        runningSummary = try container.decodeIfPresent(String.self, forKey: .runningSummary)
       }
     }
 
@@ -107,22 +109,30 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
     }
 
     private var ordered: [Item] {
-      items.enumerated().sorted { left, right in
-        if left.element.status.priority != right.element.status.priority {
-          return left.element.status.priority < right.element.status.priority
+      items.filter { $0.status != .unread }.sorted { left, right in
+        if left.status.priority != right.status.priority {
+          return left.status.priority < right.status.priority
         }
-        if left.element.updatedAt != right.element.updatedAt {
-          return left.element.updatedAt > right.element.updatedAt
-        }
-        return left.offset < right.offset
-      }.map(\.element)
+        return left.id < right.id
+      }
     }
 
     var focus: Item? { ordered.first }
 
     var others: [Item] { Array(ordered.dropFirst().prefix(2)) }
 
-    var othersCount: Int { focus == nil ? 0 : max(totalCount - 1, 0) }
+    var activeCount: Int { statusCounts.running + statusCounts.permission + statusCounts.question }
+
+    var othersCount: Int { focus == nil ? 0 : max(activeCount - 1, 0) }
+
+    var showsOverview: Bool { activeCount > 1 && !needsAttention }
+
+    var visibleItems: [Item] { Array(ordered.prefix(2)) }
+
+    var runningSummary: String {
+      (copy?.runningSummary ?? "{count} running")
+        .replacingOccurrences(of: "{count}", with: "\(statusCounts.running)")
+    }
 
     var needsAttention: Bool {
       guard let status = focus?.status else { return false }
@@ -130,7 +140,7 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
     }
 
     var isActive: Bool {
-      statusCounts.running + statusCounts.permission + statusCounts.question > 0
+      activeCount > 0
     }
 
     func staleDate(from updatedAt: Date) -> Date {
@@ -138,8 +148,8 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
     }
 
     func dismissalDate(from updatedAt: Date) -> Date? {
-      guard !isActive, focus != nil else { return nil }
-      return updatedAt.addingTimeInterval(15 * 60)
+      guard !isActive else { return nil }
+      return updatedAt.addingTimeInterval(10)
     }
   }
 
@@ -164,6 +174,20 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
   }
 
   var routeSlug: String { workspaceSlug.isEmpty ? workspaceId : workspaceSlug }
+
+  var overviewRoute: URL {
+    var url = URLComponents()
+    url.scheme = "lody"
+    url.host = ""
+    url.path = "/activity"
+    url.queryItems = [URLQueryItem(name: "workspaceId", value: workspaceId), URLQueryItem(name: "userId", value: userId)]
+    return url.url!
+  }
+
+  func route(for state: ContentState) -> URL {
+    guard !state.showsOverview, let focus = state.focus else { return overviewRoute }
+    return Self.route(workspaceSlug: routeSlug, sessionId: focus.id)
+  }
 
   static func route(workspaceSlug: String, sessionId: String) -> URL {
     let allowed = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))

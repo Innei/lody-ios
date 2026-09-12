@@ -26,7 +26,11 @@ def toggle_value():
 
 
 def foreground():
+    # Let the Home/Island dismissal finish before requesting activation; launching
+    # during that transition can return the existing pid and still land on Home.
+    time.sleep(1)
     subprocess.run(['xcrun', 'simctl', 'launch', udid, 'app.innei.lody'], check=True, timeout=30)
+    ui.element('live-activity-status')
 
 
 def allow(timeout, labels=ALLOW):
@@ -83,14 +87,12 @@ assert status() != '0 个活动', 'Toggling the injected switch ended the fixtur
 ui.axe('button', 'home')
 time.sleep(2)
 ui.capture('island-running')
-running_expanded = expand_island(catalog.text('native.liveActivity.debug.title1'),
-                                 'Expanded island never showed the running focus')
+summary = catalog.text('native.liveActivity.runningSummary').replace('{count}', '2')
+running_expanded = expand_island(summary, 'Expanded island never showed the task overview')
 assert 'git push origin main --force' not in running_expanded, \
     'A running focus showed the permission command strip'
-assert catalog.text('native.liveActivity.status.running') in running_expanded, \
-    'Expanded island never showed the running status'
-assert re.search(r'\d+:\d\d', running_expanded), \
-    'Expanded island never showed the elapsed timer'
+assert catalog.text('native.liveActivity.debug.title1') not in running_expanded, \
+    'Multiple running tasks still pin a session title'
 assert catalog.text('native.liveActivity.openHint') not in running_expanded, \
     'A running focus showed the permission hint'
 for over_ceiling in [catalog.text('native.liveActivity.debug.title2'), catalog.text('native.liveActivity.debug.title3')]:
@@ -124,6 +126,7 @@ expanded = expand_island(catalog.text('native.liveActivity.debug.title2'),
                          'Expanded island never showed the permission focus')
 for expected in [
     catalog.text('native.liveActivity.status.permission'),
+    catalog.text('native.liveActivity.runningSummary').replace('{count}', '1'),
     'git push origin main --force',
 ]:
     assert expected in expanded, f'Expanded island never showed {expected!r}'
@@ -147,9 +150,31 @@ time.sleep(1)
 ui.axe('swipe', '--start-x', '200', '--start-y', '780', '--end-x', '200', '--end-y', '300', '--duration', '0.4', '--post-delay', '1.0')
 foreground()
 ui.element('live-activity-end')
-ui.axe('tap', '--id', 'live-activity-end', '--tap-style', 'physical')
-ui.wait(lambda items: status() == '0 个活动', 'Fixture activity did not end')
+ui.axe('tap', '--id', 'live-activity-complete-one', '--tap-style', 'physical')
+time.sleep(2)
+ui.axe('button', 'home')
+time.sleep(2)
+remaining = expand_island(catalog.text('native.liveActivity.debug.title2'), 'Remaining task did not replace completed task')
+assert catalog.text('native.liveActivity.debug.title1') not in remaining
+assert re.search(r'\d+:\d\d', remaining), 'Single remaining task lost its elapsed timer'
+ui.capture('one-remaining')
+ui.axe('button', 'home')
+foreground()
+ui.axe('tap', '--id', 'live-activity-complete-all', '--tap-style', 'physical')
+ui.wait(lambda items: status() == '0 个活动', 'Completing all tasks did not end the activity')
+ui.axe('button', 'lock')
+time.sleep(1)
+ui.capture('lockscreen-completed')
+time.sleep(11)
+ui.capture('lockscreen-dismissed')
+ui.axe('button', 'lock')
+ui.axe('swipe', '--start-x', '200', '--start-y', '780', '--end-x', '200', '--end-y', '300', '--duration', '0.4', '--post-delay', '1.0')
+foreground()
 ui.capture('ended')
+ui.axe('tap', '--id', 'live-activity-start', '--tap-style', 'physical')
+ui.wait(lambda items: status() != '0 个活动', 'New work did not restart the activity')
+ui.axe('tap', '--id', 'live-activity-end', '--tap-style', 'physical')
+ui.wait(lambda items: status() == '0 个活动', 'Restarted fixture did not end')
 
 subprocess.run(['xcrun', 'simctl', 'openurl', udid, 'lody:///debug/sessions/x'], check=True, timeout=30)
 allow(6, OPEN)
@@ -160,4 +185,13 @@ ui.wait(
 labels = [i.get('AXLabel') or '' for i in ui.state()]
 assert not any('Unmatched' in label for label in labels), 'widget deep link landed on the Unmatched Route screen'
 ui.capture('deep-link')
+subprocess.run(['xcrun', 'simctl', 'openurl', udid, 'lody:///activity?workspaceId=debug&userId=debug'], check=True, timeout=30)
+allow(2, OPEN)
+ui.wait(
+    lambda items: any(catalog.text('notifications.route.wrongAccount') in (i.get('AXLabel') or '') for i in items),
+    'Overview deep link must reject an account outside the signed-in context',
+)
+ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('inbox.settings.view.activity') for i in items),
+        'Overview must use its localized title, not the raw route name')
+ui.capture('overview-account-boundary')
 print('PASS: island running, permission and both expanded states captured, switch toggled, activity ended, unavailable widget link preserves the current page', flush=True)

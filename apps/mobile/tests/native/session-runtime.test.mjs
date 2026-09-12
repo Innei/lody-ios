@@ -585,6 +585,98 @@ test('projection carries stable item ids, tool summaries, and diff counts', asyn
   assert.ok(second.revision > first.revision);
 });
 
+test('MCP image groups survive projection, cache updates and history bootstrap', async () => {
+  const { projectSession } = await loadProject();
+  const doc = new LoroDoc();
+  const entry = doc.getList('history').pushContainer(new LoroMap());
+  entry.set('id', 'upload');
+  entry.set('role', 'assistant');
+  const group = entry
+    .setContainer('items', new LoroList())
+    .pushContainer(new LoroMap());
+  group.set('type', 'image_group');
+  const photo = {
+    imageId: 'photo',
+    fileName: 'photo.png',
+    storageSessionId: 'source',
+    width: 600,
+    height: 400,
+  };
+  group.set('images', [photo]);
+  doc.commit();
+  const first = projectSession(doc, 'live').entries[0].items[0];
+  assert.deepEqual(first.images, [
+    {
+      id: 'photo',
+      fileName: 'photo.png',
+      storageSessionId: 'source',
+      width: 600,
+      height: 400,
+    },
+  ]);
+  group.set('images', [
+    photo,
+    { ...photo, imageId: 'second' },
+    null,
+    { imageId: '' },
+  ]);
+  doc.commit();
+  const second = projectSession(doc, 'live').entries[0].items[0];
+  assert.equal(second.itemId, first.itemId);
+  assert.ok(second.rev > first.rev);
+  assert.deepEqual(
+    second.images.map((image) => image.id),
+    ['photo', 'second'],
+  );
+  const restored = new LoroDoc();
+  restored.import(doc.export({ mode: 'snapshot' }));
+  assert.deepEqual(
+    projectSession(restored, 'live').entries[0].items[0].images,
+    second.images,
+  );
+});
+
+test('MCP files retain their download target and update when local upload completes', async () => {
+  const { projectSession } = await loadProject();
+  const doc = new LoroDoc();
+  const entry = doc.getList('history').pushContainer(new LoroMap());
+  entry.set('id', 'files');
+  entry.set('role', 'assistant');
+  const file = entry
+    .setContainer('items', new LoroList())
+    .pushContainer(new LoroMap());
+  for (const [key, value] of Object.entries({
+    type: 'file',
+    fileId: 'clip',
+    fileName: 'clip.mp4',
+    storageSessionId: 'source',
+    transport: 'local',
+    sizeBytes: 1024,
+  }))
+    file.set(key, value);
+  doc.commit();
+  const first = projectSession(doc, 'live').entries[0].items[0];
+  assert.equal(first.file.transport, 'local');
+  file.set('transport', 'r2');
+  doc.commit();
+  const uploaded = projectSession(doc, 'live').entries[0].items[0];
+  assert.equal(uploaded.itemId, first.itemId);
+  assert.ok(uploaded.rev > first.rev);
+  assert.deepEqual(uploaded.file, {
+    id: 'clip',
+    fileName: 'clip.mp4',
+    storageSessionId: 'source',
+    transport: 'r2',
+    sizeBytes: 1024,
+  });
+  const restored = new LoroDoc();
+  restored.import(doc.export({ mode: 'snapshot' }));
+  assert.deepEqual(
+    projectSession(restored, 'live').entries[0].items[0].file,
+    uploaded.file,
+  );
+});
+
 test('unchanged entries keep their summary objects; prose is coalesced, status is not', async () => {
   const { projectSession } = await loadProject();
   const doc = new LoroDoc();

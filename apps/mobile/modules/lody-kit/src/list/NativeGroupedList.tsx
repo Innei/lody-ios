@@ -15,9 +15,13 @@ export type NativeListRow = {
   id: string;
   title: string;
   subtitle?: string;
+  /** Session model, kept visible after the truncatable project/branch metadata. */
+  modelName?: string;
   /** Paths, branches and ids read as data, not prose. */
   subtitleMono?: boolean;
   value?: string;
+  /** Native progress row, normalized to 0...1. */
+  progress?: number;
   /** Styled trailing value; text is also exposed together to VoiceOver. */
   valueSegments?: { text: string; tint?: string }[];
   /** Session rows only: bold title, trailing pill, +N −N after the subtitle. */

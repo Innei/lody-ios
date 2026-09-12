@@ -15,7 +15,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   private let localStore = LocalStore.shared
   private var authBrowser: SFSafariViewController?
 
-  @MainActor private lazy var dataRuntime = DataRuntime(localStore: localStore) { [weak self] event in self?.sendEvent("onDataRuntime", event) }
+  @MainActor private lazy var dataRuntime = DataRuntime(localStore: localStore,
+    emit: { [weak self] event in self?.sendEvent("onDataRuntime", event) },
+    emitUploadProgress: { [weak self] event in self?.sendEvent("onAttachmentUploadProgress", event) })
 
   @Event("onAppActive")
   var onAppActive: () -> Void
@@ -125,7 +127,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   public func definition() -> ModuleDefinition {
-    Events("onDataRuntime", "onPushClick")
+    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress")
     AsyncFunction("watchCatalog") { (workspace: String, slug: String, name: String, owner: String, userId: String) in
       try MainActor.assumeIsolated {
         guard !workspace.isEmpty, !owner.isEmpty, !userId.isEmpty else {

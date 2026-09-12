@@ -74,10 +74,19 @@ OneSignal. Push-to-start is registered when the toggle is on, but the backend ca
 it is **unconfirmed**: no server-started activity has been observed from this app.
 Attribute decoding therefore tolerates a missing `workspaceSlug`.
 
-`stale-date` and `dismissal-date` are set only on the activity the app requests. Every
-later server update must carry its own values; ActivityKit does not inherit them from
-the previous content, so an update without them leaves an activity that never goes
-stale and never dismisses.
+Every live catalog snapshot reconciles the existing activity. Running and waiting
+turns remain; completed, failed, archived and idle sessions leave. Unread replies
+never enter widget focus. Multiple running turns show a count and stable session
+links, while a pending question or permission takes focus. The overview opens
+`/activity` with account/workspace validation and the existing native session rows.
+When no work remains, the app ends the activity with a completion summary and a
+10-second Lock Screen dismissal date. A subsequent turn creates a new activity.
+
+Background server updates still need their own `stale-date`, and must send an
+`end` event with `dismissal-date` when work finishes. Local reconciliation only
+runs while the catalog runtime can execute; it does not establish background
+APNs delivery or repair the server's activity lifecycle. The wire schema and
+activity identifier remain compatible with existing pushes.
 
 ## Verification
 

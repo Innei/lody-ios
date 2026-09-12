@@ -90,7 +90,7 @@ let tolerant = decode("""
 """)
 precondition(tolerant.focus == nil && tolerant.others.isEmpty && tolerant.othersCount == 0)
 precondition(!tolerant.isActive && !tolerant.needsAttention)
-precondition(tolerant.dismissalDate(from: Date()) == nil, "no focus means nothing to dismiss")
+precondition(tolerant.dismissalDate(from: Date()) != nil, "empty work ends the activity")
 precondition(tolerant.lastSyncLabel == "Last synced" && tolerant.openHintLabel == "Tap to review", "missing copy falls back to English")
 
 let partialCopy = decode("""
@@ -110,9 +110,9 @@ let mixed = State(
   ],
   permissionAlert: nil
 )
-precondition(mixed.focus?.id == "question-new", "question outranks everything, ties break on newer updatedAt")
+precondition(mixed.focus?.id == "question-new", "question outranks everything, ties use stable identity")
 precondition(mixed.others.map(\.id) == ["question-old", "permission"], "others follow the same order, capped at 2")
-precondition(mixed.othersCount == 4)
+precondition(mixed.othersCount == 3)
 precondition(mixed.needsAttention && mixed.isActive)
 
 let permissionFocus = State(
@@ -130,12 +130,12 @@ let idle = State(
   permissionAlert: nil
 )
 precondition(!idle.isActive && !idle.needsAttention)
-precondition(idle.focus?.id == "unread")
+precondition(idle.focus == nil, "completed unread work never remains in focus")
 precondition(idle.othersCount == 0)
 
 let now = Date(timeIntervalSince1970: 1_757_000_000)
 precondition(idle.staleDate(from: now) == now.addingTimeInterval(1800))
-precondition(idle.dismissalDate(from: now) == now.addingTimeInterval(900))
+precondition(idle.dismissalDate(from: now) == now.addingTimeInterval(10))
 precondition(mixed.dismissalDate(from: now) == nil, "an active activity never auto-dismisses")
 
 precondition(
@@ -176,7 +176,7 @@ let catalog = LiveActivityCatalog.state(catalogJSON: """
     { "id": "idle", "title": "Old thread", "status": "completed", "lastMessageAt": 1757000000000, "agentType": "claude" },
     { "id": "archived", "title": "Archived but running", "status": "running", "archived": true, "lastMessageAt": 1757000006000, "agentType": "claude" },
     { "id": "queued", "title": "Waiting to run", "status": "queued", "lastMessageAt": 1757000004000, "cliType": "gemini" },
-    { "id": "nameless", "title": "No agent", "status": "pending", "lastMessageAt": 1757000005000 },
+    { "id": "nameless", "title": "No agent", "status": "initializing", "lastMessageAt": 1757000005000 },
     { "id": "fresh", "title": "Never spoke", "status": "queued", "agentType": "claude" }
   ]
 }
@@ -224,3 +224,15 @@ precondition(tolerant.othersLabel(2) == "2 more running")
 print("PASS: widget copy travels in the state and older payloads fall back")
 
 print("PASS: catalog mapping skips idle sessions, ranks awaiting first, and maps agent glyphs")
+
+let twoRunning = LiveActivityCatalog.state(catalogJSON: #"{"sessions":[{"id":"a","status":"running","lastMessageAt":1},{"id":"b","status":"running","lastMessageAt":2}]}"#, labels: labels)
+precondition(twoRunning.showsOverview && twoRunning.activeCount == 2)
+let updatedRunning = LiveActivityCatalog.state(catalogJSON: #"{"sessions":[{"id":"b","status":"running","lastMessageAt":3},{"id":"a","status":"running","lastMessageAt":4}]}"#, labels: labels)
+precondition(twoRunning.visibleItems.map(\.id) == updatedRunning.visibleItems.map(\.id), "stream updates never shuffle session links")
+let oneRemaining = LiveActivityCatalog.state(catalogJSON: #"{"sessions":[{"id":"a","status":"completed","awaitingUserSince":1},{"id":"b","status":"running"},{"id":"new","status":"pending"}]}"#, labels: labels)
+precondition(oneRemaining.focus?.id == "b" && !oneRemaining.showsOverview && oneRemaining.activeCount == 1, "completion removes stale awaiting state; pending is idle")
+let allFinished = LiveActivityCatalog.state(catalogJSON: #"{"sessions":[{"id":"a","status":"completed"},{"id":"b","status":"error"}]}"#, labels: labels)
+precondition(!allFinished.isActive && allFinished.focus == nil && allFinished.dismissalDate(from: now) == now.addingTimeInterval(10))
+precondition(pushToStart.route(for: twoRunning).path == "/activity")
+precondition(pushToStart.route(for: oneRemaining).path == "/ws1/sessions/b")
+print("PASS: multiple turns, stable links, partial completion, stale awaiting cleanup, all-finished dismissal and overview routing")

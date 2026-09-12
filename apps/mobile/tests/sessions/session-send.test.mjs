@@ -16,6 +16,7 @@ function harness() {
     hook,
     input,
     result,
+    mounted = true,
     queued = false;
   const effects = [];
   const schedule = () => {
@@ -27,6 +28,7 @@ function harness() {
     });
   };
   function render() {
+    if (!mounted) return;
     cursor = 0;
     result = hook(input);
     effects.splice(0).forEach((effect) => effect());
@@ -55,11 +57,16 @@ function harness() {
         const index = cursor++;
         if (
           cells[index] &&
-          deps.every((dep, i) => Object.is(dep, cells[index][i]))
+          deps.every((dep, i) => Object.is(dep, cells[index].deps[i]))
         )
           return;
-        cells[index] = deps;
-        effects.push(effect);
+        const previous = cells[index];
+        const current = { deps };
+        cells[index] = current;
+        effects.push(() => {
+          previous?.cleanup?.();
+          current.cleanup = effect();
+        });
       },
     },
     start(fn, args) {
@@ -73,6 +80,10 @@ function harness() {
     },
     get result() {
       return result;
+    },
+    unmount() {
+      mounted = false;
+      cells.forEach((cell) => cell?.cleanup?.());
     },
   };
 }
@@ -92,6 +103,81 @@ const draft = {
   choice: {},
   phase: 'waiting',
 };
+
+test('attachment progress stays local, targets the current send, and unsubscribes on failure and unmount', async () => {
+  let listener;
+  let removals = 0;
+  const result = deferred();
+  const retryResult = deferred();
+  let attempt = 0;
+  const { hooks, outbox } = await setup(draft, {
+    sendSessionTurn: () =>
+      ++attempt === 1 ? result.promise : retryResult.promise,
+    addAttachmentUploadProgressListener(next) {
+      listener = next;
+      return {
+        remove() {
+          removals++;
+        },
+      };
+    },
+  });
+  const event = {
+    sessionId: 's1',
+    sendId: draft.id,
+    attachmentId: 'a',
+    phase: 'uploading',
+    percent: 37,
+  };
+  listener({ ...event, sessionId: 'other' });
+  listener({ ...event, sendId: 'old' });
+  listener({ ...event, attachmentId: 'missing' });
+  await tick();
+  assert.deepEqual(JSON.parse(hooks.result.pendingSendJSON).uploadProgress, {});
+  listener(event);
+  await tick();
+  assert.equal(
+    JSON.parse(hooks.result.pendingSendJSON).uploadProgress.a.percent,
+    37,
+  );
+  assert.equal(
+    outbox.records[0].send.uploadProgress,
+    undefined,
+    'Progress must not rewrite the durable outbox',
+  );
+  result.resolve(
+    JSON.stringify({ state: 'not_sent', reason: 'Upload failed' }),
+  );
+  await tick();
+  assert.equal(removals, 1);
+  const failedJSON = hooks.result.pendingSendJSON;
+  listener({ ...event, percent: 99 });
+  await tick();
+  assert.equal(
+    hooks.result.pendingSendJSON,
+    failedJSON,
+    'Late progress must not revive a failed upload',
+  );
+
+  const oldListener = listener;
+  hooks.result.retry();
+  await tick();
+  oldListener({ ...event, percent: 99 });
+  await tick();
+  assert.deepEqual(
+    JSON.parse(hooks.result.pendingSendJSON).uploadProgress,
+    {},
+    'Retry must not inherit the previous attempt',
+  );
+  listener({ ...event, percent: 12 });
+  await tick();
+  assert.equal(
+    JSON.parse(hooks.result.pendingSendJSON).uploadProgress.a.percent,
+    12,
+  );
+  hooks.unmount();
+  assert.equal(removals, 2);
+});
 
 async function load(hooks, native) {
   globalThis.__sendHooks = hooks;
@@ -118,7 +204,7 @@ async function load(hooks, native) {
                 'export const {useEffect,useRef,useState}=globalThis.__sendHooks;',
               'react-native': 'export const Alert={alert(){}};',
               '@lody-ios/kit':
-                'export const {createSession,sendSessionTurn}=globalThis.__sendNative;',
+                'export const {createSession,sendSessionTurn,addAttachmentUploadProgressListener}=globalThis.__sendNative;',
             }[path],
           }));
         },

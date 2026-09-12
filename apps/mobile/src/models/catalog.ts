@@ -5,6 +5,7 @@ export type Project = {
   rootPath: string;
 };
 export type Session = {
+  lastModel?: { modelId?: string; name?: string } | null;
   cliType?: string;
   agentType?: string;
   resume?: string;
@@ -24,6 +25,7 @@ export type Session = {
   diff?: { add: number; del: number };
 };
 export type Catalog = {
+  agentUsage?: Record<string, import('./agent-usage.ts').AgentUsage>;
   projects: Project[];
   sessions: Session[];
   machineIds: string[];
