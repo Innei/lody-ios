@@ -548,3 +548,20 @@ precondition(queuedPending.rows(entries: []).isEmpty, "Optimistic queued input m
 queueTranscript.entries = try! JSONDecoder().decode([ChatEntry].self, from: Data(#"[{"id":"queued-turn","role":"user","status":"processing","finished":true,"items":[{"itemId":"text","type":"text","text":"Wait for me"}]}]"#.utf8))
 precondition(queueTranscript.rows().filter { $0.kind == "user" }.count == 1, "Consumed queue input must appear exactly once using its original identity")
 print("Queue transcript: hidden while queued or pending; one message on execution passed")
+
+func assertReadingColumn(collectionWidth: CGFloat, itemWidth: CGFloat, inset: CGFloat, file: StaticString = #file, line: UInt = #line) {
+  precondition(ChatReadingColumn.itemWidth(in: collectionWidth) == itemWidth, "item width", file: file, line: line)
+  precondition(ChatReadingColumn.horizontalInset(in: collectionWidth) == inset, "horizontal inset", file: file, line: line)
+  precondition(
+    ChatReadingColumn.itemWidth(in: collectionWidth) + ChatReadingColumn.horizontalInset(in: collectionWidth) * 2 == collectionWidth
+      || collectionWidth <= 1,
+    "items plus insets must fill a full-bleed scroll view",
+    file: file,
+    line: line
+  )
+}
+assertReadingColumn(collectionWidth: 390, itemWidth: 350, inset: 20)
+assertReadingColumn(collectionWidth: 800, itemWidth: 760, inset: 20)
+assertReadingColumn(collectionWidth: 1180, itemWidth: 760, inset: 210)
+precondition(ChatReadingColumn.columnWidth(in: 1180) == 800)
+print("Reading column: wide hosts keep a 760 pt column inside a full-bleed scroll view")

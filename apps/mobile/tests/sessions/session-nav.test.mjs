@@ -45,6 +45,19 @@ test('handler throw is swallowed by requestOpenSession', async () => {
   stop();
 });
 
+test('the latest subscriber owns navigation until it unmounts', async () => {
+  const seen = [];
+  const stopRoot = subscribeSessionNav(async () => seen.push('root'));
+  const stopPad = subscribeSessionNav(async () => seen.push('pad'));
+
+  await requestOpenSession(session);
+  stopPad();
+  await requestOpenSession(session);
+
+  assert.deepEqual(seen, ['pad', 'root']);
+  stopRoot();
+});
+
 test('a pending presentation keeps later intents in order', async () => {
   const seen = [];
   let release;
@@ -65,4 +78,36 @@ test('a pending presentation keeps later intents in order', async () => {
 
   assert.deepEqual(seen, ['First', 'Second']);
   stop();
+});
+
+test('leaving a workspace aborts its pending navigation before a new owner handles requests', async () => {
+  const opened = [];
+  let release;
+  let oldSignal;
+  const creation = new Promise((resolve) => {
+    release = resolve;
+  });
+  const stopOld = subscribeSessionNav(async (intent, signal) => {
+    oldSignal = signal;
+    await creation;
+    if (!signal.aborted) opened.push(intent.session.id);
+  });
+  const oldRequest = requestOpenSession(session);
+  assert.equal(oldSignal.aborted, false);
+  stopOld();
+  assert.equal(oldSignal.aborted, true);
+  const stopNew = subscribeSessionNav(async (intent, signal) => {
+    assert.equal(signal.aborted, false);
+    opened.push(intent.session.id);
+  });
+  const newRequest = requestOpenSession({
+    ...session,
+    id: 'new-workspace-session',
+  });
+  await Promise.all([oldRequest, newRequest]);
+  assert.deepEqual(opened, ['new-workspace-session']);
+  release();
+  await Promise.resolve();
+  assert.deepEqual(opened, ['new-workspace-session']);
+  stopNew();
 });

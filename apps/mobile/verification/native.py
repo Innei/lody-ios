@@ -39,8 +39,10 @@ checks = {
     'inline-diff': ['UIFont+Dynamic.swift', 'Diff/InlineDiffModel.swift', 'Diff/InlineDiffRenderer.swift'],
     'list': [
         'Chrome/LodyMenuButtonStyle.swift',
+        'List/LodyRowDensity.swift',
         'List/LodyListCellBackground.swift',
         'List/LodyListPhoto.swift',
+        'List/LodyListSectionAnimation.swift',
         'List/LodySessionRowView.swift',
         'List/LodyProjectRowView.swift',
     ],

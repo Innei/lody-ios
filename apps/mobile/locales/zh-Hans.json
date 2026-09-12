@@ -560,6 +560,8 @@
   "settings.usage.offline": "离线 · 显示最近同步的订阅用量。",
   "settings.remote.mcpHint": "同步其他客户端新建会话时的默认 MCP 选择。当前 iOS 会话暂未接入 MCP。",
   "settings.remote.loading": "正在读取远程设置…",
+  "settings.remote.refresh": "刷新",
+  "settings.remote.syncedAt": "更新于 {time}",
   "settings.remote.empty": "暂无可用设置",
   "settings.remote.retry": "重试",
   "settings.remote.enabled": "开启",
@@ -666,5 +668,12 @@
   "pr.pullRequests": "关联的 PR",
   "pr.investigatePrompt": "请排查这个 PR 的 CI 检查问题，先说明失败原因和建议修复：",
   "pr.draftAdded": "排查请求已追加到会话草稿。返回会话后可以编辑并发送，原有文字和附件会保留。",
-  "pr.draftUnavailable": "会话已归档或正在发送，请稍后重试。"
+  "pr.draftUnavailable": "会话已归档或正在发送，请稍后重试。",
+  "ipad.detail.title": "选择会话",
+  "ipad.detail.message": "从悬浮面板中选择一个会话，在这里打开。",
+  "ipad.panel.collapse": "收起会话面板",
+  "ipad.panel.expand": "展开会话面板",
+  "ipad.sheet.resize": "调整面板高度",
+  "ipad.sheet.medium": "半屏",
+  "ipad.sheet.large": "全屏"
 }

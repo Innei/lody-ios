@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Platform,
   ScrollView,
   View as RNView,
 } from 'react-native';
@@ -256,7 +257,7 @@ export const OnboardingScreen = definePage({
   title: t('onboarding.title'),
   Component: View,
   presentation: {
-    style: 'pageSheet',
+    style: Platform.OS === 'ios' && Platform.isPad ? 'formSheet' : 'pageSheet',
     dismissible: false,
     headerShown: false,
   },

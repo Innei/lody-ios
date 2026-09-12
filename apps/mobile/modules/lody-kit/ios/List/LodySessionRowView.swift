@@ -4,6 +4,12 @@ struct LodySessionRowContent: UIContentConfiguration {
   var row: LodyListRow
   var dot: UIColor?
   var live: Bool
+  var density: LodyRowDensity = .regular
+
+  @MainActor var accessibilityLabel: String {
+    [row.title, row.badge, LodySessionRowView.meta(for: row).string, row.modelName, row.value]
+      .filter { !$0.isEmpty }.joined(separator: ", ")
+  }
 
   func makeContentView() -> UIView & UIContentView { LodySessionRowView(self) }
   func updated(for state: UIConfigurationState) -> LodySessionRowContent { self }
@@ -40,11 +46,13 @@ final class LodySessionRowView: UIView, UIContentView {
   private let meta = UILabel()
   private let model = UILabel()
   private let pill = PillLabel()
+  private let metaRow = UIStackView()
   private let time = UILabel()
   private let title = UILabel()
   private var withMeta: [NSLayoutConstraint] = []
   private var withoutMeta: [NSLayoutConstraint] = []
   private var markCenter: NSLayoutConstraint!
+  private var minimumHeight: NSLayoutConstraint!
 
   var configuration: UIContentConfiguration {
     didSet { apply() }
@@ -82,11 +90,17 @@ final class LodySessionRowView: UIView, UIContentView {
     model.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
     time.setContentCompressionResistancePriority(.required, for: .horizontal)
     pill.setContentCompressionResistancePriority(.required, for: .horizontal)
-    for view in [ring, dot, meta, model, pill, time, title] {
+    metaRow.axis = .horizontal
+    metaRow.alignment = .center
+    metaRow.spacing = 0
+    metaRow.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    for item in [meta, model, pill] { metaRow.addArrangedSubview(item) }
+    for view in [ring, dot, metaRow, time, title] {
       view.translatesAutoresizingMaskIntoConstraints = false
       addSubview(view)
     }
     let margin = layoutMarginsGuide
+    minimumHeight = heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
     markCenter = ring.centerXAnchor.constraint(equalTo: leadingAnchor)
     NSLayoutConstraint.activate([
       markCenter,
@@ -96,22 +110,17 @@ final class LodySessionRowView: UIView, UIContentView {
       dot.heightAnchor.constraint(equalToConstant: 8),
       dot.centerXAnchor.constraint(equalTo: ring.centerXAnchor),
       dot.centerYAnchor.constraint(equalTo: ring.centerYAnchor),
-      meta.topAnchor.constraint(equalTo: margin.topAnchor),
-      meta.leadingAnchor.constraint(equalTo: margin.leadingAnchor),
-      meta.heightAnchor.constraint(greaterThanOrEqualTo: model.heightAnchor),
-      model.leadingAnchor.constraint(equalTo: meta.trailingAnchor),
-      model.firstBaselineAnchor.constraint(equalTo: meta.firstBaselineAnchor),
-      pill.leadingAnchor.constraint(equalTo: model.trailingAnchor, constant: 5),
-      pill.centerYAnchor.constraint(equalTo: meta.centerYAnchor),
-      pill.trailingAnchor.constraint(lessThanOrEqualTo: time.leadingAnchor, constant: -10),
+      metaRow.topAnchor.constraint(equalTo: margin.topAnchor),
+      metaRow.leadingAnchor.constraint(equalTo: margin.leadingAnchor),
+      metaRow.trailingAnchor.constraint(lessThanOrEqualTo: time.leadingAnchor, constant: -10),
       time.trailingAnchor.constraint(equalTo: margin.trailingAnchor),
       title.leadingAnchor.constraint(equalTo: margin.leadingAnchor),
       title.bottomAnchor.constraint(equalTo: margin.bottomAnchor),
       ring.centerYAnchor.constraint(equalTo: title.firstBaselineAnchor, constant: -5),
     ])
     withMeta = [
-      time.firstBaselineAnchor.constraint(equalTo: meta.firstBaselineAnchor),
-      title.topAnchor.constraint(equalTo: meta.bottomAnchor, constant: 3),
+      time.centerYAnchor.constraint(equalTo: metaRow.centerYAnchor),
+      title.topAnchor.constraint(equalTo: metaRow.bottomAnchor, constant: 3),
       title.trailingAnchor.constraint(equalTo: margin.trailingAnchor),
     ]
     withoutMeta = [
@@ -129,22 +138,44 @@ final class LodySessionRowView: UIView, UIContentView {
     guard let content = configuration as? LodySessionRowContent else { return }
     let row = content.row
     let tint = content.dot ?? .secondaryLabel
-    directionalLayoutMargins.leading = LodyIndentedCell.textLeading
-    markCenter.constant = LodyIndentedCell.markCenter
+    let compact = content.density == .compact
+    directionalLayoutMargins = compact
+      ? .init(top: 5, leading: 22, bottom: 5, trailing: 10)
+      : .init(top: 11, leading: LodyIndentedCell.textLeading, bottom: 11, trailing: 16)
+    minimumHeight.isActive = compact
+    markCenter.constant = compact ? 10 : LodyIndentedCell.markCenter
     title.text = row.title
-    title.font = .preferredFont(forTextStyle: row.unread ? .headline : .body)
+    if compact {
+      title.font = UIFont.preferredFont(forTextStyle: .subheadline).withWeight(row.unread ? .semibold : .regular)
+    } else {
+      title.font = .preferredFont(forTextStyle: row.unread ? .headline : .body)
+    }
+    let metadataFont = UIFont.preferredFont(forTextStyle: compact ? .caption1 : .footnote)
+    meta.font = metadataFont
+    model.font = metadataFont
+    time.font = metadataFont
     title.textColor = row.destructive ? .systemRed : .label
-    let metaText = Self.meta(for: row)
+    let metaText = Self.meta(for: row, density: content.density)
     meta.attributedText = metaText
-    let modelPrefix = metaText.length > 0 ? " · " : ""
-    model.text = row.modelName.isEmpty ? nil : modelPrefix + row.modelName
-    let hasMeta = metaText.length > 0 || !row.modelName.isEmpty || !row.badge.isEmpty
-    meta.isHidden = !hasMeta
+    let hasText = metaText.length > 0
+    let hasModel = !row.modelName.isEmpty
+    let hasBadge = !row.badge.isEmpty
+    let modelPrefix = hasText ? " · " : ""
+    model.text = hasModel ? modelPrefix + row.modelName : nil
+    let hasMeta = hasText || hasModel || hasBadge
+    meta.isHidden = !hasText
+    model.isHidden = !hasModel
+    pill.isHidden = !hasBadge
+    metaRow.isHidden = !hasMeta
+    if hasModel {
+      metaRow.setCustomSpacing(5, after: model)
+    } else {
+      metaRow.setCustomSpacing(hasText && hasBadge ? 5 : 0, after: meta)
+    }
     NSLayoutConstraint.deactivate(hasMeta ? withoutMeta : withMeta)
     NSLayoutConstraint.activate(hasMeta ? withMeta : withoutMeta)
     time.text = row.value
     pill.text = row.badge
-    pill.isHidden = row.badge.isEmpty
     pill.textColor = tint
     pill.backgroundColor = tint.withAlphaComponent(0.16)
     dot.backgroundColor = tint
@@ -152,13 +183,11 @@ final class LodySessionRowView: UIView, UIContentView {
     ring.backgroundColor = tint.withAlphaComponent(0.14)
     ring.isHidden = !content.live
     isAccessibilityElement = true
-    accessibilityLabel = [row.title, row.badge, metaText.string, row.modelName, row.value]
-      .filter { !$0.isEmpty }
-      .joined(separator: ", ")
+    accessibilityLabel = content.accessibilityLabel
   }
 
-  private static func meta(for row: LodyListRow) -> NSAttributedString {
-    let footnote = UIFont.preferredFont(forTextStyle: .footnote)
+  static func meta(for row: LodyListRow, density: LodyRowDensity = .regular) -> NSAttributedString {
+    let footnote = UIFont.preferredFont(forTextStyle: density == .compact ? .caption1 : .footnote)
     let base: UIFont = row.subtitleMono
       ? .monospacedSystemFont(ofSize: footnote.pointSize, weight: .regular)
       : footnote

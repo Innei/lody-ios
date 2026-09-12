@@ -8,7 +8,7 @@ import { useConnection } from '@/cloud/catalog/connection';
 import { useSessionControl } from '@/features/sessions/useSessionControl';
 import { useSessionSend } from '@/features/sessions/useSessionSend';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View as RNView, Alert } from 'react-native';
 import { usePalette } from '@/lib/theme/palette';
 import {
@@ -50,6 +50,15 @@ import type { ModelChoice } from './ModelScreen';
 import { t } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { useOpenPullRequest } from '@/hooks/screens/useOpenPullRequest';
+import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
+import type {
+  HeaderBarButtonItemMenuAction,
+  HeaderBarButtonItemSubmenu,
+} from 'react-native-screens';
+import {
+  SheetHeaderContext,
+  type HeaderItems,
+} from '@/lib/presentation/SheetStack';
 
 function composerPlaceholder({
   archived,
@@ -67,8 +76,9 @@ function composerPlaceholder({
   return t('chat.composer.placeholder');
 }
 
-type SessionParams = {
+export type SessionParams = {
   session: Session;
+  navigationTitleHidden?: boolean;
   projectName?: string;
   machineName?: string;
   modelId?: string;
@@ -76,10 +86,14 @@ type SessionParams = {
   modeId?: string;
 };
 
+const noPullRequests: NonNullable<Session['pullRequests']> = [];
+
 function View() {
+  const embeddedHeader = use(SheetHeaderContext) !== null;
   const {
     params: {
       session,
+      navigationTitleHidden,
       projectName: creationProjectName,
       machineName: creationMachineName,
       modelId,
@@ -107,7 +121,7 @@ function View() {
       return true;
     },
   );
-  const pullRequests = currentSession.pullRequests ?? [];
+  const pullRequests = currentSession.pullRequests ?? noPullRequests;
   const prAttention = pullRequests.some((pr) => pr.ci === 'f' || pr.ci === 'e');
   useSessionViewed(
     account?.user.id ?? '',
@@ -383,7 +397,7 @@ function View() {
     })),
     efforts: efforts.map((id) => ({ id, title: id })),
   });
-  const openProjectFiles = () => {
+  const openProjectFiles = useCallback(() => {
     if (!browsable || !account || !selected) return;
     void present(FilesScreen, {
       workspaceId: selected.id,
@@ -392,7 +406,7 @@ function View() {
       path: '',
       title: project?.name ?? t('session.action.projectFiles'),
     });
-  };
+  }, [account, browsable, project?.name, selected, session.id]);
   const showDetails = () => {
     const body = sessionDebugText({
       session: currentSession,
@@ -413,111 +427,229 @@ function View() {
       { text: t('common.ok'), style: 'cancel' },
     ]);
   };
+  const embeddedHeaderItems = useMemo<HeaderItems>(() => {
+    const items: HeaderItems = [];
+    if (pullRequests.length === 1) {
+      const pullRequest = pullRequests[0];
+      items.push({
+        type: 'button',
+        title: `PR #${pullRequest.number}`,
+        accessibilityLabel: `PR #${pullRequest.number}`,
+        badge: prAttention ? { value: '!' } : undefined,
+        onPress: () => void openPullRequest(pullRequest),
+      });
+    } else if (pullRequests.length > 1) {
+      items.push({
+        type: 'menu',
+        title: `PR · ${pullRequests.length}`,
+        accessibilityLabel: t('pr.pullRequests'),
+        menu: {
+          items: pullRequests.map((pullRequest) => ({
+            type: 'action',
+            title: `${pullRequest.repository} #${pullRequest.number} · ${t(`pr.state.${pullRequest.status}`)}`,
+            onPress: () => void openPullRequest(pullRequest),
+          })),
+        },
+      });
+    }
+
+    const actions: (
+      HeaderBarButtonItemMenuAction | HeaderBarButtonItemSubmenu
+    )[] = [
+      {
+        type: 'action',
+        title: t('session.action.newSession'),
+        icon: { type: 'sfSymbol', name: 'square.and.pencil' },
+        onPress: () => {
+          if (!selected) return;
+          void requestNewSession(
+            selected.id,
+            catalog,
+            isChatSession(currentSession)
+              ? undefined
+              : currentSession.projectId,
+            isChatSession(currentSession) ? 'chat' : undefined,
+          );
+        },
+      },
+      {
+        type: 'action',
+        title: t(
+          currentSession.pinned ? 'session.action.unpin' : 'session.action.pin',
+        ),
+        icon: {
+          type: 'sfSymbol',
+          name: currentSession.pinned ? 'pin.slash' : 'pin',
+        },
+        disabled: !!pending?.send.creation,
+        onPress: () => {
+          if (selected)
+            void setPinned(selected.id, currentSession, !currentSession.pinned);
+        },
+      },
+      {
+        type: 'action',
+        title: t(
+          currentSession.archived
+            ? 'session.action.unarchive'
+            : 'session.action.archive',
+        ),
+        icon: {
+          type: 'sfSymbol',
+          name: currentSession.archived ? 'tray.and.arrow.up' : 'archivebox',
+        },
+        disabled: !!pending?.send.creation,
+        onPress: () => {
+          if (selected)
+            void setArchived(
+              selected.id,
+              currentSession,
+              !currentSession.archived,
+            );
+        },
+      },
+    ];
+    if (browsable && account) {
+      actions.push({
+        type: 'action',
+        title: t('session.action.projectFiles'),
+        icon: { type: 'sfSymbol', name: 'folder' },
+        onPress: openProjectFiles,
+      });
+    }
+    items.push({
+      type: 'menu',
+      icon: { type: 'sfSymbol', name: 'ellipsis' },
+      accessibilityLabel: t('common.more'),
+      menu: { items: actions },
+    });
+    return items;
+  }, [
+    account,
+    browsable,
+    catalog,
+    currentSession,
+    openProjectFiles,
+    openPullRequest,
+    pending?.send.creation,
+    prAttention,
+    pullRequests,
+    selected,
+  ]);
+  useSheetHeader(embeddedHeaderItems);
   return (
     <RNView style={{ flex: 1, backgroundColor: colors.reading }}>
-      <Stack.Screen
-        options={{
-          title: currentSession.title,
-        }}
-      />
-      <Stack.Toolbar placement="right">
-        {pullRequests.length === 1 && (
-          <Stack.Toolbar.Button
-            accessibilityLabel={`PR #${pullRequests[0].number}`}
-            onPress={() => void openPullRequest(pullRequests[0])}
-          >
-            {`PR #${pullRequests[0].number}`}
-            {prAttention ? <Stack.Toolbar.Badge>!</Stack.Toolbar.Badge> : null}
-          </Stack.Toolbar.Button>
-        )}
-        {pullRequests.length > 1 && (
-          <Stack.Toolbar.Menu accessibilityLabel={t('pr.pullRequests')}>
-            <Stack.Toolbar.Label>{`PR · ${pullRequests.length}`}</Stack.Toolbar.Label>
-            {pullRequests.map((pr) => (
-              <Stack.Toolbar.MenuAction
-                key={pr.url}
-                onPress={() => void openPullRequest(pr)}
-              >{`${pr.repository} #${pr.number} · ${t(`pr.state.${pr.status}`)}`}</Stack.Toolbar.MenuAction>
-            ))}
-          </Stack.Toolbar.Menu>
-        )}
-        <Stack.Toolbar.Menu
-          icon="ellipsis"
-          accessibilityLabel={t('common.more')}
-        >
-          <Stack.Toolbar.MenuAction
-            icon="square.and.pencil"
-            onPress={() => {
-              if (selected)
-                void requestNewSession(
-                  selected.id,
-                  catalog,
-                  isChatSession(currentSession)
-                    ? undefined
-                    : currentSession.projectId,
-                  isChatSession(currentSession) ? 'chat' : undefined,
-                );
-            }}
-          >
-            {t('session.action.newSession')}
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            icon={currentSession.pinned ? 'pin.slash' : 'pin'}
-            disabled={!!pending?.send.creation}
-            onPress={() => {
-              if (selected)
-                void setPinned(
-                  selected.id,
-                  currentSession,
-                  !currentSession.pinned,
-                );
-            }}
-          >
-            {t(
-              currentSession.pinned
-                ? 'session.action.unpin'
-                : 'session.action.pin',
-            )}
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            icon={currentSession.archived ? 'tray.and.arrow.up' : 'archivebox'}
-            disabled={!!pending?.send.creation}
-            onPress={() => {
-              if (selected)
-                void setArchived(
-                  selected.id,
-                  currentSession,
-                  !currentSession.archived,
-                );
-            }}
-          >
-            {t(
-              currentSession.archived
-                ? 'session.action.unarchive'
-                : 'session.action.archive',
-            )}
-          </Stack.Toolbar.MenuAction>
-          {browsable && account ? (
-            <Stack.Toolbar.Menu inline>
-              <Stack.Toolbar.MenuAction
-                icon="folder"
-                onPress={openProjectFiles}
-              >
-                {t('session.action.projectFiles')}
-              </Stack.Toolbar.MenuAction>
+      {!embeddedHeader ? (
+        <Stack.Screen
+          options={{
+            title: currentSession.title,
+          }}
+        />
+      ) : null}
+      {!embeddedHeader ? (
+        <Stack.Toolbar placement="right">
+          {pullRequests.length === 1 && (
+            <Stack.Toolbar.Button
+              accessibilityLabel={`PR #${pullRequests[0].number}`}
+              onPress={() => void openPullRequest(pullRequests[0])}
+            >
+              {`PR #${pullRequests[0].number}`}
+              {prAttention ? (
+                <Stack.Toolbar.Badge>!</Stack.Toolbar.Badge>
+              ) : null}
+            </Stack.Toolbar.Button>
+          )}
+          {pullRequests.length > 1 && (
+            <Stack.Toolbar.Menu accessibilityLabel={t('pr.pullRequests')}>
+              <Stack.Toolbar.Label>{`PR · ${pullRequests.length}`}</Stack.Toolbar.Label>
+              {pullRequests.map((pr) => (
+                <Stack.Toolbar.MenuAction
+                  key={pr.url}
+                  onPress={() => void openPullRequest(pr)}
+                >{`${pr.repository} #${pr.number} · ${t(`pr.state.${pr.status}`)}`}</Stack.Toolbar.MenuAction>
+              ))}
             </Stack.Toolbar.Menu>
-          ) : null}
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
+          )}
+          <Stack.Toolbar.Menu
+            icon="ellipsis"
+            accessibilityLabel={t('common.more')}
+          >
+            <Stack.Toolbar.MenuAction
+              icon="square.and.pencil"
+              onPress={() => {
+                if (selected)
+                  void requestNewSession(
+                    selected.id,
+                    catalog,
+                    isChatSession(currentSession)
+                      ? undefined
+                      : currentSession.projectId,
+                    isChatSession(currentSession) ? 'chat' : undefined,
+                  );
+              }}
+            >
+              {t('session.action.newSession')}
+            </Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction
+              icon={currentSession.pinned ? 'pin.slash' : 'pin'}
+              disabled={!!pending?.send.creation}
+              onPress={() => {
+                if (selected)
+                  void setPinned(
+                    selected.id,
+                    currentSession,
+                    !currentSession.pinned,
+                  );
+              }}
+            >
+              {t(
+                currentSession.pinned
+                  ? 'session.action.unpin'
+                  : 'session.action.pin',
+              )}
+            </Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction
+              icon={
+                currentSession.archived ? 'tray.and.arrow.up' : 'archivebox'
+              }
+              disabled={!!pending?.send.creation}
+              onPress={() => {
+                if (selected)
+                  void setArchived(
+                    selected.id,
+                    currentSession,
+                    !currentSession.archived,
+                  );
+              }}
+            >
+              {t(
+                currentSession.archived
+                  ? 'session.action.unarchive'
+                  : 'session.action.archive',
+              )}
+            </Stack.Toolbar.MenuAction>
+            {browsable && account ? (
+              <Stack.Toolbar.Menu inline>
+                <Stack.Toolbar.MenuAction
+                  icon="folder"
+                  onPress={openProjectFiles}
+                >
+                  {t('session.action.projectFiles')}
+                </Stack.Toolbar.MenuAction>
+              </Stack.Toolbar.Menu>
+            ) : null}
+          </Stack.Toolbar.Menu>
+        </Stack.Toolbar>
+      ) : null}
       <DiffWebViewWarmer />
       <NativeChat
         appendDraftJSON={appendDraftJSON}
         mentionItemsJSON={mentions.mentionItemsJSON}
         mentionResultJSON={mentions.mentionResultJSON}
         onMentionBrowse={mentions.onMentionBrowse}
-        navigationTitle={currentSession.title}
-        navigationSubtitle={projectName}
-        navigationMachine={machineName}
+        navigationTitle={navigationTitleHidden ? '' : currentSession.title}
+        navigationSubtitle={navigationTitleHidden ? '' : projectName}
+        navigationMachine={navigationTitleHidden ? '' : machineName}
         onTitlePress={showDetails}
         style={{ flex: 1 }}
         attachmentContextJSON={JSON.stringify({

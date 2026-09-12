@@ -136,10 +136,12 @@ func sessionMark(in view: UIView) -> UIView {
   view.subviews.first { $0.layer.cornerRadius == 7 }!
 }
 
+func labels(in view: UIView) -> [UILabel] {
+  [view as? UILabel].compactMap { $0 } + view.subviews.flatMap(labels(in:))
+}
+
 func sessionLabel(_ view: UIView, _ text: String) -> UILabel {
-  view.subviews.compactMap { $0 as? UILabel }.first {
-    ($0.text ?? $0.attributedText?.string) == text
-  }!
+  labels(in: view).first { ($0.text ?? $0.attributedText?.string) == text }!
 }
 
 func midY(_ inner: UIView, in outer: UIView) -> CGFloat {
@@ -185,15 +187,131 @@ assert(
 
 print("PASS: session live mark sits in front of the title")
 
-let named = laidOutSessionRow(
+func frame(_ inner: UIView, in outer: UIView) -> CGRect {
+  inner.convert(inner.bounds, to: outer)
+}
+
+let badgeOnly = laidOutSessionRow(
   LodySessionRowContent(
-    row: LodyListRow(title: "Review", subtitle: "lody-ios", modelName: "GPT-6", value: "Now"),
-    dot: .systemBlue,
+    row: LodyListRow(title: "Conversation opening greeting", value: "Yesterday", badge: "Archived"),
+    dot: nil,
     live: false
   )
 )
-assert(
-  named.accessibilityLabel.contains("GPT-6"),
-  "Session rows must speak the last model"
+let withProject = laidOutSessionRow(
+  LodySessionRowContent(
+    row: LodyListRow(title: "hihi", subtitle: "lody-ios", value: "Yesterday", badge: "Archived"),
+    dot: nil,
+    live: false
+  )
 )
-print("PASS: session rows expose the last model")
+let badge = sessionLabel(badgeOnly, "Archived")
+let badgeTitle = sessionLabel(badgeOnly, "Conversation opening greeting")
+let badgeTime = sessionLabel(badgeOnly, "Yesterday")
+let badgeFrame = frame(badge, in: badgeOnly)
+let badgeTitleFrame = frame(badgeTitle, in: badgeOnly)
+assert(
+  badgeFrame.maxY <= badgeTitleFrame.minY + 1,
+  "A badge with no project name must keep its own line above the title"
+)
+assert(
+  abs(badgeFrame.minX - badgeTitleFrame.minX) < 2,
+  "A leading badge must line up with the title, not sit on an empty meta label"
+)
+assert(
+  abs(midY(badgeTime, in: badgeOnly) - midY(badge, in: badgeOnly))
+    < abs(midY(badgeTime, in: badgeOnly) - midY(badgeTitle, in: badgeOnly)),
+  "Time stays on the badge line when the session has no project name"
+)
+assert(
+  abs(badgeOnly.bounds.height - withProject.bounds.height) < 8,
+  "A chat row with only a badge keeps the two-line session height"
+)
+
+print("PASS: a badge without a project name keeps the two-line session row")
+
+// Compare the same real content view at the same width, including reuse back
+// into the default host. Sidebar typography can shrink, but not text or touch targets.
+@MainActor func fittedHeight(_ view: UIView) -> CGFloat {
+  view.systemLayoutSizeFitting(
+    CGSize(width: 288, height: 0),
+    withHorizontalFittingPriority: .required,
+    verticalFittingPriority: .fittingSizeLevel
+  ).height
+}
+
+let densityRow = LodyListRow(title: "Review sidebar", subtitle: "feature/sidebar", modelName: "GPT-6", value: "Now")
+let sessionContent = LodySessionRowContent(row: densityRow, dot: .systemBlue, live: true)
+let densitySession = LodySessionRowView(sessionContent)
+let groupedSessionHeight = fittedHeight(densitySession)
+let groupedSessionLabel = densitySession.accessibilityLabel
+let groupedTitleFont = sessionLabel(densitySession, densityRow.title).font!
+var sidebarSession = sessionContent
+sidebarSession.density = .compact
+densitySession.configuration = sidebarSession
+assert(fittedHeight(densitySession) <= groupedSessionHeight - 8, "Sidebar must fit more rows at the same width")
+assert(fittedHeight(densitySession) >= 44, "Compact rows must keep a 44 pt touch target")
+assert(densitySession.accessibilityLabel == groupedSessionLabel, "Sidebar must retain all session information")
+assert(sessionLabel(densitySession, densityRow.title).font.pointSize < groupedTitleFont.pointSize, "Sidebar title must be quieter than the grouped title")
+assert(sessionLabel(densitySession, densityRow.title).adjustsFontForContentSizeCategory)
+let groupedMetaFont = LodySessionRowView.meta(for: densityRow).attribute(.font, at: 0, effectiveRange: nil) as! UIFont
+let sidebarMetaFont = sessionLabel(densitySession, densityRow.subtitle).attributedText!.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
+assert(sidebarMetaFont.pointSize < groupedMetaFont.pointSize, "Attributed branch text must follow sidebar density too")
+densitySession.configuration = sessionContent
+assert(sessionLabel(densitySession, densityRow.title).font == groupedTitleFont, "Reuse must restore the phone title size")
+assert(abs(fittedHeight(densitySession) - groupedSessionHeight) < 0.5, "Reuse must restore grouped row spacing")
+sidebarSession.row = LodyListRow(title: "No metadata")
+densitySession.configuration = sidebarSession
+assert(fittedHeight(densitySession) >= 44, "A one-line sidebar row must still be tappable")
+
+let projectContent = LodyProjectRowContent(row: LodyListRow(title: "Lody", subtitle: "/tmp/lody", monogram: "L"), accent: .systemBlue)
+let densityProject = LodyProjectRowView(projectContent)
+let groupedProjectHeight = fittedHeight(densityProject)
+let groupedProjectLabel = densityProject.accessibilityLabel
+let projectText = densityProject.subviews.first { $0 is UIStackView }!
+let groupedProjectFont = sessionLabel(projectText, "Lody").font!
+var sidebarProject = projectContent
+sidebarProject.density = .compact
+densityProject.configuration = sidebarProject
+assert(fittedHeight(densityProject) <= groupedProjectHeight - 8)
+assert(fittedHeight(densityProject) >= 44)
+assert(densityProject.accessibilityLabel == groupedProjectLabel)
+assert(sessionLabel(projectText, "Lody").font.pointSize < groupedProjectFont.pointSize)
+densityProject.configuration = projectContent
+assert(sessionLabel(projectText, "Lody").font == groupedProjectFont, "Reuse must restore the phone project size")
+assert(abs(fittedHeight(densityProject) - groupedProjectHeight) < 0.5)
+print("PASS: sidebar uses quieter typography with complete text and 44 pt targets; grouped reuse restores its font and spacing")
+
+assert(
+  LodyListSectionAnimation.itemCountsCrossEmpty(previous: ["settings": 0], next: ["settings": 3]),
+  "Filling an empty section must skip the footer interpolation"
+)
+assert(
+  LodyListSectionAnimation.itemCountsCrossEmpty(previous: ["settings": 3], next: ["settings": 0]),
+  "Clearing a section must skip the footer interpolation"
+)
+assert(
+  !LodyListSectionAnimation.itemCountsCrossEmpty(previous: ["settings": 3], next: ["settings": 4]),
+  "Growing a populated section can keep its row animation"
+)
+assert(
+  !LodyListSectionAnimation.itemCountsCrossEmpty(previous: ["help": 0], next: ["help": 0]),
+  "A footer-only section that stays empty is not a crossing"
+)
+assert(
+  !LodyListSectionAnimation.itemCountsCrossEmpty(previous: ["a": 2], next: ["a": 2, "b": 3]),
+  "A newly inserted populated section never parked a footer at the top"
+)
+assert(
+  LodyListSectionAnimation.hidesEmptyFooter(rowCount: 0, placeholder: "Loading remote settings…"),
+  "An empty section with a placeholder must not park its description at the top"
+)
+assert(
+  !LodyListSectionAnimation.hidesEmptyFooter(rowCount: 3, placeholder: "Loading remote settings…"),
+  "A populated section keeps its footer under the card"
+)
+assert(
+  !LodyListSectionAnimation.hidesEmptyFooter(rowCount: 0, placeholder: ""),
+  "A footer-only help section stays visible when the host has no placeholder"
+)
+print("PASS: empty-to-populated list sections skip the footer interpolation")

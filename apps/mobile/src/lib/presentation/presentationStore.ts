@@ -9,9 +9,14 @@ import type {
 export type PresentationResult<TResult> =
   { status: 'cancelled' } | { status: 'completed'; value: TResult };
 
+type PresentOptions = Partial<PagePresentationOptions> & {
+  /** A native local host can render the same session without a Router modal. */
+  host?: (session: PresentationSession) => void;
+};
+
 type PresentArgs<TParams> = [TParams] extends [undefined]
-  ? [params?: TParams, options?: Partial<PagePresentationOptions>]
-  : [params: TParams, options?: Partial<PagePresentationOptions>];
+  ? [params?: TParams, options?: PresentOptions]
+  : [params: TParams, options?: PresentOptions];
 
 export interface PresentationSession {
   id: number;
@@ -40,7 +45,8 @@ export function present<TParams, TResult>(
   page: PageDefinition<TParams, TResult>,
   ...args: PresentArgs<TParams>
 ): Promise<PresentationResult<TResult>> {
-  const [params, presentation] = args;
+  const [params, options] = args;
+  const { host, ...presentation } = options ?? {};
   const id = nextId++;
 
   return new Promise<PresentationResult<TResult>>((resolve) => {
@@ -56,6 +62,10 @@ export function present<TParams, TResult>(
     ];
 
     try {
+      if (host) {
+        host(getPresentationSession(id)!);
+        return;
+      }
       router.push({
         pathname: page.presentationPath ?? '/presented/[presentationId]',
         params: { presentationId: String(id) },

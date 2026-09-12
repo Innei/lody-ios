@@ -13,7 +13,7 @@ const config: ExpoConfig = {
     deploymentTarget: '26.0',
     bundleIdentifier: 'app.innei.lody',
     appleTeamId: 'KAMM5N88X3',
-    supportsTablet: false,
+    supportsTablet: true,
     config: { usesNonExemptEncryption: false },
     infoPlist: {
       // Clear the old continued-processing declarations on incremental prebuilds.

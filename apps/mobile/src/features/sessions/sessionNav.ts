@@ -15,7 +15,8 @@ type Stored = SessionNavIntent & {
 };
 
 let queue: Stored[] = [];
-let handler: ((intent: SessionNavIntent) => Promise<void>) | null = null;
+type Handler = (intent: SessionNavIntent, signal: AbortSignal) => Promise<void>;
+let handlers: { handle: Handler; controller: AbortController }[] = [];
 let flushing = false;
 
 function enqueue(intent: SessionNavIntent) {
@@ -26,23 +27,33 @@ function enqueue(intent: SessionNavIntent) {
 }
 
 async function flush() {
-  if (flushing || !handler) return;
+  if (flushing || !handlers.length) return;
   flushing = true;
   try {
     while (queue.length) {
+      const handler = handlers.at(-1);
+      if (!handler) return;
       const next = queue[0];
       queue = queue.slice(1);
       const { resolve, ...intent } = next;
+      const { signal } = handler.controller;
+      let cancel = () => {};
+      const cancelled = new Promise<void>((done) => {
+        cancel = done;
+        signal.addEventListener('abort', cancel, { once: true });
+      });
       try {
-        await handler(intent);
+        await Promise.race([handler.handle(intent, signal), cancelled]);
       } catch {
         /* hook toasts; request still settles */
+      } finally {
+        signal.removeEventListener('abort', cancel);
       }
       resolve();
     }
   } finally {
     flushing = false;
-    if (queue.length && handler) void flush();
+    if (queue.length && handlers.length) void flush();
   }
 }
 
@@ -59,12 +70,13 @@ export function requestNewSession(
   return enqueue({ kind: 'create', workspaceId, catalog, projectId, context });
 }
 
-export function subscribeSessionNav(
-  next: (intent: SessionNavIntent) => Promise<void>,
-) {
-  handler = next;
+export function subscribeSessionNav(next: Handler) {
+  const subscription = { handle: next, controller: new AbortController() };
+  handlers = [...handlers, subscription];
   void flush();
   return () => {
-    if (handler === next) handler = null;
+    subscription.controller.abort();
+    handlers = handlers.filter((handler) => handler !== subscription);
+    void flush();
   };
 }

@@ -1,64 +1,6 @@
 import ExpoModulesCore
 import UIKit
 
-@Record
-struct LodyListAction {
-  var id: String = ""
-  var title: String = ""
-  var symbol: String = ""
-  var tint: String = ""
-  var destructive: Bool = false
-}
-
-@Record
-struct LodyListValueSegment {
-  var text: String = ""
-  var tint: String = ""
-}
-
-@Record
-struct LodyListRow {
-  var id: String = ""
-  var title: String = ""
-  var subtitle: String = ""
-  var modelName: String = ""
-  var value: String = ""
-  var progress: Double? = nil
-  var valueSegments: [LodyListValueSegment] = []
-  var image: String = ""
-  var imageAsset: String = ""
-  var filePath: String = ""
-  var imageTint: String = ""
-  var subtitleMono: Bool = false
-  var unread: Bool = false
-  var badge: String = ""
-  var diff: [String: Int] = [:]
-  var action: Bool = false
-  var selected: Bool = false
-  var accessibilityValue: String = ""
-  var toggle: Bool? = nil
-  var navigates: Bool = false
-  var disclosure: Bool = false
-  var destructive: Bool = false
-  var parent: Bool = false
-  var monogram: String = ""
-  var pinned: Bool = false
-  var actions: [LodyListAction] = []
-  var leadingActions: [LodyListAction] = []
-  var menuActions: [LodyListAction] = []
-  var preview: String = ""
-}
-
-struct LodyListSection: Record {
-  @Field var id: String = ""
-  @Field var header: String = ""
-  @Field var headerValue: String = ""
-  @Field var headerActionId: String = ""
-  @Field var headerExpanded: Bool? = nil
-  @Field var footer: String = ""
-  @Field var rows: [LodyListRow] = []
-}
-
 private final class ListAppearanceController: UIViewController {
   var onWillAppear: ((Bool, UIViewControllerTransitionCoordinator?) -> Void)?
   override func viewWillAppear(_ animated: Bool) {
@@ -119,7 +61,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private var toggles: [String: RowSwitch] = [:]
   private var dataSource: UICollectionViewDiffableDataSource<String, ListItemID>!
 
-  private static let restingCard = UIColor.tertiarySystemGroupedBackground
+  private static let restingCard = UIColor.secondarySystemGroupedBackground
 
   private lazy var registration = UICollectionView.CellRegistration<UICollectionViewListCell, LodyListRow> { [weak self] cell, _, row in
     LodyGroupedList.configureSystem(cell, row, toggle: self?.toggle(for: row))
@@ -290,9 +232,14 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       configuration.backgroundColor = .clear
       // `.firstItemInSection` splits the inset card into a header card and an
       // items card; a parent row is a plain first item so the card stays whole.
-      let outline = self?.section(at: index)?.rows.first?.parent ?? false
+      let model = self?.section(at: index)
+      let outline = model?.rows.first?.parent ?? false
+      let hideEmptyFooter = LodyListSectionAnimation.hidesEmptyFooter(
+        rowCount: model?.rows.count ?? 0,
+        placeholder: self?.placeholderText ?? ""
+      )
       configuration.headerMode = outline ? .none : .supplementary
-      configuration.footerMode = outline ? .none : .supplementary
+      configuration.footerMode = outline || hideEmptyFooter ? .none : .supplementary
       configuration.leadingSwipeActionsConfigurationProvider = { indexPath in
         self?.swipeActions(at: indexPath, leading: true)
       }
@@ -494,6 +441,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       updatePlaceholder()
       return
     }
+    // Footer mode depends on placeholder visibility; resolve it before apply.
+    updatePlaceholder()
     var snapshot = NSDiffableDataSourceSnapshot<String, ListItemID>()
     for section in value {
       snapshot.appendSections([section.id])
@@ -508,7 +457,15 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
             let view = collection.supplementaryView(forElementKind: UICollectionView.elementKindSectionHeader, at: index) as? SectionSupplementaryCell else { continue }
       configureSupplementary(view, section: section, header: true)
     }
-    dataSource.apply(snapshot, animatingDifferences: animated && window != nil && !previous.sectionIdentifiers.isEmpty && !UIAccessibility.isReduceMotionEnabled) { [weak self] in
+    let animate = animated
+      && window != nil
+      && !previous.sectionIdentifiers.isEmpty
+      && !UIAccessibility.isReduceMotionEnabled
+      && !LodyListSectionAnimation.itemCountsCrossEmpty(
+        previous: itemCounts(in: previous),
+        next: itemCounts(in: snapshot)
+      )
+    let finish: () -> Void = { [weak self] in
       guard let self else { return }
       for kind in [UICollectionView.elementKindSectionHeader, UICollectionView.elementKindSectionFooter] {
         for index in self.collection.indexPathsForVisibleSupplementaryElements(ofKind: kind) {
@@ -520,7 +477,20 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       }
       self.collection.collectionViewLayout.invalidateLayout()
     }
-    updatePlaceholder()
+    if animate {
+      dataSource.apply(snapshot, animatingDifferences: true, completion: finish)
+    } else {
+      UIView.performWithoutAnimation {
+        self.dataSource.apply(snapshot, animatingDifferences: false, completion: finish)
+        self.collection.layoutIfNeeded()
+      }
+    }
+  }
+
+  private func itemCounts(in snapshot: NSDiffableDataSourceSnapshot<String, ListItemID>) -> [String: Int] {
+    Dictionary(uniqueKeysWithValues: snapshot.sectionIdentifiers.map {
+      ($0, snapshot.itemIdentifiers(inSection: $0).count)
+    })
   }
 
   /// Section snapshots own expansion, so a parent row collapses its children
@@ -562,8 +532,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   /// A sheet paints its own material. Dropping the list's ground lets that
-  /// material show between groups. A tertiary grouped surface keeps cells
-  /// distinct when the expanded sheet switches to an opaque background.
+  /// material show between groups. Cells use the secondary grouped surface,
+  /// above the system form sheet's grouped ground.
   func setTransparent(_ value: Bool) {
     guard value != transparent else { return }
     transparent = value
@@ -629,8 +599,13 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   private func updatePlaceholder() {
     let empty = sections.isEmpty || sections.allSatisfy { $0.rows.isEmpty && $0.headerActionId.isEmpty }
+    let hide = !empty || placeholderText.isEmpty
+    let visibilityChanged = placeholder.isHidden != hide
     placeholder.text = placeholderText
-    placeholder.isHidden = !empty || placeholderText.isEmpty
+    placeholder.isHidden = hide
+    if visibilityChanged {
+      collection.collectionViewLayout.invalidateLayout()
+    }
   }
 
   @objc private func refreshPulled() {
@@ -810,17 +785,9 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   private func swipeActions(at indexPath: IndexPath, leading: Bool) -> UISwipeActionsConfiguration? {
     guard let row = row(at: indexPath) else { return nil }
-    let actions = leading ? row.leadingActions : row.actions
-    if actions.isEmpty { return nil }
-    return UISwipeActionsConfiguration(actions: actions.map { action in
-      let item = UIContextualAction(style: action.destructive ? .destructive : .normal, title: action.title) { [weak self] _, _, done in
-        self?.onRowAction(["id": row.id, "actionId": action.id])
-        done(true)
-      }
-      item.image = action.symbol.isEmpty ? nil : UIImage(systemName: action.symbol)
-      if let tint = lodyTint(action.tint) { item.backgroundColor = tint }
-      return item
-    })
+    return LodyListRowInteractions.swipes(row: row, leading: leading) { [weak self] id, actionId in
+      self?.onRowAction(["id": id, "actionId": actionId])
+    }
   }
 
   func row(at index: IndexPath) -> LodyListRow? {
@@ -878,42 +845,10 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   private func menuConfiguration(at indexPath: IndexPath) -> UIContextMenuConfiguration? {
-    guard let row = row(at: indexPath), !row.menuActions.isEmpty else { return nil }
-    let identifier = row.id as NSString
-    let previewSession = row.preview == "session"
-    let userId = previewUserId
-    let workspaceId = previewWorkspaceId
-    return UIContextMenuConfiguration(identifier: identifier, previewProvider: {
-      guard previewSession else { return nil }
-      return ChatTranscriptPreviewController(
-        sessionId: row.id,
-        title: row.title,
-        userId: userId,
-        workspaceId: workspaceId
-      )
-    }, actionProvider: { [weak self] _ in
-      self?.menu(for: row)
-    })
-  }
-
-  private func menu(for row: LodyListRow) -> UIMenu {
-    UIMenu(children: row.menuActions.map { action in
-      UIAction(
-        title: action.title,
-        image: action.symbol.isEmpty ? nil : UIImage(systemName: action.symbol),
-        attributes: action.destructive ? [.destructive] : []
-      ) { [weak self] _ in
-        self?.performMenu(row, action)
-      }
-    })
-  }
-
-  private func performMenu(_ row: LodyListRow, _ action: LodyListAction) {
-    if action.id == "copyPath" {
-      UIPasteboard.general.string = row.subtitle
-      return
+    guard let row = row(at: indexPath) else { return nil }
+    return LodyListRowInteractions.menu(row: row, userId: previewUserId, workspaceId: previewWorkspaceId) { [weak self] id, actionId in
+      self?.onRowAction(["id": id, "actionId": actionId])
     }
-    onRowAction(["id": row.id, "actionId": action.id])
   }
 
   private func commitMenu(_ id: String) {

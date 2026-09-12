@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Alert, Linking, Share } from 'react-native';
 import type { PullRequestReference } from '@/models/pull-request';
 import type { PullRequestSource } from '@/features/pull-request/source';
@@ -28,57 +28,60 @@ export function useOpenPullRequest(
       currentScope.current = '';
     };
   }, [scope]);
-  return async (reference: PullRequestReference) => {
-    if (!workspaceId || !userId || open.current) return;
-    open.current = true;
-    const source = livePullRequest(workspaceId, reference);
-    sources.current.add(source);
-    const valid = () => currentScope.current === scope;
-    function openGitHub(url = reference.url) {
-      if (!valid()) return;
-      // Check URLs are external data. Only open GitHub HTTPS links here.
-      if (!/^https:\/\/github\.com\//i.test(url)) url = reference.url;
-      void Linking.openURL(url).catch(() =>
-        Alert.alert(t('pr.github'), t('pr.error.unavailable')),
-      );
-    }
-    try {
-      await push(
-        PullRequestScreen,
-        {
-          source,
-          actions: {
-            openGitHub,
-            share: () => {
-              if (valid())
-                void Share.share({ url: reference.url }).catch(() => {});
-            },
-            comment: async (body) => {
-              if (!valid()) throw new Error('unauthorized');
-              await source.postComment(body);
-              return true;
-            },
-            investigate: (check, checkSha) => {
-              if (!valid()) return;
-              const lines = [t('pr.investigatePrompt'), reference.url];
-              const sha = checkSha ?? source.getSnapshot().data?.headSha;
-              if (sha) lines.push(`Commit: ${sha}`);
-              if (check)
-                lines.push(
-                  `${check.name}: ${check.conclusion ?? check.status}`,
-                  check.htmlUrl ?? '',
-                );
-              if (append.current(lines.filter(Boolean).join('\n')))
-                Alert.alert(t('pr.investigate'), t('pr.draftAdded'));
+  return useCallback(
+    async (reference: PullRequestReference) => {
+      if (!workspaceId || !userId || open.current) return;
+      open.current = true;
+      const source = livePullRequest(workspaceId, reference);
+      sources.current.add(source);
+      const valid = () => currentScope.current === scope;
+      function openGitHub(url = reference.url) {
+        if (!valid()) return;
+        // Check URLs are external data. Only open GitHub HTTPS links here.
+        if (!/^https:\/\/github\.com\//i.test(url)) url = reference.url;
+        void Linking.openURL(url).catch(() =>
+          Alert.alert(t('pr.github'), t('pr.error.unavailable')),
+        );
+      }
+      try {
+        await push(
+          PullRequestScreen,
+          {
+            source,
+            actions: {
+              openGitHub,
+              share: () => {
+                if (valid())
+                  void Share.share({ url: reference.url }).catch(() => {});
+              },
+              comment: async (body) => {
+                if (!valid()) throw new Error('unauthorized');
+                await source.postComment(body);
+                return true;
+              },
+              investigate: (check, checkSha) => {
+                if (!valid()) return;
+                const lines = [t('pr.investigatePrompt'), reference.url];
+                const sha = checkSha ?? source.getSnapshot().data?.headSha;
+                if (sha) lines.push(`Commit: ${sha}`);
+                if (check)
+                  lines.push(
+                    `${check.name}: ${check.conclusion ?? check.status}`,
+                    check.htmlUrl ?? '',
+                  );
+                if (append.current(lines.filter(Boolean).join('\n')))
+                  Alert.alert(t('pr.investigate'), t('pr.draftAdded'));
+              },
             },
           },
-        },
-        { title: `PR #${reference.number}` },
-      );
-    } finally {
-      source.dispose();
-      sources.current.delete(source);
-      open.current = false;
-    }
-  };
+          { title: `PR #${reference.number}` },
+        );
+      } finally {
+        source.dispose();
+        sources.current.delete(source);
+        open.current = false;
+      }
+    },
+    [push, scope, userId, workspaceId],
+  );
 }

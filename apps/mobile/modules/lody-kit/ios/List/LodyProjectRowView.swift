@@ -3,6 +3,11 @@ import UIKit
 struct LodyProjectRowContent: UIContentConfiguration {
   var row: LodyListRow
   var accent: UIColor
+  var density: LodyRowDensity = .regular
+
+  var accessibilityLabel: String {
+    [row.title, row.subtitle, row.value, row.badge].filter { !$0.isEmpty }.joined(separator: ", ")
+  }
 
   func makeContentView() -> UIView & UIContentView { LodyProjectRowView(self) }
   func updated(for state: UIConfigurationState) -> LodyProjectRowContent { self }
@@ -16,6 +21,8 @@ final class LodyProjectRowView: UIView, UIContentView {
   private let count = UILabel()
   private let chip = PillLabel()
   private let text = UIStackView()
+  private var textSpacing: NSLayoutConstraint!
+  private var tileWidth: NSLayoutConstraint!
 
   var configuration: UIContentConfiguration {
     didSet { apply() }
@@ -71,16 +78,19 @@ final class LodyProjectRowView: UIView, UIContentView {
     // The stack has no intrinsic width of its own; fill up to the trailing group.
     let fill = text.trailingAnchor.constraint(equalTo: count.leadingAnchor, constant: -10)
     fill.priority = .defaultHigh
+    textSpacing = text.leadingAnchor.constraint(equalTo: tile.trailingAnchor, constant: 12)
+    tileWidth = tile.widthAnchor.constraint(equalToConstant: 32)
     NSLayoutConstraint.activate([
-      tile.widthAnchor.constraint(equalToConstant: 32),
-      tile.heightAnchor.constraint(equalToConstant: 32),
+      heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+      tileWidth,
+      tile.heightAnchor.constraint(equalTo: tile.widthAnchor),
       tile.leadingAnchor.constraint(equalTo: margin.leadingAnchor),
       tile.centerYAnchor.constraint(equalTo: centerYAnchor),
       tile.topAnchor.constraint(greaterThanOrEqualTo: margin.topAnchor),
       text.topAnchor.constraint(greaterThanOrEqualTo: margin.topAnchor),
       text.bottomAnchor.constraint(lessThanOrEqualTo: margin.bottomAnchor),
       text.centerYAnchor.constraint(equalTo: centerYAnchor),
-      text.leadingAnchor.constraint(equalTo: tile.trailingAnchor, constant: 12),
+      textSpacing,
       text.trailingAnchor.constraint(lessThanOrEqualTo: count.leadingAnchor, constant: -10),
       text.trailingAnchor.constraint(lessThanOrEqualTo: chip.leadingAnchor, constant: -10),
       shrink,
@@ -102,6 +112,19 @@ final class LodyProjectRowView: UIView, UIContentView {
 
   private func apply() {
     guard let content = configuration as? LodyProjectRowContent else { return }
+    let compact = content.density == .compact
+    directionalLayoutMargins = compact
+      ? .init(top: 5, leading: 8, bottom: 5, trailing: 4)
+      : .init(top: 11, leading: 16, bottom: 11, trailing: 4)
+    textSpacing.constant = compact ? 8 : 12
+    tileWidth.constant = compact ? 24 : 32
+    tile.layer.cornerRadius = compact ? 6 : 9
+    name.font = compact
+      ? UIFont.preferredFont(forTextStyle: .subheadline).withWeight(.semibold)
+      : .preferredFont(forTextStyle: .headline)
+    path.font = .monospacedSystemFont(ofSize: UIFont.preferredFont(forTextStyle: compact ? .caption2 : .caption1).pointSize, weight: .regular)
+    count.font = .preferredFont(forTextStyle: compact ? .caption1 : .footnote)
+    text.spacing = compact ? 1 : 2
     let row = content.row
     tile.text = row.monogram
     tile.textColor = content.accent
@@ -117,8 +140,6 @@ final class LodyProjectRowView: UIView, UIContentView {
     chip.text = row.badge
     chip.isHidden = row.badge.isEmpty
     isAccessibilityElement = true
-    accessibilityLabel = [row.title, row.subtitle, row.value, row.badge]
-      .filter { !$0.isEmpty }
-      .joined(separator: ", ")
+    accessibilityLabel = content.accessibilityLabel
   }
 }

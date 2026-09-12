@@ -560,6 +560,8 @@
   "settings.usage.offline": "Offline · Showing the last synced subscription usage.",
   "settings.remote.mcpHint": "Syncs the default MCP selection for new sessions in other clients. iOS sessions do not use MCP yet.",
   "settings.remote.loading": "Loading remote settings…",
+  "settings.remote.refresh": "Refresh",
+  "settings.remote.syncedAt": "Updated {time}",
   "settings.remote.empty": "No settings available",
   "settings.remote.retry": "Retry",
   "settings.remote.enabled": "On",
@@ -666,5 +668,12 @@
   "pr.pullRequests": "Linked pull requests",
   "pr.investigatePrompt": "Investigate the CI check issues for this PR. First explain the failures and proposed fixes:",
   "pr.draftAdded": "The investigation request was appended to your session draft. Return to the conversation to edit and send. Existing text and attachments are preserved.",
-  "pr.draftUnavailable": "The conversation is archived or sending. Try again later."
+  "pr.draftUnavailable": "The conversation is archived or sending. Try again later.",
+  "ipad.detail.title": "Select a session",
+  "ipad.detail.message": "Choose a session from the panel to open it here.",
+  "ipad.panel.collapse": "Hide sessions panel",
+  "ipad.panel.expand": "Show sessions panel",
+  "ipad.sheet.resize": "Resize sheet",
+  "ipad.sheet.medium": "Half height",
+  "ipad.sheet.large": "Full height"
 }
