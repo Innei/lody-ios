@@ -224,6 +224,13 @@ The background case runs via `--case background`, dwelling on the Simulator Home
 
 The iOS `react-native-screens` patch ignores late sheet-wrapper layout callbacks after the owning controller has been invalidated. The navigation case reproduces this during a settings-sheet dismissal followed by a workspace/session jump. Remove the patch when the installed upstream version handles these stale callbacks.
 
+The native toolbar patches keep items on their owning controller while it is offscreen.
+`react-native-screens` coordinates visibility with push/pop and reconciles cancelled
+gestures; `expo-router` no longer starts an extra item-removal animation on detach
+or lets offscreen updates show the shared toolbar. The navigation case also opens
+a Home row, cancels an edge pop, then returns, recording both appearances. Remove
+these patches once upstream provides this lifecycle coordination.
+
 ### 10,000-message performance demo
 
 Settings → Debug → **10,000-message performance test** (`10,000 条消息性能测试` in the UI) loads 5,000 user messages and

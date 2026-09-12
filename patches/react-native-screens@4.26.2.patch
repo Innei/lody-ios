@@ -15,3 +15,26 @@ index 9b66012dc8db1e3af0cb5457f8dad86e7f2fe5e3..51e01be35df4b8fdc2d7267ff32fbe62
    // We want to update and animate allowedDetents for FormSheet only if there was a change
    // in frame's height but sometimes we receive a frame with the same dimensions mutliple times.
    // In order to prevent visual glitches, we compare new value to the old one and update
+diff --git a/ios/RNSScreenStack.mm b/ios/RNSScreenStack.mm
+index 192f5d2c77192f323844b0d11ee179081891e7a4..c899353593a6f0658bede1d102d7346bdfc6935d 100644
+--- a/ios/RNSScreenStack.mm
++++ b/ios/RNSScreenStack.mm
+@@ -249,6 +249,9 @@ - (void)navigationController:(UINavigationController *)navigationController
+     return;
+   }
+   auto *screenView = static_cast<RNSScreenView *>(viewController.view);
++  // Toolbar content belongs to each controller; visibility belongs to this
++  // navigation transition, including an interactive pop.
++  [navigationController setToolbarHidden:viewController.toolbarItems.count == 0 animated:animated];
+   [RNSScreenStackHeaderConfig willShowViewController:viewController
+                                             animated:animated
+                                           withConfig:screenView.findHeaderConfig];
+@@ -986,6 +989,8 @@ - (void)navigationController:(UINavigationController *)navigationController
+        didShowViewController:(UIViewController *)viewController
+                     animated:(BOOL)animated
+ {
++  // Reconcile with the controller that actually won a cancelled transition.
++  [navigationController setToolbarHidden:viewController.toolbarItems.count == 0 animated:NO];
+   [self emitOnFinishTransitioningEvent];
+   [RNSScreenWindowTraits updateWindowTraits];
+   // Because of the bug that caused view to have incorrect dimensions while changing the orientation,

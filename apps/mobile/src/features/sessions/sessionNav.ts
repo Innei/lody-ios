@@ -16,6 +16,7 @@ type Stored = SessionNavIntent & {
 
 let queue: Stored[] = [];
 let handler: ((intent: SessionNavIntent) => Promise<void>) | null = null;
+let flushing = false;
 
 function enqueue(intent: SessionNavIntent) {
   return new Promise<void>((resolve) => {
@@ -25,18 +26,24 @@ function enqueue(intent: SessionNavIntent) {
 }
 
 async function flush() {
-  if (!handler) return;
-  const next = queue[0];
-  if (!next) return;
-  queue = queue.slice(1);
-  const { resolve, ...intent } = next;
+  if (flushing || !handler) return;
+  flushing = true;
   try {
-    await handler(intent);
-  } catch {
-    /* hook toasts; request still settles */
+    while (queue.length) {
+      const next = queue[0];
+      queue = queue.slice(1);
+      const { resolve, ...intent } = next;
+      try {
+        await handler(intent);
+      } catch {
+        /* hook toasts; request still settles */
+      }
+      resolve();
+    }
+  } finally {
+    flushing = false;
+    if (queue.length && handler) void flush();
   }
-  resolve();
-  void flush();
 }
 
 export function requestOpenSession(session: Session) {

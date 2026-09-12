@@ -1,6 +1,14 @@
 import ExpoModulesCore
 import UIKit
 
+private final class ChatCollectionLayout: UICollectionViewFlowLayout {
+  override func invalidationContext(forBoundsChange newBounds: CGRect) -> UICollectionViewLayoutInvalidationContext {
+    let context = super.invalidationContext(forBoundsChange: newBounds)
+    (context as? UICollectionViewFlowLayoutInvalidationContext)?.invalidateFlowLayoutDelegateMetrics = true
+    return context
+  }
+}
+
 private final class ChatCollectionView: UICollectionView {
   var contentDidLayout: (() -> Void)?
   private var lastSize = CGSize.zero
@@ -200,7 +208,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
 
   required init(appContext: AppContext? = nil) {
-    let layout = UICollectionViewFlowLayout()
+    let layout = ChatCollectionLayout()
     layout.minimumLineSpacing = 0
     layout.minimumInteritemSpacing = 0
     layout.sectionInset = UIEdgeInsets(top: 4, left: 20, bottom: 4, right: 20)

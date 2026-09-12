@@ -1,0 +1,58 @@
+diff --git a/ios/Toolbar/RouterToolbarHostView.swift b/ios/Toolbar/RouterToolbarHostView.swift
+index 3b2a9ad76dc98966a508553a36606477c99a9bd8..eeab402b7bae17532ea2dda0f443c0eab68374ac 100644
+--- a/ios/Toolbar/RouterToolbarHostView.swift
++++ b/ios/Toolbar/RouterToolbarHostView.swift
+@@ -112,9 +112,14 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
+           return nil
+         }
+ 
+-        controller.setToolbarItems(items, animated: true)
+-        controller.navigationController?.setToolbarHidden(
+-          false, animated: true)
++        controller.setToolbarItems(items, animated: false)
++        // The native stack owns visibility during navigation. Offscreen React
++        // updates must not bring its shared toolbar over the current screen.
++        if let navigation = controller.navigationController,
++           navigation.topViewController === controller,
++           navigation.transitionCoordinator == nil {
++          navigation.setToolbarHidden(items.isEmpty, animated: false)
++        }
+         return
+       }
+     }
+@@ -166,19 +171,27 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
+ 
+   override func didMoveToWindow() {
+     super.didMoveToWindow()
+-    if window == nil {
+-      // View was removed from window - hide toolbar and clear items
+-      // Use cached controller since responder chain may be broken
+-      if let controller = cachedController {
+-        controller.setToolbarItems(nil, animated: true)
+-      }
+-      cachedController = nil  // Clear cache when removed from window
+-    } else {
++    // A pushed screen retains its items for an interactive return.
++    if window != nil {
+       // View was added to window - update toolbar items
+       updateToolbarItems()
+     }
+   }
+ 
++  override func didMoveToSuperview() {
++    super.didMoveToSuperview()
++    // Clear only when React removes the toolbar itself, not when UIKit takes
++    // its owning screen offscreen during navigation.
++    if superview == nil, let controller = cachedController {
++      controller.setToolbarItems(nil, animated: false)
++      if let navigation = controller.navigationController,
++         navigation.topViewController === controller {
++        navigation.setToolbarHidden(true, animated: false)
++      }
++      cachedController = nil
++    }
++  }
++
+   func updateMenu() {
+     updateToolbarItems()
+   }

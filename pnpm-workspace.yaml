@@ -7,4 +7,5 @@ allowBuilds:
   esbuild: true
 nodeLinker: hoisted
 patchedDependencies:
+  expo-router@57.0.19: patches/expo-router@57.0.19.patch
   react-native-screens@4.26.2: patches/react-native-screens@4.26.2.patch

@@ -44,3 +44,25 @@ test('handler throw is swallowed by requestOpenSession', async () => {
   await requestOpenSession(session);
   stop();
 });
+
+test('a pending presentation keeps later intents in order', async () => {
+  const seen = [];
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const stop = subscribeSessionNav(async (intent) => {
+    seen.push(intent.session.title);
+    if (intent.session.title === 'First') await gate;
+  });
+  const first = requestOpenSession({ ...session, title: 'First' });
+  const second = requestOpenSession({ ...session, title: 'Second' });
+
+  await Promise.resolve();
+  assert.deepEqual(seen, ['First']);
+  release();
+  await Promise.all([first, second]);
+
+  assert.deepEqual(seen, ['First', 'Second']);
+  stop();
+});

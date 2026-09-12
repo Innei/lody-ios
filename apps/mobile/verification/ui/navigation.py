@@ -50,6 +50,28 @@ def session(title):
 
 
 home('initial-home')
+# Exercise the production row push, then cancel an edge pop before completing
+# it. The recording also covers toolbar retirement during the push itself.
+ui.axe('tap', '--id', 'ui-design', '--post-delay', '.6')
+session('首页交互设计')
+search_label = catalog.text('search.field.placeholder')
+
+
+def no_home_search():
+    assert not any(i.get('AXValue') == search_label for i in ui.state()), 'Home search leaked over the session'
+
+
+no_home_search()
+ui.capture('toolbar-pushed')
+ui.axe('swipe', '--start-x', '1', '--start-y', '650', '--end-x', '65',
+       '--end-y', '650', '--duration', '1', '--post-delay', '.6')
+session('首页交互设计')
+no_home_search()
+ui.capture('toolbar-pop-cancelled')
+swipe_back()
+home('toolbar-returned')
+ui.wait(lambda items: any(i.get('AXValue') == search_label for i in items), 'Home search did not return')
+
 for index in range(2):
     open_url('ui-home/sessions/ui-design')
     session('首页交互设计')
