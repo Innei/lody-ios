@@ -1,6 +1,7 @@
 """iOS 26 composer glass merges on focus with balanced controls."""
 import sys
 from driver import UI
+import catalog
 
 ui = UI(*sys.argv[1:])
 input_id = 'session-input' if 'composer-glass-chat' in str(ui.output) else 'create-session-input'
@@ -46,4 +47,12 @@ assert abs(collapsed['x'] - separate_add['x'] - separate_add['width'] - 8) <= 1,
 ui.capture('collapsed-again')
 ui.axe('tap', '--id', input_id, '--post-delay', '.8')
 ui.capture('reopened')
-print('PASS: iOS 26 focus merges Add into one balanced glass; held/released input interaction captured')
+# Rehosting the button must preserve one accessible, working 44-point action.
+buttons = [item for item in ui.state() if item.get('AXUniqueId') == 'session-attach']
+assert len(buttons) == 1, 'Fusion duplicated the Add action'
+assert buttons[0]['frame']['width'] >= 44 and buttons[0]['frame']['height'] >= 44
+ui.axe('tap', '--id', 'session-attach', '--post-delay', '.5')
+ui.wait(lambda items: any(item.get('AXLabel') == catalog.text('native.chat.composer.files') for item in items),
+        'Rehosted Add no longer opens its attachment menu')
+ui.capture('reopened-add-menu')
+print('PASS: focus/collapse/reopen, shared press feedback, and one working rehosted Add action')
