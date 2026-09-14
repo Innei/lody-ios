@@ -96,3 +96,28 @@ enum LodyListPhoto {
     return circular(UIImage(cgImage: cg, scale: 1, orientation: .up))
   }
 }
+
+enum LodyListGlyph {
+  static let symbolConfiguration = UIImage.SymbolConfiguration(textStyle: .title3)
+  static let reservedSize = CGSize(
+    width: UIListContentConfiguration.ImageProperties.standardDimension,
+    height: UIListContentConfiguration.ImageProperties.standardDimension
+  )
+
+  static var size: CGSize {
+    UIImage(systemName: "square", withConfiguration: symbolConfiguration)?.size
+      ?? CGSize(
+        width: UIFont.preferredFont(forTextStyle: .title3).pointSize,
+        height: UIFont.preferredFont(forTextStyle: .title3).pointSize
+      )
+  }
+
+  static func apply(_ content: inout UIListContentConfiguration, image: UIImage?, asset: Bool) {
+    content.image = image
+    content.imageProperties.preferredSymbolConfiguration = symbolConfiguration
+    content.imageProperties.reservedLayoutSize = reservedSize
+    if asset {
+      content.imageProperties.maximumSize = size
+    }
+  }
+}

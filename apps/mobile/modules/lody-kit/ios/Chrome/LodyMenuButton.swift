@@ -92,6 +92,6 @@ final class LodyMenuButton: ExpoView {
       ])
     )
     LodyMenuButtonStyle.apply(config, to: button)
-    onSize(["width": min(button.intrinsicContentSize.width, 200)])
+    onSize(["width": LodyMenuButtonStyle.preferredWidth(for: button)])
   }
 }

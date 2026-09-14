@@ -4,6 +4,11 @@ import UIKit
 enum LodyMenuButtonStyle {
   static let avatarSide: CGFloat = 28
   static let trailingInset: CGFloat = 10
+  static let maxWidth: CGFloat = 200
+
+  static func preferredWidth(for button: UIButton) -> CGFloat {
+    min(button.intrinsicContentSize.width, maxWidth)
+  }
 
   static func apply(_ value: UIButton.Configuration, to button: UIButton) {
     var configuration = value

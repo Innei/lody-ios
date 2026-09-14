@@ -142,16 +142,18 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       }
     } else if !row.imageAsset.isEmpty || !row.image.isEmpty {
       if !row.imageAsset.isEmpty {
-        content.image = UIImage(named: row.imageAsset, in: Bundle(for: LodyKitModule.self), compatibleWith: nil)?
-          .withRenderingMode(.alwaysTemplate)
-          ?? UIImage(named: row.imageAsset)?.withRenderingMode(.alwaysTemplate)
-        content.imageProperties.maximumSize = CGSize(width: 24, height: 24)
+        LodyListGlyph.apply(
+          &content,
+          image: UIImage(named: row.imageAsset, in: Bundle(for: LodyKitModule.self), compatibleWith: nil)?
+            .withRenderingMode(.alwaysTemplate)
+            ?? UIImage(named: row.imageAsset)?.withRenderingMode(.alwaysTemplate),
+          asset: true
+        )
       } else {
-        content.image = UIImage(systemName: row.image)
+        LodyListGlyph.apply(&content, image: UIImage(systemName: row.image), asset: false)
       }
       content.imageProperties.tintColor =
         lodyTint(row.imageTint) ?? (row.destructive ? .systemRed : accent)
-      content.imageProperties.preferredSymbolConfiguration = .init(textStyle: .title3)
     }
     cell.contentConfiguration = content
     var accessories: [UICellAccessory] = []

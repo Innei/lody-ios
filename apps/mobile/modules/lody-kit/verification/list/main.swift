@@ -21,6 +21,49 @@ assert(loaded.size.width == LodyMenuButtonStyle.avatarSide)
 assert(letter.pngData() != loaded.pngData(), "An account photo must replace the letter fallback")
 assert(LodyMenuButtonStyle.trailingInset > 4, "The workspace name needs room after the last glyph")
 
+@MainActor
+func configuredMenuButton(title: String, width: CGFloat) -> UIButton {
+  let button = UIButton(type: .system)
+  var configuration = UIButton.Configuration.plain()
+  configuration.image = LodyMenuButtonStyle.avatarImage(text: "I", fill: .systemIndigo, photo: nil)
+  configuration.imagePadding = 8
+  configuration.contentInsets = NSDirectionalEdgeInsets(
+    top: 4, leading: 2, bottom: 4, trailing: LodyMenuButtonStyle.trailingInset
+  )
+  configuration.attributedTitle = AttributedString(
+    title,
+    attributes: AttributeContainer([
+      .font: UIFont.preferredFont(forTextStyle: .headline),
+      .foregroundColor: UIColor.label,
+    ])
+  )
+  LodyMenuButtonStyle.apply(configuration, to: button)
+  let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+  window.makeKeyAndVisible()
+  let host = UIView(frame: CGRect(x: 0, y: 0, width: width, height: 44))
+  window.addSubview(host)
+  host.addSubview(button)
+  button.frame = host.bounds
+  host.layoutIfNeeded()
+  withExtendedLifetime(window) {}
+  return button
+}
+
+@MainActor
+func menuTitleTruncated(_ button: UIButton) -> Bool {
+  guard let label = button.titleLabel else { return true }
+  return label.intrinsicContentSize.width > label.bounds.width + 1
+}
+
+let cramped = configuredMenuButton(title: "Innei", width: 44)
+let reported = LodyMenuButtonStyle.preferredWidth(for: cramped)
+let fitted = configuredMenuButton(title: "Innei", width: reported)
+assert(
+  !menuTitleTruncated(fitted),
+  "A short workspace name must keep its full title after the header reports its width"
+)
+print("PASS: short workspace names report a width that fits the title")
+
 var swipedState = UICellConfigurationState(traitCollection: UITraitCollection())
 swipedState.isSwiped = true
 swipedState.isSelected = true
@@ -326,3 +369,54 @@ assert(
   "A footer-only help section stays visible when the host has no placeholder"
 )
 print("PASS: empty-to-populated list sections skip the footer interpolation")
+
+let glyphAsset = UIGraphicsImageRenderer(size: CGSize(width: 24, height: 24)).image { _ in
+  UIColor.black.setFill()
+  UIRectFill(CGRect(x: 0, y: 0, width: 24, height: 24))
+}.withRenderingMode(.alwaysTemplate)
+
+func glyphContent(image: UIImage?, asset: Bool) -> UIListContentConfiguration {
+  var content = UIListContentConfiguration.subtitleCell()
+  content.text = "Claude Code"
+  content.secondaryText = "助手"
+  LodyListGlyph.apply(&content, image: image, asset: asset)
+  return content
+}
+
+func laidOutGlyph(_ content: UIListContentConfiguration) -> UIView {
+  let cell = UICollectionViewListCell()
+  cell.contentConfiguration = content
+  let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+  window.makeKeyAndVisible()
+  let host = UIView(frame: window.bounds)
+  window.addSubview(host)
+  host.addSubview(cell)
+  cell.translatesAutoresizingMaskIntoConstraints = false
+  NSLayoutConstraint.activate([
+    cell.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+    cell.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+    cell.topAnchor.constraint(equalTo: host.topAnchor),
+  ])
+  host.layoutIfNeeded()
+  withExtendedLifetime(window) {}
+  return cell
+}
+
+let symbolGlyph = glyphContent(image: UIImage(systemName: "sparkles"), asset: false)
+let assetGlyph = glyphContent(image: glyphAsset, asset: true)
+assert(assetGlyph.imageProperties.maximumSize == LodyListGlyph.size, "Provider icons must match the title3 symbol size, not a 24 pt asset canvas")
+assert(assetGlyph.imageProperties.reservedLayoutSize == LodyListGlyph.reservedSize, "Provider icons must reserve the same list slot as SF Symbols")
+assert(symbolGlyph.imageProperties.reservedLayoutSize == LodyListGlyph.reservedSize, "SF Symbols must share the list image slot with provider icons")
+let symbolGlyphView = laidOutGlyph(symbolGlyph)
+let assetGlyphView = laidOutGlyph(assetGlyph)
+let symbolGlyphTitle = frame(sessionLabel(symbolGlyphView, "Claude Code"), in: symbolGlyphView)
+let assetGlyphTitle = frame(sessionLabel(assetGlyphView, "Claude Code"), in: assetGlyphView)
+assert(
+  abs(symbolGlyphTitle.minX - assetGlyphTitle.minX) < 1,
+  "Provider icons must keep the same text leading edge as SF Symbols (\(symbolGlyphTitle.minX) vs \(assetGlyphTitle.minX))"
+)
+assert(
+  abs(symbolGlyphTitle.minY - assetGlyphTitle.minY) < 1,
+  "Provider icons must keep the same text baseline as SF Symbols (\(symbolGlyphTitle.minY) vs \(assetGlyphTitle.minY))"
+)
+print("PASS: list asset glyphs keep SF Symbol text alignment")
