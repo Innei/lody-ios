@@ -47,6 +47,9 @@ def assert_swipe_has_no_selection(action_label):
 close_create = catalog.text('accessibility.closeSheet', title=catalog.text('create.title'))
 
 home_ready()
+workspace = next(item for item in ui.state() if item.get('AXLabel') == avatar_label)
+assert workspace['frame']['width'] > 200, workspace['frame']
+
 def assert_model_row():
     item = ui.element('ui-design')
     labels = [item.get('AXLabel') or ''] + [child.get('AXLabel') or '' for child in item.get('children') or []]
@@ -303,6 +306,7 @@ ui.wait(
     'Session long-press must show pin',
 )
 assert any(catalog.text('session.action.archive') in (i.get('AXLabel') or '') for i in ui.state())
+assert any(catalog.text('session.action.share') in (i.get('AXLabel') or '') for i in ui.state()), 'Session long-press must show share'
 user_turn = ui.wait(
     lambda items: next((i for i in items if (i.get('AXLabel') or '') == '设计首页'), None),
     'Session long-press must preview the cached user turn',

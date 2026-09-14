@@ -189,11 +189,17 @@ const newChatAction = () => ({
   title: t('session.action.newChat'),
   symbol: 'square.and.pencil',
 });
+const shareAction = () => ({
+  id: 'share',
+  title: t('session.action.share'),
+  symbol: 'square.and.arrow.up',
+});
 const sessionMenu = (session: Session) => ({
   menuActions: [
     newSessionAction(),
     pinAction(session.pinned),
     archiveAction(session.archived),
+    shareAction(),
   ],
   preview: 'session' as const,
 });

@@ -56,6 +56,7 @@ assert catalog.text('session.action.projectFiles') in menu, 'More menu must incl
 assert catalog.text('session.action.newSession') in menu
 assert catalog.text('session.action.pin') in menu
 assert catalog.text('session.action.archive') in menu
+assert catalog.text('session.action.share') in menu, 'More menu must include Share'
 axe('tap', '-x', '200', '-y', '400', '--post-delay', '.4')
 axe('drag', '--start-x', '2', '--start-y', '400', '--end-x', '70', '--end-y', '400', '--duration', '1', '--post-delay', '.8')
 ui.wait(two_line_title, 'Project subtitle must survive a cancelled return')

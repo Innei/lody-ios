@@ -625,6 +625,12 @@ function View() {
           >
             {t('session.action.archive')}
           </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            icon="square.and.arrow.up"
+            onPress={() => {}}
+          >
+            {t('session.action.share')}
+          </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.Menu inline>
             <Stack.Toolbar.MenuAction icon="folder" onPress={() => {}}>
               {t('session.action.projectFiles')}

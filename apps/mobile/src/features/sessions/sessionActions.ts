@@ -1,10 +1,12 @@
 import { archiveSession, pinSession, markSessionRead } from '@lody-ios/kit';
+import { Share } from 'react-native';
 import { showToast } from '../../ui/toast.ts';
 import type { Catalog, Session } from '../../models/catalog.ts';
 import { t } from '../../lib/i18n/index.ts';
 import { openCatalogRow } from '../../hooks/screens/openCatalogRow.ts';
 import { requestNewSession } from './sessionNav.ts';
 import { isChatSession, projectIdOfRow } from './inbox.ts';
+import { sessionShareUrl } from './sessionShare.ts';
 
 export async function setArchived(
   workspaceId: string,
@@ -62,6 +64,20 @@ export async function setRead(workspaceId: string, session: Session) {
   }
 }
 
+export function shareSession(
+  workspace: { id: string; slug: string | null },
+  sessionId: string,
+) {
+  const url = sessionShareUrl(workspace, sessionId);
+  if (!url) {
+    showToast(t('session.toast.shareFailed'));
+    return;
+  }
+  void Share.share({ url }).catch(() => {
+    showToast(t('session.toast.shareFailed'));
+  });
+}
+
 export function sessionRowAction(
   workspaceId: string,
   catalog: Catalog,
@@ -77,7 +93,7 @@ export function sessionRowAction(
 }
 
 export function listRowAction(
-  workspaceId: string,
+  workspace: { id: string; slug: string | null },
   catalog: Catalog,
   id: string,
   actionId: string,
@@ -89,22 +105,26 @@ export function listRowAction(
     return;
   }
   if (actionId === 'newChat') {
-    void requestNewSession(workspaceId, catalog, undefined, 'chat');
+    void requestNewSession(workspace.id, catalog, undefined, 'chat');
     return;
   }
   if (actionId === 'newSession') {
     const projectId = projectIdOfRow(id);
     const session = catalog.sessions.find((item) => item.id === id);
     if (session && isChatSession(session)) {
-      void requestNewSession(workspaceId, catalog, undefined);
+      void requestNewSession(workspace.id, catalog, undefined);
       return;
     }
     void requestNewSession(
-      workspaceId,
+      workspace.id,
       catalog,
       projectId ?? session?.projectId,
     );
     return;
   }
-  sessionRowAction(workspaceId, catalog, id, actionId);
+  if (actionId === 'share') {
+    shareSession(workspace, id);
+    return;
+  }
+  sessionRowAction(workspace.id, catalog, id, actionId);
 }

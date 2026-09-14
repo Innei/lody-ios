@@ -126,7 +126,7 @@ export function useInboxModel() {
       return isChatSectionRow(id);
     },
     rowAction: (id: string, actionId: string) => {
-      if (selected) listRowAction(selected.id, catalog, id, actionId);
+      if (selected) listRowAction(selected, catalog, id, actionId);
     },
     selected,
     setExpanded,

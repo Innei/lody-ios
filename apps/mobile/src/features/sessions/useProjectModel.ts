@@ -44,7 +44,7 @@ export function useProjectModel(projectId: string) {
     sections,
     selected,
     rowAction: (id: string, actionId: string) => {
-      if (selected) listRowAction(selected.id, catalog, id, actionId);
+      if (selected) listRowAction(selected, catalog, id, actionId);
     },
   };
 }

@@ -21,7 +21,11 @@ import { definePage, present } from '@/lib/presentation';
 import { requestNewSession } from '@/features/sessions/sessionNav';
 import { isChatSession } from '@/features/sessions/inbox';
 import { sessionTitleDetails } from '@/features/sessions/sessionTitle';
-import { setArchived, setPinned } from '@/features/sessions/sessionActions';
+import {
+  setArchived,
+  setPinned,
+  shareSession,
+} from '@/features/sessions/sessionActions';
 import { useSessionViewed } from '@/features/sessions/useSessionViewed';
 import { sessionDebugText } from '@/features/sessions/sessionDebug';
 import { useAuth } from '@/cloud/auth/AuthProvider';
@@ -507,6 +511,14 @@ function View() {
             );
         },
       },
+      {
+        type: 'action',
+        title: t('session.action.share'),
+        icon: { type: 'sfSymbol', name: 'square.and.arrow.up' },
+        onPress: () => {
+          if (selected) shareSession(selected, currentSession.id);
+        },
+      },
     ];
     if (browsable && account) {
       actions.push({
@@ -625,6 +637,14 @@ function View() {
                   ? 'session.action.unarchive'
                   : 'session.action.archive',
               )}
+            </Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction
+              icon="square.and.arrow.up"
+              onPress={() => {
+                if (selected) shareSession(selected, currentSession.id);
+              }}
+            >
+              {t('session.action.share')}
             </Stack.Toolbar.MenuAction>
             {browsable && account ? (
               <Stack.Toolbar.Menu inline>

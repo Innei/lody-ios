@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { build } from 'esbuild';
 
 const writes = [];
+const shares = [];
 globalThis.__sessionActionKit = {
   archiveSession: async () => {},
   pinSession: async () => {},
@@ -12,6 +13,7 @@ globalThis.__sessionActionKit = {
   },
   showToast() {},
 };
+globalThis.__sessionShares = shares;
 
 const bundle = await build({
   entryPoints: [
@@ -29,6 +31,10 @@ const bundle = await build({
           path: 'kit',
           namespace: 'mock',
         }));
+        b.onResolve({ filter: /^react-native$/ }, () => ({
+          path: 'rn',
+          namespace: 'mock',
+        }));
         b.onResolve(
           { filter: /openCatalogRow|sessionNav|\/inbox\.ts$/ },
           () => ({
@@ -40,13 +46,15 @@ const bundle = await build({
           contents:
             path === 'kit'
               ? 'export const {archiveSession,pinSession,markSessionRead,showToast}=globalThis.__sessionActionKit;'
-              : 'export function openCatalogRow(){} export function requestNewSession(){} export function isChatSession(){return false} export function projectIdOfRow(){}',
+              : path === 'rn'
+                ? 'export const Share={share:async(content)=>{globalThis.__sessionShares.push(content);}};'
+                : 'export function openCatalogRow(){} export function requestNewSession(){} export function isChatSession(){return false} export function projectIdOfRow(){}',
         }));
       },
     },
   ],
 });
-const { sessionRowAction, setRead } = await import(
+const { sessionRowAction, setRead, listRowAction } = await import(
   `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
 );
 
@@ -83,4 +91,16 @@ test('setRead covers a lastMessageAt that is ahead of now', async () => {
   const future = Date.now() + 60_000;
   await setRead('w1', { ...session, lastMessageAt: future });
   assert.equal(writes[0].lastReadAt, future);
+});
+
+test('list share opens the desktop session url', async () => {
+  shares.length = 0;
+  listRowAction(
+    { id: 'workspace', slug: 'work' },
+    { projects: [], sessions: [session], machineIds: [] },
+    's1',
+    'share',
+  );
+  await Promise.resolve();
+  assert.deepEqual(shares, [{ url: 'https://lody.ai/work/sessions/s1' }]);
 });

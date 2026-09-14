@@ -408,7 +408,7 @@ test('project menus offer new session, open, and copy path except unassigned', a
   assert.equal(local.rows[1].preview, 'session');
   assert.deepEqual(
     local.rows[1].menuActions.map((action) => action.id),
-    ['newSession', 'pin', 'archive'],
+    ['newSession', 'pin', 'archive', 'share'],
   );
 });
 

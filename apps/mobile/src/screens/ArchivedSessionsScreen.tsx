@@ -39,7 +39,7 @@ function View() {
           openCatalogRow(nativeEvent.id, catalog)
         }
         onRowAction={({ nativeEvent: { id, actionId } }) => {
-          if (selected) listRowAction(selected.id, catalog, id, actionId);
+          if (selected) listRowAction(selected, catalog, id, actionId);
         }}
       />
     </>
