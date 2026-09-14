@@ -257,7 +257,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
 
 private func chromeColor(for row: ChatRow) -> UIColor {
   if row.attention { return .systemOrange }
-  if row.kind == "changes" || row.kind == "file" || (row.kind == "summary" && row.running) { return .systemBlue }
+  if row.kind == "changes" || row.kind == "file" || (row.kind == "summary" && row.running) { return .lodyAccent }
   return .secondaryLabel
 }
 

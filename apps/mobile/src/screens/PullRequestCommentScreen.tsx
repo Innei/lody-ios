@@ -28,7 +28,7 @@ function View() {
         type: 'button' as const,
         title: t('pr.send'),
         accessibilityLabel: t('pr.send'),
-        tintColor: PlatformColor('systemBlue'),
+        tintColor: PlatformColor('AccentColor'),
         disabled: !body.trim() || sending || unknown,
         onPress: async () => {
           if (busy.current || unknown) return;
@@ -55,7 +55,7 @@ function View() {
         type: 'button' as const,
         title: t('common.cancel'),
         accessibilityLabel: t('common.cancel'),
-        tintColor: PlatformColor('systemBlue'),
+        tintColor: PlatformColor('AccentColor'),
         disabled: sending,
         onPress: () => {
           if (!body.trim()) {

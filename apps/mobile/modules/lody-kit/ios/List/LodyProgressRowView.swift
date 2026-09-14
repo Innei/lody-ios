@@ -26,7 +26,7 @@ final class LodyProgressRowView: UIView, UIContentView {
       label.adjustsFontForContentSizeCategory = true
       label.numberOfLines = 0
     }
-    progress.progressTintColor = .systemBlue
+    progress.progressTintColor = .lodyAccent
     progress.trackTintColor = .tertiarySystemFill
     let heading = UIStackView(arrangedSubviews: [title, value])
     heading.spacing = 12

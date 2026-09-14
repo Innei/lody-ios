@@ -182,7 +182,7 @@ function View() {
         </Stack.Toolbar.View>
         <Stack.Toolbar.Spacer />
         <Stack.Toolbar.Button
-          tintColor={PlatformColor('systemBlue')}
+          tintColor={PlatformColor('AccentColor')}
           disabled={!data || !!error}
           onPress={() =>
             data &&

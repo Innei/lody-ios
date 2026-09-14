@@ -143,7 +143,7 @@ function View() {
             {
               type: 'button' as const,
               variant: 'prominent' as const,
-              tintColor: PlatformColor('systemBlue'),
+              tintColor: PlatformColor('AccentColor'),
               icon: { type: 'sfSymbol' as const, name: 'checkmark' },
               accessibilityLabel: t(
                 saving

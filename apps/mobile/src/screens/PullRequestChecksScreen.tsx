@@ -116,14 +116,14 @@ function View() {
       <Stack.Toolbar placement="bottom">
         <Stack.Toolbar.Button
           onPress={() => actions.openGitHub()}
-          tintColor={PlatformColor('systemBlue')}
+          tintColor={PlatformColor('AccentColor')}
         >
           {t('pr.github')}
         </Stack.Toolbar.Button>
         <Stack.Toolbar.Spacer />
         <Stack.Toolbar.Button
           onPress={() => actions.investigate()}
-          tintColor={PlatformColor('systemBlue')}
+          tintColor={PlatformColor('AccentColor')}
         >
           {t('pr.investigate')}
         </Stack.Toolbar.Button>

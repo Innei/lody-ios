@@ -24,7 +24,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
   private var sections: [LodyListSection] = []
   private var rows: [SidebarItemID: LodyListRow] = [:]
   private var selectedRowId = ""
-  private var accent: UIColor = .systemBlue
+  private var accent: UIColor = .lodyAccent
   private let appearance = SidebarAppearanceController()
   private weak var scrollOwner: UIViewController?
   private let collection: UICollectionView
@@ -53,6 +53,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     _ = headerRegistration
     backgroundColor = .secondarySystemBackground
     collection.backgroundColor = .secondarySystemBackground
+    collection.tintColor = accent
     collection.contentInsetAdjustmentBehavior = .automatic
     collection.alwaysBounceVertical = true
     collection.keyboardDismissMode = .onDrag
@@ -219,7 +220,8 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
   }
 
   func setAccent(_ value: String) {
-    accent = lodyTint(value) ?? .systemBlue
+    accent = lodyTint(value) ?? .lodyAccent
+    collection.tintColor = accent
     updateVisibleRows()
   }
 

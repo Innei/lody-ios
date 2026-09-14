@@ -82,8 +82,8 @@ let actionButton = descendants(actionComposer).compactMap { $0 as? UIButton }.fi
 }!
 let actionVisual = descendants(actionButton).first { $0.accessibilityIdentifier == "session-action-visual" }
 precondition(
-  actionVisual?.backgroundColor?.isEqual(UIColor.systemBlue) == true,
-  "An actionable Send must render as a blue circular control"
+  actionVisual?.backgroundColor?.isEqual(UIColor.lodyAccent) == true,
+  "An actionable Send must render as an accent circular control"
 )
 actionInput.text = ""
 actionComposer.textViewDidChange(actionInput)

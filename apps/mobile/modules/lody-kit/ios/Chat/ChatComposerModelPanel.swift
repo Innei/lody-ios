@@ -157,7 +157,7 @@ final class ChatEffortSlider: UIControl {
     let context = UIGraphicsGetCurrentContext()
     context?.saveGState()
     path.addClip()
-    (isUltra ? ChatEffortParticles.accent : UIColor.systemBlue).setFill()
+    (isUltra ? ChatEffortParticles.accent : UIColor.lodyAccent).setFill()
     UIRectFill(CGRect(x: 0, y: track.minY, width: thumbX, height: track.height))
     for index in 0...steps {
       let x = 16 + CGFloat(index) / CGFloat(steps) * max(0, bounds.width - 32)
@@ -249,7 +249,7 @@ final class ChatComposerModelPanel: UIViewController, UIPopoverPresentationContr
     var fastConfiguration = UIButton.Configuration.plain()
     fastConfiguration.image = UIImage(systemName: enabled ? "bolt.fill" : "bolt")
     fastConfiguration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-    fastConfiguration.baseForegroundColor = enabled ? .systemBlue : .secondaryLabel
+    fastConfiguration.baseForegroundColor = enabled ? .lodyAccent : .secondaryLabel
     fastConfiguration.contentInsets = .zero
     if fast.configuration?.image != nil {
       fastConfiguration.symbolContentTransition = .init(.replace.byLayer)
@@ -259,7 +259,7 @@ final class ChatComposerModelPanel: UIViewController, UIPopoverPresentationContr
     fast.accessibilityValue = LodyStrings.text(enabled ? "native.chat.composer.fastOn" : "native.chat.composer.fastOff")
     preferredContentSize = CGSize(width: 320, height: options.efforts.isEmpty ? 76 : 132)
     var configuration = UIButton.Configuration.plain()
-    configuration.baseForegroundColor = options.effort.lowercased() == "ultra" ? ChatEffortParticles.accent : .systemBlue
+    configuration.baseForegroundColor = options.effort.lowercased() == "ultra" ? ChatEffortParticles.accent : .lodyAccent
     configuration.title = options.effortTitle + " ›"
     configuration.subtitle = options.modelTitle
     configuration.titleAlignment = .center

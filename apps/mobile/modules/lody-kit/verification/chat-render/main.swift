@@ -225,8 +225,8 @@ let runningSummary = summaryCell(for: summaryRow(running: true, attention: false
 let doneSummary = summaryCell(for: summaryRow(running: false, attention: false))
 let failedSummary = summaryCell(for: summaryRow(running: false, attention: true))
 let traits = runningSummary.traitCollection
-precondition(resolved(runningSummary.icon.tintColor, traits: traits) == resolved(.systemBlue, traits: traits),
-  "A live process pip must be system blue")
+precondition(resolved(runningSummary.icon.tintColor, traits: traits) == resolved(.lodyAccent, traits: traits),
+  "A live process pip must use the accent color")
 precondition(resolved(doneSummary.icon.tintColor, traits: traits) == resolved(.secondaryLabel, traits: traits),
   "A finished process pip must use secondary label")
 precondition(resolved(failedSummary.icon.tintColor, traits: traits) == resolved(.systemOrange, traits: traits),

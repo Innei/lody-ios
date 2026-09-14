@@ -232,7 +232,7 @@ private enum ChatComposerActionMode {
 
   var color: UIColor {
     switch self {
-    case .send: .systemBlue
+    case .send: .lodyAccent
     case .loading: .systemGray
     case .stop: .systemRed
     }
@@ -482,7 +482,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     hint.textColor = .placeholderText
     hint.isUserInteractionEnabled = false
     hint.isAccessibilityElement = false
-    send.tintColor = .systemBlue
+    send.tintColor = .lodyAccent
     sendVisual.translatesAutoresizingMaskIntoConstraints = false
     send.addSubview(sendVisual)
     NSLayoutConstraint.activate([
@@ -799,7 +799,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     let noticeText = failedDraft == nil ? (displayError ?? state.notice) : LodyStrings.text("native.chat.composer.failedDraft")
     let canReconnect = failedDraft != nil || displayError != nil || state.reconnect
     notice.setTitle(noticeText, for: .normal)
-    notice.setTitleColor(canReconnect ? .systemBlue : .secondaryLabel, for: .normal)
+    notice.setTitleColor(canReconnect ? .lodyAccent : .secondaryLabel, for: .normal)
     notice.isUserInteractionEnabled = canReconnect
     notice.accessibilityTraits = canReconnect ? .button : .staticText
     let noticeSize = notice.sizeThatFits(CGSize(width: max(1, bounds.width - 40), height: .greatestFiniteMagnitude))

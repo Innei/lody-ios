@@ -107,7 +107,7 @@ function View() {
         title: t('settings.remote.save'),
         accessibilityLabel: t('settings.remote.save'),
         variant: 'prominent' as const,
-        tintColor: PlatformColor('systemBlue'),
+        tintColor: PlatformColor('AccentColor'),
         disabled: busy || !name.trim(),
         onPress: () => void save(),
       },
@@ -175,7 +175,7 @@ function View() {
             <Switch
               testID="setting-enabled"
               accessibilityLabel={t('settings.remote.default')}
-              trackColor={{ true: PlatformColor('systemBlue') }}
+              trackColor={{ true: PlatformColor('AccentColor') }}
               value={enabledByDefault}
               onValueChange={setEnabled}
               disabled={busy}

@@ -51,7 +51,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private let placeholder = UILabel()
   private var placeholderText = ""
 
-  private static var accent: UIColor = .systemBlue
+  private static var accent: UIColor = .lodyAccent
   private var bottomInset: CGFloat = 0
   private var transparent = false
   private var contentStyle = false
@@ -209,6 +209,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     _ = projectRegistration
     _ = registration
     collection.backgroundColor = .lodyGroupedBackground
+    collection.tintColor = .lodyAccent
     collection.contentInsetAdjustmentBehavior = .automatic
     collection.alwaysBounceVertical = true
     collection.keyboardDismissMode = .onDrag
@@ -568,6 +569,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   func setAccent(_ value: String) {
     guard let color = lodyTint(value), color != LodyGroupedList.accent else { return }
     LodyGroupedList.accent = color
+    collection.tintColor = color
     collection.reloadData()
   }
 

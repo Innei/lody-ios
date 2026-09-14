@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
   accent,
@@ -8,6 +11,36 @@ import {
   systemBackground,
   type as typeScale,
 } from '../../src/lib/theme/tokens.ts';
+
+function catalogHex(entry) {
+  const { red, green, blue } = entry.color.components;
+  const channel = (value) =>
+    Number.parseInt(String(value).replace(/^0x/i, ''), 16)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${channel(red)}${channel(green)}${channel(blue)}`.toUpperCase();
+}
+
+test('AccentColor catalog matches accent tokens', () => {
+  const catalog = JSON.parse(
+    readFileSync(
+      join(
+        dirname(fileURLToPath(import.meta.url)),
+        '../../modules/lody-kit/ios/Colors.xcassets/AccentColor.colorset/Contents.json',
+      ),
+      'utf8',
+    ),
+  );
+  const light = catalog.colors.find((entry) => !entry.appearances);
+  const dark = catalog.colors.find((entry) =>
+    entry.appearances?.some(
+      (appearance) =>
+        appearance.appearance === 'luminosity' && appearance.value === 'dark',
+    ),
+  );
+  assert.equal(catalogHex(light), accent.light);
+  assert.equal(catalogHex(dark), accent.dark);
+});
 
 test('accent is the brand blue pair', () => {
   assert.equal(accent.light, '#2155CC');

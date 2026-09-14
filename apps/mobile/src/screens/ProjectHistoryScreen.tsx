@@ -109,7 +109,7 @@ export function ProjectHistoryView({
         type: 'button' as const,
         icon: { type: 'sfSymbol' as const, name: 'arrow.clockwise' },
         accessibilityLabel: t('settings.history.sync'),
-        tintColor: PlatformColor('systemBlue'),
+        tintColor: PlatformColor('AccentColor'),
         disabled: busy,
         onPress: () => void load(),
       },
@@ -343,7 +343,7 @@ export function ProjectHistoryView({
       {target ? (
         <Stack.Toolbar placement="bottom">
           <Stack.Toolbar.Button
-            tintColor={PlatformColor('systemBlue')}
+            tintColor={PlatformColor('AccentColor')}
             disabled={busy || available.length === 0}
             onPress={() => {
               if (locked.current) return;
@@ -363,7 +363,7 @@ export function ProjectHistoryView({
           <Stack.Toolbar.Spacer />
           <Stack.Toolbar.Button
             variant="prominent"
-            tintColor={PlatformColor('systemBlue')}
+            tintColor={PlatformColor('AccentColor')}
             disabled={busy || selected.size === 0}
             onPress={() => void importSelected()}
           >

@@ -43,7 +43,7 @@ final class FileMarkdownView: MarkdownTextView {
     let icon = FileLinkButton(type: .system)
     icon.setImage(MaterialFileIcon.image(for: target.path), for: .normal)
     icon.imageView?.contentMode = .scaleAspectFit
-    icon.tintColor = .systemBlue
+    icon.tintColor = .lodyAccent
     icon.accessibilityLabel = (target.path as NSString).lastPathComponent
     icon.addAction(UIAction { [weak self] _ in
       self?.linkHandler?(.string(href), NSRange(location: 0, length: 0), .zero)

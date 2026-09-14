@@ -42,10 +42,10 @@ private final class ChatPhotoCell: UICollectionViewCell {
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
   func mark(selected: Bool, video: Bool = false) {
     badge.image = UIImage(systemName: selected ? "checkmark.circle.fill" : "circle")
-    badge.tintColor = selected ? .systemBlue : .white.withAlphaComponent(0.9)
+    badge.tintColor = selected ? .lodyAccent : .white.withAlphaComponent(0.9)
     badge.layer.shadowOpacity = selected ? 0 : 0.3
     image.layer.borderWidth = selected ? 2 : 0
-    image.layer.borderColor = UIColor.systemBlue.resolvedColor(with: traitCollection).cgColor
+    image.layer.borderColor = UIColor.lodyAccent.resolvedColor(with: traitCollection).cgColor
     videoMark.isHidden = !video
     accessibilityValue = selected ? LodyStrings.text("native.chat.attachment.selected") : nil
   }

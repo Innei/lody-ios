@@ -253,7 +253,7 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
     input.selectedRange = range
     input.insertText(text)
     applyingEdit = false
-    input.textStorage.addAttribute(.foregroundColor, value: UIColor.systemBlue, range: NSRange(location: range.location, length: (text as NSString).length - 1))
+    input.textStorage.addAttribute(.foregroundColor, value: UIColor.lodyAccent, range: NSRange(location: range.location, length: (text as NSString).length - 1))
     input.typingAttributes[.foregroundColor] = UIColor.label
     onChange?()
   }

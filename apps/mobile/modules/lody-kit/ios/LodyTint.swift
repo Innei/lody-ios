@@ -25,7 +25,7 @@ extension Notification.Name {
 func lodyTint(_ value: String) -> UIColor? {
   switch value {
   case "": return nil
-  case "blue": return .systemBlue
+  case "blue": return UIColor.lodyAccent
   case "green": return .systemGreen
   case "purple": return .systemPurple
   case "warning": return .systemOrange
@@ -71,7 +71,10 @@ extension UIColor {
   }
 
   static let lodyAccent = UIColor { traits in
-    traits.userInterfaceStyle == .dark
+    if let named = UIColor(named: "AccentColor") {
+      return named.resolvedColor(with: traits)
+    }
+    return traits.userInterfaceStyle == .dark
       ? UIColor(red: 0x4A / 255, green: 0x88 / 255, blue: 0xFF / 255, alpha: 1)
       : UIColor(red: 0x21 / 255, green: 0x55 / 255, blue: 0xCC / 255, alpha: 1)
   }
@@ -121,5 +124,16 @@ extension UIColor {
       blue: lb * t + rb * (1 - t),
       alpha: 1
     )
+  }
+}
+
+@MainActor
+func lodyApplyWindowAccent() {
+  UIWindow.appearance().tintColor = .lodyAccent
+  for scene in UIApplication.shared.connectedScenes {
+    guard let scene = scene as? UIWindowScene else { continue }
+    for window in scene.windows {
+      window.tintColor = .lodyAccent
+    }
   }
 }

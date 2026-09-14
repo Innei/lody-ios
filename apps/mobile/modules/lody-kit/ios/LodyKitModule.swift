@@ -58,6 +58,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
 
   public override func didCreate() {
     Task { @MainActor in
+      lodyApplyWindowAccent()
       PushNotifications.shared.onClickAvailable = { [weak self] in self?.sendEvent("onPushClick", [:]) }
     }
     ContentPreview.clearAll()

@@ -172,7 +172,7 @@ private final class NativeCollectionPOCController: UICollectionViewController, U
       content.text = isRoot ? "Session \(number)" : "Message \(number)"
       content.secondaryText = "Native collection row · \(number)"
       content.image = UIImage(systemName: isRoot ? "folder" : "text.bubble")
-      content.imageProperties.tintColor = .systemBlue
+      content.imageProperties.tintColor = .lodyAccent
       cell.contentConfiguration = content
       cell.accessibilityIdentifier = "poc-collection-row-\(number)"
       cell.accessories = isRoot ? [.disclosureIndicator()] : []
