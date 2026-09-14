@@ -194,10 +194,19 @@ assert not any(i.get('AXUniqueId') in ('machine', 'branch') for i in ui.state())
 assert 'Fixture Mac' in ui.element('project')['AXLabel']
 ui.element('create-type')
 
+tap_create_type(1)
+ui.wait(
+    lambda items: any(i.get('AXUniqueId') == 'machine' for i in items),
+    'Chat page must show a computer row',
+)
 ui.axe('tap', '--label', close_create, '--post-delay', '1')
 home_ready()
 tap_create()
 ui.element('create-session-input')
+ui.element('project')
+assert not any(i.get('AXUniqueId') == 'machine' for i in ui.state()), (
+    'New session must open on Project even after Chat was last used'
+)
 ui.axe('tap', '--label', close_create, '--post-delay', '1')
 ui.capture('returned')
 

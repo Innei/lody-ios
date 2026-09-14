@@ -96,7 +96,7 @@ export function listRowAction(
     const projectId = projectIdOfRow(id);
     const session = catalog.sessions.find((item) => item.id === id);
     if (session && isChatSession(session)) {
-      void requestNewSession(workspaceId, catalog, undefined, 'chat');
+      void requestNewSession(workspaceId, catalog, undefined);
       return;
     }
     void requestNewSession(

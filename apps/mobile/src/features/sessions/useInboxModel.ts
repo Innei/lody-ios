@@ -90,16 +90,11 @@ export function useInboxModel() {
     }
     creating.current = true;
     try {
-      await requestNewSession(
-        selected.id,
-        catalog,
-        undefined,
-        mode === 2 ? 'chat' : undefined,
-      );
+      await requestNewSession(selected.id, catalog, undefined);
     } finally {
       creating.current = false;
     }
-  }, [catalog, mode, selected]);
+  }, [catalog, selected]);
   return {
     account,
     catalog,

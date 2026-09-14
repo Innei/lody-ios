@@ -468,7 +468,6 @@ function View() {
             isChatSession(currentSession)
               ? undefined
               : currentSession.projectId,
-            isChatSession(currentSession) ? 'chat' : undefined,
           );
         },
       },
@@ -584,7 +583,6 @@ function View() {
                     isChatSession(currentSession)
                       ? undefined
                       : currentSession.projectId,
-                    isChatSession(currentSession) ? 'chat' : undefined,
                   );
               }}
             >

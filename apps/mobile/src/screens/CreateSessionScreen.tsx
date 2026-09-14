@@ -27,7 +27,7 @@ import {
   type CreatePrefs,
   CHAT_PREFS_KEY,
   createPrefsKey,
-  rememberedContext,
+  openingCreateContext,
   rememberedProject,
   rememberedModelChoice,
   restoreSelection,
@@ -599,7 +599,7 @@ function View() {
   const colors = usePalette();
   const locked = !!params.projectId && params.context !== 'chat';
   const [context, setContext] = useState<'project' | 'chat'>(
-    params.context ?? 'project',
+    openingCreateContext(params.context),
   );
   const prefs = useRef<CreatePrefs | null>(null);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
@@ -609,13 +609,12 @@ function View() {
     void readLocal<CreatePrefs>(prefsKey).then((saved) => {
       if (!active) return;
       prefs.current = saved;
-      if (!locked && !params.context) setContext(rememberedContext(saved));
       setPrefsLoaded(true);
     });
     return () => {
       active = false;
     };
-  }, [prefsKey, locked, params.context]);
+  }, [prefsKey]);
 
   const [restoreToken, setRestoreToken] = useState(0);
   const composerDraft = {

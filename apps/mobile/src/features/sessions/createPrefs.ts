@@ -30,6 +30,12 @@ export function rememberedContext(
   return prefs?.context === 'chat' ? 'chat' : 'project';
 }
 
+export function openingCreateContext(
+  requested?: 'project' | 'chat',
+): 'project' | 'chat' {
+  return requested === 'chat' ? 'chat' : 'project';
+}
+
 export function rememberedProject(
   prefs: CreatePrefs | null | undefined,
   projects: Project[],

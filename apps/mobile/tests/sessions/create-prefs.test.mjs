@@ -3,6 +3,7 @@ import { effortsFor } from '../../src/cloud/send/capability.ts';
 import test from 'node:test';
 import {
   CHAT_PREFS_KEY,
+  openingCreateContext,
   rememberedContext,
   rememberedProject,
   rememberedModelChoice,
@@ -60,6 +61,14 @@ test('remembers chat context without overwriting the last project', () => {
     restoreSelection(chat, CHAT_PREFS_KEY, options).agentKey,
     'm2:c2',
   );
+});
+
+test('opens the new-session sheet on project even when chat was the last page', () => {
+  assert.equal(rememberedContext({ context: 'chat' }), 'chat');
+  assert.equal(openingCreateContext(), 'project');
+  assert.equal(openingCreateContext('project'), 'project');
+  assert.equal(openingCreateContext(undefined), 'project');
+  assert.equal(openingCreateContext('chat'), 'chat');
 });
 
 test('restores the remembered agent and model per project, dropping choices the machine no longer offers', () => {
