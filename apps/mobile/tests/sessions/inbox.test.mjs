@@ -7,10 +7,11 @@ import {
 import { listPlaceholder, searchPlaceholder } from '../../src/ui/listState.ts';
 import { draftTitle } from '../../src/features/sessions/draftTitle.ts';
 import { setLocale } from '../../src/lib/i18n/index.ts';
+import { accent } from '../../src/lib/theme/tokens.ts';
 
 setLocale('zh-Hans');
 
-const ACCENT = '#3B4FD9';
+const ACCENT = accent.light;
 const now = Date.parse('2026-09-06T15:00:00+08:00');
 
 const session = (id, status, extra = {}) => ({

@@ -9,6 +9,11 @@ import {
   type as typeScale,
 } from '../../src/lib/theme/tokens.ts';
 
+test('accent is the brand blue pair', () => {
+  assert.equal(accent.light, '#2155CC');
+  assert.equal(accent.dark, '#4A88FF');
+});
+
 test('accent stays legible on both system backgrounds', () => {
   assert.ok(
     contrastRatio(accent.light, systemBackground.light) >= 4.5,

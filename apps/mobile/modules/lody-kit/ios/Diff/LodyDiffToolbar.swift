@@ -58,7 +58,7 @@ final class LodyDiffToolbar: ExpoView {
   func setStats(add: Int, del: Int, base: String) {
     let text = NSMutableAttributedString()
     if add > 0 {
-      text.append(NSAttributedString(string: "+\(add)", attributes: [.foregroundColor: UIColor.systemBlue]))
+      text.append(NSAttributedString(string: "+\(add)", attributes: [.foregroundColor: UIColor.systemGreen]))
     }
     if del > 0 {
       if text.length > 0 { text.append(NSAttributedString(string: " ")) }

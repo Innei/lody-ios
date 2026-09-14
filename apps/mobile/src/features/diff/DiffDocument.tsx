@@ -68,9 +68,9 @@ const TOKENS = {
     background: '#FFFFFF',
     label: '#000000',
     mixer: '#000000',
-    addition: '#007AFF',
+    addition: '#34C759',
     deletion: '#FF3B30',
-    additionEmphasis: 'rgba(0, 122, 255, 0.22)',
+    additionEmphasis: 'rgba(52, 199, 89, 0.22)',
     deletionEmphasis: 'rgba(255, 59, 48, 0.22)',
     selection: 'rgba(0, 122, 255, 0.20)',
     tertiaryLabel: 'rgba(60, 60, 67, 0.30)',
@@ -82,9 +82,9 @@ const TOKENS = {
     background: '#000000',
     label: '#FFFFFF',
     mixer: '#FFFFFF',
-    addition: '#0A84FF',
+    addition: '#30D158',
     deletion: '#FF453A',
-    additionEmphasis: 'rgba(10, 132, 255, 0.32)',
+    additionEmphasis: 'rgba(48, 209, 88, 0.32)',
     deletionEmphasis: 'rgba(255, 69, 58, 0.32)',
     selection: 'rgba(10, 132, 255, 0.30)',
     tertiaryLabel: 'rgba(235, 235, 245, 0.30)',
@@ -135,6 +135,9 @@ function shadowTheme(theme: 'light' | 'dark') {
     [data-indicators="bars"] [data-line-type="change-deletion"][data-column-number]:before {
       width: 3px;
       background-image: none;
+    }
+    [data-indicators="bars"] [data-line-type="change-addition"][data-column-number]:before {
+      background-color: ${token.addition};
     }
     [data-indicators="bars"] [data-line-type="change-deletion"][data-column-number]:before {
       background-color: ${token.deletion};

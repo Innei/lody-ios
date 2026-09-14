@@ -94,7 +94,7 @@ function View() {
             title: t('pr.files'),
             valueSegments: [
               { text: `${data.changedFiles} · ` },
-              { text: `+${data.additions}`, tint: 'blue' },
+              { text: `+${data.additions}`, tint: 'green' },
               { text: ` −${data.deletions}`, tint: 'danger' },
             ],
             image: 'doc.text',

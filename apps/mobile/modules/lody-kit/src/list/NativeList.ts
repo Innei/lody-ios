@@ -30,7 +30,7 @@ export type NativeListRow = {
   imageAsset?: string;
   /** File rows use bundled Material Icon Theme artwork. */
   filePath?: string;
-  /** Semantic name (blue/purple/warning/danger/secondary/tertiary) or a `#RRGGBB` value. */
+  /** Semantic name (blue/green/purple/warning/danger/secondary/tertiary) or a `#RRGGBB` value. */
   imageTint?: string;
   action?: boolean;
   selected?: boolean;

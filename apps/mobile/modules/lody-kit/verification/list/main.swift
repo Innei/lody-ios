@@ -230,6 +230,17 @@ assert(
 
 print("PASS: a badge without a project name keeps the two-line session row")
 
+let statsRow = LodyListRow(title: "Review", subtitle: "main", diff: ["add": 4, "del": 2])
+let stats = LodySessionRowView.meta(for: statsRow)
+let statsText = stats.string as NSString
+let addRange = statsText.range(of: "+4")
+let delRange = statsText.range(of: "−2")
+assert(addRange.location != NSNotFound && delRange.location != NSNotFound, statsText as String)
+let addColor = stats.attribute(.foregroundColor, at: addRange.location, effectiveRange: nil) as! UIColor
+let delColor = stats.attribute(.foregroundColor, at: delRange.location, effectiveRange: nil) as! UIColor
+assert(addColor.isEqual(UIColor.systemGreen), "Diff additions must be system green")
+assert(delColor.isEqual(UIColor.systemRed), "Diff deletions must be system red")
+
 // Compare the same real content view at the same width, including reuse back
 // into the default host. Sidebar typography can shrink, but not text or touch targets.
 @MainActor func fittedHeight(_ view: UIView) -> CGFloat {

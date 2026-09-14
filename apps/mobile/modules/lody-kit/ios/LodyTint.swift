@@ -26,6 +26,7 @@ func lodyTint(_ value: String) -> UIColor? {
   switch value {
   case "": return nil
   case "blue": return .systemBlue
+  case "green": return .systemGreen
   case "purple": return .systemPurple
   case "warning": return .systemOrange
   case "danger": return .systemRed
@@ -71,8 +72,8 @@ extension UIColor {
 
   static let lodyAccent = UIColor { traits in
     traits.userInterfaceStyle == .dark
-      ? UIColor(red: 0x7B / 255, green: 0x8A / 255, blue: 0xFF / 255, alpha: 1)
-      : UIColor(red: 0x3B / 255, green: 0x4F / 255, blue: 0xD9 / 255, alpha: 1)
+      ? UIColor(red: 0x4A / 255, green: 0x88 / 255, blue: 0xFF / 255, alpha: 1)
+      : UIColor(red: 0x21 / 255, green: 0x55 / 255, blue: 0xCC / 255, alpha: 1)
   }
 
   /// Accent washed with the reading canvas so the user bubble stays tinted, not solid.

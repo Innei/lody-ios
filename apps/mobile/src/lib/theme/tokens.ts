@@ -1,6 +1,6 @@
 export const accent = {
-  light: '#3B4FD9',
-  dark: '#7B8AFF',
+  light: '#2155CC',
+  dark: '#4A88FF',
 } as const;
 
 export const systemBackground = {

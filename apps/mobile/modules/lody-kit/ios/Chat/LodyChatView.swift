@@ -169,7 +169,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     if let file = row.fileDiff {
       let counts = UILabel()
       counts.font = .monospacedDigitSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize, weight: .regular)
-      let value = NSMutableAttributedString(string: "+\(file.add ?? 0)", attributes: [.foregroundColor: UIColor.systemBlue])
+      let value = NSMutableAttributedString(string: "+\(file.add ?? 0)", attributes: [.foregroundColor: UIColor.systemGreen])
       value.append(NSAttributedString(string: "  −\(file.del ?? 0)", attributes: [.foregroundColor: UIColor.systemRed]))
       counts.attributedText = value
       cell.accessories = [.customView(configuration: .init(customView: counts, placement: .trailing()))]
@@ -190,7 +190,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     cell.contentConfiguration = content
     let counts = UILabel()
     counts.font = .monospacedDigitSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize, weight: .regular)
-    let value = NSMutableAttributedString(string: "+\(file.add ?? 0)", attributes: [.foregroundColor: UIColor.systemBlue])
+    let value = NSMutableAttributedString(string: "+\(file.add ?? 0)", attributes: [.foregroundColor: UIColor.systemGreen])
     value.append(NSAttributedString(string: "  −\(file.del ?? 0)", attributes: [.foregroundColor: UIColor.systemRed]))
     counts.attributedText = value
     cell.accessories = [.customView(configuration: .init(customView: counts, placement: .trailing())), .disclosureIndicator()]
