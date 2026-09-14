@@ -12,7 +12,7 @@ import {
   useState,
 } from 'react';
 
-import type { ColorValue } from 'react-native';
+import { Platform, type ColorValue } from 'react-native';
 import { automaticScrollEdgeEffects } from '@/ui/Screen';
 
 import {
@@ -22,6 +22,7 @@ import {
   type PageRuntime,
   PageRuntimeProvider,
 } from './page';
+import { sheetContentBackground } from './sheetContentBackground';
 import { SheetStack } from './SheetStack';
 import {
   cancelPresentation,
@@ -123,8 +124,11 @@ export function nativePresentationOptions(
         ? 'default'
         : nativeAnimation(animationType),
     contentStyle: {
-      backgroundColor:
-        style === 'overFullScreen' ? 'transparent' : backgroundColor,
+      backgroundColor: sheetContentBackground(
+        style,
+        backgroundColor,
+        Platform.OS === 'ios' && Platform.isPad,
+      ),
     },
     gestureEnabled: dismissible,
     // Sheets own their inner stack; pushed pages keep the router
