@@ -36,14 +36,14 @@ import {
   type SheetHeaderItems,
 } from '@/lib/presentation/SheetStack';
 import { usePalette } from '@/lib/theme/palette';
-import { softScrollEdgeEffects } from '@/ui/Screen';
+import { automaticScrollEdgeEffects } from '@/ui/Screen';
 import type { Catalog } from '@/models/catalog';
 import { t } from '@/lib/i18n';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 
 const panelScrollEdgeEffects = {
-  ...softScrollEdgeEffects,
+  ...automaticScrollEdgeEffects,
   left: 'hidden',
   right: 'hidden',
 } as const;

@@ -13,7 +13,7 @@ import {
 } from 'react';
 
 import type { ColorValue } from 'react-native';
-import { softScrollEdgeEffects } from '@/ui/Screen';
+import { automaticScrollEdgeEffects } from '@/ui/Screen';
 
 import {
   type PageDefinitionBase,
@@ -133,7 +133,7 @@ export function nativePresentationOptions(
     headerLargeTitle: false,
     headerTransparent: transparentHeader,
     headerShadowVisible: false,
-    scrollEdgeEffects: softScrollEdgeEffects,
+    scrollEdgeEffects: automaticScrollEdgeEffects,
     presentation: nativePresentationStyle(style),
     sheetAllowedDetents: formSheet
       ? session.presentation.sheetAllowedDetents

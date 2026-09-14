@@ -8,7 +8,7 @@
 - Cloud integration targets official Lody Cloud. Do not import `@lody/shared` or `@lody/loro-streams-rpc` root entries: the prior POC found Node/CRDT/Zstd dependencies that Metro cannot bundle. Use verified RN-safe public subpaths when available. Do not use absolute imports from another checkout or private backend packages.
 - Credentials belong in Keychain through LodyKit. Never copy desktop credentials, tokens, transcripts, or private service configuration into this repository.
 - Routes live in `src/app`, screens in `src/screens`, domain in `src/features`, shapes in `src/models`, cloud protocol in `src/cloud` (auth / catalog / send + kv), shared UI in `src/ui`. Infrastructure lives in `src/lib` (`presentation` / `i18n` / `theme`). Features must not import screens; opening a session goes through the `sessionNav` mailbox. `src/screens/` holds only `*Screen` files. Keep cloud protocol code separate from UI and native code; add state libraries only when needed.
-- Native stack headers use transparent headers and soft scroll edges; scrolling screens use `ScrollViewMarker` with the shared `softScrollEdgeEffects` and automatic content insets.
+- Native stack headers use transparent headers and automatic scroll edges; scrolling screens use `ScrollViewMarker` with the shared `automaticScrollEdgeEffects` and automatic content insets.
 - Preserve user edits. Before destructive revert/restore/rollback, inspect the working tree and obtain explicit confirmation.
 - Verify with `pnpm check`, `pnpm bundle`, and an iOS simulator build when changing native code. Prefer behavioral checks over implementation snapshots.
 - Do not nest ternary expressions. One `cond ? a : b` is fine; a `?` inside either branch is not. Map a closed set with a dictionary, and use `if` / `switch` for ordered or overlapping conditions. Optional chaining and `??` are not ternaries.
@@ -16,9 +16,9 @@
 ## UI baseline
 
 - Apple HIG is the primary UI requirement. The Expo chatbot reference informs chat behavior only; do not copy its branding over native conventions.
-- Do not use green accents or green-tinted backgrounds. Use UIKit semantic colors for native content, system blue for actions, and neutral system backgrounds. Preserve automatic dark mode and accessibility contrast adaptation.
+- Do not use green as the app accent. Diff additions use systemGreen, paired with systemRed deletions. Use UIKit semantic colors for native content, system blue for actions, and neutral system backgrounds. Preserve automatic dark mode and accessibility contrast adaptation.
 - Preserve native navigation, safe areas, VoiceOver labels, and at least 44 pt touch targets. MVP acceptance uses the default text size; keep system text behavior but do not add special layouts or remount logic for oversized accessibility text.
-- Reference Yohaku iOS for native UI boundaries. System grouped rows use `LodyGroupedList` / `UICollectionViewListCell` in LodyKit; navigation uses UIKit soft scroll edges through the existing native stack. Do not simulate unavailable native effects with decorative RN overlays. A native UICollectionView must register with UIKit directly; `ScrollViewMarker` accepts only RN ScrollViews.
+- Reference Yohaku iOS for native UI boundaries. System grouped rows use `LodyGroupedList` / `UICollectionViewListCell` in LodyKit; navigation uses UIKit automatic scroll edges through the existing native stack. Do not simulate unavailable native effects with decorative RN overlays. A native UICollectionView must register with UIKit directly; `ScrollViewMarker` accepts only RN ScrollViews.
 
 - Navigating native list rows retain selection until the owning controller returns. Deselect alongside the navigation transition and restore selection when an interactive return is cancelled; ordinary action rows deselect immediately. Diffable snapshots preserve selection themselves; never reselect a captured row in snapshot completion, which can run after return-time deselection.
 
