@@ -1,5 +1,7 @@
 import type { ExpoConfig } from 'expo/config';
 
+const fixtureBuild = process.env.EXPO_PUBLIC_UI_VERIFY === '1';
+
 const config: ExpoConfig = {
   name: 'Lody',
   slug: 'lody-ios',
@@ -41,7 +43,7 @@ const config: ExpoConfig = {
   runtimeVersion: { policy: 'fingerprint' },
   updates: {
     url: 'https://ota.innei.in/manifest',
-    enabled: true,
+    enabled: !fixtureBuild,
     fallbackToCacheTimeout: 0,
     requestHeaders: {
       'expo-channel-name': 'production',

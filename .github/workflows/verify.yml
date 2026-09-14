@@ -86,7 +86,7 @@ jobs:
           bundle exec pod install
       - name: Build signed Simulator app
         run: |
-          APP=$(pnpm --silent verify:build --derived-data "$RUNNER_TEMP/lody-build")
+          APP=$(pnpm --silent verify:build --configuration Release --derived-data "$RUNNER_TEMP/lody-build")
           tar -czf "$RUNNER_TEMP/lody-simulator.tar.gz" -C "$(dirname "$APP")" Lody.app
       - name: Upload Simulator app
         uses: actions/upload-artifact@v4
@@ -105,14 +105,14 @@ jobs:
           retention-days: 14
 
   ui:
-    name: Offline iOS UI (${{ matrix.batch }})
+    name: Offline iOS UI (${{ matrix.suite }})
     needs: build
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 20
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
-        batch: [pages, send, chat]
+        suite: [core-home, core-send]
     env:
       EXPO_PUBLIC_UI_VERIFY: '1'
     steps:
@@ -120,11 +120,9 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '26.5'
-      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-      - run: pnpm install --frozen-lockfile
       - name: Install pinned AXe
         run: |
           mkdir -p "$RUNNER_TEMP/axe"
@@ -144,13 +142,13 @@ jobs:
           echo "UI_UDID=$udid" >> "$GITHUB_ENV"
           xcrun simctl boot "$udid"
           xcrun simctl bootstatus "$udid" -b
-      - name: Offline UI baselines (light and dark)
-        run: pnpm verify:ui --udid "$UI_UDID" --app "$RUNNER_TEMP/lody-app/Lody.app" --batch "${{ matrix.batch }}"
+      - name: Core offline UI regression
+        run: python3 apps/mobile/verification/ui/run.py --udid "$UI_UDID" --app "$RUNNER_TEMP/lody-app/Lody.app" --suite "${{ matrix.suite }}" --embedded
       - name: Upload verification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: offline-ui-${{ matrix.batch }}-${{ github.sha }}
+          name: offline-ui-${{ matrix.suite }}-${{ github.sha }}
           path: .artifacts/ui
           retention-days: 14
           if-no-files-found: warn

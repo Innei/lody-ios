@@ -7,6 +7,7 @@ import type {
   HistoryTarget,
 } from '@/models/project-history';
 import { t } from '../../lib/i18n/index.ts';
+import { uiVerify } from './uiVerify';
 
 const target: HistoryTarget = {
   machineId: 'studio',
@@ -36,7 +37,7 @@ function View() {
   const failLoad = useRef(true),
     failImport = useRef(true);
   const service = useCallback<HistoryService>(async (request) => {
-    if (!__DEV__) throw new Error('Development only');
+    if (!__DEV__ && !uiVerify) throw new Error('Development only');
     if (request.kind === 'targets')
       return [
         target,

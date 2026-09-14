@@ -248,6 +248,7 @@ UI baselines run without login, user credentials, cloud access, or a connected m
 pnpm verify:simulator --name '<current verify>' -- <command>   # Lease a Lody * Verify Simulator
 pnpm verify:native                                             # Swift behavior checks
 pnpm verify:ui --app /absolute/path/to/Lody.app                # Offline UI baselines
+pnpm verify:ui --suite core --embedded --app /absolute/path/to/Lody.app  # PR core paths, Release app
 ```
 
 The runner captures screenshots for visual states and video for temporal behavior; missing scenes and timeouts fail the run. See [`apps/mobile/verification/ui/README.md`](apps/mobile/verification/ui/README.md) for the case inventory and Simulator leasing rules.

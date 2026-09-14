@@ -6,7 +6,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from orchestrator import managed_metro, run_batches
+from unittest.mock import patch
+
+from orchestrator import managed_metro, prewarm_bundle, run_batches
 
 
 class RunnerTest(unittest.TestCase):
@@ -133,6 +135,47 @@ class CaseSelectionTest(unittest.TestCase):
         self.assertIn('selected = PHONE_CASES', source)
         self.assertNotIn('selected = CASES', source)
         self.assertIn('if args.case in PAD_CASES', source)
+
+    def test_core_suite_is_the_six_product_paths(self):
+        source = Path(__file__).with_name('run.py').read_text()
+        self.assertIn(
+            "'core': ['onboarding', 'inbox', 'navigation', 'send', 'send-handoff', 'composer-success']",
+            source,
+        )
+        self.assertIn("'core-home': ['onboarding', 'inbox', 'navigation']", source)
+        self.assertIn("'core-send': ['send', 'send-handoff', 'composer-success']", source)
+        self.assertIn("selection.add_argument('--suite', choices=SUITES", source)
+        self.assertIn('core_suite = args.suite in CORE_SUITES', source)
+        self.assertIn("appearances = ['light']", source)
+        self.assertIn("'--embedded'", source)
+        self.assertIn('args.shared_metro or args.embedded', source)
+
+
+class PrewarmTest(unittest.TestCase):
+    def test_prewarm_retries_manifest_then_succeeds(self):
+        calls = {'manifest': 0}
+
+        def manifest(_port, _timeout=60):
+            calls['manifest'] += 1
+            if calls['manifest'] < 2:
+                raise TimeoutError('slow compile')
+            return {'launchAsset': {'url': 'http://127.0.0.1/bundle'}}
+
+        with (
+            patch('orchestrator.load_expo_manifest', manifest),
+            patch('orchestrator.read_launch_asset', return_value=b'ok'),
+            patch('orchestrator.time.sleep'),
+        ):
+            prewarm_bundle(8097, attempts=3, pause=0)
+        self.assertEqual(calls['manifest'], 2)
+
+    def test_prewarm_gives_up_after_retries(self):
+        with (
+            patch('orchestrator.load_expo_manifest', side_effect=TimeoutError('slow compile')),
+            patch('orchestrator.time.sleep'),
+            self.assertRaises(TimeoutError),
+        ):
+            prewarm_bundle(8097, attempts=2, pause=0)
 
 
 if __name__ == '__main__':

@@ -1,12 +1,14 @@
 # Offline UI verification
 
 All UI baselines run without login, user data, cloud credentials, or a connected
-machine. `EXPO_PUBLIC_UI_VERIFY=1` in a **development** bundle prevents account
-restoration before Keychain/SQLite reads and disables login. The runner starts
-one owned Metro and requires the `ui-verify-ready` marker before any interaction.
-Native image fixtures additionally require the `--ui-verify` launch argument and
-compile only in Debug. No production credentials are used. The managed verification
-Simulator is reused without erasing between leases.
+machine. `EXPO_PUBLIC_UI_VERIFY=1` is inlined into the JS bundle and prevents
+account restoration before Keychain/SQLite reads and disables login. PR CI
+builds a Release Simulator app with that flag and an embedded Hermes bundle;
+`--embedded` then launches the app without Metro. Local full inventory still
+uses a Debug app plus one owned Metro. Both paths require the `ui-verify-ready`
+marker before any interaction. Native image fixtures additionally require the
+`--ui-verify` launch argument. No production credentials are used. The managed
+verification Simulator is reused without erasing between leases.
 
 The `pull-request` case also exercises authorization retry, empty checks, a rejected
 comment retaining its draft followed by successful publication to the local fixture,
@@ -38,6 +40,7 @@ command without `--case` or `--batch` is that phone lease only. Pad-only cases
 ```sh
 pnpm verify:native
 pnpm verify:ui --app /absolute/path/to/Lody.app
+pnpm verify:ui --suite core --embedded --app /absolute/path/to/Lody.app --output .artifacts/ui-core
 pnpm verify:ui --case ipad --app /absolute/path/to/Lody.app --output .artifacts/ipad
 # One Metro, three concurrent leased Simulators, all batches:
 pnpm verify:ui --parallel --app /absolute/path/to/Lody.app --output .artifacts/ui-parallel
@@ -189,24 +192,32 @@ proof of typography or animation quality.
 
 ## CI and future UI changes
 
-`.github/workflows/verify.yml` runs Checks, Native behavior, one signed Simulator
-build, and three parallel Offline iOS UI batches (`pages`, `send`, `chat`) on PRs
-and pushes to main. UI jobs download the same tarred App, preserving executable
-permissions and symlinks, and run both appearances. Each batch has its own
-Simulator and evidence artifact; a failed batch does not cancel its siblings.
-Configure the Checks, Native behavior, Build iOS Simulator, and all three UI
-checks as required checks in repository branch rules before relying on them to
-block merges. `--batch pages|send|chat` selects the same grouping locally;
-`--case` still runs a single case, and omitting both runs everything. Standalone
-Home/Licenses/Navigation run in the same worker and bundle as the other pages.
-Local `--parallel` shares one Metro across three leased Simulators. Each worker
-installs once, changes fixture mode with native launch arguments, and records
-its own results/video/screenshots under `pages/`, `send/`, or `chat/`. The parent
-writes combined `results.json` and worker exit codes/times in `batches.json`;
-workers cannot stop the parent Metro. Navigation reload uses the target device
-inspector instead of broadcasting to every app. `--parallel` owns its leases,
-so do not supply `--udid` or wrap it in a single-device lease. Build separately
-with `verify:simulator`, then run `--parallel` against that signed App.
+`.github/workflows/verify.yml` runs Checks, Native behavior, one signed
+Release Simulator build of the fixture app (`EXPO_PUBLIC_UI_VERIFY=1`, Hermes
+embedded, expo-updates off), and two parallel Offline iOS UI jobs on PRs and
+pushes to main. Those jobs install the same `.app` and run `--embedded` with
+`--suite core-home` (`onboarding`, `inbox`, `navigation`) or `--suite core-send`
+(`send`, `send-handoff`, `composer-success`). Light appearance only, first
+failure stops that job, and video is not required. The full phone inventory,
+dark appearance, performance, animation, and pad cases stay local on a Debug
+app plus Metro; they are not a PR gate. Configure Checks, Native behavior,
+Build iOS Simulator, `Offline iOS UI (core-home)`, and
+`Offline iOS UI (core-send)` as required checks. Remove the old three-batch or
+single `core` job names or PRs will wait for checks that no longer run.
+
+`--suite core` selects all six cases locally. `--embedded` skips Metro and
+relaunches the app for each case. `--batch pages|send|chat`
+keeps the local grouping; `--case` still runs a single case; omitting all three
+runs every phone case in both appearances. Standalone Home/Licenses/Navigation
+run in the same worker and bundle as the other pages. Local `--parallel` shares
+one Metro across three leased Simulators. Each worker installs once, changes
+fixture mode with native launch arguments, and records its own
+results/video/screenshots under `pages/`, `send/`, or `chat/`. The parent writes
+combined `results.json` and worker exit codes/times in `batches.json`; workers
+cannot stop the parent Metro. Navigation reload uses the target device inspector
+instead of broadcasting to every app. `--parallel` owns its leases, so do not
+supply `--udid` or wrap it in a single-device lease. Build separately with
+`verify:simulator`, then run `--parallel` against that signed App.
 
 The runner enables request diagnostics only for its owned Metro. `metro.log`
 records manifest/status request starts, completion/connection-close, status and
@@ -215,9 +226,12 @@ per-case `metro-failure.json` probe host-side status and manifest HEAD/GET with
 10-second deadlines; they do not prove Simulator reachability. Compare these
 with the five-minute `native.log` and failure screenshot to distinguish no
 incoming request, an unfinished server response, and app-side failure.
-`environment.json` records Node, Xcode and AXe versions and the selected batch. UI artifacts contain results.json, per-case
-logs, screenshots, accessibility trees and video, including failures. Missing
-scenes and timeouts fail the job. No login or distribution signing secret is used.
+`environment.json` records Node, Xcode and AXe versions, the selected suite or
+batch, appearances, and whether video is required. UI artifacts contain
+results.json, per-case logs, screenshots and accessibility trees, plus video when
+the run requires it, including failures. Missing scenes and timeouts fail the
+job. A core-suite run does not fail only because `run.mp4` is absent. No login
+or distribution signing secret is used.
 
 For each new UI behavior:
 
@@ -225,7 +239,8 @@ For each new UI behavior:
    views and the existing `present` contract; inject data or service outcomes at
    the owning boundary. Do not duplicate a production screen into a fake UI.
 2. Add a runnable user-visible assertion and register it in the runner. New scenes
-   must run independently without earlier cases or login.
+   must run independently without earlier cases or login. Do not add a case to
+   `--suite core` unless it is one of the daily product paths.
 3. Reproduce bugs with the original precondition; avoid internal constant-table
    snapshots. Prefer element-relative geometry and bounded state waits.
 4. For shared UI, exercise each real host (e.g. chat and creation sheet). Add

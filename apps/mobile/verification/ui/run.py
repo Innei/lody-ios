@@ -24,6 +24,12 @@ BATCHES = {
     'send': ['root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
     'chat': ['user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'changes', 'inline-diff'],
 }
+SUITES = {
+    'core': ['onboarding', 'inbox', 'navigation', 'send', 'send-handoff', 'composer-success'],
+    'core-home': ['onboarding', 'inbox', 'navigation'],
+    'core-send': ['send', 'send-handoff', 'composer-success'],
+}
+CORE_SUITES = set(SUITES)
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 # These lease an iPad. `--case` still accepts them; the default phone run must not.
 PAD_CASES = ['ipad', 'ipad-chrome', 'native-shell', 'native-collection']
@@ -121,12 +127,28 @@ parser.add_argument('--port', type=int, default=8097)
 selection = parser.add_mutually_exclusive_group()
 selection.add_argument('--case', choices=CASES)
 selection.add_argument('--batch', choices=BATCHES)
+selection.add_argument('--suite', choices=SUITES, help='Named case set; core* is the PR regression')
 selection.add_argument('--parallel', action='store_true', help='Run all three batches on separate leased Simulators sharing one Metro')
 parser.add_argument('--shared-metro', action='store_true', help=argparse.SUPPRESS)
 parser.add_argument('--language', choices=['en', 'zh-Hans'], default='en', help='App Language for this run; scenes assert the matching catalog')
+parser.add_argument('--appearance', choices=['light', 'dark'], help='One appearance; omit to run light and dark, or light only for --suite core')
+parser.add_argument('--fail-fast', action='store_true', help='Stop after the first failed case')
+parser.add_argument(
+    '--embedded',
+    action='store_true',
+    help='Use a Release app with an embedded bundle; do not start Metro',
+)
+parser.add_argument(
+    '--require-video',
+    action=argparse.BooleanOptionalAction,
+    default=None,
+    help='Require a captured run.mp4; --suite core defaults to off',
+)
 args = parser.parse_args()
-if args.parallel and (args.udid or args.shared_metro):
-    parser.error('--parallel owns three Simulator leases and its Metro; omit --udid and --shared-metro')
+if args.parallel and (args.udid or args.shared_metro or args.embedded):
+    parser.error('--parallel owns three Simulator leases and its Metro; omit --udid, --shared-metro and --embedded')
+if args.embedded and args.shared_metro:
+    parser.error('--embedded does not start Metro')
 args.output = args.output.resolve()
 # Stale evidence is replaced in place; only a run needing A/B comparison picks a different --output.
 if not args.shared_metro and any((args.output / marker).exists() for marker in ['results.json', 'batches.json', 'environment.json', 'metro.log']):
@@ -142,12 +164,31 @@ if args.parallel:
     with managed_metro(ROOT, args.port, args.output):
         raise SystemExit(run_batches(commands, args.output))
 selected = PHONE_CASES
-if args.batch:
+if args.suite:
+    selected = SUITES[args.suite]
+elif args.batch:
     selected = BATCHES[args.batch]
-if args.case:
+elif args.case:
     selected = [args.case]
+core_suite = args.suite in CORE_SUITES
+if args.appearance:
+    appearances = [args.appearance]
+elif core_suite:
+    appearances = ['light']
+else:
+    appearances = ['light', 'dark']
+if args.fail_fast:
+    fail_fast = True
+else:
+    fail_fast = core_suite
+if args.require_video is None:
+    require_video = not core_suite
+else:
+    require_video = args.require_video
 if args.udid is None:
     verify_name = f'UI {args.batch}' if args.batch else 'UI'
+    if args.suite is not None:
+        verify_name = f'UI {args.suite}'
     if args.case is not None:
         verify_name = args.case.replace('-', ' ').title()
     command = [sys.executable, __file__, *sys.argv[1:]]
@@ -161,13 +202,15 @@ def sim(*command, check=True):
     return subprocess.run(['xcrun', 'simctl', *command], check=check, timeout=60, capture_output=True, text=True)
 
 results = []
-# Only the parent starts/prewarms/stops Metro; batch workers never own it.
-metro_context = nullcontext() if args.shared_metro else managed_metro(ROOT, args.port, args.output)
+# Only the parent starts/prewarms/stops Metro; batch workers and embedded apps never own it.
+metro_context = nullcontext() if args.shared_metro or args.embedded else managed_metro(ROOT, args.port, args.output)
 with metro_context:
     try:
         (args.output / 'environment.json').write_text(json.dumps({
             'node': subprocess.check_output(['node', '--version'], text=True).strip(),
-            'batch': args.batch, 'cases': selected, 'metroPort': args.port, 'sharedMetro': args.shared_metro,
+            'batch': args.batch, 'suite': args.suite, 'cases': selected, 'appearances': appearances,
+            'failFast': fail_fast, 'requireVideo': require_video, 'embedded': args.embedded,
+            'metroPort': None if args.embedded else args.port, 'sharedMetro': args.shared_metro,
             'udid': args.udid, 'app': str(args.app.resolve()), 'language': args.language,
             'baseCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
             'worktreeDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True).strip()),
@@ -187,7 +230,7 @@ with metro_context:
         launch_mode = None
         app_pid = None
         trace_throw = bool(set(selected).intersection({'send-transition', 'send-transition-handoff', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'ipad-chrome'}))
-        for appearance in ['light', 'dark']:
+        for appearance in appearances:
             sim('ui', args.udid, 'appearance', appearance)
             for case in cases:
                 output = args.output / appearance / case
@@ -200,24 +243,46 @@ with metro_context:
                     if case == 'chat-performance':
                         container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
                         (container / 'tmp/lody-chat-loading.json').unlink(missing_ok=True)
-                    restart = launch_mode != mode or case in HOME_CASES
+                    restart = args.embedded or launch_mode != mode or case in HOME_CASES
                     if restart:
                         result['appLifecycle'] = 'launch'
                         sim('terminate', args.udid, 'app.innei.lody', check=False)
-                        sim('launch', args.udid, 'app.innei.lody', '--ui-verify', *(['--ui-verify-home'] if case in HOME_CASES else []), *(['--ui-verify-mentions'] if case in {'mentions-production', 'home', 'ipad', 'ipad-chrome'} else []), *(['--ui-verify-scroll'] if mode[1] else []), *(['--ui-verify-throw'] if trace_throw else []), '--initialUrl', f'http://127.0.0.1:{args.port}?disableOnboarding=1', '-expo.devlauncher.hasGrantedNetworkPermission', 'YES', '-EXDevMenuShowsAtLaunch', 'NO', '-EXDevMenuIsOnboardingFinished', 'YES', '-EXDevMenuShowFloatingActionButton', 'NO', '-AppleLanguages', f'({args.language})', '-AppleLocale', 'en_US' if args.language == 'en' else 'zh_CN',
-                            '-AppleKeyboards', '(en_US@sw=QWERTY)')
+                        launch = ['launch', args.udid, 'app.innei.lody', '--ui-verify']
+                        if case in HOME_CASES:
+                            launch.append('--ui-verify-home')
+                        if case in {'mentions-production', 'home', 'ipad', 'ipad-chrome'}:
+                            launch.append('--ui-verify-mentions')
+                        if mode[1]:
+                            launch.append('--ui-verify-scroll')
+                        if trace_throw:
+                            launch.append('--ui-verify-throw')
+                        if not args.embedded:
+                            launch += [
+                                '--initialUrl', f'http://127.0.0.1:{args.port}?disableOnboarding=1',
+                                '-expo.devlauncher.hasGrantedNetworkPermission', 'YES',
+                                '-EXDevMenuShowsAtLaunch', 'NO',
+                                '-EXDevMenuIsOnboardingFinished', 'YES',
+                                '-EXDevMenuShowFloatingActionButton', 'NO',
+                            ]
+                        launch += [
+                            '-AppleLanguages', f'({args.language})',
+                            '-AppleLocale', 'en_US' if args.language == 'en' else 'zh_CN',
+                            '-AppleKeyboards', '(en_US@sw=QWERTY)',
+                        ]
+                        sim(*launch)
                         launch_mode = mode
-                    recording = subprocess.Popen(['xcrun', 'simctl', 'io', args.udid, 'recordVideo', '--codec=hevc', str(output / 'run.mp4')], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-                    deadline = time.monotonic() + 20
-                    while time.monotonic() < deadline:
-                        if select.select([recording.stderr], [], [], .5)[0]:
-                            line = recording.stderr.readline()
-                            if b'Recording started' in line:
-                                break
-                            if not line:
-                                raise RuntimeError('Video recorder exited before its first frame')
-                    else:
-                        raise TimeoutError('Video recorder did not start')
+                    if require_video:
+                        recording = subprocess.Popen(['xcrun', 'simctl', 'io', args.udid, 'recordVideo', '--codec=hevc', str(output / 'run.mp4')], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                        deadline = time.monotonic() + 20
+                        while time.monotonic() < deadline:
+                            if select.select([recording.stderr], [], [], .5)[0]:
+                                line = recording.stderr.readline()
+                                if b'Recording started' in line:
+                                    break
+                                if not line:
+                                    raise RuntimeError('Video recorder exited before its first frame')
+                        else:
+                            raise TimeoutError('Video recorder did not start')
                     if not restart:
                         result['appLifecycle'] = 'return-to-root'
                         inspector(args.udid, args.port, 'Runtime.evaluate', {
@@ -292,7 +357,8 @@ with metro_context:
                     # A failed case may have crashed or left a system modal; recover explicitly.
                     launch_mode = None
                     result['error'] = str(error)
-                    diagnose_metro(args.port, output, 'failure')
+                    if not args.embedded:
+                        diagnose_metro(args.port, output, 'failure')
                     try:
                         native_log = sim('spawn', args.udid, 'log', 'show', '--last', '5m', '--style', 'compact', '--predicate', 'process == "Lody"', check=False)
                         (output / 'native.log').write_text(native_log.stdout + native_log.stderr)
@@ -311,13 +377,17 @@ with metro_context:
                             recording.kill()
                             recording.wait()
                         recording.stderr.close()
-                    if recording is not None and (not (output / 'run.mp4').exists() or (output / 'run.mp4').stat().st_size == 0):
+                    if require_video and recording is not None and (not (output / 'run.mp4').exists() or (output / 'run.mp4').stat().st_size == 0):
                         result['status'] = 'failed'
                         result.setdefault('error', 'Required video was not captured')
                     result['seconds'] = round(time.monotonic() - started, 2)
                     results.append(result)
                     (args.output / 'results.json').write_text(json.dumps(results, indent=2))
                     print(json.dumps(result), flush=True)
+                if fail_fast and result['status'] != 'passed':
+                    break
+            if fail_fast and results and results[-1]['status'] != 'passed':
+                break
     finally:
         sim('terminate', args.udid, 'app.innei.lody', check=False)
 if not results or any(r['status'] != 'passed' for r in results):

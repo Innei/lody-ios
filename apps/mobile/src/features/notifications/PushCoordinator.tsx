@@ -10,8 +10,8 @@ import {
 } from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
-const uiVerify = __DEV__ && process.env.EXPO_PUBLIC_UI_VERIFY === '1';
 import { requestOpenSession } from '@/features/sessions/sessionNav';
+import { uiVerify } from '@/lib/uiVerify';
 import { t } from '@/lib/i18n';
 import { showToast } from '@/ui/toast';
 import { resolveNotificationClick } from './routing';

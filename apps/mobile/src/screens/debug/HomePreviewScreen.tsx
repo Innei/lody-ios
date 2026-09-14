@@ -6,11 +6,9 @@ import { runtimeInfo, writeLocalValue } from '@lody-ios/kit';
 import { AuthContext } from '@/cloud/auth/AuthProvider';
 import { CatalogContext } from '@/cloud/catalog/CatalogProvider';
 import type { Catalog } from '@/models/catalog';
+import { uiVerify } from './uiVerify';
 
-export const homeVerify =
-  __DEV__ &&
-  process.env.EXPO_PUBLIC_UI_VERIFY === '1' &&
-  runtimeInfo.uiVerifyHome;
+export const homeVerify = uiVerify && runtimeInfo.uiVerifyHome;
 
 const previewPhoto =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAL0lEQVR42u3OIQEAAAgDMNJQk6J0gRg3E/Or7bmkEhAQEBAQEBAQEBAQEBAQSAceRa0Al+0rSMYAAAAASUVORK5CYII=';

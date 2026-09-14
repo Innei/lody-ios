@@ -20,6 +20,7 @@ import { showToast } from '@/ui/toast';
 import { definePage } from '@/lib/presentation';
 import type { RemoteSetting } from '@/models/settings';
 import { t, tp } from '../lib/i18n/index.ts';
+import { uiVerify } from '@/lib/uiVerify';
 
 const connectionRow = {
   live: { symbol: 'circle.fill', label: 'settings.connection.live' },
@@ -174,7 +175,7 @@ function View() {
       ],
     });
 
-  if (__DEV__)
+  if (__DEV__ || uiVerify)
     sections.push({
       id: 'developer',
       header: t('settings.section.developer'),
