@@ -2,6 +2,9 @@
   "platforms": ["ios"],
   "ios": {
     "modules": ["LodyKitModule"],
-    "appDelegateSubscribers": ["LodyAccentSubscriber", "PushAppDelegateSubscriber"]
+    "appDelegateSubscribers": [
+      "LodyAccentSubscriber",
+      "PushAppDelegateSubscriber"
+    ]
   }
 }
