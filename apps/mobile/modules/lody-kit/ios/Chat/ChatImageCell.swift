@@ -7,6 +7,8 @@ final class ChatImageCell: UICollectionViewCell {
   private let spinner = UIActivityIndicatorView(style: .medium)
   private let failure = UILabel()
   private var image: ChatImage?
+  private var workspace = ""
+  private var session = ""
   private var handoffEntryID: String?
   private var requestURL: URL?
   private var requestID = UUID()
@@ -44,6 +46,8 @@ final class ChatImageCell: UICollectionViewCell {
     guard let image = row.image else { return }
     let hadLocalImage = requestURL?.isFileURL == true && handoffEntryID == row.entryID
     self.image = image
+    self.workspace = workspace
+    self.session = session
     if row.localImageURI != nil { handoffEntryID = row.entryID }
     else if !hadLocalImage { handoffEntryID = nil }
     accessibilityIdentifier = row.id
@@ -72,26 +76,48 @@ final class ChatImageCell: UICollectionViewCell {
       photo.image = nil; spinner.stopAnimating(); failure.isHidden = false
       return
     }
-    let components = [workspace, image.storageSessionId ?? session, image.id].map(SessionAttachments.segment)
-    let url = URL(string: "https://api.lody.ai/api/workspaces/\(components[0])/session-images/\(components[1])/\(components[2])/thumbnail?width=768&fit=scale-down&quality=85")!
-    if requestURL == url && (task != nil || photo.image != nil) { return }
+    let storage = image.storageSessionId ?? session
+    let thumbnail = SessionAttachments.imageThumbnailURL(
+      workspace: workspace, session: storage, imageId: image.id, width: 768
+    )
+    let original = SessionAttachments.imageDownloadURL(
+      workspace: workspace, session: storage, imageId: image.id
+    )
+    if requestURL == thumbnail && (task != nil || photo.image != nil) { return }
+    if requestURL == original && (task != nil || photo.image != nil) { return }
     let requestID = UUID(); self.requestID = requestID
-    task?.cancel(); requestURL = url
+    task?.cancel(); requestURL = thumbnail
     if !hadLocalImage { photo.image = nil }
     failure.isHidden = true
     guard let token = try? AuthKeychain.read() else { failure.isHidden = false; return }
+    fetch(thumbnail, fallback: original, requestID: requestID, token: token)
+  }
+
+  private func fetch(_ url: URL, fallback: URL?, requestID: UUID, token: String) {
     var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    request.setValue("image/*,*/*", forHTTPHeaderField: "Accept")
     spinner.startAnimating()
     task = URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
       let valid = (response as? HTTPURLResponse).map { (200..<300).contains($0.statusCode) } ?? false
       let decoded = valid ? data.flatMap(UIImage.init(data:)) : nil
       DispatchQueue.main.async {
         guard let self, self.requestID == requestID else { return }
+        if let decoded {
+          self.task = nil
+          self.spinner.stopAnimating()
+          self.photo.image = decoded
+          self.failure.isHidden = true
+          return
+        }
+        if let fallback {
+          self.requestURL = fallback
+          self.fetch(fallback, fallback: nil, requestID: requestID, token: token)
+          return
+        }
         self.task = nil
         self.spinner.stopAnimating()
-        self.photo.image = decoded
-        self.failure.isHidden = decoded != nil
+        self.failure.isHidden = self.photo.image != nil
       }
     }
     task?.resume()
@@ -109,16 +135,16 @@ final class ChatImageCell: UICollectionViewCell {
     #else
     let fixture = false
     #endif
-    guard fixture || requestURL != nil else { return }
+    guard fixture || requestURL != nil || photo.image != nil else { return }
     let previewURL: URL?
-    if let requestURL, !requestURL.isFileURL, !fixture {
-      var components = URLComponents(url: requestURL, resolvingAgainstBaseURL: false)!
-      components.queryItems = [
-        URLQueryItem(name: "width", value: "2048"),
-        URLQueryItem(name: "fit", value: "scale-down"),
-        URLQueryItem(name: "quality", value: "95"),
-      ]
-      previewURL = components.url
+    if fixture || requestURL?.isFileURL == true {
+      previewURL = nil
+    } else if !workspace.isEmpty, !session.isEmpty, !image.id.isEmpty {
+      previewURL = SessionAttachments.imageDownloadURL(
+        workspace: workspace,
+        session: image.storageSessionId ?? session,
+        imageId: image.id
+      )
     } else {
       previewURL = nil
     }
@@ -233,6 +259,7 @@ final class ChatImagePreview: UIViewController, UIScrollViewDelegate {
     guard let token = try? AuthKeychain.read() else { retry.isHidden = false; return }
     var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    request.setValue("image/*,*/*", forHTTPHeaderField: "Accept")
     spinner.startAnimating()
     task = URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
       let valid = (response as? HTTPURLResponse).map { (200..<300).contains($0.statusCode) } ?? false
@@ -240,12 +267,13 @@ final class ChatImagePreview: UIViewController, UIScrollViewDelegate {
       DispatchQueue.main.async {
         guard let self else { return }
         self.spinner.stopAnimating()
-        self.retry.isHidden = image != nil
         if let image {
-          let hadImage = self.photo.image != nil
           self.photo.image = image
-          if !hadImage { self.fitImage() }
+          self.fitImage()
+          self.retry.isHidden = true
+          return
         }
+        self.retry.isHidden = self.photo.image != nil
       }
     }
     task?.resume()

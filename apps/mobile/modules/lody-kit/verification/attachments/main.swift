@@ -107,6 +107,13 @@ final class UploadProtocol: URLProtocol {
 
 @main struct Check {
   static func main() async throws {
+    let original = SessionAttachments.imageDownloadURL(workspace: "ws", session: "source", imageId: "img1")
+    assert(original.absoluteString == "https://api.lody.ai/api/workspaces/ws/session-images/source/img1")
+    assert(!original.path.contains("thumbnail"), "Full image download must not use the thumbnail route")
+    let thumb = SessionAttachments.imageThumbnailURL(workspace: "ws", session: "source", imageId: "img1", width: 768)
+    assert(thumb.path.hasSuffix("/session-images/source/img1/thumbnail"))
+    assert(thumb.query == "width=768&fit=scale-down&quality=85")
+    assert(thumb != original, "Lightbox preview must not reuse the thumbnail URL")
     URLProtocol.registerClass(UploadProtocol.self)
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

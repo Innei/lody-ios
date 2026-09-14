@@ -13,6 +13,25 @@ enum SessionAttachments {
   static func segment(_ value: String) -> String {
     value.addingPercentEncoding(withAllowedCharacters: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_")))!
   }
+
+  static func imageDownloadURL(workspace: String, session: String, imageId: String) -> URL {
+    let path = [workspace, session, imageId].map(segment)
+    return URL(string: "https://api.lody.ai/api/workspaces/\(path[0])/session-images/\(path[1])/\(path[2])")!
+  }
+
+  static func imageThumbnailURL(workspace: String, session: String, imageId: String, width: Int) -> URL {
+    var components = URLComponents(
+      url: imageDownloadURL(workspace: workspace, session: session, imageId: imageId)
+        .appendingPathComponent("thumbnail"),
+      resolvingAgainstBaseURL: false
+    )!
+    components.queryItems = [
+      URLQueryItem(name: "width", value: String(width)),
+      URLQueryItem(name: "fit", value: "scale-down"),
+      URLQueryItem(name: "quality", value: "85"),
+    ]
+    return components.url!
+  }
   static func upload(_ attachments: [[String: Any]], workspace: String, session: String,
     onProgress: @escaping ProgressHandler = { _, _, _ in }) async throws -> [[String: Any]] {
     guard attachments.count <= 16,
