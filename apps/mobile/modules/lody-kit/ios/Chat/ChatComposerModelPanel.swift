@@ -27,6 +27,20 @@ extension ChatComposerOptions {
     default: return title.replacingOccurrences(of: "_", with: " ").capitalized
     }
   }
+
+  var orderedEfforts: [ChatComposerOption] {
+    let rank = [
+      "none": 0, "minimal": 1, "low": 2, "medium": 3, "high": 4, "xhigh": 5, "max": 6, "ultra": 7,
+    ]
+    return efforts.enumerated().sorted { lhs, rhs in
+      let left = rank[lhs.element.id.lowercased()]
+      let right = rank[rhs.element.id.lowercased()]
+      if let left, let right { return left < right }
+      if left != nil { return true }
+      if right != nil { return false }
+      return lhs.offset < rhs.offset
+    }.map(\.element)
+  }
 }
 
 // Render only while Fast or Ultra is visible and motion is allowed.
@@ -94,7 +108,7 @@ private final class ChatEffortParticles: MTKView, MTKViewDelegate {
 
 }
 
-private final class ChatEffortSlider: UIControl {
+final class ChatEffortSlider: UIControl {
   var steps = 1 { didSet { setNeedsDisplay() } }
   var value: Float = 0 { didSet { setNeedsDisplay(); setNeedsLayout() } }
   var isFast = false { didSet { particles.fast = isFast; updateEnergy() } }
@@ -272,12 +286,13 @@ final class ChatComposerModelPanel: UIViewController, UIPopoverPresentationContr
     ] + options.models.map { option in
       UIAction(title: option.title, state: option.id == options.modelId ? .on : .off) { [weak self] _ in self?.onModel?(option.id) }
     })
-    slider.isHidden = options.efforts.isEmpty
-    slider.steps = max(1, options.efforts.count)
-    slider.value = Float(options.efforts.firstIndex { $0.id == options.effort }.map { $0 + 1 } ?? 0) / Float(max(1, options.efforts.count))
+    let efforts = options.orderedEfforts
+    slider.isHidden = efforts.isEmpty
+    slider.steps = max(1, efforts.count)
+    slider.value = Float(efforts.firstIndex { $0.id == options.effort }.map { $0 + 1 } ?? 0) / Float(max(1, efforts.count))
     slider.accessibilityValue = options.effortTitle
     slider.isFast = options.fast == true
-    slider.isUltra = options.effort.lowercased() == "ultra" && !options.efforts.isEmpty
+    slider.isUltra = options.effort.lowercased() == "ultra" && !efforts.isEmpty
   }
 
   @objc private func toggleFast() {
@@ -287,9 +302,10 @@ final class ChatComposerModelPanel: UIViewController, UIPopoverPresentationContr
   }
 
   @objc private func changeEffort() {
-    let index = min(options.efforts.count, max(0, Int((slider.value * Float(options.efforts.count)).rounded())))
-    slider.value = Float(index) / Float(max(1, options.efforts.count))
-    let effort = index == 0 ? "" : options.efforts[index - 1].id
+    let efforts = options.orderedEfforts
+    let index = min(efforts.count, max(0, Int((slider.value * Float(efforts.count)).rounded())))
+    slider.value = Float(index) / Float(max(1, efforts.count))
+    let effort = index == 0 ? "" : efforts[index - 1].id
     guard effort != options.effort else { return }
     UISelectionFeedbackGenerator().selectionChanged()
     onEffort?(effort)
