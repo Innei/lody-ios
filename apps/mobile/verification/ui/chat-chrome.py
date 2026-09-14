@@ -1,4 +1,4 @@
-"""Connection chrome shares the scroll-to-bottom baseline and 22-point pairing."""
+"""Independent connection status and trailing scroll action share a 44-point baseline."""
 import sys
 from driver import UI
 import catalog
@@ -12,10 +12,6 @@ def center_x(frame):
 
 def mid_y(frame):
     return frame['y'] + frame['height'] / 2
-
-
-def group_center(left, right):
-    return (left['x'] + right['x'] + right['width']) / 2
 
 
 def chrome_center():
@@ -35,12 +31,12 @@ ui.capture('connecting')
 ui.axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '700', '--duration', '1', '--post-delay', '1')
 status = ui.element('chat-connection-status')
 scroll = ui.element('chat-scroll-to-bottom')
-assert abs(scroll['frame']['x'] - status['frame']['x'] - status['frame']['width'] - 22) <= 1, \
-    'Paired glasses do not keep a half-button gap'
+assert abs(center_x(status['frame']) - chrome_center()) <= 1, 'Showing scroll moved the connection status'
+transcript = ui.element('chat-transcript')['frame']
+assert abs(scroll['frame']['x'] + scroll['frame']['width'] - transcript['x'] - transcript['width'] + 16) <= 1, \
+    'Scroll action does not align with the input trailing edge'
 assert abs(mid_y(status['frame']) - mid_y(scroll['frame'])) <= 1, 'Paired glasses do not share a baseline'
-assert abs(group_center(status['frame'], scroll['frame']) - chrome_center()) <= 1, \
-    'Paired glasses are not centered as a group'
-assert abs(scroll['frame']['width'] - 22) <= 1 and abs(scroll['frame']['height'] - 22) <= 1
+assert abs(scroll['frame']['width'] - 44) <= 1 and abs(scroll['frame']['height'] - 44) <= 1
 ui.capture('connecting-and-scroll')
 
 ui.axe('tap', '--label', 'Fixtures')
@@ -59,4 +55,22 @@ ui.capture('paused')
 ui.axe('tap', '--label', 'Fixtures')
 ui.axe('tap', '--label', 'Clear Chrome', '--post-delay', '.5')
 assert 'chat-connection-status' not in ui.axe('describe-ui'), 'Clearing chrome must remove the status glass'
-print('PASS: connecting/paused chrome, shared baseline, 22-point pairing, and collapse')
+ui.axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '700', '--duration', '1', '--post-delay', '1')
+scroll_only = ui.element('chat-scroll-to-bottom')['frame']
+assert abs(scroll_only['x'] - scroll['frame']['x']) <= 1, 'Hiding status moved the scroll action'
+ui.capture('scroll-only')
+ui.axe('tap', '--label', 'Fixtures')
+ui.axe('tap', '--label', 'Connecting Chrome', '--post-delay', '.5')
+ui.axe('tap', '--id', 'session-input', '--post-delay', '1')
+ui.wait(lambda items: any((i.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar') for i in items),
+        'Software keyboard did not appear')
+status_keyboard = ui.element('chat-connection-status')['frame']
+scroll_keyboard = ui.element('chat-scroll-to-bottom')['frame']
+input_frame = ui.element('session-input')['frame']
+assert status_keyboard['y'] < status['frame']['y'] - 100, 'Chrome did not follow the raised composer'
+assert abs(mid_y(status_keyboard) - mid_y(scroll_keyboard)) <= 1, 'Keyboard separated the chrome baseline'
+assert abs(scroll_keyboard['x'] + scroll_keyboard['width'] - input_frame['x'] - input_frame['width']) <= 1, \
+    'Keyboard broke trailing alignment with the input'
+assert scroll_keyboard['y'] + scroll_keyboard['height'] < input_frame['y'], 'Scroll action overlaps the input'
+ui.capture('keyboard')
+print('PASS: equal-height independent glasses, fixed trailing action, shared baseline, and collapse')

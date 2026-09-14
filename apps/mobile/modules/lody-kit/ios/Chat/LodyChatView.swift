@@ -374,7 +374,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     let composerWidth = composer.widthAnchor.constraint(equalTo: widthAnchor)
     composerWidth.priority = .defaultHigh
     NSLayoutConstraint.activate([
-      chrome.centerXAnchor.constraint(equalTo: composer.centerXAnchor),
+      chrome.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
+      chrome.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16),
       chrome.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
       chrome.heightAnchor.constraint(equalToConstant: ChatInputChrome.controlSize),
       collection.topAnchor.constraint(equalTo: topAnchor),

@@ -16,7 +16,8 @@ NSLayoutConstraint.activate([
   composer.trailingAnchor.constraint(equalTo: host.trailingAnchor),
   composer.bottomAnchor.constraint(equalTo: host.bottomAnchor),
   composer.heightAnchor.constraint(equalToConstant: 64),
-  chrome.centerXAnchor.constraint(equalTo: composer.centerXAnchor),
+  chrome.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
+  chrome.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16),
   chrome.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
   chrome.heightAnchor.constraint(equalToConstant: ChatInputChrome.controlSize),
 ])
@@ -73,23 +74,24 @@ show(.connecting, scroll: true)
 let statusBoth = frame(statusControl())
 let scrollBoth = frame(scrollControl())
 precondition(shown(scrollControl()))
-precondition(abs(scrollBoth.width - ChatInputChrome.scrollSize) < 0.5)
-precondition(abs(scrollBoth.height - ChatInputChrome.scrollSize) < 0.5)
-precondition(abs(scrollBoth.minX - statusBoth.maxX - ChatInputChrome.spacing) < 1,
-  "Paired glasses keep a half-button gap")
+precondition(abs(scrollBoth.width - 44) < 0.5)
+precondition(abs(scrollBoth.height - statusBoth.height) < 0.5)
+precondition(abs(scrollBoth.maxX - (composer.frame.maxX - 16)) < 0.5,
+  "Scroll action aligns with the input surface trailing edge")
 precondition(abs(statusBoth.midY - scrollBoth.midY) < 0.5, "Paired glasses share one baseline")
-precondition(abs((statusBoth.minX + scrollBoth.maxX) / 2 - 195) < 1,
-  "Paired glasses stay centered as a group")
-let outside = chrome.convert(CGPoint(x: scrollBoth.maxX + 8, y: scrollBoth.midY), from: host)
+precondition(abs(statusBoth.midX - 195) < 1,
+  "Showing scroll must not move the connection status")
+let inside = chrome.convert(CGPoint(x: scrollBoth.maxX - 2, y: scrollBoth.midY), from: host)
 precondition(
-  chrome.hitTest(outside, with: nil) === scrollControl(),
-  "A 22-point scroll glass must still receive a 44-point hit"
+  chrome.hitTest(inside, with: nil) === scrollControl(),
+  "The scroll action receives touches across its 44-point bounds"
 )
-
-let container = descendants(chrome).compactMap { $0 as? UIVisualEffectView }.first { $0.effect is UIGlassContainerEffect }!
-precondition((container.effect as! UIGlassContainerEffect).spacing == ChatInputChrome.spacing)
-let glasses = descendants(container).compactMap { $0 as? UIVisualEffectView }.filter { $0.effect is UIGlassEffect }
-precondition(glasses.count == 2, "Status and scroll must be separate glass surfaces in one container")
+let gap = chrome.convert(CGPoint(x: (statusBoth.maxX + scrollBoth.minX) / 2, y: scrollBoth.midY), from: host)
+precondition(chrome.hitTest(gap, with: nil) == nil, "Empty chrome space passes touches to the transcript")
+var scrolled = false
+chrome.onScrollToBottom = { scrolled = true }
+scrollControl().sendActions(for: .touchUpInside)
+precondition(scrolled, "Scroll action reaches the transcript owner")
 
 show(.paused, scroll: true)
 let paused = statusControl()
@@ -108,5 +110,10 @@ precondition(chrome.isHidden, "Chrome must collapse when both states are gone")
 show(.none, scroll: true)
 precondition(!chrome.isHidden)
 precondition(!shown(statusControl()))
-precondition(abs(frame(scrollControl()).midX - 195) < 1, "Scroll alone occupies the original center")
-print("Chat chrome: exclusive copy, centered single, paired 22-point gap, and collapse passed")
+precondition(frame(scrollControl()) == scrollBoth, "Hiding status must not move the scroll action")
+host.frame.size = CGSize(width: 760, height: 520)
+host.layoutIfNeeded()
+precondition(abs(frame(scrollControl()).maxX - (composer.frame.maxX - 16)) < 0.5)
+precondition(abs(frame(scrollControl()).maxY + 8 - composer.frame.minY) < 0.5,
+  "Resizing the host preserves the composer baseline")
+print("Chat chrome: equal height, fixed trailing action, independent status, touch passthrough and resize passed")
