@@ -103,25 +103,30 @@ final class ChatImageCell: UICollectionViewCell {
   }
 
   func presentPreview(from controller: UIViewController) {
+    guard let image, controller.presentedViewController == nil else { return }
     #if DEBUG
-    if ProcessInfo.processInfo.arguments.contains("--ui-verify"), let image, image.id == "ui-verify-image",
-       controller.presentedViewController == nil {
-      let preview = ChatImagePreview(image: photo.image, name: image.fileName, url: nil)
-      preview.preferredTransition = .zoom { [weak self] _ in self?.photo }
-      controller.present(preview, animated: true)
-      return
-    }
+    let fixture = ProcessInfo.processInfo.arguments.contains("--ui-verify") && image.id == "ui-verify-image"
+    #else
+    let fixture = false
     #endif
-    guard let image, let requestURL, controller.presentedViewController == nil else { return }
-    if requestURL.isFileURL {
-      controller.present(ChatImagePreview(image: photo.image, name: image.fileName, url: nil), animated: true)
-      return
+    guard fixture || requestURL != nil else { return }
+    let previewURL: URL?
+    if let requestURL, !requestURL.isFileURL, !fixture {
+      var components = URLComponents(url: requestURL, resolvingAgainstBaseURL: false)!
+      components.queryItems = [
+        URLQueryItem(name: "width", value: "2048"),
+        URLQueryItem(name: "fit", value: "scale-down"),
+        URLQueryItem(name: "quality", value: "95"),
+      ]
+      previewURL = components.url
+    } else {
+      previewURL = nil
     }
-    var components = URLComponents(url: requestURL, resolvingAgainstBaseURL: false)!
-    components.queryItems = [URLQueryItem(name: "width", value: "2048"), URLQueryItem(name: "fit", value: "scale-down"), URLQueryItem(name: "quality", value: "95")]
-    let preview = ChatImagePreview(image: photo.image, name: image.fileName, url: components.url!)
+    let preview = ChatImagePreview(image: photo.image, name: image.fileName, url: previewURL)
+    let presentedURL = requestURL
     preview.preferredTransition = .zoom { [weak self] _ in
-      guard let self, self.requestURL == requestURL, self.window != nil else { return nil }
+      guard let self, self.window != nil else { return nil }
+      if let presentedURL, self.requestURL != presentedURL { return nil }
       return self.photo
     }
     controller.present(preview, animated: true)
@@ -153,7 +158,6 @@ final class ChatImagePreview: UIViewController, UIScrollViewDelegate {
     photo.image = image
     photo.accessibilityLabel = name
     modalPresentationStyle = .fullScreen
-    modalTransitionStyle = .crossDissolve
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
   deinit { task?.cancel() }

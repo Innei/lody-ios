@@ -78,9 +78,17 @@ assert ui.element(message_id)['AXValue'] == catalog.text('native.chat.message.ex
 ui.capture('attachments-expanded')
 image = next(item for item in items if '02-landscape.png' in (item.get('AXLabel') or ''))
 ui.axe('tap', '--id', image['AXUniqueId'])
-ui.wait(lambda items: any(item.get('AXLabel') == catalog.text('native.chat.image.closePreview') for item in items), 'Image tap did not open preview')
+close_preview = catalog.text('native.chat.image.closePreview')
+ui.wait(lambda items: any(item.get('AXLabel') == close_preview for item in items), 'Image tap did not open preview')
 ui.capture('image-preview')
-ui.axe('tap', '--label', catalog.text('native.chat.image.closePreview'), '--post-delay', '.5')
+screen = next(item for item in ui.state() if item.get('frame') and item['frame'].get('height', 0) > 500)
+width, height = screen['frame']['width'], screen['frame']['height']
+ui.axe('drag', '--start-x', str(width / 2), '--start-y', str(height * 0.45),
+       '--end-x', str(width / 2), '--end-y', str(height * 0.85),
+       '--duration', '0.6', '--post-delay', '2')
+assert not any(item.get('AXLabel') == close_preview for item in ui.state()), (
+    'Local attachment preview must dismiss with the zoom gesture'
+)
 ui.axe('tap', '--id', turn + ':attachments-toggle', '--post-delay', '.5')
 ui.capture('attachments-collapsed')
 
