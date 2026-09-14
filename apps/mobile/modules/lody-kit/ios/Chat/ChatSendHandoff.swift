@@ -3,6 +3,7 @@ import UIKit
 /// The flying copy and collection content keep independent layer lifecycles.
 final class ChatMessageContent: UIView {
   let label = ChatTextView()
+  let numericText = ChatNumericTextHost()
   static let maximumCollapsedHeight: CGFloat = 140
   let bubble = UIView()
   let disclosure = UIButton(type: .system)
@@ -24,6 +25,8 @@ final class ChatMessageContent: UIView {
     bubble.layer.cornerCurve = .continuous
     addSubview(bubble)
     addSubview(label)
+    numericText.isHidden = true
+    addSubview(numericText)
     disclosure.titleLabel?.font = .preferredFont(forTextStyle: .caption1)
     disclosure.setTitleColor(.secondaryLabel, for: .normal)
     disclosure.contentHorizontalAlignment = .right
@@ -45,6 +48,8 @@ final class ChatMessageContent: UIView {
       disclosure.frame = CGRect(x: 13, y: bounds.height - 44, width: bounds.width - 26, height: 44)
       label.frame = bounds.insetBy(dx: 13, dy: 10)
       if expanded && expandable { label.frame.size.height -= 44 }
+      numericText.isHidden = true
+      label.isHidden = false
       label.layer.mask = folded ? fade : nil
       label.linkHitHeight = folded ? max(0, label.bounds.height - 58) : label.bounds.height
       fade.frame = label.bounds
@@ -163,6 +168,17 @@ final class ChatSendHandoff {
   static func deliverAttachment(id: String, to target: UIView, scrollDistance: CGFloat) {
     guard let window = target.window, let handoff = active[id], !handoff.delivering,
           let source = handoff.sourceSnapshot else { return }
+    // A partially clipped cell is not a landing destination. It may still be
+    // moving into the viewport as UIKit resolves the list's automatic insets.
+    var ancestor = target.superview
+    while let view = ancestor {
+      if let list = view as? UICollectionView {
+        let landing = target.convert(target.bounds, to: list).offsetBy(dx: 0, dy: -scrollDistance)
+        guard list.bounds.contains(landing) else { return }
+        break
+      }
+      ancestor = view.superview
+    }
     guard let start = handoff.takeSource(in: window) else { reveal(id: id, target: target, attachment: true); return }
     handoff.delivering = true
     handoff.target = target
@@ -413,6 +429,17 @@ private final class ChatThrowProbe: NSObject {
     if let target, target.window === window {
       sample["targetFrame"] = rect(frame(target, presentation: true))
       sample["targetHidden"] = target.isHidden || target.layer.mask != nil
+      var ancestor = target.superview
+      while let view = ancestor {
+        if let list = view as? UICollectionView {
+          sample["listFrame"] = rect(frame(list, presentation: false))
+          sample["contentOffsetY"] = Double(list.contentOffset.y)
+          sample["contentHeight"] = Double(list.contentSize.height)
+          sample["bottomInset"] = Double(list.adjustedContentInset.bottom)
+          break
+        }
+        ancestor = view.superview
+      }
     }
     samples.append(sample)
   }

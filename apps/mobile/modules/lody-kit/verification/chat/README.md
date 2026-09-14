@@ -58,6 +58,7 @@ xcrun --sdk iphonesimulator swiftc -swift-version 6 -target arm64-apple-ios18.0-
   apps/mobile/modules/lody-kit/ios/Chat/ChatThrowCurve.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatAttachments.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatSendHandoff.swift \
+  apps/mobile/modules/lody-kit/ios/Chat/ChatNumericText.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatCell.swift \
   apps/mobile/modules/lody-kit/verification/chat-render/main.swift \
   -o /tmp/lody-chat-render-test

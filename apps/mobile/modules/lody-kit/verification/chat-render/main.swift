@@ -361,3 +361,67 @@ func modelLabel(_ root: UIView) -> UILabel? {
 }
 precondition(modelLabel(metaCell)?.accessibilityLabel == "GPT-5.6 Sol · High", "VoiceOver reads the model line without the mark")
 print("Chat render: meta bar provider marks sit on the model line")
+
+func processAttributed(_ string: String, row: ChatRow, traits: UITraitCollection) -> NSAttributedString {
+  let font = ChatCell.messageFont(for: row, compatibleWith: traits)
+  let lineHeight = 18 * UIFont.dynamicScale(compatibleWith: traits)
+  let paragraph = NSMutableParagraphStyle()
+  paragraph.minimumLineHeight = lineHeight
+  paragraph.maximumLineHeight = lineHeight
+  return NSAttributedString(string: string, attributes: [
+    .font: font,
+    .foregroundColor: UIColor.secondaryLabel,
+    .paragraphStyle: paragraph,
+    .baselineOffset: (lineHeight - font.lineHeight) / 2,
+  ])
+}
+
+let countRow = ChatRow(
+  id: "reply:process",
+  entryID: "reply",
+  kind: "summary",
+  text: "思考过程 · 调用了 2 个工具 · 编辑了 2 个文件",
+  symbol: "circle.fill",
+  actionable: true,
+  running: true
+)
+let countText = processAttributed(countRow.text, row: countRow, traits: traits)
+let countWidth = ChatCell.textWidth(countRow, width: 320)
+let measureKit = ChatTextView()
+measureKit.setText(countText)
+let textKitHeight = measureKit.sizeThatFits(CGSize(width: countWidth, height: .greatestFiniteMagnitude)).height
+let numericHost = ChatNumericTextHost(frame: CGRect(x: 0, y: 0, width: countWidth, height: 8))
+window.addSubview(numericHost)
+numericHost.apply(text: countText, animated: false, shines: false)
+let hostHeight = numericHost.sizeThatFits(CGSize(width: countWidth, height: .greatestFiniteMagnitude)).height
+precondition(
+  hostHeight <= textKitHeight + 0.5,
+  "SwiftUI process text must not measure taller than TextKit, host=\(hostHeight) text=\(textKitHeight)"
+)
+
+let countCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
+window.addSubview(countCell)
+countCell.configure(countRow, text: countText)
+countCell.layoutIfNeeded()
+precondition(countCell.bounds.height == 44, "A one-line process row stays on the 44-point floor")
+precondition(!countCell.numericText.isHidden, "Process rows render through the numeric-text host")
+precondition(countCell.label.isHidden, "TextKit process text must not draw under the SwiftUI host")
+precondition(
+  abs(countCell.numericText.frame.height - countCell.label.frame.height) < 0.5,
+  "The numeric-text host must occupy the TextKit label frame"
+)
+precondition(
+  countCell.numericText.frame.maxY <= countCell.bounds.maxY + 0.5,
+  "The numeric-text host must not extend the process cell"
+)
+
+var nextCount = countRow
+nextCount.text = "思考过程 · 调用了 3 个工具 · 编辑了 3 个文件"
+countCell.configure(nextCount, text: processAttributed(nextCount.text, row: nextCount, traits: traits))
+countCell.layoutIfNeeded()
+precondition(countCell.bounds.height == 44, "Incrementing tabular counts must not grow the process cell")
+precondition(
+  abs(countCell.numericText.frame.height - countCell.label.frame.height) < 0.5,
+  "Count updates must keep the host inside the TextKit frame"
+)
+print("Chat render: process numeric-text host does not raise the row")

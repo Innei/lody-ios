@@ -97,6 +97,7 @@ final class ChatMetaCell: UICollectionViewCell {
 final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   let messageContent = ChatMessageContent(frame: .zero)
   var label: ChatTextView { messageContent.label }
+  var numericText: ChatNumericTextHost { messageContent.numericText }
   var bubble: UIView { messageContent.bubble }
   let icon = UIImageView()
   let spinner = UIActivityIndicatorView(style: .medium)
@@ -127,7 +128,8 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
   func configure(_ row: ChatRow, text: NSAttributedString) {
-    label.setText(text, animate: row.streaming, reset: self.row?.id != row.id)
+    let sameRow = self.row?.id == row.id
+    label.setText(text, animate: row.streaming, reset: !sameRow)
     self.row = row
     if row.kind == "user" { ChatSendHandoff.hold(id: row.entryID, target: messageContent) }
     else { messageContent.isHidden = false }
@@ -143,7 +145,16 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     accessibilityCustomActions = label.linkActions
     accessibilityTraits = row.actionable ? .button : .staticText
     accessibilityHint = hint(for: row)
-    label.setShine(row.shines)
+    let process = row.kind == "summary"
+    numericText.isHidden = !process
+    label.isHidden = process
+    if process {
+      numericText.apply(text: text, animated: sameRow, shines: row.shines)
+      label.setShine(false)
+    } else {
+      numericText.reset()
+      label.setShine(row.shines)
+    }
     setNeedsLayout()
   }
   override func accessibilityActivate() -> Bool {
@@ -156,6 +167,9 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   override func prepareForReuse() {
     super.prepareForReuse()
     label.setShine(false)
+    label.isHidden = false
+    numericText.reset()
+    numericText.isHidden = true
     label.onLink = nil
     accessibilityCustomActions = nil
   }
@@ -282,6 +296,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
         y = max(ChatRowPadding.content, (bounds.height - height) / 2)
       }
       label.frame = CGRect(x: inset, y: y, width: textWidth, height: height)
+      numericText.frame = label.frame
       let markHeight = row.kind == "summary"
         ? (label.lineAdvances(width: textWidth).first ?? height)
         : height

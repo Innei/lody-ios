@@ -71,6 +71,45 @@ function editStatus(mode: 'normal' | 'attention', length: number) {
   return 'completed';
 }
 
+function processCountEntries(count: number, startedAt: number) {
+  return [
+    {
+      id: 'counts-preview',
+      role: 'assistant',
+      status: 'running',
+      finished: false,
+      startedAt,
+      modelInfo: {
+        modelId: 'gpt-5.6-sol',
+        name: 'GPT-5.6 Sol',
+        thoughtLevel: 'High',
+      },
+      items: [
+        {
+          itemId: 'thought',
+          type: 'thought',
+          text: '正在更新计数',
+        },
+        ...Array.from({ length: count }, (_, index) => ({
+          itemId: `tool-${index}`,
+          type: 'tool_call',
+          kind: 'mcp',
+          title: `工具 ${index + 1}`,
+          status: 'completed',
+        })),
+        ...Array.from({ length: count }, (_, index) => ({
+          itemId: `edit-${index}`,
+          type: 'tool_call',
+          kind: 'edit',
+          path: `File${index}.swift`,
+          title: `编辑 File${index}.swift`,
+          status: 'completed',
+        })),
+      ],
+    },
+  ];
+}
+
 const permissionTarget: PermissionTarget = {
   entryId: 'preview',
   itemId: 'edit',
@@ -212,6 +251,10 @@ function View() {
     finished: boolean;
     permissionWaitMs?: number;
   } | null>(null);
+  const [processCounts, setProcessCounts] = useState<{
+    count: number;
+    startedAt: number;
+  } | null>(null);
   const [length, setLength] = useState(totalLength);
   const [navigationTitle, setNavigationTitle] = useState('原生聊天预览');
   const [sessionActionsReady, setSessionActionsReady] = useState(false);
@@ -226,6 +269,16 @@ function View() {
     '',
   );
   const [clearDraftToken, setClearDraftToken] = useState(0);
+  useEffect(() => {
+    if (processCounts == null || processCounts.count >= 9) return;
+    const id = setInterval(() => {
+      setProcessCounts((current) => {
+        if (current == null || current.count >= 9) return current;
+        return { ...current, count: current.count + 1 };
+      });
+    }, 900);
+    return () => clearInterval(id);
+  }, [processCounts]);
   const [sent, setSent] = useState<{
     text: string;
     id: number;
@@ -368,7 +421,11 @@ function View() {
     },
   ]);
   let displayedEntriesJSON = entriesJSON;
-  if (durationFixture) {
+  if (processCounts) {
+    displayedEntriesJSON = JSON.stringify(
+      processCountEntries(processCounts.count, processCounts.startedAt),
+    );
+  } else if (durationFixture) {
     displayedEntriesJSON = JSON.stringify([
       {
         id: 'duration-preview',
@@ -494,6 +551,7 @@ function View() {
               icon="doc.text"
               onPress={() => {
                 setDurationFixture(null);
+                setProcessCounts(null);
                 setShowImage(false);
                 setShowChanges(true);
               }}
@@ -503,6 +561,7 @@ function View() {
               icon="photo"
               onPress={() => {
                 setDurationFixture(null);
+                setProcessCounts(null);
                 setShowChanges(false);
                 setShowImage(true);
                 setAssistantImages(false);
@@ -513,6 +572,7 @@ function View() {
               icon="photo.on.rectangle"
               onPress={() => {
                 setDurationFixture(null);
+                setProcessCounts(null);
                 setShowChanges(false);
                 setShowImage(true);
                 setAssistantImages(true);
@@ -524,9 +584,23 @@ function View() {
               onPress={() => {
                 setShowImage(false);
                 setShowChanges(false);
+                setProcessCounts(null);
                 setDurationFixture({
                   startedAt: Date.now(),
                   finished: false,
+                });
+              }}
+            />
+            <Stack.Toolbar.MenuAction
+              children="Process Counts Fixture"
+              icon="number"
+              onPress={() => {
+                setShowImage(false);
+                setShowChanges(false);
+                setDurationFixture(null);
+                setProcessCounts({
+                  count: 1,
+                  startedAt: Date.now(),
                 });
               }}
             />
@@ -603,6 +677,7 @@ function View() {
           icon="forward.end"
           onPress={() => {
             setDurationFixture(null);
+            setProcessCounts(null);
             setShowImage(false);
             setShowChanges(false);
             setStep(240);
@@ -615,6 +690,7 @@ function View() {
           icon="arrow.trianglehead.clockwise.rotate.90"
           onPress={() => {
             setDurationFixture(null);
+            setProcessCounts(null);
             setShowImage(false);
             setShowChanges(false);
             setStep(48);
