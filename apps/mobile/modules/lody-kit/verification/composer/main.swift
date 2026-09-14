@@ -532,10 +532,18 @@ precondition(
 )
 glassComposer.setMentionItems("[]")
 let restingAttachGlyphSize = glassAttachGlyph!.bounds.size
+precondition(
+  abs(restingAttachGlyphSize.width - (glassAttachGlyph!.image?.size.width ?? 0)) < 0.5,
+  "Resting Add plus must keep its symbol size"
+)
 precondition(glassInput.becomeFirstResponder(), "The glass composer input must accept focus")
 precondition(glassAttachSurface.effect is UIGlassEffect
   && !glassAttachSurface.isDescendant(of: glassInputSurface),
   "The opening transition must retain both glass surfaces until their native merge completes")
+precondition(
+  glassAttachGlyph!.alpha == 1 && glassAttach.isDescendant(of: glassAttachSurface),
+  "Opening must keep the Add plus visible on its attach glass"
+)
 RunLoop.current.run(until: Date().addingTimeInterval(0.35))
 glassComposer.layoutIfNeeded()
 

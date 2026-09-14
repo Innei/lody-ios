@@ -4,9 +4,12 @@ final class ChatComposerLiquidGlassSurfaceLayout: ChatComposerSurfaceLayout {
   private let inputSurface: UIVisualEffectView
   private let attachSurface: UIVisualEffectView
   private let attachButton: UIButton
+  private let glyphHost: UIView
   private let glyph = UIImageView()
   private let restingImage: UIImage?
   private let focusedImage = UIImage(systemName: "plus", withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .regular))
+  private let glyphWidth: NSLayoutConstraint
+  private let glyphHeight: NSLayoutConstraint
   private let separateAttachLeading: NSLayoutConstraint
   private let focusedAttachLeading: NSLayoutConstraint
   private let separateInputLeading: NSLayoutConstraint
@@ -27,16 +30,33 @@ final class ChatComposerLiquidGlassSurfaceLayout: ChatComposerSurfaceLayout {
     restingImage = attachButton.image(for: .normal)
     attachButton.setImage(nil, for: .normal)
     attachButton.configuration?.image = nil
+    let restingSize = restingImage?.size ?? .zero
+    let glyphHost = UIView(frame: CGRect(origin: .zero, size: restingSize))
+    self.glyphHost = glyphHost
+    glyphHost.translatesAutoresizingMaskIntoConstraints = false
+    glyphHost.isUserInteractionEnabled = false
+    glyphHost.isAccessibilityElement = false
     glyph.image = restingImage
-    glyph.translatesAutoresizingMaskIntoConstraints = false
+    glyph.frame = glyphHost.bounds
+    glyph.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    glyph.contentMode = .scaleAspectFit
     glyph.tintColor = attachButton.tintColor
     glyph.isUserInteractionEnabled = false
     glyph.isAccessibilityElement = false
     glyph.accessibilityIdentifier = "session-attach-glyph"
-    attachButton.addSubview(glyph)
+    glyphHost.addSubview(glyph)
+    attachButton.addSubview(glyphHost)
+    glyphWidth = glyphHost.widthAnchor.constraint(equalToConstant: restingSize.width)
+    glyphHeight = glyphHost.heightAnchor.constraint(equalToConstant: restingSize.height)
+    glyphHost.setContentHuggingPriority(.required, for: .horizontal)
+    glyphHost.setContentHuggingPriority(.required, for: .vertical)
+    glyphHost.setContentCompressionResistancePriority(.required, for: .horizontal)
+    glyphHost.setContentCompressionResistancePriority(.required, for: .vertical)
     NSLayoutConstraint.activate([
-      glyph.centerXAnchor.constraint(equalTo: attachButton.centerXAnchor),
-      glyph.centerYAnchor.constraint(equalTo: attachButton.centerYAnchor),
+      glyphHost.centerXAnchor.constraint(equalTo: attachButton.centerXAnchor),
+      glyphHost.centerYAnchor.constraint(equalTo: attachButton.centerYAnchor),
+      glyphWidth,
+      glyphHeight,
     ])
 
     let containerEffect = UIGlassContainerEffect()
@@ -67,7 +87,9 @@ final class ChatComposerLiquidGlassSurfaceLayout: ChatComposerSurfaceLayout {
   private func placeButton() {
     NSLayoutConstraint.deactivate(buttonConstraints)
     let host = isFocused ? inputSurface.contentView : attachSurface.contentView
+    let frame = attachButton.convert(attachButton.bounds, to: host)
     host.addSubview(attachButton)
+    if !attachButton.bounds.isEmpty { attachButton.frame = frame }
     buttonConstraints = [
       attachButton.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: isFocused ? 6 : 0),
       attachButton.bottomAnchor.constraint(equalTo: host.bottomAnchor, constant: isFocused ? -2 : 0),
@@ -80,12 +102,9 @@ final class ChatComposerLiquidGlassSurfaceLayout: ChatComposerSurfaceLayout {
   func update(isFocused: Bool) {
     guard self.isFocused != isFocused else { return }
     self.isFocused = isFocused
-    // Only the glass travels. Rehost invisible content, then reveal it at rest.
-    glyph.layer.removeAllAnimations()
-    glyph.alpha = 0
-    glyph.transform = .identity
     attachSurface.isUserInteractionEnabled = !isFocused
-    placeButton()
+    // Keep the plus on attach glass until the merged frames already coincide.
+    if !isFocused { placeButton() }
     NSLayoutConstraint.deactivate([separateAttachLeading, separateInputLeading, focusedAttachLeading, focusedInputLeading])
     if isFocused {
       NSLayoutConstraint.activate([focusedAttachLeading, focusedInputLeading])
@@ -95,18 +114,15 @@ final class ChatComposerLiquidGlassSurfaceLayout: ChatComposerSurfaceLayout {
   }
 
   func completeTransition() {
-    glyph.image = isFocused ? focusedImage : restingImage
+    let image = isFocused ? focusedImage : restingImage
+    glyph.image = image
     glyph.accessibilityIdentifier = isFocused ? "session-attach-focused-glyph" : "session-attach-glyph"
-    attachButton.layoutIfNeeded()
-    guard !UIAccessibility.isReduceMotionEnabled, glyph.window != nil else {
-      glyph.alpha = 1
-      glyph.transform = .identity
-      return
-    }
-    glyph.transform = CGAffineTransform(scaleX: 0.7, y: 0.7)
-    UIView.animate(withDuration: 0.16, delay: 0, options: [.beginFromCurrentState, .curveEaseOut]) {
-      self.glyph.alpha = 1
-      self.glyph.transform = .identity
+    let size = image?.size ?? .zero
+    glyphWidth.constant = size.width
+    glyphHeight.constant = size.height
+    UIView.performWithoutAnimation {
+      if isFocused { placeButton() }
+      attachButton.layoutIfNeeded()
     }
   }
 }
