@@ -323,3 +323,41 @@ var activatedRetry = false
 retryCell.onActivate = { activatedRetry = true }
 precondition(retryCell.accessibilityActivate() && activatedRetry, "Accessible status rows must invoke their retry/reconnect action")
 print("Chat render: accessible status actions remain available with expandable messages")
+
+let metaFont = UIFont.preferredFont(forTextStyle: .footnote)
+let providerMark = UIGraphicsImageRenderer(size: CGSize(width: 24, height: 24)).image { _ in
+  UIColor.black.setFill()
+  UIRectFill(CGRect(x: 0, y: 0, width: 24, height: 24))
+}.withRenderingMode(.alwaysTemplate)
+let marked = ChatMetaCell.attributedText("GPT-5.6 Sol · High", image: providerMark, font: metaFont)
+var metaAttachment: NSTextAttachment?
+marked.enumerateAttribute(.attachment, in: NSRange(location: 0, length: marked.length)) { value, _, _ in
+  if let attachment = value as? NSTextAttachment { metaAttachment = attachment }
+}
+precondition(metaAttachment != nil, "A known provider mark sits on the model line")
+let markSize = metaFont.pointSize - 2
+precondition(abs((metaAttachment?.bounds.height ?? 0) - markSize) < 0.01, "The mark is 2 pt smaller than the meta type")
+precondition(
+  abs((metaAttachment?.bounds.minY ?? 0) - (metaFont.capHeight - markSize) / 2) < 0.01,
+  "The mark centers on the cap height so it does not sit flush with the type"
+)
+precondition(
+  marked.string.replacingOccurrences(of: "\u{FFFC}", with: "").trimmingCharacters(in: .whitespaces) == "GPT-5.6 Sol · High"
+)
+let unmarked = ChatMetaCell.attributedText("id-only", image: nil, font: metaFont)
+var unmarkedAttachment = false
+unmarked.enumerateAttribute(.attachment, in: NSRange(location: 0, length: unmarked.length)) { value, _, _ in
+  if value is NSTextAttachment { unmarkedAttachment = true }
+}
+precondition(unmarked.string == "id-only" && !unmarkedAttachment, "Unknown models stay text-only")
+var metaRow = ChatRow(id: "reply:meta", entryID: "reply", kind: "meta", text: "GPT-5.6 Sol · High")
+metaRow.imageAsset = "lody-agent-openai"
+let metaCell = ChatMetaCell(frame: CGRect(x: 0, y: 0, width: 320, height: 32))
+window.addSubview(metaCell)
+metaCell.configure(metaRow)
+func modelLabel(_ root: UIView) -> UILabel? {
+  if let label = root as? UILabel, label.accessibilityIdentifier == "reply:meta:model" { return label }
+  return root.subviews.compactMap(modelLabel).first
+}
+precondition(modelLabel(metaCell)?.accessibilityLabel == "GPT-5.6 Sol · High", "VoiceOver reads the model line without the mark")
+print("Chat render: meta bar provider marks sit on the model line")

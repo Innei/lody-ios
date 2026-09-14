@@ -65,12 +65,28 @@ assert(transcript.rows().map(\.kind) == ["summary", "text"])
 assert(transcript.rows().last(where: { $0.kind == "text" })?.itemID == "final")
 transcript.entries[0].modelInfo = ChatEntry.ModelInfo(modelId: "actual", name: "Actual Model", thoughtLevel: "High")
 assert(transcript.rows().last?.text == "Actual Model · High")
+assert(transcript.rows().last?.imageAsset == "", "Unknown models must not invent a provider mark")
+assert(LodyAgentIcon.asset(modelId: "gpt-5.6-sol", name: "GPT-5.6 Sol") == "lody-agent-openai")
+assert(LodyAgentIcon.asset(modelId: "claude-opus-4", name: "Opus 4") == "lody-agent-claude")
+assert(LodyAgentIcon.asset(modelId: "grok-4.6", name: nil) == "lody-agent-grok")
+assert(LodyAgentIcon.asset(modelId: "kimi-code", name: nil) == "lody-agent-kimi")
+assert(LodyAgentIcon.asset(modelId: "gemini-2.5-pro", name: "Gemini 2.5 Pro") == "lody-agent-gemini")
+assert(LodyAgentIcon.asset(modelId: "actual", name: "Actual Model") == nil)
 let modelOnlyJSON = """
 [{"id":"no-text","role":"assistant","status":"completed","finished":true,
 "modelInfo":{"modelId":"id-only"},"items":[]}]
 """
 let modelOnlyRows = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(modelOnlyJSON.utf8))).rows()
 assert(modelOnlyRows.last?.text == "id-only", "Model-only replies still show metadata")
+assert(modelOnlyRows.last?.imageAsset == "", "An unmatched model id stays text-only")
+let openaiMetaJSON = """
+[{"id":"openai-meta","role":"assistant","status":"completed","finished":true,
+"modelInfo":{"modelId":"gpt-5.6-sol","name":"GPT-5.6 Sol","thoughtLevel":"High"},"items":[]}]
+"""
+let openaiMetaRows = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(openaiMetaJSON.utf8))).rows()
+assert(openaiMetaRows.last?.kind == "meta")
+assert(openaiMetaRows.last?.text == "GPT-5.6 Sol · High")
+assert(openaiMetaRows.last?.imageAsset == "lody-agent-openai", "Known providers put their mark on the model line")
 assert(transcript.rows(processEntryID: "steps").map(\.itemID) == ["first", "think1", "read", "middle", "think2", "write"])
 assert(transcript.rows(processEntryID: "steps", processStartID: "think1").map(\.itemID) == ["think1", "read"], "An open segment must not change scope on completion")
 print("Chat folding: live text boundaries, scoped process, and conclusion-only completion passed")
@@ -514,16 +530,16 @@ print("Pending send: immediate text and attachment, processing, stable history t
 var disconnectedPending = localPending
 disconnectedPending.reconnect = true
 let reconnectRows = disconnectedPending.rows(entries: [])
-precondition(reconnectRows.count == pendingRows.count + 1 && reconnectRows.first?.running == false,
-  "Reconnection replaces tile loading with an actionable status row")
-precondition(
-  reconnectRows.contains { $0.kind == "pending" && $0.actionable } && reconnectRows.first(where: { $0.kind == "duration" })?.actionable == false,
-  "Disconnected pending state must offer reconnect on the status row, not the timer"
-)
+precondition(reconnectRows.map(\.kind) == pendingRows.map(\.kind),
+  "Connection chrome must not insert a list status row")
+precondition(!reconnectRows.contains { $0.kind == "pending" },
+  "Waiting for a connection is not a transcript cell")
+precondition(reconnectRows.first?.running == false,
+  "Reconnection replaces tile loading")
 precondition(reconnectRows.firstIndex(where: { $0.kind == "duration" }) == pendingRows.firstIndex(where: { $0.kind == "duration" }),
-  "Connecting must remove the reconnect action without shifting the reply header")
+  "Removing the reconnect row must not shift the reply header")
 precondition(pendingRows.last?.actionable == false, "Ordinary pending status must not open the execution process")
-print("Pending reconnect: one actionable status row while disconnected passed")
+print("Pending reconnect: connection stays off the transcript passed")
 
 func notifyTurn(_ previous: String?, _ next: String?, process: String = "", window: Bool = true) -> Bool {
   ChatHaptics.shouldNotifyTurnCompletion(

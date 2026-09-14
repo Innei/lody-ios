@@ -99,6 +99,7 @@ struct ChatRow: Equatable {
   var attachments: [ChatMessageAttachment] = []
   var uploadProgress: [String: ChatAttachmentUploadProgress] = [:]
   var workDurationMs: Int? = nil
+  var imageAsset = ""
   var shines: Bool { kind == "summary" && running && !attention }
   /// `only` / `first` / `middle` / `last` for consecutive file rows in one group.
   var group = ""
@@ -387,7 +388,11 @@ struct ChatTranscript {
         let finishedAt = ChatMetaTime.label(entry.endedAt, now: now)
         let meta = [model, finishedAt].filter { !$0.isEmpty }.joined(separator: " · ")
         if !meta.isEmpty {
-          result.append(ChatRow(id: entry.id + ":meta", entryID: entry.id, kind: "meta", text: meta))
+          var row = ChatRow(id: entry.id + ":meta", entryID: entry.id, kind: "meta", text: meta)
+          row.imageAsset = LodyAgentIcon.asset(
+            modelId: entry.modelInfo?.modelId, name: entry.modelInfo?.name
+          ) ?? ""
+          result.append(row)
         }
         let files = (entry.fileDiffs ?? []).filter { !$0.path.isEmpty }
         if !files.isEmpty {
@@ -565,12 +570,6 @@ struct ChatPendingSend: Decodable {
         running: true,
         workDurationMs: duration
       ))
-      // Transient connection controls belong below the stable reply header.
-      // Removing them must not move the timer or change the flight destination.
-      if reconnect == true {
-        result.append(ChatRow(id: id + ":pending", entryID: id, kind: "pending", text: status,
-          actionable: true, running: true))
-      }
     }
     return result
   }

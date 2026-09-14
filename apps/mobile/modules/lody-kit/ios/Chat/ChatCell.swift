@@ -15,24 +15,38 @@ enum ChatRowPadding {
 
 final class ChatMetaCell: UICollectionViewCell {
   private let modelLabel = UILabel()
+  private var row: ChatRow?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
     modelLabel.numberOfLines = 0
     modelLabel.textAlignment = .left
-    modelLabel.textColor = .secondaryLabel
     modelLabel.adjustsFontForContentSizeCategory = true
     contentView.addSubview(modelLabel)
+    registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitPreferredContentSizeCategory.self]) {
+      (cell: ChatMetaCell, _) in
+      cell.apply()
+    }
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   func configure(_ row: ChatRow) {
-    modelLabel.text = row.text
-    modelLabel.font = .preferredFont(forTextStyle: .footnote, compatibleWith: traitCollection)
+    self.row = row
+    apply()
+    setNeedsLayout()
+  }
+
+  private func apply() {
+    guard let row else { return }
+    let font = UIFont.preferredFont(forTextStyle: .footnote, compatibleWith: traitCollection)
+    let color = UIColor.secondaryLabel.resolvedColor(with: traitCollection)
+    modelLabel.attributedText = Self.attributedText(
+      row.text, image: Self.iconImage(named: row.imageAsset), font: font, color: color
+    )
     modelLabel.isHidden = row.text.isEmpty
     modelLabel.accessibilityIdentifier = row.id + ":model"
-    setNeedsLayout()
+    modelLabel.accessibilityLabel = row.text
   }
 
   override func layoutSubviews() {
@@ -40,11 +54,41 @@ final class ChatMetaCell: UICollectionViewCell {
     modelLabel.frame = CGRect(x: 0, y: 4, width: bounds.width, height: bounds.height - 8)
   }
 
+  static func iconImage(named asset: String) -> UIImage? {
+    guard !asset.isEmpty else { return nil }
+    return UIImage(named: asset)?.withRenderingMode(.alwaysTemplate)
+  }
+
+  static func attributedText(
+    _ text: String,
+    image: UIImage?,
+    font: UIFont,
+    color: UIColor = .secondaryLabel
+  ) -> NSAttributedString {
+    let attributes: [NSAttributedString.Key: Any] = [
+      .font: font,
+      .foregroundColor: color,
+    ]
+    let result = NSMutableAttributedString()
+    if let image {
+      let size = max(1, font.pointSize - 2)
+      let attachment = NSTextAttachment()
+      attachment.image = image.withTintColor(color, renderingMode: .alwaysOriginal)
+      attachment.bounds = CGRect(x: 0, y: (font.capHeight - size) / 2, width: size, height: size)
+      result.append(NSAttributedString(attachment: attachment))
+      result.append(NSAttributedString(string: " ", attributes: attributes))
+    }
+    result.append(NSAttributedString(string: text, attributes: attributes))
+    return result
+  }
+
   static func height(for row: ChatRow, width: CGFloat, traits: UITraitCollection) -> CGFloat {
     let font = UIFont.preferredFont(forTextStyle: .footnote, compatibleWith: traits)
-    let textHeight = (row.text as NSString).boundingRect(
+    let text = attributedText(row.text, image: iconImage(named: row.imageAsset), font: font)
+    let textHeight = text.boundingRect(
       with: CGSize(width: max(1, width), height: .greatestFiniteMagnitude),
-      options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font], context: nil
+      options: [.usesLineFragmentOrigin, .usesFontLeading],
+      context: nil
     ).height
     return max(24, ceil(textHeight) + 8)
   }

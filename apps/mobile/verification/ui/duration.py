@@ -86,6 +86,7 @@ assert answer['frame']['height'] >= 36, (
 )
 model = ui.element('duration-preview:meta:model')
 assert model['AXLabel'].startswith('GPT-5.6 Sol · High · '), model['AXLabel']
+assert '\ufffc' not in model['AXLabel'], 'The provider mark must stay decorative'
 assert ':' in model['AXLabel'].rsplit(' · ', 1)[1], 'A same-day reply ends with a clock time'
 assert model['frame']['y'] >= answer['frame']['y'] + answer['frame']['height'] - 1
 assert abs(model['frame']['x'] - answer['frame']['x']) <= 1, (model['frame'], answer['frame'])

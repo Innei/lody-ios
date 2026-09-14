@@ -54,10 +54,6 @@ extension LodyChatView {
       onRetrySend([:])
       return
     }
-    if let pendingSend, id == pendingSend.id + ":pending", pendingSend.reconnect == true {
-      onReconnect([:])
-      return
-    }
     onActivityPress(["entryId": row.entryID, "itemId": row.itemID, "processStartId": row.processStartID])
   }
 
@@ -177,13 +173,7 @@ extension LodyChatView {
 
   func updateBottomButton() {
     let bottom = bottomOffset
-    let visible = processEntryID.isEmpty && !followsBottom && bottom - collection.contentOffset.y > CGFloat(ChatScroll.resumeDistance)
-    guard visible != bottomButton.isUserInteractionEnabled else { return }
-    bottomButton.isUserInteractionEnabled = visible
-    bottomButton.accessibilityElementsHidden = !visible
-    UIView.animate(withDuration: 0.15, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
-      self.bottomButton.alpha = visible ? 1 : 0
-    }
+    chrome.scrollVisible = processEntryID.isEmpty && !followsBottom && bottom - collection.contentOffset.y > CGFloat(ChatScroll.resumeDistance)
   }
 
   func scrollToBottom() {

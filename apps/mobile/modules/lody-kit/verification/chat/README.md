@@ -4,6 +4,7 @@ From the repository root:
 
 ```sh
 swiftc -swift-version 6 apps/mobile/modules/lody-kit/ios/LodyStrings.swift \
+  apps/mobile/modules/lody-kit/ios/Chat/LodyAgentIcon.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatTranscript.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatStream.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatTextFade.swift \
@@ -50,6 +51,7 @@ xcrun --sdk iphonesimulator swiftc -swift-version 6 -target arm64-apple-ios18.0-
   apps/mobile/modules/lody-kit/ios/LodyStrings.swift \
   apps/mobile/modules/lody-kit/ios/LodyTint.swift \
   apps/mobile/modules/lody-kit/ios/UIFont+Dynamic.swift \
+  apps/mobile/modules/lody-kit/ios/Chat/LodyAgentIcon.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatTranscript.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatTextFade.swift \
   apps/mobile/modules/lody-kit/ios/Chat/ChatTextView.swift \

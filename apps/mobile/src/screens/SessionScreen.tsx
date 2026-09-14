@@ -64,20 +64,24 @@ import {
   type HeaderItems,
 } from '@/lib/presentation/SheetStack';
 
-function composerPlaceholder({
-  archived,
+function composerPlaceholder(archived: boolean) {
+  if (archived) return t('chat.composer.archived');
+  return t('chat.composer.placeholder');
+}
+
+function connectionChrome({
   disconnected,
   overflow,
   live,
 }: {
-  archived: boolean;
   disconnected: boolean;
   overflow: boolean;
   live: boolean;
 }) {
-  if (archived) return t('chat.composer.archived');
-  if (!disconnected && !overflow && !live) return t('chat.composer.connecting');
-  return t('chat.composer.placeholder');
+  if (overflow) return '';
+  if (disconnected) return 'paused';
+  if (!live) return 'connecting';
+  return '';
 }
 
 export type SessionParams = {
@@ -350,10 +354,7 @@ function View() {
   );
   const openFile = useOpenFile(session.id);
   const openProcess = useProcessSheet(entriesJSON, onActivityPress, session.id);
-  let notice = '';
-  if (overflow) notice = t('chat.notice.syncStopped');
-  else if (disconnected && !send.sending)
-    notice = t('chat.notice.connectionPaused');
+  const notice = overflow ? t('chat.notice.syncStopped') : '';
   const control = useSessionControl(
     currentSession,
     snapshot,
@@ -382,13 +383,13 @@ function View() {
     steerID: control.steerID,
     steerInterrupts: control.steerInterrupts,
     notice,
-    reconnect: disconnected || overflow,
-    placeholder: composerPlaceholder({
-      archived: currentSession.archived,
+    reconnect: overflow,
+    connection: connectionChrome({
       disconnected,
       overflow,
       live: snapshot.status === 'live',
     }),
+    placeholder: composerPlaceholder(currentSession.archived),
   });
   const efforts = effortsFor(capability, activeChoice.modelId);
   const composerOptionsJSON = JSON.stringify({

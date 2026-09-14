@@ -14,6 +14,7 @@ private struct ChatComposerState: Decodable {
   var steerInterrupts: Bool?
   var notice = ""
   var reconnect = false
+  var connection: String?
   var placeholder = LodyStrings.text("native.chat.composer.placeholder")
 }
 
@@ -742,6 +743,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     }
     return window?.rootViewController
   }
+  var connection: String { state.connection ?? "" }
+
   func setComposerState(_ json: String) {
     guard let value = try? JSONDecoder().decode(ChatComposerState.self, from: Data(json.utf8)) else { return }
     if value.sending && !state.sending && !relaying { takeDraft() }

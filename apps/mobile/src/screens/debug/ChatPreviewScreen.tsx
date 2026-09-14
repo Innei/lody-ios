@@ -222,6 +222,9 @@ function View() {
     effort: 'medium',
     fast: false,
   });
+  const [connection, setConnection] = useState<'' | 'connecting' | 'paused'>(
+    '',
+  );
   const [clearDraftToken, setClearDraftToken] = useState(0);
   const [sent, setSent] = useState<{
     text: string;
@@ -540,6 +543,21 @@ function View() {
               }
             />
             <Stack.Toolbar.MenuAction
+              children="Connecting Chrome"
+              icon="wifi"
+              onPress={() => setConnection('connecting')}
+            />
+            <Stack.Toolbar.MenuAction
+              children="Paused Chrome"
+              icon="wifi.slash"
+              onPress={() => setConnection('paused')}
+            />
+            <Stack.Toolbar.MenuAction
+              children="Clear Chrome"
+              icon="xmark"
+              onPress={() => setConnection('')}
+            />
+            <Stack.Toolbar.MenuAction
               children="Permission Fixture"
               icon="lock.open"
               onPress={() =>
@@ -659,6 +677,7 @@ function View() {
           sending: false,
           notice: '',
           reconnect: false,
+          connection,
           placeholder: '输入文字，检查键盘布局…',
         })}
         composerOptionsJSON={JSON.stringify({
