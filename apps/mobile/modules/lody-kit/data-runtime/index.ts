@@ -37,7 +37,10 @@ import { mergeAgentQuotas } from '../../../src/cloud/catalog/agent-usage.ts';
 import {
   openSession,
   closeSession,
+  ensureSession,
+  releaseReserve,
   retainedSessionIds,
+  reservedSessionIds,
   itemDetail,
   respondPermission,
   controlTurn,
@@ -758,21 +761,66 @@ Object.assign(globalThis, {
     },
     session(id: string) {
       const result = openSession(id, workspace, getGrant, send, markDispatch);
-      send({ type: 'sessionSubscriptions', ids: retainedSessionIds() });
+      send({
+        type: 'sessionSubscriptions',
+        ids: retainedSessionIds(),
+        reserved: reservedSessionIds(),
+      });
       return result;
     },
     closeSession() {
       closeSession();
-      send({ type: 'sessionSubscriptions', ids: retainedSessionIds() });
+      send({
+        type: 'sessionSubscriptions',
+        ids: retainedSessionIds(),
+        reserved: reservedSessionIds(),
+      });
     },
-    restoreSessions(ids: string[], current: string | null) {
-      for (const id of ids)
-        if (id !== current)
-          void openSession(id, workspace, getGrant, send, markDispatch);
+    async ensureSession(args: { sessionId: string }) {
+      const result = ensureSession(
+        args.sessionId,
+        workspace,
+        getGrant,
+        send,
+        markDispatch,
+      );
+      send({
+        type: 'sessionSubscriptions',
+        ids: retainedSessionIds(),
+        reserved: reservedSessionIds(),
+      });
+      return result;
+    },
+    releaseReserve(args: { sessionId: string }) {
+      releaseReserve(args.sessionId);
+      send({
+        type: 'sessionSubscriptions',
+        ids: retainedSessionIds(),
+        reserved: reservedSessionIds(),
+      });
+      return {};
+    },
+    restoreSessions(
+      ids: string[],
+      current: string | null,
+      reserved: string[] = [],
+    ) {
+      for (const id of ids) {
+        if (id === current || reserved.includes(id)) continue;
+        void openSession(id, workspace, getGrant, send, markDispatch, false);
+      }
+      for (const id of reserved)
+        void ensureSession(id, workspace, getGrant, send, markDispatch).catch(
+          () => {},
+        );
       if (current)
         void openSession(current, workspace, getGrant, send, markDispatch);
       else closeSession();
-      send({ type: 'sessionSubscriptions', ids: retainedSessionIds() });
+      send({
+        type: 'sessionSubscriptions',
+        ids: retainedSessionIds(),
+        reserved: reservedSessionIds(),
+      });
     },
     itemDetail,
     respondPermission,

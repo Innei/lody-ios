@@ -7,6 +7,7 @@ import { writeLocal } from '@/cloud/kv';
 import { showCommunityNotice } from '@/features/community/notice';
 import { createPrefsKey } from '@/features/sessions/createPrefs';
 import { openSendPreview } from './SendPreviewScreen';
+import { openOutboxPreview } from './OutboxPreviewScreen';
 import { BackgroundPreviewScreen } from './BackgroundPreviewScreen';
 import { pushStatus, verifyPushSubscription } from '@lody-ios/kit';
 import { NotificationPreviewScreen } from './NotificationPreviewScreen';
@@ -27,6 +28,7 @@ import { ShinePreviewScreen } from './ShinePreviewScreen';
 import { InboxPreviewScreen } from './InboxPreviewScreen';
 import { SettingsPreviewScreen } from './SettingsPreviewScreen';
 import { AppearanceScreen } from '../AppearanceScreen';
+import { QueuedMessageBehaviorScreen } from '../QueuedMessageBehaviorScreen';
 import { OnboardingPreviewScreen } from './OnboardingPreviewScreen';
 import { useNavigation, useRouter, useTheme } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -151,6 +153,11 @@ function View() {
         ),
         openRow('settings-preview', '远程设置验收', 'gear'),
         openRow('appearance-preview', '外观验收', 'circle.lefthalf.filled'),
+        openRow(
+          'queued-message-behavior-preview',
+          '排队消息行为验收',
+          'arrow.uturn.forward',
+        ),
         openRow('inbox-preview', '动态分组验收', 'tray'),
         ...(uiVerify
           ? [openRow('background-preview', '后台连接验收', 'moon.zzz')]
@@ -193,6 +200,8 @@ function View() {
       rows: [
         openRow('send-preview', '离线发送验收', 'paperplane'),
         openRow('send-queue', 'Queue 验收', 'list.bullet'),
+        openRow('send-guide', '引导发送验收', 'arrow.uturn.forward'),
+        openRow('outbox-preview', '后台发件箱验收', 'tray.and.arrow.up'),
         openRow('send-interrupt', 'Queue 中断验收', 'stop.circle'),
         openRow('send-handoff', '新建发送交接', 'arrow.triangle.swap'),
         openRow('composer-relay', 'Composer 接力 POC', 'rectangle.2.swap'),
@@ -276,6 +285,8 @@ function View() {
     'pull-request-preview': () => void present(PullRequestPreviewScreen, {}),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
     'appearance-preview': () => void present(AppearanceScreen, {}),
+    'queued-message-behavior-preview': () =>
+      void present(QueuedMessageBehaviorScreen, {}),
     'inbox-preview': () => void present(InboxPreviewScreen, {}),
     'background-preview': () => void present(BackgroundPreviewScreen, {}),
     'native-shell-poc': () => void present(NativeShellPreviewScreen, {}),
@@ -320,6 +331,8 @@ function View() {
     'banner-preview': () => void present(BannerPreviewScreen, {}),
     'send-preview': () => void openSendPreview(false),
     'send-queue': () => void openSendPreview(false, true),
+    'send-guide': () => void openSendPreview(false, true, true, 'guide'),
+    'outbox-preview': () => void openOutboxPreview(),
     'send-interrupt': () => void openSendPreview(false, true, false),
     'send-handoff': () => void openSendPreview(true),
     'composer-relay': () => void present(ComposerHandoffPreviewScreen, {}),

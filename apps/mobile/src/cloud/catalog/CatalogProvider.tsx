@@ -3,12 +3,18 @@ import {
   useContext,
   useEffect,
   useState,
+  useSyncExternalStore,
   type PropsWithChildren,
 } from 'react';
 import { showToast } from '@/ui/toast';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { subscribeCatalog } from './runtime';
 import { usePendingSends } from '../send/pendingSends';
+import { useOutboxDispatcher } from '../send/outboxDispatcher';
+import {
+  getForegroundSession,
+  subscribeForegroundSession,
+} from '../send/foregroundSession';
 import { publishConnection } from './connection';
 import { localGeneration, readLocal, writeLocal } from '../kv';
 import { catalogKey, selectionKey } from './persist';
@@ -33,6 +39,11 @@ function useCatalogState() {
     account?.workspaces.find((w) => w.id === workspaceId) ??
     account?.workspaces[0];
   const pending = usePendingSends(account?.user.id ?? '', selected?.id ?? '');
+  const foregroundSessionId = useSyncExternalStore(
+    subscribeForegroundSession,
+    getForegroundSession,
+    getForegroundSession,
+  );
   const key =
     account && selected ? catalogKey(account.user.id, selected.id) : '';
   const [snapshot, setSnapshot] = useState({
@@ -150,6 +161,13 @@ function useCatalogState() {
       showToast(t('catalog.toast.workspaceSaveFailed')),
     );
   }
+  useOutboxDispatcher({
+    outbox: pending,
+    userId: account?.user.id ?? '',
+    connected: current.connected && !current.loading,
+    serverSessions: current.catalog.sessions,
+    foregroundSessionId,
+  });
   return {
     ...current,
     serverSessions: current.catalog.sessions,

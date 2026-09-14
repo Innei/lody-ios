@@ -575,7 +575,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     }
   }
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-    !(touch.view is UITextView)
+    // Row actions own their tap. Dismissing the keyboard first moves the row
+    // before UICollectionView can deliver selection (notably Retry).
+    if let index = collection.indexPathForItem(at: touch.location(in: collection)),
+       let id = dataSource.itemIdentifier(for: index), rows[id]?.actionable == true { return false }
+    return !(touch.view is UITextView)
   }
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
   func setDraftKey(_ key: String) {

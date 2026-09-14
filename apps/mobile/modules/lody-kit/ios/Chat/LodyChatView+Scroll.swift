@@ -134,6 +134,7 @@ extension LodyChatView {
   }
 
   func pauseTracking() {
+    if let handoffID { ChatSendHandoff.cancelWaitingAttachments(id: handoffID) }
     followsBottom = false
     trackingPausedByGesture = true
     sendScroll = nil

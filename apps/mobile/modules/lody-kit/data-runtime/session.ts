@@ -22,6 +22,7 @@ type SessionState = {
   controller: AbortController;
   ready: boolean;
   sending: boolean;
+  working?: boolean;
   sendingId?: string;
   backgroundWork?: { id: string; turnId: string };
   status: string;
@@ -43,11 +44,14 @@ type SessionState = {
     queued?: boolean,
   ) => Promise<void>;
   emit: (event: object) => void;
+  liveWaiters?: Array<(error?: Error) => void>;
 };
 let active: SessionState | undefined;
-// Map insertion order is user visit order. Stream updates never touch it.
+// Working sessions use visit order; idle visits never enter the background LRU.
 const sessions = new Map<string, SessionState>();
+const reserved = new Set<string>();
 export const retainedSessionIds = () => [...sessions.keys()];
+export const reservedSessionIds = () => [...reserved];
 function signalOf(state: SessionState, status: string) {
   const history = state.doc.getList('history');
   let finished = 0;
@@ -101,10 +105,47 @@ function flush(state: SessionState) {
     session: JSON.stringify(snapshot),
   });
 }
+function isWorking(state: SessionState) {
+  if (state.doc.getMovableList('mq').length) return true;
+  const history = state.doc.getList('history');
+  let replied = false;
+  let latestUser = true;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const entry = history.get(i);
+    const get = (key: string) =>
+      entry instanceof LoroMap ? entry.get(key) : (entry as any)?.[key];
+    if (get('role') === 'assistant') {
+      if (!get('finished')) return true;
+      replied = true;
+    }
+    if (get('role') === 'user' && latestUser) {
+      // A submitted turn is working before its first assistant event arrives.
+      if (
+        !replied &&
+        ['pending', 'seen', 'processing', 'pending_apply'].includes(
+          get('status'),
+        )
+      )
+        return true;
+      latestUser = false;
+    }
+  }
+  return false;
+}
 function scheduleEmit(state: SessionState, status: string, reason?: string) {
   state.status = status;
   state.reason = reason;
   if (sessions.get(state.id) !== state) return;
+  if (state.ready) {
+    const working = isWorking(state);
+    if (working && state.working !== true) {
+      sessions.delete(state.id);
+      sessions.set(state.id, state);
+    }
+    state.working = working;
+    trimSessions();
+    if (sessions.get(state.id) !== state) return;
+  }
   clearTimeout(state.pending);
   const now = Date.now();
   const foreground = active === state;
@@ -121,7 +162,15 @@ function scheduleEmit(state: SessionState, status: string, reason?: string) {
   if (!state.firstQueuedAt) state.firstQueuedAt = now;
   state.pending = setTimeout(() => flush(state), foreground ? 100 : 1000);
 }
+function settleLive(state: SessionState, error?: Error) {
+  const waiters = state.liveWaiters;
+  state.liveWaiters = undefined;
+  waiters?.forEach((waiter) => waiter(error));
+}
 function evict(state: SessionState) {
+  settleLive(state, new Error('session_not_ready'));
+  // Publish completion before retiring an idle replica's background allowance.
+  if (state.ready) flush(state);
   if (state.backgroundWork) {
     state.emit({
       type: 'sessionCache',
@@ -130,20 +179,41 @@ function evict(state: SessionState) {
     });
     state.backgroundWork = undefined;
   }
-  // Keep the last complete display snapshot even when its coalescing timer is pending.
-  if (state.ready) flush(state);
   clearTimeout(state.pending);
   state.controller.abort();
   sessions.delete(state.id);
 }
 function trimSessions() {
+  const before = sessions.size;
+  const notify = (active ?? sessions.values().next().value)?.emit;
+  const background: SessionState[] = [];
   for (const state of sessions.values()) {
-    if (sessions.size <= MAX_BACKGROUND_SESSION_SYNCS + (active ? 1 : 0)) break;
-    if (state !== active) evict(state);
+    if (state === active || reserved.has(state.id)) continue;
+    if (state.working === false) evict(state);
+    else if (state.working === true) background.push(state);
   }
+  for (const state of background.slice(0, -MAX_BACKGROUND_SESSION_SYNCS))
+    evict(state);
+  if (sessions.size !== before)
+    notify?.({
+      type: 'sessionSubscriptions',
+      ids: retainedSessionIds(),
+      reserved: reservedSessionIds(),
+    });
 }
 export function closeSession() {
+  if (active?.working === undefined && active && !reserved.has(active.id))
+    evict(active);
   active = undefined;
+  trimSessions();
+}
+export function releaseReserve(id: string) {
+  if (!reserved.delete(id)) return;
+  const state = sessions.get(id);
+  if (state) {
+    sessions.delete(id);
+    sessions.set(id, state);
+  }
   trimSessions();
 }
 export function stopSessions() {
@@ -152,6 +222,7 @@ export function stopSessions() {
     state.controller.abort();
   }
   sessions.clear();
+  reserved.clear();
   active = undefined;
 }
 function unpack(bytes: Uint8Array) {
@@ -174,7 +245,7 @@ export async function clientFor(id: string, getGrant: () => Promise<Grant>) {
     timeout: { connectTimeoutMs: 15000, pollTimeoutMs: 35000 },
   });
 }
-export async function openSession(
+export async function ensureSession(
   id: string,
   workspace: string,
   getGrant: () => Promise<Grant>,
@@ -187,12 +258,67 @@ export async function openSession(
 ) {
   if ([...sessions.values()].some((state) => state.workspace !== workspace))
     stopSessions();
+  reserved.add(id);
+  const result = await openSession(
+    id,
+    workspace,
+    getGrant,
+    emit,
+    markDispatch,
+    false,
+  );
+  const state = sessions.get(id);
+  if (!state) throw new Error('session_not_ready');
+  if (state.ready) return result;
+  await new Promise<void>((resolve, reject) => {
+    const done = (error?: Error) => {
+      state.liveWaiters = state.liveWaiters?.filter((item) => item !== done);
+      if (error) reject(error);
+      else resolve();
+    };
+    (state.liveWaiters ??= []).push(done);
+    if (state.controller.signal.aborted) {
+      done(new Error('session_not_ready'));
+      return;
+    }
+    state.controller.signal.addEventListener(
+      'abort',
+      () => done(new Error('session_not_ready')),
+      { once: true },
+    );
+  });
+  return result;
+}
+export async function openSession(
+  id: string,
+  workspace: string,
+  getGrant: () => Promise<Grant>,
+  emit: (event: object) => void,
+  markDispatch: (
+    sessionId: string,
+    turnId: string,
+    queued?: boolean,
+  ) => Promise<void>,
+  activate = true,
+) {
+  if ([...sessions.values()].some((state) => state.workspace !== workspace))
+    stopSessions();
   const existing = sessions.get(id);
+  if (
+    activate &&
+    active &&
+    active !== existing &&
+    active.working === undefined &&
+    !reserved.has(active.id)
+  )
+    evict(active);
   if (existing && existing.status !== 'offline') {
-    active = existing;
     existing.emit = emit;
-    sessions.delete(id);
-    sessions.set(id, existing);
+    if (activate) {
+      active = existing;
+      sessions.delete(id);
+      sessions.set(id, existing);
+    }
     trimSessions();
     flush(existing);
     return 'watching';
@@ -215,7 +341,7 @@ export async function openSession(
     markDispatch,
     emit,
   };
-  active = state;
+  if (activate) active = state;
   sessions.set(id, state);
   trimSessions();
   const event = (status: string, reason?: string) => {
@@ -260,6 +386,7 @@ export async function openSession(
       while (!controller.signal.aborted) {
         state.ready = upToDate;
         if (upToDate) {
+          settleLive(state);
           if (changed || state.status !== 'live') event('live');
           changed = false;
           pages = 0;
@@ -296,9 +423,11 @@ export async function openSession(
           await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     } catch (error) {
+      const failed = error instanceof Error ? error : new Error('sync_failed');
+      settleLive(state, failed);
       if (controller.signal.aborted || sessions.get(id) !== state) return;
       state.ready = false;
-      event('offline', error instanceof Error ? error.message : 'sync_failed');
+      event('offline', failed.message);
     }
   })();
   return 'watching';
@@ -344,6 +473,7 @@ export async function sendTurn(
     id?: string;
     backgroundTaskId?: string;
     queue?: boolean;
+    guide?: boolean;
     sessionId: string;
     machineId: string;
     userId: string;
@@ -360,8 +490,8 @@ export async function sendTurn(
   },
   expand: (text: string) => Promise<string> = async (text) => text,
 ) {
-  const state = active;
-  if (!state || state.id !== args.sessionId || !state.ready)
+  const state = sessions.get(args.sessionId);
+  if (!state || !state.ready)
     return { state: 'not_sent', reason: 'session_not_ready' };
   if (
     args.id !== undefined &&
@@ -450,13 +580,15 @@ export async function sendTurn(
     return { state: 'not_sent', reason: 'invalid_message' };
   const id = args.id ?? crypto.randomUUID(),
     timestamp = new Date().toISOString();
+  reserved.add(state.id);
   state.sending = true;
   state.sendingId = id;
   let uploaded = false;
   let writeStarted = false;
   try {
     text = await expand(text);
-    if (active !== state || !state.ready) throw new Error('session_not_ready');
+    if (sessions.get(state.id) !== state || !state.ready)
+      throw new Error('session_not_ready');
     if (text.length > 32000) throw new Error('invalid_message');
     const previous =
       (state.doc.toJSON().history as any[] | undefined)?.findLast(
@@ -497,15 +629,26 @@ export async function sendTurn(
     const raw = state.doc.toJSON();
     const history = (raw.history ?? []) as any[];
     const lastUser = history.findLastIndex((entry) => entry.role === 'user');
+    // Re-evaluate after attachment upload and mention expansion. A completed
+    // target must follow the ordinary dispatch/queue path, never orphan a guide.
+    const guide =
+      args.guide === true
+        ? history.findLast(
+            (entry) => entry.role === 'assistant' && !entry.finished,
+          )
+        : undefined;
     const queued =
-      args.queue === true ||
-      (raw.mq as any[] | undefined)?.length ||
-      history.some((entry) => entry.role === 'assistant' && !entry.finished) ||
-      (lastUser >= 0 &&
-        history[lastUser].status === 'pending' &&
-        !history
-          .slice(lastUser + 1)
-          .some((entry) => entry.role === 'assistant'));
+      !guide &&
+      (args.queue === true ||
+        (raw.mq as any[] | undefined)?.length ||
+        history.some(
+          (entry) => entry.role === 'assistant' && !entry.finished,
+        ) ||
+        (lastUser >= 0 &&
+          history[lastUser].status === 'pending' &&
+          !history
+            .slice(lastUser + 1)
+            .some((entry) => entry.role === 'assistant')));
     const before = state.doc.version();
     writeStarted = true;
     if (queued) {
@@ -526,7 +669,15 @@ export async function sendTurn(
         if (value !== undefined) config.set(key, value);
       state.doc.commit();
     } else {
-      appendUserTurn(state.doc, id, text, args.userId, inputConfig, timestamp);
+      appendUserTurn(
+        state.doc,
+        id,
+        text,
+        args.userId,
+        inputConfig,
+        timestamp,
+        guide ? 'pending_apply' : 'pending',
+      );
     }
     const result = await state.client.append({
       part: {
@@ -542,6 +693,29 @@ export async function sendTurn(
       scheduleEmit(state, 'live');
       return { id, state: 'queued' };
     }
+    if (guide) {
+      const result = await steerTurn(state, args.machineId, {
+        sessionId: state.id,
+        expectedTurnId: guide.id,
+        userTurnId: id,
+        userId: args.userId,
+        timestamp,
+        inputConfig,
+      });
+      if (args.backgroundTaskId)
+        state.emit({
+          type: 'sessionCache',
+          sessionId: state.id,
+          backgroundWork: {
+            id: args.backgroundTaskId,
+            state: result.state === 'applied' ? 'completed' : 'failed',
+          },
+        });
+      if (result.state === 'applied') return { id, state: 'accepted' };
+      // Only the machine can prove a rejected steer was not applied and
+      // requeue it. A lost RPC ACK must not be replayed by this client.
+      return { id, state: 'uploaded', reason: result.reason };
+    }
     if (state.backgroundWork) {
       state.emit({
         type: 'sessionCache',
@@ -553,7 +727,7 @@ export async function sendTurn(
       ? { id: args.backgroundTaskId, turnId: id }
       : undefined;
     await state.markDispatch(state.id, id);
-    if (active !== state) throw new Error('runtime_replaced');
+    if (sessions.get(state.id) !== state) throw new Error('runtime_replaced');
     scheduleEmit(state, 'live');
     const replyTo = `${state.workspace}:rpc:res:${args.machineId}:${crypto.randomUUID()}`;
     const responseClient = await clientFor(replyTo, state.getGrant);
@@ -743,69 +917,75 @@ export async function controlTurn(args: {
         timestamp,
         inputConfig: config,
       };
+      return await steerTurn(state, args.machineId, params);
     }
     const reply = await machineRpc(
       state.workspace,
       args.machineId,
-      args.action === 'stop' ? 'session/cancel' : 'session/steer',
+      'session/cancel',
       params,
       state.getGrant,
       AbortSignal.any([state.controller.signal, AbortSignal.timeout(35000)]),
-    ).catch((error: unknown): RpcReply => ({
-      error: {
-        message: error instanceof Error ? error.message : 'control_failed',
-      },
-    }));
-    if (reply.error) {
-      // Past the durable write the machine owns the steer: it requeues proven-
-      // undelivered ones and an ambiguous failure must not be sent again here.
-      if (args.action === 'steer')
-        return { state: 'not_applied', reason: reply.error.message };
-      throw new Error(reply.error.message ?? 'control_failed');
-    }
+    );
+    if (reply.error) throw new Error(reply.error.message ?? 'control_failed');
     const result = reply.result as
-      | {
-          success?: boolean;
-          applied?: boolean;
-          disposition?: string;
-          error?: string;
-        }
-      | undefined;
-    if (args.action === 'stop') {
-      if (result?.success !== true)
-        throw new Error(result?.error ?? 'stop_failed');
-      return { state: 'stopped' };
-    }
-    if (result?.applied !== true)
-      return { state: 'not_applied', reason: result?.disposition ?? 'unknown' };
-    const before = state.doc.version();
-    for (let i = 0; i < history.length; i++) {
-      const entry = history.get(i);
-      if (
-        entry instanceof LoroMap &&
-        entry.get('id') === args.messageId &&
-        entry.get('status') === 'pending_apply'
-      ) {
-        entry.set('status', 'processing');
-        entry.set('read', true);
-      }
-    }
-    state.doc.commit();
-    scheduleEmit(state, state.status);
-    // Delivery is confirmed even if this redundant display-status append fails.
-    await state.client
-      .append({
-        part: {
-          contentType: 'application/octet-stream',
-          body: encodeFrame(state.doc.export({ mode: 'update', from: before })),
-        },
-      })
-      .catch(() => {});
-    return { state: 'applied' };
+      { success?: boolean; error?: string } | undefined;
+    if (result?.success !== true)
+      throw new Error(result?.error ?? 'stop_failed');
+    return { state: 'stopped' };
   } finally {
     state.sending = false;
     scheduleEmit(state, state.status);
   }
+}
+
+async function steerTurn(
+  state: SessionState,
+  machineId: string,
+  params: Record<string, unknown>,
+) {
+  const reply = await machineRpc(
+    state.workspace,
+    machineId,
+    'session/steer',
+    params,
+    state.getGrant,
+    AbortSignal.any([state.controller.signal, AbortSignal.timeout(35000)]),
+  ).catch((error: unknown): RpcReply => ({
+    error: {
+      message: error instanceof Error ? error.message : 'control_failed',
+    },
+  }));
+  if (reply.error) return { state: 'not_applied', reason: reply.error.message };
+  const result = reply.result as
+    { applied?: boolean; disposition?: string } | undefined;
+  if (result?.applied !== true)
+    return { state: 'not_applied', reason: result?.disposition ?? 'unknown' };
+  const history = state.doc.getList('history');
+  const before = state.doc.version();
+  for (let i = 0; i < history.length; i++) {
+    const entry = history.get(i);
+    if (
+      entry instanceof LoroMap &&
+      entry.get('id') === params.userTurnId &&
+      entry.get('status') === 'pending_apply'
+    ) {
+      entry.set('status', 'processing');
+      entry.set('read', true);
+    }
+  }
+  state.doc.commit();
+  scheduleEmit(state, state.status);
+  // Delivery is confirmed even if this redundant display-status append fails.
+  await state.client
+    .append({
+      part: {
+        contentType: 'application/octet-stream',
+        body: encodeFrame(state.doc.export({ mode: 'update', from: before })),
+      },
+    })
+    .catch(() => {});
+  return { state: 'applied' };
 }
 
 export function docSnapshot() {

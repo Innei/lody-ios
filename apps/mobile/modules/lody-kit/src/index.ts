@@ -3,6 +3,8 @@ export {
   runtimeInfo,
   initialDarkBackground,
   saveDarkBackground,
+  initialQueuedMessageBehavior,
+  saveQueuedMessageBehavior,
   selectionFeedback,
   cancelComposerRelay,
   showToast,
@@ -45,6 +47,8 @@ export {
 export {
   watchSession,
   unwatchSession,
+  ensureSession,
+  releaseReserve,
   sendSessionTurn,
   controlSessionTurn,
   sessionItemDetail,

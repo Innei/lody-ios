@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import {
   createSession,
   sendSessionTurn,
+  ensureSession,
   addAttachmentUploadProgressListener,
   type AttachmentUploadProgress,
 } from '@lody-ios/kit';
@@ -14,6 +15,8 @@ import type {
 import type { Session } from '@/models/catalog';
 import type { Snapshot } from './useSessionRuntime';
 import { sessionState } from './status';
+import { resolveSessionMessageSubmitRoute } from './messageSubmitRoute';
+import { outboxInflight } from '../../cloud/send/outboxInflight';
 import { t } from '../../lib/i18n/index.ts';
 
 export function pendingSendStatus(send: PendingSend, live: boolean) {
@@ -33,6 +36,7 @@ export function pendingSendStatus(send: PendingSend, live: boolean) {
 const network = {
   createSession,
   sendSessionTurn,
+  ensureSession,
   addAttachmentUploadProgressListener,
 };
 
@@ -46,6 +50,8 @@ export function useSessionSend({
   serverCreated,
   userId,
   overflow,
+  queuedMessageBehavior = 'queue',
+  steerable = false,
   services = network,
 }: {
   outbox: ReturnType<typeof usePendingSends>;
@@ -56,9 +62,12 @@ export function useSessionSend({
   serverCreated: boolean;
   userId: string;
   overflow: boolean;
+  queuedMessageBehavior?: string;
+  steerable?: boolean;
   services?: {
     createSession: typeof createSession;
     sendSessionTurn: typeof sendSessionTurn;
+    ensureSession: typeof ensureSession;
     addAttachmentUploadProgressListener?: typeof addAttachmentUploadProgressListener;
   };
 }) {
@@ -67,6 +76,8 @@ export function useSessionSend({
   const working = useRef(false);
   const [dispatching, setDispatching] = useState(false);
   const cleared = useRef('');
+  const behaviorRef = useRef(queuedMessageBehavior);
+  behaviorRef.current = queuedMessageBehavior;
   const send = record?.send;
   const live = snapshot.status === 'live';
   const hasPending =
@@ -113,7 +124,13 @@ export function useSessionSend({
   ]);
 
   useEffect(() => {
-    if (!record || !outbox.ready || working.current) return;
+    if (
+      !record ||
+      !outbox.ready ||
+      working.current ||
+      outboxInflight.has(session.id)
+    )
+      return;
     const send = record.send;
     const userIndex = snapshot.entries.findIndex(
       (entry) => entry.id === send.id,
@@ -154,6 +171,7 @@ export function useSessionSend({
     if (userIndex >= 0 && !send.creation) return;
     if (send.creation ? !connected : !live) return;
     working.current = true;
+    outboxInflight.add(session.id);
     setDispatching(true);
     void (async () => {
       let started = false;
@@ -170,12 +188,13 @@ export function useSessionSend({
           latest.phase !== (send.creation ? 'creating' : 'sending')
         )
           return;
-        started = true;
         if (send.creation) {
+          started = true;
           const result = JSON.parse(
             await services.createSession(send.creation),
           );
           if (result.state === 'created') {
+            outboxInflight.delete(session.id);
             await outbox.put({
               session: result.session,
               send: { ...send, creation: undefined, phase: 'waiting' },
@@ -190,6 +209,25 @@ export function useSessionSend({
           }
           return;
         }
+        try {
+          await services.ensureSession(session.id);
+        } catch {
+          await fail(t('native.runtime.sessionNotSyncedRetry'));
+          return;
+        }
+        const route = resolveSessionMessageSubmitRoute({
+          forceDirect: false,
+          forceQueue: false,
+          isPromptBusy:
+            send.queue === true ||
+            ['live', 'attention'].includes(sessionState(session.status)),
+          hasUnfinishedAssistantTurn: snapshot.entries.some(
+            (entry) => entry.role === 'assistant' && !entry.finished,
+          ),
+          queuedMessageBehavior: behaviorRef.current,
+        });
+        const guiding = (send.guide ?? route.type === 'guide') && steerable;
+        started = true;
         const result = JSON.parse(
           await services.sendSessionTurn(
             JSON.stringify({
@@ -197,9 +235,8 @@ export function useSessionSend({
               sessionId: session.id,
               machineId: session.machineId,
               userId,
-              queue: ['live', 'attention'].includes(
-                sessionState(session.status),
-              ),
+              queue: !guiding && route.type !== 'direct_dispatch',
+              guide: guiding,
               text: send.text,
               attachments: send.attachments,
               cliType: session.cliType,
@@ -237,6 +274,7 @@ export function useSessionSend({
         }
       } finally {
         working.current = false;
+        outboxInflight.delete(session.id);
         setDispatching(false);
       }
       async function fail(reason: string) {
@@ -257,6 +295,7 @@ export function useSessionSend({
     userId,
     outbox.ready,
     dispatching,
+    steerable,
   ]);
 
   function submit(next: PendingSend) {
@@ -280,7 +319,13 @@ export function useSessionSend({
     void outbox
       .put({
         session,
-        send: { ...next, choice, creation: send?.creation, phase: 'waiting' },
+        send: {
+          ...next,
+          choice,
+          guide: next.guide === true && steerable,
+          creation: send?.creation,
+          phase: 'waiting',
+        },
       })
       .catch(() => {
         void outbox
@@ -327,8 +372,8 @@ export function useSessionSend({
           ...send,
           uploadProgress: send.phase === 'sending' ? uploadProgress : undefined,
           queue:
-            send.phase === 'queued' ||
-            (send.queue === true &&
+            send.queue === true &&
+            (send.phase === 'queued' ||
               !['accepted', 'uploaded', 'failed'].includes(send.phase)),
           status: pendingSendStatus(send, live),
           reconnect: send.phase === 'waiting' && !live,

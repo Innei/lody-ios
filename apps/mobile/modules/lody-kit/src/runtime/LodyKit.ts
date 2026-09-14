@@ -60,10 +60,14 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   saveInboxProjectSort(index: number): void;
   readonly initialDarkBackground: string;
   saveDarkBackground(value: string): void;
+  readonly initialQueuedMessageBehavior: string;
+  saveQueuedMessageBehavior(value: string): void;
   readInboxExpansion(): Record<string, boolean>;
   saveInboxExpansion(projectId: string, expanded: boolean): void;
   watchSession(id: string): Promise<void>;
   unwatchSession(id: string): Promise<void>;
+  ensureSession(id: string): Promise<void>;
+  releaseReserve(id: string): Promise<void>;
   sessionCreationOptions(payload: string): Promise<string>;
   githubPullRequest(payload: string): Promise<string>;
   githubRepositories(workspaceId: string): Promise<string[]>;
@@ -126,6 +130,9 @@ export const runtimeInfo = native.runtimeInfo;
 export const initialDarkBackground = native.initialDarkBackground;
 export const saveDarkBackground = (value: string) =>
   native.saveDarkBackground(value);
+export const initialQueuedMessageBehavior = native.initialQueuedMessageBehavior;
+export const saveQueuedMessageBehavior = (value: string) =>
+  native.saveQueuedMessageBehavior(value);
 export function selectionFeedback(): Promise<void> {
   return native.selectionFeedback();
 }
@@ -193,6 +200,8 @@ export const debugRestartDataRuntime = () => native.debugRestartDataRuntime();
 
 export const watchSession = (id: string) => native.watchSession(id);
 export const unwatchSession = (id: string) => native.unwatchSession(id);
+export const ensureSession = (id: string) => native.ensureSession(id);
+export const releaseReserve = (id: string) => native.releaseReserve(id);
 export const controlSessionTurn = (payload: string) =>
   native.controlSessionTurn(payload);
 export const sendSessionTurn = (payload: string) =>

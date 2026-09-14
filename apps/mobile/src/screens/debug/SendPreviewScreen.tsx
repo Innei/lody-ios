@@ -128,10 +128,19 @@ function SendSource() {
 
 function SendPreview() {
   const { params } = usePageRuntime<
-    { queue?: boolean; steer?: boolean } | undefined,
+    | {
+        queue?: boolean;
+        steer?: boolean;
+        queuedMessageBehavior?: 'queue' | 'guide';
+      }
+    | undefined,
     void
   >();
   const queue = params?.queue === true;
+  const previewSession = {
+    ...session,
+    status: queue ? 'running' : session.status,
+  };
   const colors = usePalette();
   const outbox = usePendingSends('ui-send-preview', 'fixture');
   const record = outbox.records.find(
@@ -166,6 +175,8 @@ function SendPreview() {
       : [],
   });
   const completion = useRef<((result: string) => void) | null>(null);
+  const submitted = useRef<{ id: string; guide?: boolean } | null>(null);
+  const guideWritten = useRef(false);
   const uploadListener = useRef<
     ((event: AttachmentUploadProgress) => void) | null
   >(null);
@@ -188,6 +199,7 @@ function SendPreview() {
     },
   );
   const services = useRef({
+    ensureSession: async () => {},
     addAttachmentUploadProgressListener: (
       listener: (event: AttachmentUploadProgress) => void,
     ) => {
@@ -205,21 +217,25 @@ function SendPreview() {
         setCalls((n) => n + 1);
         completion.current = resolve;
       }),
-    sendSessionTurn: () =>
+    sendSessionTurn: (payload: string) =>
       new Promise<string>((resolve) => {
+        submitted.current = JSON.parse(payload);
+        guideWritten.current = false;
         setCalls((n) => n + 1);
         completion.current = resolve;
       }),
   }).current;
   const send = useSessionSend({
     outbox,
-    session,
+    session: previewSession,
     record,
     snapshot,
     connected,
     serverCreated: false,
     userId: 'ui-send-preview',
     overflow: false,
+    queuedMessageBehavior: params?.queuedMessageBehavior ?? 'queue',
+    steerable: params?.steer !== false,
     services,
   });
   useEffect(
@@ -245,6 +261,90 @@ function SendPreview() {
     }
     const resolve = completion.current;
     if (!resolve) return;
+    // This service boundary models the one native send: persist, then RPC ACK.
+    // The runtime tests exercise the real CRDT/RPC path with the same outcomes.
+    if (submitted.current?.guide && record) {
+      const target = snapshot.entries.findLast(
+        (entry) => entry.role === 'assistant' && !entry.finished,
+      );
+      if (!guideWritten.current && !failure && target) {
+        guideWritten.current = true;
+        setControlRequest(
+          JSON.stringify({
+            action: 'steer',
+            turnId: target.id,
+            messageId: record.send.id,
+          }),
+        );
+        setSnapshot((old) => ({
+          ...old,
+          revision: old.revision + 1,
+          entries: [
+            ...old.entries,
+            {
+              id: record.send.id,
+              role: 'user',
+              status: 'pending_apply',
+              finished: true,
+              rev: 0,
+              items: [
+                {
+                  itemId: 'text',
+                  type: 'text',
+                  text: record.send.text,
+                  rev: 0,
+                },
+              ],
+            },
+          ],
+        }));
+        return;
+      }
+      completion.current = null;
+      let state = 'accepted';
+      if (failure) state = guideWritten.current ? 'uploaded' : 'not_sent';
+      if (!failure) {
+        if (guideWritten.current)
+          setSnapshot((old) => ({
+            ...old,
+            revision: old.revision + 1,
+            entries: old.entries.map((entry) =>
+              entry.id === record.send.id
+                ? { ...entry, status: 'processing' }
+                : entry,
+            ),
+          }));
+        else {
+          setControlRequest(
+            JSON.stringify({ action: 'dispatch', messageId: record.send.id }),
+          );
+          setSnapshot((old) => ({
+            ...old,
+            revision: old.revision + 1,
+            entries: [
+              ...old.entries,
+              {
+                id: record.send.id,
+                role: 'user',
+                status: 'pending',
+                finished: true,
+                rev: 0,
+                items: [
+                  {
+                    itemId: 'text',
+                    type: 'text',
+                    text: record.send.text,
+                    rev: 0,
+                  },
+                ],
+              },
+            ],
+          }));
+        }
+      }
+      resolve(JSON.stringify({ state, reason: '验收：明确未发送' }));
+      return;
+    }
     completion.current = null;
     let state = failure ? 'not_sent' : 'accepted';
     if (record?.send.queue && !failure) {
@@ -396,6 +496,24 @@ function SendPreview() {
       >
         上传进度
       </Button>
+      {params?.queuedMessageBehavior === 'guide' && (
+        <Button
+          testID="send-reset-guide"
+          onPress={async () => {
+            await outbox.remove(session.id);
+            setControlRequest('');
+            setSnapshot((old) => ({
+              ...old,
+              revision: old.revision + 1,
+              entries: old.entries
+                .filter((entry) => entry.id === 'running-reply')
+                .map((entry) => ({ ...entry, finished: false })),
+            }));
+          }}
+        >
+          重置引导场景
+        </Button>
+      )}
       <Text
         testID="send-status"
         style={{ color: colors.label, padding: 12 }}
@@ -429,6 +547,7 @@ function SendPreview() {
           controlling: control.controlling,
           steerID: control.steerID,
           steerInterrupts: control.steerInterrupts,
+          queuedMessageBehavior: params?.queuedMessageBehavior ?? 'queue',
           notice: '',
           reconnect: false,
           placeholder: '断网也可以发送',
@@ -467,7 +586,12 @@ const sourcePage = definePage<{ prepare: () => void }, void>({
   },
 });
 const targetPage = definePage<
-  { queue?: boolean; steer?: boolean } | undefined,
+  | {
+      queue?: boolean;
+      steer?: boolean;
+      queuedMessageBehavior?: 'queue' | 'guide';
+    }
+  | undefined,
   void
 >({
   id: 'send-preview',
@@ -481,6 +605,7 @@ export async function openSendPreview(
   source: boolean | 'delayed',
   queue = false,
   steer = true,
+  queuedMessageBehavior: 'queue' | 'guide' = 'queue',
 ) {
   const { getPendingSendStore } = await import('@/cloud/send/pendingSends');
   await getPendingSendStore('ui-send-preview', 'fixture').remove(session.id);
@@ -493,7 +618,7 @@ export async function openSendPreview(
             await new Promise((resolve) => setTimeout(resolve, 1200));
           return present(
             targetPage,
-            { queue, steer },
+            { queue, steer, queuedMessageBehavior },
             { animationType: 'none' },
           );
         })();
@@ -503,5 +628,5 @@ export async function openSendPreview(
     await destination;
     return;
   }
-  await present(targetPage, { queue, steer });
+  await present(targetPage, { queue, steer, queuedMessageBehavior });
 }

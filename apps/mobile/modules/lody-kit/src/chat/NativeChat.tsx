@@ -45,6 +45,7 @@ export const NativeChat: ComponentType<
         text: string;
         startedAt: number;
         queue?: boolean;
+        guide?: boolean;
         attachments: ChatDraftAttachment[];
       }>,
     ) => void;

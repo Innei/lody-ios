@@ -54,9 +54,13 @@ ui.axe('tap', '--id', 'send-complete')
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'queue-count' and i.get('AXLabel') == 'Queue: 1' for i in items), 'Selected Steer was not consumed')
 ui.element(turns[0] + ':queued')
 assert not any(i.get('AXUniqueId') == turns[1] + ':queued' for i in ui.state())
+ui.element(turns[1] + ':reply:text')
+if not any(i.get('AXUniqueId') == turns[1] + ':user' for i in ui.state()):
+    ui.axe('swipe', '--start-x', '200', '--start-y', '350', '--end-x', '200', '--end-y', '700', '--duration', '.4', '--post-delay', '.6')
 ui.element(turns[1] + ':user')
 assert ui.element('session-input').get('AXValue') == '123456', 'Steer must preserve the current unsent draft'
 ui.capture('steer-applied-first-still-queued')
+ui.axe('tap', '--id', 'session-input')
 for _ in range(6):
     ui.axe('key', '42')
 
@@ -67,6 +71,9 @@ assert not ui.element('session-stop')['enabled']
 ui.capture('stopping')
 ui.axe('tap', '--id', 'send-complete')
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'queue-count' and i.get('AXLabel') == 'Queue: 0' for i in items), 'Stop did not advance the queued message')
+ui.element(turns[0] + ':reply:text')
+if not any(i.get('AXUniqueId') == turns[0] + ':user' for i in ui.state()):
+    ui.axe('swipe', '--start-x', '200', '--start-y', '350', '--end-x', '200', '--end-y', '700', '--duration', '.4', '--post-delay', '.6')
 ui.element(turns[0] + ':user')
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-stop' and i.get('enabled') for i in items), 'The next running turn must offer Stop')
 ui.capture('stop-advanced-queue')

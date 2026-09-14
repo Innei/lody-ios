@@ -12,6 +12,7 @@ import { Platform, useColorScheme } from 'react-native';
 import { nativePresentationOptions } from '@/lib/presentation';
 import { navigationThemes } from '@/lib/theme/palette';
 import { AppearanceProvider, useAppearance } from '@/lib/theme/appearance';
+import { QueuedMessageBehaviorProvider } from '@/features/settings/queued-message-behavior';
 import { softDarkBackground } from '@/lib/theme/tokens';
 import { automaticScrollEdgeEffects } from '@/ui/Screen';
 import { useBindSessionNav } from '@/hooks/screens/useBindSessionNav';
@@ -23,7 +24,9 @@ export const unstable_settings = { initialRouteName: 'index' };
 export default function RootLayout() {
   return (
     <AppearanceProvider>
-      <Root />
+      <QueuedMessageBehaviorProvider>
+        <Root />
+      </QueuedMessageBehaviorProvider>
     </AppearanceProvider>
   );
 }

@@ -20,23 +20,25 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
-    'pages': ['pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'onboarding', 'community-notice', 'live-activity'],
-    'send': ['root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
-    'chat': ['user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'changes', 'inline-diff', 'chat-chrome'],
+    'pages': ['pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'onboarding', 'community-notice', 'live-activity'],
+    'send': ['root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
+    'chat': ['user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'changes', 'inline-diff', 'chat-chrome'],
 }
 SUITES = {
     'core': ['onboarding', 'inbox', 'navigation', 'send', 'send-handoff', 'composer-success'],
     'core-home': ['onboarding', 'inbox', 'navigation'],
     'core-send': ['send', 'send-handoff', 'composer-success'],
+    'send-reliability': ['send-guide', 'outbox', 'queued-message-behavior', 'send-queue', 'send-interrupt', 'send', 'send-handoff', 'send-transition', 'send-transition-handoff'],
 }
-CORE_SUITES = set(SUITES)
+CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 # These lease an iPad. `--case` still accepts them; the default phone run must not.
 PAD_CASES = ['ipad', 'ipad-chrome', 'native-shell', 'native-collection']
-CASES = PHONE_CASES + PAD_CASES + ['composer-relay']
+CASES = PHONE_CASES + PAD_CASES + ['composer-relay', 'outbox']
 # These select HomePreviewProviders at app launch, using the same shared bundle.
 HOME_CASES = {'mentions-production', 'home', 'licenses', 'navigation', 'project-history-entry', 'ipad', 'ipad-chrome'}
 PREVIEW = {
+    'outbox': 'outbox-preview',
     'composer-relay': 'composer-relay',
     'native-shell': 'native-shell-poc',
     'native-collection': 'native-collection-poc',
@@ -49,6 +51,7 @@ PREVIEW = {
     'live-activity': 'live-activity-preview',
     'permission': 'permission-preview',
     'send-queue': 'send-queue',
+    'send-guide': 'send-guide',
     'send-interrupt': 'send-interrupt',
     'send-rounds': 'send-preview',
     'user-mentions': 'file-preview',
@@ -59,9 +62,11 @@ PREVIEW = {
     'project-history': 'project-history-preview',
     'settings': 'settings-preview',
     'appearance': 'appearance-preview',
+    'queued-message-behavior': 'queued-message-behavior-preview',
     'model-memory': 'model-memory',
     'smooth-scroll': 'scroll-preview',
     'duration': 'permission-preview',
+    'process-counts': 'chat-preview',
     'chat-chrome': 'chat-preview',
     'send': 'send-preview',
     'send-handoff': 'send-handoff',
@@ -80,6 +85,7 @@ PREVIEW = {
     'community-notice': 'community-notice',
 }
 READY = {
+    'outbox': 'outbox-state',
     'composer-relay': 'composer-relay-open',
     'native-shell': 'native-shell-ready',
     'native-collection': 'poc-native-collection',
@@ -91,6 +97,7 @@ READY = {
     'notifications': 'notification-preview-ready',
     'live-activity': 'live-activity-preview-ready',
     'send-queue': 'send-status',
+    'send-guide': 'send-status',
     'send-interrupt': 'send-status',
     'send-rounds': 'send-status',
     'user-mentions': 'file-links:answer',
@@ -99,6 +106,7 @@ READY = {
     'project-history': 'history-project:["studio","demo"]',
     'settings': 'settings-machine',
     'appearance': 'dark-background-soft',
+    'queued-message-behavior': 'queued-message-behavior-queue',
     'model-memory': 'create-session-input',
     'send': 'send-status',
     'send-handoff': 'create-session-input',
@@ -230,7 +238,7 @@ with metro_context:
         cases = sorted(HOME_CASES.intersection(selected)) + [case for case in selected if case not in HOME_CASES]
         launch_mode = None
         app_pid = None
-        trace_throw = bool(set(selected).intersection({'send-transition', 'send-transition-handoff', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'ipad-chrome'}))
+        trace_throw = bool(set(selected).intersection({'send-transition', 'send-transition-handoff', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'send-guide', 'ipad-chrome'}))
         for appearance in appearances:
             sim('ui', args.udid, 'appearance', appearance)
             for case in cases:
@@ -308,7 +316,7 @@ with metro_context:
                     try:
                         ui.element(ready)
                     except AssertionError:
-                        if case in ['send-transition', 'send-transition-handoff', 'inbox', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'send-interrupt', 'smooth-scroll'] and any(item.get('AXUniqueId') == preview for item in ui.state()):
+                        if case in ['send-transition', 'send-transition-handoff', 'inbox', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'send-guide', 'send-interrupt', 'smooth-scroll'] and any(item.get('AXUniqueId') == preview for item in ui.state()):
                             ui.axe('tap', '--id', preview, '--tap-style', 'physical', '--pre-delay', '0.5', '--post-delay', '1.2')
                             ui.element(ready)
                         else:
@@ -320,8 +328,8 @@ with metro_context:
                         ui.axe('tap', '--label', 'Image Fixture')
                         ui.element('preview-image:attachment:ui-verify-image')
                     ui.capture('before')
-                    script = Path(__file__).with_name(f'{case}.py') if case in ['pull-request', 'project-history-entry', 'project-history', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'chat-chrome'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
-                    if case in {'native-shell', 'native-collection', 'ipad-chrome', 'composer-relay'}:
+                    script = Path(__file__).with_name(f'{case}.py') if case in ['pull-request', 'project-history-entry', 'project-history', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'process-counts', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'chat-chrome'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                    if case in {'native-shell', 'native-collection', 'ipad-chrome', 'composer-relay', 'outbox'}:
                         script = Path(__file__).with_name(f'{case}.py')
                     if case == 'send-handoff-delayed':
                         script = Path(__file__).with_name('send-handoff.py')

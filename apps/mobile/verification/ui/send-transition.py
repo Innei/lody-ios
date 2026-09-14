@@ -157,6 +157,10 @@ attachment_reports = []
 for path in sorted(attachment_paths):
     shutil.copy2(path, ui.output / path.name)
     data = json.loads(path.read_text())
+    viewport = data['samples'][0]['listFrame']
+    x, y, width, height = data['destination']
+    assert x >= viewport[0] - 1.5 and y >= viewport[1] - 1.5, 'Attachment flew to a clipped destination'
+    assert x + width <= viewport[0] + viewport[2] + 1.5 and y + height <= viewport[1] + viewport[3] + 1.5, 'Attachment landed outside the list viewport'
     if data.get('transition') == 'reveal':
         frames = [sample for sample in data['samples'] if sample['event'] == 'frame' and sample['t'] >= sample['budget']]
         assert len(frames) >= 4 and not data['cancelled'], 'Missing late attachment reveal samples'

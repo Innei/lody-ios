@@ -17,6 +17,7 @@ export type Session = {
   pinned: boolean;
   projectId: string;
   createdAt: string;
+  latestUserMsgId?: string;
   lastMessageAt?: number;
   lastReadAt?: number;
   awaitingUserSince?: number;

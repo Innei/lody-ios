@@ -1,6 +1,7 @@
 import { ProjectHistoryScreen } from './ProjectHistoryScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
 import { AppearanceScreen } from '@/screens/AppearanceScreen';
+import { QueuedMessageBehaviorScreen } from '@/screens/QueuedMessageBehaviorScreen';
 import { useRouter } from 'expo-router';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { AccountScreen } from './AccountScreen';
@@ -15,6 +16,7 @@ import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { useConnection } from '@/cloud/catalog/connection';
 import { usePalette } from '@/lib/theme/palette';
 import { useAppearance } from '@/lib/theme/appearance';
+import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
 import { relativeTime } from '@/ui/time';
 import { showToast } from '@/ui/toast';
 import { definePage } from '@/lib/presentation';
@@ -37,6 +39,7 @@ function View() {
   const { push, cancel } = usePageRuntime();
   const colors = usePalette();
   const { darkBackground } = useAppearance();
+  const { queuedMessageBehavior } = useQueuedMessageBehavior();
   const connection = useConnection();
   const { refresh } = useCatalog();
   const shape = connectionRow[connection.state];
@@ -104,6 +107,15 @@ function View() {
           id: 'notifications',
           title: t('settings.notifications.title'),
           image: 'bell',
+          action: true,
+          disclosure: true,
+          navigates: true,
+        },
+        {
+          id: 'queued-message-behavior',
+          title: t('settings.queuedMessageBehavior.title'),
+          value: t(`settings.queuedMessageBehavior.${queuedMessageBehavior}`),
+          image: 'arrow.uturn.forward',
           action: true,
           disclosure: true,
           navigates: true,
@@ -210,6 +222,8 @@ function View() {
         if (nativeEvent.id === 'notifications')
           void push(NotificationSettingsScreen, {});
         if (nativeEvent.id === 'appearance') void push(AppearanceScreen, {});
+        if (nativeEvent.id === 'queued-message-behavior')
+          void push(QueuedMessageBehaviorScreen, {});
         if (nativeEvent.id === 'project-history')
           void push(ProjectHistoryScreen);
         if (nativeEvent.id === 'archived') void push(ArchivedSessionsScreen);

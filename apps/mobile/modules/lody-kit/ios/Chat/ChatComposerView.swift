@@ -12,6 +12,7 @@ private struct ChatComposerState: Decodable {
   var controlling: Bool?
   var steerID: String?
   var steerInterrupts: Bool?
+  var queuedMessageBehavior: String?
   var notice = ""
   var reconnect = false
   var connection: String?
@@ -397,7 +398,12 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   #endif
   var onStop: (() -> Void)?
   var onSteer: ((String) -> Void)?
-  var queuesSubmission: Bool { state.running == true || !queuedDrafts.isEmpty }
+  var guidesSubmission: Bool {
+    state.queuedMessageBehavior == "guide" && state.running == true && state.steerInterrupts != true
+  }
+  var queuesSubmission: Bool {
+    !guidesSubmission && (state.running == true || !queuedDrafts.isEmpty)
+  }
   var onReconnect: (() -> Void)?
   var onMentionBrowse: (([String: String]) -> Void)?
   private var mentionResultID = ""
@@ -931,10 +937,11 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     }
     sendFeedback.impactOccurred(intensity: 0.85)
     let queued = queuesSubmission
+    let guiding = guidesSubmission
     let id = UUID().uuidString.lowercased()
     let body = input.text ?? ""
     let payload: [String: Any] = [
-      "id": id, "queue": queued, "text": body,
+      "id": id, "queue": queued, "guide": guiding, "text": body,
       "startedAt": Date().timeIntervalSince1970 * 1000,
       "attachments": attachments.map {
         ["id": $0.id, "name": $0.name, "uri": $0.url.absoluteString, "kind": $0.isImage ? "image" : "file"]
@@ -949,10 +956,11 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   func commitSend(_ payload: [String: Any]) {
     guard let id = payload["id"] as? String else { return }
     let queued = payload["queue"] as? Bool == true
+    let guiding = payload["guide"] as? Bool == true
     let body = input.text ?? ""
     relaying = false
     if !queued && sendHandoff {
-      if !body.isEmpty { ChatSendHandoff.begin(id: id, source: input) }
+      if !body.isEmpty { ChatSendHandoff.begin(id: id, source: input, straight: guiding) }
       ChatSendHandoff.beginAttachments(id: id, attachments: attachments, source: attachmentBar)
     }
     takeDraft()

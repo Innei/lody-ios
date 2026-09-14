@@ -204,7 +204,7 @@ async function load(hooks, native) {
                 'export const {useEffect,useRef,useState}=globalThis.__sendHooks;',
               'react-native': 'export const Alert={alert(){}};',
               '@lody-ios/kit':
-                'export const {createSession,sendSessionTurn,addAttachmentUploadProgressListener}=globalThis.__sendNative;',
+                'export const {createSession,sendSessionTurn,ensureSession,addAttachmentUploadProgressListener}=globalThis.__sendNative;',
             }[path],
           }));
         },
@@ -221,12 +221,16 @@ async function setup(
   native,
   persist = async () => {},
   status = 'live',
+  extras = {},
 ) {
   const hooks = harness();
-  const { useSessionSend } = await load(hooks.react, native);
+  const { useSessionSend } = await load(hooks.react, {
+    ensureSession: async () => {},
+    ...native,
+  });
   const outbox = {
     ready: true,
-    records: [{ session, send: initialSend }],
+    records: [{ session: extras.session ?? session, send: initialSend }],
     getSnapshot() {
       return { records: outbox.records, ready: true };
     },
@@ -242,13 +246,15 @@ async function setup(
   };
   hooks.start(useSessionSend, {
     outbox,
-    session,
+    session: extras.session ?? session,
     record: outbox.records[0],
-    snapshot: { status, entries: [] },
+    snapshot: extras.snapshot ?? { status, entries: [] },
     connected: true,
     serverCreated: true,
     userId: 'u1',
     overflow: false,
+    queuedMessageBehavior: extras.queuedMessageBehavior,
+    steerable: extras.steerable,
   });
   await tick();
   return { hooks, outbox };
@@ -444,6 +450,76 @@ test('receipts unlock successive sends while an assistant is running; writes sti
   assert.equal(outbox.records[0].send.id, 'next');
 });
 
+const running = {
+  session: { ...session, status: 'running' },
+  snapshot: {
+    status: 'live',
+    entries: [{ id: 'active-reply', role: 'assistant', finished: false }],
+  },
+};
+
+test('guide is one send operation and only confirms after its native receipt', async () => {
+  const receipt = deferred();
+  const { hooks, outbox } = await setup(
+    { ...draft, queue: false },
+    {
+      async sendSessionTurn(payload) {
+        const body = JSON.parse(payload);
+        assert.equal(body.queue, false);
+        assert.equal(body.guide, true);
+        return receipt.promise;
+      },
+    },
+    async () => {},
+    'live',
+    {
+      ...running,
+      queuedMessageBehavior: 'guide',
+      steerable: true,
+    },
+  );
+  await tick();
+  assert.equal(outbox.records[0].send.phase, 'sending');
+  assert.equal(hooks.result.canSend, false);
+  receipt.resolve(JSON.stringify({ state: 'accepted' }));
+  await tick();
+  assert.equal(outbox.records[0].send.phase, 'accepted');
+  assert.equal(JSON.parse(hooks.result.pendingSendJSON).queue, false);
+});
+
+test('queue preference does not request guide', async () => {
+  const { outbox } = await setup(
+    draft,
+    {
+      sendSessionTurn: async (payload) => {
+        assert.equal(JSON.parse(payload).guide, false);
+        return JSON.stringify({ state: 'queued' });
+      },
+    },
+    async () => {},
+    'live',
+    { ...running, steerable: true },
+  );
+  await tick();
+  await tick();
+  assert.equal(outbox.records[0].send.phase, 'queued');
+});
+
+test('guide without steer capability stays queued', async () => {
+  const { outbox } = await setup(
+    draft,
+    {
+      sendSessionTurn: async () => JSON.stringify({ state: 'queued' }),
+    },
+    async () => {},
+    'live',
+    { ...running, queuedMessageBehavior: 'guide' },
+  );
+  await tick();
+  await tick();
+  assert.equal(outbox.records[0].send.phase, 'queued');
+});
+
 test('explicit retry keeps the failed message identity and attachments, and cannot replay an unknown send', async () => {
   for (const state of ['failed', 'unknown']) {
     const calls = [];
@@ -469,4 +545,27 @@ test('explicit retry keeps the failed message identity and attachments, and cann
       assert.equal(outbox.records[0].send.phase, 'unknown');
     }
   }
+});
+
+test('foreground attachment sends reserve before upload and can retry a failed preparation', async () => {
+  const calls = [];
+  let ready = false;
+  const { hooks, outbox } = await setup(draft, {
+    async ensureSession(id) {
+      calls.push(`ensure:${id}`);
+      if (!ready) throw new Error('runtime_replaced');
+    },
+    async sendSessionTurn(payload) {
+      calls.push(`send:${JSON.parse(payload).sessionId}`);
+      return JSON.stringify({ state: 'accepted' });
+    },
+  });
+  assert.deepEqual(calls, ['ensure:s1']);
+  assert.equal(outbox.records[0].send.phase, 'failed');
+  assert.deepEqual(outbox.records[0].send.attachments, draft.attachments);
+  ready = true;
+  hooks.result.retry();
+  await tick();
+  assert.deepEqual(calls, ['ensure:s1', 'ensure:s1', 'send:s1']);
+  assert.equal(outbox.records[0].send.phase, 'accepted');
 });

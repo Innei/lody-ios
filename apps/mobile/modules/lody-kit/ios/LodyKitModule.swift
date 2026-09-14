@@ -38,6 +38,11 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   var initialDarkBackground: String { LodyDarkBackground.current.rawValue }
 
   @JS
+  var initialQueuedMessageBehavior: String {
+    UserDefaults.standard.string(forKey: "queuedMessageBehavior") == "guide" ? "guide" : "queue"
+  }
+
+  @JS
   var runtimeInfo: LodyRuntimeInfo {
     var offlineProbe = false
     var uiVerifyHome = false
@@ -116,6 +121,11 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   @JS
+  func saveQueuedMessageBehavior(value: String) {
+    UserDefaults.standard.set(value == "guide" ? "guide" : "queue", forKey: "queuedMessageBehavior")
+  }
+
+  @JS
   func readInboxExpansion() -> [String: Bool] {
     UserDefaults.standard.dictionary(forKey: "inboxExpansion") as? [String: Bool] ?? [:]
   }
@@ -145,6 +155,12 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }.runOnQueue(.main)
     AsyncFunction("unwatchSession") { (id: String) in
       MainActor.assumeIsolated { self.dataRuntime.closeSession(id) }
+    }.runOnQueue(.main)
+    AsyncFunction("ensureSession") { (id: String, promise: Promise) in
+      MainActor.assumeIsolated { self.dataRuntime.ensureSession(id, promise: promise) }
+    }.runOnQueue(.main)
+    AsyncFunction("releaseReserve") { (id: String) in
+      MainActor.assumeIsolated { self.dataRuntime.releaseReserve(id) }
     }.runOnQueue(.main)
     AsyncFunction("readContentText") { (handle: String) -> String? in
       MainActor.assumeIsolated {

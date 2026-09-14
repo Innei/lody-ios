@@ -4,6 +4,10 @@ import {
   watchSession,
   unwatchSession,
 } from '@lody-ios/kit';
+import {
+  getForegroundSession,
+  setForegroundSession,
+} from '../../cloud/send/foregroundSession';
 import { acceptEnvelope } from './acceptEnvelope';
 import { localGeneration, readLocal } from '../../cloud/kv';
 import { showToast } from '../../ui/toast';
@@ -41,6 +45,7 @@ export function useSessionRuntime(
     setSnapshot({ status: 'syncing', revision: -1, entries: [] });
     setOverflow(false);
     if (!enabled || !userId || !workspaceId) return;
+    setForegroundSession(sessionId);
     void readLocal<Envelope>(key).then((saved) => {
       if (
         !active ||
@@ -93,6 +98,7 @@ export function useSessionRuntime(
     return () => {
       active = false;
       subscription.remove();
+      if (getForegroundSession() === sessionId) setForegroundSession('');
       void unwatchSession(sessionId);
     };
   }, [key, enabled]);

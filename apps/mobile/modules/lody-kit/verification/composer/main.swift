@@ -456,6 +456,31 @@ queueComposer.setInitialAttachments(#"[{"id":"queue-file","name":"next.txt","uri
 precondition(queueSend.accessibilityIdentifier == "session-send" && queueSend.isEnabled, "An attachment switches Stop to Send even with empty text")
 print("Queue composer: Stop, whitespace, typing, queued submission, ACK, bounded queue and attachment-only input passed")
 
+let guideWindow = HandoffWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+let guideComposer = ChatComposerView(frame: CGRect(x: 0, y: 600, width: 390, height: 244))
+guideWindow.addSubview(guideComposer)
+guideWindow.isHidden = false
+guideComposer.setComposerState(#"{"editable":true,"canSend":true,"sending":false,"running":true,"canStop":true,"steerInterrupts":false,"queuedMessageBehavior":"guide","notice":"","reconnect":false,"placeholder":"任务"}"#)
+let guideInput = descendants(guideComposer).compactMap { $0 as? UITextView }.first!
+let guideSend = descendants(guideComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-stop" || $0.accessibilityIdentifier == "session-send" }!
+var guidePayload: [String: Any] = [:]
+guideComposer.onSend = { guidePayload = $0 }
+guideInput.text = "Steer now"
+guideComposer.textViewDidChange(guideInput)
+precondition(guideSend.accessibilityIdentifier == "session-send" && guideSend.isEnabled, "Guide still sends from a running composer")
+@MainActor func tapGuideAction() {
+  for action in guideSend.actions(forTarget: guideComposer, forControlEvent: .touchUpInside) ?? [] {
+    guideComposer.perform(NSSelectorFromString(action))
+  }
+}
+tapGuideAction()
+precondition(guidePayload["queue"] as? Bool == false, "Guide must not mark the send as queued")
+precondition(guidePayload["guide"] as? Bool == true, "Guide must mark the send for steer delivery")
+precondition(guideInput.text.isEmpty, "Guide send must clear the draft")
+precondition(onMain { ChatSendHandoff.isWaiting(id: guidePayload["id"] as! String) }, "Guide send must fly from the composer, not sit in the queue")
+onMain { ChatSendHandoff.cancel(id: guidePayload["id"] as! String) }
+print("Guide composer: busy send skips the queue and starts a straight handoff")
+
 // A steered queue row hands its frame to the send animation instead of vanishing.
 let steerWindow = HandoffWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
 let steerComposer = ChatComposerView(frame: CGRect(x: 0, y: 600, width: 390, height: 244))

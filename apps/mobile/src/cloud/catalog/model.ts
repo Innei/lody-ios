@@ -134,6 +134,7 @@ export function projectRows(rows: Row[], mode: string): Catalog {
       pinned: value.isPinned === true,
       projectId,
       createdAt: text(value.createdAt),
+      latestUserMsgId: text(value.latestUserMsgId) || undefined,
       lastMessageAt: stamp(value.lastMessageAt),
       lastReadAt: stamp(value.lastReadAt),
       awaitingUserSince: stamp(value.awaitingUserSince),

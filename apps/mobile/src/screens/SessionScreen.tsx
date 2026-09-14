@@ -7,6 +7,7 @@ import { usePendingSends } from '@/cloud/send/pendingSends';
 import { useConnection } from '@/cloud/catalog/connection';
 import { useSessionControl } from '@/features/sessions/useSessionControl';
 import { useSessionSend } from '@/features/sessions/useSessionSend';
+import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View as RNView, Alert } from 'react-native';
@@ -258,6 +259,13 @@ function View() {
   const activeChoice = choiceHydrated.current
     ? choice
     : (snapshot.composer ?? choice);
+  const { queuedMessageBehavior } = useQueuedMessageBehavior();
+  const control = useSessionControl(
+    currentSession,
+    snapshot,
+    overflow,
+    capability?.steer === true,
+  );
   const send = useSessionSend({
     outbox,
     session: currentSession,
@@ -267,6 +275,8 @@ function View() {
     serverCreated: serverSessions.some((entry) => entry.id === session.id),
     userId: account?.user.id ?? '',
     overflow,
+    queuedMessageBehavior,
+    steerable: capability?.steer === true,
   });
   const gate = useRef(createPermissionGate()).current;
   const listeners = useRef(new Set<(state: PermissionTargetState) => void>());
@@ -355,12 +365,6 @@ function View() {
   const openFile = useOpenFile(session.id);
   const openProcess = useProcessSheet(entriesJSON, onActivityPress, session.id);
   const notice = overflow ? t('chat.notice.syncStopped') : '';
-  const control = useSessionControl(
-    currentSession,
-    snapshot,
-    overflow,
-    capability?.steer === true,
-  );
   const mentions = useComposerMentions(
     selected && account
       ? {
@@ -382,6 +386,7 @@ function View() {
     controlling: control.controlling,
     steerID: control.steerID,
     steerInterrupts: control.steerInterrupts,
+    queuedMessageBehavior,
     notice,
     reconnect: overflow,
     connection: connectionChrome({
