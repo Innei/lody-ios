@@ -270,7 +270,7 @@ export async function createSession(
     machineId: agent.machineId,
     userId: args.userId,
     title: args.title.trim(),
-    titleSource: 'user',
+    titleSource: 'draft',
     status: { type: 'idle' },
     isArchived: false,
     createdAt: new Date().toISOString(),

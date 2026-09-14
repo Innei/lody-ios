@@ -254,6 +254,7 @@ test('create a project session, open its empty history and dispatch the first tu
   assert.deepEqual(order, ['stream', 'metadata']);
   const saved = remote.get(['m', `session-${result.session.id}`]);
   assert.equal(saved.title, 'First task');
+  assert.equal(saved.titleSource, 'draft');
   assert.equal(saved.project.localProjectId, 'p1');
   assert.equal(remote.get(['e', `session-${result.session.id}`]), true);
   assert.equal(saved.latestUserMsgId, undefined);
@@ -478,6 +479,7 @@ test('chat and fresh GitHub repositories can use workspace machines while local 
   assert.equal(result.state, 'created');
   assert.equal(result.session.projectId, 'm1:unassigned');
   const saved = remote.get(['m', `session-${result.session.id}`]);
+  assert.equal(saved.titleSource, 'draft');
   assert.equal(saved.project, undefined);
   assert.equal(saved.repoFullName, undefined);
   assert.equal(saved.isWorktree, undefined);
@@ -560,6 +562,7 @@ test('chat and fresh GitHub repositories can use workspace machines while local 
   );
   assert.equal(created.state, 'created');
   const githubSaved = remote.get(['m', `session-${created.session.id}`]);
+  assert.equal(githubSaved.titleSource, 'draft');
   assert.equal(githubSaved.machineId, 'm2');
   assert.equal(githubSaved.agentConfigId, 'c2');
   assert.deepEqual(githubSaved.project, {
