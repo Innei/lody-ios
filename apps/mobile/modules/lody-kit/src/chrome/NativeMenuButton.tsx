@@ -12,6 +12,7 @@ export type NativeMenuItem = {
 export interface NativeMenuButtonProps extends ViewProps {
   accessibilityName: string;
   avatar: { text: string; color: string; image?: string };
+  header?: boolean;
   label: string;
   items: NativeMenuItem[];
   onSelect: (id: string) => void;
@@ -26,6 +27,7 @@ const NativeView: ComponentType<
 
 export function NativeMenuButton({
   onSelect,
+  header,
   style,
   ...props
 }: NativeMenuButtonProps) {
@@ -33,9 +35,14 @@ export function NativeMenuButton({
   return (
     <NativeView
       {...props}
-      style={[{ width, height: 44 }, style]}
+      header={!!header}
+      collapsable={false}
+      pointerEvents={header ? 'none' : 'auto'}
+      style={header ? { width: 0, height: 0 } : [{ width, height: 44 }, style]}
       onSelect={({ nativeEvent }) => onSelect(nativeEvent.id)}
-      onSize={({ nativeEvent }) => setWidth(Math.ceil(nativeEvent.width))}
+      onSize={({ nativeEvent }) => {
+        if (!header) setWidth(Math.ceil(nativeEvent.width));
+      }}
     />
   );
 }

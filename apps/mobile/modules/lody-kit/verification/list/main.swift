@@ -21,48 +21,31 @@ assert(loaded.size.width == LodyMenuButtonStyle.avatarSide)
 assert(letter.pngData() != loaded.pngData(), "An account photo must replace the letter fallback")
 assert(LodyMenuButtonStyle.trailingInset > 4, "The workspace name needs room after the last glyph")
 
-@MainActor
-func configuredMenuButton(title: String, width: CGFloat) -> UIButton {
-  let button = UIButton(type: .system)
-  var configuration = UIButton.Configuration.plain()
-  configuration.image = LodyMenuButtonStyle.avatarImage(text: "I", fill: .systemIndigo, photo: nil)
-  configuration.imagePadding = 8
-  configuration.contentInsets = NSDirectionalEdgeInsets(
-    top: 4, leading: 2, bottom: 4, trailing: LodyMenuButtonStyle.trailingInset
-  )
-  configuration.attributedTitle = AttributedString(
-    title,
-    attributes: AttributeContainer([
-      .font: UIFont.preferredFont(forTextStyle: .headline),
-      .foregroundColor: UIColor.label,
-    ])
-  )
-  LodyMenuButtonStyle.apply(configuration, to: button)
-  let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
-  window.makeKeyAndVisible()
-  let host = UIView(frame: CGRect(x: 0, y: 0, width: width, height: 44))
-  window.addSubview(host)
-  host.addSubview(button)
-  button.frame = host.bounds
-  host.layoutIfNeeded()
-  withExtendedLifetime(window) {}
-  return button
-}
-
-@MainActor
-func menuTitleTruncated(_ button: UIButton) -> Bool {
-  guard let label = button.titleLabel else { return true }
-  return label.intrinsicContentSize.width > label.bounds.width + 1
-}
-
-let cramped = configuredMenuButton(title: "Innei", width: 44)
-let reported = LodyMenuButtonStyle.preferredWidth(for: cramped)
-let fitted = configuredMenuButton(title: "Innei", width: reported)
+let shortMenu = UIButton(type: .system)
+LodyMenuButtonStyle.apply(label: "Innei", avatar: letter, to: shortMenu)
+let shortWidth = LodyMenuButtonStyle.unconstrainedWidth(for: shortMenu)
+let headerLimit = LodyMenuButtonStyle.headerLimit(barWidth: 390, safeLeading: 0, safeTrailing: 0)
+assert(headerLimit > 200, "The navigation bar must give the workspace more than a 200 pt cap")
 assert(
-  !menuTitleTruncated(fitted),
-  "A short workspace name must keep its full title after the header reports its width"
+  LodyMenuButtonStyle.fittedSize(for: shortMenu, limit: headerLimit).width >= shortWidth - 1,
+  "A short workspace name must keep its full title in the header"
 )
-print("PASS: short workspace names report a width that fits the title")
+assert(
+  LodyMenuButtonStyle.fittedSize(for: shortMenu, limit: 44).width == 44,
+  "The header may still compress the control when space is gone"
+)
+
+let longMenu = UIButton(type: .system)
+LodyMenuButtonStyle.apply(label: "我的超长工作区名称不能折行", avatar: letter, to: longMenu)
+let longWidth = LodyMenuButtonStyle.unconstrainedWidth(for: longMenu)
+let longFitted = LodyMenuButtonStyle.fittedSize(for: longMenu, limit: headerLimit).width
+assert(longWidth > 200, "The long fixture must exceed the old RN width cap")
+assert(
+  longFitted == min(longWidth, headerLimit),
+  "A long workspace name uses the remaining header width instead of a 200 pt RN cap"
+)
+assert(longFitted > 200, "The workspace pill must grow past 200 pt when the bar has room")
+print("PASS: workspace header width follows the navigation bar, not an RN measured cap")
 
 var swipedState = UICellConfigurationState(traitCollection: UITraitCollection())
 swipedState.isSwiped = true

@@ -565,6 +565,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }
     View(LodyMenuButton.self) {
       Events("onSelect", "onSize")
+      Prop("header") { (view: LodyMenuButton, value: Bool) in
+        view.setHeader(value)
+      }
       Prop("accessibilityName") { (view: LodyMenuButton, name: String) in
         view.setAccessibilityName(name)
       }

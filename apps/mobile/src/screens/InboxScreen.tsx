@@ -46,28 +46,25 @@ function RouterChrome({ model }: { model: InboxModel }) {
   return (
     <>
       <Stack.Screen options={{ title: '' }} />
-      <Stack.Toolbar placement="left">
-        <Stack.Toolbar.View>
-          <NativeMenuButton
-            testID="workspace-menu"
-            accessibilityName={t('inbox.workspaceSwitch.accessibility', {
-              name: workspaceName,
-            })}
-            avatar={{
-              text: workspaceName.slice(0, 1),
-              color: colors.accent,
-              image: selected?.image,
-            }}
-            label={workspaceName}
-            items={account.workspaces.map((workspace) => ({
-              id: workspace.id,
-              title: workspace.name,
-              selected: workspace.id === selected?.id,
-            }))}
-            onSelect={model.setWorkspaceId}
-          />
-        </Stack.Toolbar.View>
-      </Stack.Toolbar>
+      <NativeMenuButton
+        testID="workspace-menu"
+        header
+        accessibilityName={t('inbox.workspaceSwitch.accessibility', {
+          name: workspaceName,
+        })}
+        avatar={{
+          text: workspaceName.slice(0, 1),
+          color: colors.accent,
+          image: selected?.image,
+        }}
+        label={workspaceName}
+        items={account.workspaces.map((workspace) => ({
+          id: workspace.id,
+          title: workspace.name,
+          selected: workspace.id === selected?.id,
+        }))}
+        onSelect={model.setWorkspaceId}
+      />
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Menu
           icon="line.3.horizontal.decrease"
