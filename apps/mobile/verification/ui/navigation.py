@@ -27,6 +27,15 @@ def swipe_back():
 
 def home(name):
     stack(['index'])
+    label = catalog.text('inbox.workspaceSwitch.accessibility', name='我的超长工作区名称不能折行')
+    button = ui.wait(lambda items: next((i for i in items if i.get('AXLabel') == label and i.get('type') == 'Button'), None), 'Workspace button disappeared')
+    frame = button['frame']
+    assert frame['width'] > 200 and frame['height'] >= 44, frame
+    settings = next(i['frame'] for i in ui.state() if i.get('AXLabel') == catalog.text('tabs.settings') and i.get('type') == 'Button')
+    assert frame['x'] + frame['width'] <= settings['x'], 'Workspace overlaps navigation actions'
+    time.sleep(.5)
+    settled = next(i['frame'] for i in ui.state() if i.get('AXLabel') == label and i.get('type') == 'Button')
+    assert all(abs(frame[key] - settled[key]) < 1 for key in ('x', 'y', 'width', 'height')), 'Workspace button moved after settling'
     assert not any(i.get('AXUniqueId') == 'BackButton' for i in ui.state()), 'Home has a back button'
     swipe_back()
     stack(['index'])
@@ -50,6 +59,17 @@ def session(title):
 
 
 home('initial-home')
+# Recreate the process with the same offline launch contract to cover startup
+# ordering between native header configuration and the workspace props.
+for index in range(3):
+    subprocess.run(['xcrun', 'simctl', 'terminate', udid, 'app.innei.lody'], check=True, timeout=30)
+    launch = ['xcrun', 'simctl', 'launch', udid, 'app.innei.lody', '--ui-verify', '--ui-verify-home']
+    port = os.environ.get('LODY_UI_METRO_PORT')
+    if port:
+        launch += ['--initialUrl', f'http://127.0.0.1:{port}?disableOnboarding=1']
+    subprocess.run(launch, check=True, timeout=30)
+    ui.element('ui-verify-ready')
+    home(f'cold-home-{index}')
 # Exercise the production row push, then cancel an edge pop before completing
 # it. The recording also covers toolbar retirement during the push itself.
 ui.axe('tap', '--id', 'ui-design', '--post-delay', '.6')

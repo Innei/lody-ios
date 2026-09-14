@@ -7,7 +7,6 @@ enum LodyMenuButtonStyle {
   static let leadingInset: CGFloat = 2
   static let trailingInset: CGFloat = 10
   static let height: CGFloat = 44
-  static let rightItemsReserve: CGFloat = 120
 
   static func apply(_ value: UIButton.Configuration, to button: UIButton) {
     var configuration = value
@@ -36,15 +35,6 @@ enum LodyMenuButtonStyle {
 
   static func unconstrainedWidth(for button: UIButton) -> CGFloat {
     button.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude, height: height)).width
-  }
-
-  static func headerLimit(barWidth: CGFloat, safeLeading: CGFloat, safeTrailing: CGFloat) -> CGFloat {
-    max(height, barWidth - safeLeading - safeTrailing - rightItemsReserve)
-  }
-
-  static func fittedSize(for button: UIButton, limit: CGFloat) -> CGSize {
-    let width = min(max(unconstrainedWidth(for: button), height), limit)
-    return CGSize(width: width, height: height)
   }
 
   static func avatarImage(text: String, fill: UIColor, photo: UIImage?) -> UIImage {

@@ -24,28 +24,14 @@ assert(LodyMenuButtonStyle.trailingInset > 4, "The workspace name needs room aft
 let shortMenu = UIButton(type: .system)
 LodyMenuButtonStyle.apply(label: "Innei", avatar: letter, to: shortMenu)
 let shortWidth = LodyMenuButtonStyle.unconstrainedWidth(for: shortMenu)
-let headerLimit = LodyMenuButtonStyle.headerLimit(barWidth: 390, safeLeading: 0, safeTrailing: 0)
-assert(headerLimit > 200, "The navigation bar must give the workspace more than a 200 pt cap")
-assert(
-  LodyMenuButtonStyle.fittedSize(for: shortMenu, limit: headerLimit).width >= shortWidth - 1,
-  "A short workspace name must keep its full title in the header"
-)
-assert(
-  LodyMenuButtonStyle.fittedSize(for: shortMenu, limit: 44).width == 44,
-  "The header may still compress the control when space is gone"
-)
 
 let longMenu = UIButton(type: .system)
 LodyMenuButtonStyle.apply(label: "我的超长工作区名称不能折行", avatar: letter, to: longMenu)
 let longWidth = LodyMenuButtonStyle.unconstrainedWidth(for: longMenu)
-let longFitted = LodyMenuButtonStyle.fittedSize(for: longMenu, limit: headerLimit).width
 assert(longWidth > 200, "The long fixture must exceed the old RN width cap")
-assert(
-  longFitted == min(longWidth, headerLimit),
-  "A long workspace name uses the remaining header width instead of a 200 pt RN cap"
-)
-assert(longFitted > 200, "The workspace pill must grow past 200 pt when the bar has room")
-print("PASS: workspace header width follows the navigation bar, not an RN measured cap")
+LodyMenuButtonStyle.apply(label: "Innei", avatar: loaded, to: shortMenu)
+assert(abs(LodyMenuButtonStyle.unconstrainedWidth(for: shortMenu) - shortWidth) < 1,
+       "Loading the avatar must not resize the workspace button")
 
 var swipedState = UICellConfigurationState(traitCollection: UITraitCollection())
 swipedState.isSwiped = true

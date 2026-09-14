@@ -1,4 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
+import { useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   NativeGroupedList,
   NativeMenuButton,
@@ -40,31 +42,40 @@ function InboxList({ model }: { model: InboxModel }) {
 
 function RouterChrome({ model }: { model: InboxModel }) {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { account, colors, mode, selected, sort } = model;
   if (!model.ready || !account) return null;
   const workspaceName = selected?.name ?? t('common.workspace');
   return (
     <>
       <Stack.Screen options={{ title: '' }} />
-      <NativeMenuButton
-        testID="workspace-menu"
-        header
-        accessibilityName={t('inbox.workspaceSwitch.accessibility', {
-          name: workspaceName,
-        })}
-        avatar={{
-          text: workspaceName.slice(0, 1),
-          color: colors.accent,
-          image: selected?.image,
-        }}
-        label={workspaceName}
-        items={account.workspaces.map((workspace) => ({
-          id: workspace.id,
-          title: workspace.name,
-          selected: workspace.id === selected?.id,
-        }))}
-        onSelect={model.setWorkspaceId}
-      />
+      <Stack.Toolbar placement="left">
+        <Stack.Toolbar.View>
+          <NativeMenuButton
+            testID="workspace-menu"
+            style={{
+              // Leave room for both trailing actions and UIKit's glass group margins.
+              maxWidth: Math.max(44, width - insets.left - insets.right - 192),
+            }}
+            accessibilityName={t('inbox.workspaceSwitch.accessibility', {
+              name: workspaceName,
+            })}
+            avatar={{
+              text: workspaceName.slice(0, 1),
+              color: colors.accent,
+              image: selected?.image,
+            }}
+            label={workspaceName}
+            items={account.workspaces.map((workspace) => ({
+              id: workspace.id,
+              title: workspace.name,
+              selected: workspace.id === selected?.id,
+            }))}
+            onSelect={model.setWorkspaceId}
+          />
+        </Stack.Toolbar.View>
+      </Stack.Toolbar>
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Menu
           icon="line.3.horizontal.decrease"
