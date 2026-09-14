@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { cancelComposerRelay } from '@lody-ios/kit';
 import { present } from '@/lib/presentation';
 import { showToast } from '@/ui/toast';
 import { subscribeSessionNav } from '@/features/sessions/sessionNav';
@@ -19,12 +20,21 @@ export function useBindSessionNav({
   const { selected } = useCatalog();
   useEffect(() => {
     if (!enabled) return;
-    const open = async (params: SessionParams) => {
+    const open = async (params: SessionParams, preparing = false) => {
       if (openSession) openSession(params);
       else
-        await present(SessionScreen, params, { title: params.session.title });
+        await present(SessionScreen, params, {
+          title: params.session.title,
+          animationType: preparing ? 'none' : 'slide',
+        });
     };
     return subscribeSessionNav(async (intent, signal) => {
+      let relayId: string | undefined;
+      let opening: Promise<void> | undefined;
+      const cancelRelay = () => {
+        if (relayId) void cancelComposerRelay(relayId);
+      };
+      signal.addEventListener('abort', cancelRelay, { once: true });
       try {
         if (intent.kind === 'open') {
           await open({ session: intent.session });
@@ -38,14 +48,27 @@ export function useBindSessionNav({
             projects: intent.catalog.projects,
             projectId: intent.projectId,
             context: intent.context,
+            onCreated: (created) => {
+              relayId = created.composerRelayId;
+              if (signal.aborted) {
+                cancelRelay();
+                return Promise.reject(new Error('Navigation cancelled'));
+              }
+              opening = open(created, true);
+              return opening;
+            },
           },
           openSession
             ? { sheetAllowedDetents: [1], sheetGrabberVisible: false }
             : undefined,
         );
-        if (!signal.aborted && result.status === 'completed')
-          await open(result.value);
+        if (result.status === 'completed') {
+          relayId = result.value.composerRelayId;
+          if (!signal.aborted) await (opening ?? open(result.value));
+          else cancelRelay();
+        } else cancelRelay();
       } catch {
+        cancelRelay();
         if (signal.aborted) return;
         showToast(
           t(
@@ -54,6 +77,8 @@ export function useBindSessionNav({
               : 'session.toast.createFailed',
           ),
         );
+      } finally {
+        signal.removeEventListener('abort', cancelRelay);
       }
     });
   }, [enabled, openSession, account?.user.id, selected?.id]);

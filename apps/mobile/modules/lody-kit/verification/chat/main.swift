@@ -517,9 +517,11 @@ let reconnectRows = disconnectedPending.rows(entries: [])
 precondition(reconnectRows.count == pendingRows.count + 1 && reconnectRows.first?.running == false,
   "Reconnection replaces tile loading with an actionable status row")
 precondition(
-  reconnectRows.contains { $0.kind == "pending" && $0.actionable } && reconnectRows.last?.actionable == false,
+  reconnectRows.contains { $0.kind == "pending" && $0.actionable } && reconnectRows.first(where: { $0.kind == "duration" })?.actionable == false,
   "Disconnected pending state must offer reconnect on the status row, not the timer"
 )
+precondition(reconnectRows.firstIndex(where: { $0.kind == "duration" }) == pendingRows.firstIndex(where: { $0.kind == "duration" }),
+  "Connecting must remove the reconnect action without shifting the reply header")
 precondition(pendingRows.last?.actionable == false, "Ordinary pending status must not open the execution process")
 print("Pending reconnect: one actionable status row while disconnected passed")
 

@@ -275,7 +275,9 @@ panelInput.text = "Keep this draft visible"
 panelComposer.textViewDidChange(panelInput)
 var panelPayload: [String: Any] = [:]
 panelComposer.onSend = { panelPayload = $0 }
-panelSend.sendActions(for: .touchUpInside)
+for action in panelSend.actions(forTarget: panelComposer, forControlEvent: .touchUpInside) ?? [] {
+  panelComposer.perform(NSSelectorFromString(action))
+}
 precondition(panelPayload["text"] as? String == "Keep this draft visible")
 precondition(!ChatSendHandoff.isWaiting(id: panelPayload["id"] as! String),
   "Cross-container creation must not leave a flying copy in the window")
@@ -350,25 +352,59 @@ precondition(persistedTyping.last == "", "An empty current input must never pers
 print("Composer persistence: either hydration order and current-only draft writes passed")
 
 // A cancelled throw must reveal its destination and never adopt stale content.
-let throwWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+// This executable has no render server; UI checks exercise real snapshot pixels.
+final class HandoffWindow: UIWindow {
+  override func resizableSnapshotView(from rect: CGRect, afterScreenUpdates afterUpdates: Bool, withCapInsets capInsets: UIEdgeInsets) -> UIView? { UIView(frame: rect) }
+}
+let throwWindow = HandoffWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
 let throwInput = UITextView(frame: CGRect(x: 16, y: 700, width: 350, height: 60))
 throwInput.text = "Preserve this message"
 throwWindow.addSubview(throwInput)
 let throwTarget = ChatMessageContent(frame: CGRect(x: 200, y: 100, width: 170, height: 45))
 throwTarget.label.setText(NSAttributedString(string: throwInput.text))
 throwWindow.addSubview(throwTarget)
-onMain { ChatSendHandoff.begin(id: "cancel-throw", text: throwInput.text, source: throwInput) }
+onMain { ChatSendHandoff.begin(id: "cancel-throw", source: throwInput) }
 onMain { ChatSendHandoff.hold(id: "cancel-throw", target: throwTarget) }
 precondition(throwTarget.isHidden, "The destination must not duplicate the flying message")
 onMain { ChatSendHandoff.deliver(id: "cancel-throw", to: throwTarget) }
 let flyingText = throwWindow.subviews.compactMap { $0 as? ChatMessageContent }.first { $0 !== throwTarget }
 precondition(flyingText != nil && flyingText!.label.bounds.width > 0 && flyingText!.label.bounds.height > 0,
   "The hidden background layer must not skip the flying text layout")
+onMain {
+  ChatSendHandoff.begin(id: "cancel-throw:attachment:offscreen", source: throwInput)
+  ChatSendHandoff.cancelWaitingAttachments(id: "cancel-throw")
+}
+precondition(!ChatSendHandoff.hasWaitingAttachments(id: "cancel-throw") && throwTarget.isHidden,
+  "Offscreen attachment cleanup must remove waiting copies without interrupting a visible flight")
 onMain { ChatSendHandoff.cancel(id: "cancel-throw") }
 RunLoop.current.run(until: Date().addingTimeInterval(0.5))
 precondition(!throwTarget.isHidden, "Cancellation must reveal the destination")
 precondition(throwWindow.subviews.count == 2, "Cancellation must remove every flight overlay")
 print("Send throw: cancellation reveals target, removes overlays without replacing destination content")
+
+let relayComposer = ChatComposerView(frame: composer.frame)
+relayComposer.setComposerState(ready)
+relayComposer.setInitialDraft("Keep until adopted")
+let relayInput = descendants(relayComposer).compactMap { $0 as? UITextView }.first!
+var relayPayload: [String: Any]?
+var relayDispatches = 0
+relayComposer.prepareSend = { payload in
+  relayPayload = payload
+  relayComposer.relaying = true
+  relayDispatches += 1
+  return true
+}
+relayComposer.perform(NSSelectorFromString("submit"))
+relayComposer.perform(NSSelectorFromString("submit"))
+relayComposer.setComposerState(#"{"editable":true,"canSend":false,"sending":true}"#)
+precondition(relayInput.text == "Keep until adopted" && relayDispatches == 1,
+  "Preparing a destination must preserve the draft and dispatch only once")
+relayComposer.onSend = { _ in preconditionFailure("Adoption cannot dispatch the creation twice") }
+relayComposer.commitSend(relayPayload!)
+precondition(relayInput.text.isEmpty, "Only adoption consumes the source draft")
+relayComposer.restoreDraft(token: 1)
+precondition(relayInput.text == "Keep until adopted", "An adopted send must remain restorable")
+print("Composer relay: prepare preserves draft, adoption consumes once, failure restores")
 
 let queueComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 244))
 let runningState = #"{"editable":true,"canSend":true,"sending":false,"running":true,"canStop":true,"notice":"","reconnect":false,"placeholder":"任务"}"#
@@ -421,7 +457,7 @@ precondition(queueSend.accessibilityIdentifier == "session-send" && queueSend.is
 print("Queue composer: Stop, whitespace, typing, queued submission, ACK, bounded queue and attachment-only input passed")
 
 // A steered queue row hands its frame to the send animation instead of vanishing.
-let steerWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+let steerWindow = HandoffWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
 let steerComposer = ChatComposerView(frame: CGRect(x: 0, y: 600, width: 390, height: 244))
 steerWindow.addSubview(steerComposer)
 steerWindow.isHidden = false
@@ -507,11 +543,11 @@ let mentionEntry = descendants(glassComposer).first { $0.accessibilityIdentifier
 glassComposer.setComposerState(ready)
 precondition(!mentionEntry.isHidden, "Ordinary composer state updates must not erase the separately loaded reference catalog")
 let focusedInputFrame = glassInputSurface.convert(glassInputSurface.bounds, to: glassComposer)
-let focusedAttachFrame = glassAttachSurface.convert(glassAttachSurface.bounds, to: glassComposer)
-precondition(glassAttachSurface.effect == nil,
-  "Merged Add must not retain an independent circular glass effect")
+let focusedAttachFrame = glassAttach.convert(glassAttach.bounds, to: glassComposer)
+precondition(glassAttach.isDescendant(of: glassInputSurface) && !glassAttachSurface.isUserInteractionEnabled,
+  "Merged Add must use the input's interaction surface, with one 44-point action")
 glassInputSurface.transform = CGAffineTransform(scaleX: 1.05, y: 1.05)
-let pressedAttachFrame = glassAttachSurface.convert(glassAttachSurface.bounds, to: glassComposer)
+let pressedAttachFrame = glassAttach.convert(glassAttach.bounds, to: glassComposer)
 precondition(abs(pressedAttachFrame.width - focusedAttachFrame.width * 1.05) < 0.5,
   "Pressing the input glass must scale the merged Add along with its content")
 glassInputSurface.transform = .identity
@@ -558,8 +594,8 @@ let focusedAttachGlyphSize = focusedGlyph.bounds.size
 precondition(
   abs(focusedAttachGlyphSize.width - mergedImage.size.width) < 0.5
     && abs(focusedAttachGlyphSize.height - mergedImage.size.height) < 0.5
-    && focusedGlyph.alpha == 1 && glassAttachGlyph!.alpha == 0,
-  "Focus must render the regular glyph at its intended size while fading out the separate medium glyph"
+    && focusedGlyph.alpha == 1,
+  "Focus must render the regular glyph at its intended size"
 )
 let attachGlyphCenter = glassAttachGlyph!.convert(
   CGPoint(x: glassAttachGlyph!.bounds.midX, y: glassAttachGlyph!.bounds.midY),
@@ -587,9 +623,9 @@ glassComposer.layoutIfNeeded()
 precondition(glassAttachSurface.effect is UIGlassEffect
   && !glassAttachSurface.isDescendant(of: glassInputSurface),
   "Leaving focus must restore Add's separate interactive glass")
-precondition(glassAttachGlyph!.alpha == 1 && focusedGlyph.alpha == 0
+precondition(glassAttachGlyph!.alpha == 1 && glassAttach.isDescendant(of: glassAttachSurface)
   && abs(glassAttachGlyph!.bounds.width - restingAttachGlyphSize.width) < 0.5,
-  "Leaving focus must restore the separate medium glyph without retaining the regular overlay")
+  "Leaving focus must restore the separate medium glyph and its original action host")
 glassInput.becomeFirstResponder()
 RunLoop.current.run(until: Date().addingTimeInterval(0.05))
 glassInput.resignFirstResponder()

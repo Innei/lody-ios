@@ -13,6 +13,7 @@ import { NotificationPreviewScreen } from './NotificationPreviewScreen';
 import { LiveActivityPreviewScreen } from './LiveActivityPreviewScreen';
 import { uiVerify } from './uiVerify';
 import { ComposerPreviewScreen } from './ComposerPreviewScreen';
+import { ComposerHandoffPreviewScreen } from './ComposerHandoffPreviewScreen';
 import { ChatPreviewScreen } from './ChatPreviewScreen';
 import { ChatPerformanceScreen } from './ChatPerformanceScreen';
 import { ChatStreamPerformanceScreen } from './ChatStreamPerformanceScreen';
@@ -194,6 +195,8 @@ function View() {
         openRow('send-queue', 'Queue 验收', 'list.bullet'),
         openRow('send-interrupt', 'Queue 中断验收', 'stop.circle'),
         openRow('send-handoff', '新建发送交接', 'arrow.triangle.swap'),
+        openRow('composer-relay', 'Composer 接力 POC', 'rectangle.2.swap'),
+        openRow('send-handoff-delayed', '新建发送交接 · 慢速页面', 'clock'),
       ],
     },
     {
@@ -319,6 +322,8 @@ function View() {
     'send-queue': () => void openSendPreview(false, true),
     'send-interrupt': () => void openSendPreview(false, true, false),
     'send-handoff': () => void openSendPreview(true),
+    'composer-relay': () => void present(ComposerHandoffPreviewScreen, {}),
+    'send-handoff-delayed': () => void openSendPreview('delayed'),
     'runtime-probe': () =>
       void debugProbeSchema()
         .then((report) => {

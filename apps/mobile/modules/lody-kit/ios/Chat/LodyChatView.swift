@@ -78,7 +78,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   let measuringText = ChatTextView()
   var measurements: [String: (width: CGFloat, text: NSAttributedString, height: CGFloat)] = [:]
   let store = ChatMarkdownStore(traits: .current)
-  let composer = ChatComposerView(frame: .zero)
+  var composer = ChatComposerView(frame: .zero)
   let bottomButton = UIButton(type: .system)
   var localAttachments: [String: [ChatMessageAttachment]] = [:]
   var expandedMessages = Set<String>()
@@ -228,6 +228,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     navigation.updateTitle = { [weak self] in self?.attachTitle() }
     navigation.onDidAppear = { [weak self] in
       self?.hasAppeared = true
+      self?.adoptComposerIfNeeded()
       self?.deliverPendingContent()
     }
     navigation.onWillAppear = { [weak self] animated, coordinator in
@@ -400,6 +401,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    adoptComposerIfNeeded()
     bindScrollOwnerIfNeeded()
     attachTitle()
     updateBottomButton()
@@ -602,6 +604,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     guard !json.isEmpty else {
       // A stale initial empty prop must not erase a send handled in this native frame.
       if let publishedPendingID, let pendingSend, pendingSend.id == publishedPendingID {
+        if LodyComposerView.relays[pendingSend.id] != nil {
+          composerHasAcknowledgedSend = true
+          self.publishedPendingID = nil
+          return
+        }
         composer.clearPendingSend(id: publishedPendingID)
         composerHasAcknowledgedSend = true
         // entriesJSON is decoded off-main. Keep the local rows until the same
@@ -614,6 +621,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     }
     guard let value = try? JSONDecoder().decode(ChatPendingSend.self, from: Data(json.utf8)), !value.id.isEmpty else { return }
     publishedPendingID = value.id
+    if LodyComposerView.relays[value.id] != nil {
+      pendingSend = value
+      adoptComposerIfNeeded()
+      return
+    }
     composer.setPendingSend(value)
     setPendingSend(value)
   }
@@ -666,7 +678,77 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     }
     composer.restoreDraft(token: token)
   }
-  func setComposerState(_ json: String) { composer.setComposerState(json) }
+  func setComposerState(_ json: String) {
+    composer.setComposerState(json)
+  }
+
+  func adoptComposerIfNeeded() {
+    guard hasAppeared, let window, bounds.width > 0, bounds.height > 0, let pendingSend,
+          let source = LodyComposerView.relays[pendingSend.id],
+          let payload = source.relayPayload else { return }
+    source.prepareDestination(self)
+    guard source.window == nil else { return }
+    let old = composer
+    let acknowledged = composerHasAcknowledgedSend
+    let incoming = source.composer
+    let frame = incoming.convert(incoming.bounds, to: window)
+    let inputBefore = incoming.relayInputState
+    let links = constraints.filter { ($0.firstItem as? UIView) === old || ($0.secondItem as? UIView) === old }
+    let replacements = links.map { link in
+      let replacement = NSLayoutConstraint(
+        item: (link.firstItem as? UIView) === old ? incoming : link.firstItem!,
+        attribute: link.firstAttribute, relatedBy: link.relation,
+        toItem: (link.secondItem as? UIView) === old ? incoming : link.secondItem,
+        attribute: link.secondAttribute, multiplier: link.multiplier, constant: link.constant
+      )
+      replacement.priority = link.priority
+      return replacement
+    }
+    incoming.onSend = old.onSend
+    incoming.onStop = old.onStop
+    incoming.onSteer = old.onSteer
+    incoming.onReconnect = old.onReconnect
+    incoming.onMentionBrowse = old.onMentionBrowse
+    incoming.onComposerOptionChange = old.onComposerOptionChange
+    incoming.onDraftChange = old.onDraftChange
+    incoming.setInputIdentifier("session-input")
+    NSLayoutConstraint.deactivate(links)
+    old.attachScrollEdge(to: nil)
+    old.removeFromSuperview()
+    composer = incoming
+    source.completeRelay()
+    UIView.performWithoutAnimation {
+      addSubview(incoming)
+      incoming.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate(replacements)
+      incoming.attachScrollEdge(to: collection)
+      layoutIfNeeded()
+    }
+    #if DEBUG
+    if ProcessInfo.processInfo.arguments.contains("--ui-verify") {
+      let adopted = incoming.convert(incoming.bounds, to: window)
+      let report: [String: Any] = [
+        "sameComposer": composer === source.composer,
+        "inputBefore": inputBefore, "inputAfter": incoming.relayInputState,
+        "source": [frame.minX, frame.minY, frame.width, frame.height],
+        "adopted": [adopted.minX, adopted.minY, adopted.width, adopted.height],
+      ]
+      if let data = try? JSONSerialization.data(withJSONObject: report) {
+        try? data.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("lody-production-composer-relay.json"))
+      }
+    }
+    #endif
+    incoming.commitSend(payload)
+    incoming.adoptConfiguration(from: old)
+    incoming.setPendingSend(pendingSend)
+    self.pendingSend = nil
+    setPendingSend(pendingSend)
+    if acknowledged {
+      incoming.clearPendingSend(id: pendingSend.id)
+      composerHasAcknowledgedSend = true
+      applyRows()
+    }
+  }
   func setComposerOptions(_ json: String) { composer.setComposerOptions(json) }
   func setEmptyText(_ text: String) { empty.text = text }
 }

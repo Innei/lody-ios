@@ -1,4 +1,3 @@
-import ExpoModulesCore
 import UIKit
 
 enum LodyDarkBackground: String {
@@ -21,22 +20,6 @@ enum LodyDarkBackground: String {
 
 extension Notification.Name {
   static let lodyAppearanceDidChange = Notification.Name("LodyAppearanceDidChange")
-}
-
-class LodyAppearanceView: ExpoView {
-  required init(appContext: AppContext? = nil) {
-    super.init(appContext: appContext)
-    NotificationCenter.default.addObserver(
-      self,
-      selector: #selector(lodyAppearanceDidChange),
-      name: .lodyAppearanceDidChange,
-      object: nil
-    )
-  }
-
-  deinit { NotificationCenter.default.removeObserver(self) }
-
-  @objc func lodyAppearanceDidChange() {}
 }
 
 func lodyTint(_ value: String) -> UIColor? {

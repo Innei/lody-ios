@@ -12,6 +12,7 @@ import { useSessionControl } from '@/features/sessions/useSessionControl';
 import type { Session } from '@/models/catalog';
 import type { Snapshot } from '@/features/sessions/useSessionRuntime';
 import { Button } from '@/ui/Button';
+import { ComposerSheet } from '@/ui/ComposerSheet';
 import { usePalette } from '@/lib/theme/palette';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 
@@ -74,18 +75,32 @@ function advanceQueue(old: Snapshot, messageId?: string): Snapshot {
 }
 
 function SendSource() {
-  const { finish } = usePageRuntime<undefined, void>();
+  const { params, finish } = usePageRuntime<{ prepare: () => void }, void>();
   const outbox = usePendingSends('ui-send-preview', 'fixture');
-  const colors = usePalette();
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: 'flex-end',
-        backgroundColor: colors.background,
-      }}
+    <ComposerSheet
+      onRowPress={() => {}}
+      sections={[
+        {
+          id: 'machine',
+          rows: [
+            {
+              id: 'machine',
+              title: 'Offline machine',
+              image: 'desktopcomputer',
+            },
+          ],
+        },
+        {
+          id: 'agent',
+          rows: [{ id: 'agent', title: 'Offline agent', image: 'sparkles' }],
+        },
+      ]}
     >
       <NativeComposer
+        composerRelay
+        onRelayReady={() => finish()}
+        scrollEdge
         composerJSON={JSON.stringify({
           editable: true,
           canSend: true,
@@ -104,10 +119,10 @@ function SendSource() {
               creation: '{}',
             },
           });
-          finish();
+          params.prepare();
         }}
       />
-    </View>
+    </ComposerSheet>
   );
 }
 
@@ -438,10 +453,13 @@ function SendPreview() {
   );
 }
 
-const sourcePage = definePage<undefined, void>({
+const sourcePage = definePage<{ prepare: () => void }, void>({
   id: 'send-source',
   title: '新建会话交接',
   Component: SendSource,
+  parseRouteParams: () => {
+    throw new Error('Open from Debug');
+  },
   presentation: {
     style: 'formSheet',
     headerVariant: 'transparent',
@@ -460,15 +478,30 @@ const targetPage = definePage<
 });
 
 export async function openSendPreview(
-  source: boolean,
+  source: boolean | 'delayed',
   queue = false,
   steer = true,
 ) {
   const { getPendingSendStore } = await import('@/cloud/send/pendingSends');
   await getPendingSendStore('ui-send-preview', 'fixture').remove(session.id);
   if (source) {
-    const result = await present(sourcePage);
+    let destination: Promise<unknown> | undefined;
+    const result = await present(sourcePage, {
+      prepare: () => {
+        destination = (async () => {
+          if (source === 'delayed')
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+          return present(
+            targetPage,
+            { queue, steer },
+            { animationType: 'none' },
+          );
+        })();
+      },
+    });
     if (result.status !== 'completed') return;
+    await destination;
+    return;
   }
   await present(targetPage, { queue, steer });
 }

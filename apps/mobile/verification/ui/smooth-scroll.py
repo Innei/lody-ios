@@ -86,7 +86,7 @@ ui.element('scroll-anchor-user:duration')
 time.sleep(4)
 ui.capture('anchored-stream')
 tap('Finish Trace')
-ui.element('ui-verify-ready')
+ui.element('scroll-preview')
 
 traces = []
 for path in sorted(set((container / 'tmp').glob('lody-scroll-*.json')) - existing):

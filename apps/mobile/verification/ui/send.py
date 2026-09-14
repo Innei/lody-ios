@@ -9,16 +9,16 @@ ui.axe('tap', '--id', 'session-input')
 ui.axe('type', 'Offline send\nKeep my attachment')
 draft = ui.element('session-input')['AXValue']
 ui.capture('draft')
-ui.axe('tap', '--id', 'session-send')
+ui.axe('tap', '--id', 'session-send', '--post-delay', '1')
 timer = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':duration')), None), 'Offline timer missing')
 turn = timer['AXUniqueId'].removesuffix(':duration')
 assert ui.element('send-status')['AXLabel'] == 'Calls: 0 · waiting'
 assert ui.element(turn + ':user-text')['AXLabel'] == draft
-ui.element(turn + ':attachment:fixture-file')
 assert not ui.element('session-input').get('AXValue')
-ui.capture('offline')
 # Settle keyboard dismissal before tapping a row that moves with the viewport.
 ui.axe('tap', '--id', turn + ':user-text', '--post-delay', '.5')
+ui.element(turn + ':attachment:fixture-file')
+ui.capture('offline')
 ui.axe('tap', '--id', turn + ':pending')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 1 · sending' for i in items), 'Connected send did not start')
 ui.axe('tap', '--id', 'send-fail')

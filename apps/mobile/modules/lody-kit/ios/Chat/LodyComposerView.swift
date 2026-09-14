@@ -4,10 +4,18 @@ import UIKit
 /// Standalone host for the same input used by LodyChatView, including sheet keyboard clearance.
 final class LodyComposerView: ExpoView {
   let onSend = EventDispatcher()
+  let onRelayReady = EventDispatcher()
   let onHeightChange = EventDispatcher()
   let onComposerOptionChange = EventDispatcher()
   let onMentionBrowse = EventDispatcher()
   let composer = ChatComposerView(frame: .zero)
+  var composerRelay = false
+  private var relayConstraints: [NSLayoutConstraint] = []
+  private var relayFrame: CGRect = .zero
+  private var relayAppearance: UIUserInterfaceStyle = .unspecified
+  private(set) var relayPayload: [String: Any]?
+  private(set) static var relays: [String: LodyComposerView] = [:]
+  private weak var relayTarget: LodyChatView?
   private var contentHeight: CGFloat = 64
   private var reportedHeight: CGFloat = 0
   var scrollEdge = false { didSet { setNeedsLayout() } }
@@ -26,11 +34,16 @@ final class LodyComposerView: ExpoView {
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
+    if window == nil, relayPayload != nil {
+      DispatchQueue.main.async { [weak self] in self?.relayTarget?.adoptComposerIfNeeded() }
+    }
+    guard composer.superview === self else { return }
     if window == nil { composer.attachScrollEdge(to: nil) }
     else { setNeedsLayout() }
   }
 
   private func attachScrollEdge() {
+    guard composer.superview === self else { return }
     guard scrollEdge, window != nil else {
       composer.attachScrollEdge(to: nil)
       return
@@ -67,12 +80,83 @@ final class LodyComposerView: ExpoView {
 
   deinit { NotificationCenter.default.removeObserver(self) }
 
+  private func prepare(_ payload: [String: Any]) -> Bool {
+    guard composerRelay, window != nil, let id = payload["id"] as? String else { return false }
+    relayPayload = payload
+    Self.relays[id] = self
+    composer.relaying = true
+    onSend(payload)
+    return true
+  }
+
+  func prepareDestination(_ target: LodyChatView) {
+    guard relayTarget == nil, let window else { return }
+    relayTarget = target
+    // The keyboard expanded this sheet. Keep that detent while its responder
+    // changes host, rather than letting UIKit collapse it before dismissal.
+    var owner = reactViewController()
+    while let controller = owner {
+      if controller.presentingViewController != nil, let sheet = controller.sheetPresentationController,
+         (sheet.presentedView?.frame.height ?? 0) > window.bounds.height * 0.85 {
+        sheet.selectedDetentIdentifier = sheet.detents.last?.identifier
+        break
+      }
+      owner = controller.parent
+    }
+    relayFrame = composer.convert(composer.bounds, to: window)
+    relayAppearance = composer.overrideUserInterfaceStyle
+    composer.overrideUserInterfaceStyle = composer.traitCollection.userInterfaceStyle
+    relayConstraints = constraints.filter { ($0.firstItem as? UIView) === composer || ($0.secondItem as? UIView) === composer }
+    NSLayoutConstraint.deactivate(relayConstraints)
+    composer.translatesAutoresizingMaskIntoConstraints = true
+    window.addSubview(composer)
+    composer.frame = relayFrame
+    onRelayReady([:])
+  }
+
+  func restoreDraft(token: Int) {
+    if let id = relayPayload?["id"] as? String {
+      Self.relays[id] = nil
+      relayPayload = nil
+      relayTarget = nil
+      addSubview(composer)
+      composer.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate(relayConstraints)
+      composer.overrideUserInterfaceStyle = relayAppearance
+      composer.relaying = false
+      layoutIfNeeded()
+    }
+    composer.restoreDraft(token: token)
+  }
+
+  func completeRelay() {
+    if let id = relayPayload?["id"] as? String { Self.relays[id] = nil }
+    relayPayload = nil
+    relayTarget = nil
+    composer.prepareSend = nil
+    composer.onHeightChange = nil
+    composer.overrideUserInterfaceStyle = relayAppearance
+  }
+
+  static func cancelRelay(_ id: String) {
+    guard let source = relays[id] else { return }
+    if source.window != nil {
+      source.restoreDraft(token: 0)
+    } else {
+      // The durable outbox owns the submitted draft after its source page closes.
+      source.completeRelay()
+      source.composer.relaying = false
+      source.composer.removeFromSuperview()
+    }
+  }
+
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
     NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
     NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged), name: UIResponder.keyboardWillHideNotification, object: nil)
     composer.setInputIdentifier("create-session-input")
     composer.onSend = { [weak self] in self?.onSend($0) }
+    composer.prepareSend = { [weak self] in self?.prepare($0) ?? false }
     composer.onHeightChange = { [weak self] height in
       self?.contentHeight = height
       self?.reportHeight()

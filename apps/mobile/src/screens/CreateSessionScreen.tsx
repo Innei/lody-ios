@@ -51,6 +51,7 @@ import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 export type { CreatedSession } from '../models/send.ts';
 
 type Params = {
+  onCreated?: (value: CreatedSession) => Promise<unknown>;
   sendHandoff?: boolean;
   workspaceId: string;
   projects: Project[];
@@ -118,6 +119,7 @@ function useCreationForm(
   const [sending, setSending] = useState(false);
   const [revision, setRevision] = useState(0);
   const busy = useRef(false);
+  const created = useRef<CreatedSession | null>(null);
 
   const chat = context === 'chat';
   const project = projects.find((p) => p.id === projectId);
@@ -296,14 +298,24 @@ function useCreationForm(
         })
         .catch(() => {});
     });
-    finish({
+    const result: CreatedSession = {
+      composerRelayId: id,
       session,
       projectName: chat
         ? t('inbox.section.chat')
         : (project?.name ?? options?.project?.name ?? ''),
       machineName: agent!.machineName,
       ...choice,
-    });
+    };
+    created.current = result;
+    if (params.onCreated && (params.sendHandoff ?? true)) {
+      void params.onCreated(result).catch(() => {
+        composerDraft.restore();
+        busy.current = false;
+        setSending(false);
+        showToast(t('session.toast.openFailed'));
+      });
+    } else finish(result);
   }
 
   const machineRow = {
@@ -523,6 +535,10 @@ function useCreationForm(
 
   const composer = (
     <NativeComposer
+      composerRelay={!!params.onCreated && (params.sendHandoff ?? true)}
+      onRelayReady={() => {
+        if (created.current) finish(created.current);
+      }}
       sendHandoff={params.sendHandoff ?? true}
       mentionItemsJSON={mentions.mentionItemsJSON}
       mentionResultJSON={mentions.mentionResultJSON}

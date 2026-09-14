@@ -17,7 +17,7 @@ def axe(*args):
 
 def rows(node):
     if isinstance(node, dict):
-        if (node.get('AXUniqueId') or '').startswith('preview:'):
+        if (node.get('AXUniqueId') or '').startswith('preview:') or (node.get('AXUniqueId') or '').endswith(':duration'):
             yield node
         for value in node.values():
             yield from rows(value)
@@ -125,10 +125,10 @@ assert summary['frame']['height'] < 44, (
 print(json.dumps({'samples': len(observations), 'nativeTitleAction': True,
                   'summaryHeight': summary['frame']['height'], 'streamAndCompletionObserved': True}, indent=2))
 
-# A short transcript has no pagination status or empty header slot at its start.
+# Reaching the start loads the fixture's earlier local page before hiding its loader.
 axe('tap', '-x', '100', '-y', '20', '--post-delay', '1')
-assert not any(item.get('AXUniqueId') == 'chat-history' for item in ui.state()), 'Short conversation shows an all-messages header'
-ui.capture('short-conversation-start')
+ui.wait(lambda items: not any(item.get('AXUniqueId') == 'chat-history' for item in items), 'Completed local history left a loading header')
+ui.capture('conversation-start')
 
 if '--send' in sys.argv:
     # This path sends only to the local development preview, never a real session.

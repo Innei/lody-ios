@@ -73,7 +73,7 @@ private final class ChatQueueView: UIVisualEffectView {
       // frame to the send animation before the row disappears.
       for draft in rendered where !drafts.contains(where: { $0.id == draft.id }) {
         guard let row = rows[draft.id], !draft.text.isEmpty else { continue }
-        ChatSendHandoff.begin(id: draft.id, text: draft.text, source: row, straight: true)
+        ChatSendHandoff.begin(id: draft.id, source: row, straight: true)
       }
       rendered = drafts
       stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
@@ -389,6 +389,11 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private var hasInitialAttachments = false
   private var lastClearToken = 0
   var onSend: (([String: Any]) -> Void)?
+  var prepareSend: (([String: Any]) -> Bool)?
+  var relaying = false
+  #if DEBUG
+  var previewBeforeSubmit: (() -> Bool)?
+  #endif
   var onStop: (() -> Void)?
   var onSteer: ((String) -> Void)?
   var queuesSubmission: Bool { state.running == true || !queuedDrafts.isEmpty }
@@ -409,6 +414,25 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   )
 
   func setInputIdentifier(_ id: String) { input.accessibilityIdentifier = id }
+
+  func adoptConfiguration(from other: ChatComposerView) {
+    state = other.state
+    composerOptions = other.composerOptions
+    separateMentionItems = other.separateMentionItems
+    usesSeparateMentionItems = other.usesSeparateMentionItems
+    queuedDrafts = other.queuedDrafts
+    lastRestoreToken = other.lastRestoreToken
+    lastClearToken = other.lastClearToken
+    hasInitialDraft = true
+    hasInitialAttachments = true
+    updateComposerOptions()
+    updateComposer()
+  }
+
+  var relayInputState: [String: Any] {
+    ["focused": input.isFirstResponder, "selection": [input.selectedRange.location, input.selectedRange.length],
+     "appearance": traitCollection.userInterfaceStyle.rawValue]
+  }
 
   func attachScrollEdge(to scrollView: UIScrollView?) {
     let existing = composer.interactions.compactMap { $0 as? UIScrollEdgeElementContainerInteraction }.first
@@ -720,7 +744,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   }
   func setComposerState(_ json: String) {
     guard let value = try? JSONDecoder().decode(ChatComposerState.self, from: Data(json.utf8)) else { return }
-    if value.sending && !state.sending { takeDraft() }
+    if value.sending && !state.sending && !relaying { takeDraft() }
     state = value
     updateComposer()
   }
@@ -891,10 +915,13 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   func textViewDidBeginEditing(_ textView: UITextView) { updateComposer() }
   func textViewDidEndEditing(_ textView: UITextView) { updateComposer(); saveDraft() }
   func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
-    (textView.text as NSString).length - range.length + (text as NSString).length <= 32000
+    !relaying && (textView.text as NSString).length - range.length + (text as NSString).length <= 32000
   }
   @objc private func submit() {
     guard send.isEnabled else { return }
+    #if DEBUG
+    if previewBeforeSubmit?() == true { return }
+    #endif
     if state.running == true && input.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty {
       onStop?()
       return
@@ -903,24 +930,32 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     let queued = queuesSubmission
     let id = UUID().uuidString.lowercased()
     let body = input.text ?? ""
+    let payload: [String: Any] = [
+      "id": id, "queue": queued, "text": body,
+      "startedAt": Date().timeIntervalSince1970 * 1000,
+      "attachments": attachments.map {
+        ["id": $0.id, "name": $0.name, "uri": $0.url.absoluteString, "kind": $0.isImage ? "image" : "file"]
+      },
+    ]
+    if relaying || prepareSend?(payload) == true { return }
+    commitSend(payload)
+    onSend?(payload)
+  }
+
+  /// The creation host publishes once; the adopted composer starts the visual send later.
+  func commitSend(_ payload: [String: Any]) {
+    guard let id = payload["id"] as? String else { return }
+    let queued = payload["queue"] as? Bool == true
+    let body = input.text ?? ""
+    relaying = false
     if !queued && sendHandoff {
-      if !body.isEmpty { ChatSendHandoff.begin(id: id, text: body, source: input, background: inputSurface) }
+      if !body.isEmpty { ChatSendHandoff.begin(id: id, source: input) }
       ChatSendHandoff.beginAttachments(id: id, attachments: attachments, source: attachmentBar)
     }
     takeDraft()
     saveDraft()
     pendingSendID = id
-    guard let draft = pendingDraft else { return }
     updateComposer()
-    onSend?([
-      "id": id,
-      "queue": queued,
-      "text": draft.text,
-      "startedAt": Date().timeIntervalSince1970 * 1000,
-      "attachments": draft.attachments.map {
-        ["id": $0.id, "name": $0.name, "uri": $0.url.absoluteString, "kind": $0.isImage ? "image" : "file"]
-      },
-    ])
   }
   @objc private func reconnect() {
     guard let failed = failedDraft else { onReconnect?(); return }

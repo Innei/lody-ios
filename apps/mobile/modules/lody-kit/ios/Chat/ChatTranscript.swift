@@ -554,10 +554,6 @@ struct ChatPendingSend: Decodable {
     let acceptedIndex = entries.firstIndex { $0.id == id }
     let hasReply = acceptedIndex.map { entries.dropFirst($0 + 1).contains { $0.role == "assistant" } } ?? false
     if !hasReply {
-      if reconnect == true {
-        result.append(ChatRow(id: id + ":pending", entryID: id, kind: "pending", text: status,
-          actionable: reconnect == true, running: true))
-      }
       let now = Date().timeIntervalSince1970 * 1000
       let start = startedAt.flatMap { $0.isFinite && $0 <= now ? $0 : nil } ?? now
       let duration = Int(now - start)
@@ -569,6 +565,12 @@ struct ChatPendingSend: Decodable {
         running: true,
         workDurationMs: duration
       ))
+      // Transient connection controls belong below the stable reply header.
+      // Removing them must not move the timer or change the flight destination.
+      if reconnect == true {
+        result.append(ChatRow(id: id + ":pending", entryID: id, kind: "pending", text: status,
+          actionable: true, running: true))
+      }
     }
     return result
   }

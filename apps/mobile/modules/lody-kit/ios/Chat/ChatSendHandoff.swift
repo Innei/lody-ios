@@ -62,7 +62,7 @@ final class ChatSendHandoff {
   private var expiry: DispatchWorkItem?
   private let concealment = CALayer()
   private var sourceSnapshot: UIView?
-  private var sourceBackground = UIColor.secondarySystemBackground
+  private let sourceBackground = UIColor.clear
   #if DEBUG
   private var probe: ChatThrowProbe?
   #endif
@@ -72,6 +72,12 @@ final class ChatSendHandoff {
 
   static func hasWaitingAttachments(id: String) -> Bool {
     active.contains { $0.key.hasPrefix(id + ":attachment:") && !$0.value.delivering }
+  }
+
+  static func cancelWaitingAttachments(id: String) {
+    for key in active.keys.filter({ $0.hasPrefix(id + ":attachment:") && active[$0]?.delivering == false }) {
+      cancel(id: key)
+    }
   }
 
   static func sourceHeight(id: String) -> CGFloat? { active[id]?.content.bounds.height }
@@ -89,77 +95,63 @@ final class ChatSendHandoff {
     active[id]?.target = target
   }
 
-  static func begin(id: String, text: String, source: UIView, background: UIView? = nil, straight: Bool = false) {
+  static func begin(id: String, source: UIView, straight: Bool = false) {
     guard let window = source.window, active[id] == nil else { return }
+    let frame = source.convert(source.bounds, to: window)
+    // Reuse rendered pixels, including glass, rather than drawing the entire
+    // window synchronously just to sample one background pixel.
+    let snapshot = window.resizableSnapshotView(from: frame, afterScreenUpdates: false, withCapInsets: .zero)
+      ?? source.snapshotView(afterScreenUpdates: false)
     let handoff = ChatSendHandoff()
     handoff.straight = straight
-    handoff.sourceBackground = sampledBackground(background ?? source, in: window)
-    handoff.content.backgroundColor = handoff.sourceBackground
-    handoff.content.layer.cornerRadius = 19
-    let paragraph = NSMutableParagraphStyle()
-    paragraph.minimumLineHeight = 25 * UIFont.dynamicScale(compatibleWith: source.traitCollection)
-    paragraph.maximumLineHeight = paragraph.minimumLineHeight
-    let font = UIFont.dynamic(of: 17, compatibleWith: source.traitCollection)
-    handoff.content.label.setText(NSAttributedString(string: text, attributes: [
-      .paragraphStyle: paragraph,
-      .font: font,
-      .foregroundColor: UIColor.label,
-      .baselineOffset: (paragraph.minimumLineHeight - font.lineHeight) / 2,
-    ]))
-    handoff.content.frame = source.convert(source.bounds, to: window)
+    handoff.content.frame = frame
     handoff.content.isUserInteractionEnabled = false
     handoff.content.accessibilityElementsHidden = true
-    handoff.content.layoutIfNeeded()
-    handoff.content.bubble.isHidden = true
-    if let snapshot = source.snapshotView(afterScreenUpdates: false) {
-      snapshot.frame = handoff.content.frame
-      snapshot.isUserInteractionEnabled = false
-      snapshot.accessibilityElementsHidden = true
-      handoff.sourceSnapshot = snapshot
-      handoff.content.isHidden = true
-      window.addSubview(snapshot)
-    }
-    window.addSubview(handoff.content)
+    if let snapshot { handoff.keep(snapshot, from: source, frame: source.bounds) }
     active[id] = handoff
     let expiry = DispatchWorkItem { cancel(id: id) }
     handoff.expiry = expiry
     DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: expiry)
   }
 
-  private static func sampledBackground(_ surface: UIView, in window: UIWindow) -> UIColor {
-    let point = surface.convert(CGPoint(x: 8, y: surface.bounds.midY), to: window)
-    let format = UIGraphicsImageRendererFormat()
-    format.scale = 1
-    format.opaque = true
-    format.preferredRange = .standard
-    let image = UIGraphicsImageRenderer(bounds: CGRect(origin: point, size: CGSize(width: 1, height: 1)), format: format).image { _ in
-      window.drawHierarchy(in: window.bounds, afterScreenUpdates: false)
+  private func keep(_ snapshot: UIView, from source: UIView, frame: CGRect) {
+    guard let host = source.window else { return }
+    snapshot.frame = source.convert(frame, to: host)
+    snapshot.isUserInteractionEnabled = false
+    snapshot.accessibilityElementsHidden = true
+    sourceSnapshot = snapshot
+    host.addSubview(snapshot)
+  }
+
+  private func takeSource(in window: UIWindow) -> CGRect? {
+    guard let snapshot = sourceSnapshot, snapshot.window === window else { return nil }
+    var ancestor: UIView? = snapshot
+    while let view = ancestor, view !== window {
+      guard !view.isHidden, view.alpha > 0.01 else { return nil }
+      ancestor = view.superview
     }
-    guard let cgImage = image.cgImage else { return .secondarySystemBackground }
-    var pixel = [UInt8](repeating: 0, count: 4)
-    return pixel.withUnsafeMutableBytes { bytes in
-      guard let context = CGContext(data: bytes.baseAddress, width: 1, height: 1,
-        bitsPerComponent: 8, bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(),
-        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
-        return .secondarySystemBackground
-      }
-      context.draw(cgImage, in: CGRect(x: 0, y: 0, width: 1, height: 1))
-      return UIColor(red: CGFloat(bytes[0]) / 255, green: CGFloat(bytes[1]) / 255,
-        blue: CGFloat(bytes[2]) / 255, alpha: 1)
-    }
+    let layer = snapshot.layer.presentation() ?? snapshot.layer
+    let frame = layer.convert(layer.bounds, to: window.layer.presentation() ?? window.layer)
+    guard frame.intersects(window.bounds) else { return nil }
+    snapshot.removeFromSuperview()
+    snapshot.frame = frame
+    window.addSubview(snapshot)
+    return frame
+  }
+
+  private static func reveal(id: String, target: UIView, attachment: Bool = false) {
+    cancel(id: id, includingAttachments: false)
+    target.isHidden = false
+    target.layer.mask = nil
   }
 
   static func beginAttachments(id: String, attachments: [ChatAttachment], source: ChatAttachmentBar) {
-    guard let window = source.window else { return }
+    guard source.window != nil else { return }
     for attachment in attachments {
       guard let frame = source.attachmentFrame(id: attachment.id), frame.intersects(source.bounds),
             let snapshot = source.snapshot(id: attachment.id) else { continue }
       let handoff = ChatSendHandoff()
-      snapshot.frame = source.convert(frame, to: window)
-      snapshot.isUserInteractionEnabled = false
-      snapshot.accessibilityElementsHidden = true
-      handoff.sourceSnapshot = snapshot
-      window.addSubview(snapshot)
+      handoff.keep(snapshot, from: source, frame: frame)
       let key = id + ":attachment:" + attachment.id
       active[key] = handoff
       let expiry = DispatchWorkItem { cancel(id: key) }
@@ -171,6 +163,7 @@ final class ChatSendHandoff {
   static func deliverAttachment(id: String, to target: UIView, scrollDistance: CGFloat) {
     guard let window = target.window, let handoff = active[id], !handoff.delivering,
           let source = handoff.sourceSnapshot else { return }
+    guard let start = handoff.takeSource(in: window) else { reveal(id: id, target: target, attachment: true); return }
     handoff.delivering = true
     handoff.target = target
     handoff.expiry?.cancel()
@@ -184,7 +177,6 @@ final class ChatSendHandoff {
     }
     let destinationCopy = UIImageView(image: rendered)
     let destination = target.convert(target.bounds, to: window).offsetBy(dx: 0, dy: -scrollDistance)
-    let start = source.frame
     let host = UIView(frame: start)
     host.isUserInteractionEnabled = false
     host.accessibilityElementsHidden = true
@@ -226,8 +218,10 @@ final class ChatSendHandoff {
     #endif
   }
 
-  static func cancel(id: String) {
-    for key in active.keys.filter({ $0.hasPrefix(id + ":attachment:") }) { cancel(id: key) }
+  static func cancel(id: String, includingAttachments: Bool = true) {
+    if includingAttachments {
+      for key in active.keys.filter({ $0.hasPrefix(id + ":attachment:") }) { cancel(id: key) }
+    }
     guard let handoff = active.removeValue(forKey: id) else { return }
     handoff.expiry?.cancel()
     #if DEBUG
@@ -242,11 +236,11 @@ final class ChatSendHandoff {
 
   static func deliver(id: String, to target: ChatMessageContent, scrollDistance: CGFloat = 0) {
     guard let window = target.window, let handoff = active[id], !handoff.delivering else { return }
+    guard let sourceFrame = handoff.takeSource(in: window) else { reveal(id: id, target: target); return }
     handoff.delivering = true
     handoff.target = target
     handoff.expiry?.cancel()
     let destination = target.convert(target.bounds, to: window).offsetBy(dx: 0, dy: -scrollDistance)
-    let sourceFrame = handoff.content.frame
     let destinationBackground = UIColor.lodyUserBubble.resolvedColor(with: target.traitCollection)
     handoff.content.label.setText(target.label.attributedTextValue)
     handoff.content.expandable = target.expandable
@@ -276,6 +270,7 @@ final class ChatSendHandoff {
       ? ChatThrowCurve.straightTrack(from: start, to: end)
       : ChatThrowCurve.positionTrack(from: start, to: end)
     let content = handoff.content
+    window.addSubview(content)
     // Sheet dismissal can carry an enclosing UIView animation into this callback.
     // Only the explicit throw tracks may animate the window-space content.
     UIView.performWithoutAnimation {
@@ -348,16 +343,18 @@ private final class ChatThrowProbe: NSObject {
   private let source: CGRect
   private let destination: CGRect
   private let attachment: Bool
+  private let reveal: Bool
   private let sourceBackground: UIColor
   private let destinationBackground: UIColor
   private var adoptedAt: Double?
   private var samples: [[String: Any]] = []
 
-  init(content: UIView, target: UIView, source: CGRect, destination: CGRect, track: ChatThrowCurve.PositionTrack, sourceBackground: UIColor, destinationBackground: UIColor, attachment: Bool = false) {
+  init(content: UIView, target: UIView, source: CGRect, destination: CGRect, track: ChatThrowCurve.PositionTrack, sourceBackground: UIColor, destinationBackground: UIColor, attachment: Bool = false, reveal: Bool = false) {
     self.content = content; self.target = target; self.window = content.window
     self.source = source; self.destination = destination; self.track = track; self.duration = track.duration
     self.sourceBackground = sourceBackground; self.destinationBackground = destinationBackground
     self.attachment = attachment
+    self.reveal = reveal
     super.init()
     let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
     let fps = Float(content.window?.screen.maximumFramesPerSecond ?? 60)
@@ -406,6 +403,7 @@ private final class ChatThrowProbe: NSObject {
       "scale": layer.value(forKeyPath: "transform.scale.x") as? Double ?? 1,
       "bounds": [Double(layer.bounds.width), Double(layer.bounds.height)],
       "background": rgba(layer.backgroundColor.map { UIColor(cgColor: $0) } ?? destinationBackground),
+      "opacity": Double(layer.opacity),
     ]
     if let label = (content as? ChatMessageContent)?.label {
       let textLayer = label.layer.presentation() ?? label.layer
@@ -429,6 +427,7 @@ private final class ChatThrowProbe: NSObject {
       "flight": ChatThrowCurve.duration, "path": track.points.map { [Double($0.x), Double($0.y)] }, "pathTimes": track.times,
       "sourceBackground": rgba(sourceBackground), "destinationBackground": rgba(destinationBackground),
       "cancelled": cancelled, "samples": samples,
+      "transition": reveal ? "reveal" : "flight",
     ]
     let prefix = attachment ? "lody-attachment" : "lody-throw"
     if let data = try? JSONSerialization.data(withJSONObject: report, options: [.sortedKeys]) {

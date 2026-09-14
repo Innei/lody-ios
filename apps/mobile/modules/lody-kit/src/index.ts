@@ -4,6 +4,7 @@ export {
   initialDarkBackground,
   saveDarkBackground,
   selectionFeedback,
+  cancelComposerRelay,
   showToast,
   copyText,
   showSessionBanner,
@@ -167,5 +168,6 @@ export { NativeMentionPicker } from './chat/NativeMentionPicker';
 
 export { getMentionCatalog } from './chat/mentions';
 export { NativeShellPOC, NativePagePOC } from './chrome/NativeShellPOC';
+export { ComposerHandoffPOC } from './chat/ComposerHandoffPOC';
 
 export { NativeSidebar, type NativeSidebarProps } from './list/NativeSidebar';

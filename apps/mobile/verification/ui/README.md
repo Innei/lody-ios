@@ -142,7 +142,7 @@ visual smoothness. The probe contains fixture IDs and geometry only.
 | send-rounds            | NativeChat with retained history                      | Three accepted turns (short, wrapped, multiline), distinct IDs, cleared drafts, and native frame-by-frame landing checks                                                                                                                                                                                                                                                                                                                                                                                                          |
 | send-queue             | NativeChat + shared send lifecycle                    | Queue above input, draft/Stop switching, selected Steer failure/retry, Stop advances FIFO, no transcript flash or duplicate draft                                                                                                                                                                                                                                                                                                                                                                                                 |
 | send-interrupt         | NativeChat + shared send lifecycle                    | Agent without acknowledged steer: only the first queued message offers Steer, and Steer cancels the running turn so the queue advances FIFO                                                                                                                                                                                                                                                                                                                                                                                       |
-| send-handoff           | NativeComposer sheet → NativeChat push                | Message UIView stays visible across navigation before creation; failed creation stays in transcript with explicit retry                                                                                                                                                                                                                                                                                                                                                                                                           |
+| send-handoff           | NativeComposer sheet → NativeChat push                | Same-instance composer adoption, preserved keyboard/focus/selection/material/geometry, original message flight, stable timer, and failed creation retained for explicit retry                                                                                                                                                                                                                                                                                                                                                     |
 | layout                 | NativeChat + navigation title                         | Title-tap debug dump with Copy; More menu Project Files separated from pin/archive; stream segments, completion folding, full conclusion, process-row height, send positioning                                                                                                                                                                                                                                                                                                                                                    |
 | duration               | NativeChat assistant duration row                     | Static (non-shiny) first-row duration advances each second; server process follows below while live; completion freezes the OSS-compatible duration (wall span, then span minus `permissionWaitMs`) and absorbs the folded process into that same row above the final answer                                                                                                                                                                                                                                                      |
 | tracking               | NativeChat                                            | User drag releases following, stable history, return button during/after streaming                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -340,12 +340,25 @@ Reads wait five seconds (PDF returns immediately): the browser must push a loadi
 page before content arrives, clear selection on return, ignore a late image read
 after returning, and offer retry for a failed read.
 
-The throw probe also records each presentation frame's background color. It must
-start at the rendered input surface color and interpolate toward the user bubble
-color; both appearances fail if the color snaps directly to its destination.
+The throw uses a native snapshot of the rendered input pixels, including its
+material, and crossfades into the user bubble. It no longer redraws the window
+synchronously to sample a background color. The probe checks the destination
+background's interpolation from transparent to opaque; both appearances fail if
+it snaps directly to its destination. Review the framebuffer video for the
+source material as well.
 Queue fixtures inject service outcomes only; protocol checks additionally verify
 real Loro movable-list updates, persist-before-watermark ordering, and no replay
 after an uncertain write. They do not claim a connected-machine cloud run.
+
+`send-handoff` starts with a real software keyboard and the production
+`ComposerSheet`. `send-handoff-delayed` adds 1.2 seconds of destination preparation
+latency after dismissal. The same composer remains at its window position with
+its draft intact until the destination adopts it, then starts the normal message
+flight. Native reports verify identity, input state and geometry at adoption.
+The native composer check verifies deferred consumption, one dispatch and draft
+restoration. The original `composer-relay` POC remains available for comparison.
+These are deterministic latency checks, not a simulation of physical-device Low
+Power Mode or proof of device CPU/GPU frame rates.
 
 `send-transition` and `send-transition-handoff` send a long message and five real
 local file/image providers through the chat composer and the new-session sheet.

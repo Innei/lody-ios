@@ -103,6 +103,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   debugProbeSchema(): Promise<string>;
   debugRestartDataRuntime(): Promise<void>;
   selectionFeedback(): Promise<void>;
+  cancelComposerRelay(id: string): Promise<void>;
   showToast(message: string, kind: string): void;
   copyText(text: string): void;
   showSessionBanner(title: string, kind: string): void;
@@ -127,6 +128,10 @@ export const saveDarkBackground = (value: string) =>
   native.saveDarkBackground(value);
 export function selectionFeedback(): Promise<void> {
   return native.selectionFeedback();
+}
+
+export function cancelComposerRelay(id: string): Promise<void> {
+  return native.cancelComposerRelay(id);
 }
 
 export type ToastKind = 'info' | 'warning' | 'error';

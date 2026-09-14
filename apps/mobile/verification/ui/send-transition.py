@@ -1,6 +1,7 @@
 """Long-text landing and mixed attachment transitions through chat and sheet hosts."""
 import json
 import shutil
+import subprocess
 from pathlib import Path
 import sys
 from driver import UI
@@ -20,6 +21,10 @@ ui._paste_provider(source, 'mixed-pasteboard.swift', names)
 body = '\n'.join(f'{i:02d} This message keeps all text.' for i in range(1, 13))
 ui.axe('tap', '--id', source)
 ui.type_into(source, body)
+# HID typing may connect a hardware keyboard. Restore the phone keyboard before
+# measuring the input or its destination; preceding cases must not change this.
+subprocess.run([str(ui.output.parent.parent / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
+assert ui.element('inputView')['frame']['height'] > 200
 actual = ui.element(source)['AXValue']
 source_frame = ui.element(source)['frame']
 assert source_frame['height'] >= 130, 'Fixture did not reach the input height limit'
@@ -34,7 +39,8 @@ assert message['AXValue'] == catalog.text('native.chat.message.expand')
 assert abs(message['frame']['height'] - 24 - source_frame['height']) < 1.5, 'Bubble landing height differs from source viewport'
 # With the software keyboard open, the attachment row can be above the
 # viewport. Dismiss it through the production list's interactive scroll.
-if not any(item.get('AXUniqueId') == turn + ':attachments-toggle' for item in ui.state()):
+attachments_offscreen = not any(item.get('AXUniqueId') == turn + ':attachments-toggle' for item in ui.state())
+if attachments_offscreen:
     ui.capture('landed-keyboard')
     ui.axe('swipe', '--start-x', '200', '--start-y', '250', '--end-x', '200', '--end-y', '700', '--duration', '.5', '--post-delay', '.6')
 ui.element(turn + ':attachments-toggle')
@@ -133,14 +139,25 @@ for file in files:
     data = json.loads(file.read_text())
     assert abs(data['source'][3] - data['destination'][3]) < 1.5, 'Flight changed the long-text viewport height'
     assert data['destination'][3] <= 140.5
-print('PASS: same-height long-text landing, independent expansion, ordered mixed attachments, image preview and native flight continuity')
+print('PASS: same-height long-text landing, independent expansion, ordered mixed attachments, image preview and native transition continuity')
 
 attachment_paths = set(trace.folder.glob('lody-attachment-*.json')) - attachment_before
-assert len(attachment_paths) >= 2, 'Both file and image flights must be recorded'
+# A reader drag cancels offscreen pending copies instead of starting a flight
+# against the moving viewport. The later file-only send must still animate.
+assert len(attachment_paths) >= (1 if attachments_offscreen else 2), 'Missing visible attachment flight'
 attachment_reports = []
 for path in sorted(attachment_paths):
     shutil.copy2(path, ui.output / path.name)
     data = json.loads(path.read_text())
+    if data.get('transition') == 'reveal':
+        frames = [sample for sample in data['samples'] if sample['event'] == 'frame' and sample['t'] >= sample['budget']]
+        assert len(frames) >= 4 and not data['cancelled'], 'Missing late attachment reveal samples'
+        assert all(not sample['targetHidden'] for sample in frames), 'Late attachment stayed hidden'
+        assert frames[0]['opacity'] < .75 and frames[-1]['opacity'] >= .99, 'Late attachment did not fade into view'
+        error = max(max(abs(a - b) for a, b in zip(sample['frame'], data['destination'])) for sample in frames)
+        assert error <= 1.5, f'Late attachment moved {error}pt during reveal'
+        attachment_reports.append({'file': path.name, 'transition': 'reveal', 'landingErrorPt': error, 'frames': len(frames)})
+        continue
     flight = [sample for sample in data['samples'] if not sample['adopted']]
     landed = [sample for sample in data['samples'] if sample['adopted']]
     assert flight and landed and not data['cancelled'], 'Attachment flight did not complete'
@@ -150,4 +167,4 @@ for path in sorted(attachment_paths):
     assert error <= 1.5, f'Attachment jumped {error}pt when it landed'
     attachment_reports.append({'file': path.name, 'landingErrorPt': error, 'frames': len(flight)})
 (ui.output / 'attachment-summary.json').write_text(json.dumps(attachment_reports, indent=2))
-print('PASS: file/image/overflow flights hide their destinations until a continuous landing')
+print('PASS: file/image/overflow handoffs either land continuously or reveal the late destination without a stale flight')

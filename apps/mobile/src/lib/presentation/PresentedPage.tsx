@@ -118,7 +118,10 @@ export function nativePresentationOptions(
   const transparentHeader = headerVariant === 'transparent';
 
   return {
-    animation: style === 'push' ? 'default' : nativeAnimation(animationType),
+    animation:
+      style === 'push' && animationType !== 'none'
+        ? 'default'
+        : nativeAnimation(animationType),
     contentStyle: {
       backgroundColor:
         style === 'overFullScreen' ? 'transparent' : backgroundColor,
@@ -178,16 +181,40 @@ function usePresentedPageSession(expectedPage?: PageDefinitionBase) {
     );
   }
 
-  const cancel = useCallback(() => {
+  const dismiss = useCallback(() => {
     if (!session) return;
-    if (cancelPresentation(session.id)) dismissPresentedPage();
-  }, [session]);
+    const state = navigation.getState();
+    if (!state) {
+      dismissPresentedPage();
+      return;
+    }
+    const index = state.routes.findIndex(
+      (route) =>
+        route.params &&
+        'presentationId' in route.params &&
+        String(route.params.presentationId) === String(session.id),
+    );
+    // A creation destination can already be pushed underneath this sheet.
+    // Remove this presentation, never the destination now at the stack top.
+    if (index >= 0 && index < state.routes.length - 1) {
+      navigation.dispatch({
+        type: 'RESET',
+        payload: {
+          ...state,
+          routes: state.routes.filter((_, i) => i !== index),
+          index: state.index - 1,
+        },
+      });
+    } else dismissPresentedPage();
+  }, [navigation, session]);
+  const cancel = useCallback(() => {
+    if (session && cancelPresentation(session.id)) dismiss();
+  }, [dismiss, session]);
   const finish = useCallback(
     (value?: unknown) => {
-      if (!session) return;
-      if (completePresentation(session.id, value)) dismissPresentedPage();
+      if (session && completePresentation(session.id, value)) dismiss();
     },
-    [session],
+    [dismiss, session],
   ) as PageFinish<unknown>;
   const runtime = useMemo<PageRuntime<unknown, unknown> | null>(
     () =>

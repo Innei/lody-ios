@@ -203,6 +203,7 @@ function openQuestionFixture() {
 }
 
 function View() {
+  const [startedAt] = useState(Date.now);
   const [showImage, setShowImage] = useState(false);
   const [assistantImages, setAssistantImages] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
@@ -279,6 +280,8 @@ function View() {
     {
       id: sent ? `preview-${sent.id}` : 'preview',
       role: 'assistant',
+      startedAt,
+      endedAt: length >= totalLength ? startedAt + 10_000 : undefined,
       status: length < totalLength ? 'running' : 'completed',
       finished: length >= totalLength,
       modelInfo: {

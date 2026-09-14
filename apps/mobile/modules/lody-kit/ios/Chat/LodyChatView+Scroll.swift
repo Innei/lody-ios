@@ -383,7 +383,11 @@ extension LodyChatView {
   }
 
   func deliverPendingContent() {
-    guard window != nil, hasAppeared, !applying else { return }
+    guard window != nil, hasAppeared, !applying, !needsApply else { return }
+    // The native optimistic row precedes the published local connection/queue state.
+    // Start from that committed projection, not a destination that its echo moves.
+    if let pendingSend, pendingSend.id == handoffID,
+       publishedPendingID != pendingSend.id, !composerHasAcknowledgedSend { return }
     collection.layoutIfNeeded()
     let distance = followsBottom ? bottomOffset - collection.contentOffset.y : 0
     if let handoffID, followsBottom, abs(distance) > 0.5,

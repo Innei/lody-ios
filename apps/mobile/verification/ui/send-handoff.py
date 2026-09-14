@@ -1,21 +1,40 @@
 """Real form-sheet dismissal/root push with the same local native message."""
 import sys
+import subprocess
+import json
+from pathlib import Path
 from driver import UI
 import catalog
 from send_motion import ThrowTrace
 ui = UI(*sys.argv[1:])
 throw_trace = ThrowTrace(ui)
-ui.axe('tap', '--id', 'create-session-input')
-ui.axe('type', 'Carry this message\nInto the new conversation')
+subprocess.run([str(ui.output.parent.parent / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
+ui.axe('tap', '--id', 'create-session-input', '--tap-style', 'physical', '--post-delay', '.4')
+keyboard = ui.element('inputView')
+assert keyboard['frame']['height'] > 200, 'The handoff must begin with the software keyboard visible'
+# HID typing switches the Simulator to a hardware keyboard; tap software keys
+# so this transition exercises the same keyboard dismissal as a real phone.
+for char in 'hi':
+    key = ui.wait(lambda items: next((i for i in items if (i.get('AXLabel') or '').lower() == char and i.get('type') == 'Button'), None), 'Missing keyboard key ' + char)['frame']
+    ui.axe('tap', '-x', str(key['x'] + key['width'] / 2), '-y', str(key['y'] + key['height'] / 2), '--tap-style', 'physical')
+assert ui.element('inputView')['frame']['height'] > 200
 draft = ui.element('create-session-input')['AXValue']
 ui.capture('source')
-ui.axe('tap', '--id', 'session-send')
+ui.axe('tap', '--id', 'session-send', '--tap-style', 'physical')
 ui.element('send-status')
 shiny = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':duration')), None), 'Target pending row missing')
 turn = shiny['AXUniqueId'].removesuffix(':duration')
 assert draft == ui.element(turn + ':user')['AXLabel']
 assert ui.element('send-status')['AXLabel'] == 'Calls: 0 · waiting', 'Creation waited for network or dispatched offline'
 ui.capture('target-offline')
+container = Path(subprocess.check_output(['xcrun', 'simctl', 'get_app_container', ui.udid, 'app.innei.lody', 'data'], text=True).strip())
+relay = json.loads((container / 'tmp/lody-production-composer-relay.json').read_text())
+assert relay['sameComposer'], 'The destination replaced the source composer'
+assert relay['inputBefore'] == relay['inputAfter'], 'Adoption changed focus, selection, or appearance'
+assert relay['inputBefore']['focused'], 'The source lost keyboard focus before adoption'
+assert all(abs(a - b) < 1.5 for a, b in zip(relay['source'], relay['adopted'])), relay
+assert ui.element('inputView')['frame']['height'] > 200, 'Adoption dismissed the keyboard'
+(ui.output / 'composer-relay.json').write_text(json.dumps(relay, indent=2))
 timer_frame = ui.element(turn + ':duration')['frame']
 geometry_errors = []
 

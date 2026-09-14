@@ -202,6 +202,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("selectionFeedback") {
       UISelectionFeedbackGenerator().selectionChanged()
     }.runOnQueue(.main)
+    AsyncFunction("cancelComposerRelay") { (id: String) in
+      LodyComposerView.cancelRelay(id)
+    }.runOnQueue(.main)
     AsyncFunction("verifyPushSubscription") {
       #if DEBUG
       MainActor.assumeIsolated {
@@ -406,6 +409,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }
 
     #if DEBUG
+    View(LodyComposerHandoffPOC.self) {
+      Events("onClose")
+    }
     View(LodyNativeShellPOC.self) {
       Events("onAction")
       Prop("collectionSidebar") { (view: LodyNativeShellPOC, value: Bool) in view.collectionSidebar = value }
@@ -422,14 +428,15 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }
 
     View(LodyComposerView.self) {
+      Prop("composerRelay") { (view: LodyComposerView, value: Bool) in view.composerRelay = value }
       Prop("sendHandoff") { (view: LodyComposerView, value: Bool?) in view.composer.sendHandoff = value ?? true }
       Prop("scrollEdge") { (view: LodyComposerView, value: Bool) in view.scrollEdge = value }
-      Events("onSend", "onHeightChange", "onComposerOptionChange", "onMentionBrowse")
+      Events("onSend", "onRelayReady", "onHeightChange", "onComposerOptionChange", "onMentionBrowse")
       Prop("composerJSON") { (view: LodyComposerView, value: String) in view.composer.setComposerState(value) }
       Prop("mentionItemsJSON") { (view: LodyComposerView, value: String) in view.composer.setMentionItems(value) }
       Prop("mentionResultJSON") { (view: LodyComposerView, value: String) in view.composer.setMentionResult(value) }
       Prop("composerOptionsJSON") { (view: LodyComposerView, value: String) in view.composer.setComposerOptions(value) }
-      Prop("restoreDraftToken") { (view: LodyComposerView, value: Int) in view.composer.restoreDraft(token: value) }
+      Prop("restoreDraftToken") { (view: LodyComposerView, value: Int) in view.restoreDraft(token: value) }
     }
 
     View(LodyChatView.self) {

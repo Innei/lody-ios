@@ -134,6 +134,7 @@ extension LodyChatView {
   }
 
   func applyRows() {
+    if let pendingSend, LodyComposerView.relays[pendingSend.id] != nil { return }
     guard !applying else { needsApply = true; return }
     applying = true
     #if DEBUG

@@ -90,6 +90,7 @@ export type CreatePrefs = {
 };
 
 export type CreatedSession = {
+  composerRelayId?: string;
   session: Session;
   projectName: string;
   machineName: string;
