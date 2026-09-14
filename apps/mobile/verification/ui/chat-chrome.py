@@ -1,4 +1,4 @@
-"""Independent connection status and trailing scroll action share a 44-point baseline."""
+"""Compact, equal-height connection status and trailing scroll action."""
 import sys
 from driver import UI
 import catalog
@@ -25,7 +25,7 @@ status = ui.element('chat-connection-status')
 assert status.get('AXLabel') == catalog.text('native.chat.connection.connecting')
 assert 'chat-scroll-to-bottom' not in ui.axe('describe-ui'), 'Connecting at the tail must not show scroll-to-bottom'
 assert abs(center_x(status['frame']) - chrome_center()) <= 1, 'Connecting alone is not on the composer center'
-assert abs(status['frame']['height'] - 44) <= 1
+assert 28 <= status['frame']['height'] <= 34, 'Status should fit one line with compact padding'
 ui.capture('connecting')
 
 ui.axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '700', '--duration', '1', '--post-delay', '1')
@@ -36,7 +36,8 @@ transcript = ui.element('chat-transcript')['frame']
 assert abs(scroll['frame']['x'] + scroll['frame']['width'] - transcript['x'] - transcript['width'] + 16) <= 1, \
     'Scroll action does not align with the input trailing edge'
 assert abs(mid_y(status['frame']) - mid_y(scroll['frame'])) <= 1, 'Paired glasses do not share a baseline'
-assert abs(scroll['frame']['width'] - 44) <= 1 and abs(scroll['frame']['height'] - 44) <= 1
+assert abs(scroll['frame']['width'] - scroll['frame']['height']) <= 1
+assert abs(scroll['frame']['height'] - status['frame']['height']) <= 1
 ui.capture('connecting-and-scroll')
 
 ui.axe('tap', '--label', 'Fixtures')
@@ -46,7 +47,7 @@ assert paused.get('AXLabel') == catalog.text('native.chat.connection.paused')
 ui.element('chat-scroll-to-bottom')
 ui.capture('paused-and-scroll')
 
-ui.axe('tap', '--id', 'chat-scroll-to-bottom', '--post-delay', '1.2')
+ui.axe('tap', '-x', str(center_x(scroll['frame']) + 21), '-y', str(mid_y(scroll['frame'])), '--post-delay', '1.2')
 paused = ui.element('chat-connection-status')
 assert 'chat-scroll-to-bottom' not in ui.axe('describe-ui'), 'Returning to the tail must drop scroll-to-bottom'
 assert abs(center_x(paused['frame']) - chrome_center()) <= 1, 'Paused alone did not return to center'

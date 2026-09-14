@@ -62,7 +62,9 @@ let connecting = statusControl()
 precondition(connecting.accessibilityLabel == LodyStrings.text("native.chat.connection.connecting"))
 precondition(!connecting.accessibilityTraits.contains(.button), "Connecting is status, not an action")
 precondition(abs(frame(connecting).midX - 195) < 1, "A single chrome item sits on the composer center")
-precondition(abs(frame(connecting).height - ChatInputChrome.controlSize) < 0.5)
+let lineHeight = connecting.titleLabel!.font.lineHeight
+precondition(abs(frame(connecting).height - lineHeight - 12) < 1,
+  "Status height \(frame(connecting).height) follows line \(lineHeight) with six-point vertical padding")
 precondition(abs(frame(connecting).maxY + 8 - composer.frame.minY) < 0.6, "Chrome shares the current scroll-button baseline")
 
 var reconnected = false
@@ -74,17 +76,17 @@ show(.connecting, scroll: true)
 let statusBoth = frame(statusControl())
 let scrollBoth = frame(scrollControl())
 precondition(shown(scrollControl()))
-precondition(abs(scrollBoth.width - 44) < 0.5)
+precondition(abs(scrollBoth.width - scrollBoth.height) < 0.5)
 precondition(abs(scrollBoth.height - statusBoth.height) < 0.5)
 precondition(abs(scrollBoth.maxX - (composer.frame.maxX - 16)) < 0.5,
   "Scroll action aligns with the input surface trailing edge")
 precondition(abs(statusBoth.midY - scrollBoth.midY) < 0.5, "Paired glasses share one baseline")
 precondition(abs(statusBoth.midX - 195) < 1,
   "Showing scroll must not move the connection status")
-let inside = chrome.convert(CGPoint(x: scrollBoth.maxX - 2, y: scrollBoth.midY), from: host)
+let inside = chrome.convert(CGPoint(x: scrollBoth.midX + 21, y: scrollBoth.midY), from: host)
 precondition(
   chrome.hitTest(inside, with: nil) === scrollControl(),
-  "The scroll action receives touches across its 44-point bounds"
+  "Compact scroll glass retains a 44-point touch target"
 )
 let gap = chrome.convert(CGPoint(x: (statusBoth.maxX + scrollBoth.minX) / 2, y: scrollBoth.midY), from: host)
 precondition(chrome.hitTest(gap, with: nil) == nil, "Empty chrome space passes touches to the transcript")
@@ -97,6 +99,9 @@ show(.paused, scroll: true)
 let paused = statusControl()
 precondition(paused.accessibilityLabel == LodyStrings.text("native.chat.connection.paused"))
 precondition(paused.accessibilityTraits.contains(.button))
+let pausedEdge = chrome.convert(CGPoint(x: frame(paused).midX, y: frame(paused).midY + 21), from: host)
+precondition(chrome.hitTest(pausedEdge, with: nil) === paused,
+  "Compact reconnect glass retains a 44-point touch target")
 paused.sendActions(for: .touchUpInside)
 precondition(reconnected, "Paused chrome must reconnect")
 

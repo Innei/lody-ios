@@ -49,7 +49,8 @@ final class ChatInputChrome: UIView {
       $0.translatesAutoresizingMaskIntoConstraints = false
     }
     var statusConfiguration = UIButton.Configuration.plain()
-    statusConfiguration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16)
+    statusConfiguration.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12)
+    statusConfiguration.titleLineBreakMode = .byTruncatingTail
     statusConfiguration.baseForegroundColor = .label
     statusConfiguration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
       var outgoing = incoming
@@ -65,9 +66,10 @@ final class ChatInputChrome: UIView {
       self?.onReconnect?()
     }, for: .touchUpInside)
     var scrollConfiguration = UIButton.Configuration.plain()
+    scrollConfiguration.contentInsets = .zero
     scrollConfiguration.image = UIImage(systemName: "arrow.down")
     scrollConfiguration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(
-      pointSize: 17,
+      pointSize: UIFont.preferredFont(forTextStyle: .subheadline).pointSize,
       weight: .semibold
     )
     scrollConfiguration.baseForegroundColor = .label
@@ -77,13 +79,12 @@ final class ChatInputChrome: UIView {
     scrollButton.addAction(UIAction { [weak self] _ in self?.onScrollToBottom?() }, for: .touchUpInside)
     NSLayoutConstraint.activate([
       statusSurface.centerXAnchor.constraint(equalTo: centerXAnchor),
-      statusSurface.centerYAnchor.constraint(equalTo: centerYAnchor),
+      statusSurface.bottomAnchor.constraint(equalTo: bottomAnchor),
       statusSurface.trailingAnchor.constraint(lessThanOrEqualTo: scrollSurface.leadingAnchor, constant: -8),
-      statusSurface.heightAnchor.constraint(equalToConstant: Self.controlSize),
       scrollSurface.trailingAnchor.constraint(equalTo: trailingAnchor),
-      scrollSurface.centerYAnchor.constraint(equalTo: centerYAnchor),
-      scrollSurface.widthAnchor.constraint(equalToConstant: Self.controlSize),
-      scrollSurface.heightAnchor.constraint(equalToConstant: Self.controlSize),
+      scrollSurface.bottomAnchor.constraint(equalTo: bottomAnchor),
+      scrollSurface.widthAnchor.constraint(equalTo: scrollSurface.heightAnchor),
+      scrollSurface.heightAnchor.constraint(equalTo: statusSurface.heightAnchor),
       statusButton.leadingAnchor.constraint(equalTo: statusSurface.contentView.leadingAnchor),
       statusButton.trailingAnchor.constraint(equalTo: statusSurface.contentView.trailingAnchor),
       statusButton.topAnchor.constraint(equalTo: statusSurface.contentView.topAnchor),
@@ -99,6 +100,17 @@ final class ChatInputChrome: UIView {
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    guard !isHidden, isUserInteractionEnabled, alpha > 0.01 else { return nil }
+    for button in [scrollButton, statusButton] {
+      let visible = button === scrollButton ? scrollVisible : status == .paused
+      guard visible else { continue }
+      let bounds = button.bounds
+      let target = bounds.insetBy(
+        dx: -max(0, Self.controlSize - bounds.width) / 2,
+        dy: -max(0, Self.controlSize - bounds.height) / 2
+      )
+      if target.contains(button.convert(point, from: self)) { return button }
+    }
     let hit = super.hitTest(point, with: event)
     return hit === self ? nil : hit
   }
