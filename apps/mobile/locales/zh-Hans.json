@@ -494,7 +494,7 @@
   "native.chat.transcript.status.failed": "处理失败",
   "native.chat.transcript.status.running": "正在处理",
   "native.chat.transcript.status.done": "执行过程",
-  "native.chat.transcript.status.workingFor": "正在工作 {duration}",
+  "native.chat.transcript.status.workingFor": "已经工作了 {duration}",
   "native.chat.transcript.status.workedFor": "工作了 {duration}",
   "native.chat.duration.hour": "时",
   "native.chat.duration.minute": "分",

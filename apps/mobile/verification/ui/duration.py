@@ -13,7 +13,7 @@ copy = {
         'waited': ('Worked for 59s', 'Worked for 1m 00s', 'Worked for 1m 01s'),
     },
     'zh-Hans': {
-        'working': '正在工作 ',
+        'working': '已经工作了 ',
         'worked': '工作了 ',
         'finished': ('工作了 1分 04秒', '工作了 1分 05秒', '工作了 1分 06秒'),
         'waited': ('工作了 59秒', '工作了 1分 00秒', '工作了 1分 01秒'),
