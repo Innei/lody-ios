@@ -20,7 +20,7 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
-    'pages': ['pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'onboarding', 'community-notice', 'live-activity'],
+    'pages': ['pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity'],
     'send': ['root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
     'chat': ['user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'changes', 'inline-diff', 'chat-chrome'],
 }
@@ -36,7 +36,7 @@ PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 PAD_CASES = ['ipad', 'ipad-chrome', 'native-shell', 'native-collection']
 CASES = PHONE_CASES + PAD_CASES + ['composer-relay', 'outbox']
 # These select HomePreviewProviders at app launch, using the same shared bundle.
-HOME_CASES = {'mentions-production', 'home', 'licenses', 'navigation', 'project-history-entry', 'ipad', 'ipad-chrome'}
+HOME_CASES = {'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome'}
 PREVIEW = {
     'outbox': 'outbox-preview',
     'composer-relay': 'composer-relay',
@@ -329,7 +329,7 @@ with metro_context:
                         ui.element('preview-image:attachment:ui-verify-image')
                     ui.capture('before')
                     script = Path(__file__).with_name(f'{case}.py') if case in ['pull-request', 'project-history-entry', 'project-history', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'process-counts', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'chat-chrome'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
-                    if case in {'native-shell', 'native-collection', 'ipad-chrome', 'composer-relay', 'outbox'}:
+                    if case in {'native-shell', 'native-collection', 'ipad-chrome', 'composer-relay', 'outbox', 'navigation-toolbar'}:
                         script = Path(__file__).with_name(f'{case}.py')
                     if case == 'send-handoff-delayed':
                         script = Path(__file__).with_name('send-handoff.py')

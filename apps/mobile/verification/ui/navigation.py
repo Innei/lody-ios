@@ -63,7 +63,9 @@ home('initial-home')
 # ordering between native header configuration and the workspace props.
 for index in range(3):
     subprocess.run(['xcrun', 'simctl', 'terminate', udid, 'app.innei.lody'], check=True, timeout=30)
-    launch = ['xcrun', 'simctl', 'launch', udid, 'app.innei.lody', '--ui-verify', '--ui-verify-home']
+    launch = ['xcrun', 'simctl', 'launch', udid, 'app.innei.lody', '--ui-verify', '--ui-verify-home',
+              '-AppleLanguages', f'({catalog.LANGUAGE})',
+              '-AppleLocale', 'en_US' if catalog.LANGUAGE == 'en' else 'zh_CN']
     port = os.environ.get('LODY_UI_METRO_PORT')
     if port:
         launch += ['--initialUrl', f'http://127.0.0.1:{port}?disableOnboarding=1']
