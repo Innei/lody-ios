@@ -433,6 +433,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   func setSections(_ value: [LodyListSection], animated: Bool = true) {
     let previous = dataSource.snapshot()
+    let previousRows = rowsByID
     sections = value
     rowsByID = Dictionary(value.flatMap { section in
       section.rows.map { (ListItemID(section: section.id, row: $0.id), $0) }
@@ -452,7 +453,15 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       snapshot.appendItems(section.rows.map { ListItemID(section: section.id, row: $0.id) }, toSection: section.id)
     }
     let existing = Set(previous.itemIdentifiers)
-    snapshot.reconfigureItems(snapshot.itemIdentifiers.filter { existing.contains($0) })
+    let retained = snapshot.itemIdentifiers.filter { existing.contains($0) }
+    // Reconfiguring must dequeue from the cell's original registration, so a
+    // row whose kind changed (a new session gaining its badge) reloads instead.
+    let rekinded = Set(retained.filter { id in
+      guard let old = previousRows[id], let new = rowsByID[id] else { return false }
+      return kind(of: old) != kind(of: new)
+    })
+    snapshot.reloadItems(Array(rekinded))
+    snapshot.reconfigureItems(retained.filter { !rekinded.contains($0) })
     // Start disclosure rotation alongside the snapshot's row animation.
     for index in collection.indexPathsForVisibleSupplementaryElements(ofKind: UICollectionView.elementKindSectionHeader) {
       guard previous.sectionIdentifiers.indices.contains(index.section),
