@@ -10,6 +10,7 @@ extension LodyChatView {
   func setProcessEntryID(_ id: String) {
     guard processEntryID != id else { return }
     processEntryID = id
+    backgroundColor = !id.isEmpty && traitCollection.userInterfaceIdiom == .phone ? .clear : .lodyBackground
     composer.isHidden = !id.isEmpty
     setNeedsLayout()
     applyRows()
