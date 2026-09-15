@@ -20,6 +20,10 @@ final class FileMarkdownView: MarkdownTextView {
   override func layoutSubviews() {
     super.layoutSubviews()
     ChatTableBleed.apply(to: self)
+    ChatWordSelection.attach(under: self)
+    #if DEBUG
+    ChatContextViewProbe.record(self)
+    #endif
   }
 
   override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
@@ -255,6 +259,7 @@ enum ChatTableBleed {
           "boundsWidth": Double(scroll.bounds.width),
           "naturalWidth": Double(contentSpan(scroll)),
           "tableWidth": Double(scroll.bounds.width),
+          "contentLeft": Double(scroll.subviews.filter { !($0 is UIImageView) }.map(\.frame.minX).min() ?? 0),
         ])
       }
       for subview in view.subviews { walk(subview) }
@@ -282,6 +287,29 @@ extension UIView {
     }
   }
 }
+
+#if DEBUG
+@MainActor
+enum ChatContextViewProbe {
+  static func record(_ markdown: UIView) {
+    guard ProcessInfo.processInfo.arguments.contains("--ui-verify") else { return }
+    var grown: [String] = []
+    for view in markdown.subviews {
+      let name = NSStringFromClass(type(of: view))
+      guard name.hasSuffix("CodeView") || ChatTableBleed.isTable(view) else { continue }
+      for key in view.layer.animationKeys() ?? [] {
+        guard let animation = view.layer.animation(forKey: key) as? CABasicAnimation,
+          let path = animation.keyPath, path.hasPrefix("bounds") || path.hasPrefix("position") else { continue }
+        grown.append("\(name) \(path) from \(String(describing: animation.fromValue)) frame \(view.frame)")
+      }
+    }
+    guard !grown.isEmpty else { return }
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("lody-context-view-grown.json")
+    let existing = (try? JSONSerialization.jsonObject(with: Data(contentsOf: url))) as? [String] ?? []
+    try? JSONSerialization.data(withJSONObject: existing + grown).write(to: url, options: .atomic)
+  }
+}
+#endif
 
 private final class FileLinkButton: UIButton {
   override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {

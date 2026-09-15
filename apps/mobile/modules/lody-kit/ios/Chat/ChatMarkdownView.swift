@@ -28,6 +28,7 @@ final class ChatMarkdownView: UIView {
     var topSpacing: CGFloat = 0
     var bottomSpacing: CGFloat = 0
     var usesBlockAnimation = false
+    var settle = false
     var fileActions: [UIAccessibilityCustomAction] = []
 
     init() {
@@ -77,7 +78,10 @@ final class ChatMarkdownView: UIView {
       if case .codeBlock = source.node { block.usesBlockAnimation = true }
       if case .table = source.node { block.usesBlockAnimation = true }
       block.label.prepare(animate: animate && !block.usesBlockAnimation, reset: isNew)
-      block.view.setContentImmediately(source.content, theme: theme)
+      // MarkdownView lays out synchronously inside setContentImmediately, adding
+      // fresh code/table views at .zero. Completion folds the reply inside a
+      // UIView animation block, which would grow them from the top-left corner.
+      UIView.performWithoutAnimation { block.view.setContentImmediately(source.content, theme: theme) }
       if block.label.attributedText.length > ChatStream.blockAnimationLength ||
          block.label.attributedText.length - previousLength >= ChatStream.blockAnimationBatch {
         block.usesBlockAnimation = true
@@ -94,6 +98,7 @@ final class ChatMarkdownView: UIView {
         block.view.layer.add(fade, forKey: "stream-block")
       }
       block.source = source
+      block.settle = true
       block.fileActions = block.view.fileActions(source.content)
       block.width = 0
       // CoreText's natural height excludes the final paragraph's spacing.
@@ -124,7 +129,15 @@ final class ChatMarkdownView: UIView {
         block.width = width
       }
       let frame = CGRect(x: 0, y: y, width: width, height: block.height)
-      if block.view.frame != frame { block.view.frame = frame }
+      if block.settle {
+        block.settle = false
+        UIView.performWithoutAnimation {
+          block.view.frame = frame
+          block.view.layoutIfNeeded()
+        }
+      } else if block.view.frame != frame {
+        block.view.frame = frame
+      }
       y += block.height
       if index < blocks.count - 1 { y += block.bottomSpacing }
     }
