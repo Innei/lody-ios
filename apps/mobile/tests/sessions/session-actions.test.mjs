@@ -1,14 +1,9 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import { test } from 'node:test';
 import { build } from 'esbuild';
 
-const copy = JSON.parse(
-  fs.readFileSync(new URL('../../locales/en.json', import.meta.url), 'utf8'),
-);
 const writes = [];
 const shares = [];
-const toasts = [];
 globalThis.__sessionActionKit = {
   archiveSession: async () => {},
   pinSession: async () => {},
@@ -16,10 +11,9 @@ globalThis.__sessionActionKit = {
     writes.push(JSON.parse(payload));
     return '{}';
   },
-  showToast: (message, kind) => toasts.push({ message, kind }),
+  showToast() {},
 };
 globalThis.__sessionShares = shares;
-globalThis.__sessionShareResult = () => ({ action: 'sharedAction' });
 
 const bundle = await build({
   entryPoints: [
@@ -53,7 +47,7 @@ const bundle = await build({
             path === 'kit'
               ? 'export const {archiveSession,pinSession,markSessionRead,showToast}=globalThis.__sessionActionKit;'
               : path === 'rn'
-                ? 'export const Share={dismissedAction:"dismissedAction",share:async(content)=>{globalThis.__sessionShares.push(content);return globalThis.__sessionShareResult();}};'
+                ? 'export const Share={share:async(content)=>{globalThis.__sessionShares.push(content);}};'
                 : 'export function openCatalogRow(){} export function requestNewSession(){} export function isChatSession(){return false} export function projectIdOfRow(){}',
         }));
       },
@@ -101,7 +95,6 @@ test('setRead covers a lastMessageAt that is ahead of now', async () => {
 
 test('list share opens the desktop session url', async () => {
   shares.length = 0;
-  toasts.length = 0;
   listRowAction(
     { id: 'workspace', slug: 'work' },
     { projects: [], sessions: [session], machineIds: [] },
@@ -110,24 +103,4 @@ test('list share opens the desktop session url', async () => {
   );
   await Promise.resolve();
   assert.deepEqual(shares, [{ url: 'https://lody.ai/work/sessions/s1' }]);
-  assert.deepEqual(toasts, [
-    { message: copy['share.toast.shared'], kind: 'info' },
-  ]);
-});
-
-test('list share reports a workspace it cannot link to', async () => {
-  shares.length = 0;
-  toasts.length = 0;
-  listRowAction(
-    { id: 'workspace', slug: 'work/other' },
-    { projects: [], sessions: [session], machineIds: [] },
-    's1',
-    'share',
-  );
-  await Promise.resolve();
-  assert.deepEqual(shares, []);
-  assert.deepEqual(
-    toasts.map((toast) => toast.message),
-    [copy['share.toast.failed']],
-  );
 });

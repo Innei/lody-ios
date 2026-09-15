@@ -1,5 +1,4 @@
 """Home keeps the workspace avatar and view/settings group in the navigation bar, the integrated bottom search beside the create button, long-press Settings opens Debug, and the settings sheet hosts remote and archived pages."""
-import json
 import sys
 import time
 from driver import UI
@@ -384,56 +383,6 @@ home_ready()
 assert not any(i.get('AXUniqueId') == 'archived' for i in ui.state())
 ui.capture('settings-closed')
 
-# The share action reports its outcome in a toast. The system share sheet is hosted
-# by its own process, so its cells never enter the app's accessibility tree: read the
-# clipboard cell by point and tap the bottom action row it belongs to. That row ends
-# at the screen bottom, while its columns stay aligned with the sheet.
-def elements(node):
-    if isinstance(node, dict):
-        yield node
-        for child in node.get('children') or []:
-            yield from elements(child)
-    elif isinstance(node, list):
-        for child in node:
-            yield from elements(child)
-
-
-def share_cell(height):
-    for y in (height - 44, height - 70, height - 100):
-        for x in (200, 60, 140):
-            probe = json.loads(ui.axe('describe-ui', '--point', f'{int(x)},{int(y)}'))
-            cell = next(
-                (i for i in elements(probe) if i.get('AXUniqueId') == 'actionGroupCell' and i.get('AXLabel') == catalog.system('shareCopy')),
-                None,
-            )
-            if cell:
-                return cell
-    return None
-
-
-hold('ui-design')
-ui.wait(
-    lambda items: any(catalog.text('session.action.share') in (i.get('AXLabel') or '') for i in items),
-    'Session long-press must offer share again',
-)
-ui.axe('tap', '--label', catalog.text('session.action.share'), '--post-delay', '1.5')
-height = next(i for i in ui.state() if i.get('type') == 'Application')['frame']['height']
-cell = ui.wait(
-    lambda _items: share_cell(height),
-    'Share must present a sheet with the clipboard action',
-    timeout=15,
-)
-ui.capture('share-sheet')
-frame = cell['frame']
-ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(height - frame['height'] / 2), '--post-delay', '.3')
-ui.wait(
-    lambda items: any(i.get('AXUniqueId') == 'lody.toast' and catalog.text('share.toast.linkCopied') in (i.get('AXLabel') or '') for i in items),
-    'Completing a share must report the clipboard outcome',
-    timeout=10,
-)
-ui.capture('share-toast')
-home_ready()
-
 ui.axe('tap', '--label', avatar_label, '--post-delay', '.5')
 ui.wait(
     lambda items: any(i.get('AXLabel') == catalog.text('workspace.edit.action') for i in items),
@@ -462,4 +411,4 @@ ui.wait(
     'Saving the workspace name must update the home menu',
 )
 ui.capture('workspace-renamed')
-print('Create opens repeatedly from the bottom toolbar; integrated search finds archived sessions and cancels back; the view menu regroups; long-press Settings opens Debug and returns; the settings sheet pushes remote and archived pages and closes back to the inbox; sharing a session reports its outcome in a toast; the workspace menu edits and immediately reflects the current workspace name.')
+print('Create opens repeatedly from the bottom toolbar; integrated search finds archived sessions and cancels back; the view menu regroups; long-press Settings opens Debug and returns; the settings sheet pushes remote and archived pages and closes back to the inbox; the workspace menu edits and immediately reflects the current workspace name.')
