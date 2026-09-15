@@ -35,20 +35,24 @@ struct ChatQueuedDraft: Equatable {
   }
 }
 
-private final class ChatQueueView: UIVisualEffectView {
+private final class ChatQueueView: LodyGlassView {
   private let scroll = UIScrollView()
   private let stack = UIStackView()
   private var rendered: [ChatQueuedDraft] = []
   private var buttons: [String: UIButton] = [:]
   private var rows: [String: UIView] = [:]
   var onSteer: ((String) -> Void)?
+  var onHeightChange: (() -> Void)?
+  private(set) var panelHeight: CGFloat = 0
 
   init() {
-    super.init(effect: nil)
+    super.init(interactive: true)
     accessibilityIdentifier = "session-queue"
-    let glass = UIGlassEffect(style: .regular)
-    glass.isInteractive = true
-    effect = glass
+    onHidden = { [weak self] in
+      guard let self else { return }
+      self.panelHeight = 0
+      self.onHeightChange?()
+    }
     cornerConfiguration = .corners(radius: .fixed(20))
     stack.axis = .vertical
     scroll.addSubview(stack)
@@ -134,7 +138,8 @@ private final class ChatQueueView: UIVisualEffectView {
       buttons[draft.id]?.isEnabled = enabled && draft.canSteer && (!firstOnly || draft.id == first)
       buttons[draft.id]?.accessibilityHint = waiting ? LodyStrings.text("native.chat.composer.steering") : nil
     }
-    isHidden = drafts.isEmpty
+    if !drafts.isEmpty { panelHeight = ChatQueuedDraft.panelHeight(drafts) }
+    setVisible(!drafts.isEmpty)
   }
 
   private static func caption(_ attachments: [String]) -> UIView {
@@ -381,6 +386,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private let queueView = ChatQueueView()
   private var queueHeight: NSLayoutConstraint!
   private var queuedDrafts: [ChatQueuedDraft] = []
+  var retiringQueueHeight: CGFloat { queuedDrafts.isEmpty ? queueView.panelHeight : 0 }
   private var state = ChatComposerState()
   private var composerOptions = ChatComposerOptions()
   private var composerExpanded = false
@@ -532,6 +538,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     attachmentBar.onRemove = { [weak self] id in
       guard let self else { return }
       self.attachments.removeAll { $0.id == id }
+      self.attachmentBar.render(self.attachments, animatedRemoval: true)
       UIImpactFeedbackGenerator(style: .light).impactOccurred()
       self.updateComposer()
     }
@@ -544,6 +551,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     mentionButton.accessibilityIdentifier = "session-mention"
     mentionButton.addTarget(self, action: #selector(openMentions), for: .touchUpInside)
     mentionPanel.onChange = { [weak self] in self?.updateComposer() }
+    attachmentBar.onHeightChange = { [weak self] in self?.updateComposer() }
+    queueView.onHeightChange = { [weak self] in self?.updateComposer() }
     mentionPanel.onBrowse = { [weak self] in self?.onMentionBrowse?($0) }
     addSubview(composer)
     composer.contentView.addSubview(mentionPanel)
@@ -783,7 +792,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     attach.alpha = attach.isEnabled ? 1 : 0.5
     attachmentBar.isUserInteractionEnabled = state.editable && !sending
     attachmentBar.render(attachments)
-    attachmentHeight.constant = attachments.isEmpty ? 0 : 42
+    attachmentHeight.constant = attachmentBar.hasVisiblePills ? 42 : 0
     hint.text = state.placeholder
     hint.isHidden = !input.text.isEmpty
     let hasContent = !input.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
@@ -803,8 +812,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     sendVisual.render(actionMode)
     sendVisual.isHidden = false
     sendVisual.alpha = send.isEnabled || loading ? 1 : 0.35
-    queueHeight.constant = ChatQueuedDraft.panelHeight(queuedDrafts)
     queueView.render(queuedDrafts, enabled: state.canStop == true && !sending && state.controlling != true, steeringID: state.steerID ?? "", firstOnly: state.steerInterrupts == true)
+    queueHeight.constant = queueView.panelHeight
     let noticeText = failedDraft == nil ? (displayError ?? state.notice) : LodyStrings.text("native.chat.composer.failedDraft")
     let canReconnect = failedDraft != nil || displayError != nil || state.reconnect
     notice.setTitle(noticeText, for: .normal)

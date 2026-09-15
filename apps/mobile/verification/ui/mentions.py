@@ -172,12 +172,19 @@ assert not any(i.get('AXUniqueId') == 'mention-item:file' for i in ui.state()), 
 ui.capture('slash-direct')
 ui.axe('key', '42')
 assert value() == '', 'Cancelling slash left inserted command text'
-ui.axe('type', '$')
+# Hardware modifier injection can deliver "4" instead of "$". Use the visible
+# software key so this still proves the user's actual trigger.
+subprocess.run([str(ui.output.parents[1] / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
+tap(field)
+keyboard_clear()
+ui.axe('tap', '--label', 'numbers', '--tap-style', 'physical')
+type_keys('$')
+assert value().strip() == '$', 'The software keyboard did not enter the skill trigger'
 ui.element('mention-item:skills/auth-review/SKILL.md')
 assert not any(i.get('AXUniqueId') == 'mention-item:file' for i in ui.state()), 'Dollar opened the category index'
 ui.capture('skill-direct')
 ui.axe('key', '42')
-assert value() == '', 'Cancelling skill completion changed the draft'
+assert not value().strip(), 'Cancelling skill completion changed the draft'
 
 # AXe hardware typing changes the per-device keyboard mode; restore the runner's
 # software keyboard before the next appearance reuses this process.

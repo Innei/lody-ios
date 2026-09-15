@@ -1,5 +1,6 @@
 """Queue above the composer; Steer delivers the selected item, Stop advances FIFO."""
 import json
+import subprocess
 import sys
 from driver import UI
 import catalog
@@ -39,6 +40,9 @@ for index in [1, 2]:
 assert turns[0] != turns[1]
 assert not set(trace.folder.glob('lody-throw-*.json')) - trace.existing, 'Queuing a message must not fly it into the transcript'
 ui.type_into('session-input', '123456')
+subprocess.run([str(ui.output.parents[1] / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'inputView' and i['frame']['height'] > 200 for i in items),
+        'Queue landing must be exercised with the software keyboard open')
 
 ui.axe('tap', '--id', turns[1] + ':steer')
 request = json.loads(ui.element('control-request')['AXLabel'])
@@ -81,6 +85,8 @@ ui.axe('tap', '--id', 'session-stop')
 ui.axe('tap', '--id', 'send-complete')
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-send' and not i.get('enabled') for i in items), 'Stop without a queue must return to idle')
 assert not any((i.get('AXUniqueId') or '').endswith(':queued') for i in ui.state())
+assert not any(i.get('AXUniqueId') == 'session-queue' and i['frame']['height'] > 0 for i in ui.state()), \
+    'Empty queue glass must release its reserved height'
 ui.capture('idle')
 trace.verify(1)
 print('PASS: input/Stop switching, queue-only pending cards, selected Steer with failure/retry, targeted Stop advances FIFO, no queue-time throw, steered rows slide into the transcript')
