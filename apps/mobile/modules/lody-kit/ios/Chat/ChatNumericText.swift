@@ -13,10 +13,8 @@ struct ChatNumericTextBridge: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    glyphs
+    laidOutGlyphs
       .contentTransition(.numericText())
-      .fixedSize(horizontal: false, vertical: true)
-      .frame(maxWidth: .infinity, alignment: .topLeading)
       .overlay {
         if model.shines && !reduceMotion { shine }
       }
@@ -28,6 +26,12 @@ struct ChatNumericTextBridge: View {
       .multilineTextAlignment(.leading)
   }
 
+  private var laidOutGlyphs: some View {
+    glyphs
+      .fixedSize(horizontal: false, vertical: true)
+      .frame(maxWidth: .infinity, alignment: .topLeading)
+  }
+
   private var shine: some View {
     TimelineView(.animation(minimumInterval: 1.0 / 60, paused: false)) { context in
       let period = 1.5
@@ -35,21 +39,21 @@ struct ChatNumericTextBridge: View {
       GeometryReader { geo in
         let width = max(1, geo.size.width)
         LinearGradient(
-          colors: [
-            .clear,
-            .clear,
-            Color.white.opacity(0.32),
-            .clear,
-            .clear,
+          stops: [
+            .init(color: .clear, location: 0.25),
+            .init(color: Color.white.opacity(0.64), location: 0.5),
+            .init(color: .clear, location: 0.75),
           ],
-          startPoint: UnitPoint(x: 0, y: 0.15),
-          endPoint: UnitPoint(x: 1, y: 0.85)
+          startPoint: .leading,
+          endPoint: .trailing
         )
         .frame(width: width, height: max(1, geo.size.height))
         .offset(x: (-1 + 2 * progress) * width)
       }
+      .mask(alignment: .topLeading) {
+        laidOutGlyphs
+      }
     }
-    .mask(glyphs)
     .allowsHitTesting(false)
   }
 }

@@ -399,6 +399,59 @@ precondition(
   "SwiftUI process text must not measure taller than TextKit, host=\(hostHeight) text=\(textKitHeight)"
 )
 
+let shortText = processAttributed("思考过程", row: countRow, traits: traits)
+let shortWidth = ceil(shortText.boundingRect(
+  with: CGSize(width: countWidth, height: .greatestFiniteMagnitude),
+  options: [.usesLineFragmentOrigin, .usesFontLeading],
+  context: nil
+).width)
+let shortHost = ChatNumericTextHost(frame: CGRect(x: 0, y: 0, width: countWidth, height: textKitHeight))
+window.addSubview(shortHost)
+shortHost.apply(text: shortText, animated: false, shines: false)
+shortHost.layoutIfNeeded()
+let countTextWidth = ceil(countText.boundingRect(
+  with: CGSize(width: countWidth, height: .greatestFiniteMagnitude),
+  options: [.usesLineFragmentOrigin, .usesFontLeading],
+  context: nil
+).width)
+let suffixWidth = min(80, countTextWidth)
+numericHost.frame.size.height = textKitHeight
+numericHost.layoutIfNeeded()
+@MainActor func processSnapshot(_ host: ChatNumericTextHost, x: CGFloat, width: CGFloat) -> Data {
+  let size = CGSize(width: width, height: host.bounds.height)
+  return UIGraphicsImageRenderer(size: size).image { context in
+    UIColor.white.setFill()
+    context.fill(CGRect(origin: .zero, size: size))
+    context.cgContext.translateBy(x: -x, y: 0)
+    host.layer.render(in: context.cgContext)
+  }.pngData()!
+}
+let shortRest = processSnapshot(shortHost, x: 0, width: shortWidth)
+let suffixRest = processSnapshot(numericHost, x: countTextWidth - suffixWidth, width: suffixWidth)
+shortHost.apply(text: shortText, animated: false, shines: true)
+numericHost.apply(text: countText, animated: false, shines: true)
+var shortFrames: [Data] = []
+var suffixFrames: [Data] = []
+for _ in 0..<10 {
+  RunLoop.main.run(until: Date().addingTimeInterval(0.16))
+  shortFrames.append(processSnapshot(shortHost, x: 0, width: shortWidth))
+  suffixFrames.append(processSnapshot(numericHost, x: countTextWidth - suffixWidth, width: suffixWidth))
+}
+if !UIAccessibility.isReduceMotionEnabled {
+  precondition(shortFrames.contains { $0 != shortRest }, "Shine must cross the visible short process title")
+  precondition(Set(shortFrames).count > 1, "Shine must travel across the short process title")
+  precondition(shortFrames.contains(shortRest), "Text outside the pale shine keeps its normal color")
+  precondition(suffixFrames.contains { $0 != suffixRest }, "Shine must cross the full process row suffix")
+  precondition(Set(suffixFrames).count > 1, "Shine must travel through the full process row suffix")
+  precondition(suffixFrames.contains(suffixRest), "The full-row suffix keeps its normal color outside the shine")
+}
+shortHost.apply(text: shortText, animated: false, shines: false)
+numericHost.apply(text: countText, animated: false, shines: false)
+let shortStill = processSnapshot(shortHost, x: 0, width: shortWidth)
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+precondition(shortStill == processSnapshot(shortHost, x: 0, width: shortWidth), "Completed SwiftUI process text must stay still")
+print("Chat render: SwiftUI shine travels across the full process row")
+
 let countCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
 window.addSubview(countCell)
 countCell.configure(countRow, text: countText)
