@@ -1,17 +1,18 @@
 """Real sheet keyboard, duplicate-send suppression and exact rejected-draft restore."""
 import sys
 from driver import UI
+from sheet_background import capture_card
 import catalog
 
 ui = UI(*sys.argv[1:])
 # The production sheet host must allow rows beneath the floating composer.
-ui.capture('half-sheet')
+capture_card(ui, 'half-sheet', 'option-0')
 header = next(item['frame'] for item in ui.state() if item.get('AXLabel') == catalog.text('accessibility.closeSheet', title='输入框验收'))
 ui.axe('swipe', '--start-x', '200', '--start-y', str(header['y'] + 10),
        '--end-x', '200', '--end-y', '100', '--duration', '.6', '--post-delay', '.8')
 expanded = next(item['frame'] for item in ui.state() if item.get('AXLabel') == catalog.text('accessibility.closeSheet', title='输入框验收'))
 assert expanded['y'] < header['y'] - 100, 'Sheet did not reach the full detent'
-ui.capture('full-sheet')
+capture_card(ui, 'full-sheet', 'option-0')
 field = ui.element('create-session-input')['frame']
 assert any((item.get('AXUniqueId') or '').startswith('option-')
            and item['frame']['y'] < field['y'] + field['height']
@@ -19,7 +20,7 @@ assert any((item.get('AXUniqueId') or '').startswith('option-')
            for item in ui.state()), 'List does not continue beneath the floating input'
 ui.axe('tap', '--id', 'option-0', '--post-delay', '.6')
 ui.element('sheet-choice-1')
-ui.capture('picker-full')
+capture_card(ui, 'picker-full', 'sheet-choice-1')
 ui.axe('tap', '--id', 'sheet-choice-2', '--post-delay', '.6')
 ui.element('create-session-input')
 for _ in range(4):

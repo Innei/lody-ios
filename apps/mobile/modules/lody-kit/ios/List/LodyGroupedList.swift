@@ -61,7 +61,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private var toggles: [String: RowSwitch] = [:]
   private var dataSource: UICollectionViewDiffableDataSource<String, ListItemID>!
 
-  private static let restingCard = UIColor.secondarySystemGroupedBackground
+  private static let restingCard = UIColor.tertiarySystemGroupedBackground
 
   private lazy var registration = UICollectionView.CellRegistration<UICollectionViewListCell, LodyListRow> { [weak self] cell, _, row in
     LodyGroupedList.configureSystem(cell, row, toggle: self?.toggle(for: row))
@@ -535,8 +535,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   /// A sheet paints its own material. Dropping the list's ground lets that
-  /// material show between groups. Cells use the secondary grouped surface,
-  /// above the system form sheet's grouped ground.
+  /// material show between groups. The tertiary grouped surface keeps cells
+  /// distinct when an expanded sheet switches to an opaque secondary surface.
   func setTransparent(_ value: Bool) {
     guard value != transparent else { return }
     transparent = value
