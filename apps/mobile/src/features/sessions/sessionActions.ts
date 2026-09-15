@@ -1,6 +1,6 @@
 import { archiveSession, pinSession, markSessionRead } from '@lody-ios/kit';
-import { Share } from 'react-native';
 import { showToast } from '../../ui/toast.ts';
+import { shareLink } from '../../lib/share.ts';
 import type { Catalog, Session } from '../../models/catalog.ts';
 import { t } from '../../lib/i18n/index.ts';
 import { openCatalogRow } from '../../hooks/screens/openCatalogRow.ts';
@@ -70,12 +70,10 @@ export function shareSession(
 ) {
   const url = sessionShareUrl(workspace, sessionId);
   if (!url) {
-    showToast(t('session.toast.shareFailed'));
+    showToast(t('share.toast.failed'));
     return;
   }
-  void Share.share({ url }).catch(() => {
-    showToast(t('session.toast.shareFailed'));
-  });
+  void shareLink(url);
 }
 
 export function sessionRowAction(

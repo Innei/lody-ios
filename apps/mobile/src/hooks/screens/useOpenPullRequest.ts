@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { Alert, Linking, Share } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import type { PullRequestReference } from '@/models/pull-request';
 import type { PullRequestSource } from '@/features/pull-request/source';
 import { livePullRequest } from '@/cloud/github/pullRequests';
 import { PullRequestScreen } from '@/screens/PullRequestScreen';
 import { usePageRuntime } from './usePageRuntime';
 import { t } from '@/lib/i18n';
+import { shareLink } from '@/lib/share';
 
 export function useOpenPullRequest(
   workspaceId: string,
@@ -51,8 +52,7 @@ export function useOpenPullRequest(
             actions: {
               openGitHub,
               share: () => {
-                if (valid())
-                  void Share.share({ url: reference.url }).catch(() => {});
+                if (valid()) void shareLink(reference.url);
               },
               comment: async (body) => {
                 if (!valid()) throw new Error('unauthorized');
