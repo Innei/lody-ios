@@ -274,18 +274,24 @@ The background case runs via `--case background`, dwelling on the Simulator Home
 The iOS `react-native-screens` patch ignores late sheet-wrapper layout callbacks after the owning controller has been invalidated. The navigation case reproduces this during a settings-sheet dismissal followed by a workspace/session jump. Remove the patch when the installed upstream version handles these stale callbacks.
 
 The native toolbar patches keep items on their owning controller while it is offscreen.
-`react-native-screens` hides the bar before UIKit captures a push to a screen
-without toolbar items, and handles native back/edge-pop through its transition
-delegate. `didShow` restores the visible owner's bar after return or cancellation.
+`react-native-screens` declares `hidesBottomBarWhenPushed` before UIKit constructs
+the navigation transition, updating it when the controller receives toolbar items.
+This preserves UIKit's early Search glass fade instead of starting a second,
+late hide animation in `willShow`. `didShow` reconciles the winning controller after
+return or cancellation; it must not be the first point that reveals the bar.
 `expo-router` retains items on detach, defers item updates until navigation ends,
-and prevents offscreen updates from showing the shared toolbar. Do not start a
-separate animated toolbar hide in `willShow`: its retiring glass
-can overlap the incoming chat composer even though the settled state is correct.
+and prevents offscreen updates from showing the shared toolbar. Do not hide the
+toolbar synchronously before push/pop: that removes the system Search fade.
+Settings is the reference: Search text and glass blur/fade out during push and
+become visible near the end of return. Brief overlap during that native fade is
+expected; a stationary duplicate, late reappearance or post-transition residue is not.
 The navigation case opens a Home row, cancels an edge pop, then returns.
 `--case navigation-toolbar` isolates two successive push/cancel/return cycles and
 checks that the restored search still filters the catalog, in both appearances.
-Review every encoded transition frame in `run.mp4` for transient glass overlap;
-the settled accessibility assertions alone cannot prove its absence. Remove these
+Light mode is the reported failure condition; Dark mode is the regression control.
+Review every encoded transition frame in `run.mp4` for continuous Search fading,
+no late residue, and correct cancellation recovery. Reject both abrupt removal
+and lingering glass; settled accessibility assertions cannot establish this. Remove these
 patches once upstream provides this lifecycle coordination.
 
 ### 10,000-message performance demo

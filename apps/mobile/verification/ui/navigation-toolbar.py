@@ -1,4 +1,9 @@
-"""Record the Home toolbar across real pushes, cancelled pops and returns."""
+"""Record native Search fading across pushes, cancelled pops and returns.
+
+Visual gate: compare run.mp4 with Settings. Search must blur/fade, not disappear
+abruptly; its retiring glass must not reappear or remain after the transition.
+The accessibility assertions below only establish settled ownership/usability.
+"""
 import json
 import sys
 import time
@@ -61,4 +66,4 @@ ui.axe('tap', '--label', button['AXLabel'], '--post-delay', '.5')
 home()
 ui.capture('search-cancelled')
 (ui.output / 'transition-events.json').write_text(json.dumps(events, indent=2))
-print('PASS: repeated Home pushes, cancelled edge pops and completed returns preserve toolbar ownership and usable search. Review run.mp4 for transient glass overlap.')
+print('PASS: repeated Home pushes, cancelled edge pops and completed returns preserve settled toolbar ownership and usable search. VISUAL REVIEW REQUIRED: continuous native Search fade, no abrupt removal, late reappearance or post-transition residue.')
