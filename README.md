@@ -189,8 +189,8 @@ lody-ios/
 
 ### Prerequisites
 
-- **macOS**: Sequoia or later (CI builds on macOS 26)
-- **Xcode**: 26.5 with Command Line Tools — the toolchain CI pins and the offline Simulator baselines require
+- **macOS**: Sequoia or later — GitHub iOS verification and TestFlight use the macOS 27 preview image
+- **Xcode**: 26.5 or later with Command Line Tools — local offline Simulator baselines default to iOS 26.5; GitHub iOS jobs use the Xcode 27 preview image and iOS 27.0
 - **Node.js**: `>= 22.13` (React Native 0.86 also accepts `^20.19.4`, `^24.3`, and `>= 25`)
 - **pnpm**: `11.10.0` (`corepack enable`)
 - **Ruby & Bundler**: `apps/mobile/Gemfile` pins `cocoapods ~> 1.16` and `cocoapods-spm`

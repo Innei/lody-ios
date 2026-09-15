@@ -38,7 +38,7 @@ env:
 jobs:
   submit:
     name: Archive and upload
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 120
     outputs:
       build_number: ${{ steps.build.outputs.build_number }}
@@ -51,10 +51,6 @@ jobs:
       - name: Record commit
         id: meta
         run: echo "source_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: latest-stable
 
       - uses: pnpm/action-setup@v6
 
