@@ -216,6 +216,14 @@ extension LodyChatView {
     let nearTail = collection.contentSize.height - collection.bounds.height + collection.adjustedContentInset.bottom - previousOffset < CGFloat(ChatScroll.resumeDistance)
     let following = followsBottom || (starting && nearTail && !trackingPausedByGesture)
     followsBottom = following
+    // A delivered queue turn owns the same viewport anchor as a direct send.
+    // Reply growth and the retiring queue glass must not move its flight target.
+    let delivered = projected.last {
+      $0.kind == "user" && $0.entryID != handoffID && ChatSendHandoff.isWaiting(id: $0.entryID)
+    }
+    if following, let delivered {
+      anchoredUserID = delivered.id
+    }
     let completing = previousLive != nil && liveEntryID == nil
     // A stale running reply can complete together with an entire newer history.
     // Only fold in place when it is still the tail; bulk sync keeps the viewport anchor.
@@ -245,7 +253,7 @@ extension LodyChatView {
     }
     self.liveEntryID = liveEntryID
     let previous = rows
-    prepareRowHeights(projected, previous: previous, animate: !folding)
+    prepareRowHeights(projected, previous: previous, animate: !folding && delivered == nil)
     rows = Dictionary(projected.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
     measurements = measurements.filter { retainedIDs.contains($0.key) }
     store.retain(retainedIDs)

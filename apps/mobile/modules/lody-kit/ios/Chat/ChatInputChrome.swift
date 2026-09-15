@@ -24,18 +24,12 @@ final class ChatInputChrome: UIView {
   var onReconnect: (() -> Void)?
   var onScrollToBottom: (() -> Void)?
 
-  private let statusSurface: UIVisualEffectView
-  private let scrollSurface: UIVisualEffectView
+  private let statusSurface = LodyGlassView(interactive: true)
+  private let scrollSurface = LodyGlassView(interactive: true)
   private let statusButton = UIButton(type: .system)
   private let scrollButton = UIButton(type: .system)
 
   override init(frame: CGRect) {
-    let statusGlass = UIGlassEffect(style: .regular)
-    statusGlass.isInteractive = true
-    statusSurface = UIVisualEffectView(effect: statusGlass)
-    let scrollGlass = UIGlassEffect(style: .regular)
-    scrollGlass.isInteractive = true
-    scrollSurface = UIVisualEffectView(effect: scrollGlass)
     super.init(frame: frame)
     isHidden = true
     isUserInteractionEnabled = false
@@ -43,6 +37,12 @@ final class ChatInputChrome: UIView {
     scrollSurface.cornerConfiguration = .capsule()
     addSubview(statusSurface)
     addSubview(scrollSurface)
+    for surface in [statusSurface, scrollSurface] {
+      surface.onHidden = { [weak self] in
+        guard let self else { return }
+        self.isHidden = self.statusSurface.isHidden && self.scrollSurface.isHidden
+      }
+    }
     statusSurface.contentView.addSubview(statusButton)
     scrollSurface.contentView.addSubview(scrollButton)
     [statusSurface, scrollSurface, statusButton, scrollButton].forEach {
@@ -123,26 +123,19 @@ final class ChatInputChrome: UIView {
     let title = status == .paused
       ? LodyStrings.text("native.chat.connection.paused")
       : LodyStrings.text("native.chat.connection.connecting")
-    configuration.title = title
-    statusButton.configuration = configuration
-    statusButton.accessibilityLabel = title
+    if showStatus {
+      configuration.title = title
+      statusButton.configuration = configuration
+      statusButton.accessibilityLabel = title
+    }
     statusButton.accessibilityTraits = status == .paused ? .button : .staticText
     statusButton.isUserInteractionEnabled = status == .paused
     let shouldAnimate = (animated ?? (window != nil && !UIAccessibility.isReduceMotionEnabled))
       && UIView.areAnimationsEnabled
-    let updates = {
-      self.statusSurface.isHidden = !showStatus
-      self.scrollSurface.isHidden = !showScroll
-      self.statusSurface.accessibilityElementsHidden = !showStatus
-      self.scrollSurface.accessibilityElementsHidden = !showScroll
-      self.isHidden = !active
-      self.isUserInteractionEnabled = active
-      self.superview?.layoutIfNeeded()
-    }
-    if shouldAnimate {
-      UIView.animate(withDuration: 0.35, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction], animations: updates)
-    } else {
-      updates()
-    }
+    if active { isHidden = false }
+    isUserInteractionEnabled = active
+    statusSurface.setVisible(showStatus, animated: shouldAnimate)
+    scrollSurface.setVisible(showScroll, animated: shouldAnimate)
+    isHidden = statusSurface.isHidden && scrollSurface.isHidden
   }
 }

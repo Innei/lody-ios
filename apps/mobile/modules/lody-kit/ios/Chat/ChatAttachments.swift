@@ -214,6 +214,9 @@ final class ChatAttachmentBar: UIScrollView {
   var onPreview: ((String) -> Void)?
   private let stack = UIStackView()
   private var rendered: [ChatAttachment] = []
+  private var pills: [String: LodyGlassView] = [:]
+  var onHeightChange: (() -> Void)?
+  var hasVisiblePills: Bool { !pills.isEmpty }
 
   init() {
     super.init(frame: .zero)
@@ -233,26 +236,48 @@ final class ChatAttachmentBar: UIScrollView {
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-  func render(_ items: [ChatAttachment]) {
+  func render(_ items: [ChatAttachment], animatedRemoval: Bool = false) {
     guard items != rendered else { return }
+    let previous = rendered
     rendered = items
-    stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-    for item in items { stack.addArrangedSubview(pill(item)) }
+    for (id, surface) in pills where !items.contains(where: { $0.id == id }) {
+      surface.setVisible(false, animated: animatedRemoval)
+    }
+    for (index, item) in items.enumerated() {
+      if let existing = pills[item.id], previous.contains(item) {
+        existing.setVisible(true)
+        continue
+      }
+      // A restored draft may reuse an id while an old pill is leaving.
+      if let previous = pills.removeValue(forKey: item.id) {
+        previous.onHidden = nil
+        previous.removeFromSuperview()
+      }
+      let surface = pill(item)
+      pills[item.id] = surface
+      surface.onHidden = { [weak self, weak surface] in
+        guard let self, let surface, self.pills[item.id] === surface,
+              !self.rendered.contains(where: { $0.id == item.id }) else { return }
+        self.pills.removeValue(forKey: item.id)
+        surface.removeFromSuperview()
+        self.onHeightChange?()
+      }
+      stack.insertArrangedSubview(surface, at: min(index, stack.arrangedSubviews.count))
+      surface.setVisible(true)
+    }
   }
 
   func attachmentFrame(id: String) -> CGRect? {
-    guard let index = rendered.firstIndex(where: { $0.id == id }), index < stack.arrangedSubviews.count else { return nil }
-    let view = stack.arrangedSubviews[index]
+    guard rendered.contains(where: { $0.id == id }), let view = pills[id] else { return nil }
     return view.convert(view.bounds, to: self)
   }
 
   func snapshot(id: String) -> UIView? {
-    guard let index = rendered.firstIndex(where: { $0.id == id }), index < stack.arrangedSubviews.count else { return nil }
-    let pill = stack.arrangedSubviews[index]
+    guard rendered.contains(where: { $0.id == id }), let pill = pills[id] else { return nil }
     return pill.snapshotView(afterScreenUpdates: false)
   }
 
-  private func pill(_ item: ChatAttachment) -> UIView {
+  private func pill(_ item: ChatAttachment) -> LodyGlassView {
     var config = UIButton.Configuration.plain()
     let fileType = UTType(filenameExtension: (item.name as NSString).pathExtension)
     let symbol: String
@@ -280,10 +305,7 @@ final class ChatAttachmentBar: UIScrollView {
     remove.tintColor = .tertiaryLabel
     remove.accessibilityLabel = LodyStrings.text("native.chat.attachment.remove", ["name": item.name])
     remove.addAction(UIAction { [weak self] _ in self?.onRemove?(item.id) }, for: .touchUpInside)
-    let surface = UIVisualEffectView(effect: nil)
-    let glass = UIGlassEffect(style: .regular)
-    glass.isInteractive = true
-    surface.effect = glass
+    let surface = LodyGlassView(interactive: true)
     surface.cornerConfiguration = .capsule()
     surface.contentView.addSubview(button)
     surface.contentView.addSubview(remove)

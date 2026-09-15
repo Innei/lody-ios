@@ -12,10 +12,14 @@ ui = UI(*sys.argv[1:])
 trace = ThrowTrace(ui)
 attachment_before = set(trace.folder.glob("lody-attachment-*.json"))
 source = 'create-session-input' if any(i.get('AXUniqueId') == 'create-session-input' for i in ui.state()) else 'session-input'
-for item in ui.state():
-    if item.get('AXLabel') == catalog.text('native.chat.attachment.remove', name='fixture.txt'):
-        ui.axe('tap', '--label', item['AXLabel'])
-        break
+remove_label = catalog.text('native.chat.attachment.remove', name='fixture.txt')
+if not any(item.get('AXLabel') == remove_label for item in ui.state()):
+    ui.paste_file(source)
+    remove_label = catalog.text('native.chat.attachment.remove', name='clipboard-fixture.txt')
+ui.capture('attachment-before-remove')
+ui.axe('tap', '--label', remove_label, '--post-delay', '.5')
+assert not any(item.get('AXLabel') == remove_label for item in ui.state())
+ui.capture('attachment-after-remove')
 names = ['01-notes.txt', '02-landscape.png', '03-report.txt', '04-portrait.png', '05-summary.txt']
 ui._paste_provider(source, 'mixed-pasteboard.swift', names)
 body = '\n'.join(f'{i:02d} This message keeps all text.' for i in range(1, 13))

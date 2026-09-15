@@ -25,6 +25,7 @@ BATCHES = {
     'chat': ['user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'changes', 'inline-diff', 'chat-chrome'],
 }
 SUITES = {
+    'glass-transitions': ['chat-chrome', 'mention-chat', 'mention-sheet', 'send-queue', 'send-transition', 'send-transition-handoff'],
     'core': ['onboarding', 'inbox', 'navigation', 'send', 'send-handoff', 'composer-success'],
     'core-home': ['onboarding', 'inbox', 'navigation'],
     'core-send': ['send', 'send-handoff', 'composer-success'],

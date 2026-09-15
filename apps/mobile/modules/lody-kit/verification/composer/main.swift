@@ -704,7 +704,7 @@ RunLoop.current.run(until: Date().addingTimeInterval(0.3))
 precondition(!referencePanel.isHidden && referencePanel.alpha == 1 && referencePanel.panelHeight > 0,
              "An interrupted exit must leave the reopened panel visible and usable")
 referenceText("ordinary text")
-RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+RunLoop.current.run(until: Date().addingTimeInterval(0.4))
 precondition(referencePanel.isHidden && referencePanel.panelHeight == 0,
              "A completed exit must release the reserved layout space")
 referenceInput.text = "@"
@@ -724,7 +724,7 @@ precondition(referenceInput.becomeFirstResponder())
 referenceInput.text = "/"
 referenceInput.selectedRange = NSRange(location: 1, length: 0)
 referencePanel.update(input: referenceInput, items: [skill])
-RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+RunLoop.current.run(until: Date().addingTimeInterval(0.4))
 precondition(referencePanel.isHidden, "An agent without commands must not show an empty slash menu")
 let command = ChatMentionItem(path: "compact", name: "compact", kind: "cmd", subtitle: "Compact", insertText: "/compact")
 referencePanel.update(input: referenceInput, items: [skill, command])
@@ -756,3 +756,50 @@ precondition(savedPRDraft == "Existing draft\n\nInvestigate CI")
 prDraft.appendDraft(#"{"id":"pr-1","text":"Investigate CI"}"#)
 precondition(savedPRDraft == "Existing draft\n\nInvestigate CI", "A prop replay must not append twice")
 print("PR investigation: existing draft preserved, appended text saved and prop replay ignored")
+
+let materialWindow = HandoffWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+let materialComposer = ChatComposerView(frame: CGRect(x: 0, y: 500, width: 390, height: 200))
+materialWindow.addSubview(materialComposer)
+materialWindow.isHidden = false
+materialComposer.setComposerState(ready)
+var materialHeight: CGFloat = 0
+materialComposer.onHeightChange = { materialHeight = $0 }
+materialComposer.setQueue([ChatQueuedDraft(id: "material-queue", text: "Last queued turn")])
+materialComposer.layoutIfNeeded()
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+let materialQueue = descendants(materialComposer).first { $0.accessibilityIdentifier == "session-queue" } as! LodyGlassView
+let withQueue = materialHeight
+materialComposer.setQueue([])
+precondition(!materialQueue.isHidden && !materialQueue.isUserInteractionEnabled && materialHeight == withQueue,
+  "The last queue card must keep its space until its glass leaves")
+precondition(materialComposer.retiringQueueHeight == 44,
+  "Retiring glass must stop reserving transcript space before the message flies")
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+precondition(materialQueue.isHidden && materialHeight == withQueue - 44 && materialComposer.retiringQueueHeight == 0)
+ChatSendHandoff.cancel(id: "material-queue")
+
+materialComposer.setInitialAttachments(#"[{"id":"remove-a","name":"a.txt","uri":"file:///tmp/a.txt","kind":"file"},{"id":"keep-b","name":"b.txt","uri":"file:///tmp/b.txt","kind":"file"}]"#)
+materialComposer.layoutIfNeeded()
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+let materialBar = descendants(materialComposer).compactMap { $0 as? ChatAttachmentBar }.first!
+let retained = descendants(materialBar).compactMap { $0 as? UIButton }.first {
+  $0.accessibilityLabel == LodyStrings.text("native.chat.attachment.preview", ["name": "b.txt"])
+}!
+@MainActor func removeMaterialAttachment(_ name: String) {
+  let button = descendants(materialBar).compactMap { $0 as? UIButton }.first {
+    $0.accessibilityLabel == LodyStrings.text("native.chat.attachment.remove", ["name": name])
+  }!
+  button.sendActions(for: .touchUpInside)
+}
+removeMaterialAttachment("a.txt")
+precondition(materialBar.attachmentFrame(id: "remove-a") == nil && retained.window != nil,
+  "Deleting a pill updates the draft immediately and preserves the other native control")
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+precondition(materialBar.attachmentFrame(id: "keep-b") != nil)
+let withAttachment = materialHeight
+removeMaterialAttachment("b.txt")
+precondition(materialBar.hasVisiblePills && materialHeight == withAttachment,
+  "The final attachment reserves its height through dematerialization")
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+precondition(!materialBar.hasVisiblePills && materialHeight == withAttachment - 42)
+print("Glass hosts: queue and final attachment retain their space through exit; unrelated pills retain identity")
