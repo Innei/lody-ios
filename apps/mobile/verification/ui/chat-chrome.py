@@ -1,4 +1,4 @@
-"""Compact, equal-height connection status and trailing scroll action."""
+"""Connection status and a 44-point scroll action aligned with send."""
 import sys
 from driver import UI
 import catalog
@@ -12,6 +12,10 @@ def center_x(frame):
 
 def mid_y(frame):
     return frame['y'] + frame['height'] / 2
+
+
+def max_y(frame):
+    return frame['y'] + frame['height']
 
 
 def chrome_center():
@@ -32,12 +36,13 @@ ui.axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end
 status = ui.element('chat-connection-status')
 scroll = ui.element('chat-scroll-to-bottom')
 assert abs(center_x(status['frame']) - chrome_center()) <= 1, 'Showing scroll moved the connection status'
-transcript = ui.element('chat-transcript')['frame']
-assert abs(scroll['frame']['x'] + scroll['frame']['width'] - transcript['x'] - transcript['width'] + 16) <= 1, \
-    'Scroll action does not align with the input trailing edge'
-assert abs(mid_y(status['frame']) - mid_y(scroll['frame'])) <= 1, 'Paired glasses do not share a baseline'
-assert abs(scroll['frame']['width'] - scroll['frame']['height']) <= 1
-assert abs(scroll['frame']['height'] - status['frame']['height']) <= 1
+send = ui.element('session-send')['frame']
+assert abs(scroll['frame']['x'] - send['x']) <= 1, 'Scroll does not share send leading edge'
+assert abs(scroll['frame']['x'] + scroll['frame']['width'] - send['x'] - send['width']) <= 1, \
+    'Scroll does not share send trailing edge'
+assert abs(max_y(status['frame']) - max_y(scroll['frame'])) <= 1, 'Paired glasses do not share a baseline'
+assert abs(scroll['frame']['width'] - 44) <= 1
+assert abs(scroll['frame']['height'] - 44) <= 1
 ui.capture('connecting-and-scroll')
 
 ui.axe('tap', '--label', 'Fixtures')
@@ -69,9 +74,11 @@ status_keyboard = ui.element('chat-connection-status')['frame']
 scroll_keyboard = ui.element('chat-scroll-to-bottom')['frame']
 input_frame = ui.element('session-input')['frame']
 assert status_keyboard['y'] < status['frame']['y'] - 100, 'Chrome did not follow the raised composer'
-assert abs(mid_y(status_keyboard) - mid_y(scroll_keyboard)) <= 1, 'Keyboard separated the chrome baseline'
-assert abs(scroll_keyboard['x'] + scroll_keyboard['width'] - input_frame['x'] - input_frame['width']) <= 1, \
-    'Keyboard broke trailing alignment with the input'
+assert abs(max_y(status_keyboard) - max_y(scroll_keyboard)) <= 1, 'Keyboard separated the chrome baseline'
+send_keyboard = ui.element('session-send')['frame']
+assert abs(scroll_keyboard['x'] - send_keyboard['x']) <= 1, 'Keyboard broke leading alignment with send'
+assert abs(scroll_keyboard['x'] + scroll_keyboard['width'] - send_keyboard['x'] - send_keyboard['width']) <= 1, \
+    'Keyboard broke trailing alignment with send'
 assert scroll_keyboard['y'] + scroll_keyboard['height'] < input_frame['y'], 'Scroll action overlaps the input'
 ui.capture('keyboard')
-print('PASS: equal-height independent glasses, fixed trailing action, shared baseline, and collapse')
+print('PASS: 44-point scroll action aligned with send, independent status, shared baseline, and collapse')

@@ -76,11 +76,21 @@ show(.connecting, scroll: true)
 let statusBoth = frame(statusControl())
 let scrollBoth = frame(scrollControl())
 precondition(shown(scrollControl()))
-precondition(abs(scrollBoth.width - scrollBoth.height) < 0.5)
-precondition(abs(scrollBoth.height - statusBoth.height) < 0.5)
-precondition(abs(scrollBoth.maxX - (composer.frame.maxX - 16)) < 0.5,
-  "Scroll action aligns with the input surface trailing edge")
-precondition(abs(statusBoth.midY - scrollBoth.midY) < 0.5, "Paired glasses share one baseline")
+precondition(abs(scrollBoth.width - ChatInputChrome.controlSize) < 0.5)
+precondition(abs(scrollBoth.height - ChatInputChrome.controlSize) < 0.5)
+precondition(abs(scrollBoth.maxX - (composer.frame.maxX - 18)) < 0.5,
+  "Scroll action shares the send control trailing inset")
+precondition(abs(statusBoth.maxY - scrollBoth.maxY) < 0.5, "Paired glasses share one baseline")
+let expectedSymbol = UIImage(
+  systemName: "arrow.down",
+  withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .medium)
+)!
+let actualSymbol = UIImage(
+  systemName: "arrow.down",
+  withConfiguration: scrollControl().configuration?.preferredSymbolConfigurationForImage
+)!
+precondition(abs(actualSymbol.size.width - expectedSymbol.size.width) < 0.5)
+precondition(abs(actualSymbol.size.height - expectedSymbol.size.height) < 0.5)
 precondition(abs(statusBoth.midX - 195) < 1,
   "Showing scroll must not move the connection status")
 let inside = chrome.convert(CGPoint(x: scrollBoth.midX + 21, y: scrollBoth.midY), from: host)
@@ -118,7 +128,7 @@ precondition(!shown(statusControl()))
 precondition(frame(scrollControl()) == scrollBoth, "Hiding status must not move the scroll action")
 host.frame.size = CGSize(width: 760, height: 520)
 host.layoutIfNeeded()
-precondition(abs(frame(scrollControl()).maxX - (composer.frame.maxX - 16)) < 0.5)
+precondition(abs(frame(scrollControl()).maxX - (composer.frame.maxX - 18)) < 0.5)
 precondition(abs(frame(scrollControl()).maxY + 8 - composer.frame.minY) < 0.5,
   "Resizing the host preserves the composer baseline")
-print("Chat chrome: equal height, fixed trailing action, independent status, touch passthrough and resize passed")
+print("Chat chrome: 44-point scroll action aligned with send, independent status, touch passthrough and resize passed")

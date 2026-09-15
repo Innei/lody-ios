@@ -69,8 +69,8 @@ final class ChatInputChrome: UIView {
     scrollConfiguration.contentInsets = .zero
     scrollConfiguration.image = UIImage(systemName: "arrow.down")
     scrollConfiguration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(
-      pointSize: UIFont.preferredFont(forTextStyle: .subheadline).pointSize,
-      weight: .semibold
+      pointSize: 17,
+      weight: .medium
     )
     scrollConfiguration.baseForegroundColor = .label
     scrollButton.configuration = scrollConfiguration
@@ -81,10 +81,10 @@ final class ChatInputChrome: UIView {
       statusSurface.centerXAnchor.constraint(equalTo: centerXAnchor),
       statusSurface.bottomAnchor.constraint(equalTo: bottomAnchor),
       statusSurface.trailingAnchor.constraint(lessThanOrEqualTo: scrollSurface.leadingAnchor, constant: -8),
-      scrollSurface.trailingAnchor.constraint(equalTo: trailingAnchor),
+      scrollSurface.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
       scrollSurface.bottomAnchor.constraint(equalTo: bottomAnchor),
-      scrollSurface.widthAnchor.constraint(equalTo: scrollSurface.heightAnchor),
-      scrollSurface.heightAnchor.constraint(equalTo: statusSurface.heightAnchor),
+      scrollSurface.widthAnchor.constraint(equalToConstant: Self.controlSize),
+      scrollSurface.heightAnchor.constraint(equalToConstant: Self.controlSize),
       statusButton.leadingAnchor.constraint(equalTo: statusSurface.contentView.leadingAnchor),
       statusButton.trailingAnchor.constraint(equalTo: statusSurface.contentView.trailingAnchor),
       statusButton.topAnchor.constraint(equalTo: statusSurface.contentView.topAnchor),
