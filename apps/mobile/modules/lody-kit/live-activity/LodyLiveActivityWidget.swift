@@ -11,7 +11,7 @@ struct LodyLiveActivityWidget: Widget {
         overviewRoute: context.attributes.overviewRoute,
         isStale: context.isStale
       )
-      .activityBackgroundTint(context.isStale ? nil : context.state.backgroundTint)
+      .activityBackgroundTint(nil)
     } dynamicIsland: { context in
       island(context)
     }
@@ -26,27 +26,15 @@ struct LodyLiveActivityWidget: Widget {
       // The expanded island's corner radius runs under both top regions, so their
       // content is inset off the curve instead of sitting flush against it.
       DynamicIslandExpandedRegion(.leading) {
-        if state.showsOverview {
-          Image(systemName: "square.stack.3d.up").padding(.leading, 10).padding(.top, 8)
-        } else if let focus {
-          AgentGlyph(kind: focus.agentLogoKind, text: focus.agentLogoText, size: 22)
-            .padding(.leading, 10)
-            .padding(.top, 8)
-            .lodyStale(isStale)
-        }
+        leading(state: state, focus: focus, size: 22)
+          .padding(.leading, 10)
+          .padding(.top, 8)
+          .lodyStale(isStale)
       }
       DynamicIslandExpandedRegion(.trailing) {
-        if !isStale, state.needsAttention, state.statusCounts.running > 0 {
-          Text(state.runningSummary)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(.trailing, 10)
-            .padding(.top, 8)
-        } else if let focus, !state.showsOverview, !isStale, focus.status != .unread {
-          FocusTimer(focus: focus)
-            .padding(.trailing, 10)
-            .padding(.top, 8)
-        }
+        expandedTrailing(state: state, focus: focus, isStale: isStale)
+          .padding(.trailing, 10)
+          .padding(.top, 8)
       }
       // The camera housing splits the top row, so its center is the narrowest track in
       // the whole view. Everything with real text goes into the full-width bottom.
@@ -57,6 +45,9 @@ struct LodyLiveActivityWidget: Widget {
         VStack(alignment: .leading, spacing: 8) {
           if state.showsOverview {
             Text(isStale ? state.staleLabel : state.runningSummary).font(.headline)
+            if !isStale, let focus {
+              IslandRow(item: focus, state: state)
+            }
           } else if let focus {
             FocusText(focus: focus, othersCount: state.othersCount, isStale: isStale, copy: state)
             if !isStale, focus.status == .permission, let command = focus.permissionCommand {
@@ -71,15 +62,16 @@ struct LodyLiveActivityWidget: Widget {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 8)
         .padding(.bottom, 6)
+        .background {
+          if !isStale, !state.needsAttention {
+            JellyGlow(opacity: 0.3)
+          }
+        }
         .lodyStale(isStale)
       }
     } compactLeading: {
-      if state.showsOverview {
-        Image(systemName: "square.stack.3d.up")
-      } else if let focus {
-        AgentGlyph(kind: focus.agentLogoKind, text: focus.agentLogoText, size: 20)
-          .lodyStale(isStale)
-      }
+      leading(state: state, focus: focus, size: 20)
+        .lodyStale(isStale)
     } compactTrailing: {
       if let focus {
         compactTrailing(state: state, focus: focus, isStale: isStale)
@@ -94,11 +86,31 @@ struct LodyLiveActivityWidget: Widget {
   }
 
   @ViewBuilder
-  private func compactTrailing(state: LodyActivityAttributes.ContentState, focus: LodyItem, isStale: Bool) -> some View {
-    if isStale || focus.status != .running {
+  private func leading(state: LodyState, focus: LodyItem?, size: CGFloat) -> some View {
+    if state.showsOverview {
+      JellyMark()
+    } else if let focus {
+      LeadGlyph(item: focus, size: size)
+    }
+  }
+
+  @ViewBuilder
+  private func expandedTrailing(state: LodyState, focus: LodyItem?, isStale: Bool) -> some View {
+    if !isStale, state.needsAttention, state.statusCounts.running > 0 {
+      Text(state.runningSummary)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    } else if let focus, !state.showsOverview, state.showsTimer(for: focus, isStale: isStale) {
+      WorkTimer(item: focus, font: .system(.title3, design: .rounded).weight(.semibold).monospacedDigit(), width: 64)
+    }
+  }
+
+  @ViewBuilder
+  private func compactTrailing(state: LodyState, focus: LodyItem, isStale: Bool) -> some View {
+    if isStale || focus.status == .permission || focus.status == .question || focus.status == .failed {
       StatusSymbol(status: focus.status, isStale: isStale)
         .lodyStale(isStale)
-    } else if state.activeCount > 1 {
+    } else if state.showsOverview {
       HStack(spacing: 4) {
         StatusSymbol(status: .running)
         Text("\(state.activeCount)")
@@ -106,9 +118,11 @@ struct LodyLiveActivityWidget: Widget {
           .padding(.horizontal, 5)
           .background(Capsule().fill(Color.white.opacity(0.16)))
       }
-    } else {
-      FocusTimer(focus: focus, width: 44)
+    } else if state.showsTimer(for: focus, isStale: false) {
+      WorkTimer(item: focus, font: .subheadline.weight(.semibold).monospacedDigit(), width: 44)
         .foregroundStyle(.primary)
+    } else {
+      StatusSymbol(status: focus.status)
     }
   }
 }

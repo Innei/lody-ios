@@ -79,8 +79,12 @@ turns remain; completed, failed, archived and idle sessions leave. Unread replie
 never enter widget focus. Multiple running turns show a count and stable session
 links, while a pending question or permission takes focus. The overview opens
 `/activity` with account/workspace validation and the existing native session rows.
-When no work remains, the app ends the activity with a completion summary and a
-10-second Lock Screen dismissal date. A subsequent turn creates a new activity.
+When no work remains, the app ends the activity with the finished rows marked
+completed (or failed for `error` sessions), their frozen turn durations, and a
+60-second Lock Screen dismissal date. A subsequent turn creates a new activity.
+Timers start at the session's `lastRunningSeen` (the current turn), never at the
+previous message or the session creation; the widget replaces raster images larger
+than their frame with a grey box, so the jellyfish ships at exact 1x/2x/3x sizes.
 
 Background server updates still need their own `stale-date`, and must send an
 `end` event with `dismissal-date` when work finishes. Local reconciliation only

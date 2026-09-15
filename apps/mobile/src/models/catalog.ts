@@ -20,6 +20,7 @@ export type Session = {
   latestUserMsgId?: string;
   lastMessageAt?: number;
   lastReadAt?: number;
+  lastRunningSeen?: number;
   awaitingUserSince?: number;
   branchName?: string;
   pullRequests?: import('./pull-request').PullRequestReference[];

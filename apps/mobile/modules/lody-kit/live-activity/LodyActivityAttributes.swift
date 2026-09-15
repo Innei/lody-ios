@@ -29,7 +29,7 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
 
     struct Item: Codable, Hashable, Sendable {
       enum Status: String, Codable, Sendable {
-        case permission, question, running, unread
+        case permission, question, running, unread, failed
 
         var priority: Int {
           switch self {
@@ -37,6 +37,7 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
           case .permission: 1
           case .running: 2
           case .unread: 3
+          case .failed: 4
           }
         }
       }
@@ -51,8 +52,13 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
       var title: String
       var updatedAt: Double
       var updatedAtLabel: String
+      var startedAt: Double?
+      var completedAt: Double?
 
       var updatedDate: Date { Date(timeIntervalSince1970: updatedAt / 1000) }
+      var startDate: Date { Date(timeIntervalSince1970: (startedAt ?? updatedAt) / 1000) }
+      var completedDate: Date? { completedAt.map { Date(timeIntervalSince1970: $0 / 1000) } }
+      var isDone: Bool { status == .unread || status == .failed }
     }
 
     struct PermissionAlert: Codable, Hashable, Sendable {
@@ -69,6 +75,13 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
       var lastSync: String
       var openHint: String
       var runningSummary: String?
+      var completedSummary: String?
+      var completedLabel: String?
+      var failedLabel: String?
+      var failedSummary: String?
+      var elapsed: String?
+      var waiting: String?
+      var took: String?
 
       init(stale: String, empty: String, others: String, lastSync: String, openHint: String) {
         self.stale = stale
@@ -86,6 +99,13 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
         lastSync = try container.decodeIfPresent(String.self, forKey: .lastSync) ?? "Last synced"
         openHint = try container.decodeIfPresent(String.self, forKey: .openHint) ?? "Tap to review"
         runningSummary = try container.decodeIfPresent(String.self, forKey: .runningSummary)
+        completedSummary = try container.decodeIfPresent(String.self, forKey: .completedSummary)
+        completedLabel = try container.decodeIfPresent(String.self, forKey: .completedLabel)
+        failedLabel = try container.decodeIfPresent(String.self, forKey: .failedLabel)
+        failedSummary = try container.decodeIfPresent(String.self, forKey: .failedSummary)
+        elapsed = try container.decodeIfPresent(String.self, forKey: .elapsed)
+        waiting = try container.decodeIfPresent(String.self, forKey: .waiting)
+        took = try container.decodeIfPresent(String.self, forKey: .took)
       }
     }
 
@@ -108,8 +128,24 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
         .replacingOccurrences(of: "{count}", with: "\(count)")
     }
 
+    var elapsedCaption: String { copy?.elapsed ?? "elapsed" }
+
+    var waitingCaption: String { copy?.waiting ?? "waiting" }
+
+    var tookCaption: String { copy?.took ?? "took" }
+
+    func completedSummary(_ count: Int) -> String {
+      (copy?.completedSummary ?? "{count} tasks finished")
+        .replacingOccurrences(of: "{count}", with: "\(count)")
+    }
+
+    func failedSummary(_ count: Int) -> String {
+      (copy?.failedSummary ?? "{count} tasks failed")
+        .replacingOccurrences(of: "{count}", with: "\(count)")
+    }
+
     private var ordered: [Item] {
-      items.filter { $0.status != .unread }.sorted { left, right in
+      items.sorted { left, right in
         if left.status.priority != right.status.priority {
           return left.status.priority < right.status.priority
         }
@@ -127,6 +163,12 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
 
     var showsOverview: Bool { activeCount > 1 && !needsAttention }
 
+    var completedItems: [Item] { items.filter(\.isDone) }
+
+    var isCompleted: Bool { !isActive && !completedItems.isEmpty }
+
+    var allFailed: Bool { isCompleted && completedItems.allSatisfy { $0.status == .failed } }
+
     var visibleItems: [Item] { Array(ordered.prefix(2)) }
 
     var runningSummary: String {
@@ -143,13 +185,26 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
       activeCount > 0
     }
 
+    func timerCaption(for item: Item) -> String {
+      switch item.status {
+      case .unread, .failed: tookCaption
+      case .permission, .question: waitingCaption
+      case .running: elapsedCaption
+      }
+    }
+
+    func showsTimer(for item: Item, isStale: Bool) -> Bool {
+      if isStale { return false }
+      return !item.isDone || item.startedAt != nil
+    }
+
     func staleDate(from updatedAt: Date) -> Date {
       updatedAt.addingTimeInterval(30 * 60)
     }
 
     func dismissalDate(from updatedAt: Date) -> Date? {
       guard !isActive else { return nil }
-      return updatedAt.addingTimeInterval(10)
+      return updatedAt.addingTimeInterval(60)
     }
   }
 

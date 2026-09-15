@@ -18,6 +18,13 @@ enum LiveActivityCatalog {
     var lastSync: String
     var openHint: String
     var runningSummary: String = "{count} running"
+    var completedSummary: String = "{count} tasks finished"
+    var completed: String = "Completed"
+    var failed: String = "Failed"
+    var failedSummary: String = "{count} tasks failed"
+    var elapsed: String = "elapsed"
+    var waiting: String = "waiting"
+    var took: String = "took"
   }
 
   static let runningStatuses: Set<String> = ["running", "initializing", "processing", "in_progress", "queued"]
@@ -37,6 +44,13 @@ enum LiveActivityCatalog {
     counts.running = items.count { $0.status == .running }
     var copy = LodyActivityAttributes.ContentState.Copy(stale: labels.stale, empty: labels.empty, others: labels.others, lastSync: labels.lastSync, openHint: labels.openHint)
     copy.runningSummary = labels.runningSummary
+    copy.completedSummary = labels.completedSummary
+    copy.completedLabel = labels.completed
+    copy.failedLabel = labels.failed
+    copy.failedSummary = labels.failedSummary
+    copy.elapsed = labels.elapsed
+    copy.waiting = labels.waiting
+    copy.took = labels.took
     return LodyActivityAttributes.ContentState(
       totalCount: items.count,
       statusCounts: counts,
@@ -46,13 +60,21 @@ enum LiveActivityCatalog {
     )
   }
 
+  static func failedSessionIds(sessions: [[String: Any]]) -> Set<String> {
+    Set(sessions.compactMap { session in
+      guard session["status"] as? String == "error", let id = session["id"] as? String else { return nil }
+      return id
+    })
+  }
+
   private static func item(_ session: [String: Any], labels: Labels, requestedAt: Double) -> Item? {
     guard let id = session["id"] as? String, session["archived"] as? Bool != true else { return nil }
     let awaiting = session["awaitingUserSince"] as? Double
     let status = resolveStatus(awaiting: awaiting, status: session["status"] as? String)
     guard let status else { return nil }
     let agent = session["agentType"] as? String ?? session["cliType"] as? String ?? ""
-    let stamps = [awaiting, session["lastMessageAt"] as? Double].compactMap { $0 }
+    let lastMessageAt = session["lastMessageAt"] as? Double
+    let stamps = [awaiting, lastMessageAt].compactMap { $0 }
     return Item(
       id: id,
       status: status,
@@ -63,8 +85,20 @@ enum LiveActivityCatalog {
       agentLogoText: glyph(agent),
       title: session["title"] as? String ?? "",
       updatedAt: stamps.max() ?? requestedAt,
-      updatedAtLabel: ""
+      updatedAtLabel: "",
+      startedAt: startedAt(status: status, awaiting: awaiting, lastRunningSeen: session["lastRunningSeen"] as? Double, lastMessageAt: lastMessageAt)
     )
+  }
+
+  // lastMessageAt is written when a turn completes, so a lastRunningSeen behind it
+  // belongs to an earlier turn and must not seed this one's timer.
+  static func startedAt(status: LodyActivityAttributes.ContentState.Item.Status, awaiting: Double?, lastRunningSeen: Double?, lastMessageAt: Double?) -> Double? {
+    let turnStart = lastRunningSeen.flatMap { $0 >= (lastMessageAt ?? 0) ? $0 : nil }
+    switch status {
+    case .permission, .question: return awaiting ?? turnStart
+    case .running: return turnStart
+    case .unread, .failed: return nil
+    }
   }
 
   private static func resolveStatus(awaiting: Double?, status: String?) -> Item.Status? {

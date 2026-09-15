@@ -91,8 +91,8 @@ summary = catalog.text('native.liveActivity.runningSummary').replace('{count}', 
 running_expanded = expand_island(summary, 'Expanded island never showed the task overview')
 assert 'git push origin main --force' not in running_expanded, \
     'A running focus showed the permission command strip'
-assert catalog.text('native.liveActivity.debug.title1') not in running_expanded, \
-    'Multiple running tasks still pin a session title'
+assert catalog.text('native.liveActivity.debug.title1') in running_expanded, \
+    'The expanded overview lost its first session row'
 assert catalog.text('native.liveActivity.openHint') not in running_expanded, \
     'A running focus showed the permission hint'
 for over_ceiling in [catalog.text('native.liveActivity.debug.title2'), catalog.text('native.liveActivity.debug.title3')]:
@@ -162,10 +162,12 @@ ui.axe('button', 'home')
 foreground()
 ui.axe('tap', '--id', 'live-activity-complete-all', '--tap-style', 'physical')
 ui.wait(lambda items: status() == '0 个活动', 'Completing all tasks did not end the activity')
+# An ended activity keeps its completed rows on the Lock Screen for 60 s so the
+# finished titles and frozen durations are readable; the island drops it at once.
 ui.axe('button', 'lock')
 time.sleep(1)
 ui.capture('lockscreen-completed')
-time.sleep(11)
+time.sleep(61)
 ui.capture('lockscreen-dismissed')
 ui.axe('button', 'lock')
 ui.axe('swipe', '--start-x', '200', '--start-y', '780', '--end-x', '200', '--end-y', '300', '--duration', '0.4', '--post-delay', '1.0')
@@ -173,8 +175,15 @@ foreground()
 ui.capture('ended')
 ui.axe('tap', '--id', 'live-activity-start', '--tap-style', 'physical')
 ui.wait(lambda items: status() != '0 个活动', 'New work did not restart the activity')
-ui.axe('tap', '--id', 'live-activity-end', '--tap-style', 'physical')
-ui.wait(lambda items: status() == '0 个活动', 'Restarted fixture did not end')
+ui.axe('tap', '--id', 'live-activity-fail-all', '--tap-style', 'physical')
+ui.wait(lambda items: status() == '0 个活动', 'Failing every task did not end the activity')
+ui.axe('button', 'lock')
+time.sleep(1)
+ui.capture('lockscreen-failed')
+ui.axe('button', 'lock')
+ui.axe('swipe', '--start-x', '200', '--start-y', '780', '--end-x', '200', '--end-y', '300', '--duration', '0.4', '--post-delay', '1.0')
+foreground()
+ui.element('live-activity-end')
 
 subprocess.run(['xcrun', 'simctl', 'openurl', udid, 'lody:///debug/sessions/x'], check=True, timeout=30)
 allow(6, OPEN)

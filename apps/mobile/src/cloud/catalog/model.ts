@@ -137,6 +137,7 @@ export function projectRows(rows: Row[], mode: string): Catalog {
       latestUserMsgId: text(value.latestUserMsgId) || undefined,
       lastMessageAt: stamp(value.lastMessageAt),
       lastReadAt: stamp(value.lastReadAt),
+      lastRunningSeen: stamp(value.lastRunningSeen),
       awaitingUserSince: stamp(value.awaitingUserSince),
       branchName: text(value.branchName) || undefined,
       pullRequests: pullRequestReferences(

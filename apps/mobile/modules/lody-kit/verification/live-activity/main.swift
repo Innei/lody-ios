@@ -78,6 +78,47 @@ precondition(minimal.items[0].permissionRequestId == nil && minimal.items[0].per
 precondition(minimal.statusCounts.running == 2)
 precondition(minimal.statusCounts.permission == 0 && minimal.statusCounts.question == 0 && minimal.statusCounts.unread == 0, "missing count keys default to 0")
 precondition(minimal.items[0].updatedAt == 1757000001, "integer updatedAt decodes as a Double")
+precondition(minimal.items[0].startedAt == nil && minimal.items[0].completedAt == nil, "server payloads carry no turn stamps")
+precondition(minimal.items[0].startDate == minimal.items[0].updatedDate, "the timer falls back to updatedAt")
+
+let finished = decode("""
+{
+  "totalCount": 1,
+  "statusCounts": { "unread": 1 },
+  "items": [
+    { "id": "done", "status": "unread", "statusLabel": "Completed", "agentLogoKind": "codex", "agentLogoText": "CX", "title": "Build", "updatedAt": 1757000900000, "updatedAtLabel": "now", "startedAt": 1757000100000, "completedAt": 1757000900000 }
+  ]
+}
+""")
+precondition(!finished.isActive && finished.isCompleted, "a payload of completed rows is the completion state")
+precondition(finished.focus?.id == "done", "completed rows stay visible instead of being filtered out")
+precondition(finished.showsTimer(for: finished.items[0], isStale: false), "a completed row with a start keeps its frozen duration")
+precondition(finished.timerCaption(for: finished.items[0]) == "took")
+precondition(finished.dismissalDate(from: Date(timeIntervalSince1970: 0)) == Date(timeIntervalSince1970: 60))
+
+let mixedTurn = decode("""
+{
+  "totalCount": 2,
+  "statusCounts": { "running": 1, "unread": 1 },
+  "items": [
+    { "id": "old", "status": "unread", "statusLabel": "Completed", "agentLogoKind": "codex", "agentLogoText": "CX", "title": "Old", "updatedAt": 1757000900000, "updatedAtLabel": "now" },
+    { "id": "live", "status": "running", "statusLabel": "Working", "agentLogoKind": "claude", "agentLogoText": "CC", "title": "Live", "updatedAt": 1757000000000, "updatedAtLabel": "now", "startedAt": 1757000500000 }
+  ]
+}
+""")
+precondition(mixedTurn.focus?.id == "live", "running work outranks completed rows")
+precondition(mixedTurn.items[1].startDate == Date(timeIntervalSince1970: 1757000500), "the timer starts at the turn, not the last message")
+
+let failedRow = decode("""
+{ "totalCount": 1, "statusCounts": {}, "items": [ { "id": "f", "status": "failed", "statusLabel": "Failed", "agentLogoKind": "codex", "agentLogoText": "CX", "title": "Broken", "updatedAt": 1757000900000, "updatedAtLabel": "now", "startedAt": 1757000100000, "completedAt": 1757000900000 } ] }
+""")
+precondition(failedRow.isCompleted && failedRow.allFailed && failedRow.focus?.isDone == true, "a failed row is a completion state of its own")
+precondition(LiveActivityCatalog.failedSessionIds(sessions: [["id": "a", "status": "error"], ["id": "b", "status": "completed"], ["id": "c", "status": "running"]]) == ["a"], "only error sessions count as failed")
+
+precondition(LiveActivityCatalog.startedAt(status: .running, awaiting: nil, lastRunningSeen: 20, lastMessageAt: 10) == 20)
+precondition(LiveActivityCatalog.startedAt(status: .running, awaiting: nil, lastRunningSeen: 5, lastMessageAt: 10) == nil, "a start behind the last completed turn is discarded")
+precondition(LiveActivityCatalog.startedAt(status: .permission, awaiting: 30, lastRunningSeen: 20, lastMessageAt: 10) == 30)
+precondition(LiveActivityCatalog.startedAt(status: .running, awaiting: nil, lastRunningSeen: nil, lastMessageAt: nil) == nil)
 
 let tolerant = decode("""
 {
@@ -130,12 +171,12 @@ let idle = State(
   permissionAlert: nil
 )
 precondition(!idle.isActive && !idle.needsAttention)
-precondition(idle.focus == nil, "completed unread work never remains in focus")
+precondition(idle.focus?.id == "unread" && idle.isCompleted, "completed work stays visible as the completion state")
 precondition(idle.othersCount == 0)
 
 let now = Date(timeIntervalSince1970: 1_757_000_000)
 precondition(idle.staleDate(from: now) == now.addingTimeInterval(1800))
-precondition(idle.dismissalDate(from: now) == now.addingTimeInterval(10))
+precondition(idle.dismissalDate(from: now) == now.addingTimeInterval(60))
 precondition(mixed.dismissalDate(from: now) == nil, "an active activity never auto-dismisses")
 
 precondition(
@@ -232,7 +273,7 @@ precondition(twoRunning.visibleItems.map(\.id) == updatedRunning.visibleItems.ma
 let oneRemaining = LiveActivityCatalog.state(catalogJSON: #"{"sessions":[{"id":"a","status":"completed","awaitingUserSince":1},{"id":"b","status":"running"},{"id":"new","status":"pending"}]}"#, labels: labels)
 precondition(oneRemaining.focus?.id == "b" && !oneRemaining.showsOverview && oneRemaining.activeCount == 1, "completion removes stale awaiting state; pending is idle")
 let allFinished = LiveActivityCatalog.state(catalogJSON: #"{"sessions":[{"id":"a","status":"completed"},{"id":"b","status":"error"}]}"#, labels: labels)
-precondition(!allFinished.isActive && allFinished.focus == nil && allFinished.dismissalDate(from: now) == now.addingTimeInterval(10))
+precondition(!allFinished.isActive && allFinished.focus == nil && allFinished.dismissalDate(from: now) == now.addingTimeInterval(60))
 precondition(pushToStart.route(for: twoRunning).path == "/activity")
 precondition(pushToStart.route(for: oneRemaining).path == "/ws1/sessions/b")
 print("PASS: multiple turns, stable links, partial completion, stale awaiting cleanup, all-finished dismissal and overview routing")

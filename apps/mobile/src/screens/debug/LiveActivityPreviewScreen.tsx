@@ -89,6 +89,9 @@ function LiveActivityPreview() {
         >
           全部完成
         </Button>
+        <Button testID="live-activity-fail-all" onPress={run('fail-all')}>
+          全部失败
+        </Button>
       </View>
       <NotificationSettingsContent service={service} signedIn />
     </View>

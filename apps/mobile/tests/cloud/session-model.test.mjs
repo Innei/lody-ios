@@ -61,3 +61,22 @@ test('catalog model changes reach every session row without loading a transcript
   assert.equal(sessionRow(legacy, 'blue').modelName, '');
   assert.equal(sessionRow(legacy, 'blue').subtitle, '');
 });
+
+test('the catalog carries lastRunningSeen so the Live Activity can time the current turn', () => {
+  const flock = new Flock('session-turn-start');
+  flock.set(['e', 'session-s2'], true);
+  flock.set(['m', 'session-s2'], {
+    id: 's2',
+    machineId: 'm1',
+    title: 'Turn',
+    status: { type: 'running' },
+    createdAt: '2026-09-15T00:00:00Z',
+    lastMessageAt: 1_757_000_000_000,
+    lastRunningSeen: 1_757_000_500_000,
+  });
+  const read = () => projectRows(flock.scan(), 'meta').sessions[0];
+  assert.equal(read().lastRunningSeen, 1_757_000_500_000);
+  assert.equal(read().status, 'running');
+  flock.set(['m', 'session-s2', 'lastRunningSeen'], null);
+  assert.equal(read().lastRunningSeen, undefined);
+});
