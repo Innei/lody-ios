@@ -504,7 +504,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
 
   override func lodyAppearanceDidChange() {
-    backgroundColor = .lodyBackground
+    backgroundColor = !processEntryID.isEmpty && traitCollection.userInterfaceIdiom == .phone ? .clear : .lodyBackground
     refreshTextRendering()
   }
 
