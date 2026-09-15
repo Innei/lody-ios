@@ -1,0 +1,30 @@
+[
+  {
+    "action": "push-0",
+    "secondsFromFirstAction": 1.0695111249988258
+  },
+  {
+    "action": "cancel-pop-0",
+    "secondsFromFirstAction": 3.6960112909982854
+  },
+  {
+    "action": "complete-pop-0",
+    "secondsFromFirstAction": 7.144108458000119
+  },
+  {
+    "action": "push-1",
+    "secondsFromFirstAction": 9.948477540998283
+  },
+  {
+    "action": "cancel-pop-1",
+    "secondsFromFirstAction": 12.857940124999004
+  },
+  {
+    "action": "complete-pop-1",
+    "secondsFromFirstAction": 16.415793749998556
+  },
+  {
+    "action": "activate-search",
+    "secondsFromFirstAction": 19.399962915998913
+  }
+]
