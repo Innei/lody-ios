@@ -88,6 +88,19 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   @JS
+  func prepareMorphReveal(sourceLabel: String) {
+    // Must be armed before the router's presentation lands on the main queue,
+    // so this blocks JS until the main thread has run it.
+    if Thread.isMainThread {
+      MainActor.assumeIsolated { LodyMorphReveal.prepare(sourceLabel: sourceLabel) }
+      return
+    }
+    DispatchQueue.main.sync {
+      MainActor.assumeIsolated { LodyMorphReveal.prepare(sourceLabel: sourceLabel) }
+    }
+  }
+
+  @JS
   func copyText(text: String) {
     if Thread.isMainThread {
       UIPasteboard.general.string = text
@@ -219,6 +232,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }.runOnQueue(.main)
     AsyncFunction("selectionFeedback") {
       UISelectionFeedbackGenerator().selectionChanged()
+    }.runOnQueue(.main)
+    AsyncFunction("morphDismiss") { (promise: Promise) in
+      MainActor.assumeIsolated { LodyMorphReveal.dismiss { promise.resolve() } }
     }.runOnQueue(.main)
     AsyncFunction("cancelComposerRelay") { (id: String) in
       LodyComposerView.cancelRelay(id)

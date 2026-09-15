@@ -1,8 +1,8 @@
 diff --git a/ios/RNSScreen.mm b/ios/RNSScreen.mm
-index 9b66012dc8db1e3af0cb5457f8dad86e7f2fe5e3..0a7041ea357b11fdef427e32e63d3e56fff94227 100644
+index 9b66012dc8db1e3af0cb5457f8dad86e7f2fe5e3..d5daa32ef8fbcef564d5d4458b6b20d4d3e7c415 100644
 --- a/ios/RNSScreen.mm
 +++ b/ios/RNSScreen.mm
-@@ -456,6 +456,12 @@ - (BOOL)registerContentWrapper:(RNSScreenContentWrapper *)contentWrapper content
+@@ -456,6 +456,12 @@
  /// This is RNSScreenContentWrapperDelegate method, where we do get notified when React did update frame of our child.
  - (void)contentWrapper:(RNSScreenContentWrapper *)contentWrapper receivedReactFrame:(CGRect)reactFrame
  {
@@ -15,7 +15,7 @@ index 9b66012dc8db1e3af0cb5457f8dad86e7f2fe5e3..0a7041ea357b11fdef427e32e63d3e56
    // We want to update and animate allowedDetents for FormSheet only if there was a change
    // in frame's height but sometimes we receive a frame with the same dimensions mutliple times.
    // In order to prevent visual glitches, we compare new value to the old one and update
-@@ -1429,10 +1435,19 @@ - (instancetype)initWithView:(UIView *)view
+@@ -1429,14 +1435,26 @@
      _shouldNotify = YES;
      _isRemovedFromParent = NO;
      _initialView = (RNSScreenView *)view;
@@ -35,11 +35,18 @@ index 9b66012dc8db1e3af0cb5457f8dad86e7f2fe5e3..0a7041ea357b11fdef427e32e63d3e56
  // TODO: Find out why this is executed when screen is going out
  - (void)viewWillAppear:(BOOL)animated
  {
+   [super viewWillAppear:animated];
++  // Synchronous hook inside the presentation, before UIKit flushes the first
++  // frame, so a listener can hide a modal before it renders.
++  [[NSNotificationCenter defaultCenter] postNotificationName:@"RNSScreenWillAppear" object:self];
+   if (!_isSwiping) {
+     [self.screenView notifyWillAppear];
+     if (self.transitionCoordinator.isInteractive) {
 diff --git a/ios/RNSScreenStack.mm b/ios/RNSScreenStack.mm
 index 192f5d2c77192f323844b0d11ee179081891e7a4..d0976237f8820df1b9525183f7ca851d83e55799 100644
 --- a/ios/RNSScreenStack.mm
 +++ b/ios/RNSScreenStack.mm
-@@ -726,7 +726,11 @@ - (void)updateContainer
+@@ -726,7 +726,11 @@
  - (void)layoutSubviews
  {
    [super layoutSubviews];
@@ -52,7 +59,7 @@ index 192f5d2c77192f323844b0d11ee179081891e7a4..d0976237f8820df1b9525183f7ca851d
  
    // We need to update the bounds of the modal views here, since
    // for contained modals they are not updated by modals themselves.
-@@ -986,6 +990,8 @@ - (void)navigationController:(UINavigationController *)navigationController
+@@ -986,6 +990,8 @@
         didShowViewController:(UIViewController *)viewController
                      animated:(BOOL)animated
  {

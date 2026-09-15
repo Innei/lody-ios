@@ -13,6 +13,7 @@ import {
 } from 'react';
 
 import { Platform, type ColorValue } from 'react-native';
+import { morphDismiss } from '@lody-ios/kit';
 import { automaticScrollEdgeEffects } from '@/ui/Screen';
 
 import {
@@ -212,7 +213,10 @@ function usePresentedPageSession(expectedPage?: PageDefinitionBase) {
     } else dismissPresentedPage();
   }, [navigation, session]);
   const cancel = useCallback(() => {
-    if (session && cancelPresentation(session.id)) dismiss();
+    if (!session || !cancelPresentation(session.id)) return;
+    if (session.presentation.morphSourceLabel)
+      void morphDismiss().then(dismiss);
+    else dismiss();
   }, [dismiss, session]);
   const finish = useCallback(
     (value?: unknown) => {
