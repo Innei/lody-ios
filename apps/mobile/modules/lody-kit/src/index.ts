@@ -8,6 +8,7 @@ export {
   selectionFeedback,
   pickWorkspaceIcon,
   cancelComposerRelay,
+  prepareMorphReveal,
   showToast,
   copyText,
   showSessionBanner,

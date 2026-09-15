@@ -90,7 +90,13 @@ export function useInboxModel() {
     }
     creating.current = true;
     try {
-      await requestNewSession(selected.id, catalog, undefined);
+      await requestNewSession(
+        selected.id,
+        catalog,
+        undefined,
+        undefined,
+        t('tabs.newSession'),
+      );
     } finally {
       creating.current = false;
     }

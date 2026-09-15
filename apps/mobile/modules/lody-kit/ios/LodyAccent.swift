@@ -12,5 +12,8 @@ public final class LodyAccentSubscriber: ExpoAppDelegateSubscriber {
 
   public func applicationDidBecomeActive(_ application: UIApplication) {
     lodyApplyWindowAccent()
+    #if DEBUG
+    GlassTransitionSpike.openIfRequested()
+    #endif
   }
 }

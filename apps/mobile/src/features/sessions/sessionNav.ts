@@ -8,6 +8,7 @@ export type SessionNavIntent =
       catalog: Catalog;
       projectId?: string;
       context?: 'project' | 'chat';
+      morphSourceLabel?: string;
     };
 
 type Stored = SessionNavIntent & {
@@ -66,8 +67,16 @@ export function requestNewSession(
   catalog: Catalog,
   projectId?: string,
   context?: 'project' | 'chat',
+  morphSourceLabel?: string,
 ) {
-  return enqueue({ kind: 'create', workspaceId, catalog, projectId, context });
+  return enqueue({
+    kind: 'create',
+    workspaceId,
+    catalog,
+    projectId,
+    context,
+    morphSourceLabel,
+  });
 }
 
 export function subscribeSessionNav(next: Handler) {
