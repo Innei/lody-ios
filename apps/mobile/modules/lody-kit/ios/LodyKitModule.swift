@@ -482,6 +482,11 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("restoreDraftToken") { (view: LodyComposerView, value: Int) in view.restoreDraft(token: value) }
     }
 
+    Class(PreparedChatEntries.self) {}
+    AsyncFunction("prepareChatEntries") { (json: String) in
+      try PreparedChatEntries(json)
+    }.runOnQueue(PreparedChatEntries.queue)
+
     View(LodyChatView.self) {
       #if DEBUG
       Prop("debugStreamBenchmarkRun") { (view: LodyChatView, value: Int) in
@@ -502,6 +507,8 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("mentionRepository") { (view: LodyChatView, value: String) in view.mentionRepository = value }
       Prop("attachmentContextJSON") { (view: LodyChatView, value: String) in view.setAttachmentContext(value) }
       Prop("entriesJSON") { (view: LodyChatView, value: String) in view.setEntries(value) }
+      Prop("preparedEntries") { (view: LodyChatView, value: PreparedChatEntries?) in view.preparedEntries = value }
+      OnViewDidUpdateProps { (view: LodyChatView) in view.scheduleUpdate() }
       Prop("pendingSendJSON") { (view: LodyChatView, value: String) in view.setPendingSendJSON(value) }
       Prop("processStartId") { (view: LodyChatView, value: String) in view.setProcessStartID(value) }
       Prop("processEntryId") { (view: LodyChatView, value: String) in view.setProcessEntryID(value) }

@@ -4,9 +4,10 @@ import { build } from 'esbuild';
 
 test('session history restores before network, survives reconnect, and yields to fresh history', async () => {
   const db = new Map();
-  let listener, cleanup, restore, states;
+  let listener, cleanup, restore, states, finishPreparation;
   globalThis.__sessionCacheTest = {
     useState(value) {
+      if (typeof value === 'function') value = value();
       const index = states.push(value) - 1;
       return [
         value,
@@ -26,6 +27,10 @@ test('session history restores before network, survives reconnect, and yields to
     },
     watchSession: async () => {},
     unwatchSession: async () => {},
+    prepareChatEntries: (json) =>
+      new Promise((resolve) => {
+        finishPreparation = () => resolve({ json });
+      }),
     readLocalValue: (key) =>
       new Promise((resolve) => {
         restore = () => resolve(db.get(key) ?? null);
@@ -37,7 +42,12 @@ test('session history restores before network, survives reconnect, and yields to
     showToast() {},
   };
   const bundle = await build({
-    entryPoints: ['apps/mobile/src/features/sessions/useSessionRuntime.ts'],
+    stdin: {
+      contents: `export { useSessionRuntime } from './apps/mobile/src/features/sessions/useSessionRuntime.ts';
+        export { prepareSessionHistory } from './apps/mobile/src/features/sessions/prepareSessionHistory.ts';
+        export { clearLocal } from './apps/mobile/src/cloud/kv.ts';`,
+      resolveDir: process.cwd(),
+    },
     bundle: true,
     format: 'esm',
     write: false,
@@ -51,18 +61,18 @@ test('session history restores before network, survives reconnect, and yields to
           }));
           build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
             contents:
-              'export const {useState,useRef,useEffect,addDataRuntimeListener,watchSession,unwatchSession,readLocalValue,writeLocalValue,clearLocalValues,showToast} = globalThis.__sessionCacheTest;',
+              'export const {useState,useRef,useEffect,addDataRuntimeListener,watchSession,unwatchSession,prepareChatEntries,readLocalValue,writeLocalValue,clearLocalValues,showToast} = globalThis.__sessionCacheTest;',
           }));
         },
       },
     ],
   });
-  const { useSessionRuntime } = await import(
+  const { useSessionRuntime, prepareSessionHistory, clearLocal } = await import(
     `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
   );
-  const mount = (user = 'a', workspace = 'w') => {
+  const mount = (user = 'a', workspace = 'w', initial) => {
     states = [];
-    return useSessionRuntime('s', user, workspace);
+    return useSessionRuntime('s', user, workspace, true, initial);
   };
   const tick = () => new Promise((resolve) => setImmediate(resolve));
   const entries = [
@@ -80,6 +90,69 @@ test('session history restores before network, survives reconnect, and yields to
     'session:["a","w","s"]',
     JSON.stringify({ v: 1, status: 'live', revision: 100, entries }),
   );
+  let prepared;
+  const preparing = prepareSessionHistory('a', 'w', 's').then((value) => {
+    prepared = value;
+  });
+  restore();
+  await tick();
+  assert.equal(
+    prepared,
+    undefined,
+    'navigation preparation waits for native decoding',
+  );
+  finishPreparation();
+  await preparing;
+  assert.deepEqual(prepared.snapshot.entries, entries);
+  assert.equal(
+    prepared.snapshot.status,
+    'syncing',
+    'cached history is not a live connection',
+  );
+  assert.equal(prepared.nativeEntries.json, prepared.entriesJSON);
+  const initial = {
+    key: 'session:["a","w","s"]',
+    generation: 0,
+    snapshot: { status: 'syncing', revision: 100, entries },
+  };
+  const warm = mount('a', 'w', initial);
+  assert.deepEqual(
+    warm.snapshot.entries,
+    entries,
+    'cached content is present on the very first render',
+  );
+  assert.deepEqual(
+    states[0].entries,
+    entries,
+    'mount effect must not clear prepared content',
+  );
+  emit('syncing', 1);
+  assert.deepEqual(states[0].entries, entries);
+  emit('live', 2, []);
+  assert.deepEqual(
+    states[0].entries,
+    [],
+    'prepared history yields to the new replica',
+  );
+  cleanup();
+  assert.deepEqual(
+    mount('other', 'w', initial).snapshot.entries,
+    [],
+    'prepared history is account scoped',
+  );
+  cleanup();
+  assert.deepEqual(
+    mount('a', 'other', initial).snapshot.entries,
+    [],
+    'prepared history is workspace scoped',
+  );
+  cleanup();
+  assert.deepEqual(
+    mount('a', 'w', { ...initial, generation: -1 }).snapshot.entries,
+    [],
+    'cleared cache cannot return through navigation params',
+  );
+  cleanup();
   mount();
   emit('live', 100, entries);
   await tick();
@@ -141,6 +214,16 @@ test('session history restores before network, survives reconnect, and yields to
     states[0].entries,
     [],
     'late restore after unmount is ignored',
+  );
+  const clearing = prepareSessionHistory('a', 'w', 's');
+  restore();
+  await tick();
+  await clearLocal();
+  finishPreparation();
+  assert.equal(
+    await clearing,
+    undefined,
+    'logout during native preparation discards the old account history',
   );
   delete globalThis.__sessionCacheTest;
 });

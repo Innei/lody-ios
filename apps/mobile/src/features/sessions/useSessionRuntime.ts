@@ -13,6 +13,10 @@ import { localGeneration, readLocal } from '../../cloud/kv';
 import { showToast } from '../../ui/toast';
 import type { Envelope, Snapshot } from '../../models/session.ts';
 import { t } from '../../lib/i18n/index.ts';
+import {
+  sessionHistoryKey,
+  type PreparedSessionHistory,
+} from './prepareSessionHistory';
 
 export type { Snapshot } from '../../models/session.ts';
 
@@ -21,13 +25,21 @@ export function useSessionRuntime(
   userId: string,
   workspaceId: string,
   enabled = true,
+  initialHistory?: PreparedSessionHistory,
 ) {
-  const key = `session:${JSON.stringify([userId, workspaceId, sessionId])}`;
-  const [snapshot, setSnapshot] = useState<Snapshot>({
-    status: 'syncing',
-    revision: -1,
-    entries: [],
-  });
+  const key = sessionHistoryKey(userId, workspaceId, sessionId);
+  const initial =
+    initialHistory?.key === key &&
+    initialHistory.generation === localGeneration()
+      ? initialHistory
+      : undefined;
+  const initialSnapshot = () =>
+    initial?.snapshot ?? {
+      status: 'syncing',
+      revision: -1,
+      entries: [],
+    };
+  const [snapshot, setSnapshot] = useState<Snapshot>(initialSnapshot);
   const [overflow, setOverflow] = useState(false);
   const cursor = useRef({ generation: -1, revision: -1 });
   const reconnect = () => {
@@ -42,22 +54,23 @@ export function useSessionRuntime(
     let saveErrorShown = false;
     const localVersion = localGeneration();
     cursor.current = { generation: -1, revision: -1 };
-    setSnapshot({ status: 'syncing', revision: -1, entries: [] });
+    setSnapshot(initialSnapshot());
     setOverflow(false);
     if (!enabled || !userId || !workspaceId) return;
     setForegroundSession(sessionId);
-    void readLocal<Envelope>(key).then((saved) => {
-      if (
-        !active ||
-        received ||
-        localVersion !== localGeneration() ||
-        saved?.v !== 1 ||
-        !Array.isArray(saved.entries)
-      )
-        return;
-      // Cached revisions belong to an earlier replica, never the live cursor.
-      setSnapshot((old) => ({ ...saved, status: old.status }));
-    });
+    if (!initial)
+      void readLocal<Envelope>(key).then((saved) => {
+        if (
+          !active ||
+          received ||
+          localVersion !== localGeneration() ||
+          saved?.v !== 1 ||
+          !Array.isArray(saved.entries)
+        )
+          return;
+        // Cached revisions belong to an earlier replica, never the live cursor.
+        setSnapshot((old) => ({ ...saved, status: old.status }));
+      });
     const subscription = addDataRuntimeListener((event) => {
       if (!active || localVersion !== localGeneration()) return;
       if (event.reason === 'session_cache_failed' && !saveErrorShown) {
@@ -102,5 +115,5 @@ export function useSessionRuntime(
       void unwatchSession(sessionId);
     };
   }, [key, enabled]);
-  return { snapshot, overflow, cursor, reconnect };
+  return { snapshot, overflow, cursor, reconnect, initialHistory: initial };
 }

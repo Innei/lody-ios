@@ -106,8 +106,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var lastRenderTime = 0.0
   var renderTailLength = 0
   var rows: [String: ChatRow] = [:]
-  var update: DispatchWorkItem?
   var pendingEntries: String?
+  var preparedEntries: PreparedChatEntries?
   var workDurationTimer: Timer?
   let preparation = DispatchQueue(label: "app.innei.lody.chat", qos: .userInitiated)
   var decoding = false
@@ -538,7 +538,6 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       streamPerformanceProbe?.stop(); streamPerformanceProbe = nil
       #endif
       liveEntryID = nil
-      update?.cancel(); update = nil
       frameTimer?.invalidate(); frameTimer = nil
       workDurationTimer?.invalidate(); workDurationTimer = nil
       stream.finish()
@@ -553,7 +552,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       scrollOwner = nil
     } else {
       #if DEBUG
-      if ProcessInfo.processInfo.arguments.contains("--ui-verify-scroll"),
+      if (ProcessInfo.processInfo.arguments.contains("--ui-verify-scroll")
+          || ProcessInfo.processInfo.arguments.contains("--ui-verify-opening")),
          ProcessInfo.processInfo.arguments.contains("--ui-verify") {
         scrollProbe = ChatScrollProbe(self)
       }

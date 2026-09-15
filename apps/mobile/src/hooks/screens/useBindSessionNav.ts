@@ -8,6 +8,7 @@ import { CreateSessionScreen } from '@/screens/CreateSessionScreen';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { t } from '../../lib/i18n/index.ts';
+import { prepareSessionHistory } from '@/features/sessions/prepareSessionHistory';
 
 function sheetOptions(
   morphSourceLabel: string | undefined,
@@ -47,7 +48,13 @@ export function useBindSessionNav({
       signal.addEventListener('abort', cancelRelay, { once: true });
       try {
         if (intent.kind === 'open') {
-          await open({ session: intent.session });
+          const initialHistory = await prepareSessionHistory(
+            account?.user.id ?? '',
+            selected?.id ?? '',
+            intent.session.id,
+          );
+          if (signal.aborted) return;
+          await open({ session: intent.session, initialHistory });
           return;
         }
         if (intent.workspaceId !== selected?.id) return;

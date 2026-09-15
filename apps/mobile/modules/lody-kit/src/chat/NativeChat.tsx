@@ -1,6 +1,7 @@
 import { requireNativeView } from 'expo';
 import type { ComponentType } from 'react';
 import type { NativeSyntheticEvent, ViewProps } from 'react-native';
+import type { PreparedChatEntries } from './PreparedChatEntries';
 
 export type ChatDraftAttachment = {
   id: string;
@@ -12,6 +13,7 @@ export type ChatDraftAttachment = {
 export const NativeChat: ComponentType<
   ViewProps & {
     entriesJSON: string;
+    preparedEntries?: PreparedChatEntries;
     debugBenchmarkRun?: number;
     debugStreamBenchmarkRun?: number;
     pendingSendJSON?: string;

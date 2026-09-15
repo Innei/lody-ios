@@ -179,3 +179,7 @@ export { NativeShellPOC, NativePagePOC } from './chrome/NativeShellPOC';
 export { ComposerHandoffPOC } from './chat/ComposerHandoffPOC';
 
 export { NativeSidebar, type NativeSidebarProps } from './list/NativeSidebar';
+export {
+  prepareChatEntries,
+  type PreparedChatEntries,
+} from './chat/PreparedChatEntries';

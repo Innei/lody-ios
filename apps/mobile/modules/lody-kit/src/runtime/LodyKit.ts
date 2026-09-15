@@ -71,6 +71,9 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   readInboxExpansion(): Record<string, boolean>;
   saveInboxExpansion(projectId: string, expanded: boolean): void;
   watchSession(id: string): Promise<void>;
+  prepareChatEntries(
+    json: string,
+  ): Promise<import('../chat/PreparedChatEntries').PreparedChatEntries>;
   unwatchSession(id: string): Promise<void>;
   ensureSession(id: string): Promise<void>;
   releaseReserve(id: string): Promise<void>;

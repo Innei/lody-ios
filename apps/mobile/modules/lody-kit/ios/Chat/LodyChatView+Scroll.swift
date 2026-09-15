@@ -422,6 +422,7 @@ private final class ChatMotionTarget: NSObject {
 // the view. The independent sampler observes UIKit, not the motion's targets.
 @MainActor
 final class ChatScrollProbe: NSObject {
+  private let capturesOpening = ProcessInfo.processInfo.arguments.contains("--ui-verify-opening")
   weak var view: LodyChatView?
   private var link: CADisplayLink?
   private var samples: [[String: Any]] = []
@@ -436,12 +437,12 @@ final class ChatScrollProbe: NSObject {
   }
   @objc private func sample(_ link: CADisplayLink) {
     guard let view, samples.count < 10800 else { stop(); return }
-    guard view.rows.keys.contains(where: { $0.hasPrefix("scroll-") || $0.hasPrefix("perf-") }) else { return }
+    guard capturesOpening || view.rows.keys.contains(where: { $0.hasPrefix("scroll-") || $0.hasPrefix("perf-") }) else { return }
     let list = view.collection
     var visible: [String: Any] = [:]
     for index in list.indexPathsForVisibleItems {
       guard let id = view.dataSource.itemIdentifier(for: index),
-            id.hasPrefix("scroll-") || id.hasPrefix("perf-"),
+            capturesOpening || id.hasPrefix("scroll-") || id.hasPrefix("perf-"),
             let cell = list.cellForItem(at: index) else { continue }
       let frame = cell.layer.presentation()?.frame ?? cell.frame
       let offset = list.layer.presentation()?.bounds.minY ?? list.contentOffset.y
@@ -453,6 +454,7 @@ final class ChatScrollProbe: NSObject {
       "dragging": list.isDragging || list.isDecelerating,
       "touching": list.isTracking, "panY": list.panGestureRecognizer.translation(in: view.window).y,
       "paging": view.preparingHistory, "scrollingToTop": view.scrollingToTop,
+      "loadingVisible": !view.empty.isHidden,
       "count": view.rows.count, "rows": visible])
   }
   func stop() {

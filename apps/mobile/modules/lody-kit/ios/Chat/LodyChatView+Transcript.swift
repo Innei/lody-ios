@@ -21,56 +21,54 @@ extension LodyChatView {
     if historyLoadStarted == 0 { historyLoadStarted = CACurrentMediaTime() }
     #endif
     pendingEntries = json
-    scheduleUpdate()
   }
 
   func scheduleUpdate() {
-    guard update == nil, !decoding else { return }
-    let work = DispatchWorkItem { [weak self] in
-      guard let self else { return }
-      self.update = nil
-      guard let json = self.pendingEntries else { return }
-      self.pendingEntries = nil
-      self.decoding = true
-      self.preparation.async { [weak self] in
-        let decoded = Result { () -> [ChatEntry] in
-          let entries = try JSONDecoder().decode([ChatEntry].self, from: Data(json.utf8))
-          guard Set(entries.map(\.id)).count == entries.count,
-                entries.allSatisfy({ Set($0.items.map(\.itemId)).count == $0.items.count }) else {
-            throw NSError(domain: "LodyChat", code: 1)
-          }
-          return entries
+    // All props have arrived. Cached first content is already decoded before push.
+    guard !decoding, let json = pendingEntries else { return }
+    pendingEntries = nil
+    if let prepared = preparedEntries {
+      preparedEntries = nil
+      if prepared.json == json {
+        receiveEntries(prepared.entries)
+        return
+      }
+      // Live props can overtake mounting. Keep the prepared first frame while
+      // decoding that newer snapshot, just as an already-visible chat would.
+      if !hasPositionedContent { receiveEntries(prepared.entries) }
+    }
+    decoding = true
+    preparation.async { [weak self] in
+      let decoded = Result { try PreparedChatEntries.decode(json) }
+      DispatchQueue.main.async { [weak self] in
+        guard let self else { return }
+        self.decoding = false
+        switch decoded {
+        case .success(let entries): self.receiveEntries(entries)
+        case .failure: self.displayError = LodyStrings.text("native.chat.error.transcript")
         }
-        DispatchQueue.main.async { [weak self] in
-          guard let self else { return }
-          self.decoding = false
-          switch decoded {
-          case .success(let entries):
-            #if DEBUG
-            self.streamPerformanceProbe?.receive(entries)
-            #endif
-            self.displayError = nil
-            let userID = entries.last { $0.role == "user" && !$0.isQueued }?.id
-            if self.processEntryID.isEmpty, let userID, userID != self.lastUserID,
-               self.awaitingUserAnchor {
-              self.liveEntryID = nil
-              self.anchoredUserID = userID + ":user"
-              self.awaitingUserAnchor = false
-              self.trackingPausedByGesture = false
-              self.followsBottom = true
-            }
-            self.lastUserID = userID
-            self.stream.receive(entries, animate: self.window != nil && !UIAccessibility.isReduceMotionEnabled)
-            self.startFrameTimer()
-          case .failure:
-            self.displayError = LodyStrings.text("native.chat.error.transcript")
-          }
-          if self.pendingEntries != nil { self.scheduleUpdate() }
-        }
+        self.scheduleUpdate()
       }
     }
-    update = work
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: work)
+  }
+
+  private func receiveEntries(_ entries: [ChatEntry]) {
+    #if DEBUG
+    streamPerformanceProbe?.receive(entries)
+    #endif
+    displayError = nil
+    let userID = entries.last { $0.role == "user" && !$0.isQueued }?.id
+    if processEntryID.isEmpty, let userID, userID != lastUserID, awaitingUserAnchor {
+      liveEntryID = nil
+      anchoredUserID = userID + ":user"
+      awaitingUserAnchor = false
+      trackingPausedByGesture = false
+      followsBottom = true
+    }
+    lastUserID = userID
+    stream.receive(entries, animate: window != nil && !UIAccessibility.isReduceMotionEnabled)
+    if hasPositionedContent { startFrameTimer() }
+    else { renderFrame() }
   }
 
   func startFrameTimer() {
@@ -97,6 +95,13 @@ extension LodyChatView {
     lastRenderTime = CACurrentMediaTime()
     stream.advance()
     let entries = stream.presentation
+    if !hasPositionedContent {
+      // The first snapshot belongs to this layout transaction, not a later timer.
+      transcript.entries = entries
+      applyRows()
+      rendering = false
+      return
+    }
     let parser = store.parser
     preparation.async { [weak self] in
       for entry in entries.suffix(2) {

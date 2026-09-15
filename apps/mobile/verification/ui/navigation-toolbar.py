@@ -5,6 +5,9 @@ abruptly; its retiring glass must not reappear or remain after the transition.
 The accessibility assertions below only establish settled ownership/usability.
 """
 import json
+from pathlib import Path
+import shutil
+import subprocess
 import sys
 import time
 
@@ -12,6 +15,8 @@ import catalog
 from driver import UI
 
 ui = UI(sys.argv[1], sys.argv[2])
+container = Path(subprocess.check_output(['xcrun', 'simctl', 'get_app_container', ui.udid, 'app.innei.lody', 'data'], text=True).strip())
+existing = set((container / 'tmp').glob('lody-scroll-*.json'))
 search_label = catalog.text('search.field.placeholder')
 
 
@@ -50,6 +55,17 @@ for index in range(2):
            '--end-x', '350', '--end-y', '650', '--duration', '.5', '--post-delay', '.8')
     home()
     ui.capture(f'returned-{index}')
+
+# Capture from the first display callback, including the opening push. Waiting
+# for a settled text element alone would miss the reported empty-screen flash.
+traces = sorted(set((container / 'tmp').glob('lody-scroll-*.json')) - existing)
+assert len(traces) == 2, f'Expected two independent session openings, got {len(traces)}'
+for index, path in enumerate(traces):
+    shutil.copy2(path, ui.output / f'opening-{index}.json')
+    samples = json.loads(path.read_text())['samples']
+    assert samples and samples[0]['count'] > 0, 'First session frame has no cached history'
+    assert all(not sample['loadingVisible'] for sample in samples), 'Cached session flashed its loading screen'
+    assert samples[0]['rows'], 'First session frame has no visible message cells'
 
 # Restored controls must remain usable after repeated transition cancellation.
 action('activate-search', 'tap', '--value', search_label, '--post-delay', '.5')

@@ -35,6 +35,10 @@ import type { Capability, CreationOptions } from '@/models/send';
 import { effortsFor } from '@/cloud/send/capability';
 
 import { useSessionRuntime } from '@/features/sessions/useSessionRuntime';
+import {
+  sessionEntriesJSON,
+  type PreparedSessionHistory,
+} from '@/features/sessions/prepareSessionHistory';
 import { ItemDetailScreen } from '@/screens/ItemDetailScreen';
 import { basename } from '@/features/sessions/path';
 import { FileDiffScreen } from '@/screens/FileDiffScreen';
@@ -87,6 +91,7 @@ function connectionChrome({
 
 export type SessionParams = {
   session: Session;
+  initialHistory?: PreparedSessionHistory;
   navigationTitleHidden?: boolean;
   projectName?: string;
   machineName?: string;
@@ -102,6 +107,7 @@ function View() {
   const {
     params: {
       session,
+      initialHistory,
       navigationTitleHidden,
       projectName: creationProjectName,
       machineName: creationMachineName,
@@ -239,11 +245,18 @@ function View() {
       { title: basename(path) },
     );
   };
-  const { snapshot, overflow, cursor, reconnect } = useSessionRuntime(
+  const {
+    snapshot,
+    overflow,
+    cursor,
+    reconnect,
+    initialHistory: preparedHistory,
+  } = useSessionRuntime(
     session.id,
     account?.user.id ?? '',
     selected?.id ?? '',
     outbox.ready && !pending?.send.creation,
+    initialHistory,
   );
   useEffect(() => {
     if (
@@ -354,13 +367,10 @@ function View() {
   );
   const entriesJSON = useMemo(
     () =>
-      JSON.stringify(
-        snapshot.entries.map((entry) => ({
-          ...entry,
-          fileDiffs: changedFiles(entry),
-        })),
-      ),
-    [snapshot.entries],
+      preparedHistory?.snapshot.entries === snapshot.entries
+        ? preparedHistory.entriesJSON
+        : sessionEntriesJSON(snapshot),
+    [snapshot.entries, preparedHistory],
   );
   const openFile = useOpenFile(session.id);
   const openProcess = useProcessSheet(entriesJSON, onActivityPress, session.id);
@@ -681,6 +691,7 @@ function View() {
           sessionId: session.id,
         })}
         entriesJSON={entriesJSON}
+        preparedEntries={preparedHistory?.nativeEntries}
         mentionRepository={
           session.projectId?.startsWith('github:')
             ? session.projectId.slice(7)

@@ -264,6 +264,8 @@ with metro_context:
                             launch.append('--ui-verify-mentions')
                         if mode[1]:
                             launch.append('--ui-verify-scroll')
+                        if case == 'navigation-toolbar':
+                            launch.append('--ui-verify-opening')
                         if trace_throw:
                             launch.append('--ui-verify-throw')
                         if not args.embedded:
