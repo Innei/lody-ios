@@ -68,7 +68,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   let onTitlePress = EventDispatcher()
   let onComposerOptionChange = EventDispatcher()
   let onMentionBrowse = EventDispatcher()
-  private let titleButton = UIButton(type: .system)
+  private let titleButton = ChatNavigationTitleButton()
   private var navigationTitle = ""
   private var navigationSubtitle = ""
   private var navigationMachine = ""

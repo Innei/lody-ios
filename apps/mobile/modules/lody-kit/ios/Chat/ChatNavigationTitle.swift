@@ -1,4 +1,130 @@
+import SwiftUI
 import UIKit
+
+@Observable
+final class ChatNavigationTitleModel {
+  var text = ""
+}
+
+struct ChatNavigationTitleBridge: View {
+  var model: ChatNavigationTitleModel
+
+  var body: some View {
+    Text(model.text)
+      .font(.headline)
+      .foregroundStyle(Color.primary)
+      .lineLimit(1)
+      .truncationMode(.tail)
+      .contentTransition(.numericText())
+      .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+final class ChatNavigationTitleHost: UIView {
+  private let model: ChatNavigationTitleModel
+  private let hosting: UIHostingController<ChatNavigationTitleBridge>
+
+  var text: String { model.text }
+
+  override init(frame: CGRect) {
+    let model = ChatNavigationTitleModel()
+    self.model = model
+    hosting = UIHostingController(rootView: ChatNavigationTitleBridge(model: model))
+    super.init(frame: frame)
+    hosting.safeAreaRegions = []
+    hosting.sizingOptions = []
+    hosting.view.backgroundColor = .clear
+    hosting.view.isOpaque = false
+    hosting.view.insetsLayoutMarginsFromSafeArea = false
+    hosting.view.isUserInteractionEnabled = false
+    hosting.view.isAccessibilityElement = false
+    hosting.view.accessibilityElementsHidden = true
+    clipsToBounds = false
+    isUserInteractionEnabled = false
+    isAccessibilityElement = false
+    accessibilityElementsHidden = true
+    addSubview(hosting.view)
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  func apply(_ text: String, animated: Bool) {
+    guard text != model.text else { return }
+    let update = { self.model.text = text }
+    let motion = animated
+      && window != nil
+      && !text.isEmpty
+      && !UIAccessibility.isReduceMotionEnabled
+    if motion {
+      withAnimation(.default, update)
+    } else {
+      var transaction = Transaction()
+      transaction.disablesAnimations = true
+      withTransaction(transaction, update)
+    }
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    hosting.view.frame = bounds
+  }
+}
+
+final class ChatNavigationTitleButton: UIButton {
+  let titleHost = ChatNavigationTitleHost()
+  let captionLabel = UILabel()
+
+  var displayedTitle: String { titleHost.text }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    clipsToBounds = false
+    contentHorizontalAlignment = .leading
+    titleLabel?.isHidden = true
+    captionLabel.numberOfLines = 1
+    captionLabel.lineBreakMode = .byTruncatingMiddle
+    captionLabel.isUserInteractionEnabled = false
+    captionLabel.isAccessibilityElement = false
+    addSubview(titleHost)
+    addSubview(captionLabel)
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  override var isHighlighted: Bool {
+    didSet {
+      let alpha: CGFloat = isHighlighted ? 0.4 : 1
+      titleHost.alpha = alpha
+      captionLabel.alpha = alpha
+    }
+  }
+
+  override var intrinsicContentSize: CGSize {
+    sizeThatFits(CGSize(width: UIView.layoutFittingExpandedSize.width, height: 44))
+  }
+
+  override func sizeThatFits(_ size: CGSize) -> CGSize {
+    let titleFont = UIFont.preferredFont(forTextStyle: .headline)
+    let titleWidth = (titleHost.text as NSString).size(withAttributes: [.font: titleFont]).width
+    let subtitleWidth = captionLabel.attributedText?.size().width ?? 0
+    return CGSize(width: ceil(8 + max(titleWidth, subtitleWidth)), height: 44)
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    let inset: CGFloat = 8
+    let titleFont = UIFont.preferredFont(forTextStyle: .headline)
+    let titleHeight = titleHost.text.isEmpty ? 0 : ceil(titleFont.lineHeight)
+    let subtitleHeight = captionLabel.isHidden ? 0 : ceil(UIFont.preferredFont(forTextStyle: .caption1).lineHeight)
+    let spacing: CGFloat = titleHeight > 0 && subtitleHeight > 0 ? 1 : 0
+    let y = max(0, (bounds.height - titleHeight - spacing - subtitleHeight) / 2)
+    let width = max(0, bounds.width - inset)
+    let x = effectiveUserInterfaceLayoutDirection == .rightToLeft ? 0 : inset
+    titleHost.frame = CGRect(x: x, y: y, width: width, height: titleHeight)
+    titleHost.isHidden = titleHeight == 0
+    captionLabel.frame = CGRect(x: x, y: y + titleHeight + spacing, width: width, height: subtitleHeight)
+  }
+}
 
 @MainActor
 enum ChatNavigationTitle {
@@ -6,29 +132,15 @@ enum ChatNavigationTitle {
     [project, machine].filter { !$0.isEmpty }.joined(separator: " · ")
   }
 
-  static func configureButton(_ button: UIButton, title: String, subtitle: String, machine: String = "") {
-    var configuration = UIButton.Configuration.plain()
-    configuration.title = title
-    let plain = plainSubtitle(project: subtitle, machine: machine)
-    configuration.subtitle = plain.isEmpty ? nil : plain
-    configuration.attributedSubtitle = attributedSubtitle(project: subtitle, machine: machine)
-    configuration.titleAlignment = .leading
-    configuration.titleLineBreakMode = .byTruncatingTail
-    configuration.subtitleLineBreakMode = .byTruncatingMiddle
-    configuration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 0)
-    configuration.baseForegroundColor = .label
-    configuration.titleTextAttributesTransformer = .init { attributes in
-      var attributes = attributes
-      attributes.font = .preferredFont(forTextStyle: .headline)
-      return attributes
+  static func configureButton(_ button: ChatNavigationTitleButton, title: String, subtitle: String, machine: String = "") {
+    button.titleHost.apply(title, animated: true)
+    if let attributed = attributedSubtitle(project: subtitle, machine: machine) {
+      button.captionLabel.attributedText = NSAttributedString(attributed)
+      button.captionLabel.isHidden = false
+    } else {
+      button.captionLabel.attributedText = nil
+      button.captionLabel.isHidden = true
     }
-    configuration.subtitleTextAttributesTransformer = .init { attributes in
-      var attributes = attributes
-      attributes.font = .preferredFont(forTextStyle: .caption1)
-      attributes.foregroundColor = .secondaryLabel
-      return attributes
-    }
-    button.configuration = configuration
     button.accessibilityLabel = [title, subtitle, machine].filter { !$0.isEmpty }.joined(separator: ", ")
     button.sizeToFit()
     button.bounds.size.height = 44

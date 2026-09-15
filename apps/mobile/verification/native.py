@@ -78,7 +78,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             command += ['-parse-as-library']
         if name == 'inline-diff':
             command += ['-framework', 'UIKit']
-        if name in ['chat-render', 'composer']:
+        if name in ['chat-render', 'composer', 'chat-title']:
             command += ['-framework', 'SwiftUI']
         if name == 'local-store':
             command += ['-lsqlite3']

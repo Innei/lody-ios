@@ -23,6 +23,9 @@ func containsText(_ view: UIView, _ needle: String) -> Bool {
 }
 
 func subtitleText(_ button: UIButton) -> String {
+  if let titleButton = button as? ChatNavigationTitleButton {
+    return titleButton.captionLabel.attributedText?.string ?? ""
+  }
   if let attributed = button.configuration?.attributedSubtitle {
     return String(attributed.characters)
   }
@@ -30,13 +33,29 @@ func subtitleText(_ button: UIButton) -> String {
 }
 
 func subtitleAttachments(_ button: UIButton) -> Int {
-  guard let attributed = button.configuration?.attributedSubtitle else { return 0 }
-  let ns = NSAttributedString(attributed)
+  let ns: NSAttributedString?
+  if let titleButton = button as? ChatNavigationTitleButton {
+    ns = titleButton.captionLabel.attributedText
+  } else if let attributed = button.configuration?.attributedSubtitle {
+    ns = NSAttributedString(attributed)
+  } else {
+    ns = nil
+  }
+  guard let ns else { return 0 }
   var count = 0
   ns.enumerateAttribute(.attachment, in: NSRange(location: 0, length: ns.length)) { value, _, _ in
     if value is NSTextAttachment { count += 1 }
   }
   return count
+}
+
+func titleSnapshot(_ host: UIView) -> Data {
+  let size = CGSize(width: max(1, host.bounds.width), height: max(1, host.bounds.height))
+  return UIGraphicsImageRenderer(size: size).image { context in
+    UIColor.white.setFill()
+    context.fill(CGRect(origin: .zero, size: size))
+    host.layer.render(in: context.cgContext)
+  }.pngData()!
 }
 
 precondition(
@@ -48,9 +67,12 @@ precondition(
   "A missing computer name must not leave a dangling separator"
 )
 
-let button = UIButton(type: .system)
+let button = ChatNavigationTitleButton()
 button.accessibilityIdentifier = "chat-navigation-title"
 ChatNavigationTitle.configureButton(button, title: "Session title", subtitle: "Project name", machine: "Studio")
+precondition(button.displayedTitle == "Session title", "First line shows the session title")
+precondition(button.configuration?.title == nil, "First line must not be a static configuration title")
+precondition(button.titleHost.superview === button, "First line renders through the numeric-text host")
 let item = UINavigationItem(title: "Session title")
 ChatNavigationTitle.apply(title: "Session title", subtitle: "Project name · Studio", button: button, to: item)
 
@@ -113,5 +135,21 @@ ChatNavigationTitle.apply(title: "Session title", subtitle: "Project name · Stu
 nav.view.layoutIfNeeded()
 precondition(session.navigationItem.subtitle == nil, "Preview return must not show a second subtitle alongside the retained titleView")
 precondition(session.navigationItem.titleView === button)
+
+button.layoutIfNeeded()
+let settled = titleSnapshot(button.titleHost)
+ChatNavigationTitle.configureButton(button, title: "Brand new heading", subtitle: "Project name", machine: "Studio")
+nav.view.layoutIfNeeded()
+session.view.layoutIfNeeded()
+button.layoutIfNeeded()
+var frames: [Data] = []
+for _ in 0..<8 {
+  RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+  frames.append(titleSnapshot(button.titleHost))
+}
+precondition(button.displayedTitle == "Brand new heading", "Title updates keep the numeric-text host in sync")
+if !UIAccessibility.isReduceMotionEnabled {
+  precondition(frames.contains { $0 != settled }, "Changing the first line must run a numeric text transition")
+}
 
 print("PASS: chat navigation subtitle shows project and computer names")
