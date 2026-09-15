@@ -1,5 +1,71 @@
 import ExpoModulesCore
 import UIKit
+import WebKit
+
+/// Bounds discovery to this diff surface; never searches another screen's WebView.
+final class LodyDiffSurface: ExpoView {
+  private weak var scrollOwner: UIViewController?
+  private weak var documentScroll: UIScrollView?
+  private weak var toolbar: LodyDiffToolbar?
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    if window == nil { detachScrollView() }
+    else { setNeedsLayout() }
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    guard window != nil else { return }
+    let nextToolbar = descendant(LodyDiffToolbar.self, in: self)
+    let nextScroll = descendant(WKWebView.self, in: self)?.scrollView
+    if toolbar !== nextToolbar { toolbar?.attachScrollEdge(to: nil) }
+    toolbar = nextToolbar
+    guard let nextScroll else {
+      detachScrollView()
+      return
+    }
+    let changedDocument = documentScroll !== nextScroll
+    if changedDocument { detachScrollView() }
+    documentScroll = nextScroll
+    toolbar = nextToolbar
+    var responder: UIResponder? = next
+    while let current = responder {
+      if let owner = current as? UIViewController {
+        if let previous = scrollOwner, previous !== owner {
+          LodyScrollEdges.unbind(nextScroll, from: previous)
+        }
+        scrollOwner = owner
+        LodyScrollEdges.bind(nextScroll, to: owner)
+        if changedDocument {
+          nextScroll.contentInsetAdjustmentBehavior = .automatic
+          LodyScrollEdges.navigation(nextScroll)
+        }
+        toolbar?.attachScrollEdge(to: nextScroll)
+        return
+      }
+      responder = current.next
+    }
+  }
+
+  private func detachScrollView() {
+    toolbar?.attachScrollEdge(to: nil)
+    if let scrollOwner, let documentScroll {
+      LodyScrollEdges.unbind(documentScroll, from: scrollOwner)
+    }
+    scrollOwner = nil
+    documentScroll = nil
+  }
+
+  private func descendant<T: UIView>(_ type: T.Type, in root: UIView) -> T? {
+    for child in root.subviews {
+      if let found = child as? T { return found }
+      if child is WKWebView { continue }
+      if let found = descendant(type, in: child) { return found }
+    }
+    return nil
+  }
+}
 
 final class LodyDiffToolbar: ExpoView {
   let onStyleChange = EventDispatcher()
@@ -11,6 +77,13 @@ final class LodyDiffToolbar: ExpoView {
   var pendingAdd = 0
   var pendingDel = 0
   var pendingBase = ""
+  private let scrollEdge = UIScrollEdgeElementContainerInteraction()
+
+  func attachScrollEdge(to scrollView: UIScrollView?) {
+    guard scrollEdge.scrollView !== scrollView else { return }
+    if let scrollView { LodyScrollEdges.floatingControls(scrollView) }
+    scrollEdge.scrollView = scrollView
+  }
 
   required init(appContext: AppContext? = nil) {
     container = UIVisualEffectView(effect: UIGlassContainerEffect())
@@ -21,6 +94,8 @@ final class LodyDiffToolbar: ExpoView {
     statsGlass.cornerConfiguration = .capsule()
     segmentGlass.cornerConfiguration = .capsule()
     super.init(appContext: appContext)
+    scrollEdge.edge = .bottom
+    addInteraction(scrollEdge)
     backgroundColor = .clear
     stats.font = .monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
     stats.adjustsFontForContentSizeCategory = true

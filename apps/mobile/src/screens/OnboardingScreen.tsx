@@ -8,10 +8,12 @@ import {
 } from 'react-native';
 import Animated, { FadeInUp, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollViewMarker } from 'react-native-screens/experimental';
 import {
   NativeGlassSurface,
   NativePressable,
   NativeSymbol,
+  navigationScrollEdgeEffects,
 } from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
@@ -49,72 +51,78 @@ function View() {
   const waiting = auth.busy || !!auth.code;
   return (
     <RNView style={{ flex: 1 }} testID="onboarding-sheet">
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingHorizontal: 28,
-          paddingTop: 48,
-          paddingBottom: 24,
-          gap: 36,
-        }}
+      <ScrollViewMarker
+        scrollEdgeEffects={navigationScrollEdgeEffects}
+        style={{ flex: 1 }}
       >
-        <Animated.View
-          entering={rise(0)}
-          style={{ alignItems: 'center', gap: 14 }}
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingHorizontal: 28,
+            paddingTop: 48,
+            paddingBottom: 24,
+            gap: 36,
+          }}
         >
-          <Image
-            accessibilityIgnoresInvertColors
-            source={require('../../assets/logo.png')}
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: 15,
-            }}
-          />
-          <AppText
-            accessibilityRole="header"
-            style={{
-              fontSize: 30,
-              lineHeight: 36,
-              fontWeight: '700',
-              letterSpacing: -0.6,
-              textAlign: 'center',
-            }}
+          <Animated.View
+            entering={rise(0)}
+            style={{ alignItems: 'center', gap: 14 }}
           >
-            {t('onboarding.title')}
-          </AppText>
-        </Animated.View>
-        {waiting ? (
-          <Waiting />
-        ) : (
-          <RNView style={{ gap: 24 }}>
-            {features.map((feature, index) => (
-              <Animated.View
-                key={feature.id}
-                entering={rise(index + 1)}
-                accessible
-                style={{ flexDirection: 'row', gap: 16 }}
-              >
-                <NativeSymbol
-                  symbol={feature.symbol}
-                  pointSize={28}
-                  tint={colors.accent}
-                  style={{ width: 36, height: 36, marginTop: 2 }}
-                />
-                <RNView style={{ flex: 1, gap: 2 }}>
-                  <AppText style={{ fontWeight: '600' }}>
-                    {t(`onboarding.${feature.id}.title`)}
-                  </AppText>
-                  <AppText variant="secondary">
-                    {t(`onboarding.${feature.id}.body`)}
-                  </AppText>
-                </RNView>
-              </Animated.View>
-            ))}
-          </RNView>
-        )}
-      </ScrollView>
+            <Image
+              accessibilityIgnoresInvertColors
+              source={require('../../assets/logo.png')}
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 15,
+              }}
+            />
+            <AppText
+              accessibilityRole="header"
+              style={{
+                fontSize: 30,
+                lineHeight: 36,
+                fontWeight: '700',
+                letterSpacing: -0.6,
+                textAlign: 'center',
+              }}
+            >
+              {t('onboarding.title')}
+            </AppText>
+          </Animated.View>
+          {waiting ? (
+            <Waiting />
+          ) : (
+            <RNView style={{ gap: 24 }}>
+              {features.map((feature, index) => (
+                <Animated.View
+                  key={feature.id}
+                  entering={rise(index + 1)}
+                  accessible
+                  style={{ flexDirection: 'row', gap: 16 }}
+                >
+                  <NativeSymbol
+                    symbol={feature.symbol}
+                    pointSize={28}
+                    tint={colors.accent}
+                    style={{ width: 36, height: 36, marginTop: 2 }}
+                  />
+                  <RNView style={{ flex: 1, gap: 2 }}>
+                    <AppText style={{ fontWeight: '600' }}>
+                      {t(`onboarding.${feature.id}.title`)}
+                    </AppText>
+                    <AppText variant="secondary">
+                      {t(`onboarding.${feature.id}.body`)}
+                    </AppText>
+                  </RNView>
+                </Animated.View>
+              ))}
+            </RNView>
+          )}
+        </ScrollView>
+      </ScrollViewMarker>
       <RNView
         style={{
           paddingHorizontal: 24,

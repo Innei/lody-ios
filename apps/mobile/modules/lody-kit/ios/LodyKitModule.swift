@@ -527,6 +527,10 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("emptyText") { (view: LodyChatView, value: String) in view.setEmptyText(value) }
     }
 
+    View(LodyDiffSurface.self) {
+      Prop("contentRevision") { (view: LodyDiffSurface, _: Double?) in view.setNeedsLayout() }
+    }
+
     View(LodyDiffToolbar.self) {
       Events("onStyleChange")
       Prop("add") { (view: LodyDiffToolbar, value: Int?) in view.pendingAdd = value ?? 0; view.applyStats() }

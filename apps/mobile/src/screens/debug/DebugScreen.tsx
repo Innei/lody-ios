@@ -1,3 +1,4 @@
+import { DiffScrollEdgePreviewScreen } from './DiffScrollEdgePreviewScreen';
 import { ProjectHistoryPreviewScreen } from './ProjectHistoryPreviewScreen';
 import { PullRequestPreviewScreen } from './PullRequestPreviewScreen';
 import { FilePreviewScreen } from './FilePreviewScreen';
@@ -187,6 +188,8 @@ function View() {
         openRow('mention-chat', '@ 引用交互 · 聊天', 'at'),
         openRow('mention-sheet', '@ 引用交互 · 新会话', 'at'),
         openRow('composer-preview', '输入框验收', 'square.and.pencil'),
+        openRow('scroll-edge-pages', '分页表单滚动边缘', 'rectangle.split.2x1'),
+        openRow('scroll-edge-diff', 'Diff 滚动边缘', 'doc.text'),
         openRow('composer-success', '聊天输入成功', 'checkmark.circle'),
         openRow('composer-failure', '聊天输入恢复', 'arrow.uturn.backward'),
         openRow('chat-preview', '原生聊天预览', 'bubble.left.and.bubble.right'),
@@ -314,6 +317,14 @@ function View() {
         host: 'sheet',
         outcome: 'failure',
       }),
+    'scroll-edge-pages': () =>
+      void present(ComposerPreviewScreen, {
+        host: 'sheet',
+        outcome: 'failure',
+        paged: true,
+      }),
+    'scroll-edge-diff': () =>
+      void present(DiffScrollEdgePreviewScreen, {}, { style: 'push' }),
     'composer-success': () =>
       void present(
         ComposerPreviewScreen,

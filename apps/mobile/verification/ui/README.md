@@ -1,5 +1,10 @@
 # Offline UI verification
 
+`--case scroll-edge` scrolls deterministic chat content beneath the native
+composer and raises the software keyboard in both appearances. It checks keyboard
+clearance and captures the soft bottom edge for visual review. Run a fresh native
+build: an old binary or a passing layout assertion does not prove soft rendering.
+
 All UI baselines run without login, user data, cloud credentials, or a connected
 machine. `EXPO_PUBLIC_UI_VERIFY=1` is inlined into the JS bundle and prevents
 account restoration before Keychain/SQLite reads and disables login. PR CI
@@ -480,3 +485,13 @@ a fix exports a new round rather than overwriting one.
 Ordinary regression runs are never ingested: `results.json` stays a programmatic
 CI gate. Simulator Debug evidence cannot claim physical-device performance,
 haptics or cloud persistence, whatever the round says.
+
+### Scroll edge host coverage
+
+`--case scroll-edge-pages` exercises a production paged form with the shared native
+composer: keyboard focus, page changes, and scrolling beneath the input.
+`--case scroll-edge-diff` exercises the production Diff WebView and native toolbar
+in Unified and Split modes, waiting for document-render completion before capture.
+Review the soft-edge screenshots in both appearances; passing accessibility checks
+alone does not establish the blur's visual correctness. Native file/service fixtures
+require a Debug build because their providers are compiled under `#if DEBUG`.

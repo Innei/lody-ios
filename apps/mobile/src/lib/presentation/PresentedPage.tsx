@@ -13,8 +13,7 @@ import {
 } from 'react';
 
 import { Platform, type ColorValue } from 'react-native';
-import { morphDismiss } from '@lody-ios/kit';
-import { automaticScrollEdgeEffects } from '@/ui/Screen';
+import { morphDismiss, navigationScrollEdgeEffects } from '@lody-ios/kit';
 
 import {
   type PageDefinitionBase,
@@ -138,7 +137,7 @@ export function nativePresentationOptions(
     headerLargeTitle: false,
     headerTransparent: transparentHeader,
     headerShadowVisible: false,
-    scrollEdgeEffects: automaticScrollEdgeEffects,
+    scrollEdgeEffects: navigationScrollEdgeEffects,
     presentation: nativePresentationStyle(style),
     sheetAllowedDetents: formSheet
       ? session.presentation.sheetAllowedDetents

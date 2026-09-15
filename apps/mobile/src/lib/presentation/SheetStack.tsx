@@ -19,7 +19,7 @@ import {
   SearchBar,
   ScreenStackItem,
 } from 'react-native-screens';
-import { NativeCloseButton } from '@lody-ios/kit';
+import { NativeCloseButton, panelScrollEdgeEffects } from '@lody-ios/kit';
 
 import type {
   PageDefinitionBase,
@@ -162,6 +162,7 @@ export function SheetStack({
     <ScreenStack style={StyleSheet.absoluteFill}>
       <ScreenStackItem
         screenId={`presented-${session.id}`}
+        scrollEdgeEffects={panelScrollEdgeEffects}
         style={StyleSheet.absoluteFill}
         headerConfig={{
           ...headerConfig(
@@ -232,6 +233,7 @@ function PushedLevel({
   return (
     <ScreenStackItem
       screenId={`presented-level-${level.key}`}
+      scrollEdgeEffects={panelScrollEdgeEffects}
       stackPresentation="push"
       style={StyleSheet.absoluteFill}
       headerConfig={{

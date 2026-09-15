@@ -177,6 +177,7 @@ final class LodyCodeView: LodyAppearanceView, UITextViewDelegate {
       if let owner = current as? UIViewController {
         owner.setContentScrollView(renderMarkdown ? documentScroll : textView, for: .top)
         owner.setContentScrollView(renderMarkdown ? documentScroll : textView, for: .bottom)
+        LodyScrollEdges.navigation(renderMarkdown ? documentScroll : textView)
         scrollOwner = owner
         return
       }

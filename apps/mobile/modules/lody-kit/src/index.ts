@@ -24,6 +24,10 @@ export {
   NativeCloseButton,
   type NativeCloseButtonProps,
 } from './chrome/NativeCloseButton';
+export {
+  navigationScrollEdgeEffects,
+  panelScrollEdgeEffects,
+} from './chrome/scrollEdges';
 
 export {
   readAuthToken,
@@ -167,6 +171,7 @@ export {
 } from './diff/NativeCodeView';
 export {
   NativeDiffToolbar,
+  NativeDiffSurface,
   type NativeDiffToolbarProps,
 } from './diff/NativeDiffToolbar';
 

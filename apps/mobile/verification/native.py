@@ -23,6 +23,7 @@ if args.udid is None:
     raise SystemExit(run_with_simulator(SimulatorPool(), 'Native', command))
 sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'], text=True).strip()
 checks = {
+    'scroll-edges': ['Chrome/LodyScrollEdges.swift'],
     'glass-transition': ['Chrome/LodyGlassView.swift'],
     'github-mentions': ['Cloud/GitHubMentions.swift'],
     'github-pr': ['Cloud/GitHubPullRequests.swift'],
@@ -36,7 +37,7 @@ checks = {
     'chat-render': ['LodyStrings.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'Chat/ChatThrowCurve.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatCell.swift', 'Chat/ChatUserMentions.swift'],
     'chat-chrome': ['LodyStrings.swift', 'Chat/ChatInputChrome.swift'],
     'model-panel': ['LodyStrings.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Chat/ChatComposerModelPanel.swift'],
-    'composer': ['LodyStrings.swift', 'UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatAttachmentSheet.swift', 'Chat/ChatComposerSurfaceLayout.swift', 'Chat/ChatComposerLiquidGlassSurfaceLayout.swift', 'Chat/ChatMentionPanel.swift', 'Chat/ChatComposerModelPanel.swift', 'Chat/ChatComposerView.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'Chat/ChatThrowCurve.swift', 'LodyTint.swift'],
+    'composer': ['Chrome/LodyScrollEdges.swift', 'LodyStrings.swift', 'UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatAttachmentSheet.swift', 'Chat/ChatComposerSurfaceLayout.swift', 'Chat/ChatComposerLiquidGlassSurfaceLayout.swift', 'Chat/ChatMentionPanel.swift', 'Chat/ChatComposerModelPanel.swift', 'Chat/ChatComposerView.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'Chat/ChatThrowCurve.swift', 'LodyTint.swift'],
     'attachments': ['LodyStrings.swift', 'Cloud/SessionAttachments.swift'],
     'inline-diff': ['UIFont+Dynamic.swift', 'Diff/InlineDiffModel.swift', 'Diff/InlineDiffRenderer.swift'],
     'list': [
@@ -71,7 +72,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
     subprocess.run(['xcrun', '--sdk', 'iphonesimulator', 'metallib', air, '-o', str(shader_bundle / 'default.metallib')], check=True, timeout=120)
     for name, files in checks.items():
         binary = str(Path(output) / name)
-        simulator = name in ['glass-transition', 'model-panel', 'chat-render', 'composer', 'attachments', 'inline-diff', 'list', 'banner', 'chat-title', 'live-activity', 'chat-chrome']
+        simulator = name in ['scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'attachments', 'inline-diff', 'list', 'banner', 'chat-title', 'live-activity', 'chat-chrome']
         command = ['xcrun', '--sdk', 'iphonesimulator', 'swiftc'] if simulator else ['xcrun', 'swiftc']
         command += ['-swift-version', '6']
         if simulator:

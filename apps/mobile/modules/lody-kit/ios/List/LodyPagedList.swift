@@ -146,6 +146,7 @@ final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewC
   private func commit(_ index: Int) {
     currentPage = index
     rail.setSelected(index)
+    bindVisibleScrollView()
     onPageChange(["index": index])
   }
 
@@ -174,9 +175,19 @@ final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewC
     }
     if pagingEnabled { attachRail() }
     pageScrollView?.isScrollEnabled = pagingEnabled
+    bindVisibleScrollView()
+  }
+
+  private func bindVisibleScrollView() {
+    guard let host, let page = boxes[safe: currentPage] else { return }
+    LodyScrollEdges.bind(page.list.contentScrollView, to: host)
+    LodyScrollEdges.grouped(page.list.contentScrollView)
   }
 
   private func detachHost() {
+    if let host {
+      for box in boxes { LodyScrollEdges.unbind(box.list.contentScrollView, from: host) }
+    }
     titleObservation = nil
     detachRail()
     offsetObservation = nil

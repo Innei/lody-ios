@@ -47,6 +47,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private weak var scrollOwner: UIViewController?
   private var sections: [LodyListSection] = []
   private let collection: UICollectionView
+  var contentScrollView: UIScrollView { collection }
   private let refreshControl = UIRefreshControl()
   private let placeholder = UILabel()
   private var placeholderText = ""
@@ -261,8 +262,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     }
     layout.register(LodySectionCardView.self, forDecorationViewOfKind: LodySectionCardView.kind)
     collection.setCollectionViewLayout(layout, animated: false)
-    collection.topEdgeEffect.style = .soft
-    collection.bottomEdgeEffect.style = .soft
+    LodyScrollEdges.grouped(collection)
     refreshControl.addTarget(self, action: #selector(refreshPulled), for: .valueChanged)
     placeholder.textAlignment = .center
     placeholder.numberOfLines = 0
@@ -318,8 +318,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     if window == nil {
       detachSegments()
       if scrollOwner?.contentScrollView(for: .top) === collection {
-        scrollOwner?.setContentScrollView(nil, for: .top)
-        scrollOwner?.setContentScrollView(nil, for: .bottom)
+        if let scrollOwner { LodyScrollEdges.unbind(collection, from: scrollOwner) }
       }
       scrollOwner = nil
     } else {
@@ -332,8 +331,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     var responder: UIResponder? = next
     while let current = responder {
       if let controller = current as? UIViewController {
-        controller.setContentScrollView(collection, for: .top)
-        controller.setContentScrollView(collection, for: .bottom)
+        LodyScrollEdges.bind(collection, to: controller)
+        LodyScrollEdges.grouped(collection)
         scrollOwner = controller
         attachSegments(to: controller)
         if appearance.parent == nil {

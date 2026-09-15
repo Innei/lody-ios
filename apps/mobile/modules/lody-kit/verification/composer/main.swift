@@ -10,6 +10,30 @@ import UniformTypeIdentifiers
 }
 
 let composer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
+let initialScroll = UIScrollView()
+initialScroll.bottomEdgeEffect.isHidden = true
+composer.attachScrollEdge(to: initialScroll)
+let scrollInteraction = composer.interactions.compactMap { $0 as? UIScrollEdgeElementContainerInteraction }.first!
+precondition(scrollInteraction.scrollView === initialScroll && scrollInteraction.edge == .bottom)
+precondition(!initialScroll.bottomEdgeEffect.isHidden && initialScroll.bottomEdgeEffect.style == .soft,
+  "Attaching a composer must enable soft occlusion without RNSScreen discovery")
+let replacementScroll = UIScrollView()
+composer.attachScrollEdge(to: replacementScroll)
+precondition(scrollInteraction.scrollView === replacementScroll && replacementScroll.bottomEdgeEffect.style == .soft,
+  "Moving the composer to another host must configure the new scroll view")
+composer.attachScrollEdge(to: nil)
+precondition(scrollInteraction.scrollView == nil,
+  "Detaching the composer must release its scroll target")
+print("Composer scroll edge: direct attachment, host replacement and detachment pass")
+let photoSheet = ChatAttachmentSheet()
+photoSheet.loadViewIfNeeded()
+let photoScroll = photoSheet.contentScrollView(for: .bottom)
+precondition(photoScroll is UICollectionView && photoSheet.contentScrollView(for: .top) === photoScroll,
+  "Photo selection must publish its native grid as the sheet's scroll content")
+let photoEdges = descendants(photoSheet.view).flatMap(\.interactions)
+  .compactMap { $0 as? UIScrollEdgeElementContainerInteraction }
+precondition(photoEdges.count == 1 && photoEdges[0].scrollView == nil,
+  "The confirmation overlay must not occlude photos before a selection exists")
 composer.setInputIdentifier("create-session-input")
 var height: CGFloat = 0
 composer.onHeightChange = { height = $0 }

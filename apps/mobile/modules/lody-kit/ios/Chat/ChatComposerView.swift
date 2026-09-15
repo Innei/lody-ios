@@ -448,12 +448,13 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   }
 
   func attachScrollEdge(to scrollView: UIScrollView?) {
-    let existing = composer.interactions.compactMap { $0 as? UIScrollEdgeElementContainerInteraction }.first
+    if let scrollView { LodyScrollEdges.floatingControls(scrollView) }
+    let existing = interactions.compactMap { $0 as? UIScrollEdgeElementContainerInteraction }.first
     guard scrollView != nil || existing != nil else { return }
     let edge = existing ?? UIScrollEdgeElementContainerInteraction()
     edge.scrollView = scrollView
     edge.edge = .bottom
-    if edge.view == nil { composer.addInteraction(edge) }
+    if edge.view == nil { addInteraction(edge) }
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }

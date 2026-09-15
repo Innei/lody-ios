@@ -11,7 +11,7 @@ assert abs(field['x'] - attach['x'] - attach['width'] - 8) <= 1, \
     'Unfocused Add and input glass do not keep the current 8-point gap'
 ui.capture('separate')
 
-ui.axe('tap', '--id', input_id, '--post-delay', '.8')
+ui.axe('tap', '--id', input_id, '--tap-style', 'physical', '--post-delay', '.8')
 field = ui.element(input_id)['frame']
 attach = ui.element('session-attach')['frame']
 send = ui.element('session-send')['frame']
@@ -39,13 +39,17 @@ ui.capture('released')
 if input_id == 'session-input':
     ui.axe('tap', '-x', '200', '-y', str(field['y'] - 90), '--post-delay', '.5')
 else:
-    ui.axe('swipe', '--start-x', '200', '--start-y', str(field['y'] - 90),
-           '--end-x', '200', '--end-y', str(field['y'] - 30), '--duration', '.3', '--post-delay', '.5')
+    # Begin in the gap between sections, avoiding a navigating option row.
+    first = ui.element('option-0')['frame']
+    second = ui.element('option-1')['frame']
+    gap_y = (first['y'] + first['height'] + second['y']) / 2
+    ui.axe('swipe', '--start-x', '200', '--start-y', str(gap_y),
+           '--end-x', '200', '--end-y', str(gap_y + 120), '--duration', '.5', '--post-delay', '1')
 collapsed = ui.element(input_id)['frame']
 separate_add = ui.element('session-attach')['frame']
 assert abs(collapsed['x'] - separate_add['x'] - separate_add['width'] - 8) <= 1, 'Closing did not restore the separate glass'
 ui.capture('collapsed-again')
-ui.axe('tap', '--id', input_id, '--post-delay', '.8')
+ui.axe('tap', '--id', input_id, '--tap-style', 'physical', '--post-delay', '.8')
 ui.capture('reopened')
 # Rehosting the button must preserve one accessible, working 44-point action.
 buttons = [item for item in ui.state() if item.get('AXUniqueId') == 'session-attach']

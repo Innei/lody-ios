@@ -57,6 +57,18 @@ final class LodyComposerView: ExpoView {
       }
       responder = current.next
     }
+    composer.attachScrollEdge(to: nil)
+  }
+
+  @objc private func scrollOwnerChanged(_ notification: Notification) {
+    var responder: UIResponder? = next
+    while let current = responder {
+      if current === notification.object as? UIViewController {
+        setNeedsLayout()
+        return
+      }
+      responder = current.next
+    }
   }
 
   private func reportHeight() {
@@ -152,6 +164,7 @@ final class LodyComposerView: ExpoView {
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
+    NotificationCenter.default.addObserver(self, selector: #selector(scrollOwnerChanged), name: LodyScrollEdges.ownerChanged, object: nil)
     NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
     NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged), name: UIResponder.keyboardWillHideNotification, object: nil)
     composer.setInputIdentifier("create-session-input")

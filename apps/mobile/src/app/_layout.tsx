@@ -14,7 +14,7 @@ import { navigationThemes } from '@/lib/theme/palette';
 import { AppearanceProvider, useAppearance } from '@/lib/theme/appearance';
 import { QueuedMessageBehaviorProvider } from '@/features/settings/queued-message-behavior';
 import { softDarkBackground } from '@/lib/theme/tokens';
-import { automaticScrollEdgeEffects } from '@/ui/Screen';
+import { navigationScrollEdgeEffects } from '@lody-ios/kit';
 import { useBindSessionNav } from '@/hooks/screens/useBindSessionNav';
 import { useOnboardingGate } from '@/hooks/screens/useOnboardingGate';
 import { assertVendoredDomWebView } from '@/lib/assert-vendored-dom-webview';
@@ -57,7 +57,7 @@ function Root() {
             headerLargeTitle: false,
             headerBackButtonDisplayMode: 'minimal',
             headerShadowVisible: false,
-            scrollEdgeEffects: automaticScrollEdgeEffects,
+            scrollEdgeEffects: navigationScrollEdgeEffects,
           }}
         >
           <Stack.Screen name="index" options={{ title: '' }} />

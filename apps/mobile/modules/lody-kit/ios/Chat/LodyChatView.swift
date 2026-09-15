@@ -321,8 +321,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       cell.configure(row, text: self.text(for: row))
       return cell
     }
-    collection.topEdgeEffect.style = .automatic
-    collection.bottomEdgeEffect.style = .automatic
+    LodyScrollEdges.navigation(collection)
     composer.attachScrollEdge(to: collection)
     dataSource.supplementaryViewProvider = { [weak self] collection, kind, index in
       let header = collection.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: "history", for: index) as! ChatHistoryHeader
@@ -442,6 +441,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       if let controller = current as? UIViewController {
         controller.setContentScrollView(collection, for: .top)
         controller.setContentScrollView(collection, for: .bottom)
+        LodyScrollEdges.navigation(collection)
         scrollOwner = controller
         titleObservation = controller.navigationItem.observe(\.titleView) { [weak self] item, _ in
           MainActor.assumeIsolated {

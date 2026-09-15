@@ -15,7 +15,7 @@ DEVICE_TYPES = {
     'iphone': 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro',
     'ipad': 'com.apple.CoreSimulator.SimDeviceType.iPad-Air-11-inch-M2',
 }
-RUNTIME = 'com.apple.CoreSimulator.SimRuntime.iOS-26-5'
+RUNTIME = os.environ.get('LODY_VERIFY_RUNTIME', 'com.apple.CoreSimulator.SimRuntime.iOS-26-5')
 MANAGED_NAME = re.compile(r'^Lody .+ Verify$')
 
 

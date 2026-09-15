@@ -15,6 +15,7 @@ type Params = {
   host: 'chat' | 'sheet';
   outcome: 'success' | 'failure';
   mentions?: boolean;
+  paged?: boolean;
 };
 
 const mentionItems: MentionItem[] = [
@@ -113,6 +114,7 @@ function View() {
   const [sending, setSending] = useState(false);
   const [fast, setFast] = useState(false);
   const [count, setCount] = useState(0);
+  const [selectedPage, setSelectedPage] = useState(0);
   const [sent, setSent] = useState<{ id: string; text: string }>();
   const busy = useRef(false);
   const [mentionResultJSON, setMentionResultJSON] = useState('');
@@ -258,6 +260,27 @@ function View() {
         />
       ) : (
         <ComposerSheet
+          pages={
+            params.paged
+              ? [0, 1].map((page) => ({
+                  id: `page-${page}`,
+                  title: `Page ${page + 1}`,
+                  sections: Array.from({ length: 12 }, (_, index) => ({
+                    id: `page-${page}-section-${index}`,
+                    rows: [
+                      {
+                        id: `page-${page}-row-${index}`,
+                        title: `Page ${page + 1} · Row ${index + 1}`,
+                        subtitle: 'Native scroll edge verification',
+                        action: true,
+                      },
+                    ],
+                  })),
+                }))
+              : undefined
+          }
+          selectedPage={selectedPage}
+          onPageChange={({ nativeEvent }) => setSelectedPage(nativeEvent.index)}
           sections={Array.from(
             { length: params.mentions ? 2 : 8 },
             (_, index) => ({

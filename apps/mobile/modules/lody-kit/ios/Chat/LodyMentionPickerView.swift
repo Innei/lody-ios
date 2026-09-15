@@ -38,8 +38,7 @@ final class LodyMentionPickerView: ExpoView, UICollectionViewDataSource, UIColle
     list.delegate = self
     list.keyboardDismissMode = .onDrag
     list.register(UICollectionViewListCell.self, forCellWithReuseIdentifier: "item")
-    list.topEdgeEffect.style = .soft
-    list.bottomEdgeEffect.style = .soft
+    LodyScrollEdges.grouped(list)
     empty.text = LodyStrings.text("native.chat.mention.empty")
     empty.textColor = .secondaryLabel
     empty.font = .dynamic(of: 15)
@@ -76,16 +75,15 @@ final class LodyMentionPickerView: ExpoView, UICollectionViewDataSource, UIColle
   override func didMoveToWindow() {
     super.didMoveToWindow()
     if window == nil {
-      scrollOwner?.setContentScrollView(nil, for: .top)
-      scrollOwner?.setContentScrollView(nil, for: .bottom)
+      if let scrollOwner { LodyScrollEdges.unbind(list, from: scrollOwner) }
       scrollOwner = nil
       return
     }
     var responder: UIResponder? = next
     while let current = responder {
       if let controller = current as? UIViewController {
-        controller.setContentScrollView(list, for: .top)
-        controller.setContentScrollView(list, for: .bottom)
+        LodyScrollEdges.bind(list, to: controller)
+        LodyScrollEdges.grouped(list)
         scrollOwner = controller
         controller.definesPresentationContext = true
         break

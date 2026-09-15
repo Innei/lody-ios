@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import {
   NativeDiffToolbar,
+  NativeDiffSurface,
   fileDiff,
   previewContent,
   readContentText,
@@ -200,7 +201,10 @@ function View() {
       );
 
   return (
-    <RNView style={{ flex: 1, backgroundColor: colors.reading }}>
+    <NativeDiffSurface
+      contentRevision={renderMs}
+      style={{ flex: 1, backgroundColor: colors.reading }}
+    >
       {body}
       {diff?.status === 'ok' ? (
         <NativeDiffToolbar
@@ -220,7 +224,7 @@ function View() {
           onStyleChange={({ nativeEvent }) => changeStyle(nativeEvent.style)}
         />
       ) : null}
-    </RNView>
+    </NativeDiffSurface>
   );
 }
 

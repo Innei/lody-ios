@@ -57,8 +57,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     collection.contentInsetAdjustmentBehavior = .automatic
     collection.alwaysBounceVertical = true
     collection.keyboardDismissMode = .onDrag
-    collection.topEdgeEffect.style = .soft
-    collection.bottomEdgeEffect.style = .soft
+    LodyScrollEdges.grouped(collection)
     collection.delegate = self
     dataSource = UICollectionViewDiffableDataSource(collectionView: collection) { [weak self] collection, index, id in
       guard let self, let row = self.rows[id] else { return nil }
@@ -123,8 +122,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     super.didMoveToWindow()
     if window == nil {
       if scrollOwner?.contentScrollView(for: .top) === collection {
-        scrollOwner?.setContentScrollView(nil, for: .top)
-        scrollOwner?.setContentScrollView(nil, for: .bottom)
+        if let scrollOwner { LodyScrollEdges.unbind(collection, from: scrollOwner) }
       }
       scrollOwner = nil
     } else {
@@ -137,8 +135,8 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     var responder: UIResponder? = next
     while let current = responder {
       if let controller = current as? UIViewController {
-        controller.setContentScrollView(collection, for: .top)
-        controller.setContentScrollView(collection, for: .bottom)
+        LodyScrollEdges.bind(collection, to: controller)
+        LodyScrollEdges.grouped(collection)
         scrollOwner = controller
         if appearance.parent == nil {
           controller.addChild(appearance)

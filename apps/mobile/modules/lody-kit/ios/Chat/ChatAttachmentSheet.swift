@@ -58,6 +58,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
   private let statusLabel = UILabel()
   private let statusAction = UIButton(configuration: .filled())
   private let confirm = UIButton(configuration: .filled())
+  private let confirmEdge = UIScrollEdgeElementContainerInteraction()
   private let manage = UIButton(configuration: .plain())
   private let column = UIStackView()
   private var assets: PHFetchResult<PHAsset>?
@@ -84,6 +85,9 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
     grid.dataSource = self
     grid.delegate = self
     grid.alwaysBounceVertical = true
+    LodyScrollEdges.navigation(grid)
+    confirmEdge.edge = .bottom
+    confirm.addInteraction(confirmEdge)
     grid.register(ChatPhotoCell.self, forCellWithReuseIdentifier: "photo")
     statusLabel.numberOfLines = 0
     statusLabel.textAlignment = .center
@@ -122,6 +126,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
       confirm.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
       confirm.heightAnchor.constraint(equalToConstant: 50),
     ])
+    LodyScrollEdges.bind(grid, to: self)
     refresh()
   }
 
@@ -222,6 +227,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
 
   private func updateConfirm() {
     let visible = !selection.isEmpty
+    confirmEdge.scrollView = visible ? grid : nil
     if visible {
       confirm.setTitle(
         LodyStrings.plural("native.chat.attachment.addCount", selection.count),
