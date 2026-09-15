@@ -382,4 +382,33 @@ ui.axe('tap', '--label', catalog.text('accessibility.closeSheet', title=settings
 home_ready()
 assert not any(i.get('AXUniqueId') == 'archived' for i in ui.state())
 ui.capture('settings-closed')
-print('Create opens repeatedly from the bottom toolbar; integrated search finds archived sessions and cancels back; the view menu regroups; long-press Settings opens Debug and returns; the settings sheet pushes remote and archived pages and closes back to the inbox.')
+
+ui.axe('tap', '--label', avatar_label, '--post-delay', '.5')
+ui.wait(
+    lambda items: any(i.get('AXLabel') == catalog.text('workspace.edit.action') for i in items),
+    'Workspace menu must include the edit action',
+)
+ui.capture('workspace-menu')
+ui.axe('tap', '--label', catalog.text('workspace.edit.action'), '--post-delay', '.8')
+ui.element('workspace-name')
+ui.capture('workspace-editor')
+ui.axe('tap', '--label', catalog.text('workspace.edit.changeIcon'), '--post-delay', '1')
+ui.capture('workspace-icon-picker')
+ui.axe('tap', '-x', '67', '-y', '379', '--post-delay', '1.5')
+ui.element('workspace-name')
+ui.capture('workspace-icon-updated')
+ui.axe('tap', '--id', 'workspace-name', '--post-delay', '.5')
+ui.axe('tap', '--label', catalog.system('clear'), '--post-delay', '.2')
+ui.axe('type', '2026')
+assert ui.element('workspace-name')['AXValue'] == '2026'
+ui.capture('workspace-editor-filled')
+ui.axe('tap', '--label', catalog.text('workspace.edit.save'), '--post-delay', '1')
+renamed_label = catalog.text(
+    'inbox.workspaceSwitch.accessibility', name='2026'
+)
+ui.wait(
+    lambda items: any(i.get('AXLabel') == renamed_label for i in items),
+    'Saving the workspace name must update the home menu',
+)
+ui.capture('workspace-renamed')
+print('Create opens repeatedly from the bottom toolbar; integrated search finds archived sessions and cancels back; the view menu regroups; long-press Settings opens Debug and returns; the settings sheet pushes remote and archived pages and closes back to the inbox; the workspace menu edits and immediately reflects the current workspace name.')

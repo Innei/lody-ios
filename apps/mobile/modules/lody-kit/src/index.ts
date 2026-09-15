@@ -6,6 +6,7 @@ export {
   initialQueuedMessageBehavior,
   saveQueuedMessageBehavior,
   selectionFeedback,
+  pickWorkspaceIcon,
   cancelComposerRelay,
   showToast,
   copyText,
@@ -15,6 +16,7 @@ export {
   type SessionBannerKind,
   addAppActiveListener,
   type RuntimeInfo,
+  type PickedWorkspaceIcon,
 } from './runtime/LodyKit';
 export {
   NativeCloseButton,

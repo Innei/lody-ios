@@ -17,6 +17,10 @@ import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
 import { definePage, present } from '@/lib/presentation';
 import { t } from '@/lib/i18n';
 import { SettingsScreen } from './SettingsScreen';
+import {
+  WorkspaceEditorScreen,
+  workspaceEditActionId,
+} from './WorkspaceEditorScreen';
 
 function InboxList({ model }: { model: InboxModel }) {
   if (!model.ready || !model.account) return <Screen />;
@@ -67,12 +71,34 @@ function RouterChrome({ model }: { model: InboxModel }) {
               image: selected?.image,
             }}
             label={workspaceName}
-            items={account.workspaces.map((workspace) => ({
-              id: workspace.id,
-              title: workspace.name,
-              selected: workspace.id === selected?.id,
-            }))}
-            onSelect={model.setWorkspaceId}
+            items={[
+              ...account.workspaces.map((workspace) => ({
+                id: workspace.id,
+                title: workspace.name,
+                selected: workspace.id === selected?.id,
+              })),
+              ...(selected
+                ? [
+                    {
+                      id: workspaceEditActionId,
+                      title: t('workspace.edit.action'),
+                      selected: false,
+                    },
+                  ]
+                : []),
+            ]}
+            onSelect={(id) => {
+              if (id === workspaceEditActionId && selected) {
+                void present(WorkspaceEditorScreen, {
+                  workspaceId: selected.id,
+                  name: selected.name,
+                  image: selected.image,
+                  color: colors.accent,
+                });
+                return;
+              }
+              model.setWorkspaceId(id);
+            }}
           />
         </Stack.Toolbar.View>
       </Stack.Toolbar>

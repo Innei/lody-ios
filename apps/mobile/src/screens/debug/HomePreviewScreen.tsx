@@ -109,6 +109,7 @@ const previewCache = JSON.stringify({
 });
 
 export function HomePreviewProviders({ children }: PropsWithChildren) {
+  const [previewWorkspaces, setPreviewWorkspaces] = useState(workspaces);
   const [selected, setSelected] =
     useState<(typeof workspaces)[number]>(workspace);
   const selectedCatalog = selected.id === workspace.id ? catalog : emptyCatalog;
@@ -130,7 +131,7 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
             email: '',
             image: previewPhoto,
           },
-          workspaces,
+          workspaces: previewWorkspaces,
         },
         busy: false,
         localReady: true,
@@ -143,6 +144,23 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
         restore: noop,
         logout: noop,
         reopen: noop,
+        updateWorkspace: async (id, name) => {
+          setPreviewWorkspaces((items) =>
+            items.map((item) => (item.id === id ? { ...item, name } : item)),
+          );
+          setSelected((item) => (item.id === id ? { ...item, name } : item));
+        },
+        updateWorkspaceIcon: async (id, file) => {
+          setPreviewWorkspaces((items) =>
+            items.map((item) =>
+              item.id === id ? { ...item, image: file.uri } : item,
+            ),
+          );
+          setSelected((item) =>
+            item.id === id ? { ...item, image: file.uri } : item,
+          );
+          return file.uri;
+        },
       }}
     >
       <CatalogContext

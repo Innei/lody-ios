@@ -29,6 +29,12 @@ export type AttachmentUploadProgress = {
   phase: 'preparing' | 'uploading' | 'verifying' | 'complete';
   percent?: number;
 };
+export type PickedWorkspaceIcon = {
+  uri: string;
+  name: string;
+  type: string;
+  size: number;
+};
 type Events = {
   onAttachmentUploadProgress: (event: AttachmentUploadProgress) => void;
   onPushClick: () => void;
@@ -107,6 +113,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   debugProbeSchema(): Promise<string>;
   debugRestartDataRuntime(): Promise<void>;
   selectionFeedback(): Promise<void>;
+  pickWorkspaceIcon(): Promise<PickedWorkspaceIcon | null>;
   cancelComposerRelay(id: string): Promise<void>;
   showToast(message: string, kind: string): void;
   copyText(text: string): void;
@@ -135,6 +142,10 @@ export const saveQueuedMessageBehavior = (value: string) =>
   native.saveQueuedMessageBehavior(value);
 export function selectionFeedback(): Promise<void> {
   return native.selectionFeedback();
+}
+
+export function pickWorkspaceIcon(): Promise<PickedWorkspaceIcon | null> {
+  return native.pickWorkspaceIcon();
 }
 
 export function cancelComposerRelay(id: string): Promise<void> {

@@ -22,10 +22,14 @@ import {
   getAccount,
   requestDeviceCode,
   pollDeviceToken,
+  uploadWorkspaceIcon,
+  updateWorkspace as updateWorkspaceRequest,
+  updateWorkspaceIcon as updateWorkspaceIconRequest,
   type DeviceCode,
   type User,
   type Workspace,
 } from './api';
+import type { PickedWorkspaceIcon } from '@lody-ios/kit';
 
 import { writeLocal, parseLocal, clearLocal } from '../kv';
 import { accountKey } from './persist';
@@ -50,6 +54,11 @@ type AuthContextValue = AuthState & {
   restore: () => Promise<void>;
   logout: () => Promise<void>;
   reopen: () => Promise<void>;
+  updateWorkspace: (workspaceId: string, name: string) => Promise<void>;
+  updateWorkspaceIcon: (
+    workspaceId: string,
+    file: PickedWorkspaceIcon,
+  ) => Promise<string>;
 };
 const Context = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: PropsWithChildren) {
@@ -200,6 +209,44 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setState((s) => ({ ...s, error: t('auth.error.openAuthorizePage') }));
     }
   }
+  async function persistWorkspace(account: Account, updated: Workspace) {
+    const workspaces = account.workspaces.map((workspace) =>
+      workspace.id === updated.id ? updated : workspace,
+    );
+    await writeLocal(accountKey, { user: account.user, workspaces }).catch(() =>
+      showToast(t('auth.toast.accountSaveFailed')),
+    );
+    setState((current) =>
+      current.account?.token === account.token
+        ? { ...current, account: { ...current.account, workspaces } }
+        : current,
+    );
+  }
+  async function updateWorkspace(workspaceId: string, name: string) {
+    const account = state.account;
+    if (!account) throw new Error(t('workspace.edit.signedOut'));
+    const updated = await updateWorkspaceRequest(
+      account.token,
+      workspaceId,
+      name,
+    );
+    await persistWorkspace(account, updated);
+  }
+  async function updateWorkspaceIcon(
+    workspaceId: string,
+    file: PickedWorkspaceIcon,
+  ) {
+    const account = state.account;
+    if (!account) throw new Error(t('workspace.edit.signedOut'));
+    const image = await uploadWorkspaceIcon(account.token, workspaceId, file);
+    const updated = await updateWorkspaceIconRequest(
+      account.token,
+      workspaceId,
+      image,
+    );
+    await persistWorkspace(account, updated);
+    return image;
+  }
   useEffect(() => {
     alive.current = true;
     void restore();
@@ -210,7 +257,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
     };
   }, []);
   return (
-    <Context value={{ ...state, login, cancel, restore, logout, reopen }}>
+    <Context
+      value={{
+        ...state,
+        login,
+        cancel,
+        restore,
+        logout,
+        reopen,
+        updateWorkspace,
+        updateWorkspaceIcon,
+      }}
+    >
       {children}
     </Context>
   );

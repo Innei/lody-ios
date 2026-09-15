@@ -26,6 +26,10 @@ import {
 import { useProjectModel } from '@/features/sessions/useProjectModel';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { SessionScreen, type SessionParams } from '@/screens/SessionScreen';
+import {
+  WorkspaceEditorScreen,
+  workspaceEditActionId,
+} from '@/screens/WorkspaceEditorScreen';
 import { requestOpenSession } from '@/features/sessions/sessionNav';
 import { useBindSessionNav } from '@/hooks/screens/useBindSessionNav';
 import { isChatProjectId } from '@/features/sessions/inbox';
@@ -322,12 +326,34 @@ function InboxPanelItem({
                 color: model.colors.accent,
                 image: selected?.image,
               }}
-              items={account.workspaces.map((workspace) => ({
-                id: workspace.id,
-                title: workspace.name,
-                selected: workspace.id === selected?.id,
-              }))}
-              onSelect={model.setWorkspaceId}
+              items={[
+                ...account.workspaces.map((workspace) => ({
+                  id: workspace.id,
+                  title: workspace.name,
+                  selected: workspace.id === selected?.id,
+                })),
+                ...(selected
+                  ? [
+                      {
+                        id: workspaceEditActionId,
+                        title: t('workspace.edit.action'),
+                        selected: false,
+                      },
+                    ]
+                  : []),
+              ]}
+              onSelect={(id) => {
+                if (id === workspaceEditActionId && selected) {
+                  void present(WorkspaceEditorScreen, {
+                    workspaceId: selected.id,
+                    name: selected.name,
+                    image: selected.image,
+                    color: model.colors.accent,
+                  });
+                  return;
+                }
+                model.setWorkspaceId(id);
+              }}
             />
           </Stack.Toolbar.View>
         ) : null}

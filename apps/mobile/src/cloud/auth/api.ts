@@ -2,8 +2,17 @@ import { t } from '../../lib/i18n/index.ts';
 
 // Public production endpoints observed in the official Lody web client.
 export const AUTH_ORIGIN = 'https://backend.lody.ai';
+export const CLOUD_API_ORIGIN = 'https://api.lody.ai';
 export const DEVICE_CLIENT_ID = 'lody-cli';
+const WORKSPACE_ICON_MAX_BYTES = 1024 * 1024;
+const workspaceIconTypes = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+]);
 import type { DeviceCode, User, Workspace } from '../../models/auth.ts';
+import type { PickedWorkspaceIcon } from '@lody-ios/kit';
 
 export type {
   DeviceCode,
@@ -33,6 +42,15 @@ function optionalHttpsUrl(value: unknown): string | undefined {
   } catch {
     return undefined;
   }
+}
+function workspace(value: unknown): Workspace {
+  const item = record(value);
+  return {
+    id: requiredString(item.id),
+    name: requiredString(item.name),
+    slug: typeof item.slug === 'string' ? item.slug : null,
+    image: optionalHttpsUrl(item.logo),
+  };
 }
 export async function authRequest(
   path: string,
@@ -162,16 +180,65 @@ export async function getAccount(
         typeof user.name === 'string' ? user.name : requiredString(user.email),
       image: optionalHttpsUrl(user.image),
     },
-    workspaces: list.map((value) => {
-      const item = record(value);
-      return {
-        id: requiredString(item.id),
-        name: requiredString(item.name),
-        slug: typeof item.slug === 'string' ? item.slug : null,
-        image: optionalHttpsUrl(item.logo),
-      };
-    }),
+    workspaces: list.map(workspace),
   };
+}
+export async function updateWorkspace(
+  token: string,
+  workspaceId: string,
+  name: string,
+  signal?: AbortSignal,
+): Promise<Workspace> {
+  return workspace(
+    await authRequest('/organization/update', {
+      token,
+      body: { organizationId: workspaceId, data: { name } },
+      signal,
+    }),
+  );
+}
+export async function uploadWorkspaceIcon(
+  token: string,
+  workspaceId: string,
+  file: PickedWorkspaceIcon,
+): Promise<string> {
+  if (
+    !workspaceIconTypes.has(file.type) ||
+    file.size <= 0 ||
+    file.size > WORKSPACE_ICON_MAX_BYTES
+  )
+    throw new Error(t('workspace.edit.invalidIcon'));
+  const body = new FormData();
+  body.append('kind', 'workspace');
+  body.append('file', {
+    uri: file.uri,
+    name: file.name,
+    type: file.type,
+  } as unknown as Blob);
+  const response = await fetch(
+    `${CLOUD_API_ORIGIN}/api/workspaces/${encodeURIComponent(workspaceId)}/avatars/upload`,
+    { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body },
+  );
+  const data: unknown = await response.json();
+  if (response.status === 401) throw new AuthError(t('auth.error.expired'));
+  if (!response.ok) throw new Error(t('workspace.edit.iconUploadFailed'));
+  const avatar = record(record(data).avatar);
+  return `${CLOUD_API_ORIGIN}/api/avatars/${encodeURIComponent(requiredString(avatar.avatarId))}`;
+}
+
+export async function updateWorkspaceIcon(
+  token: string,
+  workspaceId: string,
+  image: string,
+  signal?: AbortSignal,
+): Promise<Workspace> {
+  return workspace(
+    await authRequest('/organization/update', {
+      token,
+      body: { organizationId: workspaceId, data: { logo: image } },
+      signal,
+    }),
+  );
 }
 export async function getStreamsGrant(
   token: string,

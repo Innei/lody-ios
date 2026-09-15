@@ -80,7 +80,36 @@ ui.capture('sidebar-glass-fab')
 
 tap_label(workspace_item['AXLabel'])
 labeled('我的超长工作区名称不能折行')
+labeled(catalog.text('workspace.edit.action'))
 ui.capture('workspace-menu')
+tap_label(catalog.text('workspace.edit.action'))
+ui.element('workspace-name')
+ui.capture('workspace-editor')
+ui.axe('tap', '--label', catalog.text('workspace.edit.changeIcon'), '--post-delay', '1')
+picker_cancel = ui.wait(
+    lambda _items: (
+        item
+        if (item := json.loads(ui.axe('describe-ui', '--point', '91,302'))).get('AXLabel') == catalog.system('cancel')
+        else None
+    ),
+    'Photo picker must present its cancel button',
+    timeout=10,
+)
+ui.capture('workspace-icon-picker')
+ui.axe('tap', '-x', '355', '-y', '520', '--post-delay', '1.5')
+ui.wait(
+    lambda _items: (
+        True
+        if json.loads(ui.axe('describe-ui', '--point', '91,302')).get('AXLabel') != catalog.system('cancel')
+        else None
+    ),
+    'Photo picker must dismiss after selecting an icon',
+    timeout=10,
+)
+ui.element('workspace-name')
+ui.capture('workspace-icon-updated')
+tap_label(catalog.text('common.cancel'))
+tap_label(workspace_item['AXLabel'])
 tap_label('我的超长工作区名称不能折行')
 
 # Selection belongs to the sidebar's detail, including across outline updates.
@@ -214,4 +243,4 @@ ui.element('session-input')
 ui.capture('handoff-landed')
 trace.verify(1)
 
-print('PASS: Native toolbar, window form navigation, search, navigating-row selection until return, and first-message handoff into the iPad detail.')
+print('PASS: Native toolbar, workspace editor, window form navigation, search, navigating-row selection until return, and first-message handoff into the iPad detail.')

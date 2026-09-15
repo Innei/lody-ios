@@ -14,6 +14,7 @@ struct LodyRuntimeInfo {
 public final class LodyKitModule: Module, @unchecked Sendable {
   private let localStore = LocalStore.shared
   private var authBrowser: SFSafariViewController?
+  @MainActor private lazy var workspaceIconPicker = WorkspaceIconPicker()
 
   @MainActor private lazy var dataRuntime = DataRuntime(localStore: localStore,
     emit: { [weak self] event in self?.sendEvent("onDataRuntime", event) },
@@ -250,6 +251,15 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("githubPullRequest") { (payload: String) async throws -> String in
       try await GitHubPullRequests.run(payload)
     }
+    AsyncFunction("pickWorkspaceIcon") { (promise: Promise) in
+      MainActor.assumeIsolated {
+        guard let controller = self.appContext?.utilities?.currentViewController() else {
+          promise.reject("PICKER_UNAVAILABLE", "The workspace icon picker could not be presented")
+          return
+        }
+        self.workspaceIconPicker.present(from: controller, promise: promise)
+      }
+    }.runOnQueue(.main)
     AsyncFunction("githubRepositories") { (workspace: String, promise: Promise) in
       Task { @MainActor in
         #if DEBUG

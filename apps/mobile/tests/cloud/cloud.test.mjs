@@ -7,6 +7,9 @@ import {
   requestDeviceCode,
   getAccount,
   getStreamsGrant,
+  updateWorkspace,
+  updateWorkspaceIcon,
+  uploadWorkspaceIcon,
 } from '../../src/cloud/auth/api.ts';
 import { setLocale } from '../../src/lib/i18n/index.ts';
 
@@ -223,6 +226,68 @@ test('workspace photo keeps https logos and drops other image values', async (t)
   assert.equal((await getAccount('token')).workspaces[0].image, undefined);
   assert.equal((await getAccount('token')).workspaces[0].image, undefined);
   assert.equal((await getAccount('token')).workspaces[0].image, undefined);
+});
+
+test('workspace rename uses the official organization update contract', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(new URL(url).pathname, '/api/auth/organization/update');
+    assert.equal(options.headers.Authorization, 'Bearer token');
+    assert.deepEqual(JSON.parse(options.body), {
+      organizationId: 'w1',
+      data: { name: 'Renamed' },
+    });
+    return new Response(
+      JSON.stringify({
+        id: 'w1',
+        name: 'Renamed',
+        slug: 'innei',
+        logo: 'https://cdn.lody.ai/org.png',
+      }),
+    );
+  });
+  assert.deepEqual(await updateWorkspace('token', 'w1', 'Renamed'), {
+    id: 'w1',
+    name: 'Renamed',
+    slug: 'innei',
+    image: 'https://cdn.lody.ai/org.png',
+  });
+});
+
+test('workspace icon upload stores the returned public avatar URL', async (t) => {
+  const values = [];
+  t.mock.method(FormData.prototype, 'append', (...value) => values.push(value));
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    const parsed = new URL(url);
+    if (parsed.hostname === 'api.lody.ai') {
+      assert.equal(parsed.pathname, '/api/workspaces/w%20one/avatars/upload');
+      assert.equal(options.headers.Authorization, 'Bearer token');
+      assert.equal(options.headers['Content-Type'], undefined);
+      assert.deepEqual(values.slice(0, 1), [['kind', 'workspace']]);
+      assert.equal(values[1][0], 'file');
+      return Response.json({ avatar: { avatarId: 'avatar/1' } });
+    }
+    assert.equal(parsed.pathname, '/api/auth/organization/update');
+    assert.deepEqual(JSON.parse(options.body), {
+      organizationId: 'w one',
+      data: { logo: 'https://api.lody.ai/api/avatars/avatar%2F1' },
+    });
+    return Response.json({
+      id: 'w one',
+      name: 'Workspace',
+      logo: 'https://api.lody.ai/api/avatars/avatar%2F1',
+    });
+  });
+  const image = await uploadWorkspaceIcon('token', 'w one', {
+    uri: 'file:///tmp/workspace-icon.jpg',
+    name: 'workspace-icon.jpg',
+    type: 'image/jpeg',
+    size: 42,
+  });
+  assert.equal(image, 'https://api.lody.ai/api/avatars/avatar%2F1');
+  assert.equal(
+    (await updateWorkspaceIcon('token', 'w one', image)).image,
+    image,
+  );
 });
 
 test('workspace grant accepts the device session bearer directly', async (t) => {
