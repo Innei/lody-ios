@@ -1,4 +1,4 @@
-"""Connection status and a 44-point scroll action aligned with send."""
+"""Connection status and a 30-point scroll visual aligned with send."""
 import sys
 from driver import UI
 import catalog
@@ -37,12 +37,10 @@ status = ui.element('chat-connection-status')
 scroll = ui.element('chat-scroll-to-bottom')
 assert abs(center_x(status['frame']) - chrome_center()) <= 1, 'Showing scroll moved the connection status'
 send = ui.element('session-send')['frame']
-assert abs(scroll['frame']['x'] - send['x']) <= 1, 'Scroll does not share send leading edge'
-assert abs(scroll['frame']['x'] + scroll['frame']['width'] - send['x'] - send['width']) <= 1, \
-    'Scroll does not share send trailing edge'
+assert abs(center_x(scroll['frame']) - center_x(send)) <= 1, 'Scroll does not share send center'
 assert abs(max_y(status['frame']) - max_y(scroll['frame'])) <= 1, 'Paired glasses do not share a baseline'
-assert abs(scroll['frame']['width'] - 44) <= 1
-assert abs(scroll['frame']['height'] - 44) <= 1
+assert abs(scroll['frame']['width'] - 30) <= 1
+assert abs(scroll['frame']['height'] - 30) <= 1
 ui.capture('connecting-and-scroll')
 
 ui.axe('tap', '--label', 'Fixtures')
@@ -76,9 +74,7 @@ input_frame = ui.element('session-input')['frame']
 assert status_keyboard['y'] < status['frame']['y'] - 100, 'Chrome did not follow the raised composer'
 assert abs(max_y(status_keyboard) - max_y(scroll_keyboard)) <= 1, 'Keyboard separated the chrome baseline'
 send_keyboard = ui.element('session-send')['frame']
-assert abs(scroll_keyboard['x'] - send_keyboard['x']) <= 1, 'Keyboard broke leading alignment with send'
-assert abs(scroll_keyboard['x'] + scroll_keyboard['width'] - send_keyboard['x'] - send_keyboard['width']) <= 1, \
-    'Keyboard broke trailing alignment with send'
+assert abs(center_x(scroll_keyboard) - center_x(send_keyboard)) <= 1, 'Keyboard broke center alignment with send'
 assert scroll_keyboard['y'] + scroll_keyboard['height'] < input_frame['y'], 'Scroll action overlaps the input'
 ui.capture('keyboard')
-print('PASS: 44-point scroll action aligned with send, independent status, shared baseline, and collapse')
+print('PASS: 30-point scroll visual aligned with send, independent status, shared baseline, and collapse')

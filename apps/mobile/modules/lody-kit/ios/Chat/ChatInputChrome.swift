@@ -8,6 +8,7 @@ final class ChatInputChrome: UIView {
   }
 
   static let controlSize: CGFloat = 44
+  static let visualSize: CGFloat = 30
 
   var status = Status.none {
     didSet {
@@ -25,6 +26,7 @@ final class ChatInputChrome: UIView {
   var onScrollToBottom: (() -> Void)?
 
   private let statusSurface = LodyGlassView(interactive: true)
+  private let scrollHost = UIView()
   private let scrollSurface = LodyGlassView(interactive: true)
   private let statusButton = UIButton(type: .system)
   private let scrollButton = UIButton(type: .system)
@@ -35,8 +37,10 @@ final class ChatInputChrome: UIView {
     isUserInteractionEnabled = false
     statusSurface.cornerConfiguration = .capsule()
     scrollSurface.cornerConfiguration = .capsule()
+    scrollHost.isUserInteractionEnabled = false
     addSubview(statusSurface)
-    addSubview(scrollSurface)
+    addSubview(scrollHost)
+    scrollHost.addSubview(scrollSurface)
     for surface in [statusSurface, scrollSurface] {
       surface.onHidden = { [weak self] in
         guard let self else { return }
@@ -45,7 +49,7 @@ final class ChatInputChrome: UIView {
     }
     statusSurface.contentView.addSubview(statusButton)
     scrollSurface.contentView.addSubview(scrollButton)
-    [statusSurface, scrollSurface, statusButton, scrollButton].forEach {
+    [statusSurface, scrollHost, scrollSurface, statusButton, scrollButton].forEach {
       $0.translatesAutoresizingMaskIntoConstraints = false
     }
     var statusConfiguration = UIButton.Configuration.plain()
@@ -69,8 +73,8 @@ final class ChatInputChrome: UIView {
     scrollConfiguration.contentInsets = .zero
     scrollConfiguration.image = UIImage(systemName: "arrow.down")
     scrollConfiguration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(
-      pointSize: 17,
-      weight: .medium
+      pointSize: 14,
+      weight: .bold
     )
     scrollConfiguration.baseForegroundColor = .label
     scrollButton.configuration = scrollConfiguration
@@ -80,11 +84,15 @@ final class ChatInputChrome: UIView {
     NSLayoutConstraint.activate([
       statusSurface.centerXAnchor.constraint(equalTo: centerXAnchor),
       statusSurface.bottomAnchor.constraint(equalTo: bottomAnchor),
-      statusSurface.trailingAnchor.constraint(lessThanOrEqualTo: scrollSurface.leadingAnchor, constant: -8),
-      scrollSurface.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
-      scrollSurface.bottomAnchor.constraint(equalTo: bottomAnchor),
-      scrollSurface.widthAnchor.constraint(equalToConstant: Self.controlSize),
-      scrollSurface.heightAnchor.constraint(equalToConstant: Self.controlSize),
+      statusSurface.trailingAnchor.constraint(lessThanOrEqualTo: scrollHost.leadingAnchor, constant: -8),
+      scrollHost.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
+      scrollHost.bottomAnchor.constraint(equalTo: bottomAnchor),
+      scrollHost.widthAnchor.constraint(equalToConstant: Self.controlSize),
+      scrollHost.heightAnchor.constraint(equalToConstant: Self.controlSize),
+      scrollSurface.centerXAnchor.constraint(equalTo: scrollHost.centerXAnchor),
+      scrollSurface.bottomAnchor.constraint(equalTo: scrollHost.bottomAnchor),
+      scrollSurface.widthAnchor.constraint(equalToConstant: Self.visualSize),
+      scrollSurface.heightAnchor.constraint(equalToConstant: Self.visualSize),
       statusButton.leadingAnchor.constraint(equalTo: statusSurface.contentView.leadingAnchor),
       statusButton.trailingAnchor.constraint(equalTo: statusSurface.contentView.trailingAnchor),
       statusButton.topAnchor.constraint(equalTo: statusSurface.contentView.topAnchor),

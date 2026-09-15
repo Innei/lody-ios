@@ -75,15 +75,17 @@ precondition(!reconnected, "Connecting must not invoke reconnect")
 show(.connecting, scroll: true)
 let statusBoth = frame(statusControl())
 let scrollBoth = frame(scrollControl())
+let sendSlotMaxX = composer.frame.maxX - 18
+let sendSlotCenterX = sendSlotMaxX - ChatInputChrome.controlSize / 2
 precondition(shown(scrollControl()))
-precondition(abs(scrollBoth.width - ChatInputChrome.controlSize) < 0.5)
-precondition(abs(scrollBoth.height - ChatInputChrome.controlSize) < 0.5)
-precondition(abs(scrollBoth.maxX - (composer.frame.maxX - 18)) < 0.5,
-  "Scroll action shares the send control trailing inset")
+precondition(abs(scrollBoth.width - ChatInputChrome.visualSize) < 0.5)
+precondition(abs(scrollBoth.height - ChatInputChrome.visualSize) < 0.5)
+precondition(abs(scrollBoth.midX - sendSlotCenterX) < 0.5,
+  "Scroll visual shares the send control center")
 precondition(abs(statusBoth.maxY - scrollBoth.maxY) < 0.5, "Paired glasses share one baseline")
 let expectedSymbol = UIImage(
   systemName: "arrow.down",
-  withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .medium)
+  withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
 )!
 let actualSymbol = UIImage(
   systemName: "arrow.down",
@@ -128,7 +130,8 @@ precondition(!shown(statusControl()))
 precondition(frame(scrollControl()) == scrollBoth, "Hiding status must not move the scroll action")
 host.frame.size = CGSize(width: 760, height: 520)
 host.layoutIfNeeded()
-precondition(abs(frame(scrollControl()).maxX - (composer.frame.maxX - 18)) < 0.5)
-precondition(abs(frame(scrollControl()).maxY + 8 - composer.frame.minY) < 0.5,
+let resized = frame(scrollControl())
+precondition(abs(resized.midX - (composer.frame.maxX - 18 - ChatInputChrome.controlSize / 2)) < 0.5)
+precondition(abs(resized.maxY + 8 - composer.frame.minY) < 0.5,
   "Resizing the host preserves the composer baseline")
-print("Chat chrome: 44-point scroll action aligned with send, independent status, touch passthrough and resize passed")
+print("Chat chrome: 30-point scroll visual aligned with send, 44-point target, independent status, touch passthrough and resize passed")
