@@ -52,6 +52,19 @@ jobs:
           xcrun simctl bootstatus "$udid" -b
       - name: Native behavior checks
         run: pnpm verify:native --udid "$UI_UDID"
+      - name: Capture failed Simulator screen
+        if: failure() && env.UI_UDID != ''
+        run: |
+          mkdir -p .artifacts/ui-failure
+          xcrun simctl io "$UI_UDID" screenshot .artifacts/ui-failure/native-device.png || true
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-failure-native-${{ github.sha }}
+          path: .artifacts/ui-failure
+          retention-days: 14
+          if-no-files-found: warn
       - name: Remove owned Simulator
         if: always() && env.UI_UDID != ''
         run: |
@@ -143,6 +156,22 @@ jobs:
           xcrun simctl bootstatus "$udid" -b
       - name: Core offline UI regression
         run: python3 apps/mobile/verification/ui/run.py --udid "$UI_UDID" --app "$RUNNER_TEMP/lody-app/Lody.app" --suite "${{ matrix.suite }}" --embedded
+      - name: Capture failed Simulator screen
+        if: failure() && env.UI_UDID != ''
+        run: |
+          mkdir -p .artifacts/ui-failure
+          xcrun simctl io "$UI_UDID" screenshot ".artifacts/ui-failure/${{ matrix.suite }}-device.png" || true
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-failure-${{ matrix.suite }}-${{ github.sha }}
+          path: |
+            .artifacts/ui-failure
+            .artifacts/ui/failures
+            .artifacts/ui/**/failure.png
+          retention-days: 14
+          if-no-files-found: warn
       - name: Upload verification evidence
         if: always()
         uses: actions/upload-artifact@v4

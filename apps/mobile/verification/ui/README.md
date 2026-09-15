@@ -245,7 +245,10 @@ incoming request, an unfinished server response, and app-side failure.
 `environment.json` records Node, Xcode and AXe versions, the selected suite or
 batch, appearances, and whether video is required. UI artifacts contain
 results.json, per-case logs, screenshots and accessibility trees, plus video when
-the run requires it, including failures. Missing scenes and timeouts fail the
+the run requires it, including failures. A failed case always takes a Simulator
+framebuffer screenshot first (`failure.png`, also copied to `failures/`); that
+does not wait on AXe. CI uploads those plus a job-level `simctl io screenshot`
+as `ui-failure-*` when a Simulator job fails. Missing scenes and timeouts fail the
 job. A core-suite run does not fail only because `run.mp4` is absent. No login
 or distribution signing secret is used.
 

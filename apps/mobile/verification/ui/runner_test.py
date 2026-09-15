@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from driver import UI
 from orchestrator import managed_metro, prewarm_bundle, run_batches
 
 
@@ -149,6 +150,38 @@ class CaseSelectionTest(unittest.TestCase):
         self.assertIn("appearances = ['light']", source)
         self.assertIn("'--embedded'", source)
         self.assertIn('args.shared_metro or args.embedded', source)
+        self.assertIn("ui.screenshot('failure')", source)
+
+
+class CaptureTest(unittest.TestCase):
+    def test_screenshot_does_not_need_axe(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+
+            def run(command, **_kwargs):
+                Path(command[-1]).write_bytes(b'png')
+                return subprocess.CompletedProcess(command, 0)
+
+            with patch('subprocess.run', run):
+                path = ui.screenshot('failure')
+            self.assertEqual(path, Path(directory) / 'failure.png')
+            self.assertTrue(path.exists())
+
+    def test_capture_keeps_screenshot_when_describe_ui_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+
+            def run(command, **_kwargs):
+                Path(command[-1]).write_bytes(b'png')
+                return subprocess.CompletedProcess(command, 0)
+
+            with (
+                patch('subprocess.run', run),
+                patch.object(ui, 'axe', side_effect=subprocess.TimeoutExpired('axe', 20)),
+                self.assertRaises(subprocess.TimeoutExpired),
+            ):
+                ui.capture('failure')
+            self.assertTrue((Path(directory) / 'failure.png').exists())
 
 
 class PrewarmTest(unittest.TestCase):

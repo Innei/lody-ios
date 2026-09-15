@@ -395,9 +395,18 @@ with metro_context:
                     except Exception as log_error:
                         result['nativeLogError'] = str(log_error)
                     try:
-                        ui.capture('failure')
+                        ui.screenshot('failure')
+                    except Exception as screenshot_error:
+                        result['screenshotError'] = str(screenshot_error)
+                    try:
+                        (output / 'failure.json').write_text(ui.axe('describe-ui'))
                     except Exception as capture_error:
                         result['captureError'] = str(capture_error)
+                    failure_png = output / 'failure.png'
+                    if failure_png.exists():
+                        failures = args.output / 'failures'
+                        failures.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(failure_png, failures / f'{appearance}-{case}.png')
                 finally:
                     if recording is not None:
                         recording.send_signal(signal.SIGINT)

@@ -114,6 +114,17 @@ class UI:
         return self.wait(lambda items: next((i for i in items if i.get('AXUniqueId') == identifier), None),
                          f'Missing {identifier}', timeout)
 
+    def screenshot(self, name):
+        """Framebuffer capture that does not depend on AXe remaining responsive."""
+        path = self.output / f'{name}.png'
+        subprocess.run(
+            ['xcrun', 'simctl', 'io', self.udid, 'screenshot', str(path)],
+            check=True,
+            timeout=20,
+            capture_output=True,
+        )
+        return path
+
     def capture(self, name):
+        self.screenshot(name)
         (self.output / f'{name}.json').write_text(self.axe('describe-ui'))
-        subprocess.run(['xcrun', 'simctl', 'io', self.udid, 'screenshot', str(self.output / f'{name}.png')], check=True, timeout=20, capture_output=True)
