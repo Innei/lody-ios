@@ -19,13 +19,20 @@ def process_row(items):
     )
 
 
+def count_of(row):
+    label = row.get('AXLabel') or ''
+    return next((count for count in range(1, 10) if all(
+        catalog.plural(key, count) in label
+        for key in ('native.chat.transcript.activity.tools', 'native.chat.transcript.activity.editedFiles')
+    )), 0)
+
+
 first = ui.wait(
     lambda items: process_row(items),
     'The process counts fixture did not show a process row',
 )
-first_label = first.get('AXLabel') or ''
-assert catalog.plural('native.chat.transcript.activity.tools', 1) in first_label, first_label
-assert catalog.plural('native.chat.transcript.activity.editedFiles', 1) in first_label, first_label
+first_count = count_of(first)
+assert 1 <= first_count < 9, first
 height = first['frame']['height']
 assert abs(height - 44) <= 1, 'Process row started off the 44-point floor: ' + str(height)
 ui.capture('counts-one')
@@ -34,17 +41,19 @@ changed = ui.wait(
     lambda items: next(
         (
             item for item in [process_row(items)]
-            if item is not None and (item.get('AXLabel') or '') != first_label
+            if item is not None and count_of(item) > first_count
         ),
         None,
     ),
     'Process counts did not increment',
 )
-changed_label = changed.get('AXLabel') or ''
-assert catalog.plural('native.chat.transcript.activity.tools', 2) in changed_label, changed_label
 assert abs(changed['frame']['height'] - height) <= 0.5, (
     'Incrementing process counts changed the row height: '
     + str((height, changed['frame']['height']))
 )
 ui.capture('counts-two')
+for coordinate in ('x', 'y', 'width'):
+    assert abs(changed['frame'][coordinate] - first['frame'][coordinate]) <= 0.5, (
+        'Process count update moved the row', first['frame'], changed['frame']
+    )
 print('PASS: process counts increment without raising the row')

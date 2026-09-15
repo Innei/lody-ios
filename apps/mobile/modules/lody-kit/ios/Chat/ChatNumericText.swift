@@ -6,6 +6,7 @@ final class ChatNumericTextModel {
   var attributed = AttributedString()
   var value = ""
   var shines = false
+  var color = Color.primary
 }
 
 struct ChatNumericTextBridge: View {
@@ -13,48 +14,25 @@ struct ChatNumericTextBridge: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    laidOutGlyphs
-      .contentTransition(.numericText())
-      .overlay {
-        if model.shines && !reduceMotion { shine }
-      }
-      .padding(0)
-  }
-
-  private var glyphs: some View {
-    Text(model.attributed)
-      .multilineTextAlignment(.leading)
-  }
-
-  private var laidOutGlyphs: some View {
-    glyphs
-      .fixedSize(horizontal: false, vertical: true)
-      .frame(maxWidth: .infinity, alignment: .topLeading)
-  }
-
-  private var shine: some View {
-    TimelineView(.animation(minimumInterval: 1.0 / 60, paused: false)) { context in
+    TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !model.shines || reduceMotion)) { context in
       let period = 1.5
       let progress = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
-      GeometryReader { geo in
-        let width = max(1, geo.size.width)
-        LinearGradient(
+      let highlight = model.shines && !reduceMotion ? model.color.mix(with: .white, by: 0.64) : model.color
+      Text(model.attributed)
+        .foregroundStyle(LinearGradient(
           stops: [
-            .init(color: .clear, location: 0.25),
-            .init(color: Color.white.opacity(0.64), location: 0.5),
-            .init(color: .clear, location: 0.75),
+            .init(color: model.color, location: 0.25),
+            .init(color: highlight, location: 0.5),
+            .init(color: model.color, location: 0.75),
           ],
-          startPoint: .leading,
-          endPoint: .trailing
-        )
-        .frame(width: width, height: max(1, geo.size.height))
-        .offset(x: (-1 + 2 * progress) * width)
-      }
-      .mask(alignment: .topLeading) {
-        laidOutGlyphs
-      }
+          startPoint: UnitPoint(x: -1 + 2 * progress, y: 0),
+          endPoint: UnitPoint(x: 2 * progress, y: 0)
+        ))
+        .multilineTextAlignment(.leading)
+        .contentTransition(.numericText())
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
-    .allowsHitTesting(false)
   }
 }
 
@@ -85,12 +63,16 @@ final class ChatNumericTextHost: UIView {
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   func apply(text: NSAttributedString, animated: Bool, shines: Bool) {
-    let attributed = AttributedString(text)
+    let styled = NSMutableAttributedString(attributedString: text)
+    let color = text.length > 0 ? text.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor : nil
+    styled.removeAttribute(.foregroundColor, range: NSRange(location: 0, length: styled.length))
+    let attributed = AttributedString(styled)
     let value = text.string
     let update = {
       self.model.attributed = attributed
       self.model.value = value
       self.model.shines = shines
+      self.model.color = Color(uiColor: color ?? .label)
     }
     let motion = animated
       && window != nil

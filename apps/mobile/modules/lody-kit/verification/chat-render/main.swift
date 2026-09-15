@@ -427,6 +427,8 @@ numericHost.layoutIfNeeded()
   }.pngData()!
 }
 let shortRest = processSnapshot(shortHost, x: 0, width: shortWidth)
+let blankX = shortWidth + 4
+let blankRest = processSnapshot(shortHost, x: blankX, width: countWidth - blankX)
 let suffixRest = processSnapshot(numericHost, x: countTextWidth - suffixWidth, width: suffixWidth)
 shortHost.apply(text: shortText, animated: false, shines: true)
 numericHost.apply(text: countText, animated: false, shines: true)
@@ -435,15 +437,25 @@ var suffixFrames: [Data] = []
 for _ in 0..<10 {
   RunLoop.main.run(until: Date().addingTimeInterval(0.16))
   shortFrames.append(processSnapshot(shortHost, x: 0, width: shortWidth))
+  precondition(
+    processSnapshot(shortHost, x: blankX, width: countWidth - blankX) == blankRest,
+    "Shine must not draw a shifted copy of the text in the trailing blank area"
+  )
   suffixFrames.append(processSnapshot(numericHost, x: countTextWidth - suffixWidth, width: suffixWidth))
+}
+func sameProcessPixels(_ image: Data, _ reference: Data) -> Bool {
+  let pixels = UIImage(data: image)!.cgImage!.dataProvider!.data! as Data
+  let expected = UIImage(data: reference)!.cgImage!.dataProvider!.data! as Data
+  // Gradient interpolation can round an unchanged channel by one 8-bit step.
+  return pixels.count == expected.count && zip(pixels, expected).allSatisfy { abs(Int($0) - Int($1)) <= 1 }
 }
 if !UIAccessibility.isReduceMotionEnabled {
   precondition(shortFrames.contains { $0 != shortRest }, "Shine must cross the visible short process title")
   precondition(Set(shortFrames).count > 1, "Shine must travel across the short process title")
-  precondition(shortFrames.contains(shortRest), "Text outside the pale shine keeps its normal color")
+  precondition(shortFrames.contains { sameProcessPixels($0, shortRest) }, "Text outside the pale shine keeps its normal color")
   precondition(suffixFrames.contains { $0 != suffixRest }, "Shine must cross the full process row suffix")
   precondition(Set(suffixFrames).count > 1, "Shine must travel through the full process row suffix")
-  precondition(suffixFrames.contains(suffixRest), "The full-row suffix keeps its normal color outside the shine")
+  precondition(suffixFrames.contains { sameProcessPixels($0, suffixRest) }, "The full-row suffix keeps its normal color outside the shine")
 }
 shortHost.apply(text: shortText, animated: false, shines: false)
 numericHost.apply(text: countText, animated: false, shines: false)
