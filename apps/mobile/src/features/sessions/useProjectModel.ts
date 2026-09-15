@@ -37,14 +37,7 @@ export function useProjectModel(projectId: string) {
     catalog,
     colors,
     newSession: () => {
-      if (selected)
-        void requestNewSession(
-          selected.id,
-          catalog,
-          projectId,
-          undefined,
-          t('project.newSession.accessibility'),
-        );
+      if (selected) void requestNewSession(selected.id, catalog, projectId);
     },
     placeholder,
     project,

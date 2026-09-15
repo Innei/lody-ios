@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { cancelComposerRelay, prepareMorphReveal } from '@lody-ios/kit';
-import { present, type PagePresentationOptions } from '@/lib/presentation';
+import { cancelComposerRelay } from '@lody-ios/kit';
+import { present } from '@/lib/presentation';
 import { showToast } from '@/ui/toast';
 import { subscribeSessionNav } from '@/features/sessions/sessionNav';
 import { SessionScreen, type SessionParams } from '@/screens/SessionScreen';
@@ -8,16 +8,6 @@ import { CreateSessionScreen } from '@/screens/CreateSessionScreen';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { t } from '../../lib/i18n/index.ts';
-
-function sheetOptions(
-  morphSourceLabel: string | undefined,
-  embedded: boolean,
-): Partial<PagePresentationOptions> | undefined {
-  if (embedded) return { sheetAllowedDetents: [1], sheetGrabberVisible: false };
-  if (!morphSourceLabel) return undefined;
-  prepareMorphReveal(morphSourceLabel);
-  return { animationType: 'none' };
-}
 
 export function useBindSessionNav({
   enabled = true,
@@ -68,7 +58,9 @@ export function useBindSessionNav({
               return opening;
             },
           },
-          sheetOptions(intent.morphSourceLabel, !!openSession),
+          openSession
+            ? { sheetAllowedDetents: [1], sheetGrabberVisible: false }
+            : undefined,
         );
         if (result.status === 'completed') {
           relayId = result.value.composerRelayId;
