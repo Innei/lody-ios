@@ -72,14 +72,11 @@ final class LodyProjectRowView: UIView, UIContentView {
       addSubview(view)
     }
     let margin = layoutMarginsGuide
-    // The >= margins bound the height; this pulls it down to the taller of tile and text.
-    let shrink = heightAnchor.constraint(equalToConstant: 0)
-    shrink.priority = .defaultLow
+    tileWidth = tile.widthAnchor.constraint(equalToConstant: 32)
     // The stack has no intrinsic width of its own; fill up to the trailing group.
     let fill = text.trailingAnchor.constraint(equalTo: count.leadingAnchor, constant: -10)
     fill.priority = .defaultHigh
     textSpacing = text.leadingAnchor.constraint(equalTo: tile.trailingAnchor, constant: 12)
-    tileWidth = tile.widthAnchor.constraint(equalToConstant: 32)
     NSLayoutConstraint.activate([
       heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
       tileWidth,
@@ -87,13 +84,11 @@ final class LodyProjectRowView: UIView, UIContentView {
       tile.leadingAnchor.constraint(equalTo: margin.leadingAnchor),
       tile.centerYAnchor.constraint(equalTo: centerYAnchor),
       tile.topAnchor.constraint(greaterThanOrEqualTo: margin.topAnchor),
-      text.topAnchor.constraint(greaterThanOrEqualTo: margin.topAnchor),
-      text.bottomAnchor.constraint(lessThanOrEqualTo: margin.bottomAnchor),
-      text.centerYAnchor.constraint(equalTo: centerYAnchor),
+      text.topAnchor.constraint(equalTo: margin.topAnchor),
+      text.bottomAnchor.constraint(equalTo: margin.bottomAnchor),
       textSpacing,
       text.trailingAnchor.constraint(lessThanOrEqualTo: count.leadingAnchor, constant: -10),
       text.trailingAnchor.constraint(lessThanOrEqualTo: chip.leadingAnchor, constant: -10),
-      shrink,
       fill,
       count.trailingAnchor.constraint(equalTo: margin.trailingAnchor),
       count.centerYAnchor.constraint(equalTo: centerYAnchor),

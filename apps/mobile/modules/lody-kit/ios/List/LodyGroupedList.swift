@@ -60,6 +60,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private var rowsByID: [ListItemID: LodyListRow] = [:]
   private var toggles: [String: RowSwitch] = [:]
   private var dataSource: UICollectionViewDiffableDataSource<String, ListItemID>!
+  private var applyingSections = false
+  private var pendingSections: ([LodyListSection], Bool)?
 
   private static let restingCard = UIColor.tertiarySystemGroupedBackground
 
@@ -432,6 +434,15 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   func setSections(_ value: [LodyListSection], animated: Bool = true) {
+    guard !applyingSections else {
+      pendingSections = (value, animated)
+      return
+    }
+    applyingSections = true
+    applySections(value, animated: animated)
+  }
+
+  private func applySections(_ value: [LodyListSection], animated: Bool) {
     let previous = dataSource.snapshot()
     sections = value
     rowsByID = Dictionary(value.flatMap { section in
@@ -440,7 +451,9 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     let live = Set(rowsByID.keys.map(\.row))
     toggles = toggles.filter { live.contains($0.key) }
     if contentStyle, value.contains(where: { $0.rows.first?.parent == true }) {
-      applyOutline(value, previous: previous)
+      applyOutline(value, previous: previous) { [weak self] in
+        self?.finishSectionUpdate()
+      }
       updatePlaceholder()
       return
     }
@@ -479,6 +492,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
         }
       }
       self.collection.collectionViewLayout.invalidateLayout()
+      self.finishSectionUpdate()
     }
     if animate {
       dataSource.apply(snapshot, animatingDifferences: true, completion: finish)
@@ -501,7 +515,11 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   /// order change rebuilds without animation: the flat snapshot that reorders
   /// sections carries no items, and re-adding them animated would replay every
   /// row.
-  private func applyOutline(_ value: [LodyListSection], previous: NSDiffableDataSourceSnapshot<String, ListItemID>) {
+  private func applyOutline(
+    _ value: [LodyListSection],
+    previous: NSDiffableDataSourceSnapshot<String, ListItemID>,
+    completion: @escaping () -> Void
+  ) {
     let ids = value.map(\.id)
     let sameSections = previous.sectionIdentifiers == ids
     if !sameSections {
@@ -510,7 +528,17 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       dataSource.apply(main, animatingDifferences: false)
     }
     let animate = sameSections && window != nil && !UIAccessibility.isReduceMotionEnabled
-    for section in value {
+
+    func applySection(at index: Int) {
+      guard index < value.count else {
+        for index in collection.indexPathsForVisibleItems {
+          guard let cell = collection.cellForItem(at: index) as? UICollectionViewListCell, let row = row(at: index) else { continue }
+          configure(cell, row: row)
+        }
+        completion()
+        return
+      }
+      let section = value[index]
       var snapshot = NSDiffableDataSourceSectionSnapshot<ListItemID>()
       let items = section.rows.map { ListItemID(section: section.id, row: $0.id) }
       if let parent = items.first, section.rows[0].parent {
@@ -520,12 +548,18 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       } else {
         snapshot.append(items)
       }
-      dataSource.apply(snapshot, to: section.id, animatingDifferences: animate)
+      dataSource.apply(snapshot, to: section.id, animatingDifferences: animate) {
+        applySection(at: index + 1)
+      }
     }
-    for index in collection.indexPathsForVisibleItems {
-      guard let cell = collection.cellForItem(at: index) as? UICollectionViewListCell, let row = row(at: index) else { continue }
-      configure(cell, row: row)
-    }
+    applySection(at: 0)
+  }
+
+  private func finishSectionUpdate() {
+    applyingSections = false
+    guard let pending = pendingSections else { return }
+    pendingSections = nil
+    applySections(pending.0, animated: pending.1)
   }
 
   func setContentStyle(_ value: Bool) {

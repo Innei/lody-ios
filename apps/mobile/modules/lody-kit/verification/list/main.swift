@@ -1,5 +1,9 @@
 import UIKit
 
+func lodyTint(_ value: String) -> UIColor? {
+  value.isEmpty ? nil : .systemBlue
+}
+
 let menuButton = UIButton(type: .system)
 var menuConfiguration = UIButton.Configuration.plain()
 menuConfiguration.attributedTitle = AttributedString("我的超长工作区名称不能折行")
@@ -110,6 +114,7 @@ struct LodyListRow {
   var subtitle = ""
   var modelName = ""
   var value = ""
+  var imageTint = ""
   var unread = false
   var destructive = false
   var badge = ""
@@ -117,13 +122,27 @@ struct LodyListRow {
   var pinned = false
   var diff: [String: Int] = [:]
   var monogram = ""
-  var imageTint = ""
 }
 
-// Layout-only harness: project status colors are outside this check.
-func lodyTint(_ value: String) -> UIColor? {
-  precondition(value.isEmpty)
-  return nil
+func fittedSize(_ view: UIView, width: CGFloat) -> CGSize {
+  let host = UIView(frame: CGRect(x: 0, y: 0, width: width, height: 200))
+  host.addSubview(view)
+  view.translatesAutoresizingMaskIntoConstraints = false
+  NSLayoutConstraint.activate([
+    view.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+    view.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+    view.topAnchor.constraint(equalTo: host.topAnchor),
+  ])
+  host.layoutIfNeeded()
+  let size = view.systemLayoutSizeFitting(
+    CGSize(width: width, height: 0),
+    withHorizontalFittingPriority: .required,
+    verticalFittingPriority: .fittingSizeLevel
+  )
+  assert(size.width.isFinite && size.height.isFinite, "List content returned a non-finite size: \(size)")
+  assert(size.width >= 0 && size.height > 0, "List content returned an invalid size: \(size)")
+  view.removeFromSuperview()
+  return size
 }
 
 func laidOutSessionRow(_ content: LodySessionRowContent) -> LodySessionRowView {
@@ -389,3 +408,62 @@ assert(
   "Provider icons must keep the same text baseline as SF Symbols (\(symbolGlyphTitle.minY) vs \(assetGlyphTitle.minY))"
 )
 print("PASS: list asset glyphs keep SF Symbol text alignment")
+let projectRows = [
+  LodyListRow(title: "Project", subtitle: "/Users/example/project", value: "12", imageTint: "#007AFF", badge: "Live", monogram: "P"),
+  LodyListRow(title: "Project without metadata", monogram: "P"),
+]
+for width in [CGFloat(1), 320, 390, 760, 1024, 2048] {
+  for row in projectRows {
+    let view = LodyProjectRowView(LodyProjectRowContent(row: row, accent: .systemBlue))
+    _ = fittedSize(view, width: width)
+  }
+  let session = LodySessionRowView(
+    LodySessionRowContent(
+      row: LodyListRow(title: "A session with a long title that must remain measurable", subtitle: "project", value: "just now", badge: "Running"),
+      dot: .systemBlue,
+      live: true
+    )
+  )
+  _ = fittedSize(session, width: width)
+}
+
+print("PASS: project and session rows return finite sizes from 1 to 2048pt widths")
+
+@MainActor
+func exerciseCollectionSizing() {
+  let rows = [
+    LodyListRow(title: "Project", subtitle: "/Users/example/project", value: "12", imageTint: "#007AFF", badge: "Live", monogram: "P"),
+    LodyListRow(title: "A session with a long title that must remain measurable", subtitle: "project", value: "just now", badge: "Running"),
+  ]
+  let layout = UICollectionViewCompositionalLayout.list(using: .init(appearance: .insetGrouped))
+  let collection = UICollectionView(frame: CGRect(x: 0, y: 0, width: 390, height: 400), collectionViewLayout: layout)
+  let window = UIWindow(frame: collection.frame)
+  window.makeKeyAndVisible()
+  window.addSubview(collection)
+  let registration = UICollectionView.CellRegistration<LodyIndentedCell, Int> { cell, _, index in
+    let row = rows[index]
+    if index == 0 {
+      cell.contentConfiguration = LodyProjectRowContent(row: row, accent: .systemBlue)
+    } else {
+      cell.contentConfiguration = LodySessionRowContent(row: row, dot: .systemBlue, live: true)
+    }
+  }
+  let dataSource = UICollectionViewDiffableDataSource<Int, Int>(collectionView: collection) {
+    collectionView, indexPath, index in
+    collectionView.dequeueConfiguredReusableCell(using: registration, for: indexPath, item: index)
+  }
+  var snapshot = NSDiffableDataSourceSnapshot<Int, Int>()
+  snapshot.appendSections([0])
+  snapshot.appendItems([0, 1], toSection: 0)
+  dataSource.apply(snapshot, animatingDifferences: false)
+
+  for width in [320, 390, 760, 1024, 390, 320] {
+    collection.frame.size.width = CGFloat(width)
+    collection.collectionViewLayout.invalidateLayout()
+    collection.layoutIfNeeded()
+  }
+  withExtendedLifetime((window, dataSource)) {}
+}
+
+exerciseCollectionSizing()
+print("PASS: collection list survives repeated iOS width changes with custom rows")
