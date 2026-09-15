@@ -2,6 +2,7 @@
 import sys
 import time
 from driver import UI
+from sheet_background import capture_card
 import catalog
 
 ui = UI(sys.argv[1], sys.argv[2])
@@ -92,7 +93,7 @@ assert abs(after_pull - before_pull) <= 2, 'Pulling the CRDT inbox left a refres
 tap_create()
 ui.element('create-session-input')
 ui.element('create-type')
-ui.capture('create')
+capture_card(ui, 'create', 'project')
 ui.wait(lambda items: any('Fixture Agent' in (i.get('AXLabel') or '') for i in items), 'Creation options did not load')
 # Local machine ownership is explained on the project, not a one-choice picker.
 assert 'Fixture Mac' in ui.element('project')['AXLabel']
@@ -154,7 +155,7 @@ ui.axe(
 )
 expanded_header = next(item['frame'] for item in ui.state() if item.get('AXLabel') == close_create)
 assert expanded_header['y'] < header['y'] - 100, 'Creation sheet did not expand to the full detent'
-ui.capture('create-full')
+capture_card(ui, 'create-full', 'project')
 
 # A repository with no existing sessions is discoverable, and can run on a
 # teammate's shared machine. Local projects continue to pin their own machine.

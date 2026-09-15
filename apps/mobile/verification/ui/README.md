@@ -195,6 +195,12 @@ Markdown is rendered by the actual chat baseline, with screenshots/video for
 review. There is no pixel-diff gate yet: screenshots are evidence, not automatic
 proof of typography or animation quality.
 
+`composer` and `home` additionally sample the rendered card inset and adjacent
+sheet material, requiring a visible color difference. This covers the compact
+and expanded creation hosts (`NativeGroupedList` and `NativePagedList`) and the
+picker pushed inside the expanded sheet. Review the captured light/dark images
+as well; the color check alone does not establish visual correctness.
+
 ## CI and future UI changes
 
 `.github/workflows/verify.yml` runs Checks, Native behavior, one signed
