@@ -1510,7 +1510,7 @@ test('guide writes a steer history turn instead of the FIFO queue', async () => 
     const entry = raw.history.find((item) => item.id === result.id);
     assert.equal(entry.role, 'user');
     assert.equal(entry.status, 'processing');
-    assert.notEqual(entry.inputConfig?._lodyDeliveryKind, 'steer');
+    assert.equal(entry.inputConfig?._lodyDeliveryKind, 'steer');
     const projected = fixture.runtime
       .projectSession(fixture.server, 'live')
       .entries.find((item) => item.id === result.id);
@@ -1747,4 +1747,41 @@ test('guide continues offscreen and an uncertain or rejected steer never masquer
       fixture.close();
     }
   }
+});
+
+test('chat failures retain raw diagnostics and update when only metadata changes', async () => {
+  const { projectSession } = await loadRuntime();
+  const doc = new LoroDoc();
+  const entry = doc.getList('history').pushContainer(new LoroMap());
+  entry.set('id', 'failure');
+  entry.set('role', 'system');
+  const item = entry
+    .setContainer('items', new LoroList())
+    .pushContainer(new LoroMap());
+  item.set('type', 'system_notice');
+  item.set('name', 'chat_failed');
+  item.set('meta', { reason: 'acp_unknown_error', message: 'raw\nerror' });
+  doc.commit();
+  const before = projectSession(doc, 'live');
+  assert.equal(before.entries[0].items[0].meta.message, 'raw\nerror');
+  item.set('meta', {
+    reason: 'future_reason',
+    code: 'future_code',
+    message: 'updated',
+  });
+  doc.commit();
+  const after = projectSession(doc, 'live');
+  assert.deepEqual(after.entries[0].items[0].meta, {
+    reason: 'future_reason',
+    code: 'future_code',
+    message: 'updated',
+  });
+  assert.ok(after.entries[0].rev > before.entries[0].rev);
+  assert.ok(after.entries[0].items[0].rev > before.entries[0].items[0].rev);
+  item.set('meta', { message: 42 });
+  doc.commit();
+  assert.equal(
+    projectSession(doc, 'live').entries[0].items[0].meta.message,
+    undefined,
+  );
 });

@@ -1,4 +1,17 @@
+export type SystemNoticeMeta = {
+  reason?: string;
+  code?: string;
+  message?: string;
+};
+
 export type ItemSummary =
+  | {
+      itemId: string;
+      rev: number;
+      type: 'system_notice';
+      name: string;
+      meta?: SystemNoticeMeta;
+    }
   | { itemId: string; rev: number; type: 'text'; text: string }
   | { itemId: string; rev: number; type: 'thought'; text: string }
   | {
@@ -44,6 +57,12 @@ export type EntrySummary = {
   status: string;
   finished: boolean;
   canSteer?: boolean;
+  userTurnId?: string;
+  executionId?: string;
+  executionFinished?: boolean;
+  steerCount?: number;
+  delivery?: string;
+  holdOpen?: boolean;
   timestamp?: string;
   startedAt?: number;
   endedAt?: number;

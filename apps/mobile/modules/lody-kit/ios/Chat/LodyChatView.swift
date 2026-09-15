@@ -60,6 +60,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   let onSend = EventDispatcher()
   let onStop = EventDispatcher()
   let onSteer = EventDispatcher()
+  let onErrorRetry = EventDispatcher()
+  var errorRetryState: ChatErrorRetryState?
   let onActivityPress = EventDispatcher()
   let onFilePress = EventDispatcher()
   let onTurnChangesPress = EventDispatcher()
@@ -263,11 +265,19 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     collection.register(ChatMessageAttachmentsCell.self, forCellWithReuseIdentifier: "attachments")
     collection.register(ChatImageCell.self, forCellWithReuseIdentifier: "image")
     collection.register(ChatHistoryHeader.self, forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader, withReuseIdentifier: "history")
+    collection.register(ChatErrorCell.self, forCellWithReuseIdentifier: "error")
     collection.register(ChatCell.self, forCellWithReuseIdentifier: "message")
     collection.register(ChatMetaCell.self, forCellWithReuseIdentifier: "meta")
     collection.register(ChatMarkdownCell.self, forCellWithReuseIdentifier: "markdown")
     dataSource = UICollectionViewDiffableDataSource<String, String>(collectionView: collection) { [weak self] collection, index, id in
       guard let self, let row = self.rows[id] else { return nil }
+      if row.kind == "chat_failed" {
+        let cell = collection.dequeueReusableCell(withReuseIdentifier: "error", for: index) as! ChatErrorCell
+        cell.configure(row)
+        cell.onDetail = { [weak self] in self?.onActivityPress(["entryId": row.entryID, "itemId": row.itemID]) }
+        cell.onRetry = { [weak self] in self?.onErrorRetry(["entryId": row.entryID, "itemId": row.itemID, "id": UUID().uuidString.lowercased()]) }
+        return cell
+      }
       if row.kind == "meta" {
         let cell = collection.dequeueReusableCell(withReuseIdentifier: "meta", for: index) as! ChatMetaCell
         cell.configure(row)

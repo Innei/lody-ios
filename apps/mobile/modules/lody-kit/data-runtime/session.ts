@@ -3,6 +3,7 @@ import { StreamsClient } from '@loro-dev/streams-client';
 import { decompress } from 'fzstd';
 import { decodeFrames, encodeFrame } from '../decoder/frames';
 import { identityAt, itemRev, projectSession } from './project';
+import type { SteerReceipt } from './execution';
 import { machineRpc, type RpcReply } from './machine-rpc';
 import { retrySessionRead } from './session-read';
 import {
@@ -24,6 +25,7 @@ type SessionState = {
   sending: boolean;
   working?: boolean;
   sendingId?: string;
+  steerReceipts?: Map<string, SteerReceipt>;
   backgroundWork?: { id: string; turnId: string };
   status: string;
   reason?: string;
@@ -96,6 +98,7 @@ function flush(state: SessionState) {
     state.status,
     state.reason,
     new Map([...state.unsent].map(([key, pending]) => [key, pending.outcome])),
+    state.steerReceipts,
   );
   state.emit({
     type: active === state ? 'session' : 'sessionCache',
@@ -649,8 +652,17 @@ export async function sendTurn(
           !history
             .slice(lastUser + 1)
             .some((entry) => entry.role === 'assistant')));
+    if (guide) {
+      state.steerReceipts ??= new Map();
+      state.steerReceipts.set(id, { targetId: guide.id, state: 'confirming' });
+    }
     const before = state.doc.version();
     writeStarted = true;
+    if (guide)
+      state.doc.getMap('lodySteerLinks').set(id, {
+        targetId: guide.id,
+        mode: 'native',
+      });
     if (queued) {
       // OSS consumes the shared movable queue, then creates its history turn.
       const item = state.doc.getMovableList('mq').pushContainer(new LoroMap());
@@ -674,7 +686,7 @@ export async function sendTurn(
         id,
         text,
         args.userId,
-        inputConfig,
+        guide ? { ...inputConfig, _lodyDeliveryKind: 'steer' } : inputConfig,
         timestamp,
         guide ? 'pending_apply' : 'pending',
       );
@@ -818,6 +830,7 @@ export async function controlTurn(args: {
   machineId: string;
   turnId: string;
   messageId?: string;
+  interrupt?: boolean;
 }) {
   const state = active;
   if (!state || state.id !== args.sessionId || !state.ready || state.sending)
@@ -880,7 +893,58 @@ export async function controlTurn(args: {
         !timestamp
       )
         throw new Error('message_not_queued');
+      if (args.interrupt && (index !== 0 || entry))
+        throw new Error('message_not_first');
+      state.steerReceipts ??= new Map();
+      state.steerReceipts.set(args.messageId, {
+        targetId: args.turnId,
+        state: 'confirming',
+      });
       const before = state.doc.version();
+      state.doc.getMap('lodySteerLinks').set(args.messageId, {
+        targetId: args.turnId,
+        mode: args.interrupt ? 'interrupt' : 'native',
+      });
+      if (args.interrupt) {
+        // Cancellation resumes the existing FIFO queue. Persist the exact edge
+        // before cancellation; do not move/replay the machine-owned queue.
+        const queued = queue.get(index);
+        if (!(queued instanceof LoroMap)) throw new Error('invalid_queue');
+        const queuedConfig = queued.get('acpSessionConfig');
+        if (!(queuedConfig instanceof LoroMap))
+          throw new Error('invalid_queue');
+        queuedConfig.set('_lodyDeliveryKind', 'steer');
+        queuedConfig.set('_lodySteerTarget', args.turnId);
+        queuedConfig.set('_lodySteerMode', 'interrupt');
+        state.doc.commit();
+        scheduleEmit(state, state.status);
+        const uploaded = await state.client.append({
+          part: {
+            contentType: 'application/octet-stream',
+            body: encodeFrame(
+              state.doc.export({ mode: 'update', from: before }),
+            ),
+          },
+        });
+        if (!uploaded.ok) throw new Error('steer_unconfirmed');
+        const reply = await machineRpc(
+          state.workspace,
+          args.machineId,
+          'session/cancel',
+          { sessionId: state.id, turnId: args.turnId },
+          state.getGrant,
+          AbortSignal.any([
+            state.controller.signal,
+            AbortSignal.timeout(35000),
+          ]),
+        );
+        if (
+          reply.error ||
+          (reply.result as { success?: boolean })?.success !== true
+        )
+          throw new Error('steer_unconfirmed');
+        return { state: 'applied' };
+      }
       // Move the same id atomically. pending_apply is durable intent, not delivery.
       // A lost append/RPC ACK must never trigger an automatic replay.
       if (!entry) {
@@ -933,6 +997,18 @@ export async function controlTurn(args: {
     if (result?.success !== true)
       throw new Error(result?.error ?? 'stop_failed');
     return { state: 'stopped' };
+  } catch (error) {
+    if (
+      args.action === 'steer' &&
+      args.messageId &&
+      state.steerReceipts?.has(args.messageId)
+    ) {
+      state.steerReceipts?.set(args.messageId, {
+        targetId: args.turnId,
+        state: 'unknown',
+      });
+    }
+    throw error;
   } finally {
     state.sending = false;
     scheduleEmit(state, state.status);
@@ -944,6 +1020,15 @@ async function steerTurn(
   machineId: string,
   params: Record<string, unknown>,
 ) {
+  state.steerReceipts ??= new Map();
+  const record = (delivery: SteerReceipt['state']) => {
+    state.steerReceipts!.set(String(params.userTurnId), {
+      targetId: String(params.expectedTurnId),
+      state: delivery,
+    });
+    scheduleEmit(state, state.status);
+  };
+  record('confirming');
   const reply = await machineRpc(
     state.workspace,
     machineId,
@@ -956,11 +1041,17 @@ async function steerTurn(
       message: error instanceof Error ? error.message : 'control_failed',
     },
   }));
-  if (reply.error) return { state: 'not_applied', reason: reply.error.message };
+  if (reply.error) {
+    record('unknown');
+    return { state: 'not_applied', reason: reply.error.message };
+  }
   const result = reply.result as
     { applied?: boolean; disposition?: string } | undefined;
-  if (result?.applied !== true)
+  if (result?.applied !== true) {
+    record('unknown');
     return { state: 'not_applied', reason: result?.disposition ?? 'unknown' };
+  }
+  record('accepted');
   const history = state.doc.getList('history');
   const before = state.doc.version();
   for (let i = 0; i < history.length; i++) {

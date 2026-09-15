@@ -84,12 +84,12 @@ test('queue controls preserve identity, attachments and FIFO; stale and uncertai
       .entries.find((entry) => entry.id === second.id);
     assert.equal(
       waiting.status,
-      'queued',
-      'Unapplied steer stays outside the transcript',
+      'pending_apply',
+      'Unconfirmed steer retains its history position',
     );
     assert.equal(
-      waiting.canSteer,
-      false,
+      waiting.delivery,
+      'confirming',
       'Unconfirmed intent cannot be duplicated',
     );
     // The CLI confirms non-delivery by returning this same history turn to pending.
@@ -103,10 +103,11 @@ test('queue controls preserve identity, attachments and FIFO; stale and uncertai
     const requeued = fixture.runtime
       .projectSession(fixture.server, 'live')
       .entries.find((entry) => entry.id === second.id);
-    assert.equal(requeued.status, 'queued');
+    assert.equal(requeued.status, 'pending');
+    assert.equal(requeued.delivery, 'waiting');
     assert.equal(
-      requeued.canSteer,
-      false,
+      requeued.status,
+      'pending',
       'A requeued steer waits for ordinary dispatch instead of a retry',
     );
     rpcFails = true;
@@ -210,6 +211,88 @@ test('queue controls preserve identity, attachments and FIFO; stale and uncertai
     projection = fixture.runtime.projectSession(fixture.server, 'live');
     assert.equal(
       projection.entries.find((entry) => entry.id === first.id).status,
+      'queued',
+    );
+  } finally {
+    fixture.close();
+  }
+});
+
+test('interrupt guidance preserves FIFO ownership and persists its target before cancellation', async () => {
+  const fixture = await openTestSession({
+    onRpc: async (request) => {
+      assert.equal(request.method, 'session/cancel');
+      const queued = fixture.server.toJSON().mq;
+      assert.equal(queued.length, 1);
+      assert.equal(queued[0].acpSessionConfig._lodySteerTarget, 'active-reply');
+      assert.equal(queued[0].acpSessionConfig._lodySteerMode, 'interrupt');
+      return { result: { success: true } };
+    },
+  });
+  try {
+    fixture.server.getList('history').push({
+      id: 'active-reply',
+      role: 'assistant',
+      finished: false,
+      items: [],
+    });
+    fixture.server.commit();
+    await fixture.pushUpdate();
+    const queued = await fixture.runtime.sendTurn(send);
+    const result = await fixture.runtime.controlTurn({
+      ...control,
+      action: 'steer',
+      messageId: queued.id,
+      interrupt: true,
+    });
+    assert.equal(result.state, 'applied');
+    const projection = fixture.runtime.projectSession(fixture.server, 'live');
+    assert.equal(
+      projection.entries.find((e) => e.id === queued.id).status,
+      'pending_apply',
+    );
+    assert.equal(
+      projection.entries.find((e) => e.id === 'active-reply').holdOpen,
+      true,
+    );
+    assert.equal(fixture.server.toJSON().mq.length, 1);
+  } finally {
+    fixture.close();
+  }
+});
+
+test('interrupting a non-head queued message fails without changing its display or persistence', async () => {
+  const fixture = await openTestSession({
+    onRpc: () => {
+      throw new Error('Unexpected RPC');
+    },
+  });
+  try {
+    fixture.server.getList('history').push({
+      id: 'active-reply',
+      role: 'assistant',
+      finished: false,
+      items: [],
+    });
+    fixture.server.commit();
+    await fixture.pushUpdate();
+    await fixture.runtime.sendTurn(send);
+    const second = await fixture.runtime.sendTurn({ ...send, text: 'Second' });
+    await assert.rejects(
+      fixture.runtime.controlTurn({
+        ...control,
+        action: 'steer',
+        interrupt: true,
+        messageId: second.id,
+      }),
+      /message_not_first/,
+    );
+    const raw = fixture.runtime.docSnapshot();
+    assert.equal(raw.lodySteerLinks?.[second.id], undefined);
+    assert.equal(
+      fixture.runtime
+        .projectSession(fixture.server, 'live')
+        .entries.find((e) => e.id === second.id).status,
       'queued',
     );
   } finally {

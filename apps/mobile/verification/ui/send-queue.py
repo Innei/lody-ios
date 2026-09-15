@@ -47,13 +47,14 @@ ui.wait(lambda items: any(i.get('AXUniqueId') == 'inputView' and i['frame']['hei
 ui.axe('tap', '--id', turns[1] + ':steer')
 request = json.loads(ui.element('control-request')['AXLabel'])
 assert request['action'] == 'steer' and request['messageId'] == turns[1] and request['turnId'] == 'running-reply'
-assert not ui.element(turns[1] + ':steer')['enabled']
+ui.wait(lambda items: any(i.get('AXUniqueId') == turns[1] + ':delivery' for i in items), 'Steer confirmation did not stay in the transcript')
+assert not any(i.get('AXUniqueId') == turns[1] + ':queued' for i in ui.state())
 ui.capture('steer-pending')
 ui.axe('tap', '--id', 'send-fail')
-ui.wait(lambda items: any(i.get('AXUniqueId') == turns[1] + ':steer' and i.get('enabled') for i in items), 'Failed Steer did not retain a retryable queue message')
-assert ui.element('queue-count')['AXLabel'] == 'Queue: 2'
-ui.capture('steer-failed-retained')
-ui.axe('tap', '--id', turns[1] + ':steer')
+ui.wait(lambda items: any(i.get('AXUniqueId') == turns[1] + ':delivery' and i.get('AXLabel') == catalog.text('native.chat.message.guide.unknown') for i in items), 'Lost ACK did not retain an unconfirmed history bubble')
+assert ui.element('queue-count')['AXLabel'] == 'Queue: 1'
+ui.capture('steer-unconfirmed-retained')
+# Late history acceptance settles the same message without another Steer request.
 ui.axe('tap', '--id', 'send-complete')
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'queue-count' and i.get('AXLabel') == 'Queue: 1' for i in items), 'Selected Steer was not consumed')
 ui.element(turns[0] + ':queued')
@@ -89,4 +90,4 @@ assert not any(i.get('AXUniqueId') == 'session-queue' and i['frame']['height'] >
     'Empty queue glass must release its reserved height'
 ui.capture('idle')
 trace.verify(1)
-print('PASS: input/Stop switching, queue-only pending cards, selected Steer with failure/retry, targeted Stop advances FIFO, no queue-time throw, steered rows slide into the transcript')
+print('PASS: input/Stop switching, queue-only pending cards, selected Steer with lost ACK and late acceptance, targeted Stop advances FIFO, no queue-time throw, steered rows slide into the transcript')

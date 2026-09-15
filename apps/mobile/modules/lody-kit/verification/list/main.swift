@@ -389,3 +389,20 @@ assert(
   "Provider icons must keep the same text baseline as SF Symbols (\(symbolGlyphTitle.minY) vs \(assetGlyphTitle.minY))"
 )
 print("PASS: list asset glyphs keep SF Symbol text alignment")
+
+let resizingSession = LodySessionRowView(LodySessionRowContent(
+  row: LodyListRow(title: "Steer E2E", value: "Now"), dot: .systemBlue, live: true
+))
+for badgeText in ["Running", "", "Completed"] {
+  resizingSession.configuration = LodySessionRowContent(
+    row: LodyListRow(title: "Steer E2E", value: "Now", badge: badgeText),
+    dot: .systemBlue, live: !badgeText.isEmpty
+  )
+  let fitting = resizingSession.systemLayoutSizeFitting(
+    CGSize(width: 370, height: CGFloat.greatestFiniteMagnitude),
+    withHorizontalFittingPriority: .required,
+    verticalFittingPriority: .defaultLow
+  )
+  assert(fitting.height >= 20 && fitting.height < 200, "Outline updates must produce a bounded content height: \(fitting)")
+}
+print("PASS: session state changes remain self-sizing under an expanded outline proposal")

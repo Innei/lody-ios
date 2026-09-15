@@ -1,6 +1,13 @@
 import UIKit
 
 extension LodyChatView {
+  func setErrorRetryState(_ json: String) {
+    let next = try? JSONDecoder().decode(ChatErrorRetryState.self, from: Data(json.utf8))
+    guard next != errorRetryState else { return }
+    errorRetryState = next
+    applyRows()
+  }
+
   func setProcessStartID(_ id: String) {
     guard processStartID != id else { return }
     processStartID = id
@@ -178,6 +185,11 @@ extension LodyChatView {
       now: now,
       turnStartedAt: turnStartedAt
     )
+    for index in projected.indices where projected[index].kind == "chat_failed" {
+      if let state = errorRetryState, state.entryId == projected[index].entryID, state.itemId == projected[index].itemID {
+        projected[index].errorRetry = state
+      }
+    }
     if processEntryID.isEmpty, let pendingSend { projected += pendingSend.rows(entries: transcript.entries) }
     for index in projected.indices where projected[index].kind == "attachments" {
       let entry = projected[index].entryID
@@ -264,7 +276,8 @@ extension LodyChatView {
     store.retain(retainedIDs)
     var snapshot = NSDiffableDataSourceSnapshot<String, String>()
     let grouped = Dictionary(grouping: projected, by: \.entryID)
-    var entryIDs = transcript.entries.map(\.id)
+    var seenEntryIDs = Set<String>()
+    var entryIDs = projected.map(\.entryID).filter { seenEntryIDs.insert($0).inserted }
     if let pendingSend, !entryIDs.contains(pendingSend.id) { entryIDs.append(pendingSend.id) }
     for id in entryIDs {
       guard let entryRows = grouped[id], !entryRows.isEmpty else { continue }
@@ -366,6 +379,7 @@ extension LodyChatView {
 }
 
 private func textColor(for row: ChatRow) -> UIColor {
+  if row.kind == "chat_failed" { return .systemRed }
   if row.attention { return .systemOrange }
   if row.kind == "changes" || row.kind == "file" || (row.kind == "summary" && row.running) { return .lodyAccent }
   if row.kind == "user" { return .label }

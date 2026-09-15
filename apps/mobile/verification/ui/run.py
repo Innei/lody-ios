@@ -21,8 +21,8 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
     'pages': ['pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity'],
-    'send': ['root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
-    'chat': ['user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'changes', 'inline-diff', 'chat-chrome'],
+    'send': ['root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
+    'chat': ['user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'agent-error', 'changes', 'inline-diff', 'chat-chrome'],
 }
 SUITES = {
     'glass-transitions': ['chat-chrome', 'mention-chat', 'mention-sheet', 'send-queue', 'send-transition', 'send-transition-handoff'],
@@ -42,6 +42,7 @@ PREVIEW = {
     'scroll-edge': 'chat-preview',
     'scroll-edge-pages': 'scroll-edge-pages',
     'scroll-edge-diff': 'scroll-edge-diff',
+    'agent-error': 'agent-error-preview',
     'outbox': 'outbox-preview',
     'composer-relay': 'composer-relay',
     'native-shell': 'native-shell-poc',
@@ -55,6 +56,7 @@ PREVIEW = {
     'live-activity': 'live-activity-preview',
     'permission': 'permission-preview',
     'send-queue': 'send-queue',
+    'steer': 'steer-preview',
     'send-guide': 'send-guide',
     'send-interrupt': 'send-interrupt',
     'send-rounds': 'send-preview',
@@ -92,6 +94,7 @@ READY = {
     'scroll-edge': 'session-input',
     'scroll-edge-pages': 'create-session-input',
     'scroll-edge-diff': 'scroll-edge-diff-toolbar',
+    'agent-error': 'error-system:failure:title',
     'outbox': 'outbox-state',
     'composer-relay': 'composer-relay-open',
     'native-shell': 'native-shell-ready',
@@ -104,6 +107,7 @@ READY = {
     'notifications': 'notification-preview-ready',
     'live-activity': 'live-activity-preview-ready',
     'send-queue': 'send-status',
+    'steer': 'steer-next',
     'send-guide': 'send-status',
     'send-interrupt': 'send-status',
     'send-rounds': 'send-status',
@@ -245,7 +249,7 @@ with metro_context:
         cases = sorted(HOME_CASES.intersection(selected)) + [case for case in selected if case not in HOME_CASES]
         launch_mode = None
         app_pid = None
-        trace_throw = bool(set(selected).intersection({'send-transition', 'send-transition-handoff', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'send-guide', 'ipad-chrome'}))
+        trace_throw = bool(set(selected).intersection({'send-transition', 'send-transition-handoff', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'ipad-chrome'}))
         for appearance in appearances:
             sim('ui', args.udid, 'appearance', appearance)
             for case in cases:
@@ -321,11 +325,19 @@ with metro_context:
                             if any(item.get('AXUniqueId') == preview for item in ui.state()):
                                 break
                             ui.axe('swipe', '--start-x', '200', '--start-y', '700', '--end-x', '200', '--end-y', '500', '--duration', '0.5', '--post-delay', '0.6')
+                        if case == 'agent-error':
+                            # UIKit can expose a prefetched row above the transparent header.
+                            for _ in range(4):
+                                frame = ui.element(preview)['frame']
+                                if 140 <= frame['y'] <= 700:
+                                    break
+                                start, end = ('300', '550') if frame['y'] < 140 else ('650', '400')
+                                ui.axe('swipe', '--start-x', '200', '--start-y', start, '--end-x', '200', '--end-y', end, '--duration', '0.5', '--post-delay', '0.6')
                         ui.axe('tap', '--id', preview, '--pre-delay', '0.8', '--post-delay', '0.8', '--tap-style', 'physical')
                     try:
                         ui.element(ready)
                     except AssertionError:
-                        if case in ['send-transition', 'send-transition-handoff', 'inbox', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'send-guide', 'send-interrupt', 'smooth-scroll'] and any(item.get('AXUniqueId') == preview for item in ui.state()):
+                        if case in ['send-transition', 'send-transition-handoff', 'inbox', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll'] and any(item.get('AXUniqueId') == preview for item in ui.state()):
                             ui.axe('tap', '--id', preview, '--tap-style', 'physical', '--pre-delay', '0.5', '--post-delay', '1.2')
                             ui.element(ready)
                         else:
@@ -337,7 +349,7 @@ with metro_context:
                         ui.axe('tap', '--label', 'Image Fixture')
                         ui.element('preview-image:attachment:ui-verify-image')
                     ui.capture('before')
-                    script = Path(__file__).with_name(f'{case}.py') if case in ['pull-request', 'project-history-entry', 'project-history', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'process-counts', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'chat-chrome'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                    script = Path(__file__).with_name(f'{case}.py') if case in ['pull-request', 'project-history-entry', 'project-history', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'process-counts', 'agent-error', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'chat-chrome'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
                     if case in {'native-shell', 'native-collection', 'ipad-chrome', 'composer-relay', 'outbox', 'navigation-toolbar', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff'}:
                         script = Path(__file__).with_name(f'{case}.py')
                     if case == 'send-handoff-delayed':

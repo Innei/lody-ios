@@ -315,6 +315,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
 }
 
 private func chromeColor(for row: ChatRow) -> UIColor {
+  if row.kind == "chat_failed" { return .systemRed }
   if row.attention { return .systemOrange }
   if row.kind == "changes" || row.kind == "file" || (row.kind == "summary" && row.running) { return .lodyAccent }
   return .secondaryLabel
@@ -325,6 +326,7 @@ private func hint(for row: ChatRow) -> String? {
     return row.actionable ? LodyStrings.text("native.chat.row.resend") : nil
   }
   switch row.kind {
+  case "chat_failed": return LodyStrings.text("native.chat.error.view")
   case "file": return LodyStrings.text("native.attachment.preview.hint")
   case "duration": return row.actionable ? LodyStrings.text("native.chat.row.openProcess") : nil
   case "summary": return LodyStrings.text("native.chat.row.openProcess")

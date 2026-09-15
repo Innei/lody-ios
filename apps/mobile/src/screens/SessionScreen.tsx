@@ -1,3 +1,5 @@
+import { useAgentErrorRetry } from '@/features/sessions/useAgentErrorRetry';
+import { openAgentError } from '@/hooks/screens/openAgentError';
 import { fastModeFor, withFastMode } from '@/cloud/send/capability';
 import { useComposerMentions } from '@/hooks/screens/useComposerMentions';
 import { setPushVisibleRoute } from '@lody-ios/kit';
@@ -291,6 +293,37 @@ function View() {
     queuedMessageBehavior,
     steerable: capability?.steer === true,
   });
+  const errorRetry = useAgentErrorRetry({
+    sessionId: session.id,
+    entries: snapshot.entries,
+    enabled:
+      snapshot.status === 'live' &&
+      connection.state === 'live' &&
+      send.canSend &&
+      !send.sending &&
+      !send.awaitingReply &&
+      !control.running &&
+      !control.controlling &&
+      !overflow &&
+      !currentSession.archived &&
+      !!account?.user.id,
+    payload: {
+      machineId: currentSession.machineId,
+      userId: account?.user.id,
+      cliType: currentSession.cliType,
+      agentType: currentSession.agentType,
+      resume: currentSession.resume,
+      modelId: capability
+        ? (activeChoice.modelId ?? null)
+        : activeChoice.modelId,
+      modeId: activeChoice.modeId,
+      reasoningEffort: capability
+        ? (activeChoice.effort ?? null)
+        : activeChoice.effort,
+      reasoningEffortConfigId: capability?.reasoningEffortConfigId,
+      configOptionValues: activeChoice.configOptionValues,
+    },
+  });
   const gate = useRef(createPermissionGate()).current;
   const listeners = useRef(new Set<(state: PermissionTargetState) => void>());
   const targetState = useRef<PermissionTargetState>({ ready: false });
@@ -339,6 +372,9 @@ function View() {
   }, [snapshot]);
 
   const onActivityPress = (entryId: string, itemId: string) => {
+    const entry = snapshot.entries.find((e) => e.id === entryId);
+    const item = entry?.items.find((i) => i.itemId === itemId);
+    if (openAgentError(item)) return;
     if (snapshot.status !== 'live') {
       Alert.alert(
         t('session.alert.syncing.title'),
@@ -346,8 +382,6 @@ function View() {
       );
       return;
     }
-    const entry = snapshot.entries.find((e) => e.id === entryId);
-    const item = entry?.items.find((i) => i.itemId === itemId);
     if (!entry || !item) return;
     const target = firstPermissionTarget([{ ...entry, items: [item] }]);
     if (target) {
@@ -388,7 +422,7 @@ function View() {
   );
   const composerJSON = JSON.stringify({
     editable: !currentSession.archived,
-    canSend: send.canSend,
+    canSend: send.canSend && !errorRetry.pending,
     sending: send.sending,
     running: control.running || send.awaitingReply,
     canStop: control.canStop,
@@ -691,6 +725,14 @@ function View() {
           sessionId: session.id,
         })}
         entriesJSON={entriesJSON}
+        errorRetryJSON={errorRetry.stateJSON}
+        onErrorRetry={({ nativeEvent }) =>
+          void errorRetry.retry(
+            nativeEvent.entryId,
+            nativeEvent.itemId,
+            nativeEvent.id,
+          )
+        }
         preparedEntries={preparedHistory?.nativeEntries}
         mentionRepository={
           session.projectId?.startsWith('github:')

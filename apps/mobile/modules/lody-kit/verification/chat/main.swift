@@ -583,3 +583,39 @@ assertReadingColumn(collectionWidth: 800, itemWidth: 760, inset: 20)
 assertReadingColumn(collectionWidth: 1180, itemWidth: 760, inset: 210)
 precondition(ChatReadingColumn.columnWidth(in: 1180) == 800)
 print("Reading column: wide hosts keep a 760 pt column inside a full-bleed scroll view")
+
+let failureJSON = """
+[{"id":"error","role":"assistant","status":"completed","finished":true,"items":[
+{"itemId":"text","type":"text","text":"Completed answer"},
+{"itemId":"failure","type":"system_notice","name":"chat_failed","meta":{"reason":"future_reason","message":"raw error"}}
+]}]
+"""
+let failureRows = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(failureJSON.utf8))).rows()
+precondition(failureRows.contains { $0.kind == "text" && $0.text == "Completed answer" })
+precondition(failureRows.contains { $0.kind == "chat_failed" && !$0.actionable && $0.attention })
+precondition(!failureRows.contains { $0.kind == "summary" })
+
+precondition(ChatFailure.hasDetail(failureRows.first { $0.kind == "chat_failed" }?.errorMeta))
+precondition(!ChatFailure.hasDetail(nil))
+
+// Provider-proven continuation: user bubbles outside one AI-only process.
+let guidedJSON = """
+[
+{"id":"root","role":"user","status":"handled","finished":true,"executionId":"root","executionFinished":true,"items":[{"itemId":"u","type":"text","text":"Original task"}]},
+{"id":"before","role":"assistant","status":"handled","finished":true,"executionId":"root","executionFinished":true,"items":[{"itemId":"intro","type":"text","text":"Earlier partial answer"},{"itemId":"tool","type":"tool_call","title":"Inspect","hasDetail":true}]},
+{"id":"guide","role":"user","status":"handled","finished":true,"executionId":"root","executionFinished":true,"items":[{"itemId":"u","type":"text","text":"Guide one"}]},
+{"id":"after","role":"assistant","status":"handled","finished":true,"executionId":"root","executionFinished":true,"steerCount":1,"items":[{"itemId":"work","type":"thought","text":"Later process"},{"itemId":"answer1","type":"text","text":"Final answer part one"},{"itemId":"answer2","type":"text","text":"Final answer part two"}]}]
+"""
+var guidedEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(guidedJSON.utf8))
+let guidedRows = ChatTranscript(entries: guidedEntries).rows()
+assert(guidedRows.map(\.kind) == ["user", "user", "summary", "text", "text"])
+assert(guidedRows.prefix(2).map(\.entryID) == ["root", "guide"])
+let guidedProcess = ChatTranscript(entries: guidedEntries).rows(processEntryID: "after", processStartID: "__execution__")
+assert(guidedProcess.map(\.itemID) == ["intro", "tool", "work"])
+assert(guidedProcess[1].entryID == "before" && guidedProcess[1].actionable)
+assert(!guidedProcess.contains { $0.kind == "user" })
+for i in guidedEntries.indices { guidedEntries[i].executionFinished = false }
+let continuing = ChatTranscript(entries: guidedEntries).rows()
+assert(continuing.contains { $0.itemID == "intro" })
+assert(!continuing.contains { $0.id == "root:execution" })
+print("Steer: user bubbles outside one process, all final text survives, tool owners preserved")

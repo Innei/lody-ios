@@ -33,6 +33,12 @@ struct ChatEntry: Decodable {
   var items: [ChatItem]
   let fileDiffs: [ChatFileDiff]?
   var modelInfo: ModelInfo? = nil
+  var userTurnId: String? = nil
+  var executionId: String? = nil
+  var executionFinished: Bool? = nil
+  var steerCount: Int? = nil
+  var delivery: String? = nil
+  var holdOpen: Bool? = nil
   var canSteer: Bool? = nil
   var isRunning: Bool { role == "assistant" && !finished }
   var isQueued: Bool { role == "user" && status == "queued" }
@@ -60,6 +66,9 @@ struct ChatMessageAttachment: Decodable, Equatable {
 struct ChatItem: Decodable {
   struct Permission: Decodable { let requestId: String; let pending: Bool }
   struct Plan: Decodable { let content: String; let status: String }
+  struct NoticeMeta: Decodable, Equatable { let reason: String?; let code: String?; let message: String? }
+  var meta: NoticeMeta? = nil
+  var isChatFailure: Bool { type == "system_notice" && name == "chat_failed" }
   let itemId: String
   let type: String
   let name: String?
@@ -85,6 +94,8 @@ struct ChatRow: Equatable {
   let entryID: String
   var kind: String
   var text: String
+  var errorMeta: ChatItem.NoticeMeta? = nil
+  var errorRetry: ChatErrorRetryState? = nil
   var symbol = ""
   var itemID = ""
   var processStartID = ""
@@ -238,11 +249,90 @@ struct ChatTranscript {
     return []
   }
 
+  /// Provider-proven continuation groups retain original row identities. Only
+  /// the finished presentation moves user bubbles above the combined process.
   func rows(
     processEntryID: String = "",
     processStartID: String = "",
     now: Double = Date().timeIntervalSince1970 * 1000,
     turnStartedAt: [String: Double] = [:]
+  ) -> [ChatRow] {
+    let groups = Dictionary(grouping: entries.filter { $0.executionId != nil }, by: { $0.executionId! })
+    if processStartID == "__execution__",
+       let groupID = entries.first(where: { $0.id == processEntryID })?.executionId,
+       let members = groups[groupID] {
+      return executionProcess(members)
+    }
+    if !processEntryID.isEmpty {
+      return entryRows(processEntryID: processEntryID, processStartID: processStartID, now: now, turnStartedAt: turnStartedAt)
+    }
+    let ordinary = Dictionary(grouping: entryRows(now: now, turnStartedAt: turnStartedAt), by: \.entryID)
+    var emitted = Set<String>()
+    return entries.flatMap { entry -> [ChatRow] in
+      if let groupID = entry.executionId, let members = groups[groupID],
+         let tail = members.last(where: { $0.role == "assistant" }),
+         tail.executionFinished == true, members.filter({ $0.role == "assistant" }).allSatisfy(\.finished), !executionResultIDs(tail).isEmpty {
+        guard emitted.insert(groupID).inserted else { return [] }
+        let users = members.filter { $0.role == "user" }.flatMap {
+          ChatTranscript(entries: [$0]).entryRows(now: now)
+        }
+        let process = executionProcess(members)
+        var result = users
+        if !process.isEmpty {
+          result.append(ChatRow(id: groupID + ":execution", entryID: tail.id, kind: "summary",
+            text: LodyStrings.text("native.chat.transcript.execution", ["count": String(tail.steerCount ?? 0)]),
+            symbol: "circle.fill", processStartID: "__execution__", actionable: true))
+        }
+        let ids = executionResultIDs(tail)
+        result += ChatTranscript(entries: [tail]).entryRows(processEntryID: tail.id, flatItems: true).filter { ids.contains($0.itemID) }
+        result += ChatTranscript(entries: [tail]).entryRows(now: now).filter { ["meta", "changesHeader", "changes"].contains($0.kind) }
+        return result
+      }
+      var visible = entry
+      if entry.holdOpen == true || entry.executionId != nil { visible.finished = false }
+      var result = ChatTranscript(entries: [visible]).entryRows(now: now, turnStartedAt: turnStartedAt)
+      if entry.finished && !visible.finished {
+        result.removeAll { $0.kind == "duration" }
+        for index in result.indices {
+          result[index].streaming = false
+          result[index].running = false
+        }
+      }
+      // Preserve existing duration attribution for ordinary conversation rows.
+      if entry.executionId == nil && entry.holdOpen != true {
+        return ordinary[entry.id] ?? []
+      }
+      return result
+    }
+  }
+
+  private func executionResultIDs(_ entry: ChatEntry) -> Set<String> {
+    var result = Set<String>()
+    for item in entry.items.reversed() {
+      if item.isAttachment || (item.type == "text" && !(item.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+        result.insert(item.itemId)
+      } else { break }
+    }
+    return result
+  }
+
+  private func executionProcess(_ members: [ChatEntry]) -> [ChatRow] {
+    let assistants = members.filter { $0.role == "assistant" }
+    guard let tail = assistants.last else { return [] }
+    let resultIDs = executionResultIDs(tail)
+    return assistants.flatMap { entry in
+      ChatTranscript(entries: [entry]).entryRows(processEntryID: entry.id, flatItems: true).filter {
+        entry.id != tail.id || !resultIDs.contains($0.itemID)
+      }
+    }
+  }
+
+  private func entryRows(
+    processEntryID: String = "",
+    processStartID: String = "",
+    now: Double = Date().timeIntervalSince1970 * 1000,
+    turnStartedAt: [String: Double] = [:],
+    flatItems: Bool = false
   ) -> [ChatRow] {
     entries.enumerated().flatMap { entryIndex, source -> [ChatRow] in
       var entry = source
@@ -267,6 +357,11 @@ struct ChatTranscript {
         if !text.isEmpty {
           result.append(ChatRow(id: entry.id + (result.isEmpty ? ":user" : ":user-text"), entryID: entry.id, kind: "user", text: text))
         }
+        if let delivery = entry.delivery, delivery != "accepted" {
+          let key = "native.chat.message.guide." + delivery
+          result.append(ChatRow(id: entry.id + ":delivery", entryID: entry.id, kind: "pending",
+            text: LodyStrings.text(key), attention: delivery == "rejected" || delivery == "unknown"))
+        }
         return result
       }
       let finalText = entry.items.lastIndex { $0.type == "text" && !($0.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -276,22 +371,24 @@ struct ChatTranscript {
         if processOnly { return [] }
         visible = Array(entry.items.indices)
       } else if processOnly {
-        if !processStartID.isEmpty, let start = entry.items.firstIndex(where: { $0.itemId == processStartID }) {
+        if flatItems {
+          visible = Array(entry.items.indices)
+        } else if !processStartID.isEmpty, let start = entry.items.firstIndex(where: { $0.itemId == processStartID }) {
           let end = entry.items.indices.dropFirst(start + 1).first { entry.items[$0].type == "text" || entry.items[$0].isAttachment } ?? entry.items.endIndex
-          visible = Array(start..<end).filter { !entry.items[$0].isAttachment }
+          visible = Array(start..<end).filter { !entry.items[$0].isAttachment && !entry.items[$0].isChatFailure }
         } else {
           visible = entry.items.indices.filter { $0 != finalText && !entry.items[$0].isAttachment }
         }
       } else if entry.finished {
-        let process = entry.items.indices.filter { $0 != finalText && !entry.items[$0].isAttachment }
+        let process = entry.items.indices.filter { $0 != finalText && !entry.items[$0].isAttachment && !entry.items[$0].isChatFailure }
         if let first = process.first { groups[first] = process }
         visible = process.first.map { [$0] } ?? []
         if let finalText { visible.append(finalText) }
-        visible.append(contentsOf: entry.items.indices.filter { entry.items[$0].isAttachment })
+        visible.append(contentsOf: entry.items.indices.filter { entry.items[$0].isAttachment || entry.items[$0].isChatFailure })
         visible.sort()
       } else {
         for index in entry.items.indices {
-          if entry.items[index].type == "text" || entry.items[index].isAttachment {
+          if entry.items[index].type == "text" || entry.items[index].isAttachment || entry.items[index].isChatFailure {
             visible.append(index)
           } else if let previous = visible.last, groups[previous] != nil {
             groups[previous]!.append(index)
@@ -356,6 +453,13 @@ struct ChatTranscript {
           running: entry.isRunning && item.status == "in_progress", attention: attention,
           streaming: entry.isRunning && (item.type == "text" || item.type == "thought"))
         switch item.type {
+        case "system_notice" where item.isChatFailure:
+          row.kind = "chat_failed"
+          row.text = ChatFailure.title(item.meta)
+          row.symbol = "exclamationmark.circle"
+          row.attention = true
+          row.errorMeta = item.meta
+          row.actionable = false
         case "file":
           guard let file = item.file else { continue }
           row.file = file
@@ -572,5 +676,41 @@ struct ChatPendingSend: Decodable {
       ))
     }
     return result
+  }
+}
+
+// Unknown reasons retain their payload in the detail page and use a localized fallback.
+enum ChatFailure {
+  static func title(_ meta: ChatItem.NoticeMeta?) -> String {
+    if meta?.code == "git_executable_not_found" {
+      return LodyStrings.text("native.chat.error.git_executable_not_found")
+    }
+    let known: Set<String> = ["unknown", "session_archived", "agent_type_mismatch", "session_init_failed", "session_restore_failed", "session_not_found", "memory_pressure", "acp_not_ready", "agent_disconnected", "agent_no_output", "turn_pre_prompt_failed", "message_delivery_failed", "machine_access_denied", "acp_auth_required", "acp_internal_error", "acp_upstream_api_error", "acp_provider_overloaded", "acp_session_storage_incompatible", "acp_resource_not_found", "acp_request_cancelled", "acp_method_not_found", "acp_invalid_params", "acp_invalid_request", "acp_parse_error", "acp_unknown_error"]
+    let reason = meta?.reason ?? "unknown"
+    return LodyStrings.text("native.chat.error." + (known.contains(reason) ? reason : "unknown"))
+  }
+}
+
+
+struct ChatErrorRetryState: Decodable, Equatable {
+  let entryId: String
+  let itemId: String
+  let enabled: Bool
+  let pending: Bool
+  let visible: Bool
+  let message: String
+}
+
+extension ChatFailure {
+  static func hasDetail(_ meta: ChatItem.NoticeMeta?) -> Bool {
+    [meta?.message, meta?.code].contains { !($0 ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+  }
+  static func summary(_ meta: ChatItem.NoticeMeta?) -> String {
+    if meta?.code == "git_executable_not_found" { return LodyStrings.text("native.chat.error.gitSummary") }
+    let descriptions = ["acp_provider_overloaded": "capacitySummary", "acp_auth_required": "authSummary", "machine_access_denied": "accessSummary"]
+    if let key = descriptions[meta?.reason ?? ""] { return LodyStrings.text("native.chat.error." + key) }
+    let message = (meta?.message ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if message.isEmpty || message.hasPrefix("{") || message.hasPrefix("[") { return LodyStrings.text("native.chat.error.summary") }
+    return String(message.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ").prefix(260))
   }
 }

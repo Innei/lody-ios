@@ -500,12 +500,13 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         view.performanceProbe = ChatPerformanceProbe(view)
       }
       #endif
-      Events("onStop", "onSteer", "onSend", "onActivityPress", "onFilePress", "onTurnChangesPress", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse")
+      Events("onStop", "onSteer", "onSend", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse")
       Prop("navigationTitle") { (view: LodyChatView, value: String) in view.setNavigationTitle(value) }
       Prop("navigationSubtitle") { (view: LodyChatView, value: String) in view.setNavigationSubtitle(value) }
       Prop("navigationMachine") { (view: LodyChatView, value: String) in view.setNavigationMachine(value) }
       Prop("mentionRepository") { (view: LodyChatView, value: String) in view.mentionRepository = value }
       Prop("attachmentContextJSON") { (view: LodyChatView, value: String) in view.setAttachmentContext(value) }
+      Prop("errorRetryJSON") { (view: LodyChatView, value: String) in view.setErrorRetryState(value) }
       Prop("entriesJSON") { (view: LodyChatView, value: String) in view.setEntries(value) }
       Prop("preparedEntries") { (view: LodyChatView, value: PreparedChatEntries?) in view.preparedEntries = value }
       OnViewDidUpdateProps { (view: LodyChatView) in view.scheduleUpdate() }

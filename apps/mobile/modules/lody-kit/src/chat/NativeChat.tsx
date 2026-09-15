@@ -13,6 +13,14 @@ export type ChatDraftAttachment = {
 export const NativeChat: ComponentType<
   ViewProps & {
     entriesJSON: string;
+    errorRetryJSON?: string;
+    onErrorRetry?: (
+      event: NativeSyntheticEvent<{
+        entryId: string;
+        itemId: string;
+        id: string;
+      }>,
+    ) => void;
     preparedEntries?: PreparedChatEntries;
     debugBenchmarkRun?: number;
     debugStreamBenchmarkRun?: number;

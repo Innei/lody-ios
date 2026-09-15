@@ -1,4 +1,6 @@
 import { DiffScrollEdgePreviewScreen } from './DiffScrollEdgePreviewScreen';
+import { SteerPreviewScreen } from './SteerPreviewScreen';
+import { AgentErrorPreviewScreen } from './AgentErrorPreviewScreen';
 import { ProjectHistoryPreviewScreen } from './ProjectHistoryPreviewScreen';
 import { PullRequestPreviewScreen } from './PullRequestPreviewScreen';
 import { FilePreviewScreen } from './FilePreviewScreen';
@@ -192,6 +194,11 @@ function View() {
         openRow('scroll-edge-diff', 'Diff 滚动边缘', 'doc.text'),
         openRow('composer-success', '聊天输入成功', 'checkmark.circle'),
         openRow('composer-failure', '聊天输入恢复', 'arrow.uturn.backward'),
+        openRow(
+          'agent-error-preview',
+          'Agent 错误预览',
+          'exclamationmark.circle',
+        ),
         openRow('chat-preview', '原生聊天预览', 'bubble.left.and.bubble.right'),
         openRow('chat-shine-preview', '过程高光', 'sparkle'),
         openRow('banner-preview', '会话横幅', 'bell.badge'),
@@ -203,6 +210,7 @@ function View() {
       rows: [
         openRow('send-preview', '离线发送验收', 'paperplane'),
         openRow('send-queue', 'Queue 验收', 'list.bullet'),
+        openRow('steer-preview', '连续引导验收', 'arrow.triangle.branch'),
         openRow('send-guide', '引导发送验收', 'arrow.uturn.forward'),
         openRow('outbox-preview', '后台发件箱验收', 'tray.and.arrow.up'),
         openRow('send-interrupt', 'Queue 中断验收', 'stop.circle'),
@@ -337,11 +345,13 @@ function View() {
         { host: 'chat', outcome: 'failure' },
         { style: 'push' },
       ),
+    'agent-error-preview': () => void present(AgentErrorPreviewScreen, {}),
     'chat-preview': () => void present(ChatPreviewScreen, {}),
     'chat-shine-preview': () => void present(ShinePreviewScreen, {}),
     'banner-preview': () => void present(BannerPreviewScreen, {}),
     'send-preview': () => void openSendPreview(false),
     'send-queue': () => void openSendPreview(false, true),
+    'steer-preview': () => void present(SteerPreviewScreen, {}),
     'send-guide': () => void openSendPreview(false, true, true, 'guide'),
     'outbox-preview': () => void openOutboxPreview(),
     'send-interrupt': () => void openSendPreview(false, true, false),

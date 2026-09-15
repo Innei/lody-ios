@@ -335,6 +335,7 @@ extension LodyChatView {
     if row.kind == "attachments" {
       return ChatMessageAttachmentsCell.height(count: row.attachments.count, width: width, expanded: expandedAttachments.contains(row.entryID))
     }
+    if row.kind == "chat_failed" { return ChatErrorCell.height(row, width: width, traits: traitCollection) }
     if row.kind == "meta" { return ChatMetaCell.height(for: row, width: width, traits: traitCollection) }
     if row.kind == "changesHeader" { return 28 }
     if row.kind == "changes" { return ChatFileCell.rowHeight() }

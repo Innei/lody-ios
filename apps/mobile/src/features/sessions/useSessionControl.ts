@@ -41,6 +41,7 @@ export function useSessionControl(
             machineId: session.machineId,
             turnId,
             messageId,
+            interrupt: action === 'steer' && !steerable,
           }),
         ),
       );
@@ -62,6 +63,6 @@ export function useSessionControl(
     steerID: busy === 'stop' ? '' : busy,
     steerInterrupts: !steerable,
     stop: () => void act('stop'),
-    steer: (id: string) => void (steerable ? act('steer', id) : act('stop')),
+    steer: (id: string) => void act('steer', id),
   };
 }

@@ -486,6 +486,8 @@ Ordinary regression runs are never ingested: `results.json` stays a programmatic
 CI gate. Simulator Debug evidence cannot claim physical-device performance,
 haptics or cloud persistence, whatever the round says.
 
+`agent-error` verifies native inline alert cards, separate detail/copy actions, hidden actions for historical or incomplete failures, single-dispatch manual retry, definite rejection, accepted continuation, compact content-driven height, stable pending action geometry and preserved composer drafts in both appearances. Its retry service is local; no cloud turn is sent. Set `LODY_VERIFY_RUNTIME` to an installed Simulator runtime identifier when the default iOS 26.5 runtime is unavailable.
+
 ### Scroll edge host coverage
 
 `--case scroll-edge-pages` exercises a production paged form with the shared native
@@ -495,3 +497,10 @@ in Unified and Split modes, waiting for document-render completion before captur
 Review the soft-edge screenshots in both appearances; passing accessibility checks
 alone does not establish the blur's visual correctness. Native file/service fixtures
 require a Debug build because their providers are compiled under `#if DEBUG`.
+
+### Continuous steer
+
+`--case steer` opens an offline scene backed by the execution projector and NativeChat.
+It covers three accepted guidance messages, the completed user-message sequence above
+one AI process summary, both final text blocks, and opening the earlier AI process.
+Runtime checks separately exercise stale ACK/history and unavailable provider evidence.

@@ -21,11 +21,23 @@ const config: ExpoConfig = {
       // Clear the old continued-processing declarations on incremental prebuilds.
       BGTaskSchedulerPermittedIdentifiers: [],
       UIBackgroundModes: [],
+      UIApplicationSceneManifest: {
+        UIApplicationSupportsMultipleScenes: false,
+        UISceneConfigurations: {
+          UIWindowSceneSessionRoleApplication: [
+            {
+              UISceneConfigurationName: 'Default Configuration',
+              UISceneDelegateClassName: '$(PRODUCT_MODULE_NAME).SceneDelegate',
+            },
+          ],
+        },
+      },
     },
   },
   plugins: [
     'expo-router',
     ['expo-dev-client', { toolsButton: false }],
+    './plugins/withSceneLifecycle',
     './plugins/withMarkdownView',
     './plugins/withLocales',
     './plugins/withLodyIcons',

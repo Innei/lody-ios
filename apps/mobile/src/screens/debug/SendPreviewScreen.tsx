@@ -36,16 +36,15 @@ const attachment = {
 };
 
 function advanceQueue(old: Snapshot, messageId?: string): Snapshot {
-  const next = old.entries.find(
-    (entry) =>
-      entry.status === 'queued' && (!messageId || entry.id === messageId),
+  const next = old.entries.find((entry) =>
+    messageId ? entry.id === messageId : entry.status === 'queued',
   );
   const history = old.entries
-    .filter((entry) => entry.status !== 'queued')
+    .filter((entry) => entry.status !== 'queued' && entry.id !== next?.id)
     .map((entry) => ({ ...entry, finished: true }));
   if (next)
     history.push(
-      { ...next, status: 'processing', finished: true },
+      { ...next, status: 'processing', delivery: 'accepted', finished: true },
       {
         id: next.id + ':reply',
         role: 'assistant',
@@ -193,8 +192,19 @@ function SendPreview() {
     params?.steer !== false,
     (payload) => {
       setControlRequest(payload);
+      const args = JSON.parse(payload);
+      if (args.action === 'steer')
+        setSnapshot((old) => ({
+          ...old,
+          revision: old.revision + 1,
+          entries: old.entries.map((entry) =>
+            entry.id === args.messageId
+              ? { ...entry, status: 'pending_apply', delivery: 'confirming' }
+              : entry,
+          ),
+        }));
       return new Promise((resolve) => {
-        controlPending.current = { args: JSON.parse(payload), resolve };
+        controlPending.current = { args, resolve };
       });
     },
   );
@@ -248,7 +258,17 @@ function SendPreview() {
   const complete = (failure: boolean) => {
     if (controlPending.current) {
       const { args, resolve } = controlPending.current;
-      controlPending.current = null;
+      if (!failure) controlPending.current = null;
+      if (failure && args.action === 'steer')
+        setSnapshot((old) => ({
+          ...old,
+          revision: old.revision + 1,
+          entries: old.entries.map((entry) =>
+            entry.id === args.messageId
+              ? { ...entry, delivery: 'unknown' }
+              : entry,
+          ),
+        }));
       if (!failure) setSnapshot((old) => advanceQueue(old, args.messageId));
       resolve(
         JSON.stringify({
