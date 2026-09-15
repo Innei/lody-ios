@@ -48,6 +48,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install Metal Toolchain
+        run: |
+          xcodebuild -downloadComponent MetalToolchain
+          xcrun --sdk iphoneos metal --version
+
       - name: Record commit
         id: meta
         run: echo "source_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"

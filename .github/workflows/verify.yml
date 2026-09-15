@@ -35,6 +35,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
+      - name: Install Metal Toolchain
+        run: |
+          xcodebuild -downloadComponent MetalToolchain
+          xcrun --sdk iphonesimulator metal --version
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
@@ -62,6 +66,10 @@ jobs:
       EXPO_PUBLIC_UI_VERIFY: '1'
     steps:
       - uses: actions/checkout@v6
+      - name: Install Metal Toolchain
+        run: |
+          xcodebuild -downloadComponent MetalToolchain
+          xcrun --sdk iphonesimulator metal --version
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
