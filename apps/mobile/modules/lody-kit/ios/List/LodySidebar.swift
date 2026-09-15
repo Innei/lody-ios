@@ -30,6 +30,8 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
   private let collection: UICollectionView
   private let placeholder = UILabel()
   private var dataSource: UICollectionViewDiffableDataSource<String, SidebarItemID>!
+  private var applyingSections = false
+  private var pendingSections: [LodyListSection]?
 
   private lazy var registration = UICollectionView.CellRegistration<UICollectionViewListCell, LodyListRow> { [weak self] cell, _, row in
     self?.configure(cell, row: row)
@@ -152,6 +154,15 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
   }
 
   func setSections(_ value: [LodyListSection]) {
+    guard !applyingSections else {
+      pendingSections = value
+      return
+    }
+    applyingSections = true
+    applySections(value)
+  }
+
+  private func applySections(_ value: [LodyListSection]) {
     let previous = dataSource.snapshot()
     sections = value
     rows = Dictionary(value.flatMap { section in
@@ -163,7 +174,15 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
       snapshot.appendSections(value.map(\.id))
       dataSource.apply(snapshot, animatingDifferences: false)
     }
-    for section in value {
+    func applySection(at index: Int) {
+      guard index < value.count else {
+        updateVisibleRows()
+        placeholder.isHidden = !value.allSatisfy { $0.rows.isEmpty }
+        collection.collectionViewLayout.invalidateLayout()
+        finishSectionUpdate()
+        return
+      }
+      let section = value[index]
       var snapshot = NSDiffableDataSourceSectionSnapshot<SidebarItemID>()
       let items = section.rows.map { SidebarItemID(section: section.id, row: $0.id) }
       if let parent = items.first, section.rows[0].parent {
@@ -177,12 +196,17 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
         // A deep link can select before its catalog snapshot arrives. Read the
         // current detail, never a captured row from an earlier navigation.
         self?.synchronizeSelection()
+        applySection(at: index + 1)
       }
     }
-    // Reconfigure visible content independently of snapshot animation.
-    updateVisibleRows()
-    placeholder.isHidden = !value.allSatisfy { $0.rows.isEmpty }
-    collection.collectionViewLayout.invalidateLayout()
+    applySection(at: 0)
+  }
+
+  private func finishSectionUpdate() {
+    applyingSections = false
+    guard let pending = pendingSections else { return }
+    pendingSections = nil
+    applySections(pending)
   }
 
   func setSelectedRowId(_ value: String) {
