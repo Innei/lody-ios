@@ -666,11 +666,14 @@ struct ChatPendingSend: Decodable {
       let now = Date().timeIntervalSince1970 * 1000
       let start = startedAt.flatMap { $0.isFinite && $0 <= now ? $0 : nil } ?? now
       let duration = Int(now - start)
+      let acked = acceptedIndex != nil || ["accepted", "uploaded"].contains(phase ?? "")
       result.append(ChatRow(
         id: id + ":duration",
         entryID: id,
         kind: "duration",
-        text: workDurationTitle(duration, running: true),
+        text: acked
+          ? workDurationTitle(duration, running: true)
+          : LodyStrings.text("native.chat.transcript.status.confirming"),
         running: true,
         workDurationMs: duration
       ))

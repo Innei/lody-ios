@@ -36,6 +36,7 @@ ui.capture('source-long-mixed')
 ui.axe('tap', '--id', 'session-send', '--post-delay', '1')
 timer = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':duration')), None), 'Destination did not show the local send')
 turn = timer['AXUniqueId'].removesuffix(':duration')
+assert timer['AXLabel'] == catalog.text('native.chat.transcript.status.confirming'), 'Unacked send must confirm delivery on the duration row'
 message_id = turn + ':user-text'
 message = ui.element(message_id)
 assert message['AXLabel'] == actual, 'Sending truncated message contents'
@@ -136,6 +137,7 @@ ui.capture('file-only-source')
 ui.axe('tap', '--id', 'session-send')
 status = ui.wait(lambda items: next((item for item in items if (item.get('AXUniqueId') or '').endswith(':duration') and not (item.get('AXUniqueId') or '').startswith(turn)), None), 'Attachment-only send missing')
 file_turn = status['AXUniqueId'].removesuffix(':duration')
+assert status['AXLabel'] == catalog.text('native.chat.transcript.status.confirming'), 'Unacked attachment-only send must confirm delivery on the duration row'
 file_items = [item for item in ui.state() if (item.get('AXUniqueId') or '').startswith(file_turn + ':attachment:')]
 assert len(file_items) == 1 and 'clipboard-fixture.txt' in file_items[0]['AXLabel']
 assert file_items[0].get('AXValue') == catalog.text('send.status.uploading'), 'File-only tile must show loading'

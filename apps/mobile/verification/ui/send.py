@@ -12,6 +12,7 @@ ui.capture('draft')
 ui.axe('tap', '--id', 'session-send', '--post-delay', '1')
 timer = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':duration')), None), 'Offline timer missing')
 turn = timer['AXUniqueId'].removesuffix(':duration')
+assert timer['AXLabel'] == catalog.text('native.chat.transcript.status.confirming'), 'Unacked send must confirm delivery on the duration row'
 assert ui.element('send-status')['AXLabel'] == 'Calls: 0 · waiting'
 assert ui.element(turn + ':user-text')['AXLabel'] == draft
 assert not ui.element('session-input').get('AXValue')
@@ -33,6 +34,7 @@ ui.axe('tap', '--id', turn + ':pending')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 2 · sending' for i in items), 'Explicit retry did not start')
 ui.axe('tap', '--id', 'send-complete')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 2 · accepted' for i in items), 'Receipt missing')
+assert ui.element(turn + ':duration')['AXLabel'] != catalog.text('native.chat.transcript.status.confirming'), 'Accepted send must start working duration'
 ui.capture('waiting-reply')
 ui.axe('tap', '--id', 'send-reply')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 2 · idle' for i in items), 'Reply did not reconcile pending')

@@ -24,6 +24,7 @@ ui.axe('tap', '--id', 'session-send', '--tap-style', 'physical')
 ui.element('send-status')
 shiny = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':duration')), None), 'Target pending row missing')
 turn = shiny['AXUniqueId'].removesuffix(':duration')
+assert shiny['AXLabel'] == catalog.text('native.chat.transcript.status.confirming'), 'Unacked send must confirm delivery on the duration row'
 assert draft == ui.element(turn + ':user')['AXLabel']
 assert ui.element('send-status')['AXLabel'] == 'Calls: 0 · waiting', 'Creation waited for network or dispatched offline'
 ui.capture('target-offline')
@@ -64,6 +65,7 @@ ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 3 · sending' for i in ite
 assert_timer_stable('created')
 ui.axe('tap', '--id', 'send-complete')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 3 · accepted' for i in items), 'Receipt missing')
+assert ui.element(turn + ':duration')['AXLabel'] != catalog.text('native.chat.transcript.status.confirming'), 'Accepted send must start working duration'
 assert_timer_stable('accepted')
 ui.capture('target-accepted')
 ui.axe('tap', '--id', 'send-start-reply')

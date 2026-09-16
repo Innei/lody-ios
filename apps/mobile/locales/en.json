@@ -518,6 +518,7 @@
   "native.chat.transcript.status.failed": "Failed",
   "native.chat.transcript.status.running": "Working",
   "native.chat.transcript.status.done": "Activity",
+  "native.chat.transcript.status.confirming": "Confirming the result…",
   "native.chat.transcript.status.workingFor": "Working for {duration}",
   "native.chat.transcript.status.workedFor": "Worked for {duration}",
   "native.chat.duration.hour": "h",

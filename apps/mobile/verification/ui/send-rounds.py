@@ -1,6 +1,7 @@
 """Three accepted turns in one production NativeChat, retaining conversation history."""
 import sys
 from driver import UI
+import catalog
 from send_motion import ThrowTrace
 
 ui = UI(*sys.argv[1:])
@@ -23,6 +24,7 @@ for index, message in enumerate(messages, 1):
         if (i.get('AXUniqueId') or '').endswith(':duration')
         and i['AXUniqueId'].removesuffix(':duration') not in turns), None), 'New turn duration row missing')
     turn = pending['AXUniqueId'].removesuffix(':duration')
+    assert pending['AXLabel'] == catalog.text('native.chat.transcript.status.confirming'), 'Unacked send must confirm delivery on the duration row'
     turns.append(turn)
     assert ui.element(turn + (':user-text' if index == 1 else ':user')).get('AXLabel') == message, 'New turn text changed'
     ui.capture(f'round-{index}-sent')
