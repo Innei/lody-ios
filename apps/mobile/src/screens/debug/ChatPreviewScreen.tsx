@@ -108,6 +108,45 @@ function overlayTaskEntries() {
   ];
 }
 
+function failedToolEntries(startedAt: number) {
+  return [
+    {
+      id: 'failed-preview',
+      role: 'assistant',
+      status: 'running',
+      finished: false,
+      startedAt,
+      modelInfo: {
+        modelId: 'gpt-5.6-sol',
+        name: 'GPT-5.6 Sol',
+        thoughtLevel: 'High',
+      },
+      items: [
+        {
+          itemId: 'thought',
+          type: 'thought',
+          text: '先核对失败的工具',
+        },
+        {
+          itemId: 'tool',
+          type: 'tool_call',
+          kind: 'mcp',
+          title: '失败的工具',
+          status: 'failed',
+        },
+        {
+          itemId: 'read',
+          type: 'tool_call',
+          kind: 'read',
+          path: 'File.swift',
+          title: '继续读取',
+          status: 'in_progress',
+        },
+      ],
+    },
+  ];
+}
+
 function processCountEntries(count: number, startedAt: number) {
   return [
     {
@@ -292,6 +331,7 @@ function View() {
     count: number;
     startedAt: number;
   } | null>(null);
+  const [failedToolAt, setFailedToolAt] = useState<number | null>(null);
   const [length, setLength] = useState(totalLength);
   const [navigationTitle, setNavigationTitle] = useState('原生聊天预览');
   const [sessionActionsReady, setSessionActionsReady] = useState(false);
@@ -502,6 +542,8 @@ function View() {
         ],
       },
     ]);
+  } else if (failedToolAt != null) {
+    displayedEntriesJSON = JSON.stringify(failedToolEntries(failedToolAt));
   } else if (showChanges) {
     displayedEntriesJSON = JSON.stringify([
       {
@@ -574,8 +616,18 @@ function View() {
     <>
       <Stack.Screen options={{ title: navigationTitle }} />
       <Stack.Toolbar placement="right">
-        {uiVerify && (
-          <Stack.Toolbar.Menu icon="wrench" accessibilityLabel="Fixtures">
+        <Stack.Toolbar.Menu icon="wrench" accessibilityLabel="Fixtures">
+            <Stack.Toolbar.MenuAction
+              children="Failed Tool Fixture"
+              icon="exclamationmark.triangle"
+              onPress={() => {
+                setShowImage(false);
+                setShowChanges(false);
+                setDurationFixture(null);
+                setProcessCounts(null);
+                setFailedToolAt(Date.now());
+              }}
+            />
             <Stack.Toolbar.MenuAction
               children="Session Created"
               icon="checkmark"
@@ -625,6 +677,7 @@ function View() {
                 setShowImage(false);
                 setShowChanges(false);
                 setProcessCounts(null);
+                setFailedToolAt(null);
                 setDurationFixture({
                   startedAt: Date.now(),
                   finished: false,
@@ -638,6 +691,7 @@ function View() {
                 setShowImage(false);
                 setShowChanges(false);
                 setDurationFixture(null);
+                setFailedToolAt(null);
                 setProcessCounts({
                   count: 1,
                   startedAt: Date.now(),
@@ -704,7 +758,6 @@ function View() {
               onPress={openQuestionFixture}
             />
           </Stack.Toolbar.Menu>
-        )}
         {durationFixture && !durationFixture.finished && (
           <Stack.Toolbar.Button
             accessibilityLabel="Finish Duration Fixture"

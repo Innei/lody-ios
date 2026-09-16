@@ -235,6 +235,9 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   }
   static func iconSymbolConfiguration(for row: ChatRow) -> UIImage.SymbolConfiguration {
     if row.kind == "summary" {
+      if row.attention {
+        return UIImage.SymbolConfiguration(pointSize: 8, weight: .bold)
+      }
       return UIImage.SymbolConfiguration(pointSize: 6)
     }
     if row.kind == "thought" {

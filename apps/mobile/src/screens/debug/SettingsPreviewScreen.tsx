@@ -12,7 +12,6 @@ import type { RemoteSetting } from '@/models/settings';
 import type { Catalog } from '@/models/catalog';
 import { projectRows } from '@/cloud/catalog/model';
 import { t } from '../../lib/i18n/index.ts';
-import { uiVerify } from './uiVerify';
 
 function View() {
   const { push } = usePageRuntime();
@@ -63,7 +62,6 @@ function View() {
   const failLoad = useRef(true),
     failSave = useRef(true);
   const service = useCallback<SettingsService>(async (request) => {
-    if (!__DEV__ && !uiVerify) throw new Error('Development only');
     if (failLoad.current) {
       failLoad.current = false;
       throw new Error(t('settings.remote.loadFailed'));

@@ -204,7 +204,7 @@ func summaryRow(running: Bool, attention: Bool) -> ChatRow {
     entryID: "reply",
     kind: "summary",
     text: "执行过程",
-    symbol: "circle.fill",
+    symbol: attention ? "exclamationmark.triangle.fill" : "circle.fill",
     actionable: true,
     running: running,
     attention: attention
@@ -224,6 +224,7 @@ func summaryCell(for row: ChatRow) -> ChatCell {
 let runningSummary = summaryCell(for: summaryRow(running: true, attention: false))
 let doneSummary = summaryCell(for: summaryRow(running: false, attention: false))
 let failedSummary = summaryCell(for: summaryRow(running: false, attention: true))
+let failedLiveSummary = summaryCell(for: summaryRow(running: true, attention: true))
 let traits = runningSummary.traitCollection
 precondition(resolved(runningSummary.icon.tintColor, traits: traits) == resolved(.lodyAccent, traits: traits),
   "A live process pip must use the accent color")
@@ -231,8 +232,28 @@ precondition(resolved(doneSummary.icon.tintColor, traits: traits) == resolved(.s
   "A finished process pip must use secondary label")
 precondition(resolved(failedSummary.icon.tintColor, traits: traits) == resolved(.systemOrange, traits: traits),
   "A failed or pending process pip must be system orange")
+precondition(runningSummary.row!.shines, "A live process pip must shine")
+precondition(!doneSummary.row!.shines, "A finished process must not shine")
+precondition(failedLiveSummary.row!.shines, "A live process with a failed tool must keep the shine")
+precondition(failedLiveSummary.row!.symbol == "exclamationmark.triangle.fill",
+  "A live process with a failed tool must use a warning mark")
+precondition(failedSummary.row!.symbol == "exclamationmark.triangle.fill",
+  "A failed process must use a warning mark")
+precondition(runningSummary.row!.symbol == "circle.fill", "A healthy live process must keep the pip")
+let warnMark = UIImage(
+  systemName: "exclamationmark.triangle.fill",
+  withConfiguration: ChatCell.iconSymbolConfiguration(for: failedLiveSummary.row!)
+)
+precondition(
+  failedLiveSummary.icon.image?.pngData() == warnMark?.pngData(),
+  "The leading mark must draw the warning symbol, not the pip"
+)
+precondition(resolved(failedLiveSummary.icon.tintColor, traits: traits) == resolved(.systemOrange, traits: traits),
+  "The warning mark must stay system orange")
 precondition((runningSummary.icon.image?.size.width ?? .greatestFiniteMagnitude) < (thoughtCell.icon.image?.size.width ?? 0),
   "The process status pip must be smaller than thought and tool icons")
+precondition((failedLiveSummary.icon.image?.size.width ?? .greatestFiniteMagnitude) < (thoughtCell.icon.image?.size.width ?? 0),
+  "The warning mark must stay in the process pip scale")
 precondition(ChatCell.leading(doneSummary.row!) == 12, "The process pip must not keep the 24-point icon gutter")
 precondition(doneSummary.icon.frame.minX == 0, "The process pip must sit on the text leading edge")
 precondition(doneSummary.icon.frame.width == 8, "The process pip slot must match the 6-point dot")
@@ -509,6 +530,33 @@ let shortStill = processSnapshot(shortHost, x: 0, width: shortWidth)
 RunLoop.main.run(until: Date().addingTimeInterval(0.4))
 precondition(shortStill == processSnapshot(shortHost, x: 0, width: shortWidth), "Completed SwiftUI process text must stay still")
 print("Chat render: SwiftUI shine travels across the full process row")
+
+let attentionText = NSAttributedString(string: "思考过程", attributes: [
+  .font: UIFont.systemFont(ofSize: 13),
+  .foregroundColor: UIColor.systemOrange,
+])
+let attentionHost = ChatNumericTextHost(frame: CGRect(x: 0, y: 0, width: countWidth, height: textKitHeight))
+window.addSubview(attentionHost)
+attentionHost.apply(text: attentionText, animated: false, shines: false)
+attentionHost.layoutIfNeeded()
+let attentionWidth = ceil(attentionText.boundingRect(
+  with: CGSize(width: countWidth, height: .greatestFiniteMagnitude),
+  options: [.usesLineFragmentOrigin, .usesFontLeading],
+  context: nil
+).width)
+let attentionRest = processSnapshot(attentionHost, x: 0, width: attentionWidth)
+attentionHost.apply(text: attentionText, animated: false, shines: true)
+var attentionFrames: [Data] = []
+for _ in 0..<10 {
+  RunLoop.main.run(until: Date().addingTimeInterval(0.16))
+  attentionFrames.append(processSnapshot(attentionHost, x: 0, width: attentionWidth))
+}
+if !UIAccessibility.isReduceMotionEnabled {
+  precondition(attentionFrames.contains { $0 != attentionRest }, "Shine must still travel across yellow failed-tool process text")
+  precondition(Set(attentionFrames).count > 1, "Shine must keep moving on yellow failed-tool process text")
+  precondition(attentionFrames.contains { sameProcessPixels($0, attentionRest) }, "Yellow process text outside the shine must keep its color")
+}
+print("Chat render: failed-tool process text stays yellow and keeps the shine")
 
 let countCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
 window.addSubview(countCell)

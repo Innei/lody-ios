@@ -120,7 +120,7 @@ struct ChatRow: Equatable {
   var uploadProgress: [String: ChatAttachmentUploadProgress] = [:]
   var workDurationMs: Int? = nil
   var imageAsset = ""
-  var shines: Bool { kind == "summary" && running && !attention }
+  var shines: Bool { kind == "summary" && running }
   /// `only` / `first` / `middle` / `last` for consecutive file rows in one group.
   var group = ""
 }
@@ -455,11 +455,12 @@ struct ChatTranscript {
           let failed = process.contains { $0.status == "failed" }
           let running = entry.isRunning && indices.last == entry.items.indices.last
           let firstGroup = index == groups.keys.min()
+          let attention = needsPermission || failed
           result.append(ChatRow(id: entry.id + ":process" + (firstGroup ? "" : ":" + entry.items[index].itemId), entryID: entry.id, kind: "summary",
             text: ChatProcessSummary.title(items: process, running: running),
-            symbol: "circle.fill",
+            symbol: ChatProcessSummary.mark(attention: attention),
             processStartID: entry.finished ? "" : entry.items[index].itemId,
-            actionable: true, running: running, attention: needsPermission || failed))
+            actionable: true, running: running, attention: attention))
           continue
         }
         let item = entry.items[index]
@@ -571,6 +572,10 @@ extension ChatTranscript {
 }
 
 enum ChatProcessSummary {
+  static func mark(attention: Bool) -> String {
+    attention ? "exclamationmark.triangle.fill" : "circle.fill"
+  }
+
   static func title(items: [ChatItem], running: Bool) -> String {
     var readPaths = Set<String>()
     var editPaths = Set<String>()

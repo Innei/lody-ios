@@ -162,9 +162,7 @@ function View() {
           'arrow.uturn.forward',
         ),
         openRow('inbox-preview', '动态分组验收', 'tray'),
-        ...(uiVerify
-          ? [openRow('background-preview', '后台连接验收', 'moon.zzz')]
-          : []),
+        openRow('background-preview', '后台连接验收', 'moon.zzz'),
         openRow('native-shell-poc', 'Native Shell POC', 'sidebar.left'),
         openRow(
           'native-collection-poc',
@@ -178,9 +176,7 @@ function View() {
           '300 TPS 流式性能测试',
           'waveform.path',
         ),
-        ...(uiVerify
-          ? [openRow('model-memory', 'Model memory verification', 'brain')]
-          : []),
+        openRow('model-memory', 'Model memory verification', 'brain'),
       ],
     },
     {

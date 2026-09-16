@@ -30,6 +30,22 @@ let failedSummary = transcript.rows().first { $0.kind == "summary" }!
 assert(!failedSummary.text.contains("native.chat.transcript.status.failed"), failedSummary.text)
 assert(failedSummary.text.contains("native.chat.transcript.activity.thought"), failedSummary.text)
 assert(failedSummary.text.contains("native.chat.transcript.activity.tools"), failedSummary.text)
+assert(failedSummary.symbol == "exclamationmark.triangle.fill",
+  "A failed tool in the process must replace the status pip with a warning mark")
+assert(!failedSummary.shines, "A finished process must not shine")
+
+let liveFailedJSON = """
+[{"id":"live-fail","role":"assistant","status":"running","finished":false,"items":[
+{"itemId":"intro","type":"thought","text":"先检查"},
+{"itemId":"tool","type":"tool_call","title":"读取文件","status":"failed"}]}]
+"""
+transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(liveFailedJSON.utf8))
+let liveFailed = transcript.rows().first { $0.kind == "summary" }!
+assert(liveFailed.attention)
+assert(liveFailed.running)
+assert(liveFailed.shines, "A live process with a failed tool must keep the shine")
+assert(liveFailed.symbol == "exclamationmark.triangle.fill",
+  "A live process with a failed tool must show a warning mark instead of the pip")
 let permission = finished.replacingOccurrences(of: "\"status\":\"completed\"", with: "\"permission\":{\"requestId\":\"p\",\"pending\":true}")
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(permission.utf8))
 assert(transcript.rows().contains { $0.kind == "summary" && $0.attention })
@@ -284,6 +300,7 @@ let mixedFail = """
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(mixedFail.utf8))
 let mixedSummary = transcript.rows().first { $0.kind == "summary" }!
 assert(mixedSummary.attention)
+assert(mixedSummary.symbol == "exclamationmark.triangle.fill")
 assert(!mixedSummary.text.contains("native.chat.transcript.status.failed"), mixedSummary.text)
 assert(!mixedSummary.text.contains("native.chat.transcript.status.done"), mixedSummary.text)
 assert(mixedSummary.text.contains("native.chat.transcript.activity.thought"), mixedSummary.text)
