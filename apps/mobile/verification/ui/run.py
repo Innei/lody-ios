@@ -376,6 +376,10 @@ with metro_context:
                     check_timeout = 180
                     if case == 'chat-performance':
                         check_timeout = 480
+                    elif case == 'live-activity':
+                        # Includes a real 61-second dismissal wait plus lock/unlock
+                        # and Dynamic Island transitions; 180s cuts off deep links.
+                        check_timeout = 300
                     elif case in ('chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production'):
                         check_timeout = 300
                     with (output / 'check.log').open('w') as log:

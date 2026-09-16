@@ -32,7 +32,24 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     let window = UIWindow(windowScene: windowScene)
     self.window = window
     appDelegate.window = window
-    factory.startReactNative(withModuleName: "main", in: window, launchOptions: nil)
+    // With scenes, UIKit delivers a cold-start URL here, not in AppDelegate.
+    var launchOptions: [UIApplication.LaunchOptionsKey: Any] = [:]
+    if let context = connectionOptions.urlContexts.first {
+      launchOptions[.url] = context.url
+      launchOptions[.sourceApplication] = context.options.sourceApplication
+    }
+    factory.startReactNative(withModuleName: "main", in: window, launchOptions: launchOptions.isEmpty ? nil : launchOptions)
+  }
+
+  func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+    guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else { return }
+    for context in URLContexts {
+      var options: [UIApplication.OpenURLOptionsKey: Any] = [.openInPlace: context.options.openInPlace]
+      options[.sourceApplication] = context.options.sourceApplication
+      options[.annotation] = context.options.annotation
+      // Preserve Expo's subscribers and its existing React Native linking bridge.
+      _ = appDelegate.application(UIApplication.shared, open: context.url, options: options)
+    }
   }
 }
 `;

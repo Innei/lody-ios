@@ -5,7 +5,7 @@ import UIKit
 
 /// Process-owned listener: notification clicks can precede the React bridge.
 @MainActor
-final class PushNotifications: NSObject, OSNotificationClickListener, OSNotificationLifecycleListener, OSPushSubscriptionObserver {
+final class PushNotifications: NSObject, OSNotificationClickListener, OSNotificationLifecycleListener, OSPushSubscriptionObserver, OSUserStateObserver {
   static let shared = PushNotifications()
   private(set) var configured = false
   private var userId: String?
@@ -31,6 +31,7 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
       OneSignal.Notifications.requestPermission({ _ in }, fallbackToSettings: false)
     }
     OneSignal.User.pushSubscription.addObserver(self)
+    OneSignal.User.addObserver(self)
     evaluateSubscription(OneSignal.User.pushSubscription.id)
     OneSignal.Notifications.addClickListener(self)
     OneSignal.Notifications.addForegroundLifecycleListener(self)
@@ -39,6 +40,11 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
   nonisolated func onPushSubscriptionDidChange(state: OSPushSubscriptionChangedState) {
     let id = state.current.id
     Task { @MainActor in self.evaluateSubscription(id) }
+  }
+
+  nonisolated func onUserStateDidChange(state: OSUserChangedState) {
+    // A background push-to-start launch may restore SDK identity before RN runs.
+    Task { @MainActor in LiveActivities.shared.start() }
   }
 
   private func evaluateSubscription(_ id: String?) {
@@ -65,9 +71,11 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
     let previous = userId ?? OneSignal.User.externalId
     userId = id
     clicks.identify(id)
+    LiveActivities.shared.identify(id)
     if let id, !id.isEmpty {
       if let previous, previous != id { clearDelivered() }
       OneSignal.login(id)
+      LiveActivities.shared.start()
       // Never trigger the system permission prompt as a side effect of login.
       if OneSignal.Notifications.permission { OneSignal.User.pushSubscription.optIn() }
     } else {
@@ -142,6 +150,7 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
 public final class PushAppDelegateSubscriber: ExpoAppDelegateSubscriber {
   public func applicationDidBecomeActive(_ application: UIApplication) {
     PushNotifications.shared.status { _ in }
+    LiveActivities.shared.start()
   }
 
   public func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
