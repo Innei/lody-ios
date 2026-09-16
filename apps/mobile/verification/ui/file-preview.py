@@ -15,7 +15,35 @@ def link(index, row='file-links:answer', icon=False):
     ui.axe('tap', '-x', str(frame['x'] + (8 if icon else 55)), '-y', str(frame['y'] + 16 + index * 32), '--post-delay', '.6')
 
 def back(label=None):
-    ui.axe('tap', '--label' if label else '--id', label or 'BackButton', '--post-delay', '.5')
+    if label:
+        ui.axe('tap', '--label', label, '--post-delay', '.5')
+        return
+    buttons = [i for i in ui.state() if (i.get('AXUniqueId') or '') == 'file-back']
+    if buttons:
+        frame = buttons[-1]['frame']
+        ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.5')
+        return
+    ui.axe('tap', '--id', 'BackButton', '--post-delay', '.5')
+
+def dismiss_quicklook():
+    frame = ui.element('QLPreviewControllerView')['frame']
+    ui.axe(
+        'swipe',
+        '--start-x', str(frame['x'] + frame['width'] / 2),
+        '--start-y', str(max(frame['y'] + 16, 70)),
+        '--end-x', str(frame['x'] + frame['width'] / 2),
+        '--end-y', str(frame['y'] + min(frame['height'] - 24, 720)),
+        '--duration', '.5',
+        '--post-delay', '.7',
+    )
+    if not any((i.get('AXUniqueId') or '') == 'QLPreviewControllerView' for i in ui.state()):
+        return
+    if any(i.get('AXLabel') == catalog.text('native.close') for i in ui.state()):
+        ui.axe('tap', '--label', catalog.text('native.close'), '--post-delay', '.5')
+        return
+    close = next((i for i in ui.state() if i.get('type') == 'Button' and str(i.get('AXLabel') or '').lower() in ['done', 'close']), None)
+    assert close, 'Presented Quick Look must dismiss with a pull-down or Close'
+    ui.axe('tap', '--label', close['AXLabel'], '--post-delay', '.5')
 
 assert ui.element('file-links:answer')['custom_actions'] == ['完整报告', '代码', '图片', 'PDF 文档', '不存在的文件']
 ui.capture('links')
@@ -28,8 +56,8 @@ ui.element('file-loading', timeout=2)
 ui.capture('browser-loading')
 ui.element('file-document')
 ui.capture('browser-document')
-# A short, slow edge swipe cancels the native interactive return.
-ui.axe('swipe', '--start-x', '2', '--start-y', '430', '--end-x', '75', '--end-y', '430', '--duration', '.8', '--post-delay', '.6')
+# A short, slow pull cancels the sheet return.
+ui.axe('swipe', '--start-x', '201', '--start-y', '80', '--end-x', '201', '--end-y', '160', '--duration', '.8', '--post-delay', '.6')
 title('report.md')
 ui.element('file-document')
 ui.capture('browser-cancelled-return')
@@ -61,6 +89,7 @@ back()
 title('report.md')
 back()
 ui.element('file-links:answer')
+ui.wait(lambda items: not any((i.get('AXUniqueId') or '') in ['file-back', 'QLPreviewControllerView'] for i in items), 'File sheet still open after dismiss')
 link(1)
 title('sample.swift')
 source = ui.element('file-source')
@@ -70,15 +99,13 @@ back()
 for index, name in [(2, 'photo.png'), (3, 'document.pdf')]:
     link(index)
     ui.element('QLPreviewControllerView')
-    time.sleep(.6)
-    if not any(str(i.get('AXLabel') or '').lower() in ['done', 'close'] for i in ui.state()):
-        ui.axe('tap', '-x', '201', '-y', '430', '--post-delay', '.5')
+    items = ui.state()
+    assert not any((i.get('AXUniqueId') or '') == 'chat-image-preview' for i in items), 'Inline file links must not open ChatImagePreview'
+    assert not any(i.get('AXLabel') == catalog.text('native.chat.image.closePreview') for i in items), 'Inline file links must not use the image lightbox'
     ui.capture('quicklook-' + name.split('.')[-1])
-    close = ui.wait(lambda items: next((i for i in items if i.get('type') == 'Button' and str(i.get('AXLabel') or '').lower() in ['done', 'close']), None), 'Quick Look has no dismiss action')
-    ui.axe('tap', '--label', close['AXLabel'], '--post-delay', '.5')
-    title(name)
-    back()
+    dismiss_quicklook()
     ui.element('file-links:answer')
+    assert not any((i.get('AXUniqueId') or '') == 'QLPreviewControllerView' for i in ui.state()), 'Pull-down must dismiss presented Quick Look'
 link(4)
 ui.wait(lambda items: any(catalog.text('files.error.notFound') in str(i.get('AXLabel') or '') for i in items), 'Missing-file error was swallowed')
 ui.capture('missing-file')
@@ -88,12 +115,12 @@ ui.wait(lambda items: any(catalog.text('files.error.notFound') in str(i.get('AXL
 back()
 # A late image response must not open Quick Look after leaving its loading page.
 link(2)
-title('photo.png', timeout=2)
 ui.element('file-loading', timeout=2)
-back()
+ui.axe('tap', '--label', catalog.text('native.close'), '--post-delay', '.5')
 time.sleep(5.5)
 ui.element('file-links:answer')
 assert not any(str(i.get('AXLabel') or '').lower() in ['done', 'close'] for i in ui.state())
+assert not any((i.get('AXUniqueId') or '') == 'QLPreviewControllerView' for i in ui.state()), 'Late image read must not host Quick Look after return'
 ui.capture('cancelled-loading')
 ui.axe('tap', '--id', 'file-links:process', '--post-delay', '.6')
 ui.element('file-links:thought')
@@ -107,9 +134,9 @@ ui.axe('tap', '--label', catalog.text('file.source'), '--post-delay', '.4')
 ui.element('file-source')
 ui.axe('tap', '--label', catalog.text('file.preview'), '--post-delay', '.4')
 ui.element('file-document')
-back(catalog.text('process.title'))
+back()
 ui.element('file-links:thought')
 ui.capture('process-return')
 ui.axe('tap', '--label', catalog.text('accessibility.closeSheet', title=catalog.text('process.title')), '--post-delay', '.5')
 ui.element('file-links:answer')
-print('PASS: files push before slow reads, deselect on return, and ignore late cancelled reads; Markdown/source, relative links, Quick Look, retry and process-sheet navigation work')
+print('PASS: files push before slow reads, deselect on return, and ignore late cancelled reads; Markdown/source, relative links, presented Quick Look, retry and process-sheet navigation work')

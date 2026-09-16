@@ -160,7 +160,7 @@ export {
   type DirectoryEntry,
   type DirectoryListing,
 } from './diff/files';
-export { readContentText, previewContent } from './runtime/LodyKit';
+export { readContentText, previewContent, openFile } from './runtime/LodyKit';
 export {
   NativeInlineDiff,
   type NativeInlineDiffProps,

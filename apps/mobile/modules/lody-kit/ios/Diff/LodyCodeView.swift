@@ -19,6 +19,8 @@ private let languages: [String: String] = [
 final class LodyCodeView: LodyAppearanceView, UITextViewDelegate {
   let onFail = EventDispatcher()
   let onFilePress = EventDispatcher()
+  var onOpenFile: ((String, Int) -> Void)?
+  var onRenderFail: (() -> Void)?
   private let textView = UITextView()
   private let gutter = GutterView()
   private let documentScroll = UIScrollView()
@@ -56,7 +58,11 @@ final class LodyCodeView: LodyAppearanceView, UITextViewDelegate {
       case .string(let value): value
       }
       if let target = ChatFileLink(href) {
-        self?.onFilePress(["path": target.path, "line": target.line ?? 0])
+        if let onOpenFile = self?.onOpenFile {
+          onOpenFile(target.path, target.line ?? 0)
+        } else {
+          self?.onFilePress(["path": target.path, "line": target.line ?? 0])
+        }
       } else if let url = URL(string: href), ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
         UIApplication.shared.open(url)
       }
@@ -92,7 +98,7 @@ final class LodyCodeView: LodyAppearanceView, UITextViewDelegate {
   private func render() {
     guard !handle.isEmpty else { return }
     guard let content = ContentStore.shared.get(handle), let text = String(data: content.data, encoding: .utf8) else {
-      onFail(["message": "content_expired"])
+      if let onRenderFail { onRenderFail() } else { onFail(["message": "content_expired"]) }
       return
     }
     var theme = ChatMarkdownTheme.make(traits: traitCollection, secondary: false)

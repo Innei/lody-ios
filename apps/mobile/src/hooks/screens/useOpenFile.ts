@@ -1,9 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { basename } from '@/features/sessions/path';
-import { usePageRuntime } from './usePageRuntime';
+import { openFile as nativeOpenFile } from '@lody-ios/kit';
 
 export function useOpenFile(sessionId: string) {
-  const { push } = usePageRuntime();
   const busy = useRef(false);
   const active = useRef(true);
   useEffect(() => {
@@ -16,13 +14,8 @@ export function useOpenFile(sessionId: string) {
     if (busy.current || !sessionId) return;
     busy.current = true;
     try {
-      const { FileScreen } = await import('@/screens/FileScreen');
       if (!active.current) return;
-      await push(
-        FileScreen,
-        { path, sessionId, line },
-        { title: basename(path) },
-      );
+      await nativeOpenFile({ sessionId, path, line });
     } finally {
       busy.current = false;
     }

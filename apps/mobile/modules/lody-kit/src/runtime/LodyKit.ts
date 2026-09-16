@@ -93,6 +93,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   turnDiff(payload: string): Promise<string>;
   fileDiff(payload: string): Promise<string>;
   readFile(payload: string): Promise<string>;
+  openFile(sessionId: string, path: string, line: number): Promise<void>;
   listDir(payload: string): Promise<string>;
   mentionCatalog(payload: string): Promise<string>;
   readContentText(handle: string): Promise<string | null>;
@@ -237,6 +238,11 @@ export const respondSessionPermission = (payload: string) =>
 export const turnDiffRaw = (payload: string) => native.turnDiff(payload);
 export const fileDiffRaw = (payload: string) => native.fileDiff(payload);
 export const readFileRaw = (payload: string) => native.readFile(payload);
+export const openFile = (args: {
+  sessionId: string;
+  path: string;
+  line?: number;
+}) => native.openFile(args.sessionId, args.path, args.line ?? 0);
 export const mentionCatalogRaw = (payload: string) =>
   native.mentionCatalog(payload);
 export const listDirRaw = (payload: string) => native.listDir(payload);

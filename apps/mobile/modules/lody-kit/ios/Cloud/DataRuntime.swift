@@ -12,7 +12,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   private var userId = ""
   private let localStore: LocalStore
   private var cacheErrorShown = false
-  private var commands: [UUID: Promise] = [:]
+  private var commands: [UUID: CommandSink] = [:]
   private var timer: Timer?
   private var attachmentTasks: [String: Task<Void, Never>] = [:]
   private var attachmentAttempts: [String: UUID] = [:]
@@ -379,8 +379,41 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     guard let output = try? JSONSerialization.data(withJSONObject: object), let text = String(data: output, encoding: .utf8) else { return json }
     return text
   }
+  private enum CommandSink {
+    case promise(Promise)
+    case continuation(CheckedContinuation<String, Error>)
+
+    func resolve(_ value: Any?) {
+      switch self {
+      case .promise(let promise):
+        promise.resolve(value)
+      case .continuation(let continuation):
+        if let text = value as? String {
+          continuation.resume(returning: text)
+        } else if value == nil {
+          continuation.resume(returning: "")
+        } else {
+          continuation.resume(returning: String(describing: value as Any))
+        }
+      }
+    }
+
+    func reject(_ error: Error) {
+      switch self {
+      case .promise(let promise):
+        promise.reject(error as NSError)
+      case .continuation(let continuation):
+        continuation.resume(throwing: error)
+      }
+    }
+  }
+
   private func fail(_ promise: Promise, _ code: String, _ message: String) {
-    promise.reject(
+    fail(.promise(promise), code, message)
+  }
+
+  private func fail(_ sink: CommandSink, _ code: String, _ message: String) {
+    sink.reject(
       NSError(
         domain: "LodyKit.DataRuntime",
         code: 1,
@@ -391,13 +424,21 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
 
   private static let sessionCommands: Set<String> = ["sendTurn", "controlTurn", "itemDetail", "respondPermission", "turnDiff", "fileDiff", "readFile"]
   private static let contentCommands: Set<String> = ["turnDiff", "fileDiff", "readFile"]
+  func command(_ method: String, payload: String) async throws -> String {
+    try await withCheckedThrowingContinuation { continuation in
+      command(method, payload: payload, sink: .continuation(continuation))
+    }
+  }
   func command(_ method: String, payload: String, promise: Promise) {
+    command(method, payload: payload, sink: .promise(promise))
+  }
+  private func command(_ method: String, payload: String, sink: CommandSink) {
     guard health.ready, let view = webView, let data = payload.data(using: .utf8), data.count <= 128 * 1024,
           var args = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
       if method == "sendTurn" {
-        promise.resolve(notSentJSON("native.runtime.sessionNotSyncedRetry"))
+        sink.resolve(notSentJSON("native.runtime.sessionNotSyncedRetry"))
       } else {
-        fail(promise, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
+        fail(sink, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
       }
       return
     }
@@ -412,14 +453,14 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     }
     guard allowed else {
       if method == "sendTurn" {
-        promise.resolve(notSentJSON("native.runtime.sessionNotSyncedRetry"))
+        sink.resolve(notSentJSON("native.runtime.sessionNotSyncedRetry"))
       } else {
-        fail(promise, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
+        fail(sink, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
       }
       return
     }
     if method == "remoteSettings" || method == "localProjects" || method == "mentionCatalog" { args["userId"] = userId }
-    let id = UUID(); commands[id] = promise
+    let id = UUID(); commands[id] = sink
     if method == "sendTurn", args["backgroundTaskId"] == nil, !backgrounded {
       args["backgroundTaskId"] = SessionBackgroundTasks.shared.begin(owner: owner)
     }

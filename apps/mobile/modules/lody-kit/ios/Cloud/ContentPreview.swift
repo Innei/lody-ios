@@ -13,15 +13,20 @@ final class ContentPreview: NSObject, QLPreviewControllerDataSource, @MainActor 
     try? FileManager.default.removeItem(at: root)
   }
 
-  static func present(handle: String, from controller: UIViewController) throws {
+  static func prepare(handle: String, directory: URL) throws -> URL {
     guard let content = ContentStore.shared.get(handle) else {
       throw NSError(domain: "LodyKit.ContentPreview", code: 1, userInfo: [NSLocalizedDescriptionKey: "content_expired"])
     }
-    let directory = root.appendingPathComponent(handle, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let name = (content.path as NSString).lastPathComponent
     let url = directory.appendingPathComponent(name.isEmpty ? "file" : name)
     try content.data.write(to: url, options: .atomic)
+    return url
+  }
+
+  static func present(handle: String, from controller: UIViewController) throws {
+    let directory = root.appendingPathComponent(handle, isDirectory: true)
+    let url = try prepare(handle: handle, directory: directory)
     let preview = ContentPreview(url: url)
     let viewer = QLPreviewController()
     viewer.dataSource = preview

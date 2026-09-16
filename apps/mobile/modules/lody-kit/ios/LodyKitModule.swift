@@ -375,15 +375,35 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("fileDiff") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("fileDiff", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("readFile") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
-        #if DEBUG
-        if let response = FilePreviewFixture.response(payload) {
-          // Exercise both slow reads and an immediate Quick Look result during push.
-          let delay = payload.contains("document.pdf") ? 0.0 : 5.0
-          DispatchQueue.main.asyncAfter(deadline: .now() + delay) { promise.resolve(response) }
+        let runtime = self.dataRuntime
+        Task { @MainActor in
+          do {
+            guard let args = try JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any],
+              let sessionId = args["sessionId"] as? String,
+              let path = args["path"] as? String
+            else {
+              throw NSError(domain: "LodyKit.FilePreview", code: 3)
+            }
+            promise.resolve(try await FilePreview.read(sessionId: sessionId, path: path, runtime: runtime))
+          } catch {
+            promise.reject(error as NSError)
+          }
+        }
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("openFile") { (sessionId: String, path: String, line: Int, promise: Promise) in
+      MainActor.assumeIsolated {
+        guard let controller = self.appContext?.utilities?.currentViewController() else {
+          promise.reject(NSError(domain: "LodyKit.FilePreview", code: 2))
           return
         }
-        #endif
-        self.dataRuntime.command("readFile", payload: payload, promise: promise)
+        let runtime = self.dataRuntime
+        Task { @MainActor in
+          await FilePreview.open(
+            sessionId: sessionId, path: path, line: line, runtime: runtime, from: controller
+          )
+          promise.resolve()
+        }
       }
     }.runOnQueue(.main)
     AsyncFunction("mentionCatalog") { (payload: String, promise: Promise) in

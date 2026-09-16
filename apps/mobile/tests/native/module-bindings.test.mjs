@@ -23,6 +23,7 @@ test('LodyKit keeps asynchronous native calls on the queued module DSL', () => {
     'releaseReserve',
     'readContentText',
     'previewContent',
+    'openFile',
     'debugHangDataRuntime',
     'debugRestartDataRuntime',
     'readLocalStartup',
