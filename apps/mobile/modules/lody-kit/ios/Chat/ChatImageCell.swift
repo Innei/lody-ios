@@ -60,8 +60,7 @@ final class ChatImageCell: UICollectionViewCell {
       spinner.stopAnimating(); failure.isHidden = photo.image != nil
       return
     }
-    #if DEBUG
-    if ProcessInfo.processInfo.arguments.contains("--ui-verify"), image.id == "ui-verify-image" {
+    if LodyUIVerify.enabled, image.id == "ui-verify-image" {
       task?.cancel(); task = nil; requestURL = nil; requestID = UUID()
       photo.image = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 400)).image { context in
         UIColor.systemBlue.setFill(); context.fill(CGRect(x: 0, y: 0, width: 600, height: 400))
@@ -70,7 +69,6 @@ final class ChatImageCell: UICollectionViewCell {
       spinner.stopAnimating(); failure.isHidden = true
       return
     }
-    #endif
     guard !workspace.isEmpty, !session.isEmpty, !image.id.isEmpty else {
       task?.cancel(); task = nil; requestURL = nil; requestID = UUID()
       photo.image = nil; spinner.stopAnimating(); failure.isHidden = false
@@ -130,11 +128,7 @@ final class ChatImageCell: UICollectionViewCell {
 
   func presentPreview(from controller: UIViewController) {
     guard let image, controller.presentedViewController == nil else { return }
-    #if DEBUG
-    let fixture = ProcessInfo.processInfo.arguments.contains("--ui-verify") && image.id == "ui-verify-image"
-    #else
-    let fixture = false
-    #endif
+    let fixture = LodyUIVerify.enabled && image.id == "ui-verify-image"
     guard fixture || requestURL != nil || photo.image != nil else { return }
     let previewURL: URL?
     if fixture || requestURL?.isFileURL == true {

@@ -1,4 +1,3 @@
-#if DEBUG
 import ExpoModulesCore
 import React
 import UIKit
@@ -295,4 +294,3 @@ final class LodyNativeShellPOC: ExpoView, UINavigationControllerDelegate {
     }
   }
 }
-#endif

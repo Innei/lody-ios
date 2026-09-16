@@ -1,4 +1,3 @@
-#if DEBUG
 import ExpoModulesCore
 import UIKit
 
@@ -188,7 +187,7 @@ private final class ComposerHandoffPOCController: UIViewController {
       }
       input?.becomeFirstResponder()
       if let selection { input?.selectedRange = selection }
-      if ProcessInfo.processInfo.arguments.contains("--ui-verify") {
+      if LodyUIVerify.enabled {
         let adopted = composer.convert(composer.bounds, to: window)
         let report: [String: Any] = [
           "sameComposer": chat.composer === composer,
@@ -208,4 +207,3 @@ private final class ComposerHandoffPOCController: UIViewController {
     }
   }
 }
-#endif

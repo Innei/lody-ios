@@ -21,9 +21,7 @@ final class FileMarkdownView: MarkdownTextView {
     super.layoutSubviews()
     ChatTableBleed.apply(to: self)
     ChatWordSelection.attach(under: self)
-    #if DEBUG
     ChatContextViewProbe.record(self)
-    #endif
   }
 
   override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
@@ -222,8 +220,7 @@ enum ChatTableBleed {
   }
 
   static func watch(_ scroll: UIScrollView) {
-    #if DEBUG
-    guard ProcessInfo.processInfo.arguments.contains("--ui-verify") else { return }
+    guard LodyUIVerify.enabled else { return }
     let id = ObjectIdentifier(scroll)
     if offsetWatches[id] == nil {
       offsetWatches[id] = scroll.observe(\.contentOffset, options: [.new]) { _, _ in
@@ -234,12 +231,10 @@ enum ChatTableBleed {
     timer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { _ in
       MainActor.assumeIsolated { dump() }
     }
-    #endif
   }
 
   static func dump() {
-    #if DEBUG
-    guard ProcessInfo.processInfo.arguments.contains("--ui-verify") else { return }
+    guard LodyUIVerify.enabled else { return }
     guard let window = UIApplication.shared.connectedScenes
       .compactMap({ $0 as? UIWindowScene })
       .flatMap(\.windows)
@@ -268,15 +263,12 @@ enum ChatTableBleed {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent("lody-table-bleed.json")
     guard let data = try? JSONSerialization.data(withJSONObject: rows) else { return }
     try? data.write(to: url, options: .atomic)
-    #endif
   }
 
   private static var hooked = false
   private static var finishing = false
-  #if DEBUG
   private static var offsetWatches: [ObjectIdentifier: NSKeyValueObservation] = [:]
   private static var timer: Timer?
-  #endif
 }
 
 extension UIView {
@@ -288,11 +280,10 @@ extension UIView {
   }
 }
 
-#if DEBUG
 @MainActor
 enum ChatContextViewProbe {
   static func record(_ markdown: UIView) {
-    guard ProcessInfo.processInfo.arguments.contains("--ui-verify") else { return }
+    guard LodyUIVerify.enabled else { return }
     var grown: [String] = []
     for view in markdown.subviews {
       let name = NSStringFromClass(type(of: view))
@@ -309,7 +300,6 @@ enum ChatContextViewProbe {
     try? JSONSerialization.data(withJSONObject: existing + grown).write(to: url, options: .atomic)
   }
 }
-#endif
 
 private final class FileLinkButton: UIButton {
   override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {

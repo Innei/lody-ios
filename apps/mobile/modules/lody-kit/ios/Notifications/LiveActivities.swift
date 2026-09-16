@@ -333,7 +333,6 @@ final class LiveActivities {
     token.map { String(format: "%02x", $0) }.joined()
   }
 
-  #if DEBUG
   // Exercise the actual Convex start schema in the offline Widget fixture too.
   private static let debugAttributes = try! JSONDecoder().decode(LodyActivityAttributes.self, from: Data(#"{"activityId":"lody-conversations:v5:debug:debug","workspaceId":"debug","workspaceName":"Debug"}"#.utf8))
 
@@ -431,5 +430,4 @@ final class LiveActivities {
     copy.took = labels.took
     return copy
   }
-  #endif
 }

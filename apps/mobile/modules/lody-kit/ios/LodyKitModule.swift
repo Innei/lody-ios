@@ -45,13 +45,8 @@ public final class LodyKitModule: Module, @unchecked Sendable {
 
   @JS
   var runtimeInfo: LodyRuntimeInfo {
-    var offlineProbe = false
-    var uiVerifyHome = false
-    #if DEBUG
-    offlineProbe = ProcessInfo.processInfo.arguments.contains("--lody-offline")
-    uiVerifyHome = ProcessInfo.processInfo.arguments.contains("--ui-verify")
-      && ProcessInfo.processInfo.arguments.contains("--ui-verify-home")
-    #endif
+    let offlineProbe = LodyUIVerify.offline
+    let uiVerifyHome = LodyUIVerify.home
     let version = ProcessInfo.processInfo.operatingSystemVersion
     let components = [version.majorVersion, version.minorVersion, version.patchVersion]
     return LodyRuntimeInfo(
@@ -68,11 +63,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       PushNotifications.shared.onClickAvailable = { [weak self] in self?.sendEvent("onPushClick", [:]) }
     }
     ContentPreview.clearAll()
-    #if DEBUG
-    if ProcessInfo.processInfo.arguments.contains("--lody-offline") {
+    if LodyUIVerify.offline {
       URLProtocol.registerClass(OfflineProbe.self)
     }
-    #endif
   }
 
   public override func willDestroy() {
@@ -190,14 +183,10 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
     }.runOnQueue(.main)
     AsyncFunction("debugHangDataRuntime") {
-      #if DEBUG
       MainActor.assumeIsolated { self.dataRuntime.debugHang() }
-      #endif
     }.runOnQueue(.main)
     AsyncFunction("debugRestartDataRuntime") {
-      #if DEBUG
       MainActor.assumeIsolated { self.dataRuntime.debugRestart() }
-      #endif
     }.runOnQueue(.main)
     AsyncFunction("readLocalStartup") { try self.localStore.startup() }.runOnQueue(LocalStore.queue)
     AsyncFunction("readLocalValue") { (key: String) in try self.localStore.read(key) }.runOnQueue(LocalStore.queue)
@@ -258,9 +247,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("liveActivityStatus") { MainActor.assumeIsolated { LiveActivities.shared.status() } }.runOnQueue(.main)
     AsyncFunction("setLiveActivitiesEnabled") { (enabled: Bool) in MainActor.assumeIsolated { LiveActivities.shared.enabled = enabled } }.runOnQueue(.main)
     AsyncFunction("debugLiveActivity") { (action: String) in
-      #if DEBUG
       MainActor.assumeIsolated { LiveActivities.shared.debug(action) }
-      #endif
     }.runOnQueue(.main)
     AsyncFunction("setPushVisibleRoute") { (route: String) in MainActor.assumeIsolated { PushNotifications.shared.visibleRoute = route } }.runOnQueue(.main)
 
@@ -278,21 +265,16 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }.runOnQueue(.main)
     AsyncFunction("githubRepositories") { (workspace: String, promise: Promise) in
       Task { @MainActor in
-        #if DEBUG
-        if workspace == "ui-home", ProcessInfo.processInfo.arguments.contains("--ui-verify"),
-           ProcessInfo.processInfo.arguments.contains("--ui-verify-mentions") {
+        if workspace == "ui-home", LodyUIVerify.mentions {
           promise.resolve(["LodyAI/FreshProject"]); return
         }
-        #endif
         do { promise.resolve(try await GitHubCloud.repositories(workspace: workspace)) }
         catch { promise.reject(error) }
       }
     }
     AsyncFunction("sessionCreationOptions") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
-        #if DEBUG
         if let response = MentionFixture.response(payload, options: true) { promise.resolve(response); return }
-        #endif
         self.dataRuntime.command("creationOptions", payload: payload, promise: promise)
       }
     }.runOnQueue(.main)
@@ -306,8 +288,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("sendSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("sessionItemDetail") { (payload: String, promise: Promise) in
       try MainActor.assumeIsolated {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-verify"),
+        if LodyUIVerify.enabled,
           let data = payload.data(using: .utf8),
           let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           params["sessionId"] as? String == "ui-verify-diff",
@@ -328,15 +309,13 @@ public final class LodyKitModule: Module, @unchecked Sendable {
           promise.resolve(String(decoding: result, as: UTF8.self))
           return
         }
-        #endif
         self.dataRuntime.command("itemDetail", payload: payload, promise: promise)
       }
     }.runOnQueue(.main)
     AsyncFunction("respondSessionPermission") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("respondPermission", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("turnDiff") { (payload: String, promise: Promise) in
       try MainActor.assumeIsolated {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-verify"),
+        if LodyUIVerify.enabled,
           let data = payload.data(using: .utf8),
           let params = try? JSONSerialization.jsonObject(with: data) as? [String: String],
           params["sessionId"] == "ui-verify-diff", params["entryId"] == "diff-preview",
@@ -368,7 +347,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
           promise.resolve(String(decoding: result, as: UTF8.self))
           return
         }
-        #endif
         self.dataRuntime.command("turnDiff", payload: payload, promise: promise)
       }
     }.runOnQueue(.main)
@@ -408,17 +386,13 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }.runOnQueue(.main)
     AsyncFunction("mentionCatalog") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
-        #if DEBUG
         if let response = MentionFixture.response(payload) { promise.resolve(response); return }
-        #endif
         self.dataRuntime.command("mentionCatalog", payload: payload, promise: promise)
       }
     }.runOnQueue(.main)
     AsyncFunction("listDir") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
-        #if DEBUG
         if let response = FilePreviewFixture.response(payload, listing: true) { promise.resolve(response); return }
-        #endif
         self.dataRuntime.command("listDir", payload: payload, promise: promise)
       }
     }.runOnQueue(.main)
@@ -427,20 +401,12 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }.runOnQueue(.main)
     AsyncFunction("debugProbeSchema") { (promise: Promise) in
       MainActor.assumeIsolated {
-        #if DEBUG
         self.dataRuntime.debugProbeSchema(promise: promise)
-        #else
-        promise.resolve("{}")
-        #endif
       }
     }.runOnQueue(.main)
     AsyncFunction("debugBackgroundDataRuntime") { (action: String, promise: Promise) in
       MainActor.assumeIsolated {
-        #if DEBUG
         self.dataRuntime.debugBackground(action, promise: promise)
-        #else
-        promise.resolve("{}")
-        #endif
       }
     }.runOnQueue(.main)
     AsyncFunction("clearLocalValues") { (promise: Promise) in
@@ -471,7 +437,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       self.onAppActive()
     }
 
-    #if DEBUG
     View(LodyComposerHandoffPOC.self) {
       Events("onClose")
     }
@@ -483,7 +448,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("layoutRoot") { (_: LodyNativePagePOC, _: Bool) in }
       Prop("pageKind") { (view: LodyNativePagePOC, value: String) in view.pageKind = value }
     }
-    #endif
 
     View(LodyMentionPickerView.self) {
       Events("onPick", "onQueryReset", "onRetry")
@@ -508,7 +472,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }.runOnQueue(PreparedChatEntries.queue)
 
     View(LodyChatView.self) {
-      #if DEBUG
       Prop("debugStreamBenchmarkRun") { (view: LodyChatView, value: Int) in
         guard value > 0 else { return }
         view.streamPerformanceProbe?.stop()
@@ -519,7 +482,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         view.performanceProbe?.stop()
         view.performanceProbe = ChatPerformanceProbe(view)
       }
-      #endif
       Events("onStop", "onSteer", "onSend", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse")
       Prop("navigationTitle") { (view: LodyChatView, value: String) in view.setNavigationTitle(value) }
       Prop("navigationSubtitle") { (view: LodyChatView, value: String) in view.setNavigationSubtitle(value) }

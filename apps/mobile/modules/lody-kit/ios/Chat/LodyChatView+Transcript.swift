@@ -24,9 +24,7 @@ extension LodyChatView {
   }
 
   func setEntries(_ json: String) {
-    #if DEBUG
     if historyLoadStarted == 0 { historyLoadStarted = CACurrentMediaTime() }
-    #endif
     pendingEntries = json
   }
 
@@ -60,9 +58,7 @@ extension LodyChatView {
   }
 
   private func receiveEntries(_ entries: [ChatEntry]) {
-    #if DEBUG
     streamPerformanceProbe?.receive(entries)
-    #endif
     displayError = nil
     let userID = entries.last { $0.role == "user" && !$0.isQueued }?.id
     if processEntryID.isEmpty, let userID, userID != lastUserID, awaitingUserAnchor {
@@ -164,9 +160,7 @@ extension LodyChatView {
     applyOverlay()
     guard !applying else { needsApply = true; return }
     applying = true
-    #if DEBUG
     let commitStart = CACurrentMediaTime()
-    #endif
     let previousOffset = collection.contentOffset.y
     let previousHistoryStart = historyStartID
     if composerHasAcknowledgedSend, let pendingSend,
@@ -324,11 +318,9 @@ extension LodyChatView {
       self.collection.layoutIfNeeded()
       self.updateBottomInset()
       if !folding || !self.followsBottom { self.restoreAnchor(anchor) }
-      #if DEBUG
       if !self.followsBottom, let (id, offset) = anchor, let index = self.dataSource.indexPath(for: id), let frame = self.collection.layoutAttributesForItem(at: index)?.frame {
         self.historyAnchorError = max(self.historyAnchorError, abs(frame.minY - self.collection.contentOffset.y - offset))
       }
-      #endif
       if self.followsBottom { self.scrollToBottom() }
       if !projected.isEmpty { self.hasPositionedContent = true }
       if !self.rowHeights.isEmpty { self.startMotion() }
@@ -337,10 +329,8 @@ extension LodyChatView {
     }
     let finish = { [weak self] in
       guard let self else { return }
-      #if DEBUG
       self.recordHistoryCommit()
       self.streamPerformanceProbe?.commit(milliseconds: (CACurrentMediaTime() - commitStart) * 1000)
-      #endif
       self.applying = false
       self.updateHistoryHeader()
       self.prefetchHistoryIfNeeded()
@@ -495,9 +485,7 @@ extension LodyChatView {
         self.preparedHistory[row.id] = row
         next += 1
       } while next < rows.count && CACurrentMediaTime() < deadline
-      #if DEBUG
       self.historySliceTimes.append((CACurrentMediaTime() - started) * 1000)
-      #endif
       if next == rows.count {
         if !self.historyScrollIsMoving { self.applyRows() }
       } else {
@@ -508,7 +496,6 @@ extension LodyChatView {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.008, execute: work)
   }
 
-  #if DEBUG
   func recordHistoryCommit() {
     guard transcript.entries.first?.id == "perf-0", historyLoadStarted > 0 else { return }
     let elapsed = (CACurrentMediaTime() - historyLoadStarted) * 1000
@@ -531,5 +518,4 @@ extension LodyChatView {
     }
     historyLoadStarted = 0
   }
-  #endif
 }

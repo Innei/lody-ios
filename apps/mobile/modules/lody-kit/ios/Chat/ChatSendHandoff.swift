@@ -81,9 +81,7 @@ final class ChatSendHandoff {
   private let concealment = CALayer()
   private var sourceSnapshot: UIView?
   private let sourceBackground = UIColor.clear
-  #if DEBUG
   private var probe: ChatThrowProbe?
-  #endif
   private var delivering = false
   private var straight = false
   private weak var target: UIView?
@@ -263,19 +261,14 @@ final class ChatSendHandoff {
       landed.layer.mask = nil
       host.removeFromSuperview()
       UIAccessibility.post(notification: .layoutChanged, argument: nil)
-      #if DEBUG
       handoff.probe?.didLand(on: landed)
-      #endif
       didSettle(id, owner: handoff.owner)
     }
-    #if DEBUG
-    if ProcessInfo.processInfo.arguments.contains("--ui-verify-throw"),
-       ProcessInfo.processInfo.arguments.contains("--ui-verify") {
+    if LodyUIVerify.throwProbe {
       handoff.probe = ChatThrowProbe(content: host, target: target, source: start, destination: destination,
         track: ChatThrowCurve.straightTrack(from: CGPoint(x: start.midX, y: start.midY), to: CGPoint(x: destination.midX, y: destination.midY)),
         sourceBackground: .clear, destinationBackground: .clear, attachment: true)
     }
-    #endif
   }
 
   static func cancel(id: String, includingAttachments: Bool = true) {
@@ -284,9 +277,7 @@ final class ChatSendHandoff {
     }
     guard let handoff = active.removeValue(forKey: id) else { return }
     handoff.expiry?.cancel()
-    #if DEBUG
     handoff.probe?.stop(cancelled: true)
-    #endif
     handoff.target?.isHidden = false
     handoff.target?.layer.mask = nil
     handoff.content.layer.removeAllAnimations()
@@ -318,9 +309,7 @@ final class ChatSendHandoff {
         handoff.target?.layer.mask = nil
         handoff.content.removeFromSuperview()
       }
-      #if DEBUG
       handoff.probe?.didLand(on: handoff.target ?? target)
-      #endif
       didSettle(id, owner: handoff.owner)
     }
     if UIAccessibility.isReduceMotionEnabled { finish(); return }
@@ -381,16 +370,12 @@ final class ChatSendHandoff {
       }
     }
     CATransaction.commit()
-    #if DEBUG
-    if ProcessInfo.processInfo.arguments.contains("--ui-verify-throw"),
-       ProcessInfo.processInfo.arguments.contains("--ui-verify") {
+    if LodyUIVerify.throwProbe {
       handoff.probe = ChatThrowProbe(content: content, target: target, source: sourceFrame, destination: destination, track: track, sourceBackground: handoff.sourceBackground, destinationBackground: destinationBackground)
     }
-    #endif
   }
 }
 
-#if DEBUG
 // Offline-only presentation-layer samples. Records geometry, never message text.
 @MainActor
 private final class ChatThrowProbe: NSObject {
@@ -508,4 +493,3 @@ private final class ChatThrowProbe: NSObject {
     }
   }
 }
-#endif

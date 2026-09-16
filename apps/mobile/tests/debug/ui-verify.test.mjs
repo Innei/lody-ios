@@ -30,3 +30,22 @@ test('the product onboarding gate stays off during fixture runs', () => {
   const source = read('../../src/hooks/screens/useOnboardingGate.ts');
   assert.match(source, /if \(uiVerify \|\| !localReady/);
 });
+
+test('native --ui-verify works without a Debug compilation gate', () => {
+  const flag = read('../../modules/lody-kit/ios/LodyUIVerify.swift');
+  assert.match(flag, /enum LodyUIVerify/);
+  assert.doesNotMatch(flag, /#if DEBUG/);
+
+  const push = read(
+    '../../modules/lody-kit/ios/Notifications/PushNotifications.swift',
+  );
+  assert.match(
+    push,
+    /func start\([^\)]*\) \{\n    if LodyUIVerify\.enabled \|\| LodyUIVerify\.offline \{ return \}/,
+  );
+
+  const module = read('../../modules/lody-kit/ios/LodyKitModule.swift');
+  assert.match(module, /let offlineProbe = LodyUIVerify\.offline/);
+  assert.match(module, /let uiVerifyHome = LodyUIVerify\.home/);
+  assert.doesNotMatch(module, /#if DEBUG\s+offlineProbe = ProcessInfo/);
+});

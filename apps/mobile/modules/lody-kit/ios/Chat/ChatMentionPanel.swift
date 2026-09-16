@@ -244,12 +244,10 @@ final class ChatMentionPanel: LodyGlassView, UICollectionViewDataSource, UIColle
   }
 }
 
-#if DEBUG
 /// Exercise the production SessionScreen/CreateSessionScreen wiring without a cloud account.
 @MainActor enum MentionFixture {
   static func response(_ payload: String, options: Bool = false) -> String? {
-    guard ProcessInfo.processInfo.arguments.contains("--ui-verify"),
-          ProcessInfo.processInfo.arguments.contains("--ui-verify-mentions"),
+    guard LodyUIVerify.mentions,
           let data = payload.data(using: .utf8),
           let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           args["workspaceId"] as? String == "ui-home" else { return nil }
@@ -279,4 +277,3 @@ final class ChatMentionPanel: LodyGlassView, UICollectionViewDataSource, UIColle
     }
   }
 }
-#endif

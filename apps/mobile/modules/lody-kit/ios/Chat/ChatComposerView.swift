@@ -415,9 +415,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   var onSend: (([String: Any]) -> Void)?
   var prepareSend: (([String: Any]) -> Bool)?
   var relaying = false
-  #if DEBUG
   var previewBeforeSubmit: (() -> Bool)?
-  #endif
   var onStop: (() -> Void)?
   var onSteer: ((String) -> Void)?
   var guidesSubmission: Bool {
@@ -982,9 +980,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   }
   @objc private func submit() {
     guard send.isEnabled else { return }
-    #if DEBUG
     if previewBeforeSubmit?() == true { return }
-    #endif
     if state.running == true && input.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty {
       onStop?()
       return

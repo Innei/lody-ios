@@ -184,13 +184,9 @@ enum LodyMorphReveal {
         dimming.forEach { $0.alpha = 0 }
       }
     }
-    #if DEBUG
     let probe = MorphProbe(content: content, dimming: dimming, reverse: reverse)
-    #endif
     DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.05) {
-      #if DEBUG
       probe.stop()
-      #endif
       completion()
       sheet.mask = reverse ? UIView() : nil
       sheet.layer.shadowOpacity = shadowOpacity
@@ -319,7 +315,6 @@ enum LodyMorphReveal {
   }
 }
 
-#if DEBUG
 private final class MorphProbe: NSObject {
   private let content: UIView
   private let dimming: [UIView]
@@ -333,7 +328,7 @@ private final class MorphProbe: NSObject {
     self.dimming = dimming
     self.reverse = reverse
     super.init()
-    guard ProcessInfo.processInfo.arguments.contains("--ui-verify") else { return }
+    guard LodyUIVerify.enabled else { return }
     func inspect(_ view: UIView, depth: Int) {
       hierarchy.append(["class": String(describing: type(of: view)), "depth": depth,
         "frame": NSCoder.string(for: view.frame), "alpha": view.alpha,
@@ -362,7 +357,6 @@ private final class MorphProbe: NSObject {
     }
   }
 }
-#endif
 
 private extension CGRect {
   var center: CGPoint { CGPoint(x: midX, y: midY) }

@@ -78,14 +78,12 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   }
   func status() -> [String: any Sendable] {
     var value: [String: any Sendable] = ["owner": owner, "generation": generation, "state": phase, "reason": reason, "acknowledgements": acknowledgements, "lastStartReason": lastStartReason]
-    #if DEBUG
     if backgroundProbe {
       value["probeBackgroundUpdates"] = probeBackgroundUpdates
       value["probeUpdates"] = probeUpdates
       value["backgroundTaskState"] = SessionBackgroundTasks.shared.debugState
       value["backgroundTaskCount"] = SessionBackgroundTasks.shared.debugCount
     }
-    #endif
     return value
   }
   private func publish(_ state: String, reason: String, extra: [String: Any] = [:]) {
@@ -115,12 +113,10 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       MainActor.assumeIsolated { self?.tick() }
     }
     if let timer { RunLoop.main.add(timer, forMode: .common) }
-    #if DEBUG
     if backgroundProbe {
       view.loadHTMLString(Self.backgroundProbeHTML, baseURL: URL(string: "https://lody.ai"))
       return
     }
-    #endif
     do {
       guard let url = Bundle(for: LodyKitModule.self).url(forResource: "DataRuntime", withExtension: "html") ?? Bundle.main.url(forResource: "DataRuntime", withExtension: "html") else { throw NSError(domain: "MissingDataRuntime", code: 1) }
       // A bundled document with the official site's origin; no remote scripts are loaded.
@@ -174,13 +170,11 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
           view.callAsyncJavaScript("globalThis.dataRuntime.restoreSessions(ids, current, reserved)", arguments: ["ids": self.retainedSessions, "current": self.sessionId as Any? ?? NSNull(), "reserved": self.reservedSessions], in: nil, in: .page, completionHandler: nil)
         }
       }
-    #if DEBUG
     case "backgroundProbe":
       guard backgroundProbe else { return }
       probeUpdates += 1
       if UIApplication.shared.applicationState == .background { probeBackgroundUpdates += 1 }
       emitStatus()
-    #endif
     case "diagnostic":
       #if DEBUG
       NSLog("LodyRuntime stage=%@ stream=%@", body["stage"] as? String ?? "", body["stream"] as? String ?? "")
@@ -566,12 +560,11 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { if self.webView === webView { recover("process_terminated") } }
   func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { if self.webView === webView { recover("navigation_failed") } }
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { if self.webView === webView { recover("navigation_failed") } }
-  #if DEBUG
   private var backgroundProbe = false
   private var probeUpdates = 0
   private var probeBackgroundUpdates = 0
   func debugBackground(_ action: String, promise: Promise) {
-    guard ProcessInfo.processInfo.arguments.contains("--ui-verify"), workspace == nil || backgroundProbe else {
+    guard LodyUIVerify.enabled, workspace == nil || backgroundProbe else {
       fail(promise, "probe_unavailable", "offline acceptance builds only"); return
     }
     switch action {
@@ -614,7 +607,6 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   """#
   func debugHang() { webView?.evaluateJavaScript("while (true) {}", completionHandler: nil) }
   func debugRestart() { recover("debug_process_loss") }
-  #endif
 }
 
 final class NotificationObservers {

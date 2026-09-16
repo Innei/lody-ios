@@ -421,12 +421,11 @@ private final class ChatMotionTarget: NSObject {
   }
 }
 
-#if DEBUG
 // Opt-in, offline fixture geometry only. No message text or account data leaves
 // the view. The independent sampler observes UIKit, not the motion's targets.
 @MainActor
 final class ChatScrollProbe: NSObject {
-  private let capturesOpening = ProcessInfo.processInfo.arguments.contains("--ui-verify-opening")
+  private let capturesOpening = LodyUIVerify.has("--ui-verify-opening")
   weak var view: LodyChatView?
   private var link: CADisplayLink?
   private var samples: [[String: Any]] = []
@@ -471,9 +470,7 @@ final class ChatScrollProbe: NSObject {
     samples.removeAll()
   }
 }
-#endif
 
-#if DEBUG
 // Measures main-run-loop delivery, not GPU presentation. No text is recorded.
 @MainActor
 final class ChatPerformanceProbe: NSObject {
@@ -599,4 +596,3 @@ final class ChatPerformanceProbe: NSObject {
     return result == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
   }
 }
-#endif

@@ -19,9 +19,7 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
   #endif
 
   func start(_ options: [UIApplication.LaunchOptionsKey: Any]?) {
-    #if DEBUG
-    if ProcessInfo.processInfo.arguments.contains("--ui-verify") || ProcessInfo.processInfo.arguments.contains("--lody-offline") { return }
-    #endif
+    if LodyUIVerify.enabled || LodyUIVerify.offline { return }
     guard !configured, let appId = Bundle.main.object(forInfoDictionaryKey: "LodyOneSignalAppId") as? String,
           UUID(uuidString: appId) != nil else { return }
     configured = true

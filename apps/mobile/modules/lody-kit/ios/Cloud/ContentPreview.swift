@@ -56,9 +56,7 @@ final class SessionFilePreview: QLPreviewController, QLPreviewControllerDataSour
   private let directory = ContentPreview.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
   private var url: URL?
   private var download: Task<Void, Never>?
-  #if DEBUG
   private var fixtureAttempt = 0
-  #endif
 
   init(file: ChatMessageAttachment, workspace: String, session: String) {
     self.file = file
@@ -83,28 +81,21 @@ final class SessionFilePreview: QLPreviewController, QLPreviewControllerDataSour
     loading.button.title = LodyStrings.text("native.close")
     loading.buttonProperties.primaryAction = UIAction { [weak self] _ in self?.dismiss(animated: true) }
     contentUnavailableConfiguration = loading
-    #if DEBUG
     fixtureAttempt += 1
     let attempt = fixtureAttempt
-    #endif
     download = Task { [weak self, file, workspace, session, directory] in
       do {
         guard file.transport == nil || file.transport == "r2" else {
           throw SessionAttachments.error(LodyStrings.text("native.attachment.error.pending"))
         }
         let url: URL
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-verify"), session == "ui-verify-attachments" {
+        if LodyUIVerify.enabled, session == "ui-verify-attachments" {
           try await Task.sleep(for: .milliseconds(file.id == "cancel" ? 4000 : 1200))
           url = try FilePreviewFixture.attachment(file.id, attempt: attempt, directory: directory)
         } else {
           url = try await SessionAttachments.download(workspace: workspace, session: session, fileId: file.id,
             fileName: file.fileName, sizeBytes: file.sizeBytes, directory: directory)
         }
-        #else
-        url = try await SessionAttachments.download(workspace: workspace, session: session, fileId: file.id,
-          fileName: file.fileName, sizeBytes: file.sizeBytes, directory: directory)
-        #endif
         try Task.checkCancellation()
         guard let self else { try? FileManager.default.removeItem(at: directory); return }
         self.url = url
@@ -145,9 +136,6 @@ final class SessionFilePreview: QLPreviewController, QLPreviewControllerDataSour
   }
 }
 
-#if DEBUG
-import UIKit
-
 @MainActor
 enum FilePreviewFixture {
   static func attachment(_ id: String, attempt: Int, directory: URL) throws -> URL {
@@ -175,7 +163,7 @@ enum FilePreviewFixture {
   }
 
   static func response(_ payload: String, listing: Bool = false) -> String? {
-    guard ProcessInfo.processInfo.arguments.contains("--ui-verify"),
+    guard LodyUIVerify.enabled,
       let data = payload.data(using: .utf8),
       let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
       args["sessionId"] as? String == "ui-verify-files",
@@ -210,4 +198,3 @@ enum FilePreviewFixture {
     return String(data: try! JSONSerialization.data(withJSONObject: result), encoding: .utf8)
   }
 }
-#endif

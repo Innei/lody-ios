@@ -1,4 +1,3 @@
-#if DEBUG
 import UIKit
 
 /// Compare direct UIKit animation with the reversible production surface.
@@ -14,8 +13,8 @@ import UIKit
   private var startTime = 0.0
 
   static func openIfRequested() {
-    guard ProcessInfo.processInfo.arguments.contains("--ui-verify"),
-          ProcessInfo.processInfo.arguments.contains("--glass-spike"),
+    guard LodyUIVerify.enabled,
+          LodyUIVerify.has("--glass-spike"),
           spikeWindow == nil,
           let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
     let window = UIWindow(windowScene: scene)
@@ -169,4 +168,3 @@ import UIKit
     }
   }
 }
-#endif

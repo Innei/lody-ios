@@ -8,14 +8,12 @@ enum FilePreview {
       data: try JSONSerialization.data(withJSONObject: ["sessionId": sessionId, "path": path]),
       encoding: .utf8
     )!
-    #if DEBUG
     if let response = FilePreviewFixture.response(payload) {
       let delay = payload.contains("document.pdf") ? 0.0 : 5.0
       if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
       try Task.checkCancellation()
       return response
     }
-    #endif
     return try await runtime.command("readFile", payload: payload)
   }
 

@@ -71,5 +71,5 @@ paged form and shared composer in a resettable offline fixture.
   edit/save, then remains on the machine page after its return swipe. Evidence is
   retained in `.artifacts/scroll-edge-audit-settings/`; this is not full settings acceptance.
 
-Use a Debug build for fixtures backed by native mock file/settings services, which
-are compiled under `#if DEBUG`. A Release launch flag does not enable those providers.
+Native mock file/settings fixtures activate under `--ui-verify` in Debug and
+Release fixture builds. A production TestFlight launch never passes that argument.

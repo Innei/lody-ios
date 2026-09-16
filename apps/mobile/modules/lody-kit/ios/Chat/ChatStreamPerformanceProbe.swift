@@ -1,4 +1,3 @@
-#if DEBUG
 import UIKit
 import MarkdownView
 
@@ -106,4 +105,3 @@ final class ChatStreamPerformanceProbe: NSObject {
     return checks
   }
 }
-#endif

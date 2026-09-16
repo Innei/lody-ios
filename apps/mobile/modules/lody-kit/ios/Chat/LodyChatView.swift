@@ -138,7 +138,6 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var movingLayout = false
   var hasPositionedContent = false
   var rowHeights: [String: (current: CGFloat, target: CGFloat, width: CGFloat)] = [:]
-  #if DEBUG
   var historyLoadStarted = 0.0
   var historyFirstContent = 0.0
   var historyFirstRows = 0
@@ -148,7 +147,6 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var scrollProbe: ChatScrollProbe?
   var performanceProbe: ChatPerformanceProbe?
   var streamPerformanceProbe: ChatStreamPerformanceProbe?
-  #endif
   private var laidOutHeight: CGFloat = 0
   private var hasInitialDraft = false
   var pendingSend: ChatPendingSend?
@@ -549,11 +547,9 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       if let handoffID { ChatSendHandoff.cancel(id: handoffID) }
       motionLink?.invalidate(); motionLink = nil
       rowHeights.removeAll()
-      #if DEBUG
       scrollProbe?.stop(); scrollProbe = nil
       performanceProbe?.stop(); performanceProbe = nil
       streamPerformanceProbe?.stop(); streamPerformanceProbe = nil
-      #endif
       liveEntryID = nil
       frameTimer?.invalidate(); frameTimer = nil
       workDurationTimer?.invalidate(); workDurationTimer = nil
@@ -568,13 +564,9 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       }
       scrollOwner = nil
     } else {
-      #if DEBUG
-      if (ProcessInfo.processInfo.arguments.contains("--ui-verify-scroll")
-          || ProcessInfo.processInfo.arguments.contains("--ui-verify-opening")),
-         ProcessInfo.processInfo.arguments.contains("--ui-verify") {
+      if LodyUIVerify.scroll {
         scrollProbe = ChatScrollProbe(self)
       }
-      #endif
       bindScrollOwnerIfNeeded()
       attachTitle()
       if pendingEntries != nil { scheduleUpdate() }
@@ -743,8 +735,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       bringSubviewToFront(overlay)
       layoutIfNeeded()
     }
-    #if DEBUG
-    if ProcessInfo.processInfo.arguments.contains("--ui-verify") {
+    if LodyUIVerify.enabled {
       let adopted = incoming.convert(incoming.bounds, to: window)
       let report: [String: Any] = [
         "sameComposer": composer === source.composer,
@@ -756,7 +747,6 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
         try? data.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("lody-production-composer-relay.json"))
       }
     }
-    #endif
     incoming.commitSend(payload)
     incoming.adoptConfiguration(from: old)
     incoming.setPendingSend(pendingSend)
