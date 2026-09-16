@@ -132,7 +132,9 @@ live check/log retrieval.
 
 `smooth-scroll` exercises cached history replacement, anchor preservation while
 reading, streamed paragraphs/code, drag interruption and the production process
-Sheet. It records video plus opt-in Debug-only UIKit geometry at display refresh
+Sheet. It also drags beyond the top during live updates and checks that neither
+the held rubber band nor its release snaps to the resting boundary.
+It records video plus opt-in Debug-only UIKit geometry at display refresh
 cadence (`--ui-verify-scroll`); the check requires intermediate scroll/height
 frames in both hosts. Review the video for clipping and flashes before claiming
 visual smoothness. The probe contains fixture IDs and geometry only.

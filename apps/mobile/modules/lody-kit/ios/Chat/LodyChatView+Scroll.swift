@@ -248,6 +248,9 @@ extension LodyChatView {
   }
 
   func restoreAnchor(_ anchor: (String, CGFloat)?) {
+    // UIKit owns the top rubber band, including deceleration after release.
+    // A live update must not clamp it to the resting boundary.
+    guard collection.contentOffset.y >= -collection.adjustedContentInset.top else { return }
     guard let (id, y) = anchor, let index = dataSource.indexPath(for: id),
           let frame = collection.layoutAttributesForItem(at: index)?.frame else { return }
     collection.contentOffset.y = max(-collection.adjustedContentInset.top, frame.minY - y)
@@ -450,7 +453,7 @@ final class ChatScrollProbe: NSObject {
       visible[id] = ["y": frame.minY - offset, "height": frame.height]
     }
     samples.append(["t": link.timestamp - started, "offset": list.contentOffset.y,
-      "bottom": view.bottomOffset, "contentHeight": list.contentSize.height,
+      "bottom": view.bottomOffset, "top": -list.adjustedContentInset.top, "contentHeight": list.contentSize.height,
       "inset": list.adjustedContentInset.bottom, "following": view.followsBottom,
       "dragging": list.isDragging || list.isDecelerating,
       "touching": list.isTracking, "panY": list.panGestureRecognizer.translation(in: view.window).y,

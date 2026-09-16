@@ -85,6 +85,13 @@ tap('Stream Anchored Turn')
 ui.element('scroll-anchor-user:duration')
 time.sleep(4)
 ui.capture('anchored-stream')
+# A separate trace holds the list beyond its top while live updates continue.
+# Real touch events let UIKit own the rubber band and its release animation.
+tap('Stream Anchored Turn')
+ui.element('scroll-anchor-user:duration')
+time.sleep(.8)
+ui.axe('drag', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '650', '--duration', '2', '--post-delay', '1')
+ui.capture('top-bounce-settled')
 tap('Finish Trace')
 ui.element('scroll-preview')
 
@@ -94,8 +101,22 @@ for path in sorted(set((container / 'tmp').glob('lody-scroll-*.json')) - existin
     traces.append(json.loads(path.read_text()))
 assert traces, 'Missing opt-in native frame samples; rebuild the Debug app'
 
+bounce = next((trace['samples'] for trace in traces
+               if any('scroll-anchor-user:duration' in s['rows'] and s['touching'] and s['panY'] > 80
+                      for s in trace['samples'])), None)
+assert bounce, 'Missing real top overscroll gesture'
+held = [s for s in bounce if s['touching'] and s['panY'] > 80]
+assert len(held) >= 10, 'Top overscroll was not held across live updates'
+assert all(s['offset'] < s['top'] - 10 for s in held), 'A live update clamped the rubber band to the top during the drag'
+release = [(a, b) for a, b in zip(bounce, bounce[1:])
+           if not b['touching'] and a['top'] - a['offset'] > 20 and 0 < b['t'] - a['t'] < .05]
+assert release, 'Missing native release animation'
+assert all(b['offset'] < b['top'] - 1 for a, b in release), 'A live update snapped the rubber band to the top on release'
+assert abs(bounce[-1]['offset'] - bounce[-1]['top']) <= 1, 'The bounce did not settle at the top'
+
 anchored = next((trace['samples'] for trace in traces
-                 if any('scroll-anchor-user:duration' in s['rows'] for s in trace['samples'])), None)
+                 if any('scroll-anchor-user:duration' in s['rows'] for s in trace['samples'])
+                 and not any(s['touching'] for s in trace['samples'])), None)
 assert anchored, 'Missing first-turn streaming samples'
 anchored = [s for s in anchored if s['t'] - anchored[0]['t'] > .3
             and 'scroll-anchor-user:duration' in s['rows']]
@@ -142,6 +163,7 @@ for item in growth:
     assert item['subLineFrames'] >= item['growingFrames'] * .8, ('Height still changes by whole lines', item)
 report = {'cacheDistance': distance, 'cacheMovingFrames': sum(step > .5 for step in steps),
           'cacheMaxStep': max(steps), 'readingAnchor': anchor, 'growth': growth,
-          'anchoredDriftPt': anchor_drift}
+          'anchoredDriftPt': anchor_drift, 'topBounceHeldFrames': len(held),
+          'topBounceReleaseFrames': len(release)}
 (ui.output / 'motion-summary.json').write_text(json.dumps(report, indent=2))
 print(json.dumps(report, indent=2))

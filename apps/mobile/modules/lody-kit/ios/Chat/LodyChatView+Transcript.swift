@@ -305,9 +305,7 @@ extension LodyChatView {
       self.collection.collectionViewLayout.invalidateLayout()
       self.collection.layoutIfNeeded()
       self.updateBottomInset()
-      if !folding || !self.followsBottom, let (id, offset) = anchor, let index = self.dataSource.indexPath(for: id), let frame = self.collection.layoutAttributesForItem(at: index)?.frame {
-        self.collection.contentOffset.y = max(-self.collection.adjustedContentInset.top, frame.minY - offset)
-      }
+      if !folding || !self.followsBottom { self.restoreAnchor(anchor) }
       #if DEBUG
       if !self.followsBottom, let (id, offset) = anchor, let index = self.dataSource.indexPath(for: id), let frame = self.collection.layoutAttributesForItem(at: index)?.frame {
         self.historyAnchorError = max(self.historyAnchorError, abs(frame.minY - self.collection.contentOffset.y - offset))
