@@ -585,6 +585,39 @@ test('projection carries stable item ids, tool summaries, and diff counts', asyn
   assert.ok(second.revision > first.revision);
 });
 
+test('projection keeps subagent task identity and live fields', async () => {
+  const { projectSession } = await loadProject();
+  const doc = new LoroDoc();
+  const entry = doc.getList('history').pushContainer(new LoroMap());
+  entry.set('id', 'e-task');
+  entry.set('role', 'assistant');
+  const task = entry
+    .setContainer('items', new LoroList())
+    .pushContainer(new LoroMap());
+  task.set('type', 'subagent_task');
+  task.set('taskId', 't1');
+  task.set('status', 'in_progress');
+  task.set('actor', 'Explore');
+  task.set('description', 'Find overlay chrome');
+  task.set('lastToolName', 'Read');
+  task.set('summary', 'Still looking');
+  task.set('error', 'none');
+  task.set('isBackgrounded', true);
+  task.set('skipTranscript', false);
+  doc.commit();
+  const item = projectSession(doc, 'live').entries[0].items[0];
+  assert.equal(item.type, 'subagent_task');
+  assert.equal(item.taskId, 't1');
+  assert.equal(item.status, 'in_progress');
+  assert.equal(item.actor, 'Explore');
+  assert.equal(item.description, 'Find overlay chrome');
+  assert.equal(item.lastToolName, 'Read');
+  assert.equal(item.summary, 'Still looking');
+  assert.equal(item.error, 'none');
+  assert.equal(item.isBackgrounded, true);
+  assert.equal(item.skipTranscript, false);
+});
+
 test('MCP image groups survive projection, cache updates and history bootstrap', async () => {
   const { projectSession } = await loadProject();
   const doc = new LoroDoc();

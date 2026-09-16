@@ -146,8 +146,22 @@ extension LodyChatView {
     return text
   }
 
+  func applyOverlay() {
+    if !processEntryID.isEmpty {
+      overlay.slot = .idle
+      return
+    }
+    overlay.slot = ChatOverlay.slot(
+      connection: composer.connection,
+      tasks: transcript.liveSubagentItems().map {
+        ChatOverlay.Task(id: $0.itemId, actor: $0.actor, lastToolName: $0.lastToolName)
+      }
+    )
+  }
+
   func applyRows() {
     if let pendingSend, LodyComposerView.relays[pendingSend.id] != nil { return }
+    applyOverlay()
     guard !applying else { needsApply = true; return }
     applying = true
     #if DEBUG

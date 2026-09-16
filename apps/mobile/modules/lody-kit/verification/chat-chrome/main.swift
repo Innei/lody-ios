@@ -7,19 +7,19 @@ import UIKit
 let host = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
 let composer = UIView(frame: .zero)
 composer.translatesAutoresizingMaskIntoConstraints = false
-let chrome = ChatInputChrome()
-chrome.translatesAutoresizingMaskIntoConstraints = false
+let overlay = ChatOverlay()
+overlay.translatesAutoresizingMaskIntoConstraints = false
 host.addSubview(composer)
-host.addSubview(chrome)
+host.addSubview(overlay)
 NSLayoutConstraint.activate([
   composer.leadingAnchor.constraint(equalTo: host.leadingAnchor),
   composer.trailingAnchor.constraint(equalTo: host.trailingAnchor),
   composer.bottomAnchor.constraint(equalTo: host.bottomAnchor),
   composer.heightAnchor.constraint(equalToConstant: 64),
-  chrome.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
-  chrome.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16),
-  chrome.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
-  chrome.heightAnchor.constraint(equalToConstant: ChatInputChrome.controlSize),
+  overlay.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
+  overlay.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16),
+  overlay.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
+  overlay.heightAnchor.constraint(equalToConstant: ChatOverlay.controlSize),
 ])
 let window = UIWindow(frame: host.bounds)
 window.addSubview(host)
@@ -27,11 +27,11 @@ window.isHidden = false
 host.layoutIfNeeded()
 
 @MainActor func statusControl() -> UIButton {
-  descendants(chrome).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "chat-connection-status" }!
+  descendants(overlay).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "chat-overlay-status" }!
 }
 
 @MainActor func scrollControl() -> UIButton {
-  descendants(chrome).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "chat-scroll-to-bottom" }!
+  descendants(overlay).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "chat-scroll-to-bottom" }!
 }
 
 @MainActor func frame(_ view: UIView) -> CGRect {
@@ -47,28 +47,41 @@ host.layoutIfNeeded()
   return true
 }
 
-@MainActor func show(_ status: ChatInputChrome.Status, scroll: Bool) {
+@MainActor func show(_ slot: ChatOverlay.Slot, scroll: Bool) {
   UIView.performWithoutAnimation {
-    chrome.status = status
-    chrome.scrollVisible = scroll
+    overlay.slot = slot
+    overlay.scrollVisible = scroll
     host.layoutIfNeeded()
   }
 }
 
+let explore = ChatOverlay.Task(id: "t1", actor: "Explore", lastToolName: "Read")
+precondition(ChatOverlay.slot(connection: "connecting", tasks: [explore]) == .connecting)
+precondition(ChatOverlay.slot(connection: "paused", tasks: [explore]) == .paused)
+precondition(ChatOverlay.slot(connection: "", tasks: []) == .idle)
+precondition(
+  ChatOverlay.slot(connection: "", tasks: [explore]) == .tasks(ChatOverlay.Tasks(items: [explore]))
+)
+precondition(ChatOverlay.Tasks(items: [explore]).title == "Explore · Read")
+precondition(
+  ChatOverlay.Tasks(items: [explore, ChatOverlay.Task(id: "t2", actor: "Plan")]).title
+    == LodyStrings.plural("native.chat.overlay.tasks", 2)
+)
+
 show(.connecting, scroll: false)
-precondition(!chrome.isHidden, "Connecting chrome must be visible")
+precondition(!overlay.isHidden, "Connecting overlay must be visible")
 precondition(!shown(scrollControl()), "Connecting alone must not show scroll-to-bottom")
 let connecting = statusControl()
 precondition(connecting.accessibilityLabel == LodyStrings.text("native.chat.connection.connecting"))
 precondition(!connecting.accessibilityTraits.contains(.button), "Connecting is status, not an action")
-precondition(abs(frame(connecting).midX - 195) < 1, "A single chrome item sits on the composer center")
+precondition(abs(frame(connecting).midX - 195) < 1, "A single overlay item sits on the composer center")
 let lineHeight = connecting.titleLabel!.font.lineHeight
 precondition(abs(frame(connecting).height - lineHeight - 12) < 1,
   "Status height \(frame(connecting).height) follows line \(lineHeight) with six-point vertical padding")
-precondition(abs(frame(connecting).maxY + 8 - composer.frame.minY) < 0.6, "Chrome shares the current scroll-button baseline")
+precondition(abs(frame(connecting).maxY + 8 - composer.frame.minY) < 0.6, "Overlay shares the current scroll-button baseline")
 
 var reconnected = false
-chrome.onReconnect = { reconnected = true }
+overlay.onReconnect = { reconnected = true }
 connecting.sendActions(for: .touchUpInside)
 precondition(!reconnected, "Connecting must not invoke reconnect")
 
@@ -76,10 +89,10 @@ show(.connecting, scroll: true)
 let statusBoth = frame(statusControl())
 let scrollBoth = frame(scrollControl())
 let sendSlotMaxX = composer.frame.maxX - 18
-let sendSlotCenterX = sendSlotMaxX - ChatInputChrome.controlSize / 2
+let sendSlotCenterX = sendSlotMaxX - ChatOverlay.controlSize / 2
 precondition(shown(scrollControl()))
-precondition(abs(scrollBoth.width - ChatInputChrome.visualSize) < 0.5)
-precondition(abs(scrollBoth.height - ChatInputChrome.visualSize) < 0.5)
+precondition(abs(scrollBoth.width - ChatOverlay.visualSize) < 0.5)
+precondition(abs(scrollBoth.height - ChatOverlay.visualSize) < 0.5)
 precondition(abs(scrollBoth.midX - sendSlotCenterX) < 0.5,
   "Scroll visual shares the send control center")
 precondition(abs(statusBoth.maxY - scrollBoth.maxY) < 0.5, "Paired glasses share one baseline")
@@ -101,8 +114,8 @@ precondition(
     && abs((glyph.image?.size.height ?? 0) - expectedSymbol.size.height) < 0.5,
   "Scroll glyph image \(glyph.image?.size as Optional) must match send's 14 pt bold \(expectedSymbol.size)"
 )
-let fillsVisual = abs(glyph.bounds.width - ChatInputChrome.visualSize) < 0.5
-  && abs(glyph.bounds.height - ChatInputChrome.visualSize) < 0.5
+let fillsVisual = abs(glyph.bounds.width - ChatOverlay.visualSize) < 0.5
+  && abs(glyph.bounds.height - ChatOverlay.visualSize) < 0.5
   && glyph.contentMode == .center
 let sizedToSymbol = abs(glyph.bounds.width - expectedSymbol.size.width) < 1
   && abs(glyph.bounds.height - expectedSymbol.size.height) < 1
@@ -111,16 +124,16 @@ precondition(
   "Scroll glyph layout \(glyph.bounds.size) is not the 14 pt send size"
 )
 precondition(abs(statusBoth.midX - 195) < 1,
-  "Showing scroll must not move the connection status")
-let inside = chrome.convert(CGPoint(x: scrollBoth.midX + 21, y: scrollBoth.midY), from: host)
+  "Showing scroll must not move the overlay status")
+let inside = overlay.convert(CGPoint(x: scrollBoth.midX + 21, y: scrollBoth.midY), from: host)
 precondition(
-  chrome.hitTest(inside, with: nil) === scrollControl(),
+  overlay.hitTest(inside, with: nil) === scrollControl(),
   "Compact scroll glass retains a 44-point touch target"
 )
-let gap = chrome.convert(CGPoint(x: (statusBoth.maxX + scrollBoth.minX) / 2, y: scrollBoth.midY), from: host)
-precondition(chrome.hitTest(gap, with: nil) == nil, "Empty chrome space passes touches to the transcript")
+let gap = overlay.convert(CGPoint(x: (statusBoth.maxX + scrollBoth.minX) / 2, y: scrollBoth.midY), from: host)
+precondition(overlay.hitTest(gap, with: nil) == nil, "Empty overlay space passes touches to the transcript")
 var scrolled = false
-chrome.onScrollToBottom = { scrolled = true }
+overlay.onScrollToBottom = { scrolled = true }
 scrollControl().sendActions(for: .touchUpInside)
 precondition(scrolled, "Scroll action reaches the transcript owner")
 
@@ -128,27 +141,42 @@ show(.paused, scroll: true)
 let paused = statusControl()
 precondition(paused.accessibilityLabel == LodyStrings.text("native.chat.connection.paused"))
 precondition(paused.accessibilityTraits.contains(.button))
-let pausedEdge = chrome.convert(CGPoint(x: frame(paused).midX, y: frame(paused).midY + 21), from: host)
-precondition(chrome.hitTest(pausedEdge, with: nil) === paused,
+let pausedEdge = overlay.convert(CGPoint(x: frame(paused).midX, y: frame(paused).midY + 21), from: host)
+precondition(overlay.hitTest(pausedEdge, with: nil) === paused,
   "Compact reconnect glass retains a 44-point touch target")
 paused.sendActions(for: .touchUpInside)
-precondition(reconnected, "Paused chrome must reconnect")
+precondition(reconnected, "Paused overlay must reconnect")
 
 show(.paused, scroll: false)
 precondition(!shown(scrollControl()))
 precondition(abs(frame(statusControl()).midX - 195) < 1, "Dropping scroll returns status to center")
 
-show(.none, scroll: false)
-precondition(chrome.isHidden, "Chrome must collapse when both states are gone")
+show(.idle, scroll: false)
+precondition(overlay.isHidden, "Overlay must collapse when both states are gone")
 
-show(.none, scroll: true)
-precondition(!chrome.isHidden)
+show(.idle, scroll: true)
+precondition(!overlay.isHidden)
 precondition(!shown(statusControl()))
 precondition(frame(scrollControl()) == scrollBoth, "Hiding status must not move the scroll action")
+
+show(.tasks(ChatOverlay.Tasks(items: [explore])), scroll: false)
+let tasks = statusControl()
+precondition(tasks.accessibilityLabel == "Explore · Read")
+precondition(tasks.accessibilityTraits.contains(.button), "Live tasks are tappable")
+precondition(abs(frame(tasks).midX - 195) < 1, "A task capsule sits on the composer center")
+var openedTasks = false
+overlay.onTasksPress = { openedTasks = true }
+tasks.sendActions(for: .touchUpInside)
+precondition(openedTasks, "Task capsule opens the task list")
+let taskEdge = overlay.convert(CGPoint(x: frame(tasks).midX, y: frame(tasks).midY + 21), from: host)
+precondition(overlay.hitTest(taskEdge, with: nil) === tasks,
+  "Compact task glass retains a 44-point touch target")
+
+show(.idle, scroll: true)
 host.frame.size = CGSize(width: 760, height: 520)
 host.layoutIfNeeded()
 let resized = frame(scrollControl())
-precondition(abs(resized.midX - (composer.frame.maxX - 18 - ChatInputChrome.controlSize / 2)) < 0.5)
+precondition(abs(resized.midX - (composer.frame.maxX - 18 - ChatOverlay.controlSize / 2)) < 0.5)
 precondition(abs(resized.maxY + 8 - composer.frame.minY) < 0.5,
   "Resizing the host preserves the composer baseline")
-print("Chat chrome: 30-point scroll visual aligned with send, 44-point target, independent status, touch passthrough and resize passed")
+print("Chat overlay: 30-point scroll visual aligned with send, 44-point target, independent status, tasks capsule, touch passthrough and resize passed")

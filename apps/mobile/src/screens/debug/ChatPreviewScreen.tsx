@@ -71,6 +71,43 @@ function editStatus(mode: 'normal' | 'attention', length: number) {
   return 'completed';
 }
 
+function overlayTaskEntries() {
+  return [
+    {
+      id: 'task-user',
+      role: 'user',
+      status: 'handled',
+      finished: true,
+      items: [{ itemId: 'text', type: 'text', text: '并行探索登录超时。' }],
+    },
+    {
+      id: 'task-reply',
+      role: 'assistant',
+      status: 'running',
+      finished: false,
+      items: [
+        {
+          itemId: 'explore',
+          type: 'subagent_task',
+          taskId: 't1',
+          status: 'in_progress',
+          actor: 'Explore',
+          description: 'Find overlay chrome',
+          lastToolName: 'Read',
+        },
+        {
+          itemId: 'house',
+          type: 'subagent_task',
+          taskId: 'house',
+          status: 'in_progress',
+          actor: 'Housekeeping',
+          skipTranscript: true,
+        },
+      ],
+    },
+  ];
+}
+
 function processCountEntries(count: number, startedAt: number) {
   return [
     {
@@ -268,6 +305,7 @@ function View() {
   const [connection, setConnection] = useState<'' | 'connecting' | 'paused'>(
     '',
   );
+  const [overlayTasks, setOverlayTasks] = useState(false);
   const [clearDraftToken, setClearDraftToken] = useState(0);
   useEffect(() => {
     if (processCounts == null || processCounts.count >= 9) return;
@@ -526,6 +564,8 @@ function View() {
     ]);
   } else if (showImage) {
     displayedEntriesJSON = JSON.stringify(JSON.parse(entriesJSON).slice(0, 1));
+  } else if (overlayTasks) {
+    displayedEntriesJSON = JSON.stringify(overlayTaskEntries());
   }
   const openProcess = useProcessSheet(displayedEntriesJSON, () =>
     setMode('attention'),
@@ -617,19 +657,34 @@ function View() {
               }
             />
             <Stack.Toolbar.MenuAction
-              children="Connecting Chrome"
+              children="Connecting Overlay"
               icon="wifi"
               onPress={() => setConnection('connecting')}
             />
             <Stack.Toolbar.MenuAction
-              children="Paused Chrome"
+              children="Paused Overlay"
               icon="wifi.slash"
               onPress={() => setConnection('paused')}
             />
             <Stack.Toolbar.MenuAction
-              children="Clear Chrome"
+              children="Tasks Overlay"
+              icon="person.2"
+              onPress={() => {
+                setDurationFixture(null);
+                setProcessCounts(null);
+                setShowChanges(false);
+                setShowImage(false);
+                setConnection('');
+                setOverlayTasks(true);
+              }}
+            />
+            <Stack.Toolbar.MenuAction
+              children="Clear Overlay"
               icon="xmark"
-              onPress={() => setConnection('')}
+              onPress={() => {
+                setConnection('');
+                setOverlayTasks(false);
+              }}
             />
             <Stack.Toolbar.MenuAction
               children="Permission Fixture"

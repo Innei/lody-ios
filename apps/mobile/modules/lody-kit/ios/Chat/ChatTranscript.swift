@@ -82,6 +82,15 @@ struct ChatItem: Decodable {
   let entries: [Plan]?
   let description: String?
   let actor: String?
+  var lastToolName: String? = nil
+  var summary: String? = nil
+  var error: String? = nil
+  var isBackgrounded: Bool? = nil
+  var skipTranscript: Bool? = nil
+  var hidesFromTranscript: Bool { type == "subagent_task" && skipTranscript == true }
+  var isLiveSubagent: Bool {
+    type == "subagent_task" && skipTranscript != true && (status == "in_progress" || status == "pending")
+  }
   let image: ChatImage?
   var file: ChatMessageAttachment? = nil
   var images: [ChatImage]? = nil
@@ -233,6 +242,10 @@ enum ChatTranscriptPreviewMetrics {
 struct ChatTranscript {
   var entries: [ChatEntry] = []
 
+  func liveSubagentItems() -> [ChatItem] {
+    entries.flatMap(\.items).filter(\.isLiveSubagent)
+  }
+
   private struct CachedEnvelope: Decodable {
     let entries: [ChatEntry]?
   }
@@ -257,6 +270,14 @@ struct ChatTranscript {
     now: Double = Date().timeIntervalSince1970 * 1000,
     turnStartedAt: [String: Double] = [:]
   ) -> [ChatRow] {
+    if processStartID == "__tasks__" {
+      return entries.flatMap { entry in
+        entry.items.compactMap { item -> ChatRow? in
+          guard item.type == "subagent_task", item.skipTranscript != true else { return nil }
+          return ChatTranscript.subagentRow(entry: entry, item: item)
+        }
+      }
+    }
     let groups = Dictionary(grouping: entries.filter { $0.executionId != nil }, by: { $0.executionId! })
     if processStartID == "__execution__",
        let groupID = entries.first(where: { $0.id == processEntryID })?.executionId,
@@ -372,15 +393,17 @@ struct ChatTranscript {
         visible = Array(entry.items.indices)
       } else if processOnly {
         if flatItems {
-          visible = Array(entry.items.indices)
+          visible = entry.items.indices.filter { !entry.items[$0].hidesFromTranscript }
         } else if !processStartID.isEmpty, let start = entry.items.firstIndex(where: { $0.itemId == processStartID }) {
           let end = entry.items.indices.dropFirst(start + 1).first { entry.items[$0].type == "text" || entry.items[$0].isAttachment } ?? entry.items.endIndex
-          visible = Array(start..<end).filter { !entry.items[$0].isAttachment && !entry.items[$0].isChatFailure }
+          visible = Array(start..<end).filter { !entry.items[$0].isAttachment && !entry.items[$0].isChatFailure && !entry.items[$0].hidesFromTranscript }
         } else {
-          visible = entry.items.indices.filter { $0 != finalText && !entry.items[$0].isAttachment }
+          visible = entry.items.indices.filter { $0 != finalText && !entry.items[$0].isAttachment && !entry.items[$0].hidesFromTranscript }
         }
       } else if entry.finished {
-        let process = entry.items.indices.filter { $0 != finalText && !entry.items[$0].isAttachment && !entry.items[$0].isChatFailure }
+        let process = entry.items.indices.filter {
+          $0 != finalText && !entry.items[$0].isAttachment && !entry.items[$0].isChatFailure && entry.items[$0].type != "subagent_task"
+        }
         if let first = process.first { groups[first] = process }
         visible = process.first.map { [$0] } ?? []
         if let finalText { visible.append(finalText) }
@@ -388,6 +411,7 @@ struct ChatTranscript {
         visible.sort()
       } else {
         for index in entry.items.indices {
+          if entry.items[index].type == "subagent_task" { continue }
           if entry.items[index].type == "text" || entry.items[index].isAttachment || entry.items[index].isChatFailure {
             visible.append(index)
           } else if let previous = visible.last, groups[previous] != nil {
@@ -478,9 +502,7 @@ struct ChatTranscript {
         case "plan":
           row.text = (item.entries ?? []).map { planPrefix($0.status) + $0.content }.joined(separator: "\n")
         case "subagent_task":
-          row.symbol = "person.2"
-          row.text = item.description ?? item.actor ?? LodyStrings.text("native.chat.transcript.subtask")
-          if item.status == "failed" { row.text = LodyStrings.text("native.chat.transcript.failed", ["text": row.text]) }
+          row = ChatTranscript.subagentRow(entry: entry, item: item)
         default:
           row.text = item.title ?? LodyStrings.text("native.chat.transcript.event")
           row.symbol = "info.circle"
@@ -519,6 +541,32 @@ struct ChatTranscript {
       }
       return result
     }
+  }
+}
+
+extension ChatTranscript {
+  fileprivate static func subagentRow(entry: ChatEntry, item: ChatItem) -> ChatRow {
+    let actor = item.actor?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let description = item.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    var text = actor.isEmpty ? LodyStrings.text("native.chat.transcript.subtask") : actor
+    if !description.isEmpty, description != text { text += " · " + description }
+    let tool = item.lastToolName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    if item.status == "in_progress", !tool.isEmpty { text += " · " + tool }
+    if item.status == "failed" {
+      let error = item.error?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      text = LodyStrings.text("native.chat.transcript.failed", ["text": error.isEmpty ? text : error])
+    }
+    var row = ChatRow(
+      id: entry.id + ":" + item.itemId,
+      entryID: entry.id,
+      kind: "subagent_task",
+      text: text,
+      itemID: item.itemId,
+      running: item.status == "in_progress" || item.status == "pending",
+      attention: item.status == "failed"
+    )
+    row.symbol = "person.2"
+    return row
   }
 }
 

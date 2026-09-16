@@ -633,3 +633,24 @@ let continuing = ChatTranscript(entries: guidedEntries).rows()
 assert(continuing.contains { $0.itemID == "intro" })
 assert(!continuing.contains { $0.id == "root:execution" })
 print("Steer: user bubbles outside one process, all final text survives, tool owners preserved")
+
+let taskJSON = """
+[{"id":"reply","role":"assistant","status":"running","finished":false,"items":[
+{"itemId":"think","type":"thought","text":"split work"},
+{"itemId":"read","type":"tool_call","kind":"read","title":"读取","status":"completed"},
+{"itemId":"explore","type":"subagent_task","taskId":"t1","status":"in_progress","actor":"Explore","description":"Find chrome","lastToolName":"Read"},
+{"itemId":"house","type":"subagent_task","taskId":"house","status":"in_progress","actor":"Housekeeping","skipTranscript":true},
+{"itemId":"done","type":"subagent_task","taskId":"t0","status":"completed","actor":"Explore","description":"Already finished"}]}]
+"""
+transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(taskJSON.utf8))
+assert(transcript.liveSubagentItems().map(\.itemId) == ["explore"])
+assert(!transcript.rows().contains { $0.kind == "subagent_task" || $0.itemID == "explore" || $0.itemID == "house" })
+assert(transcript.rows().contains { $0.kind == "summary" })
+let processTasks = transcript.rows(processEntryID: "reply")
+assert(processTasks.contains { $0.itemID == "explore" && $0.kind == "subagent_task" })
+assert(processTasks.contains { $0.itemID == "done" && $0.kind == "subagent_task" })
+assert(!processTasks.contains { $0.itemID == "house" })
+assert(transcript.rows(processEntryID: "reply", processStartID: "__tasks__").map(\.itemID) == ["explore", "done"])
+transcript.entries[0].finished = true
+assert(!transcript.rows().contains { $0.kind == "subagent_task" || $0.itemID == "explore" })
+print("Chat: live subagent tasks stay off the main list and skip housekeeping")

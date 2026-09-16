@@ -1,18 +1,47 @@
 import UIKit
 
-final class ChatInputChrome: UIView {
-  enum Status: String {
-    case none = ""
+final class ChatOverlay: UIView {
+  struct Task: Equatable {
+    var id: String
+    var actor: String?
+    var lastToolName: String?
+  }
+
+  struct Tasks: Equatable {
+    var items: [Task]
+    var title: String {
+      if items.count == 1, let item = items.first {
+        let actor = item.actor?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let name = actor.isEmpty ? LodyStrings.text("native.chat.transcript.subtask") : actor
+        let tool = item.lastToolName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if tool.isEmpty { return name }
+        return "\(name) · \(tool)"
+      }
+      return LodyStrings.plural("native.chat.overlay.tasks", items.count)
+    }
+  }
+
+  enum Slot: Equatable {
+    case idle
     case connecting
     case paused
+    case tasks(Tasks)
   }
 
   static let controlSize: CGFloat = 44
   static let visualSize: CGFloat = 30
+  static let tasksProcessStartID = "__tasks__"
 
-  var status = Status.none {
+  static func slot(connection: String, tasks: [Task]) -> Slot {
+    if connection == "paused" { return .paused }
+    if connection == "connecting" { return .connecting }
+    if tasks.isEmpty { return .idle }
+    return .tasks(Tasks(items: tasks))
+  }
+
+  var slot = Slot.idle {
     didSet {
-      guard oldValue != status else { return }
+      guard oldValue != slot else { return }
       apply()
     }
   }
@@ -24,6 +53,7 @@ final class ChatInputChrome: UIView {
   }
   var onReconnect: (() -> Void)?
   var onScrollToBottom: (() -> Void)?
+  var onTasksPress: (() -> Void)?
 
   private let statusSurface = LodyGlassView(interactive: true)
   private let scrollHost = UIView()
@@ -62,12 +92,16 @@ final class ChatInputChrome: UIView {
       return outgoing
     }
     statusButton.configuration = statusConfiguration
-    statusButton.accessibilityIdentifier = "chat-connection-status"
+    statusButton.accessibilityIdentifier = "chat-overlay-status"
     statusButton.setContentHuggingPriority(.required, for: .horizontal)
     statusSurface.setContentHuggingPriority(.required, for: .horizontal)
     statusButton.addAction(UIAction { [weak self] _ in
-      guard self?.status == .paused else { return }
-      self?.onReconnect?()
+      guard let self else { return }
+      switch self.slot {
+      case .paused: self.onReconnect?()
+      case .tasks: self.onTasksPress?()
+      default: break
+      }
     }, for: .touchUpInside)
     var scrollConfiguration = UIButton.Configuration.plain()
     scrollConfiguration.contentInsets = .zero
@@ -108,7 +142,7 @@ final class ChatInputChrome: UIView {
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
     guard !isHidden, isUserInteractionEnabled, alpha > 0.01 else { return nil }
     for button in [scrollButton, statusButton] {
-      let visible = button === scrollButton ? scrollVisible : status == .paused
+      let visible = button === scrollButton ? scrollVisible : slot.isActionable
       guard visible else { continue }
       let bounds = button.bounds
       let target = bounds.insetBy(
@@ -122,20 +156,17 @@ final class ChatInputChrome: UIView {
   }
 
   private func apply(animated: Bool? = nil) {
-    let showStatus = status != .none
+    let showStatus = slot != .idle
     let showScroll = scrollVisible
     let active = showStatus || showScroll
     var configuration = statusButton.configuration ?? .plain()
-    let title = status == .paused
-      ? LodyStrings.text("native.chat.connection.paused")
-      : LodyStrings.text("native.chat.connection.connecting")
     if showStatus {
-      configuration.title = title
+      configuration.title = slot.title
       statusButton.configuration = configuration
-      statusButton.accessibilityLabel = title
+      statusButton.accessibilityLabel = slot.title
     }
-    statusButton.accessibilityTraits = status == .paused ? .button : .staticText
-    statusButton.isUserInteractionEnabled = status == .paused
+    statusButton.accessibilityTraits = slot.isActionable ? .button : .staticText
+    statusButton.isUserInteractionEnabled = slot.isActionable
     let shouldAnimate = (animated ?? (window != nil && !UIAccessibility.isReduceMotionEnabled))
       && UIView.areAnimationsEnabled
     if active { isHidden = false }
@@ -143,5 +174,23 @@ final class ChatInputChrome: UIView {
     statusSurface.setVisible(showStatus, animated: shouldAnimate)
     scrollSurface.setVisible(showScroll, animated: shouldAnimate)
     isHidden = statusSurface.isHidden && scrollSurface.isHidden
+  }
+}
+
+private extension ChatOverlay.Slot {
+  var isActionable: Bool {
+    switch self {
+    case .paused, .tasks: true
+    default: false
+    }
+  }
+
+  var title: String {
+    switch self {
+    case .paused: LodyStrings.text("native.chat.connection.paused")
+    case .connecting: LodyStrings.text("native.chat.connection.connecting")
+    case .tasks(let tasks): tasks.title
+    case .idle: ""
+    }
   }
 }

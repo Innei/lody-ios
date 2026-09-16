@@ -81,7 +81,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var measurements: [String: (width: CGFloat, text: NSAttributedString, height: CGFloat)] = [:]
   let store = ChatMarkdownStore(traits: .current)
   var composer = ChatComposerView(frame: .zero)
-  let chrome = ChatInputChrome()
+  let overlay = ChatOverlay()
   var localAttachments: [String: [ChatMessageAttachment]] = [:]
   var expandedMessages = Set<String>()
   var expandedAttachments = Set<String>()
@@ -367,8 +367,15 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     collection.backgroundView = empty
     addSubview(collection)
     addSubview(composer)
-    chrome.onReconnect = { [weak self] in self?.onReconnect([:]) }
-    chrome.onScrollToBottom = { [weak self] in
+    overlay.onReconnect = { [weak self] in self?.onReconnect([:]) }
+    overlay.onTasksPress = { [weak self] in
+      guard let self else { return }
+      self.onActivityPress([
+        "entryId": self.transcript.entries.last(where: { $0.role == "assistant" })?.id ?? "",
+        "processStartId": ChatOverlay.tasksProcessStartID,
+      ])
+    }
+    overlay.onScrollToBottom = { [weak self] in
       guard let self else { return }
       self.scrollingToTop = false
       self.collection.setContentOffset(self.collection.contentOffset, animated: false)
@@ -376,17 +383,17 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       self.followsBottom = true
       self.scrollToBottom()
     }
-    addSubview(chrome)
-    chrome.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(overlay)
+    overlay.translatesAutoresizingMaskIntoConstraints = false
     collection.translatesAutoresizingMaskIntoConstraints = false
     composer.translatesAutoresizingMaskIntoConstraints = false
     let composerWidth = composer.widthAnchor.constraint(equalTo: widthAnchor)
     composerWidth.priority = .defaultHigh
     NSLayoutConstraint.activate([
-      chrome.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
-      chrome.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16),
-      chrome.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
-      chrome.heightAnchor.constraint(equalToConstant: ChatInputChrome.controlSize),
+      overlay.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
+      overlay.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16),
+      overlay.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
+      overlay.heightAnchor.constraint(equalToConstant: ChatOverlay.controlSize),
       collection.topAnchor.constraint(equalTo: topAnchor),
       collection.leadingAnchor.constraint(equalTo: leadingAnchor),
       collection.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -684,7 +691,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
   func setComposerState(_ json: String) {
     composer.setComposerState(json)
-    chrome.status = ChatInputChrome.Status(rawValue: composer.connection) ?? .none
+    applyOverlay()
   }
 
   func adoptComposerIfNeeded() {
@@ -727,7 +734,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       incoming.translatesAutoresizingMaskIntoConstraints = false
       NSLayoutConstraint.activate(replacements)
       incoming.attachScrollEdge(to: collection)
-      bringSubviewToFront(chrome)
+      bringSubviewToFront(overlay)
       layoutIfNeeded()
     }
     #if DEBUG

@@ -55,6 +55,11 @@ export type ItemSummary =
       status: string;
       actor?: string;
       description?: string;
+      lastToolName?: string;
+      summary?: string;
+      error?: string;
+      isBackgrounded?: boolean;
+      skipTranscript?: boolean;
     }
   | { itemId: string; rev: number; type: string };
 
@@ -301,6 +306,14 @@ function summarizeItem(
       actor: raw.actor == null ? undefined : String(raw.actor),
       description:
         raw.description == null ? undefined : String(raw.description),
+      lastToolName:
+        raw.lastToolName == null ? undefined : String(raw.lastToolName),
+      summary: raw.summary == null ? undefined : String(raw.summary),
+      error: raw.error == null ? undefined : String(raw.error),
+      isBackgrounded:
+        raw.isBackgrounded == null ? undefined : Boolean(raw.isBackgrounded),
+      skipTranscript:
+        raw.skipTranscript == null ? undefined : Boolean(raw.skipTranscript),
     };
     summary.rev = bump(projection, key, JSON.stringify(summary));
     return summary as ItemSummary;

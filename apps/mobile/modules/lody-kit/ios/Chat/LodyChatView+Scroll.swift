@@ -175,7 +175,7 @@ extension LodyChatView {
 
   func updateBottomButton() {
     let bottom = bottomOffset
-    chrome.scrollVisible = processEntryID.isEmpty && !followsBottom && bottom - collection.contentOffset.y > CGFloat(ChatScroll.resumeDistance)
+    overlay.scrollVisible = processEntryID.isEmpty && !followsBottom && bottom - collection.contentOffset.y > CGFloat(ChatScroll.resumeDistance)
   }
 
   func scrollToBottom() {

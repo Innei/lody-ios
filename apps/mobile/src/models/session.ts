@@ -47,6 +47,11 @@ export type ItemSummary =
       status: string;
       actor?: string;
       description?: string;
+      lastToolName?: string;
+      summary?: string;
+      error?: string;
+      isBackgrounded?: boolean;
+      skipTranscript?: boolean;
     }
   | { itemId: string; rev: number; type: string };
 
