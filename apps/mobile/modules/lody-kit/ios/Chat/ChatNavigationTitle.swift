@@ -16,7 +16,8 @@ struct ChatNavigationTitleBridge: View {
       .lineLimit(1)
       .truncationMode(.tail)
       .contentTransition(.numericText())
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .fixedSize(horizontal: false, vertical: true)
+      .frame(maxWidth: .infinity, alignment: .topLeading)
   }
 }
 
@@ -36,6 +37,7 @@ final class ChatNavigationTitleHost: UIView {
     hosting.view.backgroundColor = .clear
     hosting.view.isOpaque = false
     hosting.view.insetsLayoutMarginsFromSafeArea = false
+    hosting.view.clipsToBounds = false
     hosting.view.isUserInteractionEnabled = false
     hosting.view.isAccessibilityElement = false
     hosting.view.accessibilityElementsHidden = true
@@ -68,6 +70,12 @@ final class ChatNavigationTitleHost: UIView {
     super.layoutSubviews()
     hosting.view.frame = bounds
   }
+
+  override func sizeThatFits(_ size: CGSize) -> CGSize {
+    hosting.sizeThatFits(
+      in: CGSize(width: max(1, size.width), height: UIView.layoutFittingExpandedSize.height)
+    )
+  }
 }
 
 final class ChatNavigationTitleButton: UIButton {
@@ -83,6 +91,7 @@ final class ChatNavigationTitleButton: UIButton {
     titleLabel?.isHidden = true
     captionLabel.numberOfLines = 1
     captionLabel.lineBreakMode = .byTruncatingMiddle
+    captionLabel.clipsToBounds = false
     captionLabel.isUserInteractionEnabled = false
     captionLabel.isAccessibilityElement = false
     addSubview(titleHost)
@@ -113,13 +122,20 @@ final class ChatNavigationTitleButton: UIButton {
   override func layoutSubviews() {
     super.layoutSubviews()
     let inset: CGFloat = 8
-    let titleFont = UIFont.preferredFont(forTextStyle: .headline)
-    let titleHeight = titleHost.text.isEmpty ? 0 : ceil(titleFont.lineHeight)
-    let subtitleHeight = captionLabel.isHidden ? 0 : ceil(UIFont.preferredFont(forTextStyle: .caption1).lineHeight)
-    let spacing: CGFloat = titleHeight > 0 && subtitleHeight > 0 ? 1 : 0
-    let y = max(0, (bounds.height - titleHeight - spacing - subtitleHeight) / 2)
     let width = max(0, bounds.width - inset)
     let x = effectiveUserInterfaceLayoutDirection == .rightToLeft ? 0 : inset
+    let titleFont = UIFont.preferredFont(forTextStyle: .headline)
+    let captionFont = UIFont.preferredFont(forTextStyle: .caption1)
+    let titleHeight = titleHost.text.isEmpty ? 0 : ceil(max(
+      titleFont.lineHeight,
+      titleHost.sizeThatFits(CGSize(width: width, height: UIView.layoutFittingExpandedSize.height)).height
+    )) + 2
+    let subtitleHeight = captionLabel.isHidden ? 0 : ceil(max(
+      captionFont.lineHeight,
+      captionLabel.sizeThatFits(CGSize(width: width, height: UIView.layoutFittingExpandedSize.height)).height
+    )) + 2
+    let spacing: CGFloat = titleHeight > 0 && subtitleHeight > 0 ? 1 : 0
+    let y = max(0, (bounds.height - titleHeight - spacing - subtitleHeight) / 2)
     titleHost.frame = CGRect(x: x, y: y, width: width, height: titleHeight)
     titleHost.isHidden = titleHeight == 0
     captionLabel.frame = CGRect(x: x, y: y + titleHeight + spacing, width: width, height: subtitleHeight)
@@ -193,13 +209,18 @@ enum ChatNavigationTitle {
   }
 
   private static func symbolAttachment(_ name: String, font: UIFont, color: UIColor) -> NSTextAttachment? {
-    let image = UIImage(systemName: name, withConfiguration: UIImage.SymbolConfiguration(font: font.withSize(max(1, font.pointSize - 3))))?
-      .withTintColor(color, renderingMode: .alwaysOriginal)
+    let size = max(1, font.pointSize - 3)
+    let image = UIImage(
+      systemName: name,
+      withConfiguration: UIImage.SymbolConfiguration(pointSize: size, weight: .regular, scale: .small)
+    )?.withTintColor(color, renderingMode: .alwaysOriginal)
     guard let image else { return nil }
+    let drawn = UIGraphicsImageRenderer(size: CGSize(width: size, height: size)).image { _ in
+      image.draw(in: CGRect(origin: .zero, size: CGSize(width: size, height: size)))
+    }
     let attachment = NSTextAttachment()
-    attachment.image = image
-    let offset = (font.capHeight - image.size.height) / 2
-    attachment.bounds = CGRect(x: 0, y: offset, width: image.size.width, height: image.size.height)
+    attachment.image = drawn
+    attachment.bounds = CGRect(x: 0, y: (font.capHeight - size) / 2, width: size, height: size)
     return attachment
   }
 }

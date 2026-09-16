@@ -360,6 +360,52 @@ func modelLabel(_ root: UIView) -> UILabel? {
   return root.subviews.compactMap(modelLabel).first
 }
 precondition(modelLabel(metaCell)?.accessibilityLabel == "GPT-5.6 Sol · High", "VoiceOver reads the model line without the mark")
+
+func lowestInkRow(_ image: UIImage) -> Int {
+  guard let cgImage = image.cgImage else { return -1 }
+  let width = cgImage.width
+  let height = cgImage.height
+  var pixels = [UInt8](repeating: 0, count: width * height * 4)
+  guard let ctx = CGContext(
+    data: &pixels,
+    width: width,
+    height: height,
+    bitsPerComponent: 8,
+    bytesPerRow: width * 4,
+    space: CGColorSpaceCreateDeviceRGB(),
+    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+  ) else { return -1 }
+  ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+  var last = -1
+  for row in 0..<height {
+    for column in 0..<width {
+      let i = (row * width + column) * 4
+      if Int(pixels[i]) + Int(pixels[i + 1]) + Int(pixels[i + 2]) < 720 { last = row }
+    }
+  }
+  return last
+}
+
+func snapshotCell(_ cell: ChatMetaCell, text: String) -> UIImage {
+  let row = ChatRow(id: "reply:meta", entryID: "reply", kind: "meta", text: text)
+  cell.frame.size.height = ChatMetaCell.height(for: row, width: cell.bounds.width, traits: .current)
+  cell.configure(row)
+  cell.backgroundColor = .white
+  cell.contentView.backgroundColor = .white
+  cell.layoutIfNeeded()
+  return UIGraphicsImageRenderer(size: cell.bounds.size).image { context in
+    UIColor.white.setFill()
+    context.fill(CGRect(origin: .zero, size: cell.bounds.size))
+    cell.layer.render(in: context.cgContext)
+  }
+}
+
+let metaY = snapshotCell(metaCell, text: "Gy")
+let metaX = snapshotCell(metaCell, text: "Gx")
+precondition(
+  lowestInkRow(metaY) >= lowestInkRow(metaX) + Int(metaY.scale * 2),
+  "The descender of y on the model line must not be clipped"
+)
 print("Chat render: meta bar provider marks sit on the model line")
 
 func processAttributed(_ string: String, row: ChatRow, traits: UITraitCollection) -> NSAttributedString {

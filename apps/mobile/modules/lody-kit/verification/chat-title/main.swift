@@ -152,4 +152,69 @@ if !UIAccessibility.isReduceMotionEnabled {
   precondition(frames.contains { $0 != settled }, "Changing the first line must run a numeric text transition")
 }
 
+func lowestInkRow(_ image: UIImage) -> Int {
+  guard let cgImage = image.cgImage else { return -1 }
+  let width = cgImage.width
+  let height = cgImage.height
+  var pixels = [UInt8](repeating: 0, count: width * height * 4)
+  guard let ctx = CGContext(
+    data: &pixels,
+    width: width,
+    height: height,
+    bitsPerComponent: 8,
+    bytesPerRow: width * 4,
+    space: CGColorSpaceCreateDeviceRGB(),
+    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+  ) else { return -1 }
+  ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+  var last = -1
+  for row in 0..<height {
+    for column in 0..<width {
+      let i = (row * width + column) * 4
+      if Int(pixels[i]) + Int(pixels[i + 1]) + Int(pixels[i + 2]) < 720 { last = row }
+    }
+  }
+  return last
+}
+
+func snapshotImage(_ view: UIView) -> UIImage {
+  let size = CGSize(width: max(1, view.bounds.width), height: max(1, view.bounds.height))
+  return UIGraphicsImageRenderer(size: size).image { context in
+    UIColor.white.setFill()
+    context.fill(CGRect(origin: .zero, size: size))
+    view.layer.render(in: context.cgContext)
+  }
+}
+
+ChatNavigationTitle.configureButton(button, title: "lody", subtitle: "", machine: "")
+nav.view.layoutIfNeeded()
+button.layoutIfNeeded()
+RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+let titleY = snapshotImage(button.titleHost)
+ChatNavigationTitle.configureButton(button, title: "lodx", subtitle: "", machine: "")
+nav.view.layoutIfNeeded()
+button.layoutIfNeeded()
+RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+let titleX = snapshotImage(button.titleHost)
+let titleYInk = lowestInkRow(titleY)
+let titleXInk = lowestInkRow(titleX)
+precondition(
+  titleYInk >= titleXInk + Int(titleY.scale * 2),
+  "The title descender of y must not be clipped (y=\(titleYInk) x=\(titleXInk) h=\(button.titleHost.bounds.height))"
+)
+
+ChatNavigationTitle.configureButton(button, title: "Title", subtitle: "lody", machine: "")
+nav.view.layoutIfNeeded()
+button.layoutIfNeeded()
+let subtitleY = snapshotImage(button.captionLabel)
+ChatNavigationTitle.configureButton(button, title: "Title", subtitle: "lodx", machine: "")
+nav.view.layoutIfNeeded()
+button.layoutIfNeeded()
+let subtitleYInk = lowestInkRow(subtitleY)
+let subtitleXInk = lowestInkRow(snapshotImage(button.captionLabel))
+precondition(
+  subtitleYInk >= subtitleXInk + Int(subtitleY.scale * 2),
+  "The subtitle descender of y in lody must not be clipped (y=\(subtitleYInk) x=\(subtitleXInk) h=\(button.captionLabel.bounds.height))"
+)
+
 print("PASS: chat navigation subtitle shows project and computer names")

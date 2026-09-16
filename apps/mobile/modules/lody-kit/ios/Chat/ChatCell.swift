@@ -19,8 +19,11 @@ final class ChatMetaCell: UICollectionViewCell {
 
   override init(frame: CGRect) {
     super.init(frame: frame)
+    clipsToBounds = false
+    contentView.clipsToBounds = false
     modelLabel.numberOfLines = 0
     modelLabel.textAlignment = .left
+    modelLabel.clipsToBounds = false
     modelLabel.adjustsFontForContentSizeCategory = true
     contentView.addSubview(modelLabel)
     registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitPreferredContentSizeCategory.self]) {
@@ -72,8 +75,12 @@ final class ChatMetaCell: UICollectionViewCell {
     let result = NSMutableAttributedString()
     if let image {
       let size = max(1, font.pointSize - 2)
+      let drawn = UIGraphicsImageRenderer(size: CGSize(width: size, height: size)).image { _ in
+        image.withTintColor(color, renderingMode: .alwaysOriginal)
+          .draw(in: CGRect(origin: .zero, size: CGSize(width: size, height: size)))
+      }
       let attachment = NSTextAttachment()
-      attachment.image = image.withTintColor(color, renderingMode: .alwaysOriginal)
+      attachment.image = drawn
       attachment.bounds = CGRect(x: 0, y: (font.capHeight - size) / 2, width: size, height: size)
       result.append(NSAttributedString(attachment: attachment))
       result.append(NSAttributedString(string: " ", attributes: attributes))
@@ -90,7 +97,7 @@ final class ChatMetaCell: UICollectionViewCell {
       options: [.usesLineFragmentOrigin, .usesFontLeading],
       context: nil
     ).height
-    return max(24, ceil(textHeight) + 8)
+    return max(24, ceil(textHeight - min(0, font.descender)) + 8)
   }
 }
 
