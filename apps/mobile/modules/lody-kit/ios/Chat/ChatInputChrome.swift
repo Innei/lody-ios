@@ -71,11 +71,9 @@ final class ChatInputChrome: UIView {
     }, for: .touchUpInside)
     var scrollConfiguration = UIButton.Configuration.plain()
     scrollConfiguration.contentInsets = .zero
-    scrollConfiguration.image = UIImage(systemName: "arrow.down")
-    scrollConfiguration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(
-      pointSize: 14,
-      weight: .bold
-    )
+    let scrollSymbol = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold, scale: .medium)
+    scrollConfiguration.image = UIImage(systemName: "arrow.down", withConfiguration: scrollSymbol)
+    scrollConfiguration.preferredSymbolConfigurationForImage = scrollSymbol
     scrollConfiguration.baseForegroundColor = .label
     scrollButton.configuration = scrollConfiguration
     scrollButton.accessibilityLabel = LodyStrings.text("native.chat.scrollToBottom")

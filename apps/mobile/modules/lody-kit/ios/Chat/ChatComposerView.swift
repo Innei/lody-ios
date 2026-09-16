@@ -341,7 +341,7 @@ private final class ChatComposerActionVisual: UIView {
   private func applyContent(_ mode: ChatComposerActionMode) {
     symbol.image = UIImage(
       systemName: mode.symbolName,
-      withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
+      withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .bold, scale: .medium)
     )
     symbol.isHidden = mode == .loading
     if mode == .loading { progress.startAnimating() } else { progress.stopAnimating() }

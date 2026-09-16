@@ -85,14 +85,31 @@ precondition(abs(scrollBoth.midX - sendSlotCenterX) < 0.5,
 precondition(abs(statusBoth.maxY - scrollBoth.maxY) < 0.5, "Paired glasses share one baseline")
 let expectedSymbol = UIImage(
   systemName: "arrow.down",
-  withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
+  withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .bold, scale: .medium)
 )!
-let actualSymbol = UIImage(
-  systemName: "arrow.down",
-  withConfiguration: scrollControl().configuration?.preferredSymbolConfigurationForImage
+let sendSymbol = UIImage(
+  systemName: "arrow.up",
+  withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .bold, scale: .medium)
 )!
-precondition(abs(actualSymbol.size.width - expectedSymbol.size.width) < 0.5)
-precondition(abs(actualSymbol.size.height - expectedSymbol.size.height) < 0.5)
+precondition(abs(expectedSymbol.size.width - sendSymbol.size.width) < 0.5)
+precondition(abs(expectedSymbol.size.height - sendSymbol.size.height) < 0.5)
+let glyphs = descendants(scrollControl()).compactMap { $0 as? UIImageView }.filter { $0.image != nil }
+precondition(glyphs.count == 1, "Scroll must draw one arrow image")
+let glyph = glyphs[0]
+precondition(
+  abs((glyph.image?.size.width ?? 0) - expectedSymbol.size.width) < 0.5
+    && abs((glyph.image?.size.height ?? 0) - expectedSymbol.size.height) < 0.5,
+  "Scroll glyph image \(glyph.image?.size as Optional) must match send's 14 pt bold \(expectedSymbol.size)"
+)
+let fillsVisual = abs(glyph.bounds.width - ChatInputChrome.visualSize) < 0.5
+  && abs(glyph.bounds.height - ChatInputChrome.visualSize) < 0.5
+  && glyph.contentMode == .center
+let sizedToSymbol = abs(glyph.bounds.width - expectedSymbol.size.width) < 1
+  && abs(glyph.bounds.height - expectedSymbol.size.height) < 1
+precondition(
+  fillsVisual || sizedToSymbol,
+  "Scroll glyph layout \(glyph.bounds.size) is not the 14 pt send size"
+)
 precondition(abs(statusBoth.midX - 195) < 1,
   "Showing scroll must not move the connection status")
 let inside = chrome.convert(CGPoint(x: scrollBoth.midX + 21, y: scrollBoth.midY), from: host)
