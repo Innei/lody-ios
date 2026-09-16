@@ -10,7 +10,7 @@ def title(name, timeout=30):
 
 def link(index, row='file-links:answer', icon=False):
     frame = ui.element(row)['frame']
-    # Five production Markdown paragraphs: 24pt line + 8pt paragraph spacing.
+    # Production Markdown paragraphs: 24pt line + 8pt paragraph spacing.
     # Geometry is relative to the current native cell, including inside a sheet.
     ui.axe('tap', '-x', str(frame['x'] + (8 if icon else 55)), '-y', str(frame['y'] + 16 + index * 32), '--post-delay', '.6')
 
@@ -45,7 +45,7 @@ def dismiss_quicklook():
     assert close, 'Presented Quick Look must dismiss with a pull-down or Close'
     ui.axe('tap', '--label', close['AXLabel'], '--post-delay', '.5')
 
-assert ui.element('file-links:answer')['custom_actions'] == ['完整报告', '代码', '图片', 'PDF 文档', '不存在的文件']
+assert ui.element('file-links:answer')['custom_actions'] == ['完整报告', '代码', '图片', 'PDF 文档', '不存在的文件', '读取失败']
 ui.capture('links')
 ui.axe('tap', '--label', 'File Browser', '--post-delay', '.5')
 ui.element('entry:report.md')
@@ -112,6 +112,12 @@ ui.capture('missing-file')
 ui.axe('tap', '--label', catalog.text('common.retry'), '--post-delay', '.2')
 ui.element('file-loading', timeout=2)
 ui.wait(lambda items: any(catalog.text('files.error.notFound') in str(i.get('AXLabel') or '') for i in items), 'Retry lost the missing-file error')
+back()
+# A machine RPC rejection must not claim that the computer is offline.
+link(5)
+ui.wait(lambda items: any(catalog.text('files.error.read') in str(i.get('AXLabel') or '') for i in items), 'RPC rejection must show a read failure')
+assert not any(catalog.text('files.error.offline') in str(i.get('AXLabel') or '') for i in ui.state()), 'RPC rejection was mislabeled as offline'
+ui.capture('rpc-read-failure')
 back()
 # A late image response must not open Quick Look after leaving its loading page.
 link(2)

@@ -123,6 +123,7 @@ export function projectRows(rows: Row[], mode: string): Catalog {
       cliType: text(value.cliType),
       agentType: text(value.agentType),
       resume: text(value.acpSessionId),
+      parentSessionId: text(value.parentSessionId) || undefined,
       id: text(value.id) || id.slice(8),
       machineId,
       title: text(value.title) || t('session.untitled'),

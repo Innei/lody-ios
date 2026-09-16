@@ -6,10 +6,13 @@ import { Flock } from '@loro-dev/flock-wasm/base64';
 test('persistent runtime applies live increments to the existing replica and advances the cursor', async () => {
   const flock = new Flock('synthetic');
   flock.set(['e', 'session-s1'], true, 1);
+  flock.set(['e', 'machine-m1'], true, 1);
+  flock.set(['m', 'machine-m1'], { name: 'Synthetic Mac' }, 1);
   flock.set(['m', 'session-s1'], { title: 'Before', machineId: 'm1' }, 2);
   const snapshot = flock.exportFile(),
     version = flock.version();
   flock.set(['m', 'session-s1', 'title'], 'After', 3);
+  flock.set(['m', 'session-s1', 'parentSessionId'], 'parent', 4);
   const update = new TextEncoder().encode(
     JSON.stringify(flock.exportJson(version)),
   );
@@ -22,6 +25,9 @@ test('persistent runtime applies live increments to the existing replica and adv
   const requests = [];
   let respond;
   globalThis.__runtimeTestClient = class {
+    constructor({ url }) {
+      this.isMeta = decodeURIComponent(url).endsWith(':meta');
+    }
     async bootstrap() {
       return {
         ok: true,
@@ -35,6 +41,7 @@ test('persistent runtime applies live increments to the existing replica and adv
       };
     }
     readOnce(request) {
+      if (!this.isMeta) return new Promise(() => {});
       requests.push(request);
       return new Promise((resolve) => {
         respond = resolve;
@@ -69,6 +76,18 @@ test('persistent runtime applies live increments to the existing replica and adv
       {
         name: 'synthetic-stream',
         setup(build) {
+          build.onResolve({ filter: /^\.\/files$/ }, () => ({
+            path: 'files',
+            namespace: 'file-test',
+          }));
+          build.onLoad({ filter: /.*/, namespace: 'file-test' }, () => ({
+            contents: `
+              export const readFile = (ctx, args) => ({ ctx, args });
+              export const fileDiff = readFile;
+              export const turnDiff = readFile;
+              export const listDir = readFile;
+            `,
+          }));
           build.onResolve({ filter: /^@loro-dev\/streams-client$/ }, () => ({
             path: 'client',
             namespace: 'test',
@@ -92,6 +111,12 @@ test('persistent runtime applies live increments to the existing replica and adv
   globalThis.dataRuntime.start('synthetic-workspace');
   assert.equal(JSON.parse((await first).catalog).sessions[0].title, 'Before');
   assert.equal(requests[0].live, 'long-poll');
+  const fileArgs = { sessionId: 's1', path: 'README.md', entryId: 'turn' };
+  for (const method of ['readFile', 'fileDiff', 'turnDiff']) {
+    const request = globalThis.dataRuntime[method](fileArgs);
+    assert.equal(request.ctx.ownerSessionId, 's1');
+    assert.equal(request.args.sessionId, 's1');
+  }
   const second = catalogEvent();
   respond({
     ok: true,
@@ -105,6 +130,16 @@ test('persistent runtime applies live increments to the existing replica and adv
   const changed = await second;
   assert.equal(JSON.parse(changed.catalog).sessions[0].title, 'After');
   assert.equal(changed.revision, 2);
+  assert.equal(
+    JSON.parse(changed.catalog).sessions[0].parentSessionId,
+    'parent',
+  );
+  // No session document was opened: ownership must come from live Meta Flock.
+  for (const method of ['readFile', 'fileDiff', 'turnDiff']) {
+    const request = globalThis.dataRuntime[method](fileArgs);
+    assert.equal(request.ctx.ownerSessionId, 'parent');
+    assert.equal(request.args.sessionId, 's1');
+  }
   assert.equal(requests[1].offset, '2');
   assert.equal(events.filter((e) => e.type === 'grant').length, 1);
   assert.equal(globalThis.dataRuntime.ping(), true);
