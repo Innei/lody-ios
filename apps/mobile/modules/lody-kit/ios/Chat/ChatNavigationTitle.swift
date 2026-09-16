@@ -1,5 +1,16 @@
+import CoreText
 import SwiftUI
 import UIKit
+
+private func lineInk(_ attributed: NSAttributedString) -> CGRect {
+  CTLineGetImageBounds(CTLineCreateWithAttributedString(attributed), nil)
+}
+
+private func inkBottom(text: String, font: UIFont) -> CGFloat {
+  guard !text.isEmpty else { return 0 }
+  let ink = lineInk(NSAttributedString(string: text, attributes: [.font: font]))
+  return ceil(max(0, font.ascender - ink.origin.y))
+}
 
 @Observable
 final class ChatNavigationTitleModel {
@@ -92,6 +103,8 @@ final class ChatNavigationTitleButton: UIButton {
     captionLabel.numberOfLines = 1
     captionLabel.lineBreakMode = .byTruncatingMiddle
     captionLabel.clipsToBounds = false
+    captionLabel.isOpaque = false
+    captionLabel.backgroundColor = .clear
     captionLabel.isUserInteractionEnabled = false
     captionLabel.isAccessibilityElement = false
     addSubview(titleHost)
@@ -126,19 +139,32 @@ final class ChatNavigationTitleButton: UIButton {
     let x = effectiveUserInterfaceLayoutDirection == .rightToLeft ? 0 : inset
     let titleFont = UIFont.preferredFont(forTextStyle: .headline)
     let captionFont = UIFont.preferredFont(forTextStyle: .caption1)
-    let titleHeight = titleHost.text.isEmpty ? 0 : ceil(max(
-      titleFont.lineHeight,
+    let titleLine = titleHost.text.isEmpty ? 0 : ceil(titleFont.lineHeight)
+    let subtitleLine = captionLabel.isHidden ? 0 : ceil(captionFont.lineHeight)
+    let titleHeight = titleLine == 0 ? 0 : ceil(max(
+      titleLine,
       titleHost.sizeThatFits(CGSize(width: width, height: UIView.layoutFittingExpandedSize.height)).height
-    )) + 2
-    let subtitleHeight = captionLabel.isHidden ? 0 : ceil(max(
-      captionFont.lineHeight,
+    ))
+    let subtitleHeight = subtitleLine == 0 ? 0 : ceil(max(
+      subtitleLine,
       captionLabel.sizeThatFits(CGSize(width: width, height: UIView.layoutFittingExpandedSize.height)).height
-    )) + 2
-    let spacing: CGFloat = titleHeight > 0 && subtitleHeight > 0 ? 1 : 0
-    let y = max(0, (bounds.height - titleHeight - spacing - subtitleHeight) / 2)
+    ))
+    let titleInk = titleLine == 0 ? 0 : inkBottom(text: titleHost.text, font: titleFont)
+    let symbolOpticalPad: CGFloat = 4
+    let captionInkPad = subtitleLine == 0
+      ? 0
+      : max(0, round(captionFont.ascender - captionFont.capHeight) + symbolOpticalPad)
+    let spacing: CGFloat = titleLine > 0 && subtitleLine > 0 ? 1 : 0
+    let stackHeight = titleInk + spacing + subtitleHeight - captionInkPad
+    let y = max(0, (bounds.height - stackHeight) / 2)
     titleHost.frame = CGRect(x: x, y: y, width: width, height: titleHeight)
     titleHost.isHidden = titleHeight == 0
-    captionLabel.frame = CGRect(x: x, y: y + titleHeight + spacing, width: width, height: subtitleHeight)
+    captionLabel.frame = CGRect(
+      x: x,
+      y: y + titleInk + spacing - captionInkPad,
+      width: width,
+      height: subtitleHeight
+    )
   }
 }
 

@@ -152,8 +152,8 @@ if !UIAccessibility.isReduceMotionEnabled {
   precondition(frames.contains { $0 != settled }, "Changing the first line must run a numeric text transition")
 }
 
-func lowestInkRow(_ image: UIImage) -> Int {
-  guard let cgImage = image.cgImage else { return -1 }
+func inkRows(_ image: UIImage) -> (first: Int, last: Int) {
+  guard let cgImage = image.cgImage else { return (-1, -1) }
   let width = cgImage.width
   let height = cgImage.height
   var pixels = [UInt8](repeating: 0, count: width * height * 4)
@@ -165,17 +165,24 @@ func lowestInkRow(_ image: UIImage) -> Int {
     bytesPerRow: width * 4,
     space: CGColorSpaceCreateDeviceRGB(),
     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-  ) else { return -1 }
+  ) else { return (-1, -1) }
   ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+  var first = -1
   var last = -1
   for row in 0..<height {
     for column in 0..<width {
       let i = (row * width + column) * 4
-      if Int(pixels[i]) + Int(pixels[i + 1]) + Int(pixels[i + 2]) < 720 { last = row }
+      if Int(pixels[i]) + Int(pixels[i + 1]) + Int(pixels[i + 2]) < 720 {
+        if first < 0 { first = row }
+        last = row
+        break
+      }
     }
   }
-  return last
+  return (first, last)
 }
+
+func lowestInkRow(_ image: UIImage) -> Int { inkRows(image).last }
 
 func snapshotImage(_ view: UIView) -> UIImage {
   let size = CGSize(width: max(1, view.bounds.width), height: max(1, view.bounds.height))
@@ -215,6 +222,37 @@ let subtitleXInk = lowestInkRow(snapshotImage(button.captionLabel))
 precondition(
   subtitleYInk >= subtitleXInk + Int(subtitleY.scale * 2),
   "The subtitle descender of y in lody must not be clipped (y=\(subtitleYInk) x=\(subtitleXInk) h=\(button.captionLabel.bounds.height))"
+)
+
+ChatNavigationTitle.configureButton(button, title: "原生聊天预览", subtitle: "lody-ios", machine: "Studio")
+nav.view.layoutIfNeeded()
+button.layoutIfNeeded()
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+let titleImage = snapshotImage(button.titleHost)
+let subtitleImage = snapshotImage(button.captionLabel)
+let titleInk = inkRows(titleImage)
+let subtitleInk = inkRows(subtitleImage)
+let scale = titleImage.scale
+let titleBottom = button.titleHost.frame.minY + CGFloat(titleInk.last) / scale
+let subtitleTop = button.captionLabel.frame.minY + CGFloat(subtitleInk.first) / scale
+let gap = subtitleTop - titleBottom
+precondition(
+  gap >= -1 && gap <= 4,
+  "Title-to-subtitle ink gap must stay tight (gap=\(gap) titleBottom=\(titleBottom) subtitleTop=\(subtitleTop))"
+)
+
+ChatNavigationTitle.configureButton(button, title: "Payg", subtitle: "lody-ios", machine: "Studio")
+nav.view.layoutIfNeeded()
+button.layoutIfNeeded()
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+let descenderTitle = inkRows(snapshotImage(button.titleHost))
+let descenderSubtitle = inkRows(snapshotImage(button.captionLabel))
+let descenderBottom = button.titleHost.frame.minY + CGFloat(descenderTitle.last) / scale
+let descenderTop = button.captionLabel.frame.minY + CGFloat(descenderSubtitle.first) / scale
+let descenderGap = descenderTop - descenderBottom
+precondition(
+  descenderGap >= -1,
+  "Title descenders must not collide with the subtitle (gap=\(descenderGap))"
 )
 
 print("PASS: chat navigation subtitle shows project and computer names")
