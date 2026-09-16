@@ -11,12 +11,27 @@ enum LodyToastOverlay {
     fileprivate var window: PassThroughWindow?
     fileprivate let canvas = Canvas()
 
-    func show(message: String, kind: String) {
+    func show(
+      message: String,
+      kind: String,
+      actionTitle: String? = nil,
+      action: (() -> Void)? = nil
+    ) {
       guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
       attachIfNeeded()
       window?.isHidden = false
       window?.layoutIfNeeded()
-      canvas.enqueue(message, kind: kind)
+      canvas.enqueue(message, kind: kind, actionTitle: actionTitle, action: action)
+    }
+
+    func dismiss() {
+      canvas.dismiss()
+    }
+
+    var hostedWindow: UIWindow? { window }
+
+    func performFrontAction() {
+      canvas.performFrontAction()
     }
 
     func showBanner(title: String, kind: String) {
@@ -64,8 +79,13 @@ enum LodyToastOverlay {
       return hit === self ? nil : hit
     }
 
-    func enqueue(_ message: String, kind: String) {
-      if pills.last?.message == message {
+    func enqueue(
+      _ message: String,
+      kind: String,
+      actionTitle: String? = nil,
+      action: (() -> Void)? = nil
+    ) {
+      if action == nil, pills.last?.message == message {
         restartTimer()
         return
       }
@@ -76,7 +96,11 @@ enum LodyToastOverlay {
       case "warning": symbol = "exclamationmark.triangle.fill"; tint = .systemOrange
       default: symbol = "checkmark"; tint = .secondaryLabel
       }
-      let pill = LodyToastPillView(message: message, symbol: symbol, tint: tint)
+      let pill = LodyToastPillView(message: message, symbol: symbol, tint: tint, actionTitle: actionTitle)
+      pill.onAction = { [weak self] in
+        action?()
+        self?.dismiss()
+      }
       addSubview(pill)
       pills.append(pill)
       while pills.count > 3 { pills.removeFirst().removeFromSuperview() }
@@ -137,6 +161,7 @@ enum LodyToastOverlay {
 
     override func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
       if let banner, banner.frame.contains(gesture.location(in: self)) { return false }
+      if hitTest(gesture.location(in: self), with: nil) is UIButton { return false }
       return !pills.isEmpty
     }
 
@@ -181,14 +206,25 @@ enum LodyToastOverlay {
 
     private func restartTimer() {
       timer?.invalidate()
-      // VoiceOver needs time to finish announcing before the element disappears.
-      let duration: TimeInterval = UIAccessibility.isVoiceOverRunning ? 6 : 3.2
+      let voiceOver = UIAccessibility.isVoiceOverRunning
+      let duration: TimeInterval
+      if pills.last?.hasAction == true {
+        duration = voiceOver ? 8 : 5
+      } else if voiceOver {
+        duration = 6
+      } else {
+        duration = 3.2
+      }
       timer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
         MainActor.assumeIsolated { self?.dismiss() }
       }
     }
 
-    private func dismiss() {
+    func performFrontAction() {
+      pills.last?.triggerAction()
+    }
+
+    func dismiss() {
       timer?.invalidate()
       timer = nil
       let departing = pills
@@ -289,13 +325,16 @@ extension LodyToastOverlay.Host {
   fileprivate func attachIfNeeded() {
     if window != nil { return }
     let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-    guard
-      let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first
-    else { return }
-    let win = LodyToastOverlay.PassThroughWindow(windowScene: scene)
+    let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first
+    let win: LodyToastOverlay.PassThroughWindow
+    if let scene {
+      win = LodyToastOverlay.PassThroughWindow(windowScene: scene)
+      win.frame = scene.coordinateSpace.bounds
+    } else {
+      win = LodyToastOverlay.PassThroughWindow(frame: UIScreen.main.bounds)
+    }
     win.windowLevel = .alert + 1
     win.backgroundColor = .clear
-    win.frame = scene.coordinateSpace.bounds
     let root = UIViewController()
     root.view.backgroundColor = .clear
     canvas.frame = win.bounds

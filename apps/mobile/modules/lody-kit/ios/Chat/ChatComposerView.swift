@@ -160,6 +160,7 @@ private final class ChatQueueView: LodyGlassView {
 
 private final class ChatComposerInput: UITextView {
   var onPasteItems: (([NSItemProvider]) -> Bool)?
+  var onPasteLongText: ((String) -> Bool)?
 
   override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
     if action == #selector(paste(_:)), isEditable, UIPasteboard.general.numberOfItems > 0 { return true }
@@ -171,17 +172,32 @@ private final class ChatComposerInput: UITextView {
   }
 
   override func paste(itemProviders: [NSItemProvider]) {
-    guard onPasteItems?(itemProviders) == true else {
-      super.paste(itemProviders: itemProviders)
-      return
-    }
+    if onPasteItems?(itemProviders) == true { return }
+    pasteText(from: ChatAttachment.textProviders(from: itemProviders))
   }
 
   override func paste(_ sender: Any?) {
-    guard onPasteItems?(UIPasteboard.general.itemProviders) == true else {
-      super.paste(sender)
-      return
+    let providers = UIPasteboard.general.itemProviders
+    if onPasteItems?(providers) == true { return }
+    pasteText(from: ChatAttachment.textProviders(from: providers))
+  }
+
+  private func pasteText(from providers: [NSItemProvider]) {
+    ChatAttachment.loadPlainText(from: providers) { [weak self] text in
+      guard let self else { return }
+      if ChatAttachment.shouldPromotePastedText(text), self.onPasteLongText?(text) == true {
+        return
+      }
+      if !text.isEmpty {
+        self.insertText(text)
+        return
+      }
+      self.pasteProviders(providers)
     }
+  }
+
+  private func pasteProviders(_ providers: [NSItemProvider]) {
+    super.paste(itemProviders: providers)
   }
 }
 
@@ -489,6 +505,9 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       guard let self, self.state.editable else { return false }
       return ChatAttachment.paste(providers) { [weak self] in self?.addAttachments($0) }
     }
+    input.onPasteLongText = { [weak self] text in
+      self?.pasteLongText(text) ?? false
+    }
     input.accessibilityIdentifier = "session-input"
     input.accessibilityLabel = LodyStrings.text("native.chat.composer.input")
     hint.text = state.placeholder
@@ -751,6 +770,31 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     UIImpactFeedbackGenerator(style: .light).impactOccurred()
     updateComposer()
   }
+
+  private func pasteLongText(_ text: String) -> Bool {
+    guard state.editable, let file = ChatAttachment.makePastedTextFile(text) else { return false }
+    let range = input.selectedRange
+    addAttachments([file])
+    LodyToastOverlay.shared.show(
+      message: LodyStrings.text("native.chat.composer.pasteAsFile", ["name": file.name]),
+      kind: "success",
+      actionTitle: LodyStrings.text("native.chat.composer.pasteUndo")
+    ) { [weak self] in
+      self?.undoPastedTextFile(id: file.id, text: text, range: range)
+    }
+    return true
+  }
+
+  private func undoPastedTextFile(id: String, text: String, range: NSRange) {
+    guard pendingDraft == nil, let index = attachments.firstIndex(where: { $0.id == id }) else { return }
+    attachments.remove(at: index)
+    let ns = input.text as NSString
+    let location = min(range.location, ns.length)
+    input.text = ns.substring(to: location) + text + ns.substring(from: location)
+    input.selectedRange = NSRange(location: location + (text as NSString).length, length: 0)
+    updateComposer()
+    saveDraft()
+  }
   private func presenter() -> UIViewController? {
     var responder: UIResponder? = next
     while let current = responder {
@@ -973,6 +1017,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       if !body.isEmpty { ChatSendHandoff.begin(id: id, source: input, straight: guiding) }
       ChatSendHandoff.beginAttachments(id: id, attachments: attachments, source: attachmentBar)
     }
+    LodyToastOverlay.shared.dismiss()
     takeDraft()
     saveDraft()
     pendingSendID = id

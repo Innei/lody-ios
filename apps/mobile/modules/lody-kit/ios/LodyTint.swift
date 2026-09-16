@@ -79,10 +79,9 @@ extension UIColor {
       : UIColor(red: 0x21 / 255, green: 0x55 / 255, blue: 0xCC / 255, alpha: 1)
   }
 
-  /// Accent washed with the reading canvas so the user bubble stays tinted, not solid.
   static let lodyUserBubble = UIColor { traits in
     let amount: CGFloat = traits.userInterfaceStyle == .dark ? 0.14 : 0.10
-    return UIColor.lodyAccent.mixed(with: .lodyBackground, amount: amount, traits: traits)
+    return UIColor.lodyAccent.resolvedColor(with: traits).withAlphaComponent(amount)
   }
 
   /// Recessed chip on the reading canvas. Light is Tailwind `neutral-100`;
@@ -108,22 +107,6 @@ extension UIColor {
 
   static let lodyFileGroupSelected = UIColor { traits in
     UIColor.lodyInsetSelected.resolvedColor(with: traits)
-  }
-
-  func mixed(with other: UIColor, amount: CGFloat, traits: UITraitCollection) -> UIColor {
-    let lhs = resolvedColor(with: traits)
-    let rhs = other.resolvedColor(with: traits)
-    var lr: CGFloat = 0, lg: CGFloat = 0, lb: CGFloat = 0, la: CGFloat = 0
-    var rr: CGFloat = 0, rg: CGFloat = 0, rb: CGFloat = 0, ra: CGFloat = 0
-    lhs.getRed(&lr, green: &lg, blue: &lb, alpha: &la)
-    rhs.getRed(&rr, green: &rg, blue: &rb, alpha: &ra)
-    let t = min(1, max(0, amount))
-    return UIColor(
-      red: lr * t + rr * (1 - t),
-      green: lg * t + rg * (1 - t),
-      blue: lb * t + rb * (1 - t),
-      alpha: 1
-    )
   }
 }
 

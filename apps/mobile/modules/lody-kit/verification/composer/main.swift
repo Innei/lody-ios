@@ -5,6 +5,16 @@ import UniformTypeIdentifiers
   [view] + view.subviews.flatMap(descendants)
 }
 
+@MainActor func allWindows() -> [UIWindow] {
+  var windows = UIApplication.shared.connectedScenes
+    .compactMap { $0 as? UIWindowScene }
+    .flatMap(\.windows)
+  if let overlay = LodyToastOverlay.shared.hostedWindow, !windows.contains(where: { $0 === overlay }) {
+    windows.append(overlay)
+  }
+  return windows
+}
+
 @MainActor func onMain<T>(_ body: @MainActor () -> T) -> T {
   body()
 }
@@ -204,6 +214,98 @@ while pasteInput.text.isEmpty && Date() < textDeadline { RunLoop.current.run(unt
 precondition(pasteInput.text == "normal text paste", "Ordinary text paste must keep UIKit behavior")
 UIPasteboard.general.items = []
 print("Composer paste: file attachment and ordinary text fallback passed")
+
+let webArchiveType = UTType("com.apple.webarchive")!
+let selection = NSItemProvider()
+selection.registerDataRepresentation(forTypeIdentifier: webArchiveType.identifier, visibility: .all) { completion in
+  completion(Data("webarchive-bytes".utf8), nil)
+  return nil
+}
+selection.registerObject("lodyUserBubble" as NSString, visibility: .all)
+precondition(ChatAttachment.transferType(for: selection) == nil,
+  "A copied web selection must not become a file attachment")
+precondition(!ChatAttachment.canPaste([selection]),
+  "A copied web selection must not claim Paste as an attachment")
+pasteComposer.restoreDraft(token: 1)
+pasteInput.text = ""
+pasteInput.paste(itemProviders: [selection])
+let webDeadline = Date().addingTimeInterval(3)
+while pasteInput.text != "lodyUserBubble" && Date() < webDeadline {
+  RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+}
+precondition(pasteInput.text == "lodyUserBubble", "Copied in-app text must paste as text, not a webarchive file")
+
+let archiveFile = FileManager.default.temporaryDirectory.appendingPathComponent("selection.webarchive")
+try! Data("webarchive-bytes".utf8).write(to: archiveFile)
+let archiveFileProvider = NSItemProvider(contentsOf: archiveFile)!
+archiveFileProvider.suggestedName = archiveFile.lastPathComponent
+let archiveText = NSItemProvider(object: "lodyUserBubble" as NSString)
+precondition(ChatAttachment.transferType(for: archiveFileProvider) == nil,
+  "A webarchive file URL must not become an attachment")
+precondition(!ChatAttachment.canPaste([archiveFileProvider, archiveText]),
+  "A split webarchive + text paste must not claim the paste as an attachment")
+pasteComposer.restoreDraft(token: 1)
+pasteInput.text = ""
+pasteInput.paste(itemProviders: [archiveFileProvider, archiveText])
+let splitDeadline = Date().addingTimeInterval(3)
+while pasteInput.text != "lodyUserBubble" && Date() < splitDeadline {
+  RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+}
+precondition(pasteInput.text == "lodyUserBubble", "A split webarchive pasteboard must insert the copied text")
+print("Composer paste: webarchive selections stay text")
+
+precondition(!ChatAttachment.shouldPromotePastedText("hello"))
+precondition(!ChatAttachment.shouldPromotePastedText(String(repeating: "x", count: 1999)))
+precondition(ChatAttachment.shouldPromotePastedText(String(repeating: "x", count: 2000)))
+precondition(!ChatAttachment.shouldPromotePastedText((1...15).map { "line \($0)" }.joined(separator: "\n")))
+precondition(ChatAttachment.shouldPromotePastedText((1...16).map { "line \($0)" }.joined(separator: "\n")))
+let promoted = ChatAttachment.makePastedTextFile("long body")
+precondition(promoted?.name == "Text.txt" && promoted?.isImage == false)
+precondition((try? String(contentsOf: promoted!.url, encoding: .utf8)) == "long body")
+print("Composer paste: long text promotion threshold passed")
+
+let longBody = (1...16).map { "line \($0)" }.joined(separator: "\n")
+let longProvider = NSItemProvider(object: longBody as NSString)
+let longComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
+longComposer.setComposerState(ready)
+let longInput = descendants(longComposer).compactMap { $0 as? UITextView }.first!
+let longSend = descendants(longComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }!
+longInput.paste(itemProviders: [longProvider])
+let longDeadline = Date().addingTimeInterval(3)
+while !longSend.isEnabled && Date() < longDeadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+precondition(longInput.text.isEmpty, "Long pasted text must not fill the composer")
+precondition(longSend.isEnabled, "Long pasted text becomes a sendable text file")
+LodyToastOverlay.shared.dismiss()
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+
+let undoComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
+undoComposer.setComposerState(ready)
+let undoWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+undoWindow.addSubview(undoComposer)
+undoWindow.isHidden = false
+let undoInput = descendants(undoComposer).compactMap { $0 as? UITextView }.first!
+undoInput.text = "keep me"
+undoInput.selectedRange = NSRange(location: (undoInput.text as NSString).length, length: 0)
+undoInput.paste(itemProviders: [longProvider])
+let undoDeadline = Date().addingTimeInterval(3)
+var undo: UIButton?
+while Date() < undoDeadline {
+  undo = allWindows().flatMap(descendants).compactMap { $0 as? UIButton }
+    .first { $0.accessibilityIdentifier == "lody.toast.undo" }
+  if undo != nil { break }
+  RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+}
+precondition(undoInput.text == "keep me", "Long pasted text must leave the existing draft in place")
+precondition(undo != nil, "Long paste must offer an undo toast action")
+LodyToastOverlay.shared.performFrontAction()
+let restoredDeadline = Date().addingTimeInterval(1)
+while !undoInput.text.contains(longBody) && Date() < restoredDeadline {
+  RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+}
+precondition(undoInput.text.contains("keep me") && undoInput.text.contains(longBody),
+  "Undo must insert the pasted text back into the composer")
+precondition(undoInput.text.count == "keep me".count + longBody.count)
+print("Composer paste: long text becomes a file with undo")
 
 let movie = FileManager.default.temporaryDirectory.appendingPathComponent("IMG_3933.mov")
 try! Data("video-bytes".utf8).write(to: movie)

@@ -458,6 +458,8 @@
   "native.chat.composer.modelPicker": "选择模型，{model}，{effort}",
   "native.chat.composer.modelButton": "模型与强度，{summary}",
   "native.chat.composer.input": "消息",
+  "native.chat.composer.pasteAsFile": "已作为 {name} 粘贴",
+  "native.chat.composer.pasteUndo": "撤销",
   "native.chat.composer.send": "发送",
   "native.chat.composer.sending": "正在发送",
   "native.chat.composer.attach": "添加附件",

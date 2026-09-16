@@ -119,8 +119,6 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   override init(frame: CGRect) {
     super.init(frame: frame)
     bubble.backgroundColor = .lodyUserBubble
-    bubble.layer.cornerRadius = 19
-    bubble.layer.cornerCurve = .continuous
     contentView.addSubview(messageContent)
     messageContent.disclosure.addAction(UIAction { [weak self] _ in self?.onToggle?() }, for: .touchUpInside)
     contentView.addSubview(icon)
@@ -203,11 +201,12 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   private func contextPreview() -> UITargetedPreview? {
     let parameters = UIPreviewParameters()
     let bubbled = row?.kind == "user"
-    parameters.backgroundColor = bubbled ? .lodyUserBubble : .clear
+    parameters.backgroundColor = .clear
     let rect = messageContent.frame
     guard let preview = contentView.resizableSnapshotView(from: rect, afterScreenUpdates: false, withCapInsets: .zero) else { return nil }
     parameters.visiblePath = UIBezierPath(
-      roundedRect: CGRect(origin: .zero, size: rect.size), cornerRadius: bubbled ? 19 : 8
+      roundedRect: CGRect(origin: .zero, size: rect.size),
+      cornerRadius: bubbled ? ChatMessageContent.bubbleRadius : 8
     )
     return UITargetedPreview(view: preview, parameters: parameters,
       target: UIPreviewTarget(container: contentView, center: CGPoint(x: rect.midX, y: rect.midY)))

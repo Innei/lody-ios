@@ -536,3 +536,55 @@ precondition(
   "Count updates must keep the host inside the TextKit frame"
 )
 print("Chat render: process numeric-text host does not raise the row")
+
+func userBubbleCell(_ text: String) -> ChatCell {
+  let font = UIFont.systemFont(ofSize: 17)
+  let cell = ChatCell(frame: CGRect(x: 0, y: 0, width: 350, height: 80))
+  window.addSubview(cell)
+  cell.configure(
+    ChatRow(id: "bubble:\(text)", entryID: "bubble", kind: "user", text: text),
+    text: NSAttributedString(string: text, attributes: [.font: font])
+  )
+  cell.layoutIfNeeded()
+  return cell
+}
+
+let glyphBubble = userBubbleCell("1").messageContent.bubble
+let glyphMinSide = min(glyphBubble.bounds.width, glyphBubble.bounds.height)
+precondition(glyphMinSide > 0 && glyphMinSide < ChatMessageContent.bubbleRadius * 2,
+  "A one-glyph bubble must be smaller than two full corners")
+precondition(glyphBubble.layer.cornerCurve == .circular,
+  "A short user bubble must stay round, not pointed")
+precondition(glyphBubble.layer.cornerRadius <= glyphMinSide / 2 + 0.01,
+  "A short user bubble's radius must fit inside its bounds")
+
+let wideBubble = userBubbleCell("看看 ci 的 tf 过了嘛").messageContent.bubble
+precondition(wideBubble.layer.cornerCurve == .circular,
+  "User bubbles use circular corners at every width")
+precondition(abs(wideBubble.layer.cornerRadius - ChatMessageContent.bubbleRadius) < 0.01,
+  "A wide user bubble keeps the full corner radius")
+print("Chat render: short user bubbles stay circular capsules")
+
+func rgba(_ color: UIColor, style: UIUserInterfaceStyle) -> (CGFloat, CGFloat, CGFloat, CGFloat) {
+  var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+  color.resolvedColor(with: UITraitCollection(userInterfaceStyle: style)).getRed(&r, green: &g, blue: &b, alpha: &a)
+  return (r, g, b, a)
+}
+
+func sameRGB(_ lhs: (CGFloat, CGFloat, CGFloat, CGFloat), _ rhs: (CGFloat, CGFloat, CGFloat, CGFloat)) -> Bool {
+  abs(lhs.0 - rhs.0) < 0.001 && abs(lhs.1 - rhs.1) < 0.001 && abs(lhs.2 - rhs.2) < 0.001
+}
+
+let lightBubble = rgba(.lodyUserBubble, style: .light)
+let lightAccent = rgba(.lodyAccent, style: .light)
+precondition(abs(lightBubble.3 - 0.10) < 0.001, "Light user bubbles are a 10% accent wash")
+precondition(sameRGB(lightBubble, lightAccent), "Light user bubbles keep accent chroma instead of mixing toward the canvas")
+let darkBubble = rgba(.lodyUserBubble, style: .dark)
+let darkAccent = rgba(.lodyAccent, style: .dark)
+precondition(abs(darkBubble.3 - 0.14) < 0.001, "Dark user bubbles are a 14% accent wash")
+precondition(sameRGB(darkBubble, darkAccent), "Dark user bubbles keep accent chroma instead of mixing toward the canvas")
+let glyphFill = glyphBubble.backgroundColor!.resolvedColor(with: glyphBubble.traitCollection)
+var glyphAlpha: CGFloat = 1
+glyphFill.getRed(nil, green: nil, blue: nil, alpha: &glyphAlpha)
+precondition(glyphAlpha < 1, "The on-screen user bubble must stay translucent")
+print("Chat render: user bubbles tint the canvas instead of baking a mix")

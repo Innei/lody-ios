@@ -5,6 +5,7 @@ final class ChatMessageContent: UIView {
   let label = ChatTextView()
   let numericText = ChatNumericTextHost()
   static let maximumCollapsedHeight: CGFloat = 140
+  static let bubbleRadius: CGFloat = 19
   let bubble = UIView()
   let disclosure = UIButton(type: .system)
   private let fade = CAGradientLayer()
@@ -17,12 +18,18 @@ final class ChatMessageContent: UIView {
     guard full > maximumCollapsedHeight else { return full }
     return expanded ? full + 44 : limit
   }
+
+  static func applyBubbleCorners(to layer: CALayer, size: CGSize) {
+    layer.cornerCurve = .circular
+    let minSide = min(size.width, size.height)
+    layer.cornerRadius = minSide > 0 ? min(bubbleRadius, minSide / 2) : bubbleRadius
+  }
+
   override init(frame: CGRect) {
     super.init(frame: frame)
     clipsToBounds = true
     bubble.backgroundColor = .lodyUserBubble
-    bubble.layer.cornerRadius = 19
-    bubble.layer.cornerCurve = .continuous
+    Self.applyBubbleCorners(to: bubble.layer, size: .zero)
     addSubview(bubble)
     addSubview(label)
     numericText.isHidden = true
@@ -38,6 +45,7 @@ final class ChatMessageContent: UIView {
     super.layoutSubviews()
     bubble.frame = bounds
     bubble.backgroundColor = .lodyUserBubble
+    Self.applyBubbleCorners(to: bubble.layer, size: bounds.size)
     // Process rows own the label frame so the chevron keeps its 8pt gap.
     // Bubble insets are only for the user send handoff.
     guard !bubble.isHidden else { return }
@@ -297,8 +305,7 @@ final class ChatSendHandoff {
       content.setNeedsLayout()
       content.layoutIfNeeded()
       content.backgroundColor = destinationBackground
-      content.layer.cornerRadius = 19
-      content.layer.cornerCurve = .continuous
+      ChatMessageContent.applyBubbleCorners(to: content.layer, size: content.bounds.size)
       content.bubble.isHidden = true
     }
     if let snapshot = handoff.sourceSnapshot { window.bringSubviewToFront(snapshot) }

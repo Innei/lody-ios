@@ -52,17 +52,38 @@ struct ChatAttachment: Equatable {
       return image
     }
     if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) { return .image }
+    if isWebArchiveProvider(provider) { return nil }
     if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) { return .fileURL }
     if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) { return nil }
     return provider.registeredContentTypes.first { type in
       !type.conforms(to: .directory)
         && !type.conforms(to: .url)
         && !type.conforms(to: .text)
+        && !isWebArchive(type)
     }
   }
 
+  private static func isWebArchiveProvider(_ provider: NSItemProvider) -> Bool {
+    if isWebArchiveName(provider.suggestedName) { return true }
+    if provider.hasItemConformingToTypeIdentifier("com.apple.webarchive") { return true }
+    return provider.registeredContentTypes.contains(where: isWebArchive)
+  }
+
+  private static func isWebArchiveName(_ name: String?) -> Bool {
+    guard let name, !name.isEmpty else { return false }
+    return URL(fileURLWithPath: name).pathExtension.lowercased() == "webarchive"
+  }
+
+  private static func isWebArchive(_ type: UTType) -> Bool {
+    if type.identifier == "com.apple.webarchive" || type.identifier == "Apple Web Archive pasteboard type" {
+      return true
+    }
+    return type.preferredFilenameExtension?.lowercased() == "webarchive"
+  }
+
   static func make(suggestedName: String?, type: UTType, source: URL, id: String? = nil) -> ChatAttachment? {
-    guard source.isFileURL, let copy = store(source) else { return nil }
+    guard source.isFileURL, !isWebArchiveName(source.lastPathComponent), !isWebArchiveName(suggestedName) else { return nil }
+    guard let copy = store(source) else { return nil }
     var name = suggestedName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     if name.isEmpty { name = source.lastPathComponent }
     if URL(fileURLWithPath: name).pathExtension.isEmpty {
@@ -74,6 +95,68 @@ struct ChatAttachment: Equatable {
 
   static func canPaste(_ providers: [NSItemProvider]) -> Bool {
     providers.contains { transferType(for: $0) != nil }
+  }
+
+  static func textProviders(from providers: [NSItemProvider]) -> [NSItemProvider] {
+    let textual = providers.filter { provider in
+      provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier)
+        || provider.hasItemConformingToTypeIdentifier(UTType.utf8PlainText.identifier)
+        || provider.hasItemConformingToTypeIdentifier(UTType.text.identifier)
+    }
+    return textual.isEmpty ? providers : textual
+  }
+
+  static let pastedTextName = "Text.txt"
+
+  static func shouldPromotePastedText(_ text: String) -> Bool {
+    if text.count >= 2000 { return true }
+    var lines = 1
+    for character in text where character.isNewline {
+      lines += 1
+      if lines > 15 { return true }
+    }
+    return false
+  }
+
+  static func makePastedTextFile(_ text: String) -> ChatAttachment? {
+    guard let url = store(Data(text.utf8), name: pastedTextName) else { return nil }
+    return ChatAttachment(id: UUID().uuidString, name: pastedTextName, url: url, isImage: false)
+  }
+
+  static func loadPlainText(from providers: [NSItemProvider], completion: @escaping (String) -> Void) {
+    let textual = textProviders(from: providers)
+    guard !textual.isEmpty else {
+      completion("")
+      return
+    }
+    let group = DispatchGroup()
+    let pasted = ChatTextCollector()
+    for (index, provider) in textual.enumerated() {
+      group.enter()
+      if provider.canLoadObject(ofClass: NSString.self) {
+        provider.loadObject(ofClass: NSString.self) { object, _ in
+          let text = (object as? String) ?? (object as? NSString) as String?
+          if let text, !text.isEmpty { pasted.add(index, text) }
+          group.leave()
+        }
+      } else {
+        provider.loadItem(forTypeIdentifier: UTType.utf8PlainText.identifier, options: nil) { item, _ in
+          let text: String?
+          if let value = item as? String {
+            text = value
+          } else if let data = item as? Data {
+            text = String(data: data, encoding: .utf8)
+          } else {
+            text = nil
+          }
+          if let text, !text.isEmpty { pasted.add(index, text) }
+          group.leave()
+        }
+      }
+    }
+    group.notify(queue: .main) {
+      completion(pasted.joined)
+    }
   }
 
   @discardableResult
@@ -107,6 +190,23 @@ struct ChatAttachment: Equatable {
       if !ordered.isEmpty { completion(ordered) }
     }
     return true
+  }
+}
+
+final class ChatTextCollector: @unchecked Sendable {
+  private let lock = NSLock()
+  private var items: [(Int, String)] = []
+
+  func add(_ index: Int, _ text: String) {
+    lock.lock()
+    items.append((index, text))
+    lock.unlock()
+  }
+
+  var joined: String {
+    lock.lock()
+    defer { lock.unlock() }
+    return items.sorted { $0.0 < $1.0 }.map(\.1).joined()
   }
 }
 

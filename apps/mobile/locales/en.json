@@ -458,6 +458,8 @@
   "native.chat.composer.modelPicker": "Choose model, {model}, {effort}",
   "native.chat.composer.modelButton": "Model and effort, {summary}",
   "native.chat.composer.input": "Message",
+  "native.chat.composer.pasteAsFile": "Pasted as {name}",
+  "native.chat.composer.pasteUndo": "Undo",
   "native.chat.composer.send": "Send",
   "native.chat.composer.sending": "Sending",
   "native.chat.composer.attach": "Add attachment",
