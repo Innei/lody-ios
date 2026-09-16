@@ -391,6 +391,11 @@ ui.wait(
 ui.capture('workspace-menu')
 ui.axe('tap', '--label', catalog.text('workspace.edit.action'), '--post-delay', '.8')
 ui.element('workspace-name')
+ui.wait(
+    lambda items: any(i.get('AXLabel') == catalog.text('workspace.edit.nameFooter') for i in items)
+    and any(i.get('AXLabel') == catalog.text('workspace.edit.changeIcon') for i in items),
+    'Workspace editor must show the name footer and the icon control',
+)
 ui.capture('workspace-editor')
 ui.axe('tap', '--label', catalog.text('workspace.edit.changeIcon'), '--post-delay', '1')
 ui.capture('workspace-icon-picker')

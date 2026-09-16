@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   PlatformColor,
   StyleSheet,
@@ -11,6 +11,7 @@ import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { usePalette } from '@/lib/theme/palette';
 import { Screen } from '@/ui/Screen';
 import { AppText } from '@/ui/AppText';
+import { FormGroup, formInputStyle } from '@/ui/FormGroup';
 import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
 import { showToast } from '@/ui/toast';
 import type { RemoteSetting } from '@/models/settings';
@@ -23,43 +24,6 @@ type Params = {
   service: SettingsService;
 };
 
-function Group({
-  header,
-  footer,
-  children,
-}: {
-  header?: string;
-  footer?: string;
-  children: ReactNode;
-}) {
-  const colors = usePalette();
-  const surface =
-    colors.theme === 'dark'
-      ? PlatformColor('tertiarySystemGroupedBackground')
-      : colors.card;
-  return (
-    <RNView style={styles.group}>
-      {header ? (
-        <AppText
-          variant="meta"
-          accessibilityRole="header"
-          style={[styles.groupText, styles.groupHeader]}
-        >
-          {header}
-        </AppText>
-      ) : null}
-      <RNView style={[styles.card, { backgroundColor: surface }]}>
-        {children}
-      </RNView>
-      {footer ? (
-        <AppText variant="meta" style={styles.groupText}>
-          {footer}
-        </AppText>
-      ) : null}
-    </RNView>
-  );
-}
-
 function View() {
   const { params, finish, cancel } = usePageRuntime<Params>();
   const { item, workspaceId, service } = params;
@@ -71,7 +35,7 @@ function View() {
   );
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
-  const inputStyle = [styles.input, { color: colors.label }];
+  const inputStyle = [formInputStyle, { color: colors.label }];
   const save = useCallback(async () => {
     if (saving.current || !name.trim()) return;
     saving.current = true;
@@ -129,7 +93,7 @@ function View() {
   useSheetHeader(actions, dismiss);
   return (
     <Screen automaticallyAdjustKeyboardInsets>
-      <Group
+      <FormGroup
         header={t('settings.remote.name')}
         footer={
           item.kind === 'machine' ? t('settings.remote.machineHint') : undefined
@@ -147,9 +111,9 @@ function View() {
           returnKeyType="done"
           clearButtonMode="while-editing"
         />
-      </Group>
+      </FormGroup>
       {item.kind === 'agent' && (
-        <Group
+        <FormGroup
           header={t('settings.remote.prompt')}
           footer={t('settings.remote.agentHint')}
         >
@@ -164,10 +128,10 @@ function View() {
             editable={!busy}
             maxLength={32000}
           />
-        </Group>
+        </FormGroup>
       )}
       {item.kind === 'mcp' && (
-        <Group footer={t('settings.remote.mcpHint')}>
+        <FormGroup footer={t('settings.remote.mcpHint')}>
           <RNView style={styles.toggleRow}>
             <AppText style={styles.toggleLabel}>
               {t('settings.remote.default')}
@@ -181,7 +145,7 @@ function View() {
               disabled={busy}
             />
           </RNView>
-        </Group>
+        </FormGroup>
       )}
     </Screen>
   );
@@ -201,20 +165,6 @@ export const RemoteSettingEditorScreen = definePage<Params>({
 });
 
 const styles = StyleSheet.create({
-  group: { gap: 7, marginBottom: 12 },
-  groupText: { paddingHorizontal: 16 },
-  groupHeader: { textTransform: 'uppercase' },
-  card: {
-    borderRadius: 26,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
-  },
-  input: {
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    minHeight: 44,
-    fontSize: 17,
-  },
   prompt: { minHeight: 176, paddingTop: 12, textAlignVertical: 'top' },
   toggleRow: {
     flexDirection: 'row',
