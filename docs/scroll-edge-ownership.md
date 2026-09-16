@@ -5,7 +5,7 @@ directly, because RNSScreen's first-descendant lookup cannot reliably find them.
 RN scroll views use ScrollViewMarker with presets exported by LodyKit; navigation
 options use the same kit presets when the framework can reach its content view.
 
-- Navigation content: automatic top, soft bottom.
+- Navigation content: soft top and bottom.
 - Native grouped lists: soft top and bottom, preserving their current appearance.
 - iPad panels: navigation edges, hidden horizontal edges.
 - A floating composer explicitly configures its target scroll view's bottom as

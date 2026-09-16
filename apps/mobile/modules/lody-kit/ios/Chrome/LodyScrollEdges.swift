@@ -24,13 +24,12 @@ enum LodyScrollEdges {
 
   static func navigation(_ scrollView: UIScrollView) {
     scrollView.topEdgeEffect.isHidden = false
-    scrollView.topEdgeEffect.style = .automatic
+    scrollView.topEdgeEffect.style = .soft
     floatingControls(scrollView)
   }
 
   static func grouped(_ scrollView: UIScrollView) {
     navigation(scrollView)
-    scrollView.topEdgeEffect.style = .soft
   }
 
   static func floatingControls(_ scrollView: UIScrollView) {

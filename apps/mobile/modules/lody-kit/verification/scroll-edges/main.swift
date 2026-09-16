@@ -12,6 +12,12 @@ owner.view.addSubview(secondPage.view)
 firstPage.view.addSubview(first)
 secondPage.view.addSubview(second)
 
+LodyScrollEdges.navigation(first)
+precondition(!first.topEdgeEffect.isHidden && first.topEdgeEffect.style == .soft)
+precondition(!first.bottomEdgeEffect.isHidden && first.bottomEdgeEffect.style == .soft)
+LodyScrollEdges.grouped(second)
+precondition(second.topEdgeEffect.style == .soft && second.bottomEdgeEffect.style == .soft)
+
 // A child controller's registration alone is not the outer sheet's contract.
 LodyScrollEdges.bind(first, to: firstPage)
 LodyScrollEdges.bind(first, to: owner)
