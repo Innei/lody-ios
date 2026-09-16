@@ -8,28 +8,34 @@ import OneSignalLiveActivities
 final class LiveActivities {
   static let shared = LiveActivities()
   private let defaults = UserDefaults(suiteName: "group.app.innei.lody")
-  private var tokenTasks: [String: (stamp: UUID, task: Task<Void, Never>)] = [:]
+  private var tokenTasks: [String: (stamp: UUID, nativeId: String, task: Task<Void, Never>, lifecycle: Task<Void, Never>)] = [:]
   private var pushToStartTask: Task<Void, Never>?
   private var activityTask: Task<Void, Never>?
   private var syncTask: Task<Void, Never>?
   private var workStarts: [String: Double] = [:]
+  private var userId: String?
+  private var identityResolved = false
 
   var enabled: Bool {
     get { defaults?.object(forKey: "liveActivitiesEnabled") as? Bool ?? true }
     set {
       defaults?.set(newValue, forKey: "liveActivitiesEnabled")
       if newValue {
-        registerPushToStart()
+        start()
         return
       }
       endAll()
-      pushToStartTask?.cancel()
-      pushToStartTask = nil
-      OneSignal.LiveActivities.removePushToStartToken(LodyActivityAttributes.self)
+      removePushToStart()
     }
   }
 
   func start() {
+    // Offline Debug scenes must never initialize/register with OneSignal.
+    guard PushNotifications.shared.configured else { return }
+    if !identityResolved {
+      userId = OneSignal.User.externalId
+      identityResolved = userId != nil
+    }
     guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
     registerPushToStart()
     observeCurrentActivities()
@@ -39,10 +45,42 @@ final class LiveActivities {
     }
   }
 
+  // Called before OneSignal switches identity so old bindings are detached first.
+  func identify(_ id: String?) {
+    // On a push-to-start cold launch, SDK identity restoration can trail ActivityKit.
+    // Preserve a matching server-started activity until app auth resolves its owner.
+    if !identityResolved {
+      identityResolved = true
+      userId = id
+      if id == nil {
+        removePushToStart()
+        endAll()
+      }
+      return
+    }
+    guard userId != id || id == nil else { return }
+    removePushToStart()
+    endAll()
+    userId = id
+  }
+
+  private func removePushToStart() {
+    pushToStartTask?.cancel()
+    pushToStartTask = nil
+    guard PushNotifications.shared.configured else { return }
+    OneSignal.LiveActivities.removePushToStartToken(LodyActivityAttributes.self)
+  }
+
   private func registerPushToStart() {
-    guard enabled, pushToStartTask == nil, ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+    guard PushNotifications.shared.configured, let owner = userId, !owner.isEmpty,
+          enabled, pushToStartTask == nil, ActivityAuthorizationInfo().areActivitiesEnabled else { return }
     pushToStartTask = Task { @MainActor in
+      guard !Task.isCancelled, enabled, userId == owner else { return }
+      if let token = Activity<LodyActivityAttributes>.pushToStartToken {
+        OneSignal.LiveActivities.setPushToStartToken(LodyActivityAttributes.self, withToken: Self.hex(token))
+      }
       for await token in Activity<LodyActivityAttributes>.pushToStartTokenUpdates {
+        guard !Task.isCancelled, enabled, userId == owner else { return }
         OneSignal.LiveActivities.setPushToStartToken(LodyActivityAttributes.self, withToken: Self.hex(token))
       }
     }
@@ -118,8 +156,12 @@ final class LiveActivities {
     }
     guard !Task.isCancelled else { return }
     do {
-      _ = try Activity.request(attributes: attributes, content: content, pushType: isDebug(attributes) ? nil : .token)
-      if !Task.isCancelled { await shared.observeCurrentActivities() }
+      let activity = try Activity.request(attributes: attributes, content: content, pushType: isDebug(attributes) ? nil : .token)
+      if Task.isCancelled {
+        await activity.end(nil, dismissalPolicy: .immediate)
+      } else {
+        await shared.observeCurrentActivities()
+      }
     } catch {
       log.error("activity request failed: \(error.localizedDescription, privacy: .public)")
     }
@@ -151,18 +193,25 @@ final class LiveActivities {
   private nonisolated static let log = Logger(subsystem: "app.innei.lody", category: "live-activity")
 
   private func unregister(_ id: String) {
-    tokenTasks.removeValue(forKey: id)?.task.cancel()
+    if let observation = tokenTasks.removeValue(forKey: id) {
+      observation.task.cancel()
+      observation.lifecycle.cancel()
+    }
     OneSignal.LiveActivities.exit(id)
   }
 
   func endAll() {
     syncTask?.cancel()
-    tokenTasks.values.forEach { $0.task.cancel() }
-    tokenTasks = [:]
-    for activity in Activity<LodyActivityAttributes>.activities where !Self.isDebug(activity.attributes) {
-      OneSignal.LiveActivities.exit(Self.id(of: activity))
+    let ids = Set(tokenTasks.keys).union(Activity<LodyActivityAttributes>.activities
+      .filter { !Self.isDebug($0.attributes) }.map { Self.id(of: $0) })
+    tokenTasks.values.forEach {
+      $0.task.cancel()
+      $0.lifecycle.cancel()
     }
+    tokenTasks = [:]
+    for id in ids { OneSignal.LiveActivities.exit(id) }
     Self.endActivities()
+    workStarts = [:]
   }
 
   private func endStale(keeping id: String) {
@@ -171,8 +220,7 @@ final class LiveActivities {
       let other = Self.id(of: activity)
       guard other != id else { continue }
       stale = true
-      OneSignal.LiveActivities.exit(other)
-      tokenTasks.removeValue(forKey: other)?.task.cancel()
+      unregister(other)
     }
     guard stale else { return }
     Self.endActivities { !Self.isDebug($0) && Self.activityId(of: $0) != id }
@@ -183,8 +231,9 @@ final class LiveActivities {
   private nonisolated static func endActivities(
     where matches: @escaping @Sendable (LodyActivityAttributes) -> Bool = { _ in true }
   ) {
+    let ids = Set(Activity<LodyActivityAttributes>.activities.filter { matches($0.attributes) }.map(\.id))
     Task {
-      for activity in Activity<LodyActivityAttributes>.activities where matches(activity.attributes) {
+      for activity in Activity<LodyActivityAttributes>.activities where ids.contains(activity.id) {
         await activity.end(nil, dismissalPolicy: .immediate)
       }
     }
@@ -208,15 +257,44 @@ final class LiveActivities {
 
   private func observe(_ activity: Activity<LodyActivityAttributes>) {
     let id = Self.id(of: activity)
-    guard enabled, tokenTasks[id] == nil, !Self.isDebug(activity.attributes),
+    guard !Self.isDebug(activity.attributes) else { return }
+    guard identityResolved || !enabled else { return }
+    guard enabled, let owner = userId, activity.attributes.userId == owner else {
+      let nativeId = activity.id
+      Task.detached {
+        for rejected in Activity<LodyActivityAttributes>.activities where rejected.id == nativeId {
+          await rejected.end(nil, dismissalPolicy: .immediate)
+        }
+      }
+      return
+    }
+    guard PushNotifications.shared.configured,
           activity.activityState == .active || activity.activityState == .stale else { return }
+    if let current = tokenTasks[id] {
+      guard current.nativeId != activity.id else { return }
+      unregister(id)
+    }
     let stamp = UUID()
-    tokenTasks[id] = (stamp, Task { @MainActor in
-      for await token in activity.pushTokenUpdates {
+    let tokens = Task { @MainActor in
+      guard !Task.isCancelled, enabled, userId == owner else { return }
+      if let token = activity.pushToken {
         OneSignal.LiveActivities.enter(id, withToken: Self.hex(token))
       }
-      if tokenTasks[id]?.stamp == stamp { tokenTasks[id] = nil }
-    })
+      for await token in activity.pushTokenUpdates {
+        guard !Task.isCancelled, enabled, userId == owner else { return }
+        OneSignal.LiveActivities.enter(id, withToken: Self.hex(token))
+      }
+    }
+    let lifecycle = Task { @MainActor in
+      for await state in activity.activityStateUpdates {
+        guard !Task.isCancelled, tokenTasks[id]?.stamp == stamp else { return }
+        if state == .ended || state == .dismissed {
+          unregister(id)
+          return
+        }
+      }
+    }
+    tokenTasks[id] = (stamp, activity.id, tokens, lifecycle)
   }
 
   private func observeCurrentActivities() {
@@ -256,12 +334,8 @@ final class LiveActivities {
   }
 
   #if DEBUG
-  private static let debugAttributes = LodyActivityAttributes(
-    workspaceId: "debug",
-    workspaceSlug: "debug",
-    workspaceName: "Debug",
-    userId: "debug"
-  )
+  // Exercise the actual Convex start schema in the offline Widget fixture too.
+  private static let debugAttributes = try! JSONDecoder().decode(LodyActivityAttributes.self, from: Data(#"{"activityId":"lody-conversations:v5:debug:debug","workspaceId":"debug","workspaceName":"Debug"}"#.utf8))
 
   func debug(_ action: String) {
     switch action {

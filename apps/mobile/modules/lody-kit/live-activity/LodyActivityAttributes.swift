@@ -3,7 +3,11 @@ import Foundation
 import ActivityKit
 #endif
 
-struct LodyActivityAttributes: Codable, Hashable, Sendable {
+// ActivityKit uses the concrete Swift type name on the wire. Keep the server's
+// existing name; a typealias alone does not change the registered APNs type.
+typealias LodyActivityAttributes = LodyConversationLiveActivityAttributes
+
+struct LodyConversationLiveActivityAttributes: Codable, Hashable, Sendable {
   struct ContentState: Codable, Hashable, Sendable {
     struct Counts: Codable, Hashable, Sendable {
       var permission: Int
@@ -213,6 +217,12 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
   var workspaceName: String
   var userId: String
 
+  var activityId: String { Self.activityId(workspaceId: workspaceId, userId: userId) }
+
+  private enum CodingKeys: String, CodingKey {
+    case workspaceId, workspaceSlug, workspaceName, userId, activityId
+  }
+
   init(workspaceId: String, workspaceSlug: String, workspaceName: String, userId: String) {
     self.workspaceId = workspaceId
     self.workspaceSlug = workspaceSlug
@@ -225,7 +235,31 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
     workspaceId = try container.decode(String.self, forKey: .workspaceId)
     workspaceSlug = try container.decodeIfPresent(String.self, forKey: .workspaceSlug) ?? ""
     workspaceName = try container.decode(String.self, forKey: .workspaceName)
-    userId = try container.decode(String.self, forKey: .userId)
+    let explicitUser = try container.decodeIfPresent(String.self, forKey: .userId)
+    if let wireId = try container.decodeIfPresent(String.self, forKey: .activityId) {
+      let prefix = "lody-conversations:v5:\(workspaceId):"
+      guard wireId.hasPrefix(prefix), wireId.count > prefix.count else {
+        throw DecodingError.dataCorruptedError(forKey: .activityId, in: container, debugDescription: "Invalid activity identity")
+      }
+      userId = String(wireId.dropFirst(prefix.count))
+      guard explicitUser == nil || explicitUser == userId else {
+        throw DecodingError.dataCorruptedError(forKey: .userId, in: container, debugDescription: "Activity owner mismatch")
+      }
+    } else {
+      userId = try container.decode(String.self, forKey: .userId)
+    }
+    guard !workspaceId.isEmpty, !userId.isEmpty else {
+      throw DecodingError.dataCorruptedError(forKey: .userId, in: container, debugDescription: "Missing activity owner")
+    }
+  }
+
+  func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(workspaceId, forKey: .workspaceId)
+    try container.encode(workspaceSlug, forKey: .workspaceSlug)
+    try container.encode(workspaceName, forKey: .workspaceName)
+    try container.encode(userId, forKey: .userId)
+    try container.encode(activityId, forKey: .activityId)
   }
 
   var routeSlug: String { workspaceSlug.isEmpty ? workspaceId : workspaceSlug }

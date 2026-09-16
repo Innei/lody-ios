@@ -50,16 +50,19 @@ The Debug page's **Verify OneSignal subscription** action observes a real server
 subscription (nonempty, not `local-`) and shows the official integration dialog once
 per process; the button can request permission. This developer-only scaffolding is
 kept out of product flows. Only subscription readiness is exposed, not token/ID data.
-Live Activities, in-app messages, email/SMS, and tags are not enabled by this change.
+In-app messages, email/SMS, and tags are not enabled by this integration.
 
 ## Live Activity
 
-The widget extension renders `LodyActivityAttributes` on the Lock Screen and in the
+The widget extension renders `LodyConversationLiveActivityAttributes` (locally
+aliased as `LodyActivityAttributes`) on the Lock Screen and in the
 Dynamic Island. Its rows deep-link with the `lody://` scheme
 (`lody:///{workspaceSlug}/sessions/{sessionId}`); a workspace without a slug routes by
 its id instead, and unmatched paths redirect to the home route. Settings →
 Notifications carries the Live Activity toggle, which stores its state in the App Group
 and ends every running activity when turned off.
+`withSceneLifecycle` passes cold-start URL contexts to React Native launch options
+and forwards warm scene URLs through the existing Expo AppDelegate linking handler.
 
 Sources and `AgentIcons.xcassets` live in `modules/lody-kit/live-activity/` and are
 copied into `ios/LodyLiveActivity/` by the Podfile helper, so editing them requires a
@@ -70,9 +73,22 @@ same names for grouped rows; unknown agents fall back to their two-letter glyph.
 strings travel in the content state's `copy`; missing keys default to English.
 
 The app requests an activity itself with `pushType: .token` and hands the token to
-OneSignal. Push-to-start is registered when the toggle is on, but the backend calling
-it is **unconfirmed**: no server-started activity has been observed from this app.
-Attribute decoding therefore tolerates a missing `workspaceSlug`.
+OneSignal. The native owner uses OneSignal's manual registration API, not automatic
+`setup`: it observes both current and future activity tokens and push-to-start
+tokens. Registration requires an initialized SDK, an identified user, the app toggle
+and system authorization. Turning the toggle off removes the push-to-start token;
+account changes detach registrations and end the old activities before OneSignal
+changes identity. Offline Debug scenes never register tokens.
+
+Convex `notifications.syncLiveActivitySummary` updates the v5 activity ID
+`lody-conversations:v5:<workspaceId>:<userId>`. When `permissionAlert` is present,
+it also sends a start to `activities/activity/LodyConversationLiveActivityAttributes`.
+The concrete Swift type name must match this path. The existing backend attributes
+contain `activityId`, `workspaceId`, `workspaceName`, but no `userId` or
+`workspaceSlug`: decoding recovers the owner from the exact v5 workspace prefix,
+rejects inconsistent identities, and falls back to the workspace ID for navigation.
+OneSignal metadata and optional future fields are tolerated. Update/end content
+decodes directly into the same Widget state without a second RN replica.
 
 Every live catalog snapshot reconciles the existing activity. Running and waiting
 turns remain; completed, failed, archived and idle sessions leave. Unread replies
@@ -86,17 +102,75 @@ Timers start at the session's `lastRunningSeen` (the current turn), never at the
 previous message or the session creation; the widget replaces raster images larger
 than their frame with a grey box, so the jellyfish ships at exact 1x/2x/3x sizes.
 
-Background server updates still need their own `stale-date`, and must send an
-`end` event with `dismissal-date` when work finishes. Local reconciliation only
-runs while the catalog runtime can execute; it does not establish background
-APNs delivery or repair the server's activity lifecycle. The wire schema and
-activity identifier remain compatible with existing pushes.
+The inspected Convex backend already sends a 30-minute `stale_date` and an
+immediately dismissed `end` when its summary becomes empty. Its existing summary
+may include unread replies, so its termination condition differs from local
+running/waiting reconciliation. It remotely starts only for permission alerts;
+starting an ordinary turn while the app is closed does not by itself start a new
+activity. Local reconciliation runs only while the catalog runtime can execute.
+Real background APNs delivery still requires device verification below.
+
+### Enable native iOS on the existing backend
+
+No Convex schema change or new device-token endpoint is required. In the deployment
+that serves the app, add/update this entry in the **complete** `ONE_SIGNAL_APPS`
+JSON array (keep all existing app entries):
+
+```json
+{
+  "name": "native-ios",
+  "appId": "e383bf31-7c8e-4641-b3f6-3486e77b9a82",
+  "apiKeyEnv": "ONE_SIGNAL_IOS_API_KEY",
+  "push": true,
+  "liveActivities": true
+}
+```
+
+Set `ONE_SIGNAL_IOS_API_KEY` to this OneSignal app's REST API key in Convex's
+environment variables. This is distinct from the APNs `.p8` signing key: configure
+that key, its Key ID and Apple Team ID in the OneSignal iOS platform dashboard for
+bundle `app.innei.lody`. Live Activities require `.p8` authentication; an existing
+`.p12` ordinary-push configuration is insufficient. Neither secret belongs in Expo environment variables,
+the repository, or the widget. An explicit inventory replaces legacy environment
+fallback; do not overwrite it with only the new iOS entry.
+
+Apple Developer / signing checklist:
+
+- Main App ID `app.innei.lody`: Push Notifications and App Group
+  `group.app.innei.lody`.
+- NSE ID `app.innei.lody.notification-service` and Widget ID
+  `app.innei.lody.live-activity`: same App Group and Apple team. Keep automatic
+  signing; regenerate profiles if their capabilities changed.
+- Prebuild owns `NSSupportsLiveActivities`, the remote-notification background
+  mode and entitlements. Pod install embeds both extensions. There is no extra
+  Live Activity permission prompt to request through RN, and no continuous
+  background execution entitlement is needed.
+- Rebuild and install the native app. In iOS Settings allow Live Activities for
+  Lody, and enable the in-app Notifications → Live Activity toggle.
+
+Device rollout check (use only an account authorized in this app): launch and log
+in once to register tokens, start a running session, background/lock the phone,
+then observe a server update. With no existing activity, trigger a normal agent
+permission request to exercise remote start; tap it to open the correct workspace
+and session. Resolve it inside the app (the old Capacitor widget's inline permission
+AppIntent is intentionally not used here). Check server end, toggle off/on, logout,
+and switching accounts. Do not treat a successful REST response or a Simulator
+fixture as proof of APNs delivery. Offline logout cannot instantly retract an
+already queued remote start; reconnect and verify cleanup during rollout.
+
+References: [OneSignal manual Live Activity registration](https://documentation.onesignal.com/docs/en/mobile-sdk-reference),
+[OneSignal Live Activity requirements](https://documentation.onesignal.com/docs/en/live-activities-developer-setup),
+[OneSignal start API](https://documentation.onesignal.com/reference/start-live-activity),
+[Apple ActivityKit push delivery](https://developer.apple.com/documentation/activitykit/starting-and-updating-live-activities-with-activitykit-push-notifications).
 
 ## Verification
 
 - `pnpm check`, `pnpm test`, `pnpm bundle`, signed iOS Simulator build.
-- `pnpm verify:native --udid <disposable simulator>`.
-- `pnpm verify:ui --udid <disposable simulator> --app <Debug.app> --case notifications`.
+- `pnpm verify:native --case live-activity` exercises the exact Convex start
+  attributes, identity rejection, content decoding and local catalog behavior.
+- `pnpm verify:ui --app <Debug.app> --case live-activity` exercises the shared
+  Widget using attributes decoded from the Convex schema, without contacting APNs.
+- `pnpm verify:ui --app <Debug.app> --case notifications`.
   Both appearances exercise the production settings with injected outcomes. The
   native SDK is disabled under `--ui-verify`, so these checks create no subscriptions.
 - With real APNs configured, use a normal install/relaunch preserving app data.

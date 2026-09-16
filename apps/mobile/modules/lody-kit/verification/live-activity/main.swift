@@ -189,6 +189,25 @@ let pushToStart = try! decoder.decode(LodyActivityAttributes.self, from: Data(""
 """.utf8))
 precondition(pushToStart.workspaceSlug.isEmpty, "push-to-start attributes may omit the slug")
 precondition(pushToStart.routeSlug == "ws1", "an empty slug routes by workspace id")
+// Exact event_attributes emitted by Convex onesignal.ts (OneSignal may also add
+// its own metadata). No userId/workspaceSlug is included by that backend.
+let serverAttributes = try! decoder.decode(LodyActivityAttributes.self, from: Data("""
+{ "activityId": "lody-conversations:v5:ws1:u1", "workspaceId": "ws1", "workspaceName": "ws1", "onesignal": { "activityId": "lody-conversations:v5:ws1:u1" } }
+""".utf8))
+precondition(String(describing: LodyActivityAttributes.self) == "LodyConversationLiveActivityAttributes", "the concrete APNs type must match the backend endpoint")
+precondition(serverAttributes.userId == "u1" && serverAttributes.routeSlug == "ws1")
+precondition(serverAttributes.activityId == "lody-conversations:v5:ws1:u1")
+precondition(try! decoder.decode(LodyActivityAttributes.self, from: JSONEncoder().encode(serverAttributes)) == serverAttributes)
+for invalid in [
+  #"{ "workspaceId": "ws1", "workspaceName": "Space" }"#,
+  #"{ "activityId": "lody-conversations:v5:ws2:u1", "workspaceId": "ws1", "workspaceName": "Space" }"#,
+  #"{ "activityId": "lody-conversations:v4:ws1:u1", "workspaceId": "ws1", "workspaceName": "Space" }"#,
+  #"{ "activityId": "lody-conversations:v5:ws1:", "workspaceId": "ws1", "workspaceName": "Space" }"#,
+  #"{ "activityId": "lody-conversations:v5:ws1:u1", "workspaceId": "ws1", "workspaceName": "Space", "userId": "u2" }"#,
+] {
+  precondition((try? decoder.decode(LodyActivityAttributes.self, from: Data(invalid.utf8))) == nil, "malformed or conflicting identity must fail closed")
+}
+print("PASS: Convex push-to-start type and attributes, owner recovery, conflicting identity rejection and round-trip")
 precondition(
   LodyActivityAttributes(workspaceId: "ws1", workspaceSlug: "space", workspaceName: "Space", userId: "u1").routeSlug == "space"
 )
