@@ -221,6 +221,10 @@ extension LodyChatView {
       }
     }
     localAttachments = localAttachments.filter { key, _ in projected.contains { $0.entryID == key } }
+    projected = ChatPendingSend.hidingStatus(
+      projected,
+      inFlight: Set(projected.map(\.entryID).filter { ChatSendHandoff.isInFlight(id: $0) })
+    )
     updateWorkDurationTimer(rows: projected)
     let entryIDsToRetain = Set(projected.map(\.entryID))
     expandedMessages.formIntersection(entryIDsToRetain)

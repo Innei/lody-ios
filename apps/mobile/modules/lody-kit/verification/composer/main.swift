@@ -508,6 +508,46 @@ precondition(!throwTarget.isHidden, "Cancellation must reveal the destination")
 precondition(throwWindow.subviews.count == 2, "Cancellation must remove every flight overlay")
 print("Send throw: cancellation reveals target, removes overlays without replacing destination content")
 
+var settledTurns: [String] = []
+ChatSendHandoff.onSettled = { settledTurns.append($0) }
+onMain { ChatSendHandoff.begin(id: "status-throw", source: throwInput) }
+precondition(onMain { ChatSendHandoff.isInFlight(id: "status-throw") }, "A waiting copy is in flight")
+precondition(settledTurns.isEmpty, "Flight start must not reveal status")
+onMain {
+  ChatSendHandoff.hold(id: "status-throw", target: throwTarget)
+  ChatSendHandoff.deliver(id: "status-throw", to: throwTarget)
+}
+precondition(onMain { ChatSendHandoff.isInFlight(id: "status-throw") }, "Delivery must hide status until the throw lands")
+precondition(settledTurns.isEmpty, "A moving copy must not reveal status")
+onMain { ChatSendHandoff.cancel(id: "status-throw") }
+precondition(onMain { !ChatSendHandoff.isInFlight(id: "status-throw") })
+precondition(settledTurns == ["status-throw"], "Settling must reveal status once")
+settledTurns.removeAll()
+onMain {
+  ChatSendHandoff.begin(id: "status-throw", source: throwInput)
+  ChatSendHandoff.begin(id: "status-throw:attachment:a", source: throwInput)
+}
+precondition(onMain { ChatSendHandoff.isInFlight(id: "status-throw") })
+onMain { ChatSendHandoff.cancel(id: "status-throw", includingAttachments: false) }
+precondition(onMain { ChatSendHandoff.isInFlight(id: "status-throw") }, "Attachment copies keep the turn in flight")
+precondition(settledTurns.isEmpty, "Status waits until every copy lands")
+onMain { ChatSendHandoff.cancel(id: "status-throw:attachment:a") }
+precondition(onMain { !ChatSendHandoff.isInFlight(id: "status-throw") })
+precondition(settledTurns == ["status-throw"], "The last copy settling reveals status")
+ChatSendHandoff.onSettled = nil
+final class StatusHost: UIView, ChatSendHandoffSettling {
+  var settled: [String] = []
+  func handoffDidSettle(_ id: String) { settled.append(id) }
+}
+let statusHost = StatusHost(frame: throwWindow.bounds)
+throwWindow.addSubview(statusHost)
+let hostedInput = UITextView(frame: CGRect(x: 16, y: 700, width: 350, height: 60))
+statusHost.addSubview(hostedInput)
+onMain { ChatSendHandoff.begin(id: "owner-throw", source: hostedInput) }
+onMain { ChatSendHandoff.cancel(id: "owner-throw") }
+precondition(statusHost.settled == ["owner-throw"], "The transcript host must insert status after its own throw settles")
+print("Send throw: status waits until every copy settles")
+
 let relayComposer = ChatComposerView(frame: composer.frame)
 relayComposer.setComposerState(ready)
 relayComposer.setInitialDraft("Keep until adopted")

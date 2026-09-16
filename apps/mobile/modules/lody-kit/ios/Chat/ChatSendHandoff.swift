@@ -69,6 +69,11 @@ final class ChatMessageContent: UIView {
 }
 
 @MainActor
+protocol ChatSendHandoffSettling: AnyObject {
+  func handoffDidSettle(_ id: String)
+}
+
+@MainActor
 final class ChatSendHandoff {
   private static var active: [String: ChatSendHandoff] = [:]
   let content = ChatMessageContent(frame: .zero)
@@ -82,6 +87,7 @@ final class ChatSendHandoff {
   private var delivering = false
   private var straight = false
   private weak var target: UIView?
+  private weak var owner: ChatSendHandoffSettling?
 
   static func hasWaitingAttachments(id: String) -> Bool {
     active.contains { $0.key.hasPrefix(id + ":attachment:") && !$0.value.delivering }
@@ -95,9 +101,36 @@ final class ChatSendHandoff {
 
   static func sourceHeight(id: String) -> CGFloat? { active[id]?.content.bounds.height }
 
+  static var onSettled: ((String) -> Void)?
+
   static func isWaiting(id: String) -> Bool {
     guard let handoff = active[id] else { return false }
     return !handoff.delivering
+  }
+
+  static func isInFlight(id: String) -> Bool {
+    active.keys.contains { $0 == id || $0.hasPrefix(id + ":attachment:") }
+  }
+
+  private static func turnID(from key: String) -> String {
+    guard let range = key.range(of: ":attachment:") else { return key }
+    return String(key[..<range.lowerBound])
+  }
+
+  private static func enclosingChat(_ view: UIView) -> ChatSendHandoffSettling? {
+    var current: UIView? = view
+    while let view = current {
+      if let chat = view as? ChatSendHandoffSettling { return chat }
+      current = view.superview
+    }
+    return nil
+  }
+
+  private static func didSettle(_ key: String, owner: ChatSendHandoffSettling?) {
+    let turn = turnID(from: key)
+    guard !isInFlight(id: turn) else { return }
+    owner?.handoffDidSettle(turn)
+    onSettled?(turn)
   }
 
   static func hold(id: String, target: UIView, visualOnly: Bool = false) {
@@ -121,6 +154,7 @@ final class ChatSendHandoff {
     handoff.content.isUserInteractionEnabled = false
     handoff.content.accessibilityElementsHidden = true
     if let snapshot { handoff.keep(snapshot, from: source, frame: source.bounds) }
+    handoff.owner = enclosingChat(source)
     active[id] = handoff
     let expiry = DispatchWorkItem { cancel(id: id) }
     handoff.expiry = expiry
@@ -166,6 +200,7 @@ final class ChatSendHandoff {
       let handoff = ChatSendHandoff()
       handoff.keep(snapshot, from: source, frame: frame)
       let key = id + ":attachment:" + attachment.id
+      handoff.owner = enclosingChat(source)
       active[key] = handoff
       let expiry = DispatchWorkItem { cancel(id: key) }
       handoff.expiry = expiry
@@ -231,6 +266,7 @@ final class ChatSendHandoff {
       #if DEBUG
       handoff.probe?.didLand(on: landed)
       #endif
+      didSettle(id, owner: handoff.owner)
     }
     #if DEBUG
     if ProcessInfo.processInfo.arguments.contains("--ui-verify-throw"),
@@ -256,6 +292,7 @@ final class ChatSendHandoff {
     handoff.content.layer.removeAllAnimations()
     handoff.content.removeFromSuperview()
     handoff.sourceSnapshot?.removeFromSuperview()
+    didSettle(id, owner: handoff.owner)
   }
 
   static func deliver(id: String, to target: ChatMessageContent, scrollDistance: CGFloat = 0) {
@@ -284,6 +321,7 @@ final class ChatSendHandoff {
       #if DEBUG
       handoff.probe?.didLand(on: handoff.target ?? target)
       #endif
+      didSettle(id, owner: handoff.owner)
     }
     if UIAccessibility.isReduceMotionEnabled { finish(); return }
     // Independent position, compression, bounds and text tracks.

@@ -56,7 +56,7 @@ private final class ChatNavigationController: UIViewController {
   }
 }
 
-final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout, UIGestureRecognizerDelegate {
+final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout, UIGestureRecognizerDelegate, ChatSendHandoffSettling {
   let onSend = EventDispatcher()
   let onStop = EventDispatcher()
   let onSteer = EventDispatcher()
@@ -661,6 +661,12 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       followsBottom = true
       trackingPausedByGesture = false
     }
+    applyRows()
+  }
+
+  func handoffDidSettle(_ id: String) {
+    guard window != nil else { return }
+    guard pendingSend?.id == id || handoffID == id || rows.values.contains(where: { $0.entryID == id }) else { return }
     applyRows()
   }
 

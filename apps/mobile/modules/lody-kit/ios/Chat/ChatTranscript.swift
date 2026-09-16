@@ -682,6 +682,18 @@ struct ChatPendingSend: Decodable {
   var phase: String? = nil
   var uploadProgress: [String: ChatAttachmentUploadProgress]? = nil
 
+  static func hidingStatus(_ rows: [ChatRow], inFlight: Set<String>) -> [ChatRow] {
+    guard !inFlight.isEmpty else { return rows }
+    return rows.filter { row in
+      switch row.kind {
+      case "duration", "pending":
+        return !inFlight.contains(row.entryID)
+      default:
+        return true
+      }
+    }
+  }
+
   func rows(entries: [ChatEntry]) -> [ChatRow] {
     guard (queue != true || failed == true), !entries.contains(where: { $0.id == id && $0.isQueued }) else { return [] }
     var result: [ChatRow] = []

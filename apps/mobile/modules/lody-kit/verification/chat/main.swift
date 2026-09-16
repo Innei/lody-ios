@@ -537,6 +537,19 @@ precondition(pendingRows.first?.running == true && failedRows.first?.running == 
   "Loading belongs to attachment tiles and must stop on failure")
 precondition(failedRows.first?.attachments == pendingRows.first?.attachments && failedRows.last?.actionable == true,
   "A definite failure must retain the attachment and offer explicit retry")
+let flying = ChatPendingSend.hidingStatus(pendingRows, inFlight: ["local-send"])
+precondition(flying.map(\.kind) == ["attachments", "user"],
+  "A flying send must keep its bubble and hide status until the throw lands")
+precondition(ChatPendingSend.hidingStatus(pendingRows, inFlight: []).map(\.kind) == pendingRows.map(\.kind),
+  "A send with no flight must show its duration immediately")
+precondition(ChatPendingSend.hidingStatus(failedRows, inFlight: ["local-send"]).last?.kind != "pending",
+  "Retry must wait for the throw to finish")
+precondition(ChatPendingSend.hidingStatus(failedRows, inFlight: []).last?.kind == "pending")
+precondition(ChatPendingSend.hidingStatus(authoritativeDuration, inFlight: ["local-send"]).isEmpty,
+  "History duration must not appear beside a still-flying bubble")
+let neighbor = pendingRows + [ChatRow(id: "other:duration", entryID: "other", kind: "duration", text: "kept")]
+precondition(ChatPendingSend.hidingStatus(neighbor, inFlight: ["local-send"]).contains { $0.id == "other:duration" },
+  "Another turn's duration must stay visible during this throw")
 print("Pending send: immediate text and attachment, processing, stable history takeover and failure passed")
 
 var disconnectedPending = localPending
