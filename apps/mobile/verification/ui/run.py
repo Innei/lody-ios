@@ -35,9 +35,9 @@ CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 # These lease an iPad. `--case` still accepts them; the default phone run must not.
 PAD_CASES = ['ipad', 'ipad-chrome', 'native-shell', 'native-collection']
-CASES = PHONE_CASES + PAD_CASES + ['composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff']
+CASES = PHONE_CASES + PAD_CASES + ['morph', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff']
 # These select HomePreviewProviders at app launch, using the same shared bundle.
-HOME_CASES = {'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome'}
+HOME_CASES = {'morph', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome'}
 PREVIEW = {
     'scroll-edge': 'chat-preview',
     'scroll-edge-pages': 'scroll-edge-pages',
@@ -270,7 +270,7 @@ with metro_context:
                         launch = ['launch', args.udid, 'app.innei.lody', '--ui-verify']
                         if case in HOME_CASES:
                             launch.append('--ui-verify-home')
-                        if case in {'mentions-production', 'home', 'ipad', 'ipad-chrome'}:
+                        if case in {'morph', 'mentions-production', 'home', 'ipad', 'ipad-chrome'}:
                             launch.append('--ui-verify-mentions')
                         if mode[1]:
                             launch.append('--ui-verify-scroll')
@@ -350,7 +350,7 @@ with metro_context:
                         ui.element('preview-image:attachment:ui-verify-image')
                     ui.capture('before')
                     script = Path(__file__).with_name(f'{case}.py') if case in ['pull-request', 'project-history-entry', 'project-history', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'process-counts', 'agent-error', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'chat-chrome'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
-                    if case in {'native-shell', 'native-collection', 'ipad-chrome', 'composer-relay', 'outbox', 'navigation-toolbar', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff'}:
+                    if case in {'morph', 'native-shell', 'native-collection', 'ipad-chrome', 'composer-relay', 'outbox', 'navigation-toolbar', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff'}:
                         script = Path(__file__).with_name(f'{case}.py')
                     if case == 'send-handoff-delayed':
                         script = Path(__file__).with_name('send-handoff.py')

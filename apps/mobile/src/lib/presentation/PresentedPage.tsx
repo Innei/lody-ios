@@ -9,6 +9,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -163,6 +164,7 @@ function usePresentedPageSession(expectedPage?: PageDefinitionBase) {
       ? null
       : (getPresentationSession(presentationId) ?? null),
   );
+  const closing = useRef(false);
 
   useEffect(() => {
     if (!session) {
@@ -211,17 +213,26 @@ function usePresentedPageSession(expectedPage?: PageDefinitionBase) {
       });
     } else dismissPresentedPage();
   }, [navigation, session]);
-  const cancel = useCallback(() => {
-    if (!session || !cancelPresentation(session.id)) return;
-    if (session.presentation.morphSourceLabel)
-      void morphDismiss().then(dismiss);
-    else dismiss();
-  }, [dismiss, session]);
-  const finish = useCallback(
-    (value?: unknown) => {
-      if (session && completePresentation(session.id, value)) dismiss();
+  const close = useCallback(
+    async (settle: () => boolean) => {
+      if (!session || closing.current) return;
+      closing.current = true;
+      try {
+        if (session.presentation.morphSourceLabel) await morphDismiss();
+      } finally {
+        if (settle()) dismiss();
+      }
     },
     [dismiss, session],
+  );
+  const cancel = useCallback(() => {
+    if (session) void close(() => cancelPresentation(session.id));
+  }, [close, session]);
+  const finish = useCallback(
+    (value?: unknown) => {
+      if (session) void close(() => completePresentation(session.id, value));
+    },
+    [close, session],
   ) as PageFinish<unknown>;
   const runtime = useMemo<PageRuntime<unknown, unknown> | null>(
     () =>

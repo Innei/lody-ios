@@ -370,6 +370,13 @@ regressions. Performance numbers are reported without arbitrary pass thresholds.
 
 ### Send animation frame checks
 
+`--case morph` opens the production new-session sheet from offline Home and
+checks close, backdrop dismissal and first-message handoff in both appearances.
+Native `lody-morph-*.json` samples must show a shrinking sheet and fading backdrop
+on every path. The send check also requires the same composer, unchanged focus
+and input state, and adoption within 1.5 pt. Review `run.mp4` for visual continuity;
+these fixtures do not send a cloud message.
+
 `send`, `send-handoff`, `send-rounds`, `send-queue`, `send-guide`, `send-transition`, and `send-transition-handoff` enable the Debug-only `--ui-verify-throw` probe.
 It requests the Simulator screen's maximum refresh rate and samples Core Animation
 presentation geometry on every `CADisplayLink` callback, through 350ms after the
