@@ -38,7 +38,7 @@ env:
 jobs:
   submit:
     name: Archive and upload
-    runs-on: xcode-27
+    runs-on: macos-26
     timeout-minutes: 120
     outputs:
       build_number: ${{ steps.build.outputs.build_number }}
@@ -48,10 +48,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Metal Toolchain
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Ensure Metal Toolchain
         run: |
-          xcodebuild -downloadComponent MetalToolchain
-          xcrun --sdk iphoneos metal --version
+          if ! xcrun --sdk iphoneos metal --version; then
+            xcodebuild -downloadComponent MetalToolchain
+            xcrun --sdk iphoneos metal --version
+          fi
 
       - name: Record commit
         id: meta
