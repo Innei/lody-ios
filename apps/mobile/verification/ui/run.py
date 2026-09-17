@@ -223,7 +223,15 @@ if args.udid is None:
         )
     )
 def sim(*command, check=True):
-    return subprocess.run(['xcrun', 'simctl', *command], check=check, timeout=60, capture_output=True, text=True)
+    # A freshly booted iOS 27 Simulator can ignore the first spawn for a minute.
+    last = None
+    for _ in range(3):
+        try:
+            return subprocess.run(['xcrun', 'simctl', *command], check=check, timeout=60, capture_output=True, text=True)
+        except subprocess.TimeoutExpired as error:
+            last = error
+            time.sleep(2)
+    raise last
 
 results = []
 # Only the parent starts/prewarms/stops Metro; batch workers and embedded apps never own it.
@@ -385,8 +393,8 @@ with metro_context:
                         # and Dynamic Island transitions; 180s cuts off deep links.
                         check_timeout = 300
                     elif case == 'navigation':
-                        # Three cold relaunches plus catalog links; 180s dies after the toolbar pop.
-                        check_timeout = 360
+                        # Three cold relaunches plus catalog links; 360s still dies on a cold CI AXe session.
+                        check_timeout = 480
                     elif case in ('chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production'):
                         check_timeout = 300
                     with (output / 'check.log').open('w') as log:

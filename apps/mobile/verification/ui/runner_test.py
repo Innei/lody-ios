@@ -152,8 +152,9 @@ class CaseSelectionTest(unittest.TestCase):
         self.assertIn('args.shared_metro or args.embedded', source)
         self.assertIn("ui.screenshot('failure')", source)
         self.assertIn("elif case == 'navigation':", source)
-        self.assertIn('check_timeout = 360', source)
+        self.assertIn('check_timeout = 480', source)
         self.assertIn("env['LODY_UI_EMBEDDED'] = '1'", source)
+        self.assertIn('except subprocess.TimeoutExpired as error:', source)
         native = Path(__file__).resolve().parents[1].joinpath('native.py').read_text()
         self.assertIn('timeout=240', native)
         self.assertIn("files.insert(0, 'LodyUIVerify.swift')", native)
@@ -204,6 +205,8 @@ class CaptureTest(unittest.TestCase):
                 self.assertEqual(ui.state(), [])
             self.assertEqual(calls['count'], 3)
             self.assertTrue(ui._axe_ready)
+            ui.invalidate_axe()
+            self.assertFalse(ui._axe_ready)
 
 
 class PrewarmTest(unittest.TestCase):

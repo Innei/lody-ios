@@ -123,7 +123,7 @@ jobs:
     name: Offline iOS UI (${{ matrix.suite }})
     needs: build
     runs-on: xcode-27
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

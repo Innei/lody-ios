@@ -13,6 +13,10 @@ class UI:
         self.output.mkdir(parents=True, exist_ok=True)
         self._axe_ready = False
 
+    def invalidate_axe(self):
+        """Forget the XCTest session after terminate/relaunch so the next describe retries."""
+        self._axe_ready = False
+
     def axe(self, *args, timeout=20):
         output = subprocess.check_output(['axe', *args, '--udid', self.udid], text=True, timeout=timeout)
         if output.startswith('Error:'):

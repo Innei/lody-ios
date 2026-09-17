@@ -63,6 +63,7 @@ home('initial-home')
 # ordering between native header configuration and the workspace props.
 for index in range(3):
     subprocess.run(['xcrun', 'simctl', 'terminate', udid, 'app.innei.lody'], check=True, timeout=30)
+    ui.invalidate_axe()
     launch = ['xcrun', 'simctl', 'launch', udid, 'app.innei.lody', '--ui-verify', '--ui-verify-home',
               '-AppleLanguages', f'({catalog.LANGUAGE})',
               '-AppleLocale', 'en_US' if catalog.LANGUAGE == 'en' else 'zh_CN']
@@ -70,7 +71,7 @@ for index in range(3):
     if port:
         launch += ['--initialUrl', f'http://127.0.0.1:{port}?disableOnboarding=1']
     subprocess.run(launch, check=True, timeout=30)
-    ui.element('ui-verify-ready')
+    ui.element('ui-verify-ready', timeout=90)
     home(f'cold-home-{index}')
 # Exercise the production row push, then cancel an edge pop before completing
 # it. The recording also covers toolbar retirement during the push itself.
