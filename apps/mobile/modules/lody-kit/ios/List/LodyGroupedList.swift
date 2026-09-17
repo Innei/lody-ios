@@ -3,9 +3,14 @@ import UIKit
 
 private final class ListAppearanceController: UIViewController {
   var onWillAppear: ((Bool, UIViewControllerTransitionCoordinator?) -> Void)?
+  var onWillDisappear: ((Bool, UIViewControllerTransitionCoordinator?) -> Void)?
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
     onWillAppear?(animated, transitionCoordinator ?? parent?.transitionCoordinator)
+  }
+  override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    onWillDisappear?(animated, transitionCoordinator ?? parent?.transitionCoordinator)
   }
 }
 
@@ -55,6 +60,15 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   var forwardedRowPress: (([String: Any]) -> Void)?
 
   func emitRowPress(_ body: [String: Any]) {
+    if body["expanded"] == nil,
+       let id = body["id"] as? String,
+       let row = rowsByID.first(where: { $0.key.row == id })?.value {
+      unreadHold.begin(
+        rowID: row.id,
+        unread: row.unread,
+        coversList: scrollOwner?.splitViewController?.isCollapsed ?? true
+      )
+    }
     onRowPress(body)
     forwardedRowPress?(body)
   }
@@ -82,6 +96,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   var previewUserId = ""
   var previewWorkspaceId = ""
   private var rowsByID: [ListItemID: LodyListRow] = [:]
+  private var unreadHold = LodyUnreadNavigationHold()
   private var toggles: [String: RowSwitch] = [:]
   private var dataSource: UICollectionViewDiffableDataSource<String, ListItemID>!
 
@@ -250,7 +265,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     collection.keyboardDismissMode = .onDrag
     dataSource = UICollectionViewDiffableDataSource<String, ListItemID>(collectionView: collection) { [weak self] collection, index, id in
       guard let self, let row = self.rowsByID[id] else { return nil }
-      return self.cell(in: collection, at: index, row: row)
+      return self.cell(in: collection, at: index, row: self.displayed(row))
     }
     dataSource.supplementaryViewProvider = { [weak self] collection, kind, index in
       self?.supplementary(in: collection, kind: kind, at: index)
@@ -328,6 +343,9 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     appearance.view.isUserInteractionEnabled = false
     appearance.onWillAppear = { [weak self] animated, coordinator in
       self?.deselectOnReturn(animated: animated, coordinator: coordinator)
+    }
+    appearance.onWillDisappear = { [weak self] _, coordinator in
+      self?.finishUnreadHold(coordinator: coordinator)
     }
   }
 
@@ -615,7 +633,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     }
     for index in collection.indexPathsForVisibleItems {
       guard let cell = collection.cellForItem(at: index) as? UICollectionViewListCell, let row = row(at: index) else { continue }
-      configure(cell, row: row)
+      configure(cell, row: displayed(row))
     }
   }
 
@@ -992,6 +1010,32 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   private func indexPath(for id: String) -> IndexPath? {
     rowsByID.keys.first { $0.row == id }.flatMap { dataSource.indexPath(for: $0) }
+  }
+
+  private func displayed(_ row: LodyListRow) -> LodyListRow {
+    var copy = row
+    copy.unread = unreadHold.applied(rowID: row.id, unread: row.unread)
+    return copy
+  }
+
+  private func finishUnreadHold(coordinator: UIViewControllerTransitionCoordinator?) {
+    guard unreadHold.isHolding else { return }
+    let apply = { [weak self] in self?.releaseUnreadHold() }
+    guard let coordinator else {
+      apply()
+      return
+    }
+    let started = coordinator.animate(alongsideTransition: nil, completion: { _ in apply() })
+    if !started { apply() }
+  }
+
+  private func releaseUnreadHold() {
+    guard let id = unreadHold.end() else { return }
+    guard let item = rowsByID.keys.first(where: { $0.row == id }) else { return }
+    var snapshot = dataSource.snapshot()
+    guard snapshot.itemIdentifiers.contains(item) else { return }
+    snapshot.reconfigureItems([item])
+    dataSource.apply(snapshot, animatingDifferences: false)
   }
 
   private func deselectOnReturn(animated: Bool, coordinator: UIViewControllerTransitionCoordinator?) {

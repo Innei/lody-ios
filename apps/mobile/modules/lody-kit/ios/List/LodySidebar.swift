@@ -8,9 +8,14 @@ private struct SidebarItemID: Hashable {
 
 private final class SidebarAppearanceController: UIViewController {
   var onWillAppear: ((Bool, UIViewControllerTransitionCoordinator?) -> Void)?
+  var onWillDisappear: ((Bool, UIViewControllerTransitionCoordinator?) -> Void)?
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
     onWillAppear?(animated, transitionCoordinator ?? parent?.transitionCoordinator)
+  }
+  override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    onWillDisappear?(animated, transitionCoordinator ?? parent?.transitionCoordinator)
   }
 }
 
@@ -23,6 +28,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
   var previewWorkspaceId = ""
   private var sections: [LodyListSection] = []
   private var rows: [SidebarItemID: LodyListRow] = [:]
+  private var unreadHold = LodyUnreadNavigationHold()
   private var selectedRowId = ""
   private var accent: UIColor = .lodyAccent
   private let appearance = SidebarAppearanceController()
@@ -61,7 +67,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     collection.delegate = self
     dataSource = UICollectionViewDiffableDataSource(collectionView: collection) { [weak self] collection, index, id in
       guard let self, let row = self.rows[id] else { return nil }
-      return collection.dequeueConfiguredReusableCell(using: self.registration, for: index, item: row)
+      return collection.dequeueConfiguredReusableCell(using: self.registration, for: index, item: self.displayed(row))
     }
     dataSource.supplementaryViewProvider = { [weak self] collection, _, index in
       guard let self else { return nil }
@@ -98,6 +104,9 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     appearance.view.isUserInteractionEnabled = false
     appearance.onWillAppear = { [weak self] animated, coordinator in
       self?.deselectOnReturn(animated: animated, coordinator: coordinator)
+    }
+    appearance.onWillDisappear = { [weak self] _, coordinator in
+      self?.finishUnreadHold(coordinator: coordinator)
     }
   }
 
@@ -206,6 +215,28 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     rows.keys.first { $0.row == id }.flatMap { dataSource.indexPath(for: $0) }
   }
 
+  private func displayed(_ row: LodyListRow) -> LodyListRow {
+    var copy = row
+    copy.unread = unreadHold.applied(rowID: row.id, unread: row.unread)
+    return copy
+  }
+
+  private func finishUnreadHold(coordinator: UIViewControllerTransitionCoordinator?) {
+    guard unreadHold.isHolding else { return }
+    let apply = { [weak self] in self?.releaseUnreadHold() }
+    guard let coordinator else {
+      apply()
+      return
+    }
+    let started = coordinator.animate(alongsideTransition: nil, completion: { _ in apply() })
+    if !started { apply() }
+  }
+
+  private func releaseUnreadHold() {
+    guard unreadHold.end() != nil else { return }
+    updateVisibleRows()
+  }
+
   private func navigatingSelection() -> LodyListRow? {
     guard let current = collection.indexPathsForSelectedItems?.first,
           let row = row(at: current), row.navigates, row.preview != "session" else { return nil }
@@ -229,7 +260,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     for index in collection.indexPathsForVisibleItems {
       guard let cell = collection.cellForItem(at: index) as? UICollectionViewListCell,
             let row = row(at: index) else { continue }
-      configure(cell, row: row)
+      configure(cell, row: displayed(row))
     }
   }
 
@@ -287,6 +318,12 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
       collectionView.deselectItem(at: indexPath, animated: false)
       return
     }
+    unreadHold.begin(
+      rowID: row.id,
+      unread: row.unread,
+      coversList: (row.preview == "session" || row.navigates)
+        && (scrollOwner?.splitViewController?.isCollapsed ?? true)
+    )
     if row.preview == "session" {
       setSelectedRowId(row.id)
     } else if row.navigates {

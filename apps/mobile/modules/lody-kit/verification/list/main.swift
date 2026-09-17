@@ -406,3 +406,32 @@ for badgeText in ["Running", "", "Completed"] {
   assert(fitting.height >= 20 && fitting.height < 200, "Outline updates must produce a bounded content height: \(fitting)")
 }
 print("PASS: session state changes remain self-sizing under an expanded outline proposal")
+
+var hold = LodyUnreadNavigationHold()
+hold.begin(rowID: "unread", unread: true, coversList: true)
+assert(
+  hold.applied(rowID: "unread", unread: false) == true,
+  "A covering push must keep unread emphasis while the source row is still on screen"
+)
+assert(
+  hold.applied(rowID: "other", unread: false) == false,
+  "Unread hold is only for the row that is being opened"
+)
+assert(hold.end() == "unread")
+assert(
+  hold.applied(rowID: "unread", unread: false) == false,
+  "Unread emphasis drops after the covering transition finishes"
+)
+
+var split = LodyUnreadNavigationHold()
+split.begin(rowID: "unread", unread: true, coversList: false)
+assert(
+  split.applied(rowID: "unread", unread: false) == false,
+  "A list that stays on screen applies the viewed state immediately"
+)
+split.begin(rowID: "read", unread: false, coversList: true)
+assert(
+  split.applied(rowID: "read", unread: false) == false,
+  "Opening an already-read row does not hold emphasis"
+)
+print("PASS: unread emphasis waits for a covering push to finish")

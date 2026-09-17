@@ -46,6 +46,7 @@ checks = {
         'List/LodyListCellBackground.swift',
         'List/LodyListPhoto.swift',
         'List/LodyListSectionAnimation.swift',
+        'List/LodyUnreadNavigationHold.swift',
         'List/LodySessionRowView.swift',
         'List/LodyProjectRowView.swift',
     ],
