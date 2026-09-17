@@ -44,12 +44,17 @@ def home(name):
 
 def open_url(path):
     subprocess.run(['xcrun', 'simctl', 'openurl', udid, f'lody:///{path}'], check=True, timeout=30)
-    # First use of the custom scheme may show a system confirmation.
+    # First use of the custom scheme shows a SpringBoard confirmation. describe-ui
+    # hangs on that alert, so tap Open without reading the tree first.
     time.sleep(1)
-    for item in ui.state():
-        if item.get('type') == 'Button' and item.get('AXLabel') in ['Open', '打开']:
-            ui.axe('tap', '--label', item['AXLabel'], '--post-delay', '1')
-            break
+    ui.invalidate_axe()
+    for label in ('Open', '打开', '開啟'):
+        try:
+            ui.axe('tap', '--label', label, '--post-delay', '1', timeout=8, recover=False)
+            return
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError):
+            continue
+    ui.axe('tap', '-x', '280', '-y', '450', '--post-delay', '1', timeout=8, recover=False)
 
 
 def session(title):

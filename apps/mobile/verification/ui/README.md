@@ -25,6 +25,15 @@ target, VoiceOver label and existing open action.
 
 ## Run locally
 
+`session-search` and `session-search-pad` run the production Inbox/sidebar and
+session find with isolated cached fixtures. They cover title/path/branch and
+Markdown body matches, excluded tool/URL metadata, snippets, real rendered
+highlights (including code and tables), keyboard behavior, navigation, closing,
+folded thoughts, and an older match outside the initial 50-entry window. The
+older match becomes navigable only after the user explicitly loads that page.
+Both appearances record screenshots and video. `verify:native --case local-store`
+also runs the real Markdown parser and SQLite migration/failure checks via SwiftPM.
+
 `mcp-files` verifies uploaded text/PDF/video previews, video playback, download
 retry, missing/pending files, user attachments and cancellation in both appearances.
 It uses `ffmpeg` to create an offline MP4 in the leased Simulator; no account or
@@ -252,7 +261,9 @@ results.json, per-case logs, screenshots and accessibility trees, plus video whe
 the run requires it, including failures. A failed case always takes a Simulator
 framebuffer screenshot first (`failure.png`, also copied to `failures/`); that
 does not wait on AXe. The first `describe-ui` after a fresh Simulator boot
-retries until AXe's XCTest session exists. `navigation` is allowed 480s because
+retries until AXe's XCTest session exists. Later AXe commands retry the same way
+when that session dies. `navigation` dismisses the first-open SpringBoard alert
+by tapping Open without waiting on `describe-ui`, which hangs on that dialog. `navigation` is allowed 480s because
 three cold relaunches plus catalog links overrun a 360s cap on CI. Embedded
 runs skip the Metro `Page.reload` tail of that case. The two CI UI matrix jobs
 keep running after one fails. CI uploads those plus a job-level `simctl io screenshot`

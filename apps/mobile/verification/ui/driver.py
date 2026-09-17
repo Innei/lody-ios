@@ -17,11 +17,24 @@ class UI:
         """Forget the XCTest session after terminate/relaunch so the next describe retries."""
         self._axe_ready = False
 
-    def axe(self, *args, timeout=20):
-        output = subprocess.check_output(['axe', *args, '--udid', self.udid], text=True, timeout=timeout)
-        if output.startswith('Error:'):
-            raise RuntimeError(output)
-        return output
+    def axe(self, *args, timeout=20, recover=True):
+        deadline = time.monotonic() + (90 if recover else timeout)
+        last = None
+        while True:
+            try:
+                bound = 30 if not self._axe_ready else timeout
+                output = subprocess.check_output(['axe', *args, '--udid', self.udid], text=True, timeout=bound)
+                if output.startswith('Error:'):
+                    raise RuntimeError(output.strip())
+                self._axe_ready = True
+                return output
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError) as error:
+                last = error
+                session_dead = isinstance(error, subprocess.TimeoutExpired) or 'remote automation session' in str(error)
+                if not recover or not session_dead or time.monotonic() >= deadline:
+                    raise
+                self._axe_ready = False
+                time.sleep(2)
 
     def type_into(self, identifier, text):
         """A Chinese App Language activates the pinyin IME, which holds typed Latin

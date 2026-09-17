@@ -155,6 +155,9 @@ class CaseSelectionTest(unittest.TestCase):
         self.assertIn('check_timeout = 480', source)
         self.assertIn("env['LODY_UI_EMBEDDED'] = '1'", source)
         self.assertIn('except subprocess.TimeoutExpired as error:', source)
+        navigation = Path(__file__).with_name('navigation.py').read_text()
+        self.assertIn("for label in ('Open', '打开', '開啟'):", navigation)
+        self.assertIn('recover=False', navigation)
         native = Path(__file__).resolve().parents[1].joinpath('native.py').read_text()
         self.assertIn('timeout=240', native)
         self.assertIn("files.insert(0, 'LodyUIVerify.swift')", native)
@@ -207,6 +210,23 @@ class CaptureTest(unittest.TestCase):
             self.assertTrue(ui._axe_ready)
             ui.invalidate_axe()
             self.assertFalse(ui._axe_ready)
+
+    def test_axe_retries_when_the_session_dies_mid_command(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+            ui._axe_ready = True
+            calls = {'count': 0}
+
+            def check_output(*_args, **_kwargs):
+                calls['count'] += 1
+                if calls['count'] < 3:
+                    raise subprocess.TimeoutExpired('axe', 20)
+                return 'ok'
+
+            with patch('subprocess.check_output', check_output), patch('driver.time.sleep'):
+                self.assertEqual(ui.axe('tap', '--id', 'send-fail'), 'ok')
+            self.assertEqual(calls['count'], 3)
+            self.assertTrue(ui._axe_ready)
 
 
 class PrewarmTest(unittest.TestCase):
