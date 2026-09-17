@@ -26,4 +26,10 @@ Pod::Spec.new do |s|
   s.source_files = '**/*.{swift,h,m}'
   s.resources = 'Resources/*'
   s.resource_bundles = { 'LodyKitShaders' => ['Chat/Shaders/*.metal'] }
+  s.script_phase = {
+    name: 'Verify LodyKit sources',
+    execution_position: :before_compile,
+    always_out_of_date: '1',
+    script: '/usr/bin/python3 "${PODS_TARGET_SRCROOT}/../../../scripts/check-native-sources.py"'
+  }
 end

@@ -25,4 +25,10 @@ Pod::Spec.new do |s|
   }
 
   s.source_files = "**/*.{h,m,swift}"
+  s.script_phase = {
+    name: 'Verify ExpoDomWebView sources',
+    execution_position: :before_compile,
+    always_out_of_date: '1',
+    script: '/usr/bin/python3 "${PODS_TARGET_SRCROOT}/../../../apps/mobile/scripts/check-native-sources.py"'
+  }
 end
