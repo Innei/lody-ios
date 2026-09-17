@@ -151,6 +151,7 @@ class CaseSelectionTest(unittest.TestCase):
         self.assertIn("'--embedded'", source)
         self.assertIn('args.shared_metro or args.embedded', source)
         self.assertIn("ui.screenshot('failure')", source)
+        self.assertIn('timeout=240', Path(__file__).resolve().parents[1].joinpath('native.py').read_text())
 
 
 class CaptureTest(unittest.TestCase):
@@ -182,6 +183,22 @@ class CaptureTest(unittest.TestCase):
             ):
                 ui.capture('failure')
             self.assertTrue((Path(directory) / 'failure.png').exists())
+
+    def test_state_retries_until_axe_session_is_ready(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+            calls = {'count': 0}
+
+            def axe(*_args, **_kwargs):
+                calls['count'] += 1
+                if calls['count'] < 3:
+                    raise RuntimeError('Error: Timed out creating the simulator remote automation session')
+                return '[]'
+
+            with patch.object(ui, 'axe', axe), patch('driver.time.sleep'):
+                self.assertEqual(ui.state(), [])
+            self.assertEqual(calls['count'], 3)
+            self.assertTrue(ui._axe_ready)
 
 
 class PrewarmTest(unittest.TestCase):

@@ -637,147 +637,147 @@ function View() {
       <Stack.Screen options={{ title: navigationTitle }} />
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Menu icon="wrench" accessibilityLabel="Fixtures">
-            <Stack.Toolbar.MenuAction
-              children="Failed Tool Fixture"
-              icon="exclamationmark.triangle"
-              onPress={() => {
-                setShowImage(false);
-                setShowChanges(false);
-                setDurationFixture(null);
-                setProcessCounts(null);
-                setFailedToolAt(Date.now());
-              }}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Session Created"
-              icon="checkmark"
-              onPress={() => setSessionActionsReady(true)}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Rename Session"
-              icon="pencil"
-              onPress={() => setNavigationTitle('Updated session title')}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Diff Fixture"
-              icon="doc.text"
-              onPress={() => {
-                setDurationFixture(null);
-                setProcessCounts(null);
-                setShowImage(false);
-                setShowChanges(true);
-              }}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Image Fixture"
-              icon="photo"
-              onPress={() => {
-                setDurationFixture(null);
-                setProcessCounts(null);
-                setShowChanges(false);
-                setShowImage(true);
-                setAssistantImages(false);
-              }}
-            />
-            <Stack.Toolbar.MenuAction
-              children="MCP Image Fixture"
-              icon="photo.on.rectangle"
-              onPress={() => {
-                setDurationFixture(null);
-                setProcessCounts(null);
-                setShowChanges(false);
-                setShowImage(true);
-                setAssistantImages(true);
-              }}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Duration Fixture"
-              icon="timer"
-              onPress={() => {
-                setShowImage(false);
-                setShowChanges(false);
-                setProcessCounts(null);
-                setFailedToolAt(null);
-                setDurationFixture({
-                  startedAt: Date.now(),
-                  finished: false,
-                });
-              }}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Process Counts Fixture"
-              icon="number"
-              onPress={() => {
-                setShowImage(false);
-                setShowChanges(false);
-                setDurationFixture(null);
-                setFailedToolAt(null);
-                setProcessCounts({
-                  count: 1,
-                  startedAt: Date.now(),
-                });
-              }}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Inline Diff Fixture"
-              icon="plusminus"
-              onPress={() =>
-                void present(ItemDetailScreen, {
-                  sessionId: 'ui-verify-diff',
-                  entryId: 'diff-preview',
-                  itemIds: ['edit'],
-                  generation: 0,
-                })
-              }
-            />
-            <Stack.Toolbar.MenuAction
-              children="Connecting Overlay"
-              icon="wifi"
-              onPress={() => setConnection('connecting')}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Paused Overlay"
-              icon="wifi.slash"
-              onPress={() => setConnection('paused')}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Tasks Overlay"
-              icon="person.2"
-              onPress={() => {
-                setDurationFixture(null);
-                setProcessCounts(null);
-                setShowChanges(false);
-                setShowImage(false);
-                setConnection('');
-                setOverlayTasks(true);
-              }}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Clear Overlay"
-              icon="xmark"
-              onPress={() => {
-                setConnection('');
-                setOverlayTasks(false);
-              }}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Permission Fixture"
-              icon="lock.open"
-              onPress={() =>
-                void present(PermissionScreen, {
-                  sessionId: 'ui-verify-permission',
-                  generation: 0,
-                  source: permissionSource,
-                  service: permissionService,
-                })
-              }
-            />
-            <Stack.Toolbar.MenuAction
-              children="Question Fixture"
-              icon="questionmark.bubble"
-              onPress={openQuestionFixture}
-            />
-          </Stack.Toolbar.Menu>
+          <Stack.Toolbar.MenuAction
+            children="Failed Tool Fixture"
+            icon="exclamationmark.triangle"
+            onPress={() => {
+              setShowImage(false);
+              setShowChanges(false);
+              setDurationFixture(null);
+              setProcessCounts(null);
+              setFailedToolAt(Date.now());
+            }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Session Created"
+            icon="checkmark"
+            onPress={() => setSessionActionsReady(true)}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Rename Session"
+            icon="pencil"
+            onPress={() => setNavigationTitle('Updated session title')}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Diff Fixture"
+            icon="doc.text"
+            onPress={() => {
+              setDurationFixture(null);
+              setProcessCounts(null);
+              setShowImage(false);
+              setShowChanges(true);
+            }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Image Fixture"
+            icon="photo"
+            onPress={() => {
+              setDurationFixture(null);
+              setProcessCounts(null);
+              setShowChanges(false);
+              setShowImage(true);
+              setAssistantImages(false);
+            }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="MCP Image Fixture"
+            icon="photo.on.rectangle"
+            onPress={() => {
+              setDurationFixture(null);
+              setProcessCounts(null);
+              setShowChanges(false);
+              setShowImage(true);
+              setAssistantImages(true);
+            }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Duration Fixture"
+            icon="timer"
+            onPress={() => {
+              setShowImage(false);
+              setShowChanges(false);
+              setProcessCounts(null);
+              setFailedToolAt(null);
+              setDurationFixture({
+                startedAt: Date.now(),
+                finished: false,
+              });
+            }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Process Counts Fixture"
+            icon="number"
+            onPress={() => {
+              setShowImage(false);
+              setShowChanges(false);
+              setDurationFixture(null);
+              setFailedToolAt(null);
+              setProcessCounts({
+                count: 1,
+                startedAt: Date.now(),
+              });
+            }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Inline Diff Fixture"
+            icon="plusminus"
+            onPress={() =>
+              void present(ItemDetailScreen, {
+                sessionId: 'ui-verify-diff',
+                entryId: 'diff-preview',
+                itemIds: ['edit'],
+                generation: 0,
+              })
+            }
+          />
+          <Stack.Toolbar.MenuAction
+            children="Connecting Overlay"
+            icon="wifi"
+            onPress={() => setConnection('connecting')}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Paused Overlay"
+            icon="wifi.slash"
+            onPress={() => setConnection('paused')}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Tasks Overlay"
+            icon="person.2"
+            onPress={() => {
+              setDurationFixture(null);
+              setProcessCounts(null);
+              setShowChanges(false);
+              setShowImage(false);
+              setConnection('');
+              setOverlayTasks(true);
+            }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Clear Overlay"
+            icon="xmark"
+            onPress={() => {
+              setConnection('');
+              setOverlayTasks(false);
+            }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Permission Fixture"
+            icon="lock.open"
+            onPress={() =>
+              void present(PermissionScreen, {
+                sessionId: 'ui-verify-permission',
+                generation: 0,
+                source: permissionSource,
+                service: permissionService,
+              })
+            }
+          />
+          <Stack.Toolbar.MenuAction
+            children="Question Fixture"
+            icon="questionmark.bubble"
+            onPress={openQuestionFixture}
+          />
+        </Stack.Toolbar.Menu>
         {durationFixture && !durationFixture.finished && (
           <Stack.Toolbar.Button
             accessibilityLabel="Finish Duration Fixture"

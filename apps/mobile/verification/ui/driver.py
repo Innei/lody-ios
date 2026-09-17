@@ -11,9 +11,10 @@ class UI:
     def __init__(self, udid, output):
         self.udid, self.output = udid, Path(output)
         self.output.mkdir(parents=True, exist_ok=True)
+        self._axe_ready = False
 
-    def axe(self, *args):
-        output = subprocess.check_output(['axe', *args, '--udid', self.udid], text=True, timeout=20)
+    def axe(self, *args, timeout=20):
+        output = subprocess.check_output(['axe', *args, '--udid', self.udid], text=True, timeout=timeout)
         if output.startswith('Error:'):
             raise RuntimeError(output)
         return output
@@ -92,14 +93,24 @@ class UI:
             elif isinstance(node, list):
                 for child in node:
                     yield from walk(child)
-        # Right after install+launch the simulator can briefly refuse describe-ui.
-        for attempt in range(6):
+        def describe():
+            return list(walk(json.loads(self.axe('describe-ui', timeout=30 if not self._axe_ready else 20))))
+        if self._axe_ready:
             try:
-                return list(walk(json.loads(self.axe('describe-ui'))))
-            except subprocess.CalledProcessError:
-                if attempt == 5:
-                    raise
-                time.sleep(1)
+                return describe()
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError, json.JSONDecodeError):
+                self._axe_ready = False
+        deadline = time.monotonic() + 90
+        last = None
+        while time.monotonic() < deadline:
+            try:
+                items = describe()
+                self._axe_ready = True
+                return items
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError, json.JSONDecodeError) as error:
+                last = error
+                time.sleep(2)
+        raise last
 
     def wait(self, predicate, message, timeout=30):
         deadline = time.monotonic() + timeout

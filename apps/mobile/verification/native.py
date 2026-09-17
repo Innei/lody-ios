@@ -90,7 +90,8 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             command += ['-lsqlite3']
         command += [str(kit / 'ios' / file) for file in files]
         command += [str(kit / 'verification' / name / 'main.swift'), '-o', binary]
-        subprocess.run(command, check=True, timeout=120)
+        # Xcode 27 CI compiles the larger chat/composer graphs much slower than a local Mac.
+        subprocess.run(command, check=True, timeout=240)
         # A cold CI Simulator draws its first text far slower than a warm local one.
         command = ['xcrun', 'simctl', 'spawn', args.udid, binary] if simulator else [binary]
         if name == 'attachments':
