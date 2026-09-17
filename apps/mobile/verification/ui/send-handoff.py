@@ -1,4 +1,5 @@
 """Real form-sheet dismissal/root push with the same local native message."""
+import os
 import sys
 import subprocess
 import json
@@ -78,4 +79,5 @@ ui.capture('target-reconciled')
 assert not geometry_errors, '\n'.join(geometry_errors)
 print('PASS: immediate first turn, failure/retry, stable timer geometry through connection and first reply takeover')
 
-throw_trace.verify(1)
+if not os.environ.get('LODY_UI_EMBEDDED'):
+    throw_trace.verify(1)

@@ -42,8 +42,12 @@ class UI:
         keyboard and retype only when the field disagrees, so a run never toggles a
         keyboard that is already Latin."""
         import catalog
+        def committed():
+            got = self.element(identifier).get('AXValue') or ''
+            # AXe type can hold Shift, so Latin fixture text may land in all caps.
+            return got == text or got.casefold() == text.casefold()
         self.axe('type', text)
-        if self.element(identifier).get('AXValue') == text:
+        if committed():
             return
         try:
             self.axe('tap', '--label', catalog.system('nextKeyboard'), '--post-delay', '.6', recover=False)
@@ -52,7 +56,7 @@ class UI:
         for _ in range(len(text) + 8):
             self.axe('key', '42')
         self.axe('type', text)
-        assert self.element(identifier).get('AXValue') == text, 'Typed text did not commit'
+        assert committed(), f'Typed text did not commit: {self.element(identifier).get("AXValue")!r}'
 
     def paste_file(self, identifier):
         return self._paste_provider(identifier, 'file-pasteboard.swift', ['clipboard-fixture.txt'])
