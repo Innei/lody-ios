@@ -11,7 +11,7 @@ struct LodyLiveActivityWidget: Widget {
         overviewRoute: context.attributes.overviewRoute,
         isStale: context.isStale
       )
-      .activityBackgroundTint(nil)
+      .activityBackgroundTint(.clear)
     } dynamicIsland: { context in
       island(context)
     }

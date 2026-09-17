@@ -477,9 +477,41 @@ struct LodyLockScreenView: View {
       .padding(.vertical, 14)
       .frame(maxWidth: .infinity, alignment: .leading)
       .background {
-        JellyGlow(opacity: isStale ? 0.15 : 0.42)
+        ZStack {
+          LinearGradient(
+            colors: [.black.opacity(0.58), .black.opacity(0.24), .clear],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+          )
+          wash
+          JellyGlow(opacity: isStale ? 0.15 : 0.42)
+        }
+        .mask {
+          LinearGradient(
+            stops: [
+              .init(color: .clear, location: 0),
+              .init(color: .white, location: 0.2),
+              .init(color: .white, location: 0.8),
+              .init(color: .clear, location: 1),
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+          )
+        }
+        .mask {
+          LinearGradient(
+            stops: [
+              .init(color: .clear, location: 0),
+              .init(color: .white, location: 0.3),
+              .init(color: .white, location: 0.7),
+              .init(color: .clear, location: 1),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+          )
+        }
+        .padding(6)
       }
-      .background(wash)
       .lodyStale(isStale)
   }
 
