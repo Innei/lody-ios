@@ -157,6 +157,7 @@ class CaseSelectionTest(unittest.TestCase):
         navigation = Path(__file__).with_name('navigation.py').read_text()
         self.assertIn("for label in ('Open', '打开', '開啟'):", navigation)
         self.assertIn('_scheme_allowed', navigation)
+        self.assertIn("range(2 if embedded else 3)", navigation)
         self.assertIn('recover=False', navigation)
         native = Path(__file__).resolve().parents[1].joinpath('native.py').read_text()
         self.assertIn('timeout=240', native)

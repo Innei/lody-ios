@@ -45,8 +45,11 @@ class UI:
         self.axe('type', text)
         if self.element(identifier).get('AXValue') == text:
             return
-        self.axe('tap', '--label', catalog.system('nextKeyboard'), '--post-delay', '.6')
-        for _ in range(len(text) + 4):
+        try:
+            self.axe('tap', '--label', catalog.system('nextKeyboard'), '--post-delay', '.6', recover=False)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError):
+            pass
+        for _ in range(len(text) + 8):
             self.axe('key', '42')
         self.axe('type', text)
         assert self.element(identifier).get('AXValue') == text, 'Typed text did not commit'

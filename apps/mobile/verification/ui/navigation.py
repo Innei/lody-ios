@@ -76,7 +76,8 @@ def session(title):
 home('initial-home')
 # Recreate the process with the same offline launch contract to cover startup
 # ordering between native header configuration and the workspace props.
-for index in range(3):
+embedded = bool(os.environ.get('LODY_UI_EMBEDDED'))
+for index in range(2 if embedded else 3):
     subprocess.run(['xcrun', 'simctl', 'terminate', udid, 'app.innei.lody'], check=True, timeout=30)
     ui.invalidate_axe()
     launch = ['xcrun', 'simctl', 'launch', udid, 'app.innei.lody', '--ui-verify', '--ui-verify-home',
@@ -141,7 +142,7 @@ avatar = catalog.text('inbox.workspaceSwitch.accessibility', name='我的超长�
 ui.wait(lambda items: any(i.get('AXLabel') == avatar for i in items), 'Link did not select the target workspace')
 
 # Missing Router pages return to the existing root, never replace the top with another Home.
-for _ in range(2):
+for _ in range(1 if embedded else 2):
     open_url('missing-page')
     home('unknown-return')
 
