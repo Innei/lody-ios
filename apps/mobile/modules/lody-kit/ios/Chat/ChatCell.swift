@@ -101,12 +101,31 @@ final class ChatMetaCell: UICollectionViewCell {
   }
 }
 
+final class ChatMarkView: UIImageView {
+  private(set) var lastReplaceAnimated = false
+
+  func setMark(_ image: UIImage?, animated: Bool) {
+    lastReplaceAnimated = animated && image != nil
+    if let image, animated {
+      setSymbolImage(image, contentTransition: .replace.downUp)
+      return
+    }
+    removeAllSymbolEffects(animated: false)
+    self.image = image
+  }
+
+  func cancelMarkEffects() {
+    lastReplaceAnimated = false
+    removeAllSymbolEffects(animated: false)
+  }
+}
+
 final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   let messageContent = ChatMessageContent(frame: .zero)
   var label: ChatTextView { messageContent.label }
   var numericText: ChatNumericTextHost { messageContent.numericText }
   var bubble: UIView { messageContent.bubble }
-  let icon = UIImageView()
+  let icon = ChatMarkView()
   let spinner = UIActivityIndicatorView(style: .medium)
   let separator = UIView()
   var row: ChatRow?
@@ -116,6 +135,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   var expanded = false
   var collapsedHeight: CGFloat = ChatMessageContent.maximumCollapsedHeight
   var expandable = false
+  private var markReady = false
   override init(frame: CGRect) {
     super.init(frame: frame)
     bubble.backgroundColor = .lodyUserBubble
@@ -134,13 +154,13 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
   func configure(_ row: ChatRow, text: NSAttributedString) {
     let sameRow = self.row?.id == row.id
+    let previousSymbol = self.row?.symbol ?? ""
     label.setText(text, animate: row.streaming, reset: !sameRow)
     self.row = row
     if row.kind == "user" { ChatSendHandoff.hold(id: row.entryID, target: messageContent) }
     else { messageContent.isHidden = false }
     bubble.isHidden = row.kind != "user"
-    icon.image = row.symbol.isEmpty ? nil : UIImage(systemName: row.symbol, withConfiguration: Self.iconSymbolConfiguration(for: row))
-    icon.tintColor = chromeColor(for: row)
+    applyLeadingMark(for: row, previousSymbol: previousSymbol, sameRow: sameRow)
     row.running && row.kind != "summary" && row.kind != "duration"
       ? spinner.startAnimating()
       : spinner.stopAnimating()
@@ -171,12 +191,44 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
 
   override func prepareForReuse() {
     super.prepareForReuse()
+    markReady = false
+    icon.cancelMarkEffects()
     label.setShine(false)
     label.isHidden = false
     numericText.reset()
     numericText.isHidden = true
     label.onLink = nil
     accessibilityCustomActions = nil
+  }
+
+  private func applyLeadingMark(for row: ChatRow, previousSymbol: String, sameRow: Bool) {
+    let image = row.symbol.isEmpty
+      ? nil
+      : UIImage(systemName: row.symbol, withConfiguration: Self.iconSymbolConfiguration(for: row))
+    let tint = chromeColor(for: row)
+    let animated = markReady
+      && sameRow
+      && window != nil
+      && !UIAccessibility.isReduceMotionEnabled
+      && !previousSymbol.isEmpty
+      && !row.symbol.isEmpty
+      && previousSymbol != row.symbol
+    markReady = true
+    if animated, let image {
+      icon.setMark(image, animated: true)
+      UIView.animate(
+        withDuration: 0.22,
+        delay: 0,
+        options: [.beginFromCurrentState, .curveEaseInOut, .allowUserInteraction]
+      ) {
+        self.icon.tintColor = tint
+      }
+      return
+    }
+    if !sameRow || previousSymbol != row.symbol {
+      icon.setMark(image, animated: false)
+    }
+    icon.tintColor = tint
   }
   func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
     guard let row, row.kind == "user" || row.kind == "text", messageContent.frame.contains(location) else { return nil }

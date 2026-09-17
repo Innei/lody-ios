@@ -282,6 +282,48 @@ precondition(
   abs(wrappedSummary.icon.frame.midY - wrappedSummary.label.frame.midY) > 0.5,
   "The process pip must not center on the whole wrapped block"
 )
+
+precondition(
+  !runningSummary.icon.lastReplaceAnimated && !failedLiveSummary.icon.lastReplaceAnimated,
+  "The first process mark must appear without a replace transition"
+)
+let markSwap = summaryCell(for: summaryRow(running: true, attention: false))
+precondition(!markSwap.icon.lastReplaceAnimated, "A newly bound process pip must not animate in")
+let warningSwap = summaryRow(running: true, attention: true)
+let warningSwapText = NSAttributedString(string: warningSwap.text, attributes: [
+  .font: UIFont.systemFont(ofSize: 13),
+])
+markSwap.configure(warningSwap, text: warningSwapText)
+markSwap.layoutIfNeeded()
+if UIAccessibility.isReduceMotionEnabled {
+  precondition(!markSwap.icon.lastReplaceAnimated, "Reduce Motion must keep the process mark swap instant")
+} else {
+  precondition(markSwap.icon.lastReplaceAnimated, "Replacing the process pip with a warning mark must use a symbol replace")
+}
+markSwap.configure(warningSwap, text: warningSwapText)
+if !UIAccessibility.isReduceMotionEnabled {
+  precondition(
+    markSwap.icon.lastReplaceAnimated,
+    "A later process update must not cancel the pip-to-warning replace"
+  )
+}
+precondition(
+  markSwap.icon.image?.pngData() == warnMark?.pngData(),
+  "The leading mark must finish on the warning symbol"
+)
+precondition(
+  resolved(markSwap.icon.tintColor, traits: traits) == resolved(.systemOrange, traits: traits),
+  "The animated warning mark must stay system orange"
+)
+let reusedMark = summaryCell(for: summaryRow(running: true, attention: false))
+reusedMark.prepareForReuse()
+reusedMark.configure(warningSwap, text: warningSwapText)
+reusedMark.layoutIfNeeded()
+precondition(!reusedMark.icon.lastReplaceAnimated, "Reuse must not play the pip-to-warning transition")
+precondition(
+  reusedMark.icon.image?.pngData() == warnMark?.pngData(),
+  "Reuse must still draw the warning symbol"
+)
 print("Chat render: process status pip uses running, done and attention colors")
 
 func glyphWidth(_ font: UIFont, _ text: String) -> CGFloat {
