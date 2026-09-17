@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   initialInboxView,
   saveInboxView,
@@ -7,6 +7,8 @@ import {
   projectSorts,
   readInboxExpansion,
   saveInboxExpansion,
+  readInboxPinOrder,
+  saveInboxPinOrder,
 } from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
@@ -16,9 +18,11 @@ import { showToast } from '@/ui/toast';
 import { t } from '@/lib/i18n';
 import { useSessionListCatalog } from './useSessionListCatalog';
 import {
+  activityAt,
   inboxSections,
   isChatSectionRow,
   projectSections,
+  reconcilePinOrder,
   searchSections,
   type ProjectSort,
 } from './inbox';
@@ -66,14 +70,41 @@ export function useInboxModel() {
   const [query, setQuery] = useState('');
   const creating = useRef(false);
   const searching = !!query.trim();
+  const userId = account?.user.id ?? '';
+  const workspaceId = selected?.id ?? '';
+  const pinOrder = useMemo(() => {
+    const stored =
+      userId && workspaceId ? readInboxPinOrder(userId, workspaceId) : [];
+    const pinnedIds = catalog.sessions
+      .filter((session) => session.pinned)
+      .map((session) => session.id);
+    return reconcilePinOrder(stored, pinnedIds, (id) => {
+      const session = catalog.sessions.find((item) => item.id === id);
+      return session ? activityAt(session) : 0;
+    });
+  }, [catalog, userId, workspaceId]);
+  useEffect(() => {
+    if (!userId || !workspaceId) return;
+    const stored = readInboxPinOrder(userId, workspaceId);
+    if (stored.join('\0') === pinOrder.join('\0')) return;
+    saveInboxPinOrder(userId, workspaceId, pinOrder);
+  }, [pinOrder, userId, workspaceId]);
   const sections = useMemo(() => {
     if (mode === 0)
-      return projectSections(catalog, colors.accent, expanded, undefined, sort);
+      return projectSections(
+        catalog,
+        colors.accent,
+        expanded,
+        undefined,
+        sort,
+        pinOrder,
+      );
     return inboxSections(catalog, {
       accent: colors.accent,
       chatOnly: mode === 2,
+      pinOrder,
     });
-  }, [mode, sort, catalog, colors.accent, expanded]);
+  }, [mode, sort, catalog, colors.accent, expanded, pinOrder]);
   const setView = useCallback((next: (typeof inboxViews)[number]['mode']) => {
     setMode(next);
     saveInboxView(next);

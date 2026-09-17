@@ -3,12 +3,14 @@ import sys
 from driver import UI
 import catalog
 
-SECTIONS = ('attention', 'live', 'unread', 'today', 'yesterday', 'week', 'month', 'older')
+SECTIONS = ('attention', 'pinned', 'live', 'unread', 'today', 'yesterday', 'week', 'month', 'older')
 HEADERS = tuple(catalog.text(f'inbox.section.{name}') for name in SECTIONS)
 ORDER = (
     ('header', catalog.text('inbox.section.attention')),
     ('row', 'inbox-wait'),
     ('row', 'inbox-awaiting'),
+    ('header', catalog.text('inbox.section.pinned')),
+    ('row', 'inbox-pinned'),
     ('header', catalog.text('inbox.section.live')),
     ('row', 'inbox-live'),
     ('header', catalog.text('inbox.section.unread')),
@@ -27,6 +29,7 @@ ORDER = (
 TITLES = {
     'inbox-wait': '权限确认会话',
     'inbox-awaiting': '完成后等确认',
+    'inbox-pinned': '已置顶的已读会话',
     'inbox-live': '正在运行的任务',
     'inbox-unread': '刚完成未查看',
     'inbox-today': '今天已读会话',
@@ -120,7 +123,8 @@ else:
 
 assert seen == list(ORDER), seen
 assert seen.index(('row', 'inbox-unread')) < seen.index(('header', catalog.text('inbox.section.today')))
-assert seen.index(('row', 'inbox-awaiting')) < seen.index(('header', catalog.text('inbox.section.live')))
+assert seen.index(('row', 'inbox-awaiting')) < seen.index(('header', catalog.text('inbox.section.pinned')))
+assert seen.index(('header', catalog.text('inbox.section.pinned'))) < seen.index(('header', catalog.text('inbox.section.live')))
 ui.capture('groups')
 
 unread = None

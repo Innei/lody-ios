@@ -151,6 +151,7 @@
   "catalog.toast.localSaveFailed": "本地数据保存失败，下次启动可能需要重新同步",
   "catalog.toast.workspaceSaveFailed": "未能保存工作区选择",
   "inbox.section.attention": "需要你确认",
+  "inbox.section.pinned": "已置顶",
   "inbox.section.live": "进行中",
   "inbox.section.unread": "已完成 · 待查看",
   "inbox.section.today": "今天",

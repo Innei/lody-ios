@@ -151,6 +151,7 @@
   "catalog.toast.localSaveFailed": "Could not save data locally. The next launch may need a resync.",
   "catalog.toast.workspaceSaveFailed": "Could not save your workspace choice",
   "inbox.section.attention": "Needs your approval",
+  "inbox.section.pinned": "Pinned",
   "inbox.section.live": "Running",
   "inbox.section.unread": "Done · Unread",
   "inbox.section.today": "Today",

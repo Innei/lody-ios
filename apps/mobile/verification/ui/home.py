@@ -58,6 +58,14 @@ def assert_model_row():
     assert label.index('feature/session-model') < label.index('GPT-6'), label
 
 assert_model_row()
+pinned = ui.element('toggle:pinned')
+project = ui.element('toggle:ui:local:lody')
+pinned_row = ui.element('ui-pinned')
+assert pinned['frame']['y'] < project['frame']['y'], (pinned['frame'], project['frame'])
+assert pinned_row['frame']['y'] < project['frame']['y'], (
+    pinned_row['frame'],
+    project['frame'],
+)
 if any(i.get('AXUniqueId') == 'xmark' and i.get('AXLabel') == catalog.system('close') for i in ui.state()):
     ui.axe('tap', '--id', 'xmark', '--post-delay', '1')
 ui.capture('home')
@@ -159,7 +167,15 @@ capture_card(ui, 'create-full', 'project')
 
 # A repository with no existing sessions is discoverable, and can run on a
 # teammate's shared machine. Local projects continue to pin their own machine.
-ui.axe('tap', '--id', 'project', '--post-delay', '.5')
+project_row = next(item for item in ui.state() if item.get('AXUniqueId') == 'project')
+pf = project_row['frame']
+ui.axe(
+    'tap',
+    '-x', str(pf['x'] + pf['width'] / 2),
+    '-y', str(pf['y'] + pf['height'] / 2),
+    '--post-delay', '.5',
+)
+ui.axe('tap', '--label', catalog.text('projectPicker.github'), '--post-delay', '.5')
 ui.element('github:LodyAI/FreshProject')
 ui.capture('github-repositories')
 ui.axe('tap', '--id', 'github:LodyAI/FreshProject', '--post-delay', '.7')
@@ -192,7 +208,15 @@ assert ui.element('branch')['AXValue'] == 'main'
 assert ui.element('create-session-input')['AXValue'] == 'Shared draft from chat', 'Switching to project cleared the shared draft'
 ui.capture('project-state-retained')
 # Return through the picker while preserving the native sheet navigation.
-ui.axe('tap', '--id', 'project', '--post-delay', '.5')
+project_row = next(item for item in ui.state() if item.get('AXUniqueId') == 'project')
+pf = project_row['frame']
+ui.axe(
+    'tap',
+    '-x', str(pf['x'] + pf['width'] / 2),
+    '-y', str(pf['y'] + pf['height'] / 2),
+    '--post-delay', '.5',
+)
+ui.axe('tap', '--label', catalog.text('projectPicker.local'), '--post-delay', '.5')
 ui.axe('tap', '--id', 'ui:local:lody', '--post-delay', '.7')
 assert not any(i.get('AXUniqueId') in ('machine', 'branch') for i in ui.state()), 'Local project retained GitHub configuration'
 assert 'Fixture Mac' in ui.element('project')['AXLabel']
@@ -252,10 +276,11 @@ ui.axe('tap', '--label', catalog.text('inbox.settings.sort.activity'), '--post-d
 ui.axe('tap', '--label', view_label, '--post-delay', '.8')
 ui.axe('tap', '--label', catalog.text('inbox.settings.view.projects'), '--post-delay', '.8')
 ui.element('toggle:chat')
+ui.element('toggle:pinned')
+ui.element('ui-pinned')
 project = ui.element('toggle:ui:local:lody')
 # The outline parent is an accessibility container; its content view carries the label.
 assert any('Lody iOS' in (child.get('AXLabel') or '') for child in project.get('children') or []), project
-assert catalog.system('collapse') in (project.get('custom_actions') or []), project
 
 
 # The outline disclosure accessory shares the parent's identifier, so tap by frame.
@@ -264,6 +289,10 @@ def tap_project():
     ui.axe('tap', '-x', str(frame['x'] + 120), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.8')
 
 
+if catalog.system('collapse') not in (project.get('custom_actions') or []):
+    tap_project()
+    project = ui.element('toggle:ui:local:lody')
+assert catalog.system('collapse') in (project.get('custom_actions') or []), project
 tap_project()
 ui.wait(lambda items: not any(i.get('AXUniqueId') == 'ui-design' for i in items), 'Collapsing the project must hide its sessions')
 ui.capture('project-collapsed')

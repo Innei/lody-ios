@@ -70,6 +70,8 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   saveQueuedMessageBehavior(value: string): void;
   readInboxExpansion(): Record<string, boolean>;
   saveInboxExpansion(projectId: string, expanded: boolean): void;
+  readInboxPinOrder(userId: string, workspaceId: string): string[];
+  saveInboxPinOrder(userId: string, workspaceId: string, ids: string[]): void;
   watchSession(id: string): Promise<void>;
   prepareChatEntries(
     json: string,
@@ -275,6 +277,13 @@ export const saveInboxProjectSort = (index: number) =>
 export const readInboxExpansion = () => native.readInboxExpansion();
 export const saveInboxExpansion = (projectId: string, expanded: boolean) =>
   native.saveInboxExpansion(projectId, expanded);
+export const readInboxPinOrder = (userId: string, workspaceId: string) =>
+  native.readInboxPinOrder(userId, workspaceId);
+export const saveInboxPinOrder = (
+  userId: string,
+  workspaceId: string,
+  ids: string[],
+) => native.saveInboxPinOrder(userId, workspaceId, ids);
 
 export const readLocalValue = (key: string) => native.readLocalValue(key);
 export const writeLocalValue = (key: string, value: string) =>

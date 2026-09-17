@@ -47,6 +47,11 @@ const catalog: Catalog = {
       lastMessageAt: NOW - 30_000,
       awaitingUserSince: NOW - 30_000,
     }),
+    session('inbox-pinned', '已置顶的已读会话', 'completed', {
+      pinned: true,
+      lastMessageAt: NOW - 45_000,
+      lastReadAt: NOW - 10_000,
+    }),
     session('inbox-live', '正在运行的任务', 'running'),
     session('inbox-unread', '刚完成未查看', 'completed', {
       lastMessageAt: NOW - 60_000,

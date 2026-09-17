@@ -144,6 +144,22 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     UserDefaults.standard.set(values, forKey: "inboxExpansion")
   }
 
+  private func pinOrderKey(userId: String, workspaceId: String) -> String {
+    "inboxPinOrder.\(userId).\(workspaceId)"
+  }
+
+  @JS
+  func readInboxPinOrder(userId: String, workspaceId: String) -> [String] {
+    guard !userId.isEmpty, !workspaceId.isEmpty else { return [] }
+    return UserDefaults.standard.stringArray(forKey: pinOrderKey(userId: userId, workspaceId: workspaceId)) ?? []
+  }
+
+  @JS
+  func saveInboxPinOrder(userId: String, workspaceId: String, ids: [String]) {
+    guard !userId.isEmpty, !workspaceId.isEmpty else { return }
+    UserDefaults.standard.set(ids, forKey: pinOrderKey(userId: userId, workspaceId: workspaceId))
+  }
+
   public func definition() -> ModuleDefinition {
     Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress")
     AsyncFunction("watchCatalog") { (workspace: String, slug: String, name: String, owner: String, userId: String) in

@@ -121,6 +121,8 @@ export {
   projectSorts,
   readInboxExpansion,
   saveInboxExpansion,
+  readInboxPinOrder,
+  saveInboxPinOrder,
 } from './runtime/LodyKit';
 
 export {

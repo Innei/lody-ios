@@ -3,6 +3,8 @@ import test from 'node:test';
 import {
   activeSessionSections,
   inboxSections,
+  PINNED_SECTION_ID,
+  reconcilePinOrder,
 } from '../../src/features/sessions/inbox.ts';
 import { listPlaceholder, searchPlaceholder } from '../../src/ui/listState.ts';
 import { draftTitle } from '../../src/features/sessions/draftTitle.ts';
@@ -386,6 +388,7 @@ test('toggle and project row ids resolve to the project', async () => {
   assert.equal(projectIdOfRow('toggle:p1'), 'p1');
   assert.equal(projectIdOfRow('project:p1'), 'p1');
   assert.equal(projectIdOfRow('s1'), undefined);
+  assert.equal(projectIdOfRow(`toggle:${PINNED_SECTION_ID}`), undefined);
 });
 
 test('project menus offer new session, open, and copy path except unassigned', async () => {
@@ -646,4 +649,170 @@ test('search finds empty projects and archived sessions without the inbox limit'
   assert.equal(found[0].rows.length, 2);
   assert.equal(found[1].rows.length, 25);
   assert.equal(found[1].rows[0].badge, '已归档');
+});
+
+test('pin order prepends unknown ids by activity and drops unpinned', () => {
+  const activity = { old: 1, mid: 2, new: 3 };
+  assert.deepEqual(
+    reconcilePinOrder(
+      ['old', 'gone'],
+      ['new', 'mid', 'old'],
+      (id) => activity[id],
+    ),
+    ['new', 'mid', 'old'],
+  );
+});
+
+test('pin order freezes after the first pass', () => {
+  const first = reconcilePinOrder([], ['older', 'newer'], (id) =>
+    id === 'newer' ? 2 : 1,
+  );
+  assert.deepEqual(first, ['newer', 'older']);
+  assert.deepEqual(
+    reconcilePinOrder(first, ['older', 'newer'], (id) =>
+      id === 'older' ? 9 : 1,
+    ),
+    ['newer', 'older'],
+  );
+});
+
+test('pin order keeps archived pins until they are unpinned', () => {
+  assert.deepEqual(
+    reconcilePinOrder(['kept', 'archived'], ['kept', 'archived'], () => 0),
+    ['kept', 'archived'],
+  );
+  assert.deepEqual(
+    reconcilePinOrder(['kept', 'archived'], ['kept'], () => 0),
+    ['kept'],
+  );
+});
+
+const readPin = (id, extra = {}) =>
+  session(id, 'completed', {
+    pinned: true,
+    lastMessageAt: now - 60_000,
+    lastReadAt: now,
+    ...extra,
+  });
+
+test('read pinned history sits in 已置顶 between attention and live', () => {
+  const sections = build(
+    catalog([
+      session('wait', 'waiting'),
+      session('run', 'running'),
+      readPin('pin'),
+    ]),
+  );
+  assert.deepEqual(
+    sections.map((s) => [s.id, s.header, s.rows.map((r) => r.id)]),
+    [
+      ['attention', '需要你确认', ['wait']],
+      [PINNED_SECTION_ID, '已置顶', ['pin']],
+      ['live', '进行中', ['run']],
+    ],
+  );
+  assert.equal(sections[1].rows[0].pinned, true);
+});
+
+test('pinned waiting, live and unread stay out of 已置顶', () => {
+  const sections = build(
+    catalog([
+      session('wait', 'waiting', { pinned: true }),
+      session('run', 'running', { pinned: true }),
+      session('fresh', 'completed', {
+        pinned: true,
+        lastMessageAt: now - 60_000,
+      }),
+    ]),
+  );
+  assert.deepEqual(
+    sections.map((s) => [s.id, s.rows.map((r) => r.id)]),
+    [
+      ['attention', ['wait']],
+      ['live', ['run']],
+      ['unread', ['fresh']],
+    ],
+  );
+});
+
+test('pinned group follows local pin order instead of latest activity', () => {
+  const sections = build(
+    catalog([
+      readPin('older', { lastMessageAt: now - 120_000 }),
+      readPin('newer', { lastMessageAt: now - 30_000 }),
+    ]),
+    { pinOrder: ['older', 'newer'] },
+  );
+  assert.deepEqual(
+    sections[0].rows.map((r) => r.id),
+    ['older', 'newer'],
+  );
+});
+
+test('archived pinned sessions stay out of 已置顶 until searched', () => {
+  const data = catalog([
+    readPin('hidden', { archived: true }),
+    readPin('shown'),
+  ]);
+  assert.deepEqual(
+    build(data).map((s) => s.rows.map((r) => r.id)),
+    [['shown']],
+  );
+  assert.equal(build(data, { keyword: 'hidden' })[0].rows[0].id, 'hidden');
+});
+
+test('project view lifts every pin into an uncapped outline above projects', async () => {
+  const { projectSections } =
+    await import('../../src/features/sessions/inbox.ts');
+  const pins = Array.from({ length: 6 }, (_, i) =>
+    session(`pin-${i}`, i === 0 ? 'waiting' : 'completed', {
+      pinned: true,
+      lastMessageAt: now - i * 60_000,
+      lastReadAt: now,
+    }),
+  );
+  const data = catalog(
+    [
+      ...pins,
+      session('stay', 'completed', { lastMessageAt: now - 60_000 }),
+      session('talk', 'completed', {
+        pinned: true,
+        projectId: 'm1:unassigned',
+        lastMessageAt: now,
+      }),
+    ],
+    [
+      { id: 'p1', name: 'lody-ios', rootPath: '/p' },
+      { id: 'm1:unassigned', name: '未分配', rootPath: '' },
+    ],
+  );
+  const sections = projectSections(data, ACCENT, {}, now, 'name', [
+    'talk',
+    ...pins.map((s) => s.id),
+  ]);
+  assert.equal(sections[0].id, PINNED_SECTION_ID);
+  assert.equal(sections[0].header, undefined);
+  assert.equal(sections[0].headerExpanded, true);
+  const [parent, ...children] = sections[0].rows;
+  assert.equal(parent.id, `toggle:${PINNED_SECTION_ID}`);
+  assert.equal(parent.parent, true);
+  assert.equal(parent.image, 'pin.fill');
+  assert.equal(parent.title, '已置顶');
+  assert.equal(parent.menuActions, undefined);
+  assert.deepEqual(
+    children.map((row) => row.id),
+    ['talk', ...pins.map((s) => s.id)],
+  );
+  assert.equal(
+    children.some((row) => row.title?.includes('还有')),
+    false,
+  );
+  assert.deepEqual(
+    sections.slice(1).map((s) => s.id),
+    ['p1'],
+  );
+  assert.deepEqual(
+    sections[1].rows.slice(1).map((row) => row.id),
+    ['stay'],
+  );
 });
