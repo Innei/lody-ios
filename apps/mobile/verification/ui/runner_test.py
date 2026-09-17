@@ -153,7 +153,7 @@ class CaseSelectionTest(unittest.TestCase):
         self.assertIn("elif case == 'navigation':", source)
         self.assertIn('check_timeout = 480', source)
         self.assertIn('check_timeout = 600', source)
-        self.assertIn("elif case == 'send':", source)
+        self.assertIn("elif case in ('send', 'send-handoff'):", source)
         self.assertIn('fail_fast = bool(args.fail_fast)', source)
         self.assertIn("env['LODY_UI_EMBEDDED'] = '1'", source)
         self.assertIn('except subprocess.TimeoutExpired as error:', source)

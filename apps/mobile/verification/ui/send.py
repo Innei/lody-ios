@@ -42,15 +42,16 @@ assert ui.element(turn + ':user-text')['AXLabel'] == draft
 ui.element(turn + ':attachment:fixture-file')
 ui.capture('reconciled')
 ui.axe('tap', '--id', 'session-input')
-ui.type_into('session-input', '2 next draft')
+# AXe `type` emits Shift+digit on this Simulator (2 → @, 3 → #). Use letters only.
+ui.type_into('session-input', 'second next draft')
 # Let the measured throw settle before driving another input mutation.
 ui.axe('tap', '--id', 'session-send', '--post-delay', '1')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 3 · sending' for i in items), 'Next send missing')
-ui.type_into('session-input', '3 next draft')
+ui.type_into('session-input', 'third next draft')
 ui.axe('tap', '--id', 'send-fail')
 ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('send.alert.title') for i in items), 'Failure alert missing')
 ui.axe('tap', '--label', catalog.system('ok'))
-assert ui.element('session-input')['AXValue'] == '3 next draft', 'Failure overwrote new input'
+assert ui.element('session-input')['AXValue'] == 'third next draft', 'Failure overwrote new input'
 assert not ui.element('session-send')['enabled'], 'Retained failure must not be overwritten by a new send'
 ui.capture('new-draft-preserved')
 
