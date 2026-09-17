@@ -14,19 +14,19 @@ PanelUI `ImageViewer` 的产品行为对（同一 root 下左右翻、放大不�
 
 ## 决定
 
-| 项 | 选择 |
-| --- | --- |
-| 实现 | 扩展 `ChatImagePreview`，不引入 `panelui-native` / Uniwind / RNGH |
-| 相册范围 | 当前 snapshot 里所有能当图画的条目，按列表顺序 |
-| 未加载历史 | 不计入，不自动拉更早页 |
-| 非图 | 仍 Quick Look / `SessionFilePreview` / `ChatAttachmentPreview` |
-| Composer 草稿 | 仍 `QLPreviewController`，不并进这本相册 |
-| 转场 | `overFullScreen` + `preferredTransition = .zoom`。模糊层不跟着 zoom 形变：打开/关闭时单独把 backdrop alpha 从 0 插到 1，避免全屏 modal 闪黑、材质从缩略图拉满 |
-| 下拉关闭 | 系统 zoom 交互关闭，不自绘竖直 dismiss |
-| 翻页容器 | 不用 `UIPageViewController`（和 modal pan 抢手势） |
-| 缩略图裁切 | 保持 aspect-fit；不做 cover → contain 飞行 |
-| 打开后列表变化 | 仅相册入口：重算 items；当前 id 还在则留在该页，消失则关闭 |
-| 展示 API | 单张和相册是两个入口。`ChatImagePreview` 不要求调用方先组 list |
+| 项             | 选择                                                                                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 实现           | 扩展 `ChatImagePreview`，不引入 `panelui-native` / Uniwind / RNGH                                                                                             |
+| 相册范围       | 当前 snapshot 里所有能当图画的条目，按列表顺序                                                                                                                |
+| 未加载历史     | 不计入，不自动拉更早页                                                                                                                                        |
+| 非图           | 仍 Quick Look / `SessionFilePreview` / `ChatAttachmentPreview`                                                                                                |
+| Composer 草稿  | 仍 `QLPreviewController`，不并进这本相册                                                                                                                      |
+| 转场           | `overFullScreen` + `preferredTransition = .zoom`。模糊层不跟着 zoom 形变：打开/关闭时单独把 backdrop alpha 从 0 插到 1，避免全屏 modal 闪黑、材质从缩略图拉满 |
+| 下拉关闭       | 系统 zoom 交互关闭，不自绘竖直 dismiss                                                                                                                        |
+| 翻页容器       | 不用 `UIPageViewController`（和 modal pan 抢手势）                                                                                                            |
+| 缩略图裁切     | 保持 aspect-fit；不做 cover → contain 飞行                                                                                                                    |
+| 打开后列表变化 | 仅相册入口：重算 items；当前 id 还在则留在该页，消失则关闭                                                                                                    |
+| 展示 API       | 单张和相册是两个入口。`ChatImagePreview` 不要求调用方先组 list                                                                                                |
 
 ## 所有权
 
@@ -106,11 +106,11 @@ Reduce Motion 交给系统 zoom；翻页不用弹簧，直接对齐页。
 
 每页一个 zoom `UIScrollView`（`minimumZoomScale = 1`，`maximumZoomScale = 4`）。`count == 1` 不装外层横滑。`count > 1` 时在 pan began 锁模式，中途不改：
 
-| 条件 | 模式 |
-| --- | --- |
-| 当前页 `zoomScale > 1.01` | 图内平移；不翻页 |
-| `|dx| > |dy|` 且 fit | 翻页；松手按位移和速度投影，一次最多一页 |
-| 竖直为主 | 不开始翻页，交给系统 zoom 交互关闭 |
+| 条件                      | 模式                               |
+| ------------------------- | ---------------------------------- |
+| 当前页 `zoomScale > 1.01` | 图内平移；不翻页                   |
+| `                         | dx                                 | >   | dy  | ` 且 fit | 翻页；松手按位移和速度投影，一次最多一页 |
+| 竖直为主                  | 不开始翻页，交给系统 zoom 交互关闭 |
 
 双击：fit → 2.5×（焦点在点击处）；已放大 → 1。与单击互斥（双击识别失败才单击）。
 

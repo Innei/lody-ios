@@ -383,11 +383,18 @@ with metro_context:
                         # Includes a real 61-second dismissal wait plus lock/unlock
                         # and Dynamic Island transitions; 180s cuts off deep links.
                         check_timeout = 300
+                    elif case == 'navigation':
+                        # Three cold relaunches plus catalog links; 180s dies after the toolbar pop.
+                        check_timeout = 360
                     elif case in ('chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production'):
                         check_timeout = 300
                     with (output / 'check.log').open('w') as log:
-                        subprocess.run(command, check=True, timeout=check_timeout, stdout=log, stderr=subprocess.STDOUT,
-                                       env={**os.environ, 'LODY_UI_LANGUAGE': args.language, 'LODY_UI_METRO_PORT': str(args.port)})
+                        env = {**os.environ, 'LODY_UI_LANGUAGE': args.language}
+                        if args.embedded:
+                            env['LODY_UI_EMBEDDED'] = '1'
+                        else:
+                            env['LODY_UI_METRO_PORT'] = str(args.port)
+                        subprocess.run(command, check=True, timeout=check_timeout, stdout=log, stderr=subprocess.STDOUT, env=env)
                     ui.capture('after')
                     result['status'] = 'passed'
                 except Exception as error:

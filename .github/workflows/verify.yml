@@ -125,7 +125,7 @@ jobs:
     runs-on: xcode-27
     timeout-minutes: 20
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         suite: [core-home, core-send]
     env:

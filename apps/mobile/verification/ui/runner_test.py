@@ -151,7 +151,12 @@ class CaseSelectionTest(unittest.TestCase):
         self.assertIn("'--embedded'", source)
         self.assertIn('args.shared_metro or args.embedded', source)
         self.assertIn("ui.screenshot('failure')", source)
-        self.assertIn('timeout=240', Path(__file__).resolve().parents[1].joinpath('native.py').read_text())
+        self.assertIn("elif case == 'navigation':", source)
+        self.assertIn('check_timeout = 360', source)
+        self.assertIn("env['LODY_UI_EMBEDDED'] = '1'", source)
+        native = Path(__file__).resolve().parents[1].joinpath('native.py').read_text()
+        self.assertIn('timeout=240', native)
+        self.assertIn("files.insert(0, 'LodyUIVerify.swift')", native)
 
 
 class CaptureTest(unittest.TestCase):

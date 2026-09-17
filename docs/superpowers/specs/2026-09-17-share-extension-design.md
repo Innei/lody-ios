@@ -2,6 +2,12 @@
 
 日期：2026-09-17
 
+> 评审后的前置验证：**点击发送立即向 Cloud 提交**是硬要求，且第三方客户端不能修改 Cloud。
+> 因此下文「扩展只写 inbox、主 App 消费发送」不再是选定方案，「扩展不跑 WebView」也待重新验证。
+> 先用 [Share transport probe](../../../apps/mobile/modules/lody-kit/share-probe/README.md)
+> 在真实 Share Extension 中复用现有认证、Streams / CRDT 与 Machine RPC，验证主 App 未运行时新建 Chat 并发送纯文本。
+> 只有拿到真实机器 ACK、核对首句及扩展内存后，才继续迁移完整表单与附件；以下保留原稿供后续修订，不能作为已通过的实现规格。
+
 ## 问题
 
 iOS 没有「分享到 Lody」。Safari 链接、截图、文件只能先打开 App，再走新建会话。初版要在系统分享面板里完成新建会话（项目 / Chat、机器、Agent、模型、composer），发送后关掉面板并打开那个新会话，第一句已经在飞。
@@ -26,19 +32,19 @@ iOS 没有「分享到 Lody」。Safari 链接、截图、文件只能先打开 
 
 ## 决定
 
-| 项 | 选择 |
-| --- | --- |
-| 初版目的 | 始终新建会话（`destination: "new"`） |
-| 发送后 | 关掉分享面板，打开刚建的会话，第一句已在 outbox |
-| UI / 表单逻辑 | 原生 `LodyCreateSessionController`；RN 只包一层 |
-| 扩展进程 | UIKit 子集，不链 Expo、WebView、OneSignal |
-| 列表 | 先把 `LodyGroupedList` / `LodyPagedList` 的 UIKit 芯从 ExpoView 剥开 |
-| 数据 | App Group 只读快照 + inbox；不搬整份 SQLite |
-| 创建 ID | 发送时客户端新 UUID（与现 `creationOptions.sessionId` 一样） |
-| 唤醒 | `lody://share/{inboxId}`，前台 drain inbox 才是真相源 |
-| 附件上限 | 与上传一致：合计 16，图 ≤ 8，文件 ≤ 8 |
-| App 内发送 | 仍做同一套 composer 接力 |
-| 扩展发送 | 无接力；进会话时消息已在 transcript / outbox |
+| 项            | 选择                                                                 |
+| ------------- | -------------------------------------------------------------------- |
+| 初版目的      | 始终新建会话（`destination: "new"`）                                 |
+| 发送后        | 关掉分享面板，打开刚建的会话，第一句已在 outbox                      |
+| UI / 表单逻辑 | 原生 `LodyCreateSessionController`；RN 只包一层                      |
+| 扩展进程      | UIKit 子集，不链 Expo、WebView、OneSignal                            |
+| 列表          | 先把 `LodyGroupedList` / `LodyPagedList` 的 UIKit 芯从 ExpoView 剥开 |
+| 数据          | App Group 只读快照 + inbox；不搬整份 SQLite                          |
+| 创建 ID       | 发送时客户端新 UUID（与现 `creationOptions.sessionId` 一样）         |
+| 唤醒          | `lody://share/{inboxId}`，前台 drain inbox 才是真相源                |
+| 附件上限      | 与上传一致：合计 16，图 ≤ 8，文件 ≤ 8                                |
+| App 内发送    | 仍做同一套 composer 接力                                             |
+| 扩展发送      | 无接力；进会话时消息已在 transcript / outbox                         |
 
 ## 架构
 
@@ -210,16 +216,16 @@ Library/LodyShare/inbox/{id}/files/...
 
 ## 失败与空态
 
-| 情况 | 行为 |
-| --- | --- |
-| 未登录 / 快照 `loggedIn: false` | notice，Send 不可用；扩展提供打开主 App |
-| 无 agent / 无缓存 options | 现有 `create.composer.needAgent` / loading notice |
-| 附件拷贝失败 | 丢掉该项，其余继续，提示 |
-| inbox 写失败 | 恢复草稿，不 open |
-| `openURL` 失败 | inbox 留着，下次前台 drain |
-| 消费时账号不一致 | 丢弃 inbox |
-| `outbox.put` 失败 | 不删 inbox |
-| GitHub 现场搜 / mentions | 扩展没有；App 内宿主仍可 live（mentions 仍走现 composer 能力） |
+| 情况                            | 行为                                                           |
+| ------------------------------- | -------------------------------------------------------------- |
+| 未登录 / 快照 `loggedIn: false` | notice，Send 不可用；扩展提供打开主 App                        |
+| 无 agent / 无缓存 options       | 现有 `create.composer.needAgent` / loading notice              |
+| 附件拷贝失败                    | 丢掉该项，其余继续，提示                                       |
+| inbox 写失败                    | 恢复草稿，不 open                                              |
+| `openURL` 失败                  | inbox 留着，下次前台 drain                                     |
+| 消费时账号不一致                | 丢弃 inbox                                                     |
+| `outbox.put` 失败               | 不删 inbox                                                     |
+| GitHub 现场搜 / mentions        | 扩展没有；App 内宿主仍可 live（mentions 仍走现 composer 能力） |
 
 ## 签名与预构建
 

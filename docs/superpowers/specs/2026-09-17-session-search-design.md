@@ -19,16 +19,16 @@ Inbox `searchSections` 只对 catalog 标题和项目名做本地子串匹配。
 
 ## 决定
 
-| 项 | 选择 |
-| --- | --- |
-| Inbox 命中形态 | 会话一行；仅当标题/项目/路径/分支都未命中、正文命中时，副标题换成摘录 |
-| 点进会话 | 带上 `findQuery`，滚到第一条并高亮，find 条打开，键盘不弹 |
-| 索引范围 | 与上游 `session-chat-search.ts` 一致：`text` 与 `thought`。不索引 tool、plan checklist、subagent、system_notice、文件/图片元数据 |
-| 未缓存会话 | 不后台拉历史。空结果说明内容搜索只覆盖本机打开过的会话 |
-| 入口 | 更多菜单「查找」；Inbox 带词则自动打开 find 条 |
-| 存储 | KV 快照不动。写入 session 缓存时抽出散文到旁路表。不用 FTS5、Spotlight、`UIFindInteraction` |
-| 匹配 | Foundation `localizedStandardContains`（大小写/变音/中文按系统 locale） |
-| 未加载历史 | 不计入总数，不自动翻页。用户再加载更早页时重跑计数 |
+| 项             | 选择                                                                                                                             |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Inbox 命中形态 | 会话一行；仅当标题/项目/路径/分支都未命中、正文命中时，副标题换成摘录                                                            |
+| 点进会话       | 带上 `findQuery`，滚到第一条并高亮，find 条打开，键盘不弹                                                                        |
+| 索引范围       | 与上游 `session-chat-search.ts` 一致：`text` 与 `thought`。不索引 tool、plan checklist、subagent、system_notice、文件/图片元数据 |
+| 未缓存会话     | 不后台拉历史。空结果说明内容搜索只覆盖本机打开过的会话                                                                           |
+| 入口           | 更多菜单「查找」；Inbox 带词则自动打开 find 条                                                                                   |
+| 存储           | KV 快照不动。写入 session 缓存时抽出散文到旁路表。不用 FTS5、Spotlight、`UIFindInteraction`                                      |
+| 匹配           | Foundation `localizedStandardContains`（大小写/变音/中文按系统 locale）                                                          |
+| 未加载历史     | 不计入总数，不自动翻页。用户再加载更早页时重跑计数                                                                               |
 
 ## 所有权
 
@@ -114,15 +114,15 @@ Inbox 点入：`SessionNavIntent.open` 与 `SessionParams` 增加可选 `findQue
 
 ## 文案
 
-| key | zh-Hans | en |
-| --- | --- | --- |
-| `search.field.placeholder` | 保持「搜索项目或会话」 | 保持现有 |
+| key                          | zh-Hans                                                    | en                                                                                                |
+| ---------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `search.field.placeholder`   | 保持「搜索项目或会话」                                     | 保持现有                                                                                          |
 | `search.placeholder.noMatch` | 没有匹配的项目或会话。也可以搜索这台设备打开过的会话内容。 | No matching projects or sessions. Content search only covers conversations opened on this device. |
-| `search.placeholder.idle` | 保持现有（已写「包括已归档」） | 保持现有 |
-| `session.action.find` | 查找 | Find |
-| 原生 find 占位 | 查找对话 | Find in conversation |
-| 原生无结果 | 无结果 | No results |
-| 原生计数 | `{current} / {total}` | `{current} / {total}` |
+| `search.placeholder.idle`    | 保持现有（已写「包括已归档」）                             | 保持现有                                                                                          |
+| `session.action.find`        | 查找                                                       | Find                                                                                              |
+| 原生 find 占位               | 查找对话                                                   | Find in conversation                                                                              |
+| 原生无结果                   | 无结果                                                     | No results                                                                                        |
+| 原生计数                     | `{current} / {total}`                                      | `{current} / {total}`                                                                             |
 
 零命中才用 `search.placeholder.noMatch`。有任意项目或会话行时不出现这句。
 

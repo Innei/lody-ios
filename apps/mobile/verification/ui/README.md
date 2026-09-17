@@ -252,7 +252,10 @@ results.json, per-case logs, screenshots and accessibility trees, plus video whe
 the run requires it, including failures. A failed case always takes a Simulator
 framebuffer screenshot first (`failure.png`, also copied to `failures/`); that
 does not wait on AXe. The first `describe-ui` after a fresh Simulator boot
-retries until AXe's XCTest session exists. CI uploads those plus a job-level `simctl io screenshot`
+retries until AXe's XCTest session exists. `navigation` is allowed 360s because
+three cold relaunches plus catalog links overrun the default 180s cap. Embedded
+runs skip the Metro `Page.reload` tail of that case. The two CI UI matrix jobs
+keep running after one fails. CI uploads those plus a job-level `simctl io screenshot`
 as `ui-failure-*` when a Simulator job fails. Missing scenes and timeouts fail the
 job. A core-suite run does not fail only because `run.mp4` is absent. No login
 or distribution signing secret is used.

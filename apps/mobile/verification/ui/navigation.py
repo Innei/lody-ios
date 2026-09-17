@@ -132,13 +132,18 @@ for _ in range(2):
 # Expo Linking retains the last native URL. Reload JS from Home to exercise the
 # initial-URL path with no mounted coordinator, while keeping --ui-verify active.
 # Launching a terminated dev client via openurl would lose that native safety flag.
-open_url('ui-home/sessions/ui-design')
-session('首页交互设计')
-swipe_back()
-home('before-restart')
-inspector(udid, os.environ['LODY_UI_METRO_PORT'], 'Page.reload')
-session('首页交互设计')
-ui.capture('restart-session')
-swipe_back()
-home('restart-return')
-print('PASS: warm, repeated, sheet, workspace and initial-URL links after JS restart return to one Home; unknown URLs and root edge swipes cannot add or reveal another page.')
+# An embedded Release app has no Metro inspector.
+metro = os.environ.get('LODY_UI_METRO_PORT')
+if metro:
+    open_url('ui-home/sessions/ui-design')
+    session('首页交互设计')
+    swipe_back()
+    home('before-restart')
+    inspector(udid, metro, 'Page.reload')
+    session('首页交互设计')
+    ui.capture('restart-session')
+    swipe_back()
+    home('restart-return')
+    print('PASS: warm, repeated, sheet, workspace and initial-URL links after JS restart return to one Home; unknown URLs and root edge swipes cannot add or reveal another page.')
+else:
+    print('PASS: warm, repeated, sheet, workspace and initial-URL links return to one Home; unknown URLs and root edge swipes cannot add or reveal another page.')
