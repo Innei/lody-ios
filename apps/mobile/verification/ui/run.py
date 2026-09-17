@@ -201,10 +201,8 @@ elif core_suite:
     appearances = ['light']
 else:
     appearances = ['light', 'dark']
-if args.fail_fast:
-    fail_fast = True
-else:
-    fail_fast = core_suite
+# Core suites used to stop after navigation/send, which hid inbox and later send cases.
+fail_fast = bool(args.fail_fast)
 if args.require_video is None:
     require_video = not core_suite
 else:
@@ -393,8 +391,11 @@ with metro_context:
                         # and Dynamic Island transitions; 180s cuts off deep links.
                         check_timeout = 300
                     elif case == 'navigation':
-                        # Three cold relaunches plus catalog links; 360s still dies on a cold CI AXe session.
-                        check_timeout = 480
+                        # Cold relaunches plus catalog links; 480s still dies after relink on CI AXe.
+                        check_timeout = 600
+                    elif case == 'send':
+                        # AXe session recovery after the offline send overruns the default 180s.
+                        check_timeout = 300
                     elif case in ('chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production'):
                         check_timeout = 300
                     with (output / 'check.log').open('w') as log:

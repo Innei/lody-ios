@@ -265,8 +265,9 @@ retries until AXe's XCTest session exists. Later AXe commands retry the same way
 when that session dies. `navigation` dismisses the first-open SpringBoard alert
 by tapping Open without waiting on `describe-ui`, which hangs on that dialog, and
 does that only once so later links are not delayed by missing-label probes.
-Embedded `navigation` does two cold relaunches and one unknown-URL return so the
-480s cap can finish the workspace link. English `type_into` retypes when the
+Embedded `navigation` does two cold relaunches and one unknown-URL return, and
+is allowed 600s. `send` is allowed 300s. Core suites keep running after one case
+fails so inbox and later send cases still report. English `type_into` retypes when the
 field disagrees even if there is no Next keyboard. `navigation` is allowed 480s because
 three cold relaunches plus catalog links overrun a 360s cap on CI. Embedded
 runs skip the Metro `Page.reload` tail of that case. The two CI UI matrix jobs
