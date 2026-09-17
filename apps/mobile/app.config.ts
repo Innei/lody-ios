@@ -41,6 +41,7 @@ const config: ExpoConfig = {
     './plugins/withMarkdownView',
     './plugins/withLocales',
     './plugins/withLodyIcons',
+    './plugins/withShareProbe',
     'expo-localization',
     [
       './plugins/withPushNotifications',
