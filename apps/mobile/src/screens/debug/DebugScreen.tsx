@@ -5,6 +5,7 @@ import { ProjectHistoryPreviewScreen } from './ProjectHistoryPreviewScreen';
 import { PullRequestPreviewScreen } from './PullRequestPreviewScreen';
 import { FilePreviewScreen } from './FilePreviewScreen';
 import { CreateSessionScreen } from '../CreateSessionScreen';
+import { ProjectPickerScreen } from '../ProjectPickerScreen';
 import type { CreationOptions } from '@/models/send';
 import { writeLocal } from '@/cloud/kv';
 import { showCommunityNotice } from '@/features/community/notice';
@@ -132,6 +133,7 @@ function View() {
           'GitHub PR / CI 预览',
           'arrow.triangle.pull',
         ),
+        openRow('project-picker-preview', '选择项目验收', 'folder'),
         openRow('notification-preview', '通知权限验收', 'bell'),
         openRow('live-activity-preview', 'Live Activity 演示', 'sparkles'),
         {
@@ -290,6 +292,7 @@ function View() {
     'project-history-preview': () =>
       void present(ProjectHistoryPreviewScreen, {}),
     'pull-request-preview': () => void present(PullRequestPreviewScreen, {}),
+    'project-picker-preview': () => void openProjectPicker(),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
     'appearance-preview': () => void present(AppearanceScreen, {}),
     'queued-message-behavior-preview': () =>
@@ -443,6 +446,32 @@ export const DebugScreen = definePage({
   Component: View,
   presentation: { style: 'push', headerVariant: 'transparent' },
 });
+
+function openProjectPicker() {
+  const projects = [
+    {
+      id: 'ui:local:alpha',
+      name: 'Alpha',
+      machineId: 'ui',
+      rootPath: '/tmp/alpha',
+    },
+    {
+      id: 'ui:local:beta',
+      name: 'Beta',
+      machineId: 'ui',
+      rootPath: '/tmp/beta',
+    },
+  ];
+  void present(
+    ProjectPickerScreen,
+    {
+      workspaceId: 'ui-project-picker',
+      projects,
+      selectedId: 'ui:local:alpha',
+    },
+    { style: 'pageSheet', headerVariant: 'transparent' },
+  );
+}
 
 async function openModelMemory() {
   const select = (

@@ -268,6 +268,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         if workspace == "ui-home", LodyUIVerify.mentions {
           promise.resolve(["LodyAI/FreshProject"]); return
         }
+        if LodyUIVerify.enabled, workspace == "ui-project-picker" {
+          promise.resolve((1...20).map { "Owner/Repo\($0)" }); return
+        }
         do { promise.resolve(try await GitHubCloud.repositories(workspace: workspace)) }
         catch { promise.reject(error) }
       }
@@ -568,9 +571,11 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("contentStyle") { (view: LodyGroupedList, value: Bool) in
         view.setContentStyle(value)
       }
-      Events("onRowPress", "onRowToggle", "onRowAction", "onRefresh", "onSegmentChange")
+      Events("onRowPress", "onRowToggle", "onRowAction", "onRefresh", "onSegmentChange", "onSearchChange")
       Prop("segments") { (view: LodyGroupedList, labels: [String]) in view.setSegments(labels) }
       Prop("selectedSegment") { (view: LodyGroupedList, index: Int) in view.setSelectedSegment(index) }
+      Prop("searchPlaceholder") { (view: LodyGroupedList, value: String) in view.setSearchPlaceholder(value) }
+      Prop("searchText") { (view: LodyGroupedList, value: String) in view.setSearchText(value) }
       Prop("sections") { (view: LodyGroupedList, sections: [LodyListSection]) in
         view.setSections(sections)
       }

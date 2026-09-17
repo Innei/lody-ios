@@ -16,6 +16,9 @@ export type NativeGroupedListProps = ViewProps & {
   segmentsUseSearchScope?: boolean;
   selectedSegment?: number;
   onSegmentChange?: (event: NativeSyntheticEvent<{ index: number }>) => void;
+  searchPlaceholder?: string;
+  searchText?: string;
+  onSearchChange?: (event: NativeSyntheticEvent<{ text: string }>) => void;
   /** Default row tint; `#RRGGBB`. Rows may override with `imageTint`. */
   accent?: string;
   /** Drop the list's own background so a sheet's material shows through. */

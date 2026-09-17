@@ -20,17 +20,38 @@ private final class RowSwitch: UISwitch {
   var rowID = ""
 }
 
+private final class SearchHeaderCell: UICollectionViewCell {
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    backgroundColor = .clear
+    contentView.backgroundColor = .clear
+  }
+
+  required init?(coder: NSCoder) { fatalError() }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    for subview in contentView.subviews {
+      guard let field = subview as? UISearchTextField else { continue }
+      field.frame = CGRect(
+        x: 20, y: 0, width: contentView.bounds.width - 40, height: 36
+      )
+    }
+  }
+}
+
 private struct ListItemID: Hashable {
   let section: String
   let row: String
 }
 
-final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISearchBarDelegate {
+final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISearchBarDelegate, UITextFieldDelegate {
   let onRowPress = EventDispatcher()
   let onRowToggle = EventDispatcher()
   let onRowAction = EventDispatcher()
   let onRefresh = EventDispatcher()
   let onSegmentChange = EventDispatcher()
+  let onSearchChange = EventDispatcher()
   var forwardedRowPress: (([String: Any]) -> Void)?
 
   func emitRowPress(_ body: [String: Any]) {
@@ -38,10 +59,12 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     forwardedRowPress?(body)
   }
   private let segments = UISegmentedControl(items: [])
+  private let searchField = UISearchTextField()
   private let segmentContainer = UIView()
   private var scopeSearch: UISearchController?
   private var segmentLabels: [String] = []
   private var segmentsUseSearchScope = false
+  private var searchEnabled = false
   private var selectedSegment = 0
   private let appearance = ListAppearanceController()
   private weak var scrollOwner: UIViewController?
@@ -196,6 +219,14 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       : nil
   }
 
+  private static let searchKind = "list-search-header"
+
+  private lazy var searchRegistration = UICollectionView.SupplementaryRegistration<SearchHeaderCell>(
+    elementKind: Self.searchKind
+  ) { [weak self] cell, _, _ in
+    self?.installSearch(in: cell)
+  }
+
   private let headerRegistration = UICollectionView.SupplementaryRegistration<SectionSupplementaryCell>(
     elementKind: UICollectionView.elementKindSectionHeader
   ) { _, _, _ in }
@@ -211,6 +242,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     _ = sessionRegistration
     _ = projectRegistration
     _ = registration
+    _ = searchRegistration
     collection.backgroundColor = .lodyGroupedBackground
     collection.tintColor = .lodyAccent
     collection.contentInsetAdjustmentBehavior = .automatic
@@ -273,6 +305,16 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     addSubview(collection)
     addSubview(placeholder)
     segments.addTarget(self, action: #selector(segmentChanged), for: .valueChanged)
+    segments.accessibilityIdentifier = "list-segments"
+    searchField.autocapitalizationType = .none
+    searchField.autocorrectionType = .no
+    searchField.spellCheckingType = .no
+    searchField.returnKeyType = .search
+    searchField.delegate = self
+    searchField.isHidden = true
+    searchField.accessibilityIdentifier = "list-search"
+    searchField.addTarget(self, action: #selector(searchFieldChanged), for: .editingChanged)
+    segmentContainer.accessibilityIdentifier = "list-strip"
     segmentContainer.isHidden = true
     segmentContainer.addSubview(segments)
     addSubview(segmentContainer)
@@ -298,7 +340,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       // Content starts below the bar plus the strip; the strip sits in that gap.
       let top = max(0, insets.top - collection.contentInset.top)
       segmentContainer.frame = CGRect(x: 0, y: top, width: bounds.width, height: segmentBarHeight)
-      segments.frame = segmentContainer.bounds.insetBy(dx: 20, dy: 8)
+      segments.frame = segmentContainer.bounds.insetBy(dx: 20, dy: Self.stripInset)
     }
     placeholder.frame = bounds.inset(by: UIEdgeInsets(top: insets.top + 24, left: 32, bottom: insets.bottom + 24, right: 32))
     attachScrollOwner()
@@ -349,7 +391,15 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   /// The bar owns the segmented control, the way Calendar's New sheet does:
   /// content scrolls under it and the navigation bar supplies the material and
   /// the scroll edge effect. A floating sibling view gets neither.
-  private var segmentBarHeight: CGFloat { 52 }
+  private static let stripInset: CGFloat = 8
+  private static let stripControlHeight: CGFloat = 36
+  private var segmentBarHeight: CGFloat {
+    Self.stripInset + Self.stripControlHeight + Self.stripInset
+  }
+
+  private var searchHeaderHeight: CGFloat {
+    Self.stripControlHeight + Self.stripInset
+  }
 
   /// The edge effect covers the adjusted content inset region, and
   /// `contentInset` feeds into that — unlike `additionalSafeAreaInsets`, which
@@ -398,8 +448,42 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     onSegmentChange(["index": index])
   }
 
+  @objc private func searchFieldChanged() {
+    onSearchChange(["text": searchField.text ?? ""])
+  }
+
+  func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+    textField.resignFirstResponder()
+    return true
+  }
+
+  func setSearchPlaceholder(_ value: String) {
+    searchField.placeholder = value
+    let show = !value.isEmpty && !segmentsUseSearchScope
+    searchField.isHidden = !show
+    if show != searchEnabled {
+      searchEnabled = show
+      applySearchBoundary()
+    }
+    syncSegmentInset()
+    setNeedsLayout()
+  }
+
+  func setSearchText(_ value: String) {
+    guard searchField.text != value else { return }
+    searchField.text = value
+  }
+
   func setSegmentsUseSearchScope(_ value: Bool) {
     segmentsUseSearchScope = value
+    let show = !(searchField.placeholder ?? "").isEmpty && !value
+    searchField.isHidden = !show
+    if show != searchEnabled {
+      searchEnabled = show
+      applySearchBoundary()
+    }
+    syncSegmentInset()
+    setNeedsLayout()
   }
 
   func setSegments(_ labels: [String]) {
@@ -414,7 +498,6 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     } else if let controller = scrollOwner {
       attachSegments(to: controller)
     }
-    collection.contentInset.top = labels.isEmpty ? 0 : 60
     setNeedsLayout()
   }
 
@@ -720,7 +803,43 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     return sections.first { $0.id == id }
   }
 
+  private func applySearchBoundary() {
+    guard let layout = collection.collectionViewLayout as? UICollectionViewCompositionalLayout else {
+      return
+    }
+    var configuration = layout.configuration
+    if searchEnabled {
+      let item = NSCollectionLayoutBoundarySupplementaryItem(
+        layoutSize: NSCollectionLayoutSize(
+          widthDimension: .fractionalWidth(1),
+          heightDimension: .absolute(searchHeaderHeight)
+        ),
+        elementKind: Self.searchKind,
+        alignment: .top
+      )
+      item.pinToVisibleBounds = false
+      configuration.boundarySupplementaryItems = [item]
+    } else {
+      configuration.boundarySupplementaryItems = []
+    }
+    layout.configuration = configuration
+    layout.invalidateLayout()
+  }
+
+  private func installSearch(in cell: SearchHeaderCell) {
+    if searchField.superview !== cell.contentView {
+      searchField.removeFromSuperview()
+      cell.contentView.addSubview(searchField)
+    }
+    cell.setNeedsLayout()
+  }
+
   private func supplementary(in collectionView: UICollectionView, kind: String, at indexPath: IndexPath) -> UICollectionReusableView? {
+    if kind == Self.searchKind {
+      return collectionView.dequeueConfiguredReusableSupplementary(
+        using: searchRegistration, for: indexPath
+      )
+    }
     guard let section = section(at: indexPath.section) else { return nil }
     let header = kind == UICollectionView.elementKindSectionHeader
     let view = collectionView.dequeueConfiguredReusableSupplementary(

@@ -13,6 +13,16 @@ import { DirectoryScreen } from './DirectoryScreen';
 import { t } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
+import {
+  filterPickerProjects,
+  githubPickerStatusRows,
+  isGithubProjectId,
+  projectPickerSearchPlaceholder,
+  projectPickerSegment,
+  projectPickerSegments,
+  projectPickerSections,
+  splitPickerProjects,
+} from '@/features/sessions/projectPicker';
 
 type Params = { workspaceId: string; projects: Project[]; selectedId: string };
 function View() {
@@ -23,6 +33,10 @@ function View() {
   const [repositories, setRepositories] = useState<Project[]>();
   const [failed, setFailed] = useState(false);
   const [revision, setRevision] = useState(0);
+  const [segment, setSegment] = useState(() =>
+    projectPickerSegment(params.selectedId),
+  );
+  const [queries, setQueries] = useState(['', '']);
   useEffect(() => {
     let active = true;
     setFailed(false);
@@ -43,12 +57,11 @@ function View() {
       active = false;
     };
   }, [params.workspaceId, revision]);
-  const local = params.projects.filter(
-    (project) => !project.id.startsWith('github:'),
-  );
-  const github =
-    repositories ??
-    params.projects.filter((project) => project.id.startsWith('github:'));
+  const { local, github } = splitPickerProjects(params.projects, repositories);
+  const query = queries[segment] ?? '';
+  const searching = query.trim().length > 0;
+  const visibleLocal = filterPickerProjects(local, queries[0] ?? '');
+  const visibleGithub = filterPickerProjects(github, queries[1] ?? '');
   const projects = [...local, ...github];
   const row = (project: Project): NativeListRow => ({
     id: project.id,
@@ -60,27 +73,21 @@ function View() {
       .filter(Boolean)
       .join(' · '),
     subtitleMono: !!project.rootPath,
-    image: project.id.startsWith('github:') ? undefined : 'folder',
-    imageAsset: project.id.startsWith('github:')
-      ? 'lody-mark-github'
-      : undefined,
+    image: isGithubProjectId(project.id) ? undefined : 'folder',
+    imageAsset: isGithubProjectId(project.id) ? 'lody-mark-github' : undefined,
     selected: project.id === params.selectedId,
     action: true,
   });
-  const githubRows = github.map(row);
-  if (!repositories) {
-    githubRows.push({
-      id: 'github-retry',
-      title: failed ? t('projectPicker.githubFailed') : t('common.reading'),
-      image: failed ? 'arrow.clockwise' : undefined,
-      action: failed,
-    });
-  } else if (!github.length) {
-    githubRows.push({
-      id: 'github-empty',
-      title: t('projectPicker.githubEmpty'),
-    });
-  }
+  const githubRows = [
+    ...visibleGithub.map(row),
+    ...(queries[1]?.trim()
+      ? []
+      : githubPickerStatusRows({
+          loaded: repositories !== undefined,
+          failed,
+          empty: github.length === 0,
+        })),
+  ];
   const items = useMemo(
     () => [
       {
@@ -110,23 +117,33 @@ function View() {
       style={{ flex: 1 }}
       transparent
       accent={colors.accent}
-      placeholder={t('projectPicker.empty')}
-      sections={[
-        {
-          id: 'github',
-          header: t('projectPicker.github'),
-          footer:
-            repositories?.length === 0
-              ? t('projectPicker.githubHint')
-              : undefined,
-          rows: githubRows,
-        },
-        {
-          id: 'local',
-          header: t('projectPicker.local'),
-          rows: local.map(row),
-        },
-      ]}
+      placeholder={
+        searching ? t('projectPicker.noMatch') : t('projectPicker.empty')
+      }
+      segments={projectPickerSegments()}
+      selectedSegment={segment}
+      searchPlaceholder={projectPickerSearchPlaceholder(segment)}
+      searchText={query}
+      onSegmentChange={({ nativeEvent }) =>
+        setSegment(nativeEvent.index === 1 ? 1 : 0)
+      }
+      onSearchChange={({ nativeEvent }) => {
+        const text = nativeEvent.text;
+        setQueries((current) => {
+          const next = [current[0] ?? '', current[1] ?? ''];
+          next[segment] = text;
+          return next;
+        });
+      }}
+      sections={projectPickerSections({
+        segment,
+        localRows: visibleLocal.map(row),
+        githubRows,
+        githubEmpty:
+          !(queries[1] ?? '').trim() &&
+          repositories !== undefined &&
+          repositories.length === 0,
+      })}
       onRowPress={({ nativeEvent }) => {
         if (nativeEvent.id === 'github-retry') {
           setRevision((value) => value + 1);
