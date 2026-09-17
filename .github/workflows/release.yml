@@ -357,12 +357,20 @@ jobs:
       - name: Upload to TestFlight
         env:
           NOTES: ${{ inputs.notes }}
+          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
         run: |
           set -euo pipefail
-          notes="${NOTES:-}"
-          if [ -z "$notes" ]; then
-            notes="${{ github.sha }}"
+          short="$(git rev-parse --short "$SOURCE_SHA")"
+          subject="$(git log -1 --format=%s "$SOURCE_SHA")"
+          changelog="$(git log -8 --format='- %s (%h)' "$SOURCE_SHA")"
+          lead="${NOTES:-$subject}"
+          notes="$(printf 'Lody %s (%s) · %s\n%s\n\nRecent commits:\n%s\n\n%s' \
+            "$MARKETING_VERSION" "$BUILD_NUMBER" "$short" "$lead" "$changelog" "$SOURCE_URL")"
+          if [ "${#notes}" -gt 4000 ]; then
+            notes="${notes:0:3997}..."
           fi
+          printf '%s\n' "$notes"
           asc builds upload \
             --app "$LODY_BUNDLE_ID" \
             --ipa "$IPA_PATH" \

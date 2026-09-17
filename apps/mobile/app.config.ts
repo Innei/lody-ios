@@ -5,7 +5,7 @@ const fixtureBuild = process.env.EXPO_PUBLIC_UI_VERIFY === '1';
 const config: ExpoConfig = {
   name: 'Lody',
   slug: 'lody-ios',
-  version: '0.1.0',
+  version: '0.2.0',
   platforms: ['ios'],
   scheme: 'lody',
   orientation: 'portrait',
