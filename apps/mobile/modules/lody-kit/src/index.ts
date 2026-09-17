@@ -25,6 +25,10 @@ export {
   type NativeCloseButtonProps,
 } from './chrome/NativeCloseButton';
 export {
+  NativeNavigationHeader,
+  type NativeNavigationHeaderProps,
+} from './chrome/NativeNavigationHeader';
+export {
   navigationScrollEdgeEffects,
   panelScrollEdgeEffects,
 } from './chrome/scrollEdges';

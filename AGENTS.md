@@ -28,6 +28,7 @@
 - `present` params live in memory; only `presentationId` enters the URL. Native back/swipe/unmount must settle cancellation and release the session. These sessions are not durable deep links.
 - The home path (projects → sessions → messages) uses `style: push` on the native Stack, with system back and interactive pop. Keep sheets for transient flows and Debug demos.
 - Tabs use Expo Router NativeTabs and each tab owns a native Stack. Pages with stable URLs use Router; result-returning sheets use `present`.
+- Navigation bar contents are owned natively: `LodyNavigationHeader` holds `title` / `titleView` / bar items per `UINavigationItem` and writes them back synchronously when screens resets them. Screens render items through `NativeNavigationHeader` with screens' `HeaderBarButtonItem` shape; do not add `Stack.Screen` titles or `Stack.Toolbar` items to a screen that uses it.
 - Import native APIs only from `@lody-ios/kit`. Keep the typed NativeModule facade, native View wrappers, and Swift implementations in matching feature directories. Module event subscriptions must be removed on unmount; UIKit work runs on the main queue.
 - `pnpm test` checks real presentation-session behavior with Node's test runner; use Node 22.13+ for its TypeScript stripping and module mocks.
 

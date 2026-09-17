@@ -104,11 +104,13 @@ precondition(containsText(nav.navigationBar, "Project name"), "Nav bar must show
 precondition(containsText(nav.navigationBar, "Studio"), "Nav bar must show the computer name")
 precondition(subtitleAttachments(button) == 2, "Folder and computer symbols must survive layout")
 
+ChatNavigationTitle.setDisappearing(true, on: session.navigationItem)
 ChatNavigationTitle.preserveSubtitle("Project name · Studio", on: session.navigationItem)
 session.navigationItem.titleView = nil
 session.navigationItem.title = "Session title"
 nav.view.setNeedsLayout()
 nav.view.layoutIfNeeded()
+precondition(session.navigationItem.titleView == nil, "A disappearing page must let screens keep the slot for the pop transition")
 precondition(
   session.navigationItem.subtitle == "Project name · Studio",
   "A screens header update that nils titleView must keep UINavigationItem.subtitle"
@@ -122,12 +124,18 @@ precondition(
   "Computer name must stay visible after titleView is cleared"
 )
 
+ChatNavigationTitle.setDisappearing(false, on: session.navigationItem)
+precondition(session.navigationItem.titleView === button, "Cancelled return must restore the tappable title")
+ChatNavigationTitle.apply(title: "Session title", subtitle: "Project name · Studio", button: button, to: session.navigationItem)
+precondition(session.navigationItem.subtitle == nil, "Restoring titleView must drop the native subtitle so the button stays visible")
+
 ChatNavigationTitle.detach(button: button, from: session.navigationItem)
 precondition(session.navigationItem.titleView !== button)
-precondition(session.navigationItem.subtitle == "Project name · Studio", "Detach must not clear the native subtitle")
+session.navigationItem.title = "Static route title"
+precondition(session.navigationItem.title == "Static route title", "A detached header must not own the route title")
 ChatNavigationTitle.apply(title: "Session title", subtitle: "Project name · Studio", button: button, to: session.navigationItem)
-precondition(session.navigationItem.titleView === button, "Cancelled return must restore the tappable title")
-precondition(session.navigationItem.subtitle == nil, "Restoring titleView must drop the native subtitle so the button stays visible")
+precondition(session.navigationItem.titleView === button)
+precondition(session.navigationItem.title == "Session title", "Attaching takes the title back from the static route title")
 
 // A full-screen preview preserves the fallback without removing our titleView.
 ChatNavigationTitle.preserveSubtitle("Project name · Studio", on: session.navigationItem)
@@ -137,20 +145,98 @@ precondition(session.navigationItem.subtitle == nil, "Preview return must not sh
 precondition(session.navigationItem.titleView === button)
 
 button.layoutIfNeeded()
-let settled = titleSnapshot(button.titleHost)
-ChatNavigationTitle.configureButton(button, title: "Brand new heading", subtitle: "Project name", machine: "Studio")
-nav.view.layoutIfNeeded()
-session.view.layoutIfNeeded()
-button.layoutIfNeeded()
-var frames: [Data] = []
-for _ in 0..<8 {
-  RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-  frames.append(titleSnapshot(button.titleHost))
+
+func transitionFrames(_ change: () -> Void) -> (settled: Data, mid: [Data], final: Data) {
+  let settled = titleSnapshot(button.titleHost)
+  change()
+  precondition(session.navigationItem.titleView === button, "A screens header reset must not take the title away from native")
+  nav.view.layoutIfNeeded()
+  button.layoutIfNeeded()
+  var mid: [Data] = []
+  for _ in 0..<6 {
+    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    mid.append(titleSnapshot(button.titleHost))
+  }
+  RunLoop.main.run(until: Date().addingTimeInterval(0.8))
+  return (settled, mid, titleSnapshot(button.titleHost))
+}
+
+func screensHeaderReset(title: String) {
+  session.navigationItem.titleView = nil
+  session.navigationItem.title = title
+  session.navigationItem.rightBarButtonItems = nil
+}
+
+let first = transitionFrames {
+  ChatNavigationTitle.configureButton(button, title: "Brand new heading", subtitle: "Project name", machine: "Studio")
+  ChatNavigationTitle.apply(title: "Brand new heading", subtitle: "Project name · Studio", button: button, to: session.navigationItem)
+  screensHeaderReset(title: "Static route title")
 }
 precondition(button.displayedTitle == "Brand new heading", "Title updates keep the numeric-text host in sync")
+precondition(session.navigationItem.title == "Brand new heading", "The owner keeps the session title over the static route title")
+precondition(first.final != first.settled, "Snapshot must reflect the new title")
 if !UIAccessibility.isReduceMotionEnabled {
-  precondition(frames.contains { $0 != settled }, "Changing the first line must run a numeric text transition")
+  precondition(
+    first.mid.contains { $0 != first.settled && $0 != first.final },
+    "Title change followed by a screens header reset must still run the numeric text transition"
+  )
 }
+
+let second = transitionFrames {
+  screensHeaderReset(title: "Static route title")
+  ChatNavigationTitle.configureButton(button, title: "Third heading", subtitle: "Project name", machine: "Studio")
+  ChatNavigationTitle.apply(title: "Third heading", subtitle: "Project name · Studio", button: button, to: session.navigationItem)
+}
+precondition(button.displayedTitle == "Third heading")
+if !UIAccessibility.isReduceMotionEnabled {
+  precondition(
+    second.mid.contains { $0 != second.settled && $0 != second.final },
+    "Screens header reset followed by a title change must still run the numeric text transition"
+  )
+}
+
+var actions: [String] = []
+let itemsJSON = """
+[
+  {"id":"r0","type":"button","title":"PR #31","accessibilityLabel":"PR #31，1 项检查失败","badge":"!"},
+  {"type":"spacing","spacing":8},
+  {"id":"r2","type":"menu","icon":"ellipsis","accessibilityLabel":"更多","menu":{"items":[
+    {"id":"r2.0","type":"action","title":"Merged"},
+    {"id":"r2.1","type":"action","title":"Hidden","hidden":true},
+    {"type":"submenu","inline":true,"items":[{"id":"r2.2.0","type":"action","title":"Files","icon":"folder","disabled":true}]}
+  ]}}
+]
+"""
+let items = LodyNavigationHeaderItems.decode(itemsJSON) { actions.append($0) }
+precondition(items.count == 3, "Decoded one item per spec entry")
+precondition(items[0].badge != nil, "PR button carries its attention badge")
+precondition(items[0].accessibilityLabel == "PR #31，1 项检查失败", "Button keeps its VoiceOver label")
+precondition(items[0].title == "PR #31")
+precondition(items[1].width == 8, "Spacing becomes a fixed space")
+precondition(items[2].image != nil && items[2].menu != nil, "Menu item shows its symbol and menu")
+precondition(items[2].accessibilityLabel == "更多")
+let children = items[2].menu?.children ?? []
+precondition(children.count == 2, "Hidden actions are dropped: \(children.count)")
+precondition((children[0] as? UIAction)?.title == "Merged")
+let inline = children[1] as? UIMenu
+precondition(inline?.options.contains(.displayInline) == true, "Submenu keeps displayInline")
+let nested = inline?.children.first as? UIAction
+precondition(nested?.title == "Files" && nested?.attributes.contains(.disabled) == true && nested?.image != nil)
+nested?.performWithSender(nil, target: nil)
+items[0].primaryAction?.performWithSender(nil, target: nil)
+precondition(actions == ["r2.2.0", "r0"], "Actions report their ids: \(actions)")
+
+let header = LodyNavigationHeader.of(session.navigationItem)
+header.rightItems = items
+precondition(session.navigationItem.rightBarButtonItems == items, "Owned right items are applied")
+session.navigationItem.rightBarButtonItems = nil
+precondition(session.navigationItem.rightBarButtonItems == items, "A screens reset of right items is restored synchronously")
+session.navigationItem.rightBarButtonItems = [UIBarButtonItem(systemItem: .done)]
+precondition(session.navigationItem.rightBarButtonItems == items, "Foreign right items are replaced by the owned ones")
+precondition(session.navigationItem.titleView === button && session.navigationItem.title == "Third heading")
+header.rightItems = nil
+session.navigationItem.rightBarButtonItems = nil
+precondition(session.navigationItem.rightBarButtonItems?.isEmpty != false, "Releasing the slot lets screens own it again")
 
 func inkRows(_ image: UIImage) -> (first: Int, last: Int) {
   guard let cgImage = image.cgImage else { return (-1, -1) }

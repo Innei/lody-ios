@@ -2,16 +2,15 @@ import { useAgentErrorRetry } from '@/features/sessions/useAgentErrorRetry';
 import { openAgentError } from '@/hooks/screens/openAgentError';
 import { fastModeFor, withFastMode } from '@/cloud/send/capability';
 import { useComposerMentions } from '@/hooks/screens/useComposerMentions';
-import { setPushVisibleRoute } from '@lody-ios/kit';
+import { NativeNavigationHeader, setPushVisibleRoute } from '@lody-ios/kit';
 import { useFocusEffect } from 'expo-router';
-import { Stack } from 'expo-router';
 import { usePendingSends } from '@/cloud/send/pendingSends';
 import { useConnection } from '@/cloud/catalog/connection';
 import { useSessionControl } from '@/features/sessions/useSessionControl';
 import { useSessionSend } from '@/features/sessions/useSessionSend';
 import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
-import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View as RNView, Alert } from 'react-native';
 import { usePalette } from '@/lib/theme/palette';
 import {
@@ -61,15 +60,11 @@ import type { ModelChoice } from './ModelScreen';
 import { t } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { useOpenPullRequest } from '@/hooks/screens/useOpenPullRequest';
-import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
 import type {
   HeaderBarButtonItemMenuAction,
   HeaderBarButtonItemSubmenu,
 } from 'react-native-screens';
-import {
-  SheetHeaderContext,
-  type HeaderItems,
-} from '@/lib/presentation/SheetStack';
+import type { HeaderItems } from '@/lib/presentation/SheetStack';
 
 function composerPlaceholder(archived: boolean) {
   if (archived) return t('chat.composer.archived');
@@ -105,7 +100,6 @@ export type SessionParams = {
 const noPullRequests: NonNullable<Session['pullRequests']> = [];
 
 function View() {
-  const embeddedHeader = use(SheetHeaderContext) !== null;
   const {
     params: {
       session,
@@ -481,7 +475,7 @@ function View() {
       { text: t('common.ok'), style: 'cancel' },
     ]);
   };
-  const embeddedHeaderItems = useMemo<HeaderItems>(() => {
+  const headerItems = useMemo<HeaderItems>(() => {
     const items: HeaderItems = [];
     if (pullRequests.length === 1) {
       const pullRequest = pullRequests[0];
@@ -597,118 +591,9 @@ function View() {
     pullRequests,
     selected,
   ]);
-  useSheetHeader(embeddedHeaderItems);
   return (
     <RNView style={{ flex: 1, backgroundColor: colors.reading }}>
-      {!embeddedHeader ? (
-        <Stack.Screen
-          options={{
-            title: currentSession.title,
-          }}
-        />
-      ) : null}
-      {!embeddedHeader ? (
-        <Stack.Toolbar placement="right">
-          {pullRequests.length === 1 && (
-            <Stack.Toolbar.Button
-              accessibilityLabel={`PR #${pullRequests[0].number}`}
-              onPress={() => void openPullRequest(pullRequests[0])}
-            >
-              {`PR #${pullRequests[0].number}`}
-              {prAttention ? (
-                <Stack.Toolbar.Badge>!</Stack.Toolbar.Badge>
-              ) : null}
-            </Stack.Toolbar.Button>
-          )}
-          {pullRequests.length > 1 && (
-            <Stack.Toolbar.Menu accessibilityLabel={t('pr.pullRequests')}>
-              <Stack.Toolbar.Label>{`PR · ${pullRequests.length}`}</Stack.Toolbar.Label>
-              {pullRequests.map((pr) => (
-                <Stack.Toolbar.MenuAction
-                  key={pr.url}
-                  onPress={() => void openPullRequest(pr)}
-                >{`${pr.repository} #${pr.number} · ${t(`pr.state.${pr.status}`)}`}</Stack.Toolbar.MenuAction>
-              ))}
-            </Stack.Toolbar.Menu>
-          )}
-          <Stack.Toolbar.Menu
-            icon="ellipsis"
-            accessibilityLabel={t('common.more')}
-          >
-            <Stack.Toolbar.MenuAction
-              icon="square.and.pencil"
-              onPress={() => {
-                if (selected)
-                  void requestNewSession(
-                    selected.id,
-                    catalog,
-                    isChatSession(currentSession)
-                      ? undefined
-                      : currentSession.projectId,
-                  );
-              }}
-            >
-              {t('session.action.newSession')}
-            </Stack.Toolbar.MenuAction>
-            <Stack.Toolbar.MenuAction
-              icon={currentSession.pinned ? 'pin.slash' : 'pin'}
-              disabled={!!pending?.send.creation}
-              onPress={() => {
-                if (selected)
-                  void setPinned(
-                    selected.id,
-                    currentSession,
-                    !currentSession.pinned,
-                  );
-              }}
-            >
-              {t(
-                currentSession.pinned
-                  ? 'session.action.unpin'
-                  : 'session.action.pin',
-              )}
-            </Stack.Toolbar.MenuAction>
-            <Stack.Toolbar.MenuAction
-              icon={
-                currentSession.archived ? 'tray.and.arrow.up' : 'archivebox'
-              }
-              disabled={!!pending?.send.creation}
-              onPress={() => {
-                if (selected)
-                  void setArchived(
-                    selected.id,
-                    currentSession,
-                    !currentSession.archived,
-                  );
-              }}
-            >
-              {t(
-                currentSession.archived
-                  ? 'session.action.unarchive'
-                  : 'session.action.archive',
-              )}
-            </Stack.Toolbar.MenuAction>
-            <Stack.Toolbar.MenuAction
-              icon="square.and.arrow.up"
-              onPress={() => {
-                if (selected) shareSession(selected, currentSession.id);
-              }}
-            >
-              {t('session.action.share')}
-            </Stack.Toolbar.MenuAction>
-            {browsable && account ? (
-              <Stack.Toolbar.Menu inline>
-                <Stack.Toolbar.MenuAction
-                  icon="folder"
-                  onPress={openProjectFiles}
-                >
-                  {t('session.action.projectFiles')}
-                </Stack.Toolbar.MenuAction>
-              </Stack.Toolbar.Menu>
-            ) : null}
-          </Stack.Toolbar.Menu>
-        </Stack.Toolbar>
-      ) : null}
+      <NativeNavigationHeader items={headerItems} />
       <DiffWebViewWarmer />
       <NativeChat
         appendDraftJSON={appendDraftJSON}

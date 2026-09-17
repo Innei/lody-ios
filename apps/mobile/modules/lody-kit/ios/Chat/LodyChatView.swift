@@ -97,7 +97,6 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
   let empty = UILabel()
   private weak var scrollOwner: UIViewController?
-  private var titleObservation: NSKeyValueObservation?
   var dataSource: UICollectionViewDiffableDataSource<String, String>!
   var transcript = ChatTranscript()
   var processEntryID = ""
@@ -233,15 +232,15 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       self?.deliverPendingContent()
     }
     navigation.onWillAppear = { [weak self] animated, coordinator in
-      self?.titleDisappearing = false
+      self?.setTitleDisappearing(false)
       self?.deselectFileOnReturn(animated: animated, coordinator: coordinator)
     }
     navigation.onWillDisappear = { [weak self] coordinator in
-      self?.titleDisappearing = true
+      self?.setTitleDisappearing(true)
       self?.preserveTitleSubtitle()
       coordinator?.animate(alongsideTransition: nil) { context in
         guard context.isCancelled else { return }
-        self?.titleDisappearing = false
+        self?.setTitleDisappearing(false)
         self?.attachTitle()
       }
     }
@@ -461,14 +460,6 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
         controller.setContentScrollView(collection, for: .bottom)
         LodyScrollEdges.navigation(collection)
         scrollOwner = controller
-        titleObservation = controller.navigationItem.observe(\.titleView) { [weak self] item, _ in
-          MainActor.assumeIsolated {
-            guard let self, !self.titleDisappearing, item.titleView !== self.titleButton else { return }
-            // Header action updates can clear titleView without laying out the chat.
-            // Restore on the next layout, after screens finishes its header update.
-            self.setNeedsLayout()
-          }
-        }
         if navigation.parent == nil {
           controller.addChild(navigation)
           addSubview(navigation.view)
@@ -483,6 +474,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   private func attachTitle() {
     bindScrollOwnerIfNeeded()
     guard window != nil, let owner = scrollOwner else { return }
+    ChatNavigationTitle.setDisappearing(titleDisappearing, on: owner.navigationItem)
     guard !navigationTitle.isEmpty || !navigationSubtitle.isEmpty || !navigationMachine.isEmpty else {
       ChatNavigationTitle.detach(button: titleButton, from: owner.navigationItem)
       return
@@ -502,6 +494,12 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   private func preserveTitleSubtitle() {
     guard let owner = scrollOwner else { return }
     ChatNavigationTitle.preserveSubtitle(titleSubtitle(), on: owner.navigationItem)
+  }
+
+  private func setTitleDisappearing(_ disappearing: Bool) {
+    titleDisappearing = disappearing
+    guard let owner = scrollOwner else { return }
+    ChatNavigationTitle.setDisappearing(disappearing, on: owner.navigationItem)
   }
 
   override func willMove(toSuperview newSuperview: UIView?) {
@@ -557,7 +555,6 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       frameTimer?.invalidate(); frameTimer = nil
       workDurationTimer?.invalidate(); workDurationTimer = nil
       stream.finish()
-      titleObservation = nil
       if let owner = scrollOwner {
         ChatNavigationTitle.detach(button: titleButton, from: owner.navigationItem)
       }

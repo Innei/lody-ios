@@ -35,6 +35,8 @@ struct ChatNavigationTitleBridge: View {
 final class ChatNavigationTitleHost: UIView {
   private let model: ChatNavigationTitleModel
   private let hosting: UIHostingController<ChatNavigationTitleBridge>
+  private var probe: ChatTitleTransitionProbe?
+  var onTransitionReport: ((String) -> Void)?
 
   var text: String { model.text }
 
@@ -65,11 +67,12 @@ final class ChatNavigationTitleHost: UIView {
     guard text != model.text else { return }
     let update = { self.model.text = text }
     let motion = animated
-      && window != nil
+      && !model.text.isEmpty
       && !text.isEmpty
       && !UIAccessibility.isReduceMotionEnabled
     if motion {
       withAnimation(.default, update)
+      if LodyUIVerify.enabled { probe = ChatTitleTransitionProbe(host: self) }
     } else {
       var transaction = Transaction()
       transaction.disablesAnimations = true
@@ -86,6 +89,42 @@ final class ChatNavigationTitleHost: UIView {
     hosting.sizeThatFits(
       in: CGSize(width: max(1, size.width), height: UIView.layoutFittingExpandedSize.height)
     )
+  }
+}
+
+@MainActor
+final class ChatTitleTransitionProbe: NSObject {
+  private weak var host: ChatNavigationTitleHost?
+  private var link: CADisplayLink?
+  private var frames: [Data] = []
+  private var detached = 0
+  private let started = CACurrentMediaTime()
+
+  init(host: ChatNavigationTitleHost) {
+    self.host = host
+    super.init()
+    let link = CADisplayLink(target: self, selector: #selector(sample(_:)))
+    self.link = link
+    link.add(to: .main, forMode: .common)
+  }
+
+  @objc private func sample(_ link: CADisplayLink) {
+    guard let host, link.timestamp - started < 0.7 else { finish(); return }
+    if host.window == nil { detached += 1 }
+    let size = CGSize(width: max(1, host.bounds.width), height: max(1, host.bounds.height))
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+      host.layer.render(in: context.cgContext)
+    }
+    if let data = image.pngData() { frames.append(data) }
+  }
+
+  private func finish() {
+    link?.invalidate(); link = nil
+    guard let host, let first = frames.first, let last = frames.last else { return }
+    let mid = frames.filter { $0 != first && $0 != last }.count
+    host.onTransitionReport?("transition-frames:\(mid) detached:\(detached) sampled:\(frames.count)")
   }
 }
 
@@ -109,6 +148,7 @@ final class ChatNavigationTitleButton: UIButton {
     captionLabel.isAccessibilityElement = false
     addSubview(titleHost)
     addSubview(captionLabel)
+    titleHost.onTransitionReport = { [weak self] report in self?.accessibilityValue = report }
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -191,9 +231,9 @@ enum ChatNavigationTitle {
   static func apply(title: String, subtitle: String, button: UIButton, to item: UINavigationItem) {
     clearNativeSubtitle(item)
     item.style = .browser
-    if item.titleView !== button {
-      item.titleView = button
-    }
+    let header = LodyNavigationHeader.of(item)
+    header.title = title.isEmpty ? nil : title
+    header.titleView = button
   }
 
   static func preserveSubtitle(_ subtitle: String, on item: UINavigationItem) {
@@ -204,7 +244,15 @@ enum ChatNavigationTitle {
     item.subtitle = nil
   }
 
+  static func setDisappearing(_ disappearing: Bool, on item: UINavigationItem) {
+    LodyNavigationHeader.of(item).suspended = disappearing
+  }
+
   static func detach(button: UIButton, from item: UINavigationItem) {
+    let header = LodyNavigationHeader.of(item)
+    guard header.titleView === button else { return }
+    header.title = nil
+    header.titleView = nil
     if item.titleView === button {
       item.titleView = nil
     }

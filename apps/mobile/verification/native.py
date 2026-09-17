@@ -54,7 +54,7 @@ checks = {
         'LodyStrings.swift',
         'Toast/LodySessionBannerView.swift',
     ],
-    'chat-title': ['Chat/ChatNavigationTitle.swift'],
+    'chat-title': ['LodyUIVerify.swift', 'Chrome/LodyNavigationHeader.swift', 'Chat/ChatNavigationTitle.swift'],
     'live-activity': ['../live-activity/LodyActivityAttributes.swift', '../live-activity/LiveActivityCatalog.swift'],
     'page-progress': ['List/LodyPageProgress.swift'],
 }

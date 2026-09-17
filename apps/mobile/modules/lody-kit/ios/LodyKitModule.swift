@@ -468,6 +468,13 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("pageKind") { (view: LodyNativePagePOC, value: String) in view.pageKind = value }
     }
 
+    View(LodyNavigationHeaderView.self) {
+      Events("onAction")
+      Prop("itemsJSON") { (view: LodyNavigationHeaderView, value: String) in view.setItems(value) }
+      Prop("leftItemsJSON") { (view: LodyNavigationHeaderView, value: String) in view.setLeftItems(value) }
+      Prop("title") { (view: LodyNavigationHeaderView, value: String) in view.setTitle(value) }
+    }
+
     View(LodyMentionPickerView.self) {
       Events("onPick", "onQueryReset", "onRetry")
       Prop("configurationJSON") { (view: LodyMentionPickerView, value: String) in view.configure(value) }
