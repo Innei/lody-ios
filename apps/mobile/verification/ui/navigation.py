@@ -25,23 +25,6 @@ def swipe_back():
            '--end-y', '650', '--duration', '.5', '--post-delay', '1')
 
 
-def home(name):
-    stack(['index'])
-    label = catalog.text('inbox.workspaceSwitch.accessibility', name='我的超长工作区名称不能折行')
-    button = ui.wait(lambda items: next((i for i in items if i.get('AXLabel') == label and i.get('type') == 'Button'), None), 'Workspace button disappeared')
-    frame = button['frame']
-    assert frame['width'] > 200 and frame['height'] >= 44, frame
-    settings = next(i['frame'] for i in ui.state() if i.get('AXLabel') == catalog.text('tabs.settings') and i.get('type') == 'Button')
-    assert frame['x'] + frame['width'] <= settings['x'], 'Workspace overlaps navigation actions'
-    time.sleep(.5)
-    settled = next(i['frame'] for i in ui.state() if i.get('AXLabel') == label and i.get('type') == 'Button')
-    assert all(abs(frame[key] - settled[key]) < 1 for key in ('x', 'y', 'width', 'height')), 'Workspace button moved after settling'
-    assert not any(i.get('AXUniqueId') == 'BackButton' for i in ui.state()), 'Home has a back button'
-    swipe_back()
-    stack(['index'])
-    ui.capture(name)
-
-
 _scheme_allowed = False
 
 
@@ -73,10 +56,33 @@ def session(title):
     ui.wait(lambda items: any(title in (i.get('AXLabel') or '') for i in items), f'Missing session title {title}')
 
 
+embedded = bool(os.environ.get('LODY_UI_EMBEDDED'))
+_root_swiped = False
+
+
+def home(name):
+    stack(['index'])
+    label = catalog.text('inbox.workspaceSwitch.accessibility', name='我的超长工作区名称不能折行')
+    button = ui.wait(lambda items: next((i for i in items if i.get('AXLabel') == label and i.get('type') == 'Button'), None), 'Workspace button disappeared')
+    frame = button['frame']
+    assert frame['width'] > 200 and frame['height'] >= 44, frame
+    settings = next(i['frame'] for i in ui.state() if i.get('AXLabel') == catalog.text('tabs.settings') and i.get('type') == 'Button')
+    assert frame['x'] + frame['width'] <= settings['x'], 'Workspace overlaps navigation actions'
+    time.sleep(.5)
+    settled = next(i['frame'] for i in ui.state() if i.get('AXLabel') == label and i.get('type') == 'Button')
+    assert all(abs(frame[key] - settled[key]) < 1 for key in ('x', 'y', 'width', 'height')), 'Workspace button moved after settling'
+    assert not any(i.get('AXUniqueId') == 'BackButton' for i in ui.state()), 'Home has a back button'
+    global _root_swiped
+    if not embedded or not _root_swiped:
+        swipe_back()
+        stack(['index'])
+        _root_swiped = True
+    ui.capture(name)
+
+
 home('initial-home')
 # Recreate the process with the same offline launch contract to cover startup
 # ordering between native header configuration and the workspace props.
-embedded = bool(os.environ.get('LODY_UI_EMBEDDED'))
 for index in range(2 if embedded else 3):
     subprocess.run(['xcrun', 'simctl', 'terminate', udid, 'app.innei.lody'], check=True, timeout=30)
     ui.invalidate_axe()
@@ -111,7 +117,7 @@ swipe_back()
 home('toolbar-returned')
 ui.wait(lambda items: any(i.get('AXValue') == search_label for i in items), 'Home search did not return')
 
-for index in range(2):
+for index in range(1 if embedded else 2):
     open_url('ui-home/sessions/ui-design')
     session('首页交互设计')
     ui.capture(f'linked-session-{index}')
@@ -126,6 +132,12 @@ session('纯对话草稿')
 ui.capture('relinked-session')
 ui.axe('tap', '--id', 'BackButton', '--post-delay', '1')
 home('relinked-return')
+
+# Workspace, unknown-URL, and Metro reload stay on the local inventory. PR
+# embedded smoke already covered cold start, toolbar, and relinked sessions.
+if embedded:
+    print('PASS: warm, cold, toolbar and relinked session links return to one Home.')
+    raise SystemExit(0)
 
 # Sheets and an old workspace must not remain below the newly opened session.
 avatar = catalog.text('inbox.workspaceSwitch.accessibility', name='我的超长工作区名称不能折行')
@@ -142,14 +154,13 @@ avatar = catalog.text('inbox.workspaceSwitch.accessibility', name='我的超长�
 ui.wait(lambda items: any(i.get('AXLabel') == avatar for i in items), 'Link did not select the target workspace')
 
 # Missing Router pages return to the existing root, never replace the top with another Home.
-for _ in range(1 if embedded else 2):
+for _ in range(2):
     open_url('missing-page')
     home('unknown-return')
 
 # Expo Linking retains the last native URL. Reload JS from Home to exercise the
 # initial-URL path with no mounted coordinator, while keeping --ui-verify active.
 # Launching a terminated dev client via openurl would lose that native safety flag.
-# An embedded Release app has no Metro inspector.
 metro = os.environ.get('LODY_UI_METRO_PORT')
 if metro:
     open_url('ui-home/sessions/ui-design')

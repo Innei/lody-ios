@@ -160,6 +160,8 @@ class CaseSelectionTest(unittest.TestCase):
         self.assertIn("for label in ('Open', '打开', '開啟'):", navigation)
         self.assertIn('_scheme_allowed', navigation)
         self.assertIn("range(2 if embedded else 3)", navigation)
+        self.assertIn("range(1 if embedded else 2)", navigation)
+        self.assertIn("if embedded:", navigation)
         self.assertIn('recover=False', navigation)
         self.assertIn('got.casefold() == text.casefold()', Path(__file__).with_name('driver.py').read_text())
         self.assertIn("if not os.environ.get('LODY_UI_EMBEDDED'):", Path(__file__).with_name('send-handoff.py').read_text())
