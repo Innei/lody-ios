@@ -21,6 +21,7 @@
     "@loro-dev/streams-client": "0.7.0",
     "@pierre/diffs": "1.4.1",
     "base64-js": "1.5.1",
+    "diff": "9.0.0",
     "expo": "~57.0.20",
     "expo-constants": "~57.0.7",
     "expo-dev-client": "~57.0.18",

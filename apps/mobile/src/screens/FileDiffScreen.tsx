@@ -5,9 +5,11 @@ import {
   useColorScheme,
   View as RNView,
 } from 'react-native';
+import { Stack } from 'expo-router';
 import {
   NativeDiffToolbar,
   NativeDiffSurface,
+  copyText,
   fileDiff,
   previewContent,
   readContentText,
@@ -18,10 +20,13 @@ import {
   type DiffContent,
 } from '@lody-ios/kit';
 import { DiffView } from '@/features/diff/DiffView';
+import { unifiedPatch } from '@/features/diff/unifiedPatch';
 import { definePage } from '@/lib/presentation';
+import { basename } from '@/features/sessions/path';
 import { usePalette } from '@/lib/theme/palette';
 import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
+import { showToast } from '@/ui/toast';
 import { t, type TranslationKey } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 
@@ -110,12 +115,25 @@ function View() {
     void writeLocalValue(STYLE_KEY, next).catch(() => {});
   };
 
+  const copy = (text: string) => {
+    copyText(text);
+    showToast(t('diff.toast.copied'), 'info');
+  };
+
   const preview = async () => {
-    const file = await readFile({
-      sessionId: params.sessionId,
-      path: params.path,
-    });
-    if (file.status === 'ok') await previewContent(file.handle);
+    try {
+      const file = await readFile({
+        sessionId: params.sessionId,
+        path: params.path,
+      });
+      if (file.status === 'ok') {
+        await previewContent(file.handle);
+        return;
+      }
+      showToast(file.message ?? t('diff.toast.previewFailed'));
+    } catch {
+      showToast(t('diff.toast.previewFailed'));
+    }
   };
 
   let body;
@@ -201,30 +219,72 @@ function View() {
       );
 
   return (
-    <NativeDiffSurface
-      contentRevision={renderMs}
-      style={{ flex: 1, backgroundColor: colors.reading }}
-    >
-      {body}
-      {diff?.status === 'ok' ? (
-        <NativeDiffToolbar
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 16,
-            height: 56,
-          }}
-          add={diff.add ?? 0}
-          del={diff.del ?? 0}
-          base={t(
-            diff.base === 'turn' ? 'diff.base.turn' : 'diff.base.current',
-          )}
-          diffStyle={style}
-          onStyleChange={({ nativeEvent }) => changeStyle(nativeEvent.style)}
-        />
-      ) : null}
-    </NativeDiffSurface>
+    <>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Menu
+          icon="ellipsis"
+          accessibilityLabel={t('common.more')}
+        >
+          <Stack.Toolbar.MenuAction
+            icon="doc.on.doc"
+            onPress={() => copy(basename(params.path))}
+          >
+            {t('diff.action.copyFileName')}
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            icon="folder"
+            onPress={() => copy(params.path)}
+          >
+            {t('diff.action.copyPath')}
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            icon="doc.text"
+            disabled={sides == null}
+            onPress={() => {
+              if (sides) copy(sides.new);
+            }}
+          >
+            {t('diff.action.copyContents')}
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            icon="plus.forwardslash.minus"
+            disabled={sides == null}
+            onPress={() => {
+              if (sides) copy(unifiedPatch(params.path, sides.old, sides.new));
+            }}
+          >
+            {t('diff.action.copyPatch')}
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction icon="eye" onPress={() => void preview()}>
+            {t('diff.action.previewFile')}
+          </Stack.Toolbar.MenuAction>
+        </Stack.Toolbar.Menu>
+      </Stack.Toolbar>
+      <NativeDiffSurface
+        contentRevision={renderMs}
+        style={{ flex: 1, backgroundColor: colors.reading }}
+      >
+        {body}
+        {diff?.status === 'ok' ? (
+          <NativeDiffToolbar
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 16,
+              height: 56,
+            }}
+            add={diff.add ?? 0}
+            del={diff.del ?? 0}
+            base={t(
+              diff.base === 'turn' ? 'diff.base.turn' : 'diff.base.current',
+            )}
+            diffStyle={style}
+            onStyleChange={({ nativeEvent }) => changeStyle(nativeEvent.style)}
+          />
+        ) : null}
+      </NativeDiffSurface>
+    </>
   );
 }
 
