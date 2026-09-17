@@ -237,8 +237,8 @@ let titleBottom = button.titleHost.frame.minY + CGFloat(titleInk.last) / scale
 let subtitleTop = button.captionLabel.frame.minY + CGFloat(subtitleInk.first) / scale
 let gap = subtitleTop - titleBottom
 precondition(
-  gap >= -1 && gap <= 4,
-  "Title-to-subtitle ink gap must stay tight (gap=\(gap) titleBottom=\(titleBottom) subtitleTop=\(subtitleTop))"
+  gap >= 2 && gap <= 8,
+  "Title-to-subtitle ink gap must leave a small gap (gap=\(gap) titleBottom=\(titleBottom) subtitleTop=\(subtitleTop))"
 )
 
 ChatNavigationTitle.configureButton(button, title: "Payg", subtitle: "lody-ios", machine: "Studio")
