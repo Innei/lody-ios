@@ -151,7 +151,9 @@ class CaseSelectionTest(unittest.TestCase):
         self.assertIn('args.shared_metro or args.embedded', source)
         self.assertIn("ui.screenshot('failure')", source)
         self.assertIn("elif case == 'navigation':", source)
+        self.assertIn("elif case == 'send':", source)
         self.assertIn('check_timeout = 480', source)
+        self.assertIn('accessibility automation', Path(__file__).with_name('driver.py').read_text())
         self.assertIn("env['LODY_UI_EMBEDDED'] = '1'", source)
         self.assertIn('except subprocess.TimeoutExpired as error:', source)
         navigation = Path(__file__).with_name('navigation.py').read_text()
@@ -228,6 +230,23 @@ class CaptureTest(unittest.TestCase):
 
             with patch('subprocess.check_output', check_output), patch('driver.time.sleep'):
                 self.assertEqual(ui.axe('tap', '--id', 'send-fail'), 'ok')
+            self.assertEqual(calls['count'], 3)
+            self.assertTrue(ui._axe_ready)
+
+    def test_axe_retries_when_restoring_accessibility_times_out(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+            ui._axe_ready = True
+            calls = {'count': 0}
+
+            def check_output(*_args, **_kwargs):
+                calls['count'] += 1
+                if calls['count'] < 3:
+                    return 'Error: AXe timed out while restoring accessibility automation.\n'
+                return 'ok'
+
+            with patch('subprocess.check_output', check_output), patch('driver.time.sleep'):
+                self.assertEqual(ui.axe('tap', '--id', 'send-toggle-pending'), 'ok')
             self.assertEqual(calls['count'], 3)
             self.assertTrue(ui._axe_ready)
 

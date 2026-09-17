@@ -393,8 +393,11 @@ with metro_context:
                     elif case == 'navigation':
                         # Cold relaunches plus catalog links; 480s still dies after relink on CI AXe.
                         check_timeout = 600
-                    elif case in ('send', 'send-handoff'):
-                        # AXe session recovery after the offline send overruns the default 180s.
+                    elif case == 'send':
+                        # Product path can finish, then AXe restore during pending
+                        # toggles eats the rest of a 300s budget.
+                        check_timeout = 480
+                    elif case == 'send-handoff':
                         check_timeout = 300
                     elif case in ('chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production'):
                         check_timeout = 300

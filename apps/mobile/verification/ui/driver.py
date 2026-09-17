@@ -7,6 +7,14 @@ import time
 from pathlib import Path
 
 
+def axe_session_dead(error):
+    """AXe's XCTest session can die mid-run; creating or restoring it is retryable."""
+    if isinstance(error, subprocess.TimeoutExpired):
+        return True
+    message = str(error).casefold()
+    return 'remote automation session' in message or 'accessibility automation' in message
+
+
 class UI:
     def __init__(self, udid, output):
         self.udid, self.output = udid, Path(output)
@@ -30,8 +38,7 @@ class UI:
                 return output
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError) as error:
                 last = error
-                session_dead = isinstance(error, subprocess.TimeoutExpired) or 'remote automation session' in str(error)
-                if not recover or not session_dead or time.monotonic() >= deadline:
+                if not recover or not axe_session_dead(error) or time.monotonic() >= deadline:
                     raise
                 self._axe_ready = False
                 time.sleep(2)
