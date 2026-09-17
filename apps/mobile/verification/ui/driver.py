@@ -43,7 +43,7 @@ class UI:
         keyboard that is already Latin."""
         import catalog
         self.axe('type', text)
-        if catalog.LANGUAGE == 'en' or self.element(identifier).get('AXValue') == text:
+        if self.element(identifier).get('AXValue') == text:
             return
         self.axe('tap', '--label', catalog.system('nextKeyboard'), '--post-delay', '.6')
         for _ in range(len(text) + 4):

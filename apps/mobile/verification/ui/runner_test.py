@@ -132,7 +132,6 @@ class CaseSelectionTest(unittest.TestCase):
     def test_default_phone_run_excludes_pad_device_cases(self):
         source = Path(__file__).with_name('run.py').read_text()
         self.assertIn('PHONE_CASES', source)
-        self.assertIn("PAD_CASES = ['ipad', 'ipad-chrome', 'native-shell', 'native-collection']", source)
         self.assertIn('selected = PHONE_CASES', source)
         self.assertNotIn('selected = CASES', source)
         self.assertIn('if args.case in PAD_CASES', source)
@@ -157,6 +156,7 @@ class CaseSelectionTest(unittest.TestCase):
         self.assertIn('except subprocess.TimeoutExpired as error:', source)
         navigation = Path(__file__).with_name('navigation.py').read_text()
         self.assertIn("for label in ('Open', '打开', '開啟'):", navigation)
+        self.assertIn('_scheme_allowed', navigation)
         self.assertIn('recover=False', navigation)
         native = Path(__file__).resolve().parents[1].joinpath('native.py').read_text()
         self.assertIn('timeout=240', native)

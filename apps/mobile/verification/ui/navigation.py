@@ -42,19 +42,29 @@ def home(name):
     ui.capture(name)
 
 
+_scheme_allowed = False
+
+
 def open_url(path):
+    global _scheme_allowed
     subprocess.run(['xcrun', 'simctl', 'openurl', udid, f'lody:///{path}'], check=True, timeout=30)
     # First use of the custom scheme shows a SpringBoard confirmation. describe-ui
-    # hangs on that alert, so tap Open without reading the tree first.
+    # hangs on that alert, so tap Open without reading the tree. Later links must
+    # not spend 8s per missing label or tap through the home catalog.
+    if _scheme_allowed:
+        time.sleep(0.5)
+        return
     time.sleep(1)
     ui.invalidate_axe()
     for label in ('Open', '打开', '開啟'):
         try:
-            ui.axe('tap', '--label', label, '--post-delay', '1', timeout=8, recover=False)
+            ui.axe('tap', '--label', label, '--post-delay', '1', timeout=3, recover=False)
+            _scheme_allowed = True
             return
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError):
             continue
-    ui.axe('tap', '-x', '280', '-y', '450', '--post-delay', '1', timeout=8, recover=False)
+    ui.axe('tap', '-x', '280', '-y', '450', '--post-delay', '1', timeout=3, recover=False)
+    _scheme_allowed = True
 
 
 def session(title):
