@@ -147,6 +147,10 @@ final class ChatMessageAttachmentsCell: UICollectionViewCell {
     setNeedsLayout()
   }
 
+  func imageCell(id: String) -> ChatImageCell? {
+    tiles.compactMap { $0 as? ChatImageCell }.first { $0.accessibilityIdentifier == id }
+  }
+
   @objc private func openImage(_ recognizer: UITapGestureRecognizer) {
     guard let cell = recognizer.view as? ChatImageCell, let index = tiles.firstIndex(where: { $0 === cell }) else { return }
     onPreview?(rendered[index], cell)

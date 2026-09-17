@@ -88,6 +88,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var collapsedMessageHeights: [String: CGFloat] = [:]
   var imageWorkspace = ""
   var imageSession = ""
+  weak var imagePreview: ChatImagePreview?
   var mentionRepository = "" {
     didSet {
       guard oldValue != mentionRepository else { return }
@@ -292,9 +293,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
         cell.configure(row, workspace: self.imageWorkspace, session: self.imageSession, expanded: self.expandedAttachments.contains(row.entryID))
         cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
         cell.onPreview = { [weak self] attachment, image in
-          guard let self, let controller = self.presenter() else { return }
-          self.pauseTracking()
-          if let image { image.presentPreview(from: controller); return }
+          guard let self else { return }
+          if let image, let id = image.accessibilityIdentifier, !id.isEmpty {
+            self.openImageGallery(id: id, source: image)
+            return
+          }
           self.openAttachment(attachment)
         }
         return cell

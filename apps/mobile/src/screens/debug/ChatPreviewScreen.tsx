@@ -71,6 +71,54 @@ function editStatus(mode: 'normal' | 'attention', length: number) {
   return 'completed';
 }
 
+function imageFixture(assistant: boolean) {
+  if (assistant) {
+    return {
+      id: 'preview-image',
+      role: 'assistant' as const,
+      status: 'completed',
+      finished: true,
+      items: [
+        {
+          itemId: 'photo',
+          type: 'image_group',
+          images: ['first.png', 'second.png'].map((fileName) => ({
+            id: 'ui-verify-image',
+            fileName,
+            width: 600,
+            height: 400,
+          })),
+        },
+        { itemId: 'caption', type: 'text', text: '离线图片验收' },
+      ],
+    };
+  }
+  const photos = [
+    { fileName: 'fixture.png', width: 600, height: 400 },
+    { fileName: 'two.png', width: 400, height: 600 },
+    { fileName: 'three.png', width: 600, height: 400 },
+  ];
+  return {
+    id: 'preview-image',
+    role: 'user' as const,
+    status: 'completed',
+    finished: true,
+    items: [
+      ...photos.map((photo, index) => ({
+        itemId: `photo-${index}`,
+        type: 'image',
+        image: {
+          id: index === 0 ? 'ui-verify-image' : `ui-verify-image-${index}`,
+          fileName: photo.fileName,
+          width: photo.width,
+          height: photo.height,
+        },
+      })),
+      { itemId: 'caption', type: 'text', text: '离线图片验收' },
+    ],
+  };
+}
+
 function overlayTaskEntries() {
   return [
     {
@@ -371,35 +419,7 @@ function View() {
     return () => clearInterval(timer);
   }, [length < totalLength, step]);
   const entriesJSON = JSON.stringify([
-    ...(showImage
-      ? [
-          {
-            id: 'preview-image',
-            role: assistantImages ? 'assistant' : 'user',
-            status: 'completed',
-            finished: true,
-            items: [
-              {
-                itemId: 'photo',
-                type: assistantImages ? 'image_group' : 'image',
-                images: ['first.png', 'second.png'].map((fileName) => ({
-                  id: 'ui-verify-image',
-                  fileName,
-                  width: 600,
-                  height: 400,
-                })),
-                image: {
-                  id: 'ui-verify-image',
-                  fileName: 'fixture.png',
-                  width: 600,
-                  height: 400,
-                },
-              },
-              { itemId: 'caption', type: 'text', text: '离线图片验收' },
-            ],
-          },
-        ]
-      : history),
+    ...(showImage ? [imageFixture(assistantImages)] : history),
     ...(sent
       ? [
           {

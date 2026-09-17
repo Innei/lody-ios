@@ -48,18 +48,23 @@ assert source_id == 'preview-image:attachment:ui-verify-image', 'Use the offline
 name = source['AXLabel'].removeprefix(IMAGE)
 axe('tap', '--id', source_id, '--post-delay', '1')
 assert any(item.get('AXLabel') == CLOSE for item in elements()), 'Image must open the lightbox'
+page_one_of_three = catalog.text('native.chat.image.page', current=1, total=3)
+page_two_of_three = catalog.text('native.chat.image.page', current=2, total=3)
+page_three_of_three = catalog.text('native.chat.image.page', current=3, total=3)
+assert any(item.get('AXLabel') == page_one_of_three for item in elements()), 'A user turn with several photos must open as a gallery'
 capture('opened')
 
 
-def double_tap():
-    image = next(item for item in elements() if item.get('AXLabel') == name)
+def double_tap(label=None):
+    target = label or name
+    image = next(item for item in elements() if item.get('AXLabel') == target)
     frame = image['frame']
-    x = max(20, min(items[0]['frame']['width'] - 20, frame['x'] + frame['width'] / 2))
+    x = max(20, min(items[0]['frame']['width'] / 2 if frame['width'] == 0 else frame['x'] + frame['width'] / 2, items[0]['frame']['width'] - 20))
     y = max(120, min(height - 100, frame['y'] + frame['height'] / 2))
     axe('batch', '--step', f'tap -x {x} -y {y}', '--step', 'sleep 0.08',
         '--step', f'tap -x {x} -y {y}')
     time.sleep(0.6)
-    return next(item for item in elements() if item.get('AXLabel') == name)
+    return next(item for item in elements() if item.get('AXLabel') == target)
 
 
 zoomed = double_tap()
@@ -84,6 +89,23 @@ capture('drag-closed')
 print(json.dumps({'open': True, 'doubleTapZoom': zoomed['AXValue'], 'restoreFit': True,
                   'returnToMessage': True, 'dragDismiss': True}))
 
+axe('tap', '--id', source_id, '--post-delay', '1')
+assert any(item.get('AXLabel') == CLOSE for item in elements())
+width = items[0]['frame']['width']
+axe('swipe', '--start-x', str(width * 0.8), '--start-y', str(height * 0.5),
+    '--end-x', str(width * 0.2), '--end-y', str(height * 0.5), '--duration', '0.4', '--post-delay', '0.8')
+assert any(item.get('AXLabel') == page_two_of_three for item in elements()), 'Swipe must reach the second photo in the message'
+assert any(item.get('AXLabel') == 'two.png' for item in elements())
+capture('album-paged')
+axe('swipe', '--start-x', str(width * 0.8), '--start-y', str(height * 0.5),
+    '--end-x', str(width * 0.2), '--end-y', str(height * 0.5), '--duration', '0.4', '--post-delay', '0.8')
+assert any(item.get('AXLabel') == page_three_of_three for item in elements()), 'Swipe must reach the third photo in the message'
+assert any(item.get('AXLabel') == 'three.png' for item in elements())
+capture('album-last')
+axe('tap', '--label', CLOSE, '--post-delay', '0.7')
+assert any(item.get('AXUniqueId') == 'preview-image:attachment:ui-verify-image-2' for item in elements())
+print(json.dumps({'userAlbum': 3, 'userAlbumPage': True}))
+
 axe('tap', '--label', 'Fixtures')
 axe('tap', '--label', 'MCP Image Fixture', '--post-delay', '1')
 for index in range(2):
@@ -92,9 +114,28 @@ for index in range(2):
 capture('mcp-inline')
 axe('tap', '--id', 'preview-image:photo:image:0', '--post-delay', '1')
 assert any(item.get('AXLabel') == CLOSE for item in elements()), 'MCP image must open the lightbox'
+page_one = catalog.text('native.chat.image.page', current=1, total=2)
+page_two = catalog.text('native.chat.image.page', current=2, total=2)
+assert any(item.get('AXLabel') == page_one for item in elements()), 'Gallery must start on the first image'
 capture('mcp-opened')
+width = items[0]['frame']['width']
+axe('swipe', '--start-x', str(width * 0.8), '--start-y', str(height * 0.5),
+    '--end-x', str(width * 0.2), '--end-y', str(height * 0.5), '--duration', '0.4', '--post-delay', '0.8')
+opened = elements()
+assert any(item.get('AXLabel') == page_two for item in opened), 'Swipe must show the second image'
+assert any(item.get('AXLabel') == 'second.png' for item in opened)
+capture('mcp-paged')
 axe('tap', '--label', CLOSE, '--post-delay', '0.7')
-assert any(item.get('AXUniqueId') == 'preview-image:photo:image:0' for item in elements())
+assert any(item.get('AXUniqueId') == 'preview-image:photo:image:1' for item in elements()), 'Close must return to the current thumbnail'
 assert title_state() == initial_title
 capture('mcp-closed')
-print(json.dumps({'mcpImagesInline': 2, 'mcpPreview': True, 'mcpReturn': True}))
+
+axe('tap', '--id', 'preview-image:photo:image:0', '--post-delay', '1')
+assert any(item.get('AXLabel') == CLOSE for item in elements())
+zoomed_gallery = double_tap('first.png')
+assert int(zoomed_gallery['AXValue'].rstrip('%')) > 100
+axe('swipe', '--start-x', str(width * 0.8), '--start-y', str(height * 0.5),
+    '--end-x', str(width * 0.2), '--end-y', str(height * 0.5), '--duration', '0.4', '--post-delay', '0.8')
+assert any(item.get('AXLabel') == page_one for item in elements()), 'A zoomed image must not page'
+axe('tap', '--label', CLOSE, '--post-delay', '0.7')
+print(json.dumps({'mcpImagesInline': 2, 'mcpPreview': True, 'mcpPage': True, 'mcpZoomBlocksPage': True, 'mcpReturn': True}))

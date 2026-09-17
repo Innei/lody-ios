@@ -500,6 +500,7 @@
   "native.chat.image.label": "图片，{name}",
   "native.chat.image.closePreview": "关闭图片预览",
   "native.chat.image.retry": "图片加载失败，轻点重试",
+  "native.chat.image.page": "{current} / {total}",
   "native.chat.transcript.tool": "调用工具",
   "native.chat.transcript.pending": "等待批准 · {text}",
   "native.chat.transcript.failed": "失败 · {text}",

@@ -338,7 +338,12 @@ extension LodyChatView {
       if let tail = projected.last(where: { $0.streaming }) {
         self.renderTailLength = self.store.tailLength(id: tail.id)
       }
-      if self.needsApply { self.needsApply = false; self.applyRows() }
+      if self.needsApply {
+        self.needsApply = false
+        self.applyRows()
+      } else {
+        self.imagePreview?.updateItems(ChatImageGallery.items(from: projected))
+      }
     }
     if folding && !UIAccessibility.isReduceMotionEnabled {
       UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseInOut]) {

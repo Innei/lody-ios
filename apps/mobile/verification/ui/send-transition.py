@@ -88,6 +88,12 @@ ui.wait(lambda items: any(item.get('AXLabel') == close_preview for item in items
 ui.capture('image-preview')
 screen = next(item for item in ui.state() if item.get('frame') and item['frame'].get('height', 0) > 500)
 width, height = screen['frame']['width'], screen['frame']['height']
+page_one = catalog.text('native.chat.image.page', current=1, total=2)
+page_two = catalog.text('native.chat.image.page', current=2, total=2)
+assert any(item.get('AXLabel') == page_one for item in ui.state()), 'Mixed attachments must open as a gallery'
+ui.axe('swipe', '--start-x', str(width * 0.8), '--start-y', str(height * 0.5),
+       '--end-x', str(width * 0.2), '--end-y', str(height * 0.5), '--duration', '0.4', '--post-delay', '0.8')
+assert any(item.get('AXLabel') == page_two for item in ui.state()), 'Gallery must swipe to the other photo'
 ui.axe('drag', '--start-x', str(width / 2), '--start-y', str(height * 0.45),
        '--end-x', str(width / 2), '--end-y', str(height * 0.85),
        '--duration', '0.6', '--post-delay', '2')

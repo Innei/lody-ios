@@ -41,9 +41,9 @@ extension LodyChatView {
       toggleExpansion(row)
       return
     }
-    if let cell = collectionView.cellForItem(at: indexPath) as? ChatImageCell, let controller = presenter() {
-      pauseTracking()
-      cell.presentPreview(from: controller)
+    if let cell = collectionView.cellForItem(at: indexPath) as? ChatImageCell,
+       let id = dataSource.itemIdentifier(for: indexPath) {
+      openImageGallery(id: id, source: cell)
       return
     }
     guard let id = dataSource.itemIdentifier(for: indexPath), let row = rows[id], row.actionable else { return }
@@ -56,6 +56,46 @@ extension LodyChatView {
       return
     }
     onActivityPress(["entryId": row.entryID, "itemId": row.itemID, "processStartId": row.processStartID])
+  }
+
+  func galleryItems() -> [ChatImagePreviewItem] {
+    ChatImageGallery.items(from: dataSource.snapshot().itemIdentifiers.compactMap { rows[$0] })
+  }
+
+  func imageCell(id: String) -> ChatImageCell? {
+    if let index = dataSource.indexPath(for: id),
+       let cell = collection.cellForItem(at: index) as? ChatImageCell {
+      return cell
+    }
+    guard let row = rows.values.first(where: {
+      $0.kind == "attachments" && id.hasPrefix($0.entryID + ":attachment:")
+    }), let index = dataSource.indexPath(for: row.id),
+      let cell = collection.cellForItem(at: index) as? ChatMessageAttachmentsCell else { return nil }
+    return cell.imageCell(id: id)
+  }
+
+  func openImageGallery(id: String, source: ChatImageCell?) {
+    guard let controller = presenter(), controller.presentedViewController == nil else { return }
+    let items = galleryItems()
+    guard let index = ChatImageGallery.index(of: id, in: items) else { return }
+    pauseTracking()
+    var placeholders: [String: UIImage] = [:]
+    for item in items {
+      if let image = imageCell(id: item.id)?.displayedImage { placeholders[item.id] = image }
+    }
+    if let source, let image = source.displayedImage { placeholders[id] = image }
+    imagePreview = ChatImagePreview.present(
+      from: controller,
+      items: items,
+      index: index,
+      workspace: imageWorkspace,
+      session: imageSession,
+      placeholders: placeholders,
+      sourceView: { [weak self] pageId in
+        guard let cell = self?.imageCell(id: pageId), cell.window != nil else { return nil }
+        return cell.zoomSource
+      }
+    )
   }
 
   func openAttachment(_ attachment: ChatMessageAttachment) {

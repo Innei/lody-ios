@@ -500,6 +500,7 @@
   "native.chat.image.label": "Image, {name}",
   "native.chat.image.closePreview": "Close the image preview",
   "native.chat.image.retry": "The image failed to load. Tap to retry.",
+  "native.chat.image.page": "{current} of {total}",
   "native.chat.transcript.tool": "Tool call",
   "native.chat.transcript.pending": "Waiting for approval · {text}",
   "native.chat.transcript.failed": "Failed · {text}",

@@ -684,3 +684,96 @@ assert(transcript.rows(processEntryID: "reply", processStartID: "__tasks__").map
 transcript.entries[0].finished = true
 assert(!transcript.rows().contains { $0.kind == "subagent_task" || $0.itemID == "explore" })
 print("Chat: live subagent tasks stay off the main list and skip housekeeping")
+
+let screen = ChatImagePreviewGeometry.Size(width: 400, height: 800)
+assert(
+  ChatImagePreviewGeometry.fitContain(ChatImagePreviewGeometry.Size(width: 1600, height: 900), in: screen)
+    == ChatImagePreviewGeometry.Rect(x: 0, y: 287.5, width: 400, height: 225),
+  "A wide picture fits the screen width and stays centred"
+)
+assert(
+  ChatImagePreviewGeometry.fitContain(ChatImagePreviewGeometry.Size(width: 1000, height: 4000), in: screen)
+    == ChatImagePreviewGeometry.Rect(x: 100, y: 0, width: 200, height: 800),
+  "A tall picture fits the screen height and stays centred"
+)
+assert(
+  ChatImagePreviewGeometry.fitContain(.zero, in: screen)
+    == ChatImagePreviewGeometry.Rect(x: 0, y: 0, width: 400, height: 800),
+  "An unknown size fills the box instead of vanishing"
+)
+let box = ChatImagePreviewGeometry.box(
+  viewport: screen, safeTop: 62, safeBottom: 34, inset: 16
+)
+assert(box.x == 16 && box.width == 368)
+assert(box.y == 62 + 16 && box.height == 800 - 2 * (62 + 16), "Vertical inset uses the larger safe edge so the picture stays centred")
+let fitted = ChatImagePreviewGeometry.fitWithin(ChatImagePreviewGeometry.Size(width: 1600, height: 900), in: box)
+assert(fitted.x == box.x && fitted.width == box.width)
+assert(fitted.y + fitted.height / 2 == box.y + box.height / 2)
+
+let width: CGFloat = 416
+assert(ChatImagePreviewGeometry.snapPage(offset: -100, velocity: 0, current: 0, count: 5, pageWidth: width) == 0)
+assert(ChatImagePreviewGeometry.snapPage(offset: -100, velocity: -1200, current: 0, count: 5, pageWidth: width) == 1)
+assert(ChatImagePreviewGeometry.snapPage(offset: -300, velocity: 0, current: 0, count: 5, pageWidth: width) == 1)
+assert(ChatImagePreviewGeometry.snapPage(offset: -width * 3, velocity: -8000, current: 1, count: 5, pageWidth: width) == 2)
+assert(ChatImagePreviewGeometry.snapPage(offset: 50, velocity: 900, current: 0, count: 5, pageWidth: width) == 0)
+assert(ChatImagePreviewGeometry.snapPage(offset: 0, velocity: 0, current: 0, count: 1, pageWidth: width) == 0)
+
+let hit = ChatImagePreviewGeometry.Rect(x: 0, y: 287.5, width: 400, height: 225)
+assert(ChatImagePreviewGeometry.hits(CGPoint(x: 200, y: 400), rect: hit, scale: 1, translation: .zero))
+assert(!ChatImagePreviewGeometry.hits(CGPoint(x: 200, y: 100), rect: hit, scale: 1, translation: .zero))
+assert(ChatImagePreviewGeometry.hits(CGPoint(x: 200, y: 100), rect: hit, scale: 3, translation: .zero))
+
+let clamped = ChatImagePreviewGeometry.rubberBandClamp(300, min: 0, max: 100, dimension: 400)
+assert(clamped > 100 && clamped < 300, "Overshoot must resist without reaching the push")
+assert(ChatImagePreviewGeometry.panBound(fitted: 400, scale: 1, viewport: 400) == 0)
+assert(ChatImagePreviewGeometry.panBound(fitted: 400, scale: 2, viewport: 400) == 200)
+assert(!ChatImagePreviewGeometry.shouldPage(zoomScale: 1, velocity: CGPoint(x: 0, y: 400), count: 3))
+assert(!ChatImagePreviewGeometry.shouldPage(zoomScale: 2, velocity: CGPoint(x: 400, y: 0), count: 3))
+assert(!ChatImagePreviewGeometry.shouldPage(zoomScale: 1, velocity: CGPoint(x: 400, y: 0), count: 1))
+assert(ChatImagePreviewGeometry.shouldPage(zoomScale: 1, velocity: CGPoint(x: 400, y: 0), count: 3))
+print("Image preview geometry: fit, paging snap, hit testing and rubber-band passed")
+
+let userPhoto = ChatImage(id: "image1", fileName: "sample.png", storageSessionId: nil, width: 800, height: 600)
+let fileOnly = ChatMessageAttachment(id: "notes", fileName: "notes.txt")
+let photoAttachment = ChatMessageAttachment(id: "image1", fileName: "sample.png", image: userPhoto, localURI: "file:///tmp/sample.png")
+let mixedRows = [
+  ChatRow(id: "turn:user", entryID: "turn", kind: "attachments", text: "", attachments: [fileOnly, photoAttachment]),
+  ChatRow(id: "turn:user-text", entryID: "turn", kind: "user", text: "caption"),
+  ChatRow(
+    id: "reply:photos:image:0", entryID: "reply", kind: "image", text: "", itemID: "photos",
+    image: ChatImage(id: "one", fileName: "one.png", storageSessionId: "source", width: 600, height: 400)
+  ),
+  ChatRow(
+    id: "reply:photos:image:1", entryID: "reply", kind: "image", text: "", itemID: "photos",
+    image: ChatImage(id: "two", fileName: "two.png", storageSessionId: nil, width: nil, height: nil)
+  ),
+]
+let gallery = ChatImageGallery.items(from: mixedRows)
+assert(gallery.map(\.id) == ["turn:attachment:image1", "reply:photos:image:0", "reply:photos:image:1"])
+assert(gallery.map(\.image.id) == ["image1", "one", "two"])
+assert(gallery.first?.localURI == "file:///tmp/sample.png")
+assert(ChatImageGallery.items(from: mixedRows.filter { $0.kind == "user" }).isEmpty)
+assert(ChatImageGallery.index(of: "reply:photos:image:1", in: gallery) == 2)
+assert(ChatImageGallery.index(of: "missing", in: gallery) == nil)
+let userAlbum = ChatImageGallery.items(from: [
+  ChatRow(
+    id: "turn:user", entryID: "turn", kind: "attachments", text: "",
+    attachments: [
+      ChatMessageAttachment(id: "ui-verify-image", fileName: "fixture.png", image: userPhoto),
+      ChatMessageAttachment(
+        id: "ui-verify-image-1", fileName: "two.png",
+        image: ChatImage(id: "ui-verify-image-1", fileName: "two.png", storageSessionId: nil, width: 400, height: 600)
+      ),
+      ChatMessageAttachment(
+        id: "ui-verify-image-2", fileName: "three.png",
+        image: ChatImage(id: "ui-verify-image-2", fileName: "three.png", storageSessionId: nil, width: 600, height: 400)
+      ),
+    ]
+  ),
+])
+assert(userAlbum.map(\.id) == [
+  "turn:attachment:ui-verify-image",
+  "turn:attachment:ui-verify-image-1",
+  "turn:attachment:ui-verify-image-2",
+])
+print("Image gallery: list order, skip files, attachment ids, and lookup passed")
