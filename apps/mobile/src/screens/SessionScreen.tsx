@@ -44,7 +44,6 @@ import { ItemDetailScreen } from '@/screens/ItemDetailScreen';
 import { basename } from '@/features/sessions/path';
 import { FileDiffScreen } from '@/screens/FileDiffScreen';
 import { FilesScreen } from '@/screens/FilesScreen';
-import { changedFiles } from '@/features/sessions/transcript/changes';
 import { DiffWebViewWarmer } from '@/features/diff/DiffWebViewWarmer';
 import { PermissionScreen } from '@/screens/PermissionScreen';
 import {
@@ -249,9 +248,7 @@ function View() {
     !currentSession.archived &&
     !!localProjectIdOf(session.projectId);
   const onTurnChangesPress = (entryId: string, path: string) => {
-    const entry = snapshot.entries.find((e) => e.id === entryId);
-    if (!entry) return;
-    if (!changedFiles(entry).some((file) => file.path === path)) return;
+    // Displayed native rows can lag the current JS replica; turnDiff validates the target.
     void present(
       FileDiffScreen,
       { sessionId: session.id, entryId, path },
