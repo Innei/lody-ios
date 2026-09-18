@@ -49,6 +49,10 @@ final class ChatMarkdownView: UIView {
     }
   }
 
+  func setShine(_ on: Bool) {
+    for block in blocks { block.label.setShine(on) }
+  }
+
   func update(_ sources: [ChatMarkdownBlock], theme: MarkdownTheme, streaming: Bool, width: CGFloat) {
     let sameTheme = self.theme == theme
     let animate = window != nil && streaming && !UIAccessibility.isReduceMotionEnabled

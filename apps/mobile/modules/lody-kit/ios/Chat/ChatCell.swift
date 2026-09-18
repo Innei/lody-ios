@@ -126,7 +126,6 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   var numericText: ChatNumericTextHost { messageContent.numericText }
   var bubble: UIView { messageContent.bubble }
   let icon = ChatMarkView()
-  let spinner = UIActivityIndicatorView(style: .medium)
   let separator = UIView()
   var row: ChatRow?
   var onInteraction: (() -> Void)?
@@ -142,7 +141,6 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     contentView.addSubview(messageContent)
     messageContent.disclosure.addAction(UIAction { [weak self] _ in self?.onToggle?() }, for: .touchUpInside)
     contentView.addSubview(icon)
-    contentView.addSubview(spinner)
     contentView.addSubview(separator)
     icon.contentMode = .center
     separator.backgroundColor = .separator
@@ -161,9 +159,6 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     else { messageContent.isHidden = false }
     bubble.isHidden = row.kind != "user"
     applyLeadingMark(for: row, previousSymbol: previousSymbol, sameRow: sameRow)
-    row.running && row.kind != "summary" && row.kind != "duration"
-      ? spinner.startAnimating()
-      : spinner.stopAnimating()
     separator.isHidden = row.kind != "duration"
     accessibilityIdentifier = row.id
     accessibilityLabel = text.string.replacingOccurrences(of: "\u{FFFC}", with: "")
@@ -305,13 +300,8 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     return CGRect(x: 2, y: textY, width: 20, height: min(textHeight, 20))
   }
   static func textWidth(_ row: ChatRow, width: CGFloat) -> CGFloat {
-    // Reserve the status slot even after completion: status cannot rewrap text.
-    let reserved: CGFloat =
-      row.kind == "text" || row.kind == "thought" || row.kind == "summary" || row.kind == "duration"
-        ? 0
-        : 28
     if row.kind == "user" { return max(1, width * 0.84 - 26) }
-    return max(1, width - leading(row) - reserved)
+    return max(1, width - leading(row))
   }
 
   override func layoutSubviews() {
@@ -363,7 +353,6 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
         : height
       icon.frame = Self.iconFrame(for: row, textY: y, textHeight: markHeight)
     }
-    spinner.frame = CGRect(x: width - 24, y: (bounds.height - 20) / 2, width: 20, height: 20)
     let pixel = 1 / max(1, traitCollection.displayScale)
     separator.frame = CGRect(x: 0, y: contentView.bounds.height - pixel, width: width, height: pixel)
   }

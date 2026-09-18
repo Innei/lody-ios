@@ -120,7 +120,7 @@ struct ChatRow: Equatable {
   var uploadProgress: [String: ChatAttachmentUploadProgress] = [:]
   var workDurationMs: Int? = nil
   var imageAsset = ""
-  var shines: Bool { kind == "summary" && running }
+  var shines: Bool { running && kind != "duration" }
   /// `only` / `first` / `middle` / `last` for consecutive file rows in one group.
   var group = ""
 }

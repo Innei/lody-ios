@@ -1,5 +1,61 @@
 import UIKit
 
+enum ChatTextShine {
+  static func overlay(for textBounds: CGRect, height: CGFloat, at time: CFTimeInterval) -> CGRect {
+    let period = 1.5
+    let progress = CGFloat(time.truncatingRemainder(dividingBy: period) / period)
+    let width = max(1, textBounds.width)
+    return CGRect(
+      x: textBounds.minX + (-1 + 2 * progress) * width,
+      y: 0,
+      width: width,
+      height: max(1, height)
+    )
+  }
+
+  static func mask(size: CGSize, scale: CGFloat, overlay: CGRect) -> CGImage? {
+    guard size.width >= 1, size.height >= 1 else { return nil }
+    let pixels = CGSize(width: ceil(size.width * scale), height: ceil(size.height * scale))
+    guard let bitmap = CGContext(
+      data: nil,
+      width: Int(pixels.width),
+      height: Int(pixels.height),
+      bitsPerComponent: 8,
+      bytesPerRow: Int(pixels.width),
+      space: CGColorSpaceCreateDeviceGray(),
+      bitmapInfo: CGImageAlphaInfo.none.rawValue
+    ) else { return nil }
+    bitmap.translateBy(x: 0, y: pixels.height)
+    bitmap.scaleBy(x: scale, y: -scale)
+    bitmap.setFillColor(gray: 0, alpha: 1)
+    bitmap.fill(CGRect(origin: .zero, size: size))
+    let gray = CGColorSpaceCreateDeviceGray()
+    let colors = [
+      CGColor(gray: 0, alpha: 1),
+      CGColor(gray: 0, alpha: 1),
+      CGColor(gray: 1, alpha: 1),
+      CGColor(gray: 0, alpha: 1),
+      CGColor(gray: 0, alpha: 1),
+    ] as CFArray
+    let locations: [CGFloat] = [0, 0.25, 0.5, 0.75, 1]
+    guard let gradient = CGGradient(colorsSpace: gray, colors: colors, locations: locations) else { return nil }
+    let angle = 120 * CGFloat.pi / 180
+    let direction = CGPoint(x: sin(angle), y: -cos(angle))
+    let extent = hypot(overlay.width, overlay.height)
+    let center = CGPoint(x: overlay.midX, y: overlay.midY)
+    bitmap.saveGState()
+    bitmap.clip(to: overlay)
+    bitmap.drawLinearGradient(
+      gradient,
+      start: CGPoint(x: center.x - direction.x * extent / 2, y: center.y - direction.y * extent / 2),
+      end: CGPoint(x: center.x + direction.x * extent / 2, y: center.y + direction.y * extent / 2),
+      options: []
+    )
+    bitmap.restoreGState()
+    return bitmap.makeImage()
+  }
+}
+
 /// TextKit lays out once per content/width change. Fade ticks only draw glyphs;
 /// they never rebuild attributed strings, remeasure cells or refresh the list.
 final class ChatTextView: UIView {
@@ -146,64 +202,16 @@ final class ChatTextView: UIView {
     manager.ensureLayout(for: container)
   }
 
-  private func shineMask(overlay: CGRect) -> CGImage? {
-    let size = bounds.size
-    guard size.width >= 1, size.height >= 1 else { return nil }
-    let scale = max(1, traitCollection.displayScale)
-    let pixels = CGSize(width: ceil(size.width * scale), height: ceil(size.height * scale))
-    guard let bitmap = CGContext(
-      data: nil,
-      width: Int(pixels.width),
-      height: Int(pixels.height),
-      bitsPerComponent: 8,
-      bytesPerRow: Int(pixels.width),
-      space: CGColorSpaceCreateDeviceGray(),
-      bitmapInfo: CGImageAlphaInfo.none.rawValue
-    ) else { return nil }
-    bitmap.translateBy(x: 0, y: pixels.height)
-    bitmap.scaleBy(x: scale, y: -scale)
-    bitmap.setFillColor(gray: 0, alpha: 1)
-    bitmap.fill(CGRect(origin: .zero, size: size))
-    let gray = CGColorSpaceCreateDeviceGray()
-    let colors = [
-      CGColor(gray: 0, alpha: 1),
-      CGColor(gray: 0, alpha: 1),
-      CGColor(gray: 1, alpha: 1),
-      CGColor(gray: 0, alpha: 1),
-      CGColor(gray: 0, alpha: 1),
-    ] as CFArray
-    let locations: [CGFloat] = [0, 0.25, 0.5, 0.75, 1]
-    guard let gradient = CGGradient(colorsSpace: gray, colors: colors, locations: locations) else { return nil }
-    let angle = 120 * CGFloat.pi / 180
-    let direction = CGPoint(x: sin(angle), y: -cos(angle))
-    let extent = hypot(overlay.width, overlay.height)
-    let center = CGPoint(x: overlay.midX, y: overlay.midY)
-    bitmap.saveGState()
-    bitmap.clip(to: overlay)
-    bitmap.drawLinearGradient(
-      gradient,
-      start: CGPoint(x: center.x - direction.x * extent / 2, y: center.y - direction.y * extent / 2),
-      end: CGPoint(x: center.x + direction.x * extent / 2, y: center.y + direction.y * extent / 2),
-      options: []
-    )
-    bitmap.restoreGState()
-    return bitmap.makeImage()
-  }
-
   private func drawShine(_ context: CGContext, range: NSRange) {
     let used = manager.usedRect(for: container)
-    let textWidth = max(1, used.width)
-    let period = 1.5
-    let progress = CGFloat(CACurrentMediaTime().truncatingRemainder(dividingBy: period) / period)
-    let overlay = CGRect(
-      x: used.minX + (-1 + 2 * progress) * textWidth,
-      y: 0,
-      width: textWidth,
-      height: max(1, bounds.height)
-    )
+    let overlay = ChatTextShine.overlay(for: used, height: bounds.height, at: CACurrentMediaTime())
     manager.drawBackground(forGlyphRange: range, at: .zero)
     manager.drawGlyphs(forGlyphRange: range, at: .zero)
-    guard let mask = shineMask(overlay: overlay) else { return }
+    guard let mask = ChatTextShine.mask(
+      size: bounds.size,
+      scale: max(1, traitCollection.displayScale),
+      overlay: overlay
+    ) else { return }
     context.saveGState()
     context.clip(to: bounds, mask: mask)
     context.setBlendMode(.copy)

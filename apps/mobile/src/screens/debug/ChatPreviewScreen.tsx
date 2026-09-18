@@ -174,6 +174,7 @@ function failedToolEntries(startedAt: number) {
           itemId: 'thought',
           type: 'thought',
           text: '先核对失败的工具',
+          status: 'in_progress',
         },
         {
           itemId: 'tool',

@@ -89,7 +89,7 @@ let durationCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
 window.addSubview(durationCell)
 durationCell.configure(durationRow, text: NSAttributedString(string: durationRow.text))
 durationCell.layoutIfNeeded()
-precondition(!durationCell.spinner.isAnimating, "The duration label must not show a loading indicator")
+precondition(!durationRow.shines, "The duration label must stay static")
 precondition(ChatCell.leading(durationRow) == 0, "The duration label must align to the full row's leading edge")
 precondition(ChatCell.textWidth(durationRow, width: 320) == 320,
   "The duration label must not reserve a trailing indicator slot")
@@ -197,6 +197,32 @@ let toolWidth = toolCell.icon.image?.size.width ?? 0
 precondition(abs(thoughtWidth - toolWidth) <= 2,
   "Thought and tool icons must share the same optical size, thought=\(thoughtWidth) tool=\(toolWidth)")
 print("Chat render: thought icon stays inside the leading gutter")
+
+let runningToolRow = ChatRow(
+  id: "reply:running-read",
+  entryID: "reply",
+  kind: "tool_call",
+  text: "正在读取文件",
+  symbol: "doc.text.magnifyingglass",
+  running: true
+)
+let runningToolCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
+window.addSubview(runningToolCell)
+runningToolCell.configure(runningToolRow, text: NSAttributedString(string: runningToolRow.text, attributes: [
+  .font: UIFont.systemFont(ofSize: 13),
+  .foregroundColor: UIColor.secondaryLabel,
+]))
+runningToolCell.layoutIfNeeded()
+precondition(runningToolRow.shines, "A running process detail must shine")
+precondition(
+  !runningToolCell.contentView.subviews.contains { $0 is UIActivityIndicatorView },
+  "A running process detail must not retain the old spinner"
+)
+precondition(
+  ChatCell.textWidth(runningToolRow, width: 320) == 320 - ChatCell.leading(runningToolRow),
+  "Process text must reclaim the trailing spinner slot"
+)
+print("Chat render: process details replace spinners with traveling text shine")
 
 func summaryRow(running: Bool, attention: Bool) -> ChatRow {
   ChatRow(

@@ -4,6 +4,34 @@ import UIKit
 
 final class ChatFadeLayout: TextLabel.Layout {
   var fades: () -> [ChatTextFade.RangeFade] = { [] }
+  var shines: () -> Bool = { false }
+  var displayScale: () -> CGFloat = { 1 }
+
+  override func draw(in context: CGContext, visibleRect: CGRect?) {
+    super.draw(in: context, visibleRect: visibleRect)
+    guard shines() else { return }
+    let textWidth = min(
+      containerSize.width,
+      max(1, sizeThatFits(CGSize(width: containerSize.width, height: .greatestFiniteMagnitude)).width)
+    )
+    let bounds = CGRect(origin: .zero, size: containerSize)
+    let overlay = ChatTextShine.overlay(
+      for: CGRect(x: 0, y: 0, width: textWidth, height: containerSize.height),
+      height: containerSize.height,
+      at: CACurrentMediaTime()
+    )
+    guard let mask = ChatTextShine.mask(
+      size: containerSize,
+      scale: displayScale(),
+      overlay: overlay
+    ) else { return }
+    context.saveGState()
+    context.clip(to: bounds, mask: mask)
+    context.setBlendMode(.copy)
+    context.setAlpha(0.32)
+    super.draw(in: context, visibleRect: visibleRect)
+    context.restoreGState()
+  }
 
   override func draw(line: CTLine, at index: Int, in context: CGContext) {
     let time = CACurrentMediaTime()
@@ -49,6 +77,13 @@ final class ChatFadeLabelView: TextLabelView {
   private var animateNext = false
   private var resetNext = false
   private var wasAnimating = false
+  private var shineEnabled = false
+
+  func setShine(_ on: Bool) {
+    shineEnabled = on
+    setNeedsDisplay()
+    pokeTimer()
+  }
 
   func prepare(animate: Bool, reset: Bool) {
     animateNext = animate
@@ -76,11 +111,16 @@ final class ChatFadeLabelView: TextLabelView {
     timer?.invalidate()
     timer = nil
     setNeedsDisplay()
+    pokeTimer()
   }
 
   override func makeTextLayout(_ attributedText: NSAttributedString) -> TextLabel.Layout {
     let layout = ChatFadeLayout(attributedString: attributedText)
     layout.fades = { [weak self] in self?.fade.active ?? [] }
+    layout.shines = { [weak self] in
+      self?.shineEnabled == true && !UIAccessibility.isReduceMotionEnabled
+    }
+    layout.displayScale = { [weak self] in max(1, self?.traitCollection.displayScale ?? 1) }
     return layout
   }
 
@@ -91,7 +131,8 @@ final class ChatFadeLabelView: TextLabelView {
   }
 
   private func pokeTimer() {
-    let keep = window != nil && !UIAccessibility.isReduceMotionEnabled && fade.isAnimating(at: CACurrentMediaTime())
+    let keep = window != nil && !UIAccessibility.isReduceMotionEnabled
+      && (shineEnabled || fade.isAnimating(at: CACurrentMediaTime()))
     guard keep else { timer?.invalidate(); timer = nil; return }
     guard timer == nil else { return }
     let ticker = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
@@ -99,7 +140,8 @@ final class ChatFadeLabelView: TextLabelView {
       MainActor.assumeIsolated {
         guard let self else { return }
         self.setNeedsDisplay()
-        if self.window == nil || !self.fade.isAnimating(at: CACurrentMediaTime()) {
+        if self.window == nil || UIAccessibility.isReduceMotionEnabled
+          || !(self.shineEnabled || self.fade.isAnimating(at: CACurrentMediaTime())) {
           self.timer?.invalidate()
           self.timer = nil
         }

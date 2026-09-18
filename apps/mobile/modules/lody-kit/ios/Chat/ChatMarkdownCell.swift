@@ -3,7 +3,6 @@ import UIKit
 final class ChatMarkdownCell: UICollectionViewCell {
   private var markdown: ChatMarkdownView?
   private let icon = UIImageView()
-  private let spinner = UIActivityIndicatorView(style: .medium)
   private(set) var row: ChatRow?
   private var topInset = ChatRowPadding.content
   var onLink: ((String) -> Void)?
@@ -12,7 +11,6 @@ final class ChatMarkdownCell: UICollectionViewCell {
     super.init(frame: frame)
     icon.contentMode = .center
     contentView.addSubview(icon)
-    contentView.addSubview(spinner)
     clipsToBounds = false
     contentView.clipsToBounds = false
     isAccessibilityElement = true
@@ -28,9 +26,9 @@ final class ChatMarkdownCell: UICollectionViewCell {
       contentView.addSubview(markdown)
     }
     markdown.onLink = { [weak self] in self?.onLink?($0) }
+    markdown.setShine(row.shines)
     icon.image = row.symbol.isEmpty ? nil : UIImage(systemName: row.symbol, withConfiguration: ChatCell.iconSymbolConfiguration(for: row))
     icon.tintColor = row.attention ? .systemOrange : .secondaryLabel
-    row.running ? spinner.startAnimating() : spinner.stopAnimating()
     accessibilityIdentifier = row.id
     accessibilityLabel = row.text
     accessibilityCustomActions = markdown.fileActions
@@ -42,6 +40,7 @@ final class ChatMarkdownCell: UICollectionViewCell {
     super.prepareForReuse()
     row = nil
     topInset = ChatRowPadding.content
+    markdown?.setShine(false)
     if markdown?.superview === contentView {
       markdown?.onLink = nil
       markdown?.removeFromSuperview()
@@ -59,7 +58,6 @@ final class ChatMarkdownCell: UICollectionViewCell {
     let height = markdown.measuredHeight
     markdown.frame = CGRect(x: inset, y: topInset, width: textWidth, height: height)
     icon.frame = ChatCell.iconFrame(for: row, textY: topInset, textHeight: height)
-    spinner.frame = CGRect(x: width - 24, y: (bounds.height - 20) / 2, width: 20, height: 20)
     var view: UIView? = superview
     while let current = view, !(current is UIScrollView) { view = current.superview }
     markdown.trackedScrollView = view as? UIScrollView
