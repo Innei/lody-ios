@@ -249,14 +249,11 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     let parameters = UIPreviewParameters()
     let bubbled = row?.kind == "user"
     parameters.backgroundColor = .clear
-    let rect = messageContent.frame
-    guard let preview = contentView.resizableSnapshotView(from: rect, afterScreenUpdates: false, withCapInsets: .zero) else { return nil }
     parameters.visiblePath = UIBezierPath(
-      roundedRect: CGRect(origin: .zero, size: rect.size),
+      roundedRect: messageContent.bounds,
       cornerRadius: bubbled ? ChatMessageContent.bubbleRadius : 8
     )
-    return UITargetedPreview(view: preview, parameters: parameters,
-      target: UIPreviewTarget(container: contentView, center: CGPoint(x: rect.midX, y: rect.midY)))
+    return UITargetedPreview(view: messageContent, parameters: parameters)
   }
 
   static func messageFont(for row: ChatRow, compatibleWith traits: UITraitCollection) -> UIFont {
