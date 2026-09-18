@@ -88,6 +88,7 @@ function connectionChrome({
 
 export type SessionParams = {
   session: Session;
+  findQuery?: string;
   initialHistory?: PreparedSessionHistory;
   navigationTitleHidden?: boolean;
   projectName?: string;
@@ -100,10 +101,12 @@ export type SessionParams = {
 const noPullRequests: NonNullable<Session['pullRequests']> = [];
 
 function View() {
+  const runtime = usePageRuntime<SessionParams>();
   const {
     params: {
       session,
       initialHistory,
+      findQuery,
       navigationTitleHidden,
       projectName: creationProjectName,
       machineName: creationMachineName,
@@ -111,13 +114,27 @@ function View() {
       effort,
       modeId,
     },
-  } = usePageRuntime<SessionParams>();
+  } = runtime;
   const { account } = useAuth(),
     colors = usePalette();
   const { catalog, selected, serverSessions, refresh } = useCatalog();
   const currentSession =
     catalog.sessions.find((s) => s.id === session.id) ?? session;
   const [appendDraftJSON, setAppendDraftJSON] = useState('');
+  const [findRequest, setFindRequest] = useState({
+    token: 0,
+    query: '',
+    keyboard: false,
+    open: false,
+  });
+  useEffect(() => {
+    setFindRequest((previous) => ({
+      token: previous.token + 1,
+      query: findQuery ?? '',
+      keyboard: false,
+      open: !!findQuery,
+    }));
+  }, [runtime.params]);
   const openPullRequest = useOpenPullRequest(
     selected?.id ?? '',
     account?.user.id ?? '',
@@ -506,6 +523,18 @@ function View() {
     )[] = [
       {
         type: 'action',
+        title: t('session.action.find'),
+        icon: { type: 'sfSymbol', name: 'magnifyingglass' },
+        onPress: () =>
+          setFindRequest((previous) => ({
+            token: previous.token + 1,
+            query: '',
+            keyboard: true,
+            open: true,
+          })),
+      },
+      {
+        type: 'action',
         title: t('session.action.newSession'),
         icon: { type: 'sfSymbol', name: 'square.and.pencil' },
         onPress: () => {
@@ -596,6 +625,7 @@ function View() {
       <NativeNavigationHeader items={headerItems} />
       <DiffWebViewWarmer />
       <NativeChat
+        findRequestJSON={JSON.stringify(findRequest)}
         appendDraftJSON={appendDraftJSON}
         mentionItemsJSON={mentions.mentionItemsJSON}
         mentionResultJSON={mentions.mentionResultJSON}

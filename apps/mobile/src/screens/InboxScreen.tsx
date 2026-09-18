@@ -35,7 +35,7 @@ function InboxList({ model }: { model: InboxModel }) {
       previewWorkspaceId={model.selected?.id}
       onRowPress={({ nativeEvent: { id, expanded } }) => {
         if (!model.consumeRowPress(id, expanded))
-          openCatalogRow(id, model.catalog);
+          openCatalogRow(id, model.catalog, model.query.trim() || undefined);
       }}
       onRowAction={({ nativeEvent: { id, actionId } }) =>
         model.rowAction(id, actionId)

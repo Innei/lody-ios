@@ -54,7 +54,11 @@ export function useBindSessionNav({
             intent.session.id,
           );
           if (signal.aborted) return;
-          await open({ session: intent.session, initialHistory });
+          await open({
+            session: intent.session,
+            initialHistory,
+            findQuery: intent.findQuery,
+          });
           return;
         }
         if (intent.workspaceId !== selected?.id) return;

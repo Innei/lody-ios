@@ -15,6 +15,16 @@ final class ChatTextView: UIView {
   }
   var linkHitHeight: CGFloat = .greatestFiniteMagnitude
 
+  func rectangles(for range: NSRange) -> [CGRect] {
+    layout(width: bounds.width)
+    var result: [CGRect] = []
+    let glyphs = manager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+    manager.enumerateEnclosingRects(forGlyphRange: glyphs, withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0), in: container) { rect, _ in
+      result.append(rect)
+    }
+    return result
+  }
+
   override init(frame: CGRect) {
     super.init(frame: frame)
     isOpaque = false

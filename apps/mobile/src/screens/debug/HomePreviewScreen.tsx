@@ -122,17 +122,81 @@ const previewCache = JSON.stringify({
   ],
 });
 
+const searchPreviewCache = JSON.stringify({
+  v: 1,
+  status: 'live',
+  revision: 1,
+  entries: [
+    {
+      id: 'search-user',
+      role: 'user',
+      status: 'completed',
+      finished: true,
+      items: [{ itemId: 'text', type: 'text', text: 'needle from user' }],
+    },
+    {
+      id: 'search-answer',
+      role: 'assistant',
+      status: 'completed',
+      finished: true,
+      items: [
+        { itemId: 'thought', type: 'thought', text: 'hidden-only thought' },
+        {
+          itemId: 'tool',
+          type: 'tool_call',
+          title: 'tool-only',
+          status: 'completed',
+        },
+        {
+          itemId: 'answer',
+          type: 'text',
+          text: '![image](https://needle.invalid)\n\nA **needle** beside a [needle link](https://private-marker.invalid).\n\ncross**format**body 跨**格式**正文。\n\n`needle code` and [source.ts](/tmp/secret-needle.ts)\n\n```swift\nlet needle = 1\n```\n\n| Key | Value |\n| --- | --- |\n| result | needle |',
+        },
+      ],
+    },
+  ],
+});
+const olderSearchCache = JSON.stringify({
+  v: 1,
+  status: 'live',
+  revision: 1,
+  entries: Array.from({ length: 62 }, (_, index) => ({
+    id: `search-history-${index}`,
+    role: 'assistant',
+    status: 'completed',
+    finished: true,
+    items: [
+      {
+        itemId: 'answer',
+        type: 'text',
+        text: index === 0 ? 'ancient-signal' : `Result ${index}`,
+      },
+    ],
+  })),
+});
+
 export function HomePreviewProviders({ children }: PropsWithChildren) {
+  const [cacheReady, setCacheReady] = useState(false);
   const [previewWorkspaces, setPreviewWorkspaces] = useState(workspaces);
   const [selected, setSelected] =
     useState<(typeof workspaces)[number]>(workspace);
   const selectedCatalog = selected.id === workspace.id ? catalog : emptyCatalog;
   useEffect(() => {
-    void writeLocalValue('draft:ui-home:ui-home:ui-design', '');
-    void writeLocalValue(
-      `session:${JSON.stringify(['ui-home', 'ui-home', 'ui-design'])}`,
-      previewCache,
-    );
+    void Promise.all([
+      writeLocalValue(
+        'catalog:ui-home:ui-home',
+        JSON.stringify({ catalog, syncedAt: 0 }),
+      ),
+      writeLocalValue('draft:ui-home:ui-home:ui-design', ''),
+      writeLocalValue(
+        `session:${JSON.stringify(['ui-home', 'ui-home', 'ui-design'])}`,
+        runtimeInfo.uiVerifySessionSearch ? searchPreviewCache : previewCache,
+      ),
+      writeLocalValue(
+        `session:${JSON.stringify(['ui-home', 'ui-home', 'ui-search'])}`,
+        runtimeInfo.uiVerifySessionSearch ? olderSearchCache : 'null',
+      ),
+    ]).then(() => setCacheReady(true));
   }, []);
   return (
     <AuthContext
@@ -191,7 +255,10 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
           refresh: noop,
         }}
       >
-        <View testID="ui-verify-ready" style={{ flex: 1 }}>
+        <View
+          testID={cacheReady ? 'ui-verify-ready' : undefined}
+          style={{ flex: 1 }}
+        >
           {children}
           <NavigationProbe />
         </View>

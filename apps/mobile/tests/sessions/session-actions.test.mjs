@@ -11,9 +11,15 @@ globalThis.__sessionActionKit = {
     writes.push(JSON.parse(payload));
     return '{}';
   },
+  renameSession: async (payload) => {
+    writes.push(JSON.parse(payload));
+    return '{}';
+  },
   showToast() {},
 };
 globalThis.__sessionShares = shares;
+globalThis.__sessionPrompts = [];
+globalThis.__sessionPromptValue = undefined;
 
 const bundle = await build({
   entryPoints: [
@@ -45,9 +51,9 @@ const bundle = await build({
         b.onLoad({ filter: /.*/, namespace: 'mock' }, ({ path }) => ({
           contents:
             path === 'kit'
-              ? 'export const {archiveSession,pinSession,markSessionRead,showToast}=globalThis.__sessionActionKit;'
+              ? 'export const {archiveSession,pinSession,markSessionRead,renameSession,showToast}=globalThis.__sessionActionKit;'
               : path === 'rn'
-                ? 'export const Share={share:async(content)=>{globalThis.__sessionShares.push(content);}};'
+                ? 'export const Share={share:async(content)=>{globalThis.__sessionShares.push(content);}}; export const Alert={prompt:(title,message,buttons,type,defaultValue)=>{globalThis.__sessionPrompts.push({title,message,type,defaultValue}); const confirm=buttons.find((button)=>button.style!=="cancel"); confirm?.onPress?.(globalThis.__sessionPromptValue??defaultValue);}};'
                 : 'export function openCatalogRow(){} export function requestNewSession(){} export function isChatSession(){return false} export function projectIdOfRow(){}',
         }));
       },
@@ -103,4 +109,37 @@ test('list share opens the desktop session url', async () => {
   );
   await Promise.resolve();
   assert.deepEqual(shares, [{ url: 'https://lody.ai/work/sessions/s1' }]);
+});
+
+test('list rename prompts with the current title and writes the trimmed name', async () => {
+  writes.length = 0;
+  globalThis.__sessionPrompts.length = 0;
+  globalThis.__sessionPromptValue = '  New title  ';
+  listRowAction(
+    { id: 'workspace', slug: 'work' },
+    { projects: [], sessions: [session], machineIds: [] },
+    's1',
+    'rename',
+  );
+  await Promise.resolve();
+  assert.equal(globalThis.__sessionPrompts.length, 1);
+  assert.equal(globalThis.__sessionPrompts[0].defaultValue, 'T');
+  assert.equal(globalThis.__sessionPrompts[0].type, 'plain-text');
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].workspaceId, 'workspace');
+  assert.equal(writes[0].sessionId, 's1');
+  assert.equal(writes[0].title, 'New title');
+});
+
+test('list rename ignores a blank title', async () => {
+  writes.length = 0;
+  globalThis.__sessionPromptValue = '   ';
+  listRowAction(
+    { id: 'workspace', slug: 'work' },
+    { projects: [], sessions: [session], machineIds: [] },
+    's1',
+    'rename',
+  );
+  await Promise.resolve();
+  assert.equal(writes.length, 0);
 });

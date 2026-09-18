@@ -9,6 +9,8 @@ import {
   saveInboxExpansion,
   readInboxPinOrder,
   saveInboxPinOrder,
+  searchInbox,
+  type InboxSearchHits,
 } from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
@@ -24,6 +26,7 @@ import {
   projectSections,
   reconcilePinOrder,
   searchSections,
+  matchCatalog,
   type ProjectSort,
 } from './inbox';
 import { requestNewSession } from './sessionNav';
@@ -72,6 +75,41 @@ export function useInboxModel() {
   const searching = !!query.trim();
   const userId = account?.user.id ?? '';
   const workspaceId = selected?.id ?? '';
+  const searchKey = JSON.stringify([userId, workspaceId, query.trim()]);
+  const [search, setSearch] = useState<{
+    key: string;
+    catalog: typeof catalog;
+    hits: InboxSearchHits;
+  }>();
+  const searchGeneration = useRef(0);
+  useEffect(() => {
+    const generation = ++searchGeneration.current;
+    if (!query.trim() || !userId || !workspaceId) return;
+    // Debounce before crossing the bridge; stale queued reads cannot change the list.
+    const timer = setTimeout(() => {
+      void searchInbox(userId, workspaceId, query.trim()).then(
+        (hits) => {
+          if (generation === searchGeneration.current)
+            setSearch({ key: searchKey, catalog, hits });
+        },
+        () => {
+          if (generation !== searchGeneration.current) return;
+          showToast(t('search.toast.failed'));
+          setSearch({
+            key: searchKey,
+            catalog,
+            hits: matchCatalog(catalog, query),
+          });
+        },
+      );
+    }, 120);
+    return () => {
+      clearTimeout(timer);
+      searchGeneration.current++;
+    };
+  }, [searchKey, catalog, userId, workspaceId, query]);
+  const searchPending =
+    searching && (search?.key !== searchKey || search.catalog !== catalog);
   const pinOrder = useMemo(() => {
     const stored =
       userId && workspaceId ? readInboxPinOrder(userId, workspaceId) : [];
@@ -144,10 +182,21 @@ export function useInboxModel() {
     ready: localReady && !!account,
     searching,
     sections: searching
-      ? searchSections(catalog, query, colors.accent)
+      ? searchSections(
+          catalog,
+          search?.key === searchKey
+            ? search.hits
+            : { projectIds: [], sessions: [] },
+          colors.accent,
+        )
       : sections,
     placeholder: searching
-      ? searchPlaceholder({ signedIn: true, query, loading, connected })
+      ? searchPlaceholder({
+          signedIn: true,
+          query,
+          loading: searchPending,
+          connected: true,
+        })
       : listPlaceholder({ loading, connected }),
     consumeRowPress: (id: string, expanded = true) => {
       if (id === 'view:chat') {

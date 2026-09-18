@@ -411,8 +411,9 @@ test('project menus offer new session, open, and copy path except unassigned', a
   assert.equal(local.rows[1].preview, 'session');
   assert.deepEqual(
     local.rows[1].menuActions.map((action) => action.id),
-    ['newSession', 'pin', 'archive', 'share'],
+    ['rename', 'pin', 'archive', 'share'],
   );
+  assert.equal(local.rows[1].menuActions[0].title, '重命名');
 });
 
 test('chat-only sessions form a trailing 对话 group instead of an unassigned project', async () => {
@@ -608,7 +609,7 @@ test('project rows carry branch or agent, diff, activity time, unread and a badg
 });
 
 test('search never lists an unassigned project and matches 对话 as a session type', async () => {
-  const { searchSections } =
+  const { searchSections, matchCatalog } =
     await import('../../src/features/sessions/inbox.ts');
   const data = catalog(
     [
@@ -620,7 +621,7 @@ test('search never lists an unassigned project and matches 对话 as a session t
       { id: 'm1:unassigned', name: '对话', rootPath: '' },
     ],
   );
-  const byType = searchSections(data, '对话', ACCENT);
+  const byType = searchSections(data, matchCatalog(data, '对话'), ACCENT);
   assert.equal(
     byType.find((s) => s.id === 'projects'),
     undefined,
@@ -633,7 +634,7 @@ test('search never lists an unassigned project and matches 对话 as a session t
 });
 
 test('search finds empty projects and archived sessions without the inbox limit', async () => {
-  const { searchSections } =
+  const { searchSections, matchCatalog } =
     await import('../../src/features/sessions/inbox.ts');
   const data = catalog(
     Array.from({ length: 25 }, (_, i) =>
@@ -644,8 +645,8 @@ test('search finds empty projects and archived sessions without the inbox limit'
       { id: 'p2', name: 'Lody empty' },
     ],
   );
-  assert.deepEqual(searchSections(data, ' ', ACCENT), []);
-  const found = searchSections(data, ' LODY ', ACCENT);
+  assert.deepEqual(searchSections(data, matchCatalog(data, ' '), ACCENT), []);
+  const found = searchSections(data, matchCatalog(data, ' LODY '), ACCENT);
   assert.equal(found[0].rows.length, 2);
   assert.equal(found[1].rows.length, 25);
   assert.equal(found[1].rows[0].badge, '已归档');
@@ -661,6 +662,46 @@ test('pin order prepends unknown ids by activity and drops unpinned', () => {
     ),
     ['new', 'mid', 'old'],
   );
+});
+
+test('native body hits keep session actions and ordering while replacing only the subtitle', async () => {
+  const { searchSections } =
+    await import('../../src/features/sessions/inbox.ts');
+  const data = catalog(
+    [
+      session('body', 'completed', {
+        archived: true,
+        pinned: false,
+        branchName: 'main',
+      }),
+      session('title', 'completed', { pinned: true, branchName: 'feature' }),
+      session('unmatched', 'completed'),
+    ],
+    [{ id: 'p1', name: 'Project' }],
+  );
+  const sections = searchSections(
+    data,
+    {
+      projectIds: [],
+      sessions: [
+        { id: 'body', snippet: 'Readable body match' },
+        { id: 'title', snippet: null },
+        { id: 'deleted', snippet: 'No longer in this catalog' },
+      ],
+    },
+    ACCENT,
+  );
+  const [title, body] = sections[0].rows;
+  assert.deepEqual(
+    sections[0].rows.map((row) => row.id),
+    ['title', 'body'],
+  );
+  assert.equal(title.subtitle, 'Project · feature');
+  assert.equal(body.subtitle, 'Readable body match');
+  assert.equal(body.subtitleMono, false);
+  assert.equal(body.badge, '已归档');
+  assert.equal(body.navigates, true);
+  assert.ok(body.menuActions.length > 0);
 });
 
 test('pin order freezes after the first pass', () => {

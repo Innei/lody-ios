@@ -7,9 +7,14 @@ import UIKit
 // escaped text must remain literal). Sizing and visible views use this together.
 final class FileMarkdownView: MarkdownTextView {
   private static let marker = "\u{F0000}lody-file:"
+  private static let imageMarker = "\u{F0000}lody-image:"
+  private static let htmlMarker = "\u{F0000}lody-html:"
+  static let searchExcluded = NSAttributedString.Key("lody-search-excluded")
 
   static func content(_ source: MarkdownContent) -> MarkdownContent {
     let blocks = source.blocks.rewrite { (node: MarkdownInlineNode) -> [MarkdownInlineNode] in
+      if case let .image(source, _) = node { return [.text(imageMarker + source)] }
+      if case let .html(source) = node { return [.text(htmlMarker + source)] }
       guard case let .link(destination, children) = node,
         ChatFileLink(destination) != nil else { return [node] }
       return [.link(destination: destination, children: [.text(marker + destination)] + children)]
@@ -39,6 +44,17 @@ final class FileMarkdownView: MarkdownTextView {
   }
 
   override func decorate(inlineText text: NSAttributedString, theme: MarkdownTheme) -> NSAttributedString {
+    for prefix in [Self.imageMarker, Self.htmlMarker] where text.string.hasPrefix(prefix) {
+      let source = String(text.string.dropFirst(prefix.count))
+      var attributes: [NSAttributedString.Key: Any] = [Self.searchExcluded: true]
+      if prefix == Self.imageMarker {
+        attributes.merge([.link: source, .font: theme.fonts.body, .foregroundColor: theme.colors.body]) { _, new in new }
+      } else {
+        attributes.merge([.font: theme.fonts.codeInline, .foregroundColor: theme.colors.code,
+          .backgroundColor: theme.colors.codeBackground.withAlphaComponent(0.05)]) { _, new in new }
+      }
+      return NSAttributedString(string: source, attributes: attributes)
+    }
     guard text.string.hasPrefix(Self.marker) else { return text }
     let href = String(text.string.dropFirst(Self.marker.count))
     guard let target = ChatFileLink(href) else { return text }

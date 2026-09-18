@@ -3,9 +3,14 @@ import { NativeModule, requireNativeModule } from 'expo';
 export interface RuntimeInfo {
   offlineProbe?: boolean;
   uiVerifyHome: boolean;
+  uiVerifySessionSearch: boolean;
   moduleName: string;
   systemVersion: string;
 }
+export type InboxSearchHits = {
+  projectIds: string[];
+  sessions: { id: string; snippet: string | null }[];
+};
 export type DataRuntimeEvent = {
   sessionId?: string;
   session?: string;
@@ -57,6 +62,11 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
     catalog?: string;
   }>;
   readLocalValue(key: string): Promise<string | null>;
+  searchInbox(
+    userId: string,
+    workspaceId: string,
+    query: string,
+  ): Promise<InboxSearchHits>;
   writeLocalValue(key: string, value: string): Promise<void>;
   clearLocalValues(): Promise<void>;
   readonly runtimeInfo: RuntimeInfo;
@@ -88,6 +98,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   archiveSession(payload: string): Promise<string>;
   pinSession(payload: string): Promise<string>;
   markSessionRead(payload: string): Promise<string>;
+  renameSession(payload: string): Promise<string>;
   controlSessionTurn(payload: string): Promise<string>;
   sendSessionTurn(payload: string): Promise<string>;
   sessionItemDetail(payload: string): Promise<string>;
@@ -264,6 +275,7 @@ export const archiveSession = (payload: string) =>
 export const pinSession = (payload: string) => native.pinSession(payload);
 export const markSessionRead = (payload: string) =>
   native.markSessionRead(payload);
+export const renameSession = (payload: string) => native.renameSession(payload);
 
 export const initialInboxView = [0, 1, 2].includes(native.initialInboxView)
   ? native.initialInboxView
@@ -286,6 +298,11 @@ export const saveInboxPinOrder = (
 ) => native.saveInboxPinOrder(userId, workspaceId, ids);
 
 export const readLocalValue = (key: string) => native.readLocalValue(key);
+export const searchInbox = (
+  userId: string,
+  workspaceId: string,
+  query: string,
+) => native.searchInbox(userId, workspaceId, query);
 export const writeLocalValue = (key: string, value: string) =>
   native.writeLocalValue(key, value);
 export const clearLocalValues = () => native.clearLocalValues();

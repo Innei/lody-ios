@@ -80,6 +80,13 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   let measuringText = ChatTextView()
   var measurements: [String: (width: CGFloat, text: NSAttributedString, height: CGFloat)] = [:]
   let store = ChatMarkdownStore(traits: .current)
+  let findBar = ChatFindBar()
+  var lastFindRequest = ""
+  var findMatches: [ChatFindMatch] = []
+  var findSelection: ChatFindMatch?
+  var findNeedsInitialPosition = false
+  var findFocusRequest: Bool?
+  let findHighlightedViews = NSHashTable<UIView>.weakObjects()
   var composer = ChatComposerView(frame: .zero)
   let overlay = ChatOverlay()
   var localAttachments: [String: [ChatMessageAttachment]] = [:]
@@ -259,6 +266,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       guard let self, !self.applying, !self.movingLayout else { return }
       self.updateBottomInset()
       if self.followsBottom { self.scrollToBottom() }
+      self.refreshFindHighlights()
     }
     collection.register(ChatMessageAttachmentsCell.self, forCellWithReuseIdentifier: "attachments")
     collection.register(ChatImageCell.self, forCellWithReuseIdentifier: "image")
@@ -384,6 +392,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       self.scrollToBottom()
     }
     addSubview(overlay)
+    addSubview(findBar)
     overlay.translatesAutoresizingMaskIntoConstraints = false
     collection.translatesAutoresizingMaskIntoConstraints = false
     composer.translatesAutoresizingMaskIntoConstraints = false
@@ -407,6 +416,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    layoutFind()
     adoptComposerIfNeeded()
     bindScrollOwnerIfNeeded()
     attachTitle()

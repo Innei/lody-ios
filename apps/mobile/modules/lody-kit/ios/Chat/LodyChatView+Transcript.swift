@@ -332,6 +332,7 @@ extension LodyChatView {
       self.recordHistoryCommit()
       self.streamPerformanceProbe?.commit(milliseconds: (CACurrentMediaTime() - commitStart) * 1000)
       self.applying = false
+      self.refreshFind()
       self.updateHistoryHeader()
       self.prefetchHistoryIfNeeded()
       self.deliverPendingContent()
@@ -459,7 +460,7 @@ extension LodyChatView {
   }
 
   func prefetchHistoryIfNeeded() {
-    guard !followsBottom, hasPositionedContent,
+    guard findBar.isHidden, !followsBottom, hasPositionedContent,
           collection.contentOffset.y + collection.adjustedContentInset.top < collection.bounds.height else { return }
     loadEarlierHistory()
   }

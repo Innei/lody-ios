@@ -172,14 +172,17 @@ function PanelStack({
   selectedSessionId?: string;
 }) {
   const [projectId, setProjectId] = useState<string>();
-  const openRow = useCallback((id: string, catalog: Catalog) => {
-    if (id.startsWith('project:')) {
-      setProjectId(id.slice(8));
-      return;
-    }
-    const session = catalog.sessions.find((entry) => entry.id === id);
-    if (session) void requestOpenSession(session);
-  }, []);
+  const openRow = useCallback(
+    (id: string, catalog: Catalog, findQuery?: string) => {
+      if (id.startsWith('project:')) {
+        setProjectId(id.slice(8));
+        return;
+      }
+      const session = catalog.sessions.find((entry) => entry.id === id);
+      if (session) void requestOpenSession(session, findQuery);
+    },
+    [],
+  );
   return (
     <ScreenStack style={[StyleSheet.absoluteFill, frame]}>
       <InboxPanelItem
@@ -247,7 +250,7 @@ function InboxPanelItem({
   onOpenRow,
 }: {
   selectedSessionId?: string;
-  onOpenRow: (id: string, catalog: Catalog) => void;
+  onOpenRow: (id: string, catalog: Catalog, findQuery?: string) => void;
 }) {
   const model = useInboxModel();
   const account = model.account;
@@ -301,7 +304,7 @@ function InboxPanelItem({
         previewWorkspaceId={selected?.id}
         onRowPress={({ nativeEvent: { id, expanded } }) => {
           if (!model.consumeRowPress(id, expanded))
-            onOpenRow(id, model.catalog);
+            onOpenRow(id, model.catalog, model.query.trim() || undefined);
         }}
         onRowAction={({ nativeEvent: { id, actionId } }) =>
           model.rowAction(id, actionId)

@@ -98,6 +98,23 @@ async function appendJson(client: StreamsClient, update: unknown) {
   if (!result.ok) throw new Error(result.result.code);
 }
 
+export async function renameSession(
+  args: { sessionId: string; title: string },
+  meta: { flock: Flock; client: StreamsClient },
+) {
+  if (typeof args.sessionId !== 'string' || typeof args.title !== 'string')
+    throw new Error('invalid_session');
+  const title = args.title.trim();
+  if (!title || title.length > 200) throw new Error('invalid_session');
+  const room = `session-${args.sessionId}`;
+  if (!sessionPresent(meta.flock, room)) throw new Error('session_not_found');
+  const version = meta.flock.version();
+  meta.flock.set(['m', room, 'title'], title);
+  meta.flock.set(['m', room, 'titleSource'], 'user');
+  meta.flock.commit();
+  await appendJson(meta.client, meta.flock.exportJson(version));
+}
+
 export async function pinSession(
   args: { sessionId: string; pinned: boolean },
   meta: { flock: Flock; client: StreamsClient },

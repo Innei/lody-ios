@@ -7,6 +7,7 @@ struct LodyRuntimeInfo {
   var moduleName: String = "LodyKit"
   var offlineProbe: Bool = false
   var uiVerifyHome: Bool = false
+  var uiVerifySessionSearch: Bool = false
   var systemVersion: String = ""
 }
 
@@ -53,6 +54,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       moduleName: "LodyKit",
       offlineProbe: offlineProbe,
       uiVerifyHome: uiVerifyHome,
+      uiVerifySessionSearch: LodyUIVerify.enabled && LodyUIVerify.has("--ui-verify-search"),
       systemVersion: components.prefix(version.patchVersion == 0 ? 2 : 3).map(String.init).joined(separator: ".")
     )
   }
@@ -206,6 +208,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }.runOnQueue(.main)
     AsyncFunction("readLocalStartup") { try self.localStore.startup() }.runOnQueue(LocalStore.queue)
     AsyncFunction("readLocalValue") { (key: String) in try self.localStore.read(key) }.runOnQueue(LocalStore.queue)
+    AsyncFunction("searchInbox") { (userId: String, workspaceId: String, query: String) in
+      try self.localStore.searchInbox(userID: userId, workspaceID: workspaceId, query: query)
+    }.runOnQueue(LocalStore.queue)
     AsyncFunction("writeLocalValue") { (key: String, value: String) in try self.localStore.write(key, value) }.runOnQueue(LocalStore.queue)
     AsyncFunction("readAuthToken") { try AuthKeychain.read() }.runOnQueue(.main)
     AsyncFunction("saveAuthToken") { (token: String) in try AuthKeychain.save(token) }.runOnQueue(.main)
@@ -303,6 +308,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("archiveSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("archiveSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("pinSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("pinSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("markSessionRead") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("markSessionRead", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("renameSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("renameSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("controlSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("controlTurn", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("sendSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("sessionItemDetail") { (payload: String, promise: Promise) in
@@ -498,6 +504,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }.runOnQueue(PreparedChatEntries.queue)
 
     View(LodyChatView.self) {
+      Prop("findRequestJSON") { (view: LodyChatView, value: String) in view.setFindRequest(value) }
       Prop("debugStreamBenchmarkRun") { (view: LodyChatView, value: Int) in
         guard value > 0 else { return }
         view.streamPerformanceProbe?.stop()

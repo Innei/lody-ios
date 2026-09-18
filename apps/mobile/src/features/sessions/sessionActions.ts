@@ -1,5 +1,10 @@
-import { archiveSession, pinSession, markSessionRead } from '@lody-ios/kit';
-import { Share } from 'react-native';
+import {
+  archiveSession,
+  pinSession,
+  markSessionRead,
+  renameSession,
+} from '@lody-ios/kit';
+import { Alert, Share } from 'react-native';
 import { showToast } from '../../ui/toast.ts';
 import type { Catalog, Session } from '../../models/catalog.ts';
 import { t } from '../../lib/i18n/index.ts';
@@ -47,6 +52,40 @@ export async function setPinned(
   }
 }
 
+export async function setTitle(
+  workspaceId: string,
+  session: Session,
+  title: string,
+) {
+  const next = title.trim().slice(0, 200);
+  if (!next) return;
+  try {
+    await renameSession(
+      JSON.stringify({ workspaceId, sessionId: session.id, title: next }),
+    );
+  } catch {
+    showToast(t('session.toast.renameFailed'));
+  }
+}
+
+function promptRename(workspaceId: string, session: Session) {
+  Alert.prompt(
+    t('session.action.rename'),
+    undefined,
+    [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('session.action.rename'),
+        onPress: (value?: string) => {
+          void setTitle(workspaceId, session, value ?? '');
+        },
+      },
+    ],
+    'plain-text',
+    session.title,
+  );
+}
+
 export async function setRead(workspaceId: string, session: Session) {
   if (
     session.lastMessageAt === undefined ||
@@ -90,6 +129,7 @@ export function sessionRowAction(
     void setArchived(workspaceId, session, !session.archived);
   if (actionId === 'pin') void setPinned(workspaceId, session, !session.pinned);
   if (actionId === 'read') void setRead(workspaceId, session);
+  if (actionId === 'rename') promptRename(workspaceId, session);
 }
 
 export function listRowAction(

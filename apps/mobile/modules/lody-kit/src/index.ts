@@ -72,6 +72,7 @@ export {
   archiveSession,
   pinSession,
   markSessionRead,
+  renameSession,
   localProjects,
 } from './runtime/LodyKit';
 
@@ -131,6 +132,8 @@ export {
 
 export {
   readLocalValue,
+  searchInbox,
+  type InboxSearchHits,
   writeLocalValue,
   clearLocalValues,
 } from './runtime/LodyKit';

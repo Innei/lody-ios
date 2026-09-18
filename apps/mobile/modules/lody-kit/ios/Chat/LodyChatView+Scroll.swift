@@ -185,6 +185,7 @@ extension LodyChatView {
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
     guard scrollView === collection else { return }
     updateBottomButton()
+    refreshFindHighlights()
     prefetchHistoryIfNeeded()
   }
 

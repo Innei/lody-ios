@@ -30,9 +30,10 @@ const bundle = await build({
     },
   ],
 });
-const { archiveSession, pinSession, markSessionRead } = await import(
-  `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
-);
+const { archiveSession, pinSession, markSessionRead, renameSession } =
+  await import(
+    `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
+  );
 const unframe = (body) =>
   JSON.parse(new TextDecoder().decode(body.subarray(4)));
 
@@ -327,5 +328,42 @@ test('archive records needToArchiveSessions on machine meta', async () => {
   assert.deepEqual(
     remoteMeta.get(['m', 'machine-m1', 'needToArchiveSessions']),
     {},
+  );
+});
+
+test('rename writes a user-directed title onto the session meta', async () => {
+  const meta = new Flock('meta'),
+    remoteMeta = new Flock('remote-meta');
+  meta.set(['m', 'session-s1'], {
+    id: 's1',
+    machineId: 'm1',
+    title: 'Old',
+    titleSource: 'draft',
+  });
+  remoteMeta.importFile(meta.exportFile());
+  const replica = {
+    flock: meta,
+    client: {
+      async append({ part }) {
+        remoteMeta.importJson(unframe(part.body));
+        return { ok: true, result: {} };
+      },
+    },
+  };
+  await renameSession({ sessionId: 's1', title: '  New title  ' }, replica);
+  assert.equal(remoteMeta.get(['m', 'session-s1', 'title']), 'New title');
+  assert.equal(remoteMeta.get(['m', 'session-s1', 'titleSource']), 'user');
+  assert.equal(meta.get(['m', 'session-s1']).id, 's1');
+  await assert.rejects(
+    renameSession({ sessionId: 'missing', title: 'X' }, replica),
+    /session_not_found/,
+  );
+  await assert.rejects(
+    renameSession({ sessionId: 's1', title: '   ' }, replica),
+    /invalid_session/,
+  );
+  await assert.rejects(
+    renameSession({ sessionId: 's1', title: 'x'.repeat(201) }, replica),
+    /invalid_session/,
   );
 });

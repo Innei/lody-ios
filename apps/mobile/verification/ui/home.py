@@ -335,6 +335,7 @@ ui.wait(
     lambda items: any(catalog.text('session.action.pin') in (i.get('AXLabel') or '') for i in items),
     'Session long-press must show pin',
 )
+assert any(catalog.text('session.action.rename') in (i.get('AXLabel') or '') for i in ui.state()), 'Session long-press must show rename'
 assert any(catalog.text('session.action.archive') in (i.get('AXLabel') or '') for i in ui.state())
 assert any(catalog.text('session.action.share') in (i.get('AXLabel') or '') for i in ui.state()), 'Session long-press must show share'
 user_turn = ui.wait(
@@ -346,7 +347,16 @@ assert answer, 'Preview must show the assistant answer as readable text'
 assert user_turn['frame']['width'] >= 200, user_turn
 assert answer['frame']['width'] >= 200, answer
 ui.capture('session-menu')
-ui.axe('tap', '-x', '24', '-y', '120', '--post-delay', '.6')
+ui.axe('tap', '--label', catalog.text('session.action.rename'), '--post-delay', '.8')
+ui.wait(
+    lambda items: any(
+        i.get('type') == 'TextField' and (i.get('AXValue') or '') == '首页交互设计'
+        for i in items
+    ),
+    'Rename must prefill the session title',
+)
+ui.capture('session-rename')
+ui.axe('tap', '--label', catalog.text('common.cancel'), '--post-delay', '.6')
 
 settings_label = catalog.text('tabs.settings')
 

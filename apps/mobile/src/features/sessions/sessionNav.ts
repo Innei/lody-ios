@@ -1,7 +1,7 @@
 import type { Catalog, Session } from '../../models/catalog.ts';
 
 export type SessionNavIntent =
-  | { kind: 'open'; session: Session }
+  | { kind: 'open'; session: Session; findQuery?: string }
   | {
       kind: 'create';
       workspaceId: string;
@@ -58,8 +58,8 @@ async function flush() {
   }
 }
 
-export function requestOpenSession(session: Session) {
-  return enqueue({ kind: 'open', session });
+export function requestOpenSession(session: Session, findQuery?: string) {
+  return enqueue({ kind: 'open', session, findQuery });
 }
 
 export function requestNewSession(

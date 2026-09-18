@@ -32,7 +32,7 @@ checks = {
     'strings': ['LodyStrings.swift'],
     'chat': ['LodyStrings.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatStream.swift', 'Chat/ChatTextFade.swift', 'Chat/ChatHaptics.swift', 'Chat/ChatImagePreviewGeometry.swift', 'Chat/ChatImageGallery.swift'],
     'watchdog': ['Cloud/RuntimeHealth.swift'],
-    'local-store': ['Cloud/LocalStore.swift'],
+    'local-store': ['Cloud/LocalStore.swift', 'Cloud/SessionProse.swift', 'Text/MarkdownPlainText.swift', 'Text/TextSearch.swift', 'LodyStrings.swift'],
     'content-store': ['Cloud/ContentStore.swift'],
     'chat-render': ['LodyStrings.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'Chat/ChatThrowCurve.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatCell.swift', 'Chat/ChatUserMentions.swift'],
     'chat-chrome': ['LodyStrings.swift', 'Chat/ChatOverlay.swift'],
@@ -74,6 +74,17 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
     subprocess.run(['xcrun', '--sdk', 'iphonesimulator', 'metal', '-c', '-target', 'air64-apple-ios26.0-simulator', '-isysroot', sdk, str(kit / 'ios/Chat/Shaders/ChatEffortParticles.metal'), '-o', air], check=True, timeout=120)
     subprocess.run(['xcrun', '--sdk', 'iphonesimulator', 'metallib', air, '-o', str(shader_bundle / 'default.metallib')], check=True, timeout=120)
     for name, files in checks.items():
+        if name == 'local-store':
+            # Compile the production parser, not a regex or a test-only stand-in.
+            package = Path(output) / name
+            sources = package / 'Sources'
+            sources.mkdir(parents=True)
+            for file in files:
+                (sources / Path(file).name).symlink_to(kit / 'ios' / file)
+            (sources / 'main.swift').symlink_to(kit / 'verification' / name / 'main.swift')
+            (package / 'Package.swift').symlink_to(kit / 'verification' / name / 'Package.swift')
+            subprocess.run(['swift', 'run', '--package-path', str(package), '--scratch-path', str(root / '.artifacts/native-local-store')], check=True, timeout=600)
+            continue
         binary = str(Path(output) / name)
         simulator = name in ['scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'attachments', 'inline-diff', 'list', 'banner', 'chat-title', 'live-activity', 'chat-chrome']
         command = ['xcrun', '--sdk', 'iphonesimulator', 'swiftc'] if simulator else ['xcrun', 'swiftc']
@@ -88,8 +99,6 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             command += ['-framework', 'UIKit']
         if name in ['chat-render', 'composer', 'chat-title']:
             command += ['-framework', 'SwiftUI']
-        if name == 'local-store':
-            command += ['-lsqlite3']
         command += [str(kit / 'ios' / file) for file in files]
         command += [str(kit / 'verification' / name / 'main.swift'), '-o', binary]
         # Xcode 27 CI compiles the larger chat/composer graphs much slower than a local Mac.

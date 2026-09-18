@@ -1,4 +1,8 @@
-import type { NativeListRow, NativeListSection } from '@lody-ios/kit';
+import type {
+  InboxSearchHits,
+  NativeListRow,
+  NativeListSection,
+} from '@lody-ios/kit';
 import type { Catalog, Project, Session } from '../../models/catalog.ts';
 import {
   sessionIsUnread as unreadOf,
@@ -210,6 +214,11 @@ const newChatAction = () => ({
   title: t('session.action.newChat'),
   symbol: 'square.and.pencil',
 });
+const renameAction = () => ({
+  id: 'rename',
+  title: t('session.action.rename'),
+  symbol: 'pencil',
+});
 const shareAction = () => ({
   id: 'share',
   title: t('session.action.share'),
@@ -217,7 +226,7 @@ const shareAction = () => ({
 });
 const sessionMenu = (session: Session) => ({
   menuActions: [
-    newSessionAction(),
+    renameAction(),
     pinAction(session.pinned),
     archiveAction(session.archived),
     shareAction(),
@@ -474,13 +483,12 @@ export function projectSections(
   return sections;
 }
 
-export function searchSections(
+export function matchCatalog(
   catalog: Catalog,
   keyword: string,
-  accent: string,
-): NativeListSection[] {
+): InboxSearchHits {
   const term = keyword.trim().toLocaleLowerCase();
-  if (!term) return [];
+  if (!term) return { projectIds: [], sessions: [] };
   const names = new Map(catalog.projects.map((p) => [p.id, p.name]));
   const projects = catalog.projects.filter(
     (p) => !isChatProjectId(p.id) && p.name.toLocaleLowerCase().includes(term),
@@ -489,6 +497,24 @@ export function searchSections(
     .filter((s) =>
       `${s.title} ${sessionPlace(s, names)}`.toLocaleLowerCase().includes(term),
     )
+    .sort(byActivity);
+  return {
+    projectIds: projects.map((p) => p.id),
+    sessions: sessions.map((s) => ({ id: s.id, snippet: null })),
+  };
+}
+
+export function searchSections(
+  catalog: Catalog,
+  hits: InboxSearchHits,
+  accent: string,
+): NativeListSection[] {
+  const names = new Map(catalog.projects.map((p) => [p.id, p.name]));
+  const projectIds = new Set(hits.projectIds);
+  const matches = new Map(hits.sessions.map((hit) => [hit.id, hit.snippet]));
+  const projects = catalog.projects.filter((p) => projectIds.has(p.id));
+  const sessions = catalog.sessions
+    .filter((s) => matches.has(s.id))
     .sort(byActivity);
   return [
     {
@@ -508,7 +534,13 @@ export function searchSections(
     {
       id: 'sessions',
       header: t('inbox.section.sessions'),
-      rows: sessions.map((s) => sessionRow(s, accent, sessionPlace(s, names))),
+      rows: sessions.map((s) => {
+        const row = sessionRow(s, accent, sessionPlace(s, names));
+        const snippet = matches.get(s.id);
+        return snippet == null
+          ? row
+          : { ...row, subtitle: snippet, subtitleMono: false };
+      }),
     },
   ].filter((section) => section.rows.length);
 }

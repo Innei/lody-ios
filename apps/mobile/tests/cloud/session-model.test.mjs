@@ -6,6 +6,7 @@ import {
   inboxSections,
   projectSections,
   searchSections,
+  matchCatalog,
   sessionRow,
 } from '../../src/features/sessions/inbox.ts';
 import { setLocale } from '../../src/lib/i18n/index.ts';
@@ -37,7 +38,7 @@ test('catalog model changes reach every session row without loading a transcript
   const rows = [
     inboxSections(data, { accent: 'blue' })[0].rows[0],
     projectSections(data, 'blue')[0].rows[1],
-    searchSections(data, 'Session', 'blue')[0].rows[0],
+    searchSections(data, matchCatalog(data, 'Session'), 'blue')[0].rows[0],
     sessionRow(data.sessions[0], 'blue'),
   ];
   for (const row of rows) {
