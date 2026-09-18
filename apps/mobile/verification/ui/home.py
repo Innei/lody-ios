@@ -427,6 +427,8 @@ ui.wait(
     lambda items: any(i.get('AXLabel') == catalog.text('workspace.edit.action') for i in items),
     'Workspace menu must include the edit action',
 )
+edit_workspace = next(i for i in ui.state() if i.get('AXLabel') == catalog.text('workspace.edit.action'))
+assert 'selected' not in str(edit_workspace.get('traits') or []).lower(), edit_workspace
 ui.capture('workspace-menu')
 ui.axe('tap', '--label', catalog.text('workspace.edit.action'), '--post-delay', '.8')
 ui.element('workspace-name')
@@ -455,4 +457,8 @@ ui.wait(
     'Saving the workspace name must update the home menu',
 )
 ui.capture('workspace-renamed')
+ui.axe('tap', '--label', renamed_label, '--post-delay', '.5')
+edit_workspace = next(i for i in ui.state() if i.get('AXLabel') == catalog.text('workspace.edit.action'))
+assert 'selected' not in str(edit_workspace.get('traits') or []).lower(), edit_workspace
+ui.capture('workspace-menu-after-edit')
 print('Create opens repeatedly from the bottom toolbar; integrated search finds archived sessions and cancels back; the view menu regroups; long-press Settings opens Debug and returns; the settings sheet pushes remote and archived pages and closes back to the inbox; the workspace menu edits and immediately reflects the current workspace name.')

@@ -6,7 +6,7 @@ struct LodyMenuItem {
   var id: String = ""
   var title: String = ""
   var symbol: String = ""
-  var selected: Bool = false
+  var selected: Bool?
 }
 
 @Record
@@ -66,16 +66,29 @@ final class LodyMenuButton: ExpoView {
   }
 
   func setItems(_ value: [LodyMenuItem]) {
-    button.menu = UIMenu(
-      options: .singleSelection,
-      children: value.map { item in
-        UIAction(
-          title: item.title,
-          image: item.symbol.isEmpty ? nil : UIImage(systemName: item.symbol),
-          state: item.selected ? .on : .off
-        ) { [weak self] _ in self?.onSelect(["id": item.id]) }
-      }
-    )
+    func action(_ item: LodyMenuItem, state: UIMenuElement.State = .off) -> UIAction {
+      UIAction(
+        title: item.title,
+        image: item.symbol.isEmpty ? nil : UIImage(systemName: item.symbol),
+        state: state
+      ) { [weak self] _ in self?.onSelect(["id": item.id]) }
+    }
+
+    let choices = value.compactMap { item -> UIAction? in
+      guard let selected = item.selected else { return nil }
+      return action(item, state: selected ? .on : .off)
+    }
+    var children: [UIMenuElement] = []
+    if !choices.isEmpty {
+      children.append(UIMenu(options: [.displayInline, .singleSelection], children: choices))
+    }
+    let actions = value.compactMap { item in
+      item.selected == nil ? action(item) : nil
+    }
+    if !actions.isEmpty {
+      children.append(UIMenu(options: .displayInline, children: actions))
+    }
+    button.menu = UIMenu(children: children)
   }
 
   private func apply() {

@@ -80,7 +80,8 @@ ui.capture('sidebar-glass-fab')
 
 tap_label(workspace_item['AXLabel'])
 labeled('我的超长工作区名称不能折行')
-labeled(catalog.text('workspace.edit.action'))
+edit_workspace = labeled(catalog.text('workspace.edit.action'))
+assert 'selected' not in str(edit_workspace.get('traits') or []).lower(), edit_workspace
 ui.capture('workspace-menu')
 tap_label(catalog.text('workspace.edit.action'))
 ui.element('workspace-name')
@@ -110,6 +111,9 @@ ui.element('workspace-name')
 ui.capture('workspace-icon-updated')
 tap_label(catalog.text('common.cancel'))
 tap_label(workspace_item['AXLabel'])
+edit_workspace = labeled(catalog.text('workspace.edit.action'))
+assert 'selected' not in str(edit_workspace.get('traits') or []).lower(), edit_workspace
+ui.capture('workspace-menu-after-edit')
 tap_label('我的超长工作区名称不能折行')
 
 # Selection belongs to the sidebar's detail, including across outline updates.

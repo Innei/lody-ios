@@ -334,7 +334,6 @@ function InboxPanelItem({
                       {
                         id: workspaceEditActionId,
                         title: t('workspace.edit.action'),
-                        selected: false,
                       },
                     ]
                   : []),

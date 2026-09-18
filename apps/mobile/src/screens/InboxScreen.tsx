@@ -82,7 +82,6 @@ function RouterChrome({ model }: { model: InboxModel }) {
                     {
                       id: workspaceEditActionId,
                       title: t('workspace.edit.action'),
-                      selected: false,
                     },
                   ]
                 : []),
