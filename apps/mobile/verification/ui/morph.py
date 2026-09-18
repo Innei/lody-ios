@@ -57,6 +57,7 @@ for action in ('close', 'backdrop', 'send'):
     samples = dismissals[0]['samples']
     assert len(samples) >= 4, f'{action}: missing animation frames'
     assert any(.1 < sample['scale'] < .9 for sample in samples), f'{action}: sheet did not shrink'
+    assert all(sample['dismissing'] for sample in samples), f'{action}: morph ran before UIKit dismissal, leaving background glass dimmed until teardown'
     assert samples[0]['dimming'], f'{action}: missing the backdrop'
     assert all(view['selected'] or view['alpha'] == 0 for view in dismissals[0]['hierarchy'] if 'dimming' in view['class'].lower()), f'{action}: a visible window backdrop was left outside the animation'
     for layer in range(len(samples[0]['dimming'])):

@@ -7,8 +7,8 @@ import UIKit
 /// the presentation, before UIKit flushes the sheet's first frame, so the
 /// sheet is hidden before it ever renders. Only presentation-layer animations
 /// run afterwards so the sheet controller's own layout never conflicts.
-/// `dismiss` plays the same morph backwards and leaves the sheet hidden for an
-/// unanimated removal.
+/// Dismissal runs inside UIKit's transition so the presenting glass leaves its
+/// dimmed state alongside the morph, rather than after an unanimated removal.
 @MainActor
 enum LodyMorphReveal {
   private static var token: NSObjectProtocol?
@@ -72,22 +72,14 @@ enum LodyMorphReveal {
 
   static func dismiss(completion: @escaping () -> Void) {
     guard let state = dismissal, let presented = state.presented,
-      let sheet = presented.presentationController?.presentedView
+      presented.presentationController?.presentedView != nil
     else { return completion() }
     state.completions.append(completion)
     guard !state.closing else { return }
     state.closing = true
-    let dimming = state.dimming
     presented.view.isUserInteractionEnabled = false
-    morph(presented: presented, sheet: sheet, dimming: dimming, source: state.source, sourceFrame: state.sourceFrame, reverse: true) {
-      presented.view.alpha = 0
-      dimming.forEach { $0.alpha = 0 }
-      presented.presentationController?.delegate = state.original
-      state.backdrop.view?.removeGestureRecognizer(state.backdrop)
-      dismissal = nil
-      state.completions.forEach { $0() }
-      state.completions.removeAll()
-    }
+    presented.transitioningDelegate = state
+    presented.dismiss(animated: true)
   }
 
   private static func reveal(presented: UIViewController, sheet: UIView, dimming: [UIView], source: UIView?) {
@@ -184,7 +176,7 @@ enum LodyMorphReveal {
         dimming.forEach { $0.alpha = 0 }
       }
     }
-    let probe = MorphProbe(content: content, dimming: dimming, reverse: reverse)
+    let probe = MorphProbe(presented: presented, content: content, dimming: dimming, reverse: reverse)
     DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.05) {
       probe.stop()
       completion()
@@ -204,9 +196,10 @@ enum LodyMorphReveal {
     return view.subviews.flatMap { dimmingViews(in: $0, excluding: sheet) }
   }
 
-  private final class MorphDismissal: NSObject, UIAdaptivePresentationControllerDelegate, UIGestureRecognizerDelegate {
+  private final class MorphDismissal: NSObject, UIAdaptivePresentationControllerDelegate, UIGestureRecognizerDelegate, UIViewControllerTransitioningDelegate, UIViewControllerAnimatedTransitioning {
     weak var presented: UIViewController?
     weak var original: UIAdaptivePresentationControllerDelegate?
+    weak var originalTransitioning: UIViewControllerTransitioningDelegate?
     let source: UIView
     let sourceFrame: CGRect
     let dimming: [UIView]
@@ -217,6 +210,7 @@ enum LodyMorphReveal {
     init(presented: UIViewController, source: UIView, sourceFrame: CGRect, dimming: [UIView]) {
       self.presented = presented
       self.original = presented.presentationController?.delegate
+      self.originalTransitioning = presented.transitioningDelegate
       self.source = source
       self.sourceFrame = sourceFrame
       self.dimming = dimming
@@ -225,6 +219,28 @@ enum LodyMorphReveal {
       backdrop.delegate = self
       backdrop.cancelsTouchesInView = false
       presented.presentationController?.containerView?.addGestureRecognizer(backdrop)
+    }
+
+    func animationController(forDismissed dismissed: UIViewController) -> UIViewControllerAnimatedTransitioning? { self }
+
+    func transitionDuration(using transitionContext: UIViewControllerContextTransitioning?) -> TimeInterval { 0.35 }
+
+    func animateTransition(using transitionContext: UIViewControllerContextTransitioning) {
+      guard let presented, let sheet = presented.presentationController?.presentedView else {
+        transitionContext.completeTransition(false)
+        return
+      }
+      LodyMorphReveal.morph(presented: presented, sheet: sheet, dimming: dimming,
+        source: source, sourceFrame: sourceFrame, reverse: true) { [self] in
+        presented.view.alpha = 0
+        presented.presentationController?.delegate = original
+        backdrop.view?.removeGestureRecognizer(backdrop)
+        dismissal = nil
+        completions.forEach { $0() }
+        completions.removeAll()
+        transitionContext.completeTransition(true)
+        presented.transitioningDelegate = originalTransitioning
+      }
     }
 
     @objc private func tapBackdrop() {
@@ -259,9 +275,7 @@ enum LodyMorphReveal {
         return
       }
       LodyMorphReveal.dismiss { [self] in
-        presented?.dismiss(animated: false) {
-          self.original?.presentationControllerDidDismiss?(presentationController)
-        }
+        original?.presentationControllerDidDismiss?(presentationController)
       }
     }
   }
@@ -316,6 +330,7 @@ enum LodyMorphReveal {
 }
 
 private final class MorphProbe: NSObject {
+  private let presented: UIViewController
   private let content: UIView
   private let dimming: [UIView]
   private let reverse: Bool
@@ -323,7 +338,8 @@ private final class MorphProbe: NSObject {
   private var samples: [[String: Any]] = []
   private var hierarchy: [[String: Any]] = []
 
-  init(content: UIView, dimming: [UIView], reverse: Bool) {
+  init(presented: UIViewController, content: UIView, dimming: [UIView], reverse: Bool) {
+    self.presented = presented
     self.content = content
     self.dimming = dimming
     self.reverse = reverse
@@ -344,6 +360,7 @@ private final class MorphProbe: NSObject {
   @objc private func sample() {
     let layer = content.layer.presentation() ?? content.layer
     samples.append(["scale": layer.transform.m11,
+      "dismissing": presented.isBeingDismissed,
       "dimming": dimming.map { ($0.layer.presentation() ?? $0.layer).opacity }])
   }
 
