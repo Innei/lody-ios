@@ -670,11 +670,7 @@ function View() {
         onSteer={({ nativeEvent }) => control.steer(nativeEvent.id)}
         onSend={({ nativeEvent }) =>
           send.submit({
-            id: nativeEvent.id,
-            text: nativeEvent.text,
-            startedAt: nativeEvent.startedAt,
-            queue: nativeEvent.queue,
-            attachments: nativeEvent.attachments,
+            ...nativeEvent,
             phase: 'waiting',
             choice: {
               modelId: capability
