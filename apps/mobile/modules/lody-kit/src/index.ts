@@ -6,6 +6,7 @@ export {
   initialQueuedMessageBehavior,
   saveQueuedMessageBehavior,
   selectionFeedback,
+  debugReplyImpact,
   pickWorkspaceIcon,
   cancelComposerRelay,
   prepareMorphReveal,

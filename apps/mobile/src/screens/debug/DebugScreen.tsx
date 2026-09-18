@@ -16,6 +16,7 @@ import { BackgroundPreviewScreen } from './BackgroundPreviewScreen';
 import { pushStatus, verifyPushSubscription } from '@lody-ios/kit';
 import { NotificationPreviewScreen } from './NotificationPreviewScreen';
 import { LiveActivityPreviewScreen } from './LiveActivityPreviewScreen';
+import { ReplyHapticsPreviewScreen } from './ReplyHapticsPreviewScreen';
 import { uiVerify } from './uiVerify';
 import { ComposerPreviewScreen } from './ComposerPreviewScreen';
 import { ComposerHandoffPreviewScreen } from './ComposerHandoffPreviewScreen';
@@ -128,6 +129,7 @@ function View() {
       id: 'ui',
       header: '界面验收',
       rows: [
+        openRow('reply-haptics-preview', '回复触感试验', 'waveform'),
         openRow(
           'pull-request-preview',
           'GitHub PR / CI 预览',
@@ -270,6 +272,7 @@ function View() {
   );
 
   const actions: Record<string, () => void> = {
+    'reply-haptics-preview': () => void present(ReplyHapticsPreviewScreen, {}),
     'notification-preview': () => {
       void present(NotificationPreviewScreen, {});
     },

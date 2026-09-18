@@ -243,6 +243,12 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("selectionFeedback") {
       UISelectionFeedbackGenerator().selectionChanged()
     }.runOnQueue(.main)
+    AsyncFunction("debugReplyImpact") { (style: String, intensity: Double) in
+      guard UIApplication.shared.applicationState == .active, intensity.isFinite else { return }
+      let styles: [String: UIImpactFeedbackGenerator.FeedbackStyle] = ["soft": .soft, "light": .light, "rigid": .rigid]
+      guard let feedbackStyle = styles[style] else { return }
+      UIImpactFeedbackGenerator(style: feedbackStyle).impactOccurred(intensity: min(1, max(0, intensity)))
+    }.runOnQueue(.main)
     AsyncFunction("morphDismiss") { (promise: Promise) in
       MainActor.assumeIsolated { LodyMorphReveal.dismiss { promise.resolve() } }
     }.runOnQueue(.main)

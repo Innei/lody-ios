@@ -130,6 +130,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   debugProbeSchema(): Promise<string>;
   debugRestartDataRuntime(): Promise<void>;
   selectionFeedback(): Promise<void>;
+  debugReplyImpact(style: string, intensity: number): Promise<void>;
   pickWorkspaceIcon(): Promise<PickedWorkspaceIcon | null>;
   cancelComposerRelay(id: string): Promise<void>;
   showToast(message: string, kind: string): void;
@@ -162,6 +163,9 @@ export const saveQueuedMessageBehavior = (value: string) =>
 export function selectionFeedback(): Promise<void> {
   return native.selectionFeedback();
 }
+
+export const debugReplyImpact = (style: string, intensity: number) =>
+  native.debugReplyImpact(style, intensity);
 
 export function pickWorkspaceIcon(): Promise<PickedWorkspaceIcon | null> {
   return native.pickWorkspaceIcon();
