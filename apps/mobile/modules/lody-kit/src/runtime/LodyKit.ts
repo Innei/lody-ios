@@ -78,6 +78,8 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   saveDarkBackground(value: string): void;
   readonly initialQueuedMessageBehavior: string;
   saveQueuedMessageBehavior(value: string): void;
+  readonly initialQuickRepliesJSON: string;
+  saveQuickReplies(json: string): void;
   readInboxExpansion(): Record<string, boolean>;
   saveInboxExpansion(projectId: string, expanded: boolean): void;
   readInboxPinOrder(userId: string, workspaceId: string): string[];
@@ -160,6 +162,8 @@ export const saveDarkBackground = (value: string) =>
 export const initialQueuedMessageBehavior = native.initialQueuedMessageBehavior;
 export const saveQueuedMessageBehavior = (value: string) =>
   native.saveQueuedMessageBehavior(value);
+export const initialQuickRepliesJSON = native.initialQuickRepliesJSON;
+export const saveQuickReplies = (json: string) => native.saveQuickReplies(json);
 export function selectionFeedback(): Promise<void> {
   return native.selectionFeedback();
 }

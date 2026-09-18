@@ -5,6 +5,7 @@ export type NativeListAction = {
   /** Semantic name (warning/danger/yellow) or `#RRGGBB`; destructive stays system red. */
   tint?: string;
   destructive?: boolean;
+  selected?: boolean;
 };
 
 export type NativeListRow = {
@@ -49,6 +50,8 @@ export type NativeListRow = {
   leadingActions?: NativeListAction[];
   /** Long-press UIKit context menu. */
   menuActions?: NativeListAction[];
+  /** Tap to choose an option in a native pop-up menu; emits onRowAction. */
+  options?: NativeListAction[];
   /** Session rows may peek a cached transcript. */
   preview?: 'session';
 };

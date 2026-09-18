@@ -5,6 +5,8 @@ export {
   saveDarkBackground,
   initialQueuedMessageBehavior,
   saveQueuedMessageBehavior,
+  initialQuickRepliesJSON,
+  saveQuickReplies,
   selectionFeedback,
   debugReplyImpact,
   pickWorkspaceIcon,

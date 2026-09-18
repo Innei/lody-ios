@@ -63,6 +63,8 @@ if args.case:
         parser.error(f'Unknown check {args.case}; choose from {", ".join(checks)}')
     checks = {args.case: checks[args.case]}
 for files in checks.values():
+    if 'Chat/ChatComposerView.swift' in files:
+        files.append('Chat/ChatQuickReplies.swift')
     if 'Chat/ChatOverlay.swift' in files or 'Chat/ChatAttachments.swift' in files:
         files.insert(0, 'Chrome/LodyGlassView.swift')
     if 'Chat/ChatSendHandoff.swift' in files or 'Chat/ChatMentionPanel.swift' in files:

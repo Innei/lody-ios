@@ -25,6 +25,25 @@ private final class RowSwitch: UISwitch {
   var rowID = ""
 }
 
+private final class SettingsListCell: UICollectionViewListCell {
+  let optionButton = UIButton(type: .system)
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    optionButton.showsMenuAsPrimaryAction = true
+    addSubview(optionButton)
+    optionButton.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      optionButton.leadingAnchor.constraint(equalTo: leadingAnchor),
+      optionButton.trailingAnchor.constraint(equalTo: trailingAnchor),
+      optionButton.topAnchor.constraint(equalTo: topAnchor),
+      optionButton.bottomAnchor.constraint(equalTo: bottomAnchor),
+    ])
+  }
+
+  required init?(coder: NSCoder) { fatalError() }
+}
+
 private final class SearchHeaderCell: UICollectionViewCell {
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -54,6 +73,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   let onRowPress = EventDispatcher()
   let onRowToggle = EventDispatcher()
   let onRowAction = EventDispatcher()
+  let onReorder = EventDispatcher()
   let onRefresh = EventDispatcher()
   let onSegmentChange = EventDispatcher()
   let onSearchChange = EventDispatcher()
@@ -93,6 +113,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private var bottomInset: CGFloat = 0
   private var transparent = false
   private var contentStyle = false
+  private var reordering = false
   var previewUserId = ""
   var previewWorkspaceId = ""
   private var rowsByID: [ListItemID: LodyListRow] = [:]
@@ -102,8 +123,34 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   private static let restingCard = UIColor.tertiarySystemGroupedBackground
 
-  private lazy var registration = UICollectionView.CellRegistration<UICollectionViewListCell, LodyListRow> { [weak self] cell, _, row in
-    LodyGroupedList.configureSystem(cell, row, toggle: self?.toggle(for: row))
+  private lazy var registration = UICollectionView.CellRegistration<SettingsListCell, LodyListRow> { [weak self] cell, _, row in
+    self?.configureSettingsCell(cell, row)
+  }
+
+  private func configureSettingsCell(_ cell: SettingsListCell, _ row: LodyListRow) {
+    Self.configureSystem(cell, row, toggle: toggle(for: row))
+    if reordering { cell.accessories.append(.reorder(displayed: .always)) }
+    let button = cell.optionButton
+    button.isHidden = row.options.isEmpty
+    button.isEnabled = row.action
+    button.accessibilityIdentifier = row.id
+    button.accessibilityLabel = row.title
+    button.accessibilityValue = row.value
+    button.menu = row.options.isEmpty ? nil : UIMenu(options: .singleSelection, children: row.options.map { option in
+      UIAction(title: option.title, state: option.selected ? .on : .off) { [weak self] _ in
+        self?.onRowAction(["id": row.id, "actionId": option.id])
+      }
+    })
+    cell.isAccessibilityElement = row.options.isEmpty
+    cell.accessibilityElements = row.options.isEmpty ? nil : [button]
+    if !row.options.isEmpty {
+      cell.accessibilityIdentifier = nil
+      let indicator = UIImageView(image: UIImage(systemName: "chevron.up.chevron.down"))
+      indicator.tintColor = .tertiaryLabel
+      indicator.preferredSymbolConfiguration = .init(pointSize: 11, weight: .semibold)
+      cell.accessories.append(.customView(configuration: .init(customView: indicator, placement: .trailing(at: { $0.count }))))
+      cell.bringSubviewToFront(button)
+    }
   }
 
   private lazy var sessionRegistration = UICollectionView.CellRegistration<LodyIndentedCell, LodyListRow> { [weak self] cell, _, row in
@@ -269,6 +316,16 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     }
     dataSource.supplementaryViewProvider = { [weak self] collection, kind, index in
       self?.supplementary(in: collection, kind: kind, at: index)
+    }
+    dataSource.reorderingHandlers.canReorderItem = { [weak self] _ in
+      guard let self else { return false }
+      return self.reordering && self.sections.count == 1 && !self.outline
+    }
+    dataSource.reorderingHandlers.didReorder = { [weak self] transaction in
+      guard let self, self.sections.count == 1 else { return }
+      let ids = transaction.finalSnapshot.itemIdentifiers
+      self.sections[0].rows = ids.compactMap { self.rowsByID[$0] }
+      self.onReorder(["ids": ids.map(\.row)])
     }
     dataSource.sectionSnapshotHandlers.willExpandItem = { [weak self] item in
       self?.emitRowPress(["id": item.row, "expanded": true])
@@ -643,6 +700,17 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     collection.reloadData()
   }
 
+  func setReordering(_ value: Bool) {
+    guard value != reordering else { return }
+    reordering = value
+    collection.isEditing = value
+    for index in collection.indexPathsForVisibleItems {
+      guard let cell = collection.cellForItem(at: index) as? UICollectionViewListCell,
+            let row = row(at: index) else { continue }
+      configure(cell, row: displayed(row))
+    }
+  }
+
   /// A sheet paints its own material. Dropping the list's ground lets that
   /// material show between groups. The tertiary grouped surface keeps cells
   /// distinct when an expanded sheet switches to an opaque secondary surface.
@@ -746,7 +814,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   private func configure(_ cell: UICollectionViewListCell, row: LodyListRow) {
     switch kind(of: row) {
-    case .system: Self.configureSystem(cell, row, toggle: toggle(for: row))
+    case .system: if let cell = cell as? SettingsListCell { configureSettingsCell(cell, row) }
     case .session: if let cell = cell as? LodyIndentedCell { configureSession(cell, row) }
     case .project: configureProject(cell, row)
     }
@@ -945,7 +1013,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   private func selectable(_ indexPath: IndexPath) -> Bool {
     guard let row = row(at: indexPath) else { return false }
-    return row.action && row.toggle == nil
+    return row.action && row.toggle == nil && row.options.isEmpty
   }
   func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
     selectable(indexPath)

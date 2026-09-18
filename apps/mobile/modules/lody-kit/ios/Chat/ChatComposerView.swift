@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 private struct ChatComposerState: Decodable {
   var mentionItems: [ChatMentionItem]?
+  var quickReplies: [ChatQuickReply]?
   var editable = true
   var canSend = false
   var sending = false
@@ -401,6 +402,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private var mentionHeight: NSLayoutConstraint!
   private let queueView = ChatQueueView()
   private var queueHeight: NSLayoutConstraint!
+  private let quickRepliesView = ChatQuickRepliesView(frame: .zero)
+  private var quickRepliesHeight: NSLayoutConstraint!
   private var queuedDrafts: [ChatQueuedDraft] = []
   var retiringQueueHeight: CGFloat { queuedDrafts.isEmpty ? queueView.panelHeight : 0 }
   private var state = ChatComposerState()
@@ -576,6 +579,17 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     composer.contentView.addSubview(mentionPanel)
     composer.contentView.addSubview(queueView)
     queueView.onSteer = { [weak self] in self?.onSteer?($0) }
+    composer.contentView.addSubview(quickRepliesView)
+    quickRepliesView.onSelect = { [weak self] id in
+      guard let self, self.canShowQuickReplies,
+            let reply = self.state.quickReplies?.first(where: { $0.id == id }),
+            !reply.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            reply.message.utf16.count <= 32000 else { return }
+      self.input.text = reply.message
+      self.updateComposer()
+      self.layoutIfNeeded()
+      self.submit()
+    }
     composer.contentView.addSubview(notice)
     composer.contentView.addSubview(attachmentBar)
     composer.contentView.addSubview(attachSurface)
@@ -584,7 +598,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     for view in [input, hint, accessoryBar, modelButton, mentionButton, send] {
       inputSurface.contentView.addSubview(view)
     }
-    for view in [composer, mentionPanel, mentionButton, queueView, inputSurface, attachSurface, notice, attachmentBar, input, hint, accessoryBar, send, attach, modelButton] {
+    for view in [composer, mentionPanel, mentionButton, queueView, quickRepliesView, inputSurface, attachSurface, notice, attachmentBar, input, hint, accessoryBar, send, attach, modelButton] {
       view.translatesAutoresizingMaskIntoConstraints = false
     }
     inputHeight = input.heightAnchor.constraint(equalToConstant: 48)
@@ -594,6 +608,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     noticeHeight = notice.heightAnchor.constraint(equalToConstant: 0)
     attachmentHeight = attachmentBar.heightAnchor.constraint(equalToConstant: 0)
     queueHeight = queueView.heightAnchor.constraint(equalToConstant: 0)
+    quickRepliesHeight = quickRepliesView.heightAnchor.constraint(equalToConstant: 0)
     mentionHeight = mentionPanel.heightAnchor.constraint(equalToConstant: 0)
     surfaceLayout.activate()
     NSLayoutConstraint.activate([
@@ -607,7 +622,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       queueView.topAnchor.constraint(equalTo: mentionPanel.bottomAnchor),
       queueView.leadingAnchor.constraint(equalTo: inputSurface.leadingAnchor),
       queueView.trailingAnchor.constraint(equalTo: inputSurface.trailingAnchor), queueHeight,
-      notice.topAnchor.constraint(equalTo: queueView.bottomAnchor), notice.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 20),
+      quickRepliesView.topAnchor.constraint(equalTo: queueView.bottomAnchor),
+      quickRepliesView.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
+      quickRepliesView.trailingAnchor.constraint(equalTo: composer.trailingAnchor), quickRepliesHeight,
+      notice.topAnchor.constraint(equalTo: quickRepliesView.bottomAnchor), notice.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 20),
       notice.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -20), noticeHeight,
       attachmentBar.topAnchor.constraint(equalTo: notice.bottomAnchor),
       attachmentBar.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
@@ -819,6 +837,12 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     queuedDrafts = drafts
     updateComposer()
   }
+  private var canShowQuickReplies: Bool {
+    state.running == false && state.editable && state.canSend && !state.sending &&
+      state.stopping != true && state.controlling != true && pendingDraft == nil &&
+      failedDraft == nil && displayError == nil && queuedDrafts.isEmpty && !relaying &&
+      input.text.isEmpty && attachments.isEmpty && connection.isEmpty
+  }
   private func updateComposer() {
     mentionPanel.update(input: input, items: activeMentionItems ?? [], enabled: activeMentionItems != nil)
     mentionHeight.constant = mentionPanel.panelHeight
@@ -857,6 +881,9 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     sendVisual.alpha = send.isEnabled || loading ? 1 : 0.35
     queueView.render(queuedDrafts, enabled: state.canStop == true && !sending && state.controlling != true, steeringID: state.steerID ?? "", firstOnly: state.steerInterrupts == true)
     queueHeight.constant = queueView.panelHeight
+    let replies = state.quickReplies ?? []
+    quickRepliesView.render(replies, visible: canShowQuickReplies)
+    quickRepliesHeight.constant = quickRepliesView.isHidden ? 0 : 44
     let noticeText = failedDraft == nil ? (displayError ?? state.notice) : LodyStrings.text("native.chat.composer.failedDraft")
     let canReconnect = failedDraft != nil || displayError != nil || state.reconnect
     notice.setTitle(noticeText, for: .normal)
@@ -874,7 +901,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     inputHeight.constant = min(ChatMessageContent.maximumCollapsedHeight, max(expanded ? 68 : 48, height))
     input.isScrollEnabled = height > ChatMessageContent.maximumCollapsedHeight
     updateComposerOptions()
-    onHeightChange?(mentionHeight.constant + queueHeight.constant + noticeHeight.constant + attachmentHeight.constant + inputHeight.constant + accessoryHeight.constant + 16)
+    onHeightChange?(mentionHeight.constant + queueHeight.constant + quickRepliesHeight.constant + noticeHeight.constant + attachmentHeight.constant + inputHeight.constant + accessoryHeight.constant + 16)
     setNeedsLayout()
     if expansionChanged {
       if window != nil && !UIAccessibility.isReduceMotionEnabled {

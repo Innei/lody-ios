@@ -32,8 +32,8 @@ import {
 import { ShinePreviewScreen } from './ShinePreviewScreen';
 import { InboxPreviewScreen } from './InboxPreviewScreen';
 import { SettingsPreviewScreen } from './SettingsPreviewScreen';
-import { AppearanceScreen } from '../AppearanceScreen';
-import { QueuedMessageBehaviorScreen } from '../QueuedMessageBehaviorScreen';
+import { SettingsScreen } from '../SettingsScreen';
+import { QuickRepliesPreviewScreen } from './QuickRepliesPreviewScreen';
 import { OnboardingPreviewScreen } from './OnboardingPreviewScreen';
 import { useNavigation, useRouter, useTheme } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -208,6 +208,7 @@ function View() {
       id: 'send',
       header: '发送',
       rows: [
+        openRow('quick-replies-preview', 'Quick Replies', 'text.bubble'),
         openRow('send-preview', '离线发送验收', 'paperplane'),
         openRow('send-queue', 'Queue 验收', 'list.bullet'),
         openRow('steer-preview', '连续引导验收', 'arrow.triangle.branch'),
@@ -297,9 +298,9 @@ function View() {
     'pull-request-preview': () => void present(PullRequestPreviewScreen, {}),
     'project-picker-preview': () => void openProjectPicker(),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
-    'appearance-preview': () => void present(AppearanceScreen, {}),
-    'queued-message-behavior-preview': () =>
-      void present(QueuedMessageBehaviorScreen, {}),
+    'appearance-preview': () => void present(SettingsScreen, {}),
+    'queued-message-behavior-preview': () => void present(SettingsScreen, {}),
+    'quick-replies-preview': () => void present(QuickRepliesPreviewScreen),
     'inbox-preview': () => void present(InboxPreviewScreen, {}),
     'background-preview': () => void present(BackgroundPreviewScreen, {}),
     'native-shell-poc': () => void present(NativeShellPreviewScreen, {}),

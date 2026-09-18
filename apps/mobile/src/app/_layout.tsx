@@ -13,6 +13,7 @@ import { nativePresentationOptions } from '@/lib/presentation';
 import { navigationThemes } from '@/lib/theme/palette';
 import { AppearanceProvider, useAppearance } from '@/lib/theme/appearance';
 import { QueuedMessageBehaviorProvider } from '@/features/settings/queued-message-behavior';
+import { QuickRepliesProvider } from '@/features/settings/quick-replies';
 import { softDarkBackground } from '@/lib/theme/tokens';
 import { navigationScrollEdgeEffects } from '@lody-ios/kit';
 import { useBindSessionNav } from '@/hooks/screens/useBindSessionNav';
@@ -25,7 +26,9 @@ export default function RootLayout() {
   return (
     <AppearanceProvider>
       <QueuedMessageBehaviorProvider>
-        <Root />
+        <QuickRepliesProvider>
+          <Root />
+        </QuickRepliesProvider>
       </QueuedMessageBehaviorProvider>
     </AppearanceProvider>
   );

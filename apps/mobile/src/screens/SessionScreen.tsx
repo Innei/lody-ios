@@ -9,6 +9,7 @@ import { useConnection } from '@/cloud/catalog/connection';
 import { useSessionControl } from '@/features/sessions/useSessionControl';
 import { useSessionSend } from '@/features/sessions/useSessionSend';
 import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
+import { useQuickReplies } from '@/features/settings/quick-replies';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View as RNView, Alert } from 'react-native';
@@ -283,6 +284,7 @@ function View() {
     ? choice
     : (snapshot.composer ?? choice);
   const { queuedMessageBehavior } = useQueuedMessageBehavior();
+  const { quickReplies } = useQuickReplies();
   const control = useSessionControl(
     currentSession,
     snapshot,
@@ -440,6 +442,13 @@ function View() {
     steerInterrupts: control.steerInterrupts,
     queuedMessageBehavior,
     notice,
+    quickReplies:
+      snapshot.status === 'live' &&
+      snapshot.entries.some(
+        (entry) => entry.role === 'user' || entry.role === 'assistant',
+      )
+        ? quickReplies
+        : [],
     reconnect: overflow,
     connection: connectionChrome({
       disconnected,

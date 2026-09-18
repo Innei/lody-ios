@@ -1,30 +1,18 @@
-"""Dark background choice applies immediately and remains accessible."""
-import json
+"""Settings choices update in place through native pop-up menus."""
 import sys
 from driver import UI
 import catalog
 
 ui = UI(sys.argv[1], sys.argv[2])
-
-
-def selected(identifier):
-    return catalog.text('settings.history.selected') in (ui.element(identifier).get('AXLabel') or '')
-
-
-def choose(identifier):
-    ui.axe('tap', '--id', identifier, '--post-delay', '.7')
-    ui.wait(lambda _: selected(identifier), f'{identifier} did not become selected')
-
-
-choose('dark-background-soft')
-assert not selected('dark-background-black')
-ui.capture('soft')
-
-choose('dark-background-black')
-assert not selected('dark-background-soft')
-ui.capture('black')
-
-choose('dark-background-soft')
-assert not selected('dark-background-black')
-ui.capture('soft-restored')
-print(json.dumps({'soft': '#111113', 'black': '#000000', 'restored': 'soft'}))
+for value in ["soft","black","soft"]:
+    row = ui.element('appearance')
+    assert row['frame']['height'] >= 44
+    ui.axe('tap', '--id', 'appearance', '--post-delay', '.5')
+    ui.capture(f'{value}-menu')
+    ui.axe('tap', '--label', catalog.text(f'settings.appearance.{value}'), '--post-delay', '.7')
+    ui.wait(lambda _: ui.element('appearance').get('AXValue') == catalog.text(f'settings.appearance.{value}'), 'Selected value did not update')
+    ui.element('appearance')
+    ui.element('notifications')
+    ui.element('queued-message-behavior')
+    ui.capture(f'{value}-selected')
+print('PASS: native menu updates in place and restores the initial preference.')

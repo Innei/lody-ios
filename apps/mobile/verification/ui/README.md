@@ -58,7 +58,6 @@ pnpm verify:ui --suite core --embedded --app /absolute/path/to/Lody.app --output
 pnpm verify:ui --case ipad --app /absolute/path/to/Lody.app --output .artifacts/ipad
 # One Metro, three concurrent leased Simulators, all batches:
 pnpm verify:ui --parallel --app /absolute/path/to/Lody.app --output .artifacts/ui-parallel
-pnpm verify:ui --app /absolute/path/to/Lody.app --language zh-Hans --output .artifacts/ui-zh
 pnpm verify:ui --app /absolute/path/to/Lody.app --suite send-reliability --output .artifacts/send-reliability
 ```
 
@@ -113,9 +112,9 @@ bypasses leasing, rename and shutdown, so its caller owns the full lifecycle.
 Do not call `simctl create` directly for local verification.
 
 Requires Python 3, AXe 1.8.0, Xcode 26.5 and the workspace dependencies.
-`--case layout` selects one case (still both appearances). `--language` picks the
-App Language the run launches with (`en` by default) and the catalog the scenes
-assert against; run both before claiming bilingual coverage. `--port 8098` changes
+`--case layout` selects one case (still both appearances). UI verification runs
+only in English (`en`, `en_US`); `--language en` remains accepted for existing
+callers. Do not add separate Chinese verification runs. `--port 8098` changes
 the isolated Metro port; occupied ports are rejected. `--output PATH` selects an
 artifact directory; a previous run at that path is deleted and replaced, so reuse
 the same path across retries and pick a distinct path only for an A/B comparison.
@@ -131,6 +130,12 @@ tested. No global Simulator preferences are changed. It never shuts down another
 task's locked Simulator or Metro.
 
 ## Baseline inventory
+
+`quick-replies` exercises the production composer and Settings editor: idle-only
+visibility, draft preservation, full-message sending and explicit failure retry,
+adding/editing/reordering/deleting replies, and local persistence after process
+restart. Both English appearances record screenshots and video; no cloud turn
+is dispatched.
 
 `pull-request` opens Debug → GitHub PR / CI 预览 with an injected OSS-shaped
 projection. It captures the native chat entry, PR summary, grouped checks,

@@ -45,6 +45,16 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   @JS
+  var initialQuickRepliesJSON: String {
+    UserDefaults.standard.string(forKey: "quickReplies") ?? ""
+  }
+
+  @JS
+  func saveQuickReplies(json: String) {
+    UserDefaults.standard.set(json, forKey: "quickReplies")
+  }
+
+  @JS
   var runtimeInfo: LodyRuntimeInfo {
     let offlineProbe = LodyUIVerify.offline
     let uiVerifyHome = LodyUIVerify.home
@@ -607,7 +617,8 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("contentStyle") { (view: LodyGroupedList, value: Bool) in
         view.setContentStyle(value)
       }
-      Events("onRowPress", "onRowToggle", "onRowAction", "onRefresh", "onSegmentChange", "onSearchChange")
+      Events("onRowPress", "onRowToggle", "onRowAction", "onReorder", "onRefresh", "onSegmentChange", "onSearchChange")
+      Prop("reordering") { (view: LodyGroupedList, value: Bool) in view.setReordering(value) }
       Prop("segments") { (view: LodyGroupedList, labels: [String]) in view.setSegments(labels) }
       Prop("selectedSegment") { (view: LodyGroupedList, index: Int) in view.setSelectedSegment(index) }
       Prop("searchPlaceholder") { (view: LodyGroupedList, value: String) in view.setSearchPlaceholder(value) }

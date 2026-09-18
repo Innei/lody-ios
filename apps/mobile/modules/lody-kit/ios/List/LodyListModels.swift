@@ -7,6 +7,7 @@ struct LodyListAction {
   var symbol: String = ""
   var tint: String = ""
   var destructive: Bool = false
+  var selected: Bool = false
 }
 
 @Record
@@ -45,6 +46,7 @@ struct LodyListRow {
   var actions: [LodyListAction] = []
   var leadingActions: [LodyListAction] = []
   var menuActions: [LodyListAction] = []
+  var options: [LodyListAction] = []
   var preview: String = ""
 }
 

@@ -1,7 +1,6 @@
 import { ProjectHistoryScreen } from './ProjectHistoryScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
-import { AppearanceScreen } from '@/screens/AppearanceScreen';
-import { QueuedMessageBehaviorScreen } from '@/screens/QueuedMessageBehaviorScreen';
+import { QuickRepliesScreen } from './QuickRepliesScreen';
 import { useRouter } from 'expo-router';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { AccountScreen } from './AccountScreen';
@@ -38,8 +37,9 @@ function View() {
   const router = useRouter();
   const { push, cancel } = usePageRuntime();
   const colors = usePalette();
-  const { darkBackground } = useAppearance();
-  const { queuedMessageBehavior } = useQueuedMessageBehavior();
+  const { darkBackground, setDarkBackground } = useAppearance();
+  const { queuedMessageBehavior, setQueuedMessageBehavior } =
+    useQueuedMessageBehavior();
   const connection = useConnection();
   const { refresh } = useCatalog();
   const shape = connectionRow[connection.state];
@@ -93,15 +93,19 @@ function View() {
     },
     {
       id: 'preferences',
+      header: t('settings.section.appearanceNotifications'),
       rows: [
         {
           id: 'appearance',
-          title: t('settings.appearance.title'),
+          title: t('settings.appearance.darkBackground'),
           value: t(`settings.appearance.${darkBackground}`),
           image: 'circle.lefthalf.filled',
           action: true,
-          disclosure: true,
-          navigates: true,
+          options: (['soft', 'black'] as const).map((value) => ({
+            id: value,
+            title: t(`settings.appearance.${value}`),
+            selected: value === darkBackground,
+          })),
         },
         {
           id: 'notifications',
@@ -111,11 +115,29 @@ function View() {
           disclosure: true,
           navigates: true,
         },
+      ],
+    },
+    {
+      id: 'chat',
+      header: t('settings.section.chat'),
+      footer: t('settings.queuedMessageBehavior.hint'),
+      rows: [
         {
           id: 'queued-message-behavior',
           title: t('settings.queuedMessageBehavior.title'),
           value: t(`settings.queuedMessageBehavior.${queuedMessageBehavior}`),
           image: 'arrow.uturn.forward',
+          action: true,
+          options: (['queue', 'guide'] as const).map((value) => ({
+            id: value,
+            title: t(`settings.queuedMessageBehavior.${value}`),
+            selected: value === queuedMessageBehavior,
+          })),
+        },
+        {
+          id: 'quick-replies',
+          title: t('settings.quickReplies.title'),
+          image: 'text.bubble',
           action: true,
           disclosure: true,
           navigates: true,
@@ -149,7 +171,7 @@ function View() {
   if (auth.account)
     sections.splice(1, 0, {
       id: 'remote',
-      header: t('settings.remote.title'),
+      header: t('settings.section.workspace'),
       rows: (['machine', 'agent', 'mcp'] as const).map((kind) => ({
         id: `remote-${kind}`,
         title: t(`settings.remote.${kind}`),
@@ -210,6 +232,18 @@ function View() {
       accent={colors.accent}
       sections={sections}
       placeholder=""
+      onRowAction={({ nativeEvent: { id, actionId } }) => {
+        if (
+          id === 'appearance' &&
+          (actionId === 'soft' || actionId === 'black')
+        )
+          setDarkBackground(actionId);
+        if (
+          id === 'queued-message-behavior' &&
+          (actionId === 'queue' || actionId === 'guide')
+        )
+          setQueuedMessageBehavior(actionId);
+      }}
       onRowPress={({ nativeEvent }) => {
         if (nativeEvent.id.startsWith('remote-')) {
           const kind = nativeEvent.id.slice(7) as RemoteSetting['kind'];
@@ -221,9 +255,7 @@ function View() {
         }
         if (nativeEvent.id === 'notifications')
           void push(NotificationSettingsScreen, {});
-        if (nativeEvent.id === 'appearance') void push(AppearanceScreen, {});
-        if (nativeEvent.id === 'queued-message-behavior')
-          void push(QueuedMessageBehaviorScreen, {});
+        if (nativeEvent.id === 'quick-replies') void push(QuickRepliesScreen);
         if (nativeEvent.id === 'project-history')
           void push(ProjectHistoryScreen);
         if (nativeEvent.id === 'archived') void push(ArchivedSessionsScreen);

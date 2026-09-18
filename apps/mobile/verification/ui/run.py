@@ -21,7 +21,7 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
     'pages': ['pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker'],
-    'send': ['root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
+    'send': ['quick-replies', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
     'chat': ['user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'chat-chrome', 'title-rename'],
 }
 SUITES = {
@@ -39,6 +39,7 @@ CASES = PHONE_CASES + PAD_CASES + ['session-search', 'morph', 'composer-relay', 
 # These select HomePreviewProviders at app launch, using the same shared bundle.
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome'}
 PREVIEW = {
+    'quick-replies': 'quick-replies-preview',
     'reply-haptics': 'reply-haptics-preview',
     'scroll-edge': 'chat-preview',
     'scroll-edge-pages': 'scroll-edge-pages',
@@ -95,6 +96,7 @@ PREVIEW = {
     'community-notice': 'community-notice',
 }
 READY = {
+    'quick-replies': 'quick-reset',
     'reply-haptics': 'reply-haptics-start',
     'scroll-edge': 'session-input',
     'scroll-edge-pages': 'create-session-input',
@@ -122,8 +124,8 @@ READY = {
     'project-history': 'history-project:["studio","demo"]',
     'project-picker': 'ui:local:alpha',
     'settings': 'settings-machine',
-    'appearance': 'dark-background-soft',
-    'queued-message-behavior': 'queued-message-behavior-queue',
+    'appearance': 'appearance',
+    'queued-message-behavior': 'queued-message-behavior',
     'model-memory': 'create-session-input',
     'send': 'send-status',
     'send-handoff': 'create-session-input',
@@ -156,7 +158,7 @@ selection.add_argument('--batch', choices=BATCHES)
 selection.add_argument('--suite', choices=SUITES, help='Named case set; core* is the PR regression')
 selection.add_argument('--parallel', action='store_true', help='Run all three batches on separate leased Simulators sharing one Metro')
 parser.add_argument('--shared-metro', action='store_true', help=argparse.SUPPRESS)
-parser.add_argument('--language', choices=['en', 'zh-Hans'], default='en', help='App Language for this run; scenes assert the matching catalog')
+parser.add_argument('--language', choices=['en'], default='en', help='UI verification runs in English only')
 parser.add_argument('--appearance', choices=['light', 'dark'], help='One appearance; omit to run light and dark, or light only for --suite core')
 parser.add_argument('--fail-fast', action='store_true', help='Stop after the first failed case')
 parser.add_argument(
@@ -277,7 +279,7 @@ with metro_context:
                     if case == 'chat-performance':
                         container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
                         (container / 'tmp/lody-chat-loading.json').unlink(missing_ok=True)
-                    restart = args.embedded or launch_mode != mode or case in HOME_CASES
+                    restart = args.embedded or launch_mode != mode or case in HOME_CASES or case == 'quick-replies'
                     if restart:
                         result['appLifecycle'] = 'launch'
                         sim('terminate', args.udid, 'app.innei.lody', check=False)
@@ -304,7 +306,7 @@ with metro_context:
                             ]
                         launch += [
                             '-AppleLanguages', f'({args.language})',
-                            '-AppleLocale', 'en_US' if args.language == 'en' else 'zh_CN',
+                            '-AppleLocale', 'en_US',
                             '-AppleKeyboards', '(en_US@sw=QWERTY)',
                         ]
                         sim(*launch)
@@ -366,7 +368,7 @@ with metro_context:
                         ui.element('preview-image:attachment:ui-verify-image')
                     ui.capture('before')
                     script = Path(__file__).with_name(f'{case}.py') if case in ['pull-request', 'project-history-entry', 'project-history', 'project-picker', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'context-menu', 'chat-chrome', 'title-rename'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
-                    if case in {'morph', 'native-shell', 'native-collection', 'ipad-chrome', 'composer-relay', 'outbox', 'navigation-toolbar', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics'}:
+                    if case in {'quick-replies', 'morph', 'native-shell', 'native-collection', 'ipad-chrome', 'composer-relay', 'outbox', 'navigation-toolbar', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics'}:
                         script = Path(__file__).with_name(f'{case}.py')
                     if case == 'send-handoff-delayed':
                         script = Path(__file__).with_name('send-handoff.py')
@@ -392,6 +394,8 @@ with metro_context:
                     else:
                         command += [str(output)]
                     check_timeout = 180
+                    if case == 'quick-replies':
+                        check_timeout = 420
                     if case == 'chat-performance':
                         check_timeout = 480
                     elif case == 'live-activity':

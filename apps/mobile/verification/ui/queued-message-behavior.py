@@ -1,32 +1,18 @@
-"""Queued message behavior is a local exclusive choice and can be restored."""
-import json
+"""Settings choices update in place through native pop-up menus."""
 import sys
 from driver import UI
 import catalog
 
 ui = UI(sys.argv[1], sys.argv[2])
-
-
-def selected(identifier):
-    return catalog.text('settings.history.selected') in (
-        ui.element(identifier).get('AXLabel') or ''
-    )
-
-
-def choose(identifier):
-    ui.axe('tap', '--id', identifier, '--post-delay', '.7')
-    ui.wait(lambda _: selected(identifier), f'{identifier} did not become selected')
-
-
-choose('queued-message-behavior-queue')
-assert not selected('queued-message-behavior-guide')
-ui.capture('queue')
-
-choose('queued-message-behavior-guide')
-assert not selected('queued-message-behavior-queue')
-ui.capture('guide')
-
-choose('queued-message-behavior-queue')
-assert not selected('queued-message-behavior-guide')
-ui.capture('queue-restored')
-print(json.dumps({'default': 'queue', 'guide': 'guide', 'restored': 'queue'}))
+for value in ["queue","guide","queue"]:
+    row = ui.element('queued-message-behavior')
+    assert row['frame']['height'] >= 44
+    ui.axe('tap', '--id', 'queued-message-behavior', '--post-delay', '.5')
+    ui.capture(f'{value}-menu')
+    ui.axe('tap', '--label', catalog.text(f'settings.queuedMessageBehavior.{value}'), '--post-delay', '.7')
+    ui.wait(lambda _: ui.element('queued-message-behavior').get('AXValue') == catalog.text(f'settings.queuedMessageBehavior.{value}'), 'Selected value did not update')
+    ui.element('appearance')
+    ui.element('notifications')
+    ui.element('queued-message-behavior')
+    ui.capture(f'{value}-selected')
+print('PASS: native menu updates in place and restores the initial preference.')

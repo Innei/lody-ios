@@ -969,3 +969,67 @@ precondition(materialBar.hasVisiblePills && materialHeight == withAttachment,
 RunLoop.main.run(until: Date().addingTimeInterval(0.4))
 precondition(!materialBar.hasVisiblePills && materialHeight == withAttachment - 42)
 print("Glass hosts: queue and final attachment retain their space through exit; unrelated pills retain identity")
+
+let quickComposer = ChatComposerView(frame: CGRect(x: 0, y: 600, width: 390, height: 108))
+materialWindow.addSubview(quickComposer)
+let quickInput = descendants(quickComposer).compactMap { $0 as? UITextView }.first!
+let quickStrip = descendants(quickComposer).compactMap { $0 as? ChatQuickRepliesView }.first!
+let quickMessage = "Commit and push the changes from this task."
+let quickReady: [String: Any] = [
+  "editable": true, "canSend": true, "sending": false, "running": false,
+  "notice": "", "reconnect": false, "placeholder": "Message",
+  "quickReplies": [["id": "commit", "label": "Commit & Push", "message": quickMessage]],
+]
+@MainActor func quickState(_ changes: [String: Any] = [:]) {
+  let json = try! JSONSerialization.data(withJSONObject: quickReady.merging(changes) { _, value in value })
+  quickComposer.setComposerState(String(decoding: json, as: UTF8.self))
+  quickComposer.layoutIfNeeded()
+}
+quickState()
+precondition(!quickStrip.isHidden && quickStrip.bounds.height == 44)
+let quickButton = descendants(quickStrip).compactMap { $0 as? UIButton }.first!
+var quickSends: [[String: Any]] = []
+quickComposer.onSend = { quickSends.append($0) }
+for draft in ["Existing draft", " "] {
+  quickInput.text = draft
+  quickComposer.textViewDidChange(quickInput)
+  quickButton.sendActions(for: .touchUpInside)
+  precondition(quickStrip.isHidden && quickStrip.accessibilityElementsHidden && quickInput.text == draft && quickSends.isEmpty,
+    "Quick replies must never replace even a whitespace-only draft")
+}
+quickInput.text = ""
+quickComposer.textViewDidChange(quickInput)
+let quickUnavailableStates: [[String: Any]] = [
+  ["running": true], ["sending": true], ["canSend": false], ["editable": false],
+  ["stopping": true], ["controlling": true], ["connection": "paused"], ["quickReplies": []],
+]
+for (index, unavailable) in quickUnavailableStates.enumerated() {
+  quickState(unavailable)
+  quickButton.sendActions(for: .touchUpInside)
+  precondition(quickStrip.isHidden && quickSends.isEmpty, "A stale quick-reply tap must not send while unavailable")
+  // The ordinary sending prop captures a pending draft, just as production does.
+  quickComposer.clearDraft(token: index + 1)
+}
+quickState()
+quickComposer.setInitialAttachments(#"[{"id":"quick-file","name":"quick.txt","uri":"file:///tmp/quick.txt","kind":"file"}]"#)
+precondition(quickStrip.isHidden, "An attachment-only draft must hide quick replies")
+let quickRemove = descendants(quickComposer).compactMap { $0 as? UIButton }.first {
+  $0.accessibilityLabel == LodyStrings.text("native.chat.attachment.remove", ["name": "quick.txt"])
+}!
+quickRemove.sendActions(for: .touchUpInside)
+quickComposer.setQueue([ChatQueuedDraft(id: "quick-queued", text: "Waiting")])
+precondition(quickStrip.isHidden, "Queued work must not expose an idle shortcut")
+quickComposer.setQueue([])
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+quickState()
+let activeQuickButton = descendants(quickStrip).compactMap { $0 as? UIButton }.first!
+activeQuickButton.sendActions(for: .touchUpInside)
+activeQuickButton.sendActions(for: .touchUpInside)
+precondition(quickSends.count == 1 && quickSends[0]["text"] as? String == quickMessage,
+  "A quick reply sends its full message once through the ordinary send event")
+precondition(quickSends[0]["queue"] as? Bool == false && quickSends[0]["guide"] as? Bool == false)
+precondition(quickStrip.isHidden && quickInput.text.isEmpty)
+quickComposer.restoreDraft(token: 1)
+precondition(quickInput.text == quickMessage && quickStrip.isHidden,
+  "Rejected quick replies must restore the original message, not silently send again")
+print("Quick replies: idle-only visibility, draft/attachment preservation, queue gating, single send and failed draft recovery passed")

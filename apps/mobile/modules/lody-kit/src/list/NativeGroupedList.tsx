@@ -40,6 +40,9 @@ export type NativeGroupedListProps = ViewProps & {
   onRowAction?: (
     event: NativeSyntheticEvent<{ id: string; actionId: string }>,
   ) => void;
+  /** Show native drag handles for a flat, single-section list. */
+  reordering?: boolean;
+  onReorder?: (event: NativeSyntheticEvent<{ ids: string[] }>) => void;
   previewUserId?: string;
   previewWorkspaceId?: string;
 };
