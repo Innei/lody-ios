@@ -35,6 +35,7 @@ const runtime = await import(
   `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
 );
 const ctx = () => ({
+  ownerSessionId: 's1',
   workspaceId: 'w',
   machineId: 'm',
   getGrant: async () => ({
@@ -352,5 +353,73 @@ test('skills retain the machine path behind a short token and report incomplete 
   assert.throws(
     () => runtime.fileMentions({ paths: null }),
     /invalid_file_list/,
+  );
+});
+
+test('child file and diff requests use the workspace owner envelope but keep the child as the business session', async () => {
+  const calls = machine(async (method, params, request) => {
+    assert.equal(request.params.ownerSessionId, 'parent');
+    assert.equal(params.sessionId, 'child');
+    if (method === 'file/preview') {
+      return {
+        result: {
+          status: 'ok',
+          path: params.path,
+          kind: 'text',
+          content: {
+            encoding: 'utf8-plain',
+            text: '# child file',
+            rawBytes: 12,
+          },
+          sizeBytes: 12,
+        },
+      };
+    }
+    if (method === 'code-collab/open-turn-diff') {
+      return {
+        result: {
+          status: 'unavailable',
+          path: params.path,
+          reason: 'turn_unavailable',
+        },
+      };
+    }
+    return {
+      result: {
+        status: 'ok',
+        path: params.path,
+        oldSnapshot: { kind: 'missing' },
+        newSnapshot: {
+          kind: 'text',
+          text: { encoding: 'plain', text: 'changed', rawBytes: 7 },
+        },
+      },
+    };
+  });
+  const context = { ...ctx(), ownerSessionId: 'parent' };
+  assert.equal(
+    (await runtime.readFile(context, { sessionId: 'child', path: 'README.md' }))
+      .text,
+    '# child file',
+  );
+  assert.equal(
+    (await runtime.fileDiff(context, { sessionId: 'child', path: 'README.md' }))
+      .new.text,
+    'changed',
+  );
+  assert.equal(
+    (
+      await runtime.turnDiff(context, {
+        sessionId: 'child',
+        entryId: 'turn',
+        path: 'README.md',
+      })
+    ).base,
+    'current',
+  );
+  assert.equal(
+    calls.length,
+    4,
+    'The current-diff fallback must preserve the parent envelope too',
   );
 });

@@ -8,6 +8,9 @@ enum FilePreview {
       data: try JSONSerialization.data(withJSONObject: ["sessionId": sessionId, "path": path]),
       encoding: .utf8
     )!
+    if let failure = FilePreviewFixture.failure(payload) {
+      throw failure
+    }
     if let response = FilePreviewFixture.response(payload) {
       let delay = payload.contains("document.pdf") ? 0.0 : 5.0
       if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
@@ -132,7 +135,7 @@ final class FileQuickLookController: QLPreviewController, QLPreviewControllerDat
         return
       } catch {
         guard !Task.isCancelled, let self else { return }
-        self.fail(LodyStrings.text("native.file.error.offline"))
+        self.fail(LodyStrings.text("native.file.error.read"))
       }
     }
   }
@@ -357,7 +360,7 @@ final class FilePreviewController: UIViewController {
         return
       } catch {
         guard !Task.isCancelled, let self else { return }
-        self.showError(LodyStrings.text("native.file.error.offline"))
+        self.showError(LodyStrings.text("native.file.error.read"))
       }
     }
   }

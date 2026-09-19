@@ -8,7 +8,7 @@ import { useOpenFile } from '@/hooks/screens/useOpenFile';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
 
 const files =
-  '[完整报告](docs/report.md)\n\n[代码](docs/sample.swift#L2)\n\n[图片](photo.png)\n\n[PDF 文档](document.pdf)\n\n[不存在的文件](missing.txt)';
+  '[完整报告](docs/report.md)\n\n[代码](docs/sample.swift#L2)\n\n[图片](photo.png)\n\n[PDF 文档](document.pdf)\n\n[不存在的文件](missing.txt)\n\n[读取失败](rpc-error.md)';
 const entriesJSON = JSON.stringify([
   {
     id: 'file-links',

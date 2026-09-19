@@ -24,7 +24,7 @@ diff 渲染（页面 1、2）采用 [onevcat/YiTong](https://github.com/onevcat/
 
 `modules/lody-kit/data-runtime/machine-rpc.ts` 的 `machineRpc(workspaceId, machineId, method, params, getGrant, signal)` 承接原 `projectControl` 的信封（`jsonrpc/id/rpcVersion/workspaceId/machineId/replyTo/sentAt/expiresAt`）、`${workspaceId}:rpc:req:${machineId}` 与 `…:rpc:res:…` 的流、long-poll 匹配 `reply.id`，返回原始 `{result, error}`。`local-projects.ts` 的 `projectControl` 变成其中一个调用，保留 `reply.result.type === request.type` 校验。
 
-`code-collab/*` 与 `file/preview` 在 Loro Streams 上不是明文：请求 `params` 和回复 `result`（含 `error.data`）都包在 `code-collab-v2-content-envelope` 里，AES-256-GCM，密钥是 `sha256(label \0 salt \0 ownerSessionId)`，与 Machine 的 `deriveCodeCollabV2ContentKeyBytes` 一致。`ownerSessionId` 取会话 id 本身（桌面端默认也如此）；fork/worktree 会话若 owner 不同，Machine 返回 owner mismatch 错误，按错误态显示。封装在 `sealedRpc`，WebView 用 WebCrypto（页面以 `https://lody.ai` 为 base URL 加载，是安全上下文）。
+`code-collab/*` 与 `file/preview` 在 Loro Streams 上不是明文：请求 `params` 和回复 `result`（含 `error.data`）都包在 `code-collab-v2-content-envelope` 里，AES-256-GCM，密钥是 `sha256(label \0 salt \0 ownerSessionId)`，与 Machine 的 `deriveCodeCollabV2ContentKeyBytes` 一致。`ownerSessionId` 从已同步的工作区 Meta Flock 会话元数据读取 `parentSessionId ?? sessionId`，与官方客户端一致；业务参数 `sessionId` 仍保留当前子会话 id。共享父会话工作区的子会话不能用自身 id 封装请求，否则 Machine 会返回 owner mismatch。封装在 `sealedRpc`，WebView 用 WebCrypto（页面以 `https://lody.ai` 为 base URL 加载，是安全上下文）。
 
 新用到的方法：
 
