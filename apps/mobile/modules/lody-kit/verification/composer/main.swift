@@ -986,8 +986,16 @@ let quickReady: [String: Any] = [
   quickComposer.layoutIfNeeded()
 }
 quickState()
-precondition(!quickStrip.isHidden && quickStrip.bounds.height == 44)
+let quickChipHeight = ChatQuickRepliesView.chipHeight
+let connectingChipHeight = ChatQuickRepliesView.titleFont.lineHeight + 12
+precondition(abs(quickChipHeight - connectingChipHeight - 4) < 0.5,
+  "Quick-reply chips must sit four points above the connecting overlay height")
+precondition(!quickStrip.isHidden && abs(quickStrip.bounds.height - quickChipHeight) < 0.5)
 let quickButton = descendants(quickStrip).compactMap { $0 as? UIButton }.first!
+let singleChip = quickButton.convert(quickButton.bounds, to: quickStrip)
+precondition(abs(singleChip.height - quickChipHeight) < 0.5)
+precondition(singleChip.width < 200 && singleChip.maxX < quickStrip.bounds.width - 8,
+  "A single chip must follow its title instead of filling the composer")
 var quickSends: [[String: Any]] = []
 quickComposer.onSend = { quickSends.append($0) }
 for draft in ["Existing draft", " "] {
@@ -1032,4 +1040,24 @@ precondition(quickStrip.isHidden && quickInput.text.isEmpty)
 quickComposer.restoreDraft(token: 1)
 precondition(quickInput.text == quickMessage && quickStrip.isHidden,
   "Rejected quick replies must restore the original message, not silently send again")
+quickInput.text = ""
+quickComposer.textViewDidChange(quickInput)
+quickState([
+  "quickReplies": [
+    ["id": "ok", "label": "OK", "message": "OK"],
+    ["id": "go", "label": "Commit & Push", "message": "Go"],
+  ],
+])
+let huggingButtons = descendants(quickStrip).compactMap { $0 as? UIButton }
+precondition(huggingButtons.count == 2)
+let okChip = huggingButtons[0].convert(huggingButtons[0].bounds, to: quickStrip)
+let longChip = huggingButtons[1].convert(huggingButtons[1].bounds, to: quickStrip)
+precondition(okChip.width < longChip.width)
+precondition(okChip.width < 100, "A short label must not stretch toward an equal share of the row")
+precondition(longChip.maxX < quickStrip.bounds.width,
+  "Two compact chips must leave trailing space instead of filling the composer")
+let manyReplies = (1...8).map { ["id": "r\($0)", "label": "Reply \($0)", "message": "Reply \($0)"] }
+quickState(["quickReplies": manyReplies])
+precondition(quickStrip.contentSize.width > quickStrip.bounds.width,
+  "Overflowing chips must scroll horizontally")
 print("Quick replies: idle-only visibility, draft/attachment preservation, queue gating, single send and failed draft recovery passed")

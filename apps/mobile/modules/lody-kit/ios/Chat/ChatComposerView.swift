@@ -883,7 +883,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     queueHeight.constant = queueView.panelHeight
     let replies = state.quickReplies ?? []
     quickRepliesView.render(replies, visible: canShowQuickReplies)
-    quickRepliesHeight.constant = quickRepliesView.isHidden ? 0 : 44
+    quickRepliesHeight.constant = quickRepliesView.isHidden ? 0 : ChatQuickRepliesView.chipHeight
     let noticeText = failedDraft == nil ? (displayError ?? state.notice) : LodyStrings.text("native.chat.composer.failedDraft")
     let canReconnect = failedDraft != nil || displayError != nil || state.reconnect
     notice.setTitle(noticeText, for: .normal)

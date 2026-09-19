@@ -42,7 +42,15 @@ def close_settings():
 ui.axe('tap', '--id', 'quick-reset', '--post-delay', '.8')
 ui.element('quick-reply:continue')
 assert len(chips()) == 3
-assert all(i['frame']['height'] >= 44 and i['frame']['width'] >= 44 for i in chips())
+by_id = {i['AXUniqueId']: i for i in chips()}
+continue_chip = by_id['quick-reply:continue']['frame']
+review_chip = by_id['quick-reply:review']['frame']
+commit_chip = by_id['quick-reply:commit-push']['frame']
+assert all(32 <= i['frame']['height'] <= 40 for i in chips()), [i['frame']['height'] for i in chips()]
+assert all(i['frame']['width'] >= 44 for i in chips())
+assert continue_chip['width'] < review_chip['width']
+assert continue_chip['width'] < commit_chip['width']
+assert continue_chip['width'] < 100, 'Continue must size to its title instead of filling an equal column'
 ui.capture('idle')
 ui.axe('tap', '--id', 'session-input')
 ui.type_into('session-input', 'draft')
@@ -63,7 +71,7 @@ ui.axe('tap', '--id', 'quick-reset', '--post-delay', '.7')
 # Click the short label, but send the full configured message.
 chip = ui.element('quick-reply:commit-push')
 if chip['frame']['x'] + chip['frame']['width'] > 390:
-    y = chip['frame']['y'] + 22
+    y = chip['frame']['y'] + chip['frame']['height'] / 2
     ui.axe('swipe', '--start-x', '350', '--start-y', str(y), '--end-x', '80', '--end-y', str(y), '--duration', '.5', '--post-delay', '.5')
 ui.axe('tap', '--id', 'quick-reply:commit-push', '--post-delay', '.7')
 status('Calls: 1 · sending')
