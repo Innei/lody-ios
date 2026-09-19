@@ -552,3 +552,15 @@ fixtures activate under `--ui-verify` in Debug and Release fixture builds.
 It covers three accepted guidance messages, the completed user-message sequence above
 one AI process summary, both final text blocks, and opening the earlier AI process.
 Runtime checks separately exercise stale ACK/history and unavailable provider evidence.
+
+### Single-message paper sharing
+
+`--case message-share` opens an independently resettable offline message scene.
+It checks the native metadata menu, complete Markdown copy, system text/image
+sharing, the same JPEG used by preview and export, paragraph/block selection and select all/none, long replies, image attachments,
+missing model metadata, export-size and image-loading errors, and temporary-file
+cleanup on dismissal. It records light/dark screenshots and video and retains
+actual `*-export.jpg` files for visual inspection. The paper itself remains warm
+white in both appearances. The 1080 px export is capped at 12000 px high and fails
+explicitly rather than truncating. Fixture image loading does not prove live
+cloud authorization or third-party share destinations.

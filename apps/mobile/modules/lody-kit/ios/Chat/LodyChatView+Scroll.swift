@@ -637,3 +637,42 @@ final class ChatPerformanceProbe: NSObject {
     return result == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
   }
 }
+
+
+extension LodyChatView {
+  func messageMenu(entryID: String, source: UIButton) -> UIMenu {
+    UIMenu(children: [UIDeferredMenuElement.uncached { [weak self, weak source] completion in
+      guard let self, let source,
+        let content = ChatMessageShare.content(in: self.transcript, entryID: entryID) else {
+        completion([])
+        return
+      }
+      @MainActor func action(_ key: String, symbol: String, disabled: Bool = false) -> UIAction {
+        UIAction(title: LodyStrings.text("native.chat.message." + key), image: UIImage(systemName: symbol),
+          attributes: disabled ? .disabled : []) { [weak self, weak source] _ in
+          guard let self, let source else { return }
+          if key == "copy" {
+            UIPasteboard.general.string = content.text
+            LodyToastOverlay.shared.show(message: LodyStrings.text("native.chat.message.copied"), kind: "info")
+          } else if key == "image" {
+            var snapshot = content
+            snapshot.workspace = self.imageWorkspace
+            snapshot.session = self.imageSession
+            guard let data = try? JSONEncoder().encode(snapshot), let json = String(data: data, encoding: .utf8) else { return }
+            self.onShareImage(["contentJSON": json])
+          } else if let owner = self.presenter(), owner.presentedViewController == nil {
+            let sheet = UIActivityViewController(activityItems: [content.text], applicationActivities: nil)
+            sheet.popoverPresentationController?.sourceView = source
+            sheet.popoverPresentationController?.sourceRect = source.bounds
+            owner.present(sheet, animated: true)
+          }
+        }
+      }
+      completion([
+        action("copy", symbol: "doc.on.doc", disabled: content.text.isEmpty),
+        action("image", symbol: "photo", disabled: !self.imageSharingEnabled),
+        action("share", symbol: "square.and.arrow.up", disabled: content.text.isEmpty),
+      ])
+    }])
+  }
+}

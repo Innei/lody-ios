@@ -519,7 +519,16 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       try PreparedChatEntries(json)
     }.runOnQueue(PreparedChatEntries.queue)
 
+    View(LodyMessageShareView.self) {
+      Events("onState", "onBlocks")
+      Prop("selectedJSON") { (view: LodyMessageShareView, value: String) in view.setSelected(value) }
+      Prop("contentJSON") { (view: LodyMessageShareView, value: String) in view.setContent(value) }
+      Prop("shareToken") { (view: LodyMessageShareView, value: Int) in view.share(value) }
+      Prop("retryToken") { (view: LodyMessageShareView, value: Int) in view.retry(value) }
+    }
+
     View(LodyChatView.self) {
+      Prop("imageSharingEnabled") { (view: LodyChatView, value: Bool) in view.imageSharingEnabled = value }
       Prop("findRequestJSON") { (view: LodyChatView, value: String) in view.setFindRequest(value) }
       Prop("debugStreamBenchmarkRun") { (view: LodyChatView, value: Int) in
         guard value > 0 else { return }
@@ -531,7 +540,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         view.performanceProbe?.stop()
         view.performanceProbe = ChatPerformanceProbe(view)
       }
-      Events("onStop", "onSteer", "onSend", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse")
+      Events("onStop", "onSteer", "onSend", "onShareImage", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse")
       Prop("navigationTitle") { (view: LodyChatView, value: String) in view.setNavigationTitle(value) }
       Prop("navigationSubtitle") { (view: LodyChatView, value: String) in view.setNavigationSubtitle(value) }
       Prop("navigationMachine") { (view: LodyChatView, value: String) in view.setNavigationMachine(value) }

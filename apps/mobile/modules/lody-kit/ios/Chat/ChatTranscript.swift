@@ -44,7 +44,7 @@ struct ChatEntry: Decodable {
   var isQueued: Bool { role == "user" && status == "queued" }
 }
 
-struct ChatImage: Decodable, Equatable {
+struct ChatImage: Codable, Equatable {
   let id: String
   let fileName: String
   let storageSessionId: String?
@@ -514,7 +514,7 @@ struct ChatTranscript {
         let model = entry.modelInfo?.title ?? ""
         let finishedAt = ChatMetaTime.label(entry.endedAt, now: now)
         let meta = [model, finishedAt].filter { !$0.isEmpty }.joined(separator: " · ")
-        if !meta.isEmpty {
+        if !meta.isEmpty || entry.items.contains(where: { $0.type == "text" || $0.isImage }) {
           var row = ChatRow(id: entry.id + ":meta", entryID: entry.id, kind: "meta", text: meta)
           row.imageAsset = LodyAgentIcon.asset(
             modelId: entry.modelInfo?.modelId, name: entry.modelInfo?.name

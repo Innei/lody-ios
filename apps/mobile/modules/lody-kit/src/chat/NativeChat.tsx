@@ -13,6 +13,10 @@ export type ChatDraftAttachment = {
 export const NativeChat: ComponentType<
   ViewProps & {
     entriesJSON: string;
+    imageSharingEnabled?: boolean;
+    onShareImage?: (
+      event: NativeSyntheticEvent<{ contentJSON: string }>,
+    ) => void;
     findRequestJSON?: string;
     errorRetryJSON?: string;
     onErrorRetry?: (

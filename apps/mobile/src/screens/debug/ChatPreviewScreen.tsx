@@ -1,3 +1,4 @@
+import { openMessageShare } from '@/screens/MessageShareScreen';
 import { uiVerify } from './uiVerify';
 import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -862,6 +863,10 @@ function View() {
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
       <NativeChat
+        imageSharingEnabled
+        onShareImage={({ nativeEvent }) =>
+          openMessageShare(nativeEvent.contentJSON)
+        }
         navigationTitle={navigationTitle}
         navigationSubtitle="lody-ios"
         navigationMachine="Studio"

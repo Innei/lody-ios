@@ -1,3 +1,4 @@
+import { openMessageShare } from '@/screens/MessageShareScreen';
 import { useAgentErrorRetry } from '@/features/sessions/useAgentErrorRetry';
 import { openAgentError } from '@/hooks/screens/openAgentError';
 import { fastModeFor, withFastMode } from '@/cloud/send/capability';
@@ -631,6 +632,10 @@ function View() {
       <NativeNavigationHeader items={headerItems} />
       <DiffWebViewWarmer />
       <NativeChat
+        imageSharingEnabled
+        onShareImage={({ nativeEvent }) =>
+          openMessageShare(nativeEvent.contentJSON)
+        }
         findRequestJSON={JSON.stringify(findRequest)}
         appendDraftJSON={appendDraftJSON}
         mentionItemsJSON={mentions.mentionItemsJSON}

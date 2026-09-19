@@ -1,3 +1,4 @@
+import { openMessageShare } from '@/screens/MessageShareScreen';
 import { useState } from 'react';
 import { Button, View as Container } from 'react-native';
 import { NativeChat } from '@lody-ios/kit';
@@ -73,6 +74,10 @@ function View() {
         />
       </Container>
       <NativeChat
+        imageSharingEnabled
+        onShareImage={({ nativeEvent }) =>
+          openMessageShare(nativeEvent.contentJSON)
+        }
         style={{ flex: 1 }}
         navigationTitle="Steer"
         entriesJSON={entriesJSON}

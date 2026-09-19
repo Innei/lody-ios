@@ -15,6 +15,7 @@ enum ChatRowPadding {
 
 final class ChatMetaCell: UICollectionViewCell {
   private let modelLabel = UILabel()
+  let actionButton = UIButton(type: .system)
   private var row: ChatRow?
 
   override init(frame: CGRect) {
@@ -26,6 +27,11 @@ final class ChatMetaCell: UICollectionViewCell {
     modelLabel.clipsToBounds = false
     modelLabel.adjustsFontForContentSizeCategory = true
     contentView.addSubview(modelLabel)
+    actionButton.setImage(UIImage(systemName: "ellipsis"), for: .normal)
+    actionButton.tintColor = .systemBlue
+    actionButton.showsMenuAsPrimaryAction = true
+    actionButton.accessibilityLabel = LodyStrings.text("native.chat.message.actions")
+    contentView.addSubview(actionButton)
     registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitPreferredContentSizeCategory.self]) {
       (cell: ChatMetaCell, _) in
       cell.apply()
@@ -36,6 +42,7 @@ final class ChatMetaCell: UICollectionViewCell {
 
   func configure(_ row: ChatRow) {
     self.row = row
+    actionButton.accessibilityIdentifier = row.id + ":actions"
     apply()
     setNeedsLayout()
   }
@@ -54,7 +61,8 @@ final class ChatMetaCell: UICollectionViewCell {
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    modelLabel.frame = CGRect(x: 0, y: 4, width: bounds.width, height: bounds.height - 8)
+    modelLabel.frame = CGRect(x: 0, y: 4, width: max(1, bounds.width - 52), height: bounds.height - 8)
+    actionButton.frame = CGRect(x: bounds.width - 44, y: (bounds.height - 44) / 2, width: 44, height: 44)
   }
 
   static func iconImage(named asset: String) -> UIImage? {
@@ -93,11 +101,11 @@ final class ChatMetaCell: UICollectionViewCell {
     let font = UIFont.preferredFont(forTextStyle: .footnote, compatibleWith: traits)
     let text = attributedText(row.text, image: iconImage(named: row.imageAsset), font: font)
     let textHeight = text.boundingRect(
-      with: CGSize(width: max(1, width), height: .greatestFiniteMagnitude),
+      with: CGSize(width: max(1, width - 52), height: .greatestFiniteMagnitude),
       options: [.usesLineFragmentOrigin, .usesFontLeading],
       context: nil
     ).height
-    return max(24, ceil(textHeight - min(0, font.descender)) + 8)
+    return max(44, ceil(textHeight - min(0, font.descender)) + 8)
   }
 }
 

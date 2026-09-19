@@ -20,7 +20,7 @@ let finished = json.replacingOccurrences(of: "\"finished\":false", with: "\"fini
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(finished.utf8))
 assert(!streaming.contains { $0.kind == "meta" }, "A live reply must not offer completed-message actions")
 assert(transcript.rows().filter { $0.kind != "meta" }.map(\.id) == streaming.map(\.id), "Completion preserves existing main-list rows")
-assert(!transcript.rows().contains { $0.kind == "meta" }, "Old replies do not invent model metadata")
+assert(transcript.rows().contains { $0.kind == "meta" && $0.text.isEmpty }, "Old replies retain actions without inventing metadata")
 assert(transcript.rows(processEntryID: "reply").map(\.id) == process.map(\.id), "The process sheet stays flat after completion")
 let failure = finished.replacingOccurrences(of: "\"status\":\"completed\"", with: "\"status\":\"failed\"")
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(failure.utf8))
@@ -77,7 +77,7 @@ assert(transcript.rows().map(\.kind) == ["text", "summary", "text", "summary", "
 assert(transcript.rows(processEntryID: "steps", processStartID: "think1").map(\.itemID) == ["think1", "read"])
 assert(transcript.rows(processEntryID: "steps", processStartID: "think2").map(\.itemID) == ["think2", "write"])
 transcript.entries[0].finished = true
-assert(transcript.rows().map(\.kind) == ["summary", "text"])
+assert(transcript.rows().map(\.kind) == ["summary", "text", "meta"])
 assert(transcript.rows().last(where: { $0.kind == "text" })?.itemID == "final")
 transcript.entries[0].modelInfo = ChatEntry.ModelInfo(modelId: "actual", name: "Actual Model", thoughtLevel: "High")
 assert(transcript.rows().last?.text == "Actual Model · High")
@@ -259,7 +259,7 @@ let completedWithNotice = """
 let noticeEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(completedWithNotice.utf8))
 let noticeTranscript = ChatTranscript(entries: noticeEntries)
 assert(!noticeEntries.contains(where: \.isRunning), "A system notice is not an active assistant turn")
-assert(noticeTranscript.rows().map(\.kind) == ["summary", "text", "changesHeader", "changes"])
+assert(noticeTranscript.rows().map(\.kind) == ["summary", "text", "meta", "changesHeader", "changes"])
 assert(noticeTranscript.rows().last?.fileDiff?.path == "docs/.diff-check.md")
 assert(noticeTranscript.rows().last?.fileDiff?.add == 1)
 assert(noticeTranscript.rows().last?.group == "only")
@@ -456,12 +456,12 @@ precondition(liveImageRows.first?.image?.storageSessionId == "source")
 uploadedTranscript.entries[0].finished = true
 precondition(uploadedTranscript.rows().filter { $0.image != nil } == liveImageRows,
   "Completion must preserve every uploaded image and its row identity")
-precondition(uploadedTranscript.rows().map(\.kind) == ["summary", "image", "image", "text", "image"])
+precondition(uploadedTranscript.rows().map(\.kind) == ["summary", "image", "image", "text", "image", "meta"])
 precondition(uploadedTranscript.rows(processEntryID: "upload").map(\.kind) == ["tool_call"],
   "Uploaded images belong in the conversation, not the collapsed process")
 precondition(ChatTranscript.previewRows(from: assistantImages).filter { $0.image != nil } == liveImageRows)
 uploadedTranscript.entries[0].items.removeAll { !$0.isImage }
-precondition(uploadedTranscript.rows().map(\.kind) == ["image", "image", "image"],
+precondition(uploadedTranscript.rows().map(\.kind) == ["image", "image", "image", "meta"],
   "Standalone MCP uploads must render without a tool or final text")
 print("MCP images: multiple images, completion, standalone upload and cache restore passed")
 
@@ -652,12 +652,22 @@ let guidedJSON = """
 """
 var guidedEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(guidedJSON.utf8))
 let guidedRows = ChatTranscript(entries: guidedEntries).rows()
-assert(guidedRows.map(\.kind) == ["user", "user", "summary", "text", "text"])
+assert(guidedRows.map(\.kind) == ["user", "user", "summary", "text", "text", "meta"])
 assert(guidedRows.prefix(2).map(\.entryID) == ["root", "guide"])
 let guidedProcess = ChatTranscript(entries: guidedEntries).rows(processEntryID: "after", processStartID: "__execution__")
 assert(guidedProcess.map(\.itemID) == ["intro", "tool", "work"])
 assert(guidedProcess[1].entryID == "before" && guidedProcess[1].actionable)
 assert(!guidedProcess.contains { $0.kind == "user" })
+let shared = ChatMessageShare.content(in: ChatTranscript(entries: guidedEntries), entryID: "after")!
+assert(shared.text == "Final answer part one\n\nFinal answer part two", "Sharing includes all final blocks, never the earlier process")
+assert(ChatMessageShare.content(in: ChatTranscript(entries: guidedEntries), entryID: "root") == nil)
+var runningShare = guidedEntries
+runningShare[runningShare.count - 1].finished = false
+assert(ChatMessageShare.content(in: ChatTranscript(entries: runningShare), entryID: "after") == nil)
+assert(ChatMessageShare.accepts(height: 6000) && !ChatMessageShare.accepts(height: 6001))
+assert(!ChatMessageShare.accepts(height: .infinity))
+let roundTrip = try JSONDecoder().decode(ChatMessageShare.self, from: JSONEncoder().encode(shared))
+assert(roundTrip.text == shared.text)
 for i in guidedEntries.indices { guidedEntries[i].executionFinished = false }
 let continuing = ChatTranscript(entries: guidedEntries).rows()
 assert(continuing.contains { $0.itemID == "intro" })

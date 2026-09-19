@@ -63,6 +63,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   let onErrorRetry = EventDispatcher()
   var errorRetryState: ChatErrorRetryState?
   let onActivityPress = EventDispatcher()
+  let onShareImage = EventDispatcher()
+  var imageSharingEnabled = false
   let onFilePress = EventDispatcher()
   let onTurnChangesPress = EventDispatcher()
   let onReconnect = EventDispatcher()
@@ -287,6 +289,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       if row.kind == "meta" {
         let cell = collection.dequeueReusableCell(withReuseIdentifier: "meta", for: index) as! ChatMetaCell
         cell.configure(row)
+        cell.actionButton.menu = messageMenu(entryID: row.entryID, source: cell.actionButton)
         return cell
       }
       if row.kind == "changesHeader" {

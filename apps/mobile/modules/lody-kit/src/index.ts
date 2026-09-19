@@ -200,3 +200,8 @@ export {
   prepareChatEntries,
   type PreparedChatEntries,
 } from './chat/PreparedChatEntries';
+
+export {
+  NativeMessageShare,
+  type MessageShareBlock,
+} from './chat/NativeMessageShare';
