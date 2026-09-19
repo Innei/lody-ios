@@ -9,6 +9,7 @@ export type Session = {
   cliType?: string;
   agentType?: string;
   resume?: string;
+  parentSessionId?: string;
   id: string;
   machineId: string;
   title: string;

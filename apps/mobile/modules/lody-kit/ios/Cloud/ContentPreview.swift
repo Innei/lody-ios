@@ -138,6 +138,16 @@ final class SessionFilePreview: QLPreviewController, QLPreviewControllerDataSour
 
 @MainActor
 enum FilePreviewFixture {
+  static func failure(_ payload: String) -> Error? {
+    guard ProcessInfo.processInfo.arguments.contains("--ui-verify"),
+      let data = payload.data(using: .utf8),
+      let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      args["sessionId"] as? String == "ui-verify-files",
+      args["path"] as? String == "rpc-error.md" else { return nil }
+    return NSError(domain: "LodyKit.FilePreviewFixture", code: 1,
+      userInfo: [NSLocalizedDescriptionKey: "Code Collab RPC owner session mismatch."])
+  }
+
   static func attachment(_ id: String, attempt: Int, directory: URL) throws -> URL {
     if id == "missing" { throw SessionAttachments.error(LodyStrings.text("native.attachment.error.unavailable")) }
     if id == "retry", attempt == 1 { throw SessionAttachments.error(LodyStrings.text("native.attachment.error.download")) }

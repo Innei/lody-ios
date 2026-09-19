@@ -28,10 +28,10 @@ import { remoteSettings } from './settings';
 import type { SettingsRequest } from '../../../src/models/settings.ts';
 import {
   fileDiff,
+  type FileContext,
   listDir,
   readFile,
   turnDiff,
-  type MachineContext,
 } from './files';
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import { StreamsClient } from '@loro-dev/streams-client';
@@ -337,7 +337,7 @@ function watch(mode: string) {
 function machineFor(
   sessionId: string,
   path: string,
-): MachineContext & { localProjectId?: string } {
+): FileContext & { localProjectId?: string } {
   if (!metaReplica || unhealthy.size) throw new Error('metadata_not_ready');
   if (typeof path !== 'string' || path.length > 32768 || path.includes('\0'))
     throw new Error('invalid_path');
@@ -350,6 +350,8 @@ function machineFor(
   return {
     workspaceId: workspace,
     machineId: session.machineId,
+    // Code Collab ownership lives in workspace Meta Flock, not the session doc.
+    ownerSessionId: session.parentSessionId ?? session.id,
     localProjectId: session.projectId.startsWith(localPrefix)
       ? session.projectId.slice(localPrefix.length)
       : undefined,
