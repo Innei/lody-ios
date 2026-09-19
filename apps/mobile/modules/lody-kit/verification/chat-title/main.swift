@@ -323,7 +323,7 @@ let titleBottom = button.titleHost.frame.minY + CGFloat(titleInk.last) / scale
 let subtitleTop = button.captionLabel.frame.minY + CGFloat(subtitleInk.first) / scale
 let gap = subtitleTop - titleBottom
 precondition(
-  gap >= 2 && gap <= 8,
+  gap >= 6 && gap <= 12,
   "Title-to-subtitle ink gap must leave a small gap (gap=\(gap) titleBottom=\(titleBottom) subtitleTop=\(subtitleTop))"
 )
 

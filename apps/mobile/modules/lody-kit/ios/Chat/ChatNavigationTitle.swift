@@ -194,7 +194,7 @@ final class ChatNavigationTitleButton: UIButton {
     let captionInkPad = subtitleLine == 0
       ? 0
       : max(0, round(captionFont.ascender - captionFont.capHeight) + symbolOpticalPad)
-    let spacing: CGFloat = titleLine > 0 && subtitleLine > 0 ? 4 : 0
+    let spacing: CGFloat = titleLine > 0 && subtitleLine > 0 ? 8 : 0
     let stackHeight = titleInk + spacing + subtitleHeight - captionInkPad
     let y = max(0, (bounds.height - stackHeight) / 2)
     titleHost.frame = CGRect(x: x, y: y, width: width, height: titleHeight)
