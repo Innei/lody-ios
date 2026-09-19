@@ -339,8 +339,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       cell.configure(row, text: self.text(for: row))
       return cell
     }
-    LodyScrollEdges.navigation(collection)
-    composer.attachScrollEdge(to: collection)
+    LodyScrollEdges.chat(collection)
+    composer.attachScrollEdge(to: collection, style: .automatic)
     dataSource.supplementaryViewProvider = { [weak self] collection, kind, index in
       let header = collection.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: "history", for: index) as! ChatHistoryHeader
       if let self {
@@ -468,7 +468,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       if let controller = current as? UIViewController {
         controller.setContentScrollView(collection, for: .top)
         controller.setContentScrollView(collection, for: .bottom)
-        LodyScrollEdges.navigation(collection)
+        LodyScrollEdges.chat(collection)
         scrollOwner = controller
         if navigation.parent == nil {
           controller.addChild(navigation)
@@ -741,7 +741,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       addSubview(incoming)
       incoming.translatesAutoresizingMaskIntoConstraints = false
       NSLayoutConstraint.activate(replacements)
-      incoming.attachScrollEdge(to: collection)
+      incoming.attachScrollEdge(to: collection, style: .automatic)
       bringSubviewToFront(overlay)
       layoutIfNeeded()
     }

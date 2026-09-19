@@ -1,4 +1,4 @@
-"""Capture content under the floating composer; review soft occlusion visually."""
+"""Capture content under the floating composer; review automatic occlusion visually."""
 import sys
 from driver import UI
 
@@ -7,11 +7,11 @@ resting = ui.element('session-input')['frame']
 ui.axe('swipe', '--start-x', '200', '--start-y', '340', '--end-x', '200',
        '--end-y', '530', '--duration', '1', '--post-delay', '1')
 ui.element('chat-scroll-to-bottom')
-ui.capture('soft-edge-scrolled')
+ui.capture('automatic-edge-scrolled')
 ui.axe('tap', '--id', 'session-input', '--tap-style', 'physical', '--post-delay', '1')
 ui.wait(lambda items: any((item.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar')
                          for item in items), 'Software keyboard did not appear')
 raised = ui.element('session-input')['frame']
 assert raised['y'] < resting['y'] - 100, 'Composer did not rise above the keyboard'
-ui.capture('soft-edge-keyboard')
-print('PASS: scrolled content and keyboard states captured; soft occlusion requires visual review')
+ui.capture('automatic-edge-keyboard')
+print('PASS: scrolled content and keyboard states captured; automatic occlusion requires visual review')

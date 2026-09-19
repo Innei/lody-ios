@@ -27,6 +27,10 @@ let scrollInteraction = composer.interactions.compactMap { $0 as? UIScrollEdgeEl
 precondition(scrollInteraction.scrollView === initialScroll && scrollInteraction.edge == .bottom)
 precondition(!initialScroll.bottomEdgeEffect.isHidden && initialScroll.bottomEdgeEffect.style == .soft,
   "Attaching a composer must enable soft occlusion without RNSScreen discovery")
+let chatScroll = UIScrollView()
+composer.attachScrollEdge(to: chatScroll, style: .automatic)
+precondition(scrollInteraction.scrollView === chatScroll && chatScroll.bottomEdgeEffect.style == .automatic,
+  "Chat must keep automatic occlusion when the composer attaches")
 let replacementScroll = UIScrollView()
 composer.attachScrollEdge(to: replacementScroll)
 precondition(scrollInteraction.scrollView === replacementScroll && replacementScroll.bottomEdgeEffect.style == .soft,

@@ -6,10 +6,12 @@ RN scroll views use ScrollViewMarker with presets exported by LodyKit; navigatio
 options use the same kit presets when the framework can reach its content view.
 
 - Navigation content: soft top and bottom.
+- Native chat transcript: automatic top and bottom. The embedded composer
+  attaches with the same automatic bottom style.
 - Native grouped lists: soft top and bottom, preserving their current appearance.
 - iPad panels: navigation edges, hidden horizontal edges.
-- A floating composer explicitly configures its target scroll view's bottom as
-  soft whenever it attaches, including standalone new-session sheets.
+- A floating composer on new-session sheets and Diff explicitly configures its
+  target scroll view's bottom as soft whenever it attaches.
 - UIKit still owns material rendering, keyboard geometry and edge shape.
 
 Verify a fresh native binary with offline chat and composer scenes in light/dark,

@@ -18,6 +18,13 @@ precondition(!first.bottomEdgeEffect.isHidden && first.bottomEdgeEffect.style ==
 LodyScrollEdges.grouped(second)
 precondition(second.topEdgeEffect.style == .soft && second.bottomEdgeEffect.style == .soft)
 
+let chat = UIScrollView()
+LodyScrollEdges.chat(chat)
+precondition(!chat.topEdgeEffect.isHidden && chat.topEdgeEffect.style == .automatic)
+precondition(!chat.bottomEdgeEffect.isHidden && chat.bottomEdgeEffect.style == .automatic)
+LodyScrollEdges.floatingControls(chat, style: .automatic)
+precondition(chat.bottomEdgeEffect.style == .automatic)
+
 // A child controller's registration alone is not the outer sheet's contract.
 LodyScrollEdges.bind(first, to: firstPage)
 LodyScrollEdges.bind(first, to: owner)
