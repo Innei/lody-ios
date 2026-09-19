@@ -76,6 +76,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   private var navigationTitle = ""
   private var navigationSubtitle = ""
   private var navigationMachine = ""
+  private var navigationBranch = ""
   private var titleDisappearing = false
   private let navigation = ChatNavigationController()
   let collection: UICollectionView
@@ -450,8 +451,15 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     updateTitleButton()
   }
 
+  func setNavigationBranch(_ name: String) {
+    let branch = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard navigationBranch != branch else { return }
+    navigationBranch = branch
+    updateTitleButton()
+  }
+
   private func titleSubtitle() -> String {
-    ChatNavigationTitle.plainSubtitle(project: navigationSubtitle, machine: navigationMachine)
+    ChatNavigationTitle.plainSubtitle(project: navigationSubtitle, machine: navigationMachine, branch: navigationBranch)
   }
 
   private func updateTitleButton() {
@@ -459,7 +467,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       titleButton,
       title: navigationTitle,
       subtitle: navigationSubtitle,
-      machine: navigationMachine
+      machine: navigationMachine,
+      branch: navigationBranch
     )
     attachTitle()
   }
@@ -488,7 +497,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     bindScrollOwnerIfNeeded()
     guard window != nil, let owner = scrollOwner else { return }
     ChatNavigationTitle.setDisappearing(titleDisappearing, on: owner.navigationItem)
-    guard !navigationTitle.isEmpty || !navigationSubtitle.isEmpty || !navigationMachine.isEmpty else {
+    guard !navigationTitle.isEmpty || !navigationSubtitle.isEmpty || !navigationMachine.isEmpty || !navigationBranch.isEmpty else {
       ChatNavigationTitle.detach(button: titleButton, from: owner.navigationItem)
       return
     }

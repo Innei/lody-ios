@@ -644,6 +644,9 @@ function View() {
         navigationTitle={navigationTitleHidden ? '' : currentSession.title}
         navigationSubtitle={navigationTitleHidden ? '' : projectName}
         navigationMachine={navigationTitleHidden ? '' : machineName}
+        navigationBranch={
+          navigationTitleHidden ? '' : (currentSession.branchName ?? '')
+        }
         onTitlePress={showDetails}
         style={{ flex: 1 }}
         attachmentContextJSON={JSON.stringify({

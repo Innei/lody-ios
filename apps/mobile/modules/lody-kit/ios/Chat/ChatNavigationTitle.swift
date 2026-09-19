@@ -210,20 +210,21 @@ final class ChatNavigationTitleButton: UIButton {
 
 @MainActor
 enum ChatNavigationTitle {
-  static func plainSubtitle(project: String, machine: String) -> String {
-    [project, machine].filter { !$0.isEmpty }.joined(separator: " · ")
+  static func plainSubtitle(project: String, machine: String, branch: String = "") -> String {
+    [branch, project, machine].filter { !$0.isEmpty }.joined(separator: " · ")
   }
 
-  static func configureButton(_ button: ChatNavigationTitleButton, title: String, subtitle: String, machine: String = "") {
+  static func configureButton(_ button: ChatNavigationTitleButton, title: String, subtitle: String, machine: String = "", branch: String = "") {
     button.titleHost.apply(title, animated: true)
-    if let attributed = attributedSubtitle(project: subtitle, machine: machine) {
+    button.captionLabel.lineBreakMode = branch.isEmpty ? .byTruncatingMiddle : .byTruncatingTail
+    if let attributed = attributedSubtitle(project: subtitle, machine: machine, branch: branch) {
       button.captionLabel.attributedText = NSAttributedString(attributed)
       button.captionLabel.isHidden = false
     } else {
       button.captionLabel.attributedText = nil
       button.captionLabel.isHidden = true
     }
-    button.accessibilityLabel = [title, subtitle, machine].filter { !$0.isEmpty }.joined(separator: ", ")
+    button.accessibilityLabel = [title, branch, subtitle, machine].filter { !$0.isEmpty }.joined(separator: ", ")
     button.sizeToFit()
     button.bounds.size.height = 44
   }
@@ -258,7 +259,7 @@ enum ChatNavigationTitle {
     }
   }
 
-  private static func attributedSubtitle(project: String, machine: String) -> AttributedString? {
+  private static func attributedSubtitle(project: String, machine: String, branch: String) -> AttributedString? {
     let font = UIFont.preferredFont(forTextStyle: .caption1)
     let color = UIColor.secondaryLabel
     let attributes: [NSAttributedString.Key: Any] = [
@@ -277,6 +278,7 @@ enum ChatNavigationTitle {
       }
       text.append(NSAttributedString(string: name, attributes: attributes))
     }
+    append(branch, symbol: "arrow.triangle.branch")
     append(project, symbol: "folder")
     append(machine, symbol: "desktopcomputer")
     return text.length == 0 ? nil : AttributedString(text)

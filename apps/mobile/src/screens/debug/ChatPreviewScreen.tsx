@@ -870,6 +870,7 @@ function View() {
         navigationTitle={navigationTitle}
         navigationSubtitle="lody-ios"
         navigationMachine="Studio"
+        navigationBranch="main"
         onTitlePress={() =>
           Alert.alert(t('session.debug.title'), previewDebugBody, [
             {

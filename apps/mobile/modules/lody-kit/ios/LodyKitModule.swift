@@ -544,6 +544,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("navigationTitle") { (view: LodyChatView, value: String) in view.setNavigationTitle(value) }
       Prop("navigationSubtitle") { (view: LodyChatView, value: String) in view.setNavigationSubtitle(value) }
       Prop("navigationMachine") { (view: LodyChatView, value: String) in view.setNavigationMachine(value) }
+      Prop("navigationBranch") { (view: LodyChatView, value: String) in view.setNavigationBranch(value) }
       Prop("mentionRepository") { (view: LodyChatView, value: String) in view.mentionRepository = value }
       Prop("attachmentContextJSON") { (view: LodyChatView, value: String) in view.setAttachmentContext(value) }
       Prop("errorRetryJSON") { (view: LodyChatView, value: String) in view.setErrorRetryState(value) }

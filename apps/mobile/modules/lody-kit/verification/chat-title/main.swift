@@ -85,6 +85,18 @@ precondition(button.accessibilityLabel?.contains("Project name") == true)
 precondition(button.accessibilityLabel?.contains("Studio") == true)
 precondition(button.accessibilityLabel?.contains("m1") != true, "The title must not speak a machine id")
 
+// Branch changes update the shared caption and accessibility without renaming the session.
+ChatNavigationTitle.configureButton(button, title: "Session title", subtitle: "Project name", machine: "Studio", branch: "feature/chat")
+precondition(subtitleText(button).contains("feature/chat"))
+precondition(button.captionLabel.lineBreakMode == .byTruncatingTail, "Narrow headers preserve the leading branch indicator")
+precondition(subtitleAttachments(button) == 3, "Branch has a symbol alongside project and machine")
+precondition(button.accessibilityLabel?.contains("feature/chat") == true)
+precondition(ChatNavigationTitle.plainSubtitle(project: "", machine: "", branch: "main") == "main")
+ChatNavigationTitle.configureButton(button, title: "Session title", subtitle: "Project name", machine: "Studio", branch: "main")
+precondition(!subtitleText(button).contains("feature/chat") && subtitleText(button).contains("main"))
+ChatNavigationTitle.configureButton(button, title: "Session title", subtitle: "Project name", machine: "Studio")
+precondition(!subtitleText(button).contains("main") && subtitleAttachments(button) == 2)
+
 let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
 let root = UIViewController()
 root.title = "Inbox"
