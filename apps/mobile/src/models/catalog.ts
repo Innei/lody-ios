@@ -12,6 +12,9 @@ export type Session = {
   id: string;
   machineId: string;
   title: string;
+  openedBySessionId?: string;
+  openedByRootSessionId?: string;
+  parentSessionId?: string;
   status: string;
   archived: boolean;
   pinned: boolean;

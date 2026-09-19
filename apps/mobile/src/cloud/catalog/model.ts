@@ -124,6 +124,10 @@ export function projectRows(rows: Row[], mode: string): Catalog {
       agentType: text(value.agentType),
       resume: text(value.acpSessionId),
       id: text(value.id) || id.slice(8),
+      openedBySessionId: text(value.openedBySessionId).trim() || undefined,
+      openedByRootSessionId:
+        text(value.openedByRootSessionId).trim() || undefined,
+      parentSessionId: text(value.parentSessionId).trim() || undefined,
       machineId,
       title: text(value.title) || t('session.untitled'),
       status:

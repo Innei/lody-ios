@@ -118,6 +118,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   var previewWorkspaceId = ""
   private var rowsByID: [ListItemID: LodyListRow] = [:]
   private var unreadHold = LodyUnreadNavigationHold()
+  private var collapsedSessions = Set<String>()
   private var toggles: [String: RowSwitch] = [:]
   private var dataSource: UICollectionViewDiffableDataSource<String, ListItemID>!
 
@@ -179,7 +180,9 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       dot: tint,
       live: tint != nil && row.imageTint.hasPrefix("#") && row.badge.isEmpty
     )
-    cell.accessories = []
+    cell.accessories = row.collapsedValue.isEmpty ? [] : [
+      .outlineDisclosure(options: .init(style: .cell, tintColor: .tertiaryLabel))
+    ]
     cell.accessibilityIdentifier = row.id
     cell.accessibilityTraits = row.action ? .button : .staticText
   }
@@ -328,10 +331,10 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       self.onReorder(["ids": ids.map(\.row)])
     }
     dataSource.sectionSnapshotHandlers.willExpandItem = { [weak self] item in
-      self?.emitRowPress(["id": item.row, "expanded": true])
+      self?.outlineChanged(item, expanded: true)
     }
     dataSource.sectionSnapshotHandlers.willCollapseItem = { [weak self] item in
-      self?.emitRowPress(["id": item.row, "expanded": false])
+      self?.outlineChanged(item, expanded: false)
     }
     collection.delegate = self
     let layout = UICollectionViewCompositionalLayout { [weak self] index, environment in
@@ -588,6 +591,23 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     collection.setContentOffset(CGPoint(x: 0, y: -collection.adjustedContentInset.top), animated: false)
   }
 
+  private func outlineChanged(_ item: ListItemID, expanded: Bool) {
+    guard let row = rowsByID[item] else { return }
+    if row.parent {
+      emitRowPress(["id": item.row, "expanded": expanded])
+      return
+    }
+    if expanded { collapsedSessions.remove(item.row) }
+    else { collapsedSessions.insert(item.row) }
+    // UIKit finishes its outline update before refreshing the parent's summary.
+    DispatchQueue.main.async { [weak self] in
+      guard let self, let index = self.dataSource.indexPath(for: item),
+            let cell = self.collection.cellForItem(at: index) as? UICollectionViewListCell,
+            let current = self.rowsByID[item] else { return }
+      self.configure(cell, row: self.displayed(current))
+    }
+  }
+
   func setSections(_ value: [LodyListSection], animated: Bool = true) {
     let previous = dataSource.snapshot()
     let previousRows = rowsByID
@@ -597,7 +617,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     }, uniquingKeysWith: { _, latest in latest })
     let live = Set(rowsByID.keys.map(\.row))
     toggles = toggles.filter { live.contains($0.key) }
-    if contentStyle, value.contains(where: { $0.rows.first?.parent == true }) {
+    // Hierarchy belongs to the data, even when sections arrives before contentStyle.
+    if value.contains(where: { $0.rows.contains { $0.parent || !$0.collapsedValue.isEmpty } }) {
       applyOutline(value, previous: previous)
       updatePlaceholder()
       return
@@ -677,14 +698,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     }
     let animate = sameSections && window != nil && !UIAccessibility.isReduceMotionEnabled
     for section in value {
-      var snapshot = NSDiffableDataSourceSectionSnapshot<ListItemID>()
-      let items = section.rows.map { ListItemID(section: section.id, row: $0.id) }
-      if let parent = items.first, section.rows[0].parent {
-        snapshot.append([parent])
-        snapshot.append(Array(items.dropFirst()), to: parent)
-        if section.headerExpanded ?? true { snapshot.expand([parent]) }
-      } else {
-        snapshot.append(items)
+      let snapshot = section.outlineSnapshot(collapsed: collapsedSessions) {
+        ListItemID(section: section.id, row: $0)
       }
       dataSource.apply(snapshot, to: section.id, animatingDifferences: animate)
     }
@@ -844,8 +859,9 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   private func decorate(_ cell: UICollectionViewListCell, row: LodyListRow) {
-    // Outline children carry indentation level 1; the row views own their columns.
-    cell.indentationWidth = 0
+    // Project membership keeps the existing columns; only opened sessions indent.
+    cell.indentationWidth = 20
+    cell.indentationLevel = row.parentId.isEmpty ? 0 : 1
     cell.configurationUpdateHandler = nil
     cell.automaticallyUpdatesBackgroundConfiguration = true
     if contentStyle {
@@ -1081,7 +1097,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   private func displayed(_ row: LodyListRow) -> LodyListRow {
-    var copy = row
+    var copy = row.displayingCollapsed(collapsedSessions.contains(row.id))
     copy.unread = unreadHold.applied(rowID: row.id, unread: row.unread)
     return copy
   }

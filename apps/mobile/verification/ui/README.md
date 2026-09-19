@@ -564,3 +564,14 @@ actual `*-export.jpg` files for visual inspection. The paper itself remains warm
 white in both appearances. The 1080 px export is capped at 12000 px high and fails
 explicitly rather than truncating. Fixture image loading does not prove live
 cloud authorization or third-party share destinations.
+
+### Opened session trees
+
+`session-tree` and `session-tree-pad` open an independently resettable Debug scene
+using production session projections and the iPhone grouped list / iPad sidebar.
+They verify two-level expansion, separate title navigation, collapsed count and
+attention summary, retention across catalog updates and project collapse, and
+filtered children remaining reachable without their opener. Light/dark screenshots
+and video cover both hosts. Service data is offline; this does not establish live
+cloud synchronization. Session trees use `openedBySessionId`; contained Tabs and
+transcript `subagent_task` items retain their existing UI.

@@ -1,4 +1,5 @@
 import ExpoModulesCore
+import UIKit
 
 @Record
 struct LodyListAction {
@@ -41,6 +42,10 @@ struct LodyListRow {
   var disclosure: Bool = false
   var destructive: Bool = false
   var parent: Bool = false
+  var parentId: String = ""
+  var collapsedValue: String = ""
+  var collapsedBadge: String = ""
+  var collapsedImageTint: String = ""
   var monogram: String = ""
   var pinned: Bool = false
   var actions: [LodyListAction] = []
@@ -58,4 +63,39 @@ struct LodyListSection: Record {
   @Field var headerExpanded: Bool? = nil
   @Field var footer: String = ""
   @Field var rows: [LodyListRow] = []
+}
+
+// Both native list hosts share hierarchy, while keeping their own layout and selection.
+extension LodyListSection {
+  func outlineSnapshot<Item: Hashable & Sendable>(
+    collapsed: Set<String>, itemID: (String) -> Item
+  ) -> NSDiffableDataSourceSectionSnapshot<Item> {
+    var snapshot = NSDiffableDataSourceSectionSnapshot<Item>()
+    let sectionParent = rows.first.flatMap { $0.parent ? itemID($0.id) : nil }
+    for row in rows {
+      let item = itemID(row.id)
+      let parent = row.parentId.isEmpty ? sectionParent : itemID(row.parentId)
+      let availableParent = parent.flatMap { snapshot.contains($0) ? $0 : nil }
+      snapshot.append([item], to: availableParent)
+    }
+    for row in rows {
+      if row.parent {
+        if headerExpanded ?? true { snapshot.expand([itemID(row.id)]) }
+      } else if !row.collapsedValue.isEmpty && !collapsed.contains(row.id) {
+        snapshot.expand([itemID(row.id)])
+      }
+    }
+    return snapshot
+  }
+}
+
+extension LodyListRow {
+  func displayingCollapsed(_ collapsed: Bool) -> LodyListRow {
+    guard collapsed, !collapsedValue.isEmpty else { return self }
+    var copy = self
+    copy.value = collapsedValue
+    copy.badge = collapsedBadge
+    copy.imageTint = collapsedImageTint
+    return copy
+  }
 }

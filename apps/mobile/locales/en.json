@@ -180,6 +180,8 @@
   "workspace.edit.iconUploadFailed": "Could not update the workspace icon. Try again.",
   "catalog.toast.localSaveFailed": "Could not save data locally. The next launch may need a resync.",
   "catalog.toast.workspaceSaveFailed": "Could not save your workspace choice",
+  "inbox.session.children.one": "{count} session",
+  "inbox.session.children.other": "{count} sessions",
   "inbox.section.attention": "Needs your approval",
   "inbox.section.pinned": "Pinned",
   "inbox.section.live": "Running",

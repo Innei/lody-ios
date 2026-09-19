@@ -43,6 +43,12 @@ export type NativeListRow = {
   destructive?: boolean;
   /** First row of a section: the section's outline header; `navigates` rows disclose instead of collapsing. */
   parent?: boolean;
+  /** A preceding row in this section; independent session provenance, not containment. */
+  parentId?: string;
+  /** Nonempty on session outline parents; shown while their children are collapsed. */
+  collapsedValue?: string;
+  collapsedBadge?: string;
+  collapsedImageTint?: string;
   monogram?: string;
   pinned?: boolean;
   /** Trailing swipe actions. */

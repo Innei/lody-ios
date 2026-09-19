@@ -3,7 +3,7 @@ import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { usePalette } from '@/lib/theme/palette';
 import { t } from '@/lib/i18n';
 import { useSessionListCatalog } from './useSessionListCatalog';
-import { byActivity, sessionRow } from './inbox';
+import { byActivity, sessionRow, sessionTreeRows } from './inbox';
 import { requestNewSession } from './sessionNav';
 import { listRowAction } from './sessionActions';
 
@@ -24,9 +24,11 @@ export function useProjectModel(projectId: string) {
     .map((archived) => ({
       id: archived ? 'archived' : 'sessions',
       header: archived ? t('session.state.archived') : undefined,
-      rows: sessions
-        .filter((s) => s.archived === archived)
-        .map((s) => sessionRow(s, colors.accent)),
+      rows: sessionTreeRows(
+        sessions.filter((s) => s.archived === archived),
+        catalog.sessions,
+        (s) => sessionRow(s, colors.accent),
+      ),
     }))
     .filter((section) => section.rows.length);
   let placeholder = t('project.empty');

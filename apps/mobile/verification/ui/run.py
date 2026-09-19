@@ -20,7 +20,7 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
-    'pages': ['pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker'],
+    'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker'],
     'send': ['quick-replies', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
     'chat': ['message-share', 'user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'chat-chrome', 'title-rename'],
 }
@@ -34,11 +34,13 @@ SUITES = {
 CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 # These lease an iPad. `--case` still accepts them; the default phone run must not.
-PAD_CASES = ['ipad', 'ipad-chrome', 'native-shell', 'native-collection', 'session-search-pad']
+PAD_CASES = ['session-tree-pad', 'ipad', 'ipad-chrome', 'native-shell', 'native-collection', 'session-search-pad']
 CASES = PHONE_CASES + PAD_CASES + ['session-search', 'morph', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics']
 # These select HomePreviewProviders at app launch, using the same shared bundle.
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome'}
 PREVIEW = {
+    'session-tree': 'session-tree-preview',
+    'session-tree-pad': 'session-tree-preview',
     'message-share': 'message-share-preview',
     'quick-replies': 'quick-replies-preview',
     'reply-haptics': 'reply-haptics-preview',
@@ -97,6 +99,8 @@ PREVIEW = {
     'community-notice': 'community-notice',
 }
 READY = {
+    'session-tree': 'tree-root',
+    'session-tree-pad': 'tree-root',
     'message-share': 'paper-reply:meta:actions',
     'quick-replies': 'quick-reset',
     'reply-haptics': 'reply-haptics-start',
@@ -372,6 +376,8 @@ with metro_context:
                     script = Path(__file__).with_name(f'{case}.py') if case in ['message-share', 'pull-request', 'project-history-entry', 'project-history', 'project-picker', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'context-menu', 'chat-chrome', 'title-rename'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
                     if case in {'quick-replies', 'morph', 'native-shell', 'native-collection', 'ipad-chrome', 'composer-relay', 'outbox', 'navigation-toolbar', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics'}:
                         script = Path(__file__).with_name(f'{case}.py')
+                    if case in ['session-tree', 'session-tree-pad']:
+                        script = Path(__file__).with_name('session-tree.py')
                     if case == 'send-handoff-delayed':
                         script = Path(__file__).with_name('send-handoff.py')
                     if case in {'session-search', 'session-search-pad'}:

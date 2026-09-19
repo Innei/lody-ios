@@ -29,6 +29,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
   private var sections: [LodyListSection] = []
   private var rows: [SidebarItemID: LodyListRow] = [:]
   private var unreadHold = LodyUnreadNavigationHold()
+  private var collapsedSessions = Set<String>()
   private var selectedRowId = ""
   private var accent: UIColor = .lodyAccent
   private let appearance = SidebarAppearanceController()
@@ -74,10 +75,10 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
       return collection.dequeueConfiguredReusableSupplementary(using: self.headerRegistration, for: index)
     }
     dataSource.sectionSnapshotHandlers.willExpandItem = { [weak self] item in
-      self?.onRowPress(["id": item.row, "expanded": true])
+      self?.outlineChanged(item, expanded: true)
     }
     dataSource.sectionSnapshotHandlers.willCollapseItem = { [weak self] item in
-      self?.onRowPress(["id": item.row, "expanded": false])
+      self?.outlineChanged(item, expanded: false)
     }
     let layout = UICollectionViewCompositionalLayout { [weak self] index, environment in
       guard let self, let id = self.dataSource.sectionIdentifier(for: index),
@@ -158,6 +159,23 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     }
   }
 
+  private func outlineChanged(_ item: SidebarItemID, expanded: Bool) {
+    guard let row = rows[item] else { return }
+    if row.parent {
+      onRowPress(["id": item.row, "expanded": expanded])
+      return
+    }
+    if expanded { collapsedSessions.remove(item.row) }
+    else { collapsedSessions.insert(item.row) }
+    // UIKit finishes its outline update before refreshing the parent's summary.
+    DispatchQueue.main.async { [weak self] in
+      guard let self, let index = self.dataSource.indexPath(for: item),
+            let cell = self.collection.cellForItem(at: index) as? UICollectionViewListCell,
+            let current = self.rows[item] else { return }
+      self.configure(cell, row: self.displayed(current))
+    }
+  }
+
   func setSections(_ value: [LodyListSection]) {
     let previous = dataSource.snapshot()
     sections = value
@@ -171,14 +189,8 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
       dataSource.apply(snapshot, animatingDifferences: false)
     }
     for section in value {
-      var snapshot = NSDiffableDataSourceSectionSnapshot<SidebarItemID>()
-      let items = section.rows.map { SidebarItemID(section: section.id, row: $0.id) }
-      if let parent = items.first, section.rows[0].parent {
-        snapshot.append([parent])
-        snapshot.append(Array(items.dropFirst()), to: parent)
-        if section.headerExpanded ?? true { snapshot.expand([parent]) }
-      } else {
-        snapshot.append(items)
+      let snapshot = section.outlineSnapshot(collapsed: collapsedSessions) {
+        SidebarItemID(section: section.id, row: $0)
       }
       dataSource.apply(snapshot, to: section.id, animatingDifferences: sameSections && window != nil && !UIAccessibility.isReduceMotionEnabled) { [weak self] in
         // A deep link can select before its catalog snapshot arrives. Read the
@@ -216,7 +228,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
   }
 
   private func displayed(_ row: LodyListRow) -> LodyListRow {
-    var copy = row
+    var copy = row.displayingCollapsed(collapsedSessions.contains(row.id))
     copy.unread = unreadHold.applied(rowID: row.id, unread: row.unread)
     return copy
   }
@@ -284,6 +296,8 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     if rowAppearsSelected(row) { cell.accessibilityTraits.insert(.selected) }
     if row.parent && !row.navigates {
       cell.accessories = [.outlineDisclosure(options: .init(style: .header, tintColor: .tertiaryLabel))]
+    } else if !row.collapsedValue.isEmpty {
+      cell.accessories = [.outlineDisclosure(options: .init(style: .cell, tintColor: .tertiaryLabel))]
     } else if project && row.navigates {
       cell.accessories = [.disclosureIndicator()]
     } else {

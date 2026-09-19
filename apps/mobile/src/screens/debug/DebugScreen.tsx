@@ -31,6 +31,7 @@ import {
   NativeShellPreviewScreen,
 } from './NativeShellPreviewScreen';
 import { ShinePreviewScreen } from './ShinePreviewScreen';
+import { SessionTreePreviewScreen } from './SessionTreePreviewScreen';
 import { InboxPreviewScreen } from './InboxPreviewScreen';
 import { SettingsPreviewScreen } from './SettingsPreviewScreen';
 import { SettingsScreen } from '../SettingsScreen';
@@ -166,6 +167,7 @@ function View() {
           '排队消息行为验收',
           'arrow.uturn.forward',
         ),
+        openRow('session-tree-preview', 'Session tree', 'list.bullet.indent'),
         openRow('inbox-preview', '动态分组验收', 'tray'),
         openRow('background-preview', '后台连接验收', 'moon.zzz'),
         openRow('native-shell-poc', 'Native Shell POC', 'sidebar.left'),
@@ -303,6 +305,7 @@ function View() {
     'appearance-preview': () => void present(SettingsScreen, {}),
     'queued-message-behavior-preview': () => void present(SettingsScreen, {}),
     'quick-replies-preview': () => void present(QuickRepliesPreviewScreen),
+    'session-tree-preview': () => void present(SessionTreePreviewScreen),
     'inbox-preview': () => void present(InboxPreviewScreen, {}),
     'background-preview': () => void present(BackgroundPreviewScreen, {}),
     'native-shell-poc': () => void present(NativeShellPreviewScreen, {}),

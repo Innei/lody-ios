@@ -3,6 +3,7 @@ import type {
   NativeListRow,
   NativeListSection,
 } from '@lody-ios/kit';
+import { sessionTree } from './sessionTree.ts';
 import type { Catalog, Project, Session } from '../../models/catalog.ts';
 import {
   sessionIsUnread as unreadOf,
@@ -158,7 +159,7 @@ export function inboxSections(
       group.id === PINNED_SECTION_ID
         ? orderPinned(buckets.get(group.id) ?? [], pinOrder, activityAt)
         : (buckets.get(group.id) ?? []);
-    const rows = sessions.map((session) => {
+    const rows = sessionTreeRows(sessions, catalog.sessions, (session) => {
       const state = stateOf(session);
       return {
         id: session.id,
@@ -343,6 +344,36 @@ export function sessionRow(
   };
 }
 
+export function sessionTreeRows(
+  sessions: Session[],
+  allSessions: Session[],
+  rowOf: (session: Session) => NativeListRow,
+  maxRoots = Infinity,
+): NativeListRow[] {
+  return sessionTree(sessions, allSessions)
+    .slice(0, maxRoots)
+    .flatMap(({ session, children }) => {
+      const row = rowOf(session);
+      if (!children.length) return [row];
+      const members = [session, ...children];
+      const urgent = ['attention', 'failed', 'live'].flatMap((state) =>
+        members.filter((member) => stateOf(member) === state),
+      )[0];
+      const status = urgent ? rowOf(urgent) : row;
+      return [
+        {
+          ...row,
+          collapsedValue: tp('inbox.session.children', children.length, {
+            count: children.length,
+          }),
+          collapsedBadge: status.badge,
+          collapsedImageTint: status.imageTint,
+        },
+        ...children.map((child) => ({ ...rowOf(child), parentId: session.id })),
+      ];
+    });
+}
+
 const countKeys = {
   failed: 'inbox.project.failed',
   attention: 'inbox.project.attention',
@@ -401,16 +432,20 @@ function sessionGroup(
   parent: NativeListRow,
   sessions: Session[],
   accent: string,
-  now?: number,
+  now: number | undefined,
+  allSessions: Session[],
   moreId = `project:${id}`,
 ): NativeListSection {
   const rows = [
     parent,
-    ...sessions
-      .slice(0, 5)
-      .map((session) => sessionRow(session, accent, '', now)),
+    ...sessionTreeRows(
+      sessions,
+      allSessions,
+      (session) => sessionRow(session, accent, '', now),
+      5,
+    ),
   ];
-  const rest = sessions.length - 5;
+  const rest = sessions.length - (rows.length - 1);
   if (rest > 0) {
     rows.push({
       id: moreId,
@@ -446,7 +481,14 @@ export function projectSections(
       .sort(byActivity);
     const open = expanded[project.id] ?? true;
     const parent = projectRow(project, sessions, open, accent);
-    const group = sessionGroup(project.id, parent, sessions, accent, now);
+    const group = sessionGroup(
+      project.id,
+      parent,
+      sessions,
+      accent,
+      now,
+      catalog.sessions,
+    );
     return { ...group, headerExpanded: open };
   });
   const chats = unpinned.filter(isChatSession).sort(byActivity);
@@ -468,6 +510,7 @@ export function projectSections(
         chats,
         accent,
         now,
+        catalog.sessions,
         `view:${CHAT_SECTION_ID}`,
       ),
       headerExpanded: open,
@@ -476,7 +519,9 @@ export function projectSections(
   if (!pinned.length) return sections;
   sections.unshift(
     pinnedProjectSection(
-      pinned.map((session) => sessionRow(session, accent, '', now)),
+      sessionTreeRows(pinned, catalog.sessions, (session) =>
+        sessionRow(session, accent, '', now),
+      ),
       expanded,
     ),
   );
@@ -534,7 +579,7 @@ export function searchSections(
     {
       id: 'sessions',
       header: t('inbox.section.sessions'),
-      rows: sessions.map((s) => {
+      rows: sessionTreeRows(sessions, catalog.sessions, (s) => {
         const row = sessionRow(s, accent, sessionPlace(s, names));
         const snippet = matches.get(s.id);
         return snippet == null
