@@ -70,3 +70,29 @@ and model memory; the UI case exercises the production host in English/light/dar
 system share sheet with the app stopped and no credentials. AXe 1.8.0 is required.
 Authenticated Cloud submission, attachment download, lost-response
 recovery and offline-machine pickup must additionally be accepted after deployment.
+
+## Redundancy ablation (2026-09-20)
+
+Starting from `1b3a193`, remove one candidate group at a time, run checks, and
+keep a removal only when its production callers are gone and relevant behavior
+still passes. This is a code-reachability experiment, not a performance benchmark.
+
+| Experiment       | Intervention                                                                                              | Result                                                                                                             |
+| ---------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| A                | Remove unreferenced `ModelScreen`; import `ModelChoice` from its owner                                    | Check/bundle pass; Hermes bytes match after excluding the temporary compiler source path and trailing checksum     |
+| B                | Remove the old TS preference state machine and its exclusive `capabilityFor`/`extraConfigOptions` helpers | Check, 274 Node tests, bundle and expanded native form checks pass; bundle falls from 4,586,046 to 4,582,045 bytes |
+| C                | Remove 19 obsolete `model.*` keys from each locale                                                        | Check/tests/bundle pass; bundle is 4,581,057 bytes                                                                 |
+| Positive control | Temporarily omit Swift's per-model preference write                                                       | Native behavior check fails restoring model A; restore the write and the expanded checks pass                      |
+
+The old six preference-only Node tests no longer validate a retired replica.
+Their applicable contracts now exercise production `CreateSessionForm`: JSON and
+legacy restoration, project/chat and agent isolation, advertised permission
+defaults, explicit default clearing, false/custom values and stale capabilities.
+Three Node checks cover the retained storage key and active chat/runtime helpers.
+Keep `effortsFor`, `validConfigValue`, `isThoughtLevel` and fast-mode helpers:
+they still serve real callers. Keep `ComposerSheet` and picker pages used by Debug.
+No Cloud retry, credential fence, durable receipt or outbox behavior was removed.
+
+Local experiment logs use `.artifacts/ablation-*`; the temporary mutation is not
+part of the committed change. The historical design spec is retained as history;
+the implementation and current verification inventory are authoritative.

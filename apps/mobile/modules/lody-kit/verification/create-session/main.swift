@@ -48,4 +48,70 @@ restored.choice = ["modelId": "deleted", "effort": "invalid", "modeId": "deleted
 restored.validateChoice()
 precondition(restored.choice["modelId"] == nil && restored.choice["effort"] == nil && restored.choice["modeId"] == nil)
 precondition((restored.choice["configOptionValues"] as? [String: Any])?.isEmpty == true)
-print("PASS: native form scopes machines, remembers per-model options including false, validates stale choices, requires GitHub branch and preserves attachments")
+// Exercise the production owner, not the retired TypeScript preference replica.
+func roundTrip(_ value: [String: Any]) -> [String: Any] {
+  try! JSONSerialization.jsonObject(with: Data(createJSON(value).utf8)) as! [String: Any]
+}
+@MainActor func fixture(_ value: [String: Any] = capability) -> CreateSessionForm {
+  var result = CreateSessionForm()
+  result.snapshot = form.snapshot
+  var second = value; second["machineId"] = "two"
+  result.snapshot["options"] = ["chat": ["agents": agents, "capabilities": [value, second]]]
+  result.restore()
+  return result
+}
+
+var contexts = form
+contexts.chat = true; contexts.agentKey = "two:agent"; contexts.choice = [:]; contexts.remember()
+precondition(contexts.prefs["projectId"] as? String == "one:local:project", "Chat must not replace the last project")
+contexts.prefs = roundTrip(contexts.prefs); contexts.restore()
+precondition(contexts.agentKey == "two:agent")
+contexts.chat = false; contexts.restore()
+precondition(contexts.agentKey == "one:agent" && contexts.choice["effort"] as? String == "high")
+
+var memory = fixture()
+memory.prefs = roundTrip(form.prefs); memory.selectModel("a")
+precondition(memory.choice["effort"] as? String == "high", "Model choices survive JSON and project-to-chat switching")
+memory.agentKey = "two:agent"; memory.choice = ["modelId": "a"]; memory.restoreModel()
+precondition(memory.choice["effort"] == nil, "Another machine/agent must not inherit the choice")
+precondition(memory.choice["modeId"] as? String == "danger-full-access")
+
+var legacy = form
+legacy.prefs["modelChoices"] = nil; legacy.restore()
+precondition(legacy.choice["effort"] as? String == "high" && legacy.choice["modeId"] as? String == "read-only")
+legacy.choice["modeId"] = nil; legacy.choice["configOptionValues"] = [:]; legacy.remember()
+legacy.prefs = roundTrip(legacy.prefs); legacy.restore()
+precondition(legacy.choice["modeId"] == nil, "An explicit default must not turn back into full access")
+precondition((legacy.choice["configOptionValues"] as? [String: Any])?.isEmpty == true)
+
+for mode in ["agent-full-access", "danger-full-access", "bypassPermissions", "yolo", "always-approve"] {
+  var advertised = capability; advertised["modes"] = [["id": "plan"], ["id": mode]]
+  precondition(fixture(advertised).choice["modeId"] as? String == mode)
+}
+var noFullAccess = capability; noFullAccess["modes"] = [["id": "plan"]]
+precondition(fixture(noFullAccess).choice["modeId"] == nil, "Never invent an unadvertised permission")
+
+func select(_ id: String, _ values: [String], category: String = "") -> [String: Any] {
+  ["id": id, "name": id, "type": "select", "category": category, "options": values.map { ["id": $0] }]
+}
+var configOnly = capability
+configOnly["reasoningEfforts"] = [:]
+configOnly["configOptions"] = [
+  select("permission_mode", ["ask", "always-approve"], category: "_permission"),
+  ["id": "fast", "type": "boolean"], select("agent_preset", ["standard", "coder"]),
+  select("effort", ["low", "high"], category: "thought_level"),
+]
+var configured = fixture(configOnly)
+configured.selectModel("a"); configured.choice["effort"] = "high"
+configured.choice["configOptionValues"] = ["permission_mode": "always-approve", "fast": false, "agent_preset": "coder"]
+configured.selectModel("b"); configured.prefs = roundTrip(configured.prefs); configured.selectModel("a")
+let values = configured.choice["configOptionValues"] as! [String: Any]
+precondition(values["permission_mode"] as? String == "always-approve")
+precondition(values["fast"] as? Bool == false && values["agent_preset"] as? String == "coder")
+precondition(configured.efforts == ["low", "high"] && configured.choice["effort"] as? String == "high")
+var changed = configOnly
+changed["configOptions"] = [select("permission_mode", ["ask"]), select("fast", ["on", "off"])]
+var changedForm = fixture(changed); changedForm.prefs = configured.prefs; changedForm.selectModel("a")
+precondition((changedForm.choice["configOptionValues"] as? [String: Any])?.isEmpty == true)
+precondition(changedForm.choice["effort"] == nil, "Removed capabilities and changed option types must drop stale values")
+print("PASS: production native form covers project/chat and agent isolation, JSON/legacy preferences, explicit defaults, model/config memory, stale capabilities and attachment draft handoff")
