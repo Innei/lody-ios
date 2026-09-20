@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { PlatformColor, TextInput } from 'react-native';
+import { TextInput } from 'react-native';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
@@ -29,7 +29,7 @@ function View() {
         title: t('common.save'),
         accessibilityLabel: t('common.save'),
         variant: 'prominent' as const,
-        tintColor: PlatformColor('AccentColor'),
+        tintColor: colors.accent,
         disabled: !label.trim() || !message.trim(),
         onPress: () => {
           if (!label.trim() || !message.trim()) return;
@@ -41,7 +41,16 @@ function View() {
         },
       },
     ],
-    [label, message, id, params.item, quickReplies, setQuickReplies, finish],
+    [
+      label,
+      message,
+      id,
+      params.item,
+      quickReplies,
+      setQuickReplies,
+      finish,
+      colors.accent,
+    ],
   );
   const dismiss = useMemo(
     () => [

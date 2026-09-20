@@ -18,6 +18,39 @@ enum LodyDarkBackground: String {
   }
 }
 
+enum LodyAccentChoice: String {
+  case blue, indigo, purple, pink
+
+  static var current: Self {
+    Self(rawValue: UserDefaults.standard.string(forKey: "accentColor") ?? "") ?? .blue
+  }
+
+  var color: UIColor {
+    switch self {
+    case .blue: return .systemBlue
+    case .indigo: return .systemIndigo
+    case .purple: return .systemPurple
+    case .pink: return .systemPink
+    }
+  }
+
+  static func save(_ value: String) {
+    guard let next = Self(rawValue: value), next != current else { return }
+    UserDefaults.standard.set(next.rawValue, forKey: "accentColor")
+    DispatchQueue.main.async {
+      lodyApplyWindowAccent()
+      NotificationCenter.default.post(name: .lodyAppearanceDidChange, object: nil)
+    }
+  }
+
+  static func hex(_ value: String, dark: Bool) -> String {
+    let color = (Self(rawValue: value) ?? .blue).color.resolvedColor(with: UITraitCollection(userInterfaceStyle: dark ? .dark : .light))
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    return String(format: "#%02X%02X%02X", Int((red * 255).rounded()), Int((green * 255).rounded()), Int((blue * 255).rounded()))
+  }
+}
+
 extension Notification.Name {
   static let lodyAppearanceDidChange = Notification.Name("LodyAppearanceDidChange")
 }
@@ -71,12 +104,7 @@ extension UIColor {
   }
 
   static let lodyAccent = UIColor { traits in
-    if let named = UIColor(named: "AccentColor") {
-      return named.resolvedColor(with: traits)
-    }
-    return traits.userInterfaceStyle == .dark
-      ? UIColor(red: 0x4A / 255, green: 0x88 / 255, blue: 0xFF / 255, alpha: 1)
-      : UIColor(red: 0x21 / 255, green: 0x55 / 255, blue: 0xCC / 255, alpha: 1)
+    LodyAccentChoice.current.color.resolvedColor(with: traits)
   }
 
   static let lodyUserBubble = UIColor { traits in
@@ -116,7 +144,7 @@ func lodyApplyWindowAccent() {
   for scene in UIApplication.shared.connectedScenes {
     guard let scene = scene as? UIWindowScene else { continue }
     for window in scene.windows {
-      window.tintColor = .lodyAccent
+      window.tintColor = LodyAccentChoice.current.color
     }
   }
 }

@@ -1,11 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  PlatformColor,
-  StyleSheet,
-  Switch,
-  TextInput,
-  View as RNView,
-} from 'react-native';
+import { StyleSheet, Switch, TextInput, View as RNView } from 'react-native';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { usePalette } from '@/lib/theme/palette';
@@ -71,12 +65,12 @@ function View() {
         title: t('settings.remote.save'),
         accessibilityLabel: t('settings.remote.save'),
         variant: 'prominent' as const,
-        tintColor: PlatformColor('AccentColor'),
+        tintColor: colors.accent,
         disabled: busy || !name.trim(),
         onPress: () => void save(),
       },
     ],
-    [busy, name, save],
+    [busy, name, save, colors.accent],
   );
   const dismiss = useMemo(
     () => [
@@ -139,7 +133,7 @@ function View() {
             <Switch
               testID="setting-enabled"
               accessibilityLabel={t('settings.remote.default')}
-              trackColor={{ true: PlatformColor('AccentColor') }}
+              trackColor={{ true: colors.accent }}
               value={enabledByDefault}
               onValueChange={setEnabled}
               disabled={busy}

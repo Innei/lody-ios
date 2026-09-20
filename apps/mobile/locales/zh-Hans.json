@@ -834,5 +834,13 @@
   "native.chat.message.block.table": "表格",
   "native.chat.message.block.quote": "引用",
   "native.chat.message.block.divider": "分隔线",
-  "native.chat.message.block.image": "图片"
+  "native.chat.message.block.image": "图片",
+  "settings.appearance.accent": "强调色",
+  "settings.appearance.blue": "蓝色",
+  "settings.appearance.indigo": "靛蓝",
+  "settings.appearance.purple": "紫色",
+  "settings.appearance.pink": "粉色",
+  "settings.appearance.appIcon": "应用图标",
+  "settings.appearance.defaultIcon": "默认",
+  "settings.appearance.iconFailed": "无法更改应用图标，请重试。"
 }

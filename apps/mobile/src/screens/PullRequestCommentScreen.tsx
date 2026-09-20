@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Alert, PlatformColor, TextInput } from 'react-native';
+import { Alert, TextInput } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
@@ -28,7 +28,7 @@ function View() {
         type: 'button' as const,
         title: t('pr.send'),
         accessibilityLabel: t('pr.send'),
-        tintColor: PlatformColor('AccentColor'),
+        tintColor: colors.accent,
         disabled: !body.trim() || sending || unknown,
         onPress: async () => {
           if (busy.current || unknown) return;
@@ -47,7 +47,7 @@ function View() {
         },
       },
     ],
-    [body, params.onSubmit, sending, unknown, finish],
+    [body, params.onSubmit, sending, unknown, finish, colors.accent],
   );
   const left = useMemo(
     () => [
@@ -55,7 +55,7 @@ function View() {
         type: 'button' as const,
         title: t('common.cancel'),
         accessibilityLabel: t('common.cancel'),
-        tintColor: PlatformColor('AccentColor'),
+        tintColor: colors.accent,
         disabled: sending,
         onPress: () => {
           if (!body.trim()) {
@@ -69,7 +69,7 @@ function View() {
         },
       },
     ],
-    [body, cancel, sending],
+    [body, cancel, sending, colors.accent],
   );
   useSheetHeader(right, left);
   return (

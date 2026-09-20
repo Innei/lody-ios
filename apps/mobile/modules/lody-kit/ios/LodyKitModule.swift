@@ -37,6 +37,15 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   @JS
+  var initialAccentColor: String { LodyAccentChoice.current.rawValue }
+
+  @JS
+  func saveAccentColor(value: String) { LodyAccentChoice.save(value) }
+
+  @JS
+  func accentHex(value: String, dark: Bool) -> String { LodyAccentChoice.hex(value, dark: dark) }
+
+  @JS
   var initialDarkBackground: String { LodyDarkBackground.current.rawValue }
 
   @JS
@@ -248,6 +257,26 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       MainActor.assumeIsolated {
         self.authBrowser?.dismiss(animated: true)
         self.authBrowser = nil
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("getAppIcon") { UIApplication.shared.alternateIconName ?? "default" }.runOnQueue(.main)
+    AsyncFunction("setAppIcon") { (name: String, promise: Promise) in
+      guard name == "default" || name == "Aqua" else {
+        promise.reject("ERR_APP_ICON", "Unknown app icon")
+        return
+      }
+      let app = UIApplication.shared
+      let alternate = name == "default" ? nil : name
+      guard app.alternateIconName != alternate else { promise.resolve(name); return }
+      guard app.supportsAlternateIcons else {
+        promise.reject("ERR_APP_ICON", "Alternate icons are unavailable")
+        return
+      }
+      app.setAlternateIconName(alternate) { error in
+        DispatchQueue.main.async {
+          if let error { promise.reject("ERR_APP_ICON", error.localizedDescription) }
+          else { promise.resolve(app.alternateIconName ?? "default") }
+        }
       }
     }.runOnQueue(.main)
     AsyncFunction("selectionFeedback") {

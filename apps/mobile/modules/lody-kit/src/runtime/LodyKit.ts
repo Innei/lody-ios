@@ -74,6 +74,11 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   saveInboxView(index: number): void;
   readonly initialInboxProjectSort: number;
   saveInboxProjectSort(index: number): void;
+  readonly initialAccentColor: string;
+  saveAccentColor(value: string): void;
+  accentHex(value: string, dark: boolean): string;
+  getAppIcon(): Promise<string>;
+  setAppIcon(name: string): Promise<string>;
   readonly initialDarkBackground: string;
   saveDarkBackground(value: string): void;
   readonly initialQueuedMessageBehavior: string;
@@ -156,6 +161,12 @@ export const native = requireNativeModule<LodyKitNativeModule>('LodyKit');
 export const remoteSettingsRaw = (payload: string): Promise<string> =>
   native.remoteSettings(payload);
 export const runtimeInfo = native.runtimeInfo;
+export const initialAccentColor = native.initialAccentColor;
+export const saveAccentColor = (value: string) => native.saveAccentColor(value);
+export const accentHex = (value: string, dark: boolean) =>
+  native.accentHex(value, dark);
+export const getAppIcon = () => native.getAppIcon();
+export const setAppIcon = (name: string) => native.setAppIcon(name);
 export const initialDarkBackground = native.initialDarkBackground;
 export const saveDarkBackground = (value: string) =>
   native.saveDarkBackground(value);

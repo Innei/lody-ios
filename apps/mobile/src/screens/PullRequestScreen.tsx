@@ -1,5 +1,5 @@
+import { usePalette } from '@/lib/theme/palette';
 import { Stack } from 'expo-router';
-import { PlatformColor } from 'react-native';
 import {
   NativeGroupedList,
   NativeSymbolButton,
@@ -29,6 +29,7 @@ export type PullRequestParams = {
 };
 
 function View() {
+  const colors = usePalette();
   const {
     params: { source, actions },
     push,
@@ -182,7 +183,7 @@ function View() {
         </Stack.Toolbar.View>
         <Stack.Toolbar.Spacer />
         <Stack.Toolbar.Button
-          tintColor={PlatformColor('AccentColor')}
+          tintColor={colors.accent}
           disabled={!data || !!error}
           onPress={() =>
             data &&

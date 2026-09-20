@@ -834,5 +834,13 @@
   "native.chat.message.block.table": "Table",
   "native.chat.message.block.quote": "Quote",
   "native.chat.message.block.divider": "Divider",
-  "native.chat.message.block.image": "Image"
+  "native.chat.message.block.image": "Image",
+  "settings.appearance.accent": "Accent Color",
+  "settings.appearance.blue": "Blue",
+  "settings.appearance.indigo": "Indigo",
+  "settings.appearance.purple": "Purple",
+  "settings.appearance.pink": "Pink",
+  "settings.appearance.appIcon": "App Icon",
+  "settings.appearance.defaultIcon": "Default",
+  "settings.appearance.iconFailed": "Could not change the app icon. Please try again."
 }

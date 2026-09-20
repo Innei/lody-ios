@@ -143,7 +143,7 @@ function View() {
             {
               type: 'button' as const,
               variant: 'prominent' as const,
-              tintColor: PlatformColor('AccentColor'),
+              tintColor: colors.accent,
               icon: { type: 'sfSymbol' as const, name: 'checkmark' },
               accessibilityLabel: t(
                 saving
@@ -155,7 +155,7 @@ function View() {
             },
           ]
         : [],
-    [machine, directory, loading, saving, confirm],
+    [machine, directory, loading, saving, confirm, colors.accent],
   );
   useSheetHeader(items);
 

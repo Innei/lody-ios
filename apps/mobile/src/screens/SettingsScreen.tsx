@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { ProjectHistoryScreen } from './ProjectHistoryScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
 import { QuickRepliesScreen } from './QuickRepliesScreen';
@@ -9,12 +10,22 @@ import { LicensesScreen } from './LicensesScreen';
 import { RemoteSettingsScreen, settingsTitle } from './RemoteSettingsScreen';
 import { Linking } from 'react-native';
 import Constants from 'expo-constants';
-import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
+import {
+  NativeGroupedList,
+  getAppIcon,
+  setAppIcon,
+  addAppActiveListener,
+  type NativeListSection,
+} from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { useConnection } from '@/cloud/catalog/connection';
 import { usePalette } from '@/lib/theme/palette';
-import { useAppearance } from '@/lib/theme/appearance';
+import {
+  useAppearance,
+  accentChoices,
+  isAccentColor,
+} from '@/lib/theme/appearance';
 import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
 import { relativeTime } from '@/ui/time';
 import { showToast } from '@/ui/toast';
@@ -37,7 +48,42 @@ function View() {
   const router = useRouter();
   const { push, cancel } = usePageRuntime();
   const colors = usePalette();
-  const { darkBackground, setDarkBackground } = useAppearance();
+  const { darkBackground, setDarkBackground, accentColor, setAccentColor } =
+    useAppearance();
+  const [appIcon, setCurrentAppIcon] = useState<string | null>(null);
+  const iconBusy = useRef(false);
+  const [changingIcon, setChangingIcon] = useState(false);
+  useEffect(() => {
+    let active = true;
+    const refreshIcon = () => {
+      void getAppIcon()
+        .then((name) => {
+          if (active) setCurrentAppIcon(name);
+        })
+        .catch(() => {
+          if (active) showToast(t('settings.appearance.iconFailed'));
+        });
+    };
+    refreshIcon();
+    const subscription = addAppActiveListener(refreshIcon);
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
+  const changeIcon = async (name: string) => {
+    if (iconBusy.current || name === appIcon) return;
+    iconBusy.current = true;
+    setChangingIcon(true);
+    try {
+      setCurrentAppIcon(await setAppIcon(name));
+    } catch {
+      showToast(t('settings.appearance.iconFailed'));
+    } finally {
+      iconBusy.current = false;
+      setChangingIcon(false);
+    }
+  };
   const { queuedMessageBehavior, setQueuedMessageBehavior } =
     useQueuedMessageBehavior();
   const connection = useConnection();
@@ -92,8 +138,8 @@ function View() {
       ],
     },
     {
-      id: 'preferences',
-      header: t('settings.section.appearanceNotifications'),
+      id: 'appearance-section',
+      header: t('settings.appearance.title'),
       rows: [
         {
           id: 'appearance',
@@ -107,6 +153,41 @@ function View() {
             selected: value === darkBackground,
           })),
         },
+        {
+          id: 'accent-color',
+          title: t('settings.appearance.accent'),
+          value: t(`settings.appearance.${accentColor}`),
+          image: 'paintpalette.fill',
+          imageTint: colors.accent,
+          action: true,
+          options: accentChoices.map((value) => ({
+            id: value,
+            title: t(`settings.appearance.${value}`),
+            selected: value === accentColor,
+          })),
+        },
+        {
+          id: 'app-icon',
+          title: t('settings.appearance.appIcon'),
+          value:
+            appIcon === 'Aqua' ? 'Aqua' : t('settings.appearance.defaultIcon'),
+          image: 'app.dashed',
+          action: appIcon !== null && !changingIcon,
+          options: [
+            {
+              id: 'default',
+              title: t('settings.appearance.defaultIcon'),
+              selected: appIcon === 'default',
+            },
+            { id: 'Aqua', title: 'Aqua', selected: appIcon === 'Aqua' },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'notifications-section',
+      header: t('settings.notifications.title'),
+      rows: [
         {
           id: 'notifications',
           title: t('settings.notifications.title'),
@@ -233,6 +314,13 @@ function View() {
       sections={sections}
       placeholder=""
       onRowAction={({ nativeEvent: { id, actionId } }) => {
+        if (id === 'accent-color' && isAccentColor(actionId))
+          setAccentColor(actionId);
+        if (
+          id === 'app-icon' &&
+          (actionId === 'default' || actionId === 'Aqua')
+        )
+          void changeIcon(actionId);
         if (
           id === 'appearance' &&
           (actionId === 'soft' || actionId === 'black')

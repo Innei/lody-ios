@@ -1,6 +1,11 @@
 export {
   remoteSettingsRaw,
   runtimeInfo,
+  initialAccentColor,
+  saveAccentColor,
+  accentHex,
+  getAppIcon,
+  setAppIcon,
   initialDarkBackground,
   saveDarkBackground,
   initialQueuedMessageBehavior,

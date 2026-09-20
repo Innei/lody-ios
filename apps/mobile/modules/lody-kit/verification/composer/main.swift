@@ -120,9 +120,23 @@ let actionButton = descendants(actionComposer).compactMap { $0 as? UIButton }.fi
 }!
 let actionVisual = descendants(actionButton).first { $0.accessibilityIdentifier == "session-action-visual" }
 precondition(
-  actionVisual?.backgroundColor?.isEqual(UIColor.lodyAccent) == true,
+  actionVisual?.backgroundColor?.resolvedColor(with: actionComposer.traitCollection).isEqual(UIColor.lodyAccent.resolvedColor(with: actionComposer.traitCollection)) == true,
   "An actionable Send must render as an accent circular control"
 )
+let originalAccent = LodyAccentChoice.current.rawValue
+LodyAccentChoice.save("purple")
+RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+for host in [composer, actionComposer] {
+  let visual = descendants(host).first { $0.accessibilityIdentifier == "session-action-visual" }!
+  precondition(visual.backgroundColor?.resolvedColor(with: host.traitCollection).isEqual(UIColor.systemPurple.resolvedColor(with: host.traitCollection)) == true,
+    "Existing chat and sheet composers must recolor when the accent changes")
+}
+LodyAccentChoice.save("unknown")
+precondition(LodyAccentChoice.current == .purple, "An unknown accent must not replace the saved choice")
+LodyAccentChoice.save(originalAccent)
+RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+print("Composer: persisted accent changes update existing hosts and reject unknown choices")
+
 actionInput.text = ""
 actionComposer.textViewDidChange(actionInput)
 actionComposer.setComposerState(
