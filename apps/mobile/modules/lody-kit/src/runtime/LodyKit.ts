@@ -41,6 +41,7 @@ export type PickedWorkspaceIcon = {
   size: number;
 };
 type Events = {
+  onAccentColorChange: (event: { value: string }) => void;
   onAttachmentUploadProgress: (event: AttachmentUploadProgress) => void;
   onPushClick: () => void;
   onAppActive: () => void;
@@ -77,6 +78,8 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   readonly initialAccentColor: string;
   saveAccentColor(value: string): void;
   accentHex(value: string, dark: boolean): string;
+  accentForegroundHex(value: string): string;
+  showAccentColorPicker(title: string): Promise<void>;
   getAppIcon(): Promise<string>;
   setAppIcon(name: string): Promise<string>;
   readonly initialDarkBackground: string;
@@ -163,8 +166,15 @@ export const remoteSettingsRaw = (payload: string): Promise<string> =>
 export const runtimeInfo = native.runtimeInfo;
 export const initialAccentColor = native.initialAccentColor;
 export const saveAccentColor = (value: string) => native.saveAccentColor(value);
+export const accentForegroundHex = (value: string) =>
+  native.accentForegroundHex(value);
 export const accentHex = (value: string, dark: boolean) =>
   native.accentHex(value, dark);
+export const showAccentColorPicker = (title: string) =>
+  native.showAccentColorPicker(title);
+export const addAccentColorListener = (
+  listener: (event: { value: string }) => void,
+) => native.addListener('onAccentColorChange', listener);
 export const getAppIcon = () => native.getAppIcon();
 export const setAppIcon = (name: string) => native.setAppIcon(name);
 export const initialDarkBackground = native.initialDarkBackground;

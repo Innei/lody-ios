@@ -842,5 +842,8 @@
   "settings.appearance.pink": "粉色",
   "settings.appearance.appIcon": "应用图标",
   "settings.appearance.defaultIcon": "默认",
-  "settings.appearance.iconFailed": "无法更改应用图标，请重试。"
+  "settings.appearance.iconFailed": "无法更改应用图标，请重试。",
+  "settings.appearance.custom": "自定义",
+  "settings.appearance.customPicker": "自定义…",
+  "settings.appearance.colorFailed": "无法打开颜色选择器。"
 }

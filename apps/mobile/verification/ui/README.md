@@ -1,5 +1,12 @@
 # Offline UI verification
 
+`appearance` exercises preset accents, UIKit's custom color picker, persisted
+custom color after a cold launch, the three-column native app-icon grid, actual
+system icon switching and a Debug-only rejected-change fixture. ColorPickerUIService
+is not traversable by AXe; the case uses visually confirmed iPhone 17 Pro palette
+coordinates and verifies the resulting UserDefaults value plus restored UI.
+Both appearances record screenshots and video, without account or cloud access.
+
 `--case scroll-edge` scrolls deterministic chat content beneath the native
 composer and raises the software keyboard in both appearances. It checks keyboard
 clearance and captures the automatic bottom edge for visual review. Run a fresh native

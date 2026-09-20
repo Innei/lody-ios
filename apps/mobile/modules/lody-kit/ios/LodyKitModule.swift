@@ -15,6 +15,7 @@ struct LodyRuntimeInfo {
 public final class LodyKitModule: Module, @unchecked Sendable {
   private let localStore = LocalStore.shared
   private var authBrowser: SFSafariViewController?
+  @MainActor private lazy var accentPicker = AccentColorPicker()
   @MainActor private lazy var workspaceIconPicker = WorkspaceIconPicker()
 
   @MainActor private lazy var dataRuntime = DataRuntime(localStore: localStore,
@@ -44,6 +45,11 @@ public final class LodyKitModule: Module, @unchecked Sendable {
 
   @JS
   func accentHex(value: String, dark: Bool) -> String { LodyAccentChoice.hex(value, dark: dark) }
+
+  @JS
+  func accentForegroundHex(value: String) -> String {
+    LodyAccentChoice.hex((LodyAccentChoice(rawValue: value) ?? .blue).foregroundColor)
+  }
 
   @JS
   var initialDarkBackground: String { LodyDarkBackground.current.rawValue }
@@ -92,6 +98,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   public override func willDestroy() {
     Task { @MainActor in
       self.dataRuntime.stop()
+      self.accentPicker.dismiss()
       PushNotifications.shared.onClickAvailable = nil
     }
   }
@@ -182,7 +189,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   public func definition() -> ModuleDefinition {
-    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress")
+    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onAccentColorChange")
     AsyncFunction("watchCatalog") { (workspace: String, slug: String, name: String, owner: String, userId: String) in
       try MainActor.assumeIsolated {
         guard !workspace.isEmpty, !owner.isEmpty, !userId.isEmpty else {
@@ -257,6 +264,19 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       MainActor.assumeIsolated {
         self.authBrowser?.dismiss(animated: true)
         self.authBrowser = nil
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("showAccentColorPicker") { (title: String, promise: Promise) in
+      MainActor.assumeIsolated {
+        guard let controller = self.appContext?.utilities?.currentViewController() else {
+          promise.reject("ERR_COLOR_PICKER", "No presenting controller")
+          return
+        }
+        self.accentPicker.onChange = { [weak self] value in
+          self?.sendEvent("onAccentColorChange", ["value": value])
+        }
+        self.accentPicker.present(from: controller, title: title)
+        promise.resolve(nil)
       }
     }.runOnQueue(.main)
     AsyncFunction("getAppIcon") { UIApplication.shared.alternateIconName ?? "default" }.runOnQueue(.main)
@@ -623,6 +643,14 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("path") { (view: LodyInlineDiffView, value: String) in view.setPath(value) }
       Prop("oldText") { (view: LodyInlineDiffView, value: String?) in view.setOldText(value) }
       Prop("newText") { (view: LodyInlineDiffView, value: String?) in view.setNewText(value) }
+    }
+
+    View(LodyAppIconGrid.self) {
+      Events("onSelect")
+      Prop("items") { (view: LodyAppIconGrid, value: [LodyAppIconItem]) in view.setItems(value) }
+      Prop("selected") { (view: LodyAppIconGrid, value: String) in view.setSelected(value) }
+      Prop("pending") { (view: LodyAppIconGrid, value: String) in view.setPending(value) }
+      Prop("enabled") { (view: LodyAppIconGrid, value: Bool) in view.setEnabled(value) }
     }
 
     View(LodyPagedList.self) {

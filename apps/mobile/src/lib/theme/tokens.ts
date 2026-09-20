@@ -41,8 +41,6 @@ export const danger = {
   dark: '#FF453A',
 } as const;
 
-export const onAccent = '#FFFFFF';
-
 export const type = {
   title: { size: 20, lineHeight: 26 },
   body: { size: 17, lineHeight: 25 },

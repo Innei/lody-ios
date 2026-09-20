@@ -2,6 +2,7 @@ import {
   initialDarkBackground,
   saveDarkBackground,
   initialAccentColor,
+  addAccentColorListener,
   saveAccentColor,
 } from '@lody-ios/kit';
 import {
@@ -9,14 +10,18 @@ import {
   type PropsWithChildren,
   use,
   useCallback,
+  useEffect,
   useMemo,
   useState,
 } from 'react';
 
 export const accentChoices = ['blue', 'indigo', 'purple', 'pink'] as const;
-export type AccentColor = (typeof accentChoices)[number];
+export type AccentColor = (typeof accentChoices)[number] | `#${string}`;
 export function isAccentColor(value: string): value is AccentColor {
-  return accentChoices.some((choice) => choice === value);
+  return (
+    accentChoices.some((choice) => choice === value) ||
+    (value.length === 7 && /^#[0-9a-f]{6}$/i.test(value))
+  );
 }
 
 export type DarkBackground = 'soft' | 'black';
@@ -35,6 +40,12 @@ export function AppearanceProvider({ children }: PropsWithChildren) {
   const [accentColor, setAccent] = useState<AccentColor>(
     isAccentColor(initialAccentColor) ? initialAccentColor : 'blue',
   );
+  useEffect(() => {
+    const subscription = addAccentColorListener(({ value }) => {
+      if (isAccentColor(value)) setAccent(value);
+    });
+    return () => subscription.remove();
+  }, []);
   const setAccentColor = useCallback((value: AccentColor) => {
     saveAccentColor(value);
     setAccent(value);

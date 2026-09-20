@@ -842,5 +842,8 @@
   "settings.appearance.pink": "Pink",
   "settings.appearance.appIcon": "App Icon",
   "settings.appearance.defaultIcon": "Default",
-  "settings.appearance.iconFailed": "Could not change the app icon. Please try again."
+  "settings.appearance.iconFailed": "Could not change the app icon. Please try again.",
+  "settings.appearance.custom": "Custom",
+  "settings.appearance.customPicker": "Custom…",
+  "settings.appearance.colorFailed": "Could not open the color picker."
 }

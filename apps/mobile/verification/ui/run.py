@@ -285,7 +285,7 @@ with metro_context:
                     if case == 'chat-performance':
                         container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
                         (container / 'tmp/lody-chat-loading.json').unlink(missing_ok=True)
-                    restart = args.embedded or launch_mode != mode or case in HOME_CASES or case == 'quick-replies'
+                    restart = args.embedded or launch_mode != mode or case in HOME_CASES or case in ('quick-replies', 'appearance')
                     if restart:
                         result['appLifecycle'] = 'launch'
                         sim('terminate', args.udid, 'app.innei.lody', check=False)
@@ -417,7 +417,7 @@ with metro_context:
                     elif case == 'navigation':
                         # Three cold relaunches plus catalog links; 360s still dies on a cold CI AXe session.
                         check_timeout = 480
-                    elif case in ('session-search', 'session-search-pad', 'chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production'):
+                    elif case in ('session-search', 'session-search-pad', 'chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance'):
                         check_timeout = 300
                     with (output / 'check.log').open('w') as log:
                         env = {**os.environ, 'LODY_UI_LANGUAGE': args.language}

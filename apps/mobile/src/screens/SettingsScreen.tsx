@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { AppIconScreen } from './AppIconScreen';
 import { ProjectHistoryScreen } from './ProjectHistoryScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
 import { QuickRepliesScreen } from './QuickRepliesScreen';
@@ -13,7 +14,7 @@ import Constants from 'expo-constants';
 import {
   NativeGroupedList,
   getAppIcon,
-  setAppIcon,
+  showAccentColorPicker,
   addAppActiveListener,
   type NativeListSection,
 } from '@lody-ios/kit';
@@ -51,8 +52,6 @@ function View() {
   const { darkBackground, setDarkBackground, accentColor, setAccentColor } =
     useAppearance();
   const [appIcon, setCurrentAppIcon] = useState<string | null>(null);
-  const iconBusy = useRef(false);
-  const [changingIcon, setChangingIcon] = useState(false);
   useEffect(() => {
     let active = true;
     const refreshIcon = () => {
@@ -71,19 +70,6 @@ function View() {
       subscription.remove();
     };
   }, []);
-  const changeIcon = async (name: string) => {
-    if (iconBusy.current || name === appIcon) return;
-    iconBusy.current = true;
-    setChangingIcon(true);
-    try {
-      setCurrentAppIcon(await setAppIcon(name));
-    } catch {
-      showToast(t('settings.appearance.iconFailed'));
-    } finally {
-      iconBusy.current = false;
-      setChangingIcon(false);
-    }
-  };
   const { queuedMessageBehavior, setQueuedMessageBehavior } =
     useQueuedMessageBehavior();
   const connection = useConnection();
@@ -93,6 +79,7 @@ function View() {
     ? relativeTime(new Date(connection.syncedAt).toISOString())
     : '';
 
+  const presetAccent = accentChoices.find((value) => value === accentColor);
   const sections: NativeListSection[] = [
     {
       id: 'account',
@@ -156,31 +143,37 @@ function View() {
         {
           id: 'accent-color',
           title: t('settings.appearance.accent'),
-          value: t(`settings.appearance.${accentColor}`),
-          image: 'paintpalette.fill',
+          value: presetAccent
+            ? t(`settings.appearance.${presetAccent}`)
+            : t('settings.appearance.custom'),
+          image: 'circle.fill',
           imageTint: colors.accent,
           action: true,
-          options: accentChoices.map((value) => ({
-            id: value,
-            title: t(`settings.appearance.${value}`),
-            selected: value === accentColor,
-          })),
+          options: [
+            ...accentChoices.map((value) => ({
+              id: value,
+              title: t(`settings.appearance.${value}`),
+              selected: value === accentColor,
+            })),
+            {
+              id: 'custom',
+              title: t('settings.appearance.customPicker'),
+              selected: accentColor.startsWith('#'),
+            },
+          ],
         },
         {
           id: 'app-icon',
           title: t('settings.appearance.appIcon'),
           value:
             appIcon === 'Aqua' ? 'Aqua' : t('settings.appearance.defaultIcon'),
-          image: 'app.dashed',
-          action: appIcon !== null && !changingIcon,
-          options: [
-            {
-              id: 'default',
-              title: t('settings.appearance.defaultIcon'),
-              selected: appIcon === 'default',
-            },
-            { id: 'Aqua', title: 'Aqua', selected: appIcon === 'Aqua' },
-          ],
+          accessibilityValue:
+            appIcon === 'Aqua' ? 'Aqua' : t('settings.appearance.defaultIcon'),
+          imageAsset: `AppIconPreview-${appIcon ?? 'default'}`,
+          imageOriginal: true,
+          action: true,
+          disclosure: true,
+          navigates: true,
         },
       ],
     },
@@ -316,11 +309,10 @@ function View() {
       onRowAction={({ nativeEvent: { id, actionId } }) => {
         if (id === 'accent-color' && isAccentColor(actionId))
           setAccentColor(actionId);
-        if (
-          id === 'app-icon' &&
-          (actionId === 'default' || actionId === 'Aqua')
-        )
-          void changeIcon(actionId);
+        if (id === 'accent-color' && actionId === 'custom')
+          void showAccentColorPicker(t('settings.appearance.accent')).catch(
+            () => showToast(t('settings.appearance.colorFailed')),
+          );
         if (
           id === 'appearance' &&
           (actionId === 'soft' || actionId === 'black')
@@ -341,6 +333,7 @@ function View() {
             { title: settingsTitle(kind) },
           );
         }
+        if (nativeEvent.id === 'app-icon') void push(AppIconScreen);
         if (nativeEvent.id === 'notifications')
           void push(NotificationSettingsScreen, {});
         if (nativeEvent.id === 'quick-replies') void push(QuickRepliesScreen);

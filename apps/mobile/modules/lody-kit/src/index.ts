@@ -2,8 +2,11 @@ export {
   remoteSettingsRaw,
   runtimeInfo,
   initialAccentColor,
+  showAccentColorPicker,
+  addAccentColorListener,
   saveAccentColor,
   accentHex,
+  accentForegroundHex,
   getAppIcon,
   setAppIcon,
   initialDarkBackground,
@@ -210,3 +213,5 @@ export {
   NativeMessageShare,
   type MessageShareBlock,
 } from './chat/NativeMessageShare';
+
+export { NativeAppIconGrid } from './appearance/NativeAppIconGrid';

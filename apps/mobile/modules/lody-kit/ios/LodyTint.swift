@@ -18,8 +18,31 @@ enum LodyDarkBackground: String {
   }
 }
 
-enum LodyAccentChoice: String {
+enum LodyAccentChoice: Equatable, RawRepresentable {
   case blue, indigo, purple, pink
+  case custom(String)
+
+  init?(rawValue: String) {
+    switch rawValue {
+    case "blue": self = .blue
+    case "indigo": self = .indigo
+    case "purple": self = .purple
+    case "pink": self = .pink
+    default:
+      guard rawValue.utf8.count == 7, rawValue.range(of: "^#[0-9A-Fa-f]{6}$", options: .regularExpression) != nil else { return nil }
+      self = .custom(rawValue.uppercased())
+    }
+  }
+
+  var rawValue: String {
+    switch self {
+    case .blue: "blue"
+    case .indigo: "indigo"
+    case .purple: "purple"
+    case .pink: "pink"
+    case .custom(let hex): hex
+    }
+  }
 
   static var current: Self {
     Self(rawValue: UserDefaults.standard.string(forKey: "accentColor") ?? "") ?? .blue
@@ -27,11 +50,23 @@ enum LodyAccentChoice: String {
 
   var color: UIColor {
     switch self {
-    case .blue: return .systemBlue
-    case .indigo: return .systemIndigo
-    case .purple: return .systemPurple
-    case .pink: return .systemPink
+    case .blue: .systemBlue
+    case .indigo: .systemIndigo
+    case .purple: .systemPurple
+    case .pink: .systemPink
+    case .custom(let hex): lodyTint(hex) ?? .systemBlue
     }
+  }
+
+  var foregroundColor: UIColor {
+    guard case .custom = self else { return .white }
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    func linear(_ value: CGFloat) -> CGFloat {
+      value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+    }
+    let luminance = 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+    return luminance > 0.179 ? .black : .white
   }
 
   static func save(_ value: String) {
@@ -44,10 +79,13 @@ enum LodyAccentChoice: String {
   }
 
   static func hex(_ value: String, dark: Bool) -> String {
-    let color = (Self(rawValue: value) ?? .blue).color.resolvedColor(with: UITraitCollection(userInterfaceStyle: dark ? .dark : .light))
+    hex((Self(rawValue: value) ?? .blue).color.resolvedColor(with: UITraitCollection(userInterfaceStyle: dark ? .dark : .light)))
+  }
+
+  static func hex(_ color: UIColor) -> String {
     var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
     color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-    return String(format: "#%02X%02X%02X", Int((red * 255).rounded()), Int((green * 255).rounded()), Int((blue * 255).rounded()))
+    return String(format: "#%02X%02X%02X", Int(min(255, max(0, (red * 255).rounded()))), Int(min(255, max(0, (green * 255).rounded()))), Int(min(255, max(0, (blue * 255).rounded()))))
   }
 }
 

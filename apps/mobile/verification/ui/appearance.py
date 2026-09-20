@@ -1,5 +1,10 @@
 """Settings choices update in place through native pop-up menus."""
 import sys
+import os
+import plistlib
+import re
+import time
+from pathlib import Path
 import subprocess
 from driver import UI
 import catalog
@@ -10,7 +15,7 @@ for value in ["soft","black","soft"]:
     assert row['frame']['height'] >= 44
     ui.axe('tap', '--id', 'appearance', '--post-delay', '.5')
     ui.capture(f'{value}-menu')
-    ui.axe('tap', '--label', catalog.text(f'settings.appearance.{value}'), '--post-delay', '.7')
+    ui.axe('tap', '--wait-timeout', '5', '--label', catalog.text(f'settings.appearance.{value}'), '--post-delay', '.7')
     ui.wait(lambda _: ui.element('appearance').get('AXValue') == catalog.text(f'settings.appearance.{value}'), 'Selected value did not update')
     ui.element('appearance')
     ui.element('notifications')
@@ -18,27 +23,97 @@ for value in ["soft","black","soft"]:
 for value in ['purple', 'pink', 'indigo', 'blue']:
     assert ui.element('accent-color')['frame']['height'] >= 44
     ui.axe('tap', '--id', 'accent-color', '--post-delay', '.3')
-    ui.axe('tap', '--label', catalog.text(f'settings.appearance.{value}'), '--post-delay', '.5')
+    ui.axe('tap', '--wait-timeout', '5', '--label', catalog.text(f'settings.appearance.{value}'), '--post-delay', '.5')
     ui.wait(lambda _: ui.element('accent-color').get('AXValue') == catalog.text(f'settings.appearance.{value}'), 'Accent selection did not update')
     ui.capture(f'accent-{value}')
 
-# Exercise the real UIApplication API and its completion state, including reset.
-for value, label in [('default', catalog.text('settings.appearance.defaultIcon')), ('Aqua', 'Aqua'), ('default', catalog.text('settings.appearance.defaultIcon'))]:
-    row = ui.element('app-icon')
-    assert row['frame']['height'] >= 44
-    if row.get('AXValue') == label:
+# UIKit hosts its picker in ColorPickerUIService, which AXe cannot traverse.
+# These coordinates are from the verified iPhone 17 Pro framebuffer (402 x 874 pt).
+# Require its native host, capture the real service, then assert the actual durable result.
+def open_color_picker():
+    ui.axe('tap', '--id', 'accent-color', '--post-delay', '.3')
+    ui.axe('tap', '--wait-timeout', '5', '--label', catalog.text('settings.appearance.customPicker'), '--post-delay', '.7')
+    ui.element('UIColorPicker')
+    time.sleep(2)
+
+def open_preview(identifier):
+    for _ in range(10):
+        row = next((i for i in ui.state() if i.get('AXUniqueId') == identifier), None)
+        if row and 140 <= row['frame']['y'] <= 680:
+            break
+        start, end = ('300', '550') if row and row['frame']['y'] < 140 else ('700', '450')
+        ui.axe('swipe', '--start-x', '200', '--start-y', start, '--end-x', '200', '--end-y', end, '--duration', '.5', '--post-delay', '.6')
+    row = ui.element(identifier)
+    assert 140 <= row['frame']['y'] <= 680, row['frame']
+    ui.axe('tap', '--id', identifier, '--tap-style', 'physical', '--pre-delay', '.8', '--post-delay', '.8')
+
+container = Path(subprocess.check_output(['xcrun', 'simctl', 'get_app_container', ui.udid, 'app.innei.lody', 'data'], text=True).strip())
+prefs = container / 'Library/Preferences/app.innei.lody.plist'
+def saved_color():
+    return plistlib.loads(prefs.read_bytes()).get('accentColor', '')
+
+open_color_picker()
+ui.capture('custom-picker')
+ui.axe('tap', '-x', '110', '-y', '312', '--post-delay', '.8')
+ui.capture('custom-color')
+ui.axe('tap', '-x', '375', '-y', '100', '--post-delay', '.8')
+ui.wait(lambda _: ui.element('accent-color').get('AXValue') == catalog.text('settings.appearance.custom'), 'Custom color was not retained')
+ui.wait(lambda _: re.fullmatch(r'#[0-9A-F]{6}', saved_color()), 'Custom color was not persisted')
+custom = saved_color()
+ui.capture('custom-selected')
+# Cold launch proves both native and React startup restore the persisted choice.
+subprocess.run(['xcrun', 'simctl', 'terminate', ui.udid, 'app.innei.lody'], check=True)
+launch = ['xcrun', 'simctl', 'launch', ui.udid, 'app.innei.lody', '--ui-verify']
+metro = os.environ.get('LODY_UI_METRO_PORT')
+if metro:
+    launch += ['--initialUrl', f'http://127.0.0.1:{metro}?disableOnboarding=1']
+subprocess.run(launch, check=True)
+ui.invalidate_axe()
+ui.element('ui-verify-ready', timeout=120)
+open_preview('appearance-preview')
+ui.wait(lambda _: ui.element('accent-color').get('AXValue') == catalog.text('settings.appearance.custom'), 'Cold launch lost custom color')
+assert saved_color() == custom
+open_color_picker()
+ui.capture('custom-restored')
+ui.axe('tap', '-x', '375', '-y', '100', '--post-delay', '.6')
+assert saved_color() == custom
+ui.axe('tap', '--id', 'accent-color', '--post-delay', '.3')
+ui.axe('tap', '--wait-timeout', '5', '--label', catalog.text('settings.appearance.blue'), '--post-delay', '.4')
+
+ui.axe('tap', '--id', 'app-icon', '--post-delay', '.6')
+first, second = ui.element('app-icon-default'), ui.element('app-icon-Aqua')
+a, b = first['frame'], second['frame']
+assert abs(a['y'] - b['y']) < 2 and b['x'] > a['x']
+assert a['height'] >= 44 and a['width'] >= 44
+# Each cell owns one third of the collection's width, including the empty third slot.
+assert 90 < a['width'] < 140, a
+ui.capture('icon-grid')
+def selected(value):
+    return ui.element(f'app-icon-{value}').get('AXValue') == catalog.text('native.chat.attachment.selected')
+
+for value in ['default', 'Aqua', 'default']:
+    if selected(value):
         continue
-    ui.axe('tap', '--id', 'app-icon', '--post-delay', '.3')
-    ui.axe('tap', '--label', label, '--post-delay', '1')
-    # SpringBoard's changed-icon alert can expose an empty AX tree. Try its
-    # label first; the fallback is the observed centered OK button on our
-    # default iPhone Verify device. The selected value below must still match.
+    ui.axe('tap', '--id', f'app-icon-{value}', '--post-delay', '1')
     ui.screenshot(f'icon-{value}-system-confirmation')
     try:
-        ui.axe('tap', '--label', 'OK', '--post-delay', '.5', timeout=3, recover=False)
+        ui.axe('tap', '--wait-timeout', '5', '--label', 'OK', '--post-delay', '.5', timeout=3, recover=False)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError):
         ui.axe('tap', '-x', '201', '-y', '505', '--post-delay', '.5')
     ui.invalidate_axe()
-    ui.wait(lambda items: any(item.get('AXUniqueId') == 'app-icon' and item.get('AXValue') == label for item in items), 'System icon change did not complete')
+    ui.wait(lambda _: selected(value), 'System icon change did not complete')
     ui.capture(f'icon-{value}')
-print('PASS: appearance menus, all accents, and real alternate icon switching/reset.')
+ui.axe('tap', '--wait-timeout', '5', '--id', 'BackButton', '--post-delay', '.6')
+ui.wait(lambda _: ui.element('app-icon').get('AXValue') == catalog.text('settings.appearance.defaultIcon'), 'Settings did not retain the current icon')
+ui.capture('settings-restored')
+ui.axe('tap', '--wait-timeout', '5', '--label', 'Close Settings', '--post-delay', '.6')
+open_preview('app-icon-failure-preview')
+ui.element('app-icon-default')
+assert selected('default')
+ui.axe('tap', '--id', 'app-icon-Aqua', '--post-delay', '.5')
+ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('settings.appearance.iconFailed') for i in items), 'Icon failure feedback missing')
+ui.capture('icon-failure')
+ui.axe('tap', '--wait-timeout', '5', '--label', 'OK', '--post-delay', '.4')
+assert selected('default') and not selected('Aqua'), 'A failed change replaced the selected icon'
+ui.capture('icon-failure-retained')
+print('PASS: UIKit custom colors, three-column icon previews, real icon switching and return navigation.')

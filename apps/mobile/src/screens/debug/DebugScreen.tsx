@@ -1,3 +1,4 @@
+import { AppIconFailurePreviewScreen } from './AppIconFailurePreviewScreen';
 import { MessageSharePreviewScreen } from './MessageSharePreviewScreen';
 import { DiffScrollEdgePreviewScreen } from './DiffScrollEdgePreviewScreen';
 import { SteerPreviewScreen } from './SteerPreviewScreen';
@@ -161,6 +162,7 @@ function View() {
           'arrow.triangle.2.circlepath',
         ),
         openRow('settings-preview', '远程设置验收', 'gear'),
+        openRow('app-icon-failure-preview', 'Icon failure', 'app.dashed'),
         openRow('appearance-preview', '外观验收', 'circle.lefthalf.filled'),
         openRow(
           'queued-message-behavior-preview',
@@ -302,6 +304,8 @@ function View() {
     'pull-request-preview': () => void present(PullRequestPreviewScreen, {}),
     'project-picker-preview': () => void openProjectPicker(),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
+    'app-icon-failure-preview': () =>
+      void present(AppIconFailurePreviewScreen, {}),
     'appearance-preview': () => void present(SettingsScreen, {}),
     'queued-message-behavior-preview': () => void present(SettingsScreen, {}),
     'quick-replies-preview': () => void present(QuickRepliesPreviewScreen),
