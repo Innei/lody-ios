@@ -20,6 +20,7 @@ import { localGeneration, readLocal, writeLocal } from '../kv';
 import { catalogKey, selectionKey } from './persist';
 import type { Catalog, SavedCatalog } from '../../models/catalog.ts';
 import { t } from '../../lib/i18n/index.ts';
+import { refreshShareSnapshot } from './shareSnapshot';
 
 const empty: Catalog = { projects: [], sessions: [], machineIds: [] };
 function valid(saved: SavedCatalog | null): saved is SavedCatalog {
@@ -68,6 +69,26 @@ function useCatalogState() {
     }
     const localVersion = localGeneration();
     let active = true;
+    let refreshingShare = false;
+    let latestShareCatalog: Catalog | undefined;
+    async function refreshShare() {
+      if (refreshingShare) return;
+      refreshingShare = true;
+      try {
+        while (active && latestShareCatalog) {
+          const next = latestShareCatalog;
+          latestShareCatalog = undefined;
+          await refreshShareSnapshot(
+            account!.user.id,
+            selected!.id,
+            next,
+            () => active,
+          ).catch(() => {});
+        }
+      } finally {
+        refreshingShare = false;
+      }
+    }
     let received = false;
     let saveErrorShown = false;
     let syncedAt: number | undefined;
@@ -110,6 +131,8 @@ function useCatalogState() {
       account.user.id,
       (event, data) => {
         if (data) {
+          latestShareCatalog = data;
+          void refreshShare();
           received = true;
           syncedAt = Date.now();
           machines = data.machineIds.length;

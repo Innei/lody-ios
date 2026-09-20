@@ -222,14 +222,32 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       try self.localStore.searchInbox(userID: userId, workspaceID: workspaceId, query: query)
     }.runOnQueue(LocalStore.queue)
     AsyncFunction("writeLocalValue") { (key: String, value: String) in try self.localStore.write(key, value) }.runOnQueue(LocalStore.queue)
+    AsyncFunction("publishShareSnapshot") { (payload: String) in
+      try ShareStore.locked {
+      guard try AuthKeychain.read() != nil,
+        let value = try JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any],
+        let account = try self.localStore.read("account"),
+        let saved = try JSONSerialization.jsonObject(with: Data(account.utf8)) as? [String: Any],
+        (saved["user"] as? [String: Any])?["id"] as? String == value["userId"] as? String else { return }
+      try ShareStore.publish(value)
+      }
+    }.runOnQueue(LocalStore.queue)
     AsyncFunction("readAuthToken") { try AuthKeychain.read() }.runOnQueue(.main)
-    AsyncFunction("saveAuthToken") { (token: String) in try AuthKeychain.save(token) }.runOnQueue(.main)
+    AsyncFunction("saveAuthToken") { (token: String) in
+      try ShareStore.locked {
+        if try AuthKeychain.read() != token { try ShareStore.clear() }
+        try AuthKeychain.save(token)
+      }
+    }.runOnQueue(.main)
     AsyncFunction("clearAuthToken") {
       try MainActor.assumeIsolated {
         self.dataRuntime.stop()
         PushNotifications.shared.identify(nil)
         LiveActivities.shared.endAll()
-        try AuthKeychain.clear()
+        try ShareStore.locked {
+          try AuthKeychain.clear()
+          try ShareStore.clear()
+        }
       }
     }.runOnQueue(.main)
     AsyncFunction("openAuthBrowser") { (address: String) in
@@ -502,6 +520,16 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("configurationJSON") { (view: LodyMentionPickerView, value: String) in view.configure(value) }
     }
 
+    View(LodyCreateSessionView.self) {
+      Events("onSubmit", "onPreferences", "onSelection", "onRelayReady", "onMentionBrowse", "onOpenCreated", "onCancel")
+      Prop("openCreated") { (view: LodyCreateSessionView, value: Bool) in view.setOpenCreated(value) }
+      Prop("mentionItemsJSON") { (view: LodyCreateSessionView, value: String) in view.mentions(value) }
+      Prop("mentionResultJSON") { (view: LodyCreateSessionView, value: String) in view.mentionResult(value) }
+      Prop("snapshotJSON") { (view: LodyCreateSessionView, value: String) in view.configure(value) }
+      Prop("busy") { (view: LodyCreateSessionView, value: Bool) in view.setBusy(value) }
+      Prop("composerRelay") { (view: LodyCreateSessionView, value: Bool) in view.composerRelay = value }
+      Prop("restoreDraftToken") { (view: LodyCreateSessionView, value: Int) in view.restore(value) }
+    }
     View(LodyComposerView.self) {
       Prop("composerRelay") { (view: LodyComposerView, value: Bool) in view.composerRelay = value }
       Prop("sendHandoff") { (view: LodyComposerView, value: Bool?) in view.composer.sendHandoff = value ?? true }

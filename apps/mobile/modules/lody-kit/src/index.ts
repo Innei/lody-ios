@@ -1,6 +1,7 @@
 export {
   remoteSettingsRaw,
   runtimeInfo,
+  publishShareSnapshot,
   initialDarkBackground,
   saveDarkBackground,
   initialQueuedMessageBehavior,
@@ -205,3 +206,4 @@ export {
   NativeMessageShare,
   type MessageShareBlock,
 } from './chat/NativeMessageShare';
+export { NativeCreateSession } from './create/NativeCreateSession';

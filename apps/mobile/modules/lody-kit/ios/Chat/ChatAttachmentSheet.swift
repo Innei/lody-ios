@@ -166,8 +166,14 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
         DispatchQueue.main.async { self?.refresh() }
       }
     default:
+      #if !LODY_SHARE_EXTENSION
       guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
       UIApplication.shared.open(url)
+      #else
+      let alert = UIAlertController(title: "Photo access", message: "Open Settings to change Lody’s photo access.", preferredStyle: .alert)
+      alert.addAction(UIAlertAction(title: "OK", style: .default))
+      present(alert, animated: true)
+      #endif
     }
   }
 

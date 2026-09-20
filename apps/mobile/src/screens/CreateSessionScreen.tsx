@@ -1,55 +1,29 @@
-import { fastModeFor, withFastMode } from '@/cloud/send/capability';
-import { useComposerMentions } from '@/hooks/screens/useComposerMentions';
-import { ProjectPickerScreen } from './ProjectPickerScreen';
-import { useEffect, useRef, useState, type RefObject } from 'react';
-import { Alert } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
 import {
-  NativeComposer,
-  initialInboxProjectSort,
-  type ChatDraftAttachment,
-  type NativeListSection,
+  NativeCreateSession,
   sessionCreationOptions,
+  type ChatDraftAttachment,
 } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
-import { useAuth } from '@/cloud/auth/AuthProvider';
-import { useCatalog } from '@/cloud/catalog/CatalogProvider';
-import type { Project, Session } from '@/models/catalog';
-import type { CreationOptions } from '@/models/send';
-import { capabilityFor, effortsFor } from '@/cloud/send/capability';
-import { usePalette } from '@/lib/theme/palette';
-import { ComposerSheet } from '@/ui/ComposerSheet';
-import { showToast } from '@/ui/toast';
-import { readLocal, writeLocal } from '@/cloud/kv';
-import { usePendingSends } from '@/cloud/send/pendingSends';
-import { draftTitle } from '@/features/sessions/draftTitle';
-import { agentIcon } from '@/features/sessions/status';
-import {
-  type CreatePrefs,
-  CHAT_PREFS_KEY,
-  createPrefsKey,
-  openingCreateContext,
-  rememberedProject,
-  rememberedModelChoice,
-  restoreSelection,
-  withSelection,
-} from '@/features/sessions/createPrefs';
-import {
-  isChatProjectId,
-  sortCatalogProjects,
-} from '@/features/sessions/inbox';
-import { PickerScreen } from './PickerScreen';
-import {
-  hasModelTabs,
-  type ModelChoice,
-  ModelScreen,
-  modelSummary,
-} from './ModelScreen';
-import type { CreatedSession } from '../models/send.ts';
-import { t } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
+import { useAuth } from '@/cloud/auth/AuthProvider';
+import { usePendingSends } from '@/cloud/send/pendingSends';
+import { readLocal, writeLocal } from '@/cloud/kv';
+import { createPrefsKey } from '@/features/sessions/createPrefs';
+import { isChatProjectId } from '@/features/sessions/inbox';
+import { showToast } from '@/ui/toast';
+import { t } from '@/lib/i18n';
+import { useComposerMentions } from '@/hooks/screens/useComposerMentions';
+import type { MentionSource } from '@/models/mentions';
+import type { Project, Session } from '@/models/catalog';
+import type {
+  CreatedSession,
+  CreationOptions,
+  CreatePrefs,
+  PendingSend,
+} from '@/models/send';
 
-export type { CreatedSession } from '../models/send.ts';
-
+export type { CreatedSession } from '@/models/send';
 type Params = {
   onCreated?: (value: CreatedSession) => Promise<unknown>;
   sendHandoff?: boolean;
@@ -59,609 +33,215 @@ type Params = {
   context?: 'project' | 'chat';
   loadOptions?: (projectId?: string) => Promise<CreationOptions>;
 };
+type Draft = {
+  id: string;
+  sessionId: string;
+  text: string;
+  startedAt: number;
+  attachments: ChatDraftAttachment[];
+  title: string;
+  projectId: string;
+  projectName: string;
+  branch: string;
+  agent: CreationOptions['agents'][number];
+  choice: PendingSend['choice'];
+};
 
-function pickTitle(loading: boolean, idle: string) {
-  return loading ? t('common.reading') : idle;
-}
-
-function agentFooter(loading: boolean, hasAgent: boolean) {
-  if (loading) return t('create.machineConfig.loading');
-  if (hasAgent) return t('create.machineConfig.ready');
-  return t('create.machineConfig.retry');
-}
-
-function createNotice({
-  loading,
-  hasAgent,
-}: {
-  loading: boolean;
-  hasAgent: boolean;
-}) {
-  if (loading) return t('create.composer.loading');
-  if (!hasAgent) return t('create.composer.needAgent');
-  return '';
-}
-
-/** Chat-only rows are not projects and cannot host a project session. */
-const creatable = (project: Project) => !isChatProjectId(project.id);
-
-function useCreationForm(
-  context: 'project' | 'chat',
-  prefs: RefObject<CreatePrefs | null>,
-  prefsLoaded: boolean,
-  composerDraft: { restoreToken: number; restore: () => void },
-) {
-  const { params, finish, push, present } = usePageRuntime<
+function View() {
+  const { params, finish, cancel, present } = usePageRuntime<
     Params,
     CreatedSession
   >();
   const { account } = useAuth();
-  const { catalog } = useCatalog();
-  const outbox = usePendingSends(account?.user.id ?? '', params.workspaceId);
-  const [projects, setProjects] = useState(() =>
-    sortCatalogProjects(
-      params.projects.filter(creatable),
-      catalog.sessions,
-      initialInboxProjectSort,
-    ),
-  );
+  const userId = account?.user.id ?? '';
+  const outbox = usePendingSends(userId, params.workspaceId);
+  const [options, setOptions] = useState<Record<string, CreationOptions>>({});
+  const [prefs, setPrefs] = useState<CreatePrefs | null>();
   const [projectId, setProjectId] = useState(
-    params.projectId ?? projects[0]?.id ?? '',
+    params.context === 'chat'
+      ? ''
+      : (params.projectId ??
+          params.projects.find((p) => !isChatProjectId(p.id))?.id ??
+          ''),
   );
-  const [options, setOptions] = useState<CreationOptions>();
-  const optionsCache = useRef(new Map<string, CreationOptions>());
-  const [machineId, setMachineId] = useState('');
-  const [agentKey, setAgentKey] = useState('');
-  const [choice, setChoice] = useState<ModelChoice>({});
-  const [branch, setBranch] = useState('');
-  const prefsKey = createPrefsKey(account?.user.id ?? '', params.workspaceId);
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [revision, setRevision] = useState(0);
-  const busy = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [openCreated, setOpenCreated] = useState(false);
+  const [mentionSource, setMentionSource] = useState<MentionSource>();
+  const mentions = useComposerMentions(
+    mentionSource?.machineId ? mentionSource : undefined,
+    present,
+  );
+  const [restoreToken, setRestoreToken] = useState(0);
   const created = useRef<CreatedSession | null>(null);
-
-  const chat = context === 'chat';
-  const project = projects.find((p) => p.id === projectId);
-  const githubProject = projectId.startsWith('github:');
-  const github = !chat && githubProject;
-  const prefsTarget = chat ? CHAT_PREFS_KEY : projectId;
-
+  const sending = useRef(false);
+  const prefsKey = createPrefsKey(userId, params.workspaceId);
   useEffect(() => {
-    if (!prefsLoaded) return;
-    const remembered = rememberedProject(prefs.current, params.projects);
-    if (!params.projectId && remembered) setProjectId(remembered);
-  }, [prefsLoaded, params.projectId, params.projects]);
-
-  useEffect(() => {
-    if (!prefsLoaded) return;
-    if (!chat && !projectId) {
-      setLoading(false);
-      return;
-    }
     let active = true;
-    const cached = optionsCache.current.get(prefsTarget);
-    setLoading(!cached);
-    setOptions(cached);
-    const load = () =>
-      params.loadOptions
-        ? params.loadOptions(chat ? undefined : projectId)
-        : sessionCreationOptions(
-            JSON.stringify({
-              workspaceId: params.workspaceId,
-              ...(chat ? {} : { projectId }),
-            }),
-          ).then((raw): CreationOptions => JSON.parse(raw));
-    const request = cached ? Promise.resolve(cached) : load();
-    void request
+    void readLocal<CreatePrefs>(prefsKey)
       .then((value) => {
-        if (!active) return;
-        optionsCache.current.set(prefsTarget, value);
-        setOptions(value);
-        const restored = restoreSelection(prefs.current, prefsTarget, value);
-        setMachineId(restored.machineId);
-        setAgentKey(restored.agentKey);
-        setChoice(restored.choice);
+        if (active) setPrefs(value);
       })
-      .catch((error: unknown) => {
-        if (!active) return;
-        showToast(
-          __DEV__
-            ? t('create.error.machineConfigDetail', { error: String(error) })
-            : t('create.error.machineConfig'),
-        );
-      })
-      .finally(() => {
-        if (active) setLoading(false);
+      .catch(() => {
+        if (active) setPrefs(null);
       });
     return () => {
       active = false;
     };
-  }, [params.workspaceId, projectId, chat, prefsTarget, revision, prefsLoaded]);
+  }, [prefsKey]);
+  useEffect(() => {
+    let active = true;
+    const load =
+      params.loadOptions ??
+      ((id?: string) =>
+        sessionCreationOptions(
+          JSON.stringify({ workspaceId: params.workspaceId, projectId: id }),
+        ).then((raw): CreationOptions => JSON.parse(raw)));
+    void load(projectId || undefined)
+      .then((value) => {
+        if (active)
+          setOptions((old) => ({ ...old, [projectId || 'chat']: value }));
+      })
+      .catch(() => {
+        if (active) showToast(t('create.error.machineConfig'));
+      });
+    return () => {
+      active = false;
+    };
+  }, [projectId, params.workspaceId, params.loadOptions]);
 
-  // Local projects expose only their owning machine; GitHub projects and chats
-  // can choose among the machines returned by the runtime.
-  const machines = [
-    ...new Map(
-      (options?.agents ?? []).map((a) => [
-        a.machineId,
-        { id: a.machineId, name: a.machineName },
-      ]),
-    ).values(),
-  ];
-  const machine = machines.find((m) => m.id === machineId) ?? machines[0];
-  const agents = (options?.agents ?? []).filter(
-    (a) => a.machineId === machine?.id,
-  );
-  const agent = agents.find((a) => `${a.machineId}:${a.id}` === agentKey);
-  const capability = capabilityFor(options, agent);
-  const mentions = useComposerMentions(
-    account && machine
-      ? {
-          workspaceId: params.workspaceId,
-          projectId: chat ? undefined : project?.id,
-          machineId: machine.id,
-          agentConfigId: agent?.id,
-          cliType: agent?.cliType,
-          agentType: agent?.agentType,
-        }
-      : undefined,
-    present,
-  );
-
-  function updateChoice(next: ModelChoice, selectedAgent = agent) {
-    setChoice(next);
-    if (!selectedAgent) return;
-    prefs.current = withSelection(
-      prefs.current,
-      prefsTarget,
-      {
-        machineId: selectedAgent.machineId,
-        agentKey: `${selectedAgent.machineId}:${selectedAgent.id}`,
-        ...next,
-      },
-      context,
-    );
-    void writeLocal(prefsKey, prefs.current);
-  }
-
-  function choiceForModel(modelId?: string) {
-    return rememberedModelChoice(prefs.current, agentKey, capability, modelId);
-  }
-
-  function submit(
-    id: string,
-    draft: string,
-    startedAt: number,
-    attachments: ChatDraftAttachment[],
-  ) {
-    const ready =
-      !!agent &&
-      !!options &&
-      !!account &&
-      (!!draft.trim() || attachments.length > 0);
-    if (busy.current || !ready) {
-      composerDraft.restore();
-      return;
-    }
-    if (github && !branch.trim()) {
-      composerDraft.restore();
-      showToast(t('create.toast.branchRequired'));
-      return;
-    }
-    updateChoice(choice);
-    busy.current = true;
-    setSending(true);
+  async function submit(draft: Draft) {
+    if (sending.current || created.current || !account) return;
+    sending.current = true;
+    setBusy(true);
     const session: Session = {
-      id: options!.sessionId,
-      projectId: chat ? `${agent!.machineId}:unassigned` : projectId,
-      machineId: agent!.machineId,
-      cliType: agent!.cliType,
-      agentType: agent!.agentType,
-      title: draftTitle(draft),
+      id: draft.sessionId,
+      machineId: draft.agent.machineId,
+      projectId: draft.projectId || `${draft.agent.machineId}:unassigned`,
+      title: draft.title,
+      cliType: draft.agent.cliType,
+      agentType: draft.agent.agentType,
       status: 'idle',
       archived: false,
       pinned: false,
       createdAt: new Date().toISOString(),
     };
-    const send = {
-      id,
-      text: draft,
-      startedAt,
-      attachments,
-      phase: 'waiting' as const,
-      choice: {
-        ...choice,
-        reasoningEffortConfigId: capability?.reasoningEffortConfigId,
-      },
-      creation: JSON.stringify({
-        workspaceId: params.workspaceId,
-        sessionId: session.id,
-        machineId: session.machineId,
-        agentConfigId: agent!.id,
-        userId: account!.user.id,
-        title: session.title,
-        ...(chat ? {} : { projectId }),
-        ...(github ? { branch: branch.trim() } : {}),
-      }),
-    };
-    // Publish locally before closing the sheet. Persistence gates dispatch, never navigation.
-    void outbox.put({ session, send }).catch(() => {
-      void outbox
-        .put({
-          session,
-          send: {
-            ...send,
-            phase: 'failed',
-            reason: t('send.error.draftSaveShort'),
-          },
-        })
-        .catch(() => {});
-    });
     const result: CreatedSession = {
-      composerRelayId: id,
       session,
-      projectName: chat
-        ? t('inbox.section.chat')
-        : (project?.name ?? options?.project?.name ?? ''),
-      machineName: agent!.machineName,
-      ...choice,
+      composerRelayId: draft.id,
+      projectName: draft.projectName,
+      machineName: draft.agent.machineName,
+      modelId: draft.choice.modelId ?? undefined,
+      effort: draft.choice.effort ?? undefined,
+      modeId: draft.choice.modeId,
     };
-    created.current = result;
-    if (params.onCreated && (params.sendHandoff ?? true)) {
-      void params.onCreated(result).catch(() => {
-        composerDraft.restore();
-        busy.current = false;
-        setSending(false);
-        showToast(t('session.toast.openFailed'));
-      });
-    } else finish(result);
-  }
-
-  const machineRow = {
-    id: 'machine',
-    title: machine?.name ?? pickTitle(loading, t('create.row.selectMachine')),
-    subtitle: t('create.label.machine'),
-    image: 'desktopcomputer',
-    action: true,
-    disclosure: true,
-    navigates: true,
-  };
-  const modelRow = {
-    id: 'model',
-    title: capability ? modelSummary(capability, choice) : t('model.default'),
-    subtitle: t('create.label.model'),
-    image: 'cpu',
-    action: !!capability,
-    disclosure: !!capability,
-    navigates: !!capability,
-  };
-
-  function agentSection(subtitle?: string): NativeListSection {
-    return {
-      id: 'agent',
-      footer: agentFooter(loading, !!agent),
-      rows: [
-        {
-          id: 'agent',
-          title: agent?.name ?? pickTitle(loading, t('create.row.selectAgent')),
-          subtitle,
-          image: 'sparkles',
-          imageAsset: agentIcon(agent?.agentType),
-          action: true,
-          disclosure: true,
-          navigates: true,
-        },
-        modelRow,
-      ],
+    const record = {
+      session,
+      send: {
+        id: draft.id,
+        text: draft.text,
+        startedAt: draft.startedAt,
+        attachments: draft.attachments,
+        phase: 'waiting' as const,
+        choice: draft.choice,
+        creation: JSON.stringify({
+          workspaceId: params.workspaceId,
+          sessionId: session.id,
+          machineId: session.machineId,
+          agentConfigId: draft.agent.id,
+          userId,
+          title: session.title,
+          projectId: draft.projectId || undefined,
+          branch: draft.branch || undefined,
+        }),
+      },
     };
-  }
-
-  const projectSections: NativeListSection[] = [
-    {
-      id: 'project',
-      rows: [
-        {
-          id: 'project',
-          title: project?.name ?? t('create.row.selectProject'),
-          subtitle: github
-            ? 'GitHub'
-            : [
-                catalog.machineNames?.[project?.machineId ?? ''] ??
-                  machine?.name ??
-                  project?.machineId,
-                project?.rootPath,
-              ]
-                .filter(Boolean)
-                .join(' · '),
-          image: github ? undefined : 'folder',
-          imageAsset: github ? 'lody-mark-github' : undefined,
-          action: true,
-          disclosure: true,
-          navigates: true,
-        },
-        ...(github
-          ? [
-              {
-                id: 'branch',
-                title: t('create.branch.label'),
-                value: branch || t('create.branch.placeholder'),
-                accessibilityValue: branch || t('create.branch.placeholder'),
-                image: 'arrow.triangle.branch',
-                action: true,
-                disclosure: true,
-              },
-            ]
-          : []),
-      ],
-    },
-    ...(github ? [{ id: 'machine', rows: [machineRow] }] : []),
-    agentSection(t('create.label.agent')),
-  ];
-  const chatSections: NativeListSection[] = [
-    { id: 'machine', rows: [machineRow] },
-    agentSection(t('create.label.agent')),
-  ];
-  const sections = chat ? chatSections : projectSections;
-
-  async function pickProject() {
-    const result = await push(ProjectPickerScreen, {
-      workspaceId: params.workspaceId,
-      projects: sortCatalogProjects(
-        projects,
-        catalog.sessions,
-        initialInboxProjectSort,
-      ),
-      selectedId: projectId,
-    });
-    if (result.status !== 'completed') return;
-    const picked = result.value;
-    setProjects((current) => [
-      ...current.filter((p) => p.id !== picked.id),
-      picked,
-    ]);
-    setProjectId(picked.id);
-    if (picked.id !== projectId) {
-      setBranch('');
-      setOptions(undefined);
-      setAgentKey('');
-      setMachineId('');
-      setLoading(true);
-      setChoice({});
+    try {
+      await outbox.put(record);
+      created.current = result;
+      if (params.onCreated && (params.sendHandoff ?? true))
+        await params.onCreated(result);
+      else finish(result);
+    } catch {
+      if (!created.current) {
+        // Publish the failed fence synchronously: a dispatcher persistence write
+        // queued behind this failed save must not send the restored draft.
+        void outbox
+          .put({
+            ...record,
+            send: {
+              ...record.send,
+              phase: 'failed',
+              reason: t('send.error.draftSaveShort'),
+            },
+          })
+          .catch(() => {});
+      }
+      setRestoreToken((value) => value + 1);
+      setOpenCreated(!!created.current);
+      sending.current = false;
+      setBusy(false);
+      showToast(t('session.toast.openFailed'));
     }
   }
-
-  async function pickMachine() {
-    if (!options) {
-      setRevision((n) => n + 1);
-      return;
+  async function openSaved() {
+    if (!created.current || sending.current) return;
+    sending.current = true;
+    setBusy(true);
+    const result = { ...created.current, composerRelayId: undefined };
+    try {
+      await params.onCreated?.(result);
+      finish(result);
+    } catch {
+      sending.current = false;
+      setBusy(false);
+      showToast(t('session.toast.openFailed'));
     }
-    const result = await push(
-      PickerScreen,
-      {
-        title: t('create.row.selectMachine'),
-        header: t('create.label.machine'),
-        selectedId: machine?.id,
-        placeholder: t('create.picker.machine.placeholder'),
-        options: machines.map((m) => ({ id: m.id, title: m.name })),
-      },
-      { title: t('create.row.selectMachine') },
-    );
-    if (result.status !== 'completed') return;
-    setMachineId(result.value);
-    const first = options.agents.find((a) => a.machineId === result.value);
-    setAgentKey(first ? `${first.machineId}:${first.id}` : '');
-    updateChoice(
-      rememberedModelChoice(
-        prefs.current,
-        first ? `${first.machineId}:${first.id}` : '',
-        capabilityFor(options, first),
-      ),
-      first,
-    );
   }
-
-  async function pickModel() {
-    if (!capability) return;
-    await push(
-      ModelScreen,
-      { capability, value: choice, onChange: updateChoice, choiceForModel },
-      // A single tab needs no segmented control, so the title names it instead.
-      {
-        title: hasModelTabs(capability)
-          ? (agent?.name ?? t('model.title'))
-          : t('create.row.selectModel'),
-      },
-    );
-  }
-
-  async function pickAgent() {
-    if (!options) {
-      setRevision((n) => n + 1);
-      return;
-    }
-    const result = await push(
-      PickerScreen,
-      {
-        title: t('create.row.selectAgent'),
-        header: t('create.label.agent'),
-        selectedId: agentKey,
-        placeholder: t('create.picker.agent.placeholder'),
-        options: agents.map((a) => ({
-          id: `${a.machineId}:${a.id}`,
-          title: a.name,
-          subtitle: a.machineName,
-        })),
-      },
-      { title: t('create.row.selectAgent') },
-    );
-    if (result.status !== 'completed') return;
-    setAgentKey(result.value);
-    const selected = options.agents.find(
-      (a) => `${a.machineId}:${a.id}` === result.value,
-    );
-    updateChoice(
-      rememberedModelChoice(
-        prefs.current,
-        result.value,
-        capabilityFor(options, selected),
-      ),
-      selected,
-    );
-  }
-
-  function onRowPress({ nativeEvent }: { nativeEvent: { id: string } }) {
-    if (sending) return;
-    if (nativeEvent.id === 'project') void pickProject();
-    if (nativeEvent.id === 'machine') void pickMachine();
-    if (nativeEvent.id === 'model') void pickModel();
-    if (nativeEvent.id === 'agent') void pickAgent();
-    if (nativeEvent.id === 'branch')
-      Alert.prompt(
-        t('create.branch.label'),
-        t('create.branch.placeholder'),
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          {
-            text: t('common.ok'),
-            onPress: (value?: string) =>
-              setBranch((value ?? '').trim().slice(0, 255)),
-          },
-        ],
-        'plain-text',
-        branch,
-      );
-  }
-
-  const composer = (
-    <NativeComposer
+  if (prefs === undefined) return null;
+  return (
+    <NativeCreateSession
+      style={{ flex: 1 }}
+      busy={busy}
+      openCreated={openCreated}
+      onCancel={cancel}
+      onOpenCreated={() => {
+        void openSaved();
+      }}
+      {...mentions}
       composerRelay={!!params.onCreated && (params.sendHandoff ?? true)}
+      restoreDraftToken={restoreToken}
+      snapshotJSON={JSON.stringify({
+        userId,
+        workspaceId: params.workspaceId,
+        projects: params.projects.filter((p) => !isChatProjectId(p.id)),
+        options,
+        prefs,
+        context: params.context ?? 'project',
+        projectId: params.projectId,
+      })}
+      onSelection={({ nativeEvent }) => {
+        setProjectId(nativeEvent.projectId);
+        const source: MentionSource = JSON.parse(nativeEvent.source);
+        setMentionSource((previous) =>
+          JSON.stringify(previous) === JSON.stringify(source)
+            ? previous
+            : source,
+        );
+      }}
+      onPreferences={({ nativeEvent }) => {
+        const value: CreatePrefs = JSON.parse(nativeEvent.json);
+        setPrefs(value);
+        void writeLocal(prefsKey, value).catch(() =>
+          showToast(t('create.error.machineConfig')),
+        );
+      }}
+      onSubmit={({ nativeEvent }) => {
+        void submit(JSON.parse(nativeEvent.json));
+      }}
       onRelayReady={() => {
         if (created.current) finish(created.current);
       }}
-      sendHandoff={params.sendHandoff ?? true}
-      mentionItemsJSON={mentions.mentionItemsJSON}
-      mentionResultJSON={mentions.mentionResultJSON}
-      onMentionBrowse={mentions.onMentionBrowse}
-      scrollEdge
-      composerJSON={JSON.stringify({
-        editable: true,
-        canSend: !!agent && !!account && !loading,
-        sending,
-        notice: createNotice({ loading, hasAgent: !!agent }),
-        reconnect: false,
-        placeholder: t('create.composer.placeholder'),
-      })}
-      composerOptionsJSON={JSON.stringify({
-        fast: fastModeFor(capability, choice)?.enabled,
-        modelId: choice.modelId ?? '',
-        effort: choice.effort ?? '',
-        models: (capability?.models ?? []).map((item) => ({
-          id: item.id,
-          title: item.name,
-        })),
-        efforts: effortsFor(capability, choice.modelId).map((id) => ({
-          id,
-          title: id,
-        })),
-      })}
-      restoreDraftToken={composerDraft.restoreToken}
-      onSend={({ nativeEvent }) =>
-        submit(
-          nativeEvent.id,
-          nativeEvent.text,
-          nativeEvent.startedAt,
-          nativeEvent.attachments,
-        )
-      }
-      onComposerOptionChange={({ nativeEvent }) => {
-        if (typeof nativeEvent.fast === 'boolean') {
-          updateChoice(withFastMode(capability, choice, nativeEvent.fast));
-          return;
-        }
-        const modelId = nativeEvent.modelId || undefined;
-        if (modelId !== choice.modelId) updateChoice(choiceForModel(modelId));
-        else
-          updateChoice({
-            ...choice,
-            effort: nativeEvent.effort || undefined,
-          });
-      }}
     />
-  );
-
-  return { sections, composer, onRowPress, sending };
-}
-
-function View() {
-  const { params } = usePageRuntime<Params, CreatedSession>();
-  const { account } = useAuth();
-  const colors = usePalette();
-  const locked = !!params.projectId && params.context !== 'chat';
-  const [context, setContext] = useState<'project' | 'chat'>(
-    openingCreateContext(params.context),
-  );
-  const prefs = useRef<CreatePrefs | null>(null);
-  const [prefsLoaded, setPrefsLoaded] = useState(false);
-  const prefsKey = createPrefsKey(account?.user.id ?? '', params.workspaceId);
-  useEffect(() => {
-    let active = true;
-    void readLocal<CreatePrefs>(prefsKey).then((saved) => {
-      if (!active) return;
-      prefs.current = saved;
-      setPrefsLoaded(true);
-    });
-    return () => {
-      active = false;
-    };
-  }, [prefsKey]);
-
-  const [restoreToken, setRestoreToken] = useState(0);
-  const composerDraft = {
-    restoreToken,
-    restore: () => setRestoreToken((value) => value + 1),
-  };
-  // Each page owns its requests and selection; the native composer stays shared.
-  const project = useCreationForm('project', prefs, prefsLoaded, composerDraft);
-  const chat = useCreationForm(
-    'chat',
-    prefs,
-    prefsLoaded && !locked,
-    composerDraft,
-  );
-  const selected = context === 'chat' ? chat : project;
-  return (
-    <ComposerSheet
-      accent={colors.accent}
-      sections={selected.sections}
-      pages={
-        locked
-          ? undefined
-          : [
-              {
-                id: 'project',
-                title: t('create.type.project'),
-                sections: project.sections,
-              },
-              {
-                id: 'chat',
-                title: t('create.type.chat'),
-                sections: chat.sections,
-              },
-            ]
-      }
-      selectedPage={context === 'chat' ? 1 : 0}
-      onPageChange={({ nativeEvent }) => {
-        if (project.sending || chat.sending) return;
-        const next = nativeEvent.index === 1 ? 'chat' : 'project';
-        setContext(next);
-        prefs.current = { ...prefs.current, context: next };
-        void writeLocal(prefsKey, prefs.current);
-      }}
-      onRowPress={selected.onRowPress}
-    >
-      {selected.composer}
-    </ComposerSheet>
   );
 }
 
@@ -675,6 +255,7 @@ export const CreateSessionScreen = definePage<Params, CreatedSession>({
   presentation: {
     style: 'formSheet',
     headerVariant: 'transparent',
+    headerShown: false,
     sheetAllowedDetents: [0.62, 1],
     sheetGrabberVisible: true,
   },
