@@ -497,6 +497,90 @@ precondition(
 )
 print("Chat render: meta bar provider marks sit on the model line")
 
+func pixelBuffer(_ image: UIImage) -> (pixels: [UInt8], width: Int, height: Int)? {
+  guard let cgImage = image.cgImage else { return nil }
+  let width = cgImage.width
+  let height = cgImage.height
+  var pixels = [UInt8](repeating: 0, count: width * height * 4)
+  guard let ctx = CGContext(
+    data: &pixels,
+    width: width,
+    height: height,
+    bitsPerComponent: 8,
+    bytesPerRow: width * 4,
+    space: CGColorSpaceCreateDeviceRGB(),
+    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+  ) else { return nil }
+  ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+  return (pixels, width, height)
+}
+
+struct ActionInk {
+  var minX = Int.max
+  var maxX = -1
+  var minY = Int.max
+  var maxY = -1
+  var red = 0
+  var green = 0
+  var blue = 0
+}
+
+func actionInk(_ image: UIImage) -> ActionInk {
+  guard let buffer = pixelBuffer(image) else { return ActionInk() }
+  var ink = ActionInk()
+  var darkest = 765
+  for row in 0..<buffer.height {
+    for column in 0..<buffer.width {
+      let i = (row * buffer.width + column) * 4
+      let red = Int(buffer.pixels[i])
+      let green = Int(buffer.pixels[i + 1])
+      let blue = Int(buffer.pixels[i + 2])
+      let sum = red + green + blue
+      if sum >= 720 { continue }
+      ink.minX = min(ink.minX, column)
+      ink.maxX = max(ink.maxX, column)
+      ink.minY = min(ink.minY, row)
+      ink.maxY = max(ink.maxY, row)
+      if sum < darkest {
+        darkest = sum
+        ink.red = red
+        ink.green = green
+        ink.blue = blue
+      }
+    }
+  }
+  return ink
+}
+
+metaCell.frame.size.height = ChatMetaCell.height(for: metaRow, width: 320, traits: .current)
+metaCell.configure(metaRow)
+metaCell.layoutIfNeeded()
+let actions = metaCell.actionButton
+precondition(actions.bounds.width >= 44 && actions.bounds.height >= 44, "Message actions keep a 44 pt target")
+let actionShot = UIGraphicsImageRenderer(size: actions.bounds.size).image { context in
+  UIColor.white.setFill()
+  context.fill(CGRect(origin: .zero, size: actions.bounds.size))
+  actions.layer.render(in: context.cgContext)
+}
+let ink = actionInk(actionShot)
+precondition(ink.maxX >= 0, "Message actions draw an ellipsis")
+let actionScale = max(1, actionShot.scale)
+let glyphWidth = CGFloat(ink.maxX - ink.minX + 1) / actionScale
+let trailingPad = actions.bounds.width - CGFloat(ink.maxX + 1) / actionScale
+precondition(
+  glyphWidth <= metaFont.pointSize + 4,
+  "The action glyph is no larger than the model type"
+)
+precondition(
+  trailingPad <= 1,
+  "The action glyph sits on the trailing edge so button padding does not inset it from the type"
+)
+precondition(
+  ink.blue <= ink.red + 24 && ink.blue <= ink.green + 24,
+  "Message actions use the same color as the model line"
+)
+print("Chat render: meta bar actions match the model line and sit on the trailing edge")
+
 func processAttributed(_ string: String, row: ChatRow, traits: UITraitCollection) -> NSAttributedString {
   let font = ChatCell.messageFont(for: row, compatibleWith: traits)
   let lineHeight = 18 * UIFont.dynamicScale(compatibleWith: traits)

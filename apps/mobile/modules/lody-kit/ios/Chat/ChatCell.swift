@@ -27,8 +27,6 @@ final class ChatMetaCell: UICollectionViewCell {
     modelLabel.clipsToBounds = false
     modelLabel.adjustsFontForContentSizeCategory = true
     contentView.addSubview(modelLabel)
-    actionButton.setImage(UIImage(systemName: "ellipsis"), for: .normal)
-    actionButton.tintColor = .systemBlue
     actionButton.showsMenuAsPrimaryAction = true
     actionButton.accessibilityLabel = LodyStrings.text("native.chat.message.actions")
     contentView.addSubview(actionButton)
@@ -57,6 +55,21 @@ final class ChatMetaCell: UICollectionViewCell {
     modelLabel.isHidden = row.text.isEmpty
     modelLabel.accessibilityIdentifier = row.id + ":model"
     modelLabel.accessibilityLabel = row.text
+    let symbolSize = max(1, font.pointSize - 2)
+    let symbol = UIImage.SymbolConfiguration(pointSize: symbolSize, weight: .regular, scale: .small)
+    let glyph = UIImage(systemName: "ellipsis", withConfiguration: symbol)
+    var configuration = UIButton.Configuration.plain()
+    configuration.image = glyph
+    configuration.preferredSymbolConfigurationForImage = symbol
+    configuration.baseForegroundColor = color
+    configuration.contentInsets = NSDirectionalEdgeInsets(
+      top: 0,
+      leading: max(0, 44 - ceil(glyph?.size.width ?? symbolSize)),
+      bottom: 0,
+      trailing: 0
+    )
+    actionButton.configuration = configuration
+    actionButton.tintColor = color
   }
 
   override func layoutSubviews() {
