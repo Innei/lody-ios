@@ -1,8 +1,9 @@
+import { usePalette } from '@/lib/theme/palette';
 import { Stack } from 'expo-router';
 import { agentIcon, agentName } from '@/features/sessions/status';
 import { relativeTime } from '@/ui/time';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, PlatformColor } from 'react-native';
+import { Alert } from 'react-native';
 import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import {
@@ -41,6 +42,7 @@ export function ProjectHistoryView({
   service,
 }: Params) {
   const { push } = usePageRuntime();
+  const colors = usePalette();
   const [browserId] = useState(() => `history-${Date.now()}-${Math.random()}`);
   const alive = useRef(false),
     locked = useRef(false);
@@ -109,12 +111,12 @@ export function ProjectHistoryView({
         type: 'button' as const,
         icon: { type: 'sfSymbol' as const, name: 'arrow.clockwise' },
         accessibilityLabel: t('settings.history.sync'),
-        tintColor: PlatformColor('AccentColor'),
+        tintColor: colors.accent,
         disabled: busy,
         onPress: () => void load(),
       },
     ],
-    [busy, load],
+    [busy, load, colors.accent],
   );
   useSheetHeader(headerItems);
   useEffect(() => {
@@ -343,7 +345,7 @@ export function ProjectHistoryView({
       {target ? (
         <Stack.Toolbar placement="bottom">
           <Stack.Toolbar.Button
-            tintColor={PlatformColor('AccentColor')}
+            tintColor={colors.accent}
             disabled={busy || available.length === 0}
             onPress={() => {
               if (locked.current) return;
@@ -363,7 +365,7 @@ export function ProjectHistoryView({
           <Stack.Toolbar.Spacer />
           <Stack.Toolbar.Button
             variant="prominent"
-            tintColor={PlatformColor('AccentColor')}
+            tintColor={colors.accent}
             disabled={busy || selected.size === 0}
             onPress={() => void importSelected()}
           >

@@ -14,7 +14,12 @@ import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
 import { t } from '../lib/i18n/index.ts';
 
 function View() {
-  const { catalog: sourceCatalog, selected, loading } = useCatalog();
+  const {
+    catalog: sourceCatalog,
+    selected,
+    loading,
+    deleteSessionRequest,
+  } = useCatalog();
   const { account } = useAuth();
   const catalog = useSessionListCatalog(
     sourceCatalog,
@@ -44,7 +49,14 @@ function View() {
           openCatalogRow(nativeEvent.id, catalog)
         }
         onRowAction={({ nativeEvent: { id, actionId } }) => {
-          if (selected) listRowAction(selected, catalog, id, actionId);
+          if (selected)
+            listRowAction(
+              selected,
+              catalog,
+              id,
+              actionId,
+              deleteSessionRequest,
+            );
         }}
       />
     </>

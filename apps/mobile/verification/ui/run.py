@@ -34,14 +34,16 @@ SUITES = {
 CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 # These lease an iPad. `--case` still accepts them; the default phone run must not.
-PAD_CASES = ['session-tree-pad', 'ipad', 'ipad-chrome', 'native-shell', 'native-collection', 'session-search-pad']
-CASES = PHONE_CASES + PAD_CASES + ['session-search', 'morph', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics']
+PAD_CASES = ['session-delete-pad', 'session-tree-pad', 'ipad', 'ipad-chrome', 'native-shell', 'native-collection', 'session-search-pad']
+CASES = PHONE_CASES + PAD_CASES + ['session-share', 'session-delete', 'session-search', 'morph', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics']
 # These select HomePreviewProviders at app launch, using the same shared bundle.
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome'}
+HOME_CASES.update({'session-delete', 'session-delete-pad'})
 PREVIEW = {
     'session-tree': 'session-tree-preview',
     'session-tree-pad': 'session-tree-preview',
     'message-share': 'message-share-preview',
+    'session-share': 'session-share-preview',
     'quick-replies': 'quick-replies-preview',
     'reply-haptics': 'reply-haptics-preview',
     'scroll-edge': 'chat-preview',
@@ -102,6 +104,7 @@ READY = {
     'session-tree': 'tree-root',
     'session-tree-pad': 'tree-root',
     'message-share': 'paper-reply:meta:actions',
+    'session-share': 'open-session-share',
     'quick-replies': 'quick-reset',
     'reply-haptics': 'reply-haptics-start',
     'scroll-edge': 'session-input',
@@ -285,7 +288,7 @@ with metro_context:
                     if case == 'chat-performance':
                         container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
                         (container / 'tmp/lody-chat-loading.json').unlink(missing_ok=True)
-                    restart = args.embedded or launch_mode != mode or case in HOME_CASES or case == 'quick-replies'
+                    restart = args.embedded or launch_mode != mode or case in HOME_CASES or case in ('quick-replies', 'appearance')
                     if restart:
                         result['appLifecycle'] = 'launch'
                         sim('terminate', args.udid, 'app.innei.lody', check=False)
@@ -382,6 +385,10 @@ with metro_context:
                         script = Path(__file__).with_name('send-handoff.py')
                     if case in {'session-search', 'session-search-pad'}:
                         script = Path(__file__).with_name('session-search.py')
+                    if case == 'session-share':
+                        script = Path(__file__).with_name('session-share.py')
+                    if case in {'session-delete', 'session-delete-pad'}:
+                        script = Path(__file__).with_name('session-delete.py')
                     if case in ['fast-chat', 'fast-sheet']:
                         script = Path(__file__).with_name('fast.py')
                     if case == 'composer-glass-chat':
@@ -421,7 +428,7 @@ with metro_context:
                         # Four agents, per-model options, and both native selection hosts.
                         # Keep the full behavior matrix; cold AXe calls exceed five minutes.
                         check_timeout = 600
-                    elif case in ('session-search', 'session-search-pad', 'chat-stream-performance', 'home', 'mention-chat', 'mention-sheet', 'mentions-production'):
+                    elif case in ('session-search', 'session-search-pad', 'chat-stream-performance', 'home', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance'):
                         check_timeout = 300
                     with (output / 'check.log').open('w') as log:
                         env = {**os.environ, 'LODY_UI_LANGUAGE': args.language}

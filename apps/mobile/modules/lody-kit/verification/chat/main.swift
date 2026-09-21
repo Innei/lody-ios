@@ -341,16 +341,16 @@ print("Process summary enumerates activity and keeps partial failures off the ti
 var stream = ChatStream()
 stream.receive([], animate: true)
 let live = try JSONDecoder().decode([ChatEntry].self, from: Data(json.utf8))
-stream.receive(live, animate: true)
+stream.receive(live, animate: true, at: 0)
 assert(stream.hasPending)
 assert(stream.presentation[0].items[2].text == "")
-stream.advance()
-assert(stream.presentation[0].items[2].text == "最")
+stream.advance(at: 0.048)
+assert(!stream.presentation[0].items[2].text!.isEmpty && "最终答案".hasPrefix(stream.presentation[0].items[2].text!) && stream.hasPending)
 let complete = try JSONDecoder().decode([ChatEntry].self, from: Data(finished.utf8))
-stream.receive(complete, animate: true)
+stream.receive(complete, animate: true, at: 0.05)
 assert(!stream.presentation[0].finished, "Do not finish before the visible text drains")
 assert(!ChatTranscript(entries: stream.presentation).rows().contains { $0.kind == "meta" })
-for _ in 0..<30 { stream.advance() }
+for tick in 2...30 { stream.advance(at: Double(tick) * 0.048) }
 assert(!stream.hasPending && stream.presentation[0].finished)
 assert(stream.presentation[0].items[2].text == "最终答案")
 var historyStream = ChatStream()
@@ -362,8 +362,8 @@ assert(stream.presentation[0].items[2].text == "更正后的答案", "Replacemen
 var unicodeStream = ChatStream()
 unicodeStream.receive([], animate: true)
 let unicode = json.replacingOccurrences(of: "最终答案", with: "👩🏽‍💻你好é")
-unicodeStream.receive(try JSONDecoder().decode([ChatEntry].self, from: Data(unicode.utf8)), animate: true)
-unicodeStream.advance()
+unicodeStream.receive(try JSONDecoder().decode([ChatEntry].self, from: Data(unicode.utf8)), animate: true, at: 0)
+unicodeStream.advance(at: 0.024)
 assert(unicodeStream.presentation[0].items[2].text == "👩🏽‍💻")
 unicodeStream.finish()
 assert(!unicodeStream.hasPending && unicodeStream.presentation[0].items[2].text == "👩🏽‍💻你好é")
@@ -371,8 +371,8 @@ print("Chat stream: paced bursts, completion drain, history, replacement and Uni
 var burstStream = ChatStream()
 burstStream.receive([], animate: true)
 let burst = json.replacingOccurrences(of: "最终答案", with: String(repeating: "文", count: 3000))
-burstStream.receive(try JSONDecoder().decode([ChatEntry].self, from: Data(burst.utf8)), animate: true)
-for _ in 0..<30 { burstStream.advance() }
+burstStream.receive(try JSONDecoder().decode([ChatEntry].self, from: Data(burst.utf8)), animate: true, at: 0)
+for tick in 1...30 { burstStream.advance(at: Double(tick) * 0.048) }
 assert(!burstStream.hasPending, "Large bursts must increase batch size instead of taking minutes")
 
 var fastStream = ChatStream()
@@ -381,17 +381,39 @@ for chunk in 1...240 {
   var input = live
   let source = String(repeating: "word", count: chunk * 15)
   input[0].items[2].text = source
-  fastStream.receive(input, animate: true)
-  fastStream.advance()
-  precondition(fastStream.presentation[0].items[2].text == source,
-    "300 synthetic TPS must not accumulate an artificial character queue")
+  let time = Double(chunk) * 0.05
+  fastStream.receive(input, animate: true, at: time)
+  fastStream.advance(at: time + 0.048)
+  let lag = source.count - fastStream.presentation[0].items[2].text!.count
+  precondition(lag <= 180, "300 synthetic TPS must keep bounded latency, not an ever-growing queue")
 }
 var longTail = live
 longTail[0].items[2].text = String(repeating: "word", count: 3600) + "👩🏽‍💻"
-fastStream.receive(longTail, animate: true)
-fastStream.advance()
+fastStream.receive(longTail, animate: true, at: 12.05)
+fastStream.advance(at: 12.55)
 precondition(!fastStream.hasPending && fastStream.presentation[0].items[2].text == longTail[0].items[2].text,
-  "A long block must commit even a small final suffix without another character queue")
+  "A long block must drain its last suffix promptly")
+
+// Long and short replies use the same cadence; completion waits for the renderer.
+for prefix in ["", String(repeating: "existing ", count: 1500)] {
+  var paced = ChatStream()
+  var input = live
+  input[0].items[2].text = prefix
+  paced.receive(input, animate: true, at: 0)
+  input[0].items[2].text = prefix + String(repeating: "新", count: 48)
+  paced.receive(input, animate: true, at: 0.1)
+  paced.advance(at: 0.148)
+  let shown = paced.presentation[0].items[2].text!.count - prefix.count
+  assert(shown > 0 && shown < 48, "A 48-character burst must spread across commits at every message length")
+  input[0].finished = true
+  paced.receive(input, animate: true, at: 0.2)
+  paced.advance(at: 0.56)
+  assert(!paced.presentation[0].finished, "Final text must reach the renderer before completion")
+  paced.advance(at: 0.6, animatingEntries: [input[0].id])
+  assert(paced.hasPending && !paced.presentation[0].finished, "Do not fold while the final glyphs fade")
+  paced.advance(at: 0.9)
+  assert(!paced.hasPending && paced.presentation[0].finished)
+}
 precondition(ChatScroll.advance(100, toward: 101, elapsed: 1.0 / 60, response: 0.1, minimumStep: 1.0 / 3) == 101,
   "The bottom follower must finish when UIKit would round its next step away")
 print("Streaming pressure: sustained 300 TPS, long tail drain, and pixel-aligned scroll completion passed")
@@ -414,6 +436,27 @@ print("Character fade: graphemes, opacity, stable text, Markdown edits and reduc
 fade.update("aa", animate: false, at: 6, reset: true)
 fade.update("aaa", animate: true, at: 7)
 assert(fade.active.count == 1 && fade.active[0].range.location == 2)
+
+let longPrefix = String(repeating: "stable ", count: 2000)
+fade.update(longPrefix + "\n", animate: false, at: 8)
+fade.update(longPrefix + "👩🏽‍💻new\n", animate: true, at: 8.096)
+assert(fade.active.count == 4 && fade.active.first?.range.location == longPrefix.utf16.count)
+let originalBirth = fade.active[0].start
+fade.update(longPrefix + "👩🏽‍💻new!\n", animate: true, at: 8.15)
+assert(fade.active[0].start == originalBirth, "Appending must preserve in-flight fades")
+fade.update("hello **world", animate: false, at: 9)
+fade.update("hello **world!", animate: true, at: 9.1)
+let punctuationBirth = fade.active[0].start
+fade.update("hello world!", animate: true, at: 9.15)
+assert(fade.active.count == 1 && fade.active[0].range.location == 11 && fade.active[0].start == punctuationBirth,
+  "Markdown closure moves the active suffix without replaying old words")
+fade.update("", animate: false, at: 10)
+fade.update(String(repeating: "👩🏽‍💻", count: 3000), animate: true, at: 10.096)
+assert(fade.active.count <= 128 && NSMaxRange(fade.active.last!.range) == 3000 * "👩🏽‍💻".utf16.count)
+assert(!fade.isAnimating(at: 10.4), "A large append must not leave seconds of invisible text")
+fade.update("done", animate: false, at: 10.5)
+assert(fade.active.isEmpty)
+print("Long-text fades: bounded active ranges, Unicode, syntax closure, preserved births and visual completion passed")
 
 assert(ChatScroll.bottom(contentHeight: 600, viewportHeight: 200, topInset: 100, bottomInset: 40) == 440)
 assert(ChatScroll.bottom(contentHeight: 616, viewportHeight: 200, topInset: 100, bottomInset: 40) == 456,

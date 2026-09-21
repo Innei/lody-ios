@@ -61,6 +61,7 @@ export function useInboxModel() {
     setWorkspaceId,
     loading,
     connected,
+    deleteSessionRequest,
   } = useCatalog();
   const catalog = useSessionListCatalog(
     sourceCatalog,
@@ -212,7 +213,8 @@ export function useInboxModel() {
       return isChatSectionRow(id);
     },
     rowAction: (id: string, actionId: string) => {
-      if (selected) listRowAction(selected, catalog, id, actionId);
+      if (selected)
+        listRowAction(selected, catalog, id, actionId, deleteSessionRequest);
     },
     selected,
     setExpanded,

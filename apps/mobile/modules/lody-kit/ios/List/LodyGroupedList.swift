@@ -229,6 +229,11 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       } else if let placeholder = UIImage(systemName: "person.crop.circle.fill") {
         LodyListPhoto.apply(&content, image: placeholder, placeholder: true)
       }
+    } else if row.imageOriginal && !row.imageAsset.isEmpty {
+      content.image = UIImage(named: row.imageAsset)?.withRenderingMode(.alwaysOriginal)
+      content.imageProperties.maximumSize = CGSize(width: 29, height: 29)
+      content.imageProperties.reservedLayoutSize = LodyListGlyph.reservedSize
+      content.imageProperties.cornerRadius = 6
     } else if !row.imageAsset.isEmpty || !row.image.isEmpty {
       if !row.imageAsset.isEmpty {
         LodyListGlyph.apply(

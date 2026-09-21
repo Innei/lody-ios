@@ -1,7 +1,16 @@
 export {
+  sessionSharingRaw,
   remoteSettingsRaw,
   runtimeInfo,
   publishShareSnapshot,
+  initialAccentColor,
+  showAccentColorPicker,
+  addAccentColorListener,
+  saveAccentColor,
+  accentHex,
+  accentForegroundHex,
+  getAppIcon,
+  setAppIcon,
   initialDarkBackground,
   saveDarkBackground,
   initialQueuedMessageBehavior,
@@ -74,6 +83,7 @@ export {
   githubRepositories,
   createSession,
   archiveSession,
+  deleteSession,
   pinSession,
   markSessionRead,
   renameSession,
@@ -207,3 +217,5 @@ export {
   type MessageShareBlock,
 } from './chat/NativeMessageShare';
 export { NativeCreateSession } from './create/NativeCreateSession';
+
+export { NativeAppIconGrid } from './appearance/NativeAppIconGrid';

@@ -1,5 +1,5 @@
+import { usePalette } from '@/lib/theme/palette';
 import { Stack } from 'expo-router';
-import { PlatformColor } from 'react-native';
 import { NativeGroupedList } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
@@ -20,6 +20,7 @@ type Params = {
   source: PullRequestSource;
 };
 function View() {
+  const colors = usePalette();
   const {
     params: { check: originalCheck, sha, source, actions },
   } = usePageRuntime<Params>();
@@ -82,7 +83,7 @@ function View() {
       <Stack.Toolbar placement="bottom">
         <Stack.Toolbar.Button
           onPress={() => actions.openGitHub(check.htmlUrl ?? undefined)}
-          tintColor={PlatformColor('AccentColor')}
+          tintColor={colors.accent}
         >
           {t('pr.github')}
         </Stack.Toolbar.Button>
@@ -90,7 +91,7 @@ function View() {
         <Stack.Toolbar.Button
           disabled={!data}
           onPress={() => actions.investigate(check, sha)}
-          tintColor={PlatformColor('AccentColor')}
+          tintColor={colors.accent}
         >
           {t('pr.investigate')}
         </Stack.Toolbar.Button>

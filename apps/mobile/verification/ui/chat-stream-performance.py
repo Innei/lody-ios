@@ -45,18 +45,32 @@ for scenario in ['paragraphs', 'text', 'code']:
             assert check['lateReferenceResolved'], check
         if check['name'] == 'selection':
             assert check['completedMessageSelectsAcrossBlocks'], check
+        if check['name'] == 'syntax':
+            assert check['partialBoldRendered'] and check['completionRestoresSource'] and check['partialLinkIsText'], check
     samples = data['samples']
     assert data['received'] >= 14_400, ('Truncated input fixture', data['received'])
     assert 10 < data['inputSeconds'] < 20, ('Input was not a sustained stream', data['inputSeconds'])
     assert data['shown'] == data['received'], 'Stream did not deliver all text'
+    assert samples[-1]['fading'] == 0 and samples[-1]['finished'] == 1, 'Final text never visually settled'
+    assert not any(s['finished'] == 1 and s['fading'] == 1 for s in samples), 'Completion interrupted the final fade'
+    if scenario != 'code':
+        assert any(s['shown'] > 4096 and s['fading'] == 1 for s in samples), 'Long replies lost their animated tail'
     caught_up = next((s['t'] - data['inputSeconds'] for s in samples
-                     if s['t'] >= data['inputSeconds'] and s['lag'] == 0 and
+                     if s['t'] >= data['inputSeconds'] and s['lag'] == 0 and s['fading'] == 0 and s['finished'] == 1 and
                      abs(s['bottom'] - s['offset']) <= 1), None)
     assert caught_up is not None, 'Stream never caught up'
     assert max(s['offset'] for s in samples) - min(s['offset'] for s in samples) > 1000, 'Fixture did not exercise scrolling'
     assert samples[-1]['bottom'] - samples[-1]['offset'] <= 1, 'Following never reached the tail'
     ui.element('stream-perf-answer:text')
     ui.capture(f'{scenario}-complete')
+    if scenario == 'text':
+        # Fade invalidation is restricted to the tail. Earlier lines must still
+        # have their pixels when scrolling back within the same long text view.
+        ui.axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '650',
+               '--duration', '.6', '--post-delay', '.6')
+        ui.element('chat-scroll-to-bottom')
+        ui.capture('text-earlier-lines')
+        ui.axe('tap', '--id', 'chat-scroll-to-bottom', '--post-delay', '.8')
     active = [s for s in samples if s['t'] <= data['inputSeconds']]
     intervals = [s['dt'] * 1000 for s in active]
     commits = data['commitsMs']
@@ -76,3 +90,9 @@ for scenario in ['paragraphs', 'text', 'code']:
     summary.append(result)
     (ui.output / 'stream-summary.json').write_text(json.dumps(summary, indent=2))
     print(json.dumps(result), flush=True)
+
+# Hold each incoming prefix so its actual native rendered state is reviewable.
+for step, name in enumerate(['bold', 'code', 'partial-link', 'complete-link', 'partial-stop', 'stopped']):
+    ui.axe('tap', '--label', 'Next syntax', '--post-delay', '1')
+    ui.element('stream-perf-answer:text')
+    ui.capture(f'syntax-{name}')

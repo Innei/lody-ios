@@ -15,6 +15,7 @@ struct LodyRuntimeInfo {
 public final class LodyKitModule: Module, @unchecked Sendable {
   private let localStore = LocalStore.shared
   private var authBrowser: SFSafariViewController?
+  @MainActor private lazy var accentPicker = AccentColorPicker()
   @MainActor private lazy var workspaceIconPicker = WorkspaceIconPicker()
 
   @MainActor private lazy var dataRuntime = DataRuntime(localStore: localStore,
@@ -34,6 +35,20 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   var initialInboxProjectSort: Int {
     let value = UserDefaults.standard.integer(forKey: "inboxProjectSort")
     return (0...2).contains(value) ? value : 0
+  }
+
+  @JS
+  var initialAccentColor: String { LodyAccentChoice.current.rawValue }
+
+  @JS
+  func saveAccentColor(value: String) { LodyAccentChoice.save(value) }
+
+  @JS
+  func accentHex(value: String, dark: Bool) -> String { LodyAccentChoice.hex(value, dark: dark) }
+
+  @JS
+  func accentForegroundHex(value: String) -> String {
+    LodyAccentChoice.hex((LodyAccentChoice(rawValue: value) ?? .blue).foregroundColor)
   }
 
   @JS
@@ -83,6 +98,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   public override func willDestroy() {
     Task { @MainActor in
       self.dataRuntime.stop()
+      self.accentPicker.dismiss()
       PushNotifications.shared.onClickAvailable = nil
     }
   }
@@ -173,7 +189,10 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   public func definition() -> ModuleDefinition {
-    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress")
+    AsyncFunction("sessionSharing") { (payload: String, promise: Promise) in
+      MainActor.assumeIsolated { self.dataRuntime.command("sessionSharing", payload: payload, promise: promise) }
+    }.runOnQueue(.main)
+    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onAccentColorChange")
     AsyncFunction("watchCatalog") { (workspace: String, slug: String, name: String, owner: String, userId: String) in
       try MainActor.assumeIsolated {
         guard !workspace.isEmpty, !owner.isEmpty, !userId.isEmpty else {
@@ -268,6 +287,39 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         self.authBrowser = nil
       }
     }.runOnQueue(.main)
+    AsyncFunction("showAccentColorPicker") { (title: String, promise: Promise) in
+      MainActor.assumeIsolated {
+        guard let controller = self.appContext?.utilities?.currentViewController() else {
+          promise.reject("ERR_COLOR_PICKER", "No presenting controller")
+          return
+        }
+        self.accentPicker.onChange = { [weak self] value in
+          self?.sendEvent("onAccentColorChange", ["value": value])
+        }
+        self.accentPicker.present(from: controller, title: title)
+        promise.resolve(nil)
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("getAppIcon") { UIApplication.shared.alternateIconName ?? "default" }.runOnQueue(.main)
+    AsyncFunction("setAppIcon") { (name: String, promise: Promise) in
+      guard name == "default" || name == "Aqua" else {
+        promise.reject("ERR_APP_ICON", "Unknown app icon")
+        return
+      }
+      let app = UIApplication.shared
+      let alternate = name == "default" ? nil : name
+      guard app.alternateIconName != alternate else { promise.resolve(name); return }
+      guard app.supportsAlternateIcons else {
+        promise.reject("ERR_APP_ICON", "Alternate icons are unavailable")
+        return
+      }
+      app.setAlternateIconName(alternate) { error in
+        DispatchQueue.main.async {
+          if let error { promise.reject("ERR_APP_ICON", error.localizedDescription) }
+          else { promise.resolve(app.alternateIconName ?? "default") }
+        }
+      }
+    }.runOnQueue(.main)
     AsyncFunction("selectionFeedback") {
       UISelectionFeedbackGenerator().selectionChanged()
     }.runOnQueue(.main)
@@ -340,6 +392,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("remoteSettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("remoteSettings", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("createSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("archiveSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("archiveSession", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("deleteSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("deleteSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("pinSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("pinSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("markSessionRead") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("markSessionRead", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("renameSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("renameSession", payload: payload, promise: promise) } }.runOnQueue(.main)
@@ -622,6 +675,14 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("path") { (view: LodyInlineDiffView, value: String) in view.setPath(value) }
       Prop("oldText") { (view: LodyInlineDiffView, value: String?) in view.setOldText(value) }
       Prop("newText") { (view: LodyInlineDiffView, value: String?) in view.setNewText(value) }
+    }
+
+    View(LodyAppIconGrid.self) {
+      Events("onSelect")
+      Prop("items") { (view: LodyAppIconGrid, value: [LodyAppIconItem]) in view.setItems(value) }
+      Prop("selected") { (view: LodyAppIconGrid, value: String) in view.setSelected(value) }
+      Prop("pending") { (view: LodyAppIconGrid, value: String) in view.setPending(value) }
+      Prop("enabled") { (view: LodyAppIconGrid, value: Bool) in view.setEnabled(value) }
     }
 
     View(LodyPagedList.self) {

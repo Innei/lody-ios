@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
-  PlatformColor,
   StyleSheet,
   Text,
   TextInput,
@@ -94,14 +93,14 @@ function ViewScreen() {
       {
         type: 'button' as const,
         variant: 'prominent' as const,
-        tintColor: PlatformColor('AccentColor'),
+        tintColor: colors.accent,
         icon: { type: 'sfSymbol' as const, name: 'checkmark' },
         accessibilityLabel: t('workspace.edit.save'),
         disabled: busy || !trimmed || trimmed === params.name,
         onPress: () => void save(),
       },
     ],
-    [busy, trimmed, params.name],
+    [busy, trimmed, params.name, colors.accent],
   );
   const left = useMemo(
     () => [

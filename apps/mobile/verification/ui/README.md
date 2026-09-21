@@ -1,5 +1,28 @@
 # Offline UI verification
 
+`session-share` exercises the production conversation-sharing sheet with an
+independently resettable Debug source: default scope, sub-conversation selection,
+capture/upload/publish progress, failed upload with no link, retry, stable-link
+updates, system sharing, reset confirmation/cancellation and revocation. Both
+English appearances capture screenshots and video; no live share is published.
+Protocol tests separately run the production exporter and publication state
+machine against an in-memory control plane and upload transport.
+
+`session-delete` and `session-delete-pad` use the production archived list,
+conversation header and home list/sidebar with the Home preview catalog. They
+verify confirmation cancellation, a rejected delete with the row retained,
+successful retry, and navigation back (or clearing iPad detail) after deletion.
+The first archived deletion fails at the injected service boundary. Each launch
+resets that fixture; both English appearances capture screenshots and video.
+No cloud records or machine worktrees are deleted by these checks.
+
+`appearance` exercises preset accents, UIKit's custom color picker, persisted
+custom color after a cold launch, the three-column native app-icon grid, actual
+system icon switching and a Debug-only rejected-change fixture. ColorPickerUIService
+is not traversable by AXe; the case uses visually confirmed iPhone 17 Pro palette
+coordinates and verifies the resulting UserDefaults value plus restored UI.
+Both appearances record screenshots and video, without account or cloud access.
+
 `--case scroll-edge` scrolls deterministic chat content beneath the native
 composer and raises the software keyboard in both appearances. It checks keyboard
 clearance and captures the automatic bottom edge for visual review. Run a fresh native
@@ -398,7 +421,22 @@ block in both appearances. `stream-summary.json` reports callback FPS, p95 frame
 and commit time, text backlog, bottom gap, and catch-up time; `*-samples.json`
 retains raw samples. Screenshots and `run.mp4` capture streaming and completion.
 Assertions require complete output and final bottom alignment, plus native block
-layout parity, unchanged-prefix reuse, and late reference-link resolution.
+layout parity, unchanged-prefix reuse, and late reference-link resolution. The
+probe records `fading` independently of committed text length: long prose must
+still animate after 4096 units, and completion must wait for its final fade.
+Catch-up time includes that visual drain and the final bottom alignment.
+
+The same case then holds six syntax prefixes using the Debug toolbar: unfinished
+bold, inline code, an incomplete link, a complete link, an unfinished final word,
+and the stopped response. Review `syntax-*.png` and the recording. Native probes
+also check the actual bold font, plain-text incomplete link, and original-source
+restoration after completion. The source remains unchanged in the transcript.
+
+`pnpm --filter @lody-ios/mobile native:assets` bundles pinned Remend for isolated
+JavaScriptCore use (no WebView or remote script). `pnpm verify:native --case
+markdown-repair` exercises this exact asset, including literal code/escapes,
+Unicode, concurrent calls and fail-open behavior. Math repair is disabled to
+preserve the native parser's existing math/currency rules.
 
 These are Simulator Debug main-run-loop measurements, not GPU-presented FPS or
 physical-device model-token throughput. Compare identical input and appearances;

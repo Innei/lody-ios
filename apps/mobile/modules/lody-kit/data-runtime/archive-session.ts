@@ -1,4 +1,9 @@
-import type { Flock, Value } from '@loro-dev/flock-wasm/base64';
+import { Flock, type Value } from '@loro-dev/flock-wasm/base64';
+import { projectRows } from '../../../src/cloud/catalog/model.ts';
+import {
+  sessionDeletionTargets,
+  sessionDeletionBlocked,
+} from '../../../src/models/sessionDeletion.ts';
 import type { StreamsClient } from '@loro-dev/streams-client';
 import { encodeFrame } from '../decoder/frames';
 import { clientFor } from './session';
@@ -96,6 +101,41 @@ async function appendJson(client: StreamsClient, update: unknown) {
     },
   });
   if (!result.ok) throw new Error(result.result.code);
+}
+
+export async function deleteSession(
+  args: { sessionId: string; sessionIds: string[] },
+  meta: { flock: Flock; client: StreamsClient },
+) {
+  if (
+    typeof args.sessionId !== 'string' ||
+    !args.sessionId ||
+    !Array.isArray(args.sessionIds) ||
+    !args.sessionIds.every((id) => typeof id === 'string')
+  )
+    throw new Error('invalid_session');
+  const sessions = projectRows(meta.flock.scan(), 'meta').sessions;
+  if (!sessions.some((session) => session.id === args.sessionId))
+    throw new Error('session_not_found');
+  const targets = sessionDeletionTargets(sessions, args.sessionId);
+  if (sessionDeletionBlocked(targets)) throw new Error('session_busy');
+  if (
+    targets.length !== args.sessionIds.length ||
+    targets.some((session) => !args.sessionIds.includes(session.id))
+  )
+    throw new Error('session_delete_targets_changed');
+
+  // Stage separately: a failed append must not hide sessions in the live replica.
+  const staged = new Flock(`lody-ios-delete-${crypto.randomUUID()}`);
+  staged.importFile(meta.flock.exportFile());
+  const version = staged.version();
+  for (const session of targets)
+    staged.set(['e', `session-${session.id}`], false);
+  staged.commit();
+  const update = staged.exportJson(version);
+  await appendJson(meta.client, update);
+  meta.flock.importJson(update);
+  return targets.map((session) => session.id);
 }
 
 export async function renameSession(

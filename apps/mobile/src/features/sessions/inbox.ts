@@ -231,6 +231,12 @@ const sessionMenu = (session: Session) => ({
     pinAction(session.pinned),
     archiveAction(session.archived),
     shareAction(),
+    {
+      id: 'delete',
+      title: t('session.action.delete'),
+      symbol: 'trash',
+      destructive: true,
+    },
   ],
   preview: 'session' as const,
 });

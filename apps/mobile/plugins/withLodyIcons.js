@@ -24,6 +24,7 @@ module.exports = (config) =>
         continue;
       }
       settings.ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = 'AccentColor';
+      settings.ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = 'Aqua';
     }
     for (const filepath of CATALOGS) {
       if (!project.hasFile(filepath)) {
@@ -40,6 +41,21 @@ module.exports = (config) =>
         entry.lastKnownFileType = 'folder.assetcatalog';
         entry.sourceTree = 'SOURCE_ROOT';
       }
+    }
+    const iconPath = '../assets/icons/Aqua.icon';
+    if (!project.hasFile(iconPath)) {
+      IOSConfig.XcodeUtils.addResourceFileToGroup({
+        filepath: iconPath,
+        groupName: config.modRequest.projectName,
+        project,
+        isBuildFile: true,
+        verbose: false,
+      });
+    }
+    for (const entry of Object.values(project.pbxFileReferenceSection())) {
+      if (entry.path !== iconPath && entry.path !== `"${iconPath}"`) continue;
+      entry.lastKnownFileType = 'folder.iconcomposer.icon';
+      entry.sourceTree = 'SOURCE_ROOT';
     }
     return config;
   });

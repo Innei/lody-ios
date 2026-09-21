@@ -36,12 +36,28 @@ final class ChatFadeLayout: TextLabel.Layout {
   override func draw(line: CTLine, at index: Int, in context: CGContext) {
     let time = CACurrentMediaTime()
     let lineRange = CTLineGetStringRange(line)
-    let active = fades().filter {
-      $0.opacity(at: time) < 1 && NSIntersectionRange($0.range, NSRange(location: lineRange.location, length: lineRange.length)).length > 0
+    let ranges = fades()
+    var lower = 0
+    var upper = ranges.count
+    while lower < upper {
+      let middle = (lower + upper) / 2
+      if NSMaxRange(ranges[middle].range) <= lineRange.location { lower = middle + 1 }
+      else { upper = middle }
     }
+    var end = lower
+    while end < ranges.count && ranges[end].range.location < lineRange.location + lineRange.length { end += 1 }
+    let active = ranges[lower..<end].filter { $0.opacity(at: time) < 1 }
     guard !active.isEmpty else { CTLineDraw(line, context); return }
     func opacity(at character: CFIndex) -> CGFloat {
-      active.reduce(1) { NSLocationInRange(character, $1.range) ? min($0, CGFloat($1.opacity(at: time))) : $0 }
+      var low = 0
+      var high = active.count
+      while low < high {
+        let middle = (low + high) / 2
+        if NSMaxRange(active[middle].range) <= character { low = middle + 1 }
+        else { high = middle }
+      }
+      guard low < active.count, NSLocationInRange(character, active[low].range) else { return 1 }
+      return CGFloat(active[low].opacity(at: time))
     }
     for run in CTLineGetGlyphRuns(line) as! [CTRun] {
       let count = CTRunGetGlyphCount(run)
@@ -78,8 +94,15 @@ final class ChatFadeLabelView: TextLabelView {
   private var resetNext = false
   private var wasAnimating = false
   private var shineEnabled = false
+  private weak var fadeLayout: ChatFadeLayout?
+  private var fadeRect: CGRect?
+  private var fadeRectSize: CGSize = .zero
+  var isFading: Bool {
+    window != nil && !UIAccessibility.isReduceMotionEnabled && fade.isAnimating(at: CACurrentMediaTime())
+  }
 
   func setShine(_ on: Bool) {
+    guard shineEnabled != on else { pokeTimer(); return }
     shineEnabled = on
     setNeedsDisplay()
     pokeTimer()
@@ -92,12 +115,15 @@ final class ChatFadeLabelView: TextLabelView {
 
   override var attributedText: NSAttributedString {
     didSet {
+      fadeRect = nil
       let animate = animateNext && window != nil && !UIAccessibility.isReduceMotionEnabled
       guard animate else { finishAnimation(); return }
-      if !wasAnimating && !resetNext {
+      if resetNext {
+        fade.update("", animate: false, at: CACurrentMediaTime(), reset: true)
+      } else if !wasAnimating {
         fade.update(oldValue.string, animate: false, at: CACurrentMediaTime(), reset: true)
       }
-      fade.update(attributedText.string, animate: animate, at: CACurrentMediaTime(), reset: resetNext)
+      fade.update(attributedText.string, animate: animate, at: CACurrentMediaTime())
       resetNext = false
       wasAnimating = true
       pokeTimer()
@@ -116,12 +142,34 @@ final class ChatFadeLabelView: TextLabelView {
 
   override func makeTextLayout(_ attributedText: NSAttributedString) -> TextLabel.Layout {
     let layout = ChatFadeLayout(attributedString: attributedText)
+    fadeLayout = layout
     layout.fades = { [weak self] in self?.fade.active ?? [] }
     layout.shines = { [weak self] in
       self?.shineEnabled == true && !UIAccessibility.isReduceMotionEnabled
     }
     layout.displayScale = { [weak self] in max(1, self?.traitCollection.displayScale ?? 1) }
     return layout
+  }
+
+  private func redrawFade() {
+    guard !shineEnabled, let layout = fadeLayout, layout.containerSize == bounds.size,
+          let first = fade.active.first, let last = fade.active.last else {
+      setNeedsDisplay()
+      return
+    }
+    if fadeRect == nil || fadeRectSize != bounds.size {
+      fadeRectSize = bounds.size
+      let range = NSUnionRange(first.range, last.range)
+      let rect = layout.rects(for: range).reduce(CGRect.null) { $0.union($1) }
+      if !rect.isNull {
+        // Rects are in CoreText coordinates. Include whole line width and a
+        // little ink overhang; UIKit retains all pixels outside this dirty area.
+        fadeRect = CGRect(x: 0, y: bounds.height - rect.maxY - 4,
+          width: bounds.width, height: rect.height + 8).intersection(bounds)
+      }
+    }
+    if let fadeRect { setNeedsDisplay(fadeRect) }
+    else { setNeedsDisplay() }
   }
 
   override func didMoveToWindow() {
@@ -139,7 +187,7 @@ final class ChatFadeLabelView: TextLabelView {
       guard self != nil else { timer.invalidate(); return }
       MainActor.assumeIsolated {
         guard let self else { return }
-        self.setNeedsDisplay()
+        self.redrawFade()
         if self.window == nil || UIAccessibility.isReduceMotionEnabled
           || !(self.shineEnabled || self.fade.isAnimating(at: CACurrentMediaTime())) {
           self.timer?.invalidate()

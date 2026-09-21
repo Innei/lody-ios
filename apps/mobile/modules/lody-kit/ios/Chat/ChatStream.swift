@@ -1,20 +1,19 @@
 import Foundation
 
-/// Presentation-only pacing. Small tails keep a short character reveal; long
-/// replies and bursts are committed together and animated by the block view.
+/// Presentation-only pacing, driven by elapsed time and input pressure.
 /// Network history remains authoritative, including corrections and completion.
 struct ChatStream {
-  static let blockAnimationLength = 1024
-  static let blockAnimationBatch = 48
   private struct Reveal {
     var source = ""
     var shown = ""
     var pending: [Character] = []
     var offset = 0
-    var batch = 1
+    var lastInput: Double?
+    var lastAdvance = 0.0
+    var arrivalRate = 38.0
     var hasPending: Bool { offset < pending.count }
 
-    mutating func receive(_ text: String, animate: Bool) {
+    mutating func receive(_ text: String, animate: Bool, at time: Double) {
       guard text != source else {
         if !animate { finish() }
         return
@@ -22,19 +21,31 @@ struct ChatStream {
       guard animate, text.hasPrefix(source) else {
         source = text
         finish()
+        lastInput = nil
+        arrivalRate = 38
         return
       }
-      pending = Array(pending.dropFirst(offset)) + Array(text.dropFirst(source.count))
+      let appended = Array(text.dropFirst(source.count))
+      if let lastInput {
+        let rate = Double(appended.count) / max(0.016, time - lastInput)
+        arrivalRate += (rate - arrivalRate) * 0.35
+      }
+      if !hasPending { lastAdvance = time }
+      lastInput = time
+      pending = Array(pending.dropFirst(offset)) + appended
       offset = 0
       source = text
-      if text.utf16.count > ChatStream.blockAnimationLength || pending.count >= ChatStream.blockAnimationBatch {
-        batch = pending.count
-      } else {
-        batch = max(1, Int(ceil(Double(pending.count) / 8)))
-      }
     }
-    mutating func advance() {
+    mutating func advance(at time: Double) {
       guard hasPending else { return }
+      let elapsed = min(0.12, max(0, time - lastAdvance))
+      guard elapsed > 0 else { return }
+      lastAdvance = time
+      let backlog = pending.count - offset
+      // Drain bursts within a short time budget, independent of message length.
+      let speed = max(38, arrivalRate * 1.1, Double(backlog) / 0.18)
+      var batch = max(1, Int(speed * elapsed))
+      if time - (lastInput ?? time) >= 0.45 || backlog > 2048 { batch = backlog }
       let end = min(pending.count, offset + batch)
       shown += String(pending[offset..<end])
       offset = end
@@ -51,13 +62,14 @@ struct ChatStream {
   private var reveals: [ID: Reveal] = [:]
   private var targets: [ChatEntry] = []
   private var initialized = false
-  var hasPending: Bool { reveals.values.contains { $0.hasPending } }
+  private var settling: Set<String> = []
+  var hasPending: Bool { !settling.isEmpty || reveals.values.contains { $0.hasPending } }
 
   static func commitInterval(tailLength: Int) -> Double {
     min(0.096, 0.048 * (1 + Double(tailLength) / 256))
   }
 
-  mutating func receive(_ entries: [ChatEntry], animate: Bool) {
+  mutating func receive(_ entries: [ChatEntry], animate: Bool, at time: Double = ProcessInfo.processInfo.systemUptime) {
     let wasRunning = Set(targets.filter(\.isRunning).map(\.id))
     var retained: Set<ID> = []
     for entry in entries where entry.role != "user" {
@@ -66,20 +78,30 @@ struct ChatStream {
         retained.insert(id)
         var reveal = reveals[id] ?? Reveal()
         let shouldAnimate = initialized && animate && entry.role == "assistant" && (entry.isRunning || wasRunning.contains(entry.id) || reveal.hasPending)
-        reveal.receive(item.text ?? "", animate: shouldAnimate)
+        reveal.receive(item.text ?? "", animate: shouldAnimate, at: time)
         reveals[id] = reveal
       }
     }
     reveals = reveals.filter { retained.contains($0.key) }
     targets = entries
+    settling.formIntersection(entries.map(\.id))
+    if !animate { settling.removeAll() }
     initialized = true
   }
 
-  mutating func advance() {
-    for id in reveals.keys { reveals[id]?.advance() }
+  mutating func advance(at time: Double = ProcessInfo.processInfo.systemUptime, animatingEntries: Set<String> = []) {
+    let completed = Set(targets.filter { !$0.isRunning }.map(\.id))
+    settling = animatingEntries.intersection(completed)
+    for id in reveals.keys {
+      let before = reveals[id]?.shown
+      reveals[id]?.advance(at: time)
+      // Let the final commit reach the renderer before asking whether it faded.
+      if completed.contains(id.entry), before != reveals[id]?.shown { settling.insert(id.entry) }
+    }
   }
 
   mutating func finish() {
+    settling.removeAll()
     for id in reveals.keys { reveals[id]?.finish() }
   }
 
@@ -90,7 +112,7 @@ struct ChatStream {
         guard let reveal = reveals[ID(entry: entry.id, item: entry.items[index].itemId)] else { continue }
         entry.items[index].text = reveal.shown
         // Completion folding waits for the visible tail, never the network ACK.
-        if reveal.hasPending { entry.finished = false }
+        if reveal.hasPending || settling.contains(entry.id) { entry.finished = false }
       }
       return entry
     }

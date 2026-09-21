@@ -100,6 +100,7 @@ function PadWorkspace() {
         <ScreenStack style={[StyleSheet.absoluteFill, columns?.secondary]}>
           {detail && runtime ? (
             <ScreenStackItem
+              key="session-detail"
               screenId={`ipad-session-${detail.session.id}`}
               style={StyleSheet.absoluteFill}
               contentStyle={{ backgroundColor: colors.reading }}
@@ -126,6 +127,7 @@ function PadWorkspace() {
             </ScreenStackItem>
           ) : (
             <ScreenStackItem
+              key="detail-placeholder"
               screenId="ipad-detail-placeholder-screen"
               style={StyleSheet.absoluteFill}
               contentStyle={{ backgroundColor: colors.reading }}

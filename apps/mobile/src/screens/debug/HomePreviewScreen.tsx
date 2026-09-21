@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useAppNavigationState } from '@/lib/presentation/useAppNavigationState';
 import type { PropsWithChildren } from 'react';
@@ -176,11 +176,14 @@ const olderSearchCache = JSON.stringify({
 });
 
 export function HomePreviewProviders({ children }: PropsWithChildren) {
+  const [previewCatalog, setPreviewCatalog] = useState(catalog);
+  const archivedDeleteFailed = useRef(false);
   const [cacheReady, setCacheReady] = useState(false);
   const [previewWorkspaces, setPreviewWorkspaces] = useState(workspaces);
   const [selected, setSelected] =
     useState<(typeof workspaces)[number]>(workspace);
-  const selectedCatalog = selected.id === workspace.id ? catalog : emptyCatalog;
+  const selectedCatalog =
+    selected.id === workspace.id ? previewCatalog : emptyCatalog;
   useEffect(() => {
     void Promise.all([
       writeLocalValue(
@@ -253,6 +256,28 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
           setWorkspaceId: (id) =>
             setSelected(workspaces.find((item) => item.id === id) ?? workspace),
           refresh: noop,
+          deleteSessionRequest: async (payload) => {
+            const args = JSON.parse(payload) as {
+              sessionId: string;
+              sessionIds: string[];
+            };
+            await new Promise((resolve) => setTimeout(resolve, 900));
+            // Deterministic service failure on the archived fixture; retry succeeds.
+            if (
+              args.sessionId === 'ui-search' &&
+              !archivedDeleteFailed.current
+            ) {
+              archivedDeleteFailed.current = true;
+              throw new Error('offline_fixture');
+            }
+            setPreviewCatalog((current) => ({
+              ...current,
+              sessions: current.sessions.filter(
+                (session) => !args.sessionIds.includes(session.id),
+              ),
+            }));
+            return JSON.stringify({ sessionIds: args.sessionIds });
+          },
         }}
       >
         <View

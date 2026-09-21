@@ -12,6 +12,7 @@ export type InboxSearchHits = {
   sessions: { id: string; snippet: string | null }[];
 };
 export type DataRuntimeEvent = {
+  shareProgress?: import('../../../../src/models/session-sharing').ShareProgress;
   sessionId?: string;
   session?: string;
   owner: string;
@@ -41,12 +42,14 @@ export type PickedWorkspaceIcon = {
   size: number;
 };
 type Events = {
+  onAccentColorChange: (event: { value: string }) => void;
   onAttachmentUploadProgress: (event: AttachmentUploadProgress) => void;
   onPushClick: () => void;
   onAppActive: () => void;
   onDataRuntime: (event: DataRuntimeEvent) => void;
 };
 declare class LodyKitNativeModule extends NativeModule<Events> {
+  sessionSharing(payload: string): Promise<string>;
   verifyPushSubscription(): Promise<void>;
   setPushUser(userId: string | null): Promise<void>;
   pushStatus(): Promise<import('../notifications/notifications').PushStatus>;
@@ -75,6 +78,13 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   saveInboxView(index: number): void;
   readonly initialInboxProjectSort: number;
   saveInboxProjectSort(index: number): void;
+  readonly initialAccentColor: string;
+  saveAccentColor(value: string): void;
+  accentHex(value: string, dark: boolean): string;
+  accentForegroundHex(value: string): string;
+  showAccentColorPicker(title: string): Promise<void>;
+  getAppIcon(): Promise<string>;
+  setAppIcon(name: string): Promise<string>;
   readonly initialDarkBackground: string;
   saveDarkBackground(value: string): void;
   readonly initialQueuedMessageBehavior: string;
@@ -99,6 +109,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   remoteSettings(payload: string): Promise<string>;
   createSession(payload: string): Promise<string>;
   archiveSession(payload: string): Promise<string>;
+  deleteSession(payload: string): Promise<string>;
   pinSession(payload: string): Promise<string>;
   markSessionRead(payload: string): Promise<string>;
   renameSession(payload: string): Promise<string>;
@@ -156,7 +167,22 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
 export const native = requireNativeModule<LodyKitNativeModule>('LodyKit');
 export const remoteSettingsRaw = (payload: string): Promise<string> =>
   native.remoteSettings(payload);
+export const sessionSharingRaw = (payload: string): Promise<string> =>
+  native.sessionSharing(payload);
 export const runtimeInfo = native.runtimeInfo;
+export const initialAccentColor = native.initialAccentColor;
+export const saveAccentColor = (value: string) => native.saveAccentColor(value);
+export const accentForegroundHex = (value: string) =>
+  native.accentForegroundHex(value);
+export const accentHex = (value: string, dark: boolean) =>
+  native.accentHex(value, dark);
+export const showAccentColorPicker = (title: string) =>
+  native.showAccentColorPicker(title);
+export const addAccentColorListener = (
+  listener: (event: { value: string }) => void,
+) => native.addListener('onAccentColorChange', listener);
+export const getAppIcon = () => native.getAppIcon();
+export const setAppIcon = (name: string) => native.setAppIcon(name);
 export const initialDarkBackground = native.initialDarkBackground;
 export const saveDarkBackground = (value: string) =>
   native.saveDarkBackground(value);
@@ -281,6 +307,7 @@ export const githubRepositories = (workspaceId: string) =>
 export const createSession = (payload: string) => native.createSession(payload);
 export const archiveSession = (payload: string) =>
   native.archiveSession(payload);
+export const deleteSession = (payload: string) => native.deleteSession(payload);
 export const pinSession = (payload: string) => native.pinSession(payload);
 export const markSessionRead = (payload: string) =>
   native.markSessionRead(payload);

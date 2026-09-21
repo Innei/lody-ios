@@ -8,7 +8,13 @@ import { requestNewSession } from './sessionNav';
 import { listRowAction } from './sessionActions';
 
 export function useProjectModel(projectId: string) {
-  const { catalog: sourceCatalog, selected, loading, connected } = useCatalog();
+  const {
+    catalog: sourceCatalog,
+    selected,
+    loading,
+    connected,
+    deleteSessionRequest,
+  } = useCatalog();
   const { account } = useAuth();
   const catalog = useSessionListCatalog(
     sourceCatalog,
@@ -53,7 +59,8 @@ export function useProjectModel(projectId: string) {
     sections,
     selected,
     rowAction: (id: string, actionId: string) => {
-      if (selected) listRowAction(selected, catalog, id, actionId);
+      if (selected)
+        listRowAction(selected, catalog, id, actionId, deleteSessionRequest);
     },
   };
 }

@@ -120,9 +120,40 @@ let actionButton = descendants(actionComposer).compactMap { $0 as? UIButton }.fi
 }!
 let actionVisual = descendants(actionButton).first { $0.accessibilityIdentifier == "session-action-visual" }
 precondition(
-  actionVisual?.backgroundColor?.isEqual(UIColor.lodyAccent) == true,
+  actionVisual?.backgroundColor?.resolvedColor(with: actionComposer.traitCollection).isEqual(UIColor.lodyAccent.resolvedColor(with: actionComposer.traitCollection)) == true,
   "An actionable Send must render as an accent circular control"
 )
+let originalAccent = LodyAccentChoice.current.rawValue
+LodyAccentChoice.save("purple")
+RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+for host in [composer, actionComposer] {
+  let visual = descendants(host).first { $0.accessibilityIdentifier == "session-action-visual" }!
+  precondition(visual.backgroundColor?.resolvedColor(with: host.traitCollection).isEqual(UIColor.systemPurple.resolvedColor(with: host.traitCollection)) == true,
+    "Existing chat and sheet composers must recolor when the accent changes")
+}
+LodyAccentChoice.save("unknown")
+precondition(LodyAccentChoice.current == .purple, "An unknown accent must not replace the saved choice")
+for value in ["#FFFFAA", "#123abc"] {
+  LodyAccentChoice.save(value)
+  RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+  precondition(UserDefaults.standard.string(forKey: "accentColor") == value.uppercased())
+  precondition(LodyAccentChoice.hex(LodyAccentChoice.current.rawValue, dark: false) == value.uppercased())
+  precondition(LodyAccentChoice.hex(LodyAccentChoice.current.rawValue, dark: true) == value.uppercased())
+  for host in [composer, actionComposer] {
+    let visual = descendants(host).first { $0.accessibilityIdentifier == "session-action-visual" }!
+    precondition(visual.backgroundColor?.isEqual(LodyAccentChoice.current.color) == true,
+      "A custom accent must update existing chat and sheet send controls")
+    let symbol = descendants(visual).compactMap { $0 as? UIImageView }.first!
+    precondition(symbol.tintColor.isEqual(value == "#FFFFAA" ? UIColor.black : UIColor.white),
+      "Bright custom colors need a readable send glyph")
+  }
+  for invalid in ["#123", "#GGFFFF", "#12345678", "#123456\n", "unknown"] { LodyAccentChoice.save(invalid) }
+  precondition(LodyAccentChoice.current.rawValue == value.uppercased(), "Invalid values cannot overwrite a custom color")
+}
+LodyAccentChoice.save(originalAccent)
+RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+print("Composer: persisted accent changes update existing hosts and reject unknown choices")
+
 actionInput.text = ""
 actionComposer.textViewDidChange(actionInput)
 actionComposer.setComposerState(

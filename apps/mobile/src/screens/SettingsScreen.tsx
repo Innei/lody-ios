@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { AppIconScreen } from './AppIconScreen';
 import { ProjectHistoryScreen } from './ProjectHistoryScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
 import { QuickRepliesScreen } from './QuickRepliesScreen';
@@ -9,12 +11,22 @@ import { LicensesScreen } from './LicensesScreen';
 import { RemoteSettingsScreen, settingsTitle } from './RemoteSettingsScreen';
 import { Linking } from 'react-native';
 import Constants from 'expo-constants';
-import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
+import {
+  NativeGroupedList,
+  getAppIcon,
+  showAccentColorPicker,
+  addAppActiveListener,
+  type NativeListSection,
+} from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { useConnection } from '@/cloud/catalog/connection';
 import { usePalette } from '@/lib/theme/palette';
-import { useAppearance } from '@/lib/theme/appearance';
+import {
+  useAppearance,
+  accentChoices,
+  isAccentColor,
+} from '@/lib/theme/appearance';
 import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
 import { relativeTime } from '@/ui/time';
 import { showToast } from '@/ui/toast';
@@ -37,7 +49,27 @@ function View() {
   const router = useRouter();
   const { push, cancel } = usePageRuntime();
   const colors = usePalette();
-  const { darkBackground, setDarkBackground } = useAppearance();
+  const { darkBackground, setDarkBackground, accentColor, setAccentColor } =
+    useAppearance();
+  const [appIcon, setCurrentAppIcon] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    const refreshIcon = () => {
+      void getAppIcon()
+        .then((name) => {
+          if (active) setCurrentAppIcon(name);
+        })
+        .catch(() => {
+          if (active) showToast(t('settings.appearance.iconFailed'));
+        });
+    };
+    refreshIcon();
+    const subscription = addAppActiveListener(refreshIcon);
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
   const { queuedMessageBehavior, setQueuedMessageBehavior } =
     useQueuedMessageBehavior();
   const connection = useConnection();
@@ -47,6 +79,7 @@ function View() {
     ? relativeTime(new Date(connection.syncedAt).toISOString())
     : '';
 
+  const presetAccent = accentChoices.find((value) => value === accentColor);
   const sections: NativeListSection[] = [
     {
       id: 'account',
@@ -92,8 +125,8 @@ function View() {
       ],
     },
     {
-      id: 'preferences',
-      header: t('settings.section.appearanceNotifications'),
+      id: 'appearance-section',
+      header: t('settings.appearance.title'),
       rows: [
         {
           id: 'appearance',
@@ -107,6 +140,47 @@ function View() {
             selected: value === darkBackground,
           })),
         },
+        {
+          id: 'accent-color',
+          title: t('settings.appearance.accent'),
+          value: presetAccent
+            ? t(`settings.appearance.${presetAccent}`)
+            : t('settings.appearance.custom'),
+          image: 'circle.fill',
+          imageTint: colors.accent,
+          action: true,
+          options: [
+            ...accentChoices.map((value) => ({
+              id: value,
+              title: t(`settings.appearance.${value}`),
+              selected: value === accentColor,
+            })),
+            {
+              id: 'custom',
+              title: t('settings.appearance.customPicker'),
+              selected: accentColor.startsWith('#'),
+            },
+          ],
+        },
+        {
+          id: 'app-icon',
+          title: t('settings.appearance.appIcon'),
+          value:
+            appIcon === 'Aqua' ? 'Aqua' : t('settings.appearance.defaultIcon'),
+          accessibilityValue:
+            appIcon === 'Aqua' ? 'Aqua' : t('settings.appearance.defaultIcon'),
+          imageAsset: `AppIconPreview-${appIcon ?? 'default'}`,
+          imageOriginal: true,
+          action: true,
+          disclosure: true,
+          navigates: true,
+        },
+      ],
+    },
+    {
+      id: 'notifications-section',
+      header: t('settings.notifications.title'),
+      rows: [
         {
           id: 'notifications',
           title: t('settings.notifications.title'),
@@ -233,6 +307,12 @@ function View() {
       sections={sections}
       placeholder=""
       onRowAction={({ nativeEvent: { id, actionId } }) => {
+        if (id === 'accent-color' && isAccentColor(actionId))
+          setAccentColor(actionId);
+        if (id === 'accent-color' && actionId === 'custom')
+          void showAccentColorPicker(t('settings.appearance.accent')).catch(
+            () => showToast(t('settings.appearance.colorFailed')),
+          );
         if (
           id === 'appearance' &&
           (actionId === 'soft' || actionId === 'black')
@@ -253,6 +333,7 @@ function View() {
             { title: settingsTitle(kind) },
           );
         }
+        if (nativeEvent.id === 'app-icon') void push(AppIconScreen);
         if (nativeEvent.id === 'notifications')
           void push(NotificationSettingsScreen, {});
         if (nativeEvent.id === 'quick-replies') void push(QuickRepliesScreen);

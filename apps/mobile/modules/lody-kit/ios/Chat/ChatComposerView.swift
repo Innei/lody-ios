@@ -258,7 +258,7 @@ private enum ChatComposerActionMode {
 
   var color: UIColor {
     switch self {
-    case .send: .lodyAccent
+    case .send: LodyAccentChoice.current.color
     case .loading: .systemGray
     case .stop: .systemRed
     }
@@ -308,6 +308,7 @@ private final class ChatComposerActionVisual: UIView {
       progress.heightAnchor.constraint(equalToConstant: 15),
     ])
     render(.send)
+    NotificationCenter.default.addObserver(self, selector: #selector(refreshAccent), name: .lodyAppearanceDidChange, object: nil)
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -317,10 +318,16 @@ private final class ChatComposerActionVisual: UIView {
     layer.cornerRadius = bounds.width / 2
   }
 
+  @objc private func refreshAccent() {
+    backgroundColor = mode?.color
+    symbol.tintColor = mode == .send ? LodyAccentChoice.current.foregroundColor : .white
+  }
+
   func render(_ nextMode: ChatComposerActionMode) {
     guard mode != nextMode else { return }
     let shouldAnimate = mode != nil && window != nil
     mode = nextMode
+    symbol.tintColor = nextMode == .send ? LodyAccentChoice.current.foregroundColor : .white
     guard shouldAnimate else {
       backgroundColor = nextMode.color
       applyContent(nextMode)

@@ -27,7 +27,6 @@ final class ChatMarkdownView: UIView {
     var height: CGFloat = 0
     var topSpacing: CGFloat = 0
     var bottomSpacing: CGFloat = 0
-    var usesBlockAnimation = false
     var settle = false
     var fileActions: [UIAccessibilityCustomAction] = []
 
@@ -41,6 +40,11 @@ final class ChatMarkdownView: UIView {
   private var theme: MarkdownTheme?
   private var measuredWidth: CGFloat = 0
   private(set) var measuredHeight: CGFloat = 0
+  var isAnimating: Bool {
+    window != nil && !UIAccessibility.isReduceMotionEnabled && blocks.contains {
+      $0.label.isFading || $0.view.layer.animation(forKey: "stream-block") != nil
+    }
+  }
   var onLink: ((String) -> Void)?
   weak var trackedScrollView: UIScrollView? {
     didSet {
@@ -74,27 +78,21 @@ final class ChatMarkdownView: UIView {
       let block = blocks[index]
       guard block.source !== source || !sameTheme else { continue }
       let isNew = block.source == nil
-      let wasBlockAnimated = block.usesBlockAnimation
-      let previousLength = block.label.attributedText.length
-      // A complete new block gets one layer animation. An active long/bursty
-      // block also avoids per-character diff/draw work; never refade old text.
-      block.usesBlockAnimation = wasBlockAnimated || (isNew && index < sources.count - 1)
-      if case .codeBlock = source.node { block.usesBlockAnimation = true }
-      if case .table = source.node { block.usesBlockAnimation = true }
-      block.label.prepare(animate: animate && !block.usesBlockAnimation, reset: isNew)
+      // Only newly inserted complete blocks fade as a whole. Long live text
+      // keeps its animated tail; code and tables own separate native labels.
+      var blockAnimation = isNew && index < sources.count - 1
+      if case .codeBlock = source.node { blockAnimation = true }
+      if case .table = source.node { blockAnimation = true }
+      block.label.prepare(animate: animate && !blockAnimation, reset: isNew)
       // MarkdownView lays out synchronously inside setContentImmediately, adding
       // fresh code/table views at .zero. Completion folds the reply inside a
       // UIView animation block, which would grow them from the top-left corner.
       UIView.performWithoutAnimation { block.view.setContentImmediately(source.content, theme: theme) }
-      if block.label.attributedText.length > ChatStream.blockAnimationLength ||
-         block.label.attributedText.length - previousLength >= ChatStream.blockAnimationBatch {
-        block.usesBlockAnimation = true
-      }
-      if block.usesBlockAnimation {
+      if blockAnimation {
         block.label.prepare(animate: false, reset: true)
         block.label.finishAnimation()
       }
-      if animate && isNew && block.usesBlockAnimation {
+      if animate && isNew && blockAnimation {
         let fade = CABasicAnimation(keyPath: "opacity")
         fade.fromValue = 0
         fade.toValue = 1

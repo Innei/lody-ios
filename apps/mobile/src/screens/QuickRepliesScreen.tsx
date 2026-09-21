@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, PlatformColor } from 'react-native';
+import { Alert } from 'react-native';
 import { NativeGroupedList } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
@@ -28,7 +28,7 @@ function View() {
         type: 'button' as const,
         icon: { type: 'sfSymbol' as const, name: 'plus' },
         accessibilityLabel: t('settings.quickReplies.add'),
-        tintColor: PlatformColor('AccentColor'),
+        tintColor: colors.accent,
         disabled: editing,
         onPress: () =>
           void present(
@@ -38,7 +38,7 @@ function View() {
           ),
       },
     ],
-    [editing, quickReplies.length, present],
+    [editing, quickReplies.length, present, colors.accent],
   );
   useSheetHeader(actions);
   return (

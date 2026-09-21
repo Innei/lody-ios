@@ -1,4 +1,7 @@
 import { mentionCatalog, sessionMentions, commandMentions } from './mentions';
+import { createSharingRuntime } from './sharing/runtime.ts';
+import { readShareHistory } from './sharing/history.ts';
+import type { ShareRequest } from '../../../src/models/session-sharing.ts';
 import { expandMentions } from './mention-expansion';
 import { workspaceRoleMentions } from './agent-roles';
 import type {
@@ -20,10 +23,12 @@ import {
 } from './create-session';
 import {
   archiveSession,
+  deleteSession,
   pinSession,
   markSessionRead,
   renameSession,
 } from './archive-session';
+import { releaseDeletedSessions } from './session';
 import { remoteSettings } from './settings';
 import type { SettingsRequest } from '../../../src/models/settings.ts';
 import {
@@ -156,6 +161,35 @@ async function markDispatch(sessionId: string, turnId: string, queued = false) {
 
 const watchers = new Map<string, AbortController>();
 const catalogs = new Map<string, Catalog>();
+const shareReplies = new Map<
+  string,
+  (value: unknown, failed: boolean) => void
+>();
+const shareRuntime = createSharingRuntime({
+  sessions: () => catalogs.get('meta')?.sessions ?? [],
+  history: (id, signal) => readShareHistory(workspace, id, getGrant, signal),
+  progress: (progress) => send({ type: 'shareProgress', progress }),
+  broker: (operation, args) =>
+    new Promise((resolve, reject) => {
+      const id = crypto.randomUUID();
+      const timer = setTimeout(() => {
+        shareReplies.delete(id);
+        reject(new Error('share_request_timeout'));
+      }, 65000);
+      shareReplies.set(id, (value, failed) => {
+        clearTimeout(timer);
+        if (failed) reject(new Error('share_request_failed'));
+        else resolve(value);
+      });
+      send({
+        type: 'shareRequest',
+        workspaceId: workspace,
+        id,
+        operation,
+        args,
+      });
+    }),
+});
 const unhealthy = new Set<string>();
 let revision = 0;
 let lastPublished = '';
@@ -459,6 +493,16 @@ async function getMentions(
 }
 Object.assign(globalThis, {
   dataRuntime: {
+    sessionSharing(args: ShareRequest) {
+      if (args.workspaceId !== workspace)
+        throw new Error('share_workspace_changed');
+      return shareRuntime(args);
+    },
+    shareResult(id: string, value: unknown, failed: boolean) {
+      const reply = shareReplies.get(id);
+      shareReplies.delete(id);
+      reply?.(value, failed);
+    },
     ping: () => true,
     githubMentionsResult(id: string, value: MentionCatalog | null) {
       const reply = githubReplies.get(id);
@@ -720,6 +764,22 @@ Object.assign(globalThis, {
       } finally {
         creating = false;
       }
+    },
+    async deleteSession(args: {
+      workspaceId: string;
+      sessionId: string;
+      sessionIds: string[];
+    }) {
+      if (args.workspaceId !== workspace || !metaReplica || unhealthy.size)
+        throw new Error('metadata_not_ready');
+      const replica = metaReplica;
+      const sessionIds = await deleteSession(args, replica);
+      if (metaReplica === replica) {
+        releaseDeletedSessions(sessionIds);
+        catalogs.set('meta', projectRows(replica.flock.scan(), 'meta'));
+        publish();
+      }
+      return { sessionIds };
     },
     async archiveSession(args: {
       workspaceId: string;

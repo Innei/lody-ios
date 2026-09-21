@@ -21,6 +21,7 @@ import { catalogKey, selectionKey } from './persist';
 import type { Catalog, SavedCatalog } from '../../models/catalog.ts';
 import { t } from '../../lib/i18n/index.ts';
 import { refreshShareSnapshot } from './shareSnapshot';
+import { deleteSession } from '@lody-ios/kit';
 
 const empty: Catalog = { projects: [], sessions: [], machineIds: [] };
 function valid(saved: SavedCatalog | null): saved is SavedCatalog {
@@ -211,9 +212,33 @@ function useCatalogState() {
     selected,
     setWorkspaceId,
     refresh: () => setRevision((n) => n + 1),
+    deleteSessionRequest: async (payload: string) => {
+      const args = JSON.parse(payload) as {
+        workspaceId: string;
+        sessionIds: string[];
+      };
+      const currentPending = pending.getSnapshot();
+      if (
+        args.workspaceId !== selected?.id ||
+        !currentPending.ready ||
+        currentPending.records.some((record) =>
+          args.sessionIds.includes(record.session.id),
+        )
+      )
+        throw new Error('session_has_pending_send');
+      return deleteSession(payload);
+    },
   };
 }
-const Context = createContext<ReturnType<typeof useCatalogState> | null>(null);
+type CatalogState = Omit<
+  ReturnType<typeof useCatalogState>,
+  'deleteSessionRequest'
+> & {
+  syncedAt?: number;
+  key?: string;
+  deleteSessionRequest?: typeof deleteSession;
+};
+const Context = createContext<CatalogState | null>(null);
 export function CatalogProvider({ children }: PropsWithChildren) {
   const value = useCatalogState();
   return <Context value={value}>{children}</Context>;

@@ -96,7 +96,8 @@ extension LodyChatView {
     guard !rendering else { framePending = true; return }
     rendering = true
     lastRenderTime = CACurrentMediaTime()
-    stream.advance()
+    let animating = Set(rows.values.filter { store.isAnimating(id: $0.id) }.map(\.entryID))
+    stream.advance(animatingEntries: animating)
     let entries = stream.presentation
     if !hasPositionedContent {
       // The first snapshot belongs to this layout transaction, not a later timer.
@@ -109,7 +110,7 @@ extension LodyChatView {
     preparation.async { [weak self] in
       for entry in entries.suffix(2) {
         for item in entry.items where item.type == "text" || item.type == "thought" {
-          _ = parser.parse(item.text ?? "")
+          _ = parser.parse(item.text ?? "", streaming: entry.isRunning)
         }
       }
       DispatchQueue.main.async { [weak self] in

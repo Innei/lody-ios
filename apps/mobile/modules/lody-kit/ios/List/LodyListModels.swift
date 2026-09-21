@@ -28,6 +28,7 @@ struct LodyListRow {
   var valueSegments: [LodyListValueSegment] = []
   var image: String = ""
   var imageAsset: String = ""
+  var imageOriginal: Bool = false
   var filePath: String = ""
   var imageTint: String = ""
   var subtitleMono: Bool = false

@@ -29,6 +29,8 @@ export type NativeListRow = {
   image?: string;
   /** Bundled template asset, rendered with the same semantic tint as SF Symbols. */
   imageAsset?: string;
+  /** Preserve full-color artwork and round it like an app icon. */
+  imageOriginal?: boolean;
   /** File rows use bundled Material Icon Theme artwork. */
   filePath?: string;
   /** Semantic name (blue/green/purple/warning/danger/secondary/tertiary) or a `#RRGGBB` value. */
