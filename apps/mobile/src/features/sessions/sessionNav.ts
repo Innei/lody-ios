@@ -1,6 +1,7 @@
 import type { Catalog, Session } from '../../models/catalog.ts';
 
 export type SessionNavIntent =
+  | { kind: 'share'; workspaceId: string; sessionId: string }
   | { kind: 'open'; session: Session; findQuery?: string }
   | {
       kind: 'create';
@@ -60,6 +61,15 @@ async function flush() {
 
 export function requestOpenSession(session: Session, findQuery?: string) {
   return enqueue({ kind: 'open', session, findQuery });
+}
+export function requestShareSession(workspaceId: string, sessionId: string) {
+  // A transient share can open while the navigation mailbox awaits an open page.
+  const handler = handlers.at(-1);
+  if (!handler) return Promise.reject(new Error('Navigation unavailable'));
+  return handler.handle(
+    { kind: 'share', workspaceId, sessionId },
+    handler.controller.signal,
+  );
 }
 
 export function requestNewSession(

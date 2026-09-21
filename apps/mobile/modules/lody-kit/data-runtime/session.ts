@@ -236,7 +236,7 @@ export function stopSessions() {
   reserved.clear();
   active = undefined;
 }
-function unpack(bytes: Uint8Array) {
+export function unpack(bytes: Uint8Array) {
   return bytes[0] === 0x28 &&
     bytes[1] === 0xb5 &&
     bytes[2] === 0x2f &&

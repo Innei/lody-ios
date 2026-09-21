@@ -5,6 +5,7 @@ import { showToast } from '@/ui/toast';
 import { subscribeSessionNav } from '@/features/sessions/sessionNav';
 import { SessionScreen, type SessionParams } from '@/screens/SessionScreen';
 import { CreateSessionScreen } from '@/screens/CreateSessionScreen';
+import { SessionShareScreen } from '@/screens/SessionShareScreen';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { t } from '../../lib/i18n/index.ts';
@@ -62,6 +63,13 @@ export function useBindSessionNav({
           return;
         }
         if (intent.workspaceId !== selected?.id) return;
+        if (intent.kind === 'share') {
+          await present(SessionShareScreen, {
+            workspaceId: intent.workspaceId,
+            sessionId: intent.sessionId,
+          });
+          return;
+        }
         const result = await present(
           CreateSessionScreen,
           {

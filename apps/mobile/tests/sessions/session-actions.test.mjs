@@ -58,16 +58,21 @@ const bundle = await build({
               ? 'export const {archiveSession,deleteSession,pinSession,markSessionRead,renameSession,showToast}=globalThis.__sessionActionKit;'
               : path === 'rn'
                 ? 'export const Share={share:async(content)=>{globalThis.__sessionShares.push(content);}}; export const Alert={alert:(title,message,buttons)=>globalThis.__sessionAlerts.push({title,message,buttons}),prompt:(title,message,buttons,type,defaultValue)=>{globalThis.__sessionPrompts.push({title,message,type,defaultValue}); const confirm=buttons.find((button)=>button.style!=="cancel"); confirm?.onPress?.(globalThis.__sessionPromptValue??defaultValue);}};'
-                : 'export function openCatalogRow(){} export function requestNewSession(){} export function isChatSession(){return false} export function projectIdOfRow(){}',
+                : 'export function openCatalogRow(){} export function requestNewSession(){} export async function requestShareSession(workspaceId,sessionId){globalThis.__sessionShares.push({workspaceId,sessionId})} export function isChatSession(){return false} export function projectIdOfRow(){}',
         }));
       },
     },
   ],
 });
-const { sessionRowAction, setRead, listRowAction, subscribeSessionDeletion } =
-  await import(
-    `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
-  );
+const {
+  sessionRowAction,
+  setRead,
+  listRowAction,
+  shareSession,
+  subscribeSessionDeletion,
+} = await import(
+  `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
+);
 
 const session = {
   id: 's1',
@@ -180,7 +185,7 @@ test('setRead covers a lastMessageAt that is ahead of now', async () => {
   assert.equal(writes[0].lastReadAt, future);
 });
 
-test('list share opens the desktop session url', async () => {
+test('list and session header sharing open the publication editor rather than copying a private route', async () => {
   shares.length = 0;
   listRowAction(
     { id: 'workspace', slug: 'work' },
@@ -189,7 +194,12 @@ test('list share opens the desktop session url', async () => {
     'share',
   );
   await Promise.resolve();
-  assert.deepEqual(shares, [{ url: 'https://lody.ai/work/sessions/s1' }]);
+  shareSession({ id: 'workspace', slug: 'work' }, 's1');
+  await Promise.resolve();
+  assert.deepEqual(shares, [
+    { workspaceId: 'workspace', sessionId: 's1' },
+    { workspaceId: 'workspace', sessionId: 's1' },
+  ]);
 });
 
 test('list rename prompts with the current title and writes the trimmed name', async () => {

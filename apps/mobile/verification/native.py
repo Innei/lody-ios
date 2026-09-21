@@ -27,6 +27,7 @@ checks = {
     'glass-transition': ['Chrome/LodyGlassView.swift'],
     'github-mentions': ['Cloud/GitHubMentions.swift'],
     'github-pr': ['Cloud/GitHubPullRequests.swift'],
+    'session-sharing': ['Cloud/SessionSharing.swift'],
     'notifications': ['Notifications/PushPermissionLaunchRequest.swift', 'Notifications/PushClickBuffer.swift'],
     'file-link': ['Chat/ChatFileLink.swift'],
     'strings': ['LodyStrings.swift'],
@@ -98,7 +99,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             arch = 'arm64' if platform.machine() == 'arm64' else 'x86_64'
             ios = '26.0'
             command += ['-sdk', sdk, '-target', f'{arch}-apple-ios{ios}-simulator']
-        if name in ['attachments', 'github-mentions', 'github-pr']:
+        if name in ['attachments', 'github-mentions', 'github-pr', 'session-sharing']:
             command += ['-parse-as-library']
         if name == 'inline-diff':
             command += ['-framework', 'UIKit']

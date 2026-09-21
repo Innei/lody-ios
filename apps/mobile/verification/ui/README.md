@@ -1,5 +1,13 @@
 # Offline UI verification
 
+`session-share` exercises the production conversation-sharing sheet with an
+independently resettable Debug source: default scope, sub-conversation selection,
+capture/upload/publish progress, failed upload with no link, retry, stable-link
+updates, system sharing, reset confirmation/cancellation and revocation. Both
+English appearances capture screenshots and video; no live share is published.
+Protocol tests separately run the production exporter and publication state
+machine against an in-memory control plane and upload transport.
+
 `session-delete` and `session-delete-pad` use the production archived list,
 conversation header and home list/sidebar with the Home preview catalog. They
 verify confirmation cancellation, a rejected delete with the row retained,

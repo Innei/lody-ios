@@ -1,5 +1,6 @@
 import { AppIconFailurePreviewScreen } from './AppIconFailurePreviewScreen';
 import { MessageSharePreviewScreen } from './MessageSharePreviewScreen';
+import { SessionSharePreviewScreen } from './SessionSharePreviewScreen';
 import { DiffScrollEdgePreviewScreen } from './DiffScrollEdgePreviewScreen';
 import { SteerPreviewScreen } from './SteerPreviewScreen';
 import { AgentErrorPreviewScreen } from './AgentErrorPreviewScreen';
@@ -217,6 +218,7 @@ function View() {
         openRow('send-preview', '离线发送验收', 'paperplane'),
         openRow('send-queue', 'Queue 验收', 'list.bullet'),
         openRow('message-share-preview', 'Message sharing', 'photo'),
+        openRow('session-share-preview', 'Conversation sharing', 'link'),
         openRow('steer-preview', '连续引导验收', 'arrow.triangle.branch'),
         openRow('send-guide', '引导发送验收', 'arrow.uturn.forward'),
         openRow('outbox-preview', '后台发件箱验收', 'tray.and.arrow.up'),
@@ -364,6 +366,7 @@ function View() {
     'send-preview': () => void openSendPreview(false),
     'send-queue': () => void openSendPreview(false, true),
     'message-share-preview': () => void present(MessageSharePreviewScreen, {}),
+    'session-share-preview': () => void present(SessionSharePreviewScreen),
     'steer-preview': () => void present(SteerPreviewScreen, {}),
     'send-guide': () => void openSendPreview(false, true, true, 'guide'),
     'outbox-preview': () => void openOutboxPreview(),

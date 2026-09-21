@@ -18,6 +18,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   private var attachmentAttempts: [String: UUID] = [:]
   private var grantTask: URLSessionDataTask?
   private var githubTasks: [String: Task<Void, Never>] = [:]
+  private var shareTasks: [String: Task<Void, Never>] = [:]
   private var health = RuntimeHealth()
   private var pingPending = false
   private var workspace: String?
@@ -132,6 +133,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     timer?.invalidate(); timer = nil
     grantTask?.cancel(); grantTask = nil
     githubTasks.values.forEach { $0.cancel() }; githubTasks.removeAll()
+    shareTasks.values.forEach { $0.cancel() }; shareTasks.removeAll()
     pingPending = false
     let old = webView; webView = nil
     old?.configuration.userContentController.removeScriptMessageHandler(forName: "dataRuntime")
@@ -206,6 +208,24 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       guard type == "session", id == sessionId else { return }
       let payload = fits ? session : #"{"v":1,"overflow":true}"#
       emitStatus(["sessionId": id, "session": payload])
+    case "shareProgress":
+      if let progress = body["progress"] as? [String: Any] { emitStatus(["shareProgress": progress]) }
+    case "shareRequest":
+      guard let workspace, body["workspaceId"] as? String == workspace,
+        let id = body["id"] as? String, UUID(uuidString: id) != nil,
+        let operation = body["operation"] as? String, let args = body["args"] as? [String: Any],
+        shareTasks[id] == nil else { return }
+      guard shareTasks.count < 4 else {
+        view.callAsyncJavaScript("globalThis.dataRuntime.shareResult(id, null, true)", arguments: ["id": id], in: nil, in: .page, completionHandler: nil)
+        return
+      }
+      let user = userId
+      shareTasks[id] = Task { [weak self, weak view] in
+        let result = try? await SessionSharing.run(operation, args: args, workspace: workspace, userId: user)
+        guard !Task.isCancelled, let self, let view, self.webView === view, self.workspace == workspace, self.userId == user else { return }
+        self.shareTasks.removeValue(forKey: id)
+        view.callAsyncJavaScript("globalThis.dataRuntime.shareResult(id, value, failed)", arguments: ["id": id, "value": result ?? NSNull(), "failed": result == nil], in: nil, in: .page, completionHandler: nil)
+      }
     case "githubMentions":
       guard let workspace, body["workspaceId"] as? String == workspace,
             let id = body["id"] as? String, UUID(uuidString: id) != nil,
@@ -460,6 +480,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     }
     let backgroundTaskId = args["backgroundTaskId"] as? String
     var timeout: Double = 45
+    if method == "sessionSharing" { timeout = 130 }
     if method == "localProjects" && args["action"] as? String == "history" { timeout = 130 }
     // Catalog expansion precedes the durable send and has its own bounded read.
     if method == "sendTurn", let text = args["text"] as? String,

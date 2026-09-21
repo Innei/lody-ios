@@ -5,14 +5,13 @@ import {
   markSessionRead,
   renameSession,
 } from '@lody-ios/kit';
-import { Alert, Share } from 'react-native';
+import { Alert } from 'react-native';
 import { showToast } from '../../ui/toast.ts';
 import type { Catalog, Session } from '../../models/catalog.ts';
 import { t } from '../../lib/i18n/index.ts';
 import { openCatalogRow } from '../../hooks/screens/openCatalogRow.ts';
-import { requestNewSession } from './sessionNav.ts';
+import { requestNewSession, requestShareSession } from './sessionNav.ts';
 import { isChatSession, projectIdOfRow } from './inbox.ts';
-import { sessionShareUrl } from './sessionShare.ts';
 import {
   sessionDeletionTargets,
   sessionDeletionBlocked,
@@ -185,12 +184,7 @@ export function shareSession(
   workspace: { id: string; slug: string | null },
   sessionId: string,
 ) {
-  const url = sessionShareUrl(workspace, sessionId);
-  if (!url) {
-    showToast(t('session.toast.shareFailed'));
-    return;
-  }
-  void Share.share({ url }).catch(() => {
+  void requestShareSession(workspace.id, sessionId).catch(() => {
     showToast(t('session.toast.shareFailed'));
   });
 }

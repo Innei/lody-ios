@@ -189,6 +189,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   public func definition() -> ModuleDefinition {
+    AsyncFunction("sessionSharing") { (payload: String, promise: Promise) in
+      MainActor.assumeIsolated { self.dataRuntime.command("sessionSharing", payload: payload, promise: promise) }
+    }.runOnQueue(.main)
     Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onAccentColorChange")
     AsyncFunction("watchCatalog") { (workspace: String, slug: String, name: String, owner: String, userId: String) in
       try MainActor.assumeIsolated {

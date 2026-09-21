@@ -12,6 +12,7 @@ export type InboxSearchHits = {
   sessions: { id: string; snippet: string | null }[];
 };
 export type DataRuntimeEvent = {
+  shareProgress?: import('../../../../src/models/session-sharing').ShareProgress;
   sessionId?: string;
   session?: string;
   owner: string;
@@ -48,6 +49,7 @@ type Events = {
   onDataRuntime: (event: DataRuntimeEvent) => void;
 };
 declare class LodyKitNativeModule extends NativeModule<Events> {
+  sessionSharing(payload: string): Promise<string>;
   verifyPushSubscription(): Promise<void>;
   setPushUser(userId: string | null): Promise<void>;
   pushStatus(): Promise<import('../notifications/notifications').PushStatus>;
@@ -164,6 +166,8 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
 export const native = requireNativeModule<LodyKitNativeModule>('LodyKit');
 export const remoteSettingsRaw = (payload: string): Promise<string> =>
   native.remoteSettings(payload);
+export const sessionSharingRaw = (payload: string): Promise<string> =>
+  native.sessionSharing(payload);
 export const runtimeInfo = native.runtimeInfo;
 export const initialAccentColor = native.initialAccentColor;
 export const saveAccentColor = (value: string) => native.saveAccentColor(value);

@@ -35,7 +35,7 @@ CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 # These lease an iPad. `--case` still accepts them; the default phone run must not.
 PAD_CASES = ['session-delete-pad', 'session-tree-pad', 'ipad', 'ipad-chrome', 'native-shell', 'native-collection', 'session-search-pad']
-CASES = PHONE_CASES + PAD_CASES + ['session-delete', 'session-search', 'morph', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics']
+CASES = PHONE_CASES + PAD_CASES + ['session-share', 'session-delete', 'session-search', 'morph', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics']
 # These select HomePreviewProviders at app launch, using the same shared bundle.
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome'}
 HOME_CASES.update({'session-delete', 'session-delete-pad'})
@@ -43,6 +43,7 @@ PREVIEW = {
     'session-tree': 'session-tree-preview',
     'session-tree-pad': 'session-tree-preview',
     'message-share': 'message-share-preview',
+    'session-share': 'session-share-preview',
     'quick-replies': 'quick-replies-preview',
     'reply-haptics': 'reply-haptics-preview',
     'scroll-edge': 'chat-preview',
@@ -103,6 +104,7 @@ READY = {
     'session-tree': 'tree-root',
     'session-tree-pad': 'tree-root',
     'message-share': 'paper-reply:meta:actions',
+    'session-share': 'open-session-share',
     'quick-replies': 'quick-reset',
     'reply-haptics': 'reply-haptics-start',
     'scroll-edge': 'session-input',
@@ -383,6 +385,8 @@ with metro_context:
                         script = Path(__file__).with_name('send-handoff.py')
                     if case in {'session-search', 'session-search-pad'}:
                         script = Path(__file__).with_name('session-search.py')
+                    if case == 'session-share':
+                        script = Path(__file__).with_name('session-share.py')
                     if case in {'session-delete', 'session-delete-pad'}:
                         script = Path(__file__).with_name('session-delete.py')
                     if case in ['fast-chat', 'fast-sheet']:
