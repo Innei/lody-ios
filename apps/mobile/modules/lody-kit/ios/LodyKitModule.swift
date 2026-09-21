@@ -371,6 +371,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("remoteSettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("remoteSettings", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("createSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("archiveSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("archiveSession", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("deleteSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("deleteSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("pinSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("pinSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("markSessionRead") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("markSessionRead", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("renameSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("renameSession", payload: payload, promise: promise) } }.runOnQueue(.main)

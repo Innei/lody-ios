@@ -106,6 +106,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   remoteSettings(payload: string): Promise<string>;
   createSession(payload: string): Promise<string>;
   archiveSession(payload: string): Promise<string>;
+  deleteSession(payload: string): Promise<string>;
   pinSession(payload: string): Promise<string>;
   markSessionRead(payload: string): Promise<string>;
   renameSession(payload: string): Promise<string>;
@@ -301,6 +302,7 @@ export const githubRepositories = (workspaceId: string) =>
 export const createSession = (payload: string) => native.createSession(payload);
 export const archiveSession = (payload: string) =>
   native.archiveSession(payload);
+export const deleteSession = (payload: string) => native.deleteSession(payload);
 export const pinSession = (payload: string) => native.pinSession(payload);
 export const markSessionRead = (payload: string) =>
   native.markSessionRead(payload);

@@ -32,7 +32,7 @@ enum LodyListRowInteractions {
       guard row.preview == "session" else { return nil }
       return ChatTranscriptPreviewController(sessionId: row.id, title: row.title, userId: userId, workspaceId: workspaceId)
     }, actionProvider: { _ in
-      UIMenu(children: row.menuActions.map { action in
+      let actions = row.menuActions.map { action in
         UIAction(title: action.title,
                  image: action.symbol.isEmpty ? nil : UIImage(systemName: action.symbol),
                  attributes: action.destructive ? [.destructive] : []) { _ in
@@ -42,7 +42,14 @@ enum LodyListRowInteractions {
             perform(row.id, action.id)
           }
         }
-      })
+      }
+      let regular = actions.filter { !$0.attributes.contains(.destructive) }
+      let destructive = actions.filter { $0.attributes.contains(.destructive) }
+      if !regular.isEmpty && !destructive.isEmpty {
+        let children: [UIMenuElement] = regular + [UIMenu(options: .displayInline, children: destructive)]
+        return UIMenu(children: children)
+      }
+      return UIMenu(children: actions)
     })
   }
 }

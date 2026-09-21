@@ -81,6 +81,7 @@ export {
   githubRepositories,
   createSession,
   archiveSession,
+  deleteSession,
   pinSession,
   markSessionRead,
   renameSession,

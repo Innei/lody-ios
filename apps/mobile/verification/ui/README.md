@@ -1,5 +1,13 @@
 # Offline UI verification
 
+`session-delete` and `session-delete-pad` use the production archived list,
+conversation header and home list/sidebar with the Home preview catalog. They
+verify confirmation cancellation, a rejected delete with the row retained,
+successful retry, and navigation back (or clearing iPad detail) after deletion.
+The first archived deletion fails at the injected service boundary. Each launch
+resets that fixture; both English appearances capture screenshots and video.
+No cloud records or machine worktrees are deleted by these checks.
+
 `appearance` exercises preset accents, UIKit's custom color picker, persisted
 custom color after a cold launch, the three-column native app-icon grid, actual
 system icon switching and a Debug-only rejected-change fixture. ColorPickerUIService

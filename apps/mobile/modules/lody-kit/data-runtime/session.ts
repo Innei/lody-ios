@@ -210,6 +210,14 @@ export function closeSession() {
   active = undefined;
   trimSessions();
 }
+export function releaseDeletedSessions(ids: string[]) {
+  for (const id of ids) {
+    reserved.delete(id);
+    const state = sessions.get(id);
+    if (active === state) active = undefined;
+    if (state) evict(state);
+  }
+}
 export function releaseReserve(id: string) {
   if (!reserved.delete(id)) return;
   const state = sessions.get(id);

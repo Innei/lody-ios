@@ -20,10 +20,12 @@ import {
 } from './create-session';
 import {
   archiveSession,
+  deleteSession,
   pinSession,
   markSessionRead,
   renameSession,
 } from './archive-session';
+import { releaseDeletedSessions } from './session';
 import { remoteSettings } from './settings';
 import type { SettingsRequest } from '../../../src/models/settings.ts';
 import {
@@ -720,6 +722,22 @@ Object.assign(globalThis, {
       } finally {
         creating = false;
       }
+    },
+    async deleteSession(args: {
+      workspaceId: string;
+      sessionId: string;
+      sessionIds: string[];
+    }) {
+      if (args.workspaceId !== workspace || !metaReplica || unhealthy.size)
+        throw new Error('metadata_not_ready');
+      const replica = metaReplica;
+      const sessionIds = await deleteSession(args, replica);
+      if (metaReplica === replica) {
+        releaseDeletedSessions(sessionIds);
+        catalogs.set('meta', projectRows(replica.flock.scan(), 'meta'));
+        publish();
+      }
+      return { sessionIds };
     },
     async archiveSession(args: {
       workspaceId: string;

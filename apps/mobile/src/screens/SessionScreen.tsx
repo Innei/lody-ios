@@ -29,6 +29,9 @@ import {
   setArchived,
   setPinned,
   shareSession,
+  confirmSessionDeletion,
+  subscribeSessionDeletion,
+  isSessionDeleting,
 } from '@/features/sessions/sessionActions';
 import { useSessionViewed } from '@/features/sessions/useSessionViewed';
 import { sessionDebugText } from '@/features/sessions/sessionDebug';
@@ -118,7 +121,23 @@ function View() {
   } = runtime;
   const { account } = useAuth(),
     colors = usePalette();
-  const { catalog, selected, serverSessions, refresh } = useCatalog();
+  const { catalog, selected, serverSessions, refresh, deleteSessionRequest } =
+    useCatalog();
+  const [deleting, setDeleting] = useState(() =>
+    isSessionDeleting(selected?.id ?? '', session.id),
+  );
+  useEffect(() => {
+    setDeleting(isSessionDeleting(selected?.id ?? '', session.id));
+    return subscribeSessionDeletion((event) => {
+      if (
+        event.workspaceId !== selected?.id ||
+        !event.sessionIds.includes(session.id)
+      )
+        return;
+      setDeleting(event.state === 'deleting');
+      if (event.state === 'deleted') runtime.cancel();
+    });
+  }, [runtime, selected?.id, session.id]);
   const currentSession =
     catalog.sessions.find((s) => s.id === session.id) ?? session;
   const [appendDraftJSON, setAppendDraftJSON] = useState('');
@@ -432,8 +451,8 @@ function View() {
     present,
   );
   const composerJSON = JSON.stringify({
-    editable: !currentSession.archived,
-    canSend: send.canSend && !errorRetry.pending,
+    editable: !currentSession.archived && !deleting,
+    canSend: send.canSend && !errorRetry.pending && !deleting,
     sending: send.sending,
     running: control.running || send.awaitingReply,
     canStop: control.canStop,
@@ -608,6 +627,30 @@ function View() {
         onPress: openProjectFiles,
       });
     }
+    actions.push({
+      type: 'submenu',
+      displayInline: true,
+      items: [
+        {
+          type: 'action',
+          title: t(
+            deleting ? 'session.delete.pending' : 'session.action.delete',
+          ),
+          icon: { type: 'sfSymbol', name: 'trash' },
+          destructive: true,
+          disabled: deleting || !!pending,
+          onPress: () => {
+            if (selected)
+              confirmSessionDeletion(
+                selected.id,
+                currentSession,
+                catalog,
+                deleteSessionRequest,
+              );
+          },
+        },
+      ],
+    });
     items.push({
       type: 'menu',
       icon: { type: 'sfSymbol', name: 'ellipsis' },
@@ -620,6 +663,9 @@ function View() {
     browsable,
     catalog,
     currentSession,
+    deleting,
+    deleteSessionRequest,
+    pending,
     openProjectFiles,
     openPullRequest,
     pending?.send.creation,
@@ -686,6 +732,7 @@ function View() {
         onStop={control.stop}
         onSteer={({ nativeEvent }) => control.steer(nativeEvent.id)}
         onSend={({ nativeEvent }) =>
+          !deleting &&
           send.submit({
             ...nativeEvent,
             phase: 'waiting',

@@ -30,12 +30,65 @@ const bundle = await build({
     },
   ],
 });
-const { archiveSession, pinSession, markSessionRead, renameSession } =
-  await import(
-    `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
-  );
+const {
+  archiveSession,
+  deleteSession,
+  pinSession,
+  markSessionRead,
+  renameSession,
+} = await import(
+  `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
+);
 const unframe = (body) =>
   JSON.parse(new TextDecoder().decode(body.subarray(4)));
+
+test('delete commits root and contained tabs only after acknowledgement, preserving independently opened sessions', async () => {
+  const flock = new Flock('delete-source'),
+    remote = new Flock('delete-remote');
+  for (const [id, fields] of Object.entries({
+    root: {},
+    tab: { parentSessionId: 'root' },
+    independent: { openedBySessionId: 'root' },
+  })) {
+    flock.set(['e', `session-${id}`], true);
+    flock.set(['m', `session-${id}`], {
+      id,
+      status: { type: 'completed' },
+      ...fields,
+    });
+  }
+  flock.commit();
+  remote.importFile(flock.exportFile());
+  let fail = true;
+  const meta = {
+    flock,
+    client: {
+      async append({ part }) {
+        assert.equal(flock.get(['e', 'session-root']), true);
+        if (fail) throw new Error('offline');
+        remote.importJson(unframe(part.body));
+        return { ok: true };
+      },
+    },
+  };
+  const args = { sessionId: 'root', sessionIds: ['root', 'tab'] };
+  await assert.rejects(deleteSession(args, meta), /offline/);
+  assert.equal(flock.get(['e', 'session-root']), true);
+  await assert.rejects(
+    deleteSession({ ...args, sessionIds: ['root'] }, meta),
+    /targets_changed/,
+  );
+  flock.set(['m', 'session-tab', 'status'], { type: 'running' });
+  await assert.rejects(deleteSession(args, meta), /session_busy/);
+  flock.set(['m', 'session-tab', 'status'], { type: 'completed' });
+  fail = false;
+  assert.deepEqual(await deleteSession(args, meta), ['root', 'tab']);
+  for (const replica of [flock, remote]) {
+    assert.equal(replica.get(['e', 'session-root']), false);
+    assert.equal(replica.get(['e', 'session-tab']), false);
+    assert.equal(replica.get(['e', 'session-independent']), true);
+  }
+});
 
 test('archive writes the machine command after the session meta; restore clears it', async () => {
   const meta = new Flock('meta'),

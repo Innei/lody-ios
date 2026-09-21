@@ -4,8 +4,12 @@ import { build } from 'esbuild';
 
 const writes = [];
 const shares = [];
+const alerts = [];
+let deleteRequest;
+globalThis.__sessionAlerts = alerts;
 globalThis.__sessionActionKit = {
   archiveSession: async () => {},
+  deleteSession: (payload) => deleteRequest(payload),
   pinSession: async () => {},
   markSessionRead: async (payload) => {
     writes.push(JSON.parse(payload));
@@ -51,18 +55,19 @@ const bundle = await build({
         b.onLoad({ filter: /.*/, namespace: 'mock' }, ({ path }) => ({
           contents:
             path === 'kit'
-              ? 'export const {archiveSession,pinSession,markSessionRead,renameSession,showToast}=globalThis.__sessionActionKit;'
+              ? 'export const {archiveSession,deleteSession,pinSession,markSessionRead,renameSession,showToast}=globalThis.__sessionActionKit;'
               : path === 'rn'
-                ? 'export const Share={share:async(content)=>{globalThis.__sessionShares.push(content);}}; export const Alert={prompt:(title,message,buttons,type,defaultValue)=>{globalThis.__sessionPrompts.push({title,message,type,defaultValue}); const confirm=buttons.find((button)=>button.style!=="cancel"); confirm?.onPress?.(globalThis.__sessionPromptValue??defaultValue);}};'
+                ? 'export const Share={share:async(content)=>{globalThis.__sessionShares.push(content);}}; export const Alert={alert:(title,message,buttons)=>globalThis.__sessionAlerts.push({title,message,buttons}),prompt:(title,message,buttons,type,defaultValue)=>{globalThis.__sessionPrompts.push({title,message,type,defaultValue}); const confirm=buttons.find((button)=>button.style!=="cancel"); confirm?.onPress?.(globalThis.__sessionPromptValue??defaultValue);}};'
                 : 'export function openCatalogRow(){} export function requestNewSession(){} export function isChatSession(){return false} export function projectIdOfRow(){}',
         }));
       },
     },
   ],
 });
-const { sessionRowAction, setRead, listRowAction } = await import(
-  `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
-);
+const { sessionRowAction, setRead, listRowAction, subscribeSessionDeletion } =
+  await import(
+    `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
+  );
 
 const session = {
   id: 's1',
@@ -75,6 +80,82 @@ const session = {
   createdAt: '2026-09-06T14:00:00+08:00',
   lastMessageAt: 1_000,
 };
+
+test('delete requires confirmation, locks duplicates, reports failure without closing and permits retry', async () => {
+  const events = [],
+    requests = [];
+  const unsubscribe = subscribeSessionDeletion((event) =>
+    events.push(event.state),
+  );
+  let reject, resolve;
+  deleteRequest = (payload) => {
+    requests.push(JSON.parse(payload));
+    return new Promise((yes, no) => {
+      resolve = yes;
+      reject = no;
+    });
+  };
+  const catalog = { projects: [], machineIds: [], sessions: [session] };
+  const open = () => sessionRowAction('w1', catalog, session.id, 'delete');
+  open();
+  assert.equal(requests.length, 0);
+  alerts
+    .at(-1)
+    .buttons.find((button) => button.style === 'cancel')
+    .onPress?.();
+  assert.equal(requests.length, 0);
+  open();
+  const confirm = alerts
+    .at(-1)
+    .buttons.find((button) => button.style === 'destructive');
+  confirm.onPress();
+  confirm.onPress();
+  assert.equal(requests.length, 1);
+  reject(new Error('offline'));
+  await new Promise(setImmediate);
+  assert.deepEqual(events, ['deleting', 'failed']);
+  open();
+  alerts
+    .at(-1)
+    .buttons.find((button) => button.style === 'destructive')
+    .onPress();
+  resolve('{}');
+  await new Promise(setImmediate);
+  assert.deepEqual(events, ['deleting', 'failed', 'deleting', 'deleted']);
+  assert.deepEqual(requests[0], {
+    workspaceId: 'w1',
+    sessionId: 's1',
+    sessionIds: ['s1'],
+  });
+  unsubscribe();
+});
+
+test('a running contained tab blocks deletion before confirmation; independent running sessions do not', () => {
+  const child = {
+    ...session,
+    id: 'tab',
+    parentSessionId: session.id,
+    status: 'requestPermission',
+  };
+  const catalog = { projects: [], machineIds: [], sessions: [session, child] };
+  sessionRowAction('w1', catalog, session.id, 'delete');
+  assert.equal(alerts.at(-1).buttons, undefined);
+  catalog.sessions[1] = { ...child, archived: true };
+  sessionRowAction('w1', catalog, session.id, 'delete');
+  assert.ok(
+    alerts.at(-1).buttons.some((button) => button.style === 'destructive'),
+  );
+  catalog.sessions[1] = {
+    ...session,
+    id: 'independent',
+    openedBySessionId: session.id,
+    status: 'running',
+  };
+  sessionRowAction('w1', catalog, session.id, 'delete');
+  assert.ok(
+    alerts.at(-1).buttons.some((button) => button.style === 'destructive'),
+  );
+});
 
 test('swipe 已读 writes lastReadAt at least as new as the last message', async () => {
   const before = Date.now();
