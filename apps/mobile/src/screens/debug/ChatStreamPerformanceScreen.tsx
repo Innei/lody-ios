@@ -20,29 +20,45 @@ const samples = {
   code: `\`\`\`swift\n${Array.from({ length: 600 }, (_, index) => `let value${index} = "streaming code ${index}"`).join('\n')}`,
 };
 type Sample = keyof typeof samples;
+const sampleIcons = {
+  paragraphs: 'text.alignleft',
+  text: 'text.justify',
+  code: 'chevron.left.forwardslash.chevron.right',
+} as const;
+const syntax = [
+  'Read **bold',
+  'Read **bold** and `code',
+  'Read **bold** and `code`.\n\nVisit [Apple](https://exam',
+  'Read **bold** and `code`.\n\nVisit [Apple](https://example.com)',
+  'Read **bold** and `code`.\n\nVisit [Apple](https://example.com)\n\nStopped **literal',
+];
 
 function View() {
   const [sample, setSample] = useState<Sample>('paragraphs');
   const [run, setRun] = useState(0);
   const [length, setLength] = useState(0);
   const [startedAt, setStartedAt] = useState(0);
+  const [syntaxStep, setSyntaxStep] = useState<number | null>(null);
   useEffect(() => {
-    if (!run) return;
+    if (!run || syntaxStep !== null) return;
     const timer = setInterval(() => {
       const elapsed = Math.max(0, Date.now() - startedAt);
       setLength(Math.min(size, Math.floor((elapsed * unitsPerSecond) / 1000)));
       if (elapsed >= seconds * 1000) clearInterval(timer);
     }, 50);
     return () => clearInterval(timer);
-  }, [run, startedAt]);
-  const finished = length === size;
+  }, [run, startedAt, syntaxStep]);
+  let finished = length === size;
   let text = samples[sample].slice(0, length);
-  if (finished) {
+  if (syntaxStep !== null) {
+    text = syntax[Math.min(syntaxStep, syntax.length - 1)];
+    finished = syntaxStep === syntax.length;
+  } else if (finished) {
     if (sample === 'code') text += '\n```';
     text += '\n\nSTREAM COMPLETE';
   }
   const entriesJSON = JSON.stringify([
-    ...Array.from({ length: 40 }, (_, index) => ({
+    ...Array.from({ length: syntaxStep === null ? 40 : 0 }, (_, index) => ({
       id: `stream-perf-history-${index}`,
       role: index % 2 ? 'assistant' : 'user',
       status: 'completed',
@@ -67,11 +83,22 @@ function View() {
   return (
     <>
       <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          accessibilityLabel="Next syntax"
+          icon="textformat"
+          onPress={() => {
+            setSyntaxStep((value) => ((value ?? -1) + 1) % (syntax.length + 1));
+          }}
+        >
+          Syntax
+        </Stack.Toolbar.Button>
         {(['paragraphs', 'text', 'code'] as const).map((name) => (
           <Stack.Toolbar.Button
             key={name}
             accessibilityLabel={`Stream ${name}`}
+            icon={sampleIcons[name]}
             onPress={() => {
+              setSyntaxStep(null);
               setSample(name);
               setLength(0);
               setStartedAt(Date.now() + 1_000);
@@ -85,8 +112,12 @@ function View() {
       <NativeChat
         key={run}
         style={{ flex: 1 }}
-        navigationTitle={`300 TPS · ${sample}`}
-        debugStreamBenchmarkRun={run}
+        navigationTitle={
+          syntaxStep === null
+            ? `300 TPS · ${sample}`
+            : `Syntax ${syntaxStep + 1}`
+        }
+        debugStreamBenchmarkRun={syntaxStep === null ? run : 0}
         entriesJSON={entriesJSON}
         composerJSON='{"editable":false,"canSend":false}'
         clearDraftToken={0}

@@ -308,8 +308,8 @@ extension LodyChatView {
     for row in projected where row != previous[row.id] {
       // Long replies grow at the content-commit cadence. Animating their height
       // would invalidate the entire collection at display refresh rate; the
-      // bottom follower and block opacity animation already keep motion smooth.
-      if (row.kind == "text" || row.kind == "thought") && row.text.utf16.count > ChatStream.blockAnimationLength {
+      // bottom follower and text fades already keep motion smooth.
+      if (row.kind == "text" || row.kind == "thought") && row.text.utf16.count > 1024 {
         rowHeights[row.id] = nil
         continue
       }

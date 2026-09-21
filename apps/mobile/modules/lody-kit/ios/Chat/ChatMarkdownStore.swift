@@ -15,12 +15,14 @@ final class ChatParseCache: @unchecked Sendable {
     cache.totalCostLimit = 8 * 1024 * 1024
   }
 
-  func parse(_ text: String) -> MarkdownParser.ParseResult {
-    if let cached = cache.object(forKey: text as NSString) { return cached.result }
+  func parse(_ text: String, streaming: Bool = false) -> MarkdownParser.ParseResult {
+    let key = "\(streaming)\u{0}\(text)" as NSString
+    if let cached = cache.object(forKey: key) { return cached.result }
     // ponytail: full background parsing preserves late reference/math changes;
     // incremental source parsing needs parser-owned invalidation if it dominates.
-    let result = MarkdownParser().parse(text)
-    cache.setObject(Box(result), forKey: text as NSString, cost: text.utf8.count)
+    let source = streaming ? ChatMarkdownRepair.shared.repair(text) : text
+    let result = MarkdownParser().parse(source)
+    cache.setObject(Box(result), forKey: key, cost: text.utf8.count)
     return result
   }
 }
@@ -62,6 +64,7 @@ final class ChatMarkdownStore {
   func theme(secondary: Bool) -> MarkdownTheme { secondary ? secondaryTheme : theme }
 
   func tailLength(id: String) -> Int { views[id]?.tailLength ?? 0 }
+  func isAnimating(id: String) -> Bool { views[id]?.isAnimating == true }
 
   func apply(traits: UITraitCollection) {
     theme = ChatMarkdownTheme.make(traits: traits, secondary: false)
@@ -75,7 +78,7 @@ final class ChatMarkdownStore {
   private func blocks(id: String, text: String, secondary: Bool, streaming: Bool) -> [ChatMarkdownBlock] {
     let previous = entries[id]
     if let previous, previous.text == text, previous.secondary == secondary, previous.streaming == streaming { return previous.blocks }
-    let parsed = parser.parse(text)
+    let parsed = parser.parse(text, streaming: streaming)
     let sameContext = previous?.secondary == secondary && previous?.math == parsed.mathContext
     let rendered = sameContext ? previous!.context.rendered : parsed.renderedContent(theme: theme(secondary: secondary))
     let context = MarkdownContent(blocks: parsed.document, rendered: rendered,

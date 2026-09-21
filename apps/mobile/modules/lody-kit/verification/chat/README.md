@@ -17,8 +17,11 @@ swiftc -swift-version 6 apps/mobile/modules/lody-kit/ios/LodyStrings.swift \
 
 Settings → Debug → Native Chat Preview (`原生聊天预览`) uses the production native view with 80 history
 entries and a simulated burst stream. Replay sends 48 characters every 700 ms;
-Swift spreads each burst over presentation frames; new graphemes fade in over
-220 ms. Fade ticks redraw glyphs without updating list layout. The preview sends no network
+Swift paces each burst using elapsed time and arrival rate; new graphemes fade in over
+180 ms with a stagger based on the commit interval. Long replies keep their tail
+animation. Fade ticks redraw only the affected text lines without updating list
+layout. Completion waits for the final text commit and its visible fades before
+merging blocks for cross-paragraph selection. The preview sends no network
 writes. Sending preview input appends a local user message and starts a simulated
 reply. Tapping a tool in the process sheet simulates a failure.
 
@@ -33,7 +36,10 @@ check multiline input and interactive keyboard dismissal; repeat in dark mode.
 The RN page owns navigation and cloud actions; LodyKit owns collection cells,
 Markdown, text pacing, expansion, measured row heights, keyboard and input state.
 MarkdownView parses Markdown, including unfinished input; the active tail is parsed
-on a serial background queue and parse results are cached by source text. Row heights
+on a serial background queue and parse results are cached by source text and streaming state.
+Streaming display first runs pinned Remend in an isolated, serialized JavaScriptCore
+context. Incomplete links stay plain text; completion and history bypass repair.
+Neither persisted text nor copy/share source is rewritten. Row heights
 come from an offscreen `MarkdownTextView` per row that keeps its document across width
 changes. Presentation pacing is inspired by FlowDown's `BalancedEmitter`; MarkdownView
 and Litext are SPM dependencies pulled in through `cocoapods-spm`.

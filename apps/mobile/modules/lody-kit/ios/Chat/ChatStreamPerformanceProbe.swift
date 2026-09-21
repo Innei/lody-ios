@@ -41,13 +41,17 @@ final class ChatStreamPerformanceProbe: NSObject {
     guard view.window != nil, started > 0 else { return }
     let now = CACurrentMediaTime()
     let shown = view.rows["stream-perf-answer:text"]?.text.utf16.count ?? 0
+    let fading = view.store.isAnimating(id: "stream-perf-answer:text")
     samples.append(["t": now - started, "dt": now - previous,
       "budget": link.targetTimestamp - link.timestamp,
       "received": Double(received), "shown": Double(shown),
-      "lag": Double(max(0, received - shown)), "offset": view.collection.contentOffset.y,
+      "lag": Double(max(0, received - shown)), "fading": fading ? 1 : 0,
+      "finished": view.transcript.entries.last?.finished == true ? 1 : 0,
+      "offset": view.collection.contentOffset.y,
       "bottom": view.bottomOffset, "following": view.followsBottom ? 1 : 0])
     previous = now
-    if ended > 0, shown == received, !view.rendering, !view.applying,
+    if ended > 0, shown == received, !fading, view.transcript.entries.last?.finished == true,
+       !view.rendering, !view.applying,
        abs(view.bottomOffset - view.collection.contentOffset.y) <= 1, caughtUp == 0 {
       caughtUp = now
     }
@@ -102,6 +106,18 @@ final class ChatStreamPerformanceProbe: NSObject {
     _ = store.view(id: "reference", text: "[link][ref]\n\nTail\n\n[ref]: https://example.com", secondary: false, streaming: true, width: 350)
     let resolved = (reference.subviews.first as! FileMarkdownView).textLabelView.attributedText.string
     checks.append(["name": "reference", "lateReferenceResolved": resolved.trimmingCharacters(in: .whitespacesAndNewlines) == "link"])
+    let partial = "Read **bold"
+    let live = store.view(id: "syntax", text: partial, secondary: false, streaming: true, width: 350)
+    let liveLabel = (live.subviews.first as! FileMarkdownView).textLabelView.attributedText
+    let liveFont = liveLabel.attribute(.font, at: 5, effectiveRange: nil) as? UIFont
+    let stopped = store.view(id: "syntax", text: partial, secondary: false, streaming: false, width: 350)
+    let stoppedText = (stopped.subviews.first as! FileMarkdownView).textLabelView.attributedText.string
+    let link = store.view(id: "link", text: "Visit [Apple](https://exam", secondary: false, streaming: true, width: 350)
+    let linkText = (link.subviews.first as! FileMarkdownView).textLabelView.attributedText.string
+    checks.append(["name": "syntax", "partialBoldRendered": liveLabel.string.trimmingCharacters(in: .whitespacesAndNewlines) == "Read bold"
+      && liveFont?.fontDescriptor.symbolicTraits.contains(.traitBold) == true,
+      "completionRestoresSource": stoppedText.trimmingCharacters(in: .whitespacesAndNewlines) == partial,
+      "partialLinkIsText": linkText.trimmingCharacters(in: .whitespacesAndNewlines) == "Visit Apple"])
     return checks
   }
 }
