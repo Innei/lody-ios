@@ -159,6 +159,7 @@ final class ChatMarkdownView: UIView {
   }
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    guard !isHidden, alpha > 0.01, isUserInteractionEnabled else { return nil }
     for subview in subviews.reversed() {
       if let hit = subview.hitTest(subview.convert(point, from: self), with: event) { return hit }
     }

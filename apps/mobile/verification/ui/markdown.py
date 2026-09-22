@@ -114,6 +114,8 @@ ui.capture('markdown-code')
 
 grown = table_bleed_path().with_name('lody-context-view-grown.json')
 grown.unlink(missing_ok=True)
+hit_testing = grown.with_name('lody-markdown-hit-testing.json')
+hit_testing.unlink(missing_ok=True)
 ui.axe('tap', '--label', 'Fast Replay', '--post-delay', '.5')
 ui.wait(
     lambda items: any(i.get('AXUniqueId') == 'preview:answer' and (i.get('AXLabel') or '').endswith('收尾段落。') for i in items),
@@ -121,5 +123,9 @@ ui.wait(
 )
 time.sleep(1)
 assert not grown.exists(), ('Code or table view animated its frame after completion', grown.read_text())
+ui.wait(lambda _: hit_testing.exists(), 'Fold hit-testing checks did not run')
+checks = json.loads(hit_testing.read_text())
+assert checks and all(checks.values()), checks
+(ui.output / 'markdown-hit-testing.json').write_text(hit_testing.read_text())
 ui.capture('markdown-folded')
 print('PASS: production Markdown code copy, long-press selection in body and table, gutter bleed, and fold without regrowth')

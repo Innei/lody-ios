@@ -70,12 +70,13 @@ final class ChatMarkdownCell: UICollectionViewCell {
 
   override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
     if super.point(inside: point, with: event) { return true }
-    guard let markdown else { return false }
+    guard let markdown, markdown.superview === contentView else { return false }
     return markdown.point(inside: markdown.convert(point, from: self), with: event)
   }
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-    if let markdown, let hit = markdown.hitTest(markdown.convert(point, from: self), with: event) {
+    guard !isHidden, alpha > 0.01, isUserInteractionEnabled else { return nil }
+    if let markdown, markdown.superview === contentView, let hit = markdown.hitTest(markdown.convert(point, from: self), with: event) {
       return hit
     }
     return super.hitTest(point, with: event)

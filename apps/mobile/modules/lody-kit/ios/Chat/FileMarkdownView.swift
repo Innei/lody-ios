@@ -37,6 +37,7 @@ final class FileMarkdownView: MarkdownTextView {
   }
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    guard !isHidden, alpha > 0.01, isUserInteractionEnabled else { return nil }
     for table in ChatTableBleed.tables(in: self) {
       if let hit = ChatTableBleed.hit(table, point: point, from: self, event: event) { return hit }
     }
@@ -298,6 +299,51 @@ extension UIView {
 
 @MainActor
 enum ChatContextViewProbe {
+  static func checkHitTesting() {
+    guard LodyUIVerify.enabled else { return }
+    let store = ChatMarkdownStore(traits: .current)
+    let row = ChatRow(id: "hit-test", entryID: "hit-test", kind: "text", text: "Folded process text")
+    let markdown = store.view(id: row.id, text: row.text, secondary: false, streaming: false, width: 300)
+    let cell = ChatMarkdownCell(frame: CGRect(x: 0, y: 0, width: 320, height: 80))
+    cell.configure(row, markdown: markdown)
+    cell.layoutIfNeeded()
+    let point = CGPoint(x: 30, y: 20)
+    var checks: [String: Bool] = [:]
+    // UIKit can keep a deleted cell in its reuse pool with its old text attached.
+    let host = UIView(frame: cell.frame)
+    let button = UIButton(frame: host.bounds)
+    host.addSubview(button)
+    host.addSubview(cell)
+    checks["visibleTextReceivesTouch"] = host.hitTest(point, with: nil)?.isDescendant(of: markdown) == true
+    cell.isHidden = true
+    checks["hiddenCellPassesToButton"] = host.hitTest(point, with: nil) === button
+    cell.isHidden = false
+    cell.alpha = 0
+    checks["transparentCellPassesToButton"] = host.hitTest(point, with: nil) === button
+    cell.alpha = 1
+    cell.isUserInteractionEnabled = false
+    checks["disabledCellPassesToButton"] = host.hitTest(point, with: nil) === button
+    cell.isUserInteractionEnabled = true
+    for (name, view) in [("markdown", markdown as UIView), ("block", markdown.subviews[0])] {
+      let local = view.convert(point, from: cell)
+      view.isHidden = true
+      checks[name + "Hidden"] = view.hitTest(local, with: nil) == nil
+      view.isHidden = false
+      view.alpha = 0
+      checks[name + "Transparent"] = view.hitTest(local, with: nil) == nil
+      view.alpha = 1
+      view.isUserInteractionEnabled = false
+      checks[name + "Disabled"] = view.hitTest(local, with: nil) == nil
+      view.isUserInteractionEnabled = true
+    }
+    let next = ChatMarkdownCell(frame: cell.frame)
+    next.configure(row, markdown: markdown)
+    next.layoutIfNeeded()
+    checks["oldCellCannotReachReparentedText"] = cell.hitTest(point, with: nil)?.isDescendant(of: markdown) != true
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("lody-markdown-hit-testing.json")
+    try? JSONSerialization.data(withJSONObject: checks, options: .sortedKeys).write(to: url, options: .atomic)
+  }
+
   static func record(_ markdown: UIView) {
     guard LodyUIVerify.enabled else { return }
     var grown: [String] = []

@@ -330,6 +330,7 @@ extension LodyChatView {
     }
     let finish = { [weak self] in
       guard let self else { return }
+      if folding { ChatContextViewProbe.checkHitTesting() }
       self.recordHistoryCommit()
       self.streamPerformanceProbe?.commit(milliseconds: (CACurrentMediaTime() - commitStart) * 1000)
       self.applying = false
