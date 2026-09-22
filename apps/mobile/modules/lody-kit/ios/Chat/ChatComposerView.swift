@@ -544,6 +544,9 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     attach.accessibilityIdentifier = "session-attach"
     attach.showsMenuAsPrimaryAction = true
     attach.menu = UIMenu(children: [
+      UIAction(title: LodyStrings.text("native.chat.composer.takePhoto"), image: UIImage(systemName: "camera")) { [weak self] _ in
+        self?.presentRecentPhotos(camera: true)
+      },
       UIAction(title: LodyStrings.text("native.chat.composer.recentPhotos"), image: UIImage(systemName: "photo")) { [weak self] _ in self?.presentRecentPhotos() },
       UIAction(title: LodyStrings.text("native.chat.composer.photoLibrary"), image: UIImage(systemName: "photo.on.rectangle.angled")) { [weak self] _ in
         guard let self, let controller = self.presenter() else { return }
@@ -782,9 +785,9 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     input.text = ""
     attachments = []
   }
-  private func presentRecentPhotos() {
+  private func presentRecentPhotos(camera: Bool = false) {
     guard let controller = presenter() else { return }
-    let sheet = ChatAttachmentSheet()
+    let sheet = ChatAttachmentSheet(openCamera: camera)
     sheet.onPick = { [weak self] picked in self?.addAttachments(picked) }
     controller.present(sheet, animated: true)
   }

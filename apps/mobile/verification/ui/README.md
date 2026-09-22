@@ -613,3 +613,16 @@ filtered children remaining reachable without their opener. Light/dark screensho
 and video cover both hosts. Service data is offline; this does not establish live
 cloud synchronization. Session trees use `openedBySessionId`; contained Tabs and
 transcript `subagent_task` items retain their existing UI.
+
+`--suite camera` opens the recent-photo grid from both production composer hosts.
+The first cell expands its preview into an edge-to-edge camera inside the same
+sheet, while controls retain safe-area clearance. The explicit `--ui-verify-camera`
+launch fixture supplies a local image and rejects the first shutter press; it
+never requests camera or photo-library access. Both English appearances exercise
+retry, review, retake/temporary-file cleanup, multiple captured selections,
+attachment handoff, direct camera entry, collapse/cancellation and foreground
+ownership. Screenshots/video cover the transition and camera UI. The lifecycle
+record proves session start/stop requests, not physical sensor activity.
+`verify:native --case composer` also checks actual JPEG storage and invalid input.
+Real camera preview, orientation, focus, flash and lens switching require iPhone
+validation; the fixture does not establish their hardware behavior.

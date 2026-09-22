@@ -5,6 +5,7 @@ const LOCALES = ['zh-Hans', 'en'];
 const PLACEHOLDER = /\{([A-Za-z][A-Za-z0-9_]*)\}/g;
 const INFO_KEYS = {
   'ios.info.bundleDisplayName': 'CFBundleDisplayName',
+  'ios.info.cameraUsage': 'NSCameraUsageDescription',
   'ios.info.photoLibraryUsage': 'NSPhotoLibraryUsageDescription',
 };
 

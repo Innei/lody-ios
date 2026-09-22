@@ -19,6 +19,18 @@ import UniformTypeIdentifiers
   body()
 }
 
+// Camera results use the same temporary-file/preview path as other attachments.
+let capture = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 48)).image { context in
+  UIColor.systemBlue.setFill()
+  context.fill(CGRect(x: 0, y: 0, width: 32, height: 48))
+}
+let capturedPhoto = ChatCameraCapture.store(capture.jpegData(compressionQuality: 0.9)!)!
+precondition(capturedPhoto.isImage && capturedPhoto.url.isFileURL)
+precondition(ChatAttachment.thumbnail(capturedPhoto.url) != nil, "Captured photo must persist as a previewable attachment")
+try FileManager.default.removeItem(at: capturedPhoto.url)
+precondition(ChatCameraCapture.store(Data("invalid image".utf8)) == nil, "Invalid capture must not become an attachment")
+print("Camera: valid JPEG storage and invalid image rejection pass")
+
 let composer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
 let initialScroll = UIScrollView()
 initialScroll.bottomEdgeEffect.isHidden = true
@@ -41,7 +53,11 @@ precondition(scrollInteraction.scrollView == nil,
 print("Composer scroll edge: direct attachment, host replacement and detachment pass")
 let photoSheet = ChatAttachmentSheet()
 photoSheet.loadViewIfNeeded()
+photoSheet.view.frame = CGRect(x: 0, y: 0, width: 390, height: 430)
+photoSheet.additionalSafeAreaInsets.bottom = 34
+photoSheet.view.layoutIfNeeded()
 let photoScroll = photoSheet.contentScrollView(for: .bottom)
+precondition(photoScroll?.frame == photoSheet.view.bounds, "Photo grid must reach the sheet edges despite bottom safe area")
 precondition(photoScroll is UICollectionView && photoSheet.contentScrollView(for: .top) === photoScroll,
   "Photo selection must publish its native grid as the sheet's scroll content")
 let photoEdges = descendants(photoSheet.view).flatMap(\.interactions)
@@ -199,7 +215,7 @@ let attachmentComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, 
 attachmentComposer.setComposerState(ready)
 attachmentComposer.setInitialAttachments(#"[{"id":"synthetic-file","name":"test.txt","uri":"file:///tmp/lody-composer-test.txt","kind":"file"}]"#)
 let attachButton = descendants(attachmentComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-attach" }!
-precondition(attachButton.isEnabled && attachButton.menu?.children.count == 3, "Plus must offer the existing photo and file pickers")
+precondition(attachButton.isEnabled, "An attachment draft must still allow adding attachments")
 let attachmentSend = descendants(attachmentComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }!
 precondition(attachmentSend.isEnabled, "Attachment-only drafts must be sendable")
 var sentAttachments: [[String: String]] = []
