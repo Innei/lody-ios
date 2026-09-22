@@ -64,7 +64,10 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
   private let footer = UIStackView()
   private let camera = ChatCameraCapture()
   private let cameraLibrary = ChatPhotoLibraryPicker()
-  private lazy var cameraView = ChatAttachmentCameraView(session: camera.session)
+  private lazy var cameraView = ChatAttachmentCameraView(
+    session: camera.session,
+    dismissKey: cameraOnly ? "native.close" : "native.chat.camera.collapse"
+  )
   private var captured: [ChatAttachment] = []
   private var reviewing: ChatAttachment?
   private var handedOff = Set<String>()
@@ -107,7 +110,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
       view.backgroundColor = .black
       view.accessibilityIdentifier = "camera-fullscreen"
       cameraView.setExpanded(true)
-      cameraView.useFullscreenLayout()
+      cameraView.letterboxed = true
       view.addSubview(cameraView)
       return
     }
@@ -442,6 +445,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
       )
       assets = PHAsset.fetchAssets(with: options)
       status.isHidden = true
+      loadLibraryThumbnail()
     case .notDetermined:
       assets = nil
       status.isHidden = false
@@ -455,6 +459,18 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
     }
     grid.reloadData()
     updateConfirm()
+  }
+
+  private func loadLibraryThumbnail() {
+    guard let asset = assets?.firstObject else { return }
+    let options = PHImageRequestOptions()
+    options.deliveryMode = .opportunistic
+    options.resizeMode = .fast
+    images.requestImage(for: asset, targetSize: CGSize(width: 156, height: 156), contentMode: .aspectFill,
+      options: options) { [weak self] image, _ in
+      guard let image else { return }
+      self?.cameraView.setLibraryThumbnail(image)
+    }
   }
 
   private func runStatusAction() {
