@@ -6,6 +6,12 @@ handoff. It retains English light/dark coverage, screenshots and video. Run
 `pnpm verify:native --case chat-kit` separately for public Swift API style
 isolation, remeasurement, attachment actions and identity checks.
 
+`markdown` and `file-preview` include native Ruby annotations in both appearances.
+The chat check also verifies annotation readings, selectable base text and increased
+line height during streaming and after completion. The `local-store` native check
+covers parsed Ruby in lists, headings, tables and links, with literal code and
+incomplete or unsupported markup preserved.
+
 `session-share` exercises the production conversation-sharing sheet with an
 independently resettable Debug source: default scope, sub-conversation selection,
 capture/upload/publish progress, failed upload with no link, retry, stable-link

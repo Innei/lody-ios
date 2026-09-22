@@ -38,7 +38,7 @@ enum MarkdownPlainText {
   }
 
   private static func inline(_ nodes: [MarkdownInlineNode]) -> String {
-    nodes.map { node in
+    MarkdownRuby.inline(nodes, render: { .text($0.base) }).map { node in
       switch node {
       case .text(let text), .code(let text): return text
       case .softBreak: return " "

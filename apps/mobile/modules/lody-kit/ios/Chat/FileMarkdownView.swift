@@ -1,3 +1,4 @@
+import CoreText
 import Litext
 import MarkdownParser
 import MarkdownView
@@ -12,7 +13,7 @@ final class FileMarkdownView: MarkdownTextView {
   static let searchExcluded = NSAttributedString.Key("lody-search-excluded")
 
   static func content(_ source: MarkdownContent) -> MarkdownContent {
-    let blocks = source.blocks.rewrite { (node: MarkdownInlineNode) -> [MarkdownInlineNode] in
+    let blocks = MarkdownRuby.blocks(source.blocks).rewrite { (node: MarkdownInlineNode) -> [MarkdownInlineNode] in
       if case let .image(source, _) = node { return [.text(imageMarker + source)] }
       if case let .html(source) = node { return [.text(htmlMarker + source)] }
       guard case let .link(destination, children) = node,
@@ -45,6 +46,16 @@ final class FileMarkdownView: MarkdownTextView {
   }
 
   override func decorate(inlineText text: NSAttributedString, theme: MarkdownTheme) -> NSAttributedString {
+    if let ruby = MarkdownRuby.decode(text.string) {
+      // The marker starts with a private-use glyph, whose cached fallback is LastResort.
+      var attributes: [NSAttributedString.Key: Any] = [.font: theme.fonts.body, .foregroundColor: theme.colors.body]
+      if !ruby.reading.isEmpty {
+        attributes[NSAttributedString.Key(kCTRubyAnnotationAttributeName as String)] =
+          CTRubyAnnotationCreateWithAttributes(.auto, .auto, .before, ruby.reading as CFString,
+            [kCTRubyAnnotationSizeFactorAttributeName: 0.5] as CFDictionary)
+      }
+      return NSAttributedString(string: ruby.base, attributes: attributes)
+    }
     for prefix in [Self.imageMarker, Self.htmlMarker] where text.string.hasPrefix(prefix) {
       let source = String(text.string.dropFirst(prefix.count))
       var attributes: [NSAttributedString.Key: Any] = [Self.searchExcluded: true]
@@ -340,6 +351,21 @@ enum ChatContextViewProbe {
     next.configure(row, markdown: markdown)
     next.layoutIfNeeded()
     checks["oldCellCannotReachReparentedText"] = cell.hitTest(point, with: nil)?.isDescendant(of: markdown) != true
+    let source = "Before <ruby>Tokyo<rt>toh-kee-oh</rt></ruby> after"
+    for streaming in [false, true] {
+      let rendered = store.view(id: "ruby", text: source, secondary: false, streaming: streaming, width: 300)
+      let label = (rendered.subviews.first as! FileMarkdownView).textLabelView
+      let text = label.attributedText
+      let range = (text.string as NSString).range(of: "Tokyo")
+      var reading: String?
+      if range.location != NSNotFound,
+         let value = text.attribute(NSAttributedString.Key(kCTRubyAnnotationAttributeName as String), at: range.location, effectiveRange: nil) {
+        reading = CTRubyAnnotationGetTextForPosition(value as! CTRubyAnnotation, .before) as String?
+      }
+      checks["rubyReading-\(streaming)"] = reading == "toh-kee-oh"
+      checks["rubySelectableBase-\(streaming)"] = text.string.trimmingCharacters(in: .whitespacesAndNewlines) == "Before Tokyo after"
+      checks["rubyHeight-\(streaming)"] = rendered.measuredHeight > store.height(id: "plain", text: "Before Tokyo after", secondary: false, streaming: streaming, width: 300)
+    }
     let url = FileManager.default.temporaryDirectory.appendingPathComponent("lody-markdown-hit-testing.json")
     try? JSONSerialization.data(withJSONObject: checks, options: .sortedKeys).write(to: url, options: .atomic)
   }
