@@ -1,3 +1,4 @@
+import AVFoundation
 import UIKit
 import UniformTypeIdentifiers
 
@@ -30,6 +31,43 @@ precondition(ChatAttachment.thumbnail(capturedPhoto.url) != nil, "Captured photo
 try FileManager.default.removeItem(at: capturedPhoto.url)
 precondition(ChatCameraCapture.store(Data("invalid image".utf8)) == nil, "Invalid capture must not become an attachment")
 print("Camera: valid JPEG storage and invalid image rejection pass")
+
+// During the tile morph, the live layer keeps its crop and scales uniformly.
+let cameraMorph = ChatAttachmentCameraView(session: AVCaptureSession())
+let viewport = CGSize(width: 390, height: 430)
+cameraMorph.frame = CGRect(x: 0, y: 0, width: 116, height: 116)
+cameraMorph.prepareTransition(viewport: viewport)
+for size in [CGSize(width: 116, height: 116), CGSize(width: 240, height: 280), viewport] {
+  cameraMorph.frame.size = size
+  cameraMorph.setNeedsLayout()
+  cameraMorph.layoutIfNeeded()
+  let live = cameraMorph.previewLayer
+  precondition(live.bounds.size == viewport, "Live preview must not recrop independently during the morph")
+  let transform = live.affineTransform()
+  precondition(abs(transform.a - transform.d) < 0.001, "Camera contents must never stretch")
+  precondition(live.frame.width >= size.width - 0.01 && live.frame.height >= size.height - 0.01,
+    "Preview must cover the moving viewport without exposing blank edges")
+}
+cameraMorph.prepareTransition(viewport: nil)
+let fullCamera = ChatAttachmentSheet(cameraOnly: true)
+fullCamera.loadViewIfNeeded()
+precondition(fullCamera.modalPresentationStyle == .fullScreen)
+precondition(!descendants(fullCamera.view).contains { $0 is UICollectionView },
+  "Direct capture must not construct a recent-photo grid underneath")
+cameraMorph.useFullscreenLayout()
+cameraMorph.setExpanded(true)
+cameraMorph.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+cameraMorph.controlInsets = UIEdgeInsets(top: 62, left: 0, bottom: 34, right: 0)
+cameraMorph.setNeedsLayout()
+cameraMorph.layoutIfNeeded()
+let finder = cameraMorph.previewLayer.frame
+precondition(abs(finder.width / finder.height - 0.75) < 0.001)
+let cameraButtons = descendants(cameraMorph)
+let closeFrame = cameraButtons.first { $0.accessibilityIdentifier == "camera-collapse" }!.frame
+let shutterFrame = cameraButtons.first { $0.accessibilityIdentifier == "camera-shutter" }!.frame
+precondition(closeFrame.maxY <= finder.minY && shutterFrame.minY >= finder.maxY,
+  "Full-screen controls must stay in the black bars outside the 3:4 viewfinder")
+print("Camera: uniform preview morph, independent full-screen entry and 3:4 viewfinder pass")
 
 let composer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
 let initialScroll = UIScrollView()

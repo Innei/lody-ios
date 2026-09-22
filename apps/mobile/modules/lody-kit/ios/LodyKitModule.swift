@@ -87,6 +87,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   public override func didCreate() {
     Task { @MainActor in
       lodyApplyWindowAccent()
+      LiveActivities.shared.syncAppIcon()
       PushNotifications.shared.onClickAvailable = { [weak self] in self?.sendEvent("onPushClick", [:]) }
     }
     ContentPreview.clearAll()
@@ -290,7 +291,11 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
       let app = UIApplication.shared
       let alternate = name == "default" ? nil : name
-      guard app.alternateIconName != alternate else { promise.resolve(name); return }
+      guard app.alternateIconName != alternate else {
+        MainActor.assumeIsolated { LiveActivities.shared.syncAppIcon() }
+        promise.resolve(name)
+        return
+      }
       guard app.supportsAlternateIcons else {
         promise.reject("ERR_APP_ICON", "Alternate icons are unavailable")
         return
@@ -298,7 +303,10 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       app.setAlternateIconName(alternate) { error in
         DispatchQueue.main.async {
           if let error { promise.reject("ERR_APP_ICON", error.localizedDescription) }
-          else { promise.resolve(app.alternateIconName ?? "default") }
+          else {
+            LiveActivities.shared.syncAppIcon()
+            promise.resolve(app.alternateIconName ?? "default")
+          }
         }
       }
     }.runOnQueue(.main)

@@ -38,6 +38,7 @@ menu('recentPhotos')
 tile = ui.element('attachment-camera')['frame']
 grid = ui.element('attachment-grid')['frame']
 sheet = ui.element('attachment-sheet')['frame']
+assert abs(sheet['width'] / sheet['height'] - .75) < .02, 'Recent-photo sheet must use a 3:4 viewport'
 assert abs(grid['y'] + grid['height'] - sheet['y'] - sheet['height']) < 2, 'Grid stops above the sheet bottom safe area'
 ui.capture('camera-tile')
 events_path = container / 'tmp/lody-camera-events.json'
@@ -55,6 +56,10 @@ for identifier in ('camera-collapse', 'camera-flash', 'camera-shutter', 'camera-
     assert button.get('AXLabel'), f'{identifier} lost its accessible name'
 ui.capture('camera-expanded')
 assert json.loads(events_path.read_text()) == ['start'], 'Expanding replaced or restarted the thumbnail session'
+tap('camera-library')
+ui.element('attachment-camera')
+ui.capture('camera-collapsed')
+tap('attachment-camera')
 ui.axe('button', 'home')
 ui.wait(lambda _: json.loads(events_path.read_text())[-1] == 'stop', 'Backgrounding did not stop camera ownership')
 subprocess.run(['xcrun', 'simctl', 'launch', ui.udid, 'app.innei.lody'], check=True, timeout=30)
@@ -107,10 +112,22 @@ for label in original_attachments:
 photo_label = catalog.text('native.chat.attachment.preview', name='Photo.jpg')
 assert sum(i.get('AXLabel') == photo_label for i in ui.state()) == 2
 ui.capture('camera-draft-retained')
-# The direct menu action opens this same custom camera, not a second system controller.
+# The menu camera is a full-screen controller, independent of the recent-photo grid.
 menu('takePhoto')
-ui.element('camera-expanded')
+full = ui.element('camera-fullscreen')['frame']
+assert full['y'] < 2 and full['height'] > expanded['height'] * 1.5
+assert not any(i.get('AXUniqueId') == 'attachment-grid' for i in ui.state())
+viewfinder = ui.element('camera-viewfinder')['frame']
+assert abs(viewfinder['width'] / viewfinder['height'] - .75) < .01
+assert ui.element('camera-collapse')['frame']['y'] < viewfinder['y']
+assert ui.element('camera-shutter')['frame']['y'] > viewfinder['y'] + viewfinder['height']
 ui.capture('camera-direct-entry')
+tap('camera-library')
+# PHPicker is hosted by a system service and can omit its AX tree on Simulator.
+# Its close button is the top-left control in the captured system picker.
+ui.capture('camera-library')
+ui.axe('tap', '-x', '38', '-y', '118', '--post-delay', '.8')
+ui.element('camera-fullscreen')
 tap('camera-shutter')
 ui.element('camera-status')
 tap('camera-retry')
@@ -120,16 +137,21 @@ ui.element('camera-retake')
 discarded = files() - before_cancel
 assert len(discarded) == 1
 tap('camera-collapse')
-assert not any(p.exists() for p in discarded), 'Collapsing a review leaked its discarded image'
-ui.element('attachment-camera')
-ui.capture('camera-collapsed')
-sheet = ui.element('attachment-sheet')['frame']
-ui.axe('swipe', '--start-x', str(sheet['x'] + sheet['width'] / 2), '--start-y', str(sheet['y'] + 12),
-       '--end-x', str(sheet['x'] + sheet['width'] / 2), '--end-y', str(sheet['y'] + sheet['height'] - 5), '--duration', '.3', '--post-delay', '.8')
+assert not any(p.exists() for p in discarded), 'Closing a review leaked its discarded image'
 ui.element(source)
 assert ui.element(source)['AXValue'] == draft
 assert sum(i.get('AXLabel') == photo_label for i in ui.state()) == 2
 ui.capture('camera-cancel-retained')
+# Confirming in the global camera returns straight to the draft with one new photo.
+menu('takePhoto')
+tap('camera-shutter')
+tap('camera-retry')
+tap('camera-shutter')
+tap('camera-add')
+ui.element(source)
+assert ui.element(source)['AXValue'] == draft
+assert sum(i.get('AXLabel') == photo_label for i in ui.state()) == 3
+ui.capture('camera-direct-added')
 
 assert json.loads(events_path.read_text())[-1] == 'stop', 'Dismissing the sheet left the camera active'
 (ui.output / 'camera-lifecycle.json').write_text(events_path.read_text())

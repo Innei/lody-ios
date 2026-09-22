@@ -63,6 +63,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
   private let manage = UIButton(configuration: .plain())
   private let footer = UIStackView()
   private let camera = ChatCameraCapture()
+  private let cameraLibrary = ChatPhotoLibraryPicker()
   private lazy var cameraView = ChatAttachmentCameraView(session: camera.session)
   private var captured: [ChatAttachment] = []
   private var reviewing: ChatAttachment?
@@ -70,30 +71,46 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
   private var cameraExpanded = false
   private var cameraAnimating = false
   private var visible = false
-  private var openCamera: Bool
+  private let cameraOnly: Bool
   private var cameraCell: UICollectionViewCell?
   private var assets: PHFetchResult<PHAsset>?
   private var selection: [String] = []
   private let images = PHImageManager.default()
 
-  init(openCamera: Bool = false) {
-    self.openCamera = openCamera
+  init(cameraOnly: Bool = false) {
+    self.cameraOnly = cameraOnly
+    self.cameraExpanded = cameraOnly
     let layout = UICollectionViewFlowLayout()
     layout.minimumLineSpacing = 3
     layout.minimumInteritemSpacing = 3
     layout.sectionInset = UIEdgeInsets(top: 24, left: 16, bottom: 0, right: 16)
     grid = UICollectionView(frame: .zero, collectionViewLayout: layout)
     super.init(nibName: nil, bundle: nil)
-    modalPresentationStyle = .pageSheet
-    sheetPresentationController?.detents = [.medium(), .large()]
+    modalPresentationStyle = cameraOnly ? .fullScreen : .pageSheet
+    sheetPresentationController?.detents = [.custom(identifier: .init("cameraAspect")) { [weak self] context in
+      guard let self else { return context.maximumDetentValue }
+      return min(context.maximumDetentValue, self.view.bounds.width * 4 / 3 - self.view.safeAreaInsets.bottom)
+    }]
     sheetPresentationController?.prefersGrabberVisible = true
     sheetPresentationController?.prefersScrollingExpandsWhenScrolledToEdge = false
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+  override var prefersStatusBarHidden: Bool { cameraOnly }
+  override var prefersHomeIndicatorAutoHidden: Bool { cameraOnly }
+
   override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = .lodyBackground
+    configureCamera()
+    if cameraOnly {
+      view.backgroundColor = .black
+      view.accessibilityIdentifier = "camera-fullscreen"
+      cameraView.setExpanded(true)
+      cameraView.useFullscreenLayout()
+      view.addSubview(cameraView)
+      return
+    }
     grid.backgroundColor = .clear
     grid.dataSource = self
     grid.delegate = self
@@ -145,7 +162,6 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
       confirm.heightAnchor.constraint(equalToConstant: 50),
       manage.heightAnchor.constraint(equalToConstant: 44),
     ])
-    configureCamera()
     LodyScrollEdges.bind(grid, to: self)
     refresh()
   }
@@ -160,16 +176,18 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
     super.viewDidAppear(animated)
     visible = true
     updateCameraSession()
-    if openCamera {
-      openCamera = false
-      expandCamera()
-    }
+    if cameraOnly { updateCameraSession(requestPermission: true) }
   }
 
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
     visible = false
     camera.setActive(false)
+  }
+
+  override func viewSafeAreaInsetsDidChange() {
+    super.viewSafeAreaInsetsDidChange()
+    if !cameraOnly { sheetPresentationController?.invalidateDetents() }
   }
 
   override func viewDidLayoutSubviews() {
@@ -204,8 +222,25 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
       self.camera.setActive(false)
       UIAccessibility.post(notification: .layoutChanged, argument: self.cameraView)
     }
-    cameraView.onCollapse = { [weak self] in self?.collapseCamera() }
+    cameraView.onCollapse = { [weak self] in
+      guard let self else { return }
+      if self.cameraOnly {
+        self.discardReview()
+        self.dismiss(animated: true)
+      } else {
+        self.collapseCamera()
+      }
+    }
     cameraView.onShutter = { [weak self] flash, angle in self?.camera.capture(flash: flash, angle: angle) }
+    cameraView.onLibrary = { [weak self] in
+      guard let self else { return }
+      if self.cameraOnly {
+        self.cameraLibrary.present(from: self, fullScreen: true)
+      } else {
+        self.collapseCamera()
+      }
+    }
+    cameraLibrary.onPick = { [weak self] picked in self?.finish(picked) }
     cameraView.onFlip = { [weak self] in self?.camera.flip() }
     cameraView.onFocus = { [weak self] point in self?.camera.focus(at: point) }
     cameraView.onRetry = { [weak self] in
@@ -224,6 +259,10 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
     cameraView.onAdd = { [weak self] in
       guard let self, let photo = self.reviewing else { return }
       self.reviewing = nil
+      if self.cameraOnly {
+        self.finish([photo])
+        return
+      }
       self.captured.insert(photo, at: 0)
       self.selection.append(photo.id)
       self.collapseCamera()
@@ -331,17 +370,20 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
     cameraView.controlInsets = view.safeAreaInsets
     cameraView.isUserInteractionEnabled = true
     view.addSubview(cameraView)
-    cameraView.layoutIfNeeded()
+    cameraView.prepareTransition(viewport: view.bounds.size)
     let duration = UIAccessibility.isReduceMotionEnabled ? 0 : 0.42
     UIView.animate(withDuration: duration, delay: 0, usingSpringWithDamping: 0.92, initialSpringVelocity: 0, options: [.beginFromCurrentState]) {
       self.cameraView.frame = self.view.bounds
       self.cameraView.layer.cornerRadius = 0
       self.cameraView.layoutIfNeeded()
+      self.cameraView.setExpanded(true)
+      self.view.backgroundColor = .black
+      self.grid.alpha = 0
       self.status.alpha = 0
       self.footer.alpha = 0
     } completion: { _ in
       self.cameraAnimating = false
-      UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.16) { self.cameraView.setExpanded(true) }
+      self.cameraView.prepareTransition(viewport: nil)
       self.updateCameraSession(requestPermission: true)
       UIAccessibility.post(notification: .layoutChanged, argument: self.cameraView)
     }
@@ -357,12 +399,15 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
     guard cameraExpanded, !cameraAnimating else { return }
     discardReview()
     cameraAnimating = true
-    cameraView.setExpanded(false)
+    cameraView.prepareTransition(viewport: view.bounds.size)
     let destination = cameraCell?.contentView.convert(cameraCell?.contentView.bounds ?? .zero, to: view) ?? .zero
     UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.38, delay: 0,
       usingSpringWithDamping: 0.95, initialSpringVelocity: 0, options: [.beginFromCurrentState]) {
+      self.cameraView.setExpanded(false)
       self.cameraView.frame = destination
       self.cameraView.layer.cornerRadius = 6
+      self.view.backgroundColor = .lodyBackground
+      self.grid.alpha = 1
       self.cameraView.layoutIfNeeded()
       self.status.alpha = 1
       self.footer.alpha = 1
@@ -374,6 +419,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
       self.status.accessibilityElementsHidden = false
       self.footer.accessibilityElementsHidden = false
       self.mountCameraTile()
+      self.cameraView.prepareTransition(viewport: nil)
       self.refresh()
       LodyScrollEdges.bind(self.grid, to: self)
       self.updateCameraSession()

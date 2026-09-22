@@ -256,13 +256,14 @@ final class ChatAttachmentPicker: NSObject, UIDocumentPickerDelegate {
 final class ChatPhotoLibraryPicker: NSObject, PHPickerViewControllerDelegate {
   var onPick: (([ChatAttachment]) -> Void)?
 
-  func present(from controller: UIViewController) {
+  func present(from controller: UIViewController, fullScreen: Bool = false) {
     var config = PHPickerConfiguration(photoLibrary: .shared())
     config.filter = .any(of: [.images, .videos])
     config.preferredAssetRepresentationMode = .current
     config.selectionLimit = 10
     config.selection = .ordered
     let picker = PHPickerViewController(configuration: config)
+    if fullScreen { picker.modalPresentationStyle = .fullScreen }
     picker.delegate = self
     controller.present(picker, animated: true)
   }

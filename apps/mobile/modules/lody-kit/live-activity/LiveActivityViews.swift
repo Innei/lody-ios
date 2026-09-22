@@ -100,12 +100,13 @@ struct GlyphStack: View {
 // ActivityKit replaces an image whose pixels exceed its frame with a grey box, so
 // the asset ships at exactly this point size in 1x/2x/3x and is never drawn larger.
 struct JellyGlow: View {
+  @AppStorage(LodyActivityIcon.key, store: LodyActivityIcon.defaults) private var appIcon = "default"
   static let pointSize: CGFloat = 120
   var opacity: Double = 0.55
   private var size: CGFloat { Self.pointSize }
 
   var body: some View {
-    Image("lody-jelly")
+    Image(LodyActivityIcon.asset(name: appIcon, mark: false))
       .resizable()
       .scaledToFit()
       .frame(width: size, height: size)
@@ -124,10 +125,11 @@ struct JellyGlow: View {
 }
 
 struct JellyMark: View {
+  @AppStorage(LodyActivityIcon.key, store: LodyActivityIcon.defaults) private var appIcon = "default"
   static let pointSize: CGFloat = 22
 
   var body: some View {
-    Image("lody-jelly-mark")
+    Image(LodyActivityIcon.asset(name: appIcon, mark: true))
       .resizable()
       .frame(width: Self.pointSize, height: Self.pointSize)
       .accessibilityHidden(true)

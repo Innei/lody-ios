@@ -331,7 +331,7 @@ first simulates an offline fetch with cached usage, then reconnects with a chang
 percentage. Its fixtures pass through the production catalog projector; screenshots
 and video cover both appearances without provider credentials or live quota queries.
 
-The `live-activity` case uses the offline `debug` workspace and production activity reconciliation, without OneSignal or credentials. It checks the injected settings toggle, a multiple-task overview, permission priority, removal of a completed turn, ending all work and starting again. Island captures background the app first; the Lock Screen captures include the completion summary and its 10-second dismissal. Both appearances record video. The runner handles the system's Live Activity consent prompt on reused pool devices. Overview links reject an unavailable account, and unavailable session links preserve the current page. Push-to-start and remote background updates still require a real device; these local checks do not establish APNs delivery.
+The `live-activity` case uses the offline `debug` workspace and production activity reconciliation, without OneSignal or credentials. It checks the injected settings toggle, a multiple-task overview, permission priority, removal of a completed turn, ending all work and starting again. Island captures background the app first; the Lock Screen captures include the completion summary and its 10-second dismissal. Both appearances record video. It also switches the real app icon from default to Aqua during an active overview, captures the compact/expanded Island and Lock Screen artwork, verifies a newly started activity, and switches back to default. The runner handles the system's Live Activity consent prompt on reused pool devices. Overview links reject an unavailable account, and unavailable session links preserve the current page. Push-to-start and remote background updates still require a real device; these local checks do not establish APNs delivery.
 
 The background case runs via `--case background`, dwelling on the Simulator Home screen for 40 seconds. Counts originate from real offscreen WebView callbacks; cloud events are substituted with local scripts without network or credential access. If the system denies sustained background tasks, this case only verifies retention/restoration and request-failure degradation, and cannot be used to claim that sustained background execution has passed. Prolonged physical-device network connectivity and power consumption require separate real-device testing.
 
@@ -616,12 +616,12 @@ transcript `subagent_task` items retain their existing UI.
 
 `--suite camera` opens the recent-photo grid from both production composer hosts.
 The first cell expands its preview into an edge-to-edge camera inside the same
-sheet, while controls retain safe-area clearance. The explicit `--ui-verify-camera`
+3:4 sheet, while controls float over the image with safe-area clearance. The menu camera instead opens full-screen with black control regions outside a 3:4 viewfinder. The explicit `--ui-verify-camera`
 launch fixture supplies a local image and rejects the first shutter press; it
 never requests camera or photo-library access. Both English appearances exercise
 retry, review, retake/temporary-file cleanup, multiple captured selections,
-attachment handoff, direct camera entry, collapse/cancellation and foreground
-ownership. Screenshots/video cover the transition and camera UI. The lifecycle
+attachment handoff, separate full-screen camera entry and direct confirmation, cancellation and foreground
+ownership. The grid morph keeps preview geometry fixed and scales it with the viewport while the sheet background and controls transition together. Screenshots/video cover the transition and camera UI. The lifecycle
 record proves session start/stop requests, not physical sensor activity.
 `verify:native --case composer` also checks actual JPEG storage and invalid input.
 Real camera preview, orientation, focus, flash and lens switching require iPhone
