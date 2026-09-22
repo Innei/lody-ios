@@ -68,3 +68,24 @@ precondition(effortSlider.value == 1, "Highest effort must sit at the full end o
 panel.perform(NSSelectorFromString("changeEffort"))
 precondition(picked == "unchanged", "Highest effort is already the full slider")
 print("PASS: Grok menu-order efforts still fill the slider from low to extra high")
+
+var deepseek = ChatComposerOptions()
+deepseek.modelId = "deepseek"
+deepseek.efforts = [
+  ChatComposerOption(id: "high", title: "High"),
+  ChatComposerOption(id: "off", title: "Off"),
+]
+panel.render(deepseek)
+effortSlider.value = 0.5
+panel.perform(NSSelectorFromString("changeEffort"))
+precondition(picked == "off", "The first step after Default must select Off")
+deepseek.effort = picked
+panel.render(deepseek)
+precondition(effortSlider.value == 0.5 && model.configuration?.title == "Off ›", "Off must restore at the lowest explicit effort")
+effortSlider.value = 1
+panel.perform(NSSelectorFromString("changeEffort"))
+precondition(picked == "high", "Increasing from Off must select the higher effort")
+effortSlider.value = 0
+panel.perform(NSSelectorFromString("changeEffort"))
+precondition(picked == "", "Default must remain distinct from Off")
+print("PASS: DeepSeek Off selection, restored position, higher effort and Default")

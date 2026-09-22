@@ -30,7 +30,7 @@ extension ChatComposerOptions {
 
   var orderedEfforts: [ChatComposerOption] {
     let rank = [
-      "none": 0, "minimal": 1, "low": 2, "medium": 3, "high": 4, "xhigh": 5, "max": 6, "ultra": 7,
+      "off": 0, "none": 0, "minimal": 1, "low": 2, "medium": 3, "high": 4, "xhigh": 5, "max": 6, "ultra": 7,
     ]
     return efforts.enumerated().sorted { lhs, rhs in
       let left = rank[lhs.element.id.lowercased()]
