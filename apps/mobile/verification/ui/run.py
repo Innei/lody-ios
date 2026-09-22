@@ -25,6 +25,8 @@ BATCHES = {
     'chat': ['message-share', 'user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'chat-chrome', 'title-rename'],
 }
 SUITES = {
+    'chat-kit': ['chat-stream-performance', 'composer', 'send-transition-handoff'],
+    'chat-kit-input': ['composer', 'send-transition-handoff'],
     'camera': ['camera-chat', 'camera-sheet'],
     'glass-transitions': ['chat-chrome', 'mention-chat', 'mention-sheet', 'send-queue', 'send-transition', 'send-transition-handoff'],
     'core': ['onboarding', 'inbox', 'navigation', 'send', 'send-handoff', 'composer-success'],
@@ -351,6 +353,18 @@ with metro_context:
                     if result['appLifecycle'] == 'return-to-root':
                         assert result['appPid'] == app_pid, 'Returning to root unexpectedly replaced the App process'
                     app_pid = result['appPid']
+                    if restart and not args.embedded:
+                        try:
+                            ui.element('ui-verify-ready', timeout=20)
+                        except AssertionError:
+                            # A cold dev launcher can return to its home screen
+                            # despite --initialUrl. Only recover that observed UI;
+                            # other startup failures still require the real marker.
+                            if any(item.get('AXLabel') == 'Enter URL manually' for item in ui.state()):
+                                sim('openurl', args.udid,
+                                    f'exp+lody-ios://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A{args.port}')
+                                if any(item.get('AXLabel') == 'Open' for item in ui.state()):
+                                    ui.axe('tap', '--label', 'Open')
                     ui.element('ui-verify-ready', timeout=180)
                     preview = PREVIEW.get(case, 'chat-preview')
                     ready = 'ui-verify-ready' if case in HOME_CASES else READY.get(case, 'session-input')
@@ -423,6 +437,11 @@ with metro_context:
                         check_timeout = 420
                     if case == 'chat-performance':
                         check_timeout = 480
+                    elif case in ['send-transition', 'send-transition-handoff']:
+                        # Mixed-file import, text expansion, gallery gestures and
+                        # per-file upload states need multiple AXe round trips.
+                        # Keep each gesture/animation assertion independently bounded.
+                        check_timeout = 420
                     elif case == 'live-activity':
                         # Includes a real 61-second dismissal wait plus lock/unlock
                         # and Dynamic Island transitions; 180s cuts off deep links.

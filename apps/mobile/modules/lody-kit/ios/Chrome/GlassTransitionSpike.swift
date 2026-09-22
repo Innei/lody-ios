@@ -1,3 +1,4 @@
+import ChatKit
 import UIKit
 
 /// Compare direct UIKit animation with the reversible production surface.
@@ -61,7 +62,7 @@ import UIKit
       effects.append(effect)
       let surface: UIVisualEffectView
       if index == 3 {
-        let reversible = LodyGlassView(interactive: true)
+        let reversible = CKGlassSurface(interactive: true)
         reversible.setVisible(true, animated: false)
         surface = reversible
       } else {
@@ -115,7 +116,7 @@ import UIKit
       if visible { surface.isHidden = false }
     }
     surfaces[0].isHidden = !visible
-    (surfaces[3] as! LodyGlassView).setVisible(visible)
+    (surfaces[3] as! CKGlassSurface).setVisible(visible)
     UIView.animate(withDuration: duration, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
       self.surfaces[1].alpha = visible ? 1 : 0
       self.surfaces[2].effect = visible ? self.effects[2] : nil

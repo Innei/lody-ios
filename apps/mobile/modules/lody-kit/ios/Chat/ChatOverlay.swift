@@ -1,3 +1,4 @@
+import ChatKit
 import UIKit
 
 final class ChatOverlay: UIView {
@@ -55,9 +56,9 @@ final class ChatOverlay: UIView {
   var onScrollToBottom: (() -> Void)?
   var onTasksPress: (() -> Void)?
 
-  private let statusSurface = LodyGlassView(interactive: true)
+  private let statusSurface = CKGlassSurface(interactive: true)
   private let scrollHost = UIView()
-  private let scrollSurface = LodyGlassView(interactive: true)
+  private let scrollSurface = CKGlassSurface(interactive: true)
   private let statusButton = UIButton(type: .system)
   private let scrollButton = UIButton(type: .system)
 

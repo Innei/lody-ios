@@ -2,22 +2,23 @@ import Foundation
 
 /// Only in-flight rendered graphemes carry animation state. Markdown edits
 /// preserve their birth times; ordinary appends never diff the completed text.
-struct ChatTextFade {
-  static let duration = 0.18
-  struct RangeFade {
-    let range: NSRange
-    let start: Double
-    func opacity(at time: Double) -> Double {
-      let progress = min(1, max(0, (time - start) / ChatTextFade.duration))
+public struct CKTextFade {
+  public init() {}
+  public static let duration = 0.18
+  public struct RangeFade {
+    public let range: NSRange
+    public let start: Double
+    public func opacity(at time: Double) -> Double {
+      let progress = min(1, max(0, (time - start) / CKTextFade.duration))
       return progress * progress * (3 - 2 * progress)
     }
   }
   private var text = ""
   private var length = 0
   private var lastUpdate: Double?
-  private(set) var active: [RangeFade] = []
+  public private(set) var active: [RangeFade] = []
 
-  mutating func update(_ text: String, animate: Bool, at time: Double, reset: Bool = false) {
+  public mutating func update(_ text: String, animate: Bool, at time: Double, reset: Bool = false) {
     // MarkdownView terminates paragraphs with a synthetic newline. Ignore that
     // invisible terminator so appends still take the suffix-only path.
     let next = text.last?.isNewline == true ? String(text.dropLast()) : text
@@ -101,5 +102,5 @@ struct ChatTextFade {
     active.sort { $0.range.location < $1.range.location }
   }
 
-  func isAnimating(at time: Double) -> Bool { active.contains { $0.opacity(at: time) < 1 } }
+  public func isAnimating(at time: Double) -> Bool { active.contains { $0.opacity(at: time) < 1 } }
 }

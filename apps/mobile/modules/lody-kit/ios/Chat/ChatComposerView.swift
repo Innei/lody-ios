@@ -1,3 +1,4 @@
+import ChatKit
 import UIKit
 import UniformTypeIdentifiers
 
@@ -36,7 +37,7 @@ struct ChatQueuedDraft: Equatable {
   }
 }
 
-private final class ChatQueueView: LodyGlassView {
+private final class ChatQueueView: CKGlassSurface {
   private let scroll = UIScrollView()
   private let stack = UIStackView()
   private var rendered: [ChatQueuedDraft] = []

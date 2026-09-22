@@ -1,3 +1,4 @@
+import ChatKit
 import UIKit
 
 struct ChatMentionItem: Decodable, Equatable {
@@ -35,7 +36,7 @@ struct ChatMentionItem: Decodable, Equatable {
 }
 
 /// Typing completes in place; explicit category selection delegates to a page sheet.
-final class ChatMentionPanel: LodyGlassView, UICollectionViewDataSource, UICollectionViewDelegate {
+final class ChatMentionPanel: CKGlassSurface, UICollectionViewDataSource, UICollectionViewDelegate {
   private let list: UICollectionView
   private var showing: Bool { materialVisible }
   private var rows: [ChatMentionItem] = []

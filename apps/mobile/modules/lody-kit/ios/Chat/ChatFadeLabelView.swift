@@ -1,9 +1,11 @@
+import ChatKitCore
+import ChatKit
 import CoreText
 import Litext
 import UIKit
 
 final class ChatFadeLayout: TextLabel.Layout {
-  var fades: () -> [ChatTextFade.RangeFade] = { [] }
+  var fades: () -> [CKTextFade.RangeFade] = { [] }
   var shines: () -> Bool = { false }
   var displayScale: () -> CGFloat = { 1 }
 
@@ -15,12 +17,12 @@ final class ChatFadeLayout: TextLabel.Layout {
       max(1, sizeThatFits(CGSize(width: containerSize.width, height: .greatestFiniteMagnitude)).width)
     )
     let bounds = CGRect(origin: .zero, size: containerSize)
-    let overlay = ChatTextShine.overlay(
+    let overlay = CKTextShine.overlay(
       for: CGRect(x: 0, y: 0, width: textWidth, height: containerSize.height),
       height: containerSize.height,
       at: CACurrentMediaTime()
     )
-    guard let mask = ChatTextShine.mask(
+    guard let mask = CKTextShine.mask(
       size: containerSize,
       scale: displayScale(),
       overlay: overlay
@@ -88,7 +90,7 @@ final class ChatFadeLayout: TextLabel.Layout {
 /// Fades newly rendered graphemes in while a message streams. Ticks only redraw;
 /// they never touch the attributed string or the layout.
 final class ChatFadeLabelView: TextLabelView {
-  private var fade = ChatTextFade()
+  private var fade = CKTextFade()
   private var timer: Timer?
   private var animateNext = false
   private var resetNext = false
@@ -131,7 +133,7 @@ final class ChatFadeLabelView: TextLabelView {
   }
 
   func finishAnimation() {
-    fade = ChatTextFade()
+    fade = CKTextFade()
     wasAnimating = false
     resetNext = false
     timer?.invalidate()

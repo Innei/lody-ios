@@ -1,3 +1,4 @@
+import ChatKit
 import Litext
 import UIKit
 
@@ -28,7 +29,7 @@ import UIKit
             layout.rects(for: range).map { CGRect(x: $0.minX, y: label.bounds.height - $0.maxY, width: $0.width, height: $0.height) }
           }
         }
-      } else if !query.isEmpty, let text = view as? ChatTextView {
+      } else if !query.isEmpty, let text = view as? CKTextView {
         ranges = TextSearch.ranges(in: text.attributedTextValue.string, query: query)
         rectangles = { text.rectangles(for: $0) }
       }

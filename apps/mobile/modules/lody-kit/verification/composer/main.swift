@@ -1,3 +1,4 @@
+import ChatKit
 import AVFoundation
 import UIKit
 import UniformTypeIdentifiers
@@ -1022,7 +1023,7 @@ materialComposer.onHeightChange = { materialHeight = $0 }
 materialComposer.setQueue([ChatQueuedDraft(id: "material-queue", text: "Last queued turn")])
 materialComposer.layoutIfNeeded()
 RunLoop.main.run(until: Date().addingTimeInterval(0.4))
-let materialQueue = descendants(materialComposer).first { $0.accessibilityIdentifier == "session-queue" } as! LodyGlassView
+let materialQueue = descendants(materialComposer).first { $0.accessibilityIdentifier == "session-queue" } as! CKGlassSurface
 let withQueue = materialHeight
 materialComposer.setQueue([])
 precondition(!materialQueue.isHidden && !materialQueue.isUserInteractionEnabled && materialHeight == withQueue,

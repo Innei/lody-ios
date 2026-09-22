@@ -3,16 +3,7 @@
 From the repository root:
 
 ```sh
-swiftc -swift-version 6 apps/mobile/modules/lody-kit/ios/LodyStrings.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/LodyAgentIcon.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatTranscript.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatStream.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatTextFade.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatHaptics.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatImagePreviewGeometry.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatImageGallery.swift \
-  apps/mobile/modules/lody-kit/verification/chat/main.swift \
-  -o /tmp/lody-chat-test && /tmp/lody-chat-test
+pnpm verify:native --case chat
 ```
 
 Settings → Debug → Native Chat Preview (`原生聊天预览`) uses the production native view with 80 history
@@ -54,26 +45,7 @@ drawn by `ChatFadeLabelView`, a `TextLabelView` subclass injected into
 Scroll drawing regression (with a booted iOS Simulator):
 
 ```sh
-xcrun --sdk iphonesimulator swiftc -swift-version 6 -target arm64-apple-ios26.0-simulator \
-  -sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
-  apps/mobile/modules/lody-kit/ios/LodyStrings.swift \
-  apps/mobile/modules/lody-kit/ios/LodyTint.swift \
-  apps/mobile/modules/lody-kit/ios/LodyUIVerify.swift \
-  apps/mobile/modules/lody-kit/ios/UIFont+Dynamic.swift \
-  apps/mobile/modules/lody-kit/ios/Chrome/LodyGlassView.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/LodyAgentIcon.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatTranscript.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatTextFade.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatTextView.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatUserMentions.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatThrowCurve.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatAttachments.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatSendHandoff.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatNumericText.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatCell.swift \
-  apps/mobile/modules/lody-kit/verification/chat-render/main.swift \
-  -o /tmp/lody-chat-render-test
-xcrun simctl spawn booted /tmp/lody-chat-render-test
+pnpm verify:native --case chat-render
 ```
 
 The same long text must draw identically when partially offscreen and after

@@ -1,5 +1,11 @@
 # Offline UI verification
 
+`--suite chat-kit` exercises the Swift Package migration through the
+production streaming transcript, standalone Composer sheet and attachment send
+handoff. It retains English light/dark coverage, screenshots and video. Run
+`pnpm verify:native --case chat-kit` separately for public Swift API style
+isolation, remeasurement, attachment actions and identity checks.
+
 `session-share` exercises the production conversation-sharing sheet with an
 independently resettable Debug source: default scope, sub-conversation selection,
 capture/upload/publish progress, failed upload with no link, retry, stable-link
