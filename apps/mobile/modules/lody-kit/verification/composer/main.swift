@@ -55,7 +55,7 @@ fullCamera.loadViewIfNeeded()
 precondition(fullCamera.modalPresentationStyle == .fullScreen)
 precondition(!descendants(fullCamera.view).contains { $0 is UICollectionView },
   "Direct capture must not construct a recent-photo grid underneath")
-cameraMorph.useFullscreenLayout()
+cameraMorph.letterboxed = true
 cameraMorph.setExpanded(true)
 cameraMorph.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
 cameraMorph.controlInsets = UIEdgeInsets(top: 62, left: 0, bottom: 34, right: 0)

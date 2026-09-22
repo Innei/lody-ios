@@ -49,7 +49,7 @@ assert expanded['height'] > tile['height'] * 2, 'Camera did not expand beyond it
 assert abs(expanded['y'] - sheet['y']) < 2 and abs(expanded['height'] - sheet['height']) < 2, 'Camera must fill the complete sheet, including safe areas'
 shutter = ui.element('camera-shutter')['frame']
 assert shutter['y'] + shutter['height'] < expanded['y'] + expanded['height'] - 20, 'Shutter overlaps the bottom gesture area'
-for identifier in ('camera-collapse', 'camera-flash', 'camera-shutter', 'camera-flip'):
+for identifier in ('camera-collapse', 'camera-flash', 'camera-shutter', 'camera-flip', 'camera-library'):
     button = ui.element(identifier)
     frame = button['frame']
     assert abs(frame['width'] - frame['height']) < 1 and frame['width'] >= 44, f'{identifier} must have a circular, accessible touch target'
@@ -78,11 +78,14 @@ tap('camera-shutter')
 ui.element('camera-retake')
 first = files() - before_capture
 assert len(first) == 1, 'Confirmed capture did not persist exactly one image'
-for identifier in ('camera-retake', 'camera-add'):
+for identifier, key in (('camera-retake', 'retake'), ('camera-add', 'add')):
     button = ui.element(identifier)
     frame = button['frame']
-    assert abs(frame['width'] - frame['height']) < 1 and frame['width'] >= 44
-    assert button.get('AXLabel')
+    assert frame['height'] >= 44 and frame['width'] > frame['height'], 'Review actions must read as labelled pills'
+    assert button.get('AXLabel') == catalog.text('native.chat.camera.' + key)
+review_retake = ui.element('camera-retake')['frame']
+review_add = ui.element('camera-add')['frame']
+assert review_retake['x'] + review_retake['width'] < review_add['x'], 'Review actions overlap'
 ui.capture('camera-review')
 tap('camera-retake')
 assert not any(p.exists() for p in first), 'Retake leaked its discarded image'

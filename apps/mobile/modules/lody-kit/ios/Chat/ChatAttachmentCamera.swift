@@ -232,6 +232,7 @@ final class ChatAttachmentCameraView: UIView {
   var onAdd: (() -> Void)?
   private let preview = ChatCameraPreview()
   private let image = UIImageView()
+  private let shutterFlash = UIView()
   private let glyph = UIImageView(image: UIImage(systemName: "camera.fill"))
   private let controls = UIView()
   private let collapse = UIButton(configuration: .glass())
@@ -241,12 +242,14 @@ final class ChatAttachmentCameraView: UIView {
   private let shutterFace = UIView()
   private let flip = UIButton(configuration: .glass())
   private let library = UIButton(configuration: .glass())
+  private let libraryThumbnail = UIImageView()
   private let retake = UIButton(configuration: .glass())
   private let add = UIButton(configuration: .glass())
   private let status = UILabel()
   private let retry = UIButton(configuration: .glass())
   private let focusRing = UIView()
-  private var standalone = false
+  /// A host whose own bounds are not already 3:4 keeps the viewfinder letterboxed.
+  var letterboxed = false { didSet { setNeedsLayout() } }
   private var transitionViewport: CGSize?
   private var expanded = false
   private var reviewing = false
@@ -258,7 +261,7 @@ final class ChatAttachmentCameraView: UIView {
   var controlInsets = UIEdgeInsets.zero
   var previewLayer: AVCaptureVideoPreviewLayer { preview.previewLayer }
 
-  init(session: AVCaptureSession) {
+  init(session: AVCaptureSession, dismissKey: String = "native.chat.camera.collapse") {
     super.init(frame: .zero)
     clipsToBounds = true
     overrideUserInterfaceStyle = .dark
@@ -278,14 +281,30 @@ final class ChatAttachmentCameraView: UIView {
     glyph.clipsToBounds = true
     glyph.contentMode = .center
     glyph.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 24)
-    for item in [preview, image, glyph, controls] { addSubview(item) }
+    shutterFlash.backgroundColor = .white
+    shutterFlash.alpha = 0
+    shutterFlash.isUserInteractionEnabled = false
+    for item in [preview, image, shutterFlash, glyph, controls] { addSubview(item) }
     for button in [collapse, flash, flip, library, retake, add, retry] {
       button.configuration?.cornerStyle = .capsule
       button.configuration?.contentInsets = .zero
       button.configuration?.preferredSymbolConfigurationForImage = .init(pointSize: 20, weight: .medium)
     }
+    for button in [flip, library, retry] {
+      button.configuration?.preferredSymbolConfigurationForImage = .init(pointSize: 21, weight: .medium)
+    }
+    for button in [retake, add] {
+      button.configuration?.preferredSymbolConfigurationForImage = .init(pointSize: 16, weight: .semibold)
+      button.configuration?.imagePadding = 7
+      button.configuration?.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 18)
+      button.configuration?.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+        var resolved = attributes
+        resolved.font = .systemFont(ofSize: 16, weight: .semibold)
+        return resolved
+      }
+    }
     collapse.setImage(UIImage(systemName: "chevron.down"), for: .normal)
-    collapse.accessibilityLabel = LodyStrings.text("native.chat.camera.collapse")
+    collapse.accessibilityLabel = LodyStrings.text(dismissKey)
     collapse.accessibilityIdentifier = "camera-collapse"
     collapse.addAction(UIAction { [weak self] _ in self?.onCollapse?() }, for: .touchUpInside)
     flash.accessibilityIdentifier = "camera-flash"
@@ -295,7 +314,7 @@ final class ChatAttachmentCameraView: UIView {
       updateFlash()
     }, for: .touchUpInside)
     updateFlash()
-    shutterRing.layer.borderWidth = 3
+    shutterRing.layer.borderWidth = 4
     shutterRing.layer.borderColor = UIColor.white.cgColor
     shutterFace.backgroundColor = .white
     for part in [shutterRing, shutterFace] {
@@ -308,12 +327,23 @@ final class ChatAttachmentCameraView: UIView {
       guard let self, ready, !busy else { return }
       busy = true
       render()
+      UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+      shutterFlash.alpha = 1
+      UIView.animate(withDuration: 0.2, delay: 0.02) { self.shutterFlash.alpha = 0 }
       onShutter?(flashMode, rotation?.videoRotationAngleForHorizonLevelCapture ?? 90)
     }, for: .touchUpInside)
-    flip.setImage(UIImage(systemName: "arrow.triangle.2.circlepath.camera"), for: .normal)
+    flip.setImage(UIImage(systemName: "arrow.trianglehead.2.clockwise.rotate.90.camera"), for: .normal)
     flip.accessibilityLabel = LodyStrings.text("native.chat.camera.flip")
     flip.accessibilityIdentifier = "camera-flip"
-    library.setImage(UIImage(systemName: "photo.on.rectangle.angled"), for: .normal)
+    library.setImage(UIImage(systemName: "photo.stack"), for: .normal)
+    libraryThumbnail.contentMode = .scaleAspectFill
+    libraryThumbnail.clipsToBounds = true
+    libraryThumbnail.isUserInteractionEnabled = false
+    libraryThumbnail.isHidden = true
+    libraryThumbnail.layer.cornerCurve = .continuous
+    libraryThumbnail.layer.borderWidth = 1
+    libraryThumbnail.layer.borderColor = UIColor.white.withAlphaComponent(0.5).cgColor
+    library.addSubview(libraryThumbnail)
     library.accessibilityLabel = LodyStrings.text("native.chat.composer.photoLibrary")
     library.accessibilityIdentifier = "camera-library"
     library.addAction(UIAction { [weak self] _ in self?.onLibrary?() }, for: .touchUpInside)
@@ -323,10 +353,12 @@ final class ChatAttachmentCameraView: UIView {
       self?.onFlip?()
     }, for: .touchUpInside)
     retake.setImage(UIImage(systemName: "arrow.counterclockwise"), for: .normal)
+    retake.setTitle(LodyStrings.text("native.chat.camera.retake"), for: .normal)
     retake.accessibilityLabel = LodyStrings.text("native.chat.camera.retake")
     retake.accessibilityIdentifier = "camera-retake"
     retake.addAction(UIAction { [weak self] _ in self?.onRetake?() }, for: .touchUpInside)
     add.setImage(UIImage(systemName: "checkmark"), for: .normal)
+    add.setTitle(LodyStrings.text("native.chat.camera.add"), for: .normal)
     add.tintColor = .systemBlue
     add.accessibilityLabel = LodyStrings.text("native.chat.camera.add")
     add.accessibilityIdentifier = "camera-add"
@@ -361,7 +393,7 @@ final class ChatAttachmentCameraView: UIView {
     // Keep the camera's render size fixed during the morph. Changing the capture
     // layer's bounds makes its aspect-fill crop jump ahead of the UIView animation.
     var viewfinder = bounds
-    if standalone {
+    if letterboxed {
       let available = CGRect(x: 0, y: controlInsets.top + 64, width: bounds.width,
         height: max(1, bounds.height - controlInsets.top - controlInsets.bottom - 228))
       let width = min(available.width, available.height * 3 / 4)
@@ -375,50 +407,38 @@ final class ChatAttachmentCameraView: UIView {
       content.center = CGPoint(x: viewfinder.midX, y: viewfinder.midY)
       content.transform = CGAffineTransform(scaleX: scale, y: scale)
     }
+    shutterFlash.frame = viewfinder
     glyph.frame = CGRect(x: bounds.midX - 24, y: bounds.midY - 24, width: 48, height: 48)
     controls.frame = bounds
-    let top = max(24, controlInsets.top + 8)
-    let bottom = bounds.height - max(16, controlInsets.bottom + 12)
-    collapse.frame = CGRect(x: 16 + controlInsets.left, y: top, width: 48, height: 48)
-    flash.frame = CGRect(x: bounds.width - 64 - controlInsets.right, y: top, width: 48, height: 48)
-    shutter.frame = CGRect(x: bounds.midX - 35, y: bottom - 70, width: 70, height: 70)
-    flip.frame = CGRect(x: bounds.width - 72 - controlInsets.right, y: bottom - 59, width: 48, height: 48)
-    library.frame = CGRect(x: 24 + controlInsets.left, y: bottom - 59, width: 48, height: 48)
-    retake.frame = CGRect(x: 20 + controlInsets.left, y: bottom - 50, width: 50, height: 50)
-    add.frame = CGRect(x: bounds.width - 70 - controlInsets.right, y: bottom - 50, width: 50, height: 50)
-    if standalone {
-      collapse.frame = CGRect(x: 16, y: controlInsets.top + 8, width: 48, height: 48)
-      flash.frame = CGRect(x: bounds.width - 64, y: controlInsets.top + 8, width: 48, height: 48)
-      let centerY = bounds.height - controlInsets.bottom - 76
-      shutter.frame = CGRect(x: bounds.midX - 40, y: centerY - 40, width: 80, height: 80)
-      library.frame = CGRect(x: 24, y: centerY - 24, width: 48, height: 48)
-      flip.frame = CGRect(x: bounds.width - 72, y: centerY - 24, width: 48, height: 48)
-      retake.center = CGPoint(x: 48, y: centerY)
-      add.center = CGPoint(x: bounds.width - 48, y: centerY)
-    }
+    let top = max(24, controlInsets.top + 6)
+    let centerY = bounds.height - controlInsets.bottom - 84
+    let left = 22 + controlInsets.left
+    let right = bounds.width - 22 - controlInsets.right
+    // A presented sheet renders scaled, so a 44 pt button would measure below the minimum target.
+    collapse.frame = CGRect(x: left, y: top, width: 46, height: 46)
+    flash.frame = CGRect(x: right - 46, y: top, width: 46, height: 46)
+    shutter.frame = CGRect(x: bounds.midX - 37, y: centerY - 37, width: 74, height: 74)
+    library.frame = CGRect(x: left, y: centerY - 26, width: 52, height: 52)
+    libraryThumbnail.frame = library.bounds
+    libraryThumbnail.layer.cornerRadius = 10
+    flip.frame = CGRect(x: right - 52, y: centerY - 26, width: 52, height: 52)
+    let retakeWidth = max(104, ceil(retake.intrinsicContentSize.width))
+    let addWidth = max(104, ceil(add.intrinsicContentSize.width))
+    retake.frame = CGRect(x: left, y: centerY - 23, width: retakeWidth, height: 46)
+    add.frame = CGRect(x: right - addWidth, y: centerY - 23, width: addWidth, height: 46)
     shutterRing.frame = shutter.bounds
     shutterRing.layer.cornerRadius = shutter.bounds.height / 2
-    shutterFace.frame = shutter.bounds.insetBy(dx: 6, dy: 6)
+    shutterFace.frame = shutter.bounds.insetBy(dx: 5, dy: 5)
     shutterFace.layer.cornerRadius = shutterFace.bounds.height / 2
     let messageHeight = min(110, status.sizeThatFits(CGSize(width: max(1, bounds.width - 64), height: 200)).height + 32)
     status.frame = CGRect(x: 24, y: bounds.midY - messageHeight / 2 - 22, width: bounds.width - 48, height: messageHeight)
     retry.frame = CGRect(x: bounds.midX - 24, y: status.frame.maxY + 12, width: 48, height: 48)
   }
 
-  func useFullscreenLayout() {
-    standalone = true
-    overrideUserInterfaceStyle = .dark
-    for button in [collapse, flash] {
-      button.configuration = .plain()
-      button.configuration?.baseForegroundColor = .white
-      button.configuration?.preferredSymbolConfigurationForImage = .init(pointSize: 24)
-    }
-    flip.setImage(UIImage(systemName: "arrow.triangle.2.circlepath"), for: .normal)
-    collapse.setImage(UIImage(systemName: "xmark"), for: .normal)
-    collapse.accessibilityLabel = LodyStrings.text("native.close")
-    updateFlash()
-    render()
-    setNeedsLayout()
+  func setLibraryThumbnail(_ thumbnail: UIImage?) {
+    libraryThumbnail.image = thumbnail
+    libraryThumbnail.isHidden = thumbnail == nil
+    library.setImage(thumbnail == nil ? UIImage(systemName: "photo.stack") : nil, for: .normal)
   }
 
   func prepareTransition(viewport: CGSize?) {
