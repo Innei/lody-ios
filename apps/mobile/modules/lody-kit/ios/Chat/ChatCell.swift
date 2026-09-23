@@ -74,9 +74,14 @@ final class ChatMetaCell: UICollectionViewCell {
   }
 
   override func layoutSubviews() {
-    super.layoutSubviews()
-    modelLabel.frame = CGRect(x: 0, y: 4, width: max(1, bounds.width - 52), height: bounds.height - 8)
-    actionButton.frame = CGRect(x: bounds.width - 44, y: (bounds.height - 44) / 2, width: 44, height: 44)
+    // Completion inserts this cell inside the transcript's folding animation.
+    // Its contents must start in place, not animate from their initial zero frames.
+    UIView.performWithoutAnimation {
+      super.layoutSubviews()
+      modelLabel.frame = CGRect(x: 0, y: 4, width: max(1, bounds.width - 52), height: bounds.height - 8)
+      actionButton.frame = CGRect(x: bounds.width - 44, y: (bounds.height - 44) / 2, width: 44, height: 44)
+      actionButton.layoutIfNeeded()
+    }
   }
 
   static func iconImage(named asset: String) -> UIImage? {

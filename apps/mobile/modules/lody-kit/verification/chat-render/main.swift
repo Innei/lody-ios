@@ -582,6 +582,31 @@ precondition(
 )
 print("Chat render: meta bar actions match the model line and sit on the trailing edge")
 
+let insertedMeta = ChatMetaCell(frame: .zero)
+insertedMeta.configure(metaRow)
+window.addSubview(insertedMeta)
+window.isHidden = false
+CATransaction.flush()
+UIView.animate(withDuration: 0.22) {
+  insertedMeta.frame = CGRect(x: 16, y: 240, width: 320, height: 44)
+  insertedMeta.layoutIfNeeded()
+}
+@MainActor func assertStationaryContents(_ view: UIView) {
+  for key in view.layer.animationKeys() ?? [] {
+    if let animation = view.layer.animation(forKey: key) as? CAPropertyAnimation {
+      precondition(animation.keyPath != "position" && animation.keyPath != "bounds",
+        "New metadata contents must not fly from zero during reply completion")
+    }
+  }
+  view.subviews.forEach(assertStationaryContents)
+}
+precondition(insertedMeta.layer.animation(forKey: "position") != nil,
+  "The regression check must exercise an active parent layout animation")
+assertStationaryContents(insertedMeta.contentView)
+precondition(insertedMeta.actionButton.frame.maxX == 320)
+insertedMeta.removeFromSuperview()
+print("Chat render: metadata contents start in place inside an animated insertion")
+
 func processAttributed(_ string: String, row: ChatRow, traits: UITraitCollection) -> NSAttributedString {
   let font = ChatCell.messageFont(for: row, compatibleWith: traits)
   let lineHeight = 18 * UIFont.dynamicScale(compatibleWith: traits)
