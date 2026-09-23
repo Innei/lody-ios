@@ -516,6 +516,7 @@
   "native.chat.composer.modelButton": "Model and effort, {summary}",
   "native.chat.composer.input": "Message",
   "native.chat.composer.pasteAsFile": "Pasted as {name}",
+  "native.chat.composer.pastePlainText": "Paste as Plain Text",
   "native.chat.composer.pasteUndo": "Undo",
   "native.chat.composer.send": "Send",
   "native.chat.composer.sending": "Sending",

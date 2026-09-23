@@ -21,10 +21,11 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker'],
-    'send': ['quick-replies', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'camera-chat', 'camera-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
+    'send': ['quick-replies', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'camera-chat', 'camera-sheet', 'paste-plain-chat', 'paste-plain-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
     'chat': ['message-share', 'user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'chat-chrome', 'title-rename'],
 }
 SUITES = {
+    'paste-plain': ['paste-plain-chat', 'paste-plain-sheet'],
     'chat-kit': ['chat-stream-performance', 'composer', 'send-transition-handoff'],
     'chat-kit-input': ['composer', 'send-transition-handoff'],
     'camera': ['camera-chat', 'camera-sheet'],
@@ -93,6 +94,8 @@ PREVIEW = {
     'send-handoff': 'send-handoff',
     'send-handoff-delayed': 'send-handoff-delayed',
     'background': 'background-preview',
+    'paste-plain-sheet': 'composer-preview',
+    'paste-plain-chat': 'composer-success',
     'composer': 'composer-preview',
     'composer-glass': 'composer-preview',
     'fast-chat': 'chat-preview',
@@ -147,6 +150,8 @@ READY = {
     'send-handoff': 'create-session-input',
     'send-handoff-delayed': 'create-session-input',
     'background': 'background-status',
+    'paste-plain-sheet': 'create-session-input',
+    'paste-plain-chat': 'session-input',
     'composer': 'create-session-input',
     'composer-glass': 'create-session-input',
     'fast-chat': 'session-input',
@@ -413,6 +418,8 @@ with metro_context:
                         script = Path(__file__).with_name('session-delete.py')
                     if case in ['fast-chat', 'fast-sheet']:
                         script = Path(__file__).with_name('fast.py')
+                    if case in ['paste-plain-sheet', 'paste-plain-chat']:
+                        script = Path(__file__).with_name('paste-plain.py')
                     if case == 'composer-glass-chat':
                         script = Path(__file__).with_name('composer-glass.py')
                     if case == 'mentions-production':

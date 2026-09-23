@@ -368,6 +368,44 @@ precondition(longSend.isEnabled, "Long pasted text becomes a sendable text file"
 LodyToastOverlay.shared.dismiss()
 RunLoop.current.run(until: Date().addingTimeInterval(0.3))
 
+let plainComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
+plainComposer.setComposerState(ready)
+let plainInput = descendants(plainComposer).compactMap { $0 as? UITextView }.first!
+let plainAction = NSSelectorFromString("pastePlainText:")
+let mixedPlainProvider = NSItemProvider(object: longBody as NSString)
+for type in [UTType.rtf, UTType.flatRTFD, UTType.png] {
+  mixedPlainProvider.registerDataRepresentation(forTypeIdentifier: type.identifier, visibility: .all) { completion in
+    completion(Data([0, 1, 2]), nil)
+    return nil
+  }
+}
+UIPasteboard.general.setItemProviders([mixedPlainProvider], localOnly: true, expirationDate: nil)
+precondition(plainInput.canPerformAction(plainAction, withSender: nil))
+let plainMenu = plainComposer.textView(plainInput, editMenuForTextIn: NSRange(location: 0, length: 0), suggestedActions: [])!
+precondition(plainMenu.children.first?.title == LodyStrings.text("native.chat.composer.pastePlainText"))
+plainInput.text = "before replace after"
+plainInput.selectedRange = NSRange(location: 7, length: 7)
+(plainInput as! ChatComposerInput).pastePlainText(from: [mixedPlainProvider])
+let expectedPlain = "before " + longBody + " after"
+let plainDeadline = Date().addingTimeInterval(3)
+while plainInput.text != expectedPlain && Date() < plainDeadline {
+  RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+}
+precondition(plainInput.text == expectedPlain, "Plain paste must replace selection and keep long text inline: \(plainInput.text ?? "nil")")
+var plainPayload: [String: Any] = [:]
+plainComposer.onSend = { plainPayload = $0 }
+plainComposer.perform(NSSelectorFromString("submit"))
+precondition(plainPayload["text"] as? String == expectedPlain)
+precondition((plainPayload["attachments"] as? [[String: String]])?.isEmpty == true,
+  "Plain paste must ignore rich/image representations and bypass text-file promotion")
+plainInput.isEditable = false
+precondition(!plainInput.canPerformAction(plainAction, withSender: nil))
+plainInput.isEditable = true
+UIPasteboard.general.items = [[UTType.png.identifier: Data([0, 1, 2])]]
+precondition(!plainInput.canPerformAction(plainAction, withSender: nil))
+precondition(plainComposer.textView(plainInput, editMenuForTextIn: .init(location: 0, length: 0), suggestedActions: [])!.children.isEmpty)
+print("Composer paste: explicit plain text ignores attachments and preserves selected-range insertion")
+
 let undoComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
 undoComposer.setComposerState(ready)
 let undoWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))

@@ -639,3 +639,9 @@ record proves session start/stop requests, not physical sensor activity.
 `verify:native --case composer` also checks actual JPEG storage and invalid input.
 Real camera preview, orientation, focus, flash and lens switching require iPhone
 validation; the fixture does not establish their hardware behavior.
+
+`--suite paste-plain` checks the native Paste as Plain Text menu in chat and the
+new-session composer, in English light/dark appearances. It verifies that long
+text stays inline and records menu/result screenshots and video. The native
+composer check also covers mixed text/image/RTF clipboard representations, selected
+text replacement and unavailable actions for nontext or read-only inputs.

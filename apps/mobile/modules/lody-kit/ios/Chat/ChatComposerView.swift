@@ -160,11 +160,12 @@ private final class ChatQueueView: CKGlassSurface {
   }
 }
 
-private final class ChatComposerInput: UITextView {
+final class ChatComposerInput: UITextView {
   var onPasteItems: (([NSItemProvider]) -> Bool)?
   var onPasteLongText: ((String) -> Bool)?
 
   override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+    if action == #selector(pastePlainText(_:)) { return isEditable && UIPasteboard.general.hasStrings }
     if action == #selector(paste(_:)), isEditable, UIPasteboard.general.numberOfItems > 0 { return true }
     return super.canPerformAction(action, withSender: sender)
   }
@@ -182,6 +183,18 @@ private final class ChatComposerInput: UITextView {
     let providers = UIPasteboard.general.itemProviders
     if onPasteItems?(providers) == true { return }
     pasteText(from: ChatAttachment.textProviders(from: providers))
+  }
+
+  @objc func pastePlainText(_ sender: Any?) {
+    pastePlainText(from: UIPasteboard.general.itemProviders)
+  }
+
+  func pastePlainText(from providers: [NSItemProvider]) {
+    guard isEditable else { return }
+    ChatAttachment.loadPlainText(from: providers) { [weak self] text in
+      guard let self, self.isEditable, !text.isEmpty else { return }
+      self.insertText(text)
+    }
   }
 
   private func pasteText(from providers: [NSItemProvider]) {
@@ -1019,6 +1032,16 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   func textViewDidChange(_ textView: UITextView) { updateComposer() }
   func textViewDidBeginEditing(_ textView: UITextView) { updateComposer() }
   func textViewDidEndEditing(_ textView: UITextView) { updateComposer(); saveDraft() }
+  func textView(_ textView: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+    let action = #selector(ChatComposerInput.pastePlainText(_:))
+    guard textView.canPerformAction(action, withSender: nil) else {
+      return UIMenu(children: suggestedActions)
+    }
+    let plainText = UIAction(title: LodyStrings.text("native.chat.composer.pastePlainText")) { [weak textView] _ in
+      (textView as? ChatComposerInput)?.pastePlainText(nil)
+    }
+    return UIMenu(children: [plainText] + suggestedActions)
+  }
   func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
     !relaying && (textView.text as NSString).length - range.length + (text as NSString).length <= 32000
   }
