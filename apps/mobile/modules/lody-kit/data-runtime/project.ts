@@ -5,6 +5,7 @@ import {
   samePermissionOutcome,
 } from '../../../src/cloud/permissionQuestions.ts';
 import type { QuestionMeta } from '../../../src/models/session.ts';
+import { billableTurnCount } from './billing';
 
 export type SystemNoticeMeta = {
   reason?: string;
@@ -88,6 +89,7 @@ export type Envelope = {
   status: string;
   reason?: string;
   revision: number;
+  billableTurnCount: number;
   awaitingUserSince?: number;
   composer?: {
     modelId?: string;
@@ -510,6 +512,7 @@ export function projectSession(
     status,
     reason,
     revision,
+    billableTurnCount: billableTurnCount({ history: raw, mq: queued }),
     awaitingUserSince:
       typeof session?.awaitingUserSince === 'number'
         ? session.awaitingUserSince

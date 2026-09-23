@@ -14,6 +14,7 @@ import { writeLocal } from '@/cloud/kv';
 import { showCommunityNotice } from '@/features/community/notice';
 import { createPrefsKey } from '@/features/sessions/createPrefs';
 import { openSendPreview } from './SendPreviewScreen';
+import { FreeTurnNoticePreviewScreen } from './FreeTurnNoticePreviewScreen';
 import { openOutboxPreview } from './OutboxPreviewScreen';
 import { BackgroundPreviewScreen } from './BackgroundPreviewScreen';
 import { pushStatus, verifyPushSubscription } from '@lody-ios/kit';
@@ -216,6 +217,7 @@ function View() {
       rows: [
         openRow('quick-replies-preview', 'Quick Replies', 'text.bubble'),
         openRow('send-preview', '离线发送验收', 'paperplane'),
+        openRow('free-turn-notice-preview', '免费轮次提醒', 'text.bubble'),
         openRow('send-queue', 'Queue 验收', 'list.bullet'),
         openRow('message-share-preview', 'Message sharing', 'photo'),
         openRow('session-share-preview', 'Conversation sharing', 'link'),
@@ -364,6 +366,8 @@ function View() {
     'chat-shine-preview': () => void present(ShinePreviewScreen, {}),
     'banner-preview': () => void present(BannerPreviewScreen, {}),
     'send-preview': () => void openSendPreview(false),
+    'free-turn-notice-preview': () =>
+      void present(FreeTurnNoticePreviewScreen, {}),
     'send-queue': () => void openSendPreview(false, true),
     'message-share-preview': () => void present(MessageSharePreviewScreen, {}),
     'session-share-preview': () => void present(SessionSharePreviewScreen),

@@ -41,6 +41,8 @@ import type { Capability, CreationOptions } from '@/models/send';
 import { effortsFor } from '@/cloud/send/capability';
 
 import { useSessionRuntime } from '@/features/sessions/useSessionRuntime';
+import { useWorkspaceBillingTier } from '@/cloud/billing/useWorkspaceBillingTier';
+import { freeTurnNotice } from '@/features/sessions/freeTurnNotice';
 import {
   sessionEntriesJSON,
   type PreparedSessionHistory,
@@ -289,6 +291,13 @@ function View() {
     outbox.ready && !pending?.send.creation,
     initialHistory,
   );
+  const billableTurns =
+    snapshot.status === 'live' ? snapshot.billableTurnCount : undefined;
+  const billingTier = useWorkspaceBillingTier(
+    selected?.id ?? '',
+    account?.user.id ?? '',
+    billableTurns !== undefined && billableTurns >= 25,
+  );
   useEffect(() => {
     if (
       !outbox.ready ||
@@ -462,6 +471,7 @@ function View() {
     steerInterrupts: control.steerInterrupts,
     queuedMessageBehavior,
     notice,
+    quotaNotice: freeTurnNotice(billableTurns, billingTier),
     quickReplies:
       snapshot.status === 'live' &&
       snapshot.entries.some(

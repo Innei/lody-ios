@@ -57,4 +57,16 @@ ui.capture('next-slot-started')
 ui.axe('tap', '--id', 'outbox-confirm-all')
 wait(accepted=11, sending=0, waiting=0, reserves=0)
 ui.capture('all-accepted')
+ui.axe('tap', '--id', 'outbox-quota-next')
+quota_text = compose('keep this quota draft')
+ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('send.error.freeSessionLimit') for i in items), 'Free session limit alert missing')
+ui.capture('session-limit-alert')
+ui.axe('tap', '--label', catalog.system('ok'))
+wait(calls=11, failed=1, reserves=0)
+for _ in range(3):
+    if any(item.get('AXUniqueId') == 'outbox-12' for item in ui.state()):
+        break
+    ui.axe('swipe', '--start-x', '200', '--start-y', '740', '--end-x', '200', '--end-y', '380', '--duration', '0.4', '--post-delay', '0.5')
+assert quota_text in ui.element('outbox-12')['AXLabel'], 'Quota rejection discarded the pending draft'
+ui.capture('session-limit-draft')
 print(json.dumps(state()))

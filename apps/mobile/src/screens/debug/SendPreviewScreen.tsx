@@ -362,7 +362,12 @@ function SendPreview() {
           }));
         }
       }
-      resolve(JSON.stringify({ state, reason: '验收：明确未发送' }));
+      resolve(
+        JSON.stringify({
+          state,
+          reason: failure ? 'free_session_turn_limit_reached' : undefined,
+        }),
+      );
       return;
     }
     completion.current = null;
@@ -388,7 +393,13 @@ function SendPreview() {
       }));
     }
     if (record?.send.creation) state = failure ? 'rejected' : 'created';
-    resolve(JSON.stringify({ state, session, reason: '验收：明确未发送' }));
+    resolve(
+      JSON.stringify({
+        state,
+        session,
+        reason: failure ? 'free_session_turn_limit_reached' : undefined,
+      }),
+    );
   };
   const reply = (finished: boolean) => {
     if (queue) {

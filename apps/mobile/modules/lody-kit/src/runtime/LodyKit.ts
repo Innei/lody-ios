@@ -102,6 +102,10 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   ensureSession(id: string): Promise<void>;
   releaseReserve(id: string): Promise<void>;
   sessionCreationOptions(payload: string): Promise<string>;
+  workspaceBillingEntitlement(
+    workspaceId: string,
+    userId: string,
+  ): Promise<string>;
   githubPullRequest(payload: string): Promise<string>;
   githubRepositories(workspaceId: string): Promise<string[]>;
   localProjects(payload: string): Promise<string>;
@@ -299,6 +303,10 @@ export const previewContent = (handle: string) => native.previewContent(handle);
 
 export const sessionCreationOptions = (payload: string) =>
   native.sessionCreationOptions(payload);
+export const workspaceBillingEntitlement = (
+  workspaceId: string,
+  userId: string,
+) => native.workspaceBillingEntitlement(workspaceId, userId);
 export const githubPullRequest = (payload: string) =>
   native.githubPullRequest(payload);
 export const githubRepositories = (workspaceId: string) =>

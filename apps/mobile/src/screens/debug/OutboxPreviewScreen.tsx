@@ -67,12 +67,20 @@ function ViewContent() {
   const outbox = usePendingSends(user, workspace);
   const sequence = useRef(0);
   const failNext = useRef(false);
+  const quotaNext = useRef(false);
   const reserves = useRef(new Set<string>());
   const requests = useRef(new Map<string, (result: string) => void>());
   const [calls, setCalls] = useState(0);
   const [, refresh] = useState(0);
   const services = useRef({
     async createSession(payload: string) {
+      if (quotaNext.current) {
+        quotaNext.current = false;
+        return JSON.stringify({
+          state: 'rejected',
+          reason: 'free_session_limit_reached',
+        });
+      }
       return JSON.stringify({ state: 'created', session: JSON.parse(payload) });
     },
     async ensureSession(id: string) {
@@ -147,6 +155,14 @@ function ViewContent() {
           }}
         >
           下次同步失败
+        </Button>
+        <Button
+          testID="outbox-quota-next"
+          onPress={() => {
+            quotaNext.current = true;
+          }}
+        >
+          下次达到会话上限
         </Button>
         <Button testID="outbox-confirm" onPress={() => confirm(false)}>
           确认一条

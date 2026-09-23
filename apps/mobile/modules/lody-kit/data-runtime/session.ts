@@ -7,6 +7,11 @@ import type { SteerReceipt } from './execution';
 import { machineRpc, type RpcReply } from './machine-rpc';
 import { retrySessionRead } from './session-read';
 import {
+  billableTurnCount,
+  quotaReason,
+  type BillingEntitlement,
+} from './billing';
+import {
   parseQuestionMeta,
   questionOutcome,
   samePermissionOutcome,
@@ -479,6 +484,20 @@ export function appendUserTurn(
     if (value !== undefined) input.set(key, value);
   doc.commit();
 }
+export function checkTurnQuota(args: {
+  sessionId: string;
+  billingEntitlement?: BillingEntitlement | null;
+}) {
+  const state = sessions.get(args.sessionId);
+  if (!state?.ready) return { state: 'allowed' };
+  const reason = quotaReason(
+    'turn',
+    args.billingEntitlement,
+    billableTurnCount(state.doc.toJSON()),
+  );
+  return reason ? { state: 'not_sent', reason } : { state: 'allowed' };
+}
+
 export async function sendTurn(
   args: {
     id?: string;
@@ -498,6 +517,7 @@ export async function sendTurn(
     reasoningEffort?: string | null;
     reasoningEffortConfigId?: string;
     configOptionValues?: Record<string, string | boolean>;
+    billingEntitlement?: BillingEntitlement | null;
   },
   expand: (text: string) => Promise<string> = async (text) => text,
 ) {
@@ -523,6 +543,8 @@ export async function sendTurn(
     // The local entry may come from a lost append ACK. Never replay its write.
     return { id: args.id, state: 'unknown', reason: 'turn_already_exists' };
   if (state.sending) return { state: 'not_sent', reason: 'session_not_ready' };
+  const quota = checkTurnQuota(args);
+  if (quota.state === 'not_sent') return quota;
   if (typeof args.text !== 'string')
     return { state: 'not_sent', reason: 'invalid_message' };
   let text = args.text.trim();
