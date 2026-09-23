@@ -12,6 +12,8 @@ import type { NativeListSection } from './NativeList';
 export type NativeGroupedListProps = ViewProps & {
   sections: NativeListSection[];
   segments?: string[];
+  segmentsStyle?: 'control' | 'steps';
+  segmentsDone?: boolean[];
   /** Ride the search bar's scope bar; only for screens that also want search. */
   segmentsUseSearchScope?: boolean;
   selectedSegment?: number;

@@ -256,10 +256,8 @@ export const PermissionScreen = definePage<PermissionParams, PermissionResult>({
     style: 'formSheet',
     // `fitToContents` cannot measure through SheetStack's absolutely filled
     // inner stack, which leaves the sheet blank and full height.
-    sheetAllowedDetents: [0.5, 1],
-    // A late-resolving target may be a multi-question form. Start with enough
-    // room for its navigation and allow the user to collapse the sheet.
-    sheetInitialDetentIndex: 'last',
+    sheetAllowedDetents: [0.6, 1],
+    sheetInitialDetentIndex: 0,
     sheetGrabberVisible: false,
     // Answering is the way out; the header close button is the escape hatch.
     dismissible: false,

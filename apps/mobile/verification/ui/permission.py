@@ -19,7 +19,9 @@ def target(available):
 
 def open_sheet():
     ui.axe('tap', '--label', 'Fixtures')
-    ui.axe('tap', '--label', 'Permission Fixture', '--post-delay', '0.5')
+    ui.axe('tap', '--label', 'Requests')
+    ui.wait(lambda items: any(i.get('AXLabel') == 'Permission Fixture' for i in items), 'Requests submenu never opened')
+    ui.axe('tap', '--label', 'Permission Fixture', '--post-delay', '1')
     ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('permission.waiting') for i in items),
             'Sheet must open before its target resolves')
     ui.capture('waiting')
@@ -70,12 +72,19 @@ def question_probe(expression):
 
 def open_questions():
     ui.axe('tap', '--label', 'Fixtures')
+    ui.axe('tap', '--label', 'Requests')
+    ui.wait(lambda items: any(i.get('AXLabel') == 'Question Fixture' for i in items), 'Requests submenu never opened')
     ui.axe('tap', '--label', 'Question Fixture', '--post-delay', '1')
     ui.wait(lambda items: any(i.get('AXUniqueId') == 'question-option-0' for i in items), 'Question card missing')
 
 
 open_questions()
 ui.capture('question-single')
+ui.axe('swipe', '--start-x', '200', '--start-y', '400', '--end-x', '200', '--end-y', '60', '--duration', '.5', '--post-delay', '1')
+screen = next(i['frame']['height'] for i in ui.state() if i.get('type') == 'Application')
+button = ui.element('question-next')['frame']
+assert button['y'] + button['height'] <= screen - 30, f'Full-height sheet must keep the action above the home indicator: {button}'
+ui.capture('question-full')
 ui.axe('tap', '--id', 'question-option-0')
 ui.axe('tap', '--id', 'question-next')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Which checks should run?' for i in items), 'Next must reach the multi-select question')
@@ -83,7 +92,9 @@ ui.axe('tap', '--id', 'question-option-0')
 ui.axe('tap', '--id', 'question-option-1')
 ui.capture('question-multiple')
 assert question_probe('globalThis.__lodyUiVerifyQuestion.attempts') == 0, 'Choosing options must never submit automatically'
-ui.axe('tap', '--id', 'question-previous')
+assert ui.element('list-step-0').get('AXValue') == catalog.text('native.list.answered'), 'Answered step must say so'
+assert not ui.element('list-step-2').get('AXValue'), 'Unanswered step must not claim an answer'
+ui.axe('tap', '--id', 'list-step-0')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Which language should we use?' for i in items), 'Previous answer page missing')
 ui.axe('tap', '--id', 'question-next')
 ui.axe('tap', '--id', 'question-next')

@@ -639,6 +639,25 @@ function View() {
       <Stack.Screen options={{ title: navigationTitle }} />
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Menu icon="wrench" accessibilityLabel="Fixtures">
+          <Stack.Toolbar.Menu title="Requests" icon="lock.open">
+            <Stack.Toolbar.MenuAction
+              children="Permission Fixture"
+              icon="lock.open"
+              onPress={() =>
+                void present(PermissionScreen, {
+                  sessionId: 'ui-verify-permission',
+                  generation: 0,
+                  source: permissionSource,
+                  service: permissionService,
+                })
+              }
+            />
+            <Stack.Toolbar.MenuAction
+              children="Question Fixture"
+              icon="questionmark.bubble"
+              onPress={openQuestionFixture}
+            />
+          </Stack.Toolbar.Menu>
           <Stack.Toolbar.MenuAction
             children="Failed Tool Fixture"
             icon="exclamationmark.triangle"
@@ -761,23 +780,6 @@ function View() {
               setConnection('');
               setOverlayTasks(false);
             }}
-          />
-          <Stack.Toolbar.MenuAction
-            children="Permission Fixture"
-            icon="lock.open"
-            onPress={() =>
-              void present(PermissionScreen, {
-                sessionId: 'ui-verify-permission',
-                generation: 0,
-                source: permissionSource,
-                service: permissionService,
-              })
-            }
-          />
-          <Stack.Toolbar.MenuAction
-            children="Question Fixture"
-            icon="questionmark.bubble"
-            onPress={openQuestionFixture}
           />
         </Stack.Toolbar.Menu>
         {durationFixture && !durationFixture.finished && (

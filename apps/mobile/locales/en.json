@@ -600,6 +600,7 @@
   "native.close": "Close",
   "native.list.expanded": "Expanded",
   "native.list.collapsed": "Collapsed",
+  "native.list.answered": "Answered",
   "native.session.banner.completed": "Done",
   "native.session.banner.attention": "Needs approval",
   "native.session.banner.openHint": "Open this session",

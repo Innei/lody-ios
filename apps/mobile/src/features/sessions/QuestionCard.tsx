@@ -1,5 +1,6 @@
 import { use, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeListRow } from '@lody-ios/kit';
 import type { QuestionAnswers, QuestionMeta } from '../../models/session.ts';
 import {
@@ -34,7 +35,8 @@ export function QuestionCard({
   );
   const question = meta.questions[page];
   const draft = drafts[page];
-  const title = question?.header;
+  const multiple = meta.questions.length > 1;
+  const title = multiple ? undefined : question?.header;
   useEffect(() => {
     setHeader?.({ right: undefined, title });
     return () => setHeader?.(undefined);
@@ -115,14 +117,15 @@ export function QuestionCard({
       testID={last ? 'question-submit' : 'question-next'}
       label={last ? t('question.submit') : t('question.next')}
       variant="glass"
+      radius={25}
       disabled={last ? disabled || !complete : !answered}
       onPress={last ? submit : () => setPage(page + 1)}
-      style={{ flex: 1 }}
+      style={{ minHeight: 50 }}
     />
   );
   if (disabled)
     primary = (
-      <View style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}>
+      <View style={{ minHeight: 50, justifyContent: 'center' }}>
         <ActivityIndicator />
       </View>
     );
@@ -130,6 +133,11 @@ export function QuestionCard({
     <ComposerSheet
       testID="question-list"
       accent={colors.accent}
+      segments={multiple ? meta.questions.map((q) => q.header) : undefined}
+      segmentsStyle="steps"
+      segmentsDone={drafts.map((d) => !!d.text.trim() || d.labels.length > 0)}
+      selectedSegment={page}
+      onSegmentChange={({ nativeEvent }) => setPage(nativeEvent.index)}
       sections={[
         {
           id: `question-${page}`,
@@ -145,7 +153,10 @@ export function QuestionCard({
         else choose(question.options[Number(id.split('-').pop())]!.label);
       }}
     >
-      <View style={{ gap: 10, paddingHorizontal: 16, paddingBottom: 12 }}>
+      <SafeAreaView
+        edges={{ bottom: 'maximum' }}
+        style={{ gap: 10, paddingHorizontal: 16, paddingBottom: 12 }}
+      >
         {error ? (
           <AppText
             variant="meta"
@@ -154,26 +165,8 @@ export function QuestionCard({
             {error}
           </AppText>
         ) : null}
-        {meta.questions.length > 1 ? (
-          <AppText variant="meta" style={{ textAlign: 'center' }}>
-            {t('question.progress', {
-              current: page + 1,
-              total: meta.questions.length,
-            })}
-          </AppText>
-        ) : null}
-        <View style={{ flexDirection: 'row', gap: 16 }}>
-          {page > 0 ? (
-            <Button
-              testID="question-previous"
-              label={t('question.previous')}
-              disabled={disabled}
-              onPress={() => setPage(page - 1)}
-            />
-          ) : null}
-          {primary}
-        </View>
-      </View>
+        {primary}
+      </SafeAreaView>
     </ComposerSheet>
   );
 }

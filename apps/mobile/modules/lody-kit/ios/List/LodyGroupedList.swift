@@ -93,6 +93,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     forwardedRowPress?(body)
   }
   private let segments = UISegmentedControl(items: [])
+  private let steps = LodyStepStrip()
   private let searchField = UISearchTextField()
   private let segmentContainer = UIView()
   private var scopeSearch: UISearchController?
@@ -389,6 +390,9 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     addSubview(topFade)
     segments.addTarget(self, action: #selector(segmentChanged), for: .valueChanged)
     segments.accessibilityIdentifier = "list-segments"
+    steps.addTarget(self, action: #selector(stepChanged), for: .valueChanged)
+    steps.tintColor = Self.accent
+    steps.isHidden = true
     searchField.autocapitalizationType = .none
     searchField.autocorrectionType = .no
     searchField.spellCheckingType = .no
@@ -400,6 +404,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     segmentContainer.accessibilityIdentifier = "list-strip"
     segmentContainer.isHidden = true
     segmentContainer.addSubview(segments)
+    segmentContainer.addSubview(steps)
     addSubview(segmentContainer)
     // Registers the overlay with the scroll view so UIKit shapes the top edge
     // effect around it. Without this the control floats with nothing behind it.
@@ -427,6 +432,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       let top = max(0, insets.top - collection.contentInset.top)
       segmentContainer.frame = CGRect(x: 0, y: top, width: bounds.width, height: segmentBarHeight)
       segments.frame = segmentContainer.bounds.insetBy(dx: 20, dy: Self.stripInset)
+      steps.frame = segments.frame
     }
     placeholder.frame = bounds.inset(by: UIEdgeInsets(top: insets.top + 24, left: 32, bottom: insets.bottom + 24, right: 32))
     attachScrollOwner()
@@ -591,6 +597,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     segmentLabels = labels
     segments.removeAllSegments()
     for (index, label) in labels.enumerated() { segments.insertSegment(withTitle: label, at: index, animated: false) }
+    steps.setTitles(labels)
     segments.selectedSegmentIndex = selectedSegment
     segmentContainer.isHidden = labels.isEmpty || segmentsUseSearchScope
     syncSegmentInset()
@@ -605,7 +612,23 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   func setSelectedSegment(_ index: Int) {
     selectedSegment = index
     segments.selectedSegmentIndex = index
+    steps.setSelectedIndex(index)
     scopeSearch?.searchBar.selectedScopeButtonIndex = index
+  }
+
+  func setSegmentsStyle(_ value: String) {
+    steps.isHidden = value != "steps"
+    segments.isHidden = !steps.isHidden
+  }
+
+  func setSegmentsDone(_ value: [Bool]) {
+    steps.setDone(value)
+  }
+
+  @objc private func stepChanged() {
+    selectedSegment = steps.selectedIndex
+    onSegmentChange(["index": selectedSegment])
+    collection.setContentOffset(CGPoint(x: 0, y: -collection.adjustedContentInset.top), animated: false)
   }
 
   @objc private func segmentChanged() {
@@ -790,6 +813,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     guard let color = lodyTint(value), color != LodyGroupedList.accent else { return }
     LodyGroupedList.accent = color
     collection.tintColor = color
+    steps.tintColor = color
     collection.reloadData()
   }
 
@@ -993,6 +1017,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     var content = UIListContentConfiguration.groupedFooter()
     if header {
       content = section.headerProminent ? .prominentInsetGroupedHeader() : .groupedHeader()
+      if section.headerProminent { content.textProperties.color = .label }
     }
     content.text = text
     content.textProperties.numberOfLines = 0

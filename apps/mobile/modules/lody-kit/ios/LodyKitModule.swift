@@ -705,6 +705,8 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("reordering") { (view: LodyGroupedList, value: Bool) in view.setReordering(value) }
       Prop("segments") { (view: LodyGroupedList, labels: [String]) in view.setSegments(labels) }
       Prop("selectedSegment") { (view: LodyGroupedList, index: Int) in view.setSelectedSegment(index) }
+      Prop("segmentsStyle") { (view: LodyGroupedList, value: String) in view.setSegmentsStyle(value) }
+      Prop("segmentsDone") { (view: LodyGroupedList, value: [Bool]) in view.setSegmentsDone(value) }
       Prop("searchPlaceholder") { (view: LodyGroupedList, value: String) in view.setSearchPlaceholder(value) }
       Prop("searchText") { (view: LodyGroupedList, value: String) in view.setSearchText(value) }
       Prop("sections") { (view: LodyGroupedList, sections: [LodyListSection]) in

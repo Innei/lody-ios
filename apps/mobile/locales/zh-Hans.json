@@ -600,6 +600,7 @@
   "native.close": "关闭",
   "native.list.expanded": "已展开",
   "native.list.collapsed": "已折叠",
+  "native.list.answered": "已回答",
   "native.session.banner.completed": "已完成",
   "native.session.banner.attention": "等待确认",
   "native.session.banner.openHint": "打开该会话",
