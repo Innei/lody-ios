@@ -53,9 +53,13 @@ private final class ChatEffortParticles: MTKView, MTKViewDelegate {
   private static let renderer: (MTLDevice, MTLCommandQueue, MTLRenderPipelineState)? = {
     guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else { return nil }
     do {
+      #if LODY_SHARE_EXTENSION
+      let bundle = Bundle.main
+      #else
       guard let url = Bundle(for: ChatComposerModelPanel.self).url(forResource: "LodyKitShaders", withExtension: "bundle"),
         let bundle = Bundle(url: url)
       else { throw CocoaError(.fileNoSuchFile) }
+      #endif
       let library = try device.makeDefaultLibrary(bundle: bundle)
       let descriptor = MTLRenderPipelineDescriptor()
       descriptor.vertexFunction = library.makeFunction(name: "particleVertex")
@@ -144,7 +148,8 @@ final class ChatEffortSlider: UIControl {
     updateEnergy(suspended: notification.name == UIApplication.willResignActiveNotification)
   }
   private func updateEnergy(suspended: Bool = false) {
-    let animate = (isUltra || isFast) && window != nil && !isHidden && !suspended && UIApplication.shared.applicationState == .active && !UIAccessibility.isReduceMotionEnabled
+    let active = window?.windowScene?.activationState == .foregroundActive
+    let animate = (isUltra || isFast) && window != nil && !isHidden && !suspended && active && !UIAccessibility.isReduceMotionEnabled
     particles.setRunning(animate)
   }
 

@@ -2,6 +2,11 @@
 
 日期：2026-09-17
 
+> 2026-09-20：用户已批准新增 Cloud 接口。当前实施方案见
+> [Native Share Extension](../../../apps/mobile/SHARE_EXTENSION.md)：共享 UIKit 表单，
+> 扩展直接上传并提交持久化命令，Cloud 复用现有 Streams/dispatch；不运行 WebView，
+> 不依赖主 App 发送，也不自动唤起主 App。下文及 PR #46 为历史探索，不再作为当前契约。
+
 > 评审后的前置验证：**点击发送立即向 Cloud 提交**是硬要求，且第三方客户端不能修改 Cloud。
 > 因此下文「扩展只写 inbox、主 App 消费发送」不再是选定方案，「扩展不跑 WebView」也待重新验证。
 > 先用 [Share transport probe](../../../apps/mobile/modules/lody-kit/share-probe/README.md)

@@ -2,6 +2,7 @@ export {
   sessionSharingRaw,
   remoteSettingsRaw,
   runtimeInfo,
+  publishShareSnapshot,
   initialAccentColor,
   showAccentColorPicker,
   addAccentColorListener,
@@ -215,5 +216,6 @@ export {
   NativeMessageShare,
   type MessageShareBlock,
 } from './chat/NativeMessageShare';
+export { NativeCreateSession } from './create/NativeCreateSession';
 
 export { NativeAppIconGrid } from './appearance/NativeAppIconGrid';

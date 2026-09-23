@@ -71,6 +71,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
     query: string,
   ): Promise<InboxSearchHits>;
   writeLocalValue(key: string, value: string): Promise<void>;
+  publishShareSnapshot(payload: string): Promise<void>;
   clearLocalValues(): Promise<void>;
   readonly runtimeInfo: RuntimeInfo;
   readonly initialInboxView: number;
@@ -340,6 +341,8 @@ export const searchInbox = (
 ) => native.searchInbox(userId, workspaceId, query);
 export const writeLocalValue = (key: string, value: string) =>
   native.writeLocalValue(key, value);
+export const publishShareSnapshot = (payload: string) =>
+  native.publishShareSnapshot(payload);
 export const clearLocalValues = () => native.clearLocalValues();
 
 export const readLocalStartup = () => native.readLocalStartup();

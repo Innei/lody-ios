@@ -178,6 +178,7 @@ extension UIColor {
 
 @MainActor
 func lodyApplyWindowAccent() {
+  #if !LODY_SHARE_EXTENSION
   UIWindow.appearance().tintColor = .lodyAccent
   for scene in UIApplication.shared.connectedScenes {
     guard let scene = scene as? UIWindowScene else { continue }
@@ -185,4 +186,5 @@ func lodyApplyWindowAccent() {
       window.tintColor = LodyAccentChoice.current.color
     }
   }
+  #endif
 }

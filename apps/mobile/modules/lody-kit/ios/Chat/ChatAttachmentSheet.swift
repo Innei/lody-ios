@@ -302,8 +302,14 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
   }
 
   private func updateCameraSession(requestPermission: Bool = false) {
+    #if !LODY_SHARE_EXTENSION
+    guard UIApplication.shared.applicationState == .active else {
+      camera.setActive(false)
+      return
+    }
+    #endif
     let tile = grid.collectionViewLayout.layoutAttributesForItem(at: IndexPath(item: 0, section: 0))?.frame
-    guard visible, UIApplication.shared.applicationState == .active, reviewing == nil,
+    guard visible, reviewing == nil,
       cameraExpanded || tile?.intersects(grid.bounds) == true else {
       camera.setActive(false)
       return
@@ -326,7 +332,11 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
       }
     case .denied:
       camera.setActive(false)
+      #if LODY_SHARE_EXTENSION
+      cameraView.showError("native.chat.camera.denied", action: nil)
+      #else
       cameraView.showError("native.chat.camera.denied", action: "native.chat.attachment.openSettings")
+      #endif
     default:
       camera.setActive(false)
       cameraView.showError("native.chat.camera.restricted", action: nil)
@@ -334,8 +344,10 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
   }
 
   private func openSettings() {
+    #if !LODY_SHARE_EXTENSION
     guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
     UIApplication.shared.open(url)
+    #endif
   }
 
   private var selectedImages: Int {
@@ -480,8 +492,14 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
         DispatchQueue.main.async { self?.refresh() }
       }
     default:
+      #if !LODY_SHARE_EXTENSION
       guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
       UIApplication.shared.open(url)
+      #else
+      let alert = UIAlertController(title: "Photo access", message: "Open Settings to change Lody’s photo access.", preferredStyle: .alert)
+      alert.addAction(UIAlertAction(title: "OK", style: .default))
+      present(alert, animated: true)
+      #endif
     }
   }
 

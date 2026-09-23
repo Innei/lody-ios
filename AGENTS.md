@@ -43,7 +43,7 @@
 - This POC reads catalogs and session history, and sends text turns. CRDT replicas restore from server bootstrap. App account/workspace context and complete catalog display projections restore from SQLite in LodyKit before background authentication and sync; credentials remain in Keychain. Loro/Flock updates use uint32 big-endian length frames; never append raw WASM exports. Persist the user history before the durable dispatch pointer and Machine RPC. A machine ACK is delivery, not completion. Never automatically replay writes across runtime recovery. Catalogs have an explicit 8 MiB per-replica input ceiling; do not label an incomplete or failed sync as live.
 - Generate native runtime assets before prebuild/build. Preserve dependency licenses beside generated resources. Native watchdog behavior has a deterministic Swift check in `modules/lody-kit/verification/watchdog`.
 
-- `ChatComposerView` in LodyKit owns the shared native input, draft handoff/restore, and model controls. Chat embeds it directly; new-session sheets use `NativeComposer` with native height events. The native host measures keyboard overlap in window coordinates; do not wrap it in React Native keyboard avoidance (sheet-local coordinates undercount the overlap). The sheet host reserves bottom safe-area clearance. New-session drafts carry text and attachments together into the first turn, including native restoration when upload fails.
+- `ChatComposerView` in LodyKit owns the shared native input, draft handoff/restore, and model controls. Chat embeds it directly; new-session sheets use `NativeCreateSession`, whose shared UIKit controller owns the composer and its layout. The native host measures keyboard overlap in window coordinates; do not wrap it in React Native keyboard avoidance (sheet-local coordinates undercount the overlap). The sheet host reserves bottom safe-area clearance. New-session drafts carry text and attachments together into the first turn, including native restoration when upload fails.
 
 ## UI regression verification
 
@@ -53,6 +53,17 @@
 - UI changes must add/update a behavior check in `apps/mobile/verification/ui` or reuse the existing native checks. Shared controls must be exercised in each affected host.
 - Local checks omit `--udid` to lease a `Lody * Verify` Simulator. Build with `pnpm verify:build` (one shared Xcode DerivedData per checkout; never pass a per-task `-derivedDataPath` or copy the checkout into the temp directory, and reclaim such leftovers with `pnpm verify:clean`). Wrap build + multi-check flows with `pnpm verify:simulator --name '<current verify>' -- <command>` and use `$LODY_VERIFY_UDID`; never call `simctl create` directly. Explicit `--udid` is for caller-owned devices such as CI. See `apps/mobile/verification/ui/README.md`.
 - Capture screenshots for visual states and video for temporal behavior. Missing scenes/timeouts fail verification; screenshots alone do not establish visual correctness.
+
+## System share / new-session form
+
+- `CreateSession/` in LodyKit owns the shared UIKit form and its own navigation
+  controller. Never push plain UIKit controllers into `RNSScreenStack`.
+- The app retains `present`, outbox and composer relay; the extension uses the
+  durable Cloud submission receipt, never an embedded runtime or app-open handoff.
+  Loading/recovery must not set the composer's sending state or consume its draft.
+- App Group writes are credential-fenced under the cross-process `ShareStore`
+  lock. Keep uncertain receipts and exact request IDs for explicit recovery.
+  Architecture, rollout and verification: [SHARE_EXTENSION.md](apps/mobile/SHARE_EXTENSION.md).
 
 ## Push notifications
 

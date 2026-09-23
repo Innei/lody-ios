@@ -379,6 +379,47 @@ test('a preparation failure retains a retryable draft without dispatching or occ
   assert.equal(outbox.records[0].send.phase, 'accepted');
 });
 
+test('a failed initial-save fence cancels a dispatcher write already waiting for durability', async () => {
+  let calls = 0;
+  const record = { session, send: { ...draft, creation: '{}' } };
+  const { hooks, outbox } = await setup(
+    [record],
+    {
+      createSession: async () => {
+        calls += 1;
+        return '{}';
+      },
+      ensureSession: async () => {
+        calls += 1;
+      },
+      sendSessionTurn: async () => {
+        calls += 1;
+        return '{}';
+      },
+      releaseReserve: async () => {},
+    },
+    { connected: false },
+  );
+  const persistence = deferred();
+  const publish = outbox.put;
+  outbox.put = (value) => {
+    void publish(value);
+    return value.send.phase === 'creating'
+      ? persistence.promise
+      : Promise.resolve();
+  };
+  hooks.update({ connected: true });
+  await tick();
+  assert.equal(outbox.records[0].send.phase, 'creating');
+  // Creation-screen failure handling publishes this before restoring the input.
+  await outbox.put({ ...record, send: { ...record.send, phase: 'failed' } });
+  persistence.resolve();
+  await tick();
+  assert.equal(calls, 0);
+  assert.equal(outbox.records[0].send.phase, 'failed');
+  hooks.unmount();
+});
+
 test('a guide submitted on the page keeps its intent when the background dispatcher takes over', async () => {
   const sent = [];
   await setup([{ session, send: { ...draft, guide: true } }], {

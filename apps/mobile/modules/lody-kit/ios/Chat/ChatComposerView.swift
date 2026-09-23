@@ -81,7 +81,9 @@ private final class ChatQueueView: CKGlassSurface {
       // frame to the send animation before the row disappears.
       for draft in rendered where !drafts.contains(where: { $0.id == draft.id }) {
         guard let row = rows[draft.id], !draft.text.isEmpty else { continue }
+        #if !LODY_SHARE_EXTENSION
         ChatSendHandoff.begin(id: draft.id, source: row, straight: true)
+        #endif
       }
       rendered = drafts
       stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
@@ -740,8 +742,13 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   func restoreDraft(token: Int) {
     guard token > lastRestoreToken else { return }
     lastRestoreToken = token
+    restoreRejectedDraft()
+  }
+  func restoreRejectedDraft() {
     let id = pendingSendID ?? UUID().uuidString.lowercased()
+    #if !LODY_SHARE_EXTENSION
     ChatSendHandoff.cancel(id: id)
+    #endif
     pendingSendID = nil
     if let draft = pendingDraft {
       if !sendHandoff || ((input.text ?? "").isEmpty && attachments.isEmpty) {
@@ -808,6 +815,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     guard state.editable, let file = ChatAttachment.makePastedTextFile(text) else { return false }
     let range = input.selectedRange
     addAttachments([file])
+    #if !LODY_SHARE_EXTENSION
     LodyToastOverlay.shared.show(
       message: LodyStrings.text("native.chat.composer.pasteAsFile", ["name": file.name]),
       kind: "success",
@@ -815,6 +823,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     ) { [weak self] in
       self?.undoPastedTextFile(id: file.id, text: text, range: range)
     }
+    #endif
     return true
   }
 
@@ -915,8 +924,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     hintLeading.constant = 21
     hintTop.constant = verticalInset
     let height = input.sizeThatFits(CGSize(width: max(1, input.bounds.width), height: .greatestFiniteMagnitude)).height
-    inputHeight.constant = min(ChatMessageContent.maximumCollapsedHeight, max(expanded ? 68 : 48, height))
-    input.isScrollEnabled = height > ChatMessageContent.maximumCollapsedHeight
+    inputHeight.constant = min(140, max(expanded ? 68 : 48, height))
+    input.isScrollEnabled = height > 140
     updateComposerOptions()
     onHeightChange?(mentionHeight.constant + queueHeight.constant + quickRepliesHeight.constant + noticeHeight.constant + attachmentHeight.constant + inputHeight.constant + accessoryHeight.constant + 16)
     setNeedsLayout()
@@ -1053,11 +1062,13 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     let guiding = payload["guide"] as? Bool == true
     let body = input.text ?? ""
     relaying = false
+    #if !LODY_SHARE_EXTENSION
     if !queued && sendHandoff {
       if !body.isEmpty { ChatSendHandoff.begin(id: id, source: input, straight: guiding) }
       ChatSendHandoff.beginAttachments(id: id, attachments: attachments, source: attachmentBar)
     }
     LodyToastOverlay.shared.dismiss()
+    #endif
     takeDraft()
     saveDraft()
     pendingSendID = id
