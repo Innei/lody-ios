@@ -109,6 +109,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private let refreshControl = UIRefreshControl()
   private let placeholder = UILabel()
   private let topFade = LodyEdgeFade(edge: .top)
+  private let bottomFade = LodyEdgeFade()
   private var placeholderText = ""
 
   private static var accent: UIColor = .lodyAccent
@@ -387,7 +388,9 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     addSubview(collection)
     addSubview(placeholder)
     topFade.color = .lodyGroupedBackground
+    bottomFade.color = .lodyGroupedBackground
     addSubview(topFade)
+    addSubview(bottomFade)
     segments.addTarget(self, action: #selector(segmentChanged), for: .valueChanged)
     segments.accessibilityIdentifier = "list-segments"
     steps.addTarget(self, action: #selector(stepChanged), for: .valueChanged)
@@ -436,17 +439,22 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     }
     placeholder.frame = bounds.inset(by: UIEdgeInsets(top: insets.top + 24, left: 32, bottom: insets.bottom + 24, right: 32))
     attachScrollOwner()
-    updateTopFade()
+    updateEdgeFades()
   }
 
-  private func updateTopFade() {
+  private func updateEdgeFades() {
     let fades = contentStyle && !transparent
     topFade.isHidden = !fades
+    bottomFade.isHidden = !fades
     collection.topEdgeEffect.isHidden = fades
+    collection.bottomEdgeEffect.isHidden = fades
     guard fades else { return }
-    let bottom = collection.adjustedContentInset.top + LodyEdgeFade.topExtent
-    let height = max(100, bottom)
-    topFade.frame = CGRect(x: 0, y: bottom - height, width: bounds.width, height: height)
+    let insets = collection.adjustedContentInset
+    let topBottom = insets.top + LodyEdgeFade.topExtent
+    let topHeight = max(100, topBottom)
+    topFade.frame = CGRect(x: 0, y: topBottom - topHeight, width: bounds.width, height: topHeight)
+    let bottomHeight = max(100, insets.bottom + LodyEdgeFade.overlap)
+    bottomFade.frame = CGRect(x: 0, y: bounds.height - bottomHeight, width: bounds.width, height: bottomHeight)
   }
 
   func scrollViewDidChangeAdjustedContentInset(_ scrollView: UIScrollView) {
@@ -787,6 +795,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   override func lodyAppearanceDidChange() {
     collection.backgroundColor = transparent ? .clear : .lodyGroupedBackground
     topFade.color = .lodyGroupedBackground
+    bottomFade.color = .lodyGroupedBackground
   }
 
   func setBottomInset(_ height: CGFloat) {
