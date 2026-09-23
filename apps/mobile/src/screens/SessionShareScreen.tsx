@@ -1,20 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Alert,
-  Share,
-  View as Container,
-  ActivityIndicator,
-} from 'react-native';
-import {
-  NativeGroupedList,
-  copyText,
-  type NativeListSection,
-} from '@lody-ios/kit';
+import { Share } from 'react-native';
+import { NativeSessionShare, copyText } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
-import { usePalette } from '@/lib/theme/palette';
-import { AppText } from '@/ui/AppText';
 import { t } from '@/lib/i18n';
 import { sessionShareSource, type ShareSource } from '@/cloud/session-sharing';
 import type {
@@ -32,7 +21,6 @@ let nextEditor = 0;
 function View() {
   const { params, cancel } = usePageRuntime<SessionShareParams>();
   const source = params.source ?? sessionShareSource;
-  const colors = usePalette();
   const [editorId] = useState(() => `ios-share-${Date.now()}-${++nextEditor}`);
   const [data, setData] = useState<ShareState | null>(null);
   const [selected, setSelected] = useState<string[]>([params.sessionId]);
@@ -128,9 +116,10 @@ function View() {
         title: t('common.done'),
         accessibilityLabel: t('common.done'),
         onPress: cancel,
+        disabled: busy && !!data,
       },
     ],
-    [cancel],
+    [cancel, busy, !!data],
   );
   useSheetHeader(header);
   const entry = data?.entry;
@@ -141,190 +130,112 @@ function View() {
     data?.candidates.filter((s) => s.id !== params.sessionId) ?? [];
   const available = data?.candidates.map((s) => s.id) ?? [];
   const selectionAvailable = selected.every((id) => available.includes(id));
-  const sections: NativeListSection[] = [];
-  if (data) {
-    sections.push({
-      id: 'share-scope',
-      header:
-        data.candidates.find((s) => s.id === params.sessionId)?.title ||
-        t('share.title'),
-      footer: `${t('share.publicNotice')}\n${t('share.snapshotNotice')}\n${t('share.attachments')}`,
-      rows: [
-        {
-          id: 'share-status',
-          title: t(active ? 'share.shared' : 'share.private'),
-          image: active ? 'link' : 'lock',
-          imageTint: 'blue',
-        },
-      ],
+  let progressText = t('share.loading');
+  if (progress)
+    progressText = t(`share.${progress.phase}`, {
+      percent: progress.percent ?? 0,
     });
-    if (children.length && canPublish)
-      sections.push({
-        id: 'share-children',
-        rows: [
-          {
-            id: 'share-include-children',
-            title: t('share.children', {
-              count: Math.min(children.length, 31),
-            }),
-            toggle: selected.length > 1,
-            action: !busy && !data.pending,
-          },
-        ],
-        footer: children.length > 31 ? t('share.limit') : undefined,
-      });
-    if (data.url)
-      sections.push({
-        id: 'share-link',
-        rows: [
-          {
-            id: 'share-copy',
-            title: t('share.copy'),
-            image: 'doc.on.doc',
-            action: !busy,
-          },
-          {
-            id: 'share-system',
-            title: t('share.send'),
-            image: 'square.and.arrow.up',
-            action: !busy,
-          },
-        ],
-      });
-    if (active && !data.url)
-      sections.push({
-        id: 'share-key',
-        rows: [{ id: 'share-key-missing', title: t('share.keyMissing') }],
-      });
-    if (canPublish)
-      sections.push({
-        id: 'share-publish-section',
-        footer: active ? t('share.updateNotice') : undefined,
-        rows: [
-          {
-            id: 'share-publish',
-            title: t(data.pending ? 'common.retry' : 'share.publish'),
-            action: !busy && selectionAvailable,
-            ...(active && !data.pending ? { title: t('share.update') } : {}),
-            image: 'arrow.up.doc',
-          },
-        ],
-      });
-    if (!selectionAvailable)
-      sections.push({
-        id: 'share-unavailable-section',
-        rows: [
-          { id: 'share-unavailable', title: t('share.sourceUnavailable') },
-        ],
-      });
-    if (data.pending)
-      sections.push({
-        id: 'share-discard-section',
-        rows: [
-          { id: 'share-discard', title: t('share.discard'), action: !busy },
-        ],
-      });
-    if (active) {
-      const rows = [];
-      if (entry.canManage)
-        rows.push({
-          id: 'share-reset',
-          title: t('share.reset'),
-          action: !busy,
-          image: 'arrow.clockwise',
-        });
-      if (entry.canRevoke)
-        rows.push({
-          id: 'share-revoke',
-          title: t('share.revoke'),
-          action: !busy,
-          destructive: true,
-          image: 'link.badge.plus',
-        });
-      if (rows.length) sections.push({ id: 'share-manage', rows });
-    }
-  }
-  if (notice)
-    sections.unshift({
-      id: 'share-notice',
-      rows: [
-        {
-          id: 'share-notice-text',
-          title: notice,
-          image: 'checkmark.circle',
-          imageTint: 'blue',
-        },
-      ],
-    });
-  if (error)
-    sections.unshift({
-      id: 'share-error',
-      footer: t('share.failed'),
-      rows: [
-        {
-          id: 'share-reload',
-          title: t('common.retry'),
-          action: !busy,
-          image: 'arrow.clockwise',
-        },
-      ],
-    });
-  const confirm = (action: 'reset' | 'revoke') =>
-    Alert.alert(t(`share.${action}`), t(`share.${action}Confirm`), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t(`share.${action}`),
-        style: 'destructive',
-        onPress: () => void run(action),
-      },
-    ]);
+  const strings = Object.fromEntries(
+    (
+      [
+        'shared',
+        'private',
+        'publicNotice',
+        'snapshotNotice',
+        'attachments',
+        'limit',
+        'copy',
+        'send',
+        'keyMissing',
+        'publish',
+        'update',
+        'updateNotice',
+        'sourceUnavailable',
+        'discard',
+        'reset',
+        'revoke',
+        'resetConfirm',
+        'revokeConfirm',
+        'failed',
+        'keepOpen',
+        'content',
+        'manage',
+      ] as const
+    ).map((key) => [key, t(`share.${key}`)]),
+  );
+  strings.children = t('share.children', {
+    count: Math.min(children.length, 31),
+  });
+  strings.retry = t('common.retry');
+  strings.cancel = t('common.cancel');
   return (
-    <Container style={{ flex: 1, backgroundColor: colors.background }}>
-      {busy ? (
-        <Container style={{ padding: 24, gap: 12, alignItems: 'center' }}>
-          <ActivityIndicator />
-          <AppText testID="share-progress" accessibilityLiveRegion="polite">
-            {progress
-              ? t(`share.${progress.phase}`, { percent: progress.percent ?? 0 })
-              : t('share.loading')}
-          </AppText>
-          {progress ? (
-            <AppText variant="secondary">{t('share.keepOpen')}</AppText>
-          ) : null}
-        </Container>
-      ) : null}
-      <NativeGroupedList
-        style={{ flex: 1 }}
-        transparent
-        sections={sections}
-        onRowToggle={({ nativeEvent }) => {
-          if (!busy && !data?.pending)
-            setSelected(
-              nativeEvent.value
-                ? [params.sessionId, ...children.slice(0, 31).map((s) => s.id)]
-                : [params.sessionId],
-            );
-        }}
-        onRowPress={({ nativeEvent: { id } }) => {
-          if (busy) return;
-          if (id === 'share-publish') void run('publish');
-          if (id === 'share-reload') void run(retryAction.current);
-          if (id === 'share-discard') void run('discard');
-          if (id === 'share-copy' && data?.url) {
-            try {
-              copyText(data.url);
-              setNotice(t('share.copied'));
-            } catch {
-              setError(true);
+    <NativeSessionShare
+      style={{ flex: 1 }}
+      configurationJSON={JSON.stringify({
+        title:
+          data?.candidates.find((s) => s.id === params.sessionId)?.title ||
+          t('share.title'),
+        loaded: !!data,
+        active,
+        canPublish,
+        canReset: !!entry?.canManage,
+        canRevoke: !!entry?.canRevoke,
+        hasLink: !!data?.url,
+        childrenCount: children.length,
+        includeChildren: selected.length > 1,
+        selectionAvailable,
+        pending: !!data?.pending,
+        busy,
+        error,
+        notice,
+        progressText,
+        percent: progress?.phase === 'uploading' ? progress.percent : undefined,
+        strings,
+      })}
+      onAction={({ nativeEvent: { action, value } }) => {
+        if (busy) return;
+        switch (action) {
+          case 'includeChildren':
+            if (!data?.pending)
+              setSelected(
+                value
+                  ? [
+                      params.sessionId,
+                      ...children.slice(0, 31).map((s) => s.id),
+                    ]
+                  : [params.sessionId],
+              );
+            break;
+          case 'retry':
+            void run(retryAction.current);
+            break;
+          case 'publish':
+          case 'discard':
+          case 'reset':
+          case 'revoke':
+            void run(action);
+            break;
+          case 'copy':
+            if (data?.url) {
+              try {
+                copyText(data.url);
+                setNotice(t('share.copied'));
+              } catch {
+                retryAction.current = 'read';
+                setError(true);
+              }
             }
-          }
-          if (id === 'share-system' && data?.url)
-            void Share.share({ url: data.url }).catch(() => setError(true));
-          if (id === 'share-reset') confirm('reset');
-          if (id === 'share-revoke') confirm('revoke');
-        }}
-      />
-    </Container>
+            break;
+          case 'share':
+            if (data?.url)
+              void Share.share({ url: data.url }).catch(() => {
+                retryAction.current = 'read';
+                setError(true);
+              });
+            break;
+        }
+      }}
+    />
   );
 }
 export const SessionShareScreen = definePage<SessionShareParams>({

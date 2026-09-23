@@ -18,7 +18,7 @@ function fixture(): ShareSource {
     selected: ['root'],
     pending: false,
   };
-  const wait = () => new Promise((resolve) => setTimeout(resolve, 650));
+  const wait = () => new Promise((resolve) => setTimeout(resolve, 2000));
   return {
     subscribe: (next) => {
       listener = next;

@@ -217,3 +217,5 @@ export {
 } from './chat/NativeMessageShare';
 
 export { NativeAppIconGrid } from './appearance/NativeAppIconGrid';
+
+export { NativeSessionShare } from './session-share/NativeSessionShare';

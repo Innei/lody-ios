@@ -1,4 +1,4 @@
-"""Publish only after confirmation; failed upload, retry, update, reset and revoke offline."""
+"""SwiftUI sharing form: explicit publication and automatic copy; failed upload, retry, update, reset and revoke offline."""
 import subprocess
 import sys
 from driver import UI
@@ -26,22 +26,31 @@ def confirm(label):
 
 tap('open-session-share')
 wait('share-publish')
+assert ui.element('share-publish')['AXLabel'] == 'Create and copy link'
+assert ui.element('share-publish')['frame']['height'] >= 44
+assert ui.element('share-include-children').get('AXValue') == '0'
 assert not any(i.get('AXUniqueId') == 'share-copy' for i in ui.state())
 ui.capture('scope-before-publication')
 tap('share-include-children')
+assert ui.element('share-include-children').get('AXValue') == '1'
 tap('share-publish')
 wait('share-progress')
+assert any(i.get('AXLabel') == 'Done' and not i.get('enabled', True) for i in ui.state()), 'Publishing must disable Done'
 ui.capture('publication-progress')
 wait('share-reload')
 assert not any(i.get('AXUniqueId') == 'share-copy' for i in ui.state())
+assert ui.element('share-include-children').get('AXValue') == '1', 'Failure lost the selected scope'
+assert not ui.element('share-include-children')['enabled'], 'Pending upload scope must stay frozen'
 ui.capture('upload-failure-no-link')
 tap('share-reload')
 wait('share-copy')
+ui.wait(lambda items: not any(i.get('AXUniqueId') == 'share-progress' for i in items), 'Publication did not finish')
 assert 'fixture-v1' in pasted()
 ui.capture('published-link')
 tap('share-publish')
 wait('share-progress')
 wait('share-copy')
+ui.wait(lambda items: not any(i.get('AXUniqueId') == 'share-progress' for i in items), 'Publication did not finish')
 assert 'fixture-v1' in pasted(), 'Updating changed the link'
 tap('share-system')
 wait('ActivityListView')
@@ -49,6 +58,11 @@ ui.capture('system-share')
 frame = ui.element('ActivityListView')['frame']
 ui.axe('tap', '-x', '20', '-y', str(max(50, frame['y'] - 40)), '--post-delay', '.6')
 ui.wait(lambda items: not any(i.get('AXUniqueId') == 'ActivityListView' for i in items), 'System share did not dismiss')
+# Bring the bottom management group above the home indicator with a real scroll.
+ui.axe('swipe', '--start-x', '200', '--start-y', '730', '--end-x', '200', '--end-y', '450', '--duration', '.4', '--post-delay', '.4')
+revoke = ui.element('share-revoke')['frame']
+assert revoke['y'] + revoke['height'] < 840, 'Management actions must scroll clear of the safe area'
+ui.capture('management-scrolled')
 tap('share-reset')
 ui.axe('tap', '--label', 'Cancel')
 tap('share-copy')

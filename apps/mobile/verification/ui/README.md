@@ -12,9 +12,10 @@ line height during streaming and after completion. The `local-store` native chec
 covers parsed Ruby in lists, headings, tables and links, with literal code and
 incomplete or unsupported markup preserved.
 
-`session-share` exercises the production conversation-sharing sheet with an
+`session-share` exercises the production SwiftUI conversation-sharing Form with an
 independently resettable Debug source: default scope, sub-conversation selection,
-capture/upload/publish progress, failed upload with no link, retry, stable-link
+automatic link copying, disabled Done during publication, capture/upload/publish
+progress, failed upload retaining its selected scope with no link, retry, stable-link
 updates, system sharing, reset confirmation/cancellation and revocation. Both
 English appearances capture screenshots and video; no live share is published.
 Protocol tests separately run the production exporter and publication state

@@ -580,6 +580,11 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       try PreparedChatEntries(json)
     }.runOnQueue(PreparedChatEntries.queue)
 
+    View(LodySessionShareView.self) {
+      Events("onAction")
+      Prop("configurationJSON") { (view: LodySessionShareView, value: String) in view.configure(value) }
+    }
+
     View(LodyMessageShareView.self) {
       Events("onState", "onBlocks")
       Prop("selectedJSON") { (view: LodyMessageShareView, value: String) in view.setSelected(value) }
