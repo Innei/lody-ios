@@ -1,3 +1,4 @@
+import ChatKit
 import UIKit
 
 enum ChatRowPadding {
@@ -143,7 +144,7 @@ final class ChatMarkView: UIImageView {
 
 final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   let messageContent = ChatMessageContent(frame: .zero)
-  var label: ChatTextView { messageContent.label }
+  var label: CKTextView { messageContent.label }
   var numericText: ChatNumericTextHost { messageContent.numericText }
   var bubble: UIView { messageContent.bubble }
   let icon = ChatMarkView()

@@ -3,6 +3,7 @@ import Foundation
 import os
 import OneSignalFramework
 import OneSignalLiveActivities
+import UIKit
 
 @MainActor
 final class LiveActivities {
@@ -15,6 +16,25 @@ final class LiveActivities {
   private var workStarts: [String: Double] = [:]
   private var userId: String?
   private var identityResolved = false
+
+  func syncAppIcon() {
+    let name = UIApplication.shared.alternateIconName ?? "default"
+    guard LodyActivityIcon.defaults?.string(forKey: LodyActivityIcon.key) != name else { return }
+    LodyActivityIcon.defaults?.set(name, forKey: LodyActivityIcon.key)
+    Self.refreshAppIcon()
+  }
+
+  private nonisolated static func refreshAppIcon() {
+    Task {
+      for activity in Activity<LodyActivityAttributes>.activities
+        where activity.activityState == .active || activity.activityState == .stale {
+        let content = activity.content
+        var state = content.state
+        state.appIcon = LodyActivityIcon.name
+        await activity.update(ActivityContent(state: state, staleDate: content.staleDate, relevanceScore: content.relevanceScore))
+      }
+    }
+  }
 
   var enabled: Bool {
     get { defaults?.object(forKey: "liveActivitiesEnabled") as? Bool ?? true }

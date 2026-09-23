@@ -1,3 +1,4 @@
+import ChatKitCore
 import Foundation
 
 let json = """
@@ -418,7 +419,7 @@ precondition(ChatScroll.advance(100, toward: 101, elapsed: 1.0 / 60, response: 0
   "The bottom follower must finish when UIKit would round its next step away")
 print("Streaming pressure: sustained 300 TPS, long tail drain, and pixel-aligned scroll completion passed")
 
-var fade = ChatTextFade()
+var fade = CKTextFade()
 fade.update("已有文字", animate: false, at: 0, reset: true)
 fade.update("已有文字👩🏽‍💻你好", animate: true, at: 1)
 assert(fade.active.count == 3 && fade.active[0].range.location == 4)

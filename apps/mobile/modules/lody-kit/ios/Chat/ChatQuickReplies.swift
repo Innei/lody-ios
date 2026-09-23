@@ -1,3 +1,4 @@
+import ChatKit
 import UIKit
 
 struct ChatQuickReply: Decodable, Equatable {
@@ -65,7 +66,7 @@ final class ChatQuickRepliesView: UIScrollView {
     return hit === self ? nil : hit
   }
 
-  private func chip(_ item: ChatQuickReply) -> LodyGlassView {
+  private func chip(_ item: ChatQuickReply) -> CKGlassSurface {
     var configuration = UIButton.Configuration.plain()
     configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
     configuration.title = item.label
@@ -88,7 +89,7 @@ final class ChatQuickRepliesView: UIScrollView {
       attributes: [.font: Self.titleFont],
       context: nil
     ).width
-    let surface = LodyGlassView(interactive: true)
+    let surface = CKGlassSurface(interactive: true)
     surface.cornerConfiguration = .capsule()
     surface.contentView.addSubview(button)
     button.translatesAutoresizingMaskIntoConstraints = false

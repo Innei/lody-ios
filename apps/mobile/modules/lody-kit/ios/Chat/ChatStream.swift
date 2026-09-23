@@ -1,65 +1,11 @@
+import ChatKitCore
 import Foundation
 
 /// Presentation-only pacing, driven by elapsed time and input pressure.
 /// Network history remains authoritative, including corrections and completion.
 struct ChatStream {
-  private struct Reveal {
-    var source = ""
-    var shown = ""
-    var pending: [Character] = []
-    var offset = 0
-    var lastInput: Double?
-    var lastAdvance = 0.0
-    var arrivalRate = 38.0
-    var hasPending: Bool { offset < pending.count }
-
-    mutating func receive(_ text: String, animate: Bool, at time: Double) {
-      guard text != source else {
-        if !animate { finish() }
-        return
-      }
-      guard animate, text.hasPrefix(source) else {
-        source = text
-        finish()
-        lastInput = nil
-        arrivalRate = 38
-        return
-      }
-      let appended = Array(text.dropFirst(source.count))
-      if let lastInput {
-        let rate = Double(appended.count) / max(0.016, time - lastInput)
-        arrivalRate += (rate - arrivalRate) * 0.35
-      }
-      if !hasPending { lastAdvance = time }
-      lastInput = time
-      pending = Array(pending.dropFirst(offset)) + appended
-      offset = 0
-      source = text
-    }
-    mutating func advance(at time: Double) {
-      guard hasPending else { return }
-      let elapsed = min(0.12, max(0, time - lastAdvance))
-      guard elapsed > 0 else { return }
-      lastAdvance = time
-      let backlog = pending.count - offset
-      // Drain bursts within a short time budget, independent of message length.
-      let speed = max(38, arrivalRate * 1.1, Double(backlog) / 0.18)
-      var batch = max(1, Int(speed * elapsed))
-      if time - (lastInput ?? time) >= 0.45 || backlog > 2048 { batch = backlog }
-      let end = min(pending.count, offset + batch)
-      shown += String(pending[offset..<end])
-      offset = end
-      if !hasPending { finish() }
-    }
-    mutating func finish() {
-      shown = source
-      pending.removeAll(keepingCapacity: false)
-      offset = 0
-    }
-  }
-
   private struct ID: Hashable { let entry: String; let item: String }
-  private var reveals: [ID: Reveal] = [:]
+  private var reveals: [ID: CKTextReveal] = [:]
   private var targets: [ChatEntry] = []
   private var initialized = false
   private var settling: Set<String> = []
@@ -76,7 +22,7 @@ struct ChatStream {
       for item in entry.items where item.type == "text" || item.type == "thought" {
         let id = ID(entry: entry.id, item: item.itemId)
         retained.insert(id)
-        var reveal = reveals[id] ?? Reveal()
+        var reveal = reveals[id] ?? CKTextReveal()
         let shouldAnimate = initialized && animate && entry.role == "assistant" && (entry.isRunning || wasRunning.contains(entry.id) || reveal.hasPending)
         reveal.receive(item.text ?? "", animate: shouldAnimate, at: time)
         reveals[id] = reveal

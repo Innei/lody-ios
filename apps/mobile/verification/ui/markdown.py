@@ -69,6 +69,8 @@ assert rest['x'] + rest['width'] >= rest['boundsWidth'] - 1, rest
 assert rest['offsetX'] <= 1, rest
 save_probe('table-bleed')
 ui.capture('table-bleed')
+assert '<ruby>日本語<rt>にほんご</rt></ruby>' in ui.element('preview:answer')['AXLabel']
+ui.capture('ruby-annotations')
 cell_word = long_press_copy(rest['x'] + rest['contentLeft'] + 24, rest['y'] + 16)
 assert cell_word in 'table-bleed-start', repr(cell_word)
 ui.capture('table-selection')
@@ -95,25 +97,36 @@ assert scrolled['x'] + scrolled['width'] >= scrolled['boundsWidth'] - 1, scrolle
 save_probe('table-bleed-scrolled')
 ui.capture('table-bleed-scrolled')
 
-for _ in range(8):
-    if any(i.get('AXLabel') == catalog.system('copy') and i.get('type') == 'Button' for i in ui.state()):
+for _ in range(16):
+    # AX exposes code actions beneath the transparent navigation bar; scroll them clear before tapping.
+    copies = [i['frame'] for i in ui.state()
+              if i.get('AXLabel') == copy_label and i.get('type') == 'Button'
+              and 140 <= i.get('frame', {}).get('y', 0) <= 650]
+    if copies:
+        copy = max(copies, key=lambda frame: frame['y'])
         break
-    ui.axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '650', '--duration', '.5', '--post-delay', '.3')
+    ui.axe('swipe', '--start-x', '200', '--start-y', '400', '--end-x', '200', '--end-y', '500', '--duration', '.8', '--post-delay', '1')
 else:
     raise AssertionError('Markdown code copy action not visible')
 subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input='clipboard sentinel', text=True, check=True, timeout=10)
-ui.axe('tap', '--label', catalog.system('copy'), '--element-type', 'Button', '--post-delay', '.3')
+ui.axe('tap', '-x', str(copy['x'] + copy['width'] / 2), '-y', str(copy['y'] + copy['height'] / 2), '--post-delay', '.3')
 text = subprocess.check_output(['xcrun', 'simctl', 'pbpaste', ui.udid], text=True, timeout=10)
 assert text.strip() == 'let layout = UICollectionViewFlowLayout()\nlet list = UICollectionView(\n  frame: .zero,\n  collectionViewLayout: layout\n)', repr(text)
 
-answer = ui.element('preview:answer')
-frame = answer['frame']
+for _ in range(8):
+    answer = ui.element('preview:answer')
+    frame = answer['frame']
+    if frame['y'] + frame['height'] <= 750:
+        break
+    ui.axe('swipe', '--start-x', '200', '--start-y', '650', '--end-x', '200', '--end-y', '350', '--duration', '.5', '--post-delay', '.3')
 selected = long_press_copy(frame['x'] + 70, frame['y'] + frame['height'] - 25)
 assert selected in answer['AXLabel'], repr(selected)
 ui.capture('markdown-code')
 
 grown = table_bleed_path().with_name('lody-context-view-grown.json')
 grown.unlink(missing_ok=True)
+hit_testing = grown.with_name('lody-markdown-hit-testing.json')
+hit_testing.unlink(missing_ok=True)
 ui.axe('tap', '--label', 'Fast Replay', '--post-delay', '.5')
 ui.wait(
     lambda items: any(i.get('AXUniqueId') == 'preview:answer' and (i.get('AXLabel') or '').endswith('收尾段落。') for i in items),
@@ -121,5 +134,9 @@ ui.wait(
 )
 time.sleep(1)
 assert not grown.exists(), ('Code or table view animated its frame after completion', grown.read_text())
+ui.wait(lambda _: hit_testing.exists(), 'Fold hit-testing checks did not run')
+checks = json.loads(hit_testing.read_text())
+assert checks and all(checks.values()), checks
+(ui.output / 'markdown-hit-testing.json').write_text(hit_testing.read_text())
 ui.capture('markdown-folded')
 print('PASS: production Markdown code copy, long-press selection in body and table, gutter bleed, and fold without regrowth')

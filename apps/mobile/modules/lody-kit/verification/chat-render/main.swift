@@ -1,3 +1,4 @@
+import ChatKit
 import UIKit
 
 let mentionText = "#30 @src/app.ts @\"folder/my file.swift\" use /review [Skill Path](/skills/review/SKILL.md)"
@@ -5,7 +6,7 @@ let mentionSource = NSAttributedString(string: mentionText, attributes: [.font: 
 let richMentions = ChatUserMentions.decorate(mentionSource, repository: "Innei/lody-ios", traits: .current)
 precondition(mentionSource.string == mentionText, "Decorating must not change the stored or copied prompt")
 precondition(richMentions.string.contains("$review") && !richMentions.string.contains("[Skill Path]"))
-let mentionView = ChatTextView(frame: CGRect(x: 0, y: 0, width: 180, height: 400))
+let mentionView = CKTextView(frame: CGRect(x: 0, y: 0, width: 180, height: 400))
 mentionView.setText(richMentions)
 var mentionOpened = ""
 mentionView.onLink = { mentionOpened = $0 }
@@ -30,10 +31,10 @@ print("User mentions: rich labels, file and GitHub targets, VoiceOver actions, w
 
 // A partially offscreen text view must retain every line when scrolling exposes it.
 let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 400))
-let view = ChatTextView(frame: CGRect(x: 0, y: 350, width: 350, height: 600))
+let view = CKTextView(frame: CGRect(x: 0, y: 350, width: 350, height: 600))
 window.addSubview(view)
 view.setText(NSAttributedString(string: (1...20).map { "Line \($0): scrolling keeps this content" }.joined(separator: "\n"), attributes: [.font: UIFont.systemFont(ofSize: 17), .foregroundColor: UIColor.black]))
-func draw() -> Data {
+@MainActor func draw() -> Data {
   UIGraphicsImageRenderer(size: view.bounds.size).image { context in
     UIColor.white.setFill()
     context.fill(view.bounds)
@@ -46,13 +47,13 @@ let exposedByScrolling = draw()
 precondition(initiallyClipped == exposedByScrolling, "Text drawing must not depend on the current scroll position")
 print("Chat render: offscreen lines remain drawn across scrolling")
 
-let shineView = ChatTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 20))
+let shineView = CKTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 20))
 window.addSubview(shineView)
 shineView.setText(NSAttributedString(string: "正在处理", attributes: [
   .font: UIFont.systemFont(ofSize: 13),
   .foregroundColor: UIColor.systemBlue,
 ]))
-func shineSnapshot() -> Data {
+@MainActor func shineSnapshot() -> Data {
   UIGraphicsImageRenderer(size: shineView.bounds.size).image { context in
     UIColor.white.setFill()
     context.fill(shineView.bounds)
@@ -106,7 +107,7 @@ precondition(durationSeparator?.frame.maxY == durationCell.contentView.bounds.ma
 print("Chat render: duration separator spans the row below the label")
 
 func chromeHeight(_ row: ChatRow, text: String, width: CGFloat, traits: UITraitCollection) -> CGFloat {
-  let view = ChatTextView()
+  let view = CKTextView()
   view.setText(NSAttributedString(string: text, attributes: [
     .font: ChatCell.messageFont(for: row, compatibleWith: traits),
   ]))
@@ -606,7 +607,7 @@ let countRow = ChatRow(
 )
 let countText = processAttributed(countRow.text, row: countRow, traits: traits)
 let countWidth = ChatCell.textWidth(countRow, width: 320)
-let measureKit = ChatTextView()
+let measureKit = CKTextView()
 measureKit.setText(countText)
 let textKitHeight = measureKit.sizeThatFits(CGSize(width: countWidth, height: .greatestFiniteMagnitude)).height
 let numericHost = ChatNumericTextHost(frame: CGRect(x: 0, y: 0, width: countWidth, height: 8))

@@ -1,8 +1,9 @@
+import ChatKit
 import UIKit
 
 /// The flying copy and collection content keep independent layer lifecycles.
 final class ChatMessageContent: UIView {
-  let label = ChatTextView()
+  let label = CKTextView()
   let numericText = ChatNumericTextHost()
   static let maximumCollapsedHeight: CGFloat = 140
   static let bubbleRadius: CGFloat = 19

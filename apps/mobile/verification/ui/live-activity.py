@@ -67,12 +67,32 @@ def expand_island(focus_title, message):
     return label
 
 
+def change_icon(value):
+    ui.axe('tap', '--id', 'live-activity-icon', '--post-delay', '.6')
+    selected = catalog.text('native.chat.attachment.selected')
+    if ui.element(f'app-icon-{value}').get('AXValue') != selected:
+        ui.axe('tap', '--id', f'app-icon-{value}', '--post-delay', '1')
+        # The icon confirmation belongs to SpringBoard and is absent from AXe's
+        # tree on this simulator; use the same fallback as the appearance check.
+        try:
+            ui.axe('tap', '--label', 'OK', '--post-delay', '.5', timeout=3, recover=False)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError):
+            ui.axe('tap', '-x', '201', '-y', '505', '--post-delay', '.5')
+        ui.invalidate_axe()
+        ui.wait(lambda _: ui.element(f'app-icon-{value}').get('AXValue') == selected,
+                'System icon change did not complete')
+    ui.capture(f'icon-{value}')
+    ui.axe('tap', '--id', 'BackButton', '--post-delay', '.6')
+    ui.element('live-activity-status')
+
+
 # A fixture activity outlives a failed run, and starting is a no-op while one exists,
 # so the scene resets itself before it asserts anything.
 if status() != '0 个活动':
     ui.axe('tap', '--id', 'live-activity-end', '--tap-style', 'physical')
     ui.wait(lambda items: status() == '0 个活动', 'Could not end a leftover fixture activity')
 
+change_icon('default')
 ui.axe('tap', '--id', 'live-activity-start', '--tap-style', 'physical')
 allow(8)
 ui.wait(lambda items: status() != '0 个活动', 'Fixture activity did not start')
@@ -83,6 +103,13 @@ ui.wait(lambda items: toggle_value() == '0', 'Dynamic Island switch did not turn
 ui.axe('tap', '--id', 'live-activity:toggle', '--tap-style', 'physical')
 ui.wait(lambda items: toggle_value() == '1', 'Dynamic Island switch did not turn back on')
 assert status() != '0 个活动', 'Toggling the injected switch ended the fixture activity'
+
+ui.axe('button', 'home')
+time.sleep(2)
+ui.capture('island-default-icon')
+foreground()
+change_icon('Aqua')
+assert status() != '0 个活动', 'Changing the icon ended the running activity'
 
 ui.axe('button', 'home')
 time.sleep(2)
@@ -173,8 +200,31 @@ ui.axe('button', 'lock')
 ui.axe('swipe', '--start-x', '200', '--start-y', '780', '--end-x', '200', '--end-y', '300', '--duration', '0.4', '--post-delay', '1.0')
 foreground()
 ui.capture('ended')
+# A new activity must also use the persisted choice, without another icon switch.
 ui.axe('tap', '--id', 'live-activity-start', '--tap-style', 'physical')
 ui.wait(lambda items: status() != '0 个活动', 'New work did not restart the activity')
+ui.axe('button', 'home')
+time.sleep(2)
+ui.capture('island-new-aqua')
+foreground()
+change_icon('default')
+ui.axe('button', 'home')
+time.sleep(2)
+ui.capture('island-restored-default')
+# Compare only the app mark, excluding the clock, pulsing status and task count.
+# Coordinates are in points on the verification pool's iPhone 17 Pro.
+marks = {}
+for name in ['island-default-icon', 'island-running', 'island-new-aqua', 'island-restored-default']:
+    marks[name] = subprocess.check_output([
+        'ffmpeg', '-v', 'error', '-i', str(ui.output / f'{name}.png'),
+        '-vf', 'scale=402:-1,crop=24:24:114:20', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-',
+    ], timeout=20)
+def difference(left, right):
+    return sum(abs(a - b) for a, b in zip(marks[left], marks[right])) / len(marks[left])
+assert difference('island-default-icon', 'island-running') > 15, 'Active Island kept the default icon'
+assert difference('island-running', 'island-new-aqua') < 5, 'New activity lost the chosen icon'
+assert difference('island-default-icon', 'island-restored-default') < 5, 'Island did not restore the default icon'
+foreground()
 ui.axe('tap', '--id', 'live-activity-fail-all', '--tap-style', 'physical')
 ui.wait(lambda items: status() == '0 个活动', 'Failing every task did not end the activity')
 ui.axe('button', 'lock')

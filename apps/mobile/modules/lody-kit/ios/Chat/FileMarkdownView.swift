@@ -1,3 +1,4 @@
+import CoreText
 import Litext
 import MarkdownParser
 import MarkdownView
@@ -12,7 +13,7 @@ final class FileMarkdownView: MarkdownTextView {
   static let searchExcluded = NSAttributedString.Key("lody-search-excluded")
 
   static func content(_ source: MarkdownContent) -> MarkdownContent {
-    let blocks = source.blocks.rewrite { (node: MarkdownInlineNode) -> [MarkdownInlineNode] in
+    let blocks = MarkdownRuby.blocks(source.blocks).rewrite { (node: MarkdownInlineNode) -> [MarkdownInlineNode] in
       if case let .image(source, _) = node { return [.text(imageMarker + source)] }
       if case let .html(source) = node { return [.text(htmlMarker + source)] }
       guard case let .link(destination, children) = node,
@@ -37,6 +38,7 @@ final class FileMarkdownView: MarkdownTextView {
   }
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    guard !isHidden, alpha > 0.01, isUserInteractionEnabled else { return nil }
     for table in ChatTableBleed.tables(in: self) {
       if let hit = ChatTableBleed.hit(table, point: point, from: self, event: event) { return hit }
     }
@@ -44,6 +46,16 @@ final class FileMarkdownView: MarkdownTextView {
   }
 
   override func decorate(inlineText text: NSAttributedString, theme: MarkdownTheme) -> NSAttributedString {
+    if let ruby = MarkdownRuby.decode(text.string) {
+      // The marker starts with a private-use glyph, whose cached fallback is LastResort.
+      var attributes: [NSAttributedString.Key: Any] = [.font: theme.fonts.body, .foregroundColor: theme.colors.body]
+      if !ruby.reading.isEmpty {
+        attributes[NSAttributedString.Key(kCTRubyAnnotationAttributeName as String)] =
+          CTRubyAnnotationCreateWithAttributes(.auto, .auto, .before, ruby.reading as CFString,
+            [kCTRubyAnnotationSizeFactorAttributeName: 0.5] as CFDictionary)
+      }
+      return NSAttributedString(string: ruby.base, attributes: attributes)
+    }
     for prefix in [Self.imageMarker, Self.htmlMarker] where text.string.hasPrefix(prefix) {
       let source = String(text.string.dropFirst(prefix.count))
       var attributes: [NSAttributedString.Key: Any] = [Self.searchExcluded: true]
@@ -298,6 +310,66 @@ extension UIView {
 
 @MainActor
 enum ChatContextViewProbe {
+  static func checkHitTesting() {
+    guard LodyUIVerify.enabled else { return }
+    let store = ChatMarkdownStore(traits: .current)
+    let row = ChatRow(id: "hit-test", entryID: "hit-test", kind: "text", text: "Folded process text")
+    let markdown = store.view(id: row.id, text: row.text, secondary: false, streaming: false, width: 300)
+    let cell = ChatMarkdownCell(frame: CGRect(x: 0, y: 0, width: 320, height: 80))
+    cell.configure(row, markdown: markdown)
+    cell.layoutIfNeeded()
+    let point = CGPoint(x: 30, y: 20)
+    var checks: [String: Bool] = [:]
+    // UIKit can keep a deleted cell in its reuse pool with its old text attached.
+    let host = UIView(frame: cell.frame)
+    let button = UIButton(frame: host.bounds)
+    host.addSubview(button)
+    host.addSubview(cell)
+    checks["visibleTextReceivesTouch"] = host.hitTest(point, with: nil)?.isDescendant(of: markdown) == true
+    cell.isHidden = true
+    checks["hiddenCellPassesToButton"] = host.hitTest(point, with: nil) === button
+    cell.isHidden = false
+    cell.alpha = 0
+    checks["transparentCellPassesToButton"] = host.hitTest(point, with: nil) === button
+    cell.alpha = 1
+    cell.isUserInteractionEnabled = false
+    checks["disabledCellPassesToButton"] = host.hitTest(point, with: nil) === button
+    cell.isUserInteractionEnabled = true
+    for (name, view) in [("markdown", markdown as UIView), ("block", markdown.subviews[0])] {
+      let local = view.convert(point, from: cell)
+      view.isHidden = true
+      checks[name + "Hidden"] = view.hitTest(local, with: nil) == nil
+      view.isHidden = false
+      view.alpha = 0
+      checks[name + "Transparent"] = view.hitTest(local, with: nil) == nil
+      view.alpha = 1
+      view.isUserInteractionEnabled = false
+      checks[name + "Disabled"] = view.hitTest(local, with: nil) == nil
+      view.isUserInteractionEnabled = true
+    }
+    let next = ChatMarkdownCell(frame: cell.frame)
+    next.configure(row, markdown: markdown)
+    next.layoutIfNeeded()
+    checks["oldCellCannotReachReparentedText"] = cell.hitTest(point, with: nil)?.isDescendant(of: markdown) != true
+    let source = "Before <ruby>Tokyo<rt>toh-kee-oh</rt></ruby> after"
+    for streaming in [false, true] {
+      let rendered = store.view(id: "ruby", text: source, secondary: false, streaming: streaming, width: 300)
+      let label = (rendered.subviews.first as! FileMarkdownView).textLabelView
+      let text = label.attributedText
+      let range = (text.string as NSString).range(of: "Tokyo")
+      var reading: String?
+      if range.location != NSNotFound,
+         let value = text.attribute(NSAttributedString.Key(kCTRubyAnnotationAttributeName as String), at: range.location, effectiveRange: nil) {
+        reading = CTRubyAnnotationGetTextForPosition(value as! CTRubyAnnotation, .before) as String?
+      }
+      checks["rubyReading-\(streaming)"] = reading == "toh-kee-oh"
+      checks["rubySelectableBase-\(streaming)"] = text.string.trimmingCharacters(in: .whitespacesAndNewlines) == "Before Tokyo after"
+      checks["rubyHeight-\(streaming)"] = rendered.measuredHeight > store.height(id: "plain", text: "Before Tokyo after", secondary: false, streaming: streaming, width: 300)
+    }
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("lody-markdown-hit-testing.json")
+    try? JSONSerialization.data(withJSONObject: checks, options: .sortedKeys).write(to: url, options: .atomic)
+  }
+
   static func record(_ markdown: UIView) {
     guard LodyUIVerify.enabled else { return }
     var grown: [String] = []

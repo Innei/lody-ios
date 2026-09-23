@@ -184,7 +184,7 @@ enum FilePreviewFixture {
     let body: Data
     switch name {
     case "report.md":
-      body = Data("# Performance report\n\nA **rendered document**, with a table and a related file.\n\n| Run | FPS |\n| --- | --- |\n| Light | 60 |\n| Dark | 60 |\n\n[Source](sample.swift#L2)\n".utf8)
+      body = Data("# Performance report\n\nA **rendered document**, with a table and a related file.\n\nRuby: <ruby>Tokyo<rt>toh-kee-oh</rt></ruby>.\n\n| Run | FPS |\n| --- | --- |\n| Light | 60 |\n| Dark | 60 |\n\n[Source](sample.swift#L2)\n".utf8)
     case "SKILL.md" where path == "skills/review/SKILL.md":
       body = Data("# Review skill\n\nRead the diff and report actionable findings.\n".utf8)
     case "sample.swift" where path == "docs/sample.swift": body = Data("// File preview\nlet answer = 42\nprint(answer)\n".utf8)

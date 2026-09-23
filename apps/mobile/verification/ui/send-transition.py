@@ -22,9 +22,19 @@ assert not any(item.get('AXLabel') == remove_label for item in ui.state())
 ui.capture('attachment-after-remove')
 names = ['01-notes.txt', '02-landscape.png', '03-report.txt', '04-portrait.png', '05-summary.txt']
 ui._paste_provider(source, 'mixed-pasteboard.swift', names)
-body = '\n'.join(f'{i:02d} This message keeps all text.' for i in range(1, 13))
+body = '\n'.join(f'Line {i:02d} This message keeps all text.' for i in range(1, 13))
 ui.axe('tap', '--id', source)
-ui.type_into(source, body)
+# This case verifies landing and attachment ownership, not HID key synthesis.
+# Paste through the real edit menu so Shift/autocorrection cannot alter the fixture.
+subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input=body, text=True, check=True, timeout=20)
+field = ui.element(source)['frame']
+ui.axe('touch', '-x', str(field['x'] + field['width'] / 2), '-y', str(field['y'] + field['height'] / 2), '--down', '--up', '--delay', '.8')
+paste = ui.wait(lambda items: max(
+    (item for item in items if item.get('AXLabel') == catalog.system('paste')),
+    key=lambda item: item['frame']['width'] * item['frame']['height'], default=None,
+), 'Paste did not appear for the long-text fixture')['frame']
+ui.axe('tap', '-x', str(paste['x'] + paste['width'] / 2), '-y', str(paste['y'] + paste['height'] / 2), '--post-delay', '.5')
+assert ui.element(source)['AXValue'] == body, 'Long-text fixture did not paste exactly'
 # HID typing may connect a hardware keyboard. Restore the phone keyboard before
 # measuring the input or its destination; preceding cases must not change this.
 subprocess.run([str(ui.output.parent.parent / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)

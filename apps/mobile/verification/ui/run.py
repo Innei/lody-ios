@@ -21,10 +21,13 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker'],
-    'send': ['quick-replies', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
+    'send': ['quick-replies', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'camera-chat', 'camera-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'model-memory'],
     'chat': ['message-share', 'user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'chat-chrome', 'title-rename'],
 }
 SUITES = {
+    'chat-kit': ['chat-stream-performance', 'composer', 'send-transition-handoff'],
+    'chat-kit-input': ['composer', 'send-transition-handoff'],
+    'camera': ['camera-chat', 'camera-sheet'],
     'glass-transitions': ['chat-chrome', 'mention-chat', 'mention-sheet', 'send-queue', 'send-transition', 'send-transition-handoff'],
     'core': ['onboarding', 'inbox', 'navigation', 'send', 'send-handoff', 'composer-success'],
     'core-home': ['onboarding', 'inbox', 'navigation'],
@@ -40,6 +43,8 @@ CASES = PHONE_CASES + PAD_CASES + ['session-share', 'session-delete', 'session-s
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome'}
 HOME_CASES.update({'session-delete', 'session-delete-pad'})
 PREVIEW = {
+    'camera-chat': 'chat-preview',
+    'camera-sheet': 'composer-preview',
     'session-tree': 'session-tree-preview',
     'session-tree-pad': 'session-tree-preview',
     'message-share': 'message-share-preview',
@@ -101,6 +106,8 @@ PREVIEW = {
     'community-notice': 'community-notice',
 }
 READY = {
+    'camera-chat': 'session-input',
+    'camera-sheet': 'create-session-input',
     'session-tree': 'tree-root',
     'session-tree-pad': 'tree-root',
     'message-share': 'paper-reply:meta:actions',
@@ -284,7 +291,7 @@ with metro_context:
                 started = time.monotonic()
                 result = {'case': case, 'appearance': appearance, 'language': args.language, 'status': 'failed'}
                 try:
-                    mode = (case in HOME_CASES, case in ('smooth-scroll', 'chat-performance'))
+                    mode = (case in HOME_CASES, case in ('smooth-scroll', 'chat-performance'), case in ('camera-chat', 'camera-sheet'))
                     if case == 'chat-performance':
                         container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
                         (container / 'tmp/lody-chat-loading.json').unlink(missing_ok=True)
@@ -299,6 +306,9 @@ with metro_context:
                             launch.append('--ui-verify-search')
                         if case in {'morph', 'mentions-production', 'home', 'ipad', 'ipad-chrome'}:
                             launch.append('--ui-verify-mentions')
+                        if mode[2]:
+                            sim('privacy', args.udid, 'reset', 'photos', 'app.innei.lody')
+                            launch.append('--ui-verify-camera')
                         if mode[1]:
                             launch.append('--ui-verify-scroll')
                         if case == 'navigation-toolbar':
@@ -343,6 +353,18 @@ with metro_context:
                     if result['appLifecycle'] == 'return-to-root':
                         assert result['appPid'] == app_pid, 'Returning to root unexpectedly replaced the App process'
                     app_pid = result['appPid']
+                    if restart and not args.embedded:
+                        try:
+                            ui.element('ui-verify-ready', timeout=20)
+                        except AssertionError:
+                            # A cold dev launcher can return to its home screen
+                            # despite --initialUrl. Only recover that observed UI;
+                            # other startup failures still require the real marker.
+                            if any(item.get('AXLabel') == 'Enter URL manually' for item in ui.state()):
+                                sim('openurl', args.udid,
+                                    f'exp+lody-ios://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A{args.port}')
+                                if any(item.get('AXLabel') == 'Open' for item in ui.state()):
+                                    ui.axe('tap', '--label', 'Open')
                     ui.element('ui-verify-ready', timeout=180)
                     preview = PREVIEW.get(case, 'chat-preview')
                     ready = 'ui-verify-ready' if case in HOME_CASES else READY.get(case, 'session-input')
@@ -399,6 +421,8 @@ with metro_context:
                         script = Path(__file__).with_name('root-reuse.py')
                     if case in ['mention-chat', 'mention-sheet']:
                         script = Path(__file__).with_name('mentions.py')
+                    if case in ['camera-chat', 'camera-sheet']:
+                        script = Path(__file__).with_name('camera.py')
                     if case in ['send-transition', 'send-transition-handoff']:
                         script = Path(__file__).with_name('send-transition.py')
                     command = [sys.executable, str(script), args.udid]
@@ -413,10 +437,15 @@ with metro_context:
                         check_timeout = 420
                     if case == 'chat-performance':
                         check_timeout = 480
+                    elif case in ['send-transition', 'send-transition-handoff']:
+                        # Mixed-file import, text expansion, gallery gestures and
+                        # per-file upload states need multiple AXe round trips.
+                        # Keep each gesture/animation assertion independently bounded.
+                        check_timeout = 420
                     elif case == 'live-activity':
                         # Includes a real 61-second dismissal wait plus lock/unlock
                         # and Dynamic Island transitions; 180s cuts off deep links.
-                        check_timeout = 300
+                        check_timeout = 480
                     elif case == 'send':
                         # Product path can finish, then AXe restore during pending
                         # toggles eats the rest of a 300s budget.

@@ -7,6 +7,18 @@ import ActivityKit
 // existing name; a typealias alone does not change the registered APNs type.
 typealias LodyActivityAttributes = LodyConversationLiveActivityAttributes
 
+enum LodyActivityIcon {
+  static var defaults: UserDefaults? { UserDefaults(suiteName: "group.app.innei.lody") }
+  static let key = "appIcon"
+
+  static var name: String { defaults?.string(forKey: key) ?? "default" }
+
+  static func asset(name: String, mark: Bool) -> String {
+    let base = name == "Aqua" ? "lody-aqua" : "lody-jelly"
+    return mark ? "\(base)-mark" : base
+  }
+}
+
 struct LodyConversationLiveActivityAttributes: Codable, Hashable, Sendable {
   struct ContentState: Codable, Hashable, Sendable {
     struct Counts: Codable, Hashable, Sendable {
@@ -118,6 +130,9 @@ struct LodyConversationLiveActivityAttributes: Codable, Hashable, Sendable {
     var items: [Item]
     var permissionAlert: PermissionAlert?
     var copy: Copy?
+    // Invalidates existing presentations on a local icon change. Rendering reads
+    // the App Group preference so server payloads cannot reset this device choice.
+    var appIcon: String?
 
     var staleLabel: String { copy?.stale ?? "Disconnected" }
 

@@ -1,7 +1,8 @@
+import ChatKitCore
 import UIKit
 
-enum ChatTextShine {
-  static func overlay(for textBounds: CGRect, height: CGFloat, at time: CFTimeInterval) -> CGRect {
+public enum CKTextShine {
+  public static func overlay(for textBounds: CGRect, height: CGFloat, at time: CFTimeInterval) -> CGRect {
     let period = 1.5
     let progress = CGFloat(time.truncatingRemainder(dividingBy: period) / period)
     let width = max(1, textBounds.width)
@@ -13,7 +14,7 @@ enum ChatTextShine {
     )
   }
 
-  static func mask(size: CGSize, scale: CGFloat, overlay: CGRect) -> CGImage? {
+  public static func mask(size: CGSize, scale: CGFloat, overlay: CGRect) -> CGImage? {
     guard size.width >= 1, size.height >= 1 else { return nil }
     let pixels = CGSize(width: ceil(size.width * scale), height: ceil(size.height * scale))
     guard let bitmap = CGContext(
@@ -58,20 +59,20 @@ enum ChatTextShine {
 
 /// TextKit lays out once per content/width change. Fade ticks only draw glyphs;
 /// they never rebuild attributed strings, remeasure cells or refresh the list.
-final class ChatTextView: UIView {
+public final class CKTextView: UIView {
   private let storage = NSTextStorage()
-  var attributedTextValue: NSAttributedString { NSAttributedString(attributedString: storage) }
+  public var attributedTextValue: NSAttributedString { NSAttributedString(attributedString: storage) }
   private let manager = NSLayoutManager()
   private let container = NSTextContainer(size: .zero)
-  private var fade = ChatTextFade()
+  private var fade = CKTextFade()
   private var timer: Timer?
   private var shineEnabled = false
-  var onLink: ((String) -> Void)? {
+  public var onLink: ((String) -> Void)? {
     didSet { isUserInteractionEnabled = onLink != nil }
   }
-  var linkHitHeight: CGFloat = .greatestFiniteMagnitude
+  public var linkHitHeight: CGFloat = .greatestFiniteMagnitude
 
-  func rectangles(for range: NSRange) -> [CGRect] {
+  public func rectangles(for range: NSRange) -> [CGRect] {
     layout(width: bounds.width)
     var result: [CGRect] = []
     let glyphs = manager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
@@ -81,7 +82,7 @@ final class ChatTextView: UIView {
     return result
   }
 
-  override init(frame: CGRect) {
+  public override init(frame: CGRect) {
     super.init(frame: frame)
     isOpaque = false
     isUserInteractionEnabled = false
@@ -92,9 +93,9 @@ final class ChatTextView: UIView {
     storage.addLayoutManager(manager)
     addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(openLink(_:))))
   }
-  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+  public required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-  var linkActions: [UIAccessibilityCustomAction] {
+  public var linkActions: [UIAccessibilityCustomAction] {
     var actions: [UIAccessibilityCustomAction] = []
     storage.enumerateAttribute(.link, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
       guard let href = value as? String else { return }
@@ -104,7 +105,7 @@ final class ChatTextView: UIView {
     return actions
   }
 
-  func link(at point: CGPoint) -> String? {
+  public func link(at point: CGPoint) -> String? {
     guard bounds.contains(point), point.y < linkHitHeight else { return nil }
     layout(width: bounds.width)
     var closest: (href: String, distance: CGFloat)?
@@ -121,7 +122,7 @@ final class ChatTextView: UIView {
     return closest?.href
   }
 
-  override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+  public override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
     onLink != nil && link(at: point) != nil
   }
 
@@ -129,7 +130,7 @@ final class ChatTextView: UIView {
     if let href = link(at: gesture.location(in: self)) { onLink?(href) }
   }
 
-  func setText(_ text: NSAttributedString, animate: Bool = false, reset: Bool = false) {
+  public func setText(_ text: NSAttributedString, animate: Bool = false, reset: Bool = false) {
     fade.update(text.string, animate: animate && window != nil && !UIAccessibility.isReduceMotionEnabled,
       at: CACurrentMediaTime(), reset: reset)
     if !storage.isEqual(to: text) { storage.setAttributedString(text) }
@@ -137,13 +138,13 @@ final class ChatTextView: UIView {
     pokeDisplayTimer()
   }
 
-  func setShine(_ on: Bool) {
+  public func setShine(_ on: Bool) {
     shineEnabled = on
     setNeedsDisplay()
     pokeDisplayTimer()
   }
 
-  override func didMoveToWindow() {
+  public override func didMoveToWindow() {
     super.didMoveToWindow()
     if window == nil {
       timer?.invalidate(); timer = nil
@@ -152,13 +153,13 @@ final class ChatTextView: UIView {
     pokeDisplayTimer()
   }
 
-  override func sizeThatFits(_ size: CGSize) -> CGSize {
+  public override func sizeThatFits(_ size: CGSize) -> CGSize {
     layout(width: size.width)
     let used = manager.usedRect(for: container)
     return CGSize(width: ceil(used.maxX), height: ceil(used.maxY))
   }
 
-  func lineAdvances(width: CGFloat) -> [CGFloat] {
+  public func lineAdvances(width: CGFloat) -> [CGFloat] {
     layout(width: width)
     var previous: CGFloat = 0
     var advances: [CGFloat] = []
@@ -204,10 +205,10 @@ final class ChatTextView: UIView {
 
   private func drawShine(_ context: CGContext, range: NSRange) {
     let used = manager.usedRect(for: container)
-    let overlay = ChatTextShine.overlay(for: used, height: bounds.height, at: CACurrentMediaTime())
+    let overlay = CKTextShine.overlay(for: used, height: bounds.height, at: CACurrentMediaTime())
     manager.drawBackground(forGlyphRange: range, at: .zero)
     manager.drawGlyphs(forGlyphRange: range, at: .zero)
-    guard let mask = ChatTextShine.mask(
+    guard let mask = CKTextShine.mask(
       size: bounds.size,
       scale: max(1, traitCollection.displayScale),
       overlay: overlay
@@ -221,7 +222,7 @@ final class ChatTextView: UIView {
     context.restoreGState()
   }
 
-  override func draw(_ rect: CGRect) {
+  public override func draw(_ rect: CGRect) {
     guard let context = UIGraphicsGetCurrentContext() else { return }
     layout(width: bounds.width)
     // UIView retains this drawing while its parent scrolls. Draw the whole text

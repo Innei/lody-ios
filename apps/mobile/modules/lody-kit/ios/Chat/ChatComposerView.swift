@@ -1,3 +1,4 @@
+import ChatKit
 import UIKit
 import UniformTypeIdentifiers
 
@@ -36,7 +37,7 @@ struct ChatQueuedDraft: Equatable {
   }
 }
 
-private final class ChatQueueView: LodyGlassView {
+private final class ChatQueueView: CKGlassSurface {
   private let scroll = UIScrollView()
   private let stack = UIStackView()
   private var rendered: [ChatQueuedDraft] = []
@@ -546,6 +547,9 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     attach.accessibilityIdentifier = "session-attach"
     attach.showsMenuAsPrimaryAction = true
     attach.menu = UIMenu(children: [
+      UIAction(title: LodyStrings.text("native.chat.composer.takePhoto"), image: UIImage(systemName: "camera")) { [weak self] _ in
+        self?.presentAttachmentCamera()
+      },
       UIAction(title: LodyStrings.text("native.chat.composer.recentPhotos"), image: UIImage(systemName: "photo")) { [weak self] _ in self?.presentRecentPhotos() },
       UIAction(title: LodyStrings.text("native.chat.composer.photoLibrary"), image: UIImage(systemName: "photo.on.rectangle.angled")) { [weak self] _ in
         guard let self, let controller = self.presenter() else { return }
@@ -788,6 +792,12 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     guard sendHandoff else { return }
     input.text = ""
     attachments = []
+  }
+  private func presentAttachmentCamera() {
+    guard let controller = presenter() else { return }
+    let camera = ChatAttachmentSheet(cameraOnly: true)
+    camera.onPick = { [weak self] picked in self?.addAttachments(picked) }
+    controller.present(camera, animated: true)
   }
   private func presentRecentPhotos() {
     guard let controller = presenter() else { return }

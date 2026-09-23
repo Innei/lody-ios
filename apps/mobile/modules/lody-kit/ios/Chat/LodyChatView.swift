@@ -1,3 +1,4 @@
+import ChatKit
 import ExpoModulesCore
 import UIKit
 
@@ -80,7 +81,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   private var titleDisappearing = false
   private let navigation = ChatNavigationController()
   let collection: UICollectionView
-  let measuringText = ChatTextView()
+  let measuringText = CKTextView()
   var measurements: [String: (width: CGFloat, text: NSAttributedString, height: CGFloat)] = [:]
   let store = ChatMarkdownStore(traits: .current)
   let findBar = ChatFindBar()

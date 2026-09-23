@@ -1,5 +1,6 @@
 import Foundation
 import SQLite3
+import MarkdownParser
 
 let markdown = "# **Hello** *world*\n\n[visible](https://hidden.invalid/token) ![alt](https://image.invalid)\n\n`**literal**`\n\n| Left | Right |\n| --- | --- |\n| body | value |\n\n```swift\nlet x = \"**kept**\"\n```"
 let plain = MarkdownPlainText.string(markdown)
@@ -18,6 +19,37 @@ for (text, query) in [("ＣＡＦＥ café", "cafe"), ("İstanbul istanbul", "is
 }
 assert(MarkdownPlainText.string("Before $x+y$ after") == "Before x+y after")
 print("PASS: readable Markdown tokens, literal code, Unicode matching and no hidden metadata")
+
+let ruby = "<ruby>日本語<rp>(</rp><rt>にほんご</rt><rp>)</rp></ruby>"
+assert(MarkdownPlainText.string(ruby) == "日本語")
+assert(MarkdownPlainText.string("**" + ruby + "**") == "日本語")
+assert(MarkdownPlainText.string("`" + ruby + "`") == ruby)
+assert(MarkdownPlainText.string("```html\n" + ruby + "\n```").trimmingCharacters(in: .newlines) == ruby)
+assert(MarkdownPlainText.string(#"\<ruby>literal\</ruby>"#) == "<ruby>literal</ruby>")
+let rubyFixtures = [
+  ruby,
+  "- " + ruby,
+  "## " + ruby,
+  "| Word |\n| --- |\n| " + ruby + " |",
+  "[" + ruby + "](https://example.com)",
+  "**" + ruby + "**",
+]
+for source in rubyFixtures {
+  var found: [MarkdownRuby.Annotation] = []
+  _ = MarkdownRuby.blocks(MarkdownParser().parse(source).document).rewrite { (node: MarkdownInlineNode) -> [MarkdownInlineNode] in
+    if case .text(let text) = node, let annotation = MarkdownRuby.decode(text) { found.append(annotation) }
+    return [node]
+  }
+  assert(found.count == 1 && found[0].base == "日本語" && found[0].reading == "にほんご", source)
+}
+assert(MarkdownPlainText.string("<ruby>日<rt>に</rt>本<rt>ほん</rt></ruby>") == "日本")
+for source in ["<ruby>日本語<rt>にほん", "`" + ruby + "`", #"\<ruby>日本語<rt>にほんご</rt></ruby>"#,
+               "<ruby>日本語<script>alert(1)</script><rt>にほんご</rt></ruby>"] {
+  let blocks = MarkdownParser().parse(source).document
+  assert(MarkdownRuby.blocks(blocks) == blocks, source)
+}
+print("PASS: Ruby base/reading parsing, lists/headings/tables/links, fallback parentheses, literal code and incomplete input")
+
 let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("catalog.sqlite")
 defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
 let account = #"{"user":{"id":"a"},"workspaces":[{"id":"first"},{"id":"second"}]}"#

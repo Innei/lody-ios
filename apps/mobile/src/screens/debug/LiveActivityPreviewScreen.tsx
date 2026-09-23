@@ -6,7 +6,8 @@ import {
   type LiveActivityDebugAction,
   type LiveActivityStatus,
 } from '@lody-ios/kit';
-import { definePage } from '@/lib/presentation';
+import { definePage, present } from '@/lib/presentation';
+import { AppIconScreen } from '@/screens/AppIconScreen';
 import { usePalette } from '@/lib/theme/palette';
 import { Button } from '@/ui/Button';
 import {
@@ -67,6 +68,12 @@ function LiveActivityPreview() {
         </Text>
         <Button testID="live-activity-start" onPress={run('start-running')}>
           开始（运行中）
+        </Button>
+        <Button
+          testID="live-activity-icon"
+          onPress={() => void present(AppIconScreen, {})}
+        >
+          App Icon
         </Button>
         <Button
           testID="live-activity-permission"

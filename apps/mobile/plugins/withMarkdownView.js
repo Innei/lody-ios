@@ -4,6 +4,10 @@ const path = require('path');
 
 const PACKAGES = [
   {
+    name: 'ChatKit',
+    path: '../../../packages/chat-kit',
+  },
+  {
     name: 'MarkdownView',
     url: 'https://github.com/Lakr233/MarkdownView.git',
     version: '4.3.2',
@@ -56,8 +60,11 @@ end
 Pod::SPM::UpdateScript::Mixin.prepend(LodySPMFileLists)
 `;
 
-const spmPkg = (pkg) =>
-  `  spm_pkg "${pkg.name}", :url => "${pkg.url}", :version => "${pkg.version}"\n`;
+const spmPkg = (pkg) => {
+  if (pkg.path)
+    return `  spm_pkg "${pkg.name}", :path => File.expand_path("${pkg.path}", __dir__)\n`;
+  return `  spm_pkg "${pkg.name}", :url => "${pkg.url}", :version => "${pkg.version}"\n`;
+};
 
 module.exports = function withMarkdownView(config) {
   return withDangerousMod(config, [
@@ -70,17 +77,16 @@ module.exports = function withMarkdownView(config) {
       let contents = fs.readFileSync(podfile, 'utf8');
       if (!contents.includes('LodyUniqueProjectUUIDs'))
         contents = header + contents;
+      // Retire the previous local package declaration when regenerating iOS.
+      contents = contents.replace(/^ *spm_pkg "NativeChatUI"[^\n]*\n/gm, '');
       for (const pkg of PACKAGES) {
-        const existing = new RegExp(`^ *spm_pkg "${pkg.name}"[^\\n]*\\n`, 'm');
-        if (existing.test(contents)) {
-          contents = contents.replace(existing, spmPkg(pkg));
-          continue;
-        }
-        contents = contents.replace(
-          /^target '([^']+)' do\n/m,
-          (line) => line + spmPkg(pkg),
-        );
+        const existing = new RegExp(`^ *spm_pkg "${pkg.name}"[^\\n]*\\n`, 'gm');
+        contents = contents.replace(existing, '');
       }
+      contents = contents.replace(
+        /^target '([^']+)' do\n/m,
+        (line) => line + PACKAGES.map(spmPkg).join(''),
+      );
       fs.writeFileSync(podfile, contents);
       return config;
     },

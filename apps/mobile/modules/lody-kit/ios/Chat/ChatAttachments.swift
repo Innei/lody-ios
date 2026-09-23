@@ -1,3 +1,4 @@
+import ChatKit
 import ImageIO
 import PhotosUI
 import QuickLook
@@ -256,13 +257,14 @@ final class ChatAttachmentPicker: NSObject, UIDocumentPickerDelegate {
 final class ChatPhotoLibraryPicker: NSObject, PHPickerViewControllerDelegate {
   var onPick: (([ChatAttachment]) -> Void)?
 
-  func present(from controller: UIViewController) {
+  func present(from controller: UIViewController, fullScreen: Bool = false) {
     var config = PHPickerConfiguration(photoLibrary: .shared())
     config.filter = .any(of: [.images, .videos])
     config.preferredAssetRepresentationMode = .current
     config.selectionLimit = 10
     config.selection = .ordered
     let picker = PHPickerViewController(configuration: config)
+    if fullScreen { picker.modalPresentationStyle = .fullScreen }
     picker.delegate = self
     controller.present(picker, animated: true)
   }
@@ -309,117 +311,27 @@ final class ChatAttachmentPreview: QLPreviewController, QLPreviewControllerDataS
   func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem { urls[index] as NSURL }
 }
 
-final class ChatAttachmentBar: UIScrollView {
-  var onRemove: ((String) -> Void)?
-  var onPreview: ((String) -> Void)?
-  private let stack = UIStackView()
-  private var rendered: [ChatAttachment] = []
-  private var pills: [String: LodyGlassView] = [:]
-  var onHeightChange: (() -> Void)?
-  var hasVisiblePills: Bool { !pills.isEmpty }
+/// Converts local draft files to the package's display-only attachment model.
+final class ChatAttachmentBar: CKAttachmentStrip {
+  private var projected: [String: (source: ChatAttachment, item: CKAttachmentItem)] = [:]
 
-  init() {
-    super.init(frame: .zero)
-    showsHorizontalScrollIndicator = false
-    alwaysBounceHorizontal = false
-    stack.axis = .horizontal
-    stack.spacing = 8
-    stack.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(stack)
-    NSLayoutConstraint.activate([
-      stack.topAnchor.constraint(equalTo: contentLayoutGuide.topAnchor),
-      stack.bottomAnchor.constraint(equalTo: contentLayoutGuide.bottomAnchor),
-      stack.leadingAnchor.constraint(equalTo: contentLayoutGuide.leadingAnchor),
-      stack.trailingAnchor.constraint(equalTo: contentLayoutGuide.trailingAnchor),
-      stack.heightAnchor.constraint(equalTo: frameLayoutGuide.heightAnchor),
-    ])
-  }
-  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-  func render(_ items: [ChatAttachment], animatedRemoval: Bool = false) {
-    guard items != rendered else { return }
-    let previous = rendered
-    rendered = items
-    for (id, surface) in pills where !items.contains(where: { $0.id == id }) {
-      surface.setVisible(false, animated: animatedRemoval)
+  func render(_ attachments: [ChatAttachment], animatedRemoval: Bool = false) {
+    let items = attachments.map { attachment -> CKAttachmentItem in
+      if let cached = projected[attachment.id], cached.source == attachment { return cached.item }
+      let type = UTType(filenameExtension: (attachment.name as NSString).pathExtension)
+      let symbol: String
+      if attachment.isImage { symbol = "photo" }
+      else if type?.conforms(to: .movie) == true { symbol = "video" }
+      else { symbol = "doc" }
+      let thumbnail = attachment.isImage ? ChatAttachment.thumbnail(attachment.url)?.preparingThumbnail(of: CGSize(width: 28, height: 28)) : nil
+      let item = CKAttachmentItem(id: attachment.id, name: attachment.name, symbol: symbol, thumbnail: thumbnail,
+        previewAccessibilityLabel: LodyStrings.text("native.chat.attachment.preview", ["name": attachment.name]),
+        removeAccessibilityLabel: LodyStrings.text("native.chat.attachment.remove", ["name": attachment.name]))
+      projected[attachment.id] = (attachment, item)
+      return item
     }
-    for (index, item) in items.enumerated() {
-      if let existing = pills[item.id], previous.contains(item) {
-        existing.setVisible(true)
-        continue
-      }
-      // A restored draft may reuse an id while an old pill is leaving.
-      if let previous = pills.removeValue(forKey: item.id) {
-        previous.onHidden = nil
-        previous.removeFromSuperview()
-      }
-      let surface = pill(item)
-      pills[item.id] = surface
-      surface.onHidden = { [weak self, weak surface] in
-        guard let self, let surface, self.pills[item.id] === surface,
-              !self.rendered.contains(where: { $0.id == item.id }) else { return }
-        self.pills.removeValue(forKey: item.id)
-        surface.removeFromSuperview()
-        self.onHeightChange?()
-      }
-      stack.insertArrangedSubview(surface, at: min(index, stack.arrangedSubviews.count))
-      surface.setVisible(true)
-    }
-  }
-
-  func attachmentFrame(id: String) -> CGRect? {
-    guard rendered.contains(where: { $0.id == id }), let view = pills[id] else { return nil }
-    return view.convert(view.bounds, to: self)
-  }
-
-  func snapshot(id: String) -> UIView? {
-    guard rendered.contains(where: { $0.id == id }), let pill = pills[id] else { return nil }
-    return pill.snapshotView(afterScreenUpdates: false)
-  }
-
-  private func pill(_ item: ChatAttachment) -> LodyGlassView {
-    var config = UIButton.Configuration.plain()
-    let fileType = UTType(filenameExtension: (item.name as NSString).pathExtension)
-    let symbol: String
-    if item.isImage { symbol = "photo" }
-    else if fileType?.conforms(to: .movie) == true { symbol = "video" }
-    else { symbol = "doc" }
-    config.image = UIImage(systemName: symbol)
-    if item.isImage, let image = ChatAttachment.thumbnail(item.url) {
-      config.image = image.preparingThumbnail(of: CGSize(width: 28, height: 28))?.withRenderingMode(.alwaysOriginal)
-    }
-    config.imagePadding = 5
-    config.baseForegroundColor = .label
-    config.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 12)
-    config.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 11, bottom: 0, trailing: 32)
-    config.attributedTitle = AttributedString(item.name, attributes: AttributeContainer([
-      .font: UIFont.systemFont(ofSize: 13),
-    ]))
-    config.titleLineBreakMode = .byTruncatingMiddle
-    let button = UIButton(configuration: config)
-    button.accessibilityLabel = LodyStrings.text("native.chat.attachment.preview", ["name": item.name])
-    button.addAction(UIAction { [weak self] _ in self?.onPreview?(item.id) }, for: .touchUpInside)
-    let remove = UIButton(type: .system)
-    remove.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
-    remove.setPreferredSymbolConfiguration(UIImage.SymbolConfiguration(pointSize: 13), forImageIn: .normal)
-    remove.tintColor = .tertiaryLabel
-    remove.accessibilityLabel = LodyStrings.text("native.chat.attachment.remove", ["name": item.name])
-    remove.addAction(UIAction { [weak self] _ in self?.onRemove?(item.id) }, for: .touchUpInside)
-    let surface = LodyGlassView(interactive: true)
-    surface.cornerConfiguration = .capsule()
-    surface.contentView.addSubview(button)
-    surface.contentView.addSubview(remove)
-    button.translatesAutoresizingMaskIntoConstraints = false
-    remove.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      button.topAnchor.constraint(equalTo: surface.contentView.topAnchor), button.bottomAnchor.constraint(equalTo: surface.contentView.bottomAnchor),
-      button.leadingAnchor.constraint(equalTo: surface.contentView.leadingAnchor), button.trailingAnchor.constraint(equalTo: surface.contentView.trailingAnchor),
-      remove.topAnchor.constraint(equalTo: surface.contentView.topAnchor), remove.bottomAnchor.constraint(equalTo: surface.contentView.bottomAnchor),
-      remove.trailingAnchor.constraint(equalTo: surface.contentView.trailingAnchor, constant: -4),
-      remove.widthAnchor.constraint(equalToConstant: 30),
-      surface.widthAnchor.constraint(lessThanOrEqualToConstant: 200),
-      surface.heightAnchor.constraint(equalToConstant: 34),
-    ])
-    return surface
+    let ids = Set(attachments.map(\.id))
+    projected = projected.filter { ids.contains($0.key) }
+    super.render(items, animatedRemoval: animatedRemoval)
   }
 }

@@ -2,15 +2,15 @@ import UIKit
 
 /// Keep the glass mounted until its material has left, and reverse the same
 /// animator when visibility changes mid-flight instead of starting another one.
-class LodyGlassView: UIVisualEffectView {
+open class CKGlassSurface: UIVisualEffectView {
   private let glass: UIGlassEffect
   private var motion: UIViewPropertyAnimator?
   private var destination = false
-  private(set) var materialVisible = false
-  var isTransitioning: Bool { motion != nil }
-  var onHidden: (() -> Void)?
+  public private(set) var materialVisible = false
+  public var isTransitioning: Bool { motion != nil }
+  public var onHidden: (() -> Void)?
 
-  init(interactive: Bool = false) {
+  public init(interactive: Bool = false) {
     glass = UIGlassEffect(style: .regular)
     glass.isInteractive = interactive
     super.init(effect: nil)
@@ -20,9 +20,9 @@ class LodyGlassView: UIVisualEffectView {
     contentView.alpha = 0
   }
 
-  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+  public required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-  func setVisible(_ visible: Bool, animated: Bool = true) {
+  public func setVisible(_ visible: Bool, animated: Bool = true) {
     let animate = animated && window != nil && UIView.areAnimationsEnabled && !UIAccessibility.isReduceMotionEnabled
     guard visible != materialVisible || (!animate && motion != nil) else { return }
     materialVisible = visible
@@ -73,7 +73,7 @@ class LodyGlassView: UIVisualEffectView {
     if !materialVisible { onHidden?() }
   }
 
-  override func didMoveToWindow() {
+  open override func didMoveToWindow() {
     super.didMoveToWindow()
     if window == nil { setVisible(materialVisible, animated: false) }
   }

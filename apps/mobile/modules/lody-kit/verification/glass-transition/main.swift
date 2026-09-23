@@ -1,3 +1,4 @@
+import ChatKit
 import UIKit
 
 @MainActor func advance(_ seconds: Double) {
@@ -9,7 +10,7 @@ window.isHidden = false
 let container = UIVisualEffectView(effect: UIGlassContainerEffect())
 container.frame = window.bounds
 window.addSubview(container)
-let glass = LodyGlassView(interactive: true)
+let glass = CKGlassSurface(interactive: true)
 glass.frame = CGRect(x: 20, y: 100, width: 200, height: 44)
 container.contentView.addSubview(glass)
 var hides = 0

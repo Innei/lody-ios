@@ -26,6 +26,12 @@ test('prebuild migrates fork declarations and remains idempotent', async () => {
         '  spm_pkg "MarkdownView", :url => "https://github.com/Innei/MarkdownView.git", :branch => "lody/inject-text-label-view"\n',
     );
     assert.equal(await generate(legacy), fresh);
+    const oldChatPackage = base.replace(
+      "target 'Lody' do\n",
+      "target 'Lody' do\n" +
+        '  spm_pkg "NativeChatUI", :path => File.expand_path("../../../packages/native-chat-ui", __dir__)\n',
+    );
+    assert.equal(await generate(oldChatPackage), fresh);
     assert.equal(await generate(fresh), fresh);
     assert.ok(fresh.includes('  use_expo_modules!\nend\n'));
     assert.ok(!fresh.includes('github.com/Innei/'));

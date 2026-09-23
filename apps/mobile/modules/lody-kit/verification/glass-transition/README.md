@@ -17,7 +17,7 @@ pnpm verify:simulator --name 'Glass Material Spike' -- zsh -euc '
 
 The runner captures screenshots, video and `observations.json` in both appearances.
 Rows compare `isHidden`, whole-view alpha, direct `effect = nil`, and the
-production `LodyGlassView` inside `UIGlassContainerEffect`. Content fades
+production `CKGlassSurface` inside `UIGlassContainerEffect`. Content fades
 separately in the last two rows. Row three deliberately remains mounted after
 dematerialization; row four hides only after its material has gone.
 
