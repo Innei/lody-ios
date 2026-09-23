@@ -2,14 +2,6 @@ import ChatKit
 import ExpoModulesCore
 import UIKit
 
-private final class ChatCollectionLayout: UICollectionViewFlowLayout {
-  override func invalidationContext(forBoundsChange newBounds: CGRect) -> UICollectionViewLayoutInvalidationContext {
-    let context = super.invalidationContext(forBoundsChange: newBounds)
-    (context as? UICollectionViewFlowLayoutInvalidationContext)?.invalidateFlowLayoutDelegateMetrics = true
-    return context
-  }
-}
-
 private final class ChatCollectionView: UICollectionView {
   var contentDidLayout: (() -> Void)?
   private var lastSize = CGSize.zero

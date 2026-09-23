@@ -582,30 +582,50 @@ precondition(
 )
 print("Chat render: meta bar actions match the model line and sit on the trailing edge")
 
-let insertedMeta = ChatMetaCell(frame: .zero)
-insertedMeta.configure(metaRow)
-window.addSubview(insertedMeta)
-window.isHidden = false
-CATransaction.flush()
-UIView.animate(withDuration: 0.22) {
-  insertedMeta.frame = CGRect(x: 16, y: 240, width: 320, height: 44)
-  insertedMeta.layoutIfNeeded()
-}
-@MainActor func assertStationaryContents(_ view: UIView) {
-  for key in view.layer.animationKeys() ?? [] {
-    if let animation = view.layer.animation(forKey: key) as? CAPropertyAnimation {
-      precondition(animation.keyPath != "position" && animation.keyPath != "bounds",
-        "New metadata contents must not fly from zero during reply completion")
-    }
+final class FoldSizes: NSObject, UICollectionViewDelegateFlowLayout {
+  var source: UICollectionViewDiffableDataSource<String, String>?
+  func collectionView(_ collectionView: UICollectionView, layout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
+    CGSize(width: 320, height: source?.itemIdentifier(for: indexPath) == "answer" ? 200 : 44)
   }
-  view.subviews.forEach(assertStationaryContents)
 }
-precondition(insertedMeta.layer.animation(forKey: "position") != nil,
-  "The regression check must exercise an active parent layout animation")
-assertStationaryContents(insertedMeta.contentView)
-precondition(insertedMeta.actionButton.frame.maxX == 320)
-insertedMeta.removeFromSuperview()
-print("Chat render: metadata contents start in place inside an animated insertion")
+let foldCollection = UICollectionView(frame: window.bounds, collectionViewLayout: ChatCollectionLayout())
+let foldSizes = FoldSizes()
+foldCollection.delegate = foldSizes
+foldCollection.register(ChatMetaCell.self, forCellWithReuseIdentifier: "meta")
+foldCollection.register(UICollectionViewCell.self, forCellWithReuseIdentifier: "row")
+let foldSource = UICollectionViewDiffableDataSource<String, String>(collectionView: foldCollection) { collection, index, id in
+  guard id == metaRow.id else { return collection.dequeueReusableCell(withReuseIdentifier: "row", for: index) }
+  let cell = collection.dequeueReusableCell(withReuseIdentifier: "meta", for: index) as! ChatMetaCell
+  cell.configure(metaRow)
+  return cell
+}
+foldSizes.source = foldSource
+window.addSubview(foldCollection)
+window.isHidden = false
+var liveReply = NSDiffableDataSourceSnapshot<String, String>()
+liveReply.appendSections(["reply"])
+liveReply.appendItems(["duration", "tool-1", "tool-2", "answer"])
+foldSource.apply(liveReply, animatingDifferences: false)
+foldCollection.layoutIfNeeded()
+CATransaction.flush()
+var foldedReply = NSDiffableDataSourceSnapshot<String, String>()
+foldedReply.appendSections(["reply"])
+foldedReply.appendItems(["duration", "answer", metaRow.id])
+UIView.animate(withDuration: 0.22) {
+  foldSource.apply(foldedReply, animatingDifferences: true)
+  foldCollection.collectionViewLayout.invalidateLayout()
+  foldCollection.layoutIfNeeded()
+}
+@MainActor func travel(_ id: String) -> CGFloat {
+  let cell = foldCollection.cellForItem(at: foldSource.indexPath(for: id)!)!
+  let animation = cell.layer.animation(forKey: "position") as? CABasicAnimation
+  return (animation?.fromValue as? CGPoint)?.y ?? 0
+}
+precondition(travel("answer") > 0, "The regression check must fold process rows above the answer")
+precondition(travel(metaRow.id) == travel("answer"),
+  "New metadata must travel with the answer above it, not slide over it during reply completion")
+foldCollection.removeFromSuperview()
+print("Chat render: metadata inserted by completion folding travels with its answer")
 
 func processAttributed(_ string: String, row: ChatRow, traits: UITraitCollection) -> NSAttributedString {
   let font = ChatCell.messageFont(for: row, compatibleWith: traits)

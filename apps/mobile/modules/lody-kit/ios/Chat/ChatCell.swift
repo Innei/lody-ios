@@ -14,6 +14,41 @@ enum ChatRowPadding {
   }
 }
 
+final class ChatCollectionLayout: UICollectionViewFlowLayout {
+  private var inserted: Set<IndexPath> = []
+
+  override func invalidationContext(forBoundsChange newBounds: CGRect) -> UICollectionViewLayoutInvalidationContext {
+    let context = super.invalidationContext(forBoundsChange: newBounds)
+    (context as? UICollectionViewFlowLayoutInvalidationContext)?.invalidateFlowLayoutDelegateMetrics = true
+    return context
+  }
+
+  override func prepare(forCollectionViewUpdates updateItems: [UICollectionViewUpdateItem]) {
+    super.prepare(forCollectionViewUpdates: updateItems)
+    inserted = Set(updateItems.compactMap { $0.updateAction == .insert ? $0.indexPathAfterUpdate : nil })
+  }
+
+  override func finalizeCollectionViewUpdates() {
+    super.finalizeCollectionViewUpdates()
+    inserted = []
+  }
+
+  // Flow layout starts inserted items at their final frame while existing rows
+  // travel from their old ones. When completion folds the process above a reply,
+  // new metadata would slide over the answer instead of fading in beneath it.
+  override func initialLayoutAttributesForAppearingItem(at indexPath: IndexPath) -> UICollectionViewLayoutAttributes? {
+    let initial = super.initialLayoutAttributesForAppearingItem(at: indexPath)
+    guard inserted.contains(indexPath), let attributes = initial?.copy() as? UICollectionViewLayoutAttributes else { return initial }
+    var item = indexPath.item - 1
+    while item >= 0, inserted.contains(IndexPath(item: item, section: indexPath.section)) { item -= 1 }
+    let anchor = IndexPath(item: item, section: indexPath.section)
+    guard item >= 0, let before = super.initialLayoutAttributesForAppearingItem(at: anchor),
+          let after = layoutAttributesForItem(at: anchor) else { return initial }
+    attributes.frame.origin.y += before.frame.minY - after.frame.minY
+    return attributes
+  }
+}
+
 final class ChatMetaCell: UICollectionViewCell {
   private let modelLabel = UILabel()
   let actionButton = UIButton(type: .system)
@@ -74,14 +109,9 @@ final class ChatMetaCell: UICollectionViewCell {
   }
 
   override func layoutSubviews() {
-    // Completion inserts this cell inside the transcript's folding animation.
-    // Its contents must start in place, not animate from their initial zero frames.
-    UIView.performWithoutAnimation {
-      super.layoutSubviews()
-      modelLabel.frame = CGRect(x: 0, y: 4, width: max(1, bounds.width - 52), height: bounds.height - 8)
-      actionButton.frame = CGRect(x: bounds.width - 44, y: (bounds.height - 44) / 2, width: 44, height: 44)
-      actionButton.layoutIfNeeded()
-    }
+    super.layoutSubviews()
+    modelLabel.frame = CGRect(x: 0, y: 4, width: max(1, bounds.width - 52), height: bounds.height - 8)
+    actionButton.frame = CGRect(x: bounds.width - 44, y: (bounds.height - 44) / 2, width: 44, height: 44)
   }
 
   static func iconImage(named asset: String) -> UIImage? {
