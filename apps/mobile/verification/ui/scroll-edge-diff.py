@@ -4,6 +4,11 @@ from driver import UI
 
 ui = UI(*sys.argv[1:])
 ui.element('scroll-edge-diff-ready')
+stats = ui.element('diff-toolbar-stats')['frame']
+segment = ui.wait(lambda items: next((i for i in items if i.get('AXLabel') == 'Unified'), None), 'Missing Unified segment')['frame']
+assert stats['height'] < 44, 'Stats must follow the compact native segmented control height'
+assert abs(stats['height'] - segment['height']) <= 1, (stats, segment)
+assert abs(stats['y'] + stats['height'] / 2 - segment['y'] - segment['height'] / 2) <= 1, (stats, segment)
 ui.capture('unified')
 ui.axe('swipe', '--start-x', '200', '--start-y', '560', '--end-x', '200', '--end-y', '300', '--duration', '.6', '--post-delay', '1')
 ui.capture('unified-scrolled')

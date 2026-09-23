@@ -18,6 +18,7 @@ final class ChatQuickRepliesView: UIScrollView {
   override init(frame: CGRect) {
     super.init(frame: frame)
     accessibilityIdentifier = "session-quick-replies"
+    clipsToBounds = false
     showsHorizontalScrollIndicator = false
     alwaysBounceHorizontal = false
     isDirectionalLockEnabled = true

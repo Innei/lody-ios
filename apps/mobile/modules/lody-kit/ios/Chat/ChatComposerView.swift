@@ -603,7 +603,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     composer.contentView.addSubview(mentionPanel)
     composer.contentView.addSubview(queueView)
     queueView.onSteer = { [weak self] in self?.onSteer?($0) }
-    composer.contentView.addSubview(quickRepliesView)
+    // Standalone buttons must not also contribute to the composer's merged glass.
+    addSubview(quickRepliesView)
     quickRepliesView.onSelect = { [weak self] id in
       guard let self, self.canShowQuickReplies,
             let reply = self.state.quickReplies?.first(where: { $0.id == id }),

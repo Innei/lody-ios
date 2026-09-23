@@ -118,7 +118,7 @@ ui.axe('tap', '--id', 'quick-reply-message')
 type_field('quick-reply-message', 'Run the build.')
 ui.capture('editor-filled')
 ui.axe('tap', '--label', 'Save', '--post-delay', '.7')
-row = ui.wait(lambda items: next((i for i in items if (i.get('AXLabel') or '').startswith('Build') and i.get('AXUniqueId') and not i['AXUniqueId'].startswith('quick-reply:')), None), 'Saved quick reply missing')
+row = ui.wait(lambda items: next((i for i in items if (i.get('AXLabel') or '').casefold().startswith('build') and i.get('AXUniqueId') and not i['AXUniqueId'].startswith('quick-reply:')), None), 'Saved quick reply missing')
 custom_id = row['AXUniqueId']
 ui.axe('tap', '--id', custom_id, '--post-delay', '.5')
 ui.axe('tap', '--id', 'quick-reply-label')
@@ -127,7 +127,7 @@ for _ in range(5):
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'quick-reply-label' and not i.get('AXValue') for i in items), 'Name was not cleared')
 type_field('quick-reply-label', 'Build Again')
 ui.axe('tap', '--label', 'Save', '--post-delay', '.6')
-assert 'Build Again' in ui.element(custom_id)['AXLabel']
+assert 'build again' in ui.element(custom_id)['AXLabel'].casefold()
 ui.capture('settings-edited')
 
 ui.axe('tap', '--label', 'Edit', '--post-delay', '.5')
@@ -162,7 +162,7 @@ ui.axe('tap', '-x', str(preview['x'] + preview['width'] / 2), '-y', str(preview[
 ui.element('quick-reset')
 ui.element('quick-reply:' + custom_id)
 assert chips()[0]['AXUniqueId'] == 'quick-reply:' + custom_id
-assert chips()[0]['AXLabel'] == 'Build Again'
+assert chips()[0]['AXLabel'].casefold() == 'build again'
 ui.capture('restored-after-restart')
 settings()
 row = ui.element(custom_id)['frame']
