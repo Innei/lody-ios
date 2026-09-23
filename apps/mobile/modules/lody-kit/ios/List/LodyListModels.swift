@@ -32,6 +32,7 @@ struct LodyListRow {
   var filePath: String = ""
   var imageTint: String = ""
   var subtitleMono: Bool = false
+  var wrapSubtitle: Bool = false
   var unread: Bool = false
   var badge: String = ""
   var diff: [String: Int] = [:]
@@ -62,6 +63,7 @@ struct LodyListSection: Record {
   @Field var headerValue: String = ""
   @Field var headerActionId: String = ""
   @Field var headerExpanded: Bool? = nil
+  @Field var headerProminent: Bool = false
   @Field var footer: String = ""
   @Field var rows: [LodyListRow] = []
 }

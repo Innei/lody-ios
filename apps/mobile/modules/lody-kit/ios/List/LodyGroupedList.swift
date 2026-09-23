@@ -209,7 +209,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     let subtitle = [row.subtitle, row.badge].filter { !$0.isEmpty }.joined(separator: " · ")
     content.secondaryText = subtitle.isEmpty ? nil : subtitle
     content.textProperties.numberOfLines = 0
-    content.secondaryTextProperties.numberOfLines = 1
+    content.secondaryTextProperties.numberOfLines = row.wrapSubtitle ? 0 : 1
     if row.subtitleMono {
       content.secondaryTextProperties.font = .monospacedSystemFont(
         ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize,
@@ -990,7 +990,10 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       view.contentConfiguration = nil
       return
     }
-    var content = header ? UIListContentConfiguration.groupedHeader() : UIListContentConfiguration.groupedFooter()
+    var content = UIListContentConfiguration.groupedFooter()
+    if header {
+      content = section.headerProminent ? .prominentInsetGroupedHeader() : .groupedHeader()
+    }
     content.text = text
     content.textProperties.numberOfLines = 0
     if contentStyle {

@@ -88,8 +88,14 @@ ui.wait(lambda items: any(i.get('AXLabel') == 'Which language should we use?' fo
 ui.axe('tap', '--id', 'question-next')
 ui.axe('tap', '--id', 'question-next')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Anything else we should know?' for i in items), 'Next must reach the free-text question')
-ui.axe('tap', '--id', 'question-custom')
+assert not any(i.get('AXUniqueId') == 'question-next' for i in ui.state()), 'Last question must offer Submit, not Next'
+ui.axe('tap', '--id', 'question-custom', '--post-delay', '1')
+ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('common.done') for i in items), 'Custom answer prompt missing')
 ui.axe('type', 'Keep it native')
+ui.capture('question-prompt')
+ui.axe('tap', '--label', catalog.text('common.done'), '--post-delay', '1')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'question-custom' and 'Keep it native' in (i.get('AXLabel') or '') for i in items),
+        'Custom answer must show on its row')
 ui.capture('question-text')
 ui.axe('tap', '--id', 'question-submit', '--post-delay', '1')
 ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('permission.error.send') for i in items), 'Upload failure must retain the card')

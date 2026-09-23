@@ -16,6 +16,7 @@ export type NativeListRow = {
   modelName?: string;
   /** Paths, branches and ids read as data, not prose. */
   subtitleMono?: boolean;
+  wrapSubtitle?: boolean;
   value?: string;
   /** Native progress row, normalized to 0...1. */
   progress?: number;
@@ -70,6 +71,7 @@ export type NativeListSection = {
   headerValue?: string;
   headerActionId?: string;
   headerExpanded?: boolean;
+  headerProminent?: boolean;
   footer?: string;
   rows: NativeListRow[];
 };

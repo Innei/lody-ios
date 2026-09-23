@@ -5,6 +5,7 @@
   "question.single": "请选择一个答案",
   "question.multiple": "请选择一个或多个答案",
   "question.custom": "你的答案",
+  "question.otherAnswer": "其他…",
   "question.previous": "上一题",
   "question.next": "下一题",
   "question.submit": "提交答案",

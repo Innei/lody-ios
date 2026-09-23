@@ -182,22 +182,16 @@ function View() {
     );
   if (target?.questionMeta)
     return (
-      <Screen automaticallyAdjustKeyboardInsets>
-        <QuestionCard
-          key={`${target.entryId}/${target.itemId}/${target.requestId}`}
-          meta={target.questionMeta}
-          disabled={!!submitting}
-          onSubmit={(answers) => {
-            if (submitOption) void answer(submitOption.optionId, answers);
-            else setError(t('permission.error.options'));
-          }}
-        />
-        {error ? (
-          <AppText variant="meta" style={{ color: colors.danger }}>
-            {error}
-          </AppText>
-        ) : null}
-      </Screen>
+      <QuestionCard
+        key={`${target.entryId}/${target.itemId}/${target.requestId}`}
+        meta={target.questionMeta}
+        disabled={!!submitting}
+        error={error}
+        onSubmit={(answers) => {
+          if (submitOption) void answer(submitOption.optionId, answers);
+          else setError(t('permission.error.options'));
+        }}
+      />
     );
   return (
     <Screen>
