@@ -54,11 +54,7 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-version
 
       - name: Ensure Metal Toolchain
-        run: |
-          if ! xcrun --sdk iphoneos metal --version; then
-            xcodebuild -downloadComponent MetalToolchain
-            xcrun --sdk iphoneos metal --version
-          fi
+        run: /bin/bash .github/scripts/ensure-metal-toolchain.sh iphoneos
 
       - name: Record commit
         id: meta

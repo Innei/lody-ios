@@ -40,9 +40,7 @@ jobs:
         with:
           submodules: true
       - name: Install Metal Toolchain
-        run: |
-          xcodebuild -downloadComponent MetalToolchain
-          xcrun --sdk iphonesimulator metal --version
+        run: /bin/bash .github/scripts/ensure-metal-toolchain.sh iphonesimulator
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
@@ -86,9 +84,7 @@ jobs:
         with:
           submodules: true
       - name: Install Metal Toolchain
-        run: |
-          xcodebuild -downloadComponent MetalToolchain
-          xcrun --sdk iphonesimulator metal --version
+        run: /bin/bash .github/scripts/ensure-metal-toolchain.sh iphonesimulator
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
