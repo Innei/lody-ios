@@ -17,6 +17,11 @@ import {
 } from '../../../src/cloud/send/capability';
 import { encodeFrame } from '../decoder/frames';
 import { clientFor } from './session';
+import {
+  quotaReason,
+  workspaceSessionCount,
+  type BillingEntitlement,
+} from './billing';
 
 export type CreateSessionArgs = {
   workspaceId: string;
@@ -27,6 +32,7 @@ export type CreateSessionArgs = {
   userId: string;
   title: string;
   branch?: string;
+  billingEntitlement?: BillingEntitlement | null;
 };
 
 export function creationOptions(
@@ -250,6 +256,12 @@ export async function createSession(
     replica.flock.get(['e', room]) !== undefined
   )
     throw new Error('session_already_exists');
+  const reason = quotaReason(
+    'session',
+    args.billingEntitlement,
+    workspaceSessionCount(replica.flock.scan()),
+  );
+  if (reason) return { state: 'rejected', reason } as const;
   let project: Record<string, string> | undefined;
   if (!chat && github) {
     project = {

@@ -25,6 +25,8 @@ ui.axe('tap', '--id', 'send-connect')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 1 · sending' for i in items), 'Connected send did not start')
 ui.axe('tap', '--id', 'send-fail')
 ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('send.alert.title') for i in items), 'Failure alert missing')
+assert any(i.get('AXLabel') == catalog.text('send.error.freeTurnLimit') for i in ui.state()), 'Free turn limit explanation missing'
+ui.capture('turn-limit-alert')
 ui.axe('tap', '--label', catalog.system('ok'))
 assert not ui.element('session-input').get('AXValue'), 'Failed text jumped back into input'
 assert ui.element(turn + ':user-text')['AXLabel'] == draft

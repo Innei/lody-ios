@@ -82,6 +82,7 @@ export type Envelope = {
   status: string;
   reason?: string;
   revision: number;
+  billableTurnCount?: number;
   awaitingUserSince?: number;
   composer?: {
     modelId?: string;

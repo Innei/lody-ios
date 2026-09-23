@@ -17,6 +17,7 @@ import type { Snapshot } from './useSessionRuntime';
 import { sessionState } from './status';
 import { resolveSessionMessageSubmitRoute } from './messageSubmitRoute';
 import { outboxInflight } from '../../cloud/send/outboxInflight';
+import { quotaError } from '../../cloud/send/quotaError';
 import { t } from '../../lib/i18n/index.ts';
 
 export function pendingSendStatus(send: PendingSend, live: boolean) {
@@ -200,7 +201,9 @@ export function useSessionSend({
               send: { ...send, creation: undefined, phase: 'waiting' },
             });
           } else if (result.state === 'rejected') {
-            await fail(t('send.error.sessionNotCreated'));
+            await fail(
+              quotaError(result.reason, t('send.error.sessionNotCreated')),
+            );
           } else {
             await outbox.put({
               ...record,
@@ -251,7 +254,7 @@ export function useSessionSend({
           ),
         );
         if (result.state === 'not_sent') {
-          await fail(result.reason || t('send.error.notSent'));
+          await fail(quotaError(result.reason, t('send.error.notSent')));
         } else {
           const phase = ['accepted', 'uploaded', 'queued'].includes(
             result.state,
