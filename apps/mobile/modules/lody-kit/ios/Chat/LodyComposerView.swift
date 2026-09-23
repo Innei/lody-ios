@@ -9,9 +9,6 @@ final class LodyComposerView: ExpoView {
   let onComposerOptionChange = EventDispatcher()
   let onMentionBrowse = EventDispatcher()
   let composer = ChatComposerView(frame: .zero)
-  var onSubmitPayload: (([String: Any]) -> Void)?
-  var onRelayCompletion: (() -> Void)?
-  var onMeasuredHeight: ((CGFloat) -> Void)?
   var composerRelay = false
   private var relayConstraints: [NSLayoutConstraint] = []
   private var relayFrame: CGRect = .zero
@@ -84,7 +81,6 @@ final class LodyComposerView: ExpoView {
     guard height != reportedHeight else { return }
     reportedHeight = height
     onHeightChange(["height": height])
-    onMeasuredHeight?(height)
   }
 
   @objc private func keyboardChanged(_ notification: Notification) {
@@ -102,7 +98,6 @@ final class LodyComposerView: ExpoView {
     Self.relays[id] = self
     composer.relaying = true
     onSend(payload)
-    onSubmitPayload?(payload)
     return true
   }
 
@@ -129,7 +124,6 @@ final class LodyComposerView: ExpoView {
     window.addSubview(composer)
     composer.frame = relayFrame
     onRelayReady([:])
-    onRelayCompletion?()
   }
 
   func restoreDraft(token: Int) {
@@ -174,7 +168,7 @@ final class LodyComposerView: ExpoView {
     NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
     NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged), name: UIResponder.keyboardWillHideNotification, object: nil)
     composer.setInputIdentifier("create-session-input")
-    composer.onSend = { [weak self] in self?.onSend($0); self?.onSubmitPayload?($0) }
+    composer.onSend = { [weak self] in self?.onSend($0) }
     composer.prepareSend = { [weak self] in self?.prepare($0) ?? false }
     composer.onHeightChange = { [weak self] height in
       self?.contentHeight = height

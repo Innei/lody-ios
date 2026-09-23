@@ -23,16 +23,6 @@ if args.udid is None:
     raise SystemExit(run_with_simulator(SimulatorPool(), 'Native', command))
 sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'], text=True).strip()
 checks = {
-    'create-session-ui': [
-        'Auth/AuthKeychain.swift', 'Cloud/SessionAttachments.swift', 'Cloud/GitHubMentions.swift',
-        'CreateSession/CreateSessionForm.swift', 'CreateSession/CreateSessionController.swift',
-        'CreateSession/CreateSessionOptionsController.swift', 'CreateSession/ShareStore.swift',
-        'Chat/ChatAttachments.swift', 'Chat/ChatAttachmentSheet.swift', 'Chat/ChatAttachmentCamera.swift', 'Chat/ChatPendingSend.swift',
-        'Chat/ChatComposerView.swift', 'Chat/ChatComposerModelPanel.swift', 'Chat/ChatComposerSurfaceLayout.swift',
-        'Chat/ChatComposerLiquidGlassSurfaceLayout.swift', 'Chat/ChatMentionPanel.swift',
-        'Chrome/LodyScrollEdges.swift', 'UIFont+Dynamic.swift', 'LodyTint.swift', 'LodyStrings.swift', 'LodyUIVerify.swift',
-    ],
-    'create-session': ['LodyStrings.swift', 'CreateSession/CreateSessionForm.swift'],
     'chat-kit': [],
     'scroll-edges': ['Chrome/LodyScrollEdges.swift'],
     'glass-transition': [],
@@ -76,8 +66,6 @@ if args.case:
         parser.error(f'Unknown check {args.case}; choose from {", ".join(checks)}')
     checks = {args.case: checks[args.case]}
 for files in checks.values():
-    if 'Chat/ChatTranscript.swift' in files:
-        files.append('Chat/ChatPendingSend.swift')
     if 'Chat/ChatComposerView.swift' in files:
         files.append('Chat/ChatQuickReplies.swift')
     if 'Chat/ChatSendHandoff.swift' in files or 'Chat/ChatMentionPanel.swift' in files:
@@ -124,10 +112,8 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             subprocess.run(['swift', 'run', '--package-path', str(package), '--scratch-path', str(root / '.artifacts/native-local-store')], check=True, timeout=600)
             continue
         binary = str(Path(output) / name)
-        simulator = name in ['create-session-ui', 'chat-kit', 'scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'attachments', 'inline-diff', 'list', 'banner', 'chat-title', 'live-activity', 'chat-chrome']
+        simulator = name in ['chat-kit', 'scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'attachments', 'inline-diff', 'list', 'banner', 'chat-title', 'live-activity', 'chat-chrome']
         command = ['xcrun', '--sdk', 'iphonesimulator', 'swiftc'] if simulator else ['xcrun', 'swiftc']
-        if name == 'create-session-ui':
-            command += ['-D', 'LODY_SHARE_EXTENSION', '-application-extension']
         command += ['-swift-version', '6']
         if simulator:
             arch = 'arm64' if platform.machine() == 'arm64' else 'x86_64'
@@ -148,7 +134,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             command += ['-I', str(modules), '-L', str(modules), '-lChatKitCore']
             if simulator:
                 command += ['-lChatKit']
-        command += [str(kit / 'ios' / file) for file in dict.fromkeys(files)]
+        command += [str(kit / 'ios' / file) for file in files]
         command += [str(main), '-o', binary]
         # Xcode 27 CI compiles the larger chat/composer graphs much slower than a local Mac.
         subprocess.run(command, check=True, timeout=240)

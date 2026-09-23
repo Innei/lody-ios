@@ -6,13 +6,6 @@ import UniformTypeIdentifiers
 
 /// Upload bytes in native code; only the server's attachment references enter Streams.
 enum SessionAttachments {
-  // A Sendable boundary for callers on the main actor; never move untyped
-  // Foundation dictionaries between executors.
-  static func uploadJSON(_ data: Data, workspace: String, session: String, expectedToken: String) async throws -> Data {
-    guard let attachments = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { throw CocoaError(.fileReadCorruptFile) }
-    let blocks = try await upload(attachments, workspace: workspace, session: session, expectedToken: expectedToken)
-    return try JSONSerialization.data(withJSONObject: blocks)
-  }
   typealias ProgressHandler = @Sendable (_ attachmentID: String, _ phase: String, _ percent: Int?) -> Void
   static func error(_ message: String) -> NSError {
     NSError(domain: "SessionAttachments", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
@@ -39,7 +32,7 @@ enum SessionAttachments {
     ]
     return components.url!
   }
-  static func upload(_ attachments: [[String: Any]], workspace: String, session: String, expectedToken: String? = nil,
+  static func upload(_ attachments: [[String: Any]], workspace: String, session: String,
     onProgress: @escaping ProgressHandler = { _, _, _ in }) async throws -> [[String: Any]] {
     guard attachments.count <= 16,
           attachments.filter({ $0["kind"] as? String == "image" }).count <= 8,
@@ -47,7 +40,6 @@ enum SessionAttachments {
       throw error(LodyStrings.text("native.attachment.error.limit"))
     }
     guard let token = try AuthKeychain.read() else { throw error(LodyStrings.text("native.attachment.error.signIn")) }
-    if let expectedToken, token != expectedToken { throw error(LodyStrings.text("native.attachment.error.signIn")) }
     var blocks: [[String: Any]] = []
     for attachment in attachments {
       try Task.checkCancellation()

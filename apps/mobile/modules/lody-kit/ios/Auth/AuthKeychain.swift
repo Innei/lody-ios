@@ -2,17 +2,11 @@ import Foundation
 import Security
 
 enum AuthKeychain {
-  private static var query: [String: Any] {
-    var value: [String: Any] = [
+  private static var query: [String: Any] { [
     kSecClass as String: kSecClassGenericPassword,
     kSecAttrService as String: "app.innei.lody.auth",
     kSecAttrAccount as String: "better-auth-session",
-    ]
-    if let group = Bundle.main.object(forInfoDictionaryKey: "LodyAuthAccessGroup") as? String {
-      value[kSecAttrAccessGroup as String] = group
-    }
-    return value
-  }
+  ] }
   static func read() throws -> String? {
     var request = query
     request[kSecReturnData as String] = true

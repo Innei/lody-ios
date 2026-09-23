@@ -453,11 +453,7 @@ with metro_context:
                     elif case == 'navigation':
                         # Three cold relaunches plus catalog links; 360s still dies on a cold CI AXe session.
                         check_timeout = 480
-                    elif case == 'model-memory':
-                        # Four agents, per-model options, and both native selection hosts.
-                        # Keep the full behavior matrix; cold AXe calls exceed five minutes.
-                        check_timeout = 600
-                    elif case in ('session-search', 'session-search-pad', 'chat-stream-performance', 'home', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance'):
+                    elif case in ('session-search', 'session-search-pad', 'chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance'):
                         check_timeout = 300
                     with (output / 'check.log').open('w') as log:
                         env = {**os.environ, 'LODY_UI_LANGUAGE': args.language}

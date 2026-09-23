@@ -83,10 +83,10 @@
 | done | 文件树、回合变更、全文 diff            | `FilesScreen.tsx`、`TurnChangesScreen.tsx`、`FileDiffScreen.tsx`           | 移动端预期能力（README）                                         |
 | done | Worked-for 紧凑格式                    | `ChatWorkDuration`、`verification/chat/main.swift`                         | `1h 01m 05s`；减法见 #8                                          |
 | done | 推送 + Dynamic Island                  | `PushNotifications.swift`、`live-activity/`                                | 官方 README 的 mobile 职责；岛内批准见缺失                       |
-| done | 模型 / effort / mode / permission      | `CreateSessionOptionsController.swift`、`ChatComposerModelPanel.swift`     | 同一 ACP capability；UI 不同                                     |
+| done | 模型 / effort / mode / permission      | `ModelScreen.tsx`、`ChatComposerModelPanel.swift`                          | 同一 ACP capability；UI 不同                                     |
 | done | @ mentions（七类）                     | `mentions.ts`、`ChatMentionPanel.swift`、`MentionPickerScreen.tsx`         | 原生目录、短引用与发送时 expansion，见 `docs/mentions-design.md` |
 | wip  | Agent Conversation Sync UI             | `ProjectHistoryScreen.tsx`、`project-history.ts`                           | 导入在机器侧；手动批量，非自动镜像                               |
-| wip  | Composer 原生 model panel              | `ChatComposerModelPanel.swift`                                             | 语义对齐 CreateSessionOptionsController，玻璃面是 iOS 形态       |
+| wip  | Composer 原生 model panel              | `ChatComposerModelPanel.swift`                                             | 语义对齐 ModelScreen，玻璃面是 iOS 形态                          |
 
 ---
 
@@ -107,10 +107,10 @@
 
 ### Agent Roles
 
-| 状态    | 项                 | 缺口                                                                                                    | 本仓锚点                               | OSS 锚点                                                   |
-| ------- | ------------------ | ------------------------------------------------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------------- |
-| missing | 选择 / 创建 Role   | composer 与设置都没有 Role                                                                              | `CreateSessionOptionsController.swift` | `composer-agent-role-panel.tsx`、`agent-roles-setting.tsx` |
-| drift   | 带 Role 的会话续聊 | 上一回合有 `agentRoleId` 时发送抛 `agent_role_requires_configuration`，桌面开过 Role 的会话手机发不出去 | `data-runtime/session.ts` ~422         | 应继承 `agentRoleId` / revision，而不是拒发                |
+| 状态    | 项                 | 缺口                                                                                                    | 本仓锚点                                              | OSS 锚点                                                   |
+| ------- | ------------------ | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------- |
+| missing | 选择 / 创建 Role   | composer 与设置都没有 Role                                                                              | `ModelScreen.tsx` 只有 model / mode / effort / extras | `composer-agent-role-panel.tsx`、`agent-roles-setting.tsx` |
+| drift   | 带 Role 的会话续聊 | 上一回合有 `agentRoleId` 时发送抛 `agent_role_requires_configuration`，桌面开过 Role 的会话手机发不出去 | `data-runtime/session.ts` ~422                        | 应继承 `agentRoleId` / revision，而不是拒发                |
 
 ### MCP
 
@@ -228,7 +228,7 @@ iOS 自己的边界（不是 OSS 差距）：无 Android、不自动重放写入
 | Mentions UI             | `ChatMentionPanel.swift`、`LodyMentionPickerView.swift`、`useComposerMentions.ts`、`MentionPickerScreen.tsx` |
 | 时长                    | `apps/mobile/modules/lody-kit/ios/Chat/ChatTranscript.swift`（`ChatWorkDuration`）                           |
 | 权限                    | `apps/mobile/src/screens/PermissionScreen.tsx`                                                               |
-| 模型                    | `CreateSession/CreateSessionOptionsController.swift`、`ChatComposerModelPanel.swift`                         |
+| 模型                    | `apps/mobile/src/screens/ModelScreen.tsx`、`ChatComposerModelPanel.swift`                                    |
 | 新建                    | `apps/mobile/src/screens/CreateSessionScreen.tsx`、`data-runtime/create-session.ts`                          |
 | 投影类型                | `apps/mobile/modules/lody-kit/data-runtime/project.ts`、`apps/mobile/src/models/session.ts`                  |
 | MCP 文案                | `apps/mobile/locales/en.json` `settings.remote.mcpHint`                                                      |

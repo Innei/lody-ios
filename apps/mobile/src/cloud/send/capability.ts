@@ -2,11 +2,21 @@ import type {
   Capability,
   ModelChoice,
   ConfigOption,
+  CreationOptions,
 } from '../../models/send.ts';
 
 export const isThoughtLevel = (option: ConfigOption) =>
   option.type === 'select' &&
   (option.category === 'thought_level' || option.id === 'reasoning_effort');
+
+export const extraConfigOptions = (capability?: Capability) =>
+  (capability?.configOptions ?? []).filter(
+    (option) =>
+      !(
+        option.type === 'select' &&
+        ['model', 'mode'].includes(option.category ?? '')
+      ) && !isThoughtLevel(option),
+  );
 
 export const validConfigValue = (option: ConfigOption, value: unknown) =>
   option.type === 'boolean'
@@ -26,6 +36,19 @@ export function effortsFor(capability?: Capability, modelId?: string) {
     capability?.configOptions
       ?.find(isThoughtLevel)
       ?.options.map((option) => option.id) ?? []
+  );
+}
+
+export function capabilityFor(
+  options: Pick<CreationOptions, 'capabilities'> | undefined,
+  agent: { machineId: string; cliType: string; agentType: string } | undefined,
+) {
+  if (!options || !agent) return undefined;
+  return options.capabilities.find(
+    (c) =>
+      c.machineId === agent.machineId &&
+      c.cliType === agent.cliType &&
+      c.agentType === agent.agentType,
   );
 }
 

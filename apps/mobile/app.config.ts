@@ -40,7 +40,6 @@ const config: ExpoConfig = {
     './plugins/withSceneLifecycle',
     './plugins/withMarkdownView',
     './plugins/withLocales',
-    './plugins/withShareExtension',
     './plugins/withLodyIcons',
     'expo-localization',
     [
