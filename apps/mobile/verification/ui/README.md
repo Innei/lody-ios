@@ -38,8 +38,8 @@ Both appearances record screenshots and video, without account or cloud access.
 
 `--case scroll-edge` scrolls deterministic chat content beneath the native
 composer and raises the software keyboard in both appearances. It checks keyboard
-clearance and captures the automatic bottom edge for visual review. Run a fresh native
-build: an old binary or a passing layout assertion does not prove automatic rendering.
+clearance and captures the chat bottom edge fade (UIKit's bottom edge is hidden) for visual review. Run a fresh native
+build: an old binary or a passing layout assertion does not prove the fade renders.
 
 All UI baselines run without login, user data, cloud credentials, or a connected
 machine. `EXPO_PUBLIC_UI_VERIFY=1` is inlined into the JS bundle and prevents
@@ -604,7 +604,7 @@ haptics or cloud persistence, whatever the round says.
 composer: keyboard focus, page changes, and scrolling beneath the input.
 `--case scroll-edge-diff` exercises the production Diff WebView and native toolbar
 in Unified and Split modes, waiting for document-render completion before capture.
-Review the soft-edge screenshots in both appearances; passing accessibility checks
+Review the bottom edge fade (Diff) and soft-edge (paged form) screenshots in both appearances; passing accessibility checks
 alone does not establish the blur's visual correctness. Native file/service
 fixtures activate under `--ui-verify` in Debug and Release fixture builds.
 

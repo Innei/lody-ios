@@ -84,6 +84,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var findFocusRequest: Bool?
   let findHighlightedViews = NSHashTable<UIView>.weakObjects()
   var composer = ChatComposerView(frame: .zero)
+  let edgeFade = LodyEdgeFade()
   let overlay = ChatOverlay()
   var localAttachments: [String: [ChatMessageAttachment]] = [:]
   var expandedMessages = Set<String>()
@@ -340,7 +341,6 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       return cell
     }
     LodyScrollEdges.chat(collection)
-    composer.attachScrollEdge(to: collection, style: .automatic)
     dataSource.supplementaryViewProvider = { [weak self] collection, kind, index in
       let header = collection.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: "history", for: index) as! ChatHistoryHeader
       if let self {
@@ -374,6 +374,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     empty.text = LodyStrings.text("native.chat.empty.loading")
     collection.backgroundView = empty
     addSubview(collection)
+    addSubview(edgeFade)
     addSubview(composer)
     overlay.onReconnect = { [weak self] in self?.onReconnect([:]) }
     overlay.onTasksPress = { [weak self] in
@@ -395,6 +396,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     addSubview(findBar)
     overlay.translatesAutoresizingMaskIntoConstraints = false
     collection.translatesAutoresizingMaskIntoConstraints = false
+    edgeFade.translatesAutoresizingMaskIntoConstraints = false
     composer.translatesAutoresizingMaskIntoConstraints = false
     let composerWidth = composer.widthAnchor.constraint(equalTo: widthAnchor)
     composerWidth.priority = .defaultHigh
@@ -407,6 +409,10 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       collection.leadingAnchor.constraint(equalTo: leadingAnchor),
       collection.trailingAnchor.constraint(equalTo: trailingAnchor),
       collection.bottomAnchor.constraint(equalTo: bottomAnchor),
+      edgeFade.topAnchor.constraint(equalTo: composer.topAnchor, constant: -LodyEdgeFade.overlap),
+      edgeFade.leadingAnchor.constraint(equalTo: leadingAnchor),
+      edgeFade.trailingAnchor.constraint(equalTo: trailingAnchor),
+      edgeFade.bottomAnchor.constraint(equalTo: bottomAnchor),
       composer.centerXAnchor.constraint(equalTo: centerXAnchor),
       composer.widthAnchor.constraint(lessThanOrEqualToConstant: ChatReadingColumn.maximumWidth),
       composerWidth,
@@ -539,6 +545,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
 
   override func lodyAppearanceDidChange() {
     backgroundColor = !processEntryID.isEmpty && traitCollection.userInterfaceIdiom == .phone ? .clear : .lodyBackground
+    edgeFade.color = .lodyBackground
     refreshTextRendering()
   }
 
@@ -741,7 +748,6 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     incoming.onDraftChange = old.onDraftChange
     incoming.setInputIdentifier("session-input")
     NSLayoutConstraint.deactivate(links)
-    old.attachScrollEdge(to: nil)
     old.removeFromSuperview()
     composer = incoming
     source.completeRelay()
@@ -749,7 +755,6 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       addSubview(incoming)
       incoming.translatesAutoresizingMaskIntoConstraints = false
       NSLayoutConstraint.activate(replacements)
-      incoming.attachScrollEdge(to: collection, style: .automatic)
       bringSubviewToFront(overlay)
       layoutIfNeeded()
     }

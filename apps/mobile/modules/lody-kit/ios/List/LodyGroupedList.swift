@@ -107,6 +107,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   var contentScrollView: UIScrollView { collection }
   private let refreshControl = UIRefreshControl()
   private let placeholder = UILabel()
+  private let topFade = LodyEdgeFade(edge: .top)
   private var placeholderText = ""
 
   private static var accent: UIColor = .lodyAccent
@@ -384,6 +385,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     placeholder.isHidden = true
     addSubview(collection)
     addSubview(placeholder)
+    topFade.color = .lodyGroupedBackground
+    addSubview(topFade)
     segments.addTarget(self, action: #selector(segmentChanged), for: .valueChanged)
     segments.accessibilityIdentifier = "list-segments"
     searchField.autocapitalizationType = .none
@@ -427,6 +430,21 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     }
     placeholder.frame = bounds.inset(by: UIEdgeInsets(top: insets.top + 24, left: 32, bottom: insets.bottom + 24, right: 32))
     attachScrollOwner()
+    updateTopFade()
+  }
+
+  private func updateTopFade() {
+    let fades = contentStyle && !transparent
+    topFade.isHidden = !fades
+    collection.topEdgeEffect.isHidden = fades
+    guard fades else { return }
+    let bottom = collection.adjustedContentInset.top + LodyEdgeFade.topExtent
+    let height = max(100, bottom)
+    topFade.frame = CGRect(x: 0, y: bottom - height, width: bounds.width, height: height)
+  }
+
+  func scrollViewDidChangeAdjustedContentInset(_ scrollView: UIScrollView) {
+    setNeedsLayout()
   }
 
   override func willMove(toSuperview newSuperview: UIView?) {
@@ -718,6 +736,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     guard value != contentStyle else { return }
     contentStyle = value
     collection.reloadData()
+    setNeedsLayout()
   }
 
   func setReordering(_ value: Bool) {
@@ -739,10 +758,12 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     transparent = value
     collection.backgroundColor = value ? .clear : .lodyGroupedBackground
     collection.reloadData()
+    setNeedsLayout()
   }
 
   override func lodyAppearanceDidChange() {
     collection.backgroundColor = transparent ? .clear : .lodyGroupedBackground
+    topFade.color = .lodyGroupedBackground
   }
 
   func setBottomInset(_ height: CGFloat) {

@@ -59,7 +59,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
   private let statusLabel = UILabel()
   private let statusAction = UIButton(configuration: .filled())
   private let confirm = UIButton(configuration: .filled())
-  private let confirmEdge = UIScrollEdgeElementContainerInteraction()
+  private let confirmFade = LodyEdgeFade()
   private let manage = UIButton(configuration: .plain())
   private let footer = UIStackView()
   private let camera = ChatCameraCapture()
@@ -125,8 +125,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
     grid.register(UICollectionViewCell.self, forCellWithReuseIdentifier: "camera")
     grid.register(UICollectionReusableView.self, forSupplementaryViewOfKind: UICollectionView.elementKindSectionFooter, withReuseIdentifier: "status")
     LodyScrollEdges.navigation(grid)
-    confirmEdge.edge = .bottom
-    confirm.addInteraction(confirmEdge)
+    grid.bottomEdgeEffect.isHidden = true
     grid.register(ChatPhotoCell.self, forCellWithReuseIdentifier: "photo")
     statusLabel.numberOfLines = 0
     statusLabel.textAlignment = .center
@@ -151,7 +150,8 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
     footer.alignment = .center
     footer.addArrangedSubview(manage)
     footer.addArrangedSubview(confirm)
-    for item in [grid, footer] {
+    confirmFade.isHidden = true
+    for item in [grid, confirmFade, footer] {
       item.translatesAutoresizingMaskIntoConstraints = false
       view.addSubview(item)
     }
@@ -160,6 +160,10 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
       grid.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       grid.trailingAnchor.constraint(equalTo: view.trailingAnchor),
       grid.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+      confirmFade.topAnchor.constraint(equalTo: confirm.topAnchor, constant: -LodyEdgeFade.overlap),
+      confirmFade.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      confirmFade.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      confirmFade.bottomAnchor.constraint(equalTo: view.bottomAnchor),
       footer.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
       footer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
       confirm.heightAnchor.constraint(equalToConstant: 50),
@@ -595,7 +599,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
 
   private func updateConfirm() {
     let visible = !selection.isEmpty
-    confirmEdge.scrollView = visible ? grid : nil
+    confirmFade.isHidden = !visible
     if visible {
       confirm.setTitle(
         LodyStrings.plural("native.chat.attachment.addCount", selection.count),

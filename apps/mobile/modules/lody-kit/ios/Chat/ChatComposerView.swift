@@ -485,8 +485,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
      "appearance": traitCollection.userInterfaceStyle.rawValue]
   }
 
-  func attachScrollEdge(to scrollView: UIScrollView?, style: UIScrollEdgeEffect.Style = .soft) {
-    if let scrollView { LodyScrollEdges.floatingControls(scrollView, style: style) }
+  func attachScrollEdge(to scrollView: UIScrollView?) {
+    if let scrollView { LodyScrollEdges.floatingControls(scrollView) }
     let existing = interactions.compactMap { $0 as? UIScrollEdgeElementContainerInteraction }.first
     guard scrollView != nil || existing != nil else { return }
     let edge = existing ?? UIScrollEdgeElementContainerInteraction()

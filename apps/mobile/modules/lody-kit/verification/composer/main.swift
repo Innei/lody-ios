@@ -78,10 +78,6 @@ let scrollInteraction = composer.interactions.compactMap { $0 as? UIScrollEdgeEl
 precondition(scrollInteraction.scrollView === initialScroll && scrollInteraction.edge == .bottom)
 precondition(!initialScroll.bottomEdgeEffect.isHidden && initialScroll.bottomEdgeEffect.style == .soft,
   "Attaching a composer must enable soft occlusion without RNSScreen discovery")
-let chatScroll = UIScrollView()
-composer.attachScrollEdge(to: chatScroll, style: .automatic)
-precondition(scrollInteraction.scrollView === chatScroll && chatScroll.bottomEdgeEffect.style == .automatic,
-  "Chat must keep automatic occlusion when the composer attaches")
 let replacementScroll = UIScrollView()
 composer.attachScrollEdge(to: replacementScroll)
 precondition(scrollInteraction.scrollView === replacementScroll && replacementScroll.bottomEdgeEffect.style == .soft,
@@ -99,10 +95,9 @@ let photoScroll = photoSheet.contentScrollView(for: .bottom)
 precondition(photoScroll?.frame == photoSheet.view.bounds, "Photo grid must reach the sheet edges despite bottom safe area")
 precondition(photoScroll is UICollectionView && photoSheet.contentScrollView(for: .top) === photoScroll,
   "Photo selection must publish its native grid as the sheet's scroll content")
-let photoEdges = descendants(photoSheet.view).flatMap(\.interactions)
-  .compactMap { $0 as? UIScrollEdgeElementContainerInteraction }
-precondition(photoEdges.count == 1 && photoEdges[0].scrollView == nil,
-  "The confirmation overlay must not occlude photos before a selection exists")
+let photoFades = descendants(photoSheet.view).compactMap { $0 as? LodyEdgeFade }
+precondition(photoFades.count == 1 && photoFades[0].isHidden && photoScroll?.bottomEdgeEffect.isHidden == true,
+  "The confirmation fade must not occlude photos before a selection exists")
 composer.setInputIdentifier("create-session-input")
 var height: CGFloat = 0
 composer.onHeightChange = { height = $0 }

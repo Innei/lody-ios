@@ -8,6 +8,10 @@ final class LodyDiffSurface: ExpoView {
   private weak var documentScroll: UIScrollView?
   private weak var toolbar: LodyDiffToolbar?
 
+  override var backgroundColor: UIColor? {
+    didSet { toolbar?.setNeedsLayout() }
+  }
+
   override func didMoveToWindow() {
     super.didMoveToWindow()
     if window == nil { detachScrollView() }
@@ -77,12 +81,19 @@ final class LodyDiffToolbar: ExpoView {
   var pendingAdd = 0
   var pendingDel = 0
   var pendingBase = ""
-  private let scrollEdge = UIScrollEdgeElementContainerInteraction()
+  private let edgeFade = LodyEdgeFade()
 
   func attachScrollEdge(to scrollView: UIScrollView?) {
-    guard scrollEdge.scrollView !== scrollView else { return }
-    if let scrollView { LodyScrollEdges.floatingControls(scrollView) }
-    scrollEdge.scrollView = scrollView
+    scrollView?.bottomEdgeEffect.isHidden = true
+    edgeFade.isHidden = scrollView == nil
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    let top = container.frame.minY - LodyEdgeFade.overlap
+    let bottom = superview.map { convert($0.bounds, from: $0).maxY } ?? bounds.maxY
+    edgeFade.frame = CGRect(x: 0, y: top, width: bounds.width, height: max(0, bottom - top))
+    edgeFade.color = superview?.backgroundColor ?? .lodyBackground
   }
 
   required init(appContext: AppContext? = nil) {
@@ -94,8 +105,8 @@ final class LodyDiffToolbar: ExpoView {
     statsGlass.cornerConfiguration = .capsule()
     segmentGlass.cornerConfiguration = .capsule()
     super.init(appContext: appContext)
-    scrollEdge.edge = .bottom
-    addInteraction(scrollEdge)
+    edgeFade.isHidden = true
+    addSubview(edgeFade)
     backgroundColor = .clear
     stats.font = .monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
     stats.adjustsFontForContentSizeCategory = true

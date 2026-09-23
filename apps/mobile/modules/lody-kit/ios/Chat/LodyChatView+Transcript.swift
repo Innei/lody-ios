@@ -21,6 +21,7 @@ extension LodyChatView {
     deferredRows.removeAll()
     backgroundColor = !id.isEmpty && traitCollection.userInterfaceIdiom == .phone ? .clear : .lodyBackground
     composer.isHidden = !id.isEmpty
+    edgeFade.isHidden = !id.isEmpty
     setNeedsLayout()
     applyRows()
   }
