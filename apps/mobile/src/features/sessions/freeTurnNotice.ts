@@ -19,3 +19,15 @@ export function freeTurnNotice(
   if (remaining <= 0) return t('chat.composer.freeTurnLimit');
   return tp('chat.composer.freeTurnsRemaining', remaining, { remaining });
 }
+
+export function freeTurnLimitReached(
+  count: number | undefined,
+  tier: string | undefined,
+) {
+  return (
+    tier === 'free' &&
+    count !== undefined &&
+    Number.isInteger(count) &&
+    count >= FREE_SESSION_TURN_LIMIT
+  );
+}

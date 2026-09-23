@@ -412,6 +412,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private var hintTop: NSLayoutConstraint!
   private var noticeHeight: NSLayoutConstraint!
   private var quotaNoticeHeight: NSLayoutConstraint!
+  private var quotaGap: NSLayoutConstraint!
   private var attachmentHeight: NSLayoutConstraint!
   private let mentionPanel = ChatMentionPanel(frame: .zero)
   private var separateMentionItems: [ChatMentionItem]?
@@ -514,7 +515,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     input.font = .dynamic(of: 17, compatibleWith: traitCollection)
     hint.font = input.font
     notice.titleLabel?.font = .dynamic(of: 13, compatibleWith: traitCollection)
-    quotaNotice.font = .dynamic(of: 12, compatibleWith: traitCollection)
+    quotaNotice.font = .dynamic(of: 13, compatibleWith: traitCollection)
     updateComposer()
   }
 
@@ -594,7 +595,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     notice.titleLabel?.font = .dynamic(of: 13)
     notice.titleLabel?.numberOfLines = 0
     notice.addTarget(self, action: #selector(reconnect), for: .touchUpInside)
-    quotaNotice.font = .dynamic(of: 12)
+    quotaNotice.font = .dynamic(of: 13)
     quotaNotice.textColor = .secondaryLabel
     quotaNotice.numberOfLines = 0
     quotaNotice.accessibilityIdentifier = "session-free-turn-notice"
@@ -641,6 +642,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     hintTop = hint.topAnchor.constraint(equalTo: input.topAnchor, constant: 13)
     noticeHeight = notice.heightAnchor.constraint(equalToConstant: 0)
     quotaNoticeHeight = quotaNotice.heightAnchor.constraint(equalToConstant: 0)
+    quotaGap = inputSurface.topAnchor.constraint(equalTo: quotaNotice.bottomAnchor)
     attachmentHeight = attachmentBar.heightAnchor.constraint(equalToConstant: 0)
     queueHeight = queueView.heightAnchor.constraint(equalToConstant: 0)
     quickRepliesHeight = quickRepliesView.heightAnchor.constraint(equalToConstant: 0)
@@ -666,9 +668,9 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       attachmentBar.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
       attachmentBar.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16), attachmentHeight,
       quotaNotice.topAnchor.constraint(equalTo: attachmentBar.bottomAnchor),
-      quotaNotice.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 20),
-      quotaNotice.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -20), quotaNoticeHeight,
-      inputSurface.topAnchor.constraint(equalTo: quotaNotice.bottomAnchor, constant: 8),
+      quotaNotice.leadingAnchor.constraint(equalTo: inputSurface.leadingAnchor, constant: 16),
+      quotaNotice.trailingAnchor.constraint(equalTo: inputSurface.trailingAnchor, constant: -16), quotaNoticeHeight,
+      quotaGap,
       attachSurface.widthAnchor.constraint(equalToConstant: 44), attachSurface.heightAnchor.constraint(equalToConstant: 44),
       inputSurface.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16),
       inputSurface.bottomAnchor.constraint(equalTo: composer.bottomAnchor, constant: -8),
@@ -865,11 +867,21 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   }
   var connection: String { state.connection ?? "" }
 
+  private(set) var suppressesComposer = false
+
   func setComposerState(_ json: String) {
     guard let value = try? JSONDecoder().decode(ChatComposerState.self, from: Data(json.utf8)) else { return }
     if value.sending && !state.sending && !relaying { takeDraft() }
     state = value
+    suppressesComposer = quotaLocked(json)
     updateComposer()
+  }
+
+  private func quotaLocked(_ json: String) -> Bool {
+    guard let data = json.data(using: .utf8),
+          let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else { return false }
+    return object["quotaLocked"] as? Bool == true
   }
   func setComposerOptions(_ json: String) {
     guard let value = try? JSONDecoder().decode(ChatComposerOptions.self, from: Data(json.utf8)) else { return }
@@ -893,6 +905,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     mentionButton.isHidden = activeMentionItems == nil || !input.isFirstResponder
     mentionButton.isEnabled = state.editable && !state.sending && pendingDraft == nil
     let sending = state.sending || pendingDraft != nil
+    if !state.editable && input.isFirstResponder { input.resignFirstResponder() }
     let expanded = input.isFirstResponder
     let expansionChanged = composerExpanded != expanded
     if expansionChanged && window != nil { layoutIfNeeded() }
@@ -939,8 +952,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     quotaNotice.text = state.quotaNotice
     quotaNotice.isHidden = state.quotaNotice?.isEmpty != false
     quotaNotice.isAccessibilityElement = !quotaNotice.isHidden
-    let quotaSize = quotaNotice.sizeThatFits(CGSize(width: max(1, bounds.width - 40), height: .greatestFiniteMagnitude))
-    quotaNoticeHeight.constant = quotaNotice.isHidden ? 0 : max(24, quotaSize.height + 4)
+    let quotaWidth = inputSurface.bounds.width > 32 ? inputSurface.bounds.width - 32 : bounds.width - 96
+    let quotaSize = quotaNotice.sizeThatFits(CGSize(width: max(1, quotaWidth), height: .greatestFiniteMagnitude))
+    quotaNoticeHeight.constant = quotaNotice.isHidden ? 0 : max(quotaNotice.font.lineHeight, quotaSize.height)
+    quotaGap.constant = quotaNotice.isHidden ? 8 : 6
     accessoryHeight.constant = expanded ? 44 : 0
     let verticalInset = expanded ? 13 : max(0, (48 - input.font!.lineHeight) / 2)
     input.textContainerInset = UIEdgeInsets(top: verticalInset, left: 16, bottom: verticalInset, right: expanded ? 16 : 46)

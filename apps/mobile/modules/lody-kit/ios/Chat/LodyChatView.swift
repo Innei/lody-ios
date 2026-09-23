@@ -84,6 +84,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var findFocusRequest: Bool?
   let findHighlightedViews = NSHashTable<UIView>.weakObjects()
   var composer = ChatComposerView(frame: .zero)
+  var composerBottom: NSLayoutConstraint!
+  var composerRetired = false
   let edgeFade = LodyEdgeFade()
   let overlay = ChatOverlay()
   var localAttachments: [String: [ChatMessageAttachment]] = [:]
@@ -416,8 +418,9 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       composer.centerXAnchor.constraint(equalTo: centerXAnchor),
       composer.widthAnchor.constraint(lessThanOrEqualToConstant: ChatReadingColumn.maximumWidth),
       composerWidth,
-      composer.bottomAnchor.constraint(equalTo: keyboardLayoutGuide.topAnchor),
     ])
+    composerBottom = composer.bottomAnchor.constraint(equalTo: keyboardLayoutGuide.topAnchor)
+    composerBottom.isActive = true
   }
 
   override func layoutSubviews() {
@@ -714,7 +717,36 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
   func setComposerState(_ json: String) {
     composer.setComposerState(json)
+    let retired = composer.suppressesComposer
+    if retired != composerRetired {
+      composerRetired = retired
+      retireComposer(retired)
+    }
     applyOverlay()
+  }
+
+  func retireComposer(_ retired: Bool) {
+    composer.isUserInteractionEnabled = !retired && processEntryID.isEmpty
+    if retired { endEditing(true) }
+    if processEntryID.isEmpty { composer.isHidden = false }
+    let distance = max(composer.bounds.height + 16, 88)
+    composerBottom.constant = retired ? distance : 0
+    let changes = {
+      self.composer.alpha = retired ? 0 : 1
+      self.layoutIfNeeded()
+    }
+    let finish: (Bool) -> Void = { finished in
+      guard finished, self.composerRetired == retired else { return }
+      self.composer.isHidden = retired || !self.processEntryID.isEmpty
+    }
+    let duration = UIAccessibility.isReduceMotionEnabled ? 0.2 : 0.45
+    UIView.animate(
+      withDuration: duration,
+      delay: 0,
+      options: [.beginFromCurrentState, .allowUserInteraction, .curveEaseInOut],
+      animations: changes,
+      completion: finish
+    )
   }
 
   func adoptComposerIfNeeded() {

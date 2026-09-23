@@ -272,6 +272,8 @@
   "chat.composer.freeTurnsRemaining.one": "Free session · {remaining} message left.",
   "chat.composer.freeTurnsRemaining.other": "Free session · {remaining} messages left.",
   "chat.composer.freeTurnLimit": "Free session · 30-message limit reached.",
+  "chat.composer.freeTurnLimitTitle": "Free session limit",
+  "chat.composer.freeTurnLimitBody": "This Free session has reached 30 messages, so the message field is closed.",
   "send.error.workspacePaymentRequired": "Finish setting up this workspace before creating or sending sessions. Your draft is saved.",
   "send.error.mentions": "Could not resolve the references. Your draft is saved. Check the connection and try again.",
   "send.error.draftSaveFailed": "Could not save the pending message, so nothing was sent.",

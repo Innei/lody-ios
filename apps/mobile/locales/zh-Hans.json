@@ -272,6 +272,8 @@
   "chat.composer.freeTurnsRemaining.one": "免费会话 · 还可发送 {remaining} 条消息",
   "chat.composer.freeTurnsRemaining.other": "免费会话 · 还可发送 {remaining} 条消息",
   "chat.composer.freeTurnLimit": "免费会话 · 已达到 30 条消息上限",
+  "chat.composer.freeTurnLimitTitle": "免费会话已到上限",
+  "chat.composer.freeTurnLimitBody": "这个免费会话已达到 30 条消息上限，输入栏已关闭。",
   "send.error.workspacePaymentRequired": "请先完成工作区设置，再创建会话或发送消息。草稿已保存。",
   "send.error.mentions": "无法展开引用，草稿已保留。请检查连接后重试。",
   "send.error.draftSaveFailed": "未能保存待发送内容，消息尚未发送。",

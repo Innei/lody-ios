@@ -42,7 +42,10 @@ import { effortsFor } from '@/cloud/send/capability';
 
 import { useSessionRuntime } from '@/features/sessions/useSessionRuntime';
 import { useWorkspaceBillingTier } from '@/cloud/billing/useWorkspaceBillingTier';
-import { freeTurnNotice } from '@/features/sessions/freeTurnNotice';
+import {
+  freeTurnLimitReached,
+  freeTurnNotice,
+} from '@/features/sessions/freeTurnNotice';
 import {
   sessionEntriesJSON,
   type PreparedSessionHistory,
@@ -72,8 +75,9 @@ import type {
 } from 'react-native-screens';
 import type { HeaderItems } from '@/lib/presentation/SheetStack';
 
-function composerPlaceholder(archived: boolean) {
+function composerPlaceholder(archived: boolean, quotaLocked: boolean) {
   if (archived) return t('chat.composer.archived');
+  if (quotaLocked) return '';
   return t('chat.composer.placeholder');
 }
 
@@ -298,6 +302,22 @@ function View() {
     account?.user.id ?? '',
     billableTurns !== undefined && billableTurns >= 25,
   );
+  const quotaLocked = freeTurnLimitReached(billableTurns, billingTier);
+  const quotaEntry = useRef<'pending' | 'open' | 'closed'>('pending');
+  useEffect(() => {
+    quotaEntry.current = 'pending';
+  }, [currentSession.id]);
+  useEffect(() => {
+    if (snapshot.status !== 'live' || billingTier === undefined) return;
+    if (quotaEntry.current !== 'pending') return;
+    quotaEntry.current = quotaLocked ? 'closed' : 'open';
+    if (!quotaLocked) return;
+    Alert.alert(
+      t('chat.composer.freeTurnLimitTitle'),
+      t('chat.composer.freeTurnLimitBody'),
+      [{ text: t('common.ok') }],
+    );
+  }, [snapshot.status, billingTier, quotaLocked, currentSession.id]);
   useEffect(() => {
     if (
       !outbox.ready ||
@@ -460,8 +480,8 @@ function View() {
     present,
   );
   const composerJSON = JSON.stringify({
-    editable: !currentSession.archived && !deleting,
-    canSend: send.canSend && !errorRetry.pending && !deleting,
+    editable: !currentSession.archived && !deleting && !quotaLocked,
+    canSend: send.canSend && !errorRetry.pending && !deleting && !quotaLocked,
     sending: send.sending,
     running: control.running || send.awaitingReply,
     canStop: control.canStop,
@@ -471,7 +491,8 @@ function View() {
     steerInterrupts: control.steerInterrupts,
     queuedMessageBehavior,
     notice,
-    quotaNotice: freeTurnNotice(billableTurns, billingTier),
+    quotaNotice: quotaLocked ? '' : freeTurnNotice(billableTurns, billingTier),
+    quotaLocked,
     quickReplies:
       snapshot.status === 'live' &&
       snapshot.entries.some(
@@ -485,7 +506,7 @@ function View() {
       overflow,
       live: snapshot.status === 'live',
     }),
-    placeholder: composerPlaceholder(currentSession.archived),
+    placeholder: composerPlaceholder(currentSession.archived, quotaLocked),
   });
   const efforts = effortsFor(capability, activeChoice.modelId);
   const composerOptionsJSON = JSON.stringify({
