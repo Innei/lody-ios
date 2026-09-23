@@ -1,0 +1,3 @@
+[submodule "packages/chat-kit"]
+	path = packages/chat-kit
+	url = https://github.com/Innei/ChatKit

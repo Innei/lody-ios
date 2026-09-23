@@ -126,8 +126,6 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
         if name in ['chat-render', 'composer', 'chat-title']:
             command += ['-framework', 'SwiftUI']
         main = kit / 'verification' / name / 'main.swift'
-        if name == 'chat-kit':
-            main = root / 'packages/chat-kit/Verification/main.swift'
         package_sources = [kit / 'ios' / file for file in files] + [main]
         if any('import ChatKit' in source.read_text() for source in package_sources):
             modules = chat_modules(simulator)
