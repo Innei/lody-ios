@@ -658,6 +658,38 @@ function View() {
               onPress={openQuestionFixture}
             />
           </Stack.Toolbar.Menu>
+          <Stack.Toolbar.Menu title="Overlays" icon="wifi">
+            <Stack.Toolbar.MenuAction
+              children="Connecting Overlay"
+              icon="wifi"
+              onPress={() => setConnection('connecting')}
+            />
+            <Stack.Toolbar.MenuAction
+              children="Paused Overlay"
+              icon="wifi.slash"
+              onPress={() => setConnection('paused')}
+            />
+            <Stack.Toolbar.MenuAction
+              children="Tasks Overlay"
+              icon="person.2"
+              onPress={() => {
+                setDurationFixture(null);
+                setProcessCounts(null);
+                setShowChanges(false);
+                setShowImage(false);
+                setConnection('');
+                setOverlayTasks(true);
+              }}
+            />
+            <Stack.Toolbar.MenuAction
+              children="Clear Overlay"
+              icon="xmark"
+              onPress={() => {
+                setConnection('');
+                setOverlayTasks(false);
+              }}
+            />
+          </Stack.Toolbar.Menu>
           <Stack.Toolbar.MenuAction
             children="Failed Tool Fixture"
             icon="exclamationmark.triangle"
@@ -750,36 +782,6 @@ function View() {
                 generation: 0,
               })
             }
-          />
-          <Stack.Toolbar.MenuAction
-            children="Connecting Overlay"
-            icon="wifi"
-            onPress={() => setConnection('connecting')}
-          />
-          <Stack.Toolbar.MenuAction
-            children="Paused Overlay"
-            icon="wifi.slash"
-            onPress={() => setConnection('paused')}
-          />
-          <Stack.Toolbar.MenuAction
-            children="Tasks Overlay"
-            icon="person.2"
-            onPress={() => {
-              setDurationFixture(null);
-              setProcessCounts(null);
-              setShowChanges(false);
-              setShowImage(false);
-              setConnection('');
-              setOverlayTasks(true);
-            }}
-          />
-          <Stack.Toolbar.MenuAction
-            children="Clear Overlay"
-            icon="xmark"
-            onPress={() => {
-              setConnection('');
-              setOverlayTasks(false);
-            }}
           />
         </Stack.Toolbar.Menu>
         {durationFixture && !durationFixture.finished && (

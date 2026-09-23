@@ -23,8 +23,14 @@ def chrome_center():
     return center_x(transcript['frame'])
 
 
+def overlay(name):
+    ui.axe('tap', '--label', 'Overlays')
+    ui.wait(lambda items: any(i.get('AXLabel') == name for i in items), 'Overlays submenu never opened')
+    ui.axe('tap', '--label', name, '--post-delay', '.5')
+
+
 ui.axe('tap', '--label', 'Fixtures')
-ui.axe('tap', '--label', 'Connecting Overlay', '--post-delay', '.5')
+overlay('Connecting Overlay')
 status = ui.element('chat-overlay-status')
 assert status.get('AXLabel') == catalog.text('native.chat.connection.connecting')
 assert 'chat-scroll-to-bottom' not in ui.axe('describe-ui'), 'Connecting at the tail must not show scroll-to-bottom'
@@ -44,7 +50,7 @@ assert abs(scroll['frame']['height'] - 30) <= 1
 ui.capture('connecting-and-scroll')
 
 ui.axe('tap', '--label', 'Fixtures')
-ui.axe('tap', '--label', 'Paused Overlay', '--post-delay', '.5')
+overlay('Paused Overlay')
 paused = ui.element('chat-overlay-status')
 assert paused.get('AXLabel') == catalog.text('native.chat.connection.paused')
 ui.element('chat-scroll-to-bottom')
@@ -57,14 +63,14 @@ assert abs(center_x(paused['frame']) - chrome_center()) <= 1, 'Paused alone did 
 ui.capture('paused')
 
 ui.axe('tap', '--label', 'Fixtures')
-ui.axe('tap', '--label', 'Clear Overlay', '--post-delay', '.5')
+overlay('Clear Overlay')
 assert 'chat-overlay-status' not in ui.axe('describe-ui'), 'Clearing overlay must remove the status glass'
 ui.axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '700', '--duration', '1', '--post-delay', '1')
 scroll_only = ui.element('chat-scroll-to-bottom')['frame']
 assert abs(scroll_only['x'] - scroll['frame']['x']) <= 1, 'Hiding status moved the scroll action'
 ui.capture('scroll-only')
 ui.axe('tap', '--label', 'Fixtures')
-ui.axe('tap', '--label', 'Tasks Overlay', '--post-delay', '.5')
+overlay('Tasks Overlay')
 tasks = ui.element('chat-overlay-status')
 assert tasks.get('AXLabel') == 'Explore · Read', tasks.get('AXLabel')
 assert abs(center_x(tasks['frame']) - chrome_center()) <= 1, 'A live task capsule is not on the composer center'
@@ -90,10 +96,10 @@ ui.wait(
     'Dismissing the subtask sheet hid the overlay',
 )
 ui.axe('tap', '--label', 'Fixtures')
-ui.axe('tap', '--label', 'Clear Overlay', '--post-delay', '.5')
+overlay('Clear Overlay')
 ui.axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '700', '--duration', '1', '--post-delay', '1')
 ui.axe('tap', '--label', 'Fixtures')
-ui.axe('tap', '--label', 'Connecting Overlay', '--post-delay', '.5')
+overlay('Connecting Overlay')
 ui.axe('tap', '--id', 'session-input', '--post-delay', '1')
 ui.wait(lambda items: any((i.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar') for i in items),
         'Software keyboard did not appear')
