@@ -1,4 +1,3 @@
-import ChatKit
 import UIKit
 
 struct ChatQuickReply: Decodable, Equatable {
@@ -66,8 +65,9 @@ final class ChatQuickRepliesView: UIScrollView {
     return hit === self ? nil : hit
   }
 
-  private func chip(_ item: ChatQuickReply) -> CKGlassSurface {
-    var configuration = UIButton.Configuration.plain()
+  private func chip(_ item: ChatQuickReply) -> UIButton {
+    var configuration = UIButton.Configuration.glass()
+    configuration.cornerStyle = .capsule
     configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
     configuration.title = item.label
     configuration.titleLineBreakMode = .byTruncatingTail
@@ -89,22 +89,12 @@ final class ChatQuickRepliesView: UIScrollView {
       attributes: [.font: Self.titleFont],
       context: nil
     ).width
-    let surface = CKGlassSurface(interactive: true)
-    surface.cornerConfiguration = .capsule()
-    surface.contentView.addSubview(button)
     button.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      button.leadingAnchor.constraint(equalTo: surface.contentView.leadingAnchor),
-      button.trailingAnchor.constraint(equalTo: surface.contentView.trailingAnchor),
-      button.topAnchor.constraint(equalTo: surface.contentView.topAnchor),
-      button.bottomAnchor.constraint(equalTo: surface.contentView.bottomAnchor),
-      surface.heightAnchor.constraint(equalToConstant: Self.chipHeight),
-      surface.widthAnchor.constraint(equalToConstant: max(44, ceil(textWidth) + 24)),
+      button.heightAnchor.constraint(equalToConstant: Self.chipHeight),
+      button.widthAnchor.constraint(equalToConstant: max(44, ceil(textWidth) + 24)),
     ])
-    surface.setContentHuggingPriority(.required, for: .horizontal)
-    surface.setContentCompressionResistancePriority(.required, for: .horizontal)
-    surface.setVisible(true, animated: false)
     buttons.append(button)
-    return surface
+    return button
   }
 }

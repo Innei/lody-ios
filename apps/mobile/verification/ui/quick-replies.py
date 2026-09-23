@@ -69,11 +69,23 @@ hidden()
 ui.axe('tap', '--id', 'quick-reset', '--post-delay', '.7')
 
 # Click the short label, but send the full configured message.
+# AXe typing connects a hardware keyboard; detach it again before this press check.
+subprocess.run([str(ui.output.parents[1] / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
+ui.axe('tap', '--id', 'session-input', '--tap-style', 'physical', '--post-delay', '1')
+ui.wait(lambda items: any((i.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar') and i['frame']['y'] < 800 for i in items), 'Software keyboard did not appear')
 chip = ui.element('quick-reply:commit-push')
 if chip['frame']['x'] + chip['frame']['width'] > 390:
     y = chip['frame']['y'] + chip['frame']['height'] / 2
     ui.axe('swipe', '--start-x', '350', '--start-y', str(y), '--end-x', '80', '--end-y', str(y), '--duration', '.5', '--post-delay', '.5')
-ui.axe('tap', '--id', 'quick-reply:commit-push', '--post-delay', '.7')
+chip = ui.element('quick-reply:commit-push')['frame']
+x, y = chip['x'] + chip['width'] / 2, chip['y'] + chip['height'] / 2
+ui.capture('glass-resting')
+ui.axe('touch', '-x', str(x), '-y', str(y), '--down')
+try:
+    ui.capture('glass-pressed')
+    status('Calls: 0 · idle')
+finally:
+    ui.axe('touch', '-x', str(x), '-y', str(y), '--up')
 status('Calls: 1 · sending')
 hidden()
 message = catalog.text('settings.quickReplies.defaults.commit-push.message')
