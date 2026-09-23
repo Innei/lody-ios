@@ -53,13 +53,16 @@ final class ChatMarkdownView: UIView {
     }
   }
 
+  // A visible prefix of a long reply does not make its changing block visible.
+  var tailFrame: CGRect? { blocks.last?.view.frame }
+
   func setShine(_ on: Bool) {
     for block in blocks { block.label.setShine(on) }
   }
 
-  func update(_ sources: [ChatMarkdownBlock], theme: MarkdownTheme, streaming: Bool, width: CGFloat) {
+  func update(_ sources: [ChatMarkdownBlock], theme: MarkdownTheme, streaming: Bool, width: CGFloat, animateChanges: Bool = true) {
     let sameTheme = self.theme == theme
-    let animate = window != nil && streaming && !UIAccessibility.isReduceMotionEnabled
+    let animate = animateChanges && window != nil && streaming && !UIAccessibility.isReduceMotionEnabled
     self.theme = theme
     while blocks.count > sources.count { blocks.removeLast().view.removeFromSuperview() }
     for (index, source) in sources.enumerated() {

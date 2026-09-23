@@ -439,6 +439,17 @@ probe records `fading` independently of committed text length: long prose must
 still animate after 4096 units, and completion must wait for its final fade.
 Catch-up time includes that visual drain and the final bottom alignment.
 
+The offscreen scenario first scrolls within the visible prefix of a long reply,
+then through earlier history while input and completion continue. It returns near
+the frozen tail, then uses the production bottom action. Assertions require zero
+Markdown updates during the offscreen interval, a stable displayed prefix,
+authoritative completion, and the full latest text without replayed fades on return.
+The p95 offscreen callback time and Markdown update count are reported separately;
+its overall catch-up time includes the deliberate wait away from the reply.
+Visibility uses already measured block bounds: a single block crossing the viewport
+continues updating conservatively. This is a Simulator main-run-loop comparison,
+not device GPU frame timing.
+
 The same case then holds six syntax prefixes using the Debug toolbar: unfinished
 bold, inline code, an incomplete link, a complete link, an unfinished final word,
 and the stopped response. Review `syntax-*.png` and the recording. Native probes

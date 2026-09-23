@@ -11,12 +11,14 @@ extension LodyChatView {
   func setProcessStartID(_ id: String) {
     guard processStartID != id else { return }
     processStartID = id
+    deferredRows.removeAll()
     applyRows()
   }
 
   func setProcessEntryID(_ id: String) {
     guard processEntryID != id else { return }
     processEntryID = id
+    deferredRows.removeAll()
     backgroundColor = !id.isEmpty && traitCollection.userInterfaceIdiom == .phone ? .clear : .lodyBackground
     composer.isHidden = !id.isEmpty
     setNeedsLayout()
@@ -69,7 +71,7 @@ extension LodyChatView {
       followsBottom = true
     }
     lastUserID = userID
-    stream.receive(entries, animate: window != nil && !UIAccessibility.isReduceMotionEnabled)
+    stream.receive(entries, animate: window != nil && !UIAccessibility.isReduceMotionEnabled, deferredEntries: Set(deferredRows.keys))
     if hasPositionedContent { startFrameTimer() }
     else { renderFrame() }
   }
@@ -94,6 +96,7 @@ extension LodyChatView {
 
   func renderFrame() {
     guard !rendering else { framePending = true; return }
+    updateDeferredStreams()
     rendering = true
     lastRenderTime = CACurrentMediaTime()
     let animating = Set(rows.values.filter { store.isAnimating(id: $0.id) }.map(\.entryID))
@@ -107,8 +110,10 @@ extension LodyChatView {
       return
     }
     let parser = store.parser
+    let deferred = Set(deferredRows.keys)
+    let prepareIDs = Set(entries.suffix(2).map(\.id)).union(catchingUpEntries)
     preparation.async { [weak self] in
-      for entry in entries.suffix(2) {
+      for entry in entries where prepareIDs.contains(entry.id) && !deferred.contains(entry.id) {
         for item in entry.items where item.type == "text" || item.type == "thought" {
           _ = parser.parse(item.text ?? "", streaming: entry.isRunning)
         }
@@ -118,6 +123,7 @@ extension LodyChatView {
         self.transcript.entries = entries
         self.applyRows()
         self.rendering = false
+        self.updateDeferredStreams()
         if self.framePending || self.stream.hasPending {
           self.framePending = false
           self.startFrameTimer()
@@ -194,6 +200,16 @@ extension LodyChatView {
       now: now,
       turnStartedAt: turnStartedAt
     )
+    deferredRows = deferredRows.filter { id, _ in transcript.entries.contains { $0.id == id } }
+    if !deferredRows.isEmpty {
+      let byEntry = Dictionary(grouping: projected, by: \.entryID)
+      var deferredInserted = Set<String>()
+      projected = projected.flatMap { row -> [ChatRow] in
+        guard let frozen = deferredRows[row.entryID] else { return [row] }
+        guard deferredInserted.insert(row.entryID).inserted else { return [] }
+        return ChatStream.deferringMarkdown(byEntry[row.entryID] ?? [], previous: frozen)
+      }
+    }
     for index in projected.indices where projected[index].kind == "chat_failed" {
       if let state = errorRetryState, state.entryId == projected[index].entryID, state.itemId == projected[index].itemID {
         projected[index].errorRetry = state
@@ -257,7 +273,7 @@ extension LodyChatView {
     let completing = previousLive != nil && liveEntryID == nil
     // A stale running reply can complete together with an entire newer history.
     // Only fold in place when it is still the tail; bulk sync keeps the viewport anchor.
-    let folding = completing && processEntryID.isEmpty && window != nil && projected.last?.entryID == previousLive
+    let folding = completing && deferredRows[previousLive ?? ""] == nil && processEntryID.isEmpty && window != nil && projected.last?.entryID == previousLive
     let anchorID = folding && following
       ? projected.last(where: { $0.entryID == previousLive && $0.kind == "text" })?.id
       : collection.indexPathsForVisibleItems.sorted().compactMap { dataSource.itemIdentifier(for: $0) }.first(where: { id in projected.contains { $0.id == id } })
@@ -283,6 +299,13 @@ extension LodyChatView {
     }
     self.liveEntryID = liveEntryID
     let previous = rows
+    if !deferredRows.isEmpty, dataSource.snapshot().itemIdentifiers == projected.map(\.id),
+       projected.allSatisfy({ previous[$0.id] == $0 }) {
+      applying = false
+      updateBottomButton()
+      return
+    }
+    store.nonAnimatedRows = Set(projected.filter { catchingUpEntries.contains($0.entryID) }.map(\.id))
     prepareRowHeights(projected, previous: previous, animate: !folding && delivered == nil)
     rows = Dictionary(projected.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
     measurements = measurements.filter { retainedIDs.contains($0.key) }
@@ -334,6 +357,9 @@ extension LodyChatView {
       self.recordHistoryCommit()
       self.streamPerformanceProbe?.commit(milliseconds: (CACurrentMediaTime() - commitStart) * 1000)
       self.applying = false
+      self.catchingUpEntries.removeAll()
+      self.store.nonAnimatedRows.removeAll()
+      self.updateDeferredStreams()
       self.refreshFind()
       self.updateHistoryHeader()
       self.prefetchHistoryIfNeeded()
@@ -358,7 +384,7 @@ extension LodyChatView {
         self.dataSource.apply(snapshot, animatingDifferences: false)
         updateLayout()
       } completion: { _ in finish() }
-    } else if insertingHistory {
+    } else if insertingHistory || !catchingUpEntries.isEmpty {
       // Resolve the viewport inside UIKit's update, before the first new frame.
       historyLayoutAnchor = anchor
       UIView.performWithoutAnimation {

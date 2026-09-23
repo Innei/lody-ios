@@ -9,6 +9,11 @@ const seconds = 12;
 const unitsPerSecond = 1_200;
 const size = seconds * unitsPerSecond;
 const samples = {
+  offscreen:
+    'OFFSCREEN SCROLL\n\n' +
+    'Stable paragraph with **Markdown** and `code`. Read earlier content while the answer continues.\n\n'.repeat(
+      200,
+    ),
   paragraphs: Array.from(
     { length: 240 },
     (_, index) =>
@@ -21,6 +26,7 @@ const samples = {
 };
 type Sample = keyof typeof samples;
 const sampleIcons = {
+  offscreen: 'arrow.up.arrow.down',
   paragraphs: 'text.alignleft',
   text: 'text.justify',
   code: 'chevron.left.forwardslash.chevron.right',
@@ -92,7 +98,7 @@ function View() {
         >
           Syntax
         </Stack.Toolbar.Button>
-        {(['paragraphs', 'text', 'code'] as const).map((name) => (
+        {(['paragraphs', 'text', 'code', 'offscreen'] as const).map((name) => (
           <Stack.Toolbar.Button
             key={name}
             accessibilityLabel={`Stream ${name}`}

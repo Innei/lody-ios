@@ -28,7 +28,7 @@ extension LodyChatView {
     findBar.move = { [weak self] in self?.moveFind($0) }
     findBar.dismiss = { [weak self] in self?.closeFind() }
     setNeedsLayout()
-    refreshFind()
+    if !updateDeferredStreams() { refreshFind() }
     layoutIfNeeded()
   }
 

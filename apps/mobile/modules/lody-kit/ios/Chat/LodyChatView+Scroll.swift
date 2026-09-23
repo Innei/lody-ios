@@ -182,8 +182,45 @@ extension LodyChatView {
     awaitingUserAnchor = false
   }
 
+  /// Reuse measured geometry; scrolling must never parse or size unseen text.
+  @discardableResult
+  func updateDeferredStreams() -> Bool {
+    guard hasPositionedContent, !applying, !rendering else { return false }
+    let candidates = Set(rows.values.filter(\.streaming).map(\.entryID)).union(deferredRows.keys)
+    let viewport = collection.bounds.inset(by: UIEdgeInsets(
+      top: collection.adjustedContentInset.top, left: 0,
+      bottom: collection.safeAreaInsets.bottom + composerInset, right: 0))
+    var resumed = false
+    for entryID in candidates {
+      let entryRows = deferredRows[entryID] ?? rows.values.filter { $0.entryID == entryID }
+      let textRows = entryRows.filter { $0.streaming && ($0.kind == "text" || $0.kind == "thought") }
+      // Resume before the boundary reaches the screen, with hysteresis to avoid churn.
+      let margin: CGFloat = deferredRows[entryID] == nil ? 80 : 160
+      let nearby = viewport.insetBy(dx: 0, dy: -margin)
+      let offscreen = !textRows.isEmpty && textRows.allSatisfy { row in
+        guard let index = dataSource.indexPath(for: row.id),
+              let frame = collection.layoutAttributesForItem(at: index)?.frame else { return false }
+        let changing = store.tailFrame(id: row.id)?.offsetBy(dx: frame.minX, dy: frame.minY) ?? frame
+        return !changing.intersects(nearby)
+      }
+      if !followsBottom, findBar.isHidden, offscreen {
+        if deferredRows[entryID] == nil {
+          deferredRows[entryID] = dataSource.snapshot().itemIdentifiers.compactMap { rows[$0] }.filter { $0.entryID == entryID }
+          stream.finish(entries: [entryID])
+          for row in entryRows { rowHeights[row.id] = nil }
+        }
+      } else if deferredRows.removeValue(forKey: entryID) != nil {
+        catchingUpEntries.insert(entryID)
+        resumed = true
+      }
+    }
+    if resumed { startFrameTimer() }
+    return resumed
+  }
+
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
     guard scrollView === collection else { return }
+    updateDeferredStreams()
     updateBottomButton()
     refreshFindHighlights()
     prefetchHistoryIfNeeded()
@@ -306,6 +343,7 @@ extension LodyChatView {
     }
     let width = ChatReadingColumn.itemWidth(in: collection.bounds.width)
     for row in projected where row != previous[row.id] {
+      if catchingUpEntries.contains(row.entryID) { rowHeights[row.id] = nil; continue }
       // Long replies grow at the content-commit cadence. Animating their height
       // would invalidate the entire collection at display refresh rate; the
       // bottom follower and text fades already keep motion smooth.

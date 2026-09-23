@@ -48,6 +48,8 @@ final class ChatMarkdownStore {
   }
   private static let sizingLimit = 24
 
+  private(set) var updateCount = 0
+  var nonAnimatedRows: Set<String> = []
   let parser = ChatParseCache()
   private var entries: [String: Entry] = [:]
   private var views: [String: ChatMarkdownView] = [:]
@@ -62,6 +64,11 @@ final class ChatMarkdownStore {
   }
 
   func theme(secondary: Bool) -> MarkdownTheme { secondary ? secondaryTheme : theme }
+
+  func tailFrame(id: String) -> CGRect? {
+    guard let markdown = views[id], let frame = markdown.tailFrame else { return nil }
+    return frame.offsetBy(dx: markdown.frame.minX, dy: markdown.frame.minY)
+  }
 
   func tailLength(id: String) -> Int { views[id]?.tailLength ?? 0 }
   func isAnimating(id: String) -> Bool { views[id]?.isAnimating == true }
@@ -78,6 +85,7 @@ final class ChatMarkdownStore {
   private func blocks(id: String, text: String, secondary: Bool, streaming: Bool) -> [ChatMarkdownBlock] {
     let previous = entries[id]
     if let previous, previous.text == text, previous.secondary == secondary, previous.streaming == streaming { return previous.blocks }
+    updateCount += 1
     let parsed = parser.parse(text, streaming: streaming)
     let sameContext = previous?.secondary == secondary && previous?.math == parsed.mathContext
     let rendered = sameContext ? previous!.context.rendered : parsed.renderedContent(theme: theme(secondary: secondary))
@@ -104,7 +112,7 @@ final class ChatMarkdownStore {
   func view(id: String, text: String, secondary: Bool, streaming: Bool, width: CGFloat) -> ChatMarkdownView {
     let view = views[id] ?? ChatMarkdownView()
     views[id] = view
-    view.update(blocks(id: id, text: text, secondary: secondary, streaming: streaming), theme: theme(secondary: secondary), streaming: streaming, width: width)
+    view.update(blocks(id: id, text: text, secondary: secondary, streaming: streaming), theme: theme(secondary: secondary), streaming: streaming, width: width, animateChanges: !nonAnimatedRows.contains(id))
     heights[id] = Height(text: text, secondary: secondary, streaming: streaming, width: max(1, width), height: view.measuredHeight)
     recent.removeAll { $0 == id }
     recent.append(id)

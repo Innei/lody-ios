@@ -113,6 +113,9 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var processEntryID = ""
   var processStartID = ""
   var stream = ChatStream()
+  // Frozen presentation only. ChatStream keeps accepting authoritative updates.
+  var deferredRows: [String: [ChatRow]] = [:]
+  var catchingUpEntries: Set<String> = []
   var frameTimer: Timer?
   var rendering = false
   var framePending = false
@@ -394,7 +397,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       self.collection.setContentOffset(self.collection.contentOffset, animated: false)
       self.trackingPausedByGesture = false
       self.followsBottom = true
-      self.scrollToBottom()
+      if !self.updateDeferredStreams() { self.scrollToBottom() }
     }
     addSubview(overlay)
     addSubview(findBar)

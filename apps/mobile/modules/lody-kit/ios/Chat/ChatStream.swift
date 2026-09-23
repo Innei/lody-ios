@@ -11,11 +11,22 @@ struct ChatStream {
   private var settling: Set<String> = []
   var hasPending: Bool { !settling.isEmpty || reveals.values.contains { $0.hasPending } }
 
+  /// Keep offscreen Markdown geometry, but never hide permission/error/tool updates.
+  static func deferringMarkdown(_ projected: [ChatRow], previous: [ChatRow]) -> [ChatRow] {
+    let latest = Dictionary(projected.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+    let ids = Set(previous.map(\.id))
+    let retained = previous.compactMap { row -> ChatRow? in
+      if row.kind == "text" || row.kind == "thought" { return row }
+      return latest[row.id]
+    }
+    return retained + projected.filter { !ids.contains($0.id) && $0.kind != "text" && $0.kind != "thought" }
+  }
+
   static func commitInterval(tailLength: Int) -> Double {
     min(0.096, 0.048 * (1 + Double(tailLength) / 256))
   }
 
-  mutating func receive(_ entries: [ChatEntry], animate: Bool, at time: Double = ProcessInfo.processInfo.systemUptime) {
+  mutating func receive(_ entries: [ChatEntry], animate: Bool, deferredEntries: Set<String> = [], at time: Double = ProcessInfo.processInfo.systemUptime) {
     let wasRunning = Set(targets.filter(\.isRunning).map(\.id))
     var retained: Set<ID> = []
     for entry in entries where entry.role != "user" {
@@ -23,7 +34,7 @@ struct ChatStream {
         let id = ID(entry: entry.id, item: item.itemId)
         retained.insert(id)
         var reveal = reveals[id] ?? CKTextReveal()
-        let shouldAnimate = initialized && animate && entry.role == "assistant" && (entry.isRunning || wasRunning.contains(entry.id) || reveal.hasPending)
+        let shouldAnimate = initialized && animate && !deferredEntries.contains(entry.id) && entry.role == "assistant" && (entry.isRunning || wasRunning.contains(entry.id) || reveal.hasPending)
         reveal.receive(item.text ?? "", animate: shouldAnimate, at: time)
         reveals[id] = reveal
       }
@@ -46,9 +57,10 @@ struct ChatStream {
     }
   }
 
-  mutating func finish() {
-    settling.removeAll()
-    for id in reveals.keys { reveals[id]?.finish() }
+  mutating func finish(entries: Set<String>? = nil) {
+    if let entries { settling.subtract(entries) }
+    else { settling.removeAll() }
+    for id in reveals.keys where entries?.contains(id.entry) ?? true { reveals[id]?.finish() }
   }
 
   var presentation: [ChatEntry] {
