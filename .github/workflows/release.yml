@@ -47,6 +47,8 @@ jobs:
       source_short: ${{ steps.meta.outputs.source_short }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: true
 
       - name: Record Xcode and SDK versions
         run: |

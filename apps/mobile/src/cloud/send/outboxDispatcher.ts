@@ -11,6 +11,7 @@ import type { Session } from '../../models/catalog';
 import { sessionState } from '../../features/sessions/status';
 import { t } from '../../lib/i18n/index.ts';
 import { outboxInflight } from './outboxInflight';
+import { quotaError } from './quotaError';
 
 export const MAX_SESSION_RESERVES = 8;
 export { outboxInflight };
@@ -115,7 +116,9 @@ export function useOutboxDispatcher({
               send: { ...send, creation: undefined, phase: 'waiting' },
             });
           } else if (result.state === 'rejected') {
-            await fail(t('send.error.sessionNotCreated'));
+            await fail(
+              quotaError(result.reason, t('send.error.sessionNotCreated')),
+            );
           } else {
             await outbox.put({
               ...record,
@@ -164,7 +167,7 @@ export function useOutboxDispatcher({
             });
             return;
           }
-          await fail(result.reason || t('send.error.notSent'));
+          await fail(quotaError(result.reason, t('send.error.notSent')));
           return;
         }
         const phase = ['accepted', 'uploaded', 'queued'].includes(result.state)

@@ -249,6 +249,24 @@ test('create a project session, open its empty history and dispatch the first tu
     /invalid_session/,
   );
   assert.equal(order.length, 0);
+  const fullMeta = new Flock('full-meta');
+  fullMeta.importFile(meta.exportFile());
+  for (let index = 0; index < 200; index++)
+    fullMeta.set(['e', `session-existing-${index}`], true);
+  const atLimit = await runtime.createSession(
+    {
+      ...args,
+      billingEntitlement: { effectivePlanTier: 'free', checkoutPending: false },
+    },
+    options,
+    { ...replica, flock: fullMeta },
+    grant,
+  );
+  assert.deepEqual(atLimit, {
+    state: 'rejected',
+    reason: 'free_session_limit_reached',
+  });
+  assert.equal(order.length, 0, 'quota rejection cannot create a stream');
   const result = await runtime.createSession(args, options, replica, grant);
   assert.equal(result.state, 'created');
   assert.deepEqual(order, ['stream', 'metadata']);

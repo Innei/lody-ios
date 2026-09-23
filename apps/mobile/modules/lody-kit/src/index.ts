@@ -78,6 +78,7 @@ export {
   sessionItemDetail,
   respondSessionPermission,
   sessionCreationOptions,
+  workspaceBillingEntitlement,
   githubPullRequest,
   githubRepositories,
   createSession,

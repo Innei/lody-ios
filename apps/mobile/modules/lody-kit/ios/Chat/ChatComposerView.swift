@@ -16,6 +16,7 @@ private struct ChatComposerState: Decodable {
   var steerInterrupts: Bool?
   var queuedMessageBehavior: String?
   var notice = ""
+  var quotaNotice: String?
   var reconnect = false
   var connection: String?
   var placeholder = LodyStrings.text("native.chat.composer.placeholder")
@@ -392,6 +393,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private let input = ChatComposerInput()
   private let hint = UILabel()
   private let notice = UIButton(type: .system)
+  private let quotaNotice = UILabel()
   private let send = UIButton(type: .system)
   private let sendVisual = ChatComposerActionVisual()
   private let sendFeedback = UIImpactFeedbackGenerator(style: .medium)
@@ -409,6 +411,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private var hintLeading: NSLayoutConstraint!
   private var hintTop: NSLayoutConstraint!
   private var noticeHeight: NSLayoutConstraint!
+  private var quotaNoticeHeight: NSLayoutConstraint!
   private var attachmentHeight: NSLayoutConstraint!
   private let mentionPanel = ChatMentionPanel(frame: .zero)
   private var separateMentionItems: [ChatMentionItem]?
@@ -511,6 +514,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     input.font = .dynamic(of: 17, compatibleWith: traitCollection)
     hint.font = input.font
     notice.titleLabel?.font = .dynamic(of: 13, compatibleWith: traitCollection)
+    quotaNotice.font = .dynamic(of: 12, compatibleWith: traitCollection)
     updateComposer()
   }
 
@@ -590,6 +594,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     notice.titleLabel?.font = .dynamic(of: 13)
     notice.titleLabel?.numberOfLines = 0
     notice.addTarget(self, action: #selector(reconnect), for: .touchUpInside)
+    quotaNotice.font = .dynamic(of: 12)
+    quotaNotice.textColor = .secondaryLabel
+    quotaNotice.numberOfLines = 0
+    quotaNotice.accessibilityIdentifier = "session-free-turn-notice"
     mentionButton.setImage(UIImage(systemName: "at", withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .regular)), for: .normal)
     mentionButton.tintColor = .label
     mentionButton.accessibilityLabel = LodyStrings.text("native.chat.mention.open")
@@ -617,13 +625,14 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     }
     composer.contentView.addSubview(notice)
     composer.contentView.addSubview(attachmentBar)
+    composer.contentView.addSubview(quotaNotice)
     composer.contentView.addSubview(attachSurface)
     composer.contentView.addSubview(inputSurface)
     attachSurface.contentView.addSubview(attach)
     for view in [input, hint, accessoryBar, modelButton, mentionButton, send] {
       inputSurface.contentView.addSubview(view)
     }
-    for view in [composer, mentionPanel, mentionButton, queueView, quickRepliesView, inputSurface, attachSurface, notice, attachmentBar, input, hint, accessoryBar, send, attach, modelButton] {
+    for view in [composer, mentionPanel, mentionButton, queueView, quickRepliesView, inputSurface, attachSurface, notice, attachmentBar, quotaNotice, input, hint, accessoryBar, send, attach, modelButton] {
       view.translatesAutoresizingMaskIntoConstraints = false
     }
     inputHeight = input.heightAnchor.constraint(equalToConstant: 48)
@@ -631,6 +640,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     hintLeading = hint.leadingAnchor.constraint(equalTo: input.leadingAnchor, constant: 21)
     hintTop = hint.topAnchor.constraint(equalTo: input.topAnchor, constant: 13)
     noticeHeight = notice.heightAnchor.constraint(equalToConstant: 0)
+    quotaNoticeHeight = quotaNotice.heightAnchor.constraint(equalToConstant: 0)
     attachmentHeight = attachmentBar.heightAnchor.constraint(equalToConstant: 0)
     queueHeight = queueView.heightAnchor.constraint(equalToConstant: 0)
     quickRepliesHeight = quickRepliesView.heightAnchor.constraint(equalToConstant: 0)
@@ -655,7 +665,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       attachmentBar.topAnchor.constraint(equalTo: notice.bottomAnchor),
       attachmentBar.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
       attachmentBar.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16), attachmentHeight,
-      inputSurface.topAnchor.constraint(equalTo: attachmentBar.bottomAnchor, constant: 8),
+      quotaNotice.topAnchor.constraint(equalTo: attachmentBar.bottomAnchor),
+      quotaNotice.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 20),
+      quotaNotice.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -20), quotaNoticeHeight,
+      inputSurface.topAnchor.constraint(equalTo: quotaNotice.bottomAnchor, constant: 8),
       attachSurface.widthAnchor.constraint(equalToConstant: 44), attachSurface.heightAnchor.constraint(equalToConstant: 44),
       inputSurface.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16),
       inputSurface.bottomAnchor.constraint(equalTo: composer.bottomAnchor, constant: -8),
@@ -923,6 +936,11 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     notice.accessibilityTraits = canReconnect ? .button : .staticText
     let noticeSize = notice.sizeThatFits(CGSize(width: max(1, bounds.width - 40), height: .greatestFiniteMagnitude))
     noticeHeight.constant = noticeText.isEmpty ? 0 : max(44, noticeSize.height + 12)
+    quotaNotice.text = state.quotaNotice
+    quotaNotice.isHidden = state.quotaNotice?.isEmpty != false
+    quotaNotice.isAccessibilityElement = !quotaNotice.isHidden
+    let quotaSize = quotaNotice.sizeThatFits(CGSize(width: max(1, bounds.width - 40), height: .greatestFiniteMagnitude))
+    quotaNoticeHeight.constant = quotaNotice.isHidden ? 0 : max(24, quotaSize.height + 4)
     accessoryHeight.constant = expanded ? 44 : 0
     let verticalInset = expanded ? 13 : max(0, (48 - input.font!.lineHeight) / 2)
     input.textContainerInset = UIEdgeInsets(top: verticalInset, left: 16, bottom: verticalInset, right: expanded ? 16 : 46)
@@ -932,7 +950,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     inputHeight.constant = min(ChatMessageContent.maximumCollapsedHeight, max(expanded ? 68 : 48, height))
     input.isScrollEnabled = height > ChatMessageContent.maximumCollapsedHeight
     updateComposerOptions()
-    onHeightChange?(mentionHeight.constant + queueHeight.constant + quickRepliesHeight.constant + noticeHeight.constant + attachmentHeight.constant + inputHeight.constant + accessoryHeight.constant + 16)
+    onHeightChange?(mentionHeight.constant + queueHeight.constant + quickRepliesHeight.constant + noticeHeight.constant + attachmentHeight.constant + quotaNoticeHeight.constant + inputHeight.constant + accessoryHeight.constant + 16)
     setNeedsLayout()
     if expansionChanged {
       if window != nil && !UIAccessibility.isReduceMotionEnabled {
