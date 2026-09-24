@@ -118,6 +118,9 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   renameSession(payload: string): Promise<string>;
   controlSessionTurn(payload: string): Promise<string>;
   sendSessionTurn(payload: string): Promise<string>;
+  readSessionEdit(payload: string): Promise<string>;
+  prepareSessionEdit(payload: string): Promise<string>;
+  sendSessionEdit(payload: string): Promise<string>;
   sessionItemDetail(payload: string): Promise<string>;
   respondSessionPermission(payload: string): Promise<string>;
   turnDiff(payload: string): Promise<string>;
@@ -282,6 +285,12 @@ export const controlSessionTurn = (payload: string) =>
   native.controlSessionTurn(payload);
 export const sendSessionTurn = (payload: string) =>
   native.sendSessionTurn(payload);
+export const readSessionEdit = (payload: string) =>
+  native.readSessionEdit(payload);
+export const prepareSessionEdit = (payload: string) =>
+  native.prepareSessionEdit(payload);
+export const sendSessionEdit = (payload: string) =>
+  native.sendSessionEdit(payload);
 export const sessionItemDetail = (payload: string) =>
   native.sessionItemDetail(payload);
 export const respondSessionPermission = (payload: string) =>

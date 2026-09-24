@@ -1,4 +1,6 @@
 import { openMessageShare } from '@/screens/MessageShareScreen';
+import { EditMessageScreen } from './EditMessageScreen';
+import { useEditableMessage } from '@/features/sessions/useEditableMessage';
 import { useAgentErrorRetry } from '@/features/sessions/useAgentErrorRetry';
 import { openAgentError } from '@/hooks/screens/openAgentError';
 import { fastModeFor, withFastMode } from '@/cloud/send/capability';
@@ -147,6 +149,7 @@ function View() {
   const currentSession =
     catalog.sessions.find((s) => s.id === session.id) ?? session;
   const [appendDraftJSON, setAppendDraftJSON] = useState('');
+  const [editedMessageId, setEditedMessageId] = useState('');
   const [findRequest, setFindRequest] = useState({
     token: 0,
     query: '',
@@ -352,6 +355,19 @@ function View() {
     queuedMessageBehavior,
     steerable: capability?.steer === true,
   });
+  const editableMessageId = useEditableMessage(
+    session.id,
+    snapshot,
+    snapshot.status === 'live' &&
+      connection.state === 'live' &&
+      !currentSession.archived &&
+      !send.sending &&
+      !control.controlling &&
+      !overflow &&
+      !deleting &&
+      !quotaLocked,
+    connection.syncedAt,
+  );
   const errorRetry = useAgentErrorRetry({
     sessionId: session.id,
     entries: snapshot.entries,
@@ -709,6 +725,18 @@ function View() {
       <NativeNavigationHeader items={headerItems} />
       <DiffWebViewWarmer />
       <NativeChat
+        editableMessageId={editableMessageId}
+        editedMessageId={editedMessageId}
+        onEditMessage={({ nativeEvent }) => {
+          if (nativeEvent.entryId === editableMessageId)
+            void present(EditMessageScreen, {
+              sessionId: session.id,
+              entryId: nativeEvent.entryId,
+            }).then((result) => {
+              if (result.status === 'completed')
+                setEditedMessageId(result.value);
+            });
+        }}
         imageSharingEnabled
         onShareImage={({ nativeEvent }) =>
           openMessageShare(nativeEvent.contentJSON)

@@ -358,6 +358,7 @@ extension LodyChatView {
       self.recordHistoryCommit()
       self.streamPerformanceProbe?.commit(milliseconds: (CACurrentMediaTime() - commitStart) * 1000)
       self.applying = false
+      self.scrollToEditedMessage()
       self.catchingUpEntries.removeAll()
       self.store.nonAnimatedRows.removeAll()
       self.updateDeferredStreams()

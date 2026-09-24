@@ -391,6 +391,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("renameSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("renameSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("controlSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("controlTurn", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("sendSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("readSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("editSession", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("prepareSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.prepareSessionEdit(payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("sendSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, promise: promise, method: "editSession") } }.runOnQueue(.main)
     AsyncFunction("sessionItemDetail") { (payload: String, promise: Promise) in
       try MainActor.assumeIsolated {
         if LodyUIVerify.enabled,
@@ -567,6 +570,10 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }
 
     View(LodyComposerView.self) {
+      Prop("initialDraft") { (view: LodyComposerView, value: String) in view.composer.setInitialDraft(value) }
+      Prop("initialAttachmentsJSON") { (view: LodyComposerView, value: String) in view.composer.setInitialAttachments(value) }
+      Prop("autoFocus") { (view: LodyComposerView, value: Bool) in view.composer.autoFocus = value }
+      Prop("inputIdentifier") { (view: LodyComposerView, value: String) in view.composer.setInputIdentifier(value) }
       Prop("composerRelay") { (view: LodyComposerView, value: Bool) in view.composerRelay = value }
       Prop("sendHandoff") { (view: LodyComposerView, value: Bool?) in view.composer.sendHandoff = value ?? true }
       Prop("scrollEdge") { (view: LodyComposerView, value: Bool) in view.scrollEdge = value }
@@ -609,7 +616,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         view.performanceProbe?.stop()
         view.performanceProbe = ChatPerformanceProbe(view)
       }
-      Events("onStop", "onSteer", "onSend", "onShareImage", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse")
+      Events("onStop", "onSteer", "onSend", "onEditMessage", "onShareImage", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse")
+      Prop("editableMessageId") { (view: LodyChatView, value: String) in view.editableMessageID = value }
+      Prop("editedMessageId") { (view: LodyChatView, value: String) in view.editedMessageID = value }
       Prop("navigationTitle") { (view: LodyChatView, value: String) in view.setNavigationTitle(value) }
       Prop("navigationSubtitle") { (view: LodyChatView, value: String) in view.setNavigationSubtitle(value) }
       Prop("navigationMachine") { (view: LodyChatView, value: String) in view.setNavigationMachine(value) }

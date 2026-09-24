@@ -56,6 +56,7 @@ import {
   controlTurn,
   sendTurn as sendSessionTurn,
   checkTurnQuota,
+  editSession,
 } from './session';
 import { decodeFrames, encodeFrame } from '../decoder/frames';
 
@@ -909,6 +910,18 @@ Object.assign(globalThis, {
     respondPermission,
     controlTurn,
     checkTurnQuota,
+    editSession(args: Parameters<typeof editSession>[0]) {
+      if (!metaReplica || unhealthy.size)
+        return { state: 'not_sent', reason: 'metadata_not_ready' };
+      const meta = metaReplica.flock.get(['m', `session-${args.sessionId}`]) as
+        Record<string, any> | undefined;
+      if (!meta) return { state: 'not_sent', reason: 'session_not_ready' };
+      const capability = machineReplicas
+        .get(meta.machineId)
+        ?.get(['acpCapability', meta.agentConfigId]) as
+        Record<string, any> | undefined;
+      return editSession(args, meta, capability);
+    },
     sendTurn(args: Parameters<typeof sendSessionTurn>[0]) {
       if (!metaReplica)
         return { state: 'not_sent', reason: 'metadata_not_ready' };

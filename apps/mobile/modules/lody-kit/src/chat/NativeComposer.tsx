@@ -5,6 +5,8 @@ import type { NativeChat } from './NativeChat';
 
 type Props = ViewProps & {
   scrollEdge?: boolean;
+  autoFocus?: boolean;
+  inputIdentifier?: string;
   sendHandoff?: boolean;
   composerRelay?: boolean;
   onRelayReady?: () => void;
@@ -16,6 +18,8 @@ type Props = ViewProps & {
     | 'mentionResultJSON'
     | 'onMentionBrowse'
     | 'restoreDraftToken'
+    | 'initialDraft'
+    | 'initialAttachmentsJSON'
     | 'onSend'
     | 'onComposerOptionChange'
   >;

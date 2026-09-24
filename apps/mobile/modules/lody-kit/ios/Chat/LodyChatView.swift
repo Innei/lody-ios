@@ -51,6 +51,24 @@ private final class ChatNavigationController: UIViewController {
 
 final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout, UIGestureRecognizerDelegate, ChatSendHandoffSettling {
   let onSend = EventDispatcher()
+  let onEditMessage = EventDispatcher()
+  var editableMessageID = "" {
+    didSet {
+      for cell in collection.visibleCells {
+        (cell as? ChatCell)?.updateEditAccessibility()
+        (cell as? ChatMessageAttachmentsCell)?.updateEditAccessibility()
+      }
+    }
+  }
+  var editedMessageID = "" { didSet { scrollToEditedMessage() } }
+  func scrollToEditedMessage() {
+    guard !editedMessageID.isEmpty, !applying,
+      let row = dataSource.snapshot().itemIdentifiers.compactMap({ rows[$0] }).first(where: { $0.entryID == editedMessageID }),
+      let index = dataSource.indexPath(for: row.id) else { return }
+    editedMessageID = ""
+    pauseTracking()
+    collection.scrollToItem(at: index, at: .top, animated: false)
+  }
   let onStop = EventDispatcher()
   let onSteer = EventDispatcher()
   let onErrorRetry = EventDispatcher()
@@ -300,6 +318,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       }
       if row.kind == "attachments" {
         let cell = collection.dequeueReusableCell(withReuseIdentifier: "attachments", for: index) as! ChatMessageAttachmentsCell
+        cell.canEdit = { [weak self] in self?.editableMessageID == row.entryID }
+        cell.onEdit = { [weak self] in self?.onEditMessage(["entryId": row.entryID]) }
         cell.configure(row, workspace: self.imageWorkspace, session: self.imageSession, expanded: self.expandedAttachments.contains(row.entryID))
         cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
         cell.onPreview = { [weak self] attachment, image in
@@ -331,6 +351,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       }
       let cell = collection.dequeueReusableCell(withReuseIdentifier: "message", for: index) as! ChatCell
       cell.onInteraction = { [weak self] in self?.pauseTracking() }
+      cell.canEdit = { [weak self] in self?.editableMessageID == row.entryID && row.kind == "user" }
+      cell.onEdit = { [weak self] in self?.onEditMessage(["entryId": row.entryID]) }
       cell.label.onLink = row.kind == "user" ? { [weak self] in self?.openMessageLink($0) } : nil
       cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
       cell.onActivate = { [weak self] in

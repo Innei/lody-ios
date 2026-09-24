@@ -186,6 +186,19 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   let separator = UIView()
   var row: ChatRow?
   var onInteraction: (() -> Void)?
+  var canEdit: (() -> Bool)?
+  var onEdit: (() -> Void)?
+  func updateEditAccessibility() {
+    var actions = label.linkActions
+    if canEdit?() == true {
+      actions.append(UIAccessibilityCustomAction(name: LodyStrings.text("native.chat.editAction")) { [weak self] _ in
+        guard self?.canEdit?() == true else { return false }
+        self?.onEdit?()
+        return true
+      })
+    }
+    accessibilityCustomActions = actions
+  }
   var onToggle: (() -> Void)?
   var onActivate: (() -> Void)?
   var expanded = false
@@ -219,7 +232,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     separator.isHidden = row.kind != "duration"
     accessibilityIdentifier = row.id
     accessibilityLabel = text.string.replacingOccurrences(of: "\u{FFFC}", with: "")
-    accessibilityCustomActions = label.linkActions
+    updateEditAccessibility()
     accessibilityTraits = row.actionable ? .button : .staticText
     accessibilityHint = hint(for: row)
     let process = row.kind == "summary"
@@ -286,9 +299,14 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     guard let row, row.kind == "user" || row.kind == "text", messageContent.frame.contains(location) else { return nil }
     onInteraction?()
     return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
-      UIMenu(children: [UIAction(title: LodyStrings.text("native.chat.copy"), image: UIImage(systemName: "doc.on.doc")) { _ in
+      var actions = [UIAction(title: LodyStrings.text("native.chat.copy"), image: UIImage(systemName: "doc.on.doc")) { _ in
         UIPasteboard.general.string = row.text
-      }])
+      }]
+      if self.canEdit?() == true {
+        let edit = self.onEdit
+        actions.append(UIAction(title: LodyStrings.text("native.chat.editAction"), image: UIImage(systemName: "pencil")) { _ in edit?() })
+      }
+      return UIMenu(children: actions)
     }
   }
 

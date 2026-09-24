@@ -315,8 +315,38 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       promise.resolve(String(data: data, encoding: .utf8) ?? "{}")
     }
   }
-  func sendTurn(_ payload: String, promise: Promise) {
-    guard let workspace else { command("sendTurn", payload: payload, promise: promise); return }
+  func prepareSessionEdit(_ payload: String, promise: Promise) {
+    let generation = self.generation
+    guard let workspace, let session = sessionId else { promise.reject("not_ready", "Session unavailable"); return }
+    Task { @MainActor in
+      do {
+        let result = try await command("editSession", payload: payload)
+        guard var draft = try JSONSerialization.jsonObject(with: Data(result.utf8)) as? [String: Any],
+              draft["state"] as? String == "ready" else { promise.resolve(result); return }
+        var attachments: [[String: Any]] = []
+        let originals = draft["attachments"] as? [[String: Any]] ?? []
+        guard originals.count <= 16 else { throw SessionAttachments.error(LodyStrings.text("native.attachment.error.limit")) }
+        // ponytail: download at most 16 originals for the shared local-file composer; use lazy remote previews if large attachments make editing slow.
+        for block in originals {
+          let image = block["type"] as? String == "image"
+          guard let id = block[image ? "imageId" : "fileId"] as? String,
+                let editID = block["editId"] as? String else { throw SessionAttachments.error("Invalid attachment") }
+          let name = block["fileName"] as? String ?? (image ? "image.jpg" : "file")
+          let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+          let url = try await SessionAttachments.download(workspace: workspace,
+            session: block["storageSessionId"] as? String ?? session, fileId: id, fileName: name,
+            sizeBytes: block["sizeBytes"] as? Int, directory: directory, image: image)
+          guard self.generation == generation, self.sessionId == session else { throw CancellationError() }
+          attachments.append(["id": editID, "name": name, "uri": url.absoluteString, "kind": image ? "image" : "file"])
+        }
+        guard self.generation == generation, self.sessionId == session else { throw CancellationError() }
+        draft["attachments"] = attachments
+        promise.resolve(String(data: try JSONSerialization.data(withJSONObject: draft), encoding: .utf8)!)
+      } catch { promise.reject("edit_prepare_failed", error.localizedDescription) }
+    }
+  }
+  func sendTurn(_ payload: String, promise: Promise, method: String = "sendTurn") {
+    guard let workspace else { command(method, payload: payload, promise: promise); return }
     let user = userId, generation = self.generation
     Task { @MainActor in
       let entitlement = await billing.entitlement(workspace: workspace, user: user)
@@ -334,14 +364,14 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
          check["state"] as? String == "not_sent" {
         promise.resolve(result); return
       }
-      sendTurnWithBilling(payload, promise: promise, billing: entitlement)
+      sendTurnWithBilling(payload, promise: promise, billing: entitlement, method: method)
     }
   }
-  private func sendTurnWithBilling(_ payload: String, promise: Promise, billing: [String: Any]?) {
+  private func sendTurnWithBilling(_ payload: String, promise: Promise, billing: [String: Any]?, method: String) {
     guard let data = payload.data(using: .utf8), data.count <= 128 * 1024,
           var args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let attachments = args.removeValue(forKey: "attachments") as? [[String: Any]], !attachments.isEmpty else {
-      command("sendTurn", payload: payload, promise: promise, billing: billing); return
+      command(method, payload: payload, promise: promise, billing: billing); return
     }
     guard health.ready, let workspace,
           let target = args["sessionId"] as? String, !target.isEmpty,
@@ -383,7 +413,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
           if let billingTier, let checkoutPending {
             projection = ["effectivePlanTier": billingTier, "checkoutPending": checkoutPending]
           }
-          self.command("sendTurn", payload: prepared, promise: promise, billing: projection)
+          self.command(method, payload: prepared, promise: promise, billing: projection)
         }
       } catch {
         let result = (try? JSONSerialization.data(withJSONObject: ["state": "not_sent", "reason": error.localizedDescription])) ?? Data()
@@ -490,7 +520,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     )
   }
 
-  private static let sessionCommands: Set<String> = ["sendTurn", "controlTurn", "itemDetail", "respondPermission", "turnDiff", "fileDiff", "readFile"]
+  private static let sessionCommands: Set<String> = ["editSession", "sendTurn", "controlTurn", "itemDetail", "respondPermission", "turnDiff", "fileDiff", "readFile"]
   private static let contentCommands: Set<String> = ["turnDiff", "fileDiff", "readFile"]
   func command(_ method: String, payload: String, billing: [String: Any]? = nil) async throws -> String {
     try await withCheckedThrowingContinuation { continuation in
@@ -527,16 +557,18 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       }
       return
     }
-    if method == "createSession" || method == "sendTurn" || method == "checkTurnQuota" {
+    if method == "createSession" || method == "sendTurn" || method == "editSession" || method == "checkTurnQuota" {
       args["billingEntitlement"] = billing ?? NSNull()
     }
     if method == "remoteSettings" || method == "localProjects" || method == "mentionCatalog" { args["userId"] = userId }
+    if method == "editSession" { args["userId"] = userId }
     let id = UUID(); commands[id] = sink
-    if method == "sendTurn", args["backgroundTaskId"] == nil, !backgrounded {
+    if (method == "sendTurn" || (method == "editSession" && args["action"] as? String == "send")), args["backgroundTaskId"] == nil, !backgrounded {
       args["backgroundTaskId"] = SessionBackgroundTasks.shared.begin(owner: owner)
     }
     let backgroundTaskId = args["backgroundTaskId"] as? String
     var timeout: Double = 45
+    if method == "editSession" { timeout = 130 }
     if method == "sessionSharing" { timeout = 130 }
     if method == "localProjects" && args["action"] as? String == "history" { timeout = 130 }
     // Catalog expansion precedes the durable send and has its own bounded read.

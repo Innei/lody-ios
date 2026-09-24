@@ -1,4 +1,12 @@
 {
+  "native.chat.editAction": "编辑并重新发送",
+  "chat.edit.title": "编辑消息",
+  "chat.edit.notice": "重新发送将替换这条消息及其回复，并停止当前回复。已经产生的文件改动会保留。",
+  "chat.edit.loadFailed": "暂时无法编辑这条消息，请检查连接后重试。",
+  "chat.edit.failed": "未能替换消息，编辑内容已保留。请检查连接，并确认它仍是最后一条可编辑消息。",
+  "chat.edit.unknown": "尚未确认重新发送的结果。编辑内容已保留，请先检查状态，避免重复发送。",
+  "chat.edit.check": "检查状态",
+  "chat.edit.retry": "重试",
   "question.freeText": "请输入你的答案",
   "question.title": "回答问题",
   "question.progress": "第 {current} 题，共 {total} 题",

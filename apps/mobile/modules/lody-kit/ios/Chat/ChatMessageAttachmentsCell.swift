@@ -10,7 +10,25 @@ private final class ChatAttachmentAccessibilityElement: UIAccessibilityElement {
 }
 
 /// One stable attachment grid for local sends and authoritative history.
-final class ChatMessageAttachmentsCell: UICollectionViewCell {
+final class ChatMessageAttachmentsCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
+  var canEdit: (() -> Bool)?
+  var onEdit: (() -> Void)?
+  func updateEditAccessibility() {
+    for tile in accessibleTiles {
+      tile.accessibilityCustomActions = canEdit?() == true ? [UIAccessibilityCustomAction(name: LodyStrings.text("native.chat.editAction")) { [weak self] _ in
+        guard self?.canEdit?() == true else { return false }
+        self?.onEdit?()
+        return true
+      }] : []
+    }
+  }
+  func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
+    guard canEdit?() == true else { return nil }
+    let edit = onEdit
+    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+      UIMenu(children: [UIAction(title: LodyStrings.text("native.chat.editAction"), image: UIImage(systemName: "pencil")) { _ in edit?() }])
+    }
+  }
   static let tileHeight: CGFloat = 76
   static let gap: CGFloat = 8
   private var tiles: [UIView] = []
@@ -37,6 +55,7 @@ final class ChatMessageAttachmentsCell: UICollectionViewCell {
 
   override init(frame: CGRect) {
     super.init(frame: frame)
+    contentView.addInteraction(UIContextMenuInteraction(delegate: self))
     isAccessibilityElement = false
     contentView.isAccessibilityElement = false
     toggle.titleLabel?.font = .preferredFont(forTextStyle: .subheadline)
@@ -197,6 +216,7 @@ final class ChatMessageAttachmentsCell: UICollectionViewCell {
     var accessible = Array(accessibleTiles.prefix(count))
     if overflow { accessible.append(accessibleToggle) }
     contentView.accessibilityElements = accessible
+    updateEditAccessibility()
   }
 
   func deliverPendingAttachments(scrollDistance: CGFloat) {

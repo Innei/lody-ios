@@ -436,6 +436,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private var composerExpanded = false
   private var pendingDraft: (text: String, attachments: [ChatAttachment])?
   var sendHandoff = true
+  var autoFocus = false
   private var lastRestoreToken = 0
   private var hasInitialDraft = false
   private var hasInitialAttachments = false
@@ -731,7 +732,11 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       saveDraft()
       optionsPopover?.dismiss(animated: false)
     }
-    else if mentionNeedsFocus { focusAfterMentionPicker() }
+    else if mentionNeedsFocus || autoFocus {
+      if autoFocus { input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0) }
+      autoFocus = false
+      focusAfterMentionPicker()
+    }
   }
   func setInitialAttachments(_ json: String) {
     guard !hasInitialAttachments else { return }

@@ -13,6 +13,9 @@ export type ChatDraftAttachment = {
 export const NativeChat: ComponentType<
   ViewProps & {
     entriesJSON: string;
+    editableMessageId?: string;
+    editedMessageId?: string;
+    onEditMessage?: (event: NativeSyntheticEvent<{ entryId: string }>) => void;
     imageSharingEnabled?: boolean;
     onShareImage?: (
       event: NativeSyntheticEvent<{ contentJSON: string }>,

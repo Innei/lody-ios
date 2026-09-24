@@ -144,7 +144,7 @@ enum SessionAttachments {
   }
 
   /// Download to disk so a video never becomes a base64/RN or in-memory file body.
-  static func download(workspace: String, session: String, fileId: String, fileName: String, sizeBytes: Int?, directory: URL) async throws -> URL {
+  static func download(workspace: String, session: String, fileId: String, fileName: String, sizeBytes: Int?, directory: URL, image: Bool = false) async throws -> URL {
     guard !workspace.isEmpty, !session.isEmpty, !fileId.isEmpty else {
       throw error(LodyStrings.text("native.attachment.error.invalid"))
     }
@@ -154,7 +154,8 @@ enum SessionAttachments {
     }
     guard let token = try AuthKeychain.read() else { throw error(LodyStrings.text("native.attachment.error.signIn")) }
     let path = [workspace, session, fileId].map(segment)
-    var request = URLRequest(url: URL(string: "https://api.lody.ai/api/workspaces/\(path[0])/session-files/\(path[1])/\(path[2])")!, timeoutInterval: 120)
+    let kind = image ? "session-images" : "session-files"
+    var request = URLRequest(url: URL(string: "https://api.lody.ai/api/workspaces/\(path[0])/\(kind)/\(path[1])/\(path[2])")!, timeoutInterval: 120)
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     let (temporary, response) = try await URLSession.shared.download(for: request)
     defer { try? FileManager.default.removeItem(at: temporary) }

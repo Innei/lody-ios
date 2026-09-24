@@ -39,11 +39,12 @@ CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 # These lease an iPad. `--case` still accepts them; the default phone run must not.
 PAD_CASES = ['session-delete-pad', 'session-tree-pad', 'ipad', 'ipad-chrome', 'native-shell', 'native-collection', 'session-search-pad']
-CASES = PHONE_CASES + PAD_CASES + ['session-share', 'session-delete', 'session-search', 'morph', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics']
+CASES = PHONE_CASES + PAD_CASES + ['edit-message', 'session-share', 'session-delete', 'session-search', 'morph', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics']
 # These select HomePreviewProviders at app launch, using the same shared bundle.
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome'}
 HOME_CASES.update({'session-delete', 'session-delete-pad'})
 PREVIEW = {
+    'edit-message': 'edit-message-preview',
     'free-turn-notice': 'free-turn-notice-preview',
     'camera-chat': 'chat-preview',
     'camera-sheet': 'composer-preview',
@@ -420,6 +421,8 @@ with metro_context:
                         script = Path(__file__).with_name('session-delete.py')
                     if case in ['fast-chat', 'fast-sheet']:
                         script = Path(__file__).with_name('fast.py')
+                    if case == 'edit-message':
+                        script = Path(__file__).with_name('edit-message.py')
                     if case in ['paste-plain-sheet', 'paste-plain-chat']:
                         script = Path(__file__).with_name('paste-plain.py')
                     if case == 'composer-glass-chat':

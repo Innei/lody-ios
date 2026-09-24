@@ -1,5 +1,12 @@
 # Offline UI verification
 
+`edit-message` exercises the production last-user-message context menu and full-screen
+editor in English light/dark appearances. It checks cancellation preserving the chat
+draft, removing an original attachment, adding a file through paste, rejected resend
+retaining edits, and successful replacement. Screenshots and video capture the states.
+The service boundary is synthetic; no cloud history is rewritten. Protocol tests cover
+eligibility, server-owned history replacement and non-replay of uncertain requests.
+
 `--suite chat-kit` exercises the Swift Package migration through the
 production streaming transcript, standalone Composer sheet and attachment send
 handoff. It retains English light/dark coverage, screenshots and video. Run

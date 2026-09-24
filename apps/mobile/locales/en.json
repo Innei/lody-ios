@@ -1,4 +1,12 @@
 {
+  "native.chat.editAction": "Edit and resend",
+  "chat.edit.title": "Edit message",
+  "chat.edit.notice": "Resending replaces this message and its replies. Any current reply will stop. Changes already made to files are kept.",
+  "chat.edit.loadFailed": "Unable to open this message for editing. Check your connection and try again.",
+  "chat.edit.failed": "The message could not be replaced. Your edits are kept. Check the connection and whether this is still the last editable message.",
+  "chat.edit.unknown": "Resend has not been confirmed. Your edits are kept; check its status before sending again.",
+  "chat.edit.check": "Check status",
+  "chat.edit.retry": "Try again",
   "question.freeText": "Type your answer",
   "question.title": "Questions",
   "question.progress": "Question {current} of {total}",

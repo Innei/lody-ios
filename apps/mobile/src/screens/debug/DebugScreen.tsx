@@ -23,6 +23,7 @@ import { LiveActivityPreviewScreen } from './LiveActivityPreviewScreen';
 import { ReplyHapticsPreviewScreen } from './ReplyHapticsPreviewScreen';
 import { uiVerify } from './uiVerify';
 import { ComposerPreviewScreen } from './ComposerPreviewScreen';
+import { EditMessagePreviewScreen } from './EditMessagePreviewScreen';
 import { ComposerHandoffPreviewScreen } from './ComposerHandoffPreviewScreen';
 import { ChatPreviewScreen } from './ChatPreviewScreen';
 import { ChatPerformanceScreen } from './ChatPerformanceScreen';
@@ -197,6 +198,7 @@ function View() {
         openRow('mention-chat', '@ 引用交互 · 聊天', 'at'),
         openRow('mention-sheet', '@ 引用交互 · 新会话', 'at'),
         openRow('composer-preview', '输入框验收', 'square.and.pencil'),
+        openRow('edit-message-preview', 'Message editing', 'pencil'),
         openRow('scroll-edge-pages', '分页表单滚动边缘', 'rectangle.split.2x1'),
         openRow('scroll-edge-diff', 'Diff 滚动边缘', 'doc.text'),
         openRow('composer-success', '聊天输入成功', 'checkmark.circle'),
@@ -362,6 +364,7 @@ function View() {
         { style: 'push' },
       ),
     'agent-error-preview': () => void present(AgentErrorPreviewScreen, {}),
+    'edit-message-preview': () => void present(EditMessagePreviewScreen),
     'chat-preview': () => void present(ChatPreviewScreen, {}),
     'chat-shine-preview': () => void present(ShinePreviewScreen, {}),
     'banner-preview': () => void present(BannerPreviewScreen, {}),

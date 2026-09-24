@@ -7,6 +7,11 @@ import type { SteerReceipt } from './execution';
 import { machineRpc, type RpcReply } from './machine-rpc';
 import { retrySessionRead } from './session-read';
 import {
+  editableUserTurn,
+  editAttachments,
+  replacementInput,
+} from './edit-session';
+import {
   billableTurnCount,
   quotaReason,
   type BillingEntitlement,
@@ -1111,6 +1116,104 @@ async function steerTurn(
 
 export function docSnapshot() {
   return active?.doc.toJSON();
+}
+
+export async function editSession(
+  args: {
+    action: 'read' | 'send';
+    sessionId: string;
+    expectedUserTurnId: string;
+    backgroundTaskId?: string;
+    id?: string;
+    text?: string;
+    retainedIds?: string[];
+    attachmentBlocks?: Record<string, any>[];
+    userId: string;
+    billingEntitlement?: BillingEntitlement | null;
+  },
+  meta: Record<string, any>,
+  capability?: Record<string, any>,
+) {
+  const state = sessions.get(args.sessionId);
+  if (!state?.ready || state.sending)
+    return { state: 'not_sent', reason: 'session_not_ready' };
+  const history = state.doc.getList('history').toJSON() as Record<
+    string,
+    any
+  >[];
+  if (args.id && history.some((entry) => entry.id === args.id))
+    return { state: 'accepted', id: args.id };
+  const turn = editableUserTurn(history, meta, capability);
+  if (!turn || turn.id !== args.expectedUserTurnId)
+    return { state: 'not_sent', reason: 'message_no_longer_editable' };
+  if (args.action === 'read')
+    return {
+      state: 'ready',
+      id: turn.id,
+      text: (turn.items ?? [])
+        .filter((item: any) => item.type === 'text')
+        .map((item: any) => item.text ?? '')
+        .join('\n\n'),
+      attachments: editAttachments(turn),
+    };
+  if (
+    !args.id ||
+    args.id === turn.id ||
+    !args.userId ||
+    typeof args.text !== 'string'
+  )
+    return { state: 'not_sent', reason: 'invalid_message' };
+  const quota = checkTurnQuota(args);
+  if (quota.state === 'not_sent') return quota;
+  let inputConfig;
+  try {
+    inputConfig = replacementInput(
+      turn,
+      args.text,
+      args.retainedIds ?? [],
+      args.attachmentBlocks ?? [],
+    );
+  } catch {
+    return { state: 'not_sent', reason: 'invalid_message' };
+  }
+  state.sending = true;
+  try {
+    const response = await machineRpc(
+      state.workspace,
+      meta.machineId,
+      'session/edit-and-resend',
+      {
+        sessionId: args.sessionId,
+        expectedUserTurnId: turn.id,
+        replacementUserTurnId: args.id,
+        requestedByUserId: args.userId,
+        timestamp: new Date().toISOString(),
+        inputConfig,
+      },
+      state.getGrant,
+      AbortSignal.any([state.controller.signal, AbortSignal.timeout(120000)]),
+    );
+    if (response.error)
+      return { state: 'unknown', reason: response.error.message };
+    const result = response.result as
+      { success?: boolean; error?: { message?: string } } | undefined;
+    if (result?.success === true) {
+      if (args.backgroundTaskId)
+        state.backgroundWork = { id: args.backgroundTaskId, turnId: args.id };
+      return { state: 'accepted', id: args.id };
+    }
+    if (result?.success === false)
+      return {
+        state: 'not_sent',
+        reason: result.error?.message ?? 'edit_failed',
+      };
+    return { state: 'unknown' };
+  } catch {
+    return { state: 'unknown' };
+  } finally {
+    state.sending = false;
+    scheduleEmit(state, state.status);
+  }
 }
 function scalar(value: unknown) {
   return value instanceof LoroText ? value.toString() : value;
