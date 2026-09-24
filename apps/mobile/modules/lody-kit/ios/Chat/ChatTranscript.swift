@@ -439,7 +439,8 @@ struct ChatTranscript {
           )
           if entry.finished, let first = groups.keys.min(), let indices = groups[first] {
             let process = indices.map { entry.items[$0] }
-            row.text += " · " + ChatProcessSummary.title(items: process, running: false)
+            let summary = ChatProcessSummary.title(items: process, running: false, includesThought: false)
+            if !summary.isEmpty { row.text += " · " + summary }
             row.actionable = true
             row.attention = process.contains { $0.permission?.pending == true || $0.status == "failed" }
             absorbedProcess = true
@@ -576,7 +577,7 @@ enum ChatProcessSummary {
     attention ? "exclamationmark.triangle.fill" : "circle.fill"
   }
 
-  static func title(items: [ChatItem], running: Bool) -> String {
+  static func title(items: [ChatItem], running: Bool, includesThought: Bool = true) -> String {
     var readPaths = Set<String>()
     var editPaths = Set<String>()
     var readWithout = 0
@@ -610,7 +611,7 @@ enum ChatProcessSummary {
       }
     }
     var parts: [String] = []
-    if hasThought {
+    if hasThought && includesThought {
       parts.append(LodyStrings.text(
         running
           ? "native.chat.transcript.activity.thinking"
@@ -623,7 +624,7 @@ enum ChatProcessSummary {
     add(&parts, "native.chat.transcript.activity.searches", searches)
     add(&parts, "native.chat.transcript.activity.fetches", fetches)
     add(&parts, "native.chat.transcript.activity.tools", others)
-    if parts.isEmpty {
+    if parts.isEmpty && includesThought {
       return LodyStrings.text("native.chat.transcript.status.done")
     }
     return parts.joined(separator: " · ")

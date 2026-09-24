@@ -7,16 +7,16 @@ import catalog
 ui = UI(*sys.argv[1:])
 copy = {
     'en': {
-        'working': 'Working for ',
-        'worked': 'Worked for ',
-        'finished': ('Worked for 1m 04s', 'Worked for 1m 05s', 'Worked for 1m 06s'),
-        'waited': ('Worked for 59s', 'Worked for 1m 00s', 'Worked for 1m 01s'),
+        'working': 'Processing for ',
+        'worked': 'Processed for ',
+        'finished': ('Processed for 1m 04s', 'Processed for 1m 05s', 'Processed for 1m 06s'),
+        'waited': ('Processed for 59s', 'Processed for 1m 00s', 'Processed for 1m 01s'),
     },
     'zh-Hans': {
-        'working': '已经工作了 ',
-        'worked': '工作了 ',
-        'finished': ('工作了 1分 04秒', '工作了 1分 05秒', '工作了 1分 06秒'),
-        'waited': ('工作了 59秒', '工作了 1分 00秒', '工作了 1分 01秒'),
+        'working': '已处理 ',
+        'worked': '处理了 ',
+        'finished': ('处理了 1分 04秒', '处理了 1分 05秒', '处理了 1分 06秒'),
+        'waited': ('处理了 59秒', '处理了 1分 00秒', '处理了 1分 01秒'),
     },
 }[catalog.LANGUAGE]
 
@@ -66,6 +66,7 @@ finished = ui.wait(
     'The completed assistant row did not show its frozen work duration',
 )
 assert any(token in finished['AXLabel'] for token in copy['finished']), finished['AXLabel']
+assert catalog.text('native.chat.transcript.activity.thought') not in finished['AXLabel'], finished['AXLabel']
 assert catalog.plural('native.chat.transcript.activity.readFiles', 1) in finished['AXLabel'], finished['AXLabel']
 assert finished['frame']['height'] < 44, (
     'A finished work row must keep the live timer height, not a 44 pt slot: '

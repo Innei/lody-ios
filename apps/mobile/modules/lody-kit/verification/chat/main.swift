@@ -159,6 +159,19 @@ assert(finishedDurationRows.map(\.kind) == ["duration", "text", "meta"],
 let finishedDurationRow = finishedDurationRows.first
 assert(finishedDurationRow?.workDurationMs == 125_000, "A finished turn must freeze at endedAt")
 assert(finishedDurationRow?.actionable == true, "The merged work row must open the process")
+let timedThoughtJSON = finishedDurationJSON.replacingOccurrences(
+  of: "\"type\":\"tool_call\",\"status\":\"completed\"",
+  with: "\"type\":\"thought\",\"text\":\"Analyze\""
+)
+let timedThoughtTranscript = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(timedThoughtJSON.utf8)))
+let timedThoughtRow = timedThoughtTranscript.rows().first!
+assert(timedThoughtRow.kind == "duration" && timedThoughtRow.workDurationMs == 125_000)
+assert(timedThoughtRow.text == LodyStrings.text("native.chat.transcript.status.workedFor", ["duration": ChatWorkDuration.format(
+  125_000, hour: LodyStrings.text("native.chat.duration.hour"),
+  minute: LodyStrings.text("native.chat.duration.minute"), second: LodyStrings.text("native.chat.duration.second")
+)]), "Completed thought-only work shows elapsed time without a redundant thought label or separator")
+assert(timedThoughtRow.actionable && timedThoughtTranscript.rows(processEntryID: "timed-finished").first?.text == "Analyze",
+  "The duration must still open the original thought content")
 assert(
   finishedDurationRow?.text.contains("native.chat.transcript.activity.tools") == true
     || finishedDurationRow?.text.contains(" · ") == true,
