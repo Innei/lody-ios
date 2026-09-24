@@ -76,6 +76,9 @@ folded thoughts, and an older match outside the initial 50-entry window. The
 older match becomes navigable only after the user explicitly loads that page.
 Both appearances record screenshots and video. `verify:native --case local-store`
 also runs the real Markdown parser and SQLite migration/failure checks via SwiftPM.
+The find checks also cover two-row controls, 44 pt buttons, stable input width
+across result changes and retained message position after closing. Review the
+video for the expanding/fading header and its keyboard transition in both hosts.
 
 `mcp-files` verifies uploaded text/PDF/video previews, video playback, download
 retry, missing/pending files, user attachments and cancellation in both appearances.

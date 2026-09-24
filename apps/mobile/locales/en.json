@@ -127,6 +127,7 @@
   "native.chat.find.previous": "Previous match",
   "native.chat.find.next": "Next match",
   "native.chat.find.close": "Close find",
+  "native.chat.find.done": "Done",
   "native.chat.find.loadedOnly": "Loaded messages only",
   "search.field.placeholder": "Search projects and sessions",
   "tabs.sessions": "Sessions",

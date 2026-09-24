@@ -95,6 +95,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var measurements: [String: (width: CGFloat, text: NSAttributedString, height: CGFloat)] = [:]
   let store = ChatMarkdownStore(traits: .current)
   let findBar = ChatFindBar()
+  var findPresented = false
   var lastFindRequest = ""
   var findMatches: [ChatFindMatch] = []
   var findSelection: ChatFindMatch?

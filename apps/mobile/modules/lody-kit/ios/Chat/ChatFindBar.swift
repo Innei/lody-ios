@@ -7,14 +7,15 @@ final class ChatFindBar: UIView, UITextFieldDelegate {
   private let nextButton = UIButton(type: .system)
   private let close = UIButton(type: .system)
   private let scope = UILabel()
-  var preferredHeight: CGFloat { scope.isHidden ? 52 : 72 }
+  let preferredHeight: CGFloat = 96
   var changed: (() -> Void)?
   var move: ((Int) -> Void)?
   var dismiss: (() -> Void)?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
-    backgroundColor = .systemBackground
+    backgroundColor = .lodyBackground
+    clipsToBounds = true
     accessibilityIdentifier = "chat-find"
     field.placeholder = LodyStrings.text("native.chat.find.placeholder")
     field.accessibilityIdentifier = "chat-find-field"
@@ -29,10 +30,15 @@ final class ChatFindBar: UIView, UITextFieldDelegate {
     count.setContentCompressionResistancePriority(.required, for: .horizontal)
     configure(previous, symbol: "chevron.up", key: "previous", action: { [weak self] in self?.move?(-1) })
     configure(nextButton, symbol: "chevron.down", key: "next", action: { [weak self] in self?.move?(1) })
-    configure(close, symbol: "xmark", key: "close", action: { [weak self] in self?.dismiss?() })
-    let stack = UIStackView(arrangedSubviews: [field, count, previous, nextButton, close])
+    close.setTitle(LodyStrings.text("native.chat.find.done"), for: .normal)
+    close.accessibilityIdentifier = "chat-find-close"
+    close.accessibilityHint = LodyStrings.text("native.chat.find.close")
+    close.addAction(UIAction { [weak self] _ in self?.dismiss?() }, for: .touchUpInside)
+    close.setContentHuggingPriority(.required, for: .horizontal)
+    close.setContentCompressionResistancePriority(.required, for: .horizontal)
+    let stack = UIStackView(arrangedSubviews: [field, close])
     stack.axis = .horizontal
-    stack.spacing = 4
+    stack.spacing = 12
     stack.alignment = .center
     stack.translatesAutoresizingMaskIntoConstraints = false
     addSubview(stack)
@@ -42,15 +48,27 @@ final class ChatFindBar: UIView, UITextFieldDelegate {
     scope.accessibilityIdentifier = "chat-find-scope"
     scope.isHidden = true
     scope.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(scope)
+    let status = UIStackView(arrangedSubviews: [count, scope])
+    status.axis = .vertical
+    status.spacing = 2
+    let results = UIStackView(arrangedSubviews: [status, previous, nextButton])
+    results.axis = .horizontal
+    results.alignment = .center
+    results.spacing = 4
+    results.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(results)
     NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-      stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+      stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+      stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
       stack.topAnchor.constraint(equalTo: topAnchor, constant: 4),
       stack.heightAnchor.constraint(equalToConstant: 44),
       field.heightAnchor.constraint(equalToConstant: 44),
-      scope.leadingAnchor.constraint(equalTo: stack.leadingAnchor),
-      scope.topAnchor.constraint(equalTo: stack.bottomAnchor, constant: 2),
+      close.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
+      close.heightAnchor.constraint(equalToConstant: 44),
+      results.leadingAnchor.constraint(equalTo: stack.leadingAnchor),
+      results.trailingAnchor.constraint(equalTo: stack.trailingAnchor),
+      results.topAnchor.constraint(equalTo: stack.bottomAnchor),
+      results.heightAnchor.constraint(equalToConstant: 44),
     ])
     isHidden = true
   }
@@ -66,7 +84,7 @@ final class ChatFindBar: UIView, UITextFieldDelegate {
   }
 
   func update(current: Int, total: Int, partial: Bool) {
-    if scope.isHidden != !partial { scope.isHidden = !partial; superview?.setNeedsLayout() }
+    scope.isHidden = !partial
     count.text = total == 0 ? LodyStrings.text("native.chat.find.noResults") : "\(current) / \(total)"
     if field.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false { count.text = "" }
     count.accessibilityLabel = count.text

@@ -15,7 +15,11 @@ extension LodyChatView {
   }
 
   func openFind(query: String, keyboard: Bool) {
+    layoutIfNeeded()
+    if findBar.isHidden { findBar.alpha = 0 }
     findBar.isHidden = false
+    findPresented = true
+    if hasPositionedContent { pauseTracking() }
     findBar.field.text = query
     findFocusRequest = keyboard
     findNeedsInitialPosition = true
@@ -28,13 +32,15 @@ extension LodyChatView {
     findBar.move = { [weak self] in self?.moveFind($0) }
     findBar.dismiss = { [weak self] in self?.closeFind() }
     setNeedsLayout()
+    animateFind()
     if !updateDeferredStreams() { refreshFind() }
-    layoutIfNeeded()
   }
 
   func closeFind() {
+    guard findPresented else { return }
+    layoutIfNeeded()
+    findPresented = false
     findBar.field.resignFirstResponder()
-    findBar.isHidden = true
     findMatches = []
     findSelection = nil
     findNeedsInitialPosition = false
@@ -42,13 +48,28 @@ extension LodyChatView {
     for view in findHighlightedViews.allObjects { ChatFindHighlight.apply(to: view, query: "", active: nil) }
     findHighlightedViews.removeAllObjects()
     setNeedsLayout()
+    animateFind()
+  }
+
+  private func animateFind() {
+    UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.25,
+      delay: 0, options: [.beginFromCurrentState, .curveEaseInOut, .allowUserInteraction]) {
+      self.findBar.alpha = self.findPresented ? 1 : 0
+      self.layoutIfNeeded()
+    } completion: { finished in
+      if finished, !self.findPresented { self.findBar.isHidden = true }
+    }
   }
 
   func layoutFind() {
-    let height: CGFloat = findBar.isHidden ? 0 : findBar.preferredHeight
+    let height: CGFloat = findPresented ? findBar.preferredHeight : 0
     findBar.frame = CGRect(x: safeAreaInsets.left, y: safeAreaInsets.top,
       width: bounds.width - safeAreaInsets.left - safeAreaInsets.right, height: height)
-    if collection.contentInset.top != height { collection.contentInset.top = height }
+    if collection.contentInset.top != height {
+      let offset = collection.contentOffset
+      collection.contentInset.top = height
+      collection.contentOffset = offset
+    }
     collection.verticalScrollIndicatorInsets.top = height
     if let keyboard = findFocusRequest, let window {
       findFocusRequest = nil
@@ -59,7 +80,7 @@ extension LodyChatView {
   }
 
   func refreshFind() {
-    guard !findBar.isHidden, !applying else { return }
+    guard findPresented, !applying else { return }
     let query = (findBar.field.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     let ids = dataSource.snapshot().itemIdentifiers
     let oldSelection = findSelection
@@ -105,7 +126,7 @@ extension LodyChatView {
   }
 
   func refreshFindHighlights() {
-    guard !findBar.isHidden else { return }
+    guard findPresented else { return }
     let query = (findBar.field.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     for cell in collection.visibleCells {
       guard let index = collection.indexPath(for: cell), let id = dataSource.itemIdentifier(for: index) else { continue }

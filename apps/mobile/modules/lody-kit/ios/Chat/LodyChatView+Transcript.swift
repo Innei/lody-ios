@@ -490,7 +490,7 @@ extension LodyChatView {
   }
 
   func prefetchHistoryIfNeeded() {
-    guard findBar.isHidden, !followsBottom, hasPositionedContent,
+    guard !findPresented, !followsBottom, hasPositionedContent,
           collection.contentOffset.y + collection.adjustedContentInset.top < collection.bounds.height else { return }
     loadEarlierHistory()
   }

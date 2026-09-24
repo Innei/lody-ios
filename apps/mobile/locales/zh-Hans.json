@@ -127,6 +127,7 @@
   "native.chat.find.previous": "上一处匹配",
   "native.chat.find.next": "下一处匹配",
   "native.chat.find.close": "关闭查找",
+  "native.chat.find.done": "完成",
   "native.chat.find.loadedOnly": "仅已加载的消息",
   "search.field.placeholder": "搜索项目或会话",
   "tabs.sessions": "会话",

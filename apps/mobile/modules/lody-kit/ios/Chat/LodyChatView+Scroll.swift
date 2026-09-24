@@ -203,7 +203,7 @@ extension LodyChatView {
         let changing = store.tailFrame(id: row.id)?.offsetBy(dx: frame.minX, dy: frame.minY) ?? frame
         return !changing.intersects(nearby)
       }
-      if !followsBottom, findBar.isHidden, offscreen {
+      if !followsBottom, !findPresented, offscreen {
         if deferredRows[entryID] == nil {
           deferredRows[entryID] = dataSource.snapshot().itemIdentifiers.compactMap { rows[$0] }.filter { $0.entryID == entryID }
           stream.finish(entries: [entryID])

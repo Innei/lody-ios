@@ -55,6 +55,21 @@ def keyboard(items):
     return any((i.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar') for i in items)
 
 
+def find_layout():
+    assert ui.element('chat-find-close')['AXLabel'] == catalog.text('native.chat.find.done')
+    field = ui.element('chat-find-field')['frame']
+    close = ui.element('chat-find-close')['frame']
+    previous = ui.element('chat-find-previous')['frame']
+    following = ui.element('chat-find-next')['frame']
+    assert field['width'] >= 220, ('Search input is cramped', field)
+    assert abs(field['y'] - close['y']) < 2, (field, close)
+    assert previous['y'] >= field['y'] + field['height'], (field, previous)
+    assert abs(previous['y'] - following['y']) < 2, (previous, following)
+    for frame in [close, previous, following]:
+        assert frame['width'] >= 44 and frame['height'] >= 44, frame
+    return field
+
+
 def back_to_inbox():
     if not pad:
         ui.axe('tap', '--id', 'BackButton', '--post-delay', '.7')
@@ -122,6 +137,7 @@ ui.wait(lambda items: any('needle from user' in (i.get('AXLabel') or '') for i i
 ui.capture('inbox-body-snippet')
 tap(row)
 count('6 / 6')
+initial_field = find_layout()
 ui.wait(lambda items: not keyboard(items), 'Inbox find opened a keyboard')
 assert (ui.element('chat-find-field').get('AXValue') or '').lower() == 'needle'
 ui.capture('last-match-table')
@@ -137,8 +153,12 @@ for value in range(2, 7):
     if value in [2, 4, 5]:
         ui.capture(f'match-{value}')
         highlight_probe(f'match-{value}')
+answer_before_close = ui.element('search-answer:answer')['frame']
 ui.axe('tap', '--id', 'chat-find-close', '--post-delay', '.4')
 ui.wait(lambda items: not any(i.get('AXUniqueId') == 'chat-find-field' for i in items), 'Find did not close')
+answer_after_close = ui.element('search-answer:answer')['frame']
+assert abs(answer_before_close['y'] - answer_after_close['y']) <= 1, 'Closing find moved the message'
+ui.capture('find-closed-position')
 highlight_probe('closed', expected=False)
 
 more = ui.wait(lambda items: max((i for i in items if i.get('AXLabel') == catalog.text('common.more')
@@ -148,14 +168,21 @@ ui.axe('tap', '--label', catalog.text('session.action.find'), '--post-delay', '.
 ui.wait(keyboard, 'Manual find did not focus the search field')
 replace(ui.element('chat-find-field'), 'needle')
 count('6 / 6')
+find_layout()
 ui.axe('key', '40')
 count('1 / 6')
 ui.capture('manual-find-keyboard')
 replace(ui.element('chat-find-field'), 'crossformatbody')
 count('1 / 1')
+assert find_layout()['width'] == initial_field['width'], 'Result count resized the input'
 ui.capture('cross-inline-match')
 highlight_probe('cross-inline-match')
+answer_before_close = ui.element('search-answer:answer')['frame']
 ui.axe('tap', '--id', 'chat-find-close', '--post-delay', '.4')
+ui.wait(lambda items: not keyboard(items), 'Closing find left the keyboard open')
+answer_after_close = ui.element('search-answer:answer')['frame']
+assert abs(answer_before_close['y'] - answer_after_close['y']) <= 1, 'Keyboard dismissal moved the message'
+ui.capture('find-keyboard-closed-position')
 
 back_to_inbox()
 search('hidden-only')
@@ -176,7 +203,7 @@ ui.capture('outside-window-latest-result')
 for _ in range(24):
     header = next((i for i in ui.state() if i.get('AXUniqueId') == 'chat-history'
                    and i.get('AXLabel') == catalog.text('native.chat.history.more')
-                   and i['frame']['y'] > ui.element('chat-find-field')['frame']['y'] + 44), None)
+                   and i['frame']['y'] > ui.element('chat-find-next')['frame']['y'] + 44), None)
     if header:
         tap(header)
         break
