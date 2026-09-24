@@ -59,6 +59,26 @@ ui.capture('draft-hidden')
 for _ in range(5):
     ui.axe('key', '42')
 ui.element('quick-reply:continue')
+time.sleep(.4)
+reply_label = 'The changes are ready. What would you like to do next?'
+def reply_frame():
+    return ui.wait(lambda items: next((item['frame'] for item in items if item.get('AXLabel') == reply_label), None), 'Completed reply must remain visible')
+
+resting_reply = reply_frame()
+resting_input = ui.element('session-input')['frame']
+ui.capture('editing-empty')
+for _ in range(3):
+    ui.type_into('session-input', 'd')
+    hidden()
+    time.sleep(.3)
+    assert abs(reply_frame()['y'] - resting_reply['y']) <= 1, 'Typing the first character moved the transcript'
+    assert abs(ui.element('session-input')['frame']['y'] - resting_input['y']) <= 1, 'Typing moved the input'
+    ui.capture('editing-draft')
+    ui.axe('key', '42')
+    ui.element('quick-reply:continue')
+    time.sleep(.3)
+    assert abs(reply_frame()['y'] - resting_reply['y']) <= 1, 'Deleting the final character moved the transcript'
+ui.capture('editing-cleared')
 ui.axe('tap', '--id', 'quick-running', '--post-delay', '.5')
 hidden()
 ui.capture('running-hidden')

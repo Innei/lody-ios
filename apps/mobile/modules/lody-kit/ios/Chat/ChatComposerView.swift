@@ -894,10 +894,13 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     updateComposer()
   }
   private var canShowQuickReplies: Bool {
+    quickRepliesAvailable && input.text.isEmpty
+  }
+  private var quickRepliesAvailable: Bool {
     state.running == false && state.editable && state.canSend && !state.sending &&
       state.stopping != true && state.controlling != true && pendingDraft == nil &&
       failedDraft == nil && displayError == nil && queuedDrafts.isEmpty && !relaying &&
-      input.text.isEmpty && attachments.isEmpty && connection.isEmpty
+      attachments.isEmpty && connection.isEmpty
   }
   private func updateComposer() {
     mentionPanel.update(input: input, items: activeMentionItems ?? [], enabled: activeMentionItems != nil)
@@ -939,8 +942,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     queueView.render(queuedDrafts, enabled: state.canStop == true && !sending && state.controlling != true, steeringID: state.steerID ?? "", firstOnly: state.steerInterrupts == true)
     queueHeight.constant = queueView.panelHeight
     let replies = state.quickReplies ?? []
-    quickRepliesView.render(replies, visible: canShowQuickReplies)
-    quickRepliesHeight.constant = quickRepliesView.isHidden ? 0 : ChatQuickRepliesView.chipHeight
+    let reservesQuickReplies = quickRepliesAvailable && !replies.isEmpty &&
+      (canShowQuickReplies || (input.isFirstResponder && quickRepliesHeight.constant > 0))
+    quickRepliesView.render(replies, visible: canShowQuickReplies, animated: reservesQuickReplies)
+    quickRepliesHeight.constant = reservesQuickReplies ? ChatQuickRepliesView.chipHeight : 0
     let noticeText = failedDraft == nil ? (displayError ?? state.notice) : LodyStrings.text("native.chat.composer.failedDraft")
     let canReconnect = failedDraft != nil || displayError != nil || state.reconnect
     notice.setTitle(noticeText, for: .normal)

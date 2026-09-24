@@ -169,6 +169,7 @@ task's locked Simulator or Metro.
 
 `quick-replies` exercises the production composer and Settings editor: idle-only
 visibility, draft preservation, full-message sending and explicit failure retry,
+stable transcript/input geometry across repeated first-character and last-delete transitions,
 adding/editing/reordering/deleting replies, and local persistence after process
 restart. Both English appearances record screenshots and video; no cloud turn
 is dispatched.

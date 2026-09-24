@@ -1121,23 +1121,39 @@ precondition(singleChip.width < 200 && singleChip.maxX < quickStrip.bounds.width
   "A single chip must follow its title instead of filling the composer")
 var quickSends: [[String: Any]] = []
 quickComposer.onSend = { quickSends.append($0) }
+quickInput.becomeFirstResponder()
+quickComposer.layoutIfNeeded()
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+let quickEditingHeight = quickComposer.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height
 for draft in ["Existing draft", " "] {
   quickInput.text = draft
   quickComposer.textViewDidChange(quickInput)
   quickButton.sendActions(for: .touchUpInside)
+  precondition(!quickStrip.isUserInteractionEnabled && quickStrip.accessibilityElementsHidden)
+  precondition(quickStrip.hitTest(CGPoint(x: singleChip.midX, y: singleChip.midY), with: nil) == nil,
+    "Fading quick replies must stop intercepting touches immediately")
+  quickComposer.layoutIfNeeded()
+  precondition(abs(quickComposer.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height - quickEditingHeight) < 0.5,
+    "Typing must preserve the quick-reply slot and composer height")
+  RunLoop.main.run(until: Date().addingTimeInterval(0.2))
   precondition(quickStrip.isHidden && quickStrip.accessibilityElementsHidden && quickInput.text == draft && quickSends.isEmpty,
     "Quick replies must never replace even a whitespace-only draft")
 }
 quickInput.text = ""
 quickComposer.textViewDidChange(quickInput)
+quickComposer.layoutIfNeeded()
+precondition(abs(quickComposer.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height - quickEditingHeight) < 0.5,
+  "Deleting the last character must reveal replies without changing composer height")
 let quickUnavailableStates: [[String: Any]] = [
   ["running": true], ["sending": true], ["canSend": false], ["editable": false],
   ["stopping": true], ["controlling": true], ["connection": "paused"], ["quickReplies": []],
 ]
 for (index, unavailable) in quickUnavailableStates.enumerated() {
   quickState(unavailable)
+  RunLoop.main.run(until: Date().addingTimeInterval(0.2))
   quickButton.sendActions(for: .touchUpInside)
   precondition(quickStrip.isHidden && quickSends.isEmpty, "A stale quick-reply tap must not send while unavailable")
+  precondition(quickStrip.bounds.height < 0.5, "Unavailable replies must release their reserved height")
   // The ordinary sending prop captures a pending draft, just as production does.
   quickComposer.clearDraft(token: index + 1)
 }

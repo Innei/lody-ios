@@ -32,6 +32,25 @@ const history: Snapshot = {
   revision: 1,
   entries: [
     {
+      id: 'earlier-reply',
+      role: 'assistant',
+      status: 'completed',
+      finished: true,
+      rev: 0,
+      items: [
+        {
+          itemId: 'text',
+          type: 'text',
+          text: Array(12)
+            .fill(
+              'The earlier changes have been reviewed. The conversation stays at the bottom while you prepare your next message.',
+            )
+            .join('\n\n'),
+          rev: 0,
+        },
+      ],
+    },
+    {
       id: 'completed-reply',
       role: 'assistant',
       status: 'completed',

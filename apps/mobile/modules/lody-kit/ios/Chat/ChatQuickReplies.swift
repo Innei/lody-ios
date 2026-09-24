@@ -39,9 +39,23 @@ final class ChatQuickRepliesView: UIScrollView {
 
   required init?(coder: NSCoder) { fatalError() }
 
-  func render(_ items: [ChatQuickReply], visible: Bool) {
-    isHidden = !visible || items.isEmpty
-    accessibilityElementsHidden = isHidden
+  func render(_ items: [ChatQuickReply], visible: Bool, animated: Bool = false) {
+    let showsReplies = visible && !items.isEmpty
+    let visibilityChanged = isUserInteractionEnabled != showsReplies
+    isUserInteractionEnabled = showsReplies
+    accessibilityElementsHidden = !showsReplies
+    if visibilityChanged {
+      if showsReplies { isHidden = false }
+      let update = { self.alpha = showsReplies ? 1 : 0 }
+      if animated && window != nil && !UIAccessibility.isReduceMotionEnabled {
+        UIView.animate(withDuration: 0.15, delay: 0, options: [.beginFromCurrentState, .curveEaseOut], animations: update) { _ in
+          self.isHidden = !self.isUserInteractionEnabled
+        }
+      } else {
+        update()
+        isHidden = !showsReplies
+      }
+    }
     guard items != rendered else { return }
     rendered = items
     contentOffset = .zero
@@ -53,6 +67,7 @@ final class ChatQuickRepliesView: UIScrollView {
   }
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    guard !isHidden, alpha > 0.01, isUserInteractionEnabled else { return nil }
     let hit = super.hitTest(point, with: event)
     if let hit, hit !== self { return hit }
     for button in buttons where !button.isHidden {
