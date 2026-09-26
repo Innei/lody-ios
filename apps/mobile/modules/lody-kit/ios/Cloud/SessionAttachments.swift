@@ -4,6 +4,33 @@ import ImageIO
 import UIKit
 import UniformTypeIdentifiers
 
+final class AttachmentDownloadBatch {
+  private let root: URL
+  private var directories: [URL] = []
+  private var handedOff = false
+
+  init(root: URL = FileManager.default.temporaryDirectory) {
+    self.root = root
+  }
+
+  func makeDirectory() -> URL {
+    let directory = root.appendingPathComponent(UUID().uuidString)
+    directories.append(directory)
+    return directory
+  }
+
+  func handOff() {
+    handedOff = true
+  }
+
+  deinit {
+    guard !handedOff else { return }
+    for directory in directories {
+      try? FileManager.default.removeItem(at: directory)
+    }
+  }
+}
+
 /// Upload bytes in native code; only the server's attachment references enter Streams.
 enum SessionAttachments {
   typealias ProgressHandler = @Sendable (_ attachmentID: String, _ phase: String, _ percent: Int?) -> Void
