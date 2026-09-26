@@ -1,3 +1,4 @@
+import { type TurnMetadata } from '../cloud/turnMetadata';
 export type SystemNoticeMeta = {
   reason?: string;
   code?: string;
@@ -55,7 +56,7 @@ export type ItemSummary =
     }
   | { itemId: string; rev: number; type: string };
 
-export type EntrySummary = {
+export type EntrySummary = TurnMetadata & {
   id: string;
   rev: number;
   role: string;

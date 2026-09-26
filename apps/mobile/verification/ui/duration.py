@@ -85,8 +85,8 @@ assert answer['frame']['height'] >= 36, (
     'Body copy under the duration hairline must keep a paragraph inset: '
     + str(answer['frame'])
 )
-model = ui.element('duration-preview:meta:model')
-assert model['AXLabel'].startswith('GPT-5.6 Sol · High · '), model['AXLabel']
+model = ui.element('duration-preview:meta:details')
+assert 'GPT-5.6 Sol · High · ' in model['AXLabel'], model['AXLabel']
 assert '\ufffc' not in model['AXLabel'], 'The provider mark must stay decorative'
 assert ':' in model['AXLabel'].rsplit(' · ', 1)[1], 'A same-day reply ends with a clock time'
 assert model['frame']['y'] >= answer['frame']['y'] + answer['frame']['height'] - 1

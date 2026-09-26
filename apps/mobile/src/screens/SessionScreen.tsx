@@ -1,3 +1,4 @@
+import { useMessageDetailsSheet } from '@/hooks/screens/useMessageDetailsSheet';
 import { openMessageShare } from '@/screens/MessageShareScreen';
 import { EditMessageScreen } from './EditMessageScreen';
 import { useEditableMessage } from '@/features/sessions/useEditableMessage';
@@ -482,6 +483,7 @@ function View() {
     [snapshot.entries, preparedHistory],
   );
   const openFile = useOpenFile(session.id);
+  const openMessageDetails = useMessageDetailsSheet(entriesJSON);
   const openProcess = useProcessSheet(entriesJSON, onActivityPress, session.id);
   const notice = overflow ? t('chat.notice.syncStopped') : '';
   const mentions = useComposerMentions(
@@ -725,6 +727,10 @@ function View() {
       <NativeNavigationHeader items={headerItems} />
       <DiffWebViewWarmer />
       <NativeChat
+        turnInfoEnabled
+        onTurnInfoPress={({ nativeEvent }) =>
+          openMessageDetails(nativeEvent.entryId)
+        }
         editableMessageId={editableMessageId}
         editedMessageId={editedMessageId}
         onEditMessage={({ nativeEvent }) => {

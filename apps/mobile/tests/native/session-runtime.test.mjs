@@ -145,6 +145,44 @@ test('reply metadata preserves each recorded model and updates when it arrives a
     thoughtLevel: 'High',
   });
   assert.ok(after.entries[2].rev > before.entries[2].rev);
+  const usage = {
+    inputTokens: 1234,
+    outputTokens: 6640,
+    reasoningOutputTokens: 2000,
+    cacheReadInputTokens: 120000,
+    cacheCreationInputTokens: 4096,
+  };
+  reply.set('tokenUsage', usage);
+  reply.set('inputConfig', {
+    modeId: 'plan',
+    configOptionValues: {
+      fast: false,
+      effort: 'high',
+      secret_token: 'hidden',
+      invalid: {},
+    },
+  });
+  doc.commit();
+  const late = projectSession(doc, 'live').entries[2];
+  assert.deepEqual(late.tokenUsage, usage);
+  assert.deepEqual(late.inputConfig, {
+    modeId: 'plan',
+    configOptionValues: { fast: false, effort: 'high' },
+  });
+  assert.ok(
+    late.rev > after.entries[2].rev,
+    'Late usage invalidates the rendered entry',
+  );
+  assert.equal(projectSession(doc, 'live').entries[0].tokenUsage, undefined);
+  for (const invalid of [
+    { ...usage, inputTokens: -1 },
+    { ...usage, outputTokens: '20' },
+    { inputTokens: 20 },
+  ]) {
+    reply.set('tokenUsage', invalid);
+    doc.commit();
+    assert.equal(projectSession(doc, 'live').entries[2].tokenUsage, undefined);
+  }
   reply.set('modelInfo', {
     modelId: 'id-only',
     name: 42,

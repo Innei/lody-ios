@@ -928,5 +928,22 @@
   "native.chat.camera.interrupted": "Camera paused. Try again to resume.",
   "native.chat.camera.permission": "Allow camera access to take photos here.",
   "native.chat.camera.allow": "Allow Camera",
-  "native.chat.attachment.loadFailed": "Some photos could not be loaded. Your selection is saved; please try again."
+  "native.chat.attachment.loadFailed": "Some photos could not be loaded. Your selection is saved; please try again.",
+  "message.details.title": "Turn details",
+  "message.details.empty": "No details recorded for this turn.",
+  "message.details.configuration": "Configuration",
+  "message.details.model": "Model",
+  "message.details.reasoning": "Reasoning",
+  "message.details.mode": "Mode",
+  "message.details.fast": "Fast mode",
+  "message.details.plan": "Plan mode",
+  "message.details.on": "On",
+  "message.details.off": "Off",
+  "message.details.tokens": "Tokens",
+  "message.details.input": "Input",
+  "message.details.output": "Output",
+  "message.details.reasoningTokens": "Of which reasoning",
+  "message.details.cacheRead": "Cache read",
+  "message.details.cacheWrite": "Cache write",
+  "message.details.explanation": "Usage for this turn only. Input excludes cache; output includes reasoning."
 }

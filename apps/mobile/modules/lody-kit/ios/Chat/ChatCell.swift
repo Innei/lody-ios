@@ -51,6 +51,7 @@ final class ChatCollectionLayout: UICollectionViewFlowLayout {
 
 final class ChatMetaCell: UICollectionViewCell {
   private let modelLabel = UILabel()
+  let detailsButton = UIButton(type: .system)
   let actionButton = UIButton(type: .system)
   private var row: ChatRow?
 
@@ -63,6 +64,7 @@ final class ChatMetaCell: UICollectionViewCell {
     modelLabel.clipsToBounds = false
     modelLabel.adjustsFontForContentSizeCategory = true
     contentView.addSubview(modelLabel)
+    contentView.addSubview(detailsButton)
     actionButton.showsMenuAsPrimaryAction = true
     actionButton.accessibilityLabel = LodyStrings.text("native.chat.message.actions")
     contentView.addSubview(actionButton)
@@ -85,12 +87,16 @@ final class ChatMetaCell: UICollectionViewCell {
     guard let row else { return }
     let font = UIFont.preferredFont(forTextStyle: .footnote, compatibleWith: traitCollection)
     let color = UIColor.secondaryLabel.resolvedColor(with: traitCollection)
+    let text = Self.displayText(row, detailsEnabled: !detailsButton.isHidden)
     modelLabel.attributedText = Self.attributedText(
-      row.text, image: Self.iconImage(named: row.imageAsset), font: font, color: color
+      text, image: Self.iconImage(named: row.imageAsset), font: font, color: color
     )
-    modelLabel.isHidden = row.text.isEmpty
+    modelLabel.isHidden = row.text.isEmpty && detailsButton.isHidden
     modelLabel.accessibilityIdentifier = row.id + ":model"
     modelLabel.accessibilityLabel = row.text
+    modelLabel.isAccessibilityElement = detailsButton.isHidden
+    detailsButton.accessibilityIdentifier = row.id + ":details"
+    detailsButton.accessibilityLabel = [LodyStrings.text("message.details.title"), row.text].filter { !$0.isEmpty }.joined(separator: ", ")
     let symbolSize = max(1, font.pointSize - 2)
     let symbol = UIImage.SymbolConfiguration(pointSize: symbolSize, weight: .regular, scale: .small)
     let glyph = UIImage(systemName: "ellipsis", withConfiguration: symbol)
@@ -111,6 +117,7 @@ final class ChatMetaCell: UICollectionViewCell {
   override func layoutSubviews() {
     super.layoutSubviews()
     modelLabel.frame = CGRect(x: 0, y: 4, width: max(1, bounds.width - 52), height: bounds.height - 8)
+    detailsButton.frame = CGRect(x: 0, y: 0, width: max(44, bounds.width - 52), height: max(44, bounds.height))
     actionButton.frame = CGRect(x: bounds.width - 44, y: (bounds.height - 44) / 2, width: 44, height: 44)
   }
 
@@ -146,9 +153,15 @@ final class ChatMetaCell: UICollectionViewCell {
     return result
   }
 
-  static func height(for row: ChatRow, width: CGFloat, traits: UITraitCollection) -> CGFloat {
+  private static func displayText(_ row: ChatRow, detailsEnabled: Bool) -> String {
+    guard detailsEnabled else { return row.text }
+    let text = row.text.isEmpty ? LodyStrings.text("message.details.title") : row.text
+    return text + "  ⓘ"
+  }
+
+  static func height(for row: ChatRow, width: CGFloat, traits: UITraitCollection, detailsEnabled: Bool) -> CGFloat {
     let font = UIFont.preferredFont(forTextStyle: .footnote, compatibleWith: traits)
-    let text = attributedText(row.text, image: iconImage(named: row.imageAsset), font: font)
+    let text = attributedText(displayText(row, detailsEnabled: detailsEnabled), image: iconImage(named: row.imageAsset), font: font)
     let textHeight = text.boundingRect(
       with: CGSize(width: max(1, width - 52), height: .greatestFiniteMagnitude),
       options: [.usesLineFragmentOrigin, .usesFontLeading],

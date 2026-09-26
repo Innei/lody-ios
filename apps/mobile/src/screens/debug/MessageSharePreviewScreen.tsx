@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useMessageDetailsSheet } from '@/hooks/screens/useMessageDetailsSheet';
 import { Stack } from 'expo-router';
 import { NativeChat } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
@@ -32,6 +33,7 @@ Inline math: $e^{i\\pi} + 1 = 0$.
 **PAPER-END** — the last sentence is part of the image.`;
 function View() {
   const [fixture, setFixture] = useState('short');
+  const [lateUsage, setLateUsage] = useState(false);
   let text = prose;
   if (fixture === 'long') text = rich;
   if (fixture === 'large') text = 'A very long reply.\n\n'.repeat(8000);
@@ -43,7 +45,24 @@ function View() {
       role: 'assistant',
       status: 'completed',
       finished: fixture !== 'streaming',
-      modelInfo: fixture === 'no-meta' ? undefined : { name: 'GPT-6 Astra' },
+      modelInfo:
+        fixture === 'no-meta'
+          ? undefined
+          : { name: 'GPT-6 Astra', thoughtLevel: 'High' },
+      inputConfig:
+        fixture === 'no-meta'
+          ? undefined
+          : { modeId: 'default', configOptionValues: { fast: false } },
+      tokenUsage:
+        fixture !== 'no-meta' && (fixture !== 'late-usage' || lateUsage)
+          ? {
+              inputTokens: 1234,
+              outputTokens: 6640,
+              reasoningOutputTokens: 2000,
+              cacheReadInputTokens: 120000,
+              cacheCreationInputTokens: 4096,
+            }
+          : undefined,
       items: [
         { itemId: 'thought', type: 'thought', text: 'PRIVATE-PROCESS' },
         { itemId: 'answer', type: 'text', text },
@@ -64,6 +83,8 @@ function View() {
       ],
     },
   ];
+  const entriesJSON = JSON.stringify(entries);
+  const openDetails = useMessageDetailsSheet(entriesJSON);
   return (
     <>
       <Stack.Toolbar placement="right">
@@ -75,6 +96,7 @@ function View() {
             'short',
             'long',
             'no-meta',
+            'late-usage',
             'image',
             'large',
             'error',
@@ -82,7 +104,10 @@ function View() {
           ].map((value) => (
             <Stack.Toolbar.MenuAction
               key={value}
-              onPress={() => setFixture(value)}
+              onPress={() => {
+                setLateUsage(false);
+                setFixture(value);
+              }}
             >
               {value}
             </Stack.Toolbar.MenuAction>
@@ -91,7 +116,13 @@ function View() {
       </Stack.Toolbar>
       <NativeChat
         style={{ flex: 1 }}
-        entriesJSON={JSON.stringify(entries)}
+        entriesJSON={entriesJSON}
+        turnInfoEnabled
+        onTurnInfoPress={({ nativeEvent }) => {
+          openDetails(nativeEvent.entryId);
+          if (fixture === 'late-usage')
+            setTimeout(() => setLateUsage(true), 2000);
+        }}
         imageSharingEnabled
         onShareImage={({ nativeEvent }) =>
           openMessageShare(nativeEvent.contentJSON)

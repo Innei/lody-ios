@@ -74,6 +74,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   let onErrorRetry = EventDispatcher()
   var errorRetryState: ChatErrorRetryState?
   let onActivityPress = EventDispatcher()
+  let onTurnInfoPress = EventDispatcher()
+  var turnInfoEnabled = false
   let onShareImage = EventDispatcher()
   var imageSharingEnabled = false
   let onFilePress = EventDispatcher()
@@ -307,7 +309,12 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       }
       if row.kind == "meta" {
         let cell = collection.dequeueReusableCell(withReuseIdentifier: "meta", for: index) as! ChatMetaCell
+        cell.detailsButton.isHidden = !turnInfoEnabled
         cell.configure(row)
+        cell.detailsButton.removeAction(identifiedBy: .init("turn-info"), for: .touchUpInside)
+        cell.detailsButton.addAction(UIAction(identifier: .init("turn-info")) { [weak self] _ in
+          self?.onTurnInfoPress(["entryId": row.entryID])
+        }, for: .touchUpInside)
         cell.actionButton.menu = messageMenu(entryID: row.entryID, source: cell.actionButton)
         return cell
       }

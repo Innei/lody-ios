@@ -667,3 +667,8 @@ new-session composer, in English light/dark appearances. It verifies that long
 text stays inline and records menu/result screenshots and video. The native
 composer check also covers mixed text/image/RTF clipboard representations, selected
 text replacement and unavailable actions for nontext or read-only inputs.
+
+`message-details` uses the offline message fixture to verify the native collection-view
+Sheet, recorded configuration, exact token breakdown, absent metadata, late usage
+updates while open and the independent message-action menu in English light/dark
+appearances. Screenshots and video cover the states; no cloud turn is sent.

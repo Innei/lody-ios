@@ -16,6 +16,10 @@ export const NativeChat: ComponentType<
     editableMessageId?: string;
     editedMessageId?: string;
     onEditMessage?: (event: NativeSyntheticEvent<{ entryId: string }>) => void;
+    turnInfoEnabled?: boolean;
+    onTurnInfoPress?: (
+      event: NativeSyntheticEvent<{ entryId: string }>,
+    ) => void;
     imageSharingEnabled?: boolean;
     onShareImage?: (
       event: NativeSyntheticEvent<{ contentJSON: string }>,

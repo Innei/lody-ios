@@ -1,3 +1,4 @@
+import { useMessageDetailsSheet } from '@/hooks/screens/useMessageDetailsSheet';
 import { openMessageShare } from '@/screens/MessageShareScreen';
 import { uiVerify } from './uiVerify';
 import { Stack } from 'expo-router';
@@ -631,6 +632,7 @@ function View() {
   } else if (overlayTasks) {
     displayedEntriesJSON = JSON.stringify(overlayTaskEntries());
   }
+  const openMessageDetails = useMessageDetailsSheet(displayedEntriesJSON);
   const openProcess = useProcessSheet(displayedEntriesJSON, () =>
     setMode('attention'),
   );
@@ -867,6 +869,10 @@ function View() {
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
       <NativeChat
+        turnInfoEnabled
+        onTurnInfoPress={({ nativeEvent }) =>
+          openMessageDetails(nativeEvent.entryId)
+        }
         imageSharingEnabled
         onShareImage={({ nativeEvent }) =>
           openMessageShare(nativeEvent.contentJSON)

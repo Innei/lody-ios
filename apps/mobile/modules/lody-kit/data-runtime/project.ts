@@ -1,3 +1,7 @@
+import {
+  readTurnMetadata,
+  type TurnMetadata,
+} from '../../../src/cloud/turnMetadata.ts';
 import { executionProjection, type SteerReceipt } from './execution';
 import type { LoroDoc, LoroList, LoroMap } from 'loro-crdt/base64';
 import {
@@ -64,7 +68,7 @@ export type ItemSummary =
     }
   | { itemId: string; rev: number; type: string };
 
-export type EntrySummary = {
+export type EntrySummary = TurnMetadata & {
   id: string;
   rev: number;
   role: string;
@@ -393,13 +397,15 @@ function summarizeEntry(
         ? model._meta.lodyThoughtLevel.trim()
         : undefined,
   };
+  const metadata = readTurnMetadata(entry);
   const value = {
+    ...metadata,
     id,
     rev: bump(
       projection,
       `entry/${id}`,
       summarizedItems.map((i) => `${i.itemId}:${i.rev}`).join(',') +
-        `|${entry?.status}|${entry?.finished}|${JSON.stringify(fileDiffs)}|${JSON.stringify(modelInfo)}`,
+        `|${entry?.status}|${entry?.finished}|${JSON.stringify(fileDiffs)}|${JSON.stringify(modelInfo)}|${JSON.stringify(metadata)}`,
     ),
     role: String(entry?.role ?? 'assistant'),
     status: entry?.status ?? (entry?.read ? 'seen' : 'pending'),
