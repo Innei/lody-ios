@@ -575,7 +575,7 @@
   "native.chat.transcript.summary": "{title} · {tools}",
   "native.chat.transcript.toolCount.one": "{count} 项操作",
   "native.chat.transcript.toolCount.other": "{count} 项操作",
-  "native.chat.transcript.activity.thinking": "思考中…",
+  "native.chat.transcript.activity.thinking": "处理中…",
   "native.chat.transcript.activity.thought": "思考过程",
   "native.chat.transcript.activity.commands.one": "调用了 {count} 个命令",
   "native.chat.transcript.activity.commands.other": "调用了 {count} 个命令",

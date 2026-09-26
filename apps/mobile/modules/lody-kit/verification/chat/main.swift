@@ -330,6 +330,21 @@ transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(liveT
 let liveSummary = transcript.rows().first { $0.kind == "summary" }!
 assert(liveSummary.text.contains("native.chat.transcript.activity.thinking"), liveSummary.text)
 assert(!liveSummary.text.contains("native.chat.transcript.status.running"), liveSummary.text)
+// Earlier process groups keep the turn's live label while only the latest group animates.
+transcript.entries[0].items.append(try JSONDecoder().decode(ChatItem.self, from: Data(
+  #"{"itemId":"progress","type":"text","text":"Still working"}"#.utf8
+)))
+transcript.entries[0].items.append(try JSONDecoder().decode(ChatItem.self, from: Data(
+  #"{"itemId":"next-thought","type":"thought","text":"Next step"}"#.utf8
+)))
+let liveGroups = transcript.rows().filter { $0.kind == "summary" }
+assert(liveGroups.count == 2)
+assert(liveGroups.allSatisfy { $0.text.contains("native.chat.transcript.activity.thinking") })
+assert(!liveGroups[0].running && liveGroups[1].running)
+transcript.entries[0].finished = true
+let finishedGroup = transcript.rows().first { $0.kind == "summary" }!
+assert(!finishedGroup.running)
+assert(!finishedGroup.text.contains("native.chat.transcript.activity.thinking"))
 let previewCache = "{\"v\":1,\"status\":\"live\",\"revision\":1,\"entries\":" + mixedFail + "}"
 let previewRows = ChatTranscript.previewRows(from: previewCache)
 let previewKinds = Set(previewRows.map(\.kind))

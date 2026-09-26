@@ -458,7 +458,7 @@ struct ChatTranscript {
           let firstGroup = index == groups.keys.min()
           let attention = needsPermission || failed
           result.append(ChatRow(id: entry.id + ":process" + (firstGroup ? "" : ":" + entry.items[index].itemId), entryID: entry.id, kind: "summary",
-            text: ChatProcessSummary.title(items: process, running: running),
+            text: ChatProcessSummary.title(items: process, running: entry.isRunning),
             symbol: ChatProcessSummary.mark(attention: attention),
             processStartID: entry.finished ? "" : entry.items[index].itemId,
             actionable: true, running: running, attention: attention))

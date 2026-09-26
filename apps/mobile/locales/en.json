@@ -575,7 +575,7 @@
   "native.chat.transcript.summary": "{title} · {tools}",
   "native.chat.transcript.toolCount.one": "{count} operation",
   "native.chat.transcript.toolCount.other": "{count} operations",
-  "native.chat.transcript.activity.thinking": "Thinking…",
+  "native.chat.transcript.activity.thinking": "Processing…",
   "native.chat.transcript.activity.thought": "Thought",
   "native.chat.transcript.activity.commands.one": "Ran {count} command",
   "native.chat.transcript.activity.commands.other": "Ran {count} commands",
