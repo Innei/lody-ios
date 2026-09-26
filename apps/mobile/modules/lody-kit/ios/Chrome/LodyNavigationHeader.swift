@@ -85,6 +85,8 @@ enum LodyNavigationHeaderItems {
         primaryAction: nil,
         menu: menu(entries, title: "", inline: false, action: action)
       )
+    } else if spec["systemItem"] as? String == "close" {
+      item = UIBarButtonItem(systemItem: .close, primaryAction: UIAction { _ in action(id) })
     } else {
       item = UIBarButtonItem(primaryAction: UIAction(title: title ?? "", image: image) { _ in action(id) })
     }

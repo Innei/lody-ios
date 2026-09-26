@@ -192,9 +192,9 @@ export {
   type NativeInlineDiffProps,
 } from './diff/NativeInlineDiff';
 export {
-  NativeCodeView,
-  type NativeCodeViewProps,
-} from './diff/NativeCodeView';
+  NativeMarkdownDocumentView,
+  type NativeMarkdownDocumentViewProps,
+} from './markdown/NativeMarkdownDocumentView';
 export {
   NativeDiffToolbar,
   NativeDiffSurface,

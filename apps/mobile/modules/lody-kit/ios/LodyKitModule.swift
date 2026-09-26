@@ -485,10 +485,10 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         }
         let runtime = self.dataRuntime
         Task { @MainActor in
-          await FilePreview.open(
+          let opened = await FilePreview.open(
             sessionId: sessionId, path: path, line: line, runtime: runtime, from: controller
           )
-          promise.resolve()
+          promise.resolve(opened)
         }
       }
     }.runOnQueue(.main)
@@ -660,12 +660,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("diffStyle") { (view: LodyDiffToolbar, value: String?) in view.setStyle(value ?? "unified") }
     }
 
-    View(LodyCodeView.self) {
+    View(LodyMarkdownDocumentView.self) {
       Events("onFail", "onFilePress")
-      Prop("renderMarkdown") { (view: LodyCodeView, value: Bool) in view.setMarkdown(value) }
-      Prop("line") { (view: LodyCodeView, value: Int) in view.setLine(value) }
-      Prop("handle") { (view: LodyCodeView, value: String) in view.setHandle(value) }
-      Prop("path") { (view: LodyCodeView, value: String) in view.setPath(value) }
+      Prop("handle") { (view: LodyMarkdownDocumentView, value: String) in view.setHandle(value) }
     }
 
     View(LodyInlineDiffView.self) {

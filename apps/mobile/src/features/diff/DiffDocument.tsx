@@ -5,7 +5,7 @@ import {
   preloadHighlighter,
   type FileDiffMetadata,
 } from '@pierre/diffs';
-import { FileDiff } from '@pierre/diffs/react';
+import { File, FileDiff } from '@pierre/diffs/react';
 import '../../../../../node_modules/@pierre/diffs/dist/components/web-components.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -16,13 +16,25 @@ export type DiffDocumentProps = {
   diffStyle: 'unified' | 'split';
   theme: 'light' | 'dark';
   warm?: boolean;
+  mode?: 'diff' | 'file';
+  line?: number;
+  handle?: string;
+  verify?: boolean;
   /** Host-only Expo DOM WebView props; stripped before this component runs. */
   dom?: object;
 };
 
 type Payload = Pick<
   DiffDocumentProps,
-  'path' | 'oldText' | 'newText' | 'diffStyle' | 'theme'
+  | 'path'
+  | 'oldText'
+  | 'newText'
+  | 'diffStyle'
+  | 'theme'
+  | 'mode'
+  | 'line'
+  | 'handle'
+  | 'verify'
 >;
 
 declare global {
@@ -206,12 +218,20 @@ export default function DiffDocument(props: DiffDocumentProps) {
     props.newText,
     props.diffStyle,
     props.theme,
+    props.mode,
+    props.line,
+    props.handle,
+    props.verify,
   ]);
 
   const unsafeCSS = useMemo(() => shadowTheme(payload.theme), [payload.theme]);
 
   const fileDiff = useMemo<FileDiffMetadata | null>(() => {
-    if (!payload.path && !payload.oldText && !payload.newText) return null;
+    if (
+      payload.mode === 'file' ||
+      (!payload.path && !payload.oldText && !payload.newText)
+    )
+      return null;
     const name = payload.path || 'file';
     try {
       return parseDiffFromFile(
@@ -222,13 +242,21 @@ export default function DiffDocument(props: DiffDocumentProps) {
       post('lody:diff-error');
       return null;
     }
-  }, [payload.path, payload.oldText, payload.newText]);
+  }, [payload.mode, payload.path, payload.oldText, payload.newText]);
 
   useEffect(() => {
     if (!fileDiff) return;
     post('lody:diff-rendered', { path: payload.path });
   }, [fileDiff, payload.path, payload.diffStyle, payload.theme]);
 
+  if (payload.mode === 'file')
+    return (
+      <SourceFile
+        key={`${payload.handle}:${payload.line ?? 0}`}
+        payload={payload}
+        unsafeCSS={unsafeCSS}
+      />
+    );
   if (!fileDiff) return <div />;
   return (
     <FileDiff
@@ -243,6 +271,110 @@ export default function DiffDocument(props: DiffDocumentProps) {
         theme: { light: 'github-light', dark: 'github-dark' },
         themeType: payload.theme,
         unsafeCSS,
+      }}
+    />
+  );
+}
+
+/** Shares FileDiff's highlighter and the same Expo DOM bundle/parked WebView. */
+function SourceFile({
+  payload,
+  unsafeCSS,
+}: {
+  payload: Payload;
+  unsafeCSS: string;
+}) {
+  const host = useRef<HTMLElement | null>(null);
+  const positioned = useRef(false);
+  const file = useMemo(
+    () => ({ name: payload.path, contents: payload.newText }),
+    [payload.path, payload.newText],
+  );
+  const measure = () => {
+    if (!payload.verify) return;
+    const root = host.current?.shadowRoot;
+    const target = root?.querySelector(`[data-line="${payload.line}"]`);
+    const rect = target?.getBoundingClientRect();
+    const rows = root?.querySelectorAll('[data-line]');
+    const renderedText = Array.from(rows ?? [])
+      .map((row) =>
+        (row.textContent ?? '').replace(/\r\n|\r/g, '\n').replace(/\n$/, ''),
+      )
+      .join('\n');
+    post('lody:file-geometry', {
+      handle: payload.handle,
+      path: payload.path,
+      line: payload.line ?? 0,
+      sourceMatches: renderedText === payload.newText.replace(/\r\n|\r/g, '\n'),
+      coloredTokens:
+        root?.querySelectorAll('[data-line] span[style]').length ?? 0,
+      scriptCount: root?.querySelectorAll('script').length ?? 0,
+      highlighted: !!root?.querySelector('[data-selected-line]'),
+      targetY: rect?.top ?? 0,
+      targetHeight: rect?.height ?? 0,
+      top: 0,
+      bottom: innerHeight,
+      width: innerWidth,
+      height: innerHeight,
+      x: scrollX,
+      y: scrollY,
+      contentWidth: document.documentElement.scrollWidth,
+      contentHeight: document.documentElement.scrollHeight,
+    });
+  };
+  useEffect(() => {
+    if (!payload.verify) return;
+    window.addEventListener('scroll', measure, true);
+    window.addEventListener('resize', measure);
+    return () => {
+      window.removeEventListener('scroll', measure, true);
+      window.removeEventListener('resize', measure);
+    };
+  });
+  return (
+    <File
+      file={file}
+      disableWorkerPool
+      selectedLines={
+        payload.line ? { start: payload.line, end: payload.line } : null
+      }
+      style={{
+        width: 'max-content',
+        minWidth: '100%',
+        minHeight: '100%',
+        fontFamily: MONO,
+      }}
+      options={{
+        disableFileHeader: true,
+        overflow: 'scroll',
+        theme: { light: 'github-light', dark: 'github-dark' },
+        themeType: payload.theme,
+        unsafeCSS:
+          unsafeCSS +
+          `
+        [data-code] { contain: none; overflow: visible; width: max-content; min-width: 100%; }
+        [data-selected-line] { background: ${TOKENS[payload.theme].selection} !important; }
+        [data-column-number][data-selected-line] { color: ${payload.theme === 'dark' ? '#0A84FF' : '#007AFF'}; font-weight: 600; }
+      `,
+        onPostRender: (node, _, phase) => {
+          if (phase === 'unmount') return;
+          host.current = node;
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              if (!node.isConnected) return;
+              if (!positioned.current) {
+                positioned.current = true;
+                window.scrollTo(0, 0);
+                node.shadowRoot
+                  ?.querySelector(`[data-line="${payload.line}"]`)
+                  ?.scrollIntoView({ block: 'center', inline: 'nearest' });
+                window.scrollTo(0, window.scrollY);
+              }
+              post('lody:file-rendered', { handle: payload.handle });
+              measure();
+            }),
+          );
+        },
       }}
     />
   );

@@ -187,7 +187,13 @@ enum FilePreviewFixture {
       body = Data("# Performance report\n\nA **rendered document**, with a table and a related file.\n\nRuby: <ruby>Tokyo<rt>toh-kee-oh</rt></ruby>.\n\n| Run | FPS |\n| --- | --- |\n| Light | 60 |\n| Dark | 60 |\n\n[Source](sample.swift#L2)\n".utf8)
     case "SKILL.md" where path == "skills/review/SKILL.md":
       body = Data("# Review skill\n\nRead the diff and report actionable findings.\n".utf8)
-    case "sample.swift" where path == "docs/sample.swift": body = Data("// File preview\nlet answer = 42\nprint(answer)\n".utf8)
+    case "sample.swift" where path == "docs/sample.swift":
+      let lines = (1...240).map { line in
+        if line == 2 { return "let answer = 42" }
+        if line == 239 { return "// Literal <script>alert(1)</script> & 😀" }
+        return "// Line \(line): " + String(repeating: "horizontal source content ", count: 8)
+      }
+      body = Data(lines.joined(separator: "\n").utf8)
     case "photo.png":
       kind = "image"
       body = UIGraphicsImageRenderer(size: CGSize(width: 320, height: 200)).pngData { context in

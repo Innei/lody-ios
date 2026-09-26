@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { openFile as nativeOpenFile } from '@lody-ios/kit';
+import { present } from '@/lib/presentation';
 
 export function useOpenFile(sessionId: string) {
   const busy = useRef(false);
@@ -15,7 +16,11 @@ export function useOpenFile(sessionId: string) {
     busy.current = true;
     try {
       if (!active.current) return;
-      await nativeOpenFile({ sessionId, path, line });
+      if (await nativeOpenFile({ sessionId, path, line })) return;
+      if (!active.current) return;
+      const { FileContentScreen } = await import('@/screens/FileContentScreen');
+      if (!active.current) return;
+      await present(FileContentScreen, { sessionId, path, line });
     } finally {
       busy.current = false;
     }

@@ -8,10 +8,11 @@ import type {
 } from 'react-native-screens';
 
 export interface NativeNavigationHeaderProps {
-  items?: HeaderBarButtonItem[];
-  leftItems?: HeaderBarButtonItem[];
+  items?: NativeBarItem[];
+  leftItems?: NativeBarItem[];
   title?: string;
 }
+type NativeBarItem = HeaderBarButtonItem & { systemItem?: 'close' };
 
 type Handlers = Map<string, () => void>;
 type MenuEntries = HeaderBarButtonItemWithMenu['menu']['items'];
@@ -61,7 +62,7 @@ function menuEntries(
 }
 
 function barItems(
-  items: HeaderBarButtonItem[] | undefined,
+  items: NativeBarItem[] | undefined,
   prefix: string,
   handlers: Handlers,
 ) {
@@ -78,6 +79,7 @@ function barItems(
       accessibilityLabel: item.accessibilityLabel,
       accessibilityHint: item.accessibilityHint,
       identifier: item.identifier,
+      systemItem: item.systemItem,
       badge: item.badge?.value,
       disabled: item.disabled,
     };

@@ -126,7 +126,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   turnDiff(payload: string): Promise<string>;
   fileDiff(payload: string): Promise<string>;
   readFile(payload: string): Promise<string>;
-  openFile(sessionId: string, path: string, line: number): Promise<void>;
+  openFile(sessionId: string, path: string, line: number): Promise<boolean>;
   listDir(payload: string): Promise<string>;
   mentionCatalog(payload: string): Promise<string>;
   readContentText(handle: string): Promise<string | null>;

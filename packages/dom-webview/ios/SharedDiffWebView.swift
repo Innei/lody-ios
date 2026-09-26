@@ -1,7 +1,7 @@
 import UIKit
 import WebKit
 
-/// Single Diff-only WKWebView. Warmer and FileDiff take turns owning it;
+/// One code-rendering WKWebView. Warmer, File and FileDiff take turns owning it;
 /// a foreground host cannot be stolen by the offscreen warmer.
 final class SharedDiffWebView: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   static let shared = SharedDiffWebView()
@@ -165,6 +165,9 @@ final class SharedDiffWebView: NSObject, WKNavigationDelegate, WKScriptMessageHa
       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
       let type = json["type"] as? String
     else { return }
+    if type == "lody:file-geometry", ProcessInfo.processInfo.arguments.contains("--ui-verify") {
+      try? data.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("lody-file-source.json"), options: .atomic)
+    }
     if type == "$$dom_ready" || type == "lody:diff-runtime-ready", let webView {
       shared.didBecomeReady(webView)
     }

@@ -1,9 +1,19 @@
 """File links open documents, code and Quick Look, and return to their owning chat."""
+import json
+import os
+import subprocess
+from pathlib import Path
 import sys
 import time
 from driver import UI
 import catalog
 ui = UI(*sys.argv[1:])
+container = subprocess.check_output(['xcrun', 'simctl', 'get_app_container', ui.udid, 'app.innei.lody', 'data'], text=True).strip()
+probe = Path(container) / 'tmp/lody-file-source.json'
+def geometry(name):
+    value = json.loads(probe.read_text())
+    (ui.output / (name + '.probe.json')).write_text(json.dumps(value, indent=2))
+    return value
 
 def title(name, timeout=30):
     return ui.wait(lambda items: any(i.get('type') == 'Heading' and i.get('AXLabel') == name for i in items), 'Wrong file opened: ' + name, timeout)
@@ -20,6 +30,7 @@ def back(label=None):
         return
     buttons = [i for i in ui.state() if (i.get('AXUniqueId') or '') == 'file-back']
     if buttons:
+        assert str(buttons[-1].get('AXLabel') or '').casefold() == catalog.text('native.close').casefold(), buttons[-1]
         frame = buttons[-1]['frame']
         ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.5')
         return
@@ -65,6 +76,16 @@ back()
 row = ui.element('entry:report.md')
 assert 'selected' not in str(row.get('traits') or []).lower(), row
 ui.capture('browser-return')
+ui.axe('tap', '--id', 'entry:sample.swift', '--post-delay', '.2')
+title('sample.swift')
+ui.element('file-source')
+plain = geometry('browser-code')
+shared = ui.element('diff-webview-probe')['AXLabel']
+assert plain['line'] == 0 and not plain['highlighted'], plain
+ui.axe('swipe', '--start-x', '220', '--start-y', '650', '--end-x', '220', '--end-y', '300', '--duration', '.5', '--post-delay', '.6')
+assert geometry('browser-code-scroll')['y'] > plain['y'] + 100
+ui.capture('browser-code-scroll')
+back()
 back()
 ui.element('file-links:answer')
 link(0, icon=True)
@@ -75,7 +96,7 @@ ui.wait(lambda items: any('Ruby: <ruby>Tokyo<rt>toh-kee-oh</rt></ruby>.' in (i.g
 ui.capture('markdown')
 ui.axe('tap', '--label', catalog.text('file.source'), '--post-delay', '.4')
 source = ui.element('file-source')
-assert '# Performance report' in (source.get('AXValue') or source.get('AXLabel') or '')
+assert geometry('markdown-source')['sourceMatches']
 ui.capture('source')
 ui.axe('tap', '--label', catalog.text('file.preview'), '--post-delay', '.4')
 ui.element('file-document')
@@ -94,9 +115,91 @@ ui.wait(lambda items: not any((i.get('AXUniqueId') or '') in ['file-back', 'QLPr
 link(1)
 title('sample.swift')
 source = ui.element('file-source')
-assert 'let answer = 42' in (source.get('AXValue') or source.get('AXLabel') or '')
+ui.wait(lambda _: geometry('code-ready').get('line') == 120, 'Target code did not render')
 ui.capture('code')
+initial = geometry('code-target')
+assert ui.element('diff-webview-probe')['AXLabel'] == shared, 'Source must reuse the parked DOM WebView without navigation'
+assert initial['line'] == 120 and initial['highlighted'], initial
+assert initial['sourceMatches'] and initial['scriptCount'] == 0, initial
+assert initial['coloredTokens'] > 0, initial
+assert initial['top'] < initial['targetY'] < initial['bottom'] - initial['targetHeight'], initial
+assert initial['contentWidth'] > initial['width'] * 2, initial
+assert initial['contentHeight'] > initial['height'] * 2, initial
+# Real gestures must move the source in both axes without wrapping it.
+ui.axe('swipe', '--start-x', '330', '--start-y', '440', '--end-x', '100', '--end-y', '440', '--duration', '.5', '--post-delay', '.6')
+horizontal = geometry('code-horizontal')
+assert horizontal['x'] > initial['x'] + 80, horizontal
+ui.capture('code-horizontal')
+ui.axe('swipe', '--start-x', '220', '--start-y', '650', '--end-x', '220', '--end-y', '300', '--duration', '.5', '--post-delay', '.6')
+vertical = geometry('code-vertical')
+assert vertical['y'] > initial['y'] + 100, vertical
+ui.capture('code-vertical')
+for _ in range(8):
+    current = geometry('code-bottom')
+    if current['y'] + current['bottom'] >= current['contentHeight'] - 2:
+        break
+    ui.axe('swipe', '--start-x', '220', '--start-y', '700', '--end-x', '220', '--end-y', '240', '--duration', '.25', '--post-delay', '.6')
+last = geometry('code-bottom')
+assert last['y'] + last['bottom'] >= last['contentHeight'] - 2, last
+ui.capture('code-bottom')
+# Interactive sheet dismissal must release useOpenFile's in-flight promise.
+ui.axe('swipe', '--start-x', '201', '--start-y', '65', '--end-x', '201', '--end-y', '740', '--duration', '.5', '--post-delay', '.7')
+ui.wait(lambda items: not any(i.get('AXUniqueId') == 'file-back' for i in items), 'Source sheet did not dismiss')
+ui.element('file-links:answer')
+link(1)
+title('sample.swift', timeout=3)
+ui.element('file-source')
+ui.wait(lambda _: geometry('code-reopened').get('handle') != initial['handle'], 'Reopened source did not render fresh content')
+reopened = geometry('code-reopened')
+assert ui.element('diff-webview-probe')['AXLabel'] == shared, 'Reopening source must reuse the same WebView and bundle'
+assert reopened['top'] < reopened['targetY'] < reopened['bottom'] - reopened['targetHeight'], reopened
+ui.capture('code-reopened')
 back()
+ui.axe('tap', '--id', 'file-links:process', '--post-delay', '.6')
+ui.element('file-links:thought')
+time.sleep(.8)
+ui.capture('process-links')
+link(0, row='file-links:thought')
+title('report.md')
+ui.element('file-document')
+ui.capture('process-document')
+ui.axe('tap', '--label', catalog.text('file.source'), '--post-delay', '.4')
+ui.element('file-source')
+ui.axe('tap', '--label', catalog.text('file.preview'), '--post-delay', '.4')
+ui.element('file-document')
+back()
+ui.element('file-links:thought')
+ui.capture('process-return')
+link(1, row='file-links:thought')
+title('sample.swift')
+ui.element('file-source')
+nested = geometry('process-code-target')
+assert nested['line'] == 120 and nested['highlighted'], nested
+assert nested['top'] < nested['targetY'] < nested['bottom'] - nested['targetHeight'], nested
+ui.capture('process-code-target')
+back()
+ui.axe('tap', '--label', catalog.text('accessibility.closeSheet', title=catalog.text('process.title')), '--post-delay', '.5')
+ui.element('file-links:answer')
+# File and FileDiff must share the same parked renderer, then return to source.
+ui.axe('tap', '--label', 'Diff Viewer', '--post-delay', '.5')
+ui.element('diff-render-ms')
+assert ui.element('diff-webview-probe')['AXLabel'] == shared, 'Diff must reuse the source renderer instance'
+ui.capture('shared-diff')
+back()
+ui.element('file-links:answer')
+link(1)
+title('sample.swift')
+ui.element('file-source')
+assert ui.element('diff-webview-probe')['AXLabel'] == shared, 'Source must return without reloading Shiki'
+ui.wait(lambda _: geometry('source-after-diff').get('line') == 120, 'Source mode was not restored after diff')
+restored = geometry('source-after-diff')
+assert restored['highlighted'] and restored['top'] < restored['targetY'] < restored['bottom'] - restored['targetHeight'], restored
+ui.capture('source-after-diff')
+back()
+if os.environ.get('LODY_VERIFY_FILE_SOURCE_ONLY') == '1':
+    print('PASS: source preview scrolls in both axes to EOF, highlights and reveals the target line, reopens after swipe dismissal, and works in browser/chat/process hosts')
+    sys.exit(0)
+
 for index, name in [(2, 'photo.png'), (3, 'document.pdf')]:
     link(index)
     ui.element('QLPreviewControllerView')
@@ -129,21 +232,4 @@ ui.element('file-links:answer')
 assert not any(str(i.get('AXLabel') or '').lower() in ['done', 'close'] for i in ui.state())
 assert not any((i.get('AXUniqueId') or '') == 'QLPreviewControllerView' for i in ui.state()), 'Late image read must not host Quick Look after return'
 ui.capture('cancelled-loading')
-ui.axe('tap', '--id', 'file-links:process', '--post-delay', '.6')
-ui.element('file-links:thought')
-time.sleep(.8)
-ui.capture('process-links')
-link(0, row='file-links:thought')
-title('report.md')
-ui.element('file-document')
-ui.capture('process-document')
-ui.axe('tap', '--label', catalog.text('file.source'), '--post-delay', '.4')
-ui.element('file-source')
-ui.axe('tap', '--label', catalog.text('file.preview'), '--post-delay', '.4')
-ui.element('file-document')
-back()
-ui.element('file-links:thought')
-ui.capture('process-return')
-ui.axe('tap', '--label', catalog.text('accessibility.closeSheet', title=catalog.text('process.title')), '--post-delay', '.5')
-ui.element('file-links:answer')
 print('PASS: files push before slow reads, deselect on return, and ignore late cancelled reads; Markdown/source, relative links, presented Quick Look, retry and process-sheet navigation work')

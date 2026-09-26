@@ -503,10 +503,14 @@ interpolated or duplicated frames additional evidence.
 `--case file-preview` exercises embedded Markdown file links in chat and the
 process sheet, file-type symbols and VoiceOver actions, rendered Markdown/source
 switching, document-relative links, and the shared file-browser preview. It also
+checks the shared Expo DOM / Pierre File source renderer and parked WebView reuse with a 240-line code file for two-axis scrolling, target-line highlighting and
+automatic positioning, and reopening after interactive dismissal. It also
 opens PNG/PDF through presented Quick Look (`openFile`; pull-down dismisses;
 the image lightbox is not used) and checks a missing-file error.
 The Debug-only `ui-verify-files` reader supplies local fixtures before the cloud
 runtime; this case does not claim live Machine RPC or every Quick Look format.
+`LODY_VERIFY_FILE_SOURCE_ONLY=1` runs just the document/source, scrolling, line
+link and dismissal checks across browser/chat/process hosts, without Quick Look.
 Reads wait five seconds (PDF returns immediately): the browser must push a loading
 page before content arrives, clear selection on return, ignore a late image read
 after returning, and offer retry for a failed read.
