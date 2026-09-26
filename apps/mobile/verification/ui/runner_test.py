@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from driver import UI
+from driver import UI, launch_covered
 from orchestrator import managed_metro, prewarm_bundle, run_batches
 
 
@@ -217,6 +217,31 @@ class CaptureTest(unittest.TestCase):
             self.assertTrue(ui._axe_ready)
             ui.invalidate_axe()
             self.assertFalse(ui._axe_ready)
+
+    def test_wait_survives_a_cold_axe_session(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+            calls = {'count': 0}
+
+            def state():
+                calls['count'] += 1
+                if calls['count'] < 3:
+                    raise subprocess.TimeoutExpired('axe', 30)
+                return [{'AXUniqueId': 'ui-verify-ready', 'pid': 1}]
+
+            with patch.object(ui, 'state', state), patch('driver.time.sleep'):
+                found = ui.wait(
+                    lambda items: next((item for item in items if item.get('AXUniqueId') == 'ui-verify-ready'), None),
+                    'Missing ui-verify-ready',
+                    timeout=30,
+                )
+            self.assertEqual(found['pid'], 1)
+            self.assertEqual(calls['count'], 3)
+
+    def test_launch_covered_detects_springboard(self):
+        self.assertFalse(launch_covered([], '15427'))
+        self.assertFalse(launch_covered([{'pid': 15427, 'AXUniqueId': 'ui-verify-ready'}], '15427'))
+        self.assertTrue(launch_covered([{'pid': 16345, 'AXLabel': 'Maps'}], '15427'))
 
     def test_axe_retries_when_the_session_dies_mid_command(self):
         with tempfile.TemporaryDirectory() as directory:

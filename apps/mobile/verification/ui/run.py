@@ -11,7 +11,7 @@ import sys
 import time
 from contextlib import nullcontext
 from orchestrator import diagnose_metro, managed_metro, run_batches
-from driver import UI
+from driver import UI, launch_covered
 from inspector import inspector
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -375,7 +375,20 @@ with metro_context:
                                     f'exp+lody-ios://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A{args.port}')
                                 if any(item.get('AXLabel') == 'Open' for item in ui.state()):
                                     ui.axe('tap', '--label', 'Open')
-                    ui.element('ui-verify-ready', timeout=180)
+                    activated = time.monotonic()
+
+                    def verify_ready(items):
+                        nonlocal activated
+                        if any(item.get('AXUniqueId') == 'ui-verify-ready' for item in items):
+                            return True
+                        # A cold AXe session can resign the app to SpringBoard before
+                        # the first tree arrives. Bring it forward again, then keep waiting.
+                        if launch_covered(items, result.get('appPid')) and time.monotonic() - activated >= 5:
+                            activated = time.monotonic()
+                            sim(*launch)
+                        return False
+
+                    ui.wait(verify_ready, 'Missing ui-verify-ready', timeout=180)
                     preview = PREVIEW.get(case, 'chat-preview')
                     ready = 'ui-verify-ready' if case in HOME_CASES else READY.get(case, 'session-input')
                     if case not in HOME_CASES:

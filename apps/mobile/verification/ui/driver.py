@@ -15,6 +15,13 @@ def axe_session_dead(error):
     return 'remote automation session' in message or 'accessibility automation' in message
 
 
+def launch_covered(items, app_pid):
+    """describe-ui of another process means SpringBoard covered the launched app."""
+    if not app_pid or not items:
+        return False
+    return not any(str(item.get('pid')) == str(app_pid) for item in items)
+
+
 class UI:
     def __init__(self, udid, output):
         self.udid, self.output = udid, Path(output)
@@ -145,11 +152,22 @@ class UI:
 
     def wait(self, predicate, message, timeout=30):
         deadline = time.monotonic() + timeout
+        last = None
         while time.monotonic() < deadline:
-            result = predicate(self.state())
+            try:
+                result = predicate(self.state())
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError, json.JSONDecodeError) as error:
+                if not axe_session_dead(error):
+                    raise
+                last = error
+                time.sleep(2)
+                continue
             if result:
                 return result
+            last = None
             time.sleep(.2)
+        if last is not None:
+            raise last
         raise AssertionError(message)
 
     def element(self, identifier, timeout=30):

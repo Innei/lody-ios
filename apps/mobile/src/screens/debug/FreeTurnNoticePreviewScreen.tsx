@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Alert, Pressable, View, type ColorValue } from 'react-native';
 import { NativeChat } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePalette } from '@/lib/theme/palette';
@@ -22,8 +22,8 @@ function Choice({
   onPress: () => void;
 }) {
   const colors = usePalette();
-  let color = colors.secondaryLabel;
-  let background = colors.fill;
+  let color: ColorValue = colors.secondaryLabel;
+  let background: ColorValue = colors.fill;
   if (selected) {
     color = colors.accent;
     background = colors.inset;

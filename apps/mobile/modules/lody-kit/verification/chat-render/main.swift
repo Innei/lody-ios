@@ -443,6 +443,7 @@ precondition(unmarked.string == "id-only" && !unmarkedAttachment, "Unknown model
 var metaRow = ChatRow(id: "reply:meta", entryID: "reply", kind: "meta", text: "GPT-5.6 Sol · High")
 metaRow.imageAsset = "lody-agent-openai"
 let metaCell = ChatMetaCell(frame: CGRect(x: 0, y: 0, width: 320, height: 32))
+metaCell.detailsButton.isHidden = true
 window.addSubview(metaCell)
 metaCell.configure(metaRow)
 func modelLabel(_ root: UIView) -> UILabel? {
@@ -478,7 +479,8 @@ func lowestInkRow(_ image: UIImage) -> Int {
 
 func snapshotCell(_ cell: ChatMetaCell, text: String) -> UIImage {
   let row = ChatRow(id: "reply:meta", entryID: "reply", kind: "meta", text: text)
-  cell.frame.size.height = ChatMetaCell.height(for: row, width: cell.bounds.width, traits: .current)
+  cell.detailsButton.isHidden = true
+  cell.frame.size.height = ChatMetaCell.height(for: row, width: cell.bounds.width, traits: .current, detailsEnabled: false)
   cell.configure(row)
   cell.backgroundColor = .white
   cell.contentView.backgroundColor = .white
@@ -553,7 +555,7 @@ func actionInk(_ image: UIImage) -> ActionInk {
   return ink
 }
 
-metaCell.frame.size.height = ChatMetaCell.height(for: metaRow, width: 320, traits: .current)
+metaCell.frame.size.height = ChatMetaCell.height(for: metaRow, width: 320, traits: .current, detailsEnabled: false)
 metaCell.configure(metaRow)
 metaCell.layoutIfNeeded()
 let actions = metaCell.actionButton
