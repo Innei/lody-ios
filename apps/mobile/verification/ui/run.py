@@ -378,7 +378,7 @@ with metro_context:
                     activated = time.monotonic()
 
                     def verify_ready(items):
-                        nonlocal activated
+                        global activated
                         if any(item.get('AXUniqueId') == 'ui-verify-ready' for item in items):
                             return True
                         # A cold AXe session can resign the app to SpringBoard before
