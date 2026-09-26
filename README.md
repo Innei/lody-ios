@@ -19,6 +19,8 @@
   </p>
 </div>
 
+https://github.com/user-attachments/assets/89374b82-3c82-42e2-a546-38f007ff9b38
+
 ![Lody on iPad and iPhone](https://github.com/user-attachments/assets/e4b1b2ad-434d-4a47-bf62-c9a6bb5c5cc9)
 
 ---
