@@ -4,6 +4,8 @@ import {
 } from '@/screens/debug/HomePreviewScreen';
 import { type PropsWithChildren, useEffect, useMemo } from 'react';
 import { PushCoordinator } from '@/features/notifications/PushCoordinator';
+import { ShareSnapshot } from '@/features/share/ShareSnapshot';
+import { ShareCoordinator } from '@/features/share/ShareCoordinator';
 import { Stack, ThemeProvider } from 'expo-router';
 import { CatalogProvider } from '@/cloud/catalog/CatalogProvider';
 import { AuthProvider } from '@/cloud/auth/AuthProvider';
@@ -58,6 +60,8 @@ function Root() {
       <Providers>
         <Bindings />
         <PushCoordinator />
+        <ShareSnapshot />
+        <ShareCoordinator />
         <StatusBar style="auto" />
         <Stack
           screenOptions={{

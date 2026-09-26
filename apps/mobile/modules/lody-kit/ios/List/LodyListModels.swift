@@ -1,60 +1,59 @@
+#if !LODY_SHARE_EXTENSION
 import ExpoModulesCore
+#endif
 import UIKit
 
-@Record
-struct LodyListAction {
-  var id: String = ""
-  var title: String = ""
-  var symbol: String = ""
-  var tint: String = ""
-  var destructive: Bool = false
-  var selected: Bool = false
+struct LodyListAction: Record {
+  @Field var id: String = ""
+  @Field var title: String = ""
+  @Field var symbol: String = ""
+  @Field var tint: String = ""
+  @Field var destructive: Bool = false
+  @Field var selected: Bool = false
 }
 
-@Record
-struct LodyListValueSegment {
-  var text: String = ""
-  var tint: String = ""
+struct LodyListValueSegment: Record {
+  @Field var text: String = ""
+  @Field var tint: String = ""
 }
 
-@Record
-struct LodyListRow {
-  var id: String = ""
-  var title: String = ""
-  var subtitle: String = ""
-  var modelName: String = ""
-  var value: String = ""
-  var progress: Double? = nil
-  var valueSegments: [LodyListValueSegment] = []
-  var image: String = ""
-  var imageAsset: String = ""
-  var imageOriginal: Bool = false
-  var filePath: String = ""
-  var imageTint: String = ""
-  var subtitleMono: Bool = false
-  var wrapSubtitle: Bool = false
-  var unread: Bool = false
-  var badge: String = ""
-  var diff: [String: Int] = [:]
-  var action: Bool = false
-  var selected: Bool = false
-  var accessibilityValue: String = ""
-  var toggle: Bool? = nil
-  var navigates: Bool = false
-  var disclosure: Bool = false
-  var destructive: Bool = false
-  var parent: Bool = false
-  var parentId: String = ""
-  var collapsedValue: String = ""
-  var collapsedBadge: String = ""
-  var collapsedImageTint: String = ""
-  var monogram: String = ""
-  var pinned: Bool = false
-  var actions: [LodyListAction] = []
-  var leadingActions: [LodyListAction] = []
-  var menuActions: [LodyListAction] = []
-  var options: [LodyListAction] = []
-  var preview: String = ""
+struct LodyListRow: Record {
+  @Field var id: String = ""
+  @Field var title: String = ""
+  @Field var subtitle: String = ""
+  @Field var modelName: String = ""
+  @Field var value: String = ""
+  @Field var progress: Double? = nil
+  @Field var valueSegments: [LodyListValueSegment] = []
+  @Field var image: String = ""
+  @Field var imageAsset: String = ""
+  @Field var imageOriginal: Bool = false
+  @Field var filePath: String = ""
+  @Field var imageTint: String = ""
+  @Field var subtitleMono: Bool = false
+  @Field var wrapSubtitle: Bool = false
+  @Field var unread: Bool = false
+  @Field var badge: String = ""
+  @Field var diff: [String: Int] = [:]
+  @Field var action: Bool = false
+  @Field var selected: Bool = false
+  @Field var accessibilityValue: String = ""
+  @Field var toggle: Bool? = nil
+  @Field var navigates: Bool = false
+  @Field var disclosure: Bool = false
+  @Field var destructive: Bool = false
+  @Field var parent: Bool = false
+  @Field var parentId: String = ""
+  @Field var collapsedValue: String = ""
+  @Field var collapsedBadge: String = ""
+  @Field var collapsedImageTint: String = ""
+  @Field var monogram: String = ""
+  @Field var pinned: Bool = false
+  @Field var actions: [LodyListAction] = []
+  @Field var leadingActions: [LodyListAction] = []
+  @Field var menuActions: [LodyListAction] = []
+  @Field var options: [LodyListAction] = []
+  @Field var preview: String = ""
 }
 
 struct LodyListSection: Record {

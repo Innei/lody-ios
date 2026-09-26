@@ -144,7 +144,7 @@ final class ChatEffortSlider: UIControl {
     updateEnergy(suspended: notification.name == UIApplication.willResignActiveNotification)
   }
   private func updateEnergy(suspended: Bool = false) {
-    let animate = (isUltra || isFast) && window != nil && !isHidden && !suspended && UIApplication.shared.applicationState == .active && !UIAccessibility.isReduceMotionEnabled
+    let animate = (isUltra || isFast) && window != nil && !isHidden && !suspended && window?.windowScene?.activationState == .foregroundActive && !UIAccessibility.isReduceMotionEnabled
     particles.setRunning(animate)
   }
 

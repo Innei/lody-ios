@@ -7,12 +7,7 @@ import { AgentErrorPreviewScreen } from './AgentErrorPreviewScreen';
 import { ProjectHistoryPreviewScreen } from './ProjectHistoryPreviewScreen';
 import { PullRequestPreviewScreen } from './PullRequestPreviewScreen';
 import { FilePreviewScreen } from './FilePreviewScreen';
-import { CreateSessionScreen } from '../CreateSessionScreen';
-import { ProjectPickerScreen } from '../ProjectPickerScreen';
-import type { CreationOptions } from '@/models/send';
-import { writeLocal } from '@/cloud/kv';
 import { showCommunityNotice } from '@/features/community/notice';
-import { createPrefsKey } from '@/features/sessions/createPrefs';
 import { openSendPreview } from './SendPreviewScreen';
 import { FreeTurnNoticePreviewScreen } from './FreeTurnNoticePreviewScreen';
 import { openOutboxPreview } from './OutboxPreviewScreen';
@@ -22,6 +17,7 @@ import { NotificationPreviewScreen } from './NotificationPreviewScreen';
 import { LiveActivityPreviewScreen } from './LiveActivityPreviewScreen';
 import { ReplyHapticsPreviewScreen } from './ReplyHapticsPreviewScreen';
 import { uiVerify } from './uiVerify';
+import { openCreateParity, openModelMemory } from './createFixture';
 import { ComposerPreviewScreen } from './ComposerPreviewScreen';
 import { EditMessagePreviewScreen } from './EditMessagePreviewScreen';
 import { ComposerHandoffPreviewScreen } from './ComposerHandoffPreviewScreen';
@@ -189,6 +185,11 @@ function View() {
           'waveform.path',
         ),
         openRow('model-memory', 'Model memory verification', 'brain'),
+        openRow(
+          'create-parity',
+          'Create parity verification',
+          'square.on.square',
+        ),
       ],
     },
     {
@@ -308,7 +309,7 @@ function View() {
     'project-history-preview': () =>
       void present(ProjectHistoryPreviewScreen, {}),
     'pull-request-preview': () => void present(PullRequestPreviewScreen, {}),
-    'project-picker-preview': () => void openProjectPicker(),
+    'project-picker-preview': () => void openCreateParity(),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
     'app-icon-failure-preview': () =>
       void present(AppIconFailurePreviewScreen, {}),
@@ -326,6 +327,7 @@ function View() {
     'chat-stream-performance': () =>
       void present(ChatStreamPerformanceScreen, {}),
     'model-memory': () => void openModelMemory(),
+    'create-parity': () => void openCreateParity(),
     'mention-chat': () =>
       void present(
         ComposerPreviewScreen,
@@ -470,176 +472,3 @@ export const DebugScreen = definePage({
   Component: View,
   presentation: { style: 'push', headerVariant: 'transparent' },
 });
-
-function openProjectPicker() {
-  const projects = [
-    {
-      id: 'ui:local:alpha',
-      name: 'Alpha',
-      machineId: 'ui',
-      rootPath: '/tmp/alpha',
-    },
-    {
-      id: 'ui:local:beta',
-      name: 'Beta',
-      machineId: 'ui',
-      rootPath: '/tmp/beta',
-    },
-  ];
-  void present(
-    ProjectPickerScreen,
-    {
-      workspaceId: 'ui-project-picker',
-      projects,
-      selectedId: 'ui:local:alpha',
-    },
-    { style: 'pageSheet', headerVariant: 'transparent' },
-  );
-}
-
-async function openModelMemory() {
-  const select = (
-    id: string,
-    name: string,
-    values: string[],
-    category = id,
-  ) => ({
-    id,
-    name,
-    category,
-    type: 'select' as const,
-    currentValue: values[0],
-    options: values.map((id) => ({ id, name: id })),
-  });
-  const workspaceId = 'ui-model-memory';
-  await writeLocal(createPrefsKey('', workspaceId), null);
-  const project = {
-    id: 'ui:local:models',
-    name: 'Model Memory',
-    machineId: 'ui',
-    rootPath: '/fixture',
-  };
-  await present(CreateSessionScreen, {
-    workspaceId,
-    projects: [project],
-    projectId: project.id,
-    loadOptions: async (): Promise<CreationOptions> => ({
-      sessionId: 'ui-model-memory',
-      project,
-      agents: [
-        {
-          id: 'agent',
-          name: 'Fixture Agent',
-          machineId: 'ui',
-          machineName: 'Fixture Mac',
-          cliType: 'builtin',
-          agentType: 'codex',
-        },
-        ...['grok', 'claude', 'deepseek'].map((agentType) => ({
-          id: agentType,
-          name: agentType,
-          machineId: 'ui',
-          machineName: 'Fixture Mac',
-          cliType: 'builtin',
-          agentType,
-        })),
-      ],
-      capabilities: [
-        {
-          machineId: 'ui',
-          cliType: 'builtin',
-          agentType: 'codex',
-          models: [
-            { id: 'a', name: 'Model A' },
-            { id: 'b', name: 'Model B' },
-          ],
-          modes: [
-            { id: 'read-only', name: 'Read Only' },
-            { id: 'agent-full-access', name: 'Full Access' },
-          ],
-          reasoningEfforts: { a: ['low', 'high'], b: ['low', 'high'] },
-          configOptions: [
-            {
-              id: 'fast-mode',
-              name: 'Fast mode',
-              category: 'model_config',
-              type: 'boolean',
-              currentValue: false,
-              options: [],
-            },
-            select('collaboration_mode', 'Collaboration mode', [
-              'default',
-              'plan',
-            ]),
-          ],
-          steer: true,
-        },
-        {
-          machineId: 'ui',
-          cliType: 'builtin',
-          agentType: 'grok',
-          models: [
-            { id: 'grok-a', name: 'Grok A' },
-            { id: 'grok-b', name: 'Grok B' },
-          ],
-          modes: [
-            { id: 'agent', name: 'Agent' },
-            { id: 'plan', name: 'Plan' },
-          ],
-          reasoningEfforts: {
-            'grok-a': ['low', 'high'],
-            'grok-b': ['low', 'high'],
-          },
-          configOptions: [
-            select(
-              'interaction_mode',
-              'Interaction Mode',
-              ['agent', 'plan'],
-              'mode',
-            ),
-            select(
-              'permission_mode',
-              'Permission Mode',
-              ['ask', 'auto', 'always-approve'],
-              '_permission',
-            ),
-          ],
-          steer: false,
-        },
-        {
-          machineId: 'ui',
-          cliType: 'builtin',
-          agentType: 'claude',
-          models: [{ id: 'claude', name: 'Claude' }],
-          modes: [],
-          reasoningEfforts: {},
-          configOptions: [
-            select('model', 'Model', ['claude'], 'model'),
-            select('effort', 'Effort', ['low', 'high'], 'thought_level'),
-            {
-              id: 'fast',
-              name: 'Fast mode',
-              category: 'model_config',
-              type: 'boolean',
-              currentValue: false,
-              options: [],
-            },
-          ],
-          steer: false,
-        },
-        {
-          machineId: 'ui',
-          cliType: 'builtin',
-          agentType: 'deepseek',
-          models: [],
-          modes: [],
-          reasoningEfforts: {},
-          configOptions: [
-            select('agent_preset', 'Agent preset', ['standard', 'coder']),
-          ],
-          steer: false,
-        },
-      ],
-    }),
-  });
-}

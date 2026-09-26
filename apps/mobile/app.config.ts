@@ -50,6 +50,7 @@ const config: ExpoConfig = {
           'e383bf31-7c8e-4641-b3f6-3486e77b9a82',
       },
     ],
+    './plugins/withShareExtension',
   ],
   experiments: { typedRoutes: true, reactCompiler: true },
   runtimeVersion: { policy: 'fingerprint' },

@@ -108,6 +108,11 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   ): Promise<string>;
   githubPullRequest(payload: string): Promise<string>;
   githubRepositories(workspaceId: string): Promise<string[]>;
+  shareWriteCatalog(json: string): void;
+  shareWriteOptions(target: string, json: string): void;
+  sharePending(): string;
+  shareAdopt(id: string): string;
+  shareRemove(id: string): void;
   localProjects(payload: string): Promise<string>;
   remoteSettings(payload: string): Promise<string>;
   createSession(payload: string): Promise<string>;
@@ -320,6 +325,13 @@ export const githubPullRequest = (payload: string) =>
   native.githubPullRequest(payload);
 export const githubRepositories = (workspaceId: string) =>
   native.githubRepositories(workspaceId);
+export const shareWriteCatalog = (json: string) =>
+  native.shareWriteCatalog(json);
+export const shareWriteOptions = (target: string, json: string) =>
+  native.shareWriteOptions(target, json);
+export const sharePending = () => native.sharePending();
+export const shareAdopt = (id: string) => native.shareAdopt(id);
+export const shareRemove = (id: string) => native.shareRemove(id);
 export const createSession = (payload: string) => native.createSession(payload);
 export const archiveSession = (payload: string) =>
   native.archiveSession(payload);

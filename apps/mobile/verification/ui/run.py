@@ -39,7 +39,7 @@ CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 # These lease an iPad. `--case` still accepts them; the default phone run must not.
 PAD_CASES = ['session-delete-pad', 'session-tree-pad', 'ipad', 'ipad-chrome', 'ipad-sidebar', 'native-shell', 'native-collection', 'session-search-pad']
-CASES = PHONE_CASES + PAD_CASES + ['message-details', 'edit-message', 'session-share', 'session-delete', 'session-search', 'morph', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics']
+CASES = PHONE_CASES + PAD_CASES + ['message-details', 'edit-message', 'session-share', 'session-delete', 'session-search', 'morph', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'create-parity']
 # These select HomePreviewProviders at app launch, using the same shared bundle.
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome', 'ipad-sidebar'}
 HOME_CASES.update({'session-delete', 'session-delete-pad'})
@@ -87,6 +87,7 @@ PREVIEW = {
     'appearance': 'appearance-preview',
     'queued-message-behavior': 'queued-message-behavior-preview',
     'model-memory': 'model-memory',
+    'create-parity': 'create-parity',
     'smooth-scroll': 'scroll-preview',
     'duration': 'permission-preview',
     'process-counts': 'chat-preview',
@@ -146,11 +147,12 @@ READY = {
     'file-preview': 'file-links:answer',
     'mcp-files': 'file-links:answer',
     'project-history': 'history-project:["studio","demo"]',
-    'project-picker': 'ui:local:alpha',
+    'project-picker': 'create-session-input',
     'settings': 'settings-machine',
     'appearance': 'appearance',
     'queued-message-behavior': 'queued-message-behavior',
     'model-memory': 'create-session-input',
+    'create-parity': 'create-session-input',
     'send': 'send-status',
     'send-handoff': 'create-session-input',
     'send-handoff-delayed': 'create-session-input',
@@ -422,7 +424,7 @@ with metro_context:
                         ui.element('preview-image:attachment:ui-verify-image')
                     ui.capture('before')
                     script = Path(__file__).with_name(f'{case}.py') if case in ['message-details', 'message-share', 'pull-request', 'project-history-entry', 'project-history', 'project-picker', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'context-menu', 'chat-chrome', 'title-rename'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
-                    if case in {'quick-replies', 'morph', 'native-shell', 'native-collection', 'ipad-chrome', 'ipad-sidebar', 'composer-relay', 'outbox', 'navigation-toolbar', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'free-turn-notice'}:
+                    if case in {'quick-replies', 'morph', 'native-shell', 'native-collection', 'ipad-chrome', 'ipad-sidebar', 'composer-relay', 'outbox', 'navigation-toolbar', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'free-turn-notice', 'create-parity'}:
                         script = Path(__file__).with_name(f'{case}.py')
                     if case in ['session-tree', 'session-tree-pad']:
                         script = Path(__file__).with_name('session-tree.py')

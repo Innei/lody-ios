@@ -60,6 +60,9 @@ checks = {
     'chat-title': ['LodyUIVerify.swift', 'Chrome/LodyNavigationHeader.swift', 'Chat/ChatNavigationTitle.swift'],
     'live-activity': ['../live-activity/LodyActivityAttributes.swift', '../live-activity/LiveActivityCatalog.swift'],
     'page-progress': ['List/LodyPageProgress.swift'],
+    'create-session': ['LodyStrings.swift', 'CreateSession/CreateSessionModels.swift', 'CreateSession/CreateSessionLogic.swift', 'CreateSession/CreateSessionForm.swift'],
+    'share-ingest': ['LodyStrings.swift', 'Chat/ChatAttachments.swift', 'CreateSession/CreateSessionModels.swift', 'CreateSession/CreateSessionLogic.swift', 'CreateSession/CreateSessionForm.swift', 'CreateSession/ShareStore.swift', '../share-extension/ShareIngest.swift'],
+    'share': ['LodyStrings.swift', 'CreateSession/CreateSessionModels.swift', 'CreateSession/CreateSessionLogic.swift', 'CreateSession/CreateSessionForm.swift', 'CreateSession/ShareStore.swift'],
 }
 if args.case:
     if args.case not in checks:
@@ -68,6 +71,8 @@ if args.case:
 for files in checks.values():
     if 'Chat/ChatComposerView.swift' in files:
         files.append('Chat/ChatQuickReplies.swift')
+    if 'Chat/ChatTranscript.swift' in files:
+        files.append('Chat/ChatPendingSend.swift')
     if 'Chat/ChatSendHandoff.swift' in files or 'Chat/ChatMentionPanel.swift' in files:
         files.insert(0, 'LodyUIVerify.swift')
 if 'markdown-repair' in checks:
@@ -112,7 +117,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             subprocess.run(['swift', 'run', '--package-path', str(package), '--scratch-path', str(root / '.artifacts/native-local-store')], check=True, timeout=600)
             continue
         binary = str(Path(output) / name)
-        simulator = name in ['chat-kit', 'scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'attachments', 'inline-diff', 'list', 'banner', 'chat-title', 'live-activity', 'chat-chrome']
+        simulator = name in ['share-ingest', 'chat-kit', 'scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'attachments', 'inline-diff', 'list', 'banner', 'chat-title', 'live-activity', 'chat-chrome']
         command = ['xcrun', '--sdk', 'iphonesimulator', 'swiftc'] if simulator else ['xcrun', 'swiftc']
         command += ['-swift-version', '6']
         if simulator:

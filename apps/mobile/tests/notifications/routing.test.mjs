@@ -160,3 +160,28 @@ test('native session links survive cold startup and have one navigation owner on
   acknowledgeDeepLink(pendingDeepLink().id);
   assert.equal(changes, 3, 'Unmounted subscribers must not receive URL events');
 });
+
+test('share links wake the inbox drain and never become a route', async () => {
+  const { redirectSystemPath, pendingDeepLink } =
+    await import('../../src/features/notifications/deepLinks.ts');
+  const { subscribeShareInbox } =
+    await import('../../src/features/share/shareInbox.ts');
+  let wakes = 0;
+  const stop = subscribeShareInbox(() => wakes++);
+  const id = '1b671a64-40d5-491e-99b0-da01e8fc5000';
+  assert.equal(
+    redirectSystemPath({ path: `lody://share/${id}`, initial: true }),
+    '/',
+  );
+  assert.equal(
+    redirectSystemPath({ path: `/share/${id}`, initial: false }),
+    null,
+  );
+  assert.equal(wakes, 2);
+  assert.equal(pendingDeepLink(), null);
+  assert.equal(
+    redirectSystemPath({ path: 'lody://shared/x', initial: false }),
+    'lody://shared/x',
+  );
+  stop();
+});

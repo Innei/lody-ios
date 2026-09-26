@@ -7,6 +7,7 @@ public final class LodyAccentSubscriber: ExpoAppDelegateSubscriber {
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
     lodyApplyWindowAccent()
+    LodyAccentChoice.mirror()
     return true
   }
 

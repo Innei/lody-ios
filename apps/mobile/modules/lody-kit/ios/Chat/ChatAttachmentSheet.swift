@@ -307,7 +307,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
 
   private func updateCameraSession(requestPermission: Bool = false) {
     let tile = grid.collectionViewLayout.layoutAttributesForItem(at: IndexPath(item: 0, section: 0))?.frame
-    guard visible, UIApplication.shared.applicationState == .active, reviewing == nil,
+    guard visible, view.window?.windowScene?.activationState == .foregroundActive, reviewing == nil,
       cameraExpanded || tile?.intersects(grid.bounds) == true else {
       camera.setActive(false)
       return
@@ -339,7 +339,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
 
   private func openSettings() {
     guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-    UIApplication.shared.open(url)
+    view.window?.windowScene?.open(url, options: nil)
   }
 
   private var selectedImages: Int {
@@ -485,7 +485,7 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
       }
     default:
       guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-      UIApplication.shared.open(url)
+      view.window?.windowScene?.open(url, options: nil)
     }
   }
 

@@ -5,6 +5,8 @@ import UIKit
 @MainActor
 enum LodyToastOverlay {
   static let shared = Host()
+  // Extensions cannot enumerate UIApplication scenes; their host sets this.
+  static weak var scene: UIWindowScene?
 
   @MainActor
   final class Host {
@@ -324,7 +326,11 @@ enum LodyToastOverlay {
 extension LodyToastOverlay.Host {
   fileprivate func attachIfNeeded() {
     if window != nil { return }
+    #if LODY_SHARE_EXTENSION
+    let scenes = [LodyToastOverlay.scene].compactMap { $0 }
+    #else
     let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    #endif
     let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first
     let win: LodyToastOverlay.PassThroughWindow
     if let scene {

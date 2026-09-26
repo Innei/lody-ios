@@ -29,8 +29,12 @@ enum LodyListRowInteractions {
   ) -> UIContextMenuConfiguration? {
     guard !row.menuActions.isEmpty else { return nil }
     return UIContextMenuConfiguration(identifier: row.id as NSString, previewProvider: {
+      #if LODY_SHARE_EXTENSION
+      return nil
+      #else
       guard row.preview == "session" else { return nil }
       return ChatTranscriptPreviewController(sessionId: row.id, title: row.title, userId: userId, workspaceId: workspaceId)
+      #endif
     }, actionProvider: { _ in
       let actions = row.menuActions.map { action in
         UIAction(title: action.title,

@@ -945,5 +945,13 @@
   "message.details.reasoningTokens": "Of which reasoning",
   "message.details.cacheRead": "Cache read",
   "message.details.cacheWrite": "Cache write",
-  "message.details.explanation": "Usage for this turn only. Input excludes cache; output includes reasoning."
+  "message.details.explanation": "Usage for this turn only. Input excludes cache; output includes reasoning.",
+  "native.share.deferred": "Lody finishes setting up this session when it opens.",
+  "native.share.openLody": "Open Lody",
+  "native.share.signIn": "Open Lody and sign in to share.",
+  "native.share.dropped": "Some items could not be attached.",
+  "native.share.sendFailed": "Couldn't save this share. Try again.",
+  "native.share.notification": "Tap to send to Lody.",
+  "shareInbox.saveFailed": "Couldn't save the shared item. Lody will try again when it reopens.",
+  "shareInbox.unreadable": "A shared item could not be opened."
 }

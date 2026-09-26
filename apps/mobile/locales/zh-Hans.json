@@ -945,5 +945,13 @@
   "message.details.reasoningTokens": "其中推理",
   "message.details.cacheRead": "缓存读取",
   "message.details.cacheWrite": "缓存写入",
-  "message.details.explanation": "仅统计本轮用量。输入不含缓存，输出包含推理。"
+  "message.details.explanation": "仅统计本轮用量。输入不含缓存，输出包含推理。",
+  "native.share.deferred": "打开 Lody 后会完成这次会话的设置。",
+  "native.share.openLody": "打开 Lody",
+  "native.share.signIn": "请先打开 Lody 并登录后再分享。",
+  "native.share.dropped": "部分内容无法添加为附件。",
+  "native.share.sendFailed": "无法保存这次分享，请重试。",
+  "native.share.notification": "轻点以发送到 Lody。",
+  "shareInbox.saveFailed": "无法保存分享的内容，Lody 下次打开时会重试。",
+  "shareInbox.unreadable": "无法打开一条分享的内容。"
 }

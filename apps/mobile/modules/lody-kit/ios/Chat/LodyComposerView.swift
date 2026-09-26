@@ -10,6 +10,7 @@ final class LodyComposerView: ExpoView {
   let onMentionBrowse = EventDispatcher()
   let composer = ChatComposerView(frame: .zero)
   var composerRelay = false
+  var forwarded: ((String, [String: Any]) -> Void)?
   private var relayConstraints: [NSLayoutConstraint] = []
   private var relayFrame: CGRect = .zero
   private var relayAppearance: UIUserInterfaceStyle = .unspecified
@@ -98,6 +99,7 @@ final class LodyComposerView: ExpoView {
     Self.relays[id] = self
     composer.relaying = true
     onSend(payload)
+    forwarded?("send", payload)
     return true
   }
 
@@ -124,6 +126,7 @@ final class LodyComposerView: ExpoView {
     window.addSubview(composer)
     composer.frame = relayFrame
     onRelayReady([:])
+    forwarded?("relayReady", [:])
   }
 
   func restoreDraft(token: Int) {
@@ -168,14 +171,24 @@ final class LodyComposerView: ExpoView {
     NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
     NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged), name: UIResponder.keyboardWillHideNotification, object: nil)
     composer.setInputIdentifier("create-session-input")
-    composer.onSend = { [weak self] in self?.onSend($0) }
+    composer.onSend = { [weak self] in
+      self?.onSend($0)
+      self?.forwarded?("send", $0)
+    }
     composer.prepareSend = { [weak self] in self?.prepare($0) ?? false }
     composer.onHeightChange = { [weak self] height in
       self?.contentHeight = height
       self?.reportHeight()
+      self?.forwarded?("contentHeight", ["height": height])
     }
-    composer.onMentionBrowse = { [weak self] in self?.onMentionBrowse($0) }
-    composer.onComposerOptionChange = { [weak self] in self?.onComposerOptionChange($0) }
+    composer.onMentionBrowse = { [weak self] in
+      self?.onMentionBrowse($0)
+      self?.forwarded?("mentionBrowse", $0)
+    }
+    composer.onComposerOptionChange = { [weak self] in
+      self?.onComposerOptionChange($0)
+      self?.forwarded?("optionChange", $0)
+    }
     addSubview(composer)
     composer.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([

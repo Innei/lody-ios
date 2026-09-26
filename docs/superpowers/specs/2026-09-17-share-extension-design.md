@@ -2,6 +2,8 @@
 
 日期：2026-09-17
 
+> 已被 [2026-09-26 设计](2026-09-26-share-extension-design.md) 取代。
+
 > 评审后的前置验证：**点击发送立即向 Cloud 提交**是硬要求，且第三方客户端不能修改 Cloud。
 > 因此下文「扩展只写 inbox、主 App 消费发送」不再是选定方案，「扩展不跑 WebView」也待重新验证。
 > 先用 [Share transport probe](../../../apps/mobile/modules/lody-kit/share-probe/README.md)

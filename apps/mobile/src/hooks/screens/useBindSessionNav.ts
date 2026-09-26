@@ -77,6 +77,8 @@ export function useBindSessionNav({
             projects: intent.catalog.projects,
             projectId: intent.projectId,
             context: intent.context,
+            initialText: intent.draft?.text,
+            initialAttachmentsJSON: intent.draft?.attachmentsJSON,
             onCreated: (created) => {
               relayId = created.composerRelayId;
               if (signal.aborted) {

@@ -1,4 +1,6 @@
+#if !LODY_SHARE_EXTENSION
 import ExpoModulesCore
+#endif
 import UIKit
 
 class LodyAppearanceView: ExpoView {

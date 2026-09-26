@@ -10,6 +10,7 @@ export type SessionNavIntent =
       projectId?: string;
       context?: 'project' | 'chat';
       morphSourceLabel?: string;
+      draft?: { text: string; attachmentsJSON: string };
     };
 
 type Stored = SessionNavIntent & {
@@ -78,6 +79,7 @@ export function requestNewSession(
   projectId?: string,
   context?: 'project' | 'chat',
   morphSourceLabel?: string,
+  draft?: { text: string; attachmentsJSON: string },
 ) {
   return enqueue({
     kind: 'create',
@@ -86,6 +88,7 @@ export function requestNewSession(
     projectId,
     context,
     morphSourceLabel,
+    draft,
   });
 }
 

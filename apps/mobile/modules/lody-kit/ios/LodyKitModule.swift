@@ -517,10 +517,19 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         self.dataRuntime.debugBackground(action, promise: promise)
       }
     }.runOnQueue(.main)
+    Function("shareWriteCatalog") { (json: String) throws in try ShareStore.writeCatalog(json) }
+    Function("shareWriteOptions") { (target: String, json: String) throws in
+      guard let options = CreateJSON.decode(CreationOptions.self, json) else { throw CocoaError(.coderReadCorrupt) }
+      try ShareStore.writeOptions(options, target: target)
+    }
+    Function("sharePending") { () -> String in CreateJSON.encode(ShareStore.pending()) }
+    Function("shareAdopt") { (id: String) throws -> String in CreateJSON.encode(try ShareStore.adopt(id)) }
+    Function("shareRemove") { (id: String) in ShareStore.remove(id) }
     AsyncFunction("clearLocalValues") { (promise: Promise) in
       MainActor.assumeIsolated {
         // Stop producers before clearing their queued writes, including background Sessions.
         self.dataRuntime.stop()
+        ShareStore.clear()
         LocalStore.queue.async {
           do { try self.localStore.clear(); promise.resolve(nil) }
           catch { promise.reject(error) }
@@ -567,6 +576,17 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     View(LodyMentionPickerView.self) {
       Events("onPick", "onQueryReset", "onRetry")
       Prop("configurationJSON") { (view: LodyMentionPickerView, value: String) in view.configure(value) }
+    }
+
+    View(LodyCreateSessionView.self) {
+      Events("onRequest", "onPrefs", "onSelection", "onSubmit", "onRelayReady", "onMentionBrowse", "onCancel")
+      Prop("configJSON") { (view: LodyCreateSessionView, value: String) in view.configure(value) }
+      Prop("responseJSON") { (view: LodyCreateSessionView, value: String) in view.respond(value) }
+      Prop("composerRelay") { (view: LodyCreateSessionView, value: Bool) in view.setComposerRelay(value) }
+      Prop("sendHandoff") { (view: LodyCreateSessionView, value: Bool?) in view.setSendHandoff(value ?? true) }
+      Prop("restoreDraftToken") { (view: LodyCreateSessionView, value: Int) in view.restore(value) }
+      Prop("mentionItemsJSON") { (view: LodyCreateSessionView, value: String) in view.setMentionItems(value) }
+      Prop("mentionResultJSON") { (view: LodyCreateSessionView, value: String) in view.setMentionResult(value) }
     }
 
     View(LodyComposerView.self) {

@@ -1,4 +1,5 @@
-"""Local projects stay on their own segment, even when GitHub has many repositories."""
+"""The native creation form's project picker: local projects stay on their own segment,
+even when GitHub has many repositories, and a pick returns to the form."""
 import sys
 from driver import UI
 import catalog
@@ -49,6 +50,9 @@ def assert_local():
     )
 
 
+# Pinning is checked at full height; at the 0.62 detent a drag grows the sheet instead.
+ui.axe('swipe', '--start-x', '201', '--start-y', '378', '--end-x', '201', '--end-y', '40', '--duration', '0.4', '--post-delay', '1.2')
+ui.axe('tap', '--id', 'project', '--post-delay', '1')
 ui.element('list-segments')
 assert any(
     catalog.text('projectPicker.local') in (item.get('AXLabel') or '')
@@ -62,7 +66,7 @@ assert_local()
 search = search_field()
 segments = ui.element('list-segments')
 gap_above = search['frame']['y'] - (segments['frame']['y'] + segments['frame']['height'])
-assert gap_above >= 8, f'Search must sit below the segmented control, gap={gap_above}'
+assert round(gap_above) >= 8, f'Search must sit below the segmented control, gap={gap_above}'
 assert search['frame']['y'] < ui.element(LOCAL)['frame']['y'], 'Search must sit above the project list'
 ui.capture('local')
 
@@ -136,3 +140,12 @@ tap_segment(0)
 ui.element(LOCAL)
 assert 'ui:local:beta' not in ids(), 'Local search must keep its own query after switching segments'
 ui.capture('local-restored')
+
+ui.axe('tap', '--id', LOCAL, '--post-delay', '1')
+ui.element('create-session-input')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'project' and 'Alpha' in (i.get('AXLabel') or '') for i in items), 'Picked project missing from the form')
+ui.axe('tap', '--id', 'project', '--post-delay', '1')
+tap_segment(1)
+ui.axe('tap', '--id', GITHUB_FIRST, '--post-delay', '1')
+ui.element('branch')
+ui.capture('github-picked')

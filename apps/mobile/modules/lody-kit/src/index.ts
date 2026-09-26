@@ -84,6 +84,11 @@ export {
   workspaceBillingEntitlement,
   githubPullRequest,
   githubRepositories,
+  shareWriteCatalog,
+  shareWriteOptions,
+  sharePending,
+  shareAdopt,
+  shareRemove,
   createSession,
   archiveSession,
   deleteSession,
@@ -172,6 +177,13 @@ export {
 export { NativeChat, type ChatDraftAttachment } from './chat/NativeChat';
 
 export { NativeComposer } from './chat/NativeComposer';
+
+export {
+  NativeCreateSession,
+  type CreateSessionRequest,
+  type CreateSessionSelection,
+  type CreateSessionSubmit,
+} from './create/NativeCreateSession';
 
 export {
   turnDiff,

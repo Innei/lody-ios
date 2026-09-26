@@ -1,4 +1,6 @@
+#if !LODY_SHARE_EXTENSION
 import ExpoModulesCore
+#endif
 import UIKit
 
 private final class ListAppearanceController: UIViewController {
@@ -77,7 +79,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   let onRefresh = EventDispatcher()
   let onSegmentChange = EventDispatcher()
   let onSearchChange = EventDispatcher()
-  var forwardedRowPress: (([String: Any]) -> Void)?
+  var forwarded: ((String, [String: Any]) -> Void)?
 
   func emitRowPress(_ body: [String: Any]) {
     if body["expanded"] == nil,
@@ -90,7 +92,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       )
     }
     onRowPress(body)
-    forwardedRowPress?(body)
+    forwarded?("rowPress", body)
   }
   private let segments = UISegmentedControl(items: [])
   private let steps = LodyStepStrip()
@@ -219,8 +221,13 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       )
     }
     content.textProperties.color = row.destructive ? .systemRed : .label
-    if !row.filePath.isEmpty {
-      content.image = MaterialFileIcon.image(for: row.filePath)
+    #if LODY_SHARE_EXTENSION
+    let fileIcon: UIImage? = nil
+    #else
+    let fileIcon = row.filePath.isEmpty ? nil : MaterialFileIcon.image(for: row.filePath)
+    #endif
+    if let fileIcon {
+      content.image = fileIcon
     } else if let url = LodyListPhoto.url(row.image) {
       if let image = LodyListPhoto.image(for: url, ready: { [weak cell] image in
         guard let cell, cell.accessibilityIdentifier == row.id,
@@ -241,7 +248,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       if !row.imageAsset.isEmpty {
         LodyListGlyph.apply(
           &content,
-          image: UIImage(named: row.imageAsset, in: Bundle(for: LodyKitModule.self), compatibleWith: nil)?
+          image: UIImage(named: row.imageAsset, in: .main, compatibleWith: nil)?
             .withRenderingMode(.alwaysTemplate)
             ?? UIImage(named: row.imageAsset)?.withRenderingMode(.alwaysTemplate),
           asset: true
@@ -561,10 +568,12 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     guard index != selectedSegment else { return }
     selectedSegment = index
     onSegmentChange(["index": index])
+    forwarded?("segmentChange", ["index": index])
   }
 
   @objc private func searchFieldChanged() {
     onSearchChange(["text": searchField.text ?? ""])
+    forwarded?("searchChange", ["text": searchField.text ?? ""])
   }
 
   func textFieldShouldReturn(_ textField: UITextField) -> Bool {
@@ -636,12 +645,14 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   @objc private func stepChanged() {
     selectedSegment = steps.selectedIndex
     onSegmentChange(["index": selectedSegment])
+    forwarded?("segmentChange", ["index": selectedSegment])
     collection.setContentOffset(CGPoint(x: 0, y: -collection.adjustedContentInset.top), animated: false)
   }
 
   @objc private func segmentChanged() {
     selectedSegment = segments.selectedSegmentIndex
     onSegmentChange(["index": selectedSegment])
+    forwarded?("segmentChange", ["index": selectedSegment])
     collection.setContentOffset(CGPoint(x: 0, y: -collection.adjustedContentInset.top), animated: false)
   }
 
@@ -897,6 +908,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   @objc private func rowSwitchChanged(_ sender: RowSwitch) {
     onRowToggle(["id": sender.rowID, "value": sender.isOn])
+    forwarded?("rowToggle", ["id": sender.rowID, "value": sender.isOn])
   }
 
   /// Reused per row id so a reconfigure keeps the live switch instead of swapping in a

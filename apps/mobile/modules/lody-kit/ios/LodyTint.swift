@@ -44,8 +44,20 @@ enum LodyAccentChoice: Equatable, RawRepresentable {
     }
   }
 
+  // The Share Extension has its own standard defaults; the app mirrors the accent here.
+  static var shared: UserDefaults? { UserDefaults(suiteName: "group.app.innei.lody") }
+
   static var current: Self {
-    Self(rawValue: UserDefaults.standard.string(forKey: "accentColor") ?? "") ?? .blue
+    #if LODY_SHARE_EXTENSION
+    let defaults = shared ?? .standard
+    #else
+    let defaults = UserDefaults.standard
+    #endif
+    return Self(rawValue: defaults.string(forKey: "accentColor") ?? "") ?? .blue
+  }
+
+  static func mirror() {
+    shared?.set(current.rawValue, forKey: "accentColor")
   }
 
   var color: UIColor {
@@ -72,6 +84,7 @@ enum LodyAccentChoice: Equatable, RawRepresentable {
   static func save(_ value: String) {
     guard let next = Self(rawValue: value), next != current else { return }
     UserDefaults.standard.set(next.rawValue, forKey: "accentColor")
+    mirror()
     DispatchQueue.main.async {
       lodyApplyWindowAccent()
       NotificationCenter.default.post(name: .lodyAppearanceDidChange, object: nil)
@@ -179,10 +192,12 @@ extension UIColor {
 @MainActor
 func lodyApplyWindowAccent() {
   UIWindow.appearance().tintColor = .lodyAccent
+  #if !LODY_SHARE_EXTENSION
   for scene in UIApplication.shared.connectedScenes {
     guard let scene = scene as? UIWindowScene else { continue }
     for window in scene.windows {
       window.tintColor = LodyAccentChoice.current.color
     }
   }
+  #endif
 }
