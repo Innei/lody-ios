@@ -13,6 +13,7 @@ import { PlatformColor, StyleSheet, Text, View } from 'react-native';
 import {
   ScreenStack,
   ScreenStackHeaderSearchBarView,
+  ScreenStackHeaderLeftView,
   ScreenStackItem,
   SearchBar,
 } from 'react-native-screens';
@@ -188,6 +189,7 @@ function PanelStack({
   return (
     <ScreenStack style={[StyleSheet.absoluteFill, frame]}>
       <InboxPanelItem
+        width={frame?.width}
         selectedSessionId={selectedSessionId}
         onOpenRow={openRow}
       />
@@ -203,54 +205,12 @@ function PanelStack({
   );
 }
 
-function sidebarHeaderItems(
-  model: ReturnType<typeof useInboxModel>,
-  openSettings: () => void,
-): HeaderBarButtonItem[] {
-  return [
-    {
-      type: 'menu',
-      accessibilityLabel: t('inbox.settings.section.view'),
-      icon: { type: 'sfSymbol', name: 'line.3.horizontal.decrease' },
-      tintColor: model.colors.label,
-      menu: {
-        items: [
-          ...inboxViews.map((view) => ({
-            type: 'action' as const,
-            title: t(view.key),
-            icon: { type: 'sfSymbol' as const, name: view.icon },
-            state:
-              model.mode === view.mode ? ('on' as const) : ('off' as const),
-            onPress: () => model.setView(view.mode),
-          })),
-          {
-            type: 'submenu',
-            displayInline: true,
-            items: inboxSorts.map((item) => ({
-              type: 'action' as const,
-              title: t(item.key),
-              icon: { type: 'sfSymbol' as const, name: item.icon },
-              state:
-                model.sort === item.id ? ('on' as const) : ('off' as const),
-              onPress: () => model.setProjectSort(item.id),
-            })),
-          },
-        ],
-      },
-    },
-    {
-      type: 'button',
-      accessibilityLabel: t('tabs.settings'),
-      icon: { type: 'sfSymbol', name: 'gearshape' },
-      onPress: openSettings,
-    },
-  ];
-}
-
 function InboxPanelItem({
+  width,
   selectedSessionId,
   onOpenRow,
 }: {
+  width?: number;
   selectedSessionId?: string;
   onOpenRow: (id: string, catalog: Catalog, findQuery?: string) => void;
 }) {
@@ -269,15 +229,55 @@ function InboxPanelItem({
       headerConfig={{
         backButtonDisplayMode: 'minimal',
         backgroundColor: 'transparent',
-        headerLeftBarButtonItems: sidebarHeaderItems(
-          model,
-          () => void present(SettingsScreen),
-        ),
         hideShadow: true,
         title: '',
         translucent: true,
         children: (
           <>
+            {account ? (
+              <ScreenStackHeaderLeftView>
+                <NativeMenuButton
+                  // Reserve space for UIKit’s sidebar toggle and bar margins.
+                  style={{ maxWidth: Math.max(44, (width ?? 320) - 112) }}
+                  label={workspaceName}
+                  accessibilityName={t('inbox.workspaceSwitch.accessibility', {
+                    name: workspaceName,
+                  })}
+                  avatar={{
+                    text: workspaceName.slice(0, 1),
+                    color: model.colors.accent,
+                    image: selected?.image,
+                  }}
+                  items={[
+                    ...account.workspaces.map((workspace) => ({
+                      id: workspace.id,
+                      title: workspace.name,
+                      selected: workspace.id === selected?.id,
+                    })),
+                    ...(selected
+                      ? [
+                          {
+                            id: workspaceEditActionId,
+                            title: t('workspace.edit.action'),
+                          },
+                        ]
+                      : []),
+                  ]}
+                  onSelect={(id) => {
+                    if (id === workspaceEditActionId && selected) {
+                      void present(WorkspaceEditorScreen, {
+                        workspaceId: selected.id,
+                        name: selected.name,
+                        image: selected.image,
+                        color: model.colors.accent,
+                      });
+                      return;
+                    }
+                    model.setWorkspaceId(id);
+                  }}
+                />
+              </ScreenStackHeaderLeftView>
+            ) : null}
             <ScreenStackHeaderSearchBarView>
               <SearchBar
                 placement="stacked"
@@ -313,48 +313,39 @@ function InboxPanelItem({
         }
       />
       <Stack.Toolbar>
-        {account ? (
-          <Stack.Toolbar.View>
-            <NativeMenuButton
-              label={workspaceName}
-              accessibilityName={t('inbox.workspaceSwitch.accessibility', {
-                name: workspaceName,
-              })}
-              avatar={{
-                text: workspaceName.slice(0, 1),
-                color: model.colors.accent,
-                image: selected?.image,
-              }}
-              items={[
-                ...account.workspaces.map((workspace) => ({
-                  id: workspace.id,
-                  title: workspace.name,
-                  selected: workspace.id === selected?.id,
-                })),
-                ...(selected
-                  ? [
-                      {
-                        id: workspaceEditActionId,
-                        title: t('workspace.edit.action'),
-                      },
-                    ]
-                  : []),
-              ]}
-              onSelect={(id) => {
-                if (id === workspaceEditActionId && selected) {
-                  void present(WorkspaceEditorScreen, {
-                    workspaceId: selected.id,
-                    name: selected.name,
-                    image: selected.image,
-                    color: model.colors.accent,
-                  });
-                  return;
-                }
-                model.setWorkspaceId(id);
-              }}
-            />
-          </Stack.Toolbar.View>
-        ) : null}
+        <Stack.Toolbar.Menu
+          icon="line.3.horizontal.decrease"
+          tintColor={model.colors.label}
+          accessibilityLabel={t('inbox.settings.section.view')}
+        >
+          {inboxViews.map((view) => (
+            <Stack.Toolbar.MenuAction
+              key={view.mode}
+              icon={view.icon}
+              isOn={model.mode === view.mode}
+              onPress={() => model.setView(view.mode)}
+            >
+              {t(view.key)}
+            </Stack.Toolbar.MenuAction>
+          ))}
+          <Stack.Toolbar.Menu inline>
+            {inboxSorts.map((item) => (
+              <Stack.Toolbar.MenuAction
+                key={item.id}
+                icon={item.icon}
+                isOn={model.sort === item.id}
+                onPress={() => model.setProjectSort(item.id)}
+              >
+                {t(item.key)}
+              </Stack.Toolbar.MenuAction>
+            ))}
+          </Stack.Toolbar.Menu>
+        </Stack.Toolbar.Menu>
+        <Stack.Toolbar.Button
+          icon="gearshape"
+          accessibilityLabel={t('tabs.settings')}
+          onPress={() => void present(SettingsScreen)}
+        />
         <Stack.Toolbar.Spacer />
         <Stack.Toolbar.View separateBackground>
           <NativeSymbolButton

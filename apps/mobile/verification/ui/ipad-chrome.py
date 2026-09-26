@@ -31,12 +31,27 @@ def assert_selected(stage, identifier='ui-design', selected=True):
     processes = subprocess.check_output(['xcrun', 'simctl', 'spawn', ui.udid, 'launchctl', 'list'], text=True)
     pid = next(line.split()[0] for line in processes.splitlines() if 'UIKitApplication:app.innei.lody[' in line)
     expression = '''({ NSMutableArray *q = [NSMutableArray array];
+      NSMutableArray *controllers = [NSMutableArray array];
       for (UIWindowScene *scene in [[UIApplication sharedApplication] connectedScenes]) {
-        if ([scene isKindOfClass:[UIWindowScene class]]) [q addObjectsFromArray:(NSArray *)[scene windows]];
+        if (![scene isKindOfClass:[UIWindowScene class]]) continue;
+        for (UIWindow *window in [scene windows]) {
+          if (window.rootViewController) [controllers addObject:window.rootViewController];
+        }
       }
+      /* A pushed controller detaches the previous view from the window,
+         but its loaded collection owns selection until navigation returns. */
+      for (NSUInteger i = 0; i < [controllers count]; i++) {
+        UIViewController *controller = controllers[i];
+        if (controller.viewIfLoaded) [q addObject:controller.viewIfLoaded];
+        [controllers addObjectsFromArray:controller.childViewControllers];
+        if (controller.presentedViewController) [controllers addObject:controller.presentedViewController];
+      }
+      NSHashTable *visited = [NSHashTable hashTableWithOptions:NSPointerFunctionsObjectPointerPersonality];
       NSMutableArray *result = [NSMutableArray array];
       for (NSUInteger i = 0; i < [q count]; i++) {
         UIView *v = q[i];
+        if ([visited containsObject:v]) continue;
+        [visited addObject:v];
         if ([[v accessibilityIdentifier] isEqualToString:@"IDENTIFIER"] && [v isKindOfClass:[UICollectionViewCell class]]) {
           [result addObject:@{@"selected": @([(UICollectionViewCell *)v isSelected]),
             @"selectedTrait": @(([v accessibilityTraits] & UIAccessibilityTraitSelected) != 0)}];
@@ -67,12 +82,14 @@ view_menu = labeled(catalog.text('inbox.settings.section.view'))['frame']
 workspace_item = ui.wait(lambda items: next((item for item in items if (item.get('AXLabel') or '').startswith('Switch workspace,')), None), 'Missing workspace switch')
 workspace = workspace_item['frame']
 fab = labeled(catalog.text('tabs.newSession'))['frame']
-assert settings['y'] < search['y'] < panel['y'] + 150
-assert settings['x'] < view_menu['x'] < panel['x'] + panel['width'] / 2
-assert workspace['y'] > panel['y'] + panel['height'] - 110
+assert workspace['y'] + workspace['height'] <= search['y'] < panel['y'] + 150
 assert workspace['x'] < panel['x'] + 40
-assert workspace['x'] + workspace['width'] < fab['x']
-assert abs(workspace['y'] - fab['y']) < 10
+assert workspace['x'] + workspace['width'] <= panel['x'] + panel['width'] - 8
+assert view_menu['x'] < settings['x'] < fab['x']
+for action in (settings, view_menu):
+    assert action['y'] > panel['y'] + panel['height'] - 110
+    assert abs(action['y'] - fab['y']) < 10
+assert workspace['width'] >= 44 and workspace['height'] >= 44
 assert fab['width'] >= 44 and fab['height'] >= 44
 assert fab['x'] > panel['x'] + panel['width'] - 100
 assert fab['y'] > panel['y'] + panel['height'] - 110

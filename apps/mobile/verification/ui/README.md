@@ -107,11 +107,15 @@ pnpm verify:ui --parallel --app /absolute/path/to/Lody.app --output .artifacts/u
 pnpm verify:ui --app /absolute/path/to/Lody.app --suite send-reliability --output .artifacts/send-reliability
 ```
 
+`ipad-sidebar` verifies the relocated Workspace, view/settings and new-session
+actions independently, including long workspace names, view changes and workspace
+switching in both appearances.
+
 The current `ipad-chrome` case leases an iPad Air 11-inch (M2), separately from
 phone batches. It exercises the production `PadHomeScreen`: independent native
 sidebar, selected session and outline restoration, project push/back with the
 navigating row held until return, top search,
-bottom workspace/new-session actions, and a window-level creation form.
+top workspace switch, bottom view/settings/new-session actions, and a window-level creation form.
 A wide detail keeps the 760 pt reading column centered, but the transcript
 scroll view stays full-bleed so the vertical indicator sits on the screen edge.
 Switching to an empty workspace must remove the old conversation; a real
