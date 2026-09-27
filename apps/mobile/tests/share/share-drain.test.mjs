@@ -181,3 +181,16 @@ test('deliverShare reports whether the entry was kept', async () => {
   assert.equal(await deliverShare(entry, kept.deps), 'kept');
   assert.equal(await deliverShare(entry, harness().deps), 'done');
 });
+
+test('the first turn uses the entry UUID the data runtime accepts as a message id', async () => {
+  const id = 'A1B2C3D4-E5F6-4711-8899-AABBCCDDEEFF';
+  let sent;
+  const { deps } = harness({
+    adopt: () => ({ ...entry, id }),
+    put: async (record) => {
+      sent = record.send.id;
+    },
+  });
+  await deliverShare({ ...entry, id }, deps);
+  assert.equal(sent, id.toLowerCase());
+});

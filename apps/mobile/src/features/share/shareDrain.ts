@@ -97,7 +97,7 @@ export async function deliverShare(
     return 'done';
   }
   const { record } = pendingSessionFromDraft(draft, {
-    id: `share-${entry.id}`,
+    id: entry.id.toLowerCase(),
     text: adopted.text,
     startedAt: deps.now(),
     attachments: adopted.attachments,
