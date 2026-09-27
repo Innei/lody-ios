@@ -184,6 +184,22 @@ class CaptureTest(unittest.TestCase):
             self.assertEqual(path, Path(directory) / 'failure.png')
             self.assertTrue(path.exists())
 
+    def test_screenshot_retries_one_timeout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+            calls = []
+
+            def run(command, **_kwargs):
+                calls.append(command)
+                if len(calls) == 1:
+                    raise subprocess.TimeoutExpired(command, 20)
+                Path(command[-1]).write_bytes(b'png')
+                return subprocess.CompletedProcess(command, 0)
+
+            with patch('subprocess.run', run):
+                self.assertTrue(ui.screenshot('failure').exists())
+            self.assertEqual(len(calls), 2)
+
     def test_capture_keeps_screenshot_when_describe_ui_fails(self):
         with tempfile.TemporaryDirectory() as directory:
             ui = UI('UDID', directory)

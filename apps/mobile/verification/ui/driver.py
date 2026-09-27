@@ -177,13 +177,18 @@ class UI:
     def screenshot(self, name):
         """Framebuffer capture that does not depend on AXe remaining responsive."""
         path = self.output / f'{name}.png'
-        subprocess.run(
-            ['xcrun', 'simctl', 'io', self.udid, 'screenshot', str(path)],
-            check=True,
-            timeout=20,
-            capture_output=True,
-        )
-        return path
+        for attempt in range(2):
+            try:
+                subprocess.run(
+                    ['xcrun', 'simctl', 'io', self.udid, 'screenshot', str(path)],
+                    check=True,
+                    timeout=20,
+                    capture_output=True,
+                )
+                return path
+            except subprocess.TimeoutExpired:
+                if attempt:
+                    raise
 
     def capture(self, name):
         self.screenshot(name)
