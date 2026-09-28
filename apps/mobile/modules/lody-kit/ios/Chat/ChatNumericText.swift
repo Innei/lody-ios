@@ -29,6 +29,8 @@ struct ChatNumericTextBridge: View {
           endPoint: UnitPoint(x: 2 * progress, y: 0)
         ))
         .multilineTextAlignment(.leading)
+        .lineLimit(1)
+        .truncationMode(.tail)
         .contentTransition(.numericText())
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .topLeading)

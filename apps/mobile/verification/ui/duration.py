@@ -67,9 +67,9 @@ finished = ui.wait(
 )
 assert any(token in finished['AXLabel'] for token in copy['finished']), finished['AXLabel']
 assert catalog.text('native.chat.transcript.activity.thought') not in finished['AXLabel'], finished['AXLabel']
-assert catalog.plural('native.chat.transcript.activity.readFiles', 1) in finished['AXLabel'], finished['AXLabel']
-assert finished['frame']['height'] < 44, (
-    'A finished work row must keep the live timer height, not a 44 pt slot: '
+assert catalog.plural('native.chat.transcript.activity.readFiles', 1) not in finished['AXLabel'], finished['AXLabel']
+assert finished['frame']['height'] >= 44, (
+    'A completed process disclosure must retain a 44 pt touch target: '
     + str((advanced['frame'], finished['frame']))
 )
 finished_label = finished['AXLabel']

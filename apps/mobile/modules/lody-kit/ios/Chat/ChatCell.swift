@@ -196,6 +196,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   var numericText: ChatNumericTextHost { messageContent.numericText }
   var bubble: UIView { messageContent.bubble }
   let icon = ChatMarkView()
+  let processDisclosure = UIImageView()
   let separator = UIView()
   var row: ChatRow?
   var onInteraction: (() -> Void)?
@@ -224,6 +225,11 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     contentView.addSubview(messageContent)
     messageContent.disclosure.addAction(UIAction { [weak self] _ in self?.onToggle?() }, for: .touchUpInside)
     contentView.addSubview(icon)
+    contentView.addSubview(processDisclosure)
+    processDisclosure.image = UIImage(systemName: "chevron.right", withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .medium))
+    processDisclosure.tintColor = .tertiaryLabel
+    processDisclosure.contentMode = .center
+    processDisclosure.isAccessibilityElement = false
     contentView.addSubview(separator)
     icon.contentMode = .center
     separator.backgroundColor = .separator
@@ -249,6 +255,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     accessibilityTraits = row.actionable ? .button : .staticText
     accessibilityHint = hint(for: row)
     let process = row.kind == "summary"
+    processDisclosure.isHidden = !Self.showsProcessDisclosure(row)
     numericText.isHidden = !process
     label.isHidden = process
     if process {
@@ -360,7 +367,8 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
 
   static func leading(_ row: ChatRow) -> CGFloat {
     switch row.kind {
-    case "text", "user", "duration": return 0
+    case "text", "user": return 0
+    case "duration": return row.symbol.isEmpty ? 0 : 24
     case "summary": return 12
     default: return 24
     }
@@ -386,7 +394,24 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   }
   static func textWidth(_ row: ChatRow, width: CGFloat) -> CGFloat {
     if row.kind == "user" { return max(1, width * 0.84 - 26) }
-    return max(1, width - leading(row))
+    return max(1, width - leading(row) - (showsProcessDisclosure(row) ? 24 : 0))
+  }
+
+  static func showsProcessDisclosure(_ row: ChatRow) -> Bool {
+    row.actionable && (row.kind == "summary" || row.kind == "duration")
+  }
+
+  static func processTextHeight(compatibleWith traits: UITraitCollection) -> CGFloat {
+    18 * UIFont.dynamicScale(compatibleWith: traits)
+  }
+
+  static func textColor(for row: ChatRow) -> UIColor {
+    if row.kind == "chat_failed" { return .systemRed }
+    if row.kind == "summary" || row.kind == "duration" { return .secondaryLabel }
+    if row.attention { return .systemOrange }
+    if row.kind == "changes" || row.kind == "file" { return .lodyAccent }
+    if row.kind == "user" { return .label }
+    return .secondaryLabel
   }
 
   override func layoutSubviews() {
@@ -424,19 +449,19 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
       messageContent.layoutIfNeeded()
       let inset = Self.leading(row)
       let textWidth = Self.textWidth(row, width: width)
-      let height = label.sizeThatFits(CGSize(width: textWidth, height: .greatestFiniteMagnitude)).height
+      let height = row.kind == "summary"
+        ? Self.processTextHeight(compatibleWith: traitCollection)
+        : label.sizeThatFits(CGSize(width: textWidth, height: .greatestFiniteMagnitude)).height
       let y: CGFloat
-      if row.kind == "text" || row.kind == "thought" || row.kind == "duration" {
+      if row.kind == "text" || row.kind == "thought" || (row.kind == "duration" && !row.actionable) {
         y = ChatRowPadding.content
       } else {
         y = max(ChatRowPadding.content, (bounds.height - height) / 2)
       }
       label.frame = CGRect(x: inset, y: y, width: textWidth, height: height)
       numericText.frame = label.frame
-      let markHeight = row.kind == "summary"
-        ? (label.lineAdvances(width: textWidth).first ?? height)
-        : height
-      icon.frame = Self.iconFrame(for: row, textY: y, textHeight: markHeight)
+      icon.frame = Self.iconFrame(for: row, textY: y, textHeight: height)
+      processDisclosure.frame = CGRect(x: width - 16, y: y, width: 16, height: height)
     }
     let pixel = 1 / max(1, traitCollection.displayScale)
     separator.frame = CGRect(x: 0, y: contentView.bounds.height - pixel, width: width, height: pixel)
@@ -452,7 +477,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
 private func chromeColor(for row: ChatRow) -> UIColor {
   if row.kind == "chat_failed" { return .systemRed }
   if row.attention { return .systemOrange }
-  if row.kind == "changes" || row.kind == "file" || (row.kind == "summary" && row.running) { return .lodyAccent }
+  if row.kind == "changes" || row.kind == "file" { return .lodyAccent }
   return .secondaryLabel
 }
 

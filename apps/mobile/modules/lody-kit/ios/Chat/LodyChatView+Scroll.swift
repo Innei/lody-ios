@@ -364,6 +364,7 @@ extension LodyChatView {
   }
 
   func measure(_ row: ChatRow, width: CGFloat) -> CGFloat {
+    if row.kind == "summary" { return ChatCell.processTextHeight(compatibleWith: traitCollection) }
     if let image = row.image {
       let height = ChatImageCell.size(image, width: width).height
       return height
@@ -427,10 +428,7 @@ extension LodyChatView {
         limit: collapsedMessageHeights[row.entryID] ?? ChatMessageContent.maximumCollapsedHeight,
         expanded: expandedMessages.contains(row.entryID)) + 24
     }
-    // Process and pending status rows are buttons. Duration stays copy-sized
-    // even after the folded process makes it tappable — a 44 pt floor would
-    // leave an empty gap between the timer and the hairline.
-    let tapFloor = row.kind != "duration" && (row.actionable || row.kind == "summary" || row.kind == "pending")
+    let tapFloor = row.actionable || row.kind == "summary" || row.kind == "pending"
     return max(tapFloor ? 44 : 0, measured + ChatCell.rowExtra(for: row, previousKind: previousKind ?? kind(before: row.id)))
   }
 

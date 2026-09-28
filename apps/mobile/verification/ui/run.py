@@ -25,6 +25,7 @@ BATCHES = {
     'chat': ['message-share', 'user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'chat-chrome', 'title-rename'],
 }
 SUITES = {
+    'tool-process': ['process-failed', 'process-counts', 'duration', 'layout'],
     'paste-plain': ['paste-plain-chat', 'paste-plain-sheet'],
     'chat-kit': ['chat-stream-performance', 'composer', 'send-transition-handoff'],
     'chat-kit-input': ['composer', 'send-transition-handoff'],

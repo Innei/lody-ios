@@ -29,7 +29,7 @@ assert(transcript.rows().contains { $0.kind == "summary" && $0.attention })
 assert(transcript.rows(processEntryID: "reply").contains { $0.itemID == "tool" && $0.attention })
 let failedSummary = transcript.rows().first { $0.kind == "summary" }!
 assert(!failedSummary.text.contains("native.chat.transcript.status.failed"), failedSummary.text)
-assert(failedSummary.text.contains("native.chat.transcript.activity.thought"), failedSummary.text)
+assert(!failedSummary.text.contains("native.chat.transcript.activity.thought"), failedSummary.text)
 assert(failedSummary.text.contains("native.chat.transcript.activity.tools"), failedSummary.text)
 assert(failedSummary.symbol == "exclamationmark.triangle.fill",
   "A failed tool in the process must replace the status pip with a warning mark")
@@ -159,6 +159,14 @@ assert(finishedDurationRows.map(\.kind) == ["duration", "text", "meta"],
 let finishedDurationRow = finishedDurationRows.first
 assert(finishedDurationRow?.workDurationMs == 125_000, "A finished turn must freeze at endedAt")
 assert(finishedDurationRow?.actionable == true, "The merged work row must open the process")
+let failedDurationEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(
+  finishedDurationJSON.replacingOccurrences(of: "\"status\":\"completed\"", with: "\"status\":\"failed\"").utf8
+))
+let failedDuration = ChatTranscript(entries: failedDurationEntries).rows(now: 999_999).first!
+assert(failedDuration.attention && failedDuration.symbol == "exclamationmark.triangle.fill",
+  "Completion must keep a visible failure marker when the activity counts are folded")
+assert(failedDuration.text == finishedDurationRow?.text && failedDuration.actionable,
+  "The failure marker must not replace elapsed time or disable process details")
 let timedThoughtJSON = finishedDurationJSON.replacingOccurrences(
   of: "\"type\":\"tool_call\",\"status\":\"completed\"",
   with: "\"type\":\"thought\",\"text\":\"Analyze\""
@@ -173,9 +181,8 @@ assert(timedThoughtRow.text == LodyStrings.text("native.chat.transcript.status.w
 assert(timedThoughtRow.actionable && timedThoughtTranscript.rows(processEntryID: "timed-finished").first?.text == "Analyze",
   "The duration must still open the original thought content")
 assert(
-  finishedDurationRow?.text.contains("native.chat.transcript.activity.tools") == true
-    || finishedDurationRow?.text.contains(" · ") == true,
-  "The folded process title must follow the work duration"
+  finishedDurationRow?.text == timedThoughtRow.text,
+  "Completed work shows only elapsed time; tool details remain in the process sheet"
 )
 assert(
   ChatWorkDuration.format(3_665_999, hour: "h", minute: "m", second: "s") == "1h 01m 05s",
@@ -317,20 +324,18 @@ assert(mixedSummary.attention)
 assert(mixedSummary.symbol == "exclamationmark.triangle.fill")
 assert(!mixedSummary.text.contains("native.chat.transcript.status.failed"), mixedSummary.text)
 assert(!mixedSummary.text.contains("native.chat.transcript.status.done"), mixedSummary.text)
-assert(mixedSummary.text.contains("native.chat.transcript.activity.thought"), mixedSummary.text)
+assert(!mixedSummary.text.contains("native.chat.transcript.activity.thought"), mixedSummary.text)
 assert(mixedSummary.text.contains("native.chat.transcript.activity.readFiles"), mixedSummary.text)
 assert(mixedSummary.text.contains("native.chat.transcript.activity.editedFiles"), mixedSummary.text)
 assert(mixedSummary.text.contains("native.chat.transcript.activity.commands"), mixedSummary.text)
 let liveThink = """
 [{"id":"live","role":"assistant","status":"running","finished":false,"items":[
-{"itemId":"think","type":"thought","text":"分析"},
-{"itemId":"read","type":"tool_call","kind":"read","status":"in_progress"}]}]
+{"itemId":"think","type":"thought","text":"分析"}]}]
 """
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(liveThink.utf8))
 let liveSummary = transcript.rows().first { $0.kind == "summary" }!
 assert(liveSummary.text.contains("native.chat.transcript.activity.thinking"), liveSummary.text)
 assert(!liveSummary.text.contains("native.chat.transcript.status.running"), liveSummary.text)
-// Earlier process groups keep the turn's live label while only the latest group animates.
 transcript.entries[0].items.append(try JSONDecoder().decode(ChatItem.self, from: Data(
   #"{"itemId":"progress","type":"text","text":"Still working"}"#.utf8
 )))
@@ -339,7 +344,9 @@ transcript.entries[0].items.append(try JSONDecoder().decode(ChatItem.self, from:
 )))
 let liveGroups = transcript.rows().filter { $0.kind == "summary" }
 assert(liveGroups.count == 2)
-assert(liveGroups.allSatisfy { $0.text.contains("native.chat.transcript.activity.thinking") })
+assert(!liveGroups[0].text.contains("native.chat.transcript.activity.thinking"),
+  "A historical process segment must not report that it is still processing")
+assert(liveGroups[1].text.contains("native.chat.transcript.activity.thinking"))
 assert(!liveGroups[0].running && liveGroups[1].running)
 transcript.entries[0].finished = true
 let finishedGroup = transcript.rows().first { $0.kind == "summary" }!

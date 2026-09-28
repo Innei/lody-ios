@@ -158,14 +158,15 @@ function overlayTaskEntries() {
   ];
 }
 
-function failedToolEntries(startedAt: number) {
+function failedToolEntries(startedAt: number, finished: boolean) {
   return [
     {
       id: 'failed-preview',
       role: 'assistant',
-      status: 'running',
-      finished: false,
+      status: finished ? 'completed' : 'running',
+      finished,
       startedAt,
+      endedAt: finished ? startedAt + 65000 : undefined,
       modelInfo: {
         modelId: 'gpt-5.6-sol',
         name: 'GPT-5.6 Sol',
@@ -173,26 +174,76 @@ function failedToolEntries(startedAt: number) {
       },
       items: [
         {
+          itemId: 'intro',
+          type: 'text',
+          text: 'I’ll check the chat components, then simplify the tool activity rows.',
+        },
+        {
+          itemId: 'earlier-thought',
+          type: 'thought',
+          text: 'Locate the transcript and row layout.',
+        },
+        ...[
+          'ChatCell.swift',
+          'ChatTranscript.swift',
+          'ChatNumericText.swift',
+        ].map((path, index) => ({
+          itemId: `earlier-read-${index}`,
+          type: 'tool_call',
+          kind: 'read',
+          path,
+          title: `Read ${path}`,
+          status: 'completed',
+        })),
+        {
+          itemId: 'progress',
+          type: 'text',
+          text: 'The tool summaries wrap into the conversation. I’m checking compact rows and keeping failure details available.',
+        },
+        {
           itemId: 'thought',
           type: 'thought',
-          text: '先核对失败的工具',
-          status: 'in_progress',
+          text: 'Check the failed request and continue reading the local components.',
+          status: finished ? 'completed' : 'in_progress',
         },
         {
           itemId: 'tool',
           type: 'tool_call',
           kind: 'mcp',
-          title: '失败的工具',
+          title: 'Fetch reference, request failed',
           status: 'failed',
         },
         {
           itemId: 'read',
           type: 'tool_call',
           kind: 'read',
-          path: 'File.swift',
-          title: '继续读取',
-          status: 'in_progress',
+          path: 'ChatCell.swift',
+          title: 'Read ChatCell.swift',
+          status: finished ? 'completed' : 'in_progress',
         },
+        {
+          itemId: 'search',
+          type: 'tool_call',
+          kind: 'search',
+          title: 'Search process summary callers',
+          status: 'completed',
+        },
+        {
+          itemId: 'command',
+          type: 'tool_call',
+          kind: 'execute',
+          title: 'Run native chat checks',
+          status: finished ? 'completed' : 'in_progress',
+        },
+        ...(finished
+          ? [
+              {
+                itemId: 'answer',
+                type: 'text',
+                text: 'Tool activity now stays on one quiet line. Open the process to inspect every command, file and failed request.\n\nThe offline mock checks cover running, completed and failed activity.',
+              },
+            ]
+          : []),
       ],
     },
   ];
@@ -383,6 +434,7 @@ function View() {
     startedAt: number;
   } | null>(null);
   const [failedToolAt, setFailedToolAt] = useState<number | null>(null);
+  const [failedToolFinished, setFailedToolFinished] = useState(false);
   const [length, setLength] = useState(totalLength);
   const [navigationTitle, setNavigationTitle] = useState('原生聊天预览');
   const [sessionActionsReady, setSessionActionsReady] = useState(false);
@@ -566,7 +618,9 @@ function View() {
       },
     ]);
   } else if (failedToolAt != null) {
-    displayedEntriesJSON = JSON.stringify(failedToolEntries(failedToolAt));
+    displayedEntriesJSON = JSON.stringify(
+      failedToolEntries(failedToolAt, failedToolFinished),
+    );
   } else if (showChanges) {
     displayedEntriesJSON = JSON.stringify([
       {
@@ -700,8 +754,14 @@ function View() {
               setShowChanges(false);
               setDurationFixture(null);
               setProcessCounts(null);
+              setFailedToolFinished(false);
               setFailedToolAt(Date.now());
             }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Finish Tool Fixture"
+            icon="checkmark.circle"
+            onPress={() => setFailedToolFinished(true)}
           />
           <Stack.Toolbar.MenuAction
             children="Session Created"

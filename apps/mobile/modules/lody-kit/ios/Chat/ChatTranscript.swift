@@ -439,10 +439,9 @@ struct ChatTranscript {
           )
           if entry.finished, let first = groups.keys.min(), let indices = groups[first] {
             let process = indices.map { entry.items[$0] }
-            let summary = ChatProcessSummary.title(items: process, running: false, includesThought: false)
-            if !summary.isEmpty { row.text += " · " + summary }
             row.actionable = true
             row.attention = process.contains { $0.permission?.pending == true || $0.status == "failed" }
+            if row.attention { row.symbol = ChatProcessSummary.mark(attention: true) }
             absorbedProcess = true
           }
           result.append(row)
@@ -458,7 +457,7 @@ struct ChatTranscript {
           let firstGroup = index == groups.keys.min()
           let attention = needsPermission || failed
           result.append(ChatRow(id: entry.id + ":process" + (firstGroup ? "" : ":" + entry.items[index].itemId), entryID: entry.id, kind: "summary",
-            text: ChatProcessSummary.title(items: process, running: entry.isRunning),
+            text: ChatProcessSummary.title(items: process, running: running),
             symbol: ChatProcessSummary.mark(attention: attention),
             processStartID: entry.finished ? "" : entry.items[index].itemId,
             actionable: true, running: running, attention: attention))
@@ -577,7 +576,7 @@ enum ChatProcessSummary {
     attention ? "exclamationmark.triangle.fill" : "circle.fill"
   }
 
-  static func title(items: [ChatItem], running: Bool, includesThought: Bool = true) -> String {
+  static func title(items: [ChatItem], running: Bool) -> String {
     var readPaths = Set<String>()
     var editPaths = Set<String>()
     var readWithout = 0
@@ -611,20 +610,18 @@ enum ChatProcessSummary {
       }
     }
     var parts: [String] = []
-    if hasThought && includesThought {
-      parts.append(LodyStrings.text(
-        running
-          ? "native.chat.transcript.activity.thinking"
-          : "native.chat.transcript.activity.thought"
-      ))
-    }
     add(&parts, "native.chat.transcript.activity.commands", commands)
     add(&parts, "native.chat.transcript.activity.readFiles", readPaths.count + readWithout)
     add(&parts, "native.chat.transcript.activity.editedFiles", editPaths.count + editWithout)
     add(&parts, "native.chat.transcript.activity.searches", searches)
     add(&parts, "native.chat.transcript.activity.fetches", fetches)
     add(&parts, "native.chat.transcript.activity.tools", others)
-    if parts.isEmpty && includesThought {
+    if parts.isEmpty && hasThought {
+      return LodyStrings.text(running
+        ? "native.chat.transcript.activity.thinking"
+        : "native.chat.transcript.activity.thought")
+    }
+    if parts.isEmpty {
       return LodyStrings.text("native.chat.transcript.status.done")
     }
     return parts.joined(separator: " · ")

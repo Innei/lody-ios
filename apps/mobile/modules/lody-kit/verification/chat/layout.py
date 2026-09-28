@@ -81,7 +81,7 @@ saw_segments = False
 deadline = time.monotonic() + 45
 while time.monotonic() < deadline:
     items = {item['AXUniqueId']: item for item in rows(json.loads(axe('describe-ui')))}
-    saw_running |= any(catalog.text('native.chat.transcript.activity.thinking') in item.get('AXLabel', '') for item in items.values())
+    saw_running |= 'preview:process' in items
     saw_segments |= 'preview:middle' in items and 'preview:process:thought-two' in items
     answer = items.get('preview:answer')
     summary = items.get('preview:process')
@@ -95,7 +95,6 @@ assert saw_running and saw_segments, 'Did not observe the live text/process segm
 assert answer and '分割线之后的收尾段落' in answer['AXLabel'], 'Conclusion did not finish'
 # Rich Markdown can be taller than the viewport. Bring the completed work
 # row into view before asserting its state; offscreen cells are not in AX.
-thought = catalog.text('native.chat.transcript.activity.thought')
 worked = catalog.text('native.chat.transcript.status.workedFor').split('{', 1)[0]
 for _ in range(8):
     items = {item['AXUniqueId']: item for item in rows(json.loads(axe('describe-ui')))}
@@ -103,7 +102,7 @@ for _ in range(8):
         (
             item
             for item in items.values()
-            if thought in item.get('AXLabel', '') and worked in item.get('AXLabel', '')
+            if item.get('AXUniqueId', '').endswith(':duration') and worked in item.get('AXLabel', '')
         ),
         None,
     )
@@ -119,8 +118,8 @@ for item in observations:
     if worked in item.get('summary', ''):
         continue
     assert abs(item['summaryFrame']['height'] - 44) <= 1, item['summaryFrame']
-assert summary['frame']['height'] < 44, (
-    'The finished work row must stay copy-sized, not grow into a 44 pt slot: '
+assert summary['frame']['height'] >= 44, (
+    'The completed process disclosure must retain a 44 pt touch target: '
     + str(summary['frame'])
 )
 print(json.dumps({'samples': len(observations), 'nativeTitleAction': True,

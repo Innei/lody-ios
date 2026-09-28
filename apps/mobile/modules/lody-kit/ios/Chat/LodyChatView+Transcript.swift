@@ -142,7 +142,7 @@ extension LodyChatView {
     let font = ChatCell.messageFont(for: row, compatibleWith: traitCollection)
     let text = NSAttributedString(string: row.text, attributes: [
       .font: font,
-      .foregroundColor: textColor(for: row),
+      .foregroundColor: ChatCell.textColor(for: row),
       .paragraphStyle: paragraph,
       .baselineOffset: (lineHeight - font.lineHeight) / 2,
     ])
@@ -418,14 +418,6 @@ extension LodyChatView {
     workDurationTimer = timer
     RunLoop.main.add(timer, forMode: .common)
   }
-}
-
-private func textColor(for row: ChatRow) -> UIColor {
-  if row.kind == "chat_failed" { return .systemRed }
-  if row.attention { return .systemOrange }
-  if row.kind == "changes" || row.kind == "file" || (row.kind == "summary" && row.running) { return .lodyAccent }
-  if row.kind == "user" { return .label }
-  return .secondaryLabel
 }
 
 extension LodyChatView {

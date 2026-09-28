@@ -106,7 +106,7 @@ final class ChatTranscriptPreviewController: UIViewController {
     label.text = row.text
     label.font = messageFont(for: row)
     label.textColor = secondary ? .secondaryLabel : .label
-    label.numberOfLines = 0
+    label.numberOfLines = row.kind == "summary" ? 1 : 0
     label.adjustsFontForContentSizeCategory = true
     label.adjustsFontSizeToFitWidth = false
     label.preferredMaxLayoutWidth = ChatTranscriptPreviewMetrics.textWidth(

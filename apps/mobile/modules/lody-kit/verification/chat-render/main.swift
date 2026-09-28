@@ -253,8 +253,8 @@ let doneSummary = summaryCell(for: summaryRow(running: false, attention: false))
 let failedSummary = summaryCell(for: summaryRow(running: false, attention: true))
 let failedLiveSummary = summaryCell(for: summaryRow(running: true, attention: true))
 let traits = runningSummary.traitCollection
-precondition(resolved(runningSummary.icon.tintColor, traits: traits) == resolved(.lodyAccent, traits: traits),
-  "A live process pip must use the accent color")
+precondition(resolved(runningSummary.icon.tintColor, traits: traits) == resolved(.secondaryLabel, traits: traits),
+  "A live process mark uses neutral chrome")
 precondition(resolved(doneSummary.icon.tintColor, traits: traits) == resolved(.secondaryLabel, traits: traits),
   "A finished process pip must use secondary label")
 precondition(resolved(failedSummary.icon.tintColor, traits: traits) == resolved(.systemOrange, traits: traits),
@@ -300,15 +300,41 @@ wrappedSummary.configure(
 wrappedSummary.layoutIfNeeded()
 let wrappedLines = wrappedSummary.label.lineAdvances(width: wrappedSummary.label.bounds.width)
 precondition(wrappedLines.count > 1, "The wrapped process title fixture must occupy more than one line")
-let firstLineCenter = wrappedSummary.label.frame.minY + wrappedLines[0] / 2
 precondition(
-  abs(wrappedSummary.icon.frame.midY - firstLineCenter) <= 0.5,
-  "The process pip must sit on the first line of wrapped text"
+  wrappedSummary.numericText.frame.height == ChatCell.processTextHeight(compatibleWith: wrappedSummary.traitCollection),
+  "Long summaries retain a single line while preserving the full accessibility label"
 )
 precondition(
-  abs(wrappedSummary.icon.frame.midY - wrappedSummary.label.frame.midY) > 0.5,
-  "The process pip must not center on the whole wrapped block"
+  wrappedSummary.numericText.sizeThatFits(CGSize(width: 180, height: 1000)).height <= 20,
+  "The visible numeric summary truncates rather than wrapping on narrow phones"
 )
+precondition(!wrappedSummary.processDisclosure.isHidden, "Process summaries expose a disclosure arrow")
+precondition(wrappedSummary.numericText.frame.maxX + 8 <= wrappedSummary.processDisclosure.frame.minX,
+  "Truncated text must leave room for the disclosure arrow")
+precondition(wrappedSummary.accessibilityLabel!.contains("进行了 1 次搜索"),
+  "VoiceOver must retain counts omitted by visual truncation")
+var activatedProcess = false
+wrappedSummary.onActivate = { activatedProcess = true }
+precondition(wrappedSummary.accessibilityActivate() && activatedProcess,
+  "Activating a truncated summary must still open all process details")
+wrappedSummary.configure(durationRow, text: NSAttributedString(string: durationRow.text))
+precondition(wrappedSummary.processDisclosure.isHidden,
+  "Reusing a summary as a noninteractive timer must hide the disclosure")
+for contentSize in [UIContentSizeCategory.large, .accessibilityExtraExtraExtraLarge] {
+  for width: CGFloat in [180, 320, 700] {
+    let cell = ChatCell(frame: CGRect(x: 0, y: 0, width: width, height: 44))
+    cell.traitOverrides.preferredContentSizeCategory = contentSize
+    let row = summaryRow(running: false, attention: false)
+    cell.configure(row, text: NSAttributedString(string: String(repeating: "Read 100 files · ", count: 8), attributes: [
+      .font: ChatCell.messageFont(for: row, compatibleWith: cell.traitCollection),
+    ]))
+    cell.layoutIfNeeded()
+    precondition(cell.numericText.frame.maxY <= 44 && cell.numericText.frame.minY >= 0,
+      "Large text must remain within the summary touch target")
+    precondition(cell.numericText.frame.maxX < cell.processDisclosure.frame.minX,
+      "Large text must not overlap the disclosure on narrow or wide layouts")
+  }
+}
 
 precondition(
   !runningSummary.icon.lastReplaceAnimated && !failedLiveSummary.icon.lastReplaceAnimated,
@@ -733,8 +759,10 @@ print("Chat render: SwiftUI shine travels across the full process row")
 
 let attentionText = NSAttributedString(string: "思考过程", attributes: [
   .font: UIFont.systemFont(ofSize: 13),
-  .foregroundColor: UIColor.systemOrange,
+  .foregroundColor: ChatCell.textColor(for: failedLiveSummary.row!),
 ])
+precondition(resolved(ChatCell.textColor(for: failedLiveSummary.row!), traits: traits) == resolved(.secondaryLabel, traits: traits),
+  "Failures color the warning mark without tinting the whole summary")
 let attentionHost = ChatNumericTextHost(frame: CGRect(x: 0, y: 0, width: countWidth, height: textKitHeight))
 window.addSubview(attentionHost)
 attentionHost.apply(text: attentionText, animated: false, shines: false)
@@ -752,11 +780,11 @@ for _ in 0..<10 {
   attentionFrames.append(processSnapshot(attentionHost, x: 0, width: attentionWidth))
 }
 if !UIAccessibility.isReduceMotionEnabled {
-  precondition(attentionFrames.contains { $0 != attentionRest }, "Shine must still travel across yellow failed-tool process text")
-  precondition(Set(attentionFrames).count > 1, "Shine must keep moving on yellow failed-tool process text")
-  precondition(attentionFrames.contains { sameProcessPixels($0, attentionRest) }, "Yellow process text outside the shine must keep its color")
+  precondition(attentionFrames.contains { $0 != attentionRest }, "Shine must still travel across neutral failed-tool process text")
+  precondition(Set(attentionFrames).count > 1, "Shine must keep moving on failed-tool process text")
+  precondition(attentionFrames.contains { sameProcessPixels($0, attentionRest) }, "Process text outside the shine must keep its color")
 }
-print("Chat render: failed-tool process text stays yellow and keeps the shine")
+print("Chat render: failed-tool process text stays neutral and keeps the shine")
 
 let countCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
 window.addSubview(countCell)

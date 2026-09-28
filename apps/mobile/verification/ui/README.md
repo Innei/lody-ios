@@ -1,5 +1,16 @@
 # Offline UI verification
 
+`--suite tool-process` runs the focused tool-activity regression checks.
+`process-failed` injects a multi-step conversation into production NativeChat.
+It checks a completed segment, a live segment containing a failed tool, single-line
+44 pt summaries, scoped process-sheet contents, completion folding and reopening
+the full process. Light/dark screenshots and video cover the neutral summary text,
+separate warning mark and disclosure arrow. `process-counts` checks stable geometry
+during count updates; `duration` verifies the completed elapsed-time disclosure.
+The native `chat` and `chat-render` checks additionally cover thought-only segment
+status, narrow widths, large text, VoiceOver labels and cell reuse. These fixtures
+do not establish live cloud or agent behavior.
+
 `edit-message` exercises the production last-user-message context menu and full-screen
 editor in English light/dark appearances. It checks cancellation preserving the chat
 draft, removing an original attachment, adding a file through paste, rejected resend
