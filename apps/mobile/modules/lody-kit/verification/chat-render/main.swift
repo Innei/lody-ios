@@ -152,8 +152,8 @@ precondition(
   "A text row after duration must grow by that inset, not the 44 pt button floor"
 )
 precondition(
-  ChatCell.rowExtra(for: answerRow, previousKind: "summary") == ChatRowPadding.content * 2,
-  "Ordinary body copy keeps the compact text padding"
+  ChatCell.rowExtra(for: answerRow, previousKind: "summary") == ChatRowPadding.content,
+  "Body copy after activity does not duplicate the disclosure touch padding"
 )
 print("Chat render: text below the duration rule uses a paragraph inset")
 
@@ -281,12 +281,19 @@ precondition((runningSummary.icon.image?.size.width ?? .greatestFiniteMagnitude)
   "The process status pip must be smaller than thought and tool icons")
 precondition((failedLiveSummary.icon.image?.size.width ?? .greatestFiniteMagnitude) < (thoughtCell.icon.image?.size.width ?? 0),
   "The warning mark must stay in the process pip scale")
-precondition(ChatCell.leading(doneSummary.row!) == 12, "The process pip must not keep the 24-point icon gutter")
-precondition(doneSummary.icon.frame.minX == 0, "The process pip must sit on the text leading edge")
-precondition(doneSummary.icon.frame.width == 8, "The process pip slot must match the 6-point dot")
-precondition(abs(doneSummary.icon.frame.midY - doneSummary.label.frame.midY) <= 0.5,
-  "The process pip must sit on the text baseline")
-precondition(doneSummary.label.frame.minX == 12, "Process text must follow the pip without extra padding")
+precondition(ChatCell.leading(doneSummary.row!) == 18, "Activity uses one compact disclosure gutter")
+precondition(doneSummary.icon.isHidden, "Healthy activity has no redundant status dot")
+precondition(doneSummary.processDisclosure.frame.minX == 0, "The disclosure belongs beside the label, not at the screen edge")
+precondition(doneSummary.label.frame.minX == 18, "Activity text follows the disclosure with an eight-point gap")
+precondition(doneSummary.numericText.frame.width < 100, "Short summaries hug their contents")
+precondition(!failedSummary.icon.isHidden && failedSummary.icon.frame.width == 12,
+  "Attention uses a small separate warning mark")
+precondition(failedSummary.icon.frame.minX == failedSummary.label.frame.maxX + 6,
+  "The warning follows its summary rather than replacing the disclosure")
+precondition(abs(failedSummary.icon.frame.midY - failedSummary.label.frame.midY) <= 0.5,
+  "Warning and disclosure share the text's visual center")
+precondition(ChatCell.messageFont(for: doneSummary.row!, compatibleWith: spacingTraits).pointSize == 12,
+  "Activity uses a smaller caption tier than tool details")
 
 let wrappedSummary = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: 80))
 window.addSubview(wrappedSummary)
@@ -309,8 +316,8 @@ precondition(
   "The visible numeric summary truncates rather than wrapping on narrow phones"
 )
 precondition(!wrappedSummary.processDisclosure.isHidden, "Process summaries expose a disclosure arrow")
-precondition(wrappedSummary.numericText.frame.maxX + 8 <= wrappedSummary.processDisclosure.frame.minX,
-  "Truncated text must leave room for the disclosure arrow")
+precondition(wrappedSummary.processDisclosure.frame.maxX + 8 == wrappedSummary.numericText.frame.minX,
+  "Long summaries retain the same compact leading disclosure gutter")
 precondition(wrappedSummary.accessibilityLabel!.contains("进行了 1 次搜索"),
   "VoiceOver must retain counts omitted by visual truncation")
 var activatedProcess = false
@@ -331,8 +338,10 @@ for contentSize in [UIContentSizeCategory.large, .accessibilityExtraExtraExtraLa
     cell.layoutIfNeeded()
     precondition(cell.numericText.frame.maxY <= 44 && cell.numericText.frame.minY >= 0,
       "Large text must remain within the summary touch target")
-    precondition(cell.numericText.frame.maxX < cell.processDisclosure.frame.minX,
+    precondition(cell.processDisclosure.frame.maxX < cell.numericText.frame.minX,
       "Large text must not overlap the disclosure on narrow or wide layouts")
+    precondition(cell.numericText.frame.maxX <= width,
+      "Activity stays inside the reading column")
   }
 }
 

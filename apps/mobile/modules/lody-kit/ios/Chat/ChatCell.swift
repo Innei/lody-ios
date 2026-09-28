@@ -10,6 +10,7 @@ enum ChatRowPadding {
 
   static func top(kind: String, previousKind: String?) -> CGFloat {
     if kind == "text" && previousKind == "duration" { return textBelowDuration }
+    if kind == "text" && previousKind == "summary" { return 0 }
     return content
   }
 }
@@ -226,8 +227,8 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     messageContent.disclosure.addAction(UIAction { [weak self] _ in self?.onToggle?() }, for: .touchUpInside)
     contentView.addSubview(icon)
     contentView.addSubview(processDisclosure)
-    processDisclosure.image = UIImage(systemName: "chevron.right", withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .medium))
-    processDisclosure.tintColor = .tertiaryLabel
+    processDisclosure.image = UIImage(systemName: "chevron.right", withConfiguration: UIImage.SymbolConfiguration(pointSize: 9, weight: .medium))
+    processDisclosure.tintColor = .secondaryLabel
     processDisclosure.contentMode = .center
     processDisclosure.isAccessibilityElement = false
     contentView.addSubview(separator)
@@ -256,6 +257,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     accessibilityHint = hint(for: row)
     let process = row.kind == "summary"
     processDisclosure.isHidden = !Self.showsProcessDisclosure(row)
+    icon.isHidden = Self.showsProcessDisclosure(row) && !row.attention
     numericText.isHidden = !process
     label.isHidden = process
     if process {
@@ -352,7 +354,13 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   }
 
   static func messageFont(for row: ChatRow, compatibleWith traits: UITraitCollection) -> UIFont {
-    let font = UIFont.dynamic(of: row.kind == "user" ? 17 : 13, compatibleWith: traits)
+    let size: CGFloat
+    switch row.kind {
+    case "user": size = 17
+    case "summary", "duration": size = 12
+    default: size = 13
+    }
+    let font = UIFont.dynamic(of: size, compatibleWith: traits)
     if row.kind == "duration" || row.kind == "summary" {
       return font.withTabularNumbers()
     }
@@ -366,6 +374,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   }
 
   static func leading(_ row: ChatRow) -> CGFloat {
+    if showsProcessDisclosure(row) { return 18 }
     switch row.kind {
     case "text", "user": return 0
     case "duration": return row.symbol.isEmpty ? 0 : 24
@@ -374,6 +383,9 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     }
   }
   static func iconSymbolConfiguration(for row: ChatRow) -> UIImage.SymbolConfiguration {
+    if showsProcessDisclosure(row) {
+      return UIImage.SymbolConfiguration(pointSize: 10, weight: .regular)
+    }
     if row.kind == "summary" {
       if row.attention {
         return UIImage.SymbolConfiguration(pointSize: 8, weight: .bold)
@@ -394,7 +406,8 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   }
   static func textWidth(_ row: ChatRow, width: CGFloat) -> CGFloat {
     if row.kind == "user" { return max(1, width * 0.84 - 26) }
-    return max(1, width - leading(row) - (showsProcessDisclosure(row) ? 24 : 0))
+    let warningWidth: CGFloat = showsProcessDisclosure(row) && row.attention ? 20 : 0
+    return max(1, width - leading(row) - warningWidth)
   }
 
   static func showsProcessDisclosure(_ row: ChatRow) -> Bool {
@@ -448,7 +461,10 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
       messageContent.frame = contentView.bounds
       messageContent.layoutIfNeeded()
       let inset = Self.leading(row)
-      let textWidth = Self.textWidth(row, width: width)
+      let availableWidth = Self.textWidth(row, width: width)
+      let textWidth = Self.showsProcessDisclosure(row)
+        ? min(availableWidth, ceil(label.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)).width))
+        : availableWidth
       let height = row.kind == "summary"
         ? Self.processTextHeight(compatibleWith: traitCollection)
         : label.sizeThatFits(CGSize(width: textWidth, height: .greatestFiniteMagnitude)).height
@@ -461,7 +477,10 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
       label.frame = CGRect(x: inset, y: y, width: textWidth, height: height)
       numericText.frame = label.frame
       icon.frame = Self.iconFrame(for: row, textY: y, textHeight: height)
-      processDisclosure.frame = CGRect(x: width - 16, y: y, width: 16, height: height)
+      if Self.showsProcessDisclosure(row) {
+        processDisclosure.frame = CGRect(x: 0, y: y, width: 10, height: height)
+        icon.frame = CGRect(x: label.frame.maxX + 6, y: y + (height - 12) / 2, width: 12, height: 12)
+      }
     }
     let pixel = 1 / max(1, traitCollection.displayScale)
     separator.frame = CGRect(x: 0, y: contentView.bounds.height - pixel, width: width, height: pixel)
