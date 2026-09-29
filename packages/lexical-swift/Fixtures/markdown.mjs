@@ -26,7 +26,24 @@ import {
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { $isElementNode } from 'lexical';
 
-const GFM = [HEADING, QUOTE, CHECK_LIST, UNORDERED_LIST, ORDERED_LIST, CODE, INLINE_CODE, BOLD_ITALIC_STAR, BOLD_ITALIC_UNDERSCORE, BOLD_STAR, BOLD_UNDERSCORE, HIGHLIGHT, ITALIC_STAR, ITALIC_UNDERSCORE, STRIKETHROUGH, LINK];
+const GFM = [
+  HEADING,
+  QUOTE,
+  CHECK_LIST,
+  UNORDERED_LIST,
+  ORDERED_LIST,
+  CODE,
+  INLINE_CODE,
+  BOLD_ITALIC_STAR,
+  BOLD_ITALIC_UNDERSCORE,
+  BOLD_STAR,
+  BOLD_UNDERSCORE,
+  HIGHLIGHT,
+  ITALIC_STAR,
+  ITALIC_UNDERSCORE,
+  STRIKETHROUGH,
+  LINK,
+];
 
 const serialize = (node) => {
   const json = node.exportJSON();
@@ -35,17 +52,38 @@ const serialize = (node) => {
 };
 
 const root = join(import.meta.dirname, 'markdown');
-for (const file of readdirSync(join(root, 'inputs')).filter((name) => name.endsWith('.md')).sort()) {
+for (const file of readdirSync(join(root, 'inputs'))
+  .filter((name) => name.endsWith('.md'))
+  .sort()) {
   const editor = createHeadlessEditor({
-    nodes: [HeadingNode, QuoteNode, CodeNode, ListNode, ListItemNode, LinkNode, AutoLinkNode],
+    nodes: [
+      HeadingNode,
+      QuoteNode,
+      CodeNode,
+      ListNode,
+      ListItemNode,
+      LinkNode,
+      AutoLinkNode,
+    ],
     onError: (error) => {
       throw error;
     },
   });
-  const markdown = readFileSync(join(root, 'inputs', file), 'utf8').replace(/\n$/, '');
+  const markdown = readFileSync(join(root, 'inputs', file), 'utf8').replace(
+    /\n$/,
+    '',
+  );
   let nodes = [];
-  editor.update(() => {
-    nodes = $generateNodesFromMarkdownString(markdown, GFM, true).map(serialize);
-  }, { discrete: true });
-  writeFileSync(join(root, 'expected', file.replace(/\.md$/, '.json')), JSON.stringify(nodes, null, 2) + '\n');
+  editor.update(
+    () => {
+      nodes = $generateNodesFromMarkdownString(markdown, GFM, true).map(
+        serialize,
+      );
+    },
+    { discrete: true },
+  );
+  writeFileSync(
+    join(root, 'expected', file.replace(/\.md$/, '.json')),
+    JSON.stringify(nodes, null, 2) + '\n',
+  );
 }

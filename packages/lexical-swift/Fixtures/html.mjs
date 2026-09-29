@@ -10,7 +10,17 @@ import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { $isElementNode } from 'lexical';
 
 const window = new Window();
-for (const key of ['HTMLElement', 'Node', 'Text', 'Document', 'DocumentFragment', 'HTMLAnchorElement', 'HTMLOListElement', 'CSSStyleRule', 'Element']) {
+for (const key of [
+  'HTMLElement',
+  'Node',
+  'Text',
+  'Document',
+  'DocumentFragment',
+  'HTMLAnchorElement',
+  'HTMLOListElement',
+  'CSSStyleRule',
+  'Element',
+]) {
   globalThis[key] = window[key];
 }
 globalThis.window = window;
@@ -23,17 +33,36 @@ const serialize = (node) => {
 };
 
 const root = join(import.meta.dirname, 'html');
-for (const file of readdirSync(join(root, 'inputs')).filter((name) => name.endsWith('.html')).sort()) {
+for (const file of readdirSync(join(root, 'inputs'))
+  .filter((name) => name.endsWith('.html'))
+  .sort()) {
   const editor = createHeadlessEditor({
-    nodes: [HeadingNode, QuoteNode, CodeNode, ListNode, ListItemNode, LinkNode, AutoLinkNode],
+    nodes: [
+      HeadingNode,
+      QuoteNode,
+      CodeNode,
+      ListNode,
+      ListItemNode,
+      LinkNode,
+      AutoLinkNode,
+    ],
     onError: (error) => {
       throw error;
     },
   });
-  const dom = new window.DOMParser().parseFromString(readFileSync(join(root, 'inputs', file), 'utf8'), 'text/html');
+  const dom = new window.DOMParser().parseFromString(
+    readFileSync(join(root, 'inputs', file), 'utf8'),
+    'text/html',
+  );
   let nodes = [];
-  editor.update(() => {
-    nodes = $generateNodesFromDOM(editor, dom).map(serialize);
-  }, { discrete: true });
-  writeFileSync(join(root, 'expected', file.replace(/\.html$/, '.json')), JSON.stringify(nodes, null, 2) + '\n');
+  editor.update(
+    () => {
+      nodes = $generateNodesFromDOM(editor, dom).map(serialize);
+    },
+    { discrete: true },
+  );
+  writeFileSync(
+    join(root, 'expected', file.replace(/\.html$/, '.json')),
+    JSON.stringify(nodes, null, 2) + '\n',
+  );
 }
