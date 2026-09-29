@@ -1,4 +1,8 @@
 import ChatKit
+import Lexical
+import LexicalLinkPlugin
+import LexicalListPlugin
+import LexicalMarkdown
 import UIKit
 import UniformTypeIdentifiers
 
@@ -161,9 +165,104 @@ private final class ChatQueueView: CKGlassSurface {
   }
 }
 
-final class ChatComposerInput: UITextView {
+final class ChatComposerInput: TextView {
   var onPasteItems: (([NSItemProvider]) -> Bool)?
   var onPasteLongText: ((String) -> Bool)?
+
+  static func makeEditorView() -> LexicalView {
+    let theme = Theme()
+    theme.root = [.font: UIFont.dynamic(of: 17), .foregroundColor: UIColor.label]
+    let config = EditorConfig(theme: theme, plugins: [ListPlugin(), LinkPlugin(), MarkdownShortcutPlugin()])
+    let view = LexicalView(editorConfig: config, featureFlags: FeatureFlags(), textViewType: ChatComposerInput.self)
+    try? view.editor.registerNode(nodeType: .lodyReference, class: ChatReferenceNode.self)
+    return view
+  }
+
+  override var font: UIFont? {
+    didSet {
+      guard let font, (editor.getTheme().root?[.font] as? UIFont) != font else { return }
+      editor.getTheme().root?[.font] = font
+      try? editor.update { editor.dirtyType = .fullReconcile }
+    }
+  }
+
+  var markdown: String {
+    (try? MarkdownExporter.gfm.export(editor)) ?? (text ?? "")
+  }
+
+  var serializedState: String? {
+    text.isEmpty ? nil : try? editor.getEditorState().toJSON()
+  }
+
+  // Drafts persist the editor state; anything else is plain text from an older build.
+  var draftEnvelope: String {
+    guard let state = serializedState, let json = try? JSONSerialization.jsonObject(with: Data(state.utf8)),
+      let data = try? JSONSerialization.data(withJSONObject: ["v": 1, "lexical": json]), let envelope = String(data: data, encoding: .utf8)
+    else { return text ?? "" }
+    return envelope
+  }
+
+  func restoreDraft(_ stored: String) {
+    if let data = stored.data(using: .utf8), let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      object["v"] as? Int == 1, let lexical = object["lexical"], let state = try? JSONSerialization.data(withJSONObject: lexical),
+      let json = String(data: state, encoding: .utf8), restore(state: json) {
+      return
+    }
+    text = stored
+  }
+
+  @discardableResult
+  func restore(state json: String) -> Bool {
+    guard let state = try? EditorState.fromJSON(json: json, editor: editor), (try? editor.setEditorState(state)) != nil else { return false }
+    try? editor.update { _ = try getRoot()?.selectEnd() }
+    return true
+  }
+
+  func appendParagraphs(_ value: String) {
+    guard !text.isEmpty else {
+      text = value
+      return
+    }
+    try? editor.update {
+      guard let root = getRoot() else { return }
+      var last: ParagraphNode?
+      for line in [""] + value.components(separatedBy: "\n") {
+        let paragraph = createParagraphNode()
+        if !line.isEmpty { try paragraph.append([createTextNode(text: line)]) }
+        try root.append([paragraph])
+        last = paragraph
+      }
+      _ = try last?.selectEnd()
+    }
+  }
+
+  func insertLiteral(_ value: String, at location: Int) {
+    selectedRange = NSRange(location: min(location, (text as NSString).length), length: 0)
+    try? editor.update {
+      try (getSelection() as? RangeSelection)?.insertText(value)
+    }
+  }
+
+  func insertReference(_ token: String, replacing range: NSRange) {
+    selectedRange = range
+    try? editor.update {
+      guard let selection = try getSelection() as? RangeSelection else { return }
+      _ = try selection.insertNodes(nodes: [ChatReferenceNode(text: token, key: nil), createTextNode(text: " ")], selectStart: false)
+    }
+    delegate?.textViewDidChange?(self)
+  }
+
+  var referenceTokens: [String] {
+    var tokens: [String] = []
+    try? editor.read {
+      func collect(_ node: Node) {
+        if let reference = node as? ChatReferenceNode { tokens.append(reference.getTextContent()) }
+        (node as? ElementNode)?.getChildren().forEach(collect)
+      }
+      getRoot().map(collect)
+    }
+    return tokens
+  }
 
   override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
     if action == #selector(pastePlainText(_:)) { return isEditable && UIPasteboard.general.hasStrings }
@@ -390,7 +489,8 @@ private final class ChatComposerActionVisual: UIView {
 final class ChatComposerView: UIView, UITextViewDelegate {
   private let composer = UIVisualEffectView(effect: nil)
   private let inputSurface = UIVisualEffectView(effect: nil)
-  private let input = ChatComposerInput()
+  private let editorView = ChatComposerInput.makeEditorView()
+  private lazy var input = editorView.textView as! ChatComposerInput
   private let hint = UILabel()
   private let notice = UIButton(type: .system)
   private let quotaNotice = UILabel()
@@ -434,7 +534,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private var state = ChatComposerState()
   private var composerOptions = ChatComposerOptions()
   private var composerExpanded = false
-  private var pendingDraft: (text: String, attachments: [ChatAttachment])?
+  private var pendingDraft: (text: String, attachments: [ChatAttachment], state: String?)?
+  private var sentStates: [String: String] = [:]
   var sendHandoff = true
   var autoFocus = false
   private var lastRestoreToken = 0
@@ -631,16 +732,16 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     composer.contentView.addSubview(attachSurface)
     composer.contentView.addSubview(inputSurface)
     attachSurface.contentView.addSubview(attach)
-    for view in [input, hint, accessoryBar, modelButton, mentionButton, send] {
+    for view in [editorView, hint, accessoryBar, modelButton, mentionButton, send] {
       inputSurface.contentView.addSubview(view)
     }
-    for view in [composer, mentionPanel, mentionButton, queueView, quickRepliesView, inputSurface, attachSurface, notice, attachmentBar, quotaNotice, input, hint, accessoryBar, send, attach, modelButton] {
+    for view in [composer, mentionPanel, mentionButton, queueView, quickRepliesView, inputSurface, attachSurface, notice, attachmentBar, quotaNotice, editorView, hint, accessoryBar, send, attach, modelButton] {
       view.translatesAutoresizingMaskIntoConstraints = false
     }
-    inputHeight = input.heightAnchor.constraint(equalToConstant: 48)
+    inputHeight = editorView.heightAnchor.constraint(equalToConstant: 48)
     accessoryHeight = accessoryBar.heightAnchor.constraint(equalToConstant: 0)
-    hintLeading = hint.leadingAnchor.constraint(equalTo: input.leadingAnchor, constant: 21)
-    hintTop = hint.topAnchor.constraint(equalTo: input.topAnchor, constant: 13)
+    hintLeading = hint.leadingAnchor.constraint(equalTo: editorView.leadingAnchor, constant: 21)
+    hintTop = hint.topAnchor.constraint(equalTo: editorView.topAnchor, constant: 13)
     noticeHeight = notice.heightAnchor.constraint(equalToConstant: 0)
     quotaNoticeHeight = quotaNotice.heightAnchor.constraint(equalToConstant: 0)
     quotaGap = inputSurface.topAnchor.constraint(equalTo: quotaNotice.bottomAnchor)
@@ -675,10 +776,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       attachSurface.widthAnchor.constraint(equalToConstant: 44), attachSurface.heightAnchor.constraint(equalToConstant: 44),
       inputSurface.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16),
       inputSurface.bottomAnchor.constraint(equalTo: composer.bottomAnchor, constant: -8),
-      input.topAnchor.constraint(equalTo: inputSurface.contentView.topAnchor),
-      input.leadingAnchor.constraint(equalTo: inputSurface.contentView.leadingAnchor),
-      input.trailingAnchor.constraint(equalTo: inputSurface.contentView.trailingAnchor), inputHeight,
-      accessoryBar.topAnchor.constraint(equalTo: input.bottomAnchor),
+      editorView.topAnchor.constraint(equalTo: inputSurface.contentView.topAnchor),
+      editorView.leadingAnchor.constraint(equalTo: inputSurface.contentView.leadingAnchor),
+      editorView.trailingAnchor.constraint(equalTo: inputSurface.contentView.trailingAnchor), inputHeight,
+      accessoryBar.topAnchor.constraint(equalTo: editorView.bottomAnchor),
       accessoryBar.leadingAnchor.constraint(equalTo: inputSurface.contentView.leadingAnchor),
       accessoryBar.trailingAnchor.constraint(equalTo: inputSurface.contentView.trailingAnchor),
       accessoryBar.bottomAnchor.constraint(equalTo: inputSurface.contentView.bottomAnchor), accessoryHeight,
@@ -712,18 +813,17 @@ final class ChatComposerView: UIView, UITextViewDelegate {
           let text = value["text"], !text.isEmpty else { return }
     lastAppendedDraftID = id
     // Keep the user's existing text AND attachments. Sending remains explicit.
-    input.text = [input.text ?? "", text].filter { !$0.isEmpty }.joined(separator: "\n\n")
-    input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
+    input.appendParagraphs(text)
     updateComposer()
     saveDraft()
   }
   func setStoredDraft(_ text: String) {
     guard !text.isEmpty, input.text.isEmpty else { return }
-    input.text = text
+    input.restoreDraft(text)
     updateComposer()
   }
   private func saveDraft() {
-    onDraftChange?(input.text ?? "")
+    onDraftChange?(input.draftEnvelope)
   }
   @objc private func appDidEnterBackground() { saveDraft() }
   override func didMoveToWindow() {
@@ -758,6 +858,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     lastClearToken = token
     guard pendingDraft != nil else { return }
     acknowledgedSendID = pendingSendID
+    pendingSendID.map { sentStates[$0] = nil }
     pendingDraft = nil
     pendingSendID = nil
     updateComposer()
@@ -766,6 +867,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   func clearPendingSend(id: String) {
     guard pendingSendID == id else { return }
     acknowledgedSendID = id
+    sentStates[id] = nil
     pendingDraft = nil
     pendingSendID = nil
     updateComposer()
@@ -779,7 +881,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     pendingSendID = nil
     if let draft = pendingDraft {
       if !sendHandoff || ((input.text ?? "").isEmpty && attachments.isEmpty) {
-        input.text = draft.text
+        if draft.state.map({ input.restore(state: $0) }) != true { input.text = draft.text }
         attachments = draft.attachments
       } else {
         failedDraft = ChatPendingSend(id: id, text: draft.text, attachments: draft.attachments.map { item in
@@ -808,13 +910,13 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     pendingDraft = (pending.text, pending.attachments.compactMap { item in
       guard let url = URL(string: item.uri), url.isFileURL else { return nil }
       return ChatAttachment(id: item.id, name: item.name, url: url, isImage: item.kind == "image")
-    })
+    }, sentStates[pending.id])
     updateComposer()
   }
 
   private func takeDraft() {
     guard pendingDraft == nil else { return }
-    pendingDraft = (input.text ?? "", attachments)
+    pendingDraft = (input.text ?? "", attachments, input.serializedState)
     // Cross-container creation keeps its draft visible while its host dismisses.
     guard sendHandoff else { return }
     input.text = ""
@@ -855,10 +957,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private func undoPastedTextFile(id: String, text: String, range: NSRange) {
     guard pendingDraft == nil, let index = attachments.firstIndex(where: { $0.id == id }) else { return }
     attachments.remove(at: index)
-    let ns = input.text as NSString
-    let location = min(range.location, ns.length)
-    input.text = ns.substring(to: location) + text + ns.substring(from: location)
-    input.selectedRange = NSRange(location: location + (text as NSString).length, length: 0)
+    input.insertLiteral(text, at: range.location)
     updateComposer()
     saveDraft()
   }
@@ -1100,7 +1199,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     let queued = queuesSubmission
     let guiding = guidesSubmission
     let id = UUID().uuidString.lowercased()
-    let body = input.text ?? ""
+    let body = input.markdown
     let payload: [String: Any] = [
       "id": id, "queue": queued, "guide": guiding, "text": body,
       "startedAt": Date().timeIntervalSince1970 * 1000,
@@ -1125,6 +1224,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       ChatSendHandoff.beginAttachments(id: id, attachments: attachments, source: attachmentBar)
     }
     LodyToastOverlay.shared.dismiss()
+    input.serializedState.map { sentStates[id] = $0 }
     takeDraft()
     saveDraft()
     pendingSendID = id
@@ -1132,7 +1232,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   }
   @objc private func reconnect() {
     guard let failed = failedDraft else { onReconnect?(); return }
-    input.text = [input.text ?? "", failed.text].filter { !$0.isEmpty }.joined(separator: "\n\n")
+    let restored = input.text.isEmpty && sentStates[failed.id].map { input.restore(state: $0) } == true
+    if !restored { input.appendParagraphs(failed.text) }
     for item in failed.attachments where !attachments.contains(where: { $0.id == item.id }) {
       guard let url = URL(string: item.uri), url.isFileURL else { continue }
       attachments.append(ChatAttachment(id: item.id, name: item.name, url: url, isImage: item.kind == "image"))

@@ -19,7 +19,7 @@ protocol LexicalTextViewDelegate: NSObjectProtocol {
 
 /// Lexical's subclass of UITextView. Note that using this can be dangerous, if you make changes that Lexical does not expect.
 @objc open class TextView: UITextView {
-  let editor: Editor
+  public let editor: Editor
 
   internal let pasteboard = UIPasteboard.general
   internal let pasteboardIdentifier = "x-lexical-nodes"

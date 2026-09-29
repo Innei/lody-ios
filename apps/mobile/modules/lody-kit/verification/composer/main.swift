@@ -477,7 +477,7 @@ precondition(draftInput.text == "上次没发出去的话", "Empty input must re
 draftComposer.setStoredDraft("其他会话的草稿")
 precondition(draftInput.text == "上次没发出去的话", "A stored draft must never overwrite typed text")
 draftComposer.textViewDidEndEditing(draftInput)
-precondition(savedDrafts == ["上次没发出去的话"], "Ending editing must persist the draft")
+precondition(savedDrafts.count == 1 && savedDrafts[0].contains("\"lexical\""), "Ending editing must persist the draft as an editor state envelope")
 draftComposer.setComposerState(#"{"editable":true,"canSend":true,"sending":true,"notice":"","reconnect":false,"placeholder":"任务"}"#)
 draftComposer.clearDraft(token: 1)
 precondition(savedDrafts.last == "" && draftInput.text.isEmpty, "Sending must clear the stored draft")
@@ -829,7 +829,7 @@ let glassSend = descendants(glassComposer).compactMap { $0 as? UIButton }.first 
 let glassModel = descendants(glassComposer).compactMap { $0 as? UIButton }.first {
   $0.accessibilityIdentifier == "session-model"
 }!
-let glassInputSurface = glassInput.superview!.superview as! UIVisualEffectView
+let glassInputSurface = sequence(first: glassInput.superview, next: { $0?.superview }).lazy.compactMap { $0 as? UIVisualEffectView }.first!
 let glassAttachSurface = glassAttach.superview!.superview as! UIVisualEffectView
 
 precondition(
@@ -1040,10 +1040,11 @@ let prDraft = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 402, height: 180
 prDraft.setInitialDraft("Existing draft")
 var savedPRDraft = ""
 prDraft.onDraftChange = { savedPRDraft = $0 }
+let prInput = descendants(prDraft).compactMap { $0 as? UITextView }.first!
 prDraft.appendDraft(#"{"id":"pr-1","text":"Investigate CI"}"#)
-precondition(savedPRDraft == "Existing draft\n\nInvestigate CI")
+precondition(prInput.text == "Existing draft\n\nInvestigate CI" && savedPRDraft.contains("\"lexical\""))
 prDraft.appendDraft(#"{"id":"pr-1","text":"Investigate CI"}"#)
-precondition(savedPRDraft == "Existing draft\n\nInvestigate CI", "A prop replay must not append twice")
+precondition(prInput.text == "Existing draft\n\nInvestigate CI", "A prop replay must not append twice")
 print("PR investigation: existing draft preserved, appended text saved and prop replay ignored")
 
 let materialWindow = HandoffWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
@@ -1200,3 +1201,86 @@ quickState(["quickReplies": manyReplies])
 precondition(quickStrip.contentSize.width > quickStrip.bounds.width,
   "Overflowing chips must scroll horizontally")
 print("Quick replies: idle-only visibility, draft/attachment preservation, queue gating, single send and failed draft recovery passed")
+
+@MainActor func makeRichComposer() -> (ChatComposerView, ChatComposerInput) {
+  let composer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
+  let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+  window.addSubview(composer)
+  window.isHidden = false
+  composer.setComposerState(ready)
+  composer.layoutIfNeeded()
+  let input = descendants(composer).compactMap { $0 as? ChatComposerInput }.first!
+  precondition(input.becomeFirstResponder())
+  return (composer, input)
+}
+@MainActor func typeInto(_ input: ChatComposerInput, _ text: String) {
+  for character in text { input.insertText(String(character)) }
+}
+@MainActor func tapSend(on composer: ChatComposerView) {
+  let button = descendants(composer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }!
+  for action in button.actions(forTarget: composer, forControlEvent: .touchUpInside) ?? [] {
+    composer.perform(NSSelectorFromString(action))
+  }
+}
+
+let (richComposer, richInput) = makeRichComposer()
+precondition(richInput.textLayoutManager != nil, "The composer must stay on TextKit 2")
+var richSent: [String] = []
+richComposer.onSend = { richSent.append($0["text"] as! String) }
+typeInto(richInput, "**bold** and `code`")
+precondition(richInput.text == "bold and code", "Markdown shortcuts must format in place instead of leaving tags")
+typeInto(richInput, "\nnext")
+tapSend(on: richComposer)
+precondition(richSent == ["**bold** and `code`\nnext"], "The sent body must be Markdown with the newline the user typed")
+richComposer.setComposerState(ready)
+richComposer.restoreDraft(token: 1)
+precondition(richInput.text == "bold and code\nnext", "A rejected send must restore the draft")
+tapSend(on: richComposer)
+precondition(richSent.last == "**bold** and `code`\nnext", "A restored draft must keep its formatting")
+print("Rich composer: shortcuts, Markdown body, typed newlines and formatted restore passed")
+
+let (envelopeComposer, envelopeInput) = makeRichComposer()
+var storedDrafts: [String] = []
+envelopeComposer.onDraftChange = { storedDrafts.append($0) }
+typeInto(envelopeInput, "**keep**")
+envelopeComposer.textViewDidEndEditing(envelopeInput)
+precondition(storedDrafts.last?.contains("\"lexical\"") == true, "Drafts must persist the editor state envelope")
+let (restoredComposer, restoredInput) = makeRichComposer()
+restoredComposer.setStoredDraft(storedDrafts.last!)
+var restoredSent: [String] = []
+restoredComposer.onSend = { restoredSent.append($0["text"] as! String) }
+precondition(restoredInput.text == "keep", "An envelope draft must restore its document, not its JSON")
+tapSend(on: restoredComposer)
+precondition(restoredSent == ["**keep**"], "A restored envelope draft must keep its formatting")
+let (legacyComposer, legacyInput) = makeRichComposer()
+legacyComposer.setStoredDraft("plain *text*\nline two")
+var legacySent: [String] = []
+legacyComposer.onSend = { legacySent.append($0["text"] as! String) }
+precondition(legacyInput.text == "plain *text*\nline two", "A plain-text draft from an older build must restore verbatim")
+tapSend(on: legacyComposer)
+precondition(legacySent == ["plain *text*\nline two"], "Plain drafts must send exactly what was stored")
+print("Rich composer: envelope and legacy draft restoration passed")
+
+let (chipComposer, chipInput) = makeRichComposer()
+let chipPanel = ChatMentionPanel(frame: CGRect(x: 16, y: 280, width: 358, height: 112))
+chipComposer.window!.addSubview(chipPanel)
+chipInput.text = "/"
+chipInput.selectedRange = NSRange(location: 1, length: 0)
+let chipCommand = ChatMentionItem(path: "compact", name: "compact", kind: "cmd", subtitle: "Compact", insertText: "/compact")
+chipPanel.update(input: chipInput, items: [chipCommand])
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+let chipList = descendants(chipPanel).compactMap { $0 as? UICollectionView }.first!
+chipPanel.collectionView(chipList, didSelectItemAt: IndexPath(item: 0, section: 0))
+precondition(chipInput.text == "/compact ", "A reference must insert exactly its token")
+precondition(chipInput.referenceTokens == ["/compact"], "An inserted reference must become a chip node")
+typeInto(chipInput, "now")
+var chipSent: [String] = []
+chipComposer.onSend = { chipSent.append($0["text"] as! String) }
+tapSend(on: chipComposer)
+precondition(chipSent == ["/compact now"], "A chip must send the same token text as before")
+chipComposer.setComposerState(ready)
+chipComposer.restoreDraft(token: 1)
+precondition(chipInput.referenceTokens == ["/compact"], "A restored draft must keep its chips")
+for _ in 0..<5 { chipInput.deleteBackward() }
+precondition(chipInput.text == "", "Deleting into a chip must remove the whole token")
+print("Rich composer: reference chips insert, send, restore and delete as one token")

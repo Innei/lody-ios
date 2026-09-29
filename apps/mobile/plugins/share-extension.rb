@@ -12,7 +12,7 @@ LODY_SHARE_SOURCES = %w[
   List/LodyRowDensity.swift List/LodySessionRowView.swift List/LodyStepStrip.swift
   List/LodyUnreadNavigationHold.swift
   Chat/LodyAgentIcon.swift Chat/ChatAttachments.swift Chat/ChatAttachmentSheet.swift Chat/ChatAttachmentCamera.swift
-  Chat/ChatComposerView.swift Chat/ChatComposerModelPanel.swift Chat/ChatComposerSurfaceLayout.swift
+  Chat/ChatComposerView.swift Chat/ChatReferenceNode.swift Chat/ChatComposerModelPanel.swift Chat/ChatComposerSurfaceLayout.swift
   Chat/ChatComposerLiquidGlassSurfaceLayout.swift Chat/ChatQuickReplies.swift Chat/ChatMentionPanel.swift
   Chat/ChatSendHandoff.swift Chat/ChatThrowCurve.swift Chat/ChatNumericText.swift Chat/ChatPendingSend.swift
   Toast/LodyToastOverlay.swift Toast/LodyToastPillView.swift Toast/LodySessionBannerView.swift
@@ -54,21 +54,23 @@ def lody_share_extension(bundle_id)
     reference = group.files.find { |f| f.path == path } || group.new_file(path)
     target.source_build_phase.add_file_reference(reference, true)
   end
-  { '../../../packages/chat-kit' => 'ChatKit', '../../../packages/lexical-swift' => 'Lexical' }.each do |package_path, product_name|
+  { '../../../packages/chat-kit' => ['ChatKit'], '../../../packages/lexical-swift' => %w[Lexical LexicalListPlugin LexicalLinkPlugin LexicalMarkdown] }.each do |package_path, product_names|
     package = project.root_object.package_references.find { |ref| ref.isa == 'XCLocalSwiftPackageReference' && ref.relative_path == package_path }
     unless package
       package = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
       package.relative_path = package_path
       project.root_object.package_references << package
     end
-    next if target.package_product_dependencies.any? { |dep| dep.product_name == product_name }
-    product = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
-    product.package = package
-    product.product_name = product_name
-    target.package_product_dependencies << product
-    build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
-    build_file.product_ref = product
-    target.frameworks_build_phase.files << build_file
+    product_names.each do |product_name|
+      next if target.package_product_dependencies.any? { |dep| dep.product_name == product_name }
+      product = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+      product.package = package
+      product.product_name = product_name
+      target.package_product_dependencies << product
+      build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+      build_file.product_ref = product
+      target.frameworks_build_phase.files << build_file
+    end
   end
   %w[
     Lody/Localizable.xcstrings ../modules/lody-kit/ios/Icons.xcassets

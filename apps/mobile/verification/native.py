@@ -24,6 +24,7 @@ if args.udid is None:
 sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'], text=True).strip()
 checks = {
     'chat-kit': [],
+    'lexical-swift': [],
     'scroll-edges': ['Chrome/LodyScrollEdges.swift', 'LodyTint.swift', 'Chrome/LodyEdgeFade.swift'],
     'glass-transition': [],
     'github-mentions': ['Cloud/GitHubMentions.swift'],
@@ -40,7 +41,7 @@ checks = {
     'chat-render': ['LodyStrings.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatThrowCurve.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatCell.swift', 'Chat/ChatUserMentions.swift'],
     'chat-chrome': ['LodyStrings.swift', 'Chat/ChatOverlay.swift'],
     'model-panel': ['LodyStrings.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Chat/ChatComposerModelPanel.swift'],
-    'composer': ['Chrome/LodyScrollEdges.swift', 'Chrome/LodyEdgeFade.swift', 'LodyStrings.swift', 'UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatAttachmentSheet.swift', 'Chat/ChatAttachmentCamera.swift', 'Chat/ChatComposerSurfaceLayout.swift', 'Chat/ChatComposerLiquidGlassSurfaceLayout.swift', 'Chat/ChatMentionPanel.swift', 'Chat/ChatComposerModelPanel.swift', 'Chat/ChatComposerView.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatThrowCurve.swift', 'LodyTint.swift', 'Toast/LodyToastOverlay.swift', 'Toast/LodyToastPillView.swift', 'Toast/LodySessionBannerView.swift'],
+    'composer': ['Chrome/LodyScrollEdges.swift', 'Chrome/LodyEdgeFade.swift', 'LodyStrings.swift', 'UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatAttachmentSheet.swift', 'Chat/ChatAttachmentCamera.swift', 'Chat/ChatComposerSurfaceLayout.swift', 'Chat/ChatComposerLiquidGlassSurfaceLayout.swift', 'Chat/ChatMentionPanel.swift', 'Chat/ChatComposerModelPanel.swift', 'Chat/ChatComposerView.swift', 'Chat/ChatReferenceNode.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatThrowCurve.swift', 'LodyTint.swift', 'Toast/LodyToastOverlay.swift', 'Toast/LodyToastPillView.swift', 'Toast/LodySessionBannerView.swift'],
     'attachments': ['LodyStrings.swift', 'Cloud/SessionAttachments.swift'],
     'inline-diff': ['UIFont+Dynamic.swift', 'Diff/InlineDiffModel.swift', 'Diff/InlineDiffRenderer.swift'],
     'list': [
@@ -104,7 +105,28 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
                 *map(str, sources), '-o', str(directory / f'lib{module}.a')], check=True, timeout=240)
         return directory
 
+    lexical_dir = Path(output) / 'lexical-package'
+    lexical_modules = [('Lexical', '5'), ('LexicalListPlugin', '5'), ('LexicalLinkPlugin', '5'), ('LexicalMarkdown', '6')]
+
+    def lexical_package():
+        if lexical_dir.exists():
+            return lexical_dir
+        lexical_dir.mkdir()
+        arch = 'arm64' if platform.machine() == 'arm64' else 'x86_64'
+        for module, version in lexical_modules:
+            sources = sorted((root / 'packages/lexical-swift/Sources' / module).rglob('*.swift'))
+            subprocess.run(['xcrun', 'swiftc', '-swift-version', version, '-sdk', sdk, '-target', f'{arch}-apple-ios26.0-simulator',
+                '-I', str(lexical_dir), '-emit-module', '-emit-library', '-static', '-module-name', module,
+                '-emit-module-path', str(lexical_dir / f'{module}.swiftmodule'), *map(str, sources),
+                '-o', str(lexical_dir / f'lib{module}.a')], check=True, timeout=600)
+        return lexical_dir
+
     for name, files in checks.items():
+        if name == 'lexical-swift':
+            subprocess.run(['xcodebuild', 'test', '-scheme', 'Lexical-Package', '-destination', f'id={args.udid}',
+                '-derivedDataPath', str(root / '.artifacts/native-lexical-swift'), '-collect-test-diagnostics', 'never'],
+                cwd=root / 'packages/lexical-swift', check=True, timeout=1800)
+            continue
         if name == 'local-store':
             # Compile the production parser, not a regex or a test-only stand-in.
             package = Path(output) / name
@@ -137,6 +159,9 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             command += ['-I', str(modules), '-L', str(modules), '-lChatKitCore']
             if simulator:
                 command += ['-lChatKit']
+        if any('import Lexical' in source.read_text() for source in package_sources):
+            modules = lexical_package()
+            command += ['-I', str(modules), '-L', str(modules)] + [f'-l{module}' for module, _ in lexical_modules]
         command += [str(kit / 'ios' / file) for file in files]
         command += [str(main), '-o', binary]
         # Xcode 27 CI compiles the larger chat/composer graphs much slower than a local Mac.

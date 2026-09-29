@@ -190,6 +190,12 @@ final class ChatMentionPanel: CKGlassSurface, UICollectionViewDataSource, UIColl
     let currentLength = ((input.text ?? "") as NSString).length
     guard NSMaxRange(range) <= currentLength, currentLength - range.length + (text as NSString).length <= 32000 else { return }
     applyingEdit = true
+    if let composer = input as? ChatComposerInput {
+      composer.insertReference(String(text.dropLast()), replacing: range)
+      applyingEdit = false
+      onChange?()
+      return
+    }
     input.selectedRange = range
     input.insertText(text)
     applyingEdit = false
