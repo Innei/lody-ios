@@ -120,6 +120,7 @@ struct ChatRow: Equatable {
   var uploadProgress: [String: ChatAttachmentUploadProgress] = [:]
   var workDurationMs: Int? = nil
   var imageAsset = ""
+  var subagent: ChatSubagentCard? = nil
   var shines: Bool { running && kind != "duration" }
   /// `only` / `first` / `middle` / `last` for consecutive file rows in one group.
   var group = ""
@@ -407,11 +408,17 @@ struct ChatTranscript {
         if let first = process.first { groups[first] = process }
         visible = process.first.map { [$0] } ?? []
         if let finalText { visible.append(finalText) }
-        visible.append(contentsOf: entry.items.indices.filter { entry.items[$0].isAttachment || entry.items[$0].isChatFailure })
+        visible.append(contentsOf: entry.items.indices.filter {
+          entry.items[$0].isAttachment || entry.items[$0].isChatFailure
+            || (entry.items[$0].type == "subagent_task" && !entry.items[$0].hidesFromTranscript)
+        })
         visible.sort()
       } else {
         for index in entry.items.indices {
-          if entry.items[index].type == "subagent_task" { continue }
+          if entry.items[index].type == "subagent_task" {
+            if !entry.items[index].hidesFromTranscript { visible.append(index) }
+            continue
+          }
           if entry.items[index].type == "text" || entry.items[index].isAttachment || entry.items[index].isChatFailure {
             visible.append(index)
           } else if let previous = visible.last, groups[previous] != nil {
@@ -550,26 +557,47 @@ extension ChatTranscript {
   fileprivate static func subagentRow(entry: ChatEntry, item: ChatItem) -> ChatRow {
     let actor = item.actor?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     let description = item.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    var text = actor.isEmpty ? LodyStrings.text("native.chat.transcript.subtask") : actor
-    if !description.isEmpty, description != text { text += " · " + description }
     let tool = item.lastToolName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if item.status == "in_progress", !tool.isEmpty { text += " · " + tool }
-    if item.status == "failed" {
-      let error = item.error?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-      text = LodyStrings.text("native.chat.transcript.failed", ["text": error.isEmpty ? text : error])
+    let summary = item.summary?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let error = item.error?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let running = item.status == "in_progress" || item.status == "pending"
+    var detail = ""
+    if item.status == "in_progress", !tool.isEmpty {
+      detail = LodyStrings.text("native.chat.subagent.runningTool", ["tool": tool])
+    } else if item.status == "completed" {
+      detail = summary
+    } else if item.status == "failed" {
+      detail = error
     }
+    let card = ChatSubagentCard(
+      actor: actor.isEmpty ? LodyStrings.text("native.chat.transcript.subtask") : actor,
+      description: description == actor ? "" : description,
+      status: item.status ?? "pending",
+      detail: detail,
+      background: item.isBackgrounded == true
+    )
     var row = ChatRow(
       id: entry.id + ":" + item.itemId,
       entryID: entry.id,
       kind: "subagent_task",
-      text: text,
+      text: [card.actor, card.description, detail].filter { !$0.isEmpty }.joined(separator: " · "),
       itemID: item.itemId,
-      running: item.status == "in_progress" || item.status == "pending",
+      running: running,
       attention: item.status == "failed"
     )
     row.symbol = "person.2"
+    row.actionable = true
+    row.subagent = card
     return row
   }
+}
+
+struct ChatSubagentCard: Equatable {
+  var actor: String
+  var description: String
+  var status: String
+  var detail: String
+  var background: Bool
 }
 
 enum ChatProcessSummary {

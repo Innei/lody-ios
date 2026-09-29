@@ -799,7 +799,12 @@ let taskJSON = """
 """
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(taskJSON.utf8))
 assert(transcript.liveSubagentItems().map(\.itemId) == ["explore"])
-assert(!transcript.rows().contains { $0.kind == "subagent_task" || $0.itemID == "explore" || $0.itemID == "house" })
+let liveTaskRows = transcript.rows().filter { $0.kind == "subagent_task" }
+assert(liveTaskRows.map(\.itemID) == ["explore", "done"])
+assert(!transcript.rows().contains { $0.itemID == "house" })
+assert(liveTaskRows.allSatisfy(\.actionable))
+assert(liveTaskRows[0].subagent == ChatSubagentCard(actor: "Explore", description: "Find chrome", status: "in_progress",
+  detail: LodyStrings.text("native.chat.subagent.runningTool", ["tool": "Read"]), background: false))
 assert(transcript.rows().contains { $0.kind == "summary" })
 let processTasks = transcript.rows(processEntryID: "reply")
 assert(processTasks.contains { $0.itemID == "explore" && $0.kind == "subagent_task" })
@@ -807,8 +812,8 @@ assert(processTasks.contains { $0.itemID == "done" && $0.kind == "subagent_task"
 assert(!processTasks.contains { $0.itemID == "house" })
 assert(transcript.rows(processEntryID: "reply", processStartID: "__tasks__").map(\.itemID) == ["explore", "done"])
 transcript.entries[0].finished = true
-assert(!transcript.rows().contains { $0.kind == "subagent_task" || $0.itemID == "explore" })
-print("Chat: live subagent tasks stay off the main list and skip housekeeping")
+assert(transcript.rows().filter { $0.kind == "subagent_task" }.map(\.itemID) == ["explore", "done"])
+print("Chat: subagent task cards stay in the main list around the process and skip housekeeping")
 
 let screen = ChatImagePreviewGeometry.Size(width: 400, height: 800)
 assert(

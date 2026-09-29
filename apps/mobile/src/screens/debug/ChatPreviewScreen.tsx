@@ -10,6 +10,8 @@ import { t } from '@/lib/i18n/index.ts';
 import { definePage, present } from '@/lib/presentation';
 import { FileDiffScreen } from '@/screens/FileDiffScreen';
 import { ItemDetailScreen } from '@/screens/ItemDetailScreen';
+import { openSubagentTask } from '@/hooks/screens/openSubagentTask';
+import type { ItemSummary } from '@/models/session';
 import { basename } from '@/features/sessions/path';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
 import {
@@ -144,6 +146,7 @@ function overlayTaskEntries() {
           actor: 'Explore',
           description: 'Find overlay chrome',
           lastToolName: 'Read',
+          isBackgrounded: true,
         },
         {
           itemId: 'house',
@@ -152,6 +155,30 @@ function overlayTaskEntries() {
           status: 'in_progress',
           actor: 'Housekeeping',
           skipTranscript: true,
+        },
+        {
+          itemId: 'tests',
+          type: 'subagent_task',
+          taskId: 't2',
+          status: 'completed',
+          actor: 'test-runner',
+          description: 'Run the auth tests',
+          summary:
+            'All 12 cases pass. Session refresh is not covered; add expiry and concurrent refresh cases after the split.',
+        },
+        {
+          itemId: 'review',
+          type: 'subagent_task',
+          taskId: 't3',
+          status: 'failed',
+          actor: 'code-reviewer',
+          description: 'Review token storage',
+          error: 'Machine connection lost',
+        },
+        {
+          itemId: 'answer',
+          type: 'text',
+          text: '已派出三个子任务，结果回来后合并成拆分方案。',
         },
       ],
     },
@@ -633,8 +660,21 @@ function View() {
     displayedEntriesJSON = JSON.stringify(overlayTaskEntries());
   }
   const openMessageDetails = useMessageDetailsSheet(displayedEntriesJSON);
-  const openProcess = useProcessSheet(displayedEntriesJSON, () =>
-    setMode('attention'),
+  const openItem = (entryId: string, itemId: string) => {
+    const entries = JSON.parse(displayedEntriesJSON) as {
+      id: string;
+      items: ItemSummary[];
+    }[];
+    const entry = entries.find((candidate) => candidate.id === entryId);
+    return openSubagentTask(
+      entry?.items.find((candidate) => candidate.itemId === itemId),
+    );
+  };
+  const openProcess = useProcessSheet(
+    displayedEntriesJSON,
+    (entryId, itemId) => {
+      if (!openItem(entryId, itemId)) setMode('attention');
+    },
   );
   return (
     <>
@@ -928,9 +968,10 @@ function View() {
           setMode('normal');
           setLength(0);
         }}
-        onActivityPress={({ nativeEvent }) =>
-          openProcess(nativeEvent.entryId, nativeEvent.processStartId)
-        }
+        onActivityPress={({ nativeEvent }) => {
+          if (!openItem(nativeEvent.entryId, nativeEvent.itemId))
+            openProcess(nativeEvent.entryId, nativeEvent.processStartId);
+        }}
         onReconnect={() => {}}
         onTurnChangesPress={({ nativeEvent }) => {
           if (showChanges)

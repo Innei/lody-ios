@@ -4,6 +4,7 @@ import { EditMessageScreen } from './EditMessageScreen';
 import { useEditableMessage } from '@/features/sessions/useEditableMessage';
 import { useAgentErrorRetry } from '@/features/sessions/useAgentErrorRetry';
 import { openAgentError } from '@/hooks/screens/openAgentError';
+import { openSubagentTask } from '@/hooks/screens/openSubagentTask';
 import { fastModeFor, withFastMode } from '@/cloud/send/capability';
 import { useComposerMentions } from '@/hooks/screens/useComposerMentions';
 import { NativeNavigationHeader, setPushVisibleRoute } from '@lody-ios/kit';
@@ -450,7 +451,7 @@ function View() {
   const onActivityPress = (entryId: string, itemId: string) => {
     const entry = snapshot.entries.find((e) => e.id === entryId);
     const item = entry?.items.find((i) => i.itemId === itemId);
-    if (openAgentError(item)) return;
+    if (openAgentError(item) || openSubagentTask(item)) return;
     if (snapshot.status !== 'live') {
       Alert.alert(
         t('session.alert.syncing.title'),

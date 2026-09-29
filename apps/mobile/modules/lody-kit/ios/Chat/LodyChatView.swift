@@ -297,6 +297,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     collection.register(ChatImageCell.self, forCellWithReuseIdentifier: "image")
     collection.register(ChatHistoryHeader.self, forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader, withReuseIdentifier: "history")
     collection.register(ChatErrorCell.self, forCellWithReuseIdentifier: "error")
+    collection.register(ChatSubagentCell.self, forCellWithReuseIdentifier: "subagent")
     collection.register(ChatCell.self, forCellWithReuseIdentifier: "message")
     collection.register(ChatMetaCell.self, forCellWithReuseIdentifier: "meta")
     collection.register(ChatMarkdownCell.self, forCellWithReuseIdentifier: "markdown")
@@ -307,6 +308,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
         cell.configure(row)
         cell.onDetail = { [weak self] in self?.onActivityPress(["entryId": row.entryID, "itemId": row.itemID]) }
         cell.onRetry = { [weak self] in self?.onErrorRetry(["entryId": row.entryID, "itemId": row.itemID, "id": UUID().uuidString.lowercased()]) }
+        return cell
+      }
+      if row.subagent != nil {
+        let cell = collection.dequeueReusableCell(withReuseIdentifier: "subagent", for: index) as! ChatSubagentCell
+        cell.configure(row)
         return cell
       }
       if row.kind == "meta" {

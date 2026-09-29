@@ -75,6 +75,31 @@ tasks = ui.element('chat-overlay-status')
 assert tasks.get('AXLabel') == 'Explore · Read', tasks.get('AXLabel')
 assert abs(center_x(tasks['frame']) - chrome_center()) <= 1, 'A live task capsule is not on the composer center'
 ui.capture('tasks')
+cards = {item: ui.element('task-reply:' + item) for item in ('explore', 'tests', 'review')}
+assert 'task-reply:house' not in ui.axe('describe-ui'), 'Housekeeping tasks must stay off the transcript'
+assert catalog.text('native.chat.subagent.completed') in (cards['tests'].get('AXValue') or ''), cards['tests'].get('AXValue')
+assert catalog.text('native.chat.subagent.failed') in (cards['review'].get('AXValue') or ''), cards['review'].get('AXValue')
+assert cards['explore']['frame']['y'] < cards['tests']['frame']['y'] < cards['review']['frame']['y'], 'Task cards left item order'
+ui.capture('task-cards')
+ui.axe('tap', '--id', 'task-reply:tests', '--post-delay', '1')
+result = ui.element('subagent-detail-result')
+assert (result.get('AXLabel') or '').startswith('All 12 cases pass'), result.get('AXLabel')
+ui.element('subagent-detail-copy')
+ui.capture('task-detail')
+detail_grabber = next(i['frame'] for i in ui.state() if i.get('AXLabel') == 'Sheet Grabber')
+ui.axe(
+    'swipe',
+    '--start-x', str(detail_grabber['x'] + detail_grabber['width'] / 2),
+    '--start-y', str(detail_grabber['y'] + detail_grabber['height'] / 2),
+    '--end-x', str(detail_grabber['x'] + detail_grabber['width'] / 2),
+    '--end-y', '900',
+    '--duration', '0.4',
+    '--post-delay', '.8',
+)
+ui.wait(
+    lambda items: not any(i.get('AXUniqueId') == 'subagent-detail-result' for i in items),
+    'Subtask detail did not dismiss',
+)
 ui.axe('tap', '--id', 'chat-overlay-status', '--post-delay', '.8')
 ui.wait(
     lambda items: any(i.get('AXLabel') == catalog.text('process.tasks') for i in items),
