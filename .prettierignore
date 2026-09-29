@@ -13,3 +13,5 @@ apps/mobile/expo-env.d.ts
 .acceptances/
 apps/mobile/vendor
 .artifacts/
+packages/lexical-swift/Fixtures/haklex/
+packages/lexical-swift/Sources/Lexical/Documentation.docc/

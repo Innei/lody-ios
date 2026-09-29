@@ -60,14 +60,7 @@ public struct SerializedNodeArray: Decodable {
       let unprocessedContainer = try container.nestedContainer(keyedBy: PartialCodingKeys.self)
       let type = try NodeType(rawValue: unprocessedContainer.decode(String.self, forKey: .type))
       let klass = deserializationMap[type] ?? UnknownNode.self
-
-      do {
-        let decoder = try containerCopy.superDecoder()
-        let decodedNode = try klass.init(from: decoder)
-        nodeArray.append(decodedNode)
-      } catch {
-        print(error)
-      }
+      nodeArray.append(try decodeNodePreservingJSON(klass, from: containerCopy.superDecoder()))
     }
 
     self.nodeArray = nodeArray
@@ -76,6 +69,16 @@ public struct SerializedNodeArray: Decodable {
 
 public typealias DeserializationConstructor = (Decoder) throws -> Node
 typealias DeserializationMapping = [NodeType: DeserializationConstructor]
+
+// A node whose registered class rejects its JSON is kept verbatim rather than dropped from the document.
+func decodeNodePreservingJSON(_ klass: Node.Type, from decoder: Decoder) throws -> Node {
+  do {
+    return try klass.init(from: decoder)
+  } catch {
+    getActiveEditor()?.log(.other, .error, "Keeping undecodable node verbatim: \(error)")
+    return UnknownNode(data: try decoder.singleValueContainer().decode(UnknownNode.SupportedValue.self))
+  }
+}
 
 // MARK: - Utilities
 

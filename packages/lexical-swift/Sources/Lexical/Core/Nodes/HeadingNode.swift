@@ -13,6 +13,7 @@ public enum HeadingTagType: String, Codable {
   case h3
   case h4
   case h5
+  case h6
 }
 
 enum HeadingDefaultFontSize: Float {
@@ -21,6 +22,7 @@ enum HeadingDefaultFontSize: Float {
   case h3 = 28
   case h4 = 24
   case h5 = 20
+  case h6 = 17
 }
 
 public class HeadingNode: ElementNode {
@@ -79,6 +81,8 @@ public class HeadingNode: ElementNode {
       return theme.getValue(.heading, withSubtype: "h4") ?? [.fontSize: HeadingDefaultFontSize.h4.rawValue]
     case .h5:
       return theme.getValue(.heading, withSubtype: "h5") ?? [.fontSize: HeadingDefaultFontSize.h5.rawValue]
+    case .h6:
+      return theme.getValue(.heading, withSubtype: "h6") ?? [.fontSize: HeadingDefaultFontSize.h6.rawValue]
     }
   }
 

@@ -27,7 +27,7 @@ public class CodeHighlightNode: TextNode {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     try super.init(from: decoder)
 
-    self.highlightType = try container.decode(String.self, forKey: .highlightType)
+    self.highlightType = try container.decodeIfPresent(String.self, forKey: .highlightType)
   }
 
   public required convenience init(text: String, key: NodeKey?) {

@@ -8,7 +8,7 @@
 import Foundation
 import Lexical
 
-public enum ListType {
+public enum ListType: String, Codable {
   case bullet
   case number
   case check
@@ -19,6 +19,12 @@ extension NodeType {
 }
 
 public final class ListNode: ElementNode {
+  enum CodingKeys: String, CodingKey {
+    case listType
+    case start
+    case tag
+  }
+
   private var listType: ListType = .bullet
   private var start: Int = 1
 
@@ -37,7 +43,18 @@ public final class ListNode: ElementNode {
   }
 
   public required init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
     try super.init(from: decoder)
+    listType = try container.decodeIfPresent(ListType.self, forKey: .listType) ?? .bullet
+    start = try container.decodeIfPresent(Int.self, forKey: .start) ?? 1
+  }
+
+  override public func encode(to encoder: Encoder) throws {
+    try super.encode(to: encoder)
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(listType, forKey: .listType)
+    try container.encode(start, forKey: .start)
+    try container.encode(listType == .number ? "ol" : "ul", forKey: .tag)
   }
   override public class func getType() -> NodeType {
     return .list

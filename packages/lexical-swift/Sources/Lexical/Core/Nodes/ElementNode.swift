@@ -12,13 +12,19 @@ open class ElementNode: Node {
     case children
     case direction
     case indent
-    case format // text alignment. Not supported yet.
+    case format
+    case textFormat
+    case textStyle
   }
 
   // TODO: once the various accessor methods are written, make this var private
   var children: [NodeKey] = []
   var direction: Direction?
   var indent: Int = 0
+  var format: String = ""
+  var textFormat: Int = 0
+  var textStyle: String = ""
+  var alwaysEncodesTextFormat: Bool { false }
 
   func getDirection() -> Direction? {
     return direction
@@ -51,15 +57,9 @@ open class ElementNode: Node {
         let type = try NodeType(rawValue: unprocessedContainer.decode(String.self, forKey: .type))
 
         let klass = deserializationMap[type] ?? UnknownNode.self
-
-        do {
-          let decoder = try containerCopy.superDecoder()
-          let decodedNode = try klass.init(from: decoder)
-          childNodes.append(decodedNode)
-          self.children.append(decodedNode.key)
-        } catch {
-          print(error)
-        }
+        let decodedNode = try decodeNodePreservingJSON(klass, from: containerCopy.superDecoder())
+        childNodes.append(decodedNode)
+        self.children.append(decodedNode.key)
       }
     } catch {
       print(error)
@@ -67,6 +67,9 @@ open class ElementNode: Node {
 
     self.direction = try container.decodeIfPresent(Direction.self, forKey: .direction)
     self.indent = try container.decodeIfPresent(Int.self, forKey: .indent) ?? 0
+    self.format = try container.decodeIfPresent(String.self, forKey: .format) ?? ""
+    self.textFormat = try container.decodeIfPresent(Int.self, forKey: .textFormat) ?? 0
+    self.textStyle = try container.decodeIfPresent(String.self, forKey: .textStyle) ?? ""
     try super.init(from: decoder)
 
     for node in childNodes {
@@ -80,7 +83,13 @@ open class ElementNode: Node {
     try container.encode(getChildren(), forKey: .children)
     try container.encode(direction, forKey: .direction)
     try container.encode(indent, forKey: .indent)
-    try container.encode("", forKey: .format)
+    try container.encode(format, forKey: .format)
+    if textFormat != 0 || alwaysEncodesTextFormat {
+      try container.encode(textFormat, forKey: .textFormat)
+    }
+    if !textStyle.isEmpty || alwaysEncodesTextFormat {
+      try container.encode(textStyle, forKey: .textStyle)
+    }
   }
 
   @discardableResult

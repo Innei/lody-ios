@@ -22,6 +22,7 @@ public struct NodeType: Hashable, RawRepresentable {
   public static let heading = NodeType(rawValue: "heading")
   public static let quote = NodeType(rawValue: "quote")
   public static let linebreak = NodeType(rawValue: "linebreak")
+  public static let tab = NodeType(rawValue: "tab")
   public static let code = NodeType(rawValue: "code")
   public static let codeHighlight = NodeType(rawValue: "code-highlight")
 }
@@ -72,6 +73,7 @@ public enum DirtyType {
   case code
   case subScript
   case superScript
+  case highlight
 }
 
 enum Direction: String, Codable {

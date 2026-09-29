@@ -53,7 +53,7 @@ public class CodeNode: ElementNode {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     try super.init(from: decoder)
 
-    self.language = try container.decode(String.self, forKey: .language)
+    self.language = try container.decodeIfPresent(String.self, forKey: .language) ?? ""
   }
 
   override public class func getType() -> NodeType {
@@ -63,7 +63,9 @@ public class CodeNode: ElementNode {
   override public func encode(to encoder: Encoder) throws {
     try super.encode(to: encoder)
     var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode(self.language, forKey: .language)
+    if !language.isEmpty {
+      try container.encode(self.language, forKey: .language)
+    }
   }
 
   public func getLanguage() -> String {

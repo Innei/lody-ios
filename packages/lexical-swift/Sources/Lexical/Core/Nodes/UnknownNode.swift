@@ -27,7 +27,8 @@ public class UnknownNode: Node {
 
   enum SupportedValue: Codable, Equatable {
     case null
-    case number(Float)
+    case int(Int64)
+    case double(Double)
     case bool(Bool)
     case string(String)
     case object([String: SupportedValue])
@@ -43,7 +44,9 @@ public class UnknownNode: Node {
         try container.encodeNil()
       case .bool(let value):
         try container.encode(value)
-      case .number(let value):
+      case .int(let value):
+        try container.encode(value)
+      case .double(let value):
         try container.encode(value)
       case .string(let value):
         try container.encode(value)
@@ -80,10 +83,10 @@ public class UnknownNode: Node {
       } else if let container = try? decoder.singleValueContainer() {
         if let value = try? container.decode(Bool.self) {
           self = .bool(value)
-        } else if let value = try? container.decode(Float.self) {
-          self = .number(value)
-        } else if let value = try? container.decode(Int.self) {
-          self = .number(Float(value))
+        } else if let value = try? container.decode(Int64.self) {
+          self = .int(value)
+        } else if let value = try? container.decode(Double.self) {
+          self = .double(value)
         } else if let value = try? container.decode(String.self) {
           self = .string(value)
         } else if container.decodeNil() {
@@ -109,6 +112,11 @@ public class UnknownNode: Node {
         }
       }
     }
+  }
+
+  init(data: SupportedValue) {
+    self.data = data
+    super.init()
   }
 
   public required init(from decoder: Decoder) throws {

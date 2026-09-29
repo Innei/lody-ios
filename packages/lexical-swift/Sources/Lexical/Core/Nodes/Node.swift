@@ -21,11 +21,13 @@ open class Node: Codable {
   enum CodingKeys: String, CodingKey {
     case type
     case version
+    case state = "$"
   }
 
   public var key: NodeKey
   var parent: NodeKey?
   public var version: Int
+  var state: [String: UnknownNode.SupportedValue]?
 
   public init() {
     self.version = 1
@@ -50,6 +52,7 @@ open class Node: Codable {
     let values = try decoder.container(keyedBy: CodingKeys.self)
     key = LexicalConstants.uninitializedNodeKey
     version = try values.decode(Int.self, forKey: .version)
+    state = try values.decodeIfPresent([String: UnknownNode.SupportedValue].self, forKey: .state)
 
     _ = try? generateKey(node: self)
   }
@@ -59,6 +62,9 @@ open class Node: Codable {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(version, forKey: .version)
     try container.encode(type.rawValue, forKey: .type)
+    if let state, !state.isEmpty {
+      try container.encode(state, forKey: .state)
+    }
   }
 
   /**
@@ -161,11 +167,19 @@ open class Node: Codable {
     let mutableNode = getLatest().clone()
 
     mutableNode.parent = latestNode.parent
+    mutableNode.state = latestNode.state
     if let latestNode = latestNode as? ElementNode, let mutableNode = mutableNode as? ElementNode {
       mutableNode.children = latestNode.children
+      mutableNode.direction = latestNode.direction
+      mutableNode.indent = latestNode.indent
+      mutableNode.format = latestNode.format
+      mutableNode.textFormat = latestNode.textFormat
+      mutableNode.textStyle = latestNode.textStyle
     } else if let latestNode = latestNode as? TextNode, let mutableNode = mutableNode as? TextNode {
       mutableNode.format = latestNode.format
       mutableNode.mode = latestNode.mode
+      mutableNode.detail = latestNode.detail
+      mutableNode.style = latestNode.style
     }
 
     editor.cloneNotNeeded.insert(key)

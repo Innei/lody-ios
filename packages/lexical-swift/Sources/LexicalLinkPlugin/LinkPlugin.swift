@@ -34,6 +34,7 @@ open class LinkPlugin: Plugin {
     self.editor = editor
     do {
       try editor.registerNode(nodeType: NodeType.link, class: LinkNode.self)
+      try editor.registerNode(nodeType: NodeType.autoLink, class: AutoLinkNode.self)
     } catch {
       print("\(error)")
     }

@@ -17,8 +17,13 @@ extension NodeType {
 }
 
 public final class ListItemNode: ElementNode {
+  enum CodingKeys: String, CodingKey {
+    case value
+    case checked
+  }
 
   private var value: Int = 0
+  private var checked: Bool?
 
   override public init() {
     super.init()
@@ -29,11 +34,32 @@ public final class ListItemNode: ElementNode {
   }
 
   public required init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
     try super.init(from: decoder)
+    value = try container.decodeIfPresent(Int.self, forKey: .value) ?? 0
+    checked = try container.decodeIfPresent(Bool.self, forKey: .checked)
+  }
+
+  override public func encode(to encoder: Encoder) throws {
+    try super.encode(to: encoder)
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(value, forKey: .value)
+    try container.encodeIfPresent(checked, forKey: .checked)
   }
 
   override public func clone() -> Self {
-    Self(key)
+    let node = Self(key)
+    node.value = value
+    node.checked = checked
+    return node
+  }
+
+  public func getChecked() -> Bool? {
+    getLatest().checked
+  }
+
+  public func setChecked(_ checked: Bool?) throws {
+    try getWritable().checked = checked
   }
 
   override public class func getType() -> NodeType {

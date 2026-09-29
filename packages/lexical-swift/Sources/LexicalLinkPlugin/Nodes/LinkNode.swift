@@ -15,9 +15,15 @@ extension NodeType {
 open class LinkNode: ElementNode {
   enum CodingKeys: String, CodingKey {
     case url
+    case rel
+    case target
+    case title
   }
 
   public var url: String = ""
+  public var rel: String?
+  public var target: String?
+  public var title: String?
 
   override public init() {
     super.init()
@@ -33,6 +39,9 @@ open class LinkNode: ElementNode {
     try super.init(from: decoder)
 
     self.url = try container.decode(String.self, forKey: .url)
+    self.rel = try container.decodeIfPresent(String.self, forKey: .rel)
+    self.target = try container.decodeIfPresent(String.self, forKey: .target)
+    self.title = try container.decodeIfPresent(String.self, forKey: .title)
   }
   override open class func getType() -> NodeType {
     return .link
@@ -42,6 +51,9 @@ open class LinkNode: ElementNode {
     try super.encode(to: encoder)
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(self.url, forKey: .url)
+    try container.encode(self.rel, forKey: .rel)
+    try container.encode(self.target, forKey: .target)
+    try container.encode(self.title, forKey: .title)
   }
 
   public func getURL() -> String {
@@ -71,7 +83,11 @@ open class LinkNode: ElementNode {
   }
 
   override open func clone() -> Self {
-    Self(url: url, key: key)
+    let node = Self(url: url, key: key)
+    node.rel = rel
+    node.target = target
+    node.title = title
+    return node
   }
 
   override public func getAttributedStringAttributes(theme: Theme) -> [NSAttributedString.Key: Any] {

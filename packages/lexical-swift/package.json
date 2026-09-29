@@ -1,0 +1,13 @@
+{
+  "name": "@lody-ios/lexical-swift",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fixtures": "node Fixtures/generate.mjs"
+  },
+  "devDependencies": {
+    "@haklex/rich-headless": "0.42.1",
+    "@lexical/headless": "0.49.0",
+    "lexical": "0.49.0"
+  }
+}

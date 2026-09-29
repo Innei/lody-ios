@@ -21,6 +21,8 @@ public struct SerializedTextFormat: OptionSet, Codable {
   public static let code = SerializedTextFormat(rawValue: 1 << 4)
   public static let subScript = SerializedTextFormat(rawValue: 1 << 5)
   public static let superScript = SerializedTextFormat(rawValue: 1 << 6)
+  public static let highlight = SerializedTextFormat(rawValue: 1 << 7)
+  static let modelled: SerializedTextFormat = [.bold, .italic, .strikethrough, .underline, .code, .subScript, .superScript, .highlight]
 
   public init(rawValue: Int) {
     self.rawValue = rawValue
@@ -50,6 +52,10 @@ public struct SerializedTextFormat: OptionSet, Codable {
     if textFormat.superScript {
       serialTextFormat.insert(.superScript)
     }
+    if textFormat.highlight {
+      serialTextFormat.insert(.highlight)
+    }
+    serialTextFormat.insert(SerializedTextFormat(rawValue: textFormat.otherBits))
 
     return serialTextFormat
   }
@@ -78,6 +84,10 @@ public struct SerializedTextFormat: OptionSet, Codable {
     if serialTextFormat.contains(.superScript) {
       textFormat.superScript = true
     }
+    if serialTextFormat.contains(.highlight) {
+      textFormat.highlight = true
+    }
+    textFormat.otherBits = serialTextFormat.subtracting(.modelled).rawValue
 
     return textFormat
   }
@@ -92,6 +102,9 @@ public struct TextFormat: Equatable, Codable {
   public var code: Bool
   public var subScript: Bool
   public var superScript: Bool
+  public var highlight: Bool = false
+  // Lexical format bits this editor does not render (lowercase, uppercase, capitalize, future bits) survive round trips unchanged.
+  public var otherBits: Int = 0
 
   public init() {
     self.bold = false
@@ -119,6 +132,8 @@ public struct TextFormat: Equatable, Codable {
       return subScript
     case .superScript:
       return superScript
+    case .highlight:
+      return highlight
     }
   }
 
@@ -138,6 +153,8 @@ public struct TextFormat: Equatable, Codable {
       subScript = value
     case .superScript:
       superScript = value
+    case .highlight:
+      highlight = value
     }
   }
 }

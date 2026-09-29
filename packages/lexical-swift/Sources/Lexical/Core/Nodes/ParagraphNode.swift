@@ -24,6 +24,8 @@ public class ParagraphNode: ElementNode {
     return .paragraph
   }
 
+  override var alwaysEncodesTextFormat: Bool { true }
+
   override public func clone() -> Self {
     Self(key)
   }
