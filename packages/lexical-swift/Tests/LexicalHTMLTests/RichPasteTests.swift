@@ -131,9 +131,8 @@ private func markdown(_ editor: Editor) throws -> String {
     try root.append([paragraph])
     _ = try paragraph.selectStart()
   }
-  let pasteboard = UIPasteboard.withUniqueName()
-  pasteboard.items = [[UTType.html.identifier: Data("<p><i>styled</i> paste</p>".utf8), UTType.utf8PlainText.identifier: "styled paste"]]
-  #expect(editor.dispatchCommand(type: .paste, payload: pasteboard))
+  #expect(editor.dispatchCommand(type: .paste, payload: UIPasteboard.withUniqueName()))
+  plugin.paste([provider([(UTType.html.identifier, "<p><i>styled</i> paste</p>"), (UTType.utf8PlainText.identifier, "styled paste")])])
   var result = ""
   for _ in 0..<100 {
     try await Task.sleep(for: .milliseconds(30))
