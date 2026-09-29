@@ -61,9 +61,15 @@ struct ChatAttachment: Equatable {
       !type.conforms(to: .directory)
         && !type.conforms(to: .url)
         && !type.conforms(to: .text)
+        && !isRichTextDocument(type)
         && type.identifier != LexicalConstants.pasteboardIdentifier
         && !isWebArchive(type)
     }
+  }
+
+  // UIKit synthesizes RTF and RTFD beside copied HTML; those are the selection's text, not a file.
+  private static func isRichTextDocument(_ type: UTType) -> Bool {
+    [UTType.rtf, .rtfd, .flatRTFD].contains { type.conforms(to: $0) }
   }
 
   private static func isWebArchiveProvider(_ provider: NSItemProvider) -> Bool {

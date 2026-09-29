@@ -21,11 +21,12 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker'],
-    'send': ['quick-replies', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'camera-chat', 'camera-sheet', 'paste-plain-chat', 'paste-plain-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'model-memory'],
+    'send': ['quick-replies', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'camera-chat', 'camera-sheet', 'paste-plain-chat', 'paste-plain-sheet', 'rich-paste-chat', 'rich-paste-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'model-memory'],
     'chat': ['message-share', 'user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'chat-chrome', 'title-rename'],
 }
 SUITES = {
     'paste-plain': ['paste-plain-chat', 'paste-plain-sheet'],
+    'rich-paste': ['rich-paste-chat', 'rich-paste-sheet'],
     'chat-kit': ['chat-stream-performance', 'composer', 'send-transition-handoff'],
     'chat-kit-input': ['composer', 'send-transition-handoff'],
     'camera': ['camera-chat', 'camera-sheet'],
@@ -100,6 +101,8 @@ PREVIEW = {
     'background': 'background-preview',
     'paste-plain-sheet': 'composer-preview',
     'paste-plain-chat': 'composer-success',
+    'rich-paste-sheet': 'composer-preview',
+    'rich-paste-chat': 'chat-preview',
     'composer': 'composer-preview',
     'composer-glass': 'composer-preview',
     'fast-chat': 'chat-preview',
@@ -160,6 +163,8 @@ READY = {
     'background': 'background-status',
     'paste-plain-sheet': 'create-session-input',
     'paste-plain-chat': 'session-input',
+    'rich-paste-sheet': 'create-session-input',
+    'rich-paste-chat': 'session-input',
     'composer': 'create-session-input',
     'composer-glass': 'create-session-input',
     'fast-chat': 'session-input',
@@ -397,10 +402,12 @@ with metro_context:
                     ready = 'ui-verify-ready' if case in HOME_CASES else READY.get(case, 'session-input')
                     if case not in HOME_CASES:
                         # The Debug list is a native UICollectionView; offscreen rows are not in the tree.
-                        for _ in range(8):
+                        # Returning to the root keeps the list's scroll offset, so the row can sit above the viewport.
+                        for attempt in range(16):
                             if any(item.get('AXUniqueId') == preview for item in ui.state()):
                                 break
-                            ui.axe('swipe', '--start-x', '200', '--start-y', '700', '--end-x', '200', '--end-y', '500', '--duration', '0.5', '--post-delay', '0.6')
+                            start, end = ('700', '500') if attempt < 8 else ('300', '700')
+                            ui.axe('swipe', '--start-x', '200', '--start-y', start, '--end-x', '200', '--end-y', end, '--duration', '0.5', '--post-delay', '0.6')
                         if case == 'agent-error':
                             # UIKit can expose a prefetched row above the transparent header.
                             for _ in range(4):
@@ -452,6 +459,8 @@ with metro_context:
                         script = Path(__file__).with_name('edit-message.py')
                     if case in ['paste-plain-sheet', 'paste-plain-chat']:
                         script = Path(__file__).with_name('paste-plain.py')
+                    if case in ['rich-paste-sheet', 'rich-paste-chat']:
+                        script = Path(__file__).with_name('rich-paste.py')
                     if case == 'composer-glass-chat':
                         script = Path(__file__).with_name('composer-glass.py')
                     if case == 'mentions-production':

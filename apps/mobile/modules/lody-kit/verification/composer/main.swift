@@ -1355,6 +1355,15 @@ let (literalComposer, literalInput) = makeRichComposer()
 literalInput.paste(itemProviders: [richProvider([(UTType.utf8PlainText.identifier, "def f(): # **not** bold")])])
 waitFor { literalInput.text.contains("bold") }
 precondition(literalInput.text == "def f(): # **not** bold", "Unmarked plain text must stay literal, got \(literalInput.text!)")
+let safariProvider = richProvider([(UTType.html.identifier, "<b>web</b>"), (UTType.flatRTFD.identifier, "rtfd"), (UTType.rtf.identifier, "rtf"), (UTType.utf8PlainText.identifier, "web")])
+precondition(!ChatAttachment.canPaste([safariProvider]), "Rich text selections must not claim Paste as an attachment")
+let (safariComposer, safariInput) = makeRichComposer()
+var safariSent: [String] = []
+safariComposer.onSend = { safariSent.append($0["text"] as! String) }
+safariInput.paste(itemProviders: [safariProvider])
+waitFor { safariInput.text.contains("web") }
+tapSend(on: safariComposer)
+precondition(safariSent.last == "**web**", "A Safari-style selection must paste as formatted text, got \(safariSent)")
 print("Rich composer: HTML and Markdown paste as nodes, plain text stays literal")
 
 let (codeComposer, codeInput) = makeRichComposer()

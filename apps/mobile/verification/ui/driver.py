@@ -81,6 +81,9 @@ class UI:
     def paste_video(self, identifier):
         return self._paste_provider(identifier, 'video-pasteboard.swift', ['IMG_3933.mov', 'IMG_3933.mp4'])
 
+    def paste_html(self, identifier):
+        return self._paste_provider(identifier, 'html-pasteboard.swift', None)
+
     def _paste_provider(self, identifier, helper, names):
         import catalog
         with tempfile.TemporaryDirectory(prefix='lody-pasteboard-') as output:
@@ -109,6 +112,10 @@ class UI:
                 )
                 frame = paste['frame']
                 self.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.5')
+                if any(item.get('AXLabel') == 'Allow Paste' for item in self.state()):
+                    self.axe('tap', '--label', 'Allow Paste', '--post-delay', '.5')
+                if names is None:
+                    return None
                 labels = [catalog.text('native.chat.attachment.preview', name=name) for name in names]
                 found = self.wait(
                     lambda items: next((label for label in labels if any(item.get('AXLabel') == label for item in items)), None),
