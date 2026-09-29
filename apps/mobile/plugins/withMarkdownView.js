@@ -8,6 +8,10 @@ const PACKAGES = [
     path: '../../../packages/chat-kit',
   },
   {
+    name: 'Lexical',
+    path: '../../../packages/lexical-swift',
+  },
+  {
     name: 'MarkdownView',
     url: 'https://github.com/Lakr233/MarkdownView.git',
     version: '4.3.2',

@@ -54,17 +54,17 @@ def lody_share_extension(bundle_id)
     reference = group.files.find { |f| f.path == path } || group.new_file(path)
     target.source_build_phase.add_file_reference(reference, true)
   end
-  package_path = '../../../packages/chat-kit'
-  package = project.root_object.package_references.find { |ref| ref.isa == 'XCLocalSwiftPackageReference' && ref.relative_path == package_path }
-  unless package
-    package = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
-    package.relative_path = package_path
-    project.root_object.package_references << package
-  end
-  unless target.package_product_dependencies.any? { |dep| dep.product_name == 'ChatKit' }
+  { '../../../packages/chat-kit' => 'ChatKit', '../../../packages/lexical-swift' => 'Lexical' }.each do |package_path, product_name|
+    package = project.root_object.package_references.find { |ref| ref.isa == 'XCLocalSwiftPackageReference' && ref.relative_path == package_path }
+    unless package
+      package = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
+      package.relative_path = package_path
+      project.root_object.package_references << package
+    end
+    next if target.package_product_dependencies.any? { |dep| dep.product_name == product_name }
     product = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
     product.package = package
-    product.product_name = 'ChatKit'
+    product.product_name = product_name
     target.package_product_dependencies << product
     build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
     build_file.product_ref = product

@@ -4,7 +4,7 @@ import PackageDescription
 let upstream: [SwiftSetting] = [.swiftLanguageMode(.v5)]
 
 let package = Package(
-  name: "LexicalSwift",
+  name: "Lexical",
   platforms: [.iOS("26.0")],
   products: [
     .library(name: "Lexical", targets: ["Lexical"]),
