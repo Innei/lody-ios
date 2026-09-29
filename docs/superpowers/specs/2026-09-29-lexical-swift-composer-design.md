@@ -36,7 +36,7 @@ M1 包含：
 |---|---|
 | `Lexical` | 基于 lexical-ios fork，包括 core、TK2 frontend、List、Link + AutoLink、History、`TypeaheadPlugin`、`MarkdownShortcutPlugin`。删掉 ReadOnly（TK1）、HTML（SwiftSoup）、Table、InlineImage、Mentions |
 | `LexicalMarkdown` | 重写成按节点注册 transformer 的字符串导出器，语义同 Web 的 `$convertToMarkdownString`。去掉 swift-markdown 依赖（原来锁的是 `branch: main`）。提供两个 preset，见下文 |
-| `HaklexNodes` | haklex T0 节点、占位节点，以及 haklex 的 Markdown preset |
+| `HaklexNodes` | haklex 的 T0 节点：heading、quote、list、link/autolink、code + code-highlight（包括 haklex 自定义的 code block 节点）、horizontal rule、mention（`{platform@handle}`）。其余约 30 种 haklex 类型用占位节点。另外包含 haklex 的 Markdown preset |
 
 fork 后的源码保留上游 MIT LICENSE。`NOTICE` 里记录上游 commit。fork 的 target 使用 Swift 5 语言模式，新写的 target 使用 Swift 6。
 
