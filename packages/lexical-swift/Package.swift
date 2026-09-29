@@ -27,7 +27,7 @@ let package = Package(
     .testTarget(name: "LexicalTypeaheadPluginTests", dependencies: ["LexicalTypeaheadPlugin", "Lexical"]),
     .target(name: "HaklexNodes", dependencies: ["Lexical", "LexicalListPlugin", "LexicalLinkPlugin", "LexicalMarkdown"]),
     .target(name: "LexicalHTML", dependencies: ["Lexical", "LexicalListPlugin", "LexicalLinkPlugin", "LexicalMarkdown"]),
-    .testTarget(name: "LexicalHTMLTests", dependencies: ["LexicalHTML", "Lexical", "LexicalListPlugin", "LexicalLinkPlugin"]),
+    .testTarget(name: "LexicalHTMLTests", dependencies: ["LexicalHTML", "Lexical", "LexicalListPlugin", "LexicalLinkPlugin", "LexicalMarkdown"]),
     .testTarget(name: "HaklexNodesTests", dependencies: ["HaklexNodes", "Lexical"]),
     .testTarget(name: "LexicalTests", dependencies: ["Lexical"], swiftSettings: upstream),
     .testTarget(name: "LexicalListPluginTests", dependencies: ["Lexical", "LexicalListPlugin"], swiftSettings: upstream),

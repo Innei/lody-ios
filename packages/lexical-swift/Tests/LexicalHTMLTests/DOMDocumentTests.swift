@@ -79,3 +79,12 @@ import Testing
   }
   #expect(Set(results.compactMap { $0 }) == Set((0..<32).map { "bg\($0)" }))
 }
+
+@Test func stylesheetRulesApplyUnderInlineStyles() {
+  let html = "<html><head><style>span.s1 {font-weight: bold; font-style: normal} .note {font-style: italic} p {text-align: center}</style></head><body><p><span class=\"s1\" style=\"font-style: italic\">b</span><span class=\"note\">n</span></p></body></html>"
+  let p = DOMDocument.parse(html: html).children[0]
+  #expect(p.style("text-align") == "center")
+  #expect(p.children[0].style("font-weight") == "bold")
+  #expect(p.children[0].style("font-style") == "italic")
+  #expect(p.children[1].style("font-style") == "italic")
+}

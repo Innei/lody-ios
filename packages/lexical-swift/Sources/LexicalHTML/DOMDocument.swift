@@ -9,6 +9,7 @@ public final class DOMNode: @unchecked Sendable {
   public internal(set) weak var parent: DOMNode?
   private var index = 0
   private lazy var styles: [String: String] = parseStyle(attributes["style"] ?? "")
+  var sheetStyles: [String: String] = [:]
 
   init(name: String, attributes: [String: String] = [:], text: String = "") {
     self.name = name
@@ -24,7 +25,7 @@ public final class DOMNode: @unchecked Sendable {
   }
 
   public func style(_ property: String) -> String {
-    styles[property] ?? ""
+    styles[property] ?? sheetStyles[property] ?? ""
   }
 
   public var textContent: String {
@@ -58,7 +59,7 @@ public final class DOMNode: @unchecked Sendable {
   }
 }
 
-private func parseStyle(_ value: String) -> [String: String] {
+func parseStyle(_ value: String) -> [String: String] {
   var styles: [String: String] = [:]
   for declaration in value.split(separator: ";") {
     guard let colon = declaration.firstIndex(of: ":") else { continue }
@@ -84,7 +85,9 @@ public enum DOMDocument {
     }
     guard let document else { return body }
     defer { xmlFreeDoc(document) }
-    guard let bodyElement = findBody(xmlDocGetRootElement(document)) else { return body }
+    let root = xmlDocGetRootElement(document)
+    guard let bodyElement = findBody(root) else { return body }
+    let rules = StyleRule.parse(styleSheets(root))
 
     var stack: [(xmlNodePtr?, DOMNode)] = [(bodyElement.pointee.children, body)]
     while let (next, parent) = stack.popLast() {
@@ -101,6 +104,7 @@ public enum DOMDocument {
           continue
         }
         let element = DOMNode(name: tag, attributes: attributes(of: node))
+        for rule in rules where rule.matches(element) { element.sheetStyles.merge(rule.declarations) { $1 } }
         parent.append(element)
         stack.append((node.pointee.children, element))
       default:
@@ -108,6 +112,30 @@ public enum DOMDocument {
       }
     }
     return body
+  }
+
+  private static func styleSheets(_ root: xmlNodePtr?) -> String {
+    var css = ""
+    var stack: [xmlNodePtr] = root.map { [$0] } ?? []
+    while let node = stack.popLast() {
+      var child = node.pointee.children
+      while let current = child {
+        if current.pointee.type == XML_ELEMENT_NODE {
+          if String(cString: current.pointee.name).lowercased() == "style" {
+            var text = current.pointee.children
+            while let part = text {
+              if let content = part.pointee.content { css += String(cString: content) }
+              text = part.pointee.next
+            }
+            css += "\n"
+          } else {
+            stack.append(current)
+          }
+        }
+        child = current.pointee.next
+      }
+    }
+    return css
   }
 
   private static func findBody(_ root: xmlNodePtr?) -> xmlNodePtr? {
@@ -134,5 +162,37 @@ public enum DOMDocument {
       attribute = current.pointee.next
     }
     return result
+  }
+}
+
+// Only the simple selectors NSAttributedString and Office emit (tag, .class, tag.class); anything else is ignored.
+struct StyleRule {
+  let tag: String?
+  let className: String?
+  let declarations: [String: String]
+
+  func matches(_ node: DOMNode) -> Bool {
+    if let tag, tag != node.name { return false }
+    if let className, !node.classList.contains(className) { return false }
+    return true
+  }
+
+  static func parse(_ css: String) -> [StyleRule] {
+    var rules: [StyleRule] = []
+    let stripped = css.replacingOccurrences(of: #"/\*[\s\S]*?\*/"#, with: "", options: .regularExpression)
+    for block in stripped.split(separator: "}") {
+      let parts = block.split(separator: "{", maxSplits: 1)
+      guard parts.count == 2 else { continue }
+      let declarations = parseStyle(String(parts[1]))
+      for selector in parts[0].split(separator: ",") {
+        let name = selector.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name.range(of: #"^[A-Za-z0-9]*(\.[A-Za-z0-9_-]+)?$"#, options: .regularExpression) != nil else { continue }
+        let pieces = name.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
+        let tag = pieces[0].isEmpty ? nil : pieces[0].uppercased()
+        let className = pieces.count > 1 ? String(pieces[1]) : nil
+        rules.append(StyleRule(tag: tag, className: className, declarations: declarations))
+      }
+    }
+    return rules
   }
 }

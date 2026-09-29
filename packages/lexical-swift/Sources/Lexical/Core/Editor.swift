@@ -93,6 +93,8 @@ public final class Editor: NSObject {
 
   // Used for deserialization and registration of nodes. Lexical's built-in nodes are registered
   // by default.
+  public var registeredNodeTypes: [NodeType: Node.Type] { registeredNodes }
+
   internal var registeredNodes: [NodeType: Node.Type] = [.root: RootNode.self, .text: TextNode.self, .element: ElementNode.self, .heading: HeadingNode.self, .paragraph: ParagraphNode.self, .quote: QuoteNode.self, .linebreak: LineBreakNode.self, .tab: TabNode.self, .code: CodeNode.self, .codeHighlight: CodeHighlightNode.self]
 
   internal var nodeTransforms: [NodeType: [(Int, NodeTransform)]] = [:]
