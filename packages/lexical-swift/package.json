@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "fixtures": "node Fixtures/generate.mjs",
-    "fixtures:html": "node Fixtures/html.mjs"
+    "fixtures:html": "node Fixtures/html.mjs",
+    "fixtures:markdown": "node Fixtures/markdown.mjs"
   },
   "devDependencies": {
     "@haklex/rich-headless": "0.42.1",
