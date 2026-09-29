@@ -690,7 +690,7 @@ extension LodyChatView {
           attributes: disabled ? .disabled : []) { [weak self, weak source] _ in
           guard let self, let source else { return }
           if key == "copy" {
-            UIPasteboard.general.string = content.text
+            UIPasteboard.general.setMessageMarkdown(content.text)
             LodyToastOverlay.shared.show(message: LodyStrings.text("native.chat.message.copied"), kind: "info")
           } else if key == "image" {
             var snapshot = content

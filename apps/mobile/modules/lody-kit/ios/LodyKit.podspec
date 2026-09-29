@@ -29,6 +29,7 @@ Pod::Spec.new do |s|
   s.spm_dependency 'Lexical/LexicalLinkPlugin'
   s.spm_dependency 'Lexical/LexicalMarkdown'
   s.spm_dependency 'Lexical/EditorHistoryPlugin'
+  s.spm_dependency 'Lexical/LexicalHTML'
   s.source_files = '**/*.{swift,h,m}'
   s.resources = 'Resources/*'
   s.resource_bundles = { 'LodyKitShaders' => ['Chat/Shaders/*.metal'] }

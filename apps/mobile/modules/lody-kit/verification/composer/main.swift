@@ -336,7 +336,7 @@ let splitDeadline = Date().addingTimeInterval(3)
 while pasteInput.text != "lodyUserBubble" && Date() < splitDeadline {
   RunLoop.current.run(until: Date().addingTimeInterval(0.01))
 }
-precondition(pasteInput.text == "lodyUserBubble", "A split webarchive pasteboard must insert the copied text")
+precondition(pasteInput.text == "lodyUserBubble", "A split webarchive pasteboard must insert the copied text, got \(pasteInput.text!.debugDescription)")
 print("Composer paste: webarchive selections stay text")
 
 pasteComposer.restoreDraft(token: 1)
@@ -1318,3 +1318,102 @@ precondition(!historySend.isEnabled, "Undo must refresh the composer like any ot
 historyInput.undoManager?.redo()
 precondition(historyInput.text == "undo me" && historySend.isEnabled, "Redo must restore the typed text")
 print("Rich composer: undo and redo revert typing and refresh the composer")
+
+@MainActor func richProvider(_ representations: [(String, String)]) -> NSItemProvider {
+  let provider = NSItemProvider()
+  for (type, value) in representations {
+    provider.registerDataRepresentation(forTypeIdentifier: type, visibility: .all) { completion in
+      completion(Data(value.utf8), nil)
+      return nil
+    }
+  }
+  return provider
+}
+@MainActor func waitFor(_ condition: () -> Bool) {
+  let deadline = Date().addingTimeInterval(3)
+  while !condition() && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+}
+
+let (htmlComposer, htmlInput) = makeRichComposer()
+var htmlSent: [String] = []
+htmlComposer.onSend = { htmlSent.append($0["text"] as! String) }
+htmlInput.paste(itemProviders: [richProvider([(UTType.html.identifier, "<p>Use <b>bold</b> and <code>code</code></p><ul><li>one</li></ul>"), (UTType.utf8PlainText.identifier, "Use bold and code\none")])])
+waitFor { htmlInput.text.contains("one") }
+tapSend(on: htmlComposer)
+precondition(htmlSent.last == "Use **bold** and `code`\n- one", "HTML must paste as formatted nodes, got \(htmlSent)")
+
+let (mdComposer, mdInput) = makeRichComposer()
+var mdSent: [String] = []
+mdComposer.onSend = { mdSent.append($0["text"] as! String) }
+mdInput.paste(itemProviders: [richProvider([("net.daringfireball.markdown", "# Title\n**strong**"), (UTType.utf8PlainText.identifier, "# Title\n**strong**")])])
+waitFor { mdInput.text.contains("strong") }
+precondition(mdInput.text == "Title\nstrong", "Markdown-typed content must render, got \(mdInput.text!)")
+tapSend(on: mdComposer)
+precondition(mdSent.last == "# Title\n**strong**")
+
+let (literalComposer, literalInput) = makeRichComposer()
+literalInput.paste(itemProviders: [richProvider([(UTType.utf8PlainText.identifier, "def f(): # **not** bold")])])
+waitFor { literalInput.text.contains("bold") }
+precondition(literalInput.text == "def f(): # **not** bold", "Unmarked plain text must stay literal, got \(literalInput.text!)")
+print("Rich composer: HTML and Markdown paste as nodes, plain text stays literal")
+
+let (codeComposer, codeInput) = makeRichComposer()
+typeInto(codeInput, "```")
+typeInto(codeInput, " ")
+codeInput.paste(itemProviders: [richProvider([(UTType.html.identifier, "<b>x</b>"), (UTType.utf8PlainText.identifier, "**x**")])])
+waitFor { codeInput.text.contains("x") }
+var codeSent: [String] = []
+codeComposer.onSend = { codeSent.append($0["text"] as! String) }
+tapSend(on: codeComposer)
+precondition(codeSent.last == "```\n**x**\n```", "Pasting inside code must insert plain text, got \(codeSent)")
+
+let (undoPasteComposer, undoPasteInput) = makeRichComposer()
+typeInto(undoPasteInput, "base ")
+undoPasteInput.paste(itemProviders: [richProvider([(UTType.html.identifier, "<i>one</i> <b>two</b>"), (UTType.utf8PlainText.identifier, "one two")])])
+waitFor { undoPasteInput.text.contains("two") }
+undoPasteInput.undoManager?.undo()
+precondition(undoPasteInput.text == "base ", "One undo must remove the whole paste, got \(undoPasteInput.text!)")
+_ = undoPasteComposer
+print("Rich composer: code blocks take plain text and a paste is one undo step")
+
+let (longRichComposer, longRichInput) = makeRichComposer()
+let longRichHTML = (1...16).map { "<p><b>row \($0)</b></p>" }.joined()
+longRichInput.paste(itemProviders: [richProvider([(UTType.html.identifier, longRichHTML), (UTType.utf8PlainText.identifier, "rows")])])
+var longRichUndo: UIButton?
+waitFor {
+  longRichUndo = allWindows().flatMap(descendants).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "lody.toast.undo" }
+  return longRichUndo != nil
+}
+var longRichSent: [[String: String]] = []
+longRichComposer.onSend = { longRichSent = $0["attachments"] as! [[String: String]] }
+precondition(longRichInput.text.isEmpty && longRichUndo != nil, "Long rich pastes must become a file with undo")
+LodyToastOverlay.shared.performFrontAction()
+waitFor { longRichInput.text.contains("row 16") }
+var longRichText: [String] = []
+longRichComposer.onSend = { longRichText.append($0["text"] as! String) }
+tapSend(on: longRichComposer)
+precondition(longRichText.last?.hasPrefix("**row 1**\n**row 2**") == true, "Undo must re-insert the formatted nodes, got \(longRichText)")
+
+let (fileComposer, fileInput) = makeRichComposer()
+var fileAttachments: [[String: String]] = []
+fileComposer.onSend = { fileAttachments = $0["attachments"] as! [[String: String]] }
+fileInput.paste(itemProviders: [richProvider([(UTType.html.identifier, longRichHTML), (UTType.utf8PlainText.identifier, "rows")])])
+waitFor { descendants(fileComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }?.isEnabled == true }
+LodyToastOverlay.shared.dismiss()
+tapSend(on: fileComposer)
+let fileURL = URL(string: fileAttachments.first?["uri"] ?? "")
+precondition(fileAttachments.first?["name"] == "Text.md", "Rich long pastes are Markdown files, got \(fileAttachments)")
+precondition(fileURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) }?.hasPrefix("**row 1**") == true, "The file must hold the Markdown")
+
+let (limitComposer, limitInput) = makeRichComposer()
+typeInto(limitInput, "x")
+limitInput.pastePlainText(from: [richProvider([(UTType.utf8PlainText.identifier, String(repeating: "y", count: 32000))])])
+RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+precondition(limitInput.text == "x", "A paste past 32,000 characters must be rejected")
+_ = limitComposer
+print("Rich composer: long rich pastes become Text.md with formatted undo; the limit uses Markdown length")
+
+let copyBoard = UIPasteboard.withUniqueName()
+copyBoard.setMessageMarkdown("**copied**")
+precondition(copyBoard.contains(pasteboardTypes: ["net.daringfireball.markdown", UTType.utf8PlainText.identifier]), "Copied messages must carry Markdown")
+print("Rich composer: copied messages carry the Markdown type")

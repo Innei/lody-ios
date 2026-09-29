@@ -100,15 +100,6 @@ struct ChatAttachment: Equatable {
     providers.contains { transferType(for: $0) != nil }
   }
 
-  static func textProviders(from providers: [NSItemProvider]) -> [NSItemProvider] {
-    let textual = providers.filter { provider in
-      provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier)
-        || provider.hasItemConformingToTypeIdentifier(UTType.utf8PlainText.identifier)
-        || provider.hasItemConformingToTypeIdentifier(UTType.text.identifier)
-    }
-    return textual.isEmpty ? providers : textual
-  }
-
   static let pastedTextName = "Text.txt"
 
   static func shouldPromotePastedText(_ text: String) -> Bool {
@@ -121,45 +112,9 @@ struct ChatAttachment: Equatable {
     return false
   }
 
-  static func makePastedTextFile(_ text: String) -> ChatAttachment? {
-    guard let url = store(Data(text.utf8), name: pastedTextName) else { return nil }
-    return ChatAttachment(id: UUID().uuidString, name: pastedTextName, url: url, isImage: false)
-  }
-
-  static func loadPlainText(from providers: [NSItemProvider], completion: @escaping (String) -> Void) {
-    let textual = textProviders(from: providers)
-    guard !textual.isEmpty else {
-      completion("")
-      return
-    }
-    let group = DispatchGroup()
-    let pasted = ChatTextCollector()
-    for (index, provider) in textual.enumerated() {
-      group.enter()
-      if provider.canLoadObject(ofClass: NSString.self) {
-        provider.loadObject(ofClass: NSString.self) { object, _ in
-          let text = (object as? String) ?? (object as? NSString) as String?
-          if let text, !text.isEmpty { pasted.add(index, text) }
-          group.leave()
-        }
-      } else {
-        provider.loadItem(forTypeIdentifier: UTType.utf8PlainText.identifier, options: nil) { item, _ in
-          let text: String?
-          if let value = item as? String {
-            text = value
-          } else if let data = item as? Data {
-            text = String(data: data, encoding: .utf8)
-          } else {
-            text = nil
-          }
-          if let text, !text.isEmpty { pasted.add(index, text) }
-          group.leave()
-        }
-      }
-    }
-    group.notify(queue: .main) {
-      completion(pasted.joined)
-    }
+  static func makePastedTextFile(_ text: String, name: String = pastedTextName) -> ChatAttachment? {
+    guard let url = store(Data(text.utf8), name: name) else { return nil }
+    return ChatAttachment(id: UUID().uuidString, name: name, url: url, isImage: false)
   }
 
   @discardableResult
@@ -193,23 +148,6 @@ struct ChatAttachment: Equatable {
       if !ordered.isEmpty { completion(ordered) }
     }
     return true
-  }
-}
-
-final class ChatTextCollector: @unchecked Sendable {
-  private let lock = NSLock()
-  private var items: [(Int, String)] = []
-
-  func add(_ index: Int, _ text: String) {
-    lock.lock()
-    items.append((index, text))
-    lock.unlock()
-  }
-
-  var joined: String {
-    lock.lock()
-    defer { lock.unlock() }
-    return items.sorted { $0.0 < $1.0 }.map(\.1).joined()
   }
 }
 
@@ -335,5 +273,11 @@ final class ChatAttachmentBar: CKAttachmentStrip {
     let ids = Set(attachments.map(\.id))
     projected = projected.filter { ids.contains($0.key) }
     super.render(items, animatedRemoval: animatedRemoval)
+  }
+}
+
+extension UIPasteboard {
+  func setMessageMarkdown(_ markdown: String) {
+    items = [[UTType.utf8PlainText.identifier: markdown, "net.daringfireball.markdown": Data(markdown.utf8)]]
   }
 }

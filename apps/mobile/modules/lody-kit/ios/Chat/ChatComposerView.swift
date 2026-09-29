@@ -1,6 +1,7 @@
 import ChatKit
 import EditorHistoryPlugin
 import Lexical
+import LexicalHTML
 import LexicalLinkPlugin
 import LexicalListPlugin
 import LexicalMarkdown
@@ -166,9 +167,28 @@ private final class ChatQueueView: CKGlassSurface {
   }
 }
 
+struct ComposerPaste {
+  let trial: RichPaste.Trial
+  let plainText: String?
+
+  var fileName: String { trial.source == .plain ? ChatAttachment.pastedTextName : "Text.md" }
+  var fileText: String { trial.source == .plain ? plainText ?? trial.markdown : trial.markdown }
+}
+
+// The editor is only touched on the main actor; the trial runs on a headless peer.
+private final class ComposerPasteJob: @unchecked Sendable {
+  let editor: Editor
+  let providers: [NSItemProvider]
+
+  init(editor: Editor, providers: [NSItemProvider]) {
+    self.editor = editor
+    self.providers = providers
+  }
+}
+
 final class ChatComposerInput: TextView {
   var onPasteItems: (([NSItemProvider]) -> Bool)?
-  var onPasteLongText: ((String) -> Bool)?
+  var onPasteLongText: ((ComposerPaste) -> Bool)?
 
   static func makeEditorView() -> LexicalView {
     let theme = Theme()
@@ -265,13 +285,6 @@ final class ChatComposerInput: TextView {
     }
   }
 
-  func insertLiteral(_ value: String, at location: Int) {
-    selectedRange = NSRange(location: min(location, (text as NSString).length), length: 0)
-    try? editor.update {
-      try (getSelection() as? RangeSelection)?.insertText(value)
-    }
-  }
-
   func insertReference(_ token: String, replacing range: NSRange) {
     selectedRange = range
     try? editor.update {
@@ -304,14 +317,11 @@ final class ChatComposerInput: TextView {
   }
 
   override func paste(itemProviders: [NSItemProvider]) {
-    if onPasteItems?(itemProviders) == true { return }
-    pasteText(from: ChatAttachment.textProviders(from: itemProviders))
+    pasteContent(itemProviders, plainTextOnly: false)
   }
 
   override func paste(_ sender: Any?) {
-    let providers = UIPasteboard.general.itemProviders
-    if onPasteItems?(providers) == true { return }
-    pasteText(from: ChatAttachment.textProviders(from: providers))
+    pasteContent(UIPasteboard.general.itemProviders, plainTextOnly: false)
   }
 
   @objc func pastePlainText(_ sender: Any?) {
@@ -319,25 +329,34 @@ final class ChatComposerInput: TextView {
   }
 
   func pastePlainText(from providers: [NSItemProvider]) {
+    pasteContent(providers, plainTextOnly: true)
+  }
+
+  private func pasteContent(_ providers: [NSItemProvider], plainTextOnly: Bool) {
     guard isEditable else { return }
-    ChatAttachment.loadPlainText(from: providers) { [weak self] text in
-      guard let self, self.isEditable, !text.isEmpty else { return }
-      self.insertText(text)
+    if !plainTextOnly, onPasteItems?(providers) == true { return }
+    unmarkText()
+    let job = ComposerPasteJob(editor: editor, providers: providers)
+    let plain = plainTextOnly || ((try? RichPaste.gfm.prefersPlainText(in: editor)) ?? false)
+    Task { @MainActor [weak self] in
+      let sources = await PasteboardReader.sources(job.providers, plainTextOnly: plain)
+      let trial = await Task.detached { try? RichPaste.gfm.trial(sources, for: job.editor) }.value
+      guard let self, self.isEditable else { return }
+      guard let trial else {
+        if !plainTextOnly { self.pasteProviders(providers) }
+        return
+      }
+      let paste = ComposerPaste(trial: trial, plainText: sources.first { $0.kind == .plain }?.text)
+      if !plainTextOnly, ChatAttachment.shouldPromotePastedText(trial.markdown), self.onPasteLongText?(paste) == true { return }
+      self.insertPaste(paste)
     }
   }
 
-  private func pasteText(from providers: [NSItemProvider]) {
-    ChatAttachment.loadPlainText(from: providers) { [weak self] text in
-      guard let self else { return }
-      if ChatAttachment.shouldPromotePastedText(text), self.onPasteLongText?(text) == true {
-        return
-      }
-      if !text.isEmpty {
-        self.insertText(text)
-        return
-      }
-      self.pasteProviders(providers)
-    }
+  func insertPaste(_ paste: ComposerPaste, at location: Int? = nil) {
+    if let location { selectedRange = NSRange(location: min(location, (text as NSString).length), length: 0) }
+    guard delegate?.textView?(self, shouldChangeTextIn: selectedRange, replacementText: paste.trial.markdown) != false else { return }
+    try? RichPaste.gfm.insert(paste.trial, into: editor)
+    delegate?.textViewDidChange?(self)
   }
 
   private func pasteProviders(_ providers: [NSItemProvider]) {
@@ -663,8 +682,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       guard let self, self.state.editable else { return false }
       return ChatAttachment.paste(providers) { [weak self] in self?.addAttachments($0) }
     }
-    input.onPasteLongText = { [weak self] text in
-      self?.pasteLongText(text) ?? false
+    input.onPasteLongText = { [weak self] paste in
+      self?.pasteLongText(paste) ?? false
     }
     input.accessibilityIdentifier = "session-input"
     input.accessibilityLabel = LodyStrings.text("native.chat.composer.input")
@@ -969,24 +988,24 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     updateComposer()
   }
 
-  private func pasteLongText(_ text: String) -> Bool {
-    guard state.editable, let file = ChatAttachment.makePastedTextFile(text) else { return false }
-    let range = input.selectedRange
+  private func pasteLongText(_ paste: ComposerPaste) -> Bool {
+    guard state.editable, let file = ChatAttachment.makePastedTextFile(paste.fileText, name: paste.fileName) else { return false }
+    let location = input.selectedRange.location
     addAttachments([file])
     LodyToastOverlay.shared.show(
       message: LodyStrings.text("native.chat.composer.pasteAsFile", ["name": file.name]),
       kind: "success",
       actionTitle: LodyStrings.text("native.chat.composer.pasteUndo")
     ) { [weak self] in
-      self?.undoPastedTextFile(id: file.id, text: text, range: range)
+      self?.undoPastedTextFile(id: file.id, paste: paste, location: location)
     }
     return true
   }
 
-  private func undoPastedTextFile(id: String, text: String, range: NSRange) {
+  private func undoPastedTextFile(id: String, paste: ComposerPaste, location: Int) {
     guard pendingDraft == nil, let index = attachments.firstIndex(where: { $0.id == id }) else { return }
     attachments.remove(at: index)
-    input.insertLiteral(text, at: range.location)
+    input.insertPaste(paste, at: location)
     updateComposer()
     saveDraft()
   }

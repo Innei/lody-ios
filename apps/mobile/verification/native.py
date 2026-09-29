@@ -106,7 +106,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
         return directory
 
     lexical_dir = Path(output) / 'lexical-package'
-    lexical_modules = [('Lexical', '5'), ('LexicalListPlugin', '5'), ('LexicalLinkPlugin', '5'), ('LexicalMarkdown', '6'), ('EditorHistoryPlugin', '5')]
+    lexical_modules = [('Lexical', '5'), ('LexicalListPlugin', '5'), ('LexicalLinkPlugin', '5'), ('LexicalMarkdown', '6'), ('EditorHistoryPlugin', '5'), ('LexicalHTML', '6')]
 
     def lexical_package():
         if lexical_dir.exists():

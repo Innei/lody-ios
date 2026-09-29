@@ -313,7 +313,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     onInteraction?()
     return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
       var actions = [UIAction(title: LodyStrings.text("native.chat.copy"), image: UIImage(systemName: "doc.on.doc")) { _ in
-        UIPasteboard.general.string = row.text
+        UIPasteboard.general.setMessageMarkdown(row.text)
       }]
       if self.canEdit?() == true {
         let edit = self.onEdit

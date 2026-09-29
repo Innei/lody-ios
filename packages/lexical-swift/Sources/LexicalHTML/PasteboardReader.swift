@@ -33,11 +33,14 @@ public enum PasteboardReader {
         sources.append(PasteSource(kind: .html, text: html))
       }
     }
+    let textual = providers.filter { provider in
+      [UTType.utf8PlainText, .plainText, .text].contains { provider.hasItemConformingToTypeIdentifier($0.identifier) }
+    }
     var lines: [String] = []
-    for provider in providers {
+    for provider in textual.isEmpty ? providers : textual {
       if let text = await plainText(provider), !text.isEmpty { lines.append(text) }
     }
-    if !lines.isEmpty { sources.append(PasteSource(kind: .plain, text: lines.joined(separator: "\n"))) }
+    if !lines.isEmpty { sources.append(PasteSource(kind: .plain, text: lines.joined())) }
     return sources
   }
 
