@@ -114,6 +114,7 @@ function View() {
   const [sending, setSending] = useState(false);
   const [fast, setFast] = useState(false);
   const [count, setCount] = useState(0);
+  const [lastSent, setLastSent] = useState('');
   const [selectedPage, setSelectedPage] = useState(0);
   const [sent, setSent] = useState<{ id: string; text: string }>();
   const busy = useRef(false);
@@ -185,6 +186,7 @@ function View() {
       busy.current = true;
       setSending(true);
       setCount((value) => value + 1);
+      setLastSent(nativeEvent.text);
     },
   };
   return (
@@ -222,6 +224,14 @@ function View() {
           testID="composer-result"
           style={{ color: colors.label, padding: 16 }}
         >{`Requests: ${count}`}</Text>
+      )}
+      {!params.mentions && (
+        <Text
+          testID="composer-sent"
+          style={{ color: colors.label, paddingHorizontal: 16 }}
+        >
+          {JSON.stringify(lastSent)}
+        </Text>
       )}
       {params.host === 'chat' || sent ? (
         <NativeChat

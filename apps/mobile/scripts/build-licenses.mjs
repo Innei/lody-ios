@@ -106,6 +106,12 @@ const nativeComponents = [
     file: 'modules/lody-kit/licenses/MarkdownView-LICENSE.txt',
   },
   {
+    name: 'Lexical iOS',
+    license: 'MIT',
+    url: 'https://github.com/facebook/lexical-ios',
+    file: 'modules/lody-kit/licenses/LexicalIOS-LICENSE.txt',
+  },
+  {
     name: 'Litext',
     license: 'MIT',
     url: 'https://github.com/Lakr233/Litext',

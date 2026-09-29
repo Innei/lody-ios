@@ -17,12 +17,14 @@ spike 还发现一个上游 bug：`decoratorPositionCache` 只在 decorator 新�
 ## 范围
 
 M1 包含：
+
 - 包本身；
 - haklex 契约测试；
 - T0 节点；其余 haklex 节点先做成原样透传的占位；
 - 聊天、新建会话、Share Extension 三处 composer 同时替换。
 
 不在 M1：
+
 - Markdown 导入。原因：haklex 以 JSON 为准，它的 27 个 transformer 的 `replace` 都是 NOOP；Lody 的原生草稿直接存 editor state。
 - HTML 导入导出、Table 节点、只读视图、LiteXML。
 - T1/T2 节点的原生渲染。
@@ -32,11 +34,11 @@ M1 包含：
 
 通过 `plugins/withMarkdownView.js` 的 `spm_pkg :path` 接入 Podfile，方式和 `packages/chat-kit` 一样。LodyKit podspec 用 `spm_dependency` 引用。这个包只放原生库代码，不包含 RN bridge。
 
-| Product | 内容 |
-|---|---|
-| `Lexical` | 基于 lexical-ios fork，包括 core、TK2 frontend、List、Link + AutoLink、History、`TypeaheadPlugin`、`MarkdownShortcutPlugin`。删掉 ReadOnly（TK1）、HTML（SwiftSoup）、Table、InlineImage、Mentions |
-| `LexicalMarkdown` | 重写成按节点注册 transformer 的字符串导出器，语义同 Web 的 `$convertToMarkdownString`。去掉 swift-markdown 依赖（原来锁的是 `branch: main`）。提供两个 preset，见下文 |
-| `HaklexNodes` | haklex 的 T0 节点：heading、quote、list、link/autolink、code + code-highlight（包括 haklex 自定义的 code block 节点）、horizontal rule、mention（`{platform@handle}`）。其余约 30 种 haklex 类型用占位节点。另外包含 haklex 的 Markdown preset |
+| Product           | 内容                                                                                                                                                                                                                                           |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Lexical`         | 基于 lexical-ios fork，包括 core、TK2 frontend、List、Link + AutoLink、History、`TypeaheadPlugin`、`MarkdownShortcutPlugin`。删掉 ReadOnly（TK1）、HTML（SwiftSoup）、Table、InlineImage、Mentions                                             |
+| `LexicalMarkdown` | 重写成按节点注册 transformer 的字符串导出器，语义同 Web 的 `$convertToMarkdownString`。去掉 swift-markdown 依赖（原来锁的是 `branch: main`）。提供两个 preset，见下文                                                                          |
+| `HaklexNodes`     | haklex 的 T0 节点：heading、quote、list、link/autolink、code + code-highlight（包括 haklex 自定义的 code block 节点）、horizontal rule、mention（`{platform@handle}`）。其余约 30 种 haklex 类型用占位节点。另外包含 haklex 的 Markdown preset |
 
 fork 后的源码保留上游 MIT LICENSE。`NOTICE` 里记录上游 commit。fork 的 target 使用 Swift 5 语言模式，新写的 target 使用 Swift 6。
 
@@ -51,6 +53,7 @@ fork 后的源码保留上游 MIT LICENSE。`NOTICE` 里记录上游 commit。fo
 ### TK2 frontend
 
 实现方式沿用 spike：
+
 - `NSTextContentStorage` 包着原来的 `TextStorage`。
 - 块级自定义绘制放在 `NSTextLayoutFragment`。
 - `CustomDrawingHandler` 的第三个参数改成 `NSTextStorage`。
@@ -63,6 +66,7 @@ fork 后的源码保留上游 MIT LICENSE。`NOTICE` 里记录上游 commit。fo
 ### TypeaheadPlugin
 
 移植 Web 的 `LexicalTypeaheadMenuPlugin` 和 `useBasicTypeaheadTriggerMatch`：
+
 - 可以插入自定义 `triggerFn`，返回 `leadOffset`、`matchingString`、`replaceableString`；
 - 事件有 open、query 变化、close；
 - 选中候选项后回调 `replaceMatch(with: [Node])`。
@@ -70,6 +74,7 @@ fork 后的源码保留上游 MIT LICENSE。`NOTICE` 里记录上游 commit。fo
 插件本身不带 UI，菜单由宿主提供。
 
 用法：
+
 - Lody：`@`、`$`、`/` 三个 trigger。其中 `/` 只在文档开头生效，和现在的正则一致。菜单用 `ChatMentionPanel`。
 - haklex 以后的 slash（插入块）和 mention（两步：先选 `@platform:`，再选 handle）也用这一层。
 
@@ -86,13 +91,13 @@ fork 后的源码保留上游 MIT LICENSE。`NOTICE` 里记录上游 commit。fo
 
 原来散落各处的约 25 处 `input.text` 调用，改成下面这组显式 API：
 
-| API | 用途 |
-|---|---|
-| `markdown` | 发送正文、排队项（`gfm` preset） |
-| `isBlank` | placeholder、发送按钮状态、stop 前判空 |
+| API                                | 用途                                        |
+| ---------------------------------- | ------------------------------------------- |
+| `markdown`                         | 发送正文、排队项（`gfm` preset）            |
+| `isBlank`                          | placeholder、发送按钮状态、stop 前判空      |
 | `setPlainText` / `appendPlainText` | 快捷回复、Share 预填、RN 传来的文本、旧草稿 |
-| `editorState` 读写 | `pendingDraft`、`failedDraft`、内存中恢复 |
-| `serializedJSON` | 写入 LocalStore |
+| `editorState` 读写                 | `pendingDraft`、`failedDraft`、内存中恢复   |
+| `serializedJSON`                   | 写入 LocalStore                             |
 
 这些调用不改，仍然作用在底层存储的字符和原生选区上：`ChatMentionPanel` 的定位、`selectedRange`、高度测量、`ChatSendHandoff` 的截图。
 
@@ -101,6 +106,7 @@ fork 后的源码保留上游 MIT LICENSE。`NOTICE` 里记录上游 commit。fo
 新增 `LodyReferenceNode`（放在 LodyKit），是一个 inline decorator，显示为原生 chip。导出时生成的 token 和现在逐字相同，包括 `@path`、`$skill`、`/cmd`、`#number`、`@session:id`、`@role:id`。
 
 这是对 `docs/mentions-design.md` 里"不引入第二套 range/chip 模型"这一决定的**有意调整**。那条决定要防的问题仍然有保障，理由有三：
+
 - chip 是同一个编辑器模型里的节点，不是和文本并行的第二套模型；
 - chip 导出的仍然是带命名空间的 token；
 - 发送前在 runtime 里展开 token 的逻辑、以及展开失败时保留草稿的规则，都不变。
@@ -114,7 +120,7 @@ fork 后的源码保留上游 MIT LICENSE。`NOTICE` 里记录上游 commit。fo
 
 ### 格式输入
 
-只支持 Markdown 快捷输入，语义同 Web 的 `MarkdownShortcutPlugin`。T0 包括：`**x**`、`*x*`、`` `x` ``、`~~x~~`、`- `、`1. `、`> `、```` ``` ````。
+只支持 Markdown 快捷输入，语义同 Web 的 `MarkdownShortcutPlugin`。T0 包括：`**x**`、`*x*`、`` `x` ``、`~~x~~`、`- `、`1. `、`> `、` ``` `。
 
 不加工具栏。composer 空间很紧凑，加工具栏也和 HIG 冲突。
 
@@ -128,13 +134,13 @@ fork 后的源码保留上游 MIT LICENSE。`NOTICE` 里记录上游 commit。fo
 
 通过 `xcodebuild test` 在模拟器上跑，接入 `verify:native --case lexical-swift`。
 
-| 测试 | 断言 |
-|---|---|
-| haklex 契约 | `fixtures/generate.mjs` 从 npm 拉固定版本的 `@haklex/rich-headless`，生成 fixture 后提交进仓库。每个 fixture 做一次 JSON 来回，结果要和原始 JSON deep-equal（包括 `$` 和占位节点）；`haklex` preset 的输出要和 `$toMarkdown` 逐字节一致 |
-| gfm preset | T0 表驱动；纯文本不转义 |
-| 不退回 TK1 | 经过 marked text、插入 decorator、粘贴之后，`textLayoutManager != nil` |
-| decorator 定位 | 在 decorator 前面插入文字后，它的 frame 跟着移动（覆盖上游 bug 的回归） |
-| Typeahead / 快捷输入 | 表驱动；trigger 用例对照 Web 的 `useBasicTypeaheadTriggerMatch` 测试 |
+| 测试                 | 断言                                                                                                                                                                                                                                    |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| haklex 契约          | `fixtures/generate.mjs` 从 npm 拉固定版本的 `@haklex/rich-headless`，生成 fixture 后提交进仓库。每个 fixture 做一次 JSON 来回，结果要和原始 JSON deep-equal（包括 `$` 和占位节点）；`haklex` preset 的输出要和 `$toMarkdown` 逐字节一致 |
+| gfm preset           | T0 表驱动；纯文本不转义                                                                                                                                                                                                                 |
+| 不退回 TK1           | 经过 marked text、插入 decorator、粘贴之后，`textLayoutManager != nil`                                                                                                                                                                  |
+| decorator 定位       | 在 decorator 前面插入文字后，它的 frame 跟着移动（覆盖上游 bug 的回归）                                                                                                                                                                 |
+| Typeahead / 快捷输入 | 表驱动；trigger 用例对照 Web 的 `useBasicTypeaheadTriggerMatch` 测试                                                                                                                                                                    |
 
 ### Lody 级
 
@@ -150,9 +156,9 @@ fork 后的源码保留上游 MIT LICENSE。`NOTICE` 里记录上游 commit。fo
 
 ## 风险
 
-| 风险 | 应对 |
-|---|---|
-| `LodyShare` 链接 SPM product 失败 | 第一步单独验证；失败就退回按源码引用编译 |
-| 某个 UIKit 私有路径触发退回 TK1 | 在 DEBUG 下断言 `textLayoutManager != nil`，并加包级测试 |
-| upstream fork 维护负担 | 只 fork 用得到的模块，NOTICE 记录基线 commit；不追上游的 Web 新功能，只对齐 haklex 契约需要的部分 |
-| Lexical 自己的粘贴处理和 Lody 的粘贴拦截冲突 | 保持 `ChatComposerInput` 覆写的方法优先，普通粘贴走 Lexical 的纯文本路径 |
+| 风险                                         | 应对                                                                                              |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `LodyShare` 链接 SPM product 失败            | 第一步单独验证；失败就退回按源码引用编译                                                          |
+| 某个 UIKit 私有路径触发退回 TK1              | 在 DEBUG 下断言 `textLayoutManager != nil`，并加包级测试                                          |
+| upstream fork 维护负担                       | 只 fork 用得到的模块，NOTICE 记录基线 commit；不追上游的 Web 新功能，只对齐 haklex 契约需要的部分 |
+| Lexical 自己的粘贴处理和 Lody 的粘贴拦截冲突 | 保持 `ChatComposerInput` 覆写的方法优先，普通粘贴走 Lexical 的纯文本路径                          |
