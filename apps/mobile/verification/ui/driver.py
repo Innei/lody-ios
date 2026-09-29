@@ -33,6 +33,9 @@ class UI:
         self._axe_ready = False
 
     def axe(self, *args, timeout=20, recover=True):
+        # AXe's automatic style sends a simulator tapAt, which a focused Lexical input's keyboard session can swallow; fingers are down/up.
+        if args and args[0] == 'tap' and '--tap-style' not in args:
+            args = (*args, '--tap-style', 'physical')
         deadline = time.monotonic() + (90 if recover else timeout)
         last = None
         while True:
