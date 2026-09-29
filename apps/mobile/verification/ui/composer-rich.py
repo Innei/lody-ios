@@ -11,10 +11,14 @@ def sent():
 
 
 def value():
-    return ui.element('session-input').get('AXValue') or ''
+    return ui.element('create-session-input').get('AXValue') or ''
 
 
-ui.type_into('session-input', '**bold** and `code` ')
+ui.axe('tap', '--id', 'create-session-input', '--post-delay', '.6')
+for _ in range(len(value()) + 4):
+    ui.axe('key', '42')
+ui.wait(lambda items: not value(), 'Could not clear the fixture draft')
+ui.axe('type', '**bold** and `code` ')
 ui.wait(lambda items: value().rstrip() == 'bold and code', 'Shortcuts left their Markdown tags in the input')
 ui.capture('formatted')
 ui.axe('tap', '--id', 'session-send', '--post-delay', '.8')

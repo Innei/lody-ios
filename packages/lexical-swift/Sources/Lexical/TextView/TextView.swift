@@ -132,6 +132,15 @@ protocol LexicalTextViewDelegate: NSObjectProtocol {
     }
   }
 
+  // TextKit 2 renders into plain views inside the text container; a touch landing on one skips UITextView's tap-to-edit.
+  override open func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    let hit = super.hitTest(point, with: event)
+    if let hit, hit !== textInputView, hit.isDescendant(of: textInputView) {
+      return textInputView
+    }
+    return hit
+  }
+
   override open func layoutSubviews() {
     super.layoutSubviews()
     positionAllDecorators()

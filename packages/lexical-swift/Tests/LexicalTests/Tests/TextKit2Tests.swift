@@ -55,6 +55,22 @@ final class TextKit2Tests: XCTestCase {
     XCTAssertEqual(textView.text, "again")
   }
 
+  func testRenderingCodeDoesNotRewriteTextFormats() throws {
+    let (view, _) = try makeView()
+    try view.editor.update {
+      guard let root = getRoot() else { return }
+      let code = createCodeNode()
+      var bold = TextFormat()
+      bold.bold = true
+      try code.append([try createTextNode(text: "x").setFormat(format: bold)])
+      try root.getChildren().forEach { try $0.remove() }
+      try root.append([code])
+    }
+    view.layoutIfNeeded()
+    let json = try view.editor.getEditorState().toJSON()
+    XCTAssertTrue(json.contains(#""format":1"#), json)
+  }
+
   func testTextViewUsesTextKit2() throws {
     let (view, _) = try makeView()
     XCTAssertNotNil(view.textView.textLayoutManager)

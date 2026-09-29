@@ -108,7 +108,7 @@ PREVIEW = {
     'composer-video': 'composer-success',
     'composer-success': 'composer-success',
     'composer-failure': 'composer-failure',
-    'composer-rich': 'composer-failure',
+    'composer-rich': 'composer-preview',
     'inbox': 'inbox-preview',
     'onboarding': 'onboarding-preview',
     'community-notice': 'community-notice',
@@ -168,7 +168,7 @@ READY = {
     'composer-video': 'session-input',
     'composer-success': 'session-input',
     'composer-failure': 'session-input',
-    'composer-rich': 'session-input',
+    'composer-rich': 'create-session-input',
     'inbox': 'inbox-wait',
     'onboarding': 'onboarding-connect',
     'community-notice': 'community-notice',
@@ -409,6 +409,14 @@ with metro_context:
                                     break
                                 start, end = ('300', '550') if frame['y'] < 140 else ('650', '400')
                                 ui.axe('swipe', '--start-x', '200', '--start-y', start, '--end-x', '200', '--end-y', end, '--duration', '0.5', '--post-delay', '0.6')
+                        # A swipe keeps gliding after the row appears; tapping a moving row opens its neighbour.
+                        settled = None
+                        for _ in range(10):
+                            frame = ui.element(preview)['frame']
+                            if frame == settled:
+                                break
+                            settled = frame
+                            time.sleep(0.4)
                         ui.axe('tap', '--id', preview, '--pre-delay', '0.8', '--post-delay', '0.8', '--tap-style', 'physical')
                     try:
                         ui.element(ready)

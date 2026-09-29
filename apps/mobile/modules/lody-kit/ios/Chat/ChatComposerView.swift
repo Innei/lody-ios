@@ -172,6 +172,15 @@ final class ChatComposerInput: TextView {
   static func makeEditorView() -> LexicalView {
     let theme = Theme()
     theme.root = [.font: UIFont.dynamic(of: 17), .foregroundColor: UIColor.label]
+    theme.setValue(.text, forSubtype: TextNodeThemeSubtype.code, value: [.fontFamily: "Menlo", .backgroundColor: UIColor.tertiarySystemFill])
+    theme.code = [
+      .fontFamily: "Menlo", .paddingHead: 8.0, .paddingTail: -8.0,
+      .codeBlockCustomDrawing: CodeBlockCustomDrawingAttributes(background: .secondarySystemFill, border: .separator, borderWidth: 0.5),
+    ]
+    theme.quote = [
+      .paddingHead: 12.0,
+      .quoteCustomDrawing: QuoteCustomDrawingAttributes(barColor: .separator, barWidth: 3, rounded: true, barInsets: .zero),
+    ]
     let config = EditorConfig(theme: theme, plugins: [ListPlugin(), LinkPlugin(), MarkdownShortcutPlugin()])
     let view = LexicalView(editorConfig: config, featureFlags: FeatureFlags(), textViewType: ChatComposerInput.self)
     try? view.editor.registerNode(nodeType: .lodyReference, class: ChatReferenceNode.self)

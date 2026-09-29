@@ -297,8 +297,8 @@ open class TextNode: Node {
   override open func getAttributedStringAttributes(theme: Theme) -> [NSAttributedString.Key: Any] {
     var attributeDictionary = super.getAttributedStringAttributes(theme: theme)
 
-    // TODO: Remove this once codeHighlight node is implemented
-    if let parent, let _ = getNodeByKey(key: parent) as? CodeNode {
+    var format = self.format
+    if let parent, getNodeByKey(key: parent) is CodeNode {
       format = TextFormat()
     }
 
