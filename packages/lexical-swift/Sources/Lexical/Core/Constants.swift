@@ -8,7 +8,7 @@
 import Foundation
 import UIKit
 
-public struct NodeType: Hashable, RawRepresentable {
+public struct NodeType: Hashable, RawRepresentable, Sendable {
   public init(rawValue: String) {
     self.rawValue = rawValue
   }
@@ -65,7 +65,7 @@ public enum DirtyType {
   case fullReconcile
 }
 
-@objc public enum TextFormatType: Int {
+@objc public enum TextFormatType: Int, Sendable {
   case bold
   case italic
   case underline

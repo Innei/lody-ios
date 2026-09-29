@@ -77,6 +77,11 @@ open class Node: Codable {
     .unknown
   }
 
+  public func getStateString(_ key: String) -> String? {
+    guard case let .string(value)? = getLatest().state?[key] else { return nil }
+    return value
+  }
+
   public var type: NodeType {
     get {
       Self.getType()

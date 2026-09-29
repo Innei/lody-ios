@@ -11,6 +11,7 @@ let package = Package(
     .library(name: "LexicalListPlugin", targets: ["LexicalListPlugin"]),
     .library(name: "LexicalLinkPlugin", targets: ["LexicalLinkPlugin"]),
     .library(name: "EditorHistoryPlugin", targets: ["EditorHistoryPlugin"]),
+    .library(name: "LexicalMarkdown", targets: ["LexicalMarkdown"]),
     .library(name: "HaklexNodes", targets: ["HaklexNodes"]),
   ],
   targets: [
@@ -18,7 +19,9 @@ let package = Package(
     .target(name: "LexicalListPlugin", dependencies: ["Lexical"], swiftSettings: upstream),
     .target(name: "LexicalLinkPlugin", dependencies: ["Lexical"], swiftSettings: upstream),
     .target(name: "EditorHistoryPlugin", dependencies: ["Lexical"], swiftSettings: upstream),
-    .target(name: "HaklexNodes", dependencies: ["Lexical", "LexicalListPlugin", "LexicalLinkPlugin"]),
+    .target(name: "LexicalMarkdown", dependencies: ["Lexical", "LexicalListPlugin", "LexicalLinkPlugin"]),
+    .testTarget(name: "LexicalMarkdownTests", dependencies: ["LexicalMarkdown", "Lexical", "LexicalListPlugin", "LexicalLinkPlugin"]),
+    .target(name: "HaklexNodes", dependencies: ["Lexical", "LexicalListPlugin", "LexicalLinkPlugin", "LexicalMarkdown"]),
     .testTarget(name: "HaklexNodesTests", dependencies: ["HaklexNodes", "Lexical"]),
     .testTarget(name: "LexicalTests", dependencies: ["Lexical"], swiftSettings: upstream),
     .testTarget(name: "LexicalListPluginTests", dependencies: ["Lexical", "LexicalListPlugin"], swiftSettings: upstream),
