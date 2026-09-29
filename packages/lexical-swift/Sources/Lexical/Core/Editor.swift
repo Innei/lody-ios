@@ -609,7 +609,7 @@ public final class Editor: NSObject {
 
     let isInsideNestedEditorBlock = (isEditorPresentInUpdateStack(self))
     let previousEditorStateForListeners = editorState
-    let dirtyNodesForListeners = dirtyNodes
+    var dirtyNodesForListeners = dirtyNodes
 
     try runWithStateLexicalScopeProperties(activeEditor: self, activeEditorState: pendingEditorState, readOnlyMode: false) {
       let previouslyUpdating = self.isUpdating
@@ -684,6 +684,7 @@ public final class Editor: NSObject {
 
       editorState = pendingEditorState
       self.pendingEditorState = nil
+      dirtyNodesForListeners = dirtyNodes
       dirtyNodes.removeAll()
       dirtyType = .noDirtyNodes
       cloneNotNeeded.removeAll()

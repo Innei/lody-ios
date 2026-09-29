@@ -107,4 +107,23 @@ final class HistoryTests: XCTestCase {
     view.editor.dispatchCommand(type: .undo)
     XCTAssertEqual(view.textStorage.string, "", "Text storage should be empty")
   }
+
+  func testUndoManagerUndoesAndRedoesTyping() throws {
+    guard let view, let historyPlugin else { return XCTFail() }
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 800))
+    view.frame = window.bounds
+    window.addSubview(view)
+    window.isHidden = false
+    view.textView.becomeFirstResponder()
+    try editor.update { _ = try getRoot()?.selectEnd() }
+    let undoManager = historyPlugin.undoManager
+    XCTAssertFalse(undoManager.canUndo)
+    view.textView.insertText("hello")
+    XCTAssertTrue(undoManager.canUndo)
+    undoManager.undo()
+    XCTAssertEqual(view.textView.text, "")
+    XCTAssertTrue(undoManager.canRedo)
+    undoManager.redo()
+    XCTAssertEqual(view.textView.text, "hello")
+  }
 }

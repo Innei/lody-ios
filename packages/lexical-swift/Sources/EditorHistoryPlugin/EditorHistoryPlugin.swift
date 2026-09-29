@@ -43,6 +43,8 @@ open class EditorHistoryPlugin: Plugin {
     }
   }
 
+  public private(set) lazy var undoManager: UndoManager = HistoryUndoManager(plugin: self)
+
   public var canUndo: Bool {
     get {
       guard let historyState else {
@@ -103,5 +105,31 @@ open class EditorHistoryPlugin: Plugin {
         prevEditorState: previousEditorState,
         dirtyNodes: dirtyNodes)
     })
+  }
+}
+
+// UIKit drives shake, ⌘Z and the keyboard's undo buttons through the first responder's UndoManager;
+// Lexical owns the edits, so undo must replay editor history rather than UIKit's registered actions.
+final class HistoryUndoManager: UndoManager {
+  private weak var plugin: EditorHistoryPlugin?
+
+  init(plugin: EditorHistoryPlugin) {
+    self.plugin = plugin
+    super.init()
+  }
+
+  override var canUndo: Bool { plugin?.canUndo ?? false }
+  override var canRedo: Bool { plugin?.canRedo ?? false }
+
+  override func undo() {
+    guard canUndo else { return }
+    plugin?.editor?.dispatchCommand(type: .undo)
+    NotificationCenter.default.post(name: .NSUndoManagerDidUndoChange, object: self)
+  }
+
+  override func redo() {
+    guard canRedo else { return }
+    plugin?.editor?.dispatchCommand(type: .redo)
+    NotificationCenter.default.post(name: .NSUndoManagerDidRedoChange, object: self)
   }
 }
