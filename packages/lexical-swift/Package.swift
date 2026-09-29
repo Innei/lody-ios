@@ -12,6 +12,7 @@ let package = Package(
     .library(name: "LexicalLinkPlugin", targets: ["LexicalLinkPlugin"]),
     .library(name: "EditorHistoryPlugin", targets: ["EditorHistoryPlugin"]),
     .library(name: "LexicalMarkdown", targets: ["LexicalMarkdown"]),
+    .library(name: "LexicalTypeaheadPlugin", targets: ["LexicalTypeaheadPlugin"]),
     .library(name: "HaklexNodes", targets: ["HaklexNodes"]),
   ],
   targets: [
@@ -21,6 +22,8 @@ let package = Package(
     .target(name: "EditorHistoryPlugin", dependencies: ["Lexical"], swiftSettings: upstream),
     .target(name: "LexicalMarkdown", dependencies: ["Lexical", "LexicalListPlugin", "LexicalLinkPlugin"]),
     .testTarget(name: "LexicalMarkdownTests", dependencies: ["LexicalMarkdown", "Lexical", "LexicalListPlugin", "LexicalLinkPlugin"]),
+    .target(name: "LexicalTypeaheadPlugin", dependencies: ["Lexical"]),
+    .testTarget(name: "LexicalTypeaheadPluginTests", dependencies: ["LexicalTypeaheadPlugin", "Lexical"]),
     .target(name: "HaklexNodes", dependencies: ["Lexical", "LexicalListPlugin", "LexicalLinkPlugin", "LexicalMarkdown"]),
     .testTarget(name: "HaklexNodesTests", dependencies: ["HaklexNodes", "Lexical"]),
     .testTarget(name: "LexicalTests", dependencies: ["Lexical"], swiftSettings: upstream),
