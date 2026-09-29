@@ -137,7 +137,7 @@ public class CodeNode: ElementNode {
 extension CodeNode {
   internal static var codeBlockBackgroundDrawing: CustomDrawingHandler {
     get {
-      return { attributeKey, attributeValue, layoutManager, attributeRunCharacterRange, granularityExpandedCharacterRange, glyphRange, rect, firstLineFragment in
+      return { attributeKey, attributeValue, textStorage, attributeRunCharacterRange, granularityExpandedCharacterRange, glyphRange, rect, firstLineFragment in
         guard let context = UIGraphicsGetCurrentContext(), let attributeValue = attributeValue as? CodeBlockCustomDrawingAttributes else { return }
         context.setFillColor(attributeValue.background.cgColor)
         context.fill(rect)

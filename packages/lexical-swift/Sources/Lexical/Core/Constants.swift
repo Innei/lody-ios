@@ -173,7 +173,7 @@ public enum CustomDrawingGranularity {
 public typealias CustomDrawingHandler = (
   _ attributeKey: NSAttributedString.Key,
   _ attributeValue: Any,
-  _ layoutManager: LayoutManager,
+  _ textStorage: NSTextStorage,
   _ attributeRunCharacterRange: NSRange,
   _ granularityExpandedCharacterRange: NSRange,
   _ glyphRange: NSRange,

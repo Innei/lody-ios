@@ -43,9 +43,9 @@ open class ListPlugin: Plugin {
         })
 
       try editor.registerCustomDrawing(customAttribute: .listItem, layer: .text, granularity: .contiguousParagraphs) {
-        attributeKey, attributeValue, layoutManager, characterRange, expandedCharRange, glyphRange, rect, firstLineFragment in
+        attributeKey, attributeValue, textStorage, characterRange, expandedCharRange, glyphRange, rect, firstLineFragment in
 
-        guard let attributeValue = attributeValue as? ListItemAttribute, let textStorage = layoutManager.textStorage as? TextStorage else {
+        guard let attributeValue = attributeValue as? ListItemAttribute, let textStorage = textStorage as? TextStorage else {
           return
         }
 

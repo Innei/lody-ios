@@ -87,7 +87,7 @@ public extension NSAttributedString.Key {
 extension QuoteNode {
   internal static var quoteBackgroundDrawing: CustomDrawingHandler {
     get {
-      return { attributeKey, attributeValue, layoutManager, attributeRunCharacterRange, granularityExpandedCharacterRange, glyphRange, rect, firstLineFragment in
+      return { attributeKey, attributeValue, textStorage, attributeRunCharacterRange, granularityExpandedCharacterRange, glyphRange, rect, firstLineFragment in
         guard let attributeValue = attributeValue as? QuoteCustomDrawingAttributes else { return }
 
         let barRect = CGRect(

@@ -14,7 +14,7 @@ final class TextViewTests: XCTestCase {
     let view = LexicalView(editorConfig: EditorConfig(theme: Theme(), plugins: []), featureFlags: FeatureFlags())
     let textView = view.textView
     XCTAssertTrue(textView.textStorage is TextStorage)
-    XCTAssertTrue(textView.layoutManager is LayoutManager)
+    XCTAssertNotNil(textView.textLayoutManager)
     XCTAssertNotNil(textView.editor)
   }
 

@@ -20,7 +20,7 @@ import UIKit
 /// an EditorState but providing no conversion to NSAttributedString).
 internal protocol Frontend: AnyObject {
   var textStorage: TextStorage { get }
-  var layoutManager: LayoutManager { get }
+  func invalidateLayout(forCharacterRange range: NSRange)
   var textContainerInsets: UIEdgeInsets { get }
   var editor: Editor { get }
   var nativeSelection: NativeSelection { get }

@@ -58,8 +58,8 @@ public extension LexicalViewDelegate {
   @objc public let textView: TextView
   let responderForNodeSelection: ResponderForNodeSelection
 
-  @objc public init(editorConfig: EditorConfig, featureFlags: FeatureFlags, placeholderText: LexicalPlaceholderText? = nil) {
-    self.textView = TextView(editorConfig: editorConfig, featureFlags: featureFlags)
+  public init(editorConfig: EditorConfig, featureFlags: FeatureFlags, placeholderText: LexicalPlaceholderText? = nil, textViewType: TextView.Type = TextView.self) {
+    self.textView = textViewType.init(editorConfig: editorConfig, featureFlags: featureFlags)
     self.textView.showsVerticalScrollIndicator = false
     self.textView.clipsToBounds = true
     self.textView.accessibilityTraits = .staticText
@@ -99,13 +99,8 @@ public extension LexicalViewDelegate {
     return textStorage
   }
 
-  @objc public var layoutManager: LayoutManager {
-    guard let layoutManager = self.textView.layoutManager as? LayoutManager else {
-      // this will never happen
-      editor.log(.TextView, .error, "Text view had no layout manager")
-      fatalError()
-    }
-    return layoutManager
+  func invalidateLayout(forCharacterRange range: NSRange) {
+    textView.invalidateLayout(forCharacterRange: range)
   }
 
   @objc public var textContainerInsets: UIEdgeInsets {

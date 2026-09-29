@@ -18,13 +18,14 @@ protocol LexicalTextViewDelegate: NSObjectProtocol {
 }
 
 /// Lexical's subclass of UITextView. Note that using this can be dangerous, if you make changes that Lexical does not expect.
-@objc public final class TextView: UITextView {
+@objc open class TextView: UITextView {
   let editor: Editor
 
   internal let pasteboard = UIPasteboard.general
   internal let pasteboardIdentifier = "x-lexical-nodes"
   internal var isUpdatingNativeSelection = false
-  internal var layoutManagerDelegate: LayoutManagerDelegate
+  private let textLayoutManagerDelegate = TextLayoutManagerDelegate()
+  fileprivate weak var externalDelegate: UITextViewDelegate?
 
   // This is to work around a UIKit issue where, in situations like autocomplete, UIKit changes our selection via
   // private methods, and the first time we find out is when our delegate method is called. @amyworrall
@@ -39,17 +40,17 @@ protocol LexicalTextViewDelegate: NSObjectProtocol {
 
   // MARK: - Init
 
-  init(editorConfig: EditorConfig, featureFlags: FeatureFlags) {
+  public required init(editorConfig: EditorConfig, featureFlags: FeatureFlags) {
     let textStorage = TextStorage()
-    let layoutManager = LayoutManager()
-    layoutManagerDelegate = LayoutManagerDelegate()
-    layoutManager.delegate = layoutManagerDelegate
+    let contentStorage = NSTextContentStorage()
+    contentStorage.textStorage = textStorage
+    let textLayoutManager = NSTextLayoutManager()
+    contentStorage.addTextLayoutManager(textLayoutManager)
+    contentStorage.primaryTextLayoutManager = textLayoutManager
 
-    let textContainer = TextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+    let textContainer = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
     textContainer.widthTracksTextView = true
-
-    layoutManager.addTextContainer(textContainer)
-    textStorage.addLayoutManager(layoutManager)
+    textLayoutManager.textContainer = textContainer
 
     var reconcilerSanityCheck = featureFlags.reconcilerSanityCheck
 
@@ -67,17 +68,22 @@ protocol LexicalTextViewDelegate: NSObjectProtocol {
     inputDelegateProxy = InputDelegateProxy()
 
     super.init(frame: .zero, textContainer: textContainer)
+    textLayoutManager.delegate = textLayoutManagerDelegate
 
     if useInputDelegateProxy {
       inputDelegateProxy.targetInputDelegate = self.inputDelegate
       super.inputDelegate = inputDelegateProxy
     }
 
-    delegate = textViewDelegate
+    textViewDelegate.owner = self
+    super.delegate = textViewDelegate
     textContainerInset = UIEdgeInsets(top: 8.0, left: 5.0, bottom: 8.0, right: 5.0)
 
     setUpPlaceholderLabel()
     registerRichText(editor: editor)
+    _ = editor.registerUpdateListener { [weak self] _, _, _ in
+      self?.setNeedsLayout()
+    }
   }
 
   /// This init method is used for unit tests
@@ -86,18 +92,30 @@ protocol LexicalTextViewDelegate: NSObjectProtocol {
   }
 
   @available(*, unavailable)
-  required init?(coder: NSCoder) {
+  public required init?(coder: NSCoder) {
     fatalError("\(#function) has not been implemented")
   }
 
-  override public func layoutSubviews() {
+  // UIKit dispatches through this getter, so it must keep returning Lexical's delegate; assigned delegates receive forwarded calls.
+  // UIScrollView caches responds(to:) when its delegate is assigned, so reassigning refreshes which forwarded methods it calls.
+  override open var delegate: UITextViewDelegate? {
+    get { super.delegate }
+    set {
+      externalDelegate = newValue
+      super.delegate = nil
+      super.delegate = textViewDelegate
+    }
+  }
+
+  override open func layoutSubviews() {
     super.layoutSubviews()
+    positionAllDecorators()
 
     placeholderLabel.frame.origin = CGPoint(x: textContainer.lineFragmentPadding * 1.5 + textContainerInset.left, y: textContainerInset.top)
     placeholderLabel.sizeToFit()
   }
 
-  override public var inputDelegate: UITextInputDelegate? {
+  override open var inputDelegate: UITextInputDelegate? {
     get {
       if useInputDelegateProxy {
         return inputDelegateProxy.targetInputDelegate
@@ -116,10 +134,12 @@ protocol LexicalTextViewDelegate: NSObjectProtocol {
 
   // MARK: - Incoming events
 
-  override public func deleteBackward() {
+  override open func deleteBackward() {
     editor.log(.UITextView, .verbose, "deleteBackward()")
 
     let previousSelectedRange = selectedRange
+    guard delegateAllowsChange(in: rangeDeletedBackward(from: previousSelectedRange), replacementText: "") else { return }
+    defer { externalDelegate?.textViewDidChange?(self) }
 
     inputDelegateProxy.isSuspended = true // do not send selection changes during deleteBackwards, to not confuse third party keyboards
     defer {
@@ -142,7 +162,7 @@ protocol LexicalTextViewDelegate: NSObjectProtocol {
     }
   }
 
-  override public func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+  override open func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
     if action == #selector(paste(_:)) {
       if pasteboard.hasStrings {
         return true
@@ -163,22 +183,28 @@ protocol LexicalTextViewDelegate: NSObjectProtocol {
     }
   }
 
-  override public func copy(_ sender: Any?) {
+  override open func copy(_ sender: Any?) {
     editor.dispatchCommand(type: .copy, payload: pasteboard)
   }
 
-  override public func cut(_ sender: Any?) {
+  override open func cut(_ sender: Any?) {
+    guard delegateAllowsChange(in: selectedRange, replacementText: "") else { return }
     editor.dispatchCommand(type: .cut, payload: pasteboard)
+    externalDelegate?.textViewDidChange?(self)
   }
 
-  override public func paste(_ sender: Any?) {
+  override open func paste(_ sender: Any?) {
+    guard delegateAllowsChange(in: selectedRange, replacementText: pasteboard.string ?? "") else { return }
     editor.dispatchCommand(type: .paste, payload: pasteboard)
+    externalDelegate?.textViewDidChange?(self)
   }
 
-  override public func insertText(_ text: String) {
+  override open func insertText(_ text: String) {
     editor.log(.UITextView, .verbose, "Text view selected range \(String(describing: self.selectedRange))")
 
     let expectedSelectionLocation = selectedRange.location + text.lengthAsNSString()
+    guard delegateAllowsChange(in: editor.getNativeSelection().markedRange ?? selectedRange, replacementText: text) else { return }
+    defer { externalDelegate?.textViewDidChange?(self) }
 
     inputDelegateProxy.isSuspended = true // do not send selection changes during insertText, to not confuse third party keyboards
     defer {
@@ -203,19 +229,21 @@ protocol LexicalTextViewDelegate: NSObjectProtocol {
 
   // MARK: Marked text
 
-  override public func setAttributedMarkedText(_ markedText: NSAttributedString?, selectedRange: NSRange) {
+  override open func setAttributedMarkedText(_ markedText: NSAttributedString?, selectedRange: NSRange) {
     editor.log(.UITextView, .verbose)
     if let markedText {
       setMarkedTextInternal(markedText.string, selectedRange: selectedRange)
+      externalDelegate?.textViewDidChange?(self)
     } else {
       unmarkText()
     }
   }
 
-  override public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
+  override open func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
     editor.log(.UITextView, .verbose)
     if let markedText {
       setMarkedTextInternal(markedText, selectedRange: selectedRange)
+      externalDelegate?.textViewDidChange?(self)
     } else {
       unmarkText()
     }
@@ -279,7 +307,7 @@ protocol LexicalTextViewDelegate: NSObjectProtocol {
     showPlaceholderText()
   }
 
-  override public func unmarkText() {
+  override open func unmarkText() {
     editor.log(.UITextView, .verbose)
     let previousMarkedRange = editor.getNativeSelection().markedRange
     let oldIsUpdatingNative = isUpdatingNativeSelection
@@ -384,7 +412,7 @@ protocol LexicalTextViewDelegate: NSObjectProtocol {
     placeholderLabel.isHidden = true
   }
 
-  override public func becomeFirstResponder() -> Bool {
+  override open func becomeFirstResponder() -> Bool {
     let r = super.becomeFirstResponder()
     if r == true {
       onSelectionChange(editor: editor)
@@ -394,8 +422,19 @@ protocol LexicalTextViewDelegate: NSObjectProtocol {
 }
 
 private final class TextViewDelegate: NSObject, UITextViewDelegate {
+  weak var owner: TextView?
+
+  override func responds(to selector: Selector!) -> Bool {
+    super.responds(to: selector) || owner?.externalDelegate?.responds(to: selector) == true
+  }
+
+  override func forwardingTarget(for selector: Selector!) -> Any? {
+    owner?.externalDelegate
+  }
+
   public func textViewDidChangeSelection(_ textView: UITextView) {
     guard let textView = textView as? TextView else { return }
+    defer { textView.externalDelegate?.textViewDidChangeSelection?(textView) }
 
     if textView.isUpdatingNativeSelection {
       return
@@ -414,21 +453,22 @@ private final class TextViewDelegate: NSObject, UITextViewDelegate {
     guard let textView = textView as? TextView else { return false }
 
     textView.hidePlaceholderLabel()
-    if let lexicalDelegate = textView.lexicalDelegate {
-      return lexicalDelegate.textViewShouldChangeText(textView, range: range, replacementText: text)
+    if let lexicalDelegate = textView.lexicalDelegate, !lexicalDelegate.textViewShouldChangeText(textView, range: range, replacementText: text) {
+      return false
     }
-
-    return true
+    return textView.delegateAllowsChange(in: range, replacementText: text)
   }
 
   public func textViewDidBeginEditing(_ textView: UITextView) {
     guard let textView = textView as? TextView else { return }
     textView.lexicalDelegate?.textViewDidBeginEditing(textView: textView)
+    textView.externalDelegate?.textViewDidBeginEditing?(textView)
   }
 
   public func textViewDidEndEditing(_ textView: UITextView) {
     guard let textView = textView as? TextView else { return }
     textView.lexicalDelegate?.textViewDidEndEditing(textView: textView)
+    textView.externalDelegate?.textViewDidEndEditing?(textView)
   }
 
   @available(iOS, deprecated: 17.0, message: "Use textView(_:primaryActionFor:defaultAction:) with UITextItem instead")
@@ -454,5 +494,64 @@ private final class TextViewDelegate: NSObject, UITextViewDelegate {
     }
 
     return textView.lexicalDelegate?.textView(textView, shouldInteractWith: URL, in: characterRange, interaction: interaction) ?? false
+  }
+}
+
+extension TextView {
+  func delegateAllowsChange(in range: NSRange, replacementText text: String) -> Bool {
+    externalDelegate?.textView?(self, shouldChangeTextIn: range, replacementText: text) ?? true
+  }
+
+  fileprivate func rangeDeletedBackward(from selection: NSRange) -> NSRange {
+    guard selection.length == 0, selection.location > 0 else { return selection }
+    return (text as NSString).rangeOfComposedCharacterSequence(at: selection.location - 1)
+  }
+
+  func invalidateLayout(forCharacterRange range: NSRange) {
+    guard let textLayoutManager, let contentStorage = textLayoutManager.textContentManager as? NSTextContentStorage,
+      let start = contentStorage.location(contentStorage.documentRange.location, offsetBy: range.location),
+      let end = contentStorage.location(start, offsetBy: range.length),
+      let textRange = NSTextRange(location: start, end: end)
+    else { return }
+    textLayoutManager.invalidateLayout(for: textRange)
+    setNeedsLayout()
+  }
+
+  func positionAllDecorators() {
+    guard let storage = textStorage as? TextStorage, !storage.decoratorPositionCache.isEmpty,
+      let textLayoutManager, let contentStorage = textLayoutManager.textContentManager as? NSTextContentStorage
+    else { return }
+    // ponytail: lays out the whole document; fine for composer-sized text, switch to the viewport for long documents.
+    textLayoutManager.ensureLayout(for: textLayoutManager.documentRange)
+    for (key, cachedLocation) in storage.decoratorPositionCache {
+      // The reconciler refreshes decoratorPositionCache only when a decorator is added or redecorated, so edits before it leave the cached location stale.
+      let location = editor.rangeCache[key]?.location ?? cachedLocation
+      positionDecorator(forKey: key, characterIndex: location, storage: storage, textLayoutManager: textLayoutManager, contentStorage: contentStorage)
+    }
+  }
+
+  private func positionDecorator(forKey key: NodeKey, characterIndex: Int, storage: TextStorage, textLayoutManager: NSTextLayoutManager, contentStorage: NSTextContentStorage) {
+    guard characterIndex < storage.length,
+      let attachment = storage.attribute(.attachment, at: characterIndex, effectiveRange: nil) as? TextAttachment,
+      attachment.key != nil, let attachmentEditor = attachment.editor,
+      let location = contentStorage.location(contentStorage.documentRange.location, offsetBy: characterIndex),
+      let fragment = textLayoutManager.textLayoutFragment(for: location)
+    else {
+      editor.log(.TextView, .warning, "no layout for decorator \(key)")
+      return
+    }
+    let paragraphStart = contentStorage.offset(from: contentStorage.documentRange.location, to: fragment.rangeInElement.location)
+    let offset = characterIndex - paragraphStart
+    guard let line = fragment.textLineFragments.first(where: { NSLocationInRange(offset, $0.characterRange) }) ?? fragment.textLineFragments.last else { return }
+    let bounds = line.typographicBounds
+    let origin = CGPoint(
+      x: fragment.layoutFragmentFrame.minX + bounds.minX + line.locationForCharacter(at: offset).x + textContainerInset.left,
+      y: fragment.layoutFragmentFrame.minY + bounds.minY + line.glyphOrigin.y - attachment.bounds.height + textContainerInset.top)
+
+    try? attachmentEditor.read {
+      guard let view = decoratorView(forKey: key, createIfNecessary: true) else { return }
+      view.isHidden = false
+      view.frame = CGRect(origin: origin, size: attachment.bounds.size)
+    }
   }
 }

@@ -547,7 +547,7 @@ public final class Editor: NSObject {
           }
           if let rangeCacheItem = rangeCache[nodeKey] {
             // required so that TextKit does the new size calculation, and correctly hides or unhides the view
-            frontend?.layoutManager.invalidateLayout(forCharacterRange: rangeCacheItem.range, actualCharacterRange: nil)
+            frontend?.invalidateLayout(forCharacterRange: rangeCacheItem.range)
           }
         }
       }
