@@ -84,3 +84,11 @@ private func gfm(_ blocks: String...) throws -> String {
 @Test func codeBlockBeforeAnotherBlockHasNoTrailingBlankLine() throws {
   #expect(try gfm(element("code", [text("a")]), paragraph(text("b"))) == "```\na\n```\nb")
 }
+
+@Test func paragraphAfterQuoteOrListStartsItsOwnBlock() throws {
+  let list = element("list", [element("listitem", [text("a")], extra: #","value":1"#)], extra: #","listType":"bullet","start":1,"tag":"ul""#)
+  #expect(try gfm(element("quote", [text("quoted")]), paragraph(text("reply"))) == "> quoted\n\nreply")
+  #expect(try gfm(list, paragraph(text("after"))) == "- a\n\nafter")
+  #expect(try gfm(element("quote", [text("quoted")]), paragraph(), paragraph(text("reply"))) == "> quoted\n\nreply")
+  #expect(try gfm(paragraph(text("before")), element("quote", [text("quoted")])) == "before\n> quoted")
+}

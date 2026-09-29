@@ -1,5 +1,6 @@
 import Foundation
 import Lexical
+import LexicalListPlugin
 
 public typealias ExportChildren = (ElementNode) -> String
 public typealias ExportTextFormat = (TextNode, String) -> String
@@ -39,7 +40,8 @@ public struct MarkdownExporter: Sendable {
     var output: [String] = []
     for (index, child) in children.enumerated() {
       guard let result = run.topLevel(child) else { continue }
-      let separated = !preservesNewlines && index > 0 && !isEmptyParagraph(child) && !isEmptyParagraph(children[index - 1])
+      let separated = index > 0 && !isEmptyParagraph(child) && !isEmptyParagraph(children[index - 1])
+        && (!preservesNewlines || absorbsNextLine(children[index - 1], before: child))
       output.append(separated ? "\n" + result : result)
     }
     return output.joined(separator: "\n")
@@ -234,6 +236,11 @@ func backtickRuns(_ content: String) -> [Int] {
   }
   if current > 0 { runs.append(current) }
   return runs
+}
+
+// CommonMark lazy continuation would pull the next line into a quote or list the user already left.
+private func absorbsNextLine(_ block: Node, before next: Node) -> Bool {
+  (block is QuoteNode || block is ListNode) && type(of: block) != type(of: next)
 }
 
 public func isEmptyParagraph(_ node: Node) -> Bool {
