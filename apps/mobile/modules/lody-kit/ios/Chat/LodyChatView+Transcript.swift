@@ -298,6 +298,14 @@ extension LodyChatView {
     if liveEntryID != nil && processEntryID.isEmpty && window != nil && previousLive != liveEntryID {
       turnFeedback.prepare()
     }
+    if replyHaptics.armed, let liveEntryID, processEntryID.isEmpty, window != nil, !catchingUpEntries.contains(liveEntryID) {
+      let length = projected.reduce(0) { $1.entryID == liveEntryID && $1.kind == "text" ? $0 + $1.text.utf8.count : $0 }
+      let before = replyText?.entryID == liveEntryID ? replyText?.length ?? 0 : 0
+      if length > before { replyHaptics.textGrew() }
+      replyText = (liveEntryID, length)
+    } else {
+      replyText = nil
+    }
     self.liveEntryID = liveEntryID
     let previous = rows
     if !deferredRows.isEmpty, dataSource.snapshot().itemIdentifiers == projected.map(\.id),

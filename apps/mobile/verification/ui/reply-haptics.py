@@ -1,4 +1,5 @@
-"""Offline adjustable reply demo. Pulse counts prove scheduling, not physical feel."""
+"""Offline adjustable reply demo. Pulse counts prove native scheduling, not physical feel."""
+import re
 import sys
 import time
 from driver import UI
@@ -22,24 +23,18 @@ def choose(identifier, value):
 
 ui.capture('parameters')
 tap('reply-haptics-start')
-wait_status('完成 · 3 次触感')
+ui.wait(lambda items: any(re.fullmatch(r'完成 · [1-9]\d* 次触感', item.get('AXLabel') or '') for item in items),
+        'Default reply scheduled no native pulses', timeout=12)
 ui.capture('streamed')
-choose('delay', '6000')
+ui.axe('swipe', '--start-x', '200', '--start-y', '650', '--end-x', '200', '--end-y', '250', '--duration', '.4', '--post-delay', '.3')
+choose('firstDelay', '6000')
+ui.axe('swipe', '--start-x', '200', '--start-y', '250', '--end-x', '200', '--end-y', '750', '--duration', '.4', '--post-delay', '.3')
 tap('reply-haptics-start')
 wait_status('完成 · 0 次触感')
 ui.capture('outside-window')
-choose('delay', '0')
-# Speed is lower in the parameter list.
-ui.axe('swipe', '--start-x', '200', '--start-y', '650', '--end-x', '200', '--end-y', '350', '--duration', '.4', '--post-delay', '.3')
-choose('speed', '0')
-ui.axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '700', '--duration', '.4', '--post-delay', '.3')
-tap('reply-haptics-start')
-wait_status('完成 · 1 次触感')
-ui.capture('single-batch')
-choose('delay', '2000')
 tap('reply-haptics-start')
 tap('reply-haptics-stop')
-time.sleep(2.2)
+time.sleep(1)
 wait_status('已停止')
 ui.capture('stopped')
-print('PASS: streamed, late, single-batch and cancelled replies; real-device haptics remain manual')
+print('PASS: native-scheduled, late and cancelled replies; real-device haptics remain manual')

@@ -160,6 +160,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var trackingPausedByGesture = false
   var liveEntryID: String?
   let turnFeedback = UINotificationFeedbackGenerator()
+  let replyHaptics = ChatReplyHaptics()
+  var replyText: (entryID: String, length: Int)?
   var lastUserID: String?
   var anchoredUserID: String?
   var awaitingUserAnchor = false
@@ -710,6 +712,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       anchoredUserID = value.id + ":user"
       followsBottom = true
       trackingPausedByGesture = false
+      replyHaptics.arm()
     }
     applyRows()
   }

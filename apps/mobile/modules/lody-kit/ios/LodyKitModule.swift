@@ -313,11 +313,22 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("selectionFeedback") {
       UISelectionFeedbackGenerator().selectionChanged()
     }.runOnQueue(.main)
-    AsyncFunction("debugReplyImpact") { (style: String, intensity: Double) in
-      guard UIApplication.shared.applicationState == .active, intensity.isFinite else { return }
-      let styles: [String: UIImpactFeedbackGenerator.FeedbackStyle] = ["soft": .soft, "light": .light, "rigid": .rigid]
-      guard let feedbackStyle = styles[style] else { return }
-      UIImpactFeedbackGenerator(style: feedbackStyle).impactOccurred(intensity: min(1, max(0, intensity)))
+    AsyncFunction("debugReplyHaptics") { (chunksMs: [Double], values: [String: Double]) -> Int in
+      MainActor.assumeIsolated {
+        var config = ChatReplyPulses.Config()
+        let seconds = { (key: String) in values[key].map { $0 / 1000 } }
+        config.window = seconds("window") ?? config.window
+        config.duration = seconds("duration") ?? config.duration
+        config.interval = seconds("interval") ?? config.interval
+        config.count = values["count"].map { Int($0) } ?? config.count
+        config.intensity = values["intensity"].map { Float($0) } ?? config.intensity
+        config.endIntensity = values["endIntensity"].map { Float($0) } ?? config.endIntensity
+        config.curve = values["curve"].map { Float($0) } ?? config.curve
+        config.sharpness = values["sharpness"].map { Float($0) } ?? config.sharpness
+        let pulses = ChatReplyPulses.schedule(chunks: chunksMs.filter(\.isFinite).map { $0 / 1000 }, config: config)
+        ChatReplyHaptics.preview.play(pulses, sharpness: config.sharpness)
+        return pulses.count
+      }
     }.runOnQueue(.main)
     AsyncFunction("morphDismiss") { (promise: Promise) in
       MainActor.assumeIsolated { LodyMorphReveal.dismiss { promise.resolve() } }

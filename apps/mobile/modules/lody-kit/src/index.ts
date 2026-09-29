@@ -17,7 +17,7 @@ export {
   initialQuickRepliesJSON,
   saveQuickReplies,
   selectionFeedback,
-  debugReplyImpact,
+  debugReplyHaptics,
   pickWorkspaceIcon,
   cancelComposerRelay,
   prepareMorphReveal,

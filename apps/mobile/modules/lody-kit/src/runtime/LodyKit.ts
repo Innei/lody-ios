@@ -155,7 +155,10 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   debugProbeSchema(): Promise<string>;
   debugRestartDataRuntime(): Promise<void>;
   selectionFeedback(): Promise<void>;
-  debugReplyImpact(style: string, intensity: number): Promise<void>;
+  debugReplyHaptics(
+    chunksMs: number[],
+    config: ReplyHapticsConfig,
+  ): Promise<number>;
   pickWorkspaceIcon(): Promise<PickedWorkspaceIcon | null>;
   cancelComposerRelay(id: string): Promise<void>;
   showToast(message: string, kind: string): void;
@@ -206,8 +209,21 @@ export function selectionFeedback(): Promise<void> {
   return native.selectionFeedback();
 }
 
-export const debugReplyImpact = (style: string, intensity: number) =>
-  native.debugReplyImpact(style, intensity);
+export type ReplyHapticsConfig = {
+  window: number;
+  duration: number;
+  interval: number;
+  count: number;
+  intensity: number;
+  endIntensity: number;
+  curve: number;
+  sharpness: number;
+};
+
+export const debugReplyHaptics = (
+  chunksMs: number[],
+  config: ReplyHapticsConfig,
+) => native.debugReplyHaptics(chunksMs, config);
 
 export function pickWorkspaceIcon(): Promise<PickedWorkspaceIcon | null> {
   return native.pickWorkspaceIcon();

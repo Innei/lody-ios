@@ -697,6 +697,26 @@ precondition(!notifyTurn("a", nil, process: "a"), "The process sheet must not du
 precondition(!notifyTurn("a", nil, window: false), "Detached chat must not buzz")
 print("Chat haptics: completion fires once per finished round")
 
+let replyConfig = ChatReplyPulses.Config()
+let steady = ChatReplyPulses.schedule(chunks: (0..<60).map { 1 + Double($0) * 0.05 }, config: replyConfig)
+precondition(steady.count == replyConfig.count, "Dense chunks stop at the pulse cap")
+precondition(zip(steady, steady.dropFirst()).allSatisfy { $1.time - $0.time >= replyConfig.interval - 1e-9 },
+  "Pulses respect the minimum interval")
+precondition(zip(steady, steady.dropFirst()).allSatisfy { $1.intensity < $0.intensity }, "Pulse strength decays")
+precondition(abs(steady[0].intensity - replyConfig.intensity) < 1e-6, "The first pulse starts at full strength")
+precondition(steady.last!.intensity >= replyConfig.endIntensity, "Decay never drops below the end strength")
+let throttled = ChatReplyPulses.schedule(chunks: [1, 1.01, 1.02, 1.1], config: replyConfig)
+precondition(throttled.map(\.time) == [1, 1.1], "Chunks inside the interval are swallowed, not queued")
+precondition(ChatReplyPulses.schedule(chunks: [5.5, 5.6], config: replyConfig).isEmpty,
+  "A first chunk after the window keeps the whole reply silent")
+let lingering = ChatReplyPulses.schedule(chunks: [1, 2, 2.9, 3], config: replyConfig)
+precondition(lingering.map(\.time) == [1, 2], "Chunks after the duration stay silent")
+var armed = ChatReplyPulses(sentAt: 0)
+precondition(!armed.isFinished(at: 4.9) && armed.isFinished(at: 5.1), "An armed send without text expires with the window")
+_ = armed.textGrew(at: 1)
+precondition(!armed.isFinished(at: 2.7) && armed.isFinished(at: 2.9), "A started reply expires after its duration")
+print("Reply haptics: window, duration, interval, cap and decay passed")
+
 var queueTranscript = ChatTranscript()
 queueTranscript.entries = try! JSONDecoder().decode([ChatEntry].self, from: Data(#"[{"id":"queued-turn","role":"user","status":"queued","finished":false,"items":[{"itemId":"text","type":"text","text":"Wait for me"}]}]"#.utf8))
 precondition(queueTranscript.rows().isEmpty, "Queued input must never render in the transcript")
