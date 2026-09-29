@@ -33,6 +33,28 @@ final class TextKit2Tests: XCTestCase {
     XCTAssertFalse(view.textView.accessibilityTraits.contains(.staticText))
   }
 
+  func testSettingTextReplacesTheDocumentThroughTheEditor() throws {
+    let (view, _) = try makeView()
+    let textView = view.textView
+    textView.insertText("old")
+    textView.text = "first\nsecond\n\nfourth"
+    XCTAssertEqual(textView.text, "first\nsecond\n\nfourth")
+    try view.editor.read {
+      let blocks = getRoot()?.getChildren() ?? []
+      XCTAssertEqual(blocks.count, 4)
+      XCTAssertTrue(blocks.allSatisfy { $0 is ParagraphNode })
+      XCTAssertEqual(blocks.first?.getTextContent().trimmingCharacters(in: .newlines), "first")
+    }
+    XCTAssertEqual(textView.selectedRange, NSRange(location: (textView.text as NSString).length, length: 0))
+    textView.insertText("!")
+    XCTAssertEqual(textView.text, "first\nsecond\n\nfourth!")
+
+    textView.text = ""
+    XCTAssertEqual(textView.text, "")
+    textView.insertText("again")
+    XCTAssertEqual(textView.text, "again")
+  }
+
   func testTextViewUsesTextKit2() throws {
     let (view, _) = try makeView()
     XCTAssertNotNil(view.textView.textLayoutManager)

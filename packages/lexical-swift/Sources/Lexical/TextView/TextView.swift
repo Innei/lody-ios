@@ -96,6 +96,31 @@ protocol LexicalTextViewDelegate: NSObjectProtocol {
     fatalError("\(#function) has not been implemented")
   }
 
+  // UIKit's setter would insert newlines as literal characters in one text node; each line becomes a paragraph instead.
+  override open var text: String! {
+    get { super.text }
+    set { setPlainText(newValue ?? "") }
+  }
+
+  public func setPlainText(_ value: String) {
+    try? editor.update {
+      guard let root = getRoot() else { return }
+      for child in root.getChildren() {
+        try child.remove()
+      }
+      var last: ParagraphNode?
+      for line in value.components(separatedBy: "\n") {
+        let paragraph = createParagraphNode()
+        if !line.isEmpty {
+          try paragraph.append([createTextNode(text: line)])
+        }
+        try root.append([paragraph])
+        last = paragraph
+      }
+      _ = try last?.selectEnd()
+    }
+  }
+
   // UIKit dispatches through this getter, so it must keep returning Lexical's delegate; assigned delegates receive forwarded calls.
   // UIScrollView caches responds(to:) when its delegate is assigned, so reassigning refreshes which forwarded methods it calls.
   override open var delegate: UITextViewDelegate? {
