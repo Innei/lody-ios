@@ -1,5 +1,6 @@
 import ChatKit
 import ImageIO
+import Lexical
 import PhotosUI
 import QuickLook
 import UIKit
@@ -60,6 +61,7 @@ struct ChatAttachment: Equatable {
       !type.conforms(to: .directory)
         && !type.conforms(to: .url)
         && !type.conforms(to: .text)
+        && type.identifier != LexicalConstants.pasteboardIdentifier
         && !isWebArchive(type)
     }
   }

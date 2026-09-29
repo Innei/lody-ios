@@ -339,6 +339,15 @@ while pasteInput.text != "lodyUserBubble" && Date() < splitDeadline {
 precondition(pasteInput.text == "lodyUserBubble", "A split webarchive pasteboard must insert the copied text")
 print("Composer paste: webarchive selections stay text")
 
+pasteComposer.restoreDraft(token: 1)
+pasteInput.text = "round trip"
+pasteInput.selectedRange = NSRange(location: 0, length: 10)
+pasteInput.copy(nil)
+precondition(!ChatAttachment.canPaste(UIPasteboard.general.itemProviders),
+  "Text copied from the composer must not claim Paste as an attachment")
+UIPasteboard.general.items = []
+print("Composer paste: in-composer copy is not an attachment")
+
 precondition(!ChatAttachment.shouldPromotePastedText("hello"))
 precondition(!ChatAttachment.shouldPromotePastedText(String(repeating: "x", count: 1999)))
 precondition(ChatAttachment.shouldPromotePastedText(String(repeating: "x", count: 2000)))
@@ -1284,3 +1293,28 @@ precondition(chipInput.referenceTokens == ["/compact"], "A restored draft must k
 for _ in 0..<5 { chipInput.deleteBackward() }
 precondition(chipInput.text == "", "Deleting into a chip must remove the whole token")
 print("Rich composer: reference chips insert, send, restore and delete as one token")
+
+let (retryComposer, retryInput) = makeRichComposer()
+var retrySent: [String] = []
+retryComposer.onSend = { retrySent.append($0["text"] as! String) }
+typeInto(retryInput, "**bold** first")
+tapSend(on: retryComposer)
+retryComposer.setComposerState(ready)
+typeInto(retryInput, "second")
+retryComposer.restoreDraft(token: 1)
+precondition(retryInput.text == "second", "A failed send must not overwrite text typed after it")
+retryComposer.perform(NSSelectorFromString("reconnect"))
+tapSend(on: retryComposer)
+precondition(retrySent.last?.contains("**bold** first") == true, "Retrying a failed send must keep its Markdown, got \(retrySent)")
+print("Rich composer: retried failed send keeps its Markdown")
+
+let (historyComposer, historyInput) = makeRichComposer()
+let historySend = descendants(historyComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }!
+typeInto(historyInput, "undo me")
+precondition(historySend.isEnabled && historyInput.undoManager?.canUndo == true, "Typing in the composer must be undoable")
+historyInput.undoManager?.undo()
+precondition(historyInput.text == "", "Undo must revert typing, got \(historyInput.text!)")
+precondition(!historySend.isEnabled, "Undo must refresh the composer like any other edit")
+historyInput.undoManager?.redo()
+precondition(historyInput.text == "undo me" && historySend.isEnabled, "Redo must restore the typed text")
+print("Rich composer: undo and redo revert typing and refresh the composer")

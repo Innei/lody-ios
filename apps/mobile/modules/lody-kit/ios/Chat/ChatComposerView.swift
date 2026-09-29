@@ -1,4 +1,5 @@
 import ChatKit
+import EditorHistoryPlugin
 import Lexical
 import LexicalLinkPlugin
 import LexicalListPlugin
@@ -181,10 +182,29 @@ final class ChatComposerInput: TextView {
       .paddingHead: 12.0,
       .quoteCustomDrawing: QuoteCustomDrawingAttributes(barColor: .separator, barWidth: 3, rounded: true, barInsets: .zero),
     ]
-    let config = EditorConfig(theme: theme, plugins: [ListPlugin(), LinkPlugin(), MarkdownShortcutPlugin()])
+    let history = EditorHistoryPlugin()
+    let config = EditorConfig(theme: theme, plugins: [ListPlugin(), LinkPlugin(), MarkdownShortcutPlugin(), history])
     let view = LexicalView(editorConfig: config, featureFlags: FeatureFlags(), textViewType: ChatComposerInput.self)
     try? view.editor.registerNode(nodeType: .lodyReference, class: ChatReferenceNode.self)
+    (view.textView as? ChatComposerInput)?.history = history
     return view
+  }
+
+  private var history: EditorHistoryPlugin? {
+    didSet {
+      guard let undoManager = history?.undoManager else { return }
+      for name in [Notification.Name.NSUndoManagerDidUndoChange, .NSUndoManagerDidRedoChange] {
+        NotificationCenter.default.addObserver(self, selector: #selector(historyDidChange), name: name, object: undoManager)
+      }
+    }
+  }
+
+  override var undoManager: UndoManager? {
+    history?.undoManager ?? super.undoManager
+  }
+
+  @objc private func historyDidChange() {
+    delegate?.textViewDidChange?(self)
   }
 
   override var font: UIFont? {
@@ -925,7 +945,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
 
   private func takeDraft() {
     guard pendingDraft == nil else { return }
-    pendingDraft = (input.text ?? "", attachments, input.serializedState)
+    pendingDraft = (input.markdown, attachments, input.serializedState)
     // Cross-container creation keeps its draft visible while its host dismisses.
     guard sendHandoff else { return }
     input.text = ""

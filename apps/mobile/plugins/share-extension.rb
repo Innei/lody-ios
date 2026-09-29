@@ -54,7 +54,7 @@ def lody_share_extension(bundle_id)
     reference = group.files.find { |f| f.path == path } || group.new_file(path)
     target.source_build_phase.add_file_reference(reference, true)
   end
-  { '../../../packages/chat-kit' => ['ChatKit'], '../../../packages/lexical-swift' => %w[Lexical LexicalListPlugin LexicalLinkPlugin LexicalMarkdown] }.each do |package_path, product_names|
+  { '../../../packages/chat-kit' => ['ChatKit'], '../../../packages/lexical-swift' => %w[Lexical LexicalListPlugin LexicalLinkPlugin LexicalMarkdown EditorHistoryPlugin] }.each do |package_path, product_names|
     package = project.root_object.package_references.find { |ref| ref.isa == 'XCLocalSwiftPackageReference' && ref.relative_path == package_path }
     unless package
       package = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)

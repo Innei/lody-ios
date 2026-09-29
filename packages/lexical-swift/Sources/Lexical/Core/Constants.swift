@@ -34,7 +34,7 @@ public enum Mode: String, Codable {
   case inert
 }
 
-enum LexicalConstants {
+public enum LexicalConstants {
   // If we provide a systemFont as our default, it causes trouble for modifying font family.
   // Apple sets a private key NSCTFontUIUsageAttribute on the font descriptor, and that
   // key overrides any face or family key that we set. Hence we provide a default font of
@@ -47,7 +47,7 @@ enum LexicalConstants {
   // Sigil value used during node initialization
   static let uninitializedNodeKey = "uninitializedNodeKey"
 
-  static let pasteboardIdentifier = "x-lexical-nodes"
+  public static let pasteboardIdentifier = "x-lexical-nodes"
 }
 
 public typealias DirtyNodeMap = [NodeKey: DirtyStatusCause]
