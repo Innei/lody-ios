@@ -13,6 +13,12 @@ const PACKAGES = [
     version: '4.3.2',
   },
   {
+    name: 'swift-collections',
+    url: 'https://github.com/apple/swift-collections',
+    version: '1.6.0',
+    products: ['OrderedCollections'],
+  },
+  {
     name: 'Litext',
     url: 'https://github.com/Lakr233/Litext',
     version: '2.2.2',
@@ -63,7 +69,10 @@ Pod::SPM::UpdateScript::Mixin.prepend(LodySPMFileLists)
 const spmPkg = (pkg) => {
   if (pkg.path)
     return `  spm_pkg "${pkg.name}", :path => File.expand_path("${pkg.path}", __dir__)\n`;
-  return `  spm_pkg "${pkg.name}", :url => "${pkg.url}", :version => "${pkg.version}"\n`;
+  const products = pkg.products
+    ? `, :products => [${pkg.products.map((name) => `"${name}"`).join(', ')}]`
+    : '';
+  return `  spm_pkg "${pkg.name}", :url => "${pkg.url}", :version => "${pkg.version}"${products}\n`;
 };
 
 module.exports = function withMarkdownView(config) {
