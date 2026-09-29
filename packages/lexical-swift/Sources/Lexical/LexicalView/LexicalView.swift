@@ -62,7 +62,6 @@ public extension LexicalViewDelegate {
     self.textView = textViewType.init(editorConfig: editorConfig, featureFlags: featureFlags)
     self.textView.showsVerticalScrollIndicator = false
     self.textView.clipsToBounds = true
-    self.textView.accessibilityTraits = .staticText
     self.placeholderText = placeholderText
 
     guard let textStorage = textView.textStorage as? TextStorage else {

@@ -28,6 +28,11 @@ final class TextKit2Tests: XCTestCase {
     return (view, window)
   }
 
+  func testEditableTextViewIsNotAnnouncedAsStaticText() throws {
+    let (view, _) = try makeView()
+    XCTAssertFalse(view.textView.accessibilityTraits.contains(.staticText))
+  }
+
   func testTextViewUsesTextKit2() throws {
     let (view, _) = try makeView()
     XCTAssertNotNil(view.textView.textLayoutManager)

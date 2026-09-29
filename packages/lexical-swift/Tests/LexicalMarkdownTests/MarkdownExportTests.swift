@@ -49,8 +49,8 @@ private func gfm(_ blocks: String...) throws -> String {
   #expect(try gfm(paragraph(text("code", 17))) == "**`code`**")
 }
 
-@Test func blocksAreSeparatedByBlankLinesAndEmptyParagraphsAddLines() throws {
-  #expect(try gfm(paragraph(text("one")), paragraph(text("two"))) == "one\n\ntwo")
+@Test func paragraphsKeepTheNewlinesTheUserTyped() throws {
+  #expect(try gfm(paragraph(text("one")), paragraph(text("two"))) == "one\ntwo")
   #expect(try gfm(paragraph(text("one")), paragraph(), paragraph(text("two"))) == "one\n\ntwo")
   #expect(try gfm(paragraph(text("one")), paragraph(), paragraph(), paragraph(text("two"))) == "one\n\n\ntwo")
 }
@@ -82,5 +82,5 @@ private func gfm(_ blocks: String...) throws -> String {
 }
 
 @Test func codeBlockBeforeAnotherBlockHasNoTrailingBlankLine() throws {
-  #expect(try gfm(element("code", [text("a")]), paragraph(text("b"))) == "```\na\n```\n\nb")
+  #expect(try gfm(element("code", [text("a")]), paragraph(text("b"))) == "```\na\n```\nb")
 }

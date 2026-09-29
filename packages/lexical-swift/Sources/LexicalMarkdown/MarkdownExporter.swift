@@ -14,13 +14,15 @@ public enum MarkdownTransformer: Sendable {
 public struct MarkdownExporter: Sendable {
   public let transformers: [MarkdownTransformer]
   public let escapesText: Bool
+  public let preservesNewlines: Bool
 
-  public init(transformers: [MarkdownTransformer], escapesText: Bool) {
+  public init(transformers: [MarkdownTransformer], escapesText: Bool, preservesNewlines: Bool = false) {
     self.transformers = transformers
     self.escapesText = escapesText
+    self.preservesNewlines = preservesNewlines
   }
 
-  public static let gfm = MarkdownExporter(transformers: MarkdownTransformer.standard, escapesText: false)
+  public static let gfm = MarkdownExporter(transformers: MarkdownTransformer.standard, escapesText: false, preservesNewlines: true)
 
   public func export(_ editor: Editor) throws -> String {
     var output = ""
@@ -37,7 +39,7 @@ public struct MarkdownExporter: Sendable {
     var output: [String] = []
     for (index, child) in children.enumerated() {
       guard let result = run.topLevel(child) else { continue }
-      let separated = index > 0 && !isEmptyParagraph(child) && !isEmptyParagraph(children[index - 1])
+      let separated = !preservesNewlines && index > 0 && !isEmptyParagraph(child) && !isEmptyParagraph(children[index - 1])
       output.append(separated ? "\n" + result : result)
     }
     return output.joined(separator: "\n")
