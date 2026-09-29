@@ -71,6 +71,15 @@ final class TextKit2Tests: XCTestCase {
     XCTAssertTrue(json.contains(#""format":1"#), json)
   }
 
+  func testInsertingMultilineTextKeepsEveryLine() throws {
+    let (view, _) = try makeView()
+    view.textView.insertText("start ")
+    view.textView.insertText("a\nb\n\nc")
+    XCTAssertEqual(view.textView.text, "start a\nb\n\nc")
+    view.textView.insertText("!")
+    XCTAssertEqual(view.textView.text, "start a\nb\n\nc!")
+  }
+
   func testTextViewUsesTextKit2() throws {
     let (view, _) = try makeView()
     XCTAssertNotNil(view.textView.textLayoutManager)
