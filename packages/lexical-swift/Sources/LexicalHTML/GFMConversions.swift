@@ -2,6 +2,7 @@ import Foundation
 import Lexical
 import LexicalLinkPlugin
 import LexicalListPlugin
+import LexicalMarkdown
 
 extension HTMLImport {
   public static let gfm = HTMLImport(conversions: [
@@ -228,7 +229,7 @@ private func isChecklist(_ node: DOMNode) -> Bool {
 private func convertList(_ node: DOMNode) -> DOMConversionOutput {
   let list: ListNode
   if node.name == "OL" {
-    list = createListNode(listType: .number, start: Int(node.attributes["start"] ?? "") ?? 1)
+    list = createListNode(listType: .number, start: clampedListStart(node.attributes["start"] ?? "") ?? 1)
   } else if isChecklist(node) {
     list = createListNode(listType: .check)
   } else {

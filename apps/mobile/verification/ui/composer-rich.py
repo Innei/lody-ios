@@ -1,5 +1,6 @@
 """Markdown shortcuts format in place, send as Markdown, and survive a rejected send."""
 import json
+import time
 import sys
 from driver import UI
 
@@ -32,6 +33,12 @@ ui.axe('key-combo', '--modifiers', '227', '--key', '4')
 ui.axe('key-combo', '--modifiers', '227', '--key', '6')
 ui.axe('key', '79')
 ui.axe('key-combo', '--modifiers', '227', '--key', '25')
+for _ in range(20):
+    if value().count('bold and code') == 2:
+        break
+    if any(item.get('AXLabel') == 'Allow Paste' for item in ui.state()):
+        ui.axe('tap', '--label', 'Allow Paste', '--post-delay', '.5')
+    time.sleep(.3)
 ui.wait(lambda items: value().count('bold and code') == 2, f'Copied composer text did not paste back as text: {value()!r}')
 ui.capture('pasted')
 print('PASS: in-place shortcuts, Markdown send body, formatted restore after rejection and copy/paste as text')

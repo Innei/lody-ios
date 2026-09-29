@@ -173,6 +173,13 @@ extension MarkdownElementImport {
   }
 }
 
+// Pasted content controls the start number; exporting start + index must not overflow.
+public func clampedListStart(_ value: String) -> Int? {
+  let digits = value.trimmingCharacters(in: .whitespaces)
+  guard !digits.isEmpty, digits.allSatisfy(\.isNumber) else { return Int(digits).map { min(max($0, 0), 999_999_999) } }
+  return min(Int(digits) ?? Int.max, 999_999_999)
+}
+
 private func importListItem(_ type: ListType, _ paragraph: ElementNode, _ children: [Node], _ match: [String]) throws -> Bool {
   let item = ListItemNode()
   if type == .check { try item.setChecked(match[3] == "x") }
@@ -180,7 +187,7 @@ private func importListItem(_ type: ListType, _ paragraph: ElementNode, _ childr
     try previous.append([item])
     try paragraph.remove()
   } else {
-    let list = createListNode(listType: type, start: type == .number ? Int(match[2]) ?? 1 : 1)
+    let list = createListNode(listType: type, start: type == .number ? clampedListStart(match[2]) ?? 1 : 1)
     try list.append([item])
     _ = try paragraph.replace(replaceWith: list)
   }

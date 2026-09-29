@@ -343,7 +343,7 @@ final class ChatComposerInput: TextView {
       let trial = await Task.detached { try? RichPaste.gfm.trial(sources, for: job.editor) }.value
       guard let self, self.isEditable else { return }
       guard let trial else {
-        if !plainTextOnly { self.pasteProviders(providers) }
+        if !plainTextOnly && sources.isEmpty { self.pasteProviders(providers) }
         return
       }
       let paste = ComposerPaste(trial: trial, plainText: sources.first { $0.kind == .plain }?.text)
@@ -352,11 +352,14 @@ final class ChatComposerInput: TextView {
     }
   }
 
-  func insertPaste(_ paste: ComposerPaste, at location: Int? = nil) {
+  @discardableResult
+  func insertPaste(_ paste: ComposerPaste, at location: Int? = nil) -> Bool {
     if let location { selectedRange = NSRange(location: min(location, (text as NSString).length), length: 0) }
-    guard delegate?.textView?(self, shouldChangeTextIn: selectedRange, replacementText: paste.trial.markdown) != false else { return }
-    try? RichPaste.gfm.insert(paste.trial, into: editor)
+    guard delegate?.textView?(self, shouldChangeTextIn: selectedRange, replacementText: paste.trial.markdown) != false,
+      (try? RichPaste.gfm.insert(paste.trial, into: editor)) != nil
+    else { return false }
     delegate?.textViewDidChange?(self)
+    return true
   }
 
   private func pasteProviders(_ providers: [NSItemProvider]) {
@@ -1003,9 +1006,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   }
 
   private func undoPastedTextFile(id: String, paste: ComposerPaste, location: Int) {
-    guard pendingDraft == nil, let index = attachments.firstIndex(where: { $0.id == id }) else { return }
+    guard pendingDraft == nil, let index = attachments.firstIndex(where: { $0.id == id }), input.insertPaste(paste, at: location) else { return }
     attachments.remove(at: index)
-    input.insertPaste(paste, at: location)
     updateComposer()
     saveDraft()
   }

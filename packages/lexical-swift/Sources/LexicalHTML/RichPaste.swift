@@ -22,6 +22,7 @@ public struct RichPaste: Sendable {
     public let source: PasteKind
     public let nodes: Data
     public let markdown: String
+    public let plainText: String?
   }
 
   public enum PasteError: Error {
@@ -56,12 +57,13 @@ public struct RichPaste: Sendable {
       case .markdown: nodes = try markdown.generateNodes(source.text)
       case .plain: nodes = try plainTextNodes(source.text)
       }
-      guard !nodes.isEmpty, count(nodes) <= Self.maxNodes else { return }
+      guard !nodes.isEmpty, source.kind == .plain || count(nodes) <= Self.maxNodes else { return }
       try flattenNestedCode(nodes)
       let encoded = try JSONEncoder().encode(nodes)
       try root.getChildren().forEach { try $0.remove() }
       try root.append(wrapInlines(nodes))
-      result = Trial(source: source.kind, nodes: encoded, markdown: exporter.export(root))
+      let plain = source.kind == .plain ? source.text.replacingOccurrences(of: "\r\n", with: "\n") : nil
+      result = Trial(source: source.kind, nodes: encoded, markdown: exporter.export(root), plainText: plain)
     }
     return result
   }
@@ -69,6 +71,11 @@ public struct RichPaste: Sendable {
   public func insert(_ trial: Trial, into editor: Editor) throws {
     try editor.update {
       guard let selection = try getSelection() as? RangeSelection else { throw PasteError.noSelection }
+      // Plain text keeps the caret's block and format, so lines stay inside code blocks and list items.
+      if let plainText = trial.plainText {
+        try selection.insertText(plainText)
+        return
+      }
       let nodes = try JSONDecoder().decode(SerializedNodeArray.self, from: trial.nodes).nodeArray
       if nodes.allSatisfy(isInline) {
         _ = try selection.insertNodes(nodes: nodes, selectStart: false)

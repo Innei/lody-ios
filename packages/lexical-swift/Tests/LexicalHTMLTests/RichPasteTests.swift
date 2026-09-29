@@ -141,3 +141,53 @@ private func markdown(_ editor: Editor) throws -> String {
   }
   #expect(result == "*styled* paste")
 }
+
+@Test func hugePlainTextStillTrials() throws {
+  let editor = try makeEditor()
+  let log = (1...3000).map { "line \($0)" }.joined(separator: "\n")
+  let trial = try RichPaste.gfm.trial([PasteSource(kind: .plain, text: log)], for: editor)
+  #expect(trial.source == .plain)
+  #expect(trial.markdown == log)
+}
+
+@Test func listStartNumbersAreClamped() throws {
+  let editor = try makeEditor()
+  let html = try RichPaste.gfm.trial([PasteSource(kind: .html, text: "<ol start=\"9223372036854775807\"><li>a</li><li>b</li></ol>")], for: editor)
+  #expect(html.markdown == "999999999. a\n1000000000. b")
+  let md = try RichPaste.gfm.trial([PasteSource(kind: .markdown, text: "99999999999999999999. a")], for: editor)
+  #expect(md.markdown == "999999999. a")
+}
+
+@Test func multilinePlainTextStaysInsideCodeAndListItems() throws {
+  let editor = try makeEditor()
+  try editor.update {
+    guard let root = getRoot() else { return }
+    try root.getChildren().forEach { try $0.remove() }
+    let code = createCodeNode()
+    let text = createTextNode(text: "x")
+    try code.append([text])
+    try root.append([code])
+    _ = try text.select(anchorOffset: 1, focusOffset: 1)
+  }
+  try RichPaste.gfm.insert(try RichPaste.gfm.trial([PasteSource(kind: .plain, text: "a\nb")], for: editor), into: editor)
+  let code = try markdown(editor)
+  #expect(code == "```\nxa\nb\n```")
+
+  let list = try makeEditor()
+  try list.update {
+    guard let root = getRoot() else { return }
+    try root.getChildren().forEach { try $0.remove() }
+    let item = ListItemNode()
+    let text = createTextNode(text: "x")
+    try item.append([text])
+    let node = createListNode(listType: .bullet)
+    try node.append([item])
+    try root.append([node])
+    _ = try text.select(anchorOffset: 1, focusOffset: 1)
+  }
+  try RichPaste.gfm.insert(try RichPaste.gfm.trial([PasteSource(kind: .plain, text: "a\nb")], for: list), into: list)
+  var items = 0
+  try list.read { items = (getRoot()?.getFirstChild() as? ElementNode)?.getChildrenSize() ?? 0 }
+  #expect(items == 1)
+  #expect(try markdown(list).hasPrefix("- xa"))
+}

@@ -1426,3 +1426,28 @@ let copyBoard = UIPasteboard.withUniqueName()
 copyBoard.setMessageMarkdown("**copied**")
 precondition(copyBoard.contains(pasteboardTypes: ["net.daringfireball.markdown", UTType.utf8PlainText.identifier]), "Copied messages must carry Markdown")
 print("Rich composer: copied messages carry the Markdown type")
+
+let (logComposer, logInput) = makeRichComposer()
+var logAttachments: [[String: String]] = []
+logComposer.onSend = { logAttachments = $0["attachments"] as! [[String: String]] }
+logInput.paste(itemProviders: [richProvider([(UTType.utf8PlainText.identifier, (1...3000).map { "log \($0)" }.joined(separator: "\n"))])])
+waitFor { descendants(logComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }?.isEnabled == true }
+LodyToastOverlay.shared.dismiss()
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+tapSend(on: logComposer)
+precondition(logAttachments.first?["name"] == "Text.txt" && logInput.text.isEmpty, "A 3,000-line log must become Text.txt, got \(logAttachments)")
+
+let (bigComposer, bigInput) = makeRichComposer()
+bigInput.paste(itemProviders: [richProvider([(UTType.utf8PlainText.identifier, String(repeating: "z", count: 40000))])])
+var bigUndo: UIButton?
+waitFor {
+  bigUndo = allWindows().flatMap(descendants).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "lody.toast.undo" }
+  return bigUndo != nil
+}
+LodyToastOverlay.shared.performFrontAction()
+RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+var bigAttachments: [[String: String]] = []
+bigComposer.onSend = { bigAttachments = $0["attachments"] as! [[String: String]] }
+tapSend(on: bigComposer)
+precondition(bigAttachments.first?["name"] == "Text.txt", "Undo that cannot insert must keep the file, got \(bigAttachments)")
+print("Rich composer: huge logs become Text.txt and a refused undo keeps the file")
