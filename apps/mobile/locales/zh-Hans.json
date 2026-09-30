@@ -998,5 +998,7 @@
   "native.simulator.button.volume-up": "音量加",
   "native.simulator.button.volume-down": "音量减",
   "native.simulator.button.power": "侧边按钮",
-  "simulator.chooseAnother": "选择其他模拟器"
+  "simulator.chooseAnother": "选择其他模拟器",
+  "native.simulator.expand": "展开模拟器预览",
+  "native.simulator.close": "关闭模拟器预览"
 }

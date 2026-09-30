@@ -686,3 +686,16 @@ text replacement and unavailable actions for nontext or read-only inputs.
 Sheet, recorded configuration, exact token breakdown, absent metadata, late usage
 updates while open and the independent message-action menu in English light/dark
 appearances. Screenshots and video cover the states; no cloud turn is sent.
+
+`simulator-preview` uses the production preview hook, full-screen host, floating
+chat host and JPEG decoder with a local native frame source. It checks that the
+same renderer and connection survive return/expand, dragging stays within the
+chat, the keyboard stays clear, drafts survive, and close/reopen creates a fresh
+stream. Light/dark screenshots and video cover the transitions. This fixture
+requires neither cloud access nor a connected computer; it does not prove the
+remote tunnel's availability or background network continuity.
+It also cancels an interactive return, changes the selected device, stops sharing,
+and re-enters the chat; the fixture's active-source counter must stay at one, so
+an abandoned renderer cannot keep running unnoticed.
+Native presentation-layer traces verify fade blur in on each return, removal of
+the entrance blur, and no replay during dragging or keyboard layout changes.

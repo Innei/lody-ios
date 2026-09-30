@@ -22,6 +22,7 @@ import { ComposerPreviewScreen } from './ComposerPreviewScreen';
 import { EditMessagePreviewScreen } from './EditMessagePreviewScreen';
 import { ComposerHandoffPreviewScreen } from './ComposerHandoffPreviewScreen';
 import { ChatPreviewScreen } from './ChatPreviewScreen';
+import { SimulatorPreviewScreen } from './SimulatorPreviewScreen';
 import { ChatPerformanceScreen } from './ChatPerformanceScreen';
 import { ChatStreamPerformanceScreen } from './ChatStreamPerformanceScreen';
 import { BannerPreviewScreen } from './BannerPreviewScreen';
@@ -209,6 +210,7 @@ function View() {
           'Agent 错误预览',
           'exclamationmark.circle',
         ),
+        openRow('simulator-preview', 'Simulator floating preview', 'iphone'),
         openRow('chat-preview', '原生聊天预览', 'bubble.left.and.bubble.right'),
         openRow('chat-shine-preview', '过程高光', 'sparkle'),
         openRow('banner-preview', '会话横幅', 'bell.badge'),
@@ -367,6 +369,7 @@ function View() {
       ),
     'agent-error-preview': () => void present(AgentErrorPreviewScreen, {}),
     'edit-message-preview': () => void present(EditMessagePreviewScreen),
+    'simulator-preview': () => void present(SimulatorPreviewScreen),
     'chat-preview': () => void present(ChatPreviewScreen, {}),
     'chat-shine-preview': () => void present(ShinePreviewScreen, {}),
     'banner-preview': () => void present(BannerPreviewScreen, {}),

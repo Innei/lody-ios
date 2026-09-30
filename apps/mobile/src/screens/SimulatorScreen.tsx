@@ -4,6 +4,7 @@ import type { HeaderBarButtonItemMenuAction } from 'react-native-screens';
 import {
   NativeNavigationHeader,
   SimulatorView,
+  type SimulatorSource,
   openPreviewBrowser,
 } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
@@ -12,7 +13,7 @@ import { usePalette } from '@/lib/theme/palette';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { t, type TranslationKey } from '../lib/i18n/index.ts';
 
-export type SimulatorParams = { url: string; udid: string; name: string };
+export type SimulatorParams = SimulatorSource;
 
 type Action = { id: string; key: TranslationKey; symbol: string };
 
@@ -69,10 +70,7 @@ function View() {
   const { params } = usePageRuntime<SimulatorParams>();
   const colors = usePalette();
   const [command, setCommand] = useState({ token: 0, action: '' });
-  const source = useMemo(
-    () => JSON.stringify({ url: params.url, udid: params.udid }),
-    [params.url, params.udid],
-  );
+  const source = useMemo(() => JSON.stringify(params), [params]);
   const headerItems = useMemo<HeaderItems>(() => {
     const run = (action: string) => {
       if (action === 'browser') {

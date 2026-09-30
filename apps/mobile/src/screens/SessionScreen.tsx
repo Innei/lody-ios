@@ -749,6 +749,7 @@ function View() {
       <NativeNavigationHeader items={headerItems} />
       <DiffWebViewWarmer />
       <NativeChat
+        simulatorPreviewJSON={preview.simulatorPreviewJSON}
         turnInfoEnabled
         onTurnInfoPress={({ nativeEvent }) =>
           openMessageDetails(nativeEvent.entryId)

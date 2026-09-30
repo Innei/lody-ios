@@ -14,6 +14,8 @@ import UIKit
   let display = DisplayView()
   let seed = UIImageView()
   private let body = UIView()
+  var bodyFrame: CGRect { body.frame }
+  var bodyCornerRadius: CGFloat { body.layer.cornerRadius }
   private var buttons: [(UIButton, SimulatorDefinition.Button)] = []
   var onButton: (([String: String]) -> Void)?
 

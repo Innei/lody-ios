@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ActionSheetIOS, Alert } from 'react-native';
 import {
   copyText,
@@ -6,6 +6,7 @@ import {
   previewSimulators,
   sessionPreview,
   type SessionPreviewReply,
+  type SimulatorSource,
 } from '@lody-ios/kit';
 import { present } from '@/lib/presentation';
 import { showToast } from '@/ui/toast';
@@ -46,21 +47,30 @@ function pickSimulator(devices: Simulator[]) {
   });
 }
 
-export function useSessionPreview(sessionId: string, summary?: Summary) {
+const previewService = { sessionPreview, previewSimulators };
+
+export function useSessionPreview(
+  sessionId: string,
+  summary?: Summary,
+  service = previewService,
+) {
+  const streamId = useId();
+  const [stream, setStream] = useState<SimulatorSource>();
   const [phase, setPhase] = useState<Phase>('idle');
   const [failure, setFailure] = useState('');
   const [simulator, setSimulator] = useState(chosenSimulators.get(sessionId));
   const busy = useRef(false);
   useEffect(() => {
     setPhase('idle');
+    setStream(undefined);
     setSimulator(chosenSimulators.get(sessionId));
   }, [sessionId]);
 
   const create = useCallback(async () => {
     setPhase('connecting');
-    const reply: SessionPreviewReply = await sessionPreview(sessionId).catch(
-      () => ({ error: 'failed' }),
-    );
+    const reply: SessionPreviewReply = await service
+      .sessionPreview(sessionId)
+      .catch(() => ({ error: 'failed' }));
     if (reply.url) {
       setPhase('idle');
       return reply.url;
@@ -69,13 +79,19 @@ export function useSessionPreview(sessionId: string, summary?: Summary) {
     setFailure(failureText(reply));
     Alert.alert(t('session.preview.failed'), failureText(reply));
     return undefined;
-  }, [sessionId]);
+  }, [service, sessionId]);
+
+  const expand = useCallback(async (source: SimulatorSource) => {
+    const { SimulatorScreen } = await import('@/screens/SimulatorScreen');
+    await present(SimulatorScreen, source, { title: source.name });
+  }, []);
 
   const open = useCallback(
     async (choose = false) => {
+      if (!choose && stream) return expand(stream);
       const url = await create();
       if (!url) return;
-      const devices = await previewSimulators(url).catch(() => []);
+      const devices = await service.previewSimulators(url).catch(() => []);
       if (!devices.length) {
         await openPreviewBrowser(url);
         return;
@@ -95,21 +111,23 @@ export function useSessionPreview(sessionId: string, summary?: Summary) {
       if (!choice) return;
       chosenSimulators.set(sessionId, choice);
       setSimulator(choice);
-      const { SimulatorScreen } = await import('@/screens/SimulatorScreen');
-      await present(
-        SimulatorScreen,
-        { url, udid: choice.udid, name: choice.name },
-        { title: choice.name },
-      );
+      const source = { url, ...choice, streamId: `${streamId}:${choice.udid}` };
+      setStream(source);
+      await expand(source);
     },
-    [create, sessionId],
+    [create, expand, service, sessionId, stream, streamId],
   );
 
   const onPreview = useCallback(
     (action: string) => {
+      if (action === 'close') {
+        setStream(undefined);
+        return;
+      }
       if (busy.current) return;
       busy.current = true;
       const run = async () => {
+        if (action === 'expand' && stream) await expand(stream);
         if (action === 'open') await open();
         if (action === 'choose') await open(true);
         if (action === 'browser') {
@@ -124,19 +142,22 @@ export function useSessionPreview(sessionId: string, summary?: Summary) {
           }
         }
         if (action === 'stop') {
-          const reply = await sessionPreview(sessionId, 'revoke').catch(
-            () => ({ error: 'failed' }) as SessionPreviewReply,
-          );
+          const reply = await service
+            .sessionPreview(sessionId, 'revoke')
+            .catch(() => ({ error: 'failed' }) as SessionPreviewReply);
           if (reply.error)
             Alert.alert(t('session.preview.failed'), failureText(reply));
-          else showToast(t('session.preview.stopped'), 'info');
+          else {
+            setStream(undefined);
+            showToast(t('session.preview.stopped'), 'info');
+          }
         }
       };
       void run().finally(() => {
         busy.current = false;
       });
     },
-    [create, open, sessionId],
+    [create, expand, open, service, sessionId, stream],
   );
 
   const chip = summary
@@ -184,5 +205,9 @@ export function useSessionPreview(sessionId: string, summary?: Summary) {
       }
     : undefined;
 
-  return { chip, onPreview };
+  return {
+    chip,
+    onPreview,
+    simulatorPreviewJSON: stream ? JSON.stringify(stream) : '',
+  };
 }

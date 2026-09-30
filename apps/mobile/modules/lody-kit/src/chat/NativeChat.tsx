@@ -13,6 +13,7 @@ export type ChatDraftAttachment = {
 export const NativeChat: ComponentType<
   ViewProps & {
     entriesJSON: string;
+    simulatorPreviewJSON?: string;
     editableMessageId?: string;
     editedMessageId?: string;
     onEditMessage?: (event: NativeSyntheticEvent<{ entryId: string }>) => void;

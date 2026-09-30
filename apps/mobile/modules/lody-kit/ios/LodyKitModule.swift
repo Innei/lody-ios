@@ -662,6 +662,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }
 
     View(LodyChatView.self) {
+      Prop("simulatorPreviewJSON") { (view: LodyChatView, value: String) in view.setSimulatorPreview(value) }
       Prop("imageSharingEnabled") { (view: LodyChatView, value: Bool) in view.imageSharingEnabled = value }
       Prop("findRequestJSON") { (view: LodyChatView, value: String) in view.setFindRequest(value) }
       Prop("debugStreamBenchmarkRun") { (view: LodyChatView, value: Int) in

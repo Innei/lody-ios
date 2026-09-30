@@ -84,6 +84,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   let onRetrySend = EventDispatcher()
   let onTitlePress = EventDispatcher()
   let onPreview = EventDispatcher()
+  private let simulatorPreview = SimulatorPreview(frame: .zero)
+
+  func setSimulatorPreview(_ json: String) {
+    simulatorPreview.setSource(json)
+  }
   let onTitleMenu = EventDispatcher()
   let onComposerOptionChange = EventDispatcher()
   let onMentionBrowse = EventDispatcher()
@@ -408,6 +413,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     composer.onSteer = { [weak self] in self?.onSteer(["id": $0]) }
     composer.onReconnect = { [weak self] in self?.onReconnect([:]) }
     composer.onPreview = { [weak self] in self?.onPreview(["action": $0]) }
+    addSubview(simulatorPreview)
+    simulatorPreview.onAction = { [weak self] in self?.onPreview(["action": $0]) }
     composer.onMentionBrowse = { [weak self] in self?.onMentionBrowse($0) }
     composer.onComposerOptionChange = { [weak self] in self?.onComposerOptionChange($0) }
     empty.numberOfLines = 0
@@ -467,6 +474,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   override func layoutSubviews() {
     super.layoutSubviews()
     layoutFind()
+    simulatorPreview.layout(in: CGRect(
+      x: safeAreaInsets.left, y: safeAreaInsets.top,
+      width: bounds.width - safeAreaInsets.left - safeAreaInsets.right,
+      height: max(0, composer.frame.minY - safeAreaInsets.top - 40)))
+    bringSubviewToFront(simulatorPreview)
     adoptComposerIfNeeded()
     bindScrollOwnerIfNeeded()
     attachTitle()

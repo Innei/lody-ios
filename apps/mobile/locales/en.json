@@ -998,5 +998,7 @@
   "native.simulator.button.volume-up": "Volume Up",
   "native.simulator.button.volume-down": "Volume Down",
   "native.simulator.button.power": "Side Button",
-  "simulator.chooseAnother": "Choose Another Simulator"
+  "simulator.chooseAnother": "Choose Another Simulator",
+  "native.simulator.expand": "Expand Simulator preview",
+  "native.simulator.close": "Close Simulator preview"
 }

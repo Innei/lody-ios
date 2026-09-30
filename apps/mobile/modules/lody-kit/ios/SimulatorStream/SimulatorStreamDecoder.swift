@@ -14,6 +14,11 @@ import UIKit
   private var awaitingKeyFrame = true
   var onOutput: ((Output) -> Void)?
 
+  func reset() {
+    format = nil
+    awaitingKeyFrame = true
+  }
+
   func handle(_ data: Data) {
     guard data.count > 1 else { return }
     let type = data[data.startIndex]
