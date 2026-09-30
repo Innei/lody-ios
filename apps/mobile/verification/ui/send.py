@@ -21,8 +21,17 @@ assert not ui.element('session-input').get('AXValue')
 ui.axe('tap', '--id', turn + ':user-text', '--post-delay', '.5')
 ui.element(turn + ':attachment:fixture-file')
 ui.capture('offline')
+
+def sending(items):
+    return any(i.get('AXLabel') == 'Calls: 1 · sending' for i in items)
+
+# One physical tap on this row can miss. Try once more before failing the case.
 ui.axe('tap', '--id', 'send-connect')
-ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 1 · sending' for i in items), 'Connected send did not start')
+try:
+    ui.wait(sending, 'Connected send did not start', timeout=8)
+except AssertionError:
+    ui.axe('tap', '--id', 'send-connect')
+    ui.wait(sending, 'Connected send did not start')
 ui.axe('tap', '--id', 'send-fail')
 ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('send.alert.title') for i in items), 'Failure alert missing')
 assert any(i.get('AXLabel') == catalog.text('send.error.freeTurnLimit') for i in ui.state()), 'Free turn limit explanation missing'

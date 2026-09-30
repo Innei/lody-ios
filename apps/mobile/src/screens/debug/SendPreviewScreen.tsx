@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   NativeChat,
   NativeComposer,
@@ -28,6 +29,7 @@ const session: Session = {
   cliType: 'builtin',
   agentType: 'fixture',
 };
+const fixtureControl = { minWidth: 44 };
 const attachment = {
   id: 'fixture-file',
   name: 'fixture.txt',
@@ -141,6 +143,7 @@ function SendPreview() {
     status: queue ? 'running' : session.status,
   };
   const colors = usePalette();
+  const insets = useSafeAreaInsets();
   const outbox = usePendingSends('ui-send-preview', 'fixture');
   const record = outbox.records.find(
     (entry) => entry.session.id === session.id,
@@ -455,7 +458,9 @@ function SendPreview() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <View
         style={{
-          paddingTop: 108,
+          // The transparent navigation bar's hit region extends past its title.
+          // Keep these controls clear of it so a physical tap reaches the button.
+          paddingTop: Math.max(insets.top + 72, 140),
           paddingHorizontal: 16,
           flexDirection: 'row',
           gap: 8,
@@ -463,6 +468,7 @@ function SendPreview() {
       >
         <Button
           testID="send-connect"
+          style={fixtureControl}
           onPress={() => {
             setConnected(true);
             setSnapshot((old) => ({ ...old, status: 'live' }));
@@ -470,21 +476,38 @@ function SendPreview() {
         >
           连接
         </Button>
-        <Button testID="send-complete" onPress={() => complete(false)}>
+        <Button
+          testID="send-complete"
+          style={fixtureControl}
+          onPress={() => complete(false)}
+        >
           确认
         </Button>
-        <Button testID="send-fail" onPress={() => complete(true)}>
+        <Button
+          testID="send-fail"
+          style={fixtureControl}
+          onPress={() => complete(true)}
+        >
           失败
         </Button>
-        <Button testID="send-start-reply" onPress={() => reply(false)}>
+        <Button
+          testID="send-start-reply"
+          style={fixtureControl}
+          onPress={() => reply(false)}
+        >
           开始回复
         </Button>
-        <Button testID="send-reply" onPress={() => reply(true)}>
+        <Button
+          testID="send-reply"
+          style={fixtureControl}
+          onPress={() => reply(true)}
+        >
           回复
         </Button>
         {!queue && (
           <Button
             testID="send-toggle-pending"
+            style={fixtureControl}
             onPress={() =>
               record
                 ? void outbox.remove(session.id)
