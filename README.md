@@ -7,7 +7,7 @@
     <img src="https://img.shields.io/badge/Platform-iOS%2026%2B-blue?style=flat-square&logo=apple" alt="Platform" />
     <img src="https://img.shields.io/badge/Expo-SDK%2057-000020?style=flat-square&logo=expo" alt="Expo SDK 57" />
     <img src="https://img.shields.io/badge/React%20Native-0.86-61dafb?style=flat-square&logo=react" alt="React Native 0.86" />
-    <img src="https://img.shields.io/badge/Swift-5.9-f05138?style=flat-square&logo=swift" alt="Swift 5.9" />
+    <img src="https://img.shields.io/badge/Swift-6.0-f05138?style=flat-square&logo=swift" alt="Swift 6.0" />
     <img src="https://img.shields.io/badge/CRDT-Loro%20%26%20Flock-orange?style=flat-square" alt="CRDT" />
     <img src="https://img.shields.io/badge/License-AGPL--3.0--only-blue?style=flat-square" alt="License: AGPL-3.0-only" />
   </p>
