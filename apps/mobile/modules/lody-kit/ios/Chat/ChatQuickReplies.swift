@@ -1,3 +1,4 @@
+import SwiftUI
 import UIKit
 
 struct ChatQuickReply: Decodable, Equatable {
@@ -20,13 +21,109 @@ struct ChatPreviewChip: Decodable, Equatable {
   var actions: [Action]?
 }
 
+struct ChatContextChipContent: View {
+  var label = ""
+  var symbol = "safari"
+  var connecting = false
+  var dimmed = false
+  var compact = false
+
+  var body: some View {
+    HStack(spacing: 6) {
+      ZStack {
+        if connecting {
+          ProgressView().controlSize(.small).transition(.blurReplace)
+        } else {
+          Image(systemName: symbol)
+            .imageScale(.small)
+            .contentTransition(.symbolEffect(.replace))
+            .transition(.blurReplace)
+        }
+      }
+      if !compact {
+        Text(label)
+          .lineLimit(1)
+          .truncationMode(.middle)
+          .contentTransition(.interpolate)
+          .transition(.blurReplace)
+      }
+    }
+    .font(.subheadline.weight(.semibold))
+    .foregroundStyle(Color(uiColor: dimmed ? .secondaryLabel : .systemBlue))
+    .padding(.leading, compact ? 0 : 10)
+    .padding(.trailing, compact ? 0 : 12)
+  }
+}
+
+final class ChatContextChipButton: UIButton {
+  private let hosting = UIHostingController(rootView: ChatContextChipContent())
+  private let clip = UIView()
+  private var width: NSLayoutConstraint!
+  private var height: NSLayoutConstraint!
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    var configuration = UIButton.Configuration.glass()
+    configuration.cornerStyle = .capsule
+    configuration.contentInsets = .zero
+    self.configuration = configuration
+    hosting.safeAreaRegions = []
+    hosting.sizingOptions = []
+    hosting.view.backgroundColor = .clear
+    hosting.view.isOpaque = false
+    hosting.view.isUserInteractionEnabled = false
+    hosting.view.accessibilityElementsHidden = true
+    clip.clipsToBounds = true
+    clip.isUserInteractionEnabled = false
+    clip.layer.cornerCurve = .continuous
+    clip.addSubview(hosting.view)
+    addSubview(clip)
+    accessibilityIdentifier = "session-preview"
+    translatesAutoresizingMaskIntoConstraints = false
+    width = widthAnchor.constraint(equalToConstant: ChatQuickRepliesView.chipHeight)
+    height = heightAnchor.constraint(equalToConstant: ChatQuickRepliesView.chipHeight)
+    NSLayoutConstraint.activate([width, height])
+  }
+
+  required init?(coder: NSCoder) { fatalError() }
+
+  func apply(_ content: ChatContextChipContent, animation: Animation?) {
+    if let animation {
+      withAnimation(animation) { hosting.rootView = content }
+    } else {
+      var transaction = Transaction()
+      transaction.disablesAnimations = true
+      withTransaction(transaction) { hosting.rootView = content }
+    }
+    let chip = ChatQuickRepliesView.chipHeight
+    let fitting = hosting.sizeThatFits(in: CGSize(width: 220, height: chip))
+    height.constant = chip
+    width.constant = content.compact ? chip : min(220, max(chip, ceil(fitting.width)))
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    clip.frame = bounds
+    clip.layer.cornerRadius = bounds.height / 2
+    // The capsule springs toward its new width; the content already sits at that width from the
+    // leading edge so the clip reveals it instead of SwiftUI re-centering it every frame.
+    UIView.performWithoutAnimation {
+      hosting.view.frame = CGRect(x: 0, y: 0, width: width.constant, height: bounds.height)
+    }
+    bringSubviewToFront(clip)
+  }
+}
+
 final class ChatQuickRepliesView: UIScrollView {
   static var titleFont: UIFont { UIFont.preferredFont(forTextStyle: .subheadline) }
   static var chipHeight: CGFloat { titleFont.lineHeight + 16 }
 
   private let stack = UIStackView()
+  private let separator = UIView()
+  private lazy var separatorWidth = separator.widthAnchor.constraint(equalToConstant: 1)
+  private var contextChip: ChatContextChipButton?
   private var rendered: [ChatQuickReply] = []
-  private var renderedPreview: ChatPreviewChip?
+  private var renderedActions: [ChatPreviewChip.Action]?
   private var buttons: [UIButton] = []
   var onSelect: ((String) -> Void)?
   var onPreview: ((String) -> Void)?
@@ -42,6 +139,10 @@ final class ChatQuickRepliesView: UIScrollView {
     stack.axis = .horizontal
     stack.alignment = .center
     stack.spacing = 8
+    separator.backgroundColor = .separator
+    separator.isHidden = true
+    separator.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([separatorWidth, separator.heightAnchor.constraint(equalToConstant: 20)])
     stack.translatesAutoresizingMaskIntoConstraints = false
     addSubview(stack)
     NSLayoutConstraint.activate([
@@ -55,33 +156,104 @@ final class ChatQuickRepliesView: UIScrollView {
 
   required init?(coder: NSCoder) { fatalError() }
 
-  func render(_ items: [ChatQuickReply], preview: ChatPreviewChip? = nil, visible: Bool, animated: Bool = false) {
-    let showsReplies = visible && (!items.isEmpty || preview != nil)
-    let visibilityChanged = isUserInteractionEnabled != showsReplies
-    isUserInteractionEnabled = showsReplies
-    accessibilityElementsHidden = !showsReplies
+  func render(_ items: [ChatQuickReply], context: ChatPreviewChip?, showsReplies: Bool, compact: Bool, visible: Bool, animated: Bool = false) {
+    let showsRow = visible && (context != nil || (showsReplies && !items.isEmpty))
+    let visibilityChanged = isUserInteractionEnabled != showsRow
+    let motion = animated && window != nil && !UIAccessibility.isReduceMotionEnabled
+    isUserInteractionEnabled = showsRow
+    accessibilityElementsHidden = !showsRow
     if visibilityChanged {
-      if showsReplies { isHidden = false }
-      let update = { self.alpha = showsReplies ? 1 : 0 }
-      if animated && window != nil && !UIAccessibility.isReduceMotionEnabled {
+      if showsRow { isHidden = false }
+      let update = { self.alpha = showsRow ? 1 : 0 }
+      if motion {
         UIView.animate(withDuration: 0.15, delay: 0, options: [.beginFromCurrentState, .curveEaseOut], animations: update) { _ in
           self.isHidden = !self.isUserInteractionEnabled
         }
       } else {
         update()
-        isHidden = !showsReplies
+        isHidden = !showsRow
       }
     }
-    guard items != rendered || preview != renderedPreview else { return }
-    rendered = items
-    renderedPreview = preview
-    contentOffset = .zero
-    for view in stack.arrangedSubviews { view.removeFromSuperview() }
-    buttons.removeAll()
-    if let preview { stack.addArrangedSubview(previewChip(preview)) }
-    for item in items {
-      stack.addArrangedSubview(chip(item))
+    let swaps = motion && contextChip?.isHidden == false
+    let repliesShown = showsReplies || !showsRow
+    let contextAppears = context != nil && contextChip?.isHidden != false
+    var retiring: [UIView] = []
+    if items != rendered {
+      rendered = items
+      contentOffset = .zero
+      retiring = stack.arrangedSubviews.filter { $0 is UIButton && $0 !== contextChip }
+      retiring.forEach { $0.isUserInteractionEnabled = false }
+      buttons.removeAll { $0 !== contextChip }
+      UIView.performWithoutAnimation {
+        for item in items {
+          let button = chip(item)
+          if swaps || !repliesShown { button.isHidden = true; button.alpha = 0 }
+          stack.addArrangedSubview(button)
+        }
+        stack.layoutIfNeeded()
+      }
+      if !swaps { retiring.forEach { $0.removeFromSuperview() } }
     }
+    if let context { updateContext(context, compact: compact, motion: motion) }
+    let layout = {
+      self.show(self.contextChip, context != nil)
+      self.show(self.separator, context != nil && repliesShown && !items.isEmpty)
+      for button in self.buttons where button !== self.contextChip { self.show(button, repliesShown) }
+      for view in retiring where view.superview != nil { self.show(view, false) }
+      if contextAppears { self.contentOffset.x = 0 }
+      self.layoutIfNeeded()
+    }
+    if motion && contextChip?.window != nil {
+      UIView.animate(Self.motion, changes: layout) { retiring.forEach { $0.removeFromSuperview() } }
+    } else {
+      layout()
+      retiring.forEach { $0.removeFromSuperview() }
+    }
+  }
+
+  private static let motion = Animation.smooth(duration: 0.35)
+
+  // UIStackView miscounts repeated isHidden writes inside animations and leaves a shown view hidden.
+  private func show(_ view: UIView?, _ shown: Bool) {
+    guard let view else { return }
+    if view.isHidden == shown { view.isHidden = !shown }
+    view.alpha = shown ? 1 : 0
+  }
+
+  private func updateContext(_ context: ChatPreviewChip, compact: Bool, motion: Bool) {
+    let chip = contextChip ?? makeContextChip()
+    chip.apply(ChatContextChipContent(
+      label: context.label,
+      symbol: context.symbol,
+      connecting: context.state == "connecting",
+      dimmed: context.state == "unavailable",
+      compact: compact
+    ), animation: motion && !chip.isHidden ? Self.motion : nil)
+    chip.accessibilityLabel = context.accessibilityLabel
+    guard context.actions != renderedActions else { return }
+    renderedActions = context.actions
+    chip.menu = context.actions.flatMap { actions in
+      actions.isEmpty ? nil : UIMenu(children: actions.map { action in
+        UIAction(title: action.title, image: UIImage(systemName: action.symbol),
+                 attributes: action.destructive == true ? .destructive : []) { [weak self] _ in
+          self?.onPreview?(action.id)
+        }
+      })
+    }
+  }
+
+  private func makeContextChip() -> ChatContextChipButton {
+    let chip = ChatContextChipButton()
+    chip.isHidden = true
+    chip.alpha = 0
+    chip.setContentHuggingPriority(.required, for: .horizontal)
+    chip.addAction(UIAction { [weak self] _ in self?.onPreview?("open") }, for: .touchUpInside)
+    stack.insertArrangedSubview(chip, at: 0)
+    stack.insertArrangedSubview(separator, at: 1)
+    separatorWidth.constant = 1 / max(1, traitCollection.displayScale)
+    buttons.insert(chip, at: 0)
+    contextChip = chip
+    return chip
   }
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
@@ -97,45 +269,6 @@ final class ChatQuickRepliesView: UIScrollView {
       if target.contains(point) { return button }
     }
     return hit === self ? nil : hit
-  }
-
-  private func previewChip(_ preview: ChatPreviewChip) -> UIButton {
-    var configuration = UIButton.Configuration.glass()
-    configuration.cornerStyle = .capsule
-    configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 12)
-    configuration.title = preview.label
-    configuration.titleLineBreakMode = .byTruncatingMiddle
-    configuration.imagePadding = 6
-    configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(font: Self.titleFont, scale: .small)
-    configuration.showsActivityIndicator = preview.state == "connecting"
-    if preview.state != "connecting" { configuration.image = UIImage(systemName: preview.symbol) }
-    configuration.baseForegroundColor = preview.state == "unavailable" ? .secondaryLabel : .systemBlue
-    configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
-      var outgoing = incoming
-      outgoing.font = .systemFont(ofSize: Self.titleFont.pointSize, weight: .semibold)
-      return outgoing
-    }
-    let button = UIButton(configuration: configuration)
-    button.accessibilityIdentifier = "session-preview"
-    button.accessibilityLabel = preview.accessibilityLabel
-    button.addAction(UIAction { [weak self] _ in self?.onPreview?("open") }, for: .touchUpInside)
-    if let actions = preview.actions, !actions.isEmpty {
-      button.menu = UIMenu(children: actions.map { action in
-        UIAction(title: action.title, image: UIImage(systemName: action.symbol),
-                 attributes: action.destructive == true ? .destructive : []) { [weak self] _ in
-          self?.onPreview?(action.id)
-        }
-      })
-    }
-    button.setContentHuggingPriority(.required, for: .horizontal)
-    button.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
-    button.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      button.heightAnchor.constraint(equalToConstant: Self.chipHeight),
-      button.widthAnchor.constraint(lessThanOrEqualToConstant: 220),
-    ])
-    buttons.append(button)
-    return button
   }
 
   private func chip(_ item: ChatQuickReply) -> UIButton {

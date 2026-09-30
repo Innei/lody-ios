@@ -1099,11 +1099,12 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     queueView.render(queuedDrafts, enabled: state.canStop == true && !sending && state.controlling != true, steeringID: state.steerID ?? "", firstOnly: state.steerInterrupts == true)
     queueHeight.constant = queueView.panelHeight
     let replies = quickRepliesAvailable ? (state.quickReplies ?? []) : []
-    let rowAvailable = !replies.isEmpty || (state.preview != nil && connection.isEmpty)
-    let showsRow = rowAvailable && input.text.isEmpty
-    let reservesQuickReplies = rowAvailable &&
+    let context = connection.isEmpty ? state.preview : nil
+    let typing = !input.text.isEmpty
+    let showsRow = context != nil || (!replies.isEmpty && !typing)
+    let reservesQuickReplies = (context != nil || !replies.isEmpty) &&
       (showsRow || (input.isFirstResponder && quickRepliesHeight.constant > 0))
-    quickRepliesView.render(replies, preview: connection.isEmpty ? state.preview : nil, visible: showsRow, animated: reservesQuickReplies)
+    quickRepliesView.render(replies, context: context, showsReplies: !typing, compact: typing, visible: showsRow, animated: reservesQuickReplies)
     quickRepliesHeight.constant = reservesQuickReplies ? ChatQuickRepliesView.chipHeight : 0
     let noticeText = failedDraft == nil ? (displayError ?? state.notice) : LodyStrings.text("native.chat.composer.failedDraft")
     let canReconnect = failedDraft != nil || displayError != nil || state.reconnect

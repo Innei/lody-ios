@@ -67,6 +67,20 @@ const history: Snapshot = {
     },
   ],
 };
+const previews = [
+  undefined,
+  { label: 'Connecting…', symbol: 'safari', state: 'connecting' },
+  { label: 'localhost:5173', symbol: 'safari', state: 'ready' },
+  { label: 'iPhone 17 Pro', symbol: 'iphone', state: 'ready' },
+  { label: 'Preview Unavailable', symbol: 'safari', state: 'unavailable' },
+].map(
+  (preview) =>
+    preview && {
+      ...preview,
+      accessibilityLabel: preview.label,
+      actions: [{ id: 'copy', title: 'Copy Share Link', symbol: 'link' }],
+    },
+);
 
 function ViewContent() {
   const colors = usePalette();
@@ -76,6 +90,7 @@ function ViewContent() {
   const record = outbox.records.find((item) => item.session.id === session.id);
   const [snapshot, setSnapshot] = useState(history);
   const [running, setRunning] = useState(false);
+  const [preview, setPreview] = useState(0);
   const [revision, setRevision] = useState(0);
   const [calls, setCalls] = useState(0);
   const completion = useRef<((value: string) => void) | null>(null);
@@ -164,6 +179,12 @@ function ViewContent() {
         >
           Settings
         </Button>
+        <Button
+          testID="quick-preview"
+          onPress={() => setPreview((value) => (value + 1) % previews.length)}
+        >
+          Preview
+        </Button>
         <Button testID="quick-running" onPress={() => setRunning(true)}>
           Work
         </Button>
@@ -191,6 +212,7 @@ function ViewContent() {
             setQuickReplies(defaultQuickReplies());
             setSnapshot(history);
             setRunning(false);
+            setPreview(0);
             setCalls(0);
             setRevision((value) => value + 1);
           }}
@@ -207,6 +229,7 @@ function ViewContent() {
         style={{ flex: 1 }}
         entriesJSON={JSON.stringify(snapshot.entries)}
         composerJSON={JSON.stringify({
+          preview: previews[preview],
           editable: true,
           canSend: send.canSend,
           sending: send.sending,

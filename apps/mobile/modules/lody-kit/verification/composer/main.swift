@@ -1211,6 +1211,84 @@ precondition(quickStrip.contentSize.width > quickStrip.bounds.width,
   "Overflowing chips must scroll horizontally")
 print("Quick replies: idle-only visibility, draft/attachment preservation, queue gating, single send and failed draft recovery passed")
 
+@MainActor func previewChip(_ label: String, state: String = "ready") -> [String: Any] {
+  ["label": label, "symbol": "safari", "state": state, "accessibilityLabel": "Open preview \(label)",
+   "actions": [["id": "copy", "title": "Copy Share Link", "symbol": "link"]]]
+}
+@MainActor func contextButton() -> UIButton? {
+  descendants(quickStrip).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-preview" }
+}
+@MainActor func shownReplies() -> [UIButton] {
+  descendants(quickStrip).compactMap { $0 as? UIButton }.filter {
+    $0.accessibilityIdentifier?.hasPrefix("quick-reply:") == true && !$0.isHidden && $0.alpha > 0.01
+  }
+}
+let contextReply: [[String: Any]] = [["id": "commit", "label": "Commit & Push", "message": quickMessage]]
+quickState(["quickReplies": contextReply, "preview": previewChip("Connecting…", state: "connecting")])
+let context = contextButton()!
+let connectingWidth = context.bounds.width
+let contextFrame = context.convert(context.bounds, to: quickStrip)
+let replyFrame = shownReplies().first!.convert(shownReplies().first!.bounds, to: quickStrip)
+precondition(!quickStrip.isHidden && abs(contextFrame.minX - 16) < 0.5 && abs(contextFrame.height - quickChipHeight) < 0.5,
+  "The context chip leads the row at chip height")
+precondition(replyFrame.minX - contextFrame.maxX > 12, "A separator divides the context zone from suggestions")
+precondition(quickStrip.hitTest(CGPoint(x: contextFrame.midX, y: contextFrame.midY), with: nil) === context,
+  "Hosted chip content must leave touches to the native button")
+quickState(["quickReplies": contextReply, "preview": previewChip("localhost:5173")])
+precondition(contextButton() === context, "The context chip keeps its identity so state changes animate in place")
+precondition(context.bounds.width > connectingWidth + 8, "The context chip follows its label width")
+var contextOpens: [String] = []
+quickComposer.onPreview = { contextOpens.append($0) }
+context.sendActions(for: .touchUpInside)
+precondition(contextOpens == ["open"])
+quickState(["quickReplies": contextReply, "preview": previewChip("localhost:5173"), "running": true])
+precondition(!quickStrip.isHidden && contextButton() === context && shownReplies().isEmpty,
+  "A running agent keeps the context chip and hides suggestions")
+quickState(["quickReplies": contextReply, "preview": previewChip("localhost:5173")])
+quickInput.becomeFirstResponder()
+quickComposer.layoutIfNeeded()
+let contextFocusedHeight = quickComposer.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height
+quickInput.text = "Draft"
+quickComposer.textViewDidChange(quickInput)
+quickComposer.layoutIfNeeded()
+precondition(!quickStrip.isHidden && !quickStrip.accessibilityElementsHidden && shownReplies().isEmpty,
+  "Typing keeps the context chip while suggestions leave")
+precondition(abs(context.bounds.width - quickChipHeight) < 0.5, "Typing collapses the context chip to its icon")
+precondition(abs(quickComposer.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height - contextFocusedHeight) < 0.5,
+  "The compact context chip reuses the reserved slot")
+quickInput.text = ""
+quickComposer.textViewDidChange(quickInput)
+quickComposer.layoutIfNeeded()
+precondition(context.bounds.width > quickChipHeight + 40 && shownReplies().count == 1,
+  "Clearing the draft restores the labelled chip and suggestions")
+quickState(["quickReplies": contextReply, "preview": previewChip("localhost:5173"), "connection": "paused"])
+precondition(quickStrip.isHidden, "A disconnected session hides the context chip")
+quickState(["quickReplies": contextReply])
+precondition(contextButton()?.isHidden != false && shownReplies().count == 1,
+  "Without a resource the context zone leaves the row")
+quickInput.text = "Draft"
+quickComposer.textViewDidChange(quickInput)
+precondition(quickStrip.alpha < 0.01 && shownReplies().count == 1,
+  "Without a context chip, suggestions fade out with the row instead of vanishing first")
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+quickInput.text = ""
+quickComposer.textViewDidChange(quickInput)
+quickState(["quickReplies": manyReplies])
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+quickStrip.contentOffset.x = 150
+quickState(["quickReplies": manyReplies, "preview": previewChip("localhost:5173")])
+precondition(context.convert(context.bounds, to: quickStrip).minX - quickStrip.contentOffset.x >= 0,
+  "A context chip appearing in a scrolled row must be scrolled into view")
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+precondition(quickStrip.contentSize.width > quickStrip.bounds.width + 150)
+quickStrip.contentOffset.x = 150
+quickInput.text = "Draft"
+quickComposer.textViewDidChange(quickInput)
+quickComposer.layoutIfNeeded()
+precondition(context.convert(context.bounds, to: quickStrip).minX - quickStrip.contentOffset.x >= 0,
+  "Collapsing suggestions must bring a scrolled-away context chip back into view")
+print("Context chip: persistent identity, label-driven width, compact while typing, survives running, native touch ownership passed")
+
 @MainActor func makeRichComposer() -> (ChatComposerView, ChatComposerInput) {
   let composer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
   let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))

@@ -188,6 +188,12 @@ adding/editing/reordering/deleting replies, and local persistence after process
 restart. Both English appearances record screenshots and video; no cloud turn
 is dispatched.
 
+`context-chip` reuses that scene and cycles its Preview fixture through
+connecting, ready, simulator and unavailable. The composer's single context
+chip must keep a separator before the suggestions and follow its label width.
+It collapses to its icon while a draft exists and stays when work hides the
+suggestions. `run.mp4` is the evidence for the width and text morphs.
+
 `pull-request` opens Debug → GitHub PR / CI 预览 with an injected OSS-shaped
 projection. It captures the native chat entry, PR summary, grouped checks,
 individual check and comment editor in both appearances, then verifies native
