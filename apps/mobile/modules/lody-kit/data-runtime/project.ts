@@ -10,6 +10,7 @@ import {
 } from '../../../src/cloud/permissionQuestions.ts';
 import type { QuestionMeta } from '../../../src/models/session.ts';
 import { billableTurnCount } from './billing';
+import { previewSummary } from './preview';
 
 export type SystemNoticeMeta = {
   reason?: string;
@@ -95,6 +96,7 @@ export type Envelope = {
   revision: number;
   billableTurnCount: number;
   awaitingUserSince?: number;
+  preview?: { label: string; active: boolean };
   composer?: {
     modelId?: string;
     modeId?: string;
@@ -523,6 +525,7 @@ export function projectSession(
       typeof session?.awaitingUserSince === 'number'
         ? session.awaitingUserSince
         : undefined,
+    preview: previewSummary(doc),
     ...(input
       ? {
           composer: {

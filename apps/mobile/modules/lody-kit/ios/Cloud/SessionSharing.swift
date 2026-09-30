@@ -65,6 +65,13 @@ import Security
       let bytes = try Data(contentsOf: file)
       return ["base64": bytes.base64EncodedString(), "mediaType": response.mimeType ?? "application/octet-stream"]
     }
+    if operation == "previewToken" {
+      guard let intent = args["intent"] as? [String: Any], intent["workspaceId"] as? String == workspace else { throw failure() }
+      let response = try await request("https://backend.lody.ai/api/session-preview/request-token", credential: credential, body: intent, transport: transport)
+      try check()
+      guard response["requesterUserId"] as? String == userId, let token = response["requestToken"] as? String, !token.isEmpty else { throw failure() }
+      return token
+    }
     guard operation == "api", let method = args["method"] as? String,
       ["getManagement", "beginDeployment", "publishDeployment", "resetCredential", "revoke"].contains(method),
       let values = args["args"] as? [String: Any] else { throw failure() }

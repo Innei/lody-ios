@@ -85,6 +85,7 @@ export type Envelope = {
   revision: number;
   billableTurnCount?: number;
   awaitingUserSince?: number;
+  preview?: { label: string; active: boolean };
   composer?: {
     modelId?: string;
     modeId?: string;

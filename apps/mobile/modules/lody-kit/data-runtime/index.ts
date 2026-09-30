@@ -28,7 +28,9 @@ import {
   markSessionRead,
   renameSession,
 } from './archive-session';
-import { releaseDeletedSessions } from './session';
+import { releaseDeletedSessions, sessionDoc } from './session';
+import { createPreview, previewTarget, revokePreview } from './preview';
+import { machineRpc } from './machine-rpc';
 import { remoteSettings } from './settings';
 import type { SettingsRequest } from '../../../src/models/settings.ts';
 import {
@@ -167,30 +169,31 @@ const shareReplies = new Map<
   string,
   (value: unknown, failed: boolean) => void
 >();
+const broker = (operation: string, args: object) =>
+  new Promise<unknown>((resolve, reject) => {
+    const id = crypto.randomUUID();
+    const timer = setTimeout(() => {
+      shareReplies.delete(id);
+      reject(new Error('share_request_timeout'));
+    }, 65000);
+    shareReplies.set(id, (value, failed) => {
+      clearTimeout(timer);
+      if (failed) reject(new Error('share_request_failed'));
+      else resolve(value);
+    });
+    send({
+      type: 'shareRequest',
+      workspaceId: workspace,
+      id,
+      operation,
+      args,
+    });
+  });
 const shareRuntime = createSharingRuntime({
   sessions: () => catalogs.get('meta')?.sessions ?? [],
   history: (id, signal) => readShareHistory(workspace, id, getGrant, signal),
   progress: (progress) => send({ type: 'shareProgress', progress }),
-  broker: (operation, args) =>
-    new Promise((resolve, reject) => {
-      const id = crypto.randomUUID();
-      const timer = setTimeout(() => {
-        shareReplies.delete(id);
-        reject(new Error('share_request_timeout'));
-      }, 65000);
-      shareReplies.set(id, (value, failed) => {
-        clearTimeout(timer);
-        if (failed) reject(new Error('share_request_failed'));
-        else resolve(value);
-      });
-      send({
-        type: 'shareRequest',
-        workspaceId: workspace,
-        id,
-        operation,
-        args,
-      });
-    }),
+  broker,
 });
 const unhealthy = new Set<string>();
 let revision = 0;
@@ -499,6 +502,39 @@ Object.assign(globalThis, {
       if (args.workspaceId !== workspace)
         throw new Error('share_workspace_changed');
       return shareRuntime(args);
+    },
+    async sessionPreview(args: {
+      sessionId: string;
+      userId: string;
+      action?: 'create' | 'revoke';
+    }) {
+      const doc = sessionDoc(args.sessionId);
+      const target = doc && previewTarget(doc);
+      if (!target) return { error: 'unavailable' };
+      const { workspaceId, machineId, getGrant } = machineFor(
+        args.sessionId,
+        '/',
+      );
+      const control = {
+        workspaceId,
+        machineId,
+        sessionId: args.sessionId,
+        userId: args.userId,
+        rpc: (method: string, params: object, timeoutMs: number) =>
+          machineRpc(
+            workspaceId,
+            machineId,
+            method,
+            params,
+            getGrant,
+            AbortSignal.timeout(timeoutMs),
+          ),
+        mintToken: (intent: object) =>
+          broker('previewToken', { intent }).catch(() => undefined),
+      };
+      return args.action === 'revoke'
+        ? revokePreview(control)
+        : createPreview({ ...control, target });
     },
     shareResult(id: string, value: unknown, failed: boolean) {
       const reply = shareReplies.get(id);

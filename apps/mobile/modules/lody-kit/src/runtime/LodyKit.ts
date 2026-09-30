@@ -122,6 +122,9 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   markSessionRead(payload: string): Promise<string>;
   renameSession(payload: string): Promise<string>;
   controlSessionTurn(payload: string): Promise<string>;
+  sessionPreview(payload: string): Promise<string>;
+  previewSimulators(url: string): Promise<{ udid: string; name: string }[]>;
+  openPreviewBrowser(url: string): Promise<void>;
   sendSessionTurn(payload: string): Promise<string>;
   readSessionEdit(payload: string): Promise<string>;
   prepareSessionEdit(payload: string): Promise<string>;
@@ -273,6 +276,21 @@ export const saveAuthToken = (token: string) => native.saveAuthToken(token);
 export const clearAuthToken = () => native.clearAuthToken();
 export const openAuthBrowser = (url: string) => native.openAuthBrowser(url);
 export const closeAuthBrowser = () => native.closeAuthBrowser();
+export type SessionPreviewReply = {
+  url?: string;
+  error?: string;
+  message?: string;
+};
+export const sessionPreview = async (
+  sessionId: string,
+  action: 'create' | 'revoke' = 'create',
+): Promise<SessionPreviewReply> =>
+  JSON.parse(
+    await native.sessionPreview(JSON.stringify({ sessionId, action })),
+  );
+export const previewSimulators = (url: string) => native.previewSimulators(url);
+export const openPreviewBrowser = (url: string) =>
+  native.openPreviewBrowser(url);
 export const decodeFlock = (
   snapshot: string,
   updates: string[],

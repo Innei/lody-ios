@@ -18,6 +18,8 @@ import { useQuickReplies } from '@/features/settings/quick-replies';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View as RNView, Alert } from 'react-native';
+import { useSessionPreview } from '@/hooks/screens/useSessionPreview';
+import { showToast } from '@/ui/toast';
 import { usePalette } from '@/lib/theme/palette';
 import {
   NativeChat,
@@ -26,13 +28,11 @@ import {
   sessionCreationOptions,
 } from '@lody-ios/kit';
 import { definePage, present } from '@/lib/presentation';
-import { requestNewSession } from '@/features/sessions/sessionNav';
-import { isChatSession } from '@/features/sessions/inbox';
 import { sessionTitleDetails } from '@/features/sessions/sessionTitle';
 import {
   setArchived,
-  setPinned,
   shareSession,
+  sessionRowAction,
   confirmSessionDeletion,
   subscribeSessionDeletion,
   isSessionDeleting,
@@ -498,7 +498,9 @@ function View() {
       : undefined,
     present,
   );
+  const preview = useSessionPreview(session.id, snapshot.preview);
   const composerJSON = JSON.stringify({
+    preview: preview.chip,
     editable: !currentSession.archived && !deleting && !quotaLocked,
     canSend: send.canSend && !errorRetry.pending && !deleting && !quotaLocked,
     sending: send.sending,
@@ -548,6 +550,64 @@ function View() {
       title: project?.name ?? t('session.action.projectFiles'),
     });
   }, [account, browsable, project?.name, selected, session.id]);
+  const titleMenuJSON = JSON.stringify([
+    ...(browsable && account
+      ? [
+          {
+            id: 'files',
+            title: t('session.action.projectFiles'),
+            subtitle: projectName,
+            symbol: 'folder',
+          },
+        ]
+      : []),
+    ...(currentSession.branchName
+      ? [
+          {
+            id: 'branch',
+            title: t('session.title.copyBranch'),
+            subtitle: currentSession.branchName,
+            symbol: 'arrow.triangle.branch',
+          },
+        ]
+      : []),
+    ...(machineName
+      ? [
+          {
+            id: 'machine',
+            title: t('session.title.machine'),
+            subtitle: machineName,
+            symbol: 'desktopcomputer',
+          },
+        ]
+      : []),
+    {
+      id: 'rename',
+      title: t('session.action.rename'),
+      symbol: 'pencil',
+      group: 1,
+    },
+    ...(__DEV__
+      ? [
+          {
+            id: 'details',
+            title: t('session.debug.title'),
+            symbol: 'info.circle',
+            group: 2,
+          },
+        ]
+      : []),
+  ]);
+  const onTitleMenu = (id: string) => {
+    if (id === 'files') openProjectFiles();
+    if (id === 'branch' && currentSession.branchName) {
+      copyText(currentSession.branchName);
+      showToast(t('session.title.branchCopied'), 'info');
+    }
+    if (id === 'rename' && selected)
+      sessionRowAction(selected.id, catalog, currentSession.id, 'rename');
+    if (id === 'details') showDetails();
+  };
   const showDetails = () => {
     const body = sessionDebugText({
       session: currentSession,
@@ -611,32 +671,10 @@ function View() {
       },
       {
         type: 'action',
-        title: t('session.action.newSession'),
-        icon: { type: 'sfSymbol', name: 'square.and.pencil' },
+        title: t('session.action.share'),
+        icon: { type: 'sfSymbol', name: 'square.and.arrow.up' },
         onPress: () => {
-          if (!selected) return;
-          void requestNewSession(
-            selected.id,
-            catalog,
-            isChatSession(currentSession)
-              ? undefined
-              : currentSession.projectId,
-          );
-        },
-      },
-      {
-        type: 'action',
-        title: t(
-          currentSession.pinned ? 'session.action.unpin' : 'session.action.pin',
-        ),
-        icon: {
-          type: 'sfSymbol',
-          name: currentSession.pinned ? 'pin.slash' : 'pin',
-        },
-        disabled: !!pending?.send.creation,
-        onPress: () => {
-          if (selected)
-            void setPinned(selected.id, currentSession, !currentSession.pinned);
+          if (selected) shareSession(selected, currentSession.id);
         },
       },
       {
@@ -660,23 +698,7 @@ function View() {
             );
         },
       },
-      {
-        type: 'action',
-        title: t('session.action.share'),
-        icon: { type: 'sfSymbol', name: 'square.and.arrow.up' },
-        onPress: () => {
-          if (selected) shareSession(selected, currentSession.id);
-        },
-      },
     ];
-    if (browsable && account) {
-      actions.push({
-        type: 'action',
-        title: t('session.action.projectFiles'),
-        icon: { type: 'sfSymbol', name: 'folder' },
-        onPress: openProjectFiles,
-      });
-    }
     actions.push({
       type: 'submenu',
       displayInline: true,
@@ -716,7 +738,6 @@ function View() {
     deleting,
     deleteSessionRequest,
     pending,
-    openProjectFiles,
     openPullRequest,
     pending?.send.creation,
     prAttention,
@@ -760,6 +781,9 @@ function View() {
           navigationTitleHidden ? '' : (currentSession.branchName ?? '')
         }
         onTitlePress={showDetails}
+        titleMenuJSON={navigationTitleHidden ? '[]' : titleMenuJSON}
+        onTitleMenu={({ nativeEvent }) => onTitleMenu(nativeEvent.id)}
+        onPreview={({ nativeEvent }) => preview.onPreview(nativeEvent.action)}
         style={{ flex: 1 }}
         attachmentContextJSON={JSON.stringify({
           workspaceId: selected?.id,

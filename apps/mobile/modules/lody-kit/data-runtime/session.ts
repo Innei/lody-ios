@@ -64,6 +64,7 @@ const sessions = new Map<string, SessionState>();
 const reserved = new Set<string>();
 export const retainedSessionIds = () => [...sessions.keys()];
 export const reservedSessionIds = () => [...reserved];
+export const sessionDoc = (id: string) => sessions.get(id)?.doc;
 function signalOf(state: SessionState, status: string) {
   const history = state.doc.getList('history');
   let finished = 0;

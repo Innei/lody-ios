@@ -83,6 +83,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   let onReconnect = EventDispatcher()
   let onRetrySend = EventDispatcher()
   let onTitlePress = EventDispatcher()
+  let onPreview = EventDispatcher()
+  let onTitleMenu = EventDispatcher()
   let onComposerOptionChange = EventDispatcher()
   let onMentionBrowse = EventDispatcher()
   private let titleButton = ChatNavigationTitleButton()
@@ -405,6 +407,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     composer.onStop = { [weak self] in self?.onStop() }
     composer.onSteer = { [weak self] in self?.onSteer(["id": $0]) }
     composer.onReconnect = { [weak self] in self?.onReconnect([:]) }
+    composer.onPreview = { [weak self] in self?.onPreview(["action": $0]) }
     composer.onMentionBrowse = { [weak self] in self?.onMentionBrowse($0) }
     composer.onComposerOptionChange = { [weak self] in self?.onComposerOptionChange($0) }
     empty.numberOfLines = 0
@@ -480,6 +483,28 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     guard navigationTitle != title else { return }
     navigationTitle = title
     updateTitleButton()
+  }
+
+  func setTitleMenu(_ json: String) {
+    struct Item: Decodable {
+      let id: String
+      let title: String
+      var subtitle: String?
+      let symbol: String
+      var group: Int?
+      var destructive: Bool?
+    }
+    let items = (try? JSONDecoder().decode([Item].self, from: Data(json.utf8))) ?? []
+    let groups = Dictionary(grouping: items) { $0.group ?? 0 }
+    titleButton.menu = items.isEmpty ? nil : UIMenu(children: groups.keys.sorted().map { key in
+      UIMenu(options: .displayInline, children: groups[key]!.map { item in
+        UIAction(title: item.title, subtitle: item.subtitle, image: UIImage(systemName: item.symbol),
+                 attributes: item.destructive == true ? .destructive : []) { [weak self] _ in
+          self?.onTitleMenu(["id": item.id])
+        }
+      })
+    })
+    titleButton.showsMenuAsPrimaryAction = !items.isEmpty
   }
 
   func setNavigationSubtitle(_ subtitle: String) {
@@ -814,6 +839,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     incoming.onStop = old.onStop
     incoming.onSteer = old.onSteer
     incoming.onReconnect = old.onReconnect
+    incoming.onPreview = old.onPreview
     incoming.onMentionBrowse = old.onMentionBrowse
     incoming.onComposerOptionChange = old.onComposerOptionChange
     incoming.onDraftChange = old.onDraftChange

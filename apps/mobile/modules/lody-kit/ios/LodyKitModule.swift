@@ -15,6 +15,12 @@ struct LodyRuntimeInfo {
 public final class LodyKitModule: Module, @unchecked Sendable {
   private let localStore = LocalStore.shared
   private var authBrowser: SFSafariViewController?
+
+  private static func previewURL(_ address: String) -> URL? {
+    guard let url = URL(string: address), url.scheme == "https", url.user == nil, url.password == nil,
+          url.host?.hasSuffix(".trycloudflare.com") == true else { return nil }
+    return url
+  }
   @MainActor private lazy var accentPicker = AccentColorPicker()
   @MainActor private lazy var workspaceIconPicker = WorkspaceIconPicker()
 
@@ -262,6 +268,22 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         let browser = SFSafariViewController(url: url)
         self.authBrowser = browser
         controller.present(browser, animated: true)
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("sessionPreview") { (payload: String, promise: Promise) in
+      MainActor.assumeIsolated { self.dataRuntime.command("sessionPreview", payload: payload, promise: promise) }
+    }.runOnQueue(.main)
+    AsyncFunction("previewSimulators") { (address: String) async -> [[String: String]] in
+      guard let url = Self.previewURL(address) else { return [] }
+      return await SimulatorRemote.runningDevices(url)
+    }
+    AsyncFunction("openPreviewBrowser") { (address: String) in
+      try MainActor.assumeIsolated {
+        guard let url = Self.previewURL(address),
+              let controller = self.appContext?.utilities?.currentViewController() else {
+          throw NSError(domain: "LodyKit.PreviewBrowser", code: 1)
+        }
+        controller.present(SFSafariViewController(url: url), animated: true)
       }
     }.runOnQueue(.main)
     AsyncFunction("closeAuthBrowser") {
@@ -634,6 +656,11 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("retryToken") { (view: LodyMessageShareView, value: Int) in view.retry(value) }
     }
 
+    View(LodySimulatorView.self) {
+      Prop("sourceJSON") { (view: LodySimulatorView, value: String) in view.setSource(value) }
+      Prop("commandJSON") { (view: LodySimulatorView, value: String) in view.setCommand(value) }
+    }
+
     View(LodyChatView.self) {
       Prop("imageSharingEnabled") { (view: LodyChatView, value: Bool) in view.imageSharingEnabled = value }
       Prop("findRequestJSON") { (view: LodyChatView, value: String) in view.setFindRequest(value) }
@@ -647,13 +674,14 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         view.performanceProbe?.stop()
         view.performanceProbe = ChatPerformanceProbe(view)
       }
-      Events("onStop", "onSteer", "onSend", "onEditMessage", "onShareImage", "onTurnInfoPress", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse")
+      Events("onStop", "onSteer", "onSend", "onEditMessage", "onShareImage", "onTurnInfoPress", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse", "onPreview", "onTitleMenu")
       Prop("editableMessageId") { (view: LodyChatView, value: String) in view.editableMessageID = value }
       Prop("editedMessageId") { (view: LodyChatView, value: String) in view.editedMessageID = value }
       Prop("navigationTitle") { (view: LodyChatView, value: String) in view.setNavigationTitle(value) }
       Prop("navigationSubtitle") { (view: LodyChatView, value: String) in view.setNavigationSubtitle(value) }
       Prop("navigationMachine") { (view: LodyChatView, value: String) in view.setNavigationMachine(value) }
       Prop("navigationBranch") { (view: LodyChatView, value: String) in view.setNavigationBranch(value) }
+      Prop("titleMenuJSON") { (view: LodyChatView, value: String) in view.setTitleMenu(value) }
       Prop("mentionRepository") { (view: LodyChatView, value: String) in view.mentionRepository = value }
       Prop("attachmentContextJSON") { (view: LodyChatView, value: String) in view.setAttachmentContext(value) }
       Prop("errorRetryJSON") { (view: LodyChatView, value: String) in view.setErrorRetryState(value) }

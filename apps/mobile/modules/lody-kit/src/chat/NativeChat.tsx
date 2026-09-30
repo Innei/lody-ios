@@ -44,6 +44,9 @@ export const NativeChat: ComponentType<
     navigationBranch?: string;
     mentionRepository?: string;
     onTitlePress?: () => void;
+    titleMenuJSON?: string;
+    onTitleMenu?: (event: NativeSyntheticEvent<{ id: string }>) => void;
+    onPreview?: (event: NativeSyntheticEvent<{ action: string }>) => void;
     processEntryId?: string;
     processStartId?: string;
     composerJSON: string;

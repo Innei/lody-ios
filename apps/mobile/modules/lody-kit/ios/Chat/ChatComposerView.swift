@@ -11,6 +11,7 @@ import UniformTypeIdentifiers
 private struct ChatComposerState: Decodable {
   var mentionItems: [ChatMentionItem]?
   var quickReplies: [ChatQuickReply]?
+  var preview: ChatPreviewChip?
   var editable = true
   var canSend = false
   var sending = false
@@ -606,6 +607,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     !guidesSubmission && (state.running == true || !queuedDrafts.isEmpty)
   }
   var onReconnect: (() -> Void)?
+  var onPreview: ((String) -> Void)?
   var onMentionBrowse: (([String: String]) -> Void)?
   private var mentionResultID = ""
   private var mentionNeedsFocus = false
@@ -777,6 +779,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       self.layoutIfNeeded()
       self.submit()
     }
+    quickRepliesView.onPreview = { [weak self] in self?.onPreview?($0) }
     composer.contentView.addSubview(notice)
     composer.contentView.addSubview(attachmentBar)
     composer.contentView.addSubview(quotaNotice)
@@ -1095,10 +1098,12 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     sendVisual.alpha = send.isEnabled || loading ? 1 : 0.35
     queueView.render(queuedDrafts, enabled: state.canStop == true && !sending && state.controlling != true, steeringID: state.steerID ?? "", firstOnly: state.steerInterrupts == true)
     queueHeight.constant = queueView.panelHeight
-    let replies = state.quickReplies ?? []
-    let reservesQuickReplies = quickRepliesAvailable && !replies.isEmpty &&
-      (canShowQuickReplies || (input.isFirstResponder && quickRepliesHeight.constant > 0))
-    quickRepliesView.render(replies, visible: canShowQuickReplies, animated: reservesQuickReplies)
+    let replies = quickRepliesAvailable ? (state.quickReplies ?? []) : []
+    let rowAvailable = !replies.isEmpty || (state.preview != nil && connection.isEmpty)
+    let showsRow = rowAvailable && input.text.isEmpty
+    let reservesQuickReplies = rowAvailable &&
+      (showsRow || (input.isFirstResponder && quickRepliesHeight.constant > 0))
+    quickRepliesView.render(replies, preview: connection.isEmpty ? state.preview : nil, visible: showsRow, animated: reservesQuickReplies)
     quickRepliesHeight.constant = reservesQuickReplies ? ChatQuickRepliesView.chipHeight : 0
     let noticeText = failedDraft == nil ? (displayError ?? state.notice) : LodyStrings.text("native.chat.composer.failedDraft")
     let canReconnect = failedDraft != nil || displayError != nil || state.reconnect
