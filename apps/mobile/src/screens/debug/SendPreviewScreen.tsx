@@ -188,6 +188,7 @@ function SendPreview() {
     resolve: (result: string) => void;
   } | null>(null);
   const [controlRequest, setControlRequest] = useState('');
+  const [contextChip, setContextChip] = useState(false);
   const control = useSessionControl(
     session,
     snapshot,
@@ -504,6 +505,15 @@ function SendPreview() {
         >
           回复
         </Button>
+        {queue && (
+          <Button
+            testID="send-toggle-context"
+            style={fixtureControl}
+            onPress={() => setContextChip((value) => !value)}
+          >
+            上下文
+          </Button>
+        )}
         {!queue && (
           <Button
             testID="send-toggle-pending"
@@ -592,6 +602,14 @@ function SendPreview() {
         entriesJSON={JSON.stringify(snapshot.entries)}
         pendingSendJSON={send.pendingSendJSON}
         composerJSON={JSON.stringify({
+          preview: contextChip
+            ? {
+                label: 'localhost:5173',
+                accessibilityLabel: 'localhost:5173',
+                symbol: 'safari',
+                state: 'ready',
+              }
+            : undefined,
           editable: true,
           canSend: send.canSend,
           sending: send.sending,

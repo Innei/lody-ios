@@ -37,6 +37,15 @@ for index in [1, 2]:
     frame = ui.element(turn + ':queued')['frame']
     assert frame['y'] + frame['height'] <= ui.element('session-input')['frame']['y'], 'Queue must sit above the input'
     ui.capture(f'queued-{index}')
+ui.axe('tap', '--id', 'send-toggle-context', '--post-delay', '.8')
+queue = ui.element('session-queue')['frame']
+context = ui.wait(lambda items: next((i for i in items if i.get('AXUniqueId') == 'session-preview' and i['frame']['height'] > 0), None), 'Context chip missing')['frame']
+assert context['y'] - queue['y'] - queue['height'] >= 6, f'Queue must not touch the chip row: {queue} {context}'
+assert abs(queue['x'] - context['x']) < 1, f'A queue above the chip row must drop the input indent: {queue} {context}'
+ui.capture('queued-context-chip')
+ui.axe('tap', '--id', 'send-toggle-context', '--post-delay', '.8')
+queue = ui.element('session-queue')['frame']
+assert abs(queue['x'] - ui.element('session-input')['frame']['x']) < 1, 'A queue docked on the input must align with it'
 assert turns[0] != turns[1]
 assert not set(trace.folder.glob('lody-throw-*.json')) - trace.existing, 'Queuing a message must not fly it into the transcript'
 ui.type_into('session-input', '123456')
