@@ -13,6 +13,13 @@ handoff. It retains English light/dark coverage, screenshots and video. Run
 `pnpm verify:native --case chat-kit` separately for public Swift API style
 isolation, remeasurement, attachment actions and identity checks.
 
+`markdown` also drags selection handles across adjacent visible Markdown rows and
+across table cells, checks the actual clipboard (including table tabs/newlines),
+and replaces the transcript to verify stale selections are cleared. The Selection
+Fixture uses production rendering without account or cloud access. User bubbles,
+tool rows and unloaded history form selection boundaries; changing visible group
+membership clears selection. Table selections keep their upstream group and menu.
+
 `markdown` and `file-preview` include native Ruby annotations in both appearances.
 The chat check also verifies annotation readings, selectable base text and increased
 line height during streaming and after completion. The `local-store` native check

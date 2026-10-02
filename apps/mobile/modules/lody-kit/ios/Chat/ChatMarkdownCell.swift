@@ -1,7 +1,9 @@
+import Litext
 import UIKit
 
 final class ChatMarkdownCell: UICollectionViewCell {
   private var markdown: ChatMarkdownView?
+  var selectionLabels: [TextLabelView] { markdown?.selectionLabels ?? [] }
   private let icon = UIImageView()
   private(set) var row: ChatRow?
   private var topInset = ChatRowPadding.content
@@ -21,7 +23,10 @@ final class ChatMarkdownCell: UICollectionViewCell {
     self.row = row
     topInset = ChatRowPadding.top(kind: row.kind, previousKind: previousKind)
     if self.markdown !== markdown {
-      if self.markdown?.superview === contentView { self.markdown?.removeFromSuperview() }
+      if self.markdown?.superview === contentView {
+        self.markdown?.clearSelection()
+        self.markdown?.removeFromSuperview()
+      }
       self.markdown = markdown
       contentView.addSubview(markdown)
     }
@@ -36,12 +41,17 @@ final class ChatMarkdownCell: UICollectionViewCell {
     setNeedsLayout()
   }
 
+  func clearSelection() {
+    if markdown?.superview === contentView { markdown?.clearSelection() }
+  }
+
   override func prepareForReuse() {
     super.prepareForReuse()
     row = nil
     topInset = ChatRowPadding.content
     markdown?.setShine(false)
     if markdown?.superview === contentView {
+      markdown?.clearSelection()
       markdown?.onLink = nil
       markdown?.removeFromSuperview()
     }
@@ -80,5 +90,51 @@ final class ChatMarkdownCell: UICollectionViewCell {
       return hit
     }
     return super.hitTest(point, with: event)
+  }
+}
+
+// Only adjacent rendered Markdown rows share a group. Do not silently copy past
+// user bubbles, tools, or unloaded history. Table cells retain their own group.
+extension LodyChatView: TextSelectionGroupDelegate {
+  func collectionView(_ collectionView: UICollectionView, didEndDisplaying cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
+    if !collectionView.visibleCells.contains(where: { $0 === cell }) {
+      (cell as? ChatMarkdownCell)?.clearSelection()
+    }
+  }
+
+  func refreshMarkdownSelections() {
+    var runs: [String: [TextLabelView]] = [:]
+    var previous: IndexPath?
+    var key = ""
+    for index in collection.indexPathsForVisibleItems.sorted() {
+      guard let cell = collection.cellForItem(at: index) as? ChatMarkdownCell,
+            let row = cell.row else { previous = nil; continue }
+      if previous?.section != index.section || previous?.item != index.item - 1 {
+        key = row.id
+      }
+      runs[key, default: []].append(contentsOf: cell.selectionLabels)
+      previous = index
+    }
+    runs = runs.filter { $0.value.count > 1 }
+    for (key, group) in markdownSelections where runs[key] == nil {
+      group.labels = []
+      markdownSelections[key] = nil
+    }
+    for (key, labels) in runs {
+      let group = markdownSelections[key] ?? TextSelectionGroup()
+      group.delegate = self
+      // Assigning labels clears selection. Keep it through ordinary layouts and
+      // text streaming; reset only when a row/block is replaced or leaves view.
+      if !group.labels.elementsEqual(labels, by: ===) { group.labels = labels }
+      markdownSelections[key] = group
+    }
+  }
+
+  func textSelectionGroupDidChangeSelection(_ group: TextSelectionGroup) {
+    if group.hasSelection { pauseTracking() }
+  }
+
+  func textSelectionGroup(_ group: TextSelectionGroup, didDragSelectionIn label: TextLabelView, at location: CGPoint) {
+    ChatTableBleed.markdown(from: label)?.textLabelView(label, didDragSelectionAt: location)
   }
 }

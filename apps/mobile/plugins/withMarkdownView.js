@@ -14,18 +14,18 @@ const PACKAGES = [
   {
     name: 'MarkdownView',
     url: 'https://github.com/Lakr233/MarkdownView.git',
-    version: '4.3.2',
+    version: '4.6.5',
   },
   {
     name: 'swift-collections',
     url: 'https://github.com/apple/swift-collections',
-    version: '1.6.0',
+    version: '1.7.1',
     products: ['OrderedCollections'],
   },
   {
     name: 'Litext',
     url: 'https://github.com/Lakr233/Litext',
-    version: '2.2.2',
+    version: '3.3.2',
   },
 ];
 

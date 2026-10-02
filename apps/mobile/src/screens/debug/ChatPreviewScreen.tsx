@@ -398,6 +398,7 @@ function openQuestionFixture() {
 function View() {
   const [startedAt] = useState(Date.now);
   const [showImage, setShowImage] = useState(false);
+  const [selectionFixture, setSelectionFixture] = useState(false);
   const [assistantImages, setAssistantImages] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
   const [durationFixture, setDurationFixture] = useState<{
@@ -549,7 +550,25 @@ function View() {
     },
   ]);
   let displayedEntriesJSON = entriesJSON;
-  if (processCounts) {
+  if (selectionFixture) {
+    displayedEntriesJSON = JSON.stringify([
+      {
+        id: 'selection',
+        role: 'assistant',
+        status: 'running',
+        finished: false,
+        items: [
+          { itemId: 'first', type: 'text', text: 'Alpha begins here.' },
+          { itemId: 'second', type: 'text', text: 'Bravo finishes here.' },
+          {
+            itemId: 'table',
+            type: 'text',
+            text: '| Fruit | Color |\n| --- | --- |\n| Apple | Red |\n| Pear | Gold |',
+          },
+        ],
+      },
+    ]);
+  } else if (processCounts) {
     displayedEntriesJSON = JSON.stringify(
       processCountEntries(processCounts.count, processCounts.startedAt),
     );
@@ -733,6 +752,11 @@ function View() {
             />
           </Stack.Toolbar.Menu>
           <Stack.Toolbar.MenuAction
+            children="Selection Fixture"
+            icon="text.cursor"
+            onPress={() => setSelectionFixture(true)}
+          />
+          <Stack.Toolbar.MenuAction
             children="Failed Tool Fixture"
             icon="exclamationmark.triangle"
             onPress={() => {
@@ -856,6 +880,7 @@ function View() {
             setProcessCounts(null);
             setShowImage(false);
             setShowChanges(false);
+            setSelectionFixture(false);
             setStep(240);
             setMode('normal');
             setLength(0);

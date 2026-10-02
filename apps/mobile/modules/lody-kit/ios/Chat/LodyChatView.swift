@@ -1,12 +1,15 @@
 import ChatKit
 import ExpoModulesCore
+import Litext
 import UIKit
 
 private final class ChatCollectionView: UICollectionView {
   var contentDidLayout: (() -> Void)?
+  var selectionDidLayout: (() -> Void)?
   private var lastSize = CGSize.zero
   override func layoutSubviews() {
     super.layoutSubviews()
+    selectionDidLayout?()
     guard contentSize != lastSize else { return }
     lastSize = contentSize
     contentDidLayout?()
@@ -103,6 +106,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   let measuringText = CKTextView()
   var measurements: [String: (width: CGFloat, text: NSAttributedString, height: CGFloat)] = [:]
   let store = ChatMarkdownStore(traits: .current)
+  var markdownSelections: [String: TextSelectionGroup] = [:]
   let findBar = ChatFindBar()
   var findPresented = false
   var lastFindRequest = ""
@@ -294,6 +298,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     collection.addGestureRecognizer(tap)
     collection.contentInsetAdjustmentBehavior = .automatic
     collection.delegate = self
+    collection.selectionDidLayout = { [weak self] in self?.refreshMarkdownSelections() }
     collection.contentDidLayout = { [weak self] in
       guard let self, !self.applying, !self.movingLayout else { return }
       self.updateBottomInset()
@@ -646,6 +651,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   override func didMoveToWindow() {
     super.didMoveToWindow()
     if window == nil {
+      for group in markdownSelections.values { group.labels = [] }
+      markdownSelections.removeAll()
       scrollingToTop = false
       historyPreparation?.cancel(); historyPreparation = nil
       if let handoffID { ChatSendHandoff.cancel(id: handoffID) }

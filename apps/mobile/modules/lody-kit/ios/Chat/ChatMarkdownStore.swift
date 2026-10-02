@@ -136,6 +136,9 @@ final class ChatMarkdownStore {
   }
 
   func retain(_ ids: Set<String>) {
+    // Diffable deletion can leave the old cell in UIKit's reuse pool. Retire
+    // selection with the row, including the table's independently owned group.
+    for (id, view) in views where !ids.contains(id) { view.clearSelection() }
     entries = entries.filter { ids.contains($0.key) }
     heights = heights.filter { ids.contains($0.key) }
     views = views.filter { ids.contains($0.key) }

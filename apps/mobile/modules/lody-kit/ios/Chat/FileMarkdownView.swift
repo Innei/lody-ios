@@ -26,7 +26,6 @@ final class FileMarkdownView: MarkdownTextView {
   override func layoutSubviews() {
     super.layoutSubviews()
     ChatTableBleed.apply(to: self)
-    ChatWordSelection.attach(under: self)
     ChatContextViewProbe.record(self)
   }
 
@@ -201,7 +200,7 @@ enum ChatTableBleed {
     unclip(from: table)
     let span = contentSpan(scroll)
     guard span > markdown.bounds.width + 1 else { return }
-    let inCollection = table.convert(table.bounds, to: collection)
+    let inCollection = scroll.convert(scroll.bounds, to: collection)
     let bled = CGRect(
       x: collection.bounds.minX,
       y: inCollection.minY,
@@ -209,20 +208,20 @@ enum ChatTableBleed {
       height: inCollection.height
     )
     let local = table.convert(bled, from: collection)
+    // Widen only the viewport: the native title bar and row heights stay put.
+    // Compensate the columns when upstream restores its inset frame on layout.
+    let shift = scroll.frame.minX - local.minX
     if scroll.frame != local { scroll.frame = local }
     let column = markdown.convert(markdown.bounds, to: collection)
     let left = max(0, column.minX - collection.bounds.minX)
     let right = max(0, collection.bounds.maxX - column.maxX)
     let bodies = scroll.subviews.filter { !($0 is UIImageView) }
-    let minX = bodies.map(\.frame.minX).min() ?? 0
-    if minX < 0.5 {
-      for view in bodies {
-        view.frame.origin.x += left
-      }
+    if shift != 0 {
+      for view in bodies { view.frame.origin.x += shift }
     }
     let width = span + left + right
     if abs(scroll.contentSize.width - width) > 0.5 {
-      scroll.contentSize = CGSize(width: width, height: max(scroll.contentSize.height, table.bounds.height))
+      scroll.contentSize = CGSize(width: width, height: scroll.contentSize.height)
     }
     scroll.clipsToBounds = true
     scroll.contentInsetAdjustmentBehavior = .never
@@ -269,7 +268,21 @@ enum ChatTableBleed {
       .first(where: \.isKeyWindow)
     else { return }
     var rows: [[String: Double]] = []
+    var labels: [[String: Any]] = []
     func walk(_ view: UIView) {
+      if let label = view as? TextLabelView {
+        let frame = label.convert(label.bounds, to: window)
+        var item: [String: Any] = ["text": label.attributedText.string,
+          "x": frame.minX, "y": frame.minY, "width": frame.width, "height": frame.height]
+        if let range = label.selectionRange {
+          item["selected"] = label.selectedPlainText() ?? ""
+          item["rects"] = label.textLayout.rects(for: range).map { rect in
+            let box = label.convert(label.viewRect(fromLayoutRect: rect), to: window)
+            return ["x": box.minX, "y": box.minY, "width": box.width, "height": box.height]
+          }
+        }
+        labels.append(item)
+      }
       if let scroll = view as? UIScrollView, scroll.accessibilityIdentifier == "markdown-table-scroll" {
         let frame = scroll.convert(scroll.bounds, to: window)
         rows.append([
@@ -288,6 +301,8 @@ enum ChatTableBleed {
       for subview in view.subviews { walk(subview) }
     }
     walk(window)
+    let selectionURL = FileManager.default.temporaryDirectory.appendingPathComponent("lody-markdown-selection.json")
+    try? JSONSerialization.data(withJSONObject: labels).write(to: selectionURL, options: .atomic)
     let url = FileManager.default.temporaryDirectory.appendingPathComponent("lody-table-bleed.json")
     guard let data = try? JSONSerialization.data(withJSONObject: rows) else { return }
     try? data.write(to: url, options: .atomic)

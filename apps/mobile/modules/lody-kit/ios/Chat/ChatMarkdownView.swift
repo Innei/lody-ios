@@ -1,3 +1,4 @@
+import Litext
 import MarkdownParser
 import MarkdownView
 import UIKit
@@ -34,6 +35,16 @@ final class ChatMarkdownView: UIView {
       view = FileMarkdownView(textLabelView: label)
       view.throttleInterval = nil
     }
+  }
+
+  var selectionLabels: [TextLabelView] { blocks.map(\.label) }
+
+  func clearSelection() {
+    func clear(_ view: UIView) {
+      (view as? TextLabelView)?.clearSelection()
+      for child in view.subviews { clear(child) }
+    }
+    clear(self)
   }
 
   private var blocks: [Block] = []

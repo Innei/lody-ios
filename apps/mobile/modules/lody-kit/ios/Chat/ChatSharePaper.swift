@@ -247,8 +247,8 @@ private final class ShareMarkdownView: MarkdownTextView {
       style.lineSpacing = 3
       style.lineBreakMode = .byCharWrapping
       let highlighted = NSMutableAttributedString(string: source, attributes: [.font: theme.fonts.code, .foregroundColor: theme.colors.code, .paragraphStyle: style])
-      for (range, color) in CodeHighlighter.current.highlight(key: nil, content: source, language: language) where NSMaxRange(range) <= highlighted.length {
-        highlighted.addAttribute(.foregroundColor, value: color.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light)), range: range)
+      for (range, token) in CodeHighlighter.current.highlight(key: nil, content: source, language: language) where NSMaxRange(range) <= highlighted.length {
+        highlighted.addAttribute(.foregroundColor, value: theme.syntax.color(for: token).resolvedColor(with: UITraitCollection(userInterfaceStyle: .light)), range: range)
       }
       view.attributedText = highlighted
       attachment.size = CGSize(width: printWidth, height: ceil(view.sizeThatFits(CGSize(width: printWidth, height: .greatestFiniteMagnitude)).height))
