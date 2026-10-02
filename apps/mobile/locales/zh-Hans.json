@@ -851,7 +851,7 @@
   "native.chat.error.authSummary": "请在电脑端完成 Agent 登录后继续。",
   "native.chat.error.accessSummary": "请联系机器所有者授予访问权限后继续。",
   "native.chat.error.gitSummary": "请在连接的电脑上安装 Git 后继续。",
-  "native.chat.message.guide.confirming": "正在确认引导…",
+  "native.chat.message.guide.confirming": "引导中…",
   "native.chat.message.guide.unknown": "投递尚未确认",
   "native.chat.message.guide.waiting": "等待当前回复结束",
   "native.chat.message.guide.rejected": "引导未投递",

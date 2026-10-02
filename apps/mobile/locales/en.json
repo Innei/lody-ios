@@ -851,7 +851,7 @@
   "native.chat.error.authSummary": "Sign in to the agent on your computer, then continue.",
   "native.chat.error.accessSummary": "Ask the machine owner to grant access before continuing.",
   "native.chat.error.gitSummary": "Install Git on the connected computer, then continue.",
-  "native.chat.message.guide.confirming": "Confirming guidance…",
+  "native.chat.message.guide.confirming": "Steering…",
   "native.chat.message.guide.unknown": "Delivery unconfirmed",
   "native.chat.message.guide.waiting": "Waiting for the current reply to finish",
   "native.chat.message.guide.rejected": "Guidance not delivered",

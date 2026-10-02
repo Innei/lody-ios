@@ -1575,7 +1575,8 @@ test('guide writes a steer history turn instead of the FIFO queue', async () => 
       agentType: 'codex',
       guide: true,
     });
-    assert.equal(result.state, 'accepted');
+    assert.equal(result.state, 'uploaded');
+    await new Promise((resolve) => setImmediate(resolve));
     const raw = fixture.server.toJSON();
     assert.equal((raw.mq ?? []).length, 0);
     const entry = raw.history.find((item) => item.id === result.id);
@@ -1803,10 +1804,8 @@ test('guide continues offscreen and an uncertain or rejected steer never masquer
       };
       fixture.runtime.closeSession();
       const result = await fixture.runtime.sendTurn(args);
-      assert.equal(
-        result.state,
-        outcome === 'applied' ? 'accepted' : 'uploaded',
-      );
+      assert.equal(result.state, 'uploaded');
+      await new Promise((resolve) => setImmediate(resolve));
       assert.equal(requests, 1);
       const appends = fixture.appends.length;
       assert.equal(
@@ -1855,4 +1854,67 @@ test('chat failures retain raw diagnostics and update when only metadata changes
     projectSession(doc, 'live').entries[0].items[0].meta.message,
     undefined,
   );
+});
+
+test('multiple durable guides await independent receipts without locking the session or replaying', async () => {
+  const receipts = new Map();
+  const fixture = await openTestSession({
+    onRpc: (request) =>
+      new Promise((resolve) =>
+        receipts.set(request.params.userTurnId, resolve),
+      ),
+  });
+  try {
+    fixture.server
+      .getList('history')
+      .push({ id: 'running', role: 'assistant', finished: false, items: [] });
+    fixture.server.commit();
+    await fixture.pushUpdate();
+    const args = {
+      sessionId: 's1',
+      machineId: 'm1',
+      userId: 'u1',
+      text: 'guide',
+      cliType: 'builtin',
+      agentType: 'codex',
+      guide: true,
+    };
+    const first = await fixture.runtime.sendTurn(args);
+    const second = await fixture.runtime.sendTurn(args);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(first.state, 'uploaded');
+    assert.equal(second.state, 'uploaded');
+    assert.notEqual(first.id, second.id);
+    assert.equal(receipts.size, 2);
+    assert.equal(
+      fixture.server
+        .toJSON()
+        .history.filter((entry) => entry.status === 'pending_apply').length,
+      2,
+    );
+    receipts.get(second.id)({ result: { applied: true } });
+    receipts.get(first.id)({ error: { message: 'lost_ack' } });
+    await new Promise((resolve) => setImmediate(resolve));
+    const history = fixture.server.toJSON().history;
+    assert.equal(
+      history.find((entry) => entry.id === second.id).status,
+      'processing',
+    );
+    assert.equal(
+      history.find((entry) => entry.id === first.id).status,
+      'pending_apply',
+    );
+    assert.equal(
+      (await fixture.runtime.sendTurn({ ...args, id: first.id })).state,
+      'unknown',
+    );
+    const third = await fixture.runtime.sendTurn(args);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(third.state, 'uploaded');
+    assert.equal(receipts.size, 3);
+    receipts.get(third.id)({ result: { applied: true } });
+    await new Promise((resolve) => setImmediate(resolve));
+  } finally {
+    fixture.close();
+  }
 });

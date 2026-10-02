@@ -11,14 +11,14 @@ ui.axe('type', 'Offline send\nKeep my attachment')
 draft = ui.element('session-input')['AXValue']
 ui.capture('draft')
 ui.axe('tap', '--id', 'session-send', '--post-delay', '1')
-timer = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':duration')), None), 'Offline timer missing')
-turn = timer['AXUniqueId'].removesuffix(':duration')
-assert timer['AXLabel'] == catalog.text('native.chat.transcript.status.confirming'), 'Unacked send must confirm delivery on the duration row'
+user = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':user-text')), None), 'Offline message missing')
+ui.axe('tap', '--id', user['AXUniqueId'], '--post-delay', '.5')
+timer = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':delivery')), None), 'Offline delivery missing')
+turn = timer['AXUniqueId'].removesuffix(':delivery')
+assert timer['AXLabel'] == catalog.text('send.status.awaitingConnection'), 'Unacked send must show its delivery phase above the message'
 assert ui.element('send-status')['AXLabel'] == 'Calls: 0 · waiting'
 assert ui.element(turn + ':user-text')['AXLabel'] == draft
 assert not ui.element('session-input').get('AXValue')
-# Settle keyboard dismissal before tapping a row that moves with the viewport.
-ui.axe('tap', '--id', turn + ':user-text', '--post-delay', '.5')
 ui.element(turn + ':attachment:fixture-file')
 ui.capture('offline')
 

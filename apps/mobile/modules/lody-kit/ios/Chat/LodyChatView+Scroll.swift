@@ -10,7 +10,9 @@ extension LodyChatView {
   func updateBottomInset() -> Bool {
     let base = composerInset
     var space: CGFloat = 0
-    if let id = anchoredUserID, let index = dataSource.indexPath(for: id),
+    if let id = anchoredUserID,
+       let entryID = rows[id]?.entryID,
+       let index = dataSource.indexPath(for: entryID + ":delivery") ?? dataSource.indexPath(for: id),
        let frame = collection.layoutAttributesForItem(at: index)?.frame {
       let naturalBottom = collection.contentSize.height - collection.bounds.height + collection.safeAreaInsets.bottom + base
       space = max(0, frame.minY - collection.adjustedContentInset.top - naturalBottom)
@@ -290,6 +292,12 @@ extension LodyChatView {
       collection.layoutIfNeeded()
       updateBottomInset()
       restoreAnchor(anchor)
+      for (id, originalHeight) in deliveryExits {
+        if let index = dataSource.indexPath(for: id), let cell = collection.cellForItem(at: index) {
+          let height = rowHeights[id]?.current ?? 0
+          cell.contentView.alpha = max(0, height / max(1, originalHeight))
+        }
+      }
     }
     let tracking = followsBottom && !collection.isDragging && !collection.isDecelerating
     if tracking {
@@ -309,6 +317,7 @@ extension LodyChatView {
     }
     deliverPendingContent()
     movingLayout = false
+    if deliveryExits.keys.contains(where: { rowHeights[$0] == nil }) { applyRows() }
     updateBottomButton()
     if rowHeights.isEmpty && (!tracking || abs(collection.contentOffset.y - bottomOffset) <= 0.5) {
       link.invalidate()
@@ -410,6 +419,7 @@ extension LodyChatView {
       return CGSize(width: width, height: height.current)
     }
     rowHeights[id] = nil
+    if deliveryExits[id] != nil { return CGSize(width: width, height: 0) }
     return CGSize(width: width, height: rowHeight(row, width: width))
   }
 
@@ -426,7 +436,7 @@ extension LodyChatView {
     if row.kind == "user" {
       return ChatMessageContent.height(textHeight: measured,
         limit: collapsedMessageHeights[row.entryID] ?? ChatMessageContent.maximumCollapsedHeight,
-        expanded: expandedMessages.contains(row.entryID)) + 24
+        expanded: expandedMessages.contains(row.entryID)) + ChatRowPadding.content + 12
     }
     // Process and pending status rows are buttons. Duration stays copy-sized
     // even after the folded process makes it tappable — a 44 pt floor would

@@ -58,7 +58,10 @@ export function useSessionControl(
     running:
       !!turnId || ['live', 'attention'].includes(sessionState(session.status)),
     canStop: canControl,
-    controlling: !!busy || stopping,
+    controlling:
+      stopping ||
+      (!!busy &&
+        !snapshot.entries.some((entry) => entry.id === busy && entry.delivery)),
     stopping: busy === 'stop' || stopping,
     steerID: busy === 'stop' ? '' : busy,
     steerInterrupts: !steerable,

@@ -234,6 +234,8 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
   func configure(_ row: ChatRow, text: NSAttributedString) {
+    contentView.alpha = 1
+    clipsToBounds = row.kind == "delivery"
     let sameRow = self.row?.id == row.id
     let previousSymbol = self.row?.symbol ?? ""
     label.setText(text, animate: row.streaming, reset: !sameRow)
@@ -353,6 +355,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   }
 
   static func rowExtra(for row: ChatRow, previousKind: String? = nil) -> CGFloat {
+    if row.kind == "delivery" { return 0 }
     if row.kind == "user" { return 44 }
     if row.kind == "duration" { return ChatRowPadding.content + ChatRowPadding.durationBottom }
     return ChatRowPadding.top(kind: row.kind, previousKind: previousKind) + ChatRowPadding.content
@@ -360,7 +363,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
 
   static func leading(_ row: ChatRow) -> CGFloat {
     switch row.kind {
-    case "text", "user", "duration": return 0
+    case "text", "user", "duration", "delivery": return 0
     case "summary": return 12
     default: return 24
     }
@@ -386,6 +389,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   }
   static func textWidth(_ row: ChatRow, width: CGFloat) -> CGFloat {
     if row.kind == "user" { return max(1, width * 0.84 - 26) }
+    if row.kind == "delivery" { return max(1, width * 0.84) }
     return max(1, width - leading(row))
   }
 
@@ -409,7 +413,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
       accessibilityValue = expandable ? LodyStrings.text(disclosureKey) : nil
       let height = ChatMessageContent.height(textHeight: size.height, limit: collapsedHeight, expanded: expanded)
       let bubbleWidth = expandable ? width * 0.84 : size.width + 26
-      messageContent.frame = CGRect(x: width - bubbleWidth, y: 12, width: bubbleWidth, height: height)
+      messageContent.frame = CGRect(x: width - bubbleWidth, y: ChatRowPadding.content, width: bubbleWidth, height: height)
       messageContent.setNeedsLayout()
       messageContent.layoutIfNeeded()
     } else {
@@ -426,12 +430,14 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
       let textWidth = Self.textWidth(row, width: width)
       let height = label.sizeThatFits(CGSize(width: textWidth, height: .greatestFiniteMagnitude)).height
       let y: CGFloat
-      if row.kind == "text" || row.kind == "thought" || row.kind == "duration" {
+      if row.kind == "delivery" {
+        y = 0
+      } else if row.kind == "text" || row.kind == "thought" || row.kind == "duration" {
         y = ChatRowPadding.content
       } else {
         y = max(ChatRowPadding.content, (bounds.height - height) / 2)
       }
-      label.frame = CGRect(x: inset, y: y, width: textWidth, height: height)
+      label.frame = CGRect(x: row.kind == "delivery" ? width - textWidth : inset, y: y, width: textWidth, height: height)
       numericText.frame = label.frame
       let markHeight = row.kind == "summary"
         ? (label.lineAdvances(width: textWidth).first ?? height)

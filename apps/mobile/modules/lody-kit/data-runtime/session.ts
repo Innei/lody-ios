@@ -742,27 +742,29 @@ export async function sendTurn(
       return { id, state: 'queued' };
     }
     if (guide) {
-      const result = await steerTurn(state, args.machineId, {
+      // History is durable; receipt tracking belongs to this message, not the
+      // session-wide write lock. A later guide can be persisted while RPC waits.
+      void steerTurn(state, args.machineId, {
         sessionId: state.id,
         expectedTurnId: guide.id,
         userTurnId: id,
         userId: args.userId,
         timestamp,
         inputConfig,
-      });
-      if (args.backgroundTaskId)
-        state.emit({
-          type: 'sessionCache',
-          sessionId: state.id,
-          backgroundWork: {
-            id: args.backgroundTaskId,
-            state: result.state === 'applied' ? 'completed' : 'failed',
-          },
+      })
+        .catch(() => ({ state: 'not_applied' }))
+        .then((result) => {
+          if (args.backgroundTaskId)
+            state.emit({
+              type: 'sessionCache',
+              sessionId: state.id,
+              backgroundWork: {
+                id: args.backgroundTaskId,
+                state: result.state === 'applied' ? 'completed' : 'failed',
+              },
+            });
         });
-      if (result.state === 'applied') return { id, state: 'accepted' };
-      // Only the machine can prove a rejected steer was not applied and
-      // requeue it. A lost RPC ACK must not be replayed by this client.
-      return { id, state: 'uploaded', reason: result.reason };
+      return { id, state: 'uploaded', awaitingGuide: true };
     }
     if (state.backgroundWork) {
       state.emit({
@@ -1017,7 +1019,8 @@ export async function controlTurn(args: {
         timestamp,
         inputConfig: config,
       };
-      return await steerTurn(state, args.machineId, params);
+      // Release the write lock in finally while this message awaits its receipt.
+      return steerTurn(state, args.machineId, params);
     }
     const reply = await machineRpc(
       state.workspace,

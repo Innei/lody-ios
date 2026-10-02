@@ -78,9 +78,9 @@ class ThrowTrace:
             # Presentation state is read at sampleTime, after CADisplayLink's
             # previous-frame timestamp. Both endpoints must precede the settle.
             backward = max([0] + [-step for step, sample in zip(steps, flight[1:]) if sample['sampleTime'] <= flight_time])
-            # Origins, not centers: the fixture may re-render the landed row's
-            # height afterwards, which is content, not a handoff shift.
-            landing = max([0] + [distance(s['modelFrame'][:2], trace['destination'][:2]) for s in adopted])
+            # Measure the handoff itself. Subsequent reply growth or user scrolling
+            # can legitimately move the adopted cell within the 350 ms tail.
+            landing = distance(adopted[0]['modelFrame'][:2], trace['destination'][:2]) if adopted else math.inf
             presentation_error = max([0] + [distance(s['frame'][:2], s['modelFrame'][:2]) for s in adopted])
             stalls = sum(abs(step) < .1 and .15 * length < along[i] < .85 * length
                          for i, step in enumerate(steps))

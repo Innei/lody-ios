@@ -180,6 +180,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var motionTime: CFTimeInterval = 0
   var movingLayout = false
   var hasPositionedContent = false
+  var deliveryExits: [String: CGFloat] = [:]
   var rowHeights: [String: (current: CGFloat, target: CGFloat, width: CGFloat)] = [:]
   var historyLoadStarted = 0.0
   var historyFirstContent = 0.0
@@ -658,6 +659,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       if let handoffID { ChatSendHandoff.cancel(id: handoffID) }
       motionLink?.invalidate(); motionLink = nil
       rowHeights.removeAll()
+      deliveryExits.removeAll()
       scrollProbe?.stop(); scrollProbe = nil
       performanceProbe?.stop(); performanceProbe = nil
       streamPerformanceProbe?.stop(); streamPerformanceProbe = nil

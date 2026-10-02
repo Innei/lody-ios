@@ -381,8 +381,8 @@ struct ChatTranscript {
         }
         if let delivery = entry.delivery, delivery != "accepted" {
           let key = "native.chat.message.guide." + delivery
-          result.append(ChatRow(id: entry.id + ":delivery", entryID: entry.id, kind: "pending",
-            text: LodyStrings.text(key), attention: delivery == "rejected" || delivery == "unknown"))
+          result.insert(ChatRow(id: entry.id + ":delivery", entryID: entry.id, kind: "delivery",
+            text: LodyStrings.text(key), attention: delivery == "rejected" || delivery == "unknown"), at: 0)
         }
         return result
       }
@@ -733,18 +733,21 @@ extension ChatPendingSend {
     }
     let acceptedIndex = entries.firstIndex { $0.id == id }
     let hasReply = acceptedIndex.map { entries.dropFirst($0 + 1).contains { $0.role == "assistant" } } ?? false
-    if !hasReply {
+    let hasDelivery = entries.contains { $0.id == id && $0.delivery != nil }
+    let acknowledged = phase == "accepted"
+    if !hasReply && !acknowledged && !hasDelivery {
+      result.insert(ChatRow(id: id + ":delivery", entryID: id, kind: "delivery", text: status,
+        attention: phase == "unknown"), at: 0)
+    }
+    if !hasReply && acknowledged && !hasDelivery {
       let now = Date().timeIntervalSince1970 * 1000
       let start = startedAt.flatMap { $0.isFinite && $0 <= now ? $0 : nil } ?? now
       let duration = Int(now - start)
-      let acked = acceptedIndex != nil || ["accepted", "uploaded"].contains(phase ?? "")
       result.append(ChatRow(
         id: id + ":duration",
         entryID: id,
         kind: "duration",
-        text: acked
-          ? workDurationTitle(duration, running: true)
-          : LodyStrings.text("native.chat.transcript.status.confirming"),
+        text: workDurationTitle(duration, running: true),
         running: true,
         workDurationMs: duration
       ))

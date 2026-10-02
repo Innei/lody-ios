@@ -602,7 +602,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         let value = try? result.get() as? String
         let data = value?.data(using: .utf8)
         let reply = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-        if reply?["state"] as? String != "accepted" {
+        if reply?["state"] as? String != "accepted" && reply?["awaitingGuide"] as? Bool != true {
           SessionBackgroundTasks.shared.finish(backgroundTaskId, success: reply?["state"] as? String == "queued")
         }
       }

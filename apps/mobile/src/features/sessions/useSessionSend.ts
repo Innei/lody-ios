@@ -29,6 +29,8 @@ export function pendingSendStatus(send: PendingSend, live: boolean) {
     return t(
       send.attachments.length ? 'send.status.uploading' : 'send.status.sending',
     );
+  if (send.guide && send.phase === 'uploaded')
+    return t('native.chat.message.guide.confirming');
   if (send.phase === 'accepted' || send.phase === 'uploaded')
     return t('send.status.waiting');
   return t(live ? 'send.status.preparing' : 'send.status.awaitingConnection');
@@ -82,7 +84,9 @@ export function useSessionSend({
   const send = record?.send;
   const live = snapshot.status === 'live';
   const hasPending =
-    !!send && !['failed', 'accepted', 'queued'].includes(send.phase);
+    !!send &&
+    !['failed', 'accepted', 'queued'].includes(send.phase) &&
+    !(send.guide && send.phase === 'uploaded');
   const [uploadProgress, setUploadProgress] = useState<
     Record<string, AttachmentUploadProgress>
   >({});
@@ -261,7 +265,10 @@ export function useSessionSend({
           )
             ? result.state
             : 'unknown';
-          await outbox.put({ ...record, send: { ...send, phase } });
+          await outbox.put({
+            ...record,
+            send: { ...send, guide: guiding, phase },
+          });
           if (phase !== 'unknown' && cleared.current !== send.id) {
             cleared.current = send.id;
             setClearDraftToken((token) => token + 1);

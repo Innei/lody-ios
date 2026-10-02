@@ -569,3 +569,36 @@ test('foreground attachment sends reserve before upload and can retry a failed p
   assert.deepEqual(calls, ['ensure:s1', 'ensure:s1', 'send:s1']);
   assert.equal(outbox.records[0].send.phase, 'accepted');
 });
+
+test('a durable guide releases Send while each receipt remains in history', async () => {
+  const requests = [];
+  const { hooks, outbox } = await setup(
+    { ...draft, guide: true, attachments: [] },
+    {
+      sendSessionTurn: async (payload) => {
+        requests.push(JSON.parse(payload));
+        return JSON.stringify({ state: 'uploaded', awaitingGuide: true });
+      },
+    },
+    async () => {},
+    'live',
+    { ...running, queuedMessageBehavior: 'guide', steerable: true },
+  );
+  await tick();
+  assert.equal(outbox.records[0].send.phase, 'uploaded');
+  assert.equal(hooks.result.canSend, true);
+  assert.equal(hooks.result.sending, false);
+  hooks.result.submit({
+    ...draft,
+    id: 'next-guide',
+    guide: true,
+    attachments: [],
+  });
+  await tick();
+  await tick();
+  assert.deepEqual(
+    requests.map((request) => request.id),
+    [draft.id, 'next-guide'],
+  );
+  assert.equal(outbox.records[0].send.id, 'next-guide');
+});

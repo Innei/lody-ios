@@ -178,7 +178,7 @@ function SendPreview() {
   });
   const completion = useRef<((result: string) => void) | null>(null);
   const submitted = useRef<{ id: string; guide?: boolean } | null>(null);
-  const guideWritten = useRef(false);
+  const guideReceipts = useRef<string[]>([]);
   const uploadListener = useRef<
     ((event: AttachmentUploadProgress) => void) | null
   >(null);
@@ -234,7 +234,6 @@ function SendPreview() {
     sendSessionTurn: (payload: string) =>
       new Promise<string>((resolve) => {
         submitted.current = JSON.parse(payload);
-        guideWritten.current = false;
         setCalls((n) => n + 1);
         completion.current = resolve;
       }),
@@ -283,22 +282,36 @@ function SendPreview() {
       );
       return;
     }
+    // Durable writes and per-message RPC receipts settle independently.
+    if (!completion.current && guideReceipts.current.length) {
+      const id = guideReceipts.current.shift()!;
+      setSnapshot((old) => ({
+        ...old,
+        revision: old.revision + 1,
+        entries: old.entries.map((entry) =>
+          entry.id === id
+            ? {
+                ...entry,
+                status: failure ? 'pending_apply' : 'processing',
+                delivery: failure ? 'unknown' : 'accepted',
+              }
+            : entry,
+        ),
+      }));
+      return;
+    }
     const resolve = completion.current;
     if (!resolve) return;
-    // This service boundary models the one native send: persist, then RPC ACK.
-    // The runtime tests exercise the real CRDT/RPC path with the same outcomes.
     if (submitted.current?.guide && record) {
       const target = snapshot.entries.findLast(
         (entry) => entry.role === 'assistant' && !entry.finished,
       );
-      if (!guideWritten.current && !failure && target) {
-        guideWritten.current = true;
+      completion.current = null;
+      if (!failure && target) {
+        const id = record.send.id;
+        guideReceipts.current.push(id);
         setControlRequest(
-          JSON.stringify({
-            action: 'steer',
-            turnId: target.id,
-            messageId: record.send.id,
-          }),
+          JSON.stringify({ action: 'steer', turnId: target.id, messageId: id }),
         );
         setSnapshot((old) => ({
           ...old,
@@ -306,9 +319,10 @@ function SendPreview() {
           entries: [
             ...old.entries,
             {
-              id: record.send.id,
+              id,
               role: 'user',
               status: 'pending_apply',
+              delivery: 'confirming',
               finished: true,
               rev: 0,
               items: [
@@ -322,53 +336,39 @@ function SendPreview() {
             },
           ],
         }));
+        resolve(JSON.stringify({ state: 'uploaded', awaitingGuide: true }));
         return;
       }
-      completion.current = null;
-      let state = 'accepted';
-      if (failure) state = guideWritten.current ? 'uploaded' : 'not_sent';
       if (!failure) {
-        if (guideWritten.current)
-          setSnapshot((old) => ({
-            ...old,
-            revision: old.revision + 1,
-            entries: old.entries.map((entry) =>
-              entry.id === record.send.id
-                ? { ...entry, status: 'processing' }
-                : entry,
-            ),
-          }));
-        else {
-          setControlRequest(
-            JSON.stringify({ action: 'dispatch', messageId: record.send.id }),
-          );
-          setSnapshot((old) => ({
-            ...old,
-            revision: old.revision + 1,
-            entries: [
-              ...old.entries,
-              {
-                id: record.send.id,
-                role: 'user',
-                status: 'pending',
-                finished: true,
-                rev: 0,
-                items: [
-                  {
-                    itemId: 'text',
-                    type: 'text',
-                    text: record.send.text,
-                    rev: 0,
-                  },
-                ],
-              },
-            ],
-          }));
-        }
+        setControlRequest(
+          JSON.stringify({ action: 'dispatch', messageId: record.send.id }),
+        );
+        setSnapshot((old) => ({
+          ...old,
+          revision: old.revision + 1,
+          entries: [
+            ...old.entries,
+            {
+              id: record.send.id,
+              role: 'user',
+              status: 'pending',
+              finished: true,
+              rev: 0,
+              items: [
+                {
+                  itemId: 'text',
+                  type: 'text',
+                  text: record.send.text,
+                  rev: 0,
+                },
+              ],
+            },
+          ],
+        }));
       }
       resolve(
         JSON.stringify({
-          state,
+          state: failure ? 'not_sent' : 'accepted',
           reason: failure ? 'free_session_turn_limit_reached' : undefined,
         }),
       );

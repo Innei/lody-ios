@@ -50,7 +50,12 @@ assert request['action'] == 'steer', request
 assert request['turnId'] == 'running-reply', request
 turn = request['messageId']
 assert turn
-assert ui.element('send-status')['AXLabel'] == 'Calls: 1 · sending', 'A durable guide write is not an acknowledgement'
+assert ui.element('send-status')['AXLabel'] == 'Calls: 1 · uploaded', 'A durable guide write is not an acknowledgement'
+ui.axe('tap', '--id', turn + ':user', '--post-delay', '.6')
+delivery = ui.element(turn + ':delivery')['frame']
+assert ui.element(turn + ':delivery')['AXLabel'] == catalog.text('native.chat.message.guide.confirming')
+bubble = ui.element(turn + ':user')['frame']
+assert delivery['y'] + delivery['height'] <= bubble['y'] + 1, 'Guidance belongs above its own bubble'
 ui.capture('guide-pending')
 ui.axe('tap', '--id', 'send-complete')
 ui.wait(
@@ -88,7 +93,7 @@ ui.axe('tap', '--id', 'send-complete')
 retried = json.loads(ui.element('control-request')['AXLabel'])
 assert retried['messageId'] == retry_id, 'Retry changed the durable identity'
 ui.axe('tap', '--id', 'send-complete')
-ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 3 · accepted' for i in items), 'Retried guide not accepted')
+ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 3 · uploaded' for i in items), 'Retried guide not accepted')
 ui.capture('guide-retried')
 
 # Finish the target while preparation is in flight. The same send dispatches normally.
@@ -119,9 +124,37 @@ assert user_text(unknown) == unknown_text
 assert not any(i.get('AXLabel') == catalog.text('native.chat.message.retry') and (i.get('AXUniqueId') or '').endswith(':pending') for i in ui.state()), 'An uncertain write must not offer retry'
 ui.axe('tap', '--id', 'session-input')
 ui.type_into('session-input', 'next draft')
-assert not ui.element('session-send')['enabled'], 'An uncertain guide allowed duplicate submission'
+assert ui.element('session-send')['enabled'], 'An uncertain guide must allow a new message'
+ui.axe('tap', '--id', 'session-send', '--post-delay', '1')
+ui.axe('tap', '--id', 'send-complete')
+next_turn = json.loads(ui.element('control-request')['AXLabel'])['messageId']
+assert next_turn != unknown, 'A new guide must have its own identity'
+ui.axe('tap', '--id', next_turn + ':user', '--post-delay', '.6')
+ui.axe('swipe', '--start-x', '150', '--start-y', '440', '--end-x', '150', '--end-y', '700', '--duration', '.4', '--post-delay', '.6')
+ui.element(unknown + ':delivery')
+ui.element(next_turn + ':delivery')
+ui.capture('guide-concurrent-unknown')
+ui.axe('tap', '--id', 'session-input')
+ui.type_into('session-input', 'another pending guide')
+assert ui.element('session-send')['enabled'], 'A confirming guide must allow another guide'
+ui.axe('tap', '--id', 'session-send', '--post-delay', '1')
+ui.axe('tap', '--id', 'send-complete')
+third_turn = json.loads(ui.element('control-request')['AXLabel'])['messageId']
+assert third_turn not in [unknown, next_turn]
+ui.axe('tap', '--id', third_turn + ':user', '--post-delay', '.6')
+ui.axe('swipe', '--start-x', '150', '--start-y', '440', '--end-x', '150', '--end-y', '730', '--duration', '.4', '--post-delay', '.6')
+ui.element(next_turn + ':delivery')
+ui.element(third_turn + ':delivery')
+ui.capture('guide-concurrent-confirming')
+ui.axe('tap', '--id', 'send-complete')
+ui.wait(lambda items: not any(i.get('AXUniqueId') == next_turn + ':delivery' for i in items), 'Accepted guidance did not dismiss its own status')
+ui.element(unknown + ':delivery')
+ui.element(third_turn + ':delivery')
+ui.axe('tap', '--id', 'send-complete')
+ui.wait(lambda items: not any(i.get('AXUniqueId') == third_turn + ':delivery' for i in items), 'Last guidance status did not dismiss')
+ui.element(unknown + ':delivery')
 ui.capture('guide-uncertain')
-trace.verify(4)
+trace.verify(6)
 print(
     json.dumps(
         {

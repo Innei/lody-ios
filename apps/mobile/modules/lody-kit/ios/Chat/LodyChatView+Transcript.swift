@@ -136,6 +136,7 @@ extension LodyChatView {
   func text(for row: ChatRow) -> NSAttributedString {
     let scale = UIFont.dynamicScale(compatibleWith: traitCollection)
     let paragraph = NSMutableParagraphStyle()
+    if row.kind == "delivery" { paragraph.alignment = .right }
     let lineHeight = (row.kind == "user" ? 25 : 18) * scale
     paragraph.minimumLineHeight = lineHeight
     paragraph.maximumLineHeight = lineHeight
@@ -216,7 +217,15 @@ extension LodyChatView {
         projected[index].errorRetry = state
       }
     }
-    if processEntryID.isEmpty, let pendingSend { projected += pendingSend.rows(entries: transcript.entries) }
+    if processEntryID.isEmpty, let pendingSend {
+      for row in pendingSend.rows(entries: transcript.entries) {
+        if row.kind == "delivery", let index = projected.firstIndex(where: { $0.entryID == row.entryID }) {
+          projected.insert(row, at: index)
+        } else {
+          projected.append(row)
+        }
+      }
+    }
     for index in projected.indices where projected[index].kind == "attachments" {
       let entry = projected[index].entryID
       if projected[index].attachments.contains(where: { $0.localURI != nil }) {
@@ -237,6 +246,26 @@ extension LodyChatView {
       projected,
       inFlight: Set(projected.map(\.entryID).filter { ChatSendHandoff.isInFlight(id: $0) })
     )
+    // Keep a confirmed status in the layout while its height and opacity shrink.
+    // Remove it only after the adjacent bubble has reached its final position.
+    let activeIDs = Set(projected.map(\.id))
+    for id in deliveryExits.keys where activeIDs.contains(id) {
+      deliveryExits[id] = nil
+      rowHeights[id] = nil
+    }
+    if hasPositionedContent && window != nil && !UIAccessibility.isReduceMotionEnabled {
+      for row in rows.values where row.kind == "delivery" && !activeIDs.contains(row.id) {
+        guard let index = projected.firstIndex(where: { $0.entryID == row.entryID }) else { continue }
+        if deliveryExits[row.id] == nil {
+          let width = ChatReadingColumn.itemWidth(in: collection.bounds.width)
+          let height = rowHeight(row, width: width)
+          deliveryExits[row.id] = height
+          rowHeights[row.id] = (height, 0, width)
+        }
+        if rowHeights[row.id] != nil { projected.insert(row, at: index) }
+      }
+    }
+    deliveryExits = deliveryExits.filter { id, _ in projected.contains { $0.id == id } }
     updateWorkDurationTimer(rows: projected)
     let entryIDsToRetain = Set(projected.map(\.entryID))
     expandedMessages.formIntersection(entryIDsToRetain)
@@ -316,7 +345,12 @@ extension LodyChatView {
     }
     store.nonAnimatedRows = Set(projected.filter { catchingUpEntries.contains($0.entryID) }.map(\.id))
     prepareRowHeights(projected, previous: previous, animate: !folding && delivered == nil)
+    for (id, height) in deliveryExits where rowHeights[id] == nil {
+      rowHeights[id] = (height, 0, ChatReadingColumn.itemWidth(in: collection.bounds.width))
+    }
     rows = Dictionary(projected.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+    let settlingDelivery = hasPositionedContent && window != nil && !insertingHistory && catchingUpEntries.isEmpty
+      && previous.values.contains { row in row.kind == "delivery" && rows[row.id] == nil && entryIDsToRetain.contains(row.entryID) }
     measurements = measurements.filter { retainedIDs.contains($0.key) }
     store.retain(retainedIDs)
     var snapshot = NSDiffableDataSourceSnapshot<String, String>()
@@ -389,7 +423,7 @@ extension LodyChatView {
         self.dataSource.apply(snapshot, animatingDifferences: true, completion: finish)
         updateLayout()
       }
-    } else if folding {
+    } else if folding || (settlingDelivery && UIAccessibility.isReduceMotionEnabled) {
       UIView.transition(with: collection, duration: 0.12, options: [.transitionCrossDissolve]) {
         self.dataSource.apply(snapshot, animatingDifferences: false)
         updateLayout()

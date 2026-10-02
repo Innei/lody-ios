@@ -607,26 +607,17 @@ let localPendingJSON = """
 """
 let localPending = try! JSONDecoder().decode(ChatPendingSend.self, from: Data(localPendingJSON.utf8))
 let pendingRows = localPending.rows(entries: [])
-precondition(pendingRows.map(\.kind) == ["attachments", "user", "duration"],
-  "A send must show its attachment, text and a separate static duration immediately")
-precondition(pendingRows.first?.attachments.first?.localURI == "file:///tmp/cat.png" && pendingRows.last?.running == true)
-precondition(pendingRows.last?.id == "local-send:duration")
-precondition((2_400...3_000).contains(pendingRows.last?.workDurationMs ?? -1),
-  "The local duration must start at submission time")
-precondition(ChatWorkDuration.needsTimer(pendingRows),
-  "A local duration row must keep advancing before the server replies")
-precondition(pendingRows.last?.text == LodyStrings.text("native.chat.transcript.status.confirming"),
-  "An unacked send must confirm delivery on the existing duration row")
-precondition(pendingRows.last?.text != localPending.status,
-  "Phase copy such as uploading must not replace the unacked duration row")
+precondition(pendingRows.map(\.kind) == ["delivery", "attachments", "user"],
+  "Delivery belongs above text and attachments")
+precondition(pendingRows.first?.text == localPending.status)
+precondition(!ChatWorkDuration.needsTimer(pendingRows),
+  "An unconfirmed send must not show a working duration")
 precondition(ChatWorkDuration.needsTimer(liveDurationRows))
 precondition(!ChatWorkDuration.needsTimer(finishedDurationRows))
 let authoritative = ChatEntry(id: "local-send", role: "user", status: "completed", finished: true, timestamp: nil, endedAt: nil, startedAt: nil, items: [], fileDiffs: nil)
 let authoritativeDuration = localPending.rows(entries: [authoritative])
-precondition(authoritativeDuration.map(\.kind) == ["duration"],
-  "Authoritative user history must replace the pending user row without interrupting duration")
-precondition(authoritativeDuration.last?.text != LodyStrings.text("native.chat.transcript.status.confirming"),
-  "History takeover must start the working duration on the same row")
+precondition(authoritativeDuration.map(\.kind) == ["delivery"],
+  "History without a receipt must retain delivery status without duplicating the message")
 var failedPending = localPending
 failedPending.failed = true
 let failedRows = failedPending.rows(entries: [])
@@ -634,31 +625,31 @@ var uploadingPending = localPending
 uploadingPending.phase = "sending"
 uploadingPending.uploadProgress = ["photo": ChatAttachmentUploadProgress(phase: "uploading", percent: 37)]
 let uploadingRows = uploadingPending.rows(entries: [])
-precondition(uploadingRows.first?.uploadProgress["photo"]?.percent == 37 && uploadingRows.first?.running == true)
-precondition(uploadingRows.first?.attachments == pendingRows.first?.attachments,
+precondition(uploadingRows.first(where: { $0.kind == "attachments" })?.uploadProgress["photo"]?.percent == 37 && uploadingRows.first(where: { $0.kind == "attachments" })?.running == true)
+precondition(uploadingRows.first(where: { $0.kind == "attachments" })?.attachments == pendingRows.first(where: { $0.kind == "attachments" })?.attachments,
   "Progress must not replace attachment identities or restart image loaders")
-precondition(uploadingRows.last?.text == LodyStrings.text("native.chat.transcript.status.confirming"),
-  "Upload progress must not replace the unacked duration copy")
+precondition(uploadingRows.first?.text == localPending.status,
+  "Upload copy belongs above the message")
 uploadingPending.phase = "accepted"
 let acceptedRows = uploadingPending.rows(entries: [])
 precondition(acceptedRows.first?.running == false,
   "An accepted send must stop upload indicators before history arrives")
 precondition(acceptedRows.last?.kind == "duration" && acceptedRows.last?.text != LodyStrings.text("native.chat.transcript.status.confirming"),
   "An accepted send must show working duration before history arrives")
-precondition(pendingRows.first?.running == true && failedRows.first?.running == false,
+precondition(pendingRows.first(where: { $0.kind == "attachments" })?.running == true && failedRows.first?.running == false,
   "Loading belongs to attachment tiles and must stop on failure")
-precondition(failedRows.first?.attachments == pendingRows.first?.attachments && failedRows.last?.actionable == true,
+precondition(failedRows.first?.attachments == pendingRows.first(where: { $0.kind == "attachments" })?.attachments && failedRows.last?.actionable == true,
   "A definite failure must retain the attachment and offer explicit retry")
 let flying = ChatPendingSend.hidingStatus(pendingRows, inFlight: ["local-send"])
-precondition(flying.map(\.kind) == ["attachments", "user"],
-  "A flying send must keep its bubble and hide status until the throw lands")
+precondition(flying.map(\.kind) == ["delivery", "attachments", "user"],
+  "Delivery above the bubble must reserve its space throughout the flight")
 precondition(ChatPendingSend.hidingStatus(pendingRows, inFlight: []).map(\.kind) == pendingRows.map(\.kind),
   "A send with no flight must show its duration immediately")
 precondition(ChatPendingSend.hidingStatus(failedRows, inFlight: ["local-send"]).last?.kind != "pending",
   "Retry must wait for the throw to finish")
 precondition(ChatPendingSend.hidingStatus(failedRows, inFlight: []).last?.kind == "pending")
-precondition(ChatPendingSend.hidingStatus(authoritativeDuration, inFlight: ["local-send"]).isEmpty,
-  "History duration must not appear beside a still-flying bubble")
+precondition(ChatPendingSend.hidingStatus(authoritativeDuration, inFlight: ["local-send"]).first?.kind == "delivery",
+  "History takeover must retain the same delivery placement during flight")
 let neighbor = pendingRows + [ChatRow(id: "other:duration", entryID: "other", kind: "duration", text: "kept")]
 precondition(ChatPendingSend.hidingStatus(neighbor, inFlight: ["local-send"]).contains { $0.id == "other:duration" },
   "Another turn's duration must stay visible during this throw")
@@ -671,12 +662,12 @@ precondition(reconnectRows.map(\.kind) == pendingRows.map(\.kind),
   "Connection chrome must not insert a list status row")
 precondition(!reconnectRows.contains { $0.kind == "pending" },
   "Waiting for a connection is not a transcript cell")
-precondition(reconnectRows.first?.running == false,
+precondition(reconnectRows.first(where: { $0.kind == "attachments" })?.running == false,
   "Reconnection replaces tile loading")
 precondition(reconnectRows.firstIndex(where: { $0.kind == "duration" }) == pendingRows.firstIndex(where: { $0.kind == "duration" }),
   "Removing the reconnect row must not shift the reply header")
-precondition(reconnectRows.last?.text == LodyStrings.text("native.chat.transcript.status.confirming"),
-  "Reconnection must keep the unacked duration copy")
+precondition(reconnectRows.first?.text == localPending.status,
+  "Reconnection must keep the delivery status")
 precondition(pendingRows.last?.actionable == false, "Ordinary pending status must not open the execution process")
 print("Pending reconnect: connection stays off the transcript passed")
 
