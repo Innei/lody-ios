@@ -120,6 +120,23 @@ final class UploadProtocol: URLProtocol {
     defer { try? FileManager.default.removeItem(at: root) }
     let file = root.appendingPathComponent("test.txt")
     try Data("hi!".utf8).write(to: file)
+    let abandonedDirectory: URL
+    do {
+      let batch = AttachmentDownloadBatch(root: root)
+      abandonedDirectory = batch.makeDirectory()
+      try FileManager.default.createDirectory(at: abandonedDirectory, withIntermediateDirectories: true)
+      try Data("downloaded".utf8).write(to: abandonedDirectory.appendingPathComponent("attachment.txt"))
+    }
+    assert(!FileManager.default.fileExists(atPath: abandonedDirectory.path),
+      "A failed edit preparation must remove every downloaded attachment directory")
+    var handedOffBatch: AttachmentDownloadBatch? = AttachmentDownloadBatch(root: root)
+    let handedOffDirectory = handedOffBatch!.makeDirectory()
+    try FileManager.default.createDirectory(at: handedOffDirectory, withIntermediateDirectories: true)
+    handedOffBatch?.handOff()
+    handedOffBatch = nil
+    assert(FileManager.default.fileExists(atPath: handedOffDirectory.path),
+      "A successful edit preparation must retain files handed to the composer")
+    try FileManager.default.removeItem(at: handedOffDirectory)
     func attachment(_ url: URL, _ kind: String = "file") -> [String: Any] {
       ["id": url.lastPathComponent, "uri": url.absoluteString, "name": url.lastPathComponent, "kind": kind]
     }
