@@ -1162,7 +1162,17 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     if !composerOptions.efforts.isEmpty || !composerOptions.effort.isEmpty {
       title.append(NSAttributedString(string: " " + composerOptions.effortTitle, attributes: [.foregroundColor: UIColor.secondaryLabel]))
     }
-    title.addAttribute(.font, value: UIFont.preferredFont(forTextStyle: .caption1), range: NSRange(location: 0, length: title.length))
+    let summary = title.string
+    let font = UIFont.preferredFont(forTextStyle: .caption1)
+    if composerOptions.fast == true {
+      let symbol = NSTextAttachment()
+      symbol.image = UIImage(systemName: "bolt.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: font.pointSize - 2, weight: .regular))?
+        .withTintColor(.lodyAccent, renderingMode: .alwaysOriginal)
+      let prefix = NSMutableAttributedString(attachment: symbol)
+      prefix.append(NSAttributedString(string: " "))
+      title.insert(prefix, at: 0)
+    }
+    title.addAttribute(.font, value: font, range: NSRange(location: 0, length: title.length))
     var configuration = UIButton.Configuration.plain()
     configuration.attributedTitle = AttributedString(title)
     configuration.image = UIImage(systemName: "chevron.down")
@@ -1173,7 +1183,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     configuration.baseForegroundColor = .secondaryLabel
     configuration.titleLineBreakMode = .byTruncatingTail
     modelButton.configuration = configuration
-    modelButton.accessibilityLabel = LodyStrings.text("native.chat.composer.modelButton", ["summary": title.string])
+    modelButton.accessibilityLabel = LodyStrings.text("native.chat.composer.modelButton", ["summary": summary])
+    modelButton.accessibilityValue = composerOptions.fast == true ? LodyStrings.text("native.chat.composer.fast") + ": " + LodyStrings.text("native.chat.composer.fastOn") : nil
     optionsPopover?.render(composerOptions)
     if !modelButton.isEnabled { optionsPopover?.dismiss(animated: true) }
   }

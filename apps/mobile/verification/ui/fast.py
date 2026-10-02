@@ -14,6 +14,8 @@ def state(enabled):
     return ui.wait(lambda _: ui.element('composer-fast') if ui.element('composer-fast').get('AXValue') == value else None, 'Fast state did not return from RN')
 
 tap(field)
+assert not ui.element('session-model').get('AXValue'), 'Disabled Fast remains announced outside the picker'
+ui.capture('label-off')
 tap('session-model')
 state(False)
 frame = ui.element('composer-fast')['frame']
@@ -26,6 +28,8 @@ ui.capture('on')
 time.sleep(1)
 ui.capture('flow')
 ui.axe('tap', '-x', '20', '-y', '160', '--post-delay', '.5')
+assert ui.element('session-model').get('AXValue') == catalog.text('native.chat.composer.fast') + ': ' + catalog.text('native.chat.composer.fastOn'), 'Enabled Fast is missing from the outer model control'
+ui.capture('label-on')
 tap('session-model')
 state(True)
 ui.capture('reopened')
@@ -38,4 +42,7 @@ if field == 'session-input':
 tap('composer-fast')
 state(False)
 ui.capture('disabled')
+ui.axe('tap', '-x', '20', '-y', '160', '--post-delay', '.5')
+assert not ui.element('session-model').get('AXValue'), 'Outer model control retained the disabled Fast state'
+ui.capture('label-disabled')
 print('PASS: Fast toggle, 44 pt target, RN echo, reopen and disabling in native composer host')
