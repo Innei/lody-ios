@@ -23,9 +23,10 @@ draft = ui.element('create-session-input')['AXValue']
 ui.capture('source')
 ui.axe('tap', '--id', 'session-send', '--tap-style', 'physical')
 ui.element('send-status')
-shiny = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':duration')), None), 'Target pending row missing')
-turn = shiny['AXUniqueId'].removesuffix(':duration')
-assert shiny['AXLabel'] == catalog.text('native.chat.transcript.status.confirming'), 'Unacked send must confirm delivery on the duration row'
+delivery = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':delivery')), None), 'Target delivery row missing')
+turn = delivery['AXUniqueId'].removesuffix(':delivery')
+assert delivery['AXLabel'] == catalog.text('send.status.awaitingConnection'), 'Unacked send must show its delivery phase above the message'
+assert not any(i.get('AXUniqueId') == turn + ':duration' for i in ui.state()), 'Unacked send must not show a working duration'
 assert draft == ui.element(turn + ':user')['AXLabel']
 assert ui.element('send-status')['AXLabel'] == 'Calls: 0 · waiting', 'Creation waited for network or dispatched offline'
 ui.capture('target-offline')
@@ -37,19 +38,19 @@ assert relay['inputBefore']['focused'], 'The source lost keyboard focus before a
 assert all(abs(a - b) < 1.5 for a, b in zip(relay['source'], relay['adopted'])), relay
 assert ui.element('inputView')['frame']['height'] > 200, 'Adoption dismissed the keyboard'
 (ui.output / 'composer-relay.json').write_text(json.dumps(relay, indent=2))
-timer_frame = ui.element(turn + ':duration')['frame']
+delivery_frame = ui.element(turn + ':delivery')['frame']
 geometry_errors = []
 
-def assert_timer_stable(stage):
-    frame = ui.element(turn + ':duration')['frame']
-    print(f'{stage}: timer frame {frame}', flush=True)
+def assert_row_stable(identifier, reference, stage):
+    frame = ui.element(identifier)['frame']
+    print(f'{stage}: {identifier} frame {frame}', flush=True)
     for dimension in ['y', 'height']:
-        if abs(frame[dimension] - timer_frame[dimension]) >= 1.5:
-            geometry_errors.append(f'{stage}: timer {dimension} shifted from {timer_frame} to {frame}')
+        if abs(frame[dimension] - reference[dimension]) >= 1.5:
+            geometry_errors.append(f'{stage}: {identifier} {dimension} shifted from {reference} to {frame}')
 
 ui.axe('tap', '--id', 'send-connect')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 1 · creating' for i in items), 'Creation did not start')
-assert_timer_stable('connected')
+assert_row_stable(turn + ':delivery', delivery_frame, 'connected')
 ui.axe('tap', '--id', 'send-fail')
 ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('send.alert.title') for i in items), 'Creation failure missing')
 ui.axe('tap', '--label', catalog.system('ok'))
@@ -60,24 +61,41 @@ ui.capture('target-failure-retained')
 ui.axe('tap', '--id', turn + ':pending')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 2 · creating' for i in items), 'Explicit creation retry did not start')
 ui.capture('target-retrying')
-assert_timer_stable('retrying')
+assert_row_stable(turn + ':delivery', delivery_frame, 'retrying')
 ui.axe('tap', '--id', 'send-complete')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 3 · sending' for i in items), 'First turn did not start after creation')
-assert_timer_stable('created')
+assert_row_stable(turn + ':delivery', delivery_frame, 'created')
 ui.axe('tap', '--id', 'send-complete')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 3 · accepted' for i in items), 'Receipt missing')
-assert ui.element(turn + ':duration')['AXLabel'] != catalog.text('native.chat.transcript.status.confirming'), 'Accepted send must start working duration'
-assert_timer_stable('accepted')
+ui.wait(lambda items: not any(i.get('AXUniqueId') == turn + ':delivery' for i in items), 'Accepted send kept the delivery status')
+previous_duration = []
+
+def settled_duration(items):
+    row = next((i for i in items if i.get('AXUniqueId') == turn + ':duration'), None)
+    if not row:
+        previous_duration.clear()
+        return None
+    frame = row['frame']
+    previous = previous_duration[-1] if previous_duration else None
+    previous_duration[:] = [frame]
+    if previous and all(abs(frame[dimension] - previous[dimension]) < 0.5 for dimension in ['y', 'height']):
+        return row
+    return None
+
+timer = ui.wait(settled_duration, 'Working duration did not settle')
+assert timer['AXLabel'] != catalog.text('native.chat.transcript.status.confirming'), 'Accepted send must start working duration'
+timer_frame = timer['frame']
+assert_row_stable(turn + ':duration', timer_frame, 'accepted')
 ui.capture('target-accepted')
 ui.axe('tap', '--id', 'send-start-reply')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 3 · idle' for i in items), 'First reply did not reconcile pending')
-assert_timer_stable('first reply')
+assert_row_stable(turn + ':duration', timer_frame, 'first reply')
 first_label = ui.element(turn + ':duration')['AXLabel']
 ui.wait(lambda items: any(i.get('AXUniqueId') == turn + ':duration' and i.get('AXLabel') != first_label for i in items), 'Timer stopped after takeover')
-assert_timer_stable('tick after takeover')
+assert_row_stable(turn + ':duration', timer_frame, 'tick after takeover')
 ui.capture('target-reconciled')
 assert not geometry_errors, '\n'.join(geometry_errors)
-print('PASS: immediate first turn, failure/retry, stable timer geometry through connection and first reply takeover')
+print('PASS: immediate first turn, failure/retry, stable delivery then working duration through first reply takeover')
 
 if not os.environ.get('LODY_UI_EMBEDDED'):
     throw_trace.verify(1)
