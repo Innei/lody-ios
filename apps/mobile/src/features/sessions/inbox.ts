@@ -4,6 +4,7 @@ import type {
   NativeListSection,
 } from '@lody-ios/kit';
 import { sessionTree } from './sessionTree.ts';
+import { conversationRootOf, rollupConversations } from './conversations.ts';
 import type { Catalog, Project, Session } from '../../models/catalog.ts';
 import {
   sessionIsUnread as unreadOf,
@@ -105,7 +106,7 @@ export type InboxOptions = {
 };
 
 export function activeSessionSections(catalog: Catalog, accent: string) {
-  const sessions = catalog.sessions.filter((session) => {
+  const sessions = rollupConversations(catalog.sessions).filter((session) => {
     if (session.archived || ['completed', 'error'].includes(session.status))
       return false;
     return (
@@ -134,6 +135,7 @@ export function inboxSections(
   { keyword = '', accent, now, chatOnly = false, pinOrder = [] }: InboxOptions,
 ): NativeListSection[] {
   const names = new Map(catalog.projects.map((p) => [p.id, p.name]));
+  const all = rollupConversations(catalog.sessions);
   const term = keyword.trim().toLocaleLowerCase();
   const matches = (session: Session) =>
     !term ||
@@ -141,7 +143,7 @@ export function inboxSections(
       .toLocaleLowerCase()
       .includes(term);
 
-  const visible = catalog.sessions
+  const visible = all
     .filter((session) => (chatOnly ? isChatSession(session) : true))
     .filter((session) => (session.archived ? term.length > 0 : true))
     .filter(matches)
@@ -159,7 +161,7 @@ export function inboxSections(
       group.id === PINNED_SECTION_ID
         ? orderPinned(buckets.get(group.id) ?? [], pinOrder, activityAt)
         : (buckets.get(group.id) ?? []);
-    const rows = sessionTreeRows(sessions, catalog.sessions, (session) => {
+    const rows = sessionTreeRows(sessions, all, (session) => {
       const state = stateOf(session);
       return {
         id: session.id,
@@ -350,22 +352,46 @@ export function sessionRow(
   };
 }
 
+function withRollup(row: NativeListRow, session: Session): NativeListRow {
+  const rollup = session.conversationRollup;
+  if (!rollup) return row;
+  const chats = tp('inbox.session.chats', rollup.count, {
+    count: rollup.count,
+  });
+  return {
+    ...row,
+    value: [chats, row.value].filter(Boolean).join(' · '),
+    ...(rollup.waitingTitle
+      ? {
+          subtitle: t('inbox.session.needsYouIn', {
+            title: rollup.waitingTitle,
+          }),
+          subtitleMono: false,
+        }
+      : {}),
+  };
+}
+
 export function sessionTreeRows(
   sessions: Session[],
   allSessions: Session[],
   rowOf: (session: Session) => NativeListRow,
   maxRoots = Infinity,
 ): NativeListRow[] {
-  return sessionTree(sessions, allSessions)
+  const rolled = rollupConversations(allSessions);
+  const byId = new Map(rolled.map((session) => [session.id, session]));
+  const roots = sessions.flatMap((session) => byId.get(session.id) ?? []);
+  const decorated = (session: Session) => withRollup(rowOf(session), session);
+  return sessionTree(roots, rolled)
     .slice(0, maxRoots)
     .flatMap(({ session, children }) => {
-      const row = rowOf(session);
+      const row = decorated(session);
       if (!children.length) return [row];
       const members = [session, ...children];
       const urgent = ['attention', 'failed', 'live'].flatMap((state) =>
         members.filter((member) => stateOf(member) === state),
       )[0];
-      const status = urgent ? rowOf(urgent) : row;
+      const status = urgent ? decorated(urgent) : row;
       return [
         {
           ...row,
@@ -375,7 +401,10 @@ export function sessionTreeRows(
           collapsedBadge: status.badge,
           collapsedImageTint: status.imageTint,
         },
-        ...children.map((child) => ({ ...rowOf(child), parentId: session.id })),
+        ...children.map((child) => ({
+          ...decorated(child),
+          parentId: session.id,
+        })),
       ];
     });
 }
@@ -480,11 +509,12 @@ export function projectSections(
   sort: ProjectSort = 'name',
   pinOrder: string[] = [],
 ): NativeListSection[] {
-  const unpinned = catalog.sessions.filter(
+  const all = rollupConversations(catalog.sessions);
+  const unpinned = all.filter(
     (session) => !session.pinned && !session.archived,
   );
   const pinned = orderPinned(
-    catalog.sessions.filter((session) => session.pinned && !session.archived),
+    all.filter((session) => session.pinned && !session.archived),
     pinOrder,
     activityAt,
   );
@@ -570,9 +600,14 @@ export function searchSections(
 ): NativeListSection[] {
   const names = new Map(catalog.projects.map((p) => [p.id, p.name]));
   const projectIds = new Set(hits.projectIds);
-  const matches = new Map(hits.sessions.map((hit) => [hit.id, hit.snippet]));
+  const matches = new Map<string, string | null>();
+  for (const hit of hits.sessions) {
+    const root = conversationRootOf(hit.id, catalog.sessions);
+    if (root === hit.id) matches.set(root, hit.snippet);
+    else if (!matches.has(root)) matches.set(root, null);
+  }
   const projects = catalog.projects.filter((p) => projectIds.has(p.id));
-  const sessions = catalog.sessions
+  const sessions = rollupConversations(catalog.sessions)
     .filter((s) => matches.has(s.id))
     .sort(byActivity);
   return [

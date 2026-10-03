@@ -16,6 +16,8 @@ export type Session = {
   openedBySessionId?: string;
   openedByRootSessionId?: string;
   parentSessionId?: string;
+  childSessionPlacement?: 'side-panel';
+  conversationRollup?: { count: number; waitingTitle?: string };
   status: string;
   archived: boolean;
   pinned: boolean;

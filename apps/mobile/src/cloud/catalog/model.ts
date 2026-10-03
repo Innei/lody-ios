@@ -155,6 +155,8 @@ export function projectRows(rows: Row[], mode: string): Catalog {
       openedByRootSessionId:
         text(value.openedByRootSessionId).trim() || undefined,
       parentSessionId: text(value.parentSessionId).trim() || undefined,
+      childSessionPlacement:
+        value.childSessionPlacement === 'side-panel' ? 'side-panel' : undefined,
       machineId,
       title: text(value.title) || t('session.untitled'),
       status:
