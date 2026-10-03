@@ -25,9 +25,7 @@ struct ChatForkMenu: Equatable {
         image: UIImage(systemName: symbol),
         attributes: disabled ? .disabled : []
       ) { _ in onFork(target) }
-      action.subtitle = disabled && !note.isEmpty
-        ? note
-        : LodyStrings.text("native.chat.message.fork." + target + "Subtitle")
+      if disabled && !note.isEmpty { action.subtitle = note }
       action.accessibilityIdentifier = "fork-" + target
       return action
     }

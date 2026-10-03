@@ -694,6 +694,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("processStartId") { (view: LodyChatView, value: String) in view.setProcessStartID(value) }
       Prop("processEntryId") { (view: LodyChatView, value: String) in view.setProcessEntryID(value) }
       Prop("composerJSON") { (view: LodyChatView, value: String) in view.setComposerState(value) }
+      Prop("composerHidden") { (view: LodyChatView, value: Bool) in view.composerHidden = value }
       Prop("mentionItemsJSON") { (view: LodyChatView, value: String) in view.composer.setMentionItems(value) }
       Prop("mentionResultJSON") { (view: LodyChatView, value: String) in view.composer.setMentionResult(value) }
       Prop("composerOptionsJSON") { (view: LodyChatView, value: String) in view.setComposerOptions(value) }

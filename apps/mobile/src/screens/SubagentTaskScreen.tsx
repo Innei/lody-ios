@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore } from 'react';
 import { StyleSheet, View as RNView } from 'react-native';
 import { copyText, NativeChat } from '@lody-ios/kit';
-import { definePage } from '@/lib/presentation';
+import { definePage, presentationHeaderHeight } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
 import { t } from '@/lib/i18n/index.ts';
@@ -102,6 +102,7 @@ function RunView({
         style={{ flex: 1, backgroundColor: colors.reading }}
         entriesJSON={entriesJSON}
         composerJSON="{}"
+        composerHidden
         clearDraftToken={0}
         emptyText={running ? t('subagent.run.silent') : ''}
         onSend={() => {}}
@@ -182,7 +183,7 @@ function SummaryView({ task }: { task: SubagentTask }) {
 const styles = StyleSheet.create({
   runHeader: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: presentationHeaderHeight + 12,
     paddingBottom: 8,
     gap: 6,
   },

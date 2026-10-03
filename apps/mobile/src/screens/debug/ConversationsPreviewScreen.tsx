@@ -179,12 +179,13 @@ function View() {
           reason: fixture.offline ? offlineReason : '',
         })}
         onFork={({ nativeEvent }) =>
-          void fork(nativeEvent.target, nativeEvent.entryId)
+          void fork(nativeEvent.destination, nativeEvent.entryId)
         }
         composerJSON={JSON.stringify({
           editable: true,
           canSend: true,
           sending: false,
+          running: false,
           notice: '',
           reconnect: false,
           connection: '',

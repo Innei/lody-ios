@@ -140,6 +140,14 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var dataSource: UICollectionViewDiffableDataSource<String, String>!
   var transcript = ChatTranscript()
   var processEntryID = ""
+  var composerHidden = false {
+    didSet {
+      guard oldValue != composerHidden else { return }
+      composer.isHidden = hidesComposer || composerRetired
+      setNeedsLayout()
+    }
+  }
+  var hidesComposer: Bool { !processEntryID.isEmpty || composerHidden }
   var processStartID = ""
   var stream = ChatStream()
   // Frozen presentation only. ChatStream keeps accepting authoritative updates.
@@ -813,9 +821,9 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
 
   func retireComposer(_ retired: Bool) {
-    composer.isUserInteractionEnabled = !retired && processEntryID.isEmpty
+    composer.isUserInteractionEnabled = !retired && !hidesComposer
     if retired { endEditing(true) }
-    if processEntryID.isEmpty { composer.isHidden = false }
+    if !hidesComposer { composer.isHidden = false }
     let distance = max(composer.bounds.height + 16, 88)
     composerBottom.constant = retired ? distance : 0
     let changes = {
@@ -824,7 +832,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     }
     let finish: (Bool) -> Void = { finished in
       guard finished, self.composerRetired == retired else { return }
-      self.composer.isHidden = retired || !self.processEntryID.isEmpty
+      self.composer.isHidden = retired || self.hidesComposer
     }
     let duration = UIAccessibility.isReduceMotionEnabled ? 0.2 : 0.45
     UIView.animate(

@@ -90,7 +90,7 @@ struct ChatItem: Decodable {
   var run: ChatSubagentRun? = nil
   var hidesFromTranscript: Bool { type == "subagent_task" && skipTranscript == true }
   var isLiveSubagent: Bool {
-    type == "subagent_task" && skipTranscript != true && (status == "in_progress" || status == "pending")
+    type == "subagent_task" && skipTranscript != true && ["in_progress", "pending"].contains(ChatSubagentCard.status(self))
   }
   let image: ChatImage?
   var file: ChatMessageAttachment? = nil

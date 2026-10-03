@@ -3,7 +3,7 @@ import UIKit
 extension LodyChatView {
   var composerInset: CGFloat {
     // Retiring glass keeps its drawing space, not the transcript's scroll space.
-    processEntryID.isEmpty ? max(0, bounds.maxY - composer.frame.minY - composer.retiringQueueHeight - collection.safeAreaInsets.bottom) + 8 : 0
+    !hidesComposer ? max(0, bounds.maxY - composer.frame.minY - composer.retiringQueueHeight - collection.safeAreaInsets.bottom) + 8 : 0
   }
 
   @discardableResult
@@ -723,7 +723,7 @@ extension LodyChatView {
         action("image", symbol: "photo", disabled: !self.imageSharingEnabled),
         action("share", symbol: "square.and.arrow.up", disabled: content.text.isEmpty),
       ] + self.forkMenu.elements(finished: finished) { [weak self] target in
-        self?.onFork(["entryId": entryID, "target": target])
+        self?.onFork(["entryId": entryID, "destination": target])
       })
     }])
   }

@@ -29,6 +29,12 @@ const stateOf = (session: Session) =>
 
 const tinted = new Set<SessionState>(['live', 'attention', 'failed']);
 
+function rowSymbol(session: Session, state: SessionState) {
+  if (tinted.has(state)) return stateSymbol[state];
+  if (session.childSessionPlacement === 'side-panel') return 'text.bubble';
+  return 'bubble.left';
+}
+
 function conversationRow(
   session: Session,
   activeId: string,
@@ -42,7 +48,7 @@ function conversationRow(
     id: session.id,
     title: session.title,
     subtitle: [stateLabel(state), time].filter(Boolean).join(' · '),
-    image: stateSymbol[state],
+    image: rowSymbol(session, state),
     imageTint: tinted.has(state) ? stateTint(state, accent) : 'secondary',
     unread: sessionNeedsEmphasis(session),
     selected: session.id === activeId,
