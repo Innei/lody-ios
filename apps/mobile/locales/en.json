@@ -1012,6 +1012,8 @@
   "simulator.device.boot": "Start and Preview",
   "simulator.device.occupied": "In use by another session",
   "simulator.empty": "No simulators on this Mac",
+  "simulator.chip.open": "Open {target}",
+  "session.context.count": "{count} previews",
   "simulator.chooseAnother": "Choose Another Simulator",
   "native.simulator.expand": "Expand Simulator preview",
   "native.simulator.close": "Close Simulator preview"

@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View as RNView, Alert } from 'react-native';
 import { useSessionPreview } from '@/hooks/screens/useSessionPreview';
 import { useSessionSimulator } from '@/hooks/screens/useSessionSimulator';
+import { composerContext } from '@/hooks/screens/composerContext';
 import { showToast } from '@/ui/toast';
 import { usePalette } from '@/lib/theme/palette';
 import {
@@ -504,9 +505,22 @@ function View() {
     selected?.id,
     session.id,
     catalog.machineSimulators?.[currentSession.machineId],
+    currentSession.iosSimulatorPreviewRequestId,
   );
+  const context = composerContext([
+    {
+      chip: preview.chip,
+      onChip: preview.onPreview,
+      openTitle: (chip) => t('session.preview.open', { target: chip.label }),
+    },
+    {
+      chip: simulator.chip,
+      onChip: simulator.onChip,
+      openTitle: (chip) => t('simulator.chip.open', { target: chip.label }),
+    },
+  ]);
   const composerJSON = JSON.stringify({
-    preview: preview.chip,
+    preview: context.chip,
     editable: !currentSession.archived && !deleting && !quotaLocked,
     canSend: send.canSend && !errorRetry.pending && !deleting && !quotaLocked,
     sending: send.sending,
@@ -794,7 +808,7 @@ function View() {
         onTitleMenu={({ nativeEvent }) => onTitleMenu(nativeEvent.id)}
         onPreview={({ nativeEvent }) => {
           if (!simulator.onPreview(nativeEvent.action))
-            preview.onPreview(nativeEvent.action);
+            context.onPreview(nativeEvent.action);
         }}
         style={{ flex: 1 }}
         attachmentContextJSON={JSON.stringify({

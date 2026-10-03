@@ -27,6 +27,7 @@ export type Session = {
   lastRunningSeen?: number;
   awaitingUserSince?: number;
   branchName?: string;
+  iosSimulatorPreviewRequestId?: string;
   pullRequests?: import('./pull-request').PullRequestReference[];
   diff?: { add: number; del: number };
 };

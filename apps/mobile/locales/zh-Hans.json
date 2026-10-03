@@ -1012,6 +1012,8 @@
   "simulator.device.boot": "启动并预览",
   "simulator.device.occupied": "其他会话正在使用",
   "simulator.empty": "这台 Mac 上没有模拟器",
+  "simulator.chip.open": "打开 {target}",
+  "session.context.count": "{count} 个预览",
   "simulator.chooseAnother": "选择其他模拟器",
   "native.simulator.expand": "展开模拟器预览",
   "native.simulator.close": "关闭模拟器预览"

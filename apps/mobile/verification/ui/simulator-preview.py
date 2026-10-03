@@ -78,7 +78,26 @@ def screen_menu(action):
     ui.axe('tap', '--label', action, '--post-delay', '.8')
 
 
-open_simulator()
+def chip_label(target):
+    return catalog.text('simulator.chip.open', target=target)
+
+
+def tap_chip(name):
+    ui.axe('tap', '--id', 'session-preview', '--post-delay', '.8')
+    chooser = catalog.text('simulator.section.booted')
+
+    def opened(items):
+        if any(i.get('AXUniqueId') == 'simulator-stream' for i in items):
+            return 'stream'
+        return 'chooser' if any(i.get('AXLabel') == chooser for i in items) else None
+
+    if ui.wait(opened, 'The simulator chip opened nothing') == 'chooser':
+        ui.axe('tap', '--label', name, '--post-delay', '1')
+
+
+assert ui.element('session-preview')['AXLabel'] == chip_label(catalog.text('simulator.menu')), 'The agent hint did not show the chip'
+tap_chip('Second Simulator')
+assert ui.element('simulator-stream')['AXLabel'] == 'Second Simulator', 'The chip did not resume the agent-started preview'
 first = stream()
 assert first[1] == 1
 ui.capture('fullscreen')
@@ -157,5 +176,12 @@ ui.capture('changed-device')
 screen_menu(catalog.text('simulator.stop'))
 ui.wait(lambda items: not any(i.get('AXUniqueId') in ('simulator-preview-expand', 'simulator-stream') for i in items), 'Stopping left the stream visible')
 ui.capture('stopped')
+assert ui.element('session-preview')['AXLabel'] == chip_label(catalog.text('simulator.menu')), 'Stopping removed the agent hint'
+tap_chip('iPhone Simulator')
+assert ui.element('simulator-stream')['AXLabel'] == 'iPhone Simulator', 'A stopped preview must offer the chooser'
+stream()
+back()
+assert ui.element('session-preview')['AXLabel'] == chip_label('iPhone Simulator'), 'The chip does not name the running device'
+ui.capture('chip-running')
 print(f'PASS: shared stream {first[0]} kept one connection and decoded frames across navigation; close created a fresh stream {reopened[0]}')
 print(f'PASS: {entrances} returns faded in through native blur, removed the effect, and ordinary layout did not replay it')

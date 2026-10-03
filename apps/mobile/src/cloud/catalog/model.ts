@@ -171,6 +171,8 @@ export function projectRows(rows: Row[], mode: string): Catalog {
       lastRunningSeen: stamp(value.lastRunningSeen),
       awaitingUserSince: stamp(value.awaitingUserSince),
       branchName: text(value.branchName) || undefined,
+      iosSimulatorPreviewRequestId:
+        text(value.iosSimulatorPreviewRequestId) || undefined,
       pullRequests: pullRequestReferences(
         value.pullRequests,
         value.pullRequestState,

@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { NativeChat, type IosSimulatorDevice } from '@lody-ios/kit';
+import {
+  NativeChat,
+  type IosSimulatorDevice,
+  type IosSimulatorPreview,
+} from '@lody-ios/kit';
 import {
   setSimulatorControl,
   simulatorControl,
@@ -22,35 +26,52 @@ const devices = [
   device('ui-verify-simulator', 'iPhone Simulator'),
   device('ui-verify-simulator-two', 'Second Simulator'),
 ];
+const preview = (operationId: string, udid: string): IosSimulatorPreview => ({
+  operationId,
+  udid,
+  phase: 'ready',
+  transport: 'remote',
+  viewerUrl: 'lody-simulator-fixture://stream',
+});
 let starts = 0;
+let daemon: IosSimulatorPreview | undefined;
 const fixture: typeof simulatorControl = async (
   _workspace,
   _session,
   command,
 ) => {
   if (command.action === 'list') return { success: true, devices };
-  if (command.action !== 'start') return { success: true };
-  starts += 1;
-  return {
-    success: true,
-    preview: {
-      operationId: `fixture-${starts}`,
-      udid: command.udid,
-      phase: 'ready',
-      transport: 'remote',
-      viewerUrl: 'lody-simulator-fixture://stream',
-    },
-  };
+  if (command.action === 'start') {
+    starts += 1;
+    daemon = preview(`fixture-${starts}`, command.udid);
+    return { success: true, preview: daemon };
+  }
+  const matches =
+    !('operationId' in command) ||
+    !command.operationId ||
+    command.operationId === daemon?.operationId;
+  if (command.action === 'stop' && matches) daemon = undefined;
+  if (command.action === 'status' && matches)
+    return { success: true, preview: daemon };
+  return { success: true };
 };
 
 function View() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     setSimulatorControl(fixture);
-    void stopSimulator(SESSION).then(() => setReady(true));
+    void stopSimulator(SESSION).then(() => {
+      daemon = preview('agent-1', 'ui-verify-simulator-two');
+      setReady(true);
+    });
     return () => setSimulatorControl();
   }, []);
-  const simulator = useSessionSimulator('ui-verify', SESSION, 'available');
+  const simulator = useSessionSimulator(
+    'ui-verify',
+    SESSION,
+    'available',
+    'agent-1',
+  );
   return (
     <NativeChat
       style={{ flex: 1 }}
@@ -93,10 +114,14 @@ function View() {
         notice: '',
         reconnect: false,
         placeholder: 'Message',
+        preview: ready ? simulator.chip : undefined,
       })}
       clearDraftToken={0}
       emptyText=""
-      onPreview={({ nativeEvent }) => simulator.onPreview(nativeEvent.action)}
+      onPreview={({ nativeEvent }) => {
+        if (!simulator.onPreview(nativeEvent.action))
+          simulator.onChip(nativeEvent.action);
+      }}
       onSend={() => {}}
       onReconnect={() => {}}
       onActivityPress={() => {}}
