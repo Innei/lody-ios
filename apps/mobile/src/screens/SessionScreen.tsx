@@ -19,6 +19,7 @@ import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View as RNView, Alert } from 'react-native';
 import { useSessionPreview } from '@/hooks/screens/useSessionPreview';
+import { useSessionSimulator } from '@/hooks/screens/useSessionSimulator';
 import { showToast } from '@/ui/toast';
 import { usePalette } from '@/lib/theme/palette';
 import {
@@ -499,6 +500,11 @@ function View() {
     present,
   );
   const preview = useSessionPreview(session.id, snapshot.preview);
+  const simulator = useSessionSimulator(
+    selected?.id,
+    session.id,
+    catalog.machineSimulators?.[currentSession.machineId],
+  );
   const composerJSON = JSON.stringify({
     preview: preview.chip,
     editable: !currentSession.archived && !deleting && !quotaLocked,
@@ -581,6 +587,7 @@ function View() {
           },
         ]
       : []),
+    ...(simulator.titleItem ? [simulator.titleItem] : []),
     {
       id: 'rename',
       title: t('session.action.rename'),
@@ -600,6 +607,7 @@ function View() {
   ]);
   const onTitleMenu = (id: string) => {
     if (id === 'files') openProjectFiles();
+    if (id === 'simulator') void simulator.open();
     if (id === 'branch' && currentSession.branchName) {
       copyText(currentSession.branchName);
       showToast(t('session.title.branchCopied'), 'info');
@@ -749,7 +757,7 @@ function View() {
       <NativeNavigationHeader items={headerItems} />
       <DiffWebViewWarmer />
       <NativeChat
-        simulatorPreviewJSON={preview.simulatorPreviewJSON}
+        simulatorPreviewJSON={simulator.previewJSON}
         turnInfoEnabled
         onTurnInfoPress={({ nativeEvent }) =>
           openMessageDetails(nativeEvent.entryId)
@@ -784,7 +792,10 @@ function View() {
         onTitlePress={showDetails}
         titleMenuJSON={navigationTitleHidden ? '[]' : titleMenuJSON}
         onTitleMenu={({ nativeEvent }) => onTitleMenu(nativeEvent.id)}
-        onPreview={({ nativeEvent }) => preview.onPreview(nativeEvent.action)}
+        onPreview={({ nativeEvent }) => {
+          if (!simulator.onPreview(nativeEvent.action))
+            preview.onPreview(nativeEvent.action);
+        }}
         style={{ flex: 1 }}
         attachmentContextJSON={JSON.stringify({
           workspaceId: selected?.id,

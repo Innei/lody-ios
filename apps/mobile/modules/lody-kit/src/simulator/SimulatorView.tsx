@@ -7,6 +7,7 @@ export type SimulatorSource = {
   url: string;
   udid: string;
   name: string;
+  operationId?: string;
 };
 
 export const SimulatorView: ComponentType<

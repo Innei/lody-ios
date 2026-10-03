@@ -10,6 +10,7 @@ import Security
       completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
   }
   private static let transport = URLSession(configuration: .ephemeral, delegate: NoRedirect(), delegateQueue: nil)
+  private struct HTTPStatus: Error { let code: Int }
   private static func failure() -> NSError {
     NSError(domain: "LodyKit.SessionSharing", code: 1, userInfo: [NSLocalizedDescriptionKey: "share_unavailable"])
   }
@@ -67,7 +68,12 @@ import Security
     }
     if operation == "previewToken" {
       guard let intent = args["intent"] as? [String: Any], intent["workspaceId"] as? String == workspace else { throw failure() }
-      let response = try await request("https://backend.lody.ai/api/session-preview/request-token", credential: credential, body: intent, transport: transport)
+      let response: [String: Any]
+      do {
+        response = try await request("https://backend.lody.ai/api/session-preview/request-token", credential: credential, body: intent, transport: transport)
+      } catch let error as HTTPStatus {
+        return ["status": error.code]
+      }
       try check()
       guard response["requesterUserId"] as? String == userId, let token = response["requestToken"] as? String, !token.isEmpty else { throw failure() }
       return token
@@ -100,8 +106,9 @@ import Security
     let (file, response) = try await transport.download(for: request)
     defer { try? FileManager.default.removeItem(at: file) }
     try Task.checkCancellation()
-    guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode),
-      let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 2 * 1024 * 1024,
+    guard let response = response as? HTTPURLResponse else { throw failure() }
+    guard (200..<300).contains(response.statusCode) else { throw HTTPStatus(code: response.statusCode) }
+    guard let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 2 * 1024 * 1024,
       let value = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any] else { throw failure() }
     return value
   }

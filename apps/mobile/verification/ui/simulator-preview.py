@@ -1,4 +1,5 @@
-"""One live decoder survives full-screen/back, dragging and typing; close releases it."""
+"""The title menu opens a picked device; one live decoder survives full-screen/back,
+dragging and typing; close hides it, choosing another device replaces it, stop ends it."""
 import re
 import sys
 import json
@@ -54,12 +55,30 @@ def check_backdrop():
         assert abs(blur[origin] + blur[dimension] / 2 - image[origin] - image[dimension] / 2) < 1, (image, blur)
 
 
-ui.axe('tap', '--id', 'session-preview', '--post-delay', '.5')
-opened = ui.wait(
-    lambda items: next((i for i in items if i.get('AXUniqueId') == 'simulator-stream' or i.get('AXLabel') == 'iPhone Simulator'), None),
-    'Neither a remembered stream nor the device chooser opened')
-if opened.get('AXUniqueId') != 'simulator-stream':
-    ui.axe('tap', '--label', 'iPhone Simulator', '--post-delay', '1')
+def open_simulator(name='iPhone Simulator'):
+    ui.axe('tap', '--id', 'chat-navigation-title', '--post-delay', '.6')
+    title = catalog.text('simulator.menu')
+    entry = ui.wait(
+        lambda items: next((i for i in items if (i.get('AXLabel') or '').startswith(title)), None),
+        'The title menu has no simulator entry')['frame']
+    ui.axe('tap', '-x', str(entry['x'] + entry['width'] / 2), '-y', str(entry['y'] + entry['height'] / 2), '--post-delay', '.8')
+    chooser = catalog.text('simulator.section.booted')
+
+    def opened(items):
+        if any(i.get('AXUniqueId') == 'simulator-stream' for i in items):
+            return 'stream'
+        return 'chooser' if any(i.get('AXLabel') == chooser for i in items) else None
+
+    if ui.wait(opened, 'Neither a running preview nor the device chooser opened') == 'chooser':
+        ui.axe('tap', '--label', name, '--post-delay', '1')
+
+
+def screen_menu(action):
+    ui.axe('tap', '--label', catalog.text('common.more'), '--post-delay', '.6')
+    ui.axe('tap', '--label', action, '--post-delay', '.8')
+
+
+open_simulator()
 first = stream()
 assert first[1] == 1
 ui.capture('fullscreen')
@@ -110,7 +129,7 @@ ui.axe('tap', '--id', 'simulator-preview-close', '--post-delay', '.6')
 assert not any(i.get('AXUniqueId') in ('simulator-preview-expand', 'simulator-stream') for i in ui.state()), 'Close left the stream visible'
 ui.capture('closed')
 
-ui.axe('tap', '--id', 'session-preview', '--post-delay', '1')
+open_simulator()
 reopened = stream()
 assert reopened[0] != first[0] and reopened[1] == 1, (first, reopened)
 back()
@@ -118,29 +137,25 @@ ui.capture('reopened')
 ui.axe('tap', '--id', 'BackButton', '--post-delay', '.8')
 ui.element('simulator-preview')
 ui.axe('tap', '--id', 'simulator-preview', '--post-delay', '.8')
-ui.axe('tap', '--id', 'session-preview', '--post-delay', '1')
+open_simulator()
 new_chat = stream()
 assert new_chat[0] != reopened[0] and new_chat[1] == 1, (reopened, new_chat)
 back()
 ui.capture('new-chat')
 
 
-def preview_menu(action):
-    chip = ui.element('session-preview')['frame']
-    ui.axe('touch', '-x', str(chip['x'] + chip['width'] / 2), '-y', str(chip['y'] + chip['height'] / 2), '--down', '--up', '--delay', '.8')
-    ui.axe('tap', '--label', action, '--post-delay', '.5')
-
-
 other_name = 'Second Simulator' if ui.element('simulator-stream')['AXLabel'] == 'iPhone Simulator' else 'iPhone Simulator'
-preview_menu(catalog.text('simulator.chooseAnother'))
+open_simulator()
+screen_menu(catalog.text('simulator.chooseAnother'))
 ui.axe('tap', '--label', other_name, '--post-delay', '1')
 second = stream()
 assert second[0] != new_chat[0] and second[1] == 1, (new_chat, second)
 assert ui.element('simulator-stream')['AXLabel'] == other_name
-back()
+ui.wait(lambda items: any(i.get('AXLabel') == other_name and i.get('AXUniqueId') != 'simulator-stream' for i in items),
+        'The full-screen title kept the previous device')
 ui.capture('changed-device')
-preview_menu(catalog.text('session.preview.stop'))
-ui.wait(lambda items: not any(i.get('AXUniqueId') == 'simulator-preview-expand' for i in items), 'Revoking preview did not close the floating stream')
+screen_menu(catalog.text('simulator.stop'))
+ui.wait(lambda items: not any(i.get('AXUniqueId') in ('simulator-preview-expand', 'simulator-stream') for i in items), 'Stopping left the stream visible')
 ui.capture('stopped')
 print(f'PASS: shared stream {first[0]} kept one connection and decoded frames across navigation; close created a fresh stream {reopened[0]}')
 print(f'PASS: {entrances} returns faded in through native blur, removed the effect, and ordinary layout did not replay it')

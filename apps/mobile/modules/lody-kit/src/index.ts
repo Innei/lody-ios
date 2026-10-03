@@ -52,9 +52,13 @@ export {
   openAuthBrowser,
   closeAuthBrowser,
   sessionPreview,
-  previewSimulators,
+  iosSimulatorControl,
   openPreviewBrowser,
   type SessionPreviewReply,
+  type IosSimulatorCommand,
+  type IosSimulatorDevice,
+  type IosSimulatorPreview,
+  type IosSimulatorReply,
   decodeFlock,
 } from './runtime/LodyKit';
 

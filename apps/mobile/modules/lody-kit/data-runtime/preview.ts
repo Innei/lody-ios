@@ -111,8 +111,130 @@ async function proof(args: ControlArgs, operation: object) {
     requestId,
     operation,
   });
-  if (typeof requestToken !== 'string') return { error: 'unauthorized' };
-  return { proof: { runtimeNonce: nonce, requestId, requestToken } };
+  if (typeof requestToken === 'string')
+    return { proof: { runtimeNonce: nonce, requestId, requestToken } };
+  const status = (requestToken as { status?: number } | undefined)?.status;
+  if (!status) return { error: 'unauthorized' };
+  return {
+    error: status === 400 ? 'backend_rejected' : 'unauthorized',
+    status,
+  };
+}
+
+const RPC_SECRET_AAD_LABEL = 'lody-machine-rpc-secret-v1';
+const toBase64Url = (bytes: Uint8Array) =>
+  btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+const fromBase64Url = (value: string) => {
+  const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+  return Uint8Array.from(
+    atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')),
+    (char) => char.charCodeAt(0),
+  );
+};
+
+async function responseRecipient() {
+  const pair = await crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' },
+    false,
+    ['deriveKey'],
+  );
+  const { x, y } = await crypto.subtle.exportKey('jwk', pair.publicKey);
+  const key = {
+    type: 'rpc-secret-public-key-v1',
+    algorithm: 'ECDH-P256-AES-256-GCM',
+    keyId: toBase64Url(crypto.getRandomValues(new Uint8Array(16))),
+    publicKey: { kty: 'EC', crv: 'P-256', x, y },
+  };
+  const decrypt = async (envelope: Record<string, any>, context: string) => {
+    if (envelope.keyId !== key.keyId) throw new Error('key_mismatch');
+    const sender = await crypto.subtle.importKey(
+      'jwk',
+      {
+        kty: 'EC',
+        crv: 'P-256',
+        x: envelope.ephemeralPublicKey?.x,
+        y: envelope.ephemeralPublicKey?.y,
+      },
+      { name: 'ECDH', namedCurve: 'P-256' },
+      false,
+      [],
+    );
+    const shared = await crypto.subtle.deriveKey(
+      { name: 'ECDH', public: sender },
+      pair.privateKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['decrypt'],
+    );
+    const plaintext = await crypto.subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv: fromBase64Url(envelope.iv),
+        additionalData: new TextEncoder().encode(
+          `${RPC_SECRET_AAD_LABEL}\0${key.keyId}\0${context}`,
+        ),
+      },
+      shared,
+      fromBase64Url(envelope.ciphertext),
+    );
+    return new TextDecoder().decode(plaintext);
+  };
+  return { key, decrypt };
+}
+
+function simulatorViewerUrl(value: string) {
+  const url = new URL(value);
+  if (
+    url.protocol !== 'https:' ||
+    url.username ||
+    url.password ||
+    url.port ||
+    !/^[a-z0-9]+(?:-[a-z0-9]+)*\.trycloudflare\.com$/.test(url.hostname)
+  )
+    throw new Error('invalid_viewer_url');
+  return url.href;
+}
+
+export async function iosSimulatorControl(
+  args: ControlArgs & { command: { action: string } },
+) {
+  const recipient = await responseRecipient();
+  const signed = await proof(args, {
+    action: 'ios-simulator',
+    command: args.command,
+    responseKey: recipient.key,
+  });
+  if (!signed.proof) return signed;
+  const reply = await args.rpc(
+    'ios-simulator/control',
+    {
+      sessionId: args.sessionId,
+      requestedByUserId: args.userId,
+      command: args.command,
+      proof: signed.proof,
+      responseKey: recipient.key,
+    },
+    45_000,
+  );
+  const result = reply.result as Record<string, any> | undefined;
+  if (result?.success !== true) return failure(reply);
+  if (!result.preview) return result;
+  const { viewerUrlEnvelope, ...preview } = result.preview;
+  if (!viewerUrlEnvelope) return { ...result, preview };
+  const context = JSON.stringify([
+    'ios-simulator/control',
+    args.workspaceId,
+    args.machineId,
+    args.sessionId,
+    signed.proof.requestId,
+  ]);
+  const viewerUrl = simulatorViewerUrl(
+    await recipient.decrypt(viewerUrlEnvelope, context),
+  );
+  return { ...result, preview: { ...preview, viewerUrl } };
 }
 
 function failure(reply: RpcReply): ControlResult {

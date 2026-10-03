@@ -1,42 +1,72 @@
 import CoreMedia
 import UIKit
 
-/// baguette's `avcc` stream: `[type][payload]` per WebSocket message, where
-/// 0x01 is an avcC record, 0x02/0x03 are length-prefixed key/delta frames and
-/// 0x04 is a JPEG shown until the first keyframe decodes.
+/// The gateway's private packets. Video: `LAVC`, sequence, tag (2 key / 3 delta),
+/// avcC length and avcC (keyframes only), then length-prefixed NAL units.
+/// Still images: `LODY`, sequence, JPEG. Every sequence must be acknowledged.
 @MainActor final class SimulatorStreamDecoder {
   enum Output {
-    case seed(UIImage)
+    case image(UIImage)
     case frame(CMSampleBuffer)
   }
 
+  enum Failure: Error {
+    case codec
+    case malformed
+  }
+
+  struct Packet {
+    let sequence: UInt32
+    let output: Output?
+    let size: CGSize?
+  }
+
+  private static let videoMagic: UInt32 = 0x4C41_5643
+  private static let imageMagic: UInt32 = 0x4C4F_4459
   private var format: CMVideoFormatDescription?
-  private var awaitingKeyFrame = true
-  var onOutput: ((Output) -> Void)?
+  private var lastSequence: UInt32 = 0
 
   func reset() {
     format = nil
-    awaitingKeyFrame = true
+    lastSequence = 0
   }
 
-  func handle(_ data: Data) {
-    guard data.count > 1 else { return }
-    let type = data[data.startIndex]
-    let payload = data.dropFirst()
-    switch type {
-    case 0x01:
-      format = Self.format(avcC: [UInt8](payload))
-      awaitingKeyFrame = true
-    case 0x02, 0x03:
-      // Keyframes arrive about every five seconds, so a delta is never dropped
-      // once decoding has started: skipping one corrupts every frame until the next.
-      if type == 0x02 { awaitingKeyFrame = false }
-      guard !awaitingKeyFrame, let format, let sample = Self.sample(Data(payload), format: format) else { return }
-      onOutput?(.frame(sample))
-    case 0x04:
-      if let image = UIImage(data: Data(payload)) { onOutput?(.seed(image)) }
+  func awaitKeyFrame() { format = nil }
+
+  func handle(_ data: Data, h264: Bool) throws -> Packet {
+    let bytes = [UInt8](data)
+    guard bytes.count >= 9, bytes.count <= 16 * 1024 * 1024 + 8 else { throw Failure.malformed }
+    func uint32(_ offset: Int) -> UInt32 {
+      bytes[offset..<offset + 4].reduce(0) { $0 << 8 | UInt32($1) }
+    }
+    let sequence = uint32(4)
+    switch uint32(0) {
+    case Self.videoMagic:
+      guard h264, bytes.count >= 12, sequence > lastSequence else { throw Failure.codec }
+      let key = bytes[8] == 2
+      let descriptionLength = Int(bytes[9]) << 8 | Int(bytes[10])
+      guard [2, 3].contains(bytes[8]), descriptionLength <= 4096,
+            key ? descriptionLength >= 7 : descriptionLength == 0,
+            11 + descriptionLength < bytes.count else { throw Failure.codec }
+      lastSequence = sequence
+      if key {
+        guard let next = Self.format(avcC: Array(bytes[11..<11 + descriptionLength])) else { throw Failure.codec }
+        format = next
+      }
+      // Deltas before the first keyframe cannot decode; acknowledge and drop them.
+      guard let format else { return Packet(sequence: sequence, output: nil, size: nil) }
+      let sample = Self.sample(data.subdata(in: data.startIndex + 11 + descriptionLength..<data.endIndex), format: format)
+      let dimensions = CMVideoFormatDescriptionGetDimensions(format)
+      return Packet(sequence: sequence, output: sample.map(Output.frame),
+                    size: CGSize(width: Int(dimensions.width), height: Int(dimensions.height)))
+    case Self.imageMagic:
+      guard !h264 else { throw Failure.codec }
+      guard sequence > 0, let image = UIImage(data: data.subdata(in: data.startIndex + 8..<data.endIndex)),
+            let cgImage = image.cgImage else { throw Failure.malformed }
+      return Packet(sequence: sequence, output: .image(image),
+                    size: CGSize(width: cgImage.width, height: cgImage.height))
     default:
-      break
+      throw Failure.malformed
     }
   }
 

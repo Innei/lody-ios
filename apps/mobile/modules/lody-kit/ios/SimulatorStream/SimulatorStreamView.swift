@@ -6,9 +6,11 @@ import UIKit
     let url: String
     let udid: String
     let name: String
+    let operationId: String?
   }
 
   private static let streams = NSMapTable<NSString, SimulatorStreamView>.strongToWeakObjects()
+  private static let fixtureURL = "lody-simulator-fixture://stream"
   weak var preview: SimulatorPreview?
   weak var fullscreen: LodySimulatorView?
   var compact = false { didSet { isUserInteractionEnabled = !compact; setNeedsLayout() } }
@@ -23,31 +25,38 @@ import UIKit
           !source.streamId.isEmpty else { return nil }
     if let existing = streams.object(forKey: source.streamId as NSString), existing.source == source { return existing }
     let stream = SimulatorStreamView(frame: .zero)
-    stream.setSource(json)
+    stream.setSource(source)
     streams.setObject(stream, forKey: source.streamId as NSString)
     return stream
   }
 
-  private enum Mode {
-    case idle
-    case single(edge: String?)
-    case double
-  }
-
-  private static let buttons: Set<String> = ["home", "app-switcher", "power", "volume-up", "volume-down", "action"]
-  private static let orientations = [0: "portrait", 90: "landscape-left", 270: "landscape-right"]
+  private static let buttons = ["home": "home", "app-switcher": "app-switcher", "lock": "lock",
+                                "volume-up": "volume-up", "volume-down": "volume-down", "action": "action"]
 
   private var source: Source?
+  private var viewer: URL?
   private var device: SimulatorDeviceView?
+  private var frameSize = CGSize.zero
   private let status = UILabel()
   private let decoder = SimulatorStreamDecoder()
   private var session: URLSession?
   private var socket: URLSessionWebSocketTask?
   private var receiving: Task<Void, Never>?
-  private var loading: Task<Void, Never>?
-  private var fingers: [UITouch] = []
-  private var mode = Mode.idle
-  private var rotation = 0
+  private var h264Disabled = false
+  private var usingH264 = false
+  private var transportRetries = 0
+  private var recoveries = 0
+  private var showingVideo = false
+  private var exterior: SimulatorExterior?
+  private var exteriorTask: Task<Void, Never>?
+  private var lastMessageAt = Date.distantPast
+  private var timers: [Timer] = []
+  private var retryTimer: Timer?
+  private var configTimer: Timer?
+  private var configuredSize = CGSize.zero
+  private var finger: UITouch?
+  private var edge: String?
+  private var controlBusy = false
   private static var fixtureActive = 0
   private var fixtureTimer: Timer?
   private var fixtureFrame = 0
@@ -57,19 +66,17 @@ import UIKit
 
   override init(frame: CGRect) {
     super.init(frame: frame)
-    isMultipleTouchEnabled = true
     status.textColor = .secondaryLabel
     status.font = .preferredFont(forTextStyle: .subheadline)
     status.adjustsFontForContentSizeCategory = true
     addSubview(status)
-    decoder.onOutput = { [weak self] output in self?.show(output) }
     let center = NotificationCenter.default
     observers = [
       center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
         MainActor.assumeIsolated { self?.disconnect() }
       },
       center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in
-        MainActor.assumeIsolated { if self?.device != nil { self?.connect() } }
+        MainActor.assumeIsolated { self?.connect() }
       },
     ]
   }
@@ -78,7 +85,7 @@ import UIKit
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   isolated deinit {
-    loading?.cancel()
+    exteriorTask?.cancel()
     disconnect()
     observers.forEach(NotificationCenter.default.removeObserver)
   }
@@ -88,35 +95,26 @@ import UIKit
       Self.streams.removeObject(forKey: source.streamId as NSString)
     }
     source = nil
-    loading?.cancel()
+    viewer = nil
+    exteriorTask?.cancel()
     disconnect()
   }
 
-  private func setSource(_ json: String) {
-    guard let next = try? JSONDecoder().decode(Source.self, from: Data(json.utf8)), next != source else { return }
+  private func setSource(_ next: Source) {
     disconnect()
-    loading?.cancel()
-    device?.removeFromSuperview()
-    device = nil
     source = next
-    rotation = 0
-    setStatus("native.simulator.connecting")
-    if LodyUIVerify.enabled, next.url == "lody-simulator-fixture://stream" {
-      install(SimulatorDefinition(
-        viewport: CGSize(width: 200, height: 400),
-        screen: CGRect(x: 8, y: 8, width: 184, height: 384), cornerRadius: 24,
-        margins: .zero, buttons: []))
-      connect()
-      return
+    viewer = URL(string: next.url)
+    h264Disabled = false
+    transportRetries = 0
+    guard let viewer else { return setStatus("native.simulator.unavailable") }
+    if next.url != Self.fixtureURL {
+      exteriorTask = Task { [weak self] in
+        guard let loaded = await SimulatorRemote.exterior(viewer), let self, self.source == next else { return }
+        self.exterior = loaded
+        self.installDevice()
+      }
     }
-    guard let url = URL(string: next.url) else { return setStatus("native.simulator.unavailable") }
-    loading = Task { [weak self] in
-      let definition = await SimulatorRemote.definition(url, udid: next.udid)
-      guard let self, !Task.isCancelled, self.source == next else { return }
-      guard let definition else { return self.setStatus("native.simulator.unavailable") }
-      self.install(definition)
-      self.connect()
-    }
+    connect()
   }
 
   override func safeAreaInsetsDidChange() {
@@ -133,33 +131,48 @@ import UIKit
       bottom: safe.bottom + inset, right: safe.right + inset))
     status.sizeToFit()
     status.center = CGPoint(x: area.midX, y: area.midY)
+    if bounds.size != configuredSize { scheduleStreamConfig() }
     guard let device, area.width > 0, area.height > 0 else { return }
     let canvas = device.canvasSize
-    let turned = rotation % 180 != 0
-    let fitted = CGSize(width: turned ? canvas.height : canvas.width, height: turned ? canvas.width : canvas.height)
-    let scale = min(area.width / fitted.width, area.height / fitted.height)
+    let scale = min(area.width / canvas.width, area.height / canvas.height)
     let previousFrame = device.frame
     device.bounds = CGRect(origin: .zero, size: CGSize(width: canvas.width * scale, height: canvas.height * scale))
     device.center = CGPoint(x: area.midX, y: area.midY)
-    device.transform = CGAffineTransform(rotationAngle: CGFloat(rotation) * .pi / 180)
     if compact, previousFrame != device.frame { preview?.setNeedsLayout() }
     bringSubviewToFront(status)
   }
 
-  private func install(_ definition: SimulatorDefinition) {
-    let device = SimulatorDeviceView(definition: definition)
-    device.onButton = { [weak self] envelope in self?.send(envelope) }
+  private func install(_ size: CGSize) {
+    frameSize = size
+    if device == nil { installDevice() }
+  }
+
+  private func installDevice() {
+    guard let shape = exterior ?? (frameSize == .zero ? nil : .plain(frameSize)) else { return }
+    let previous = device
+    let device = SimulatorDeviceView(exterior: shape)
+    device.onButton = { [weak self] id in self?.perform(id) }
+    device.seed.image = previous?.seed.image
     device.display.accessibilityIdentifier = "simulator-stream"
     device.display.isAccessibilityElement = true
     device.display.accessibilityLabel = source?.name
+    previous?.removeFromSuperview()
     insertSubview(device, belowSubview: status)
     self.device = device
+    if showingVideo {
+      showingVideo = false
+      decoder.awaitKeyFrame()
+      send(["type": "keyframe-request"])
+    }
     setNeedsLayout()
+    preview?.setNeedsLayout()
   }
 
   private func connect() {
-    guard socket == nil, fixtureTimer == nil else { return }
-    if LodyUIVerify.enabled, source?.url == "lody-simulator-fixture://stream" {
+    guard socket == nil, fixtureTimer == nil, retryTimer == nil, let source, let viewer else { return }
+    decoder.reset()
+    recoveries = 0
+    if LodyUIVerify.enabled, source.url == Self.fixtureURL {
       fixtureConnections += 1
       Self.fixtureActive += 1
       fixtureTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
@@ -167,31 +180,87 @@ import UIKit
       }
       return
     }
-    decoder.reset()
-    setStatus("native.simulator.connecting")
-    guard let source, let url = URL(string: source.url),
-          let stream = SimulatorRemote.endpoint(
-            url, path: "/simulators/\(source.udid)/stream",
-            query: [URLQueryItem(name: "format", value: "avcc"), URLQueryItem(name: "version", value: "v2")],
-            scheme: "wss") else { return }
+    if device == nil { setStatus("native.simulator.connecting") }
+    usingH264 = !h264Disabled
+    guard let address = SimulatorRemote.endpoint(
+      viewer, "stream", query: usingH264 ? [URLQueryItem(name: "codec", value: "h264")] : [], websocket: true) else {
+      return setStatus("native.simulator.unavailable")
+    }
     let session = URLSession(configuration: .ephemeral)
-    let task = session.webSocketTask(with: stream)
-    task.maximumMessageSize = 16 * 1024 * 1024
+    let task = session.webSocketTask(with: SimulatorRemote.request(viewer, address, timeout: 20))
+    task.maximumMessageSize = 16 * 1024 * 1024 + 16
     self.session = session
     socket = task
     task.resume()
+    configuredSize = .zero
+    sendStreamConfig()
+    send(["type": "heartbeat"])
+    lastMessageAt = Date()
+    let started = Date()
+    timers = [
+      Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+        MainActor.assumeIsolated { if self?.window != nil { self?.send(["type": "heartbeat"]) } }
+      },
+      Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+        MainActor.assumeIsolated {
+          guard let self, self.socket === task else { return }
+          if self.usingH264, Date().timeIntervalSince(self.lastMessageAt) >= 8 { return self.failed(task) }
+          if self.frameSize == .zero, Date().timeIntervalSince(started) >= 20 { self.failed(task) }
+        }
+      },
+    ]
     receiving = Task { [weak self] in
       while !Task.isCancelled {
         let message: URLSessionWebSocketTask.Message
         do { message = try await task.receive() } catch {
-          if self?.socket === task {
-            self?.disconnect()
-            self?.setStatus("native.simulator.disconnected")
-          }
+          self?.failed(task)
           return
         }
         guard let self, self.socket === task else { return }
-        if case .data(let data) = message { self.decoder.handle(data) }
+        self.receive(message, task: task)
+      }
+    }
+  }
+
+  private func receive(_ message: URLSessionWebSocketTask.Message, task: URLSessionWebSocketTask) {
+    lastMessageAt = Date()
+    switch message {
+    case .string(let text):
+      guard text.utf8.count <= 4096,
+            let object = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
+            object["type"] as? String == "ping", let id = object["id"] as? Int, id > 0 else { return }
+      send(["type": "pong", "id": id])
+    case .data(let data):
+      let packet: SimulatorStreamDecoder.Packet
+      do { packet = try decoder.handle(data, h264: usingH264) } catch {
+        return failed(task, codec: usingH264)
+      }
+      if let size = packet.size { install(size) }
+      if let output = packet.output { show(output) }
+      send(["type": "frame-ack", "sequence": packet.sequence])
+    @unknown default:
+      break
+    }
+  }
+
+  /// Transport loss retries H.264 twice per stream; a codec failure falls back to MJPEG
+  /// once. Neither replays input.
+  private func failed(_ task: URLSessionWebSocketTask, codec: Bool = false) {
+    guard socket === task else { return }
+    let fallback = usingH264 && (codec || task.closeCode.rawValue == 4002)
+    let retry = usingH264 && !fallback
+    disconnect()
+    if fallback {
+      h264Disabled = true
+      return connect()
+    }
+    guard retry, transportRetries < 2 else { return setStatus("native.simulator.disconnected") }
+    transportRetries += 1
+    if device == nil { setStatus("native.simulator.connecting") }
+    retryTimer = Timer.scheduledTimer(withTimeInterval: transportRetries == 1 ? 0.5 : 1.5, repeats: false) { [weak self] _ in
+      MainActor.assumeIsolated {
+        self?.retryTimer = nil
+        self?.connect()
       }
     }
   }
@@ -200,12 +269,39 @@ import UIKit
     if fixtureTimer != nil { Self.fixtureActive -= 1 }
     fixtureTimer?.invalidate()
     fixtureTimer = nil
+    retryTimer?.invalidate()
+    retryTimer = nil
+    configTimer?.invalidate()
+    configTimer = nil
+    timers.forEach { $0.invalidate() }
+    timers = []
     receiving?.cancel()
     receiving = nil
     socket?.cancel(with: .goingAway, reason: nil)
     socket = nil
     session?.invalidateAndCancel()
     session = nil
+    finger = nil
+    edge = nil
+  }
+
+  private func scheduleStreamConfig() {
+    guard socket != nil else { return }
+    configTimer?.invalidate()
+    configTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: false) { [weak self] _ in
+      MainActor.assumeIsolated { self?.sendStreamConfig() }
+    }
+  }
+
+  private func sendStreamConfig() {
+    let size = bounds.size == .zero ? UIScreen.main.bounds.size : bounds.size
+    configuredSize = bounds.size
+    send([
+      "type": "stream-config",
+      "width": Int(min(8192, max(1, size.width.rounded()))),
+      "height": Int(min(8192, max(1, size.height.rounded()))),
+      "dpr": min(2, max(0.5, traitCollection.displayScale)),
+    ])
   }
 
   private func fixtureTick() {
@@ -221,7 +317,13 @@ import UIKit
         .foregroundColor: UIColor.white, .paragraphStyle: paragraph,
       ])
     }
-    if let data = image.jpegData(compressionQuality: 0.8) { decoder.handle(Data([0x04]) + data) }
+    var header = Data([0x4C, 0x4F, 0x44, 0x59])
+    withUnsafeBytes(of: UInt32(fixtureFrame).bigEndian) { header.append(contentsOf: $0) }
+    if let data = image.jpegData(compressionQuality: 0.8),
+       let packet = try? decoder.handle(header + data, h264: false) {
+      if let size = packet.size { install(size) }
+      if let output = packet.output { show(output) }
+    }
     device?.display.accessibilityValue = "stream:\(fixtureID),connections:\(fixtureConnections),active:\(Self.fixtureActive),frame:\(fixtureFrame)"
   }
 
@@ -229,11 +331,23 @@ import UIKit
     status.isHidden = true
     guard let device else { return }
     switch output {
-    case .seed(let image):
+    case .image(let image):
       device.seed.image = image
+      if showingVideo {
+        device.display.displayLayer.flushAndRemoveImage()
+        showingVideo = false
+      }
     case .frame(let sample):
-      if device.display.displayLayer.status == .failed { device.display.displayLayer.flush() }
-      device.display.displayLayer.enqueue(sample)
+      let layer = device.display.displayLayer
+      if layer.status == .failed {
+        layer.flush()
+        recoveries += 1
+        if recoveries > 3, let socket { return failed(socket, codec: true) }
+        decoder.awaitKeyFrame()
+        return send(["type": "keyframe-request"])
+      }
+      layer.enqueue(sample)
+      showingVideo = true
     }
   }
 
@@ -244,115 +358,74 @@ import UIKit
   }
 
   func perform(_ action: String) {
-    guard let source, let url = URL(string: source.url) else { return }
-    if Self.buttons.contains(action) { return send(["type": "button", "button": action]) }
-    switch action {
-    case "rotate-left", "rotate-right":
-      let step = action == "rotate-right" ? 90 : 270
-      let next = (rotation + step) % 360
-      guard let value = Self.orientations[next] else { return }
-      rotation = next
-      setNeedsLayout()
-      UIView.animate(withDuration: 0.3) { self.layoutIfNeeded() }
-      Task { await SimulatorRemote.post(url, path: "/simulators/\(source.udid)/orientation", query: [URLQueryItem(name: "value", value: value)]) }
-    case "shake":
-      Task { await SimulatorRemote.post(url, path: "/simulators/\(source.udid)/shake") }
-    case "screenshot":
-      Task { [weak self] in
-        guard let image = await SimulatorRemote.screenshot(url, udid: source.udid), let self,
-              let controller = self.owningController else { return }
-        let sheet = UIActivityViewController(activityItems: [image], applicationActivities: nil)
-        sheet.popoverPresentationController?.sourceView = self
-        controller.present(sheet, animated: true)
-      }
-    default:
-      break
+    guard let viewer, let operationId = source?.operationId, !controlBusy else { return }
+    let control: [String: String]
+    if let button = Self.buttons[action] {
+      control = ["kind": "button", "button": button]
+    } else if action == "rotate-left" || action == "rotate-right" {
+      control = ["kind": "rotate", "direction": action == "rotate-left" ? "left" : "right"]
+    } else if action == "shake" {
+      control = ["kind": "shake"]
+    } else {
+      return
     }
-  }
-
-  private var owningController: UIViewController? {
-    var responder: UIResponder? = self
-    while let current = responder {
-      if let controller = current as? UIViewController { return controller }
-      responder = current.next
+    lift()
+    controlBusy = true
+    Task { [weak self] in
+      _ = await SimulatorRemote.control(viewer, operationId: operationId, control: control)
+      self?.controlBusy = false
     }
-    return nil
   }
 
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-    guard let device else { return }
-    let before = fingers.count
-    for touch in touches where fingers.count < 2 && !fingers.contains(touch) { fingers.append(touch) }
-    if before == 0, fingers.count == 1 {
-      guard device.display.bounds.contains(fingers[0].location(in: device.display)) else { return }
-      let point = location(fingers[0])
-      let edge = edge(point)
-      mode = .single(edge: edge)
-      touch("touch1-down", [point], edge: edge)
-    } else if fingers.count == 2, before < 2 {
-      if case .single(let edge) = mode { touch("touch1-up", [location(fingers[0])], edge: edge) }
-      mode = .double
-      touch("touch2-down", fingers.map(location))
-    }
+    guard finger == nil, !controlBusy, socket != nil, let device, let touch = touches.first,
+          device.display.bounds.contains(touch.location(in: device.display)) else { return }
+    let point = location(touch)
+    finger = touch
+    edge = point.y >= frameSize.height * 0.93 ? "bottom" : nil
+    self.touch("touch1-down", point)
   }
 
   override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-    switch mode {
-    case .single(let edge): touch("touch1-move", [location(fingers[0])], edge: edge)
-    case .double: touch("touch2-move", fingers.map(location))
-    case .idle: break
-    }
+    guard let finger, touches.contains(finger) else { return }
+    touch("touch1-move", location(finger))
   }
 
-  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { lift(touches) }
-  override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { lift(touches) }
-
-  private func lift(_ touches: Set<UITouch>) {
-    guard fingers.contains(where: touches.contains) else { return }
-    switch mode {
-    case .single(let edge): touch("touch1-up", [location(fingers[0])], edge: edge)
-    case .double: touch("touch2-up", fingers.map(location))
-    case .idle: break
-    }
-    mode = .idle
-    fingers.removeAll(where: touches.contains)
+  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+    guard let finger, touches.contains(finger) else { return }
+    touch("touch1-up", location(finger))
+    self.finger = nil
   }
 
-  /// `location(in:)` undoes the rotation transform, so points stay in the
-  /// simulator's portrait framebuffer space that baguette expects.
+  override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+    guard let finger, touches.contains(finger) else { return }
+    lift()
+  }
+
+  private func lift() {
+    guard let finger else { return }
+    touch("touch1-up", location(finger))
+    self.finger = nil
+  }
+
+  /// Points are in the decoded frame's pixels; the gateway forwards them to the
+  /// device unchanged. The mobile canvas stays portrait while the device rotates.
   private func location(_ touch: UITouch) -> CGPoint {
     guard let device else { return .zero }
     let point = touch.location(in: device.display)
     let bounds = device.display.bounds
-    let size = device.definition.screen.size
     guard bounds.width > 0, bounds.height > 0 else { return .zero }
     return CGPoint(
-      x: min(max(point.x / bounds.width, 0), 1) * size.width,
-      y: min(max(point.y / bounds.height, 0), 1) * size.height)
+      x: min(max(point.x / bounds.width, 0), 1) * frameSize.width,
+      y: min(max(point.y / bounds.height, 0), 1) * frameSize.height)
   }
 
-  /// baguette treats the hint as a possible home-indicator or notification swipe
-  /// and still lands a plain tap there, using the same bands as its web client.
-  private func edge(_ point: CGPoint) -> String? {
-    let y = point.y / max(device?.definition.screen.height ?? 1, 1)
-    if y >= 0.85 { return "bottom" }
-    if y <= 0.15 { return "top" }
-    return nil
-  }
-
-  private func touch(_ type: String, _ points: [CGPoint], edge: String? = nil) {
-    guard let size = device?.definition.screen.size else { return }
-    var envelope: [String: Any] = ["type": type, "width": size.width, "height": size.height]
-    if points.count == 1 {
-      envelope["x"] = points[0].x
-      envelope["y"] = points[0].y
-      if let edge { envelope["edge"] = edge }
-    } else if points.count == 2 {
-      envelope["x1"] = points[0].x
-      envelope["y1"] = points[0].y
-      envelope["x2"] = points[1].x
-      envelope["y2"] = points[1].y
-    }
+  private func touch(_ type: String, _ point: CGPoint) {
+    var envelope: [String: Any] = [
+      "type": type, "x": point.x, "y": point.y,
+      "width": Int(frameSize.width), "height": Int(frameSize.height),
+    ]
+    if let edge { envelope["edge"] = edge }
     send(envelope)
   }
 

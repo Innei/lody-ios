@@ -101,7 +101,7 @@ class ReusableDeviceTests(unittest.TestCase):
         self.assertIsNotNone(simulator, 'simulator allocator module is missing')
         inventory = {
             'devices': {
-                'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [
+                'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [
                     {
                         'udid': 'LODY-VERIFY',
                         'name': 'Lody File Preview Verify',
@@ -142,7 +142,7 @@ class ReusableDeviceTests(unittest.TestCase):
         simulator = load_simulator_module()
         inventory = {
             'devices': {
-                'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [
+                'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [
                     {
                         'udid': 'VALID',
                         'name': 'Lody Valid Verify',
@@ -224,7 +224,7 @@ class SimulatorLeaseTests(unittest.TestCase):
         simulator = load_simulator_module()
         inventory = {
             'devices': {
-                'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [
+                'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [
                     {
                         'udid': 'PRESERVE',
                         'name': 'Lody Preserve Verify',
@@ -254,7 +254,7 @@ class SimulatorLeaseTests(unittest.TestCase):
         self.assertTrue(hasattr(simulator, 'SimulatorPool'), 'SimulatorPool is missing')
         inventory = {
             'devices': {
-                'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [
+                'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [
                     {
                         'udid': 'REUSABLE',
                         'name': 'Lody Old Verify',
@@ -286,7 +286,7 @@ class SimulatorLeaseTests(unittest.TestCase):
         simulator = load_simulator_module()
         inventory = {
             'devices': {
-                'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [
+                'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [
                     {
                         'udid': 'EXTERNAL',
                         'name': 'Lody External Verify',
@@ -323,7 +323,7 @@ class SimulatorLeaseTests(unittest.TestCase):
         simulator = load_simulator_module()
         inventory = {
             'devices': {
-                'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [
+                'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [
                     {
                         'udid': 'BUSY',
                         'name': 'Lody Send Verify',
@@ -368,7 +368,7 @@ class SimulatorLeaseTests(unittest.TestCase):
         simulator = load_simulator_module()
         inventory = {
             'devices': {
-                'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [
+                'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [
                     {
                         'udid': 'BROKEN',
                         'name': 'Lody Broken Verify',
@@ -395,7 +395,7 @@ class SimulatorLeaseTests(unittest.TestCase):
         simulator = load_simulator_module()
         inventory = {
             'devices': {
-                'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [
+                'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [
                     {
                         'udid': 'SLOW-MIGRATION',
                         'name': 'Lody Slow Migration Verify',
@@ -422,7 +422,7 @@ class SimulatorLeaseTests(unittest.TestCase):
         simulator = load_simulator_module()
         inventory = {
             'devices': {
-                'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [
+                'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [
                     {
                         'udid': 'SHUTDOWN-FAILURE',
                         'name': 'Lody Shutdown Failure Verify',
@@ -455,7 +455,7 @@ class SimulatorLeaseTests(unittest.TestCase):
         simulator = load_simulator_module()
         inventory = {
             'devices': {
-                'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [
+                'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [
                     {
                         'udid': 'AMBIENT-EXCEPTION',
                         'name': 'Lody Ambient Exception Verify',
@@ -483,7 +483,7 @@ class SimulatorLeaseTests(unittest.TestCase):
         simulator = load_simulator_module()
         inventory = {
             'devices': {
-                'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [
+                'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [
                     {
                         'udid': 'ALREADY-SHUTDOWN',
                         'name': 'Lody Already Shutdown Verify',
@@ -518,7 +518,7 @@ class SimulatorLeaseTests(unittest.TestCase):
         )
         inventory = {
             'devices': {
-                'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [
+                'com.apple.CoreSimulator.SimRuntime.iOS-27-0': [
                     {
                         'udid': 'COMMAND',
                         'name': 'Lody Command Verify',

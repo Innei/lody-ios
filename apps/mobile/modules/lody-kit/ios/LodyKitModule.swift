@@ -273,10 +273,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("sessionPreview") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.command("sessionPreview", payload: payload, promise: promise) }
     }.runOnQueue(.main)
-    AsyncFunction("previewSimulators") { (address: String) async -> [[String: String]] in
-      guard let url = Self.previewURL(address) else { return [] }
-      return await SimulatorRemote.runningDevices(url)
-    }
+    AsyncFunction("iosSimulatorControl") { (payload: String, promise: Promise) in
+      MainActor.assumeIsolated { self.dataRuntime.command("iosSimulatorControl", payload: payload, promise: promise) }
+    }.runOnQueue(.main)
     AsyncFunction("openPreviewBrowser") { (address: String) in
       try MainActor.assumeIsolated {
         guard let url = Self.previewURL(address),

@@ -35,6 +35,7 @@ export type Catalog = {
   sessions: Session[];
   machineIds: string[];
   machineNames?: Record<string, string>;
+  machineSimulators?: Record<string, 'available' | 'upgrade-required'>;
 };
 export type SavedCatalog = { catalog: Catalog; syncedAt: number };
 export type Connection = {

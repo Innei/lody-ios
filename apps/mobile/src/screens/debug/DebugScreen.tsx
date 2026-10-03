@@ -53,6 +53,9 @@ import {
   type NativeListSection,
 } from '@lody-ios/kit';
 import { EnvironmentScreen } from '@/screens/debug/EnvironmentScreen';
+import { useCatalog } from '@/cloud/catalog/CatalogProvider';
+import type { Session } from '@/models/catalog';
+import { latestSession, probeSimulatorList } from './simulatorProbe';
 import {
   definePage,
   present,
@@ -81,6 +84,7 @@ function View() {
     };
   }, [navigation]);
   const colors = usePalette();
+  const { catalog, selected } = useCatalog();
   const [runtime, setRuntime] = useState<{
     title: string;
     subtitle?: string;
@@ -255,6 +259,12 @@ function View() {
           action: true,
         },
         {
+          id: 'simulator-backend-probe',
+          title: '探测 iOS 模拟器后端支持',
+          image: 'iphone.gen3',
+          action: true,
+        },
+        {
           id: 'runtime-hang',
           title: '卡死 WebView JS',
           image: 'exclamationmark.triangle',
@@ -287,6 +297,22 @@ function View() {
     },
   );
 
+  const runSimulatorProbe = (
+    probe: (
+      workspaceId: string,
+      session: Session,
+    ) => Promise<{ title: string; subtitle?: string }>,
+  ) => {
+    const session = latestSession(catalog.sessions);
+    if (!selected || !session) {
+      setRuntime({ title: '没有可用会话' });
+      return;
+    }
+    setRuntime({ title: '探测中', subtitle: session.title });
+    void probe(selected.id, session)
+      .then(setRuntime)
+      .catch((error) => setRuntime({ title: String(error) }));
+  };
   const actions: Record<string, () => void> = {
     'reply-haptics-preview': () => void present(ReplyHapticsPreviewScreen, {}),
     'notification-preview': () => {
@@ -396,6 +422,7 @@ function View() {
           });
         })
         .catch((error) => setRuntime({ title: String(error) })),
+    'simulator-backend-probe': () => runSimulatorProbe(probeSimulatorList),
     'runtime-hang': () => void debugHangDataRuntime(),
     'runtime-restart': () => void debugRestartDataRuntime(),
     'router-environment': () => router.push('/environment'),

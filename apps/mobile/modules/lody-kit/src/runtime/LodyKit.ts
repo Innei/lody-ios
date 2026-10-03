@@ -123,7 +123,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   renameSession(payload: string): Promise<string>;
   controlSessionTurn(payload: string): Promise<string>;
   sessionPreview(payload: string): Promise<string>;
-  previewSimulators(url: string): Promise<{ udid: string; name: string }[]>;
+  iosSimulatorControl(payload: string): Promise<string>;
   openPreviewBrowser(url: string): Promise<void>;
   sendSessionTurn(payload: string): Promise<string>;
   readSessionEdit(payload: string): Promise<string>;
@@ -288,7 +288,49 @@ export const sessionPreview = async (
   JSON.parse(
     await native.sessionPreview(JSON.stringify({ sessionId, action })),
   );
-export const previewSimulators = (url: string) => native.previewSimulators(url);
+export type IosSimulatorCommand =
+  | { action: 'list' }
+  | { action: 'exterior'; udid: string }
+  | { action: 'start'; udid: string }
+  | { action: 'status'; operationId?: string }
+  | { action: 'stop'; operationId: string };
+export type IosSimulatorDevice = {
+  udid: string;
+  name: string;
+  runtime: string;
+  deviceType: string;
+  state: string;
+  available: boolean;
+  unavailableReason?: string;
+  occupancy: 'available' | 'this-session' | 'other-session';
+};
+export type IosSimulatorPreview = {
+  operationId: string;
+  udid: string;
+  phase: 'preparing' | 'booting' | 'connecting' | 'ready' | 'closed' | 'failed';
+  transport: 'local' | 'remote';
+  viewerUrl?: string;
+  message?: string;
+};
+export type IosSimulatorReply = {
+  success?: boolean;
+  error?: string;
+  status?: number;
+  message?: string;
+  capabilities?: Record<string, number>;
+  devices?: IosSimulatorDevice[];
+  preview?: IosSimulatorPreview;
+};
+export const iosSimulatorControl = async (
+  workspaceId: string,
+  sessionId: string,
+  command: IosSimulatorCommand,
+): Promise<IosSimulatorReply> =>
+  JSON.parse(
+    await native.iosSimulatorControl(
+      JSON.stringify({ workspaceId, sessionId, command }),
+    ),
+  );
 export const openPreviewBrowser = (url: string) =>
   native.openPreviewBrowser(url);
 export const decodeFlock = (

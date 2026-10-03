@@ -1,19 +1,21 @@
 import { useMemo, useState } from 'react';
-import { View as RNView } from 'react-native';
+import { ActivityIndicator, Text, View as RNView } from 'react-native';
 import type { HeaderBarButtonItemMenuAction } from 'react-native-screens';
+import { NativeNavigationHeader, SimulatorView } from '@lody-ios/kit';
 import {
-  NativeNavigationHeader,
-  SimulatorView,
-  type SimulatorSource,
-  openPreviewBrowser,
-} from '@lody-ios/kit';
+  simulatorPhaseKey,
+  simulatorSource,
+  startSimulator,
+  stopSimulator,
+  useSimulatorOperation,
+} from '@/features/simulator/operations';
 import { definePage } from '@/lib/presentation';
 import type { HeaderItems } from '@/lib/presentation/SheetStack';
 import { usePalette } from '@/lib/theme/palette';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { t, type TranslationKey } from '../lib/i18n/index.ts';
 
-export type SimulatorParams = SimulatorSource;
+export type SimulatorParams = { sessionId: string };
 
 type Action = { id: string; key: TranslationKey; symbol: string };
 
@@ -24,7 +26,7 @@ const SECTIONS: Action[][] = [
       key: 'simulator.action.appSwitcher',
       symbol: 'square.stack',
     },
-    { id: 'power', key: 'simulator.action.lock', symbol: 'lock' },
+    { id: 'lock', key: 'simulator.action.lock', symbol: 'lock' },
   ],
   [
     {
@@ -60,36 +62,62 @@ const SECTIONS: Action[][] = [
       symbol: 'button.programmable',
     },
   ],
-  [
-    { id: 'screenshot', key: 'simulator.action.screenshot', symbol: 'camera' },
-    { id: 'browser', key: 'simulator.action.openInBrowser', symbol: 'safari' },
-  ],
 ];
 
 function View() {
-  const { params } = usePageRuntime<SimulatorParams>();
+  const { params, cancel, present } = usePageRuntime<SimulatorParams>();
   const colors = usePalette();
+  const operation = useSimulatorOperation(params.sessionId);
   const [command, setCommand] = useState({ token: 0, action: '' });
-  const source = useMemo(() => JSON.stringify(params), [params]);
+  const source = simulatorSource(operation);
+  const sourceJSON = source ? JSON.stringify(source) : '';
+  const live = Boolean(source);
   const headerItems = useMemo<HeaderItems>(() => {
-    const run = (action: string) => {
-      if (action === 'browser') {
-        void openPreviewBrowser(params.url);
-        return;
-      }
+    const run = (action: string) =>
       setCommand((previous) => ({ token: previous.token + 1, action }));
-    };
     const item = (action: Action): HeaderBarButtonItemMenuAction => ({
       type: 'action',
       title: t(action.key),
       icon: { type: 'sfSymbol', name: action.symbol },
+      disabled: !live,
       onPress: () => run(action.id),
     });
+    const workspaceId = operation?.workspaceId;
+    const chooseAnother: HeaderBarButtonItemMenuAction = {
+      type: 'action',
+      title: t('simulator.chooseAnother'),
+      icon: { type: 'sfSymbol', name: 'iphone.gen3' },
+      disabled: !workspaceId,
+      onPress: () => {
+        if (!workspaceId) return;
+        void import('./SimulatorPickerScreen').then(
+          async ({ SimulatorPickerScreen }) => {
+            const result = await present(SimulatorPickerScreen, {
+              workspaceId,
+              sessionId: params.sessionId,
+            });
+            if (result.status === 'completed')
+              void startSimulator(workspaceId, params.sessionId, result.value);
+          },
+        );
+      },
+    };
+    const stop: HeaderBarButtonItemMenuAction = {
+      type: 'action',
+      title: t('simulator.stop'),
+      icon: { type: 'sfSymbol', name: 'stop.circle' },
+      destructive: true,
+      onPress: () => {
+        void stopSimulator(params.sessionId);
+        cancel();
+      },
+    };
     return [
       {
         type: 'button',
         icon: { type: 'sfSymbol', name: 'house' },
         accessibilityLabel: t('simulator.action.home'),
+        disabled: !live,
         onPress: () => run('home'),
       },
       {
@@ -97,24 +125,58 @@ function View() {
         icon: { type: 'sfSymbol', name: 'ellipsis' },
         accessibilityLabel: t('common.more'),
         menu: {
-          items: SECTIONS.map((section) => ({
-            type: 'submenu',
-            displayInline: true,
-            items: section.map(item),
-          })),
+          items: [
+            ...SECTIONS.map((section) => ({
+              type: 'submenu' as const,
+              displayInline: true,
+              items: section.map(item),
+            })),
+            {
+              type: 'submenu',
+              displayInline: true,
+              items: [chooseAnother, stop],
+            },
+          ],
         },
       },
     ];
-  }, [params.url]);
+  }, [cancel, live, operation?.workspaceId, params.sessionId, present]);
 
   return (
     <RNView style={{ flex: 1, backgroundColor: colors.background }}>
-      <NativeNavigationHeader items={headerItems} />
-      <SimulatorView
-        style={{ flex: 1 }}
-        sourceJSON={source}
-        commandJSON={JSON.stringify(command)}
-      />
+      <NativeNavigationHeader items={headerItems} title={operation?.name} />
+      {source ? (
+        <SimulatorView
+          style={{ flex: 1 }}
+          sourceJSON={sourceJSON}
+          commandJSON={JSON.stringify(command)}
+        />
+      ) : (
+        <RNView
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            padding: 32,
+          }}
+        >
+          {operation?.phase !== 'failed' && operation?.phase !== 'closed' && (
+            <ActivityIndicator />
+          )}
+          <Text
+            style={{ color: colors.secondaryLabel, textAlign: 'center' }}
+            accessibilityRole="text"
+          >
+            {t(simulatorPhaseKey[operation?.phase ?? 'closed'])}
+          </Text>
+          {operation?.message && operation.phase === 'failed' && (
+            <Text style={{ color: colors.tertiaryLabel, textAlign: 'center' }}>
+              {operation.message}
+            </Text>
+          )}
+        </RNView>
+      )}
     </RNView>
   );
 }

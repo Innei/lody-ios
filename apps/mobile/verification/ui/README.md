@@ -99,7 +99,7 @@ composer draft retention in both appearances. Screenshots and video cover each
 answer state; no real agent request is dispatched.
 
 If a normal signed Debug app is already built, each verification command can lease
-its own iPhone 17 Pro / iOS 26.5 device from the `Lody * Verify` pool. The documented
+its own iPhone 17 Pro / iOS 27.0 device from the `Lody * Verify` pool. The documented
 command without `--case` or `--batch` is that phone lease only. Pad-only cases
 (`ipad`, `ipad-chrome`, `native-shell`, `native-collection`) stay behind an explicit
 `--case` so they lease an iPad instead of asserting a wide screen on an iPhone.
@@ -628,7 +628,7 @@ Ordinary regression runs are never ingested: `results.json` stays a programmatic
 CI gate. Simulator Debug evidence cannot claim physical-device performance,
 haptics or cloud persistence, whatever the round says.
 
-`agent-error` verifies native inline alert cards, separate detail/copy actions, hidden actions for historical or incomplete failures, single-dispatch manual retry, definite rejection, accepted continuation, compact content-driven height, stable pending action geometry and preserved composer drafts in both appearances. Its retry service is local; no cloud turn is sent. Set `LODY_VERIFY_RUNTIME` to an installed Simulator runtime identifier when the default iOS 26.5 runtime is unavailable.
+`agent-error` verifies native inline alert cards, separate detail/copy actions, hidden actions for historical or incomplete failures, single-dispatch manual retry, definite rejection, accepted continuation, compact content-driven height, stable pending action geometry and preserved composer drafts in both appearances. Its retry service is local; no cloud turn is sent. Set `LODY_VERIFY_RUNTIME` to an installed Simulator runtime identifier when the default iOS 27.0 runtime is unavailable.
 
 ### Scroll edge host coverage
 
