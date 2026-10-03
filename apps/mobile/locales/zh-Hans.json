@@ -1019,5 +1019,22 @@
   "session.context.count": "{count} 个预览",
   "simulator.chooseAnother": "选择其他模拟器",
   "native.simulator.expand": "展开模拟器预览",
-  "native.simulator.close": "关闭模拟器预览"
+  "native.simulator.close": "关闭模拟器预览",
+  "conversations.title": "对话",
+  "conversations.tabs": "标签页",
+  "conversations.sideChats": "旁路对话",
+  "conversations.archived": "已归档",
+  "conversations.main": "主对话",
+  "conversations.newTab": "新标签页",
+  "conversations.sameWorkspace": "同一工作区",
+  "conversations.newSideChat": "新旁路对话",
+  "conversations.fromLatestReply": "从最新回复开始",
+  "conversations.unavailable": "不可用",
+  "conversations.deleteSideChat": "删除",
+  "conversations.count.one": "{count} 个对话",
+  "conversations.count.other": "{count} 个对话",
+  "conversations.inParent": "属于 {title}",
+  "conversations.deleteTitle": "删除这个旁路对话？",
+  "conversations.deleteFailed": "无法删除旁路对话，请重试。",
+  "conversations.sideChat": "旁路对话"
 }

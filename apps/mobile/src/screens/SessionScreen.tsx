@@ -75,6 +75,7 @@ import type { ModelChoice } from '@/models/send';
 import { t } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { useOpenPullRequest } from '@/hooks/screens/useOpenPullRequest';
+import { useSessionConversations } from '@/hooks/screens/useSessionConversations';
 import type {
   HeaderBarButtonItemMenuAction,
   HeaderBarButtonItemSubmenu,
@@ -112,16 +113,36 @@ export type SessionParams = {
   modelId?: string;
   effort?: string;
   modeId?: string;
+  sideChat?: boolean;
 };
 
 const noPullRequests: NonNullable<Session['pullRequests']> = [];
 
 function View() {
+  const { params } = usePageRuntime<SessionParams>();
+  const { catalog } = useCatalog();
+  const [activeId, setActiveId] = useState(params.session.id);
+  const session =
+    catalog.sessions.find((s) => s.id === activeId) ??
+    (activeId === params.session.id ? params.session : undefined);
+  if (!session) return null;
+  return (
+    <Conversation key={activeId} session={session} onSwitch={setActiveId} />
+  );
+}
+
+function Conversation({
+  session,
+  onSwitch,
+}: {
+  session: Session;
+  onSwitch: (id: string) => void;
+}) {
   const runtime = usePageRuntime<SessionParams>();
+  const opened = runtime.params.session.id === session.id;
   const {
     params: {
-      session,
-      initialHistory,
+      sideChat,
       findQuery,
       navigationTitleHidden,
       projectName: creationProjectName,
@@ -131,6 +152,7 @@ function View() {
       modeId,
     },
   } = runtime;
+  const initialHistory = opened ? runtime.params.initialHistory : undefined;
   const { account } = useAuth(),
     colors = usePalette();
   const { catalog, selected, serverSessions, refresh, deleteSessionRequest } =
@@ -152,6 +174,28 @@ function View() {
   }, [runtime, selected?.id, session.id]);
   const currentSession =
     catalog.sessions.find((s) => s.id === session.id) ?? session;
+  const conversations = useSessionConversations({
+    sessions: catalog.sessions,
+    activeId: session.id,
+    onSwitch,
+    onOpenSideChat: (id) => {
+      const side = catalog.sessions.find((s) => s.id === id);
+      if (side)
+        void present(
+          SessionScreen,
+          { session: side, sideChat: true },
+          { style: 'pageSheet', headerVariant: 'glass' },
+        );
+    },
+  });
+  const titleOverride = sideChat
+    ? {
+        title: t('conversations.sideChat'),
+        subtitle:
+          catalog.sessions.find((s) => s.id === conversations.rootId)?.title ??
+          '',
+      }
+    : conversations.title;
   const [appendDraftJSON, setAppendDraftJSON] = useState('');
   const [editedMessageId, setEditedMessageId] = useState('');
   const [findRequest, setFindRequest] = useState({
@@ -745,6 +789,8 @@ function View() {
         },
       ],
     });
+    if (conversations.headerItem && !sideChat)
+      items.push(conversations.headerItem);
     items.push({
       type: 'menu',
       icon: { type: 'sfSymbol', name: 'ellipsis' },
@@ -756,9 +802,11 @@ function View() {
     account,
     browsable,
     catalog,
+    conversations.headerItem,
     currentSession,
     deleting,
     deleteSessionRequest,
+    sideChat,
     pending,
     openPullRequest,
     pending?.send.creation,
@@ -797,8 +845,14 @@ function View() {
         mentionItemsJSON={mentions.mentionItemsJSON}
         mentionResultJSON={mentions.mentionResultJSON}
         onMentionBrowse={mentions.onMentionBrowse}
-        navigationTitle={navigationTitleHidden ? '' : currentSession.title}
-        navigationSubtitle={navigationTitleHidden ? '' : projectName}
+        navigationTitle={
+          navigationTitleHidden
+            ? ''
+            : (titleOverride?.title ?? currentSession.title)
+        }
+        navigationSubtitle={
+          navigationTitleHidden ? '' : (titleOverride?.subtitle ?? projectName)
+        }
         navigationMachine={navigationTitleHidden ? '' : machineName}
         navigationBranch={
           navigationTitleHidden ? '' : (currentSession.branchName ?? '')

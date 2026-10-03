@@ -1019,5 +1019,22 @@
   "session.context.count": "{count} previews",
   "simulator.chooseAnother": "Choose Another Simulator",
   "native.simulator.expand": "Expand Simulator preview",
-  "native.simulator.close": "Close Simulator preview"
+  "native.simulator.close": "Close Simulator preview",
+  "conversations.title": "Conversations",
+  "conversations.tabs": "Tabs",
+  "conversations.sideChats": "Side Chats",
+  "conversations.archived": "Archived",
+  "conversations.main": "Main",
+  "conversations.newTab": "New Tab",
+  "conversations.sameWorkspace": "Same workspace",
+  "conversations.newSideChat": "New Side Chat",
+  "conversations.fromLatestReply": "Starts from the latest reply",
+  "conversations.unavailable": "Unavailable",
+  "conversations.deleteSideChat": "Delete",
+  "conversations.count.one": "{count} conversation",
+  "conversations.count.other": "{count} conversations",
+  "conversations.inParent": "in {title}",
+  "conversations.deleteTitle": "Delete this side chat?",
+  "conversations.deleteFailed": "Couldn't delete the side chat. Try again.",
+  "conversations.sideChat": "Side Chat"
 }
