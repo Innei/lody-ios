@@ -87,6 +87,7 @@ struct ChatItem: Decodable {
   var error: String? = nil
   var isBackgrounded: Bool? = nil
   var skipTranscript: Bool? = nil
+  var run: ChatSubagentRun? = nil
   var hidesFromTranscript: Bool { type == "subagent_task" && skipTranscript == true }
   var isLiveSubagent: Bool {
     type == "subagent_task" && skipTranscript != true && (status == "in_progress" || status == "pending")
@@ -96,6 +97,12 @@ struct ChatItem: Decodable {
   var images: [ChatImage]? = nil
   var isImage: Bool { type == "image" || type == "image_group" }
   var isAttachment: Bool { isImage || type == "file" }
+}
+
+struct ChatSubagentRun: Decodable {
+  var state: String
+  var outputIncomplete: Bool? = nil
+  var items: [ChatItem]? = nil
 }
 
 struct ChatRow: Equatable {
@@ -277,7 +284,7 @@ struct ChatTranscript {
           guard item.type == "subagent_task", item.skipTranscript != true else { return nil }
           return ChatTranscript.subagentRow(entry: entry, item: item)
         }
-      }
+      }.groupedSubagents()
     }
     let groups = Dictionary(grouping: entries.filter { $0.executionId != nil }, by: { $0.executionId! })
     if processStartID == "__execution__",
@@ -288,7 +295,7 @@ struct ChatTranscript {
     if !processEntryID.isEmpty {
       return entryRows(processEntryID: processEntryID, processStartID: processStartID, now: now, turnStartedAt: turnStartedAt)
     }
-    let ordinary = Dictionary(grouping: entryRows(now: now, turnStartedAt: turnStartedAt), by: \.entryID)
+    let ordinary = Dictionary(grouping: entryRows(now: now, turnStartedAt: turnStartedAt).groupedSubagents(), by: \.entryID)
     var emitted = Set<String>()
     return entries.flatMap { entry -> [ChatRow] in
       if let groupID = entry.executionId, let members = groups[groupID],
@@ -560,10 +567,15 @@ extension ChatTranscript {
     let tool = item.lastToolName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     let summary = item.summary?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     let error = item.error?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    let running = item.status == "in_progress" || item.status == "pending"
+    let status = ChatSubagentCard.status(item)
+    let running = status == "in_progress" || status == "pending"
     var detail = ""
-    if item.status == "in_progress", !tool.isEmpty {
+    if running, let step = ChatSubagentCard.latestStep(item.run) {
+      detail = step
+    } else if item.status == "in_progress", !tool.isEmpty {
       detail = LodyStrings.text("native.chat.subagent.runningTool", ["tool": tool])
+    } else if status == "unknown" {
+      detail = LodyStrings.text("native.chat.subagent.unknownDetail")
     } else if item.status == "completed" {
       detail = summary
     } else if item.status == "failed" {
@@ -572,7 +584,7 @@ extension ChatTranscript {
     let card = ChatSubagentCard(
       actor: actor.isEmpty ? LodyStrings.text("native.chat.transcript.subtask") : actor,
       description: description == actor ? "" : description,
-      status: item.status ?? "pending",
+      status: status,
       detail: detail,
       background: item.isBackgrounded == true
     )
@@ -583,7 +595,7 @@ extension ChatTranscript {
       text: [card.actor, card.description, detail].filter { !$0.isEmpty }.joined(separator: " · "),
       itemID: item.itemId,
       running: running,
-      attention: item.status == "failed"
+      attention: status == "failed"
     )
     row.symbol = "person.2"
     row.actionable = true
@@ -598,6 +610,62 @@ struct ChatSubagentCard: Equatable {
   var status: String
   var detail: String
   var background: Bool
+  var position = "only"
+  var groupTitle = ""
+
+  static func status(_ item: ChatItem) -> String {
+    let states = ["running": "in_progress", "pending": "pending", "completed": "completed",
+      "failed": "failed", "cancelled": "cancelled", "unknown": "unknown"]
+    if let state = item.run?.state, let mapped = states[state] { return mapped }
+    return item.status ?? "pending"
+  }
+
+  static func latestStep(_ run: ChatSubagentRun?) -> String? {
+    guard let last = run?.items?.last else { return nil }
+    switch last.type {
+    case "tool_call":
+      return [last.title, last.path].compactMap { $0 }.first { !$0.isEmpty }
+    case "thought":
+      return LodyStrings.text("native.chat.transcript.activity.thinking")
+    case "text":
+      return last.text?.split(separator: "\n").last.map(String.init)
+    default:
+      return nil
+    }
+  }
+
+  static func groupTitle(_ cards: [ChatSubagentCard]) -> String {
+    var parts = [LodyStrings.plural("native.chat.subagent.group", cards.count)]
+    for (status, key) in [("in_progress", "groupRunning"), ("completed", "groupDone"), ("failed", "groupFailed")] {
+      let count = cards.filter { $0.status == status || (status == "in_progress" && $0.status == "pending") }.count
+      if count > 0 { parts.append(LodyStrings.plural("native.chat.subagent." + key, count)) }
+    }
+    return parts.joined(separator: " · ")
+  }
+}
+
+extension Array where Element == ChatRow {
+  func groupedSubagents() -> [ChatRow] {
+    var rows = self
+    var start = 0
+    while start < rows.count {
+      var end = start
+      while end < rows.count, rows[end].kind == "subagent_task", rows[end].entryID == rows[start].entryID {
+        end += 1
+      }
+      if end - start >= 2 {
+        let title = ChatSubagentCard.groupTitle(rows[start..<end].compactMap(\.subagent))
+        for index in start..<end {
+          var position = "middle"
+          if index == start { position = "first" } else if index == end - 1 { position = "last" }
+          rows[index].subagent?.position = position
+        }
+        rows[start].subagent?.groupTitle = title
+      }
+      start = Swift.max(end, start + 1)
+    }
+    return rows
+  }
 }
 
 enum ChatProcessSummary {

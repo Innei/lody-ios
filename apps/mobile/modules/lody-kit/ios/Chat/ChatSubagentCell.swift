@@ -12,6 +12,8 @@ final class ChatSubagentCell: UICollectionViewCell {
   private let chevron = UIImageView()
   private let descriptionLabel = UILabel()
   private let detailLabel = UILabel()
+  private let groupLabel = UILabel()
+  private let separator = UIView()
   private var row: ChatRow?
 
   private static let inset: CGFloat = 4
@@ -45,7 +47,10 @@ final class ChatSubagentCell: UICollectionViewCell {
     descriptionLabel.textColor = .label
     descriptionLabel.numberOfLines = 2
     detailLabel.numberOfLines = 2
-    [badge, actorLabel, backgroundTag, spinner, statusIcon, statusLabel, chevron, descriptionLabel, detailLabel].forEach(card.addSubview)
+    groupLabel.textColor = .secondaryLabel
+    separator.backgroundColor = .separator
+    [badge, actorLabel, backgroundTag, spinner, statusIcon, statusLabel, chevron, descriptionLabel, detailLabel,
+     groupLabel, separator].forEach(card.addSubview)
     card.subviews.forEach { $0.isAccessibilityElement = false }
     isAccessibilityElement = true
     registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (cell: ChatSubagentCell, _) in
@@ -67,11 +72,25 @@ final class ChatSubagentCell: UICollectionViewCell {
     self.row = row
     guard let card = row.subagent else { return }
     let failed = card.status == "failed"
+    let symbols = ["failed": "exclamationmark.triangle.fill", "cancelled": "minus.circle.fill",
+      "unknown": "questionmark.circle.fill"]
     icon.image = UIImage(
-      systemName: failed ? "exclamationmark.triangle.fill" : "person.2.fill",
+      systemName: symbols[card.status] ?? "person.2.fill",
       withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
     )
-    icon.tintColor = failed ? .systemRed : .systemBlue
+    let tints: [String: UIColor] = ["failed": .systemRed, "cancelled": .secondaryLabel, "unknown": .secondaryLabel]
+    icon.tintColor = tints[card.status] ?? .systemBlue
+    groupLabel.text = card.groupTitle
+    groupLabel.font = Self.statusFont(traitCollection)
+    groupLabel.isHidden = card.groupTitle.isEmpty
+    separator.isHidden = card.position != "middle" && card.position != "last"
+    let corners: [String: CACornerMask] = [
+      "first": [.layerMinXMinYCorner, .layerMaxXMinYCorner],
+      "middle": [],
+      "last": [.layerMinXMaxYCorner, .layerMaxXMaxYCorner],
+    ]
+    self.card.layer.maskedCorners = corners[card.position]
+      ?? [.layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMaxYCorner]
     actorLabel.text = card.actor
     actorLabel.font = Self.actorFont(traitCollection)
     backgroundTag.isHidden = !card.background
@@ -97,7 +116,7 @@ final class ChatSubagentCell: UICollectionViewCell {
     detailLabel.isHidden = card.detail.isEmpty
     accessibilityIdentifier = row.id
     accessibilityLabel = [card.actor, card.description].filter { !$0.isEmpty }.joined(separator: ", ")
-    accessibilityValue = [statusLabel.text ?? "", card.detail].filter { !$0.isEmpty }.joined(separator: ", ")
+    accessibilityValue = [card.groupTitle, statusLabel.text ?? "", card.detail].filter { !$0.isEmpty }.joined(separator: ", ")
     accessibilityTraits = row.actionable ? .button : .staticText
     setNeedsLayout()
   }
@@ -108,6 +127,8 @@ final class ChatSubagentCell: UICollectionViewCell {
       "in_progress": "native.chat.subagent.running",
       "completed": "native.chat.subagent.completed",
       "failed": "native.chat.subagent.failed",
+      "cancelled": "native.chat.subagent.cancelled",
+      "unknown": "native.chat.subagent.unknown",
     ]
     return keys[status].map { LodyStrings.text($0) } ?? ""
   }
@@ -152,10 +173,19 @@ final class ChatSubagentCell: UICollectionViewCell {
     return (description, detail)
   }
 
+  private static func insets(_ card: ChatSubagentCard) -> (top: CGFloat, bottom: CGFloat) {
+    (["only", "first"].contains(card.position) ? inset : 0, ["only", "last"].contains(card.position) ? inset : 0)
+  }
+
+  private static func groupHeight(_ card: ChatSubagentCard, traits: UITraitCollection) -> CGFloat {
+    card.groupTitle.isEmpty ? 0 : ceil(statusFont(traits).lineHeight) + 8
+  }
+
   static func height(_ row: ChatRow, width: CGFloat, traits: UITraitCollection) -> CGFloat {
     guard let card = row.subagent else { return 0 }
     let (description, detail) = bodyHeights(card, width: width, traits: traits)
-    return inset * 2 + padding.top + headerHeight(traits)
+    let (top, bottom) = insets(card)
+    return top + bottom + groupHeight(card, traits: traits) + padding.top + headerHeight(traits)
       + (description > 0 ? 2 + description : 0)
       + (detail > 0 ? 3 + detail : 0) + padding.bottom
   }
@@ -163,9 +193,14 @@ final class ChatSubagentCell: UICollectionViewCell {
   override func layoutSubviews() {
     super.layoutSubviews()
     guard let row, let data = row.subagent else { return }
-    card.frame = bounds.insetBy(dx: 0, dy: Self.inset)
+    let (top, bottom) = Self.insets(data)
+    card.frame = CGRect(x: 0, y: top, width: bounds.width, height: bounds.height - top - bottom)
     let width = card.bounds.width
-    let pad = Self.padding
+    let group = Self.groupHeight(data, traits: traitCollection)
+    groupLabel.frame = CGRect(x: Self.padding.left, y: 10, width: width - Self.padding.left * 2, height: max(0, group - 8))
+    separator.frame = CGRect(x: Self.textLeading, y: 0, width: width - Self.textLeading, height: 1 / max(1, traitCollection.displayScale))
+    var pad = Self.padding
+    pad.top += group
     let header = Self.headerHeight(traitCollection)
     let midY = pad.top + header / 2
     badge.frame = CGRect(x: pad.left, y: midY - Self.badgeSize / 2, width: Self.badgeSize, height: Self.badgeSize)

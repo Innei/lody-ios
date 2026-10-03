@@ -656,6 +656,92 @@ test('projection keeps subagent task identity and live fields', async () => {
   assert.equal(item.skipTranscript, false);
 });
 
+test('projection keeps a subagent run transcript in transcript item shape', async () => {
+  const { projectSession } = await loadProject();
+  const doc = new LoroDoc();
+  const entry = doc.getList('history').pushContainer(new LoroMap());
+  entry.set('id', 'e-run');
+  entry.set('role', 'assistant');
+  const task = entry
+    .setContainer('items', new LoroList())
+    .pushContainer(new LoroMap());
+  task.set('type', 'subagent_task');
+  task.set('taskId', 'run-1');
+  task.set('status', 'in_progress');
+  const run = task.setContainer('run', new LoroMap());
+  run.set('sessionId', 'acp-root');
+  run.set('snapshot', {
+    state: 'running',
+    modelId: 'gpt-5-codex',
+    outputIncomplete: true,
+    support: { stream: ['text', 'tool'], cancel: true },
+  });
+  run.set('progress', {
+    totalTokens: 3100,
+    toolCallCount: 7,
+    contextUsagePercent: 18,
+  });
+  const items = run.setContainer('items', new LoroList());
+  const thought = items.pushContainer(new LoroMap());
+  thought.set('type', 'thought');
+  thought.set('text', 'Trace verifyToken.');
+  const tool = items.pushContainer(new LoroMap());
+  tool.set('type', 'tool_call');
+  tool.set('toolCallId', 'grep-1');
+  tool.set('kind', 'search');
+  tool.set('status', 'completed');
+  tool.set('title', 'Grep verifyToken');
+  const text = items.pushContainer(new LoroMap());
+  text.set('type', 'text');
+  text.setContainer('text', new LoroText()).insert(0, 'Six callers.');
+  doc.commit();
+  const item = projectSession(doc, 'live').entries[0].items[0];
+  assert.deepEqual(
+    {
+      state: item.run.state,
+      modelId: item.run.modelId,
+      outputIncomplete: item.run.outputIncomplete,
+      cancel: item.run.cancel,
+      totalTokens: item.run.totalTokens,
+      toolCallCount: item.run.toolCallCount,
+      contextUsagePercent: item.run.contextUsagePercent,
+    },
+    {
+      state: 'running',
+      modelId: 'gpt-5-codex',
+      outputIncomplete: true,
+      cancel: true,
+      totalTokens: 3100,
+      toolCallCount: 7,
+      contextUsagePercent: 18,
+    },
+  );
+  assert.deepEqual(
+    item.run.items.map((i) => [i.type, i.text ?? i.title]),
+    [
+      ['thought', 'Trace verifyToken.'],
+      ['tool_call', 'Grep verifyToken'],
+      ['text', 'Six callers.'],
+    ],
+  );
+  assert.equal(item.run.items[1].itemId, 'grep-1');
+  const before = item.rev;
+  doc
+    .getList('history')
+    .get(0)
+    .get('items')
+    .get(0)
+    .get('run')
+    .get('items')
+    .get(2)
+    .get('text')
+    .insert(12, ' Two misorder the cookie.');
+  doc.commit();
+  const next = projectSession(doc, 'live').entries[0].items[0];
+  assert.equal(next.run.items[2].text, 'Six callers. Two misorder the cookie.');
+  assert.ok(next.rev > before);
+});
+
 test('MCP image groups survive projection, cache updates and history bootstrap', async () => {
   const { projectSession } = await loadProject();
   const doc = new LoroDoc();

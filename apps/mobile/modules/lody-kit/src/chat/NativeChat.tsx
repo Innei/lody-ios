@@ -22,6 +22,13 @@ export const NativeChat: ComponentType<
       event: NativeSyntheticEvent<{ entryId: string }>,
     ) => void;
     imageSharingEnabled?: boolean;
+    forkMenuJSON?: string;
+    onFork?: (
+      event: NativeSyntheticEvent<{
+        entryId: string;
+        target: 'sideChat' | 'tab' | 'worktree';
+      }>,
+    ) => void;
     onShareImage?: (
       event: NativeSyntheticEvent<{ contentJSON: string }>,
     ) => void;

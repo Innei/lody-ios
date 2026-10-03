@@ -81,6 +81,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var turnInfoEnabled = false
   let onShareImage = EventDispatcher()
   var imageSharingEnabled = false
+  let onFork = EventDispatcher()
+  var forkMenu = ChatForkMenu(json: "")
   let onFilePress = EventDispatcher()
   let onTurnChangesPress = EventDispatcher()
   let onReconnect = EventDispatcher()

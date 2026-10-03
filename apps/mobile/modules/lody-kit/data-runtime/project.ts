@@ -66,8 +66,20 @@ export type ItemSummary =
       error?: string;
       isBackgrounded?: boolean;
       skipTranscript?: boolean;
+      run?: SubagentRunSummary;
     }
   | { itemId: string; rev: number; type: string };
+
+export type SubagentRunSummary = {
+  state: string;
+  modelId?: string;
+  outputIncomplete?: boolean;
+  cancel?: boolean;
+  totalTokens?: number;
+  toolCallCount?: number;
+  contextUsagePercent?: number;
+  items: ItemSummary[];
+};
 
 export type EntrySummary = TurnMetadata & {
   id: string;
@@ -322,12 +334,40 @@ function summarizeItem(
         raw.isBackgrounded == null ? undefined : Boolean(raw.isBackgrounded),
       skipTranscript:
         raw.skipTranscript == null ? undefined : Boolean(raw.skipTranscript),
+      run: summarizeRun(projection, raw.run, key),
     };
     summary.rev = bump(projection, key, JSON.stringify(summary));
     return summary as ItemSummary;
   }
 
   return { itemId, rev: bump(projection, key, type), type } as ItemSummary;
+}
+
+const finite = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+
+function summarizeRun(
+  projection: Projection,
+  run: any,
+  key: string,
+): SubagentRunSummary | undefined {
+  if (!run || typeof run !== 'object' || !run.snapshot) return;
+  const snapshot = run.snapshot;
+  const progress = run.progress ?? {};
+  const items: unknown[] = Array.isArray(run.items) ? run.items : [];
+  return {
+    state: String(snapshot.state ?? 'unknown'),
+    modelId:
+      typeof snapshot.modelId === 'string' ? snapshot.modelId : undefined,
+    outputIncomplete: snapshot.outputIncomplete === true || undefined,
+    cancel: snapshot.support?.cancel === true || undefined,
+    totalTokens: finite(progress.totalTokens),
+    toolCallCount: finite(progress.toolCallCount),
+    contextUsagePercent: finite(progress.contextUsagePercent),
+    items: items.map((item, index) =>
+      summarizeItem(projection, item, `${key}/run`, `run-${index}`),
+    ) as ItemSummary[],
+  };
 }
 
 function summarizeEntry(

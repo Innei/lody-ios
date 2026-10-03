@@ -663,6 +663,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     View(LodyChatView.self) {
       Prop("simulatorPreviewJSON") { (view: LodyChatView, value: String) in view.setSimulatorPreview(value) }
       Prop("imageSharingEnabled") { (view: LodyChatView, value: Bool) in view.imageSharingEnabled = value }
+      Prop("forkMenuJSON") { (view: LodyChatView, value: String) in view.forkMenu = ChatForkMenu(json: value) }
       Prop("findRequestJSON") { (view: LodyChatView, value: String) in view.setFindRequest(value) }
       Prop("debugStreamBenchmarkRun") { (view: LodyChatView, value: Int) in
         guard value > 0 else { return }
@@ -674,7 +675,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         view.performanceProbe?.stop()
         view.performanceProbe = ChatPerformanceProbe(view)
       }
-      Events("onStop", "onSteer", "onSend", "onEditMessage", "onShareImage", "onTurnInfoPress", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse", "onPreview", "onTitleMenu")
+      Events("onStop", "onSteer", "onSend", "onEditMessage", "onShareImage", "onFork", "onTurnInfoPress", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse", "onPreview", "onTitleMenu")
       Prop("editableMessageId") { (view: LodyChatView, value: String) in view.editableMessageID = value }
       Prop("editedMessageId") { (view: LodyChatView, value: String) in view.editedMessageID = value }
       Prop("navigationTitle") { (view: LodyChatView, value: String) in view.setNavigationTitle(value) }

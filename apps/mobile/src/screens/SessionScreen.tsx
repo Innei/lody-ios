@@ -16,7 +16,14 @@ import { useSessionSend } from '@/features/sessions/useSessionSend';
 import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
 import { useQuickReplies } from '@/features/settings/quick-replies';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { View as RNView, Alert } from 'react-native';
 import { useSessionPreview } from '@/hooks/screens/useSessionPreview';
 import { useSessionSimulator } from '@/hooks/screens/useSessionSimulator';
@@ -71,6 +78,7 @@ import {
 } from '@/features/sessions/permissionTarget';
 import { useOpenFile } from '@/hooks/screens/useOpenFile';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
+import { createProcessSource } from '@/screens/ProcessScreen';
 import type { ModelChoice } from '@/models/send';
 import { t } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
@@ -497,7 +505,11 @@ function Conversation({
   const onActivityPress = (entryId: string, itemId: string) => {
     const entry = snapshot.entries.find((e) => e.id === entryId);
     const item = entry?.items.find((i) => i.itemId === itemId);
-    if (openAgentError(item) || openSubagentTask(item)) return;
+    if (
+      openAgentError(item) ||
+      openSubagentTask(item, { entryId, source: taskSource })
+    )
+      return;
     if (snapshot.status !== 'live') {
       Alert.alert(
         t('session.alert.syncing.title'),
@@ -532,6 +544,8 @@ function Conversation({
   const openFile = useOpenFile(session.id);
   const openMessageDetails = useMessageDetailsSheet(entriesJSON);
   const openProcess = useProcessSheet(entriesJSON, onActivityPress, session.id);
+  const taskSource = useMemo(() => createProcessSource(entriesJSON), []);
+  useLayoutEffect(() => taskSource.update(entriesJSON), [entriesJSON]);
   const notice = overflow ? t('chat.notice.syncStopped') : '';
   const mentions = useComposerMentions(
     selected && account

@@ -53,6 +53,16 @@ export type ItemSummary =
       error?: string;
       isBackgrounded?: boolean;
       skipTranscript?: boolean;
+      run?: {
+        state: string;
+        modelId?: string;
+        outputIncomplete?: boolean;
+        cancel?: boolean;
+        totalTokens?: number;
+        toolCallCount?: number;
+        contextUsagePercent?: number;
+        items: ItemSummary[];
+      };
     }
   | { itemId: string; rev: number; type: string };
 

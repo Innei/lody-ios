@@ -33,6 +33,8 @@ import {
 } from './NativeShellPreviewScreen';
 import { ShinePreviewScreen } from './ShinePreviewScreen';
 import { SessionTreePreviewScreen } from './SessionTreePreviewScreen';
+import { ConversationsPreviewScreen } from './ConversationsPreviewScreen';
+import { SubagentsPreviewScreen } from './SubagentsPreviewScreen';
 import { InboxPreviewScreen } from './InboxPreviewScreen';
 import { SettingsPreviewScreen } from './SettingsPreviewScreen';
 import { SettingsScreen } from '../SettingsScreen';
@@ -174,6 +176,12 @@ function View() {
           'arrow.uturn.forward',
         ),
         openRow('session-tree-preview', 'Session tree', 'list.bullet.indent'),
+        openRow(
+          'conversations-preview',
+          'Child tabs & side chats',
+          'square.on.square',
+        ),
+        openRow('subagents-preview', 'Sub agents', 'person.2'),
         openRow('inbox-preview', '动态分组验收', 'tray'),
         openRow('background-preview', '后台连接验收', 'moon.zzz'),
         openRow('native-shell-poc', 'Native Shell POC', 'sidebar.left'),
@@ -345,6 +353,8 @@ function View() {
     'queued-message-behavior-preview': () => void present(SettingsScreen, {}),
     'quick-replies-preview': () => void present(QuickRepliesPreviewScreen),
     'session-tree-preview': () => void present(SessionTreePreviewScreen),
+    'conversations-preview': () => void present(ConversationsPreviewScreen),
+    'subagents-preview': () => void present(SubagentsPreviewScreen),
     'inbox-preview': () => void present(InboxPreviewScreen, {}),
     'background-preview': () => void present(BackgroundPreviewScreen, {}),
     'native-shell-poc': () => void present(NativeShellPreviewScreen, {}),

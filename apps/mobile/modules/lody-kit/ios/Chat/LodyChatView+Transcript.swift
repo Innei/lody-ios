@@ -159,7 +159,7 @@ extension LodyChatView {
     overlay.slot = ChatOverlay.slot(
       connection: composer.connection,
       tasks: transcript.liveSubagentItems().map {
-        ChatOverlay.Task(id: $0.itemId, actor: $0.actor, lastToolName: $0.lastToolName)
+        ChatOverlay.Task(id: $0.itemId, actor: $0.actor, lastToolName: ChatSubagentCard.latestStep($0.run) ?? $0.lastToolName)
       }
     )
   }

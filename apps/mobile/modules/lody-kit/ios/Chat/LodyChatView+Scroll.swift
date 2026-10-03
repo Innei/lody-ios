@@ -717,11 +717,14 @@ extension LodyChatView {
           }
         }
       }
+      let finished = self.transcript.entries.first { $0.id == entryID }?.finished ?? true
       completion([
         action("copy", symbol: "doc.on.doc", disabled: content.text.isEmpty),
         action("image", symbol: "photo", disabled: !self.imageSharingEnabled),
         action("share", symbol: "square.and.arrow.up", disabled: content.text.isEmpty),
-      ])
+      ] + self.forkMenu.elements(finished: finished) { [weak self] target in
+        self?.onFork(["entryId": entryID, "target": target])
+      })
     }])
   }
 }

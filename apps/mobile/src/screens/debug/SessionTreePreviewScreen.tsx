@@ -61,6 +61,17 @@ const fixture: Catalog = {
       lastMessageAt: NOW - 3000,
     }),
     session('tree-other', 'Improve settings', { lastMessageAt: NOW - 30_000 }),
+    session('tree-tab', 'Refactor settings tests', {
+      parentSessionId: 'tree-other',
+      status: 'requestPermission',
+      awaitingUserSince: NOW - 20_000,
+      lastMessageAt: NOW - 20_000,
+    }),
+    session('tree-side', 'Why is the toggle slow?', {
+      parentSessionId: 'tree-other',
+      childSessionPlacement: 'side-panel',
+      lastMessageAt: NOW - 25_000,
+    }),
     session('tree-orphan', 'Independent review', {
       openedBySessionId: 'missing-session',
       lastMessageAt: NOW - 40_000,
