@@ -81,8 +81,8 @@ if 'markdown-repair' in checks:
 with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
     shader_bundle = Path(output) / 'LodyKitShaders.bundle'
     shader_bundle.mkdir()
-    air = str(Path(output) / 'ChatEffortParticles.air')
-    subprocess.run(['xcrun', '--sdk', 'iphonesimulator', 'metal', '-c', '-target', 'air64-apple-ios26.0-simulator', '-isysroot', sdk, str(kit / 'ios/Chat/Shaders/ChatEffortParticles.metal'), '-o', air], check=True, timeout=120)
+    air = str(Path(output) / 'ChatEffortHeat.air')
+    subprocess.run(['xcrun', '--sdk', 'iphonesimulator', 'metal', '-c', '-target', 'air64-apple-ios26.0-simulator', '-isysroot', sdk, str(kit / 'ios/Chat/Shaders/ChatEffortHeat.metal'), '-o', air], check=True, timeout=120)
     subprocess.run(['xcrun', '--sdk', 'iphonesimulator', 'metallib', air, '-o', str(shader_bundle / 'default.metallib')], check=True, timeout=120)
     # Build the extracted modules from their production sources. Core remains
     # host-testable; UIKit checks link the same package module as the app.

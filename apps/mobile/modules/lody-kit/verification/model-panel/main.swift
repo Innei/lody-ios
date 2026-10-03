@@ -5,7 +5,7 @@ let shaderURL = Bundle.main.url(forResource: "LodyKitShaders", withExtension: "b
 let shaderBundle = Bundle(url: shaderURL)!
 let device = MTLCreateSystemDefaultDevice()!
 let library = try device.makeDefaultLibrary(bundle: shaderBundle)
-precondition(library.makeFunction(name: "particleVertex") != nil && library.makeFunction(name: "particleFragment") != nil, "Packaged Metal library must expose the renderer entry points")
+precondition(library.makeFunction(name: "heatVertex") != nil && library.makeFunction(name: "heatFragment") != nil, "Packaged Metal library must expose the renderer entry points")
 let panel = ChatComposerModelPanel()
 panel.loadViewIfNeeded()
 let options = try JSONDecoder().decode(ChatComposerOptions.self, from: Data(#"{"modelId":"gpt","models":[{"id":"gpt","title":"GPT"}],"effort":"medium","efforts":[{"id":"medium","title":"Medium"},{"id":"ultra","title":"Ultra"}]}"#.utf8))
