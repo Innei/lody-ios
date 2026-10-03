@@ -9,6 +9,7 @@ import {
 import { showToast } from '@/ui/toast';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { subscribeCatalog } from './runtime';
+import { keepRepos } from './model';
 import { usePendingSends } from '../send/pendingSends';
 import { useOutboxDispatcher } from '../send/outboxDispatcher';
 import {
@@ -79,6 +80,7 @@ function useCatalogState() {
         ? initialCatalog
         : null;
     syncedAt = seed?.syncedAt;
+    let known = seed?.catalog ?? empty;
     machines = seed?.catalog.machineIds.length ?? 0;
     setSnapshot((old) => ({
       key,
@@ -90,6 +92,7 @@ function useCatalogState() {
     publishConnection({ state, machines, syncedAt });
     void readLocal<SavedCatalog>(key).then((saved) => {
       if (!active || received || !valid(saved)) return;
+      known = saved.catalog;
       syncedAt = saved.syncedAt;
       machines = saved.catalog.machineIds.length;
       setSnapshot((old) =>
@@ -109,8 +112,10 @@ function useCatalogState() {
       selected.slug ?? selected.id,
       selected.name,
       account.user.id,
-      (event, data) => {
+      (event, fresh) => {
+        const data = fresh && keepRepos(fresh, known);
         if (data) {
+          known = data;
           received = true;
           syncedAt = Date.now();
           machines = data.machineIds.length;

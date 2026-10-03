@@ -48,7 +48,7 @@ import {
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import { StreamsClient } from '@loro-dev/streams-client';
 import { decompress } from 'fzstd';
-import type { Catalog } from '../../../src/models/catalog.ts';
+import type { Catalog, Project } from '../../../src/models/catalog.ts';
 import { projectRows } from '../../../src/cloud/catalog/model.ts';
 import { mergeAgentQuotas } from '../../../src/cloud/catalog/agent-usage.ts';
 import {
@@ -201,6 +201,49 @@ const shareRuntime = createSharingRuntime({
   broker,
 });
 const unhealthy = new Set<string>();
+const gitRepos = new Map<string, string>();
+const gitStateAsked = new Set<string>();
+let gitStateQueue = Promise.resolve();
+let runtimeUserId = '';
+// ponytail: one ask per project per runtime; an offline machine keeps its last repo through the saved catalog until restart.
+function askGitState(project: Project) {
+  const localProjectId = project.id.split(':local:')[1];
+  if (
+    project.repoFullName ||
+    !localProjectId ||
+    !runtimeUserId ||
+    gitStateAsked.has(project.id)
+  )
+    return;
+  gitStateAsked.add(project.id);
+  gitStateQueue = gitStateQueue.then(() =>
+    machineRpc(
+      workspace,
+      project.machineId,
+      'local-project/git-state',
+      { localProjectId, requestedByUserId: runtimeUserId },
+      getGrant,
+      AbortSignal.timeout(20000),
+    ).then(
+      (reply) => {
+        const result = reply.result as
+          | {
+              success?: boolean;
+              state?: { git?: boolean; githubRepoFullName?: unknown };
+            }
+          | undefined;
+        const repo =
+          result?.success && result.state?.git
+            ? String(result.state.githubRepoFullName ?? '').trim()
+            : '';
+        if (!repo) return;
+        gitRepos.set(project.id, repo);
+        publish();
+      },
+      () => {},
+    ),
+  );
+}
 let revision = 0;
 let lastPublished = '';
 function publish() {
@@ -220,7 +263,13 @@ function publish() {
   if (unhealthy.size || meta.machineIds.some((id) => !catalogs.has(id))) return;
   const projects = new Map(meta.projects.map((p) => [p.id, p]));
   for (const id of meta.machineIds)
-    for (const p of catalogs.get(id)!.projects) projects.set(p.id, p);
+    for (const p of catalogs.get(id)!.projects)
+      projects.set(p.id, { ...projects.get(p.id), ...p });
+  for (const [id, p] of projects) {
+    const repo = gitRepos.get(id);
+    if (repo && !p.repoFullName) projects.set(id, { ...p, repoFullName: repo });
+    else askGitState(p);
+  }
   const catalog = JSON.stringify({
     ...meta,
     agentUsage: Object.fromEntries(
@@ -1000,8 +1049,9 @@ Object.assign(globalThis, {
         ),
       );
     },
-    start(id: string) {
+    start(id: string, userId?: string) {
       workspace = id;
+      runtimeUserId = userId ?? '';
       watch('meta');
     },
     grant(value: Grant | null) {

@@ -117,6 +117,7 @@ struct LodyListRow {
   var pinned = false
   var diff: [String: Int] = [:]
   var monogram = ""
+  var image = ""
   var imageTint = ""
 }
 
@@ -286,6 +287,9 @@ assert(abs(fittedHeight(densitySession) - groupedSessionHeight) < 0.5, "Reuse mu
 sidebarSession.row = LodyListRow(title: "No metadata")
 densitySession.configuration = sidebarSession
 assert(fittedHeight(densitySession) >= 44, "A one-line sidebar row must still be tappable")
+
+let pinnedHeader = LodyProjectRowView(LodyProjectRowContent(row: LodyListRow(title: "Pinned", image: "pin.fill"), accent: .systemBlue))
+assert(pinnedHeader.subviews.contains { ($0 as? UIImageView)?.image != nil }, "A symbol project header must show its glyph")
 
 let projectContent = LodyProjectRowContent(row: LodyListRow(title: "Lody", subtitle: "/tmp/lody", monogram: "L"), accent: .systemBlue)
 let densityProject = LodyProjectRowView(projectContent)

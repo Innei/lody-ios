@@ -168,7 +168,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       guard !health.ready, let workspace else { return }
       health.acknowledged(at: now)
       publish("syncing", reason: "runtime_ready")
-      view.callAsyncJavaScript("globalThis.dataRuntime.start(workspace)", arguments: ["workspace": workspace], in: nil, in: .page) { [weak self, weak view] result in
+      view.callAsyncJavaScript("globalThis.dataRuntime.start(workspace, userId)", arguments: ["workspace": workspace, "userId": userId], in: nil, in: .page) { [weak self, weak view] result in
         guard let self, let view, self.webView === view else { return }
         if case .failure = result { self.recover("start_failed") }
         else {

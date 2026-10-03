@@ -15,6 +15,8 @@ struct LodyProjectRowContent: UIContentConfiguration {
 
 final class LodyProjectRowView: UIView, UIContentView {
   private let tile = UILabel()
+  private let icon = UIImageView()
+  private var photoURL: URL?
   private let name = UILabel()
   private let path = UILabel()
   private let dot = UIView()
@@ -39,6 +41,7 @@ final class LodyProjectRowView: UIView, UIContentView {
     tile.layer.cornerRadius = 9
     tile.layer.cornerCurve = .continuous
     tile.clipsToBounds = true
+    icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(font: tile.font)
     name.font = .preferredFont(forTextStyle: .headline)
     name.adjustsFontForContentSizeCategory = true
     name.lineBreakMode = .byTruncatingTail
@@ -67,7 +70,7 @@ final class LodyProjectRowView: UIView, UIContentView {
     text.spacing = 2
     text.addArrangedSubview(name)
     text.addArrangedSubview(path)
-    for view in [tile, text, dot, count, chip] {
+    for view in [tile, icon, text, dot, count, chip] {
       view.translatesAutoresizingMaskIntoConstraints = false
       addSubview(view)
     }
@@ -87,6 +90,10 @@ final class LodyProjectRowView: UIView, UIContentView {
       tile.leadingAnchor.constraint(equalTo: margin.leadingAnchor),
       tile.centerYAnchor.constraint(equalTo: centerYAnchor),
       tile.topAnchor.constraint(greaterThanOrEqualTo: margin.topAnchor),
+      icon.leadingAnchor.constraint(equalTo: tile.leadingAnchor),
+      icon.trailingAnchor.constraint(equalTo: tile.trailingAnchor),
+      icon.topAnchor.constraint(equalTo: tile.topAnchor),
+      icon.bottomAnchor.constraint(equalTo: tile.bottomAnchor),
       text.topAnchor.constraint(greaterThanOrEqualTo: margin.topAnchor),
       text.bottomAnchor.constraint(lessThanOrEqualTo: margin.bottomAnchor),
       text.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -126,9 +133,18 @@ final class LodyProjectRowView: UIView, UIContentView {
     count.font = .preferredFont(forTextStyle: compact ? .caption1 : .footnote)
     text.spacing = compact ? 1 : 2
     let row = content.row
-    tile.text = row.monogram
+    let url = LodyListPhoto.url(row.image)
+    photoURL = url
     tile.textColor = content.accent
-    tile.backgroundColor = content.accent.withAlphaComponent(0.14)
+    icon.tintColor = content.accent
+    let photo = url.flatMap { source in
+      LodyListPhoto.image(for: source, ready: { [weak self] image in
+        guard let self, self.photoURL == source else { return }
+        self.showTile(photo: image, symbol: nil, monogram: "", accent: content.accent)
+      })
+    }
+    let symbol = url == nil && !row.image.isEmpty ? UIImage(systemName: row.image) : nil
+    showTile(photo: photo, symbol: symbol, monogram: row.monogram, accent: content.accent)
     name.text = row.title
     path.text = row.subtitle
     path.isHidden = row.subtitle.isEmpty
@@ -141,5 +157,12 @@ final class LodyProjectRowView: UIView, UIContentView {
     chip.isHidden = row.badge.isEmpty
     isAccessibilityElement = true
     accessibilityLabel = content.accessibilityLabel
+  }
+
+  private func showTile(photo: UIImage?, symbol: UIImage?, monogram: String, accent: UIColor) {
+    icon.image = photo ?? symbol
+    icon.contentMode = photo == nil ? .center : .scaleAspectFill
+    tile.text = icon.image == nil ? monogram : nil
+    tile.backgroundColor = photo == nil ? accent.withAlphaComponent(0.14) : .clear
   }
 }

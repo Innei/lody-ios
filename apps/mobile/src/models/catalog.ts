@@ -3,6 +3,7 @@ export type Project = {
   machineId: string;
   name: string;
   rootPath: string;
+  repoFullName?: string;
 };
 export type Session = {
   lastModel?: { modelId?: string; name?: string } | null;

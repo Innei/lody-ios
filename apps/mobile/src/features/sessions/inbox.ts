@@ -414,6 +414,13 @@ function projectTrailing(
 
 const homePath = (path = '') => path.replace(/^\/(Users|home)\/[^/]+/, '~');
 
+const ownerAvatar = (repo = '') => {
+  const owner = repo.split('/')[0];
+  return owner
+    ? `https://avatars.githubusercontent.com/${encodeURIComponent(owner)}?size=96`
+    : undefined;
+};
+
 function projectRow(
   project: Project,
   sessions: Session[],
@@ -424,6 +431,7 @@ function projectRow(
     id: sessions.length ? `toggle:${project.id}` : `project:${project.id}`,
     parent: true,
     monogram: project.name.slice(0, 1),
+    image: ownerAvatar(project.repoFullName),
     title: project.name,
     subtitle: homePath(project.rootPath),
     subtitleMono: true,

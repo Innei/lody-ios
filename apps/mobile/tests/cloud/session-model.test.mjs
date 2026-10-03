@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Flock } from '@loro-dev/flock-wasm/base64';
-import { projectRows } from '../../src/cloud/catalog/model.ts';
+import { keepRepos, projectRows } from '../../src/cloud/catalog/model.ts';
 import {
   inboxSections,
   projectSections,
@@ -80,4 +80,55 @@ test('the catalog carries lastRunningSeen so the Live Activity can time the curr
   assert.equal(read().status, 'running');
   flock.set(['m', 'session-s2', 'lastRunningSeen'], null);
   assert.equal(read().lastRunningSeen, undefined);
+});
+
+test('a GitHub-linked project header shows the owner avatar instead of its letter', () => {
+  const flock = new Flock('project-avatar');
+  const session = (id, project) => {
+    flock.set(['e', `session-${id}`], true);
+    flock.set(['m', `session-${id}`], {
+      id,
+      machineId: 'm1',
+      title: id,
+      status: 'completed',
+      createdAt: '2026-09-12T00:00:00Z',
+      project,
+    });
+  };
+  session('s1', { kind: 'local', localProjectId: 'p1' });
+  session('s2', {
+    kind: 'local',
+    localProjectId: 'p1',
+    githubRepoFullName: 'lody-ai/lody-ios',
+  });
+  session('s3', { kind: 'local', localProjectId: 'p2' });
+  const data = projectRows(flock.scan(), 'meta');
+  const header = (id) =>
+    projectSections(data, 'blue').find((s) => s.rows[0].id === `toggle:${id}`)
+      .rows[0];
+  assert.equal(
+    header('m1:local:p1').image,
+    'https://avatars.githubusercontent.com/lody-ai?size=96',
+  );
+  assert.equal(header('m1:local:p2').image, undefined);
+});
+
+test('a fresh catalog keeps a repo learned earlier until it reports its own', () => {
+  const project = {
+    id: 'm1:local:p1',
+    machineId: 'm1',
+    name: 'afilmory',
+    rootPath: '/a',
+  };
+  const catalog = (p) => ({ projects: [p], sessions: [], machineIds: [] });
+  const previous = catalog({ ...project, repoFullName: 'Afilmory/afilmory' });
+  assert.equal(
+    keepRepos(catalog(project), previous).projects[0].repoFullName,
+    'Afilmory/afilmory',
+  );
+  assert.equal(
+    keepRepos(catalog({ ...project, repoFullName: 'Innei/afilmory' }), previous)
+      .projects[0].repoFullName,
+    'Innei/afilmory',
+  );
 });

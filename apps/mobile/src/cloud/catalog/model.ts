@@ -13,7 +13,28 @@ export function githubProject(repo: string): Project | undefined {
     ['.', '..'].includes(repo.split('/')[1]!)
   )
     return undefined;
-  return { id: `github:${repo}`, name: repo, machineId: '', rootPath: '' };
+  return {
+    id: `github:${repo}`,
+    name: repo,
+    machineId: '',
+    rootPath: '',
+    repoFullName: repo,
+  };
+}
+
+export function keepRepos(next: Catalog, previous: Catalog): Catalog {
+  const known = new Map(
+    previous.projects.flatMap((p) =>
+      p.repoFullName ? [[p.id, p.repoFullName] as const] : [],
+    ),
+  );
+  return {
+    ...next,
+    projects: next.projects.map((p) => {
+      const repo = known.get(p.id);
+      return p.repoFullName || !repo ? p : { ...p, repoFullName: repo };
+    }),
+  };
 }
 
 type Row = { key: unknown[]; value?: unknown };
@@ -157,16 +178,25 @@ export function projectRows(rows: Row[], mode: string): Catalog {
       diff: diffOf(value.diffStats),
     });
     if (localId || repo) {
+      const githubRepo = repo || text(project.githubRepoFullName);
       projects.push({
         id: projectId,
         machineId,
         name: repo || t('project.local'),
         rootPath: '',
+        ...(githubRepo ? { repoFullName: githubRepo } : {}),
       });
     }
   }
+  const unique = new Map<string, Project>();
+  for (const p of projects) {
+    const first = unique.get(p.id);
+    if (!first) unique.set(p.id, p);
+    else if (!first.repoFullName && p.repoFullName)
+      unique.set(p.id, { ...first, repoFullName: p.repoFullName });
+  }
   return {
-    projects: [...new Map(projects.reverse().map((p) => [p.id, p])).values()],
+    projects: [...unique.values()],
     sessions,
     machineIds: [...machineIds],
     machineNames,
