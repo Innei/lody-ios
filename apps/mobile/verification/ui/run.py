@@ -497,6 +497,9 @@ with metro_context:
                         # Includes a real 61-second dismissal wait plus lock/unlock
                         # and Dynamic Island transitions; 180s cuts off deep links.
                         check_timeout = 480
+                    elif case == 'simulator-preview':
+                        # Five zoom returns plus hide, stop and reopen flows, each waiting on recorded motion.
+                        check_timeout = 300
                     elif case == 'send':
                         # Product path can finish, then AXe restore during pending
                         # toggles eats the rest of a 300s budget.

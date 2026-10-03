@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import {
   resumeSimulator,
@@ -25,12 +25,30 @@ export function useSessionSimulator(
   const source = simulatorSource(operation);
   const running = operation && !['failed', 'closed'].includes(operation.phase);
 
-  const expand = useCallback(
+  const busy = useRef(false);
+  const [resolving, setResolving] = useState(false);
+  const exclusive = useCallback(async (run: () => Promise<unknown>) => {
+    if (busy.current) return;
+    busy.current = true;
+    try {
+      await run();
+    } finally {
+      busy.current = false;
+      setResolving(false);
+    }
+  }, []);
+
+  const show = useCallback(
     async (name: string) => {
       const { SimulatorScreen } = await import('@/screens/SimulatorScreen');
+      setResolving(false);
       await present(SimulatorScreen, { sessionId }, { title: name });
     },
     [sessionId],
+  );
+  const expand = useCallback(
+    (name: string) => exclusive(() => show(name)),
+    [exclusive, show],
   );
 
   const open = useCallback(async () => {
@@ -40,23 +58,36 @@ export function useSessionSimulator(
     }
     if (!workspaceId) return;
     setHidden(undefined);
-    if (running && operation) return expand(operation.name);
-    const resumed = await resumeSimulator(workspaceId, sessionId);
-    if (resumed) return expand(resumed);
-    const { SimulatorPickerScreen } =
-      await import('@/screens/SimulatorPickerScreen');
-    const result = await present(SimulatorPickerScreen, {
-      workspaceId,
-      sessionId,
+    await exclusive(async () => {
+      if (running && operation) return show(operation.name);
+      setResolving(true);
+      const resumed = await resumeSimulator(workspaceId, sessionId);
+      if (resumed) return show(resumed);
+      const { SimulatorPickerScreen } =
+        await import('@/screens/SimulatorPickerScreen');
+      setResolving(false);
+      const result = await present(SimulatorPickerScreen, {
+        workspaceId,
+        sessionId,
+      });
+      if (result.status !== 'completed') return;
+      void startSimulator(workspaceId, sessionId, result.value);
+      await show(result.value.name);
     });
-    if (result.status !== 'completed') return;
-    void startSimulator(workspaceId, sessionId, result.value);
-    await expand(result.value.name);
-  }, [availability, expand, operation, running, sessionId, workspaceId]);
+  }, [
+    availability,
+    exclusive,
+    operation,
+    running,
+    sessionId,
+    show,
+    workspaceId,
+  ]);
 
   const connecting =
-    operation &&
-    ['preparing', 'booting', 'connecting'].includes(operation.phase);
+    resolving ||
+    (operation &&
+      ['preparing', 'booting', 'connecting'].includes(operation.phase));
   const label = running && operation ? operation.name : t('simulator.menu');
   const chip =
     availability === 'available' && (requestId || running)
@@ -93,6 +124,7 @@ export function useSessionSimulator(
   let subtitle: string | undefined;
   if (availability === 'upgrade-required')
     subtitle = t('simulator.upgradeRequired');
+  else if (resolving) subtitle = t('simulator.phase.connecting');
   else if (running && operation)
     subtitle = `${t(simulatorPhaseKey[operation.phase])} · ${operation.name}`;
 

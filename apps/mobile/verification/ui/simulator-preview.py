@@ -4,6 +4,7 @@ import re
 import sys
 import json
 import shutil
+import time
 import subprocess
 from pathlib import Path
 from driver import UI
@@ -25,34 +26,27 @@ def stream():
     return match[1], int(match[2]), int(match[4])
 
 
+def motions(kind):
+    return set(traces.glob(f'lody-simulator-motion-{kind}-*.json'))
+
+
+def motion(kind, before):
+    paths = ui.wait(lambda _: motions(kind) - before or None, f'No {kind} motion was recorded')
+    assert len(paths) == 1, f'Expected one {kind} motion: {paths}'
+    path = paths.pop()
+    shutil.copy2(path, ui.output / f'{kind}-{len(list(ui.output.glob(f"{kind}-*.json"))) + 1}.json')
+    return json.loads(path.read_text())
+
+
 def back():
     global entrances
-    before = set(traces.glob('lody-simulator-entrance-*.json'))
+    before = motions('land')
     ui.axe('tap', '--id', 'BackButton', '--post-delay', '.8')
     ui.element('simulator-preview-expand')
-    paths = set(traces.glob('lody-simulator-entrance-*.json')) - before
-    completed = [p for p in paths if json.loads(p.read_text())['completed']]
-    assert len(completed) == 1, f'Return must play one entrance: {paths}'
-    result = json.loads(completed[0].read_text())
-    samples = result['samples']
-    opacity = [s['opacity'] for s in samples]
-    assert any(.05 < a < .95 for a in opacity), 'Preview appeared without a fade'
-    assert all(b >= a - .02 for a, b in zip(opacity, opacity[1:])), opacity
-    assert opacity[-1] > .99 and samples[-1]['seconds'] < .8, result
-    assert any(.05 < s['blurMask'] < .95 for s in samples), 'Entrance blur did not fade'
-    assert result['blurRemoved'], 'Entrance left the live stream blurred'
+    landing = motion('land', before)
+    assert landing['zoomed'], 'The pop did not zoom into the PiP'
+    assert landing['standIn'] and not landing['hiddenWhileLanding'], f'The PiP was empty while the zoom landed: {landing}'
     entrances += 1
-    shutil.copy2(completed[0], ui.output / f'entrance-{entrances}.json')
-
-
-def check_backdrop():
-    blur = ui.element('simulator-preview-blur')['frame']
-    image = ui.element('simulator-stream')['frame']
-    outsets = [(blur[dimension] - image[dimension]) / 2 for dimension in ('width', 'height')]
-    assert min(outsets) > 35, (image, blur)
-    assert abs(outsets[0] - outsets[1]) < 2, 'Blur thickness differs between horizontal and vertical edges'
-    for origin, dimension in (('x', 'width'), ('y', 'height')):
-        assert abs(blur[origin] + blur[dimension] / 2 - image[origin] - image[dimension] / 2) < 1, (image, blur)
 
 
 def open_simulator(name='iPhone Simulator'):
@@ -82,8 +76,16 @@ def chip_label(target):
     return catalog.text('simulator.chip.open', target=target)
 
 
-def tap_chip(name):
-    ui.axe('tap', '--id', 'session-preview', '--post-delay', '.8')
+def tap_chip(name, taps=1):
+    chip = ui.element('session-preview')['frame']
+    point = ('-x', str(chip['x'] + chip['width'] / 2), '-y', str(chip['y'] + chip['height'] / 2))
+    started = time.monotonic()
+    for _ in range(taps):
+        ui.axe('tap', *point)
+    # The fixture delays the first resume by 8 s; every tap must land before the first push.
+    elapsed = time.monotonic() - started
+    assert elapsed < 7.5, f'Repeated taps took {elapsed:.1f}s, too slow to race the resume'
+    time.sleep(.8)
     chooser = catalog.text('simulator.section.booted')
 
     def opened(items):
@@ -96,12 +98,12 @@ def tap_chip(name):
 
 
 assert ui.element('session-preview')['AXLabel'] == chip_label(catalog.text('simulator.menu')), 'The agent hint did not show the chip'
-tap_chip('Second Simulator')
+tap_chip('Second Simulator', taps=3)
 assert ui.element('simulator-stream')['AXLabel'] == 'Second Simulator', 'The chip did not resume the agent-started preview'
 first = stream()
 assert first[1] == 1
 ui.capture('fullscreen')
-ui.axe('swipe', '--start-x', '1', '--start-y', '450', '--end-x', '70', '--end-y', '450', '--duration', '1.2', '--post-delay', '.8')
+ui.axe('swipe', '--start-x', '1', '--start-y', '450', '--end-x', '30', '--end-y', '450', '--duration', '1.5', '--post-delay', '.8')
 assert ui.element('simulator-stream')['frame']['width'] > 200, 'A cancelled return left the renderer in the floating host'
 assert stream()[0] == first[0], 'A cancelled return replaced the decoder'
 ui.capture('cancelled-return')
@@ -111,9 +113,8 @@ assert returned[0] == first[0] and returned[1] == 1 and returned[2] > first[2], 
 for action in ('expand', 'close'):
     button = ui.element(f'simulator-preview-{action}')
     assert button['AXLabel'] == catalog.text(f'native.simulator.{action}'), button
-check_backdrop()
 ui.capture('floating')
-settled_entrances = set(traces.glob('lody-simulator-entrance-*.json'))
+settled_motions = set(traces.glob('lody-simulator-motion-*.json'))
 
 before = ui.element('simulator-preview-expand')['frame']
 image = ui.element('simulator-stream')['frame']
@@ -134,9 +135,8 @@ assert image['y'] + image['height'] < input_frame['y'], (image, input_frame)
 assert close['width'] >= 44 and close['height'] >= 44, close
 assert expand['width'] >= 44 and expand['height'] >= 44, expand
 assert expand['x'] + expand['width'] <= close['x'], (expand, close)
-check_backdrop()
 ui.capture('keyboard')
-assert set(traces.glob('lody-simulator-entrance-*.json')) == settled_entrances, 'Dragging or typing replayed the entrance'
+assert set(traces.glob('lody-simulator-motion-*.json')) == settled_motions, 'Dragging or typing replayed a motion'
 
 ui.axe('tap', '--id', 'simulator-preview-expand', '--post-delay', '1')
 expanded = stream()
@@ -144,7 +144,15 @@ assert expanded[0] == first[0] and expanded[1] == 1 and expanded[2] > returned[2
 ui.capture('expanded-again')
 back()
 assert (ui.element('session-input').get('AXValue') or '').casefold() == 'draft', 'Expanding lost the composer draft'
+before_hide = motions('hide')
 ui.axe('tap', '--id', 'simulator-preview-close', '--post-delay', '.6')
+hidden = motion('hide', before_hide)
+samples = hidden['samples']
+assert not hidden['visible'], hidden
+shadow_gone = next(i for i, s in enumerate(samples) if s['chrome'] < .05)
+shrunk = next(i for i, s in enumerate(samples) if s['scale'] < .8)
+assert shadow_gone <= shrunk, 'The shadow and controls must leave before the device travels'
+assert min(s['scale'] for s in samples) < .45 and min(s['alpha'] for s in samples) < .2, samples[-3:]
 assert not any(i.get('AXUniqueId') in ('simulator-preview-expand', 'simulator-stream') for i in ui.state()), 'Close left the stream visible'
 ui.capture('closed')
 
@@ -184,4 +192,4 @@ back()
 assert ui.element('session-preview')['AXLabel'] == chip_label('iPhone Simulator'), 'The chip does not name the running device'
 ui.capture('chip-running')
 print(f'PASS: shared stream {first[0]} kept one connection and decoded frames across navigation; close created a fresh stream {reopened[0]}')
-print(f'PASS: {entrances} returns faded in through native blur, removed the effect, and ordinary layout did not replay it')
+print(f'PASS: {entrances} returns zoomed the full-screen device into the PiP; hide travelled to the chip')

@@ -35,6 +35,7 @@ const preview = (operationId: string, udid: string): IosSimulatorPreview => ({
 });
 let starts = 0;
 let daemon: IosSimulatorPreview | undefined;
+let firstResumeDelay = 0;
 const fixture: typeof simulatorControl = async (
   _workspace,
   _session,
@@ -51,6 +52,11 @@ const fixture: typeof simulatorControl = async (
     !command.operationId ||
     command.operationId === daemon?.operationId;
   if (command.action === 'stop' && matches) daemon = undefined;
+  if (command.action === 'status' && !('operationId' in command)) {
+    const delay = firstResumeDelay;
+    firstResumeDelay = 0;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
   if (command.action === 'status' && matches)
     return { success: true, preview: daemon };
   return { success: true };
@@ -60,6 +66,7 @@ function View() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     setSimulatorControl(fixture);
+    firstResumeDelay = 8000;
     void stopSimulator(SESSION).then(() => {
       daemon = preview('agent-1', 'ui-verify-simulator-two');
       setReady(true);
