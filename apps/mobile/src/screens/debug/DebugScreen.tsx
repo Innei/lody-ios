@@ -41,7 +41,7 @@ import { SettingsScreen } from '../SettingsScreen';
 import { QuickRepliesPreviewScreen } from './QuickRepliesPreviewScreen';
 import { OnboardingPreviewScreen } from './OnboardingPreviewScreen';
 import { useNavigation, useRouter, useTheme } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Text, View as RNView } from 'react-native';
 import {
   NativeCloseButton,
@@ -449,6 +449,20 @@ function View() {
         .catch((error) => setResult(String(error)));
     },
   };
+
+  const actionsRef = useRef(actions);
+  actionsRef.current = actions;
+  useEffect(() => {
+    if (!uiVerify) return;
+    globalThis.__lodyUiVerifyOpen = (id) => {
+      const open = actionsRef.current[id];
+      open?.();
+      return !!open;
+    };
+    return () => {
+      delete globalThis.__lodyUiVerifyOpen;
+    };
+  }, []);
 
   return (
     <NativeGroupedList

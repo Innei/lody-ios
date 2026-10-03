@@ -6,6 +6,7 @@ export const uiVerify = process.env.EXPO_PUBLIC_UI_VERIFY === '1';
 // Available only in the offline verification bundle; no production control surface.
 declare global {
   var __lodyUiVerifyReset: (() => void) | undefined;
+  var __lodyUiVerifyOpen: ((id: string) => boolean) | undefined;
   var __lodyUiVerifyPermissionTarget:
     ((available: boolean) => void) | undefined;
   var __lodyUiVerifyQuestion:

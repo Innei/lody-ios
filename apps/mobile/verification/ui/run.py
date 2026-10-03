@@ -22,7 +22,7 @@ CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker'],
     'send': ['quick-replies', 'context-chip', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'camera-chat', 'camera-sheet', 'paste-plain-chat', 'paste-plain-sheet', 'rich-paste-chat', 'rich-paste-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'model-memory'],
-    'chat': ['message-share', 'user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'chat-chrome', 'title-rename', 'simulator-preview'],
+    'chat': ['message-share', 'user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'chat-chrome', 'title-rename', 'simulator-preview', 'conversations', 'subagents'],
 }
 SUITES = {
     'paste-plain': ['paste-plain-chat', 'paste-plain-sheet'],
@@ -46,6 +46,8 @@ HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'mentions-product
 HOME_CASES.update({'session-delete', 'session-delete-pad'})
 PREVIEW = {
     'simulator-preview': 'simulator-preview',
+    'conversations': 'conversations-preview',
+    'subagents': 'subagents-preview',
     'message-details': 'message-share-preview',
     'edit-message': 'edit-message-preview',
     'free-turn-notice': 'free-turn-notice-preview',
@@ -119,6 +121,8 @@ PREVIEW = {
     'community-notice': 'community-notice',
 }
 READY = {
+    'conversations': 'conversation-probe',
+    'subagents': 'subagent-probe',
     'message-details': 'paper-reply:meta:details',
     'free-turn-notice': 'free-turn-24',
     'camera-chat': 'session-input',
@@ -264,6 +268,21 @@ if args.udid is None:
             SimulatorPool(device_type=device_type), verify_name, command
         )
     )
+def open_preview(udid, port, preview):
+    for _ in range(20):
+        response = inspector(udid, port, 'Runtime.evaluate', {
+            'expression': f'globalThis.__lodyUiVerifyOpen?.({json.dumps(preview)}) ?? null',
+            'returnByValue': True,
+        })
+        opened = response.get('result', {}).get('value')
+        if opened is True:
+            return
+        if opened is False:
+            raise AssertionError(f'Debug has no scene {preview!r}')
+        time.sleep(.5)
+    raise AssertionError('Debug never exposed __lodyUiVerifyOpen')
+
+
 def sim(*command, check=True):
     # A freshly booted iOS 27 Simulator can ignore the first spawn for a minute.
     last = None
@@ -403,7 +422,9 @@ with metro_context:
                     ui.wait(verify_ready, 'Missing ui-verify-ready', timeout=180)
                     preview = PREVIEW.get(case, 'chat-preview')
                     ready = 'ui-verify-ready' if case in HOME_CASES else READY.get(case, 'session-input')
-                    if case not in HOME_CASES:
+                    if case not in HOME_CASES and not args.embedded:
+                        open_preview(args.udid, args.port, preview)
+                    elif case not in HOME_CASES:
                         # The Debug list is a native UICollectionView; offscreen rows are not in the tree.
                         # Returning to the root keeps the list's scroll offset, so the row can sit above the viewport.
                         for attempt in range(16):
@@ -431,7 +452,10 @@ with metro_context:
                     try:
                         ui.element(ready)
                     except AssertionError:
-                        if case in ['send-transition', 'send-transition-handoff', 'inbox', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll'] and any(item.get('AXUniqueId') == preview for item in ui.state()):
+                        if case in ['send-transition', 'send-transition-handoff', 'inbox', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll'] and not args.embedded:
+                            open_preview(args.udid, args.port, preview)
+                            ui.element(ready)
+                        elif case in ['send-transition', 'send-transition-handoff', 'inbox', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll'] and any(item.get('AXUniqueId') == preview for item in ui.state()):
                             ui.axe('tap', '--id', preview, '--tap-style', 'physical', '--pre-delay', '0.5', '--post-delay', '1.2')
                             ui.element(ready)
                         else:
@@ -443,7 +467,7 @@ with metro_context:
                         ui.axe('tap', '--label', 'Image Fixture')
                         ui.element('preview-image:attachment:ui-verify-image')
                     ui.capture('before')
-                    script = Path(__file__).with_name(f'{case}.py') if case in ['simulator-preview', 'message-details', 'message-share', 'pull-request', 'project-history-entry', 'project-history', 'project-picker', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'context-menu', 'chat-chrome', 'title-rename', 'composer-rich'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                    script = Path(__file__).with_name(f'{case}.py') if case in ['simulator-preview', 'conversations', 'subagents', 'message-details', 'message-share', 'pull-request', 'project-history-entry', 'project-history', 'project-picker', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'context-menu', 'chat-chrome', 'title-rename', 'composer-rich'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
                     if case in {'quick-replies', 'context-chip', 'morph', 'native-shell', 'native-collection', 'ipad-chrome', 'ipad-sidebar', 'composer-relay', 'outbox', 'navigation-toolbar', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'free-turn-notice', 'create-parity'}:
                         script = Path(__file__).with_name(f'{case}.py')
                     if case in ['session-tree', 'session-tree-pad']:
