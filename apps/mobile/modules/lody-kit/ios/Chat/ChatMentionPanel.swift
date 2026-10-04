@@ -1,3 +1,4 @@
+import ChatKit
 import UIKit
 
 struct ChatMentionItem: Decodable, Equatable {
@@ -35,11 +36,9 @@ struct ChatMentionItem: Decodable, Equatable {
 }
 
 /// Typing completes in place; explicit category selection delegates to a page sheet.
-final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionViewDelegate {
+final class ChatMentionPanel: CKGlassSurface, UICollectionViewDataSource, UICollectionViewDelegate {
   private let list: UICollectionView
-  private let contentBlur = UIVisualEffectView(effect: nil)
-  private var motion: UIViewPropertyAnimator?
-  private var showing = false
+  private var showing: Bool { materialVisible }
   private var rows: [ChatMentionItem] = []
   private var catalog: [ChatMentionItem] = []
   private var query = ""
@@ -52,22 +51,19 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
   var onBrowse: (([String: String]) -> Void)?
   private(set) var panelHeight: CGFloat = 0
 
-  override init(frame: CGRect) {
+  init(frame: CGRect) {
     var config = UICollectionLayoutListConfiguration(appearance: .plain)
     config.backgroundColor = .clear
     config.showsSeparators = false
     list = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewCompositionalLayout.list(using: config))
-    super.init(frame: frame)
-    let surface = UIVisualEffectView()
-    surface.effect = UIGlassEffect(style: .regular)
-    surface.cornerConfiguration = .capsule(maximumRadius: 18)
-    surface.isUserInteractionEnabled = false
-    surface.frame = bounds
-    surface.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    addSubview(surface)
-    layer.cornerRadius = 18
-    layer.cornerCurve = .continuous
-    clipsToBounds = true
+    super.init()
+    self.frame = frame
+    cornerConfiguration = .capsule(maximumRadius: 18)
+    onHidden = { [weak self] in
+      guard let self else { return }
+      self.panelHeight = 0
+      self.onChange?()
+    }
     accessibilityIdentifier = "mention-panel"
     isHidden = true
     list.backgroundColor = .clear
@@ -77,15 +73,11 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
     list.dataSource = self
     list.delegate = self
     list.register(UICollectionViewListCell.self, forCellWithReuseIdentifier: "candidate")
-    addSubview(list)
-    contentBlur.isUserInteractionEnabled = false
-    contentBlur.frame = bounds
-    contentBlur.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    addSubview(contentBlur)
+    contentView.addSubview(list)
     list.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      list.topAnchor.constraint(equalTo: topAnchor), list.bottomAnchor.constraint(equalTo: bottomAnchor),
-      list.leadingAnchor.constraint(equalTo: leadingAnchor), list.trailingAnchor.constraint(equalTo: trailingAnchor),
+      list.topAnchor.constraint(equalTo: contentView.topAnchor), list.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+      list.leadingAnchor.constraint(equalTo: contentView.leadingAnchor), list.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
     ])
   }
 
@@ -94,60 +86,8 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
   override func didMoveToWindow() {
     super.didMoveToWindow()
     guard window == nil else { return }
-    showing = false
-    if motion?.state == .active { motion?.stopAnimation(true) }
-    motion = nil
-    isHidden = true
+    setVisible(false, animated: false)
     panelHeight = 0
-    contentBlur.effect = nil
-  }
-
-  private func setVisible(_ visible: Bool) {
-    guard showing != visible else { return }
-    showing = visible
-    if motion?.state == .active {
-      motion?.stopAnimation(false)
-      motion?.finishAnimation(at: .current)
-    }
-    motion = nil
-    isUserInteractionEnabled = visible
-    guard window != nil else {
-      isHidden = !visible
-      alpha = visible ? 1 : 0
-      if !visible { panelHeight = 0 }
-      return
-    }
-    let reduced = UIAccessibility.isReduceMotionEnabled
-    if visible && isHidden {
-      alpha = 0
-      transform = CGAffineTransform(translationX: 0, y: reduced ? 0 : 4)
-      contentBlur.effect = reduced ? nil : UIBlurEffect(style: .systemUltraThinMaterial)
-    }
-    isHidden = false
-    var duration = visible ? 0.2 : 0.14
-    if reduced { duration = 0.12 }
-    let animation = UIViewPropertyAnimator(duration: duration, curve: visible ? .easeOut : .easeIn) { [weak self] in
-      guard let self else { return }
-      self.alpha = visible ? 1 : 0
-      self.transform = CGAffineTransform(translationX: 0, y: visible || reduced ? 0 : 4)
-      self.contentBlur.effect = visible || reduced ? nil : UIBlurEffect(style: .systemUltraThinMaterial)
-    }
-    animation.addCompletion { [weak self] position in
-      guard let self, position == .end, self.showing == visible else { return }
-      self.motion = nil
-      self.contentBlur.effect = nil
-      if !visible {
-        self.isHidden = true
-        self.panelHeight = 0
-        self.onChange?()
-      }
-    }
-    motion = animation
-    DispatchQueue.main.async { [weak self, weak animation] in
-      guard let self, let animation, self.motion === animation else { return }
-      self.superview?.layoutIfNeeded()
-      animation.startAnimation()
-    }
   }
 
   // NSString ranges match UITextView selections, including emoji before the trigger.
@@ -208,7 +148,7 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
     panelHeight = min(240, CGFloat(nextRows.count) * (nextRows.first?.kind == "category" ? 50 : 58) + 12)
     if rows != nextRows {
       rows = nextRows
-      if showing && motion == nil {
+      if showing && !isTransitioning {
         UIView.transition(with: list, duration: 0.09, options: [.transitionCrossDissolve, .beginFromCurrentState, .allowAnimatedContent]) {
           self.list.reloadData()
         }
@@ -250,10 +190,16 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
     let currentLength = ((input.text ?? "") as NSString).length
     guard NSMaxRange(range) <= currentLength, currentLength - range.length + (text as NSString).length <= 32000 else { return }
     applyingEdit = true
+    if let composer = input as? ChatComposerInput {
+      composer.insertReference(String(text.dropLast()), replacing: range)
+      applyingEdit = false
+      onChange?()
+      return
+    }
     input.selectedRange = range
     input.insertText(text)
     applyingEdit = false
-    input.textStorage.addAttribute(.foregroundColor, value: UIColor.systemBlue, range: NSRange(location: range.location, length: (text as NSString).length - 1))
+    input.textStorage.addAttribute(.foregroundColor, value: UIColor.lodyAccent, range: NSRange(location: range.location, length: (text as NSString).length - 1))
     input.typingAttributes[.foregroundColor] = UIColor.label
     onChange?()
   }
@@ -305,12 +251,10 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
   }
 }
 
-#if DEBUG
 /// Exercise the production SessionScreen/CreateSessionScreen wiring without a cloud account.
 @MainActor enum MentionFixture {
   static func response(_ payload: String, options: Bool = false) -> String? {
-    guard ProcessInfo.processInfo.arguments.contains("--ui-verify"),
-          ProcessInfo.processInfo.arguments.contains("--ui-verify-mentions"),
+    guard LodyUIVerify.mentions,
           let data = payload.data(using: .utf8),
           let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           args["workspaceId"] as? String == "ui-home" else { return nil }
@@ -340,4 +284,3 @@ final class ChatMentionPanel: UIView, UICollectionViewDataSource, UICollectionVi
     }
   }
 }
-#endif

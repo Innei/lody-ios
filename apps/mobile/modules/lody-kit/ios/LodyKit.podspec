@@ -24,7 +24,20 @@ Pod::Spec.new do |s|
   }
   s.spm_dependency 'MarkdownView/MarkdownView'
   s.spm_dependency 'MarkdownView/MarkdownParser'
+  s.spm_dependency 'ChatKit/ChatKit'
+  s.spm_dependency 'Lexical/Lexical'
+  s.spm_dependency 'Lexical/LexicalListPlugin'
+  s.spm_dependency 'Lexical/LexicalLinkPlugin'
+  s.spm_dependency 'Lexical/LexicalMarkdown'
+  s.spm_dependency 'Lexical/EditorHistoryPlugin'
+  s.spm_dependency 'Lexical/LexicalHTML'
   s.source_files = '**/*.{swift,h,m}'
   s.resources = 'Resources/*'
   s.resource_bundles = { 'LodyKitShaders' => ['Chat/Shaders/*.metal'] }
+  s.script_phase = {
+    name: 'Verify LodyKit sources',
+    execution_position: :before_compile,
+    always_out_of_date: '1',
+    script: '/usr/bin/python3 "${PODS_TARGET_SRCROOT}/../../../scripts/check-native-sources.py"'
+  }
 end

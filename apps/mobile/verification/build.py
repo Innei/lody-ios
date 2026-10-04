@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Build the Debug Simulator app for verification on one shared build cache.
+"""Build the Simulator app for verification on one shared build cache.
+
+CI uses ``--configuration Release`` so Hermes is embedded and UI jobs do not
+start Metro. Local Metro runs still default to Debug.
 
 Verification always builds this same workspace, so it must reuse one Xcode
 DerivedData instead of writing a fresh multi-GB cache per task. Unless
@@ -23,6 +26,7 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import plistlib
 import subprocess
 import sys
 
@@ -95,6 +99,27 @@ def resolve_product(command):
     return app, Path(settings['BUILD_DIR']).parent
 
 
+def prepare_fixture_environment(configuration, ios=None):
+    os.environ['EXPO_PUBLIC_UI_VERIFY'] = '1'
+    if configuration != 'Release':
+        return
+    ios = Path(ios) if ios is not None else ROOT / 'apps/mobile/ios'
+    if not ios.exists():
+        return
+    for path in ios.rglob('Expo.plist'):
+        try:
+            with path.open('rb') as handle:
+                plist = plistlib.load(handle)
+        except Exception:
+            continue
+        if plist.get('EXUpdatesEnabled') is False:
+            continue
+        plist['EXUpdatesEnabled'] = False
+        with path.open('wb') as handle:
+            plistlib.dump(plist, handle)
+        progress(f'disabled OTA updates in {path}')
+
+
 def generate_assets():
     progress('native assets')
     result = subprocess.run(
@@ -144,6 +169,7 @@ def main(argv=None):
     if not WORKSPACE.exists():
         raise SystemExit(f'{WORKSPACE} is missing; run pnpm prebuild and pod install first')
     log_path = (ROOT / arguments.log).resolve()
+    prepare_fixture_environment(arguments.configuration)
     command = xcodebuild(arguments)
     app, cache = resolve_product(command)
     progress(f'derived data  {cache}')

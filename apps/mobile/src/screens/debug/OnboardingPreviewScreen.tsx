@@ -46,6 +46,8 @@ function View() {
         restore: noop,
         logout: noop,
         reopen: noop,
+        updateWorkspace: noop,
+        updateWorkspaceIcon: async () => '',
       }}
     >
       <OnboardingScreen.Component />

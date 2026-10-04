@@ -30,7 +30,7 @@ final class ChatHistoryHeader: UICollectionReusableView {
     let canLoad = hasEarlier && !loading
     var configuration = UIButton.Configuration.plain()
     configuration.title = LodyStrings.text(key)
-    configuration.baseForegroundColor = canLoad ? .systemBlue : .secondaryLabel
+    configuration.baseForegroundColor = canLoad ? .lodyAccent : .secondaryLabel
     configuration.showsActivityIndicator = loading
     configuration.imagePadding = 8
     configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in

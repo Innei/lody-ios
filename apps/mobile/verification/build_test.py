@@ -147,5 +147,59 @@ class CleanupCommandTests(unittest.TestCase):
             self.assertTrue(cache.exists())
 
 
+class FixtureEnvironmentTests(unittest.TestCase):
+    def test_release_disables_expo_updates_and_sets_the_verify_flag(self):
+        build = load('build')
+        previous = os.environ.get('EXPO_PUBLIC_UI_VERIFY')
+        with tempfile.TemporaryDirectory() as directory:
+            ios = Path(directory)
+            plist = ios / 'Lody' / 'Supporting' / 'Expo.plist'
+            plist.parent.mkdir(parents=True)
+            plist.write_bytes(b'''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EXUpdatesEnabled</key>
+	<true/>
+</dict>
+</plist>
+''')
+            try:
+                build.prepare_fixture_environment('Release', ios)
+                self.assertEqual(os.environ['EXPO_PUBLIC_UI_VERIFY'], '1')
+                body = plist.read_bytes()
+                self.assertIn(b'EXUpdatesEnabled', body)
+                self.assertIn(b'<false/>', body)
+            finally:
+                if previous is None:
+                    os.environ.pop('EXPO_PUBLIC_UI_VERIFY', None)
+                else:
+                    os.environ['EXPO_PUBLIC_UI_VERIFY'] = previous
+
+    def test_debug_leaves_expo_updates_enabled(self):
+        build = load('build')
+        previous = os.environ.get('EXPO_PUBLIC_UI_VERIFY')
+        with tempfile.TemporaryDirectory() as directory:
+            ios = Path(directory)
+            plist = ios / 'Expo.plist'
+            plist.write_bytes(b'''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EXUpdatesEnabled</key>
+	<true/>
+</dict>
+</plist>
+''')
+            try:
+                build.prepare_fixture_environment('Debug', ios)
+                self.assertEqual(plist.read_bytes().count(b'<true/>'), 1)
+            finally:
+                if previous is None:
+                    os.environ.pop('EXPO_PUBLIC_UI_VERIFY', None)
+                else:
+                    os.environ['EXPO_PUBLIC_UI_VERIFY'] = previous
+
+
 if __name__ == '__main__':
     unittest.main()

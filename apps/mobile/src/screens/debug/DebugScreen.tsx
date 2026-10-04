@@ -1,19 +1,28 @@
+import { AppIconFailurePreviewScreen } from './AppIconFailurePreviewScreen';
+import { MessageSharePreviewScreen } from './MessageSharePreviewScreen';
+import { SessionSharePreviewScreen } from './SessionSharePreviewScreen';
+import { DiffScrollEdgePreviewScreen } from './DiffScrollEdgePreviewScreen';
+import { SteerPreviewScreen } from './SteerPreviewScreen';
+import { AgentErrorPreviewScreen } from './AgentErrorPreviewScreen';
 import { ProjectHistoryPreviewScreen } from './ProjectHistoryPreviewScreen';
 import { PullRequestPreviewScreen } from './PullRequestPreviewScreen';
 import { FilePreviewScreen } from './FilePreviewScreen';
-import { CreateSessionScreen } from '../CreateSessionScreen';
-import type { CreationOptions } from '@/models/send';
-import { writeLocal } from '@/cloud/kv';
 import { showCommunityNotice } from '@/features/community/notice';
-import { createPrefsKey } from '@/features/sessions/createPrefs';
 import { openSendPreview } from './SendPreviewScreen';
+import { FreeTurnNoticePreviewScreen } from './FreeTurnNoticePreviewScreen';
+import { openOutboxPreview } from './OutboxPreviewScreen';
 import { BackgroundPreviewScreen } from './BackgroundPreviewScreen';
 import { pushStatus, verifyPushSubscription } from '@lody-ios/kit';
 import { NotificationPreviewScreen } from './NotificationPreviewScreen';
 import { LiveActivityPreviewScreen } from './LiveActivityPreviewScreen';
+import { ReplyHapticsPreviewScreen } from './ReplyHapticsPreviewScreen';
 import { uiVerify } from './uiVerify';
+import { openCreateParity, openModelMemory } from './createFixture';
 import { ComposerPreviewScreen } from './ComposerPreviewScreen';
+import { EditMessagePreviewScreen } from './EditMessagePreviewScreen';
+import { ComposerHandoffPreviewScreen } from './ComposerHandoffPreviewScreen';
 import { ChatPreviewScreen } from './ChatPreviewScreen';
+import { SimulatorPreviewScreen } from './SimulatorPreviewScreen';
 import { ChatPerformanceScreen } from './ChatPerformanceScreen';
 import { ChatStreamPerformanceScreen } from './ChatStreamPerformanceScreen';
 import { BannerPreviewScreen } from './BannerPreviewScreen';
@@ -23,9 +32,11 @@ import {
   NativeShellPreviewScreen,
 } from './NativeShellPreviewScreen';
 import { ShinePreviewScreen } from './ShinePreviewScreen';
+import { SessionTreePreviewScreen } from './SessionTreePreviewScreen';
 import { InboxPreviewScreen } from './InboxPreviewScreen';
 import { SettingsPreviewScreen } from './SettingsPreviewScreen';
-import { AppearanceScreen } from '../AppearanceScreen';
+import { SettingsScreen } from '../SettingsScreen';
+import { QuickRepliesPreviewScreen } from './QuickRepliesPreviewScreen';
 import { OnboardingPreviewScreen } from './OnboardingPreviewScreen';
 import { useNavigation, useRouter, useTheme } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -42,6 +53,9 @@ import {
   type NativeListSection,
 } from '@lody-ios/kit';
 import { EnvironmentScreen } from '@/screens/debug/EnvironmentScreen';
+import { useCatalog } from '@/cloud/catalog/CatalogProvider';
+import type { Session } from '@/models/catalog';
+import { latestSession, probeSimulatorList } from './simulatorProbe';
 import {
   definePage,
   present,
@@ -70,6 +84,7 @@ function View() {
     };
   }, [navigation]);
   const colors = usePalette();
+  const { catalog, selected } = useCatalog();
   const [runtime, setRuntime] = useState<{
     title: string;
     subtitle?: string;
@@ -121,11 +136,13 @@ function View() {
       id: 'ui',
       header: '界面验收',
       rows: [
+        openRow('reply-haptics-preview', '回复触感试验', 'waveform'),
         openRow(
           'pull-request-preview',
           'GitHub PR / CI 预览',
           'arrow.triangle.pull',
         ),
+        openRow('project-picker-preview', '选择项目验收', 'folder'),
         openRow('notification-preview', '通知权限验收', 'bell'),
         openRow('live-activity-preview', 'Live Activity 演示', 'sparkles'),
         {
@@ -149,11 +166,16 @@ function View() {
           'arrow.triangle.2.circlepath',
         ),
         openRow('settings-preview', '远程设置验收', 'gear'),
+        openRow('app-icon-failure-preview', 'Icon failure', 'app.dashed'),
         openRow('appearance-preview', '外观验收', 'circle.lefthalf.filled'),
+        openRow(
+          'queued-message-behavior-preview',
+          '排队消息行为验收',
+          'arrow.uturn.forward',
+        ),
+        openRow('session-tree-preview', 'Session tree', 'list.bullet.indent'),
         openRow('inbox-preview', '动态分组验收', 'tray'),
-        ...(uiVerify
-          ? [openRow('background-preview', '后台连接验收', 'moon.zzz')]
-          : []),
+        openRow('background-preview', '后台连接验收', 'moon.zzz'),
         openRow('native-shell-poc', 'Native Shell POC', 'sidebar.left'),
         openRow(
           'native-collection-poc',
@@ -167,9 +189,12 @@ function View() {
           '300 TPS 流式性能测试',
           'waveform.path',
         ),
-        ...(uiVerify
-          ? [openRow('model-memory', 'Model memory verification', 'brain')]
-          : []),
+        openRow('model-memory', 'Model memory verification', 'brain'),
+        openRow(
+          'create-parity',
+          'Create parity verification',
+          'square.on.square',
+        ),
       ],
     },
     {
@@ -179,8 +204,17 @@ function View() {
         openRow('mention-chat', '@ 引用交互 · 聊天', 'at'),
         openRow('mention-sheet', '@ 引用交互 · 新会话', 'at'),
         openRow('composer-preview', '输入框验收', 'square.and.pencil'),
+        openRow('edit-message-preview', 'Message editing', 'pencil'),
+        openRow('scroll-edge-pages', '分页表单滚动边缘', 'rectangle.split.2x1'),
+        openRow('scroll-edge-diff', 'Diff 滚动边缘', 'doc.text'),
         openRow('composer-success', '聊天输入成功', 'checkmark.circle'),
         openRow('composer-failure', '聊天输入恢复', 'arrow.uturn.backward'),
+        openRow(
+          'agent-error-preview',
+          'Agent 错误预览',
+          'exclamationmark.circle',
+        ),
+        openRow('simulator-preview', 'Simulator floating preview', 'iphone'),
         openRow('chat-preview', '原生聊天预览', 'bubble.left.and.bubble.right'),
         openRow('chat-shine-preview', '过程高光', 'sparkle'),
         openRow('banner-preview', '会话横幅', 'bell.badge'),
@@ -190,10 +224,19 @@ function View() {
       id: 'send',
       header: '发送',
       rows: [
+        openRow('quick-replies-preview', 'Quick Replies', 'text.bubble'),
         openRow('send-preview', '离线发送验收', 'paperplane'),
+        openRow('free-turn-notice-preview', '免费轮次提醒', 'text.bubble'),
         openRow('send-queue', 'Queue 验收', 'list.bullet'),
+        openRow('message-share-preview', 'Message sharing', 'photo'),
+        openRow('session-share-preview', 'Conversation sharing', 'link'),
+        openRow('steer-preview', '连续引导验收', 'arrow.triangle.branch'),
+        openRow('send-guide', '引导发送验收', 'arrow.uturn.forward'),
+        openRow('outbox-preview', '后台发件箱验收', 'tray.and.arrow.up'),
         openRow('send-interrupt', 'Queue 中断验收', 'stop.circle'),
         openRow('send-handoff', '新建发送交接', 'arrow.triangle.swap'),
+        openRow('composer-relay', 'Composer 接力 POC', 'rectangle.2.swap'),
+        openRow('send-handoff-delayed', '新建发送交接 · 慢速页面', 'clock'),
       ],
     },
     {
@@ -213,6 +256,12 @@ function View() {
           id: 'runtime-probe',
           title: '探测机器数据结构（只报字段名）',
           image: 'antenna.radiowaves.left.and.right',
+          action: true,
+        },
+        {
+          id: 'simulator-backend-probe',
+          title: '探测 iOS 模拟器后端支持',
+          image: 'iphone.gen3',
           action: true,
         },
         {
@@ -248,7 +297,24 @@ function View() {
     },
   );
 
+  const runSimulatorProbe = (
+    probe: (
+      workspaceId: string,
+      session: Session,
+    ) => Promise<{ title: string; subtitle?: string }>,
+  ) => {
+    const session = latestSession(catalog.sessions);
+    if (!selected || !session) {
+      setRuntime({ title: '没有可用会话' });
+      return;
+    }
+    setRuntime({ title: '探测中', subtitle: session.title });
+    void probe(selected.id, session)
+      .then(setRuntime)
+      .catch((error) => setRuntime({ title: String(error) }));
+  };
   const actions: Record<string, () => void> = {
+    'reply-haptics-preview': () => void present(ReplyHapticsPreviewScreen, {}),
     'notification-preview': () => {
       void present(NotificationPreviewScreen, {});
     },
@@ -271,8 +337,14 @@ function View() {
     'project-history-preview': () =>
       void present(ProjectHistoryPreviewScreen, {}),
     'pull-request-preview': () => void present(PullRequestPreviewScreen, {}),
+    'project-picker-preview': () => void openCreateParity(),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
-    'appearance-preview': () => void present(AppearanceScreen, {}),
+    'app-icon-failure-preview': () =>
+      void present(AppIconFailurePreviewScreen, {}),
+    'appearance-preview': () => void present(SettingsScreen, {}),
+    'queued-message-behavior-preview': () => void present(SettingsScreen, {}),
+    'quick-replies-preview': () => void present(QuickRepliesPreviewScreen),
+    'session-tree-preview': () => void present(SessionTreePreviewScreen),
     'inbox-preview': () => void present(InboxPreviewScreen, {}),
     'background-preview': () => void present(BackgroundPreviewScreen, {}),
     'native-shell-poc': () => void present(NativeShellPreviewScreen, {}),
@@ -283,6 +355,7 @@ function View() {
     'chat-stream-performance': () =>
       void present(ChatStreamPerformanceScreen, {}),
     'model-memory': () => void openModelMemory(),
+    'create-parity': () => void openCreateParity(),
     'mention-chat': () =>
       void present(
         ComposerPreviewScreen,
@@ -300,6 +373,14 @@ function View() {
         host: 'sheet',
         outcome: 'failure',
       }),
+    'scroll-edge-pages': () =>
+      void present(ComposerPreviewScreen, {
+        host: 'sheet',
+        outcome: 'failure',
+        paged: true,
+      }),
+    'scroll-edge-diff': () =>
+      void present(DiffScrollEdgePreviewScreen, {}, { style: 'push' }),
     'composer-success': () =>
       void present(
         ComposerPreviewScreen,
@@ -312,13 +393,25 @@ function View() {
         { host: 'chat', outcome: 'failure' },
         { style: 'push' },
       ),
+    'agent-error-preview': () => void present(AgentErrorPreviewScreen, {}),
+    'edit-message-preview': () => void present(EditMessagePreviewScreen),
+    'simulator-preview': () => void present(SimulatorPreviewScreen),
     'chat-preview': () => void present(ChatPreviewScreen, {}),
     'chat-shine-preview': () => void present(ShinePreviewScreen, {}),
     'banner-preview': () => void present(BannerPreviewScreen, {}),
     'send-preview': () => void openSendPreview(false),
+    'free-turn-notice-preview': () =>
+      void present(FreeTurnNoticePreviewScreen, {}),
     'send-queue': () => void openSendPreview(false, true),
+    'message-share-preview': () => void present(MessageSharePreviewScreen, {}),
+    'session-share-preview': () => void present(SessionSharePreviewScreen),
+    'steer-preview': () => void present(SteerPreviewScreen, {}),
+    'send-guide': () => void openSendPreview(false, true, true, 'guide'),
+    'outbox-preview': () => void openOutboxPreview(),
     'send-interrupt': () => void openSendPreview(false, true, false),
     'send-handoff': () => void openSendPreview(true),
+    'composer-relay': () => void present(ComposerHandoffPreviewScreen, {}),
+    'send-handoff-delayed': () => void openSendPreview('delayed'),
     'runtime-probe': () =>
       void debugProbeSchema()
         .then((report) => {
@@ -329,6 +422,7 @@ function View() {
           });
         })
         .catch((error) => setRuntime({ title: String(error) })),
+    'simulator-backend-probe': () => runSimulatorProbe(probeSimulatorList),
     'runtime-hang': () => void debugHangDataRuntime(),
     'runtime-restart': () => void debugRestartDataRuntime(),
     'router-environment': () => router.push('/environment'),
@@ -408,150 +502,3 @@ export const DebugScreen = definePage({
   Component: View,
   presentation: { style: 'push', headerVariant: 'transparent' },
 });
-
-async function openModelMemory() {
-  const select = (
-    id: string,
-    name: string,
-    values: string[],
-    category = id,
-  ) => ({
-    id,
-    name,
-    category,
-    type: 'select' as const,
-    currentValue: values[0],
-    options: values.map((id) => ({ id, name: id })),
-  });
-  const workspaceId = 'ui-model-memory';
-  await writeLocal(createPrefsKey('', workspaceId), null);
-  const project = {
-    id: 'ui:local:models',
-    name: 'Model Memory',
-    machineId: 'ui',
-    rootPath: '/fixture',
-  };
-  await present(CreateSessionScreen, {
-    workspaceId,
-    projects: [project],
-    projectId: project.id,
-    loadOptions: async (): Promise<CreationOptions> => ({
-      sessionId: 'ui-model-memory',
-      project,
-      agents: [
-        {
-          id: 'agent',
-          name: 'Fixture Agent',
-          machineId: 'ui',
-          machineName: 'Fixture Mac',
-          cliType: 'builtin',
-          agentType: 'codex',
-        },
-        ...['grok', 'claude', 'deepseek'].map((agentType) => ({
-          id: agentType,
-          name: agentType,
-          machineId: 'ui',
-          machineName: 'Fixture Mac',
-          cliType: 'builtin',
-          agentType,
-        })),
-      ],
-      capabilities: [
-        {
-          machineId: 'ui',
-          cliType: 'builtin',
-          agentType: 'codex',
-          models: [
-            { id: 'a', name: 'Model A' },
-            { id: 'b', name: 'Model B' },
-          ],
-          modes: [
-            { id: 'read-only', name: 'Read Only' },
-            { id: 'agent-full-access', name: 'Full Access' },
-          ],
-          reasoningEfforts: { a: ['low', 'high'], b: ['low', 'high'] },
-          configOptions: [
-            {
-              id: 'fast-mode',
-              name: 'Fast mode',
-              category: 'model_config',
-              type: 'boolean',
-              currentValue: false,
-              options: [],
-            },
-            select('collaboration_mode', 'Collaboration mode', [
-              'default',
-              'plan',
-            ]),
-          ],
-          steer: true,
-        },
-        {
-          machineId: 'ui',
-          cliType: 'builtin',
-          agentType: 'grok',
-          models: [
-            { id: 'grok-a', name: 'Grok A' },
-            { id: 'grok-b', name: 'Grok B' },
-          ],
-          modes: [
-            { id: 'agent', name: 'Agent' },
-            { id: 'plan', name: 'Plan' },
-          ],
-          reasoningEfforts: {
-            'grok-a': ['low', 'high'],
-            'grok-b': ['low', 'high'],
-          },
-          configOptions: [
-            select(
-              'interaction_mode',
-              'Interaction Mode',
-              ['agent', 'plan'],
-              'mode',
-            ),
-            select(
-              'permission_mode',
-              'Permission Mode',
-              ['ask', 'auto', 'always-approve'],
-              '_permission',
-            ),
-          ],
-          steer: false,
-        },
-        {
-          machineId: 'ui',
-          cliType: 'builtin',
-          agentType: 'claude',
-          models: [{ id: 'claude', name: 'Claude' }],
-          modes: [],
-          reasoningEfforts: {},
-          configOptions: [
-            select('model', 'Model', ['claude'], 'model'),
-            select('effort', 'Effort', ['low', 'high'], 'thought_level'),
-            {
-              id: 'fast',
-              name: 'Fast mode',
-              category: 'model_config',
-              type: 'boolean',
-              currentValue: false,
-              options: [],
-            },
-          ],
-          steer: false,
-        },
-        {
-          machineId: 'ui',
-          cliType: 'builtin',
-          agentType: 'deepseek',
-          models: [],
-          modes: [],
-          reasoningEfforts: {},
-          configOptions: [
-            select('agent_preset', 'Agent preset', ['standard', 'coder']),
-          ],
-          steer: false,
-        },
-      ],
-    }),
-  });
-}

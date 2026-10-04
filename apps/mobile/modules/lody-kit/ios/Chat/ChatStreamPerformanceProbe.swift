@@ -1,4 +1,3 @@
-#if DEBUG
 import UIKit
 import MarkdownView
 
@@ -12,6 +11,9 @@ final class ChatStreamPerformanceProbe: NSObject {
   private var received = 0
   private var ended = 0.0
   private var caughtUp = 0.0
+  private var scrollFixture = false
+  private var scrollPhase = 0
+  private var scrollOrigin: CGFloat = 0
   private var samples: [[String: Double]] = []
   private var commits: [Double] = []
   private var layoutChecks: [[String: Any]] = []
@@ -28,6 +30,7 @@ final class ChatStreamPerformanceProbe: NSObject {
   func receive(_ entries: [ChatEntry]) {
     guard let entry = entries.last, entry.id == "stream-perf-answer" else { return }
     received = entry.items.first?.text?.utf16.count ?? 0
+    scrollFixture = entry.items.first?.text?.hasPrefix("OFFSCREEN SCROLL") == true
     if started == 0, received > 0 {
       started = CACurrentMediaTime()
       previous = started
@@ -41,14 +44,53 @@ final class ChatStreamPerformanceProbe: NSObject {
     guard let view else { stop(); return }
     guard view.window != nil, started > 0 else { return }
     let now = CACurrentMediaTime()
+    let elapsed = now - started
+    if scrollFixture {
+      let phase: Int
+      if elapsed < 4 { phase = 0 }
+      else if elapsed < 7 { phase = 1 }
+      else if elapsed < 14 { phase = 2 }
+      else if elapsed < 16 { phase = 3 }
+      else { phase = 4 }
+      if phase != scrollPhase {
+        scrollPhase = phase
+        if phase == 1 {
+          view.pauseTracking()
+          if let index = view.dataSource.indexPath(for: "stream-perf-answer:text"),
+             let frame = view.collection.layoutAttributesForItem(at: index)?.frame {
+            scrollOrigin = frame.minY - view.collection.adjustedContentInset.top
+          }
+        } else if phase == 2 {
+          scrollOrigin = max(-view.collection.adjustedContentInset.top, scrollOrigin - 1400)
+        } else if phase == 3 {
+          // Return by scrolling near the frozen tail before using the bottom action.
+          view.collection.setContentOffset(CGPoint(x: 0, y: view.bottomOffset - 80), animated: false)
+        } else if phase == 4 {
+          view.overlay.onScrollToBottom?()
+        }
+      }
+      if phase == 1 || phase == 2 {
+        // Deterministic scrolling through the real collection while input continues.
+        let offset = scrollOrigin + CGFloat(sin(elapsed * 2) * 80)
+        view.collection.setContentOffset(CGPoint(x: 0, y: max(-view.collection.adjustedContentInset.top, offset)), animated: false)
+      }
+    }
     let shown = view.rows["stream-perf-answer:text"]?.text.utf16.count ?? 0
+    let fading = view.store.isAnimating(id: "stream-perf-answer:text")
     samples.append(["t": now - started, "dt": now - previous,
       "budget": link.targetTimestamp - link.timestamp,
       "received": Double(received), "shown": Double(shown),
-      "lag": Double(max(0, received - shown)), "offset": view.collection.contentOffset.y,
+      "phase": Double(scrollPhase), "markdownUpdates": Double(view.store.updateCount),
+      "deferred": view.deferredRows["stream-perf-answer"] == nil ? 0 : 1,
+      "answerVisible": view.dataSource.indexPath(for: "stream-perf-answer:text").map { view.collection.indexPathsForVisibleItems.contains($0) } == true ? 1 : 0,
+      "contentHeight": view.collection.contentSize.height,
+      "lag": Double(max(0, received - shown)), "fading": fading ? 1 : 0,
+      "finished": view.transcript.entries.last?.finished == true ? 1 : 0,
+      "offset": view.collection.contentOffset.y,
       "bottom": view.bottomOffset, "following": view.followsBottom ? 1 : 0])
     previous = now
-    if ended > 0, shown == received, !view.rendering, !view.applying,
+    if ended > 0, shown == received, !fading, view.transcript.entries.last?.finished == true,
+       !view.rendering, !view.applying,
        abs(view.bottomOffset - view.collection.contentOffset.y) <= 1, caughtUp == 0 {
       caughtUp = now
     }
@@ -103,7 +145,18 @@ final class ChatStreamPerformanceProbe: NSObject {
     _ = store.view(id: "reference", text: "[link][ref]\n\nTail\n\n[ref]: https://example.com", secondary: false, streaming: true, width: 350)
     let resolved = (reference.subviews.first as! FileMarkdownView).textLabelView.attributedText.string
     checks.append(["name": "reference", "lateReferenceResolved": resolved.trimmingCharacters(in: .whitespacesAndNewlines) == "link"])
+    let partial = "Read **bold"
+    let live = store.view(id: "syntax", text: partial, secondary: false, streaming: true, width: 350)
+    let liveLabel = (live.subviews.first as! FileMarkdownView).textLabelView.attributedText
+    let liveFont = liveLabel.attribute(.font, at: 5, effectiveRange: nil) as? UIFont
+    let stopped = store.view(id: "syntax", text: partial, secondary: false, streaming: false, width: 350)
+    let stoppedText = (stopped.subviews.first as! FileMarkdownView).textLabelView.attributedText.string
+    let link = store.view(id: "link", text: "Visit [Apple](https://exam", secondary: false, streaming: true, width: 350)
+    let linkText = (link.subviews.first as! FileMarkdownView).textLabelView.attributedText.string
+    checks.append(["name": "syntax", "partialBoldRendered": liveLabel.string.trimmingCharacters(in: .whitespacesAndNewlines) == "Read bold"
+      && liveFont?.fontDescriptor.symbolicTraits.contains(.traitBold) == true,
+      "completionRestoresSource": stoppedText.trimmingCharacters(in: .whitespacesAndNewlines) == partial,
+      "partialLinkIsText": linkText.trimmingCharacters(in: .whitespacesAndNewlines) == "Visit Apple"])
     return checks
   }
 }
-#endif

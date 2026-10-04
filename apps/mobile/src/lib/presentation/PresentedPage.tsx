@@ -9,11 +9,12 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
-import type { ColorValue } from 'react-native';
-import { softScrollEdgeEffects } from '@/ui/Screen';
+import { Platform, type ColorValue } from 'react-native';
+import { morphDismiss, navigationScrollEdgeEffects } from '@lody-ios/kit';
 
 import {
   type PageDefinitionBase,
@@ -22,6 +23,7 @@ import {
   type PageRuntime,
   PageRuntimeProvider,
 } from './page';
+import { sheetContentBackground } from './sheetContentBackground';
 import { SheetStack } from './SheetStack';
 import {
   cancelPresentation,
@@ -118,10 +120,16 @@ export function nativePresentationOptions(
   const transparentHeader = headerVariant === 'transparent';
 
   return {
-    animation: style === 'push' ? 'default' : nativeAnimation(animationType),
+    animation:
+      style === 'push' && animationType !== 'none'
+        ? 'default'
+        : nativeAnimation(animationType),
     contentStyle: {
-      backgroundColor:
-        style === 'overFullScreen' ? 'transparent' : backgroundColor,
+      backgroundColor: sheetContentBackground(
+        style,
+        backgroundColor,
+        Platform.OS === 'ios' && Platform.isPad,
+      ),
     },
     gestureEnabled: dismissible,
     // Sheets own their inner stack; pushed pages keep the router
@@ -130,7 +138,7 @@ export function nativePresentationOptions(
     headerLargeTitle: false,
     headerTransparent: transparentHeader,
     headerShadowVisible: false,
-    scrollEdgeEffects: softScrollEdgeEffects,
+    scrollEdgeEffects: navigationScrollEdgeEffects,
     presentation: nativePresentationStyle(style),
     sheetAllowedDetents: formSheet
       ? session.presentation.sheetAllowedDetents
@@ -156,6 +164,7 @@ function usePresentedPageSession(expectedPage?: PageDefinitionBase) {
       ? null
       : (getPresentationSession(presentationId) ?? null),
   );
+  const closing = useRef(false);
 
   useEffect(() => {
     if (!session) {
@@ -178,16 +187,52 @@ function usePresentedPageSession(expectedPage?: PageDefinitionBase) {
     );
   }
 
-  const cancel = useCallback(() => {
+  const dismiss = useCallback(() => {
     if (!session) return;
-    if (cancelPresentation(session.id)) dismissPresentedPage();
-  }, [session]);
+    const state = navigation.getState();
+    if (!state) {
+      dismissPresentedPage();
+      return;
+    }
+    const index = state.routes.findIndex(
+      (route) =>
+        route.params &&
+        'presentationId' in route.params &&
+        String(route.params.presentationId) === String(session.id),
+    );
+    // A creation destination can already be pushed underneath this sheet.
+    // Remove this presentation, never the destination now at the stack top.
+    if (index >= 0 && index < state.routes.length - 1) {
+      navigation.dispatch({
+        type: 'RESET',
+        payload: {
+          ...state,
+          routes: state.routes.filter((_, i) => i !== index),
+          index: state.index - 1,
+        },
+      });
+    } else dismissPresentedPage();
+  }, [navigation, session]);
+  const close = useCallback(
+    async (settle: () => boolean) => {
+      if (!session || closing.current) return;
+      closing.current = true;
+      try {
+        if (session.presentation.morphSourceLabel) await morphDismiss();
+      } finally {
+        if (settle()) dismiss();
+      }
+    },
+    [dismiss, session],
+  );
+  const cancel = useCallback(() => {
+    if (session) void close(() => cancelPresentation(session.id));
+  }, [close, session]);
   const finish = useCallback(
     (value?: unknown) => {
-      if (!session) return;
-      if (completePresentation(session.id, value)) dismissPresentedPage();
+      if (session) void close(() => completePresentation(session.id, value));
     },
-    [session],
+    [close, session],
   ) as PageFinish<unknown>;
   const runtime = useMemo<PageRuntime<unknown, unknown> | null>(
     () =>

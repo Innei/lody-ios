@@ -1,7 +1,6 @@
-import { Stack } from 'expo-router';
 import { Alert } from 'react-native';
 import { t } from '@/lib/i18n';
-import { NativeChat } from '@lody-ios/kit';
+import { NativeChat, NativeNavigationHeader } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { PullRequestScreen } from '../PullRequestScreen';
@@ -169,39 +168,47 @@ function View() {
   }
   return (
     <>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button
-          accessibilityLabel="PR #31，1 项检查失败"
-          onPress={() => void openPreview()}
-        >
-          PR #31
-          <Stack.Toolbar.Badge>!</Stack.Toolbar.Badge>
-        </Stack.Toolbar.Button>
-        <Stack.Toolbar.Menu icon="ellipsis" accessibilityLabel="更多">
-          {(['merged', 'closed', 'draft'] as const).map((state) => (
-            <Stack.Toolbar.MenuAction
-              key={state}
-              onPress={() => void openPreview('preview', state)}
-            >
-              {t(`pr.state.${state}`)}
-            </Stack.Toolbar.MenuAction>
-          ))}
-          <Stack.Toolbar.MenuAction onPress={() => void openPreview('empty')}>
-            空检查预览
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            onPress={() => void openPreview('authorization')}
-          >
-            授权失败预览
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction onPress={() => void openPreview('comment')}>
-            评论发送预览
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction onPress={previewAction}>
-            关于此预览
-          </Stack.Toolbar.MenuAction>
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
+      <NativeNavigationHeader
+        items={[
+          {
+            type: 'button',
+            title: 'PR #31',
+            accessibilityLabel: 'PR #31，1 项检查失败',
+            badge: { value: '!' },
+            onPress: () => void openPreview(),
+          },
+          {
+            type: 'menu',
+            icon: { type: 'sfSymbol', name: 'ellipsis' },
+            accessibilityLabel: '更多',
+            menu: {
+              items: [
+                ...(['merged', 'closed', 'draft'] as const).map((state) => ({
+                  type: 'action' as const,
+                  title: t(`pr.state.${state}`),
+                  onPress: () => void openPreview('preview', state),
+                })),
+                {
+                  type: 'action',
+                  title: '空检查预览',
+                  onPress: () => void openPreview('empty'),
+                },
+                {
+                  type: 'action',
+                  title: '授权失败预览',
+                  onPress: () => void openPreview('authorization'),
+                },
+                {
+                  type: 'action',
+                  title: '评论发送预览',
+                  onPress: () => void openPreview('comment'),
+                },
+                { type: 'action', title: '关于此预览', onPress: previewAction },
+              ],
+            },
+          },
+        ]}
+      />
       <NativeChat
         appendDraftJSON={appendDraftJSON}
         style={{ flex: 1 }}

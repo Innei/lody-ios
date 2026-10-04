@@ -2,10 +2,10 @@ import { Alert, Linking } from 'react-native';
 import { readLocal, writeLocal } from '@/cloud/kv';
 import { t } from '../../lib/i18n/index.ts';
 import { showToast } from '@/ui/toast';
+import { uiVerify } from '@/lib/uiVerify';
 
 export const COMMUNITY_REPO_URL = 'https://github.com/Innei/lody-ios';
 const SEEN_KEY = 'communityNoticeSeen';
-const uiVerify = __DEV__ && process.env.EXPO_PUBLIC_UI_VERIFY === '1';
 let offering = false;
 
 export function showCommunityNotice() {

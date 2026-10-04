@@ -1,4 +1,7 @@
 import { mentionCatalog, sessionMentions, commandMentions } from './mentions';
+import { createSharingRuntime } from './sharing/runtime.ts';
+import { readShareHistory } from './sharing/history.ts';
+import type { ShareRequest } from '../../../src/models/session-sharing.ts';
 import { expandMentions } from './mention-expansion';
 import { workspaceRoleMentions } from './agent-roles';
 import type {
@@ -18,30 +21,49 @@ import {
   createSession,
   type CreateSessionArgs,
 } from './create-session';
-import { archiveSession, pinSession, markSessionRead } from './archive-session';
+import {
+  archiveSession,
+  deleteSession,
+  pinSession,
+  markSessionRead,
+  renameSession,
+} from './archive-session';
+import { releaseDeletedSessions, sessionDoc } from './session';
+import {
+  createPreview,
+  iosSimulatorControl,
+  previewTarget,
+  revokePreview,
+} from './preview';
+import { machineRpc } from './machine-rpc';
 import { remoteSettings } from './settings';
 import type { SettingsRequest } from '../../../src/models/settings.ts';
 import {
   fileDiff,
+  type FileContext,
   listDir,
   readFile,
   turnDiff,
-  type MachineContext,
 } from './files';
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import { StreamsClient } from '@loro-dev/streams-client';
 import { decompress } from 'fzstd';
-import type { Catalog } from '../../../src/models/catalog.ts';
+import type { Catalog, Project } from '../../../src/models/catalog.ts';
 import { projectRows } from '../../../src/cloud/catalog/model.ts';
 import { mergeAgentQuotas } from '../../../src/cloud/catalog/agent-usage.ts';
 import {
   openSession,
   closeSession,
+  ensureSession,
+  releaseReserve,
   retainedSessionIds,
+  reservedSessionIds,
   itemDetail,
   respondPermission,
   controlTurn,
   sendTurn as sendSessionTurn,
+  checkTurnQuota,
+  editSession,
 } from './session';
 import { decodeFrames, encodeFrame } from '../decoder/frames';
 
@@ -148,7 +170,80 @@ async function markDispatch(sessionId: string, turnId: string, queued = false) {
 
 const watchers = new Map<string, AbortController>();
 const catalogs = new Map<string, Catalog>();
+const shareReplies = new Map<
+  string,
+  (value: unknown, failed: boolean) => void
+>();
+const broker = (operation: string, args: object) =>
+  new Promise<unknown>((resolve, reject) => {
+    const id = crypto.randomUUID();
+    const timer = setTimeout(() => {
+      shareReplies.delete(id);
+      reject(new Error('share_request_timeout'));
+    }, 65000);
+    shareReplies.set(id, (value, failed) => {
+      clearTimeout(timer);
+      if (failed) reject(new Error('share_request_failed'));
+      else resolve(value);
+    });
+    send({
+      type: 'shareRequest',
+      workspaceId: workspace,
+      id,
+      operation,
+      args,
+    });
+  });
+const shareRuntime = createSharingRuntime({
+  sessions: () => catalogs.get('meta')?.sessions ?? [],
+  history: (id, signal) => readShareHistory(workspace, id, getGrant, signal),
+  progress: (progress) => send({ type: 'shareProgress', progress }),
+  broker,
+});
 const unhealthy = new Set<string>();
+const gitRepos = new Map<string, string>();
+const gitStateAsked = new Set<string>();
+let gitStateQueue = Promise.resolve();
+let runtimeUserId = '';
+// ponytail: one ask per project per runtime; an offline machine keeps its last repo through the saved catalog until restart.
+function askGitState(project: Project) {
+  const localProjectId = project.id.split(':local:')[1];
+  if (
+    project.repoFullName ||
+    !localProjectId ||
+    !runtimeUserId ||
+    gitStateAsked.has(project.id)
+  )
+    return;
+  gitStateAsked.add(project.id);
+  gitStateQueue = gitStateQueue.then(() =>
+    machineRpc(
+      workspace,
+      project.machineId,
+      'local-project/git-state',
+      { localProjectId, requestedByUserId: runtimeUserId },
+      getGrant,
+      AbortSignal.timeout(20000),
+    ).then(
+      (reply) => {
+        const result = reply.result as
+          | {
+              success?: boolean;
+              state?: { git?: boolean; githubRepoFullName?: unknown };
+            }
+          | undefined;
+        const repo =
+          result?.success && result.state?.git
+            ? String(result.state.githubRepoFullName ?? '').trim()
+            : '';
+        if (!repo) return;
+        gitRepos.set(project.id, repo);
+        publish();
+      },
+      () => {},
+    ),
+  );
+}
 let revision = 0;
 let lastPublished = '';
 function publish() {
@@ -168,7 +263,13 @@ function publish() {
   if (unhealthy.size || meta.machineIds.some((id) => !catalogs.has(id))) return;
   const projects = new Map(meta.projects.map((p) => [p.id, p]));
   for (const id of meta.machineIds)
-    for (const p of catalogs.get(id)!.projects) projects.set(p.id, p);
+    for (const p of catalogs.get(id)!.projects)
+      projects.set(p.id, { ...projects.get(p.id), ...p });
+  for (const [id, p] of projects) {
+    const repo = gitRepos.get(id);
+    if (repo && !p.repoFullName) projects.set(id, { ...p, repoFullName: repo });
+    else askGitState(p);
+  }
   const catalog = JSON.stringify({
     ...meta,
     agentUsage: Object.fromEntries(
@@ -329,7 +430,7 @@ function watch(mode: string) {
 function machineFor(
   sessionId: string,
   path: string,
-): MachineContext & { localProjectId?: string } {
+): FileContext & { localProjectId?: string } {
   if (!metaReplica || unhealthy.size) throw new Error('metadata_not_ready');
   if (typeof path !== 'string' || path.length > 32768 || path.includes('\0'))
     throw new Error('invalid_path');
@@ -342,11 +443,33 @@ function machineFor(
   return {
     workspaceId: workspace,
     machineId: session.machineId,
+    // Code Collab ownership lives in workspace Meta Flock, not the session doc.
+    ownerSessionId: session.parentSessionId ?? session.id,
     localProjectId: session.projectId.startsWith(localPrefix)
       ? session.projectId.slice(localPrefix.length)
       : undefined,
     getGrant,
     signal: AbortSignal.timeout(35000),
+  };
+}
+function previewControl(sessionId: string, userId: string) {
+  const { workspaceId, machineId, getGrant } = machineFor(sessionId, '/');
+  return {
+    workspaceId,
+    machineId,
+    sessionId,
+    userId,
+    rpc: (method: string, params: object, timeoutMs: number) =>
+      machineRpc(
+        workspaceId,
+        machineId,
+        method,
+        params,
+        getGrant,
+        AbortSignal.timeout(timeoutMs),
+      ),
+    mintToken: (intent: object) =>
+      broker('previewToken', { intent }).catch(() => undefined),
   };
 }
 async function getMentions(
@@ -449,6 +572,50 @@ async function getMentions(
 }
 Object.assign(globalThis, {
   dataRuntime: {
+    sessionSharing(args: ShareRequest) {
+      if (args.workspaceId !== workspace)
+        throw new Error('share_workspace_changed');
+      return shareRuntime(args);
+    },
+    async sessionPreview(args: {
+      sessionId: string;
+      userId: string;
+      action?: 'create' | 'revoke';
+    }) {
+      const doc = sessionDoc(args.sessionId);
+      const target = doc && previewTarget(doc);
+      if (!target) return { error: 'unavailable' };
+      const control = previewControl(args.sessionId, args.userId);
+      return args.action === 'revoke'
+        ? revokePreview(control)
+        : createPreview({ ...control, target });
+    },
+    async iosSimulatorControl(args: {
+      workspaceId: string;
+      sessionId: string;
+      userId: string;
+      command: { action: string };
+    }) {
+      if (args.workspaceId !== workspace) throw new Error('metadata_not_ready');
+      const control = previewControl(args.sessionId, args.userId);
+      const room = `machine-${control.machineId}`;
+      const capabilities = (metaReplica!.flock.get([
+        'm',
+        room,
+        'protocolCapabilities',
+      ]) ??
+        (metaReplica!.flock.get(['m', room]) as Record<string, unknown>)
+          ?.protocolCapabilities) as Record<string, number> | undefined;
+      // Older CLIs drop unknown methods without replying.
+      if (!((capabilities?.iosSimulator ?? 0) >= 1))
+        return { error: 'unsupported', capabilities };
+      return iosSimulatorControl({ ...control, command: args.command });
+    },
+    shareResult(id: string, value: unknown, failed: boolean) {
+      const reply = shareReplies.get(id);
+      shareReplies.delete(id);
+      reply?.(value, failed);
+    },
     ping: () => true,
     githubMentionsResult(id: string, value: MentionCatalog | null) {
       const reply = githubReplies.get(id);
@@ -711,6 +878,22 @@ Object.assign(globalThis, {
         creating = false;
       }
     },
+    async deleteSession(args: {
+      workspaceId: string;
+      sessionId: string;
+      sessionIds: string[];
+    }) {
+      if (args.workspaceId !== workspace || !metaReplica || unhealthy.size)
+        throw new Error('metadata_not_ready');
+      const replica = metaReplica;
+      const sessionIds = await deleteSession(args, replica);
+      if (metaReplica === replica) {
+        releaseDeletedSessions(sessionIds);
+        catalogs.set('meta', projectRows(replica.flock.scan(), 'meta'));
+        publish();
+      }
+      return { sessionIds };
+    },
     async archiveSession(args: {
       workspaceId: string;
       sessionId: string;
@@ -756,27 +939,100 @@ Object.assign(globalThis, {
       }
       return {};
     },
+    async renameSession(args: {
+      workspaceId: string;
+      sessionId: string;
+      title: string;
+    }) {
+      if (args.workspaceId !== workspace || !metaReplica)
+        throw new Error('metadata_not_ready');
+      const replica = metaReplica;
+      await renameSession(args, replica);
+      if (metaReplica === replica) {
+        catalogs.set('meta', projectRows(replica.flock.scan(), 'meta'));
+        publish();
+      }
+      return {};
+    },
     session(id: string) {
       const result = openSession(id, workspace, getGrant, send, markDispatch);
-      send({ type: 'sessionSubscriptions', ids: retainedSessionIds() });
+      send({
+        type: 'sessionSubscriptions',
+        ids: retainedSessionIds(),
+        reserved: reservedSessionIds(),
+      });
       return result;
     },
     closeSession() {
       closeSession();
-      send({ type: 'sessionSubscriptions', ids: retainedSessionIds() });
+      send({
+        type: 'sessionSubscriptions',
+        ids: retainedSessionIds(),
+        reserved: reservedSessionIds(),
+      });
     },
-    restoreSessions(ids: string[], current: string | null) {
-      for (const id of ids)
-        if (id !== current)
-          void openSession(id, workspace, getGrant, send, markDispatch);
+    async ensureSession(args: { sessionId: string }) {
+      const result = ensureSession(
+        args.sessionId,
+        workspace,
+        getGrant,
+        send,
+        markDispatch,
+      );
+      send({
+        type: 'sessionSubscriptions',
+        ids: retainedSessionIds(),
+        reserved: reservedSessionIds(),
+      });
+      return result;
+    },
+    releaseReserve(args: { sessionId: string }) {
+      releaseReserve(args.sessionId);
+      send({
+        type: 'sessionSubscriptions',
+        ids: retainedSessionIds(),
+        reserved: reservedSessionIds(),
+      });
+      return {};
+    },
+    restoreSessions(
+      ids: string[],
+      current: string | null,
+      reserved: string[] = [],
+    ) {
+      for (const id of ids) {
+        if (id === current || reserved.includes(id)) continue;
+        void openSession(id, workspace, getGrant, send, markDispatch, false);
+      }
+      for (const id of reserved)
+        void ensureSession(id, workspace, getGrant, send, markDispatch).catch(
+          () => {},
+        );
       if (current)
         void openSession(current, workspace, getGrant, send, markDispatch);
       else closeSession();
-      send({ type: 'sessionSubscriptions', ids: retainedSessionIds() });
+      send({
+        type: 'sessionSubscriptions',
+        ids: retainedSessionIds(),
+        reserved: reservedSessionIds(),
+      });
     },
     itemDetail,
     respondPermission,
     controlTurn,
+    checkTurnQuota,
+    editSession(args: Parameters<typeof editSession>[0]) {
+      if (!metaReplica || unhealthy.size)
+        return { state: 'not_sent', reason: 'metadata_not_ready' };
+      const meta = metaReplica.flock.get(['m', `session-${args.sessionId}`]) as
+        Record<string, any> | undefined;
+      if (!meta) return { state: 'not_sent', reason: 'session_not_ready' };
+      const capability = machineReplicas
+        .get(meta.machineId)
+        ?.get(['acpCapability', meta.agentConfigId]) as
+        Record<string, any> | undefined;
+      return editSession(args, meta, capability);
+    },
     sendTurn(args: Parameters<typeof sendSessionTurn>[0]) {
       if (!metaReplica)
         return { state: 'not_sent', reason: 'metadata_not_ready' };
@@ -793,8 +1049,9 @@ Object.assign(globalThis, {
         ),
       );
     },
-    start(id: string) {
+    start(id: string, userId?: string) {
       workspace = id;
+      runtimeUserId = userId ?? '';
       watch('meta');
     },
     grant(value: Grant | null) {

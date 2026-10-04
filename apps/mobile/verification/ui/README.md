@@ -1,12 +1,69 @@
 # Offline UI verification
 
+`edit-message` exercises the production last-user-message context menu and full-screen
+editor in English light/dark appearances. It checks cancellation preserving the chat
+draft, removing an original attachment, adding a file through paste, rejected resend
+retaining edits, and successful replacement. Screenshots and video capture the states.
+The service boundary is synthetic; no cloud history is rewritten. Protocol tests cover
+eligibility, server-owned history replacement and non-replay of uncertain requests.
+
+`--suite chat-kit` exercises the Swift Package migration through the
+production streaming transcript, standalone Composer sheet and attachment send
+handoff. It retains English light/dark coverage, screenshots and video. Run
+`pnpm verify:native --case chat-kit` separately for public Swift API style
+isolation, remeasurement, attachment actions and identity checks.
+
+`markdown` also drags selection handles across adjacent visible Markdown rows and
+across table cells, checks the actual clipboard (including table tabs/newlines),
+and replaces the transcript to verify stale selections are cleared. The Selection
+Fixture uses production rendering without account or cloud access. User bubbles,
+tool rows and unloaded history form selection boundaries; changing visible group
+membership clears selection. Table selections keep their upstream group and menu.
+
+`markdown` and `file-preview` include native Ruby annotations in both appearances.
+The chat check also verifies annotation readings, selectable base text and increased
+line height during streaming and after completion. The `local-store` native check
+covers parsed Ruby in lists, headings, tables and links, with literal code and
+incomplete or unsupported markup preserved.
+
+`session-share` exercises the production SwiftUI conversation-sharing Form with an
+independently resettable Debug source: default scope, sub-conversation selection,
+automatic link copying, disabled Done during publication, capture/upload/publish
+progress, failed upload retaining its selected scope with no link, retry, stable-link
+updates, system sharing, reset confirmation/cancellation and revocation. Both
+English appearances capture screenshots and video; no live share is published.
+Protocol tests separately run the production exporter and publication state
+machine against an in-memory control plane and upload transport.
+
+`session-delete` and `session-delete-pad` use the production archived list,
+conversation header and home list/sidebar with the Home preview catalog. They
+verify confirmation cancellation, a rejected delete with the row retained,
+successful retry, and navigation back (or clearing iPad detail) after deletion.
+The first archived deletion fails at the injected service boundary. Each launch
+resets that fixture; both English appearances capture screenshots and video.
+No cloud records or machine worktrees are deleted by these checks.
+
+`appearance` exercises preset accents, UIKit's custom color picker, persisted
+custom color after a cold launch, the three-column native app-icon grid, actual
+system icon switching and a Debug-only rejected-change fixture. ColorPickerUIService
+is not traversable by AXe; the case uses visually confirmed iPhone 17 Pro palette
+coordinates and verifies the resulting UserDefaults value plus restored UI.
+Both appearances record screenshots and video, without account or cloud access.
+
+`--case scroll-edge` scrolls deterministic chat content beneath the native
+composer and raises the software keyboard in both appearances. It checks keyboard
+clearance and captures the chat bottom edge fade (UIKit's bottom edge is hidden) for visual review. Run a fresh native
+build: an old binary or a passing layout assertion does not prove the fade renders.
+
 All UI baselines run without login, user data, cloud credentials, or a connected
-machine. `EXPO_PUBLIC_UI_VERIFY=1` in a **development** bundle prevents account
-restoration before Keychain/SQLite reads and disables login. The runner starts
-one owned Metro and requires the `ui-verify-ready` marker before any interaction.
-Native image fixtures additionally require the `--ui-verify` launch argument and
-compile only in Debug. No production credentials are used. The managed verification
-Simulator is reused without erasing between leases.
+machine. `EXPO_PUBLIC_UI_VERIFY=1` is inlined into the JS bundle and prevents
+account restoration before Keychain/SQLite reads and disables login. PR CI
+builds a Release Simulator app with that flag and an embedded Hermes bundle;
+`--embedded` then launches the app without Metro. Local full inventory still
+uses a Debug app plus one owned Metro. Both paths require the `ui-verify-ready`
+marker before any interaction. Native image fixtures additionally require the
+`--ui-verify` launch argument. No production credentials are used. The managed
+verification Simulator is reused without erasing between leases.
 
 The `pull-request` case also exercises authorization retry, empty checks, a rejected
 comment retaining its draft followed by successful publication to the local fixture,
@@ -17,6 +74,18 @@ merged, closed and draft states. It checks the icon-only GitHub button's 44 pt
 target, VoiceOver label and existing open action.
 
 ## Run locally
+
+`session-search` and `session-search-pad` run the production Inbox/sidebar and
+session find with isolated cached fixtures. They cover title/path/branch and
+Markdown body matches, excluded tool/URL metadata, snippets, real rendered
+highlights (including code and tables), keyboard behavior, navigation, closing,
+folded thoughts, and an older match outside the initial 50-entry window. The
+older match becomes navigable only after the user explicitly loads that page.
+Both appearances record screenshots and video. `verify:native --case local-store`
+also runs the real Markdown parser and SQLite migration/failure checks via SwiftPM.
+The find checks also cover two-row controls, 44 pt buttons, stable input width
+across result changes and retained message position after closing. Review the
+video for the expanding/fading header and its keyboard transition in both hosts.
 
 `mcp-files` verifies uploaded text/PDF/video previews, video playback, download
 retry, missing/pending files, user attachments and cancellation in both appearances.
@@ -30,7 +99,7 @@ composer draft retention in both appearances. Screenshots and video cover each
 answer state; no real agent request is dispatched.
 
 If a normal signed Debug app is already built, each verification command can lease
-its own iPhone 17 Pro / iOS 26.5 device from the `Lody * Verify` pool. The documented
+its own iPhone 17 Pro / iOS 27.0 device from the `Lody * Verify` pool. The documented
 command without `--case` or `--batch` is that phone lease only. Pad-only cases
 (`ipad`, `ipad-chrome`, `native-shell`, `native-collection`) stay behind an explicit
 `--case` so they lease an iPad instead of asserting a wide screen on an iPhone.
@@ -38,17 +107,22 @@ command without `--case` or `--batch` is that phone lease only. Pad-only cases
 ```sh
 pnpm verify:native
 pnpm verify:ui --app /absolute/path/to/Lody.app
+pnpm verify:ui --suite core --embedded --app /absolute/path/to/Lody.app --output .artifacts/ui-core
 pnpm verify:ui --case ipad --app /absolute/path/to/Lody.app --output .artifacts/ipad
 # One Metro, three concurrent leased Simulators, all batches:
 pnpm verify:ui --parallel --app /absolute/path/to/Lody.app --output .artifacts/ui-parallel
-pnpm verify:ui --app /absolute/path/to/Lody.app --language zh-Hans --output .artifacts/ui-zh
+pnpm verify:ui --app /absolute/path/to/Lody.app --suite send-reliability --output .artifacts/send-reliability
 ```
+
+`ipad-sidebar` verifies the relocated Workspace, view/settings and new-session
+actions independently, including long workspace names, view changes and workspace
+switching in both appearances.
 
 The current `ipad-chrome` case leases an iPad Air 11-inch (M2), separately from
 phone batches. It exercises the production `PadHomeScreen`: independent native
 sidebar, selected session and outline restoration, project push/back with the
 navigating row held until return, top search,
-bottom workspace/new-session actions, and a window-level creation form.
+top workspace switch, bottom view/settings/new-session actions, and a window-level creation form.
 A wide detail keeps the 760 pt reading column centered, but the transcript
 scroll view stays full-bleed so the vertical indicator sits on the screen edge.
 Switching to an empty workspace must remove the old conversation; a real
@@ -95,9 +169,9 @@ bypasses leasing, rename and shutdown, so its caller owns the full lifecycle.
 Do not call `simctl create` directly for local verification.
 
 Requires Python 3, AXe 1.8.0, Xcode 26.5 and the workspace dependencies.
-`--case layout` selects one case (still both appearances). `--language` picks the
-App Language the run launches with (`en` by default) and the catalog the scenes
-assert against; run both before claiming bilingual coverage. `--port 8098` changes
+`--case layout` selects one case (still both appearances). UI verification runs
+only in English (`en`, `en_US`); `--language en` remains accepted for existing
+callers. Do not add separate Chinese verification runs. `--port 8098` changes
 the isolated Metro port; occupied ports are rejected. `--output PATH` selects an
 artifact directory; a previous run at that path is deleted and replaced, so reuse
 the same path across retries and pick a distinct path only for an A/B comparison.
@@ -114,6 +188,19 @@ task's locked Simulator or Metro.
 
 ## Baseline inventory
 
+`quick-replies` exercises the production composer and Settings editor: idle-only
+visibility, draft preservation, full-message sending and explicit failure retry,
+stable transcript/input geometry across repeated first-character and last-delete transitions,
+adding/editing/reordering/deleting replies, and local persistence after process
+restart. Both English appearances record screenshots and video; no cloud turn
+is dispatched.
+
+`context-chip` reuses that scene and cycles its Preview fixture through
+connecting, ready, simulator and unavailable. The composer's single context
+chip must keep a separator before the suggestions and follow its label width.
+It collapses to its icon while a draft exists and stays when work hides the
+suggestions. `run.mp4` is the evidence for the width and text morphs.
+
 `pull-request` opens Debug → GitHub PR / CI 预览 with an injected OSS-shaped
 projection. It captures the native chat entry, PR summary, grouped checks,
 individual check and comment editor in both appearances, then verifies native
@@ -123,44 +210,52 @@ live check/log retrieval.
 
 `smooth-scroll` exercises cached history replacement, anchor preservation while
 reading, streamed paragraphs/code, drag interruption and the production process
-Sheet. It records video plus opt-in Debug-only UIKit geometry at display refresh
+Sheet. It also drags beyond the top during live updates and checks that neither
+the held rubber band nor its release snaps to the resting boundary.
+It records video plus opt-in Debug-only UIKit geometry at display refresh
 cadence (`--ui-verify-scroll`); the check requires intermediate scroll/height
 frames in both hosts. Review the video for clipping and flashes before claiming
 visual smoothness. The probe contains fixture IDs and geometry only.
 
-| Case                   | Production surface                                    | Behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ---------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| notifications          | NotificationSettingsContent                           | Permission request, denial, settings return and reset                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| project-history        | ProjectHistoryView + NativeGroupedList                | Device/project/agent drill-down, delayed loading vs failed/empty results, native toolbar placement and disabled states, select/deselect all, partial import retry, conflict confirmation and return-time toolbar cleanup                                                                                                                                                                                                                                                                                                          |
-| settings               | RemoteSettingsView + RemoteSettingEditorScreen        | Leading Cancel/trailing Save while typing, compact Machine/MCP sheets, Agent prompt, empty loading until a confirmed list exists, navigation refresh with a loading indicator, refresh time on cached/live rows, failed load retry, failed-save Toast with draft retention, and saved-value readback                                                                                                                                                                                                                              |
-| home                   | InboxScreen header + glass FAB + settings Sheet       | Workspace chip loads `user.image` (letter fallback); inbox header search, archived results, cancellation restore; view menu switches Projects / Activity / Chat and project sort; chat-only sessions sit in a trailing 对话 group; empty project shows `0`; project/session long-press context menus and session transcript peek; bottom-right glass create opens a 项目 / 对话 title segment and cancels back; long-press Settings opens Debug and returns; push remote settings and archive in settings sheet with close/return |
-| ipad                   | PadHomeScreen + native panel stack + session detail   | Floating responsive panel, panel-local New Session sheet with two detents and swipe dismissal, project push/back with its own native header, session detail behind the retained panel, collapse/restore, opaque centered Settings sheet, portrait/landscape rotation, and light/dark appearance                                                                                                                                                                                                                                   |
-| licenses               | Settings sheet + LicensesScreen + LicenseDetailScreen | App AGPL notice first, then the alphabetical bundled-library list with license ids and versions, full license text on push, back to the list and sheet close                                                                                                                                                                                                                                                                                                                                                                      |
-| onboarding             | OnboardingScreen (non-dismissable pageSheet)          | No close button, swipe-down resists, connect → waiting code → cancel error → retry, sheet closes itself on sign-in                                                                                                                                                                                                                                                                                                                                                                                                                |
-| community-notice       | Community notice Alert (Debug + first signed-in use)  | Title, unofficial-community copy, Star / Not Now actions; Not Now dismisses; Debug row shows the same alert again                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| send                   | NativeChat + shared send lifecycle                    | Offline immediate user/static timer rows, no pre-connection dispatch, failed text/attachment retention and explicit retry, uninterrupted authoritative takeover                                                                                                                                                                                                                                                                                                                                                                   |
-| send-rounds            | NativeChat with retained history                      | Three accepted turns (short, wrapped, multiline), distinct IDs, cleared drafts, and native frame-by-frame landing checks                                                                                                                                                                                                                                                                                                                                                                                                          |
-| send-queue             | NativeChat + shared send lifecycle                    | Queue above input, draft/Stop switching, selected Steer failure/retry, Stop advances FIFO, no transcript flash or duplicate draft                                                                                                                                                                                                                                                                                                                                                                                                 |
-| send-interrupt         | NativeChat + shared send lifecycle                    | Agent without acknowledged steer: only the first queued message offers Steer, and Steer cancels the running turn so the queue advances FIFO                                                                                                                                                                                                                                                                                                                                                                                       |
-| send-handoff           | NativeComposer sheet → NativeChat push                | Message UIView stays visible across navigation before creation; failed creation stays in transcript with explicit retry                                                                                                                                                                                                                                                                                                                                                                                                           |
-| layout                 | NativeChat + navigation title                         | Title-tap debug dump with Copy; More menu Project Files separated from pin/archive; stream segments, completion folding, full conclusion, process-row height, send positioning                                                                                                                                                                                                                                                                                                                                                    |
-| duration               | NativeChat assistant duration row                     | Static (non-shiny) first-row duration advances each second; server process follows below while live; completion freezes the OSS-compatible duration (wall span, then span minus `permissionWaitMs`) and absorbs the folded process into that same row above the final answer                                                                                                                                                                                                                                                      |
-| tracking               | NativeChat                                            | User drag releases following, stable history, return button during/after streaming                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| model-memory           | CreateSessionScreen + ModelScreen + NativeComposer    | Per-model effort and permission restoration across both selection hosts, full-access default; Grok independent permission, boolean fast mode, collaboration and agent preset options; config-only effort                                                                                                                                                                                                                                                                                                                          |
-| fast-chat / fast-sheet | ChatComposerModelPanel in chat and new-session hosts  | Fast outline/solid toggle, RN echo, reopen, 44 pt target and non-Ultra particle motion in both themes                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| model-options          | ChatComposerView                                      | Model/effort controls, RN echo, reopen persistence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| image-preview          | ChatImageCell + ChatImagePreview                      | Synthetic bitmap, zoom/restore, button and gesture dismissal                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| composer               | NativeComposer in a real form sheet                   | Floating list inset, half/full sheet contrast, last-row reachability, file paste, iOS 26 focus glass fusion with balanced Add/Send controls and trailing model selector, keyboard clearance, rejection restore, duplicate suppression                                                                                                                                                                                                                                                                                             |
-| composer-glass         | NativeComposer in a real form sheet                   | Separate unfocused Add/input glass, focus merge animation and unified final surface, mirrored Add/Send centers, shared baseline, trailing model selector, light/dark screenshots and video                                                                                                                                                                                                                                                                                                                                        |
-| composer-video         | NativeChat composer                                   | Paste a movie that also registers a PNG poster; the chip and sent user row keep the video filename and never open an image cell                                                                                                                                                                                                                                                                                                                                                                                                   |
-| composer-success       | NativeChat composer                                   | File paste, pending clear/lock, text and attachments stay cleared after acceptance                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| markdown               | MarkdownView code block + table                       | Copy preserves complete code and indentation through the Simulator clipboard; a wide table bleeds to the screen edges and keeps that bleed after a horizontal swipe                                                                                                                                                                                                                                                                                                                                                               |
-| live-activity          | LodyLiveActivity widget + NotificationSettingsContent | Fixture activity start, running → permission update, compact Dynamic Island and Lock Screen card captures, end returns the debug status row to `0 个活动`                                                                                                                                                                                                                                                                                                                                                                         |
-| background             | DataRuntime + UIApplication background allowance      | Same WebView cross-background restoration, short background allowance without a system Live Activity, completion/expiration release, no restart from late updates                                                                                                                                                                                                                                                                                                                                                                 |
-| changes                | NativeChat + shared DOM file diff                     | Grouped file rows after completion, header totals, long paths, reused WebView instance, Unified/Split, hidden warnings                                                                                                                                                                                                                                                                                                                                                                                                            |
-| inline-diff            | ItemDetail DiffBlock + NativeInlineDiff               | Native line content, full height, outer-sheet vertical scroll, selectable rows                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| inbox                  | NativeGroupedList + inboxSections                     | Dynamic grouping; session rows as conversation list (in-progress dot before title, time on right, confirmation pill); unread completed items do not enter Today; unread trailing swipe shows Read at the outer edge ahead of Archive                                                                                                                                                                                                                                                                                              |
-| composer-failure       | NativeChat composer                                   | Pasted-file, text and attachment restoration after rejection                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Case                    | Production surface                                    | Behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| notifications           | NotificationSettingsContent                           | Permission request, denial, settings return and reset                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| project-history         | ProjectHistoryView + NativeGroupedList                | Device/project/agent drill-down, delayed loading vs failed/empty results, native toolbar placement and disabled states, select/deselect all, partial import retry, conflict confirmation and return-time toolbar cleanup                                                                                                                                                                                                                                                                                                                                                                              |
+| project-picker          | ProjectPickerScreen + NativeGroupedList segments      | Local and GitHub occupy separate segments; search sits in the scrolling list under the pinned segments; a long GitHub fixture cannot bury local projects; switching segments restores each list and its own search                                                                                                                                                                                                                                                                                                                                                                                    |
+| settings                | RemoteSettingsView + RemoteSettingEditorScreen        | Leading Cancel/trailing Save while typing, compact Machine/MCP sheets, Agent prompt, empty loading until a confirmed list exists, navigation refresh with a loading indicator, refresh time on cached/live rows, failed load retry, failed-save Toast with draft retention, and saved-value readback                                                                                                                                                                                                                                                                                                  |
+| queued-message-behavior | QueuedMessageBehaviorScreen                           | Local Queue / Steer choice, exclusive selection, and restore to Queue                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| home                    | InboxScreen header + glass FAB + settings Sheet       | Workspace chip loads `user.image` (letter fallback); inbox header search, archived results, cancellation restore; view menu switches Projects / Activity / Chat and project sort; Projects puts pinned sessions in a top outline above project cards; chat-only sessions sit in a trailing 对话 group; empty project shows `0`; project/session long-press context menus and session transcript peek; bottom-right glass create opens a 项目 / 对话 title segment and cancels back; long-press Settings opens Debug and returns; push remote settings and archive in settings sheet with close/return |
+| ipad                    | PadHomeScreen + native panel stack + session detail   | Floating responsive panel, panel-local New Session sheet with two detents and swipe dismissal, project push/back with its own native header, session detail behind the retained panel, collapse/restore, opaque centered Settings sheet, portrait/landscape rotation, and light/dark appearance                                                                                                                                                                                                                                                                                                       |
+| licenses                | Settings sheet + LicensesScreen + LicenseDetailScreen | App AGPL notice first, then the alphabetical bundled-library list with license ids and versions, full license text on push, back to the list and sheet close                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| onboarding              | OnboardingScreen (non-dismissable pageSheet)          | No close button, swipe-down resists, connect → waiting code → cancel error → retry, sheet closes itself on sign-in                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| community-notice        | Community notice Alert (Debug + first signed-in use)  | Title, unofficial-community copy, Star / Not Now actions; Not Now dismisses; Debug row shows the same alert again                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| send                    | NativeChat + shared send lifecycle                    | Offline immediate user row with confirming duration copy until ACK, no pre-connection dispatch, failed text/attachment retention and explicit retry, uninterrupted authoritative takeover                                                                                                                                                                                                                                                                                                                                                                                                             |
+| send-rounds             | NativeChat with retained history                      | Three accepted turns (short, wrapped, multiline), distinct IDs, cleared drafts, and native frame-by-frame landing checks                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| send-queue              | NativeChat + shared send lifecycle                    | Queue above input, draft/Stop switching, selected Steer failure/retry, Stop advances FIFO, no transcript flash or duplicate draft                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| send-guide              | NativeChat + shared send lifecycle                    | Guide preference flies the send into the transcript and auto-steers, with no queue card                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| send-interrupt          | NativeChat + shared send lifecycle                    | Agent without acknowledged steer: only the first queued message offers Steer, and Steer cancels the running turn so the queue advances FIFO                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| send-handoff            | NativeComposer sheet → NativeChat push                | Same-instance composer adoption, preserved keyboard/focus/selection/material/geometry, original message flight, stable timer, and failed creation retained for explicit retry                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| layout                  | NativeChat + navigation title                         | Title-tap debug dump with Copy; More menu Project Files separated from pin/archive; stream segments, completion folding, full conclusion, process-row height, send positioning                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| duration                | NativeChat assistant duration row                     | Static (non-shiny) first-row duration advances each second; server process follows below while live; completion freezes the OSS-compatible duration (wall span, then span minus `permissionWaitMs`) and absorbs the folded process into that same row above the final answer                                                                                                                                                                                                                                                                                                                          |
+| process-counts          | NativeChat folded process row                         | Debug fixture increments tool and edited-file counts; digits use SwiftUI `numericText`; the row stays on the 44 pt floor                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| process-failed          | NativeChat folded row + process Sheet                 | Live thinking row with a failed tool keeps its warning treatment; opening the Sheet shows the active detail with traveling text shine and no trailing spinner; screenshots plus video                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| chat-chrome             | NativeChat composer overlay                           | Connecting/paused/live-subtask glass above the composer; one item centered independently of the trailing scroll action; 30 pt scroll glass with send's 14 pt bold medium-scale arrow; 44 pt touch target; paired glasses share a bottom baseline; dropping scroll returns status to center; tapping live tasks opens the subtask sheet                                                                                                                                                                                                                                                                |
+| tracking                | NativeChat                                            | User drag releases following, stable history, return button during/after streaming                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| model-memory            | CreateSessionScreen + ModelScreen + NativeComposer    | Per-model effort and permission restoration across both selection hosts, full-access default; Grok independent permission, boolean fast mode, collaboration and agent preset options; config-only effort                                                                                                                                                                                                                                                                                                                                                                                              |
+| fast-chat / fast-sheet  | ChatComposerModelPanel in chat and new-session hosts  | Fast outline/solid toggle, RN echo, reopen, 44 pt target and non-Ultra particle motion in both themes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| model-options           | ChatComposerView                                      | Model/effort controls, RN echo, reopen persistence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| image-preview           | ChatImageCell + ChatImagePreview                      | Synthetic bitmap, zoom/restore, button and gesture dismissal; MCP gallery swipe, zoom blocking paging                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| composer                | NativeComposer in a real form sheet                   | Floating list inset, half/full sheet contrast, last-row reachability, file paste, iOS 26 focus glass fusion with balanced Add/Send controls and trailing model selector, keyboard clearance, rejection restore, duplicate suppression                                                                                                                                                                                                                                                                                                                                                                 |
+| composer-glass          | NativeComposer in a real form sheet                   | Separate unfocused Add/input glass, focus merge animation and unified final surface, mirrored Add/Send centers, shared baseline, trailing model selector, light/dark screenshots and video                                                                                                                                                                                                                                                                                                                                                                                                            |
+| composer-video          | NativeChat composer                                   | Paste a movie that also registers a PNG poster; the chip and sent user row keep the video filename and never open an image cell                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| composer-success        | NativeChat composer                                   | File paste, pending clear/lock, text and attachments stay cleared after acceptance                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| markdown                | MarkdownView code block + table                       | Copy preserves complete code and indentation through the Simulator clipboard; a wide table bleeds to the screen edges and keeps that bleed after a horizontal swipe                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| live-activity           | LodyLiveActivity widget + NotificationSettingsContent | Fixture activity start, running → permission update, compact Dynamic Island and Lock Screen card captures, end returns the debug status row to `0 个活动`                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| background              | DataRuntime + UIApplication background allowance      | Same WebView cross-background restoration, short background allowance without a system Live Activity, completion/expiration release, no restart from late updates                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| changes                 | NativeChat + shared DOM file diff                     | Grouped file rows after completion, header totals, long paths, reused WebView instance, Unified/Split, hidden warnings, more-menu copy of the file name, path, contents and unified patch onto the Simulator clipboard with a Copied toast                                                                                                                                                                                                                                                                                                                                                            |
+| inline-diff             | ItemDetail DiffBlock + NativeInlineDiff               | Native line content, full height, outer-sheet vertical scroll, selectable rows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| inbox                   | NativeGroupedList + inboxSections                     | Dynamic grouping with 已置顶 after 需要你确认 and before 进行中; session rows as conversation list (in-progress dot before title, time on right, confirmation pill); unread completed items do not enter Today; unread trailing swipe shows Read at the outer edge ahead of Archive                                                                                                                                                                                                                                                                                                                   |
+| composer-failure        | NativeChat composer                                   | Pasted-file, text and attachment restoration after rejection                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 `--case root-reuse` leaves the model popover open in both the chat and creation-sheet
 hosts, resets to Debug, and opens another fixture with the same PID. The shared
@@ -187,26 +282,40 @@ Markdown is rendered by the actual chat baseline, with screenshots/video for
 review. There is no pixel-diff gate yet: screenshots are evidence, not automatic
 proof of typography or animation quality.
 
+`composer` and `home` additionally sample the rendered card inset and adjacent
+sheet material, requiring a visible color difference. This covers the compact
+and expanded creation hosts (`NativeGroupedList` and `NativePagedList`) and the
+picker pushed inside the expanded sheet. Review the captured light/dark images
+as well; the color check alone does not establish visual correctness.
+
 ## CI and future UI changes
 
-`.github/workflows/verify.yml` runs Checks, Native behavior, one signed Simulator
-build, and three parallel Offline iOS UI batches (`pages`, `send`, `chat`) on PRs
-and pushes to main. UI jobs download the same tarred App, preserving executable
-permissions and symlinks, and run both appearances. Each batch has its own
-Simulator and evidence artifact; a failed batch does not cancel its siblings.
-Configure the Checks, Native behavior, Build iOS Simulator, and all three UI
-checks as required checks in repository branch rules before relying on them to
-block merges. `--batch pages|send|chat` selects the same grouping locally;
-`--case` still runs a single case, and omitting both runs everything. Standalone
-Home/Licenses/Navigation run in the same worker and bundle as the other pages.
-Local `--parallel` shares one Metro across three leased Simulators. Each worker
-installs once, changes fixture mode with native launch arguments, and records
-its own results/video/screenshots under `pages/`, `send/`, or `chat/`. The parent
-writes combined `results.json` and worker exit codes/times in `batches.json`;
-workers cannot stop the parent Metro. Navigation reload uses the target device
-inspector instead of broadcasting to every app. `--parallel` owns its leases,
-so do not supply `--udid` or wrap it in a single-device lease. Build separately
-with `verify:simulator`, then run `--parallel` against that signed App.
+`.github/workflows/verify.yml` runs Checks, Native behavior, one signed
+Release Simulator build of the fixture app (`EXPO_PUBLIC_UI_VERIFY=1`, Hermes
+embedded, expo-updates off), and two parallel Offline iOS UI jobs on PRs and
+pushes to main. Those jobs install the same `.app` and run `--embedded` with
+`--suite core-home` (`onboarding`, `inbox`, `navigation`) or `--suite core-send`
+(`send`, `send-handoff`, `composer-success`). Light appearance only, first
+failure stops that job, and video is not required. The full phone inventory,
+dark appearance, performance, animation, and pad cases stay local on a Debug
+app plus Metro; they are not a PR gate. Configure Checks, Native behavior,
+Build iOS Simulator, `Offline iOS UI (core-home)`, and
+`Offline iOS UI (core-send)` as required checks. Remove the old three-batch or
+single `core` job names or PRs will wait for checks that no longer run.
+
+`--suite core` selects all six cases locally. `--embedded` skips Metro and
+relaunches the app for each case. `--batch pages|send|chat`
+keeps the local grouping; `--case` still runs a single case; omitting all three
+runs every phone case in both appearances. Standalone Home/Licenses/Navigation
+run in the same worker and bundle as the other pages. Local `--parallel` shares
+one Metro across three leased Simulators. Each worker installs once, changes
+fixture mode with native launch arguments, and records its own
+results/video/screenshots under `pages/`, `send/`, or `chat/`. The parent writes
+combined `results.json` and worker exit codes/times in `batches.json`; workers
+cannot stop the parent Metro. Navigation reload uses the target device inspector
+instead of broadcasting to every app. `--parallel` owns its leases, so do not
+supply `--udid` or wrap it in a single-device lease. Build separately with
+`verify:simulator`, then run `--parallel` against that signed App.
 
 The runner enables request diagnostics only for its owned Metro. `metro.log`
 records manifest/status request starts, completion/connection-close, status and
@@ -215,9 +324,28 @@ per-case `metro-failure.json` probe host-side status and manifest HEAD/GET with
 10-second deadlines; they do not prove Simulator reachability. Compare these
 with the five-minute `native.log` and failure screenshot to distinguish no
 incoming request, an unfinished server response, and app-side failure.
-`environment.json` records Node, Xcode and AXe versions and the selected batch. UI artifacts contain results.json, per-case
-logs, screenshots, accessibility trees and video, including failures. Missing
-scenes and timeouts fail the job. No login or distribution signing secret is used.
+`environment.json` records Node, Xcode and AXe versions, the selected suite or
+batch, appearances, and whether video is required. UI artifacts contain
+results.json, per-case logs, screenshots and accessibility trees, plus video when
+the run requires it, including failures. A failed case always takes a Simulator
+framebuffer screenshot first (`failure.png`, also copied to `failures/`); that
+does not wait on AXe. The first `describe-ui` after a fresh Simulator boot
+retries until AXe's XCTest session exists. Later AXe commands retry the same way
+when that session dies. `navigation` dismisses the first-open SpringBoard alert
+by tapping Open without waiting on `describe-ui`, which hangs on that dialog, and
+does that only once so later links are not delayed by missing-label probes.
+Embedded `navigation` does two cold relaunches and one unknown-URL return, and
+is allowed 600s. `send` and `send-handoff` are allowed 300s. Later send drafts are letter-only, and
+`type_into` accepts an all-caps commit because AXe can hold Shift. Embedded core
+send skips throw-motion sampling; CI Simulators miss the 50ms / blend thresholds. Core suites keep running after one case
+fails so inbox and later send cases still report. English `type_into` retypes when the
+field disagrees even if there is no Next keyboard. `navigation` is allowed 480s because
+three cold relaunches plus catalog links overrun a 360s cap on CI. Embedded
+runs skip the Metro `Page.reload` tail of that case. The two CI UI matrix jobs
+keep running after one fails. CI uploads those plus a job-level `simctl io screenshot`
+as `ui-failure-*` when a Simulator job fails. Missing scenes and timeouts fail the
+job. A core-suite run does not fail only because `run.mp4` is absent. No login
+or distribution signing secret is used.
 
 For each new UI behavior:
 
@@ -225,7 +353,8 @@ For each new UI behavior:
    views and the existing `present` contract; inject data or service outcomes at
    the owning boundary. Do not duplicate a production screen into a fake UI.
 2. Add a runnable user-visible assertion and register it in the runner. New scenes
-   must run independently without earlier cases or login.
+   must run independently without earlier cases or login. Do not add a case to
+   `--suite core` unless it is one of the daily product paths.
 3. Reproduce bugs with the original precondition; avoid internal constant-table
    snapshots. Prefer element-relative geometry and bounded state waits.
 4. For shared UI, exercise each real host (e.g. chat and creation sheet). Add
@@ -243,22 +372,47 @@ first simulates an offline fetch with cached usage, then reconnects with a chang
 percentage. Its fixtures pass through the production catalog projector; screenshots
 and video cover both appearances without provider credentials or live quota queries.
 
-The `live-activity` case uses the offline `debug` workspace and production activity reconciliation, without OneSignal or credentials. It checks the injected settings toggle, a multiple-task overview, permission priority, removal of a completed turn, ending all work and starting again. Island captures background the app first; the Lock Screen captures include the completion summary and its 10-second dismissal. Both appearances record video. The runner handles the system's Live Activity consent prompt on reused pool devices. Overview links reject an unavailable account, and unavailable session links preserve the current page. Push-to-start and remote background updates still require a real device; these local checks do not establish APNs delivery.
+The `live-activity` case uses the offline `debug` workspace and production activity reconciliation, without OneSignal or credentials. It checks the injected settings toggle, a multiple-task overview, permission priority, removal of a completed turn, ending all work and starting again. Island captures background the app first; the Lock Screen captures include the completion summary and its 10-second dismissal. Both appearances record video. It also switches the real app icon from default to Aqua during an active overview, captures the compact/expanded Island and Lock Screen artwork, verifies a newly started activity, and switches back to default. The runner handles the system's Live Activity consent prompt on reused pool devices. Overview links reject an unavailable account, and unavailable session links preserve the current page. Push-to-start and remote background updates still require a real device; these local checks do not establish APNs delivery.
 
 The background case runs via `--case background`, dwelling on the Simulator Home screen for 40 seconds. Counts originate from real offscreen WebView callbacks; cloud events are substituted with local scripts without network or credential access. If the system denies sustained background tasks, this case only verifies retention/restoration and request-failure degradation, and cannot be used to claim that sustained background execution has passed. Prolonged physical-device network connectivity and power consumption require separate real-device testing.
 
-`home`, `licenses`, and `navigation` select the in-memory Auth/Catalog Providers with the Debug-only native `--ui-verify-home` launch argument, guarded by `--ui-verify` and the development bundle flag. They use the same Metro and bundle as Debug cases, without launching authentication or synchronization. A full worker run executes them first. New session creation verifies opening, switching 项目 / 对话 via the title segment, and cancelling; projects not bound to a machine do not read machine configuration or send real messages.
+`home`, `licenses`, and `navigation` select the in-memory Auth/Catalog Providers
+with the native `--ui-verify-home` launch argument, guarded by `--ui-verify`.
+Release fixture builds honor the same flags. They use the same bundle as other
+cases, without launching authentication or synchronization. A full worker run
+executes them first. New session creation verifies opening, switching 项目 /
+对话 via the title segment, and cancelling; projects not bound to a machine do
+not read machine configuration or send real messages.
 
-`--case navigation` uses the same offline providers and real `lody:///workspace/sessions/id` URLs. It checks warm links, initial-URL handling after a JS restart, repeated links, links from a settings sheet, workspace switching, unknown URLs, native Back and edge swipes. Reloading JS preserves `--ui-verify`, unlike a process launch via `openurl`; this case does not claim process-cold-launch coverage. The Debug-only navigation probe verifies that a session has exactly one Home beneath it and that returning leaves Home as the only route. Screenshots and video capture the transitions. The live-activity case separately verifies that an unavailable fixture session leaves the current page in place.
+`--case navigation` uses the same offline providers and real `lody:///workspace/sessions/id` URLs. It checks warm links, initial-URL handling after a JS restart, repeated links, links from a settings sheet, workspace switching, unknown URLs, native Back and edge swipes. It also relaunches the process three times per appearance with the offline flags, checking that the workspace button stays visible and stable and leaves room for Settings. Reloading JS preserves `--ui-verify`, unlike a process launch via `openurl`; cold deep-link launches are not covered. The Debug-only navigation probe verifies that a session has exactly one Home beneath it and that returning leaves Home as the only route. Screenshots and video capture the transitions. The live-activity case separately verifies that an unavailable fixture session leaves the current page in place.
 
 The iOS `react-native-screens` patch ignores late sheet-wrapper layout callbacks after the owning controller has been invalidated. The navigation case reproduces this during a settings-sheet dismissal followed by a workspace/session jump. Remove the patch when the installed upstream version handles these stale callbacks.
 
 The native toolbar patches keep items on their owning controller while it is offscreen.
-`react-native-screens` coordinates visibility with push/pop and reconciles cancelled
-gestures; `expo-router` no longer starts an extra item-removal animation on detach
-or lets offscreen updates show the shared toolbar. The navigation case also opens
-a Home row, cancels an edge pop, then returns, recording both appearances. Remove
-these patches once upstream provides this lifecycle coordination.
+`react-native-screens` declares `hidesBottomBarWhenPushed` before UIKit constructs
+the navigation transition, updating it when the controller receives toolbar items.
+This preserves UIKit's early Search glass fade instead of starting a second,
+late hide animation in `willShow`. `didShow` reconciles the winning controller after
+return or cancellation; it must not be the first point that reveals the bar.
+`expo-router` retains items on detach, defers item updates until navigation ends,
+and prevents offscreen updates from showing the shared toolbar. Do not hide the
+toolbar synchronously before push/pop: that removes the system Search fade.
+Settings is the reference: Search text and glass blur/fade out during push and
+become visible near the end of return. Brief overlap during that native fade is
+expected; a stationary duplicate, late reappearance or post-transition residue is not.
+The navigation case opens a Home row, cancels an edge pop, then returns.
+`--case navigation-toolbar` isolates two successive push/cancel/return cycles and
+checks that the restored search still filters the catalog, in both appearances.
+Light mode is the reported failure condition; Dark mode is the regression control.
+This case also checks cached session opening: the real row action reads SQLite
+and prepares native entries before navigation. `opening-*.json` records every
+display callback from the first attached frame through return; each opening must
+have visible message cells on its first sample and never show the empty loading
+label. The recording is still required to judge the actual transition frames.
+Review every encoded transition frame in `run.mp4` for continuous Search fading,
+no late residue, and correct cancellation recovery. Reject both abrupt removal
+and lingering glass; settled accessibility assertions cannot establish this. Remove these
+patches once upstream provides this lifecycle coordination.
 
 ### 10,000-message performance demo
 
@@ -308,7 +462,33 @@ block in both appearances. `stream-summary.json` reports callback FPS, p95 frame
 and commit time, text backlog, bottom gap, and catch-up time; `*-samples.json`
 retains raw samples. Screenshots and `run.mp4` capture streaming and completion.
 Assertions require complete output and final bottom alignment, plus native block
-layout parity, unchanged-prefix reuse, and late reference-link resolution.
+layout parity, unchanged-prefix reuse, and late reference-link resolution. The
+probe records `fading` independently of committed text length: long prose must
+still animate after 4096 units, and completion must wait for its final fade.
+Catch-up time includes that visual drain and the final bottom alignment.
+
+The offscreen scenario first scrolls within the visible prefix of a long reply,
+then through earlier history while input and completion continue. It returns near
+the frozen tail, then uses the production bottom action. Assertions require zero
+Markdown updates during the offscreen interval, a stable displayed prefix,
+authoritative completion, and the full latest text without replayed fades on return.
+The p95 offscreen callback time and Markdown update count are reported separately;
+its overall catch-up time includes the deliberate wait away from the reply.
+Visibility uses already measured block bounds: a single block crossing the viewport
+continues updating conservatively. This is a Simulator main-run-loop comparison,
+not device GPU frame timing.
+
+The same case then holds six syntax prefixes using the Debug toolbar: unfinished
+bold, inline code, an incomplete link, a complete link, an unfinished final word,
+and the stopped response. Review `syntax-*.png` and the recording. Native probes
+also check the actual bold font, plain-text incomplete link, and original-source
+restoration after completion. The source remains unchanged in the transcript.
+
+`pnpm --filter @lody-ios/mobile native:assets` bundles pinned Remend for isolated
+JavaScriptCore use (no WebView or remote script). `pnpm verify:native --case
+markdown-repair` exercises this exact asset, including literal code/escapes,
+Unicode, concurrent calls and fail-open behavior. Math repair is disabled to
+preserve the native parser's existing math/currency rules.
 
 These are Simulator Debug main-run-loop measurements, not GPU-presented FPS or
 physical-device model-token throughput. Compare identical input and appearances;
@@ -317,7 +497,14 @@ regressions. Performance numbers are reported without arbitrary pass thresholds.
 
 ### Send animation frame checks
 
-`send`, `send-handoff`, `send-rounds`, `send-queue`, `send-transition`, and `send-transition-handoff` enable the Debug-only `--ui-verify-throw` probe.
+`--case morph` opens the production new-session sheet from offline Home and
+checks close, backdrop dismissal and first-message handoff in both appearances.
+Native `lody-morph-*.json` samples must show a shrinking sheet and fading backdrop
+on every path. The send check also requires the same composer, unchanged focus
+and input state, and adoption within 1.5 pt. Review `run.mp4` for visual continuity;
+these fixtures do not send a cloud message.
+
+`send`, `send-handoff`, `send-rounds`, `send-queue`, `send-guide`, `send-transition`, and `send-transition-handoff` enable the `--ui-verify-throw` probe.
 It requests the Simulator screen's maximum refresh rate and samples Core Animation
 presentation geometry on every `CADisplayLink` callback, through 350ms after the
 nominal flight. Each case saves raw `lody-throw-*.json` files and a
@@ -333,19 +520,49 @@ interpolated or duplicated frames additional evidence.
 `--case file-preview` exercises embedded Markdown file links in chat and the
 process sheet, file-type symbols and VoiceOver actions, rendered Markdown/source
 switching, document-relative links, and the shared file-browser preview. It also
-opens PNG/PDF through system Quick Look and checks a missing-file error. The
-Debug-only `ui-verify-files` reader supplies local fixtures before the cloud
+checks the shared Expo DOM / Pierre File source renderer and parked WebView reuse with a 240-line code file for two-axis scrolling, target-line highlighting and
+automatic positioning, and reopening after interactive dismissal. It also
+opens PNG/PDF through presented Quick Look (`openFile`; pull-down dismisses;
+the image lightbox is not used) and checks a missing-file error.
+The Debug-only `ui-verify-files` reader supplies local fixtures before the cloud
 runtime; this case does not claim live Machine RPC or every Quick Look format.
+`LODY_VERIFY_FILE_SOURCE_ONLY=1` runs just the document/source, scrolling, line
+link and dismissal checks across browser/chat/process hosts, without Quick Look.
 Reads wait five seconds (PDF returns immediately): the browser must push a loading
 page before content arrives, clear selection on return, ignore a late image read
 after returning, and offer retry for a failed read.
 
-The throw probe also records each presentation frame's background color. It must
-start at the rendered input surface color and interpolate toward the user bubble
-color; both appearances fail if the color snaps directly to its destination.
+The throw uses a native snapshot of the rendered input pixels, including its
+material, and crossfades into the user bubble. It no longer redraws the window
+synchronously to sample a background color. The probe checks the destination
+background's interpolation from transparent to opaque; both appearances fail if
+it snaps directly to its destination. Review the framebuffer video for the
+source material as well.
 Queue fixtures inject service outcomes only; protocol checks additionally verify
 real Loro movable-list updates, persist-before-watermark ordering, and no replay
 after an uncertain write. They do not claim a connected-machine cloud run.
+
+`send-reliability` runs guide, outbox, local queue preference, queue/interrupt,
+ordinary send, and text/attachment handoff in both appearances with video.
+`send-guide` holds the native-send service result through durable-write and RPC
+stages: only the ACK unlocks the next send. It also checks a retained failure and
+same-ID retry, the target ending during preparation, and an ambiguous ACK that
+retains the message without a retry action. Native runtime checks separately
+exercise these outcomes through real Loro updates and the RPC transport seam.
+`outbox` dismisses a production composer sheet before the workspace dispatcher
+creates/sends its turn, retains a retryable sync failure, and verifies eight
+active sends plus one waiting send, slot reuse and final release. Its local
+service outcomes do not establish real cloud delivery or background OS time.
+
+`send-handoff` starts with a real software keyboard and the production
+`ComposerSheet`. `send-handoff-delayed` adds 1.2 seconds of destination preparation
+latency after dismissal. The same composer remains at its window position with
+its draft intact until the destination adopts it, then starts the normal message
+flight. Native reports verify identity, input state and geometry at adoption.
+The native composer check verifies deferred consumption, one dispatch and draft
+restoration. The original `composer-relay` POC remains available for comparison.
+These are deterministic latency checks, not a simulation of physical-device Low
+Power Mode or proof of device CPU/GPU frame rates.
 
 `send-transition` and `send-transition-handoff` send a long message and five real
 local file/image providers through the chat composer and the new-session sheet.
@@ -492,3 +709,87 @@ edge-to-edge restoration, a saved layout after the page stack is recreated,
 selection retention, and the visible photo anchor after switching while scrolled.
 The Photos fixture includes enough rows for a real scroll. Layout controls reuse
 AnchoredOverlayKit; the preference and photo layout stay in LodyKit.
+
+`agent-error` verifies native inline alert cards, separate detail/copy actions, hidden actions for historical or incomplete failures, single-dispatch manual retry, definite rejection, accepted continuation, compact content-driven height, stable pending action geometry and preserved composer drafts in both appearances. Its retry service is local; no cloud turn is sent. Set `LODY_VERIFY_RUNTIME` to an installed Simulator runtime identifier when the default iOS 27.0 runtime is unavailable.
+
+### Scroll edge host coverage
+
+`--case scroll-edge-pages` exercises a production paged form with the shared native
+composer: keyboard focus, page changes, and scrolling beneath the input.
+`--case scroll-edge-diff` exercises the production Diff WebView and native toolbar
+in Unified and Split modes, waiting for document-render completion before capture.
+Review the bottom edge fade (Diff) and soft-edge (paged form) screenshots in both appearances; passing accessibility checks
+alone does not establish the blur's visual correctness. Native file/service
+fixtures activate under `--ui-verify` in Debug and Release fixture builds.
+
+### Continuous steer
+
+`--case steer` opens an offline scene backed by the execution projector and NativeChat.
+It covers three accepted guidance messages, the completed user-message sequence above
+one AI process summary, both final text blocks, and opening the earlier AI process.
+Runtime checks separately exercise stale ACK/history and unavailable provider evidence.
+
+### Single-message paper sharing
+
+`--case message-share` opens an independently resettable offline message scene.
+It checks the native metadata menu, complete Markdown copy, system text/image
+sharing, the same JPEG used by preview and export, paragraph/block selection and select all/none, long replies, image attachments,
+missing model metadata, export-size and image-loading errors, and temporary-file
+cleanup on dismissal. It records light/dark screenshots and video and retains
+actual `*-export.jpg` files for visual inspection. The paper itself remains warm
+white in both appearances. The 1080 px export is capped at 12000 px high and fails
+explicitly rather than truncating. Fixture image loading does not prove live
+cloud authorization or third-party share destinations.
+
+### Opened session trees
+
+`session-tree` and `session-tree-pad` open an independently resettable Debug scene
+using production session projections and the iPhone grouped list / iPad sidebar.
+They verify two-level expansion, separate title navigation, collapsed count and
+attention summary, retention across catalog updates and project collapse, and
+filtered children remaining reachable without their opener. Light/dark screenshots
+and video cover both hosts. Service data is offline; this does not establish live
+cloud synchronization. Session trees use `openedBySessionId`; contained Tabs and
+transcript `subagent_task` items retain their existing UI.
+
+`--suite camera` exercises the attachment overlay camera in both composer hosts,
+using the same checks as `attachment-camera-chat` and `attachment-camera-sheet`.
+The explicit `--ui-verify-camera` launch fixture supplies a local image and rejects
+the first shutter press. The checks cover retry, flash/lens controls, direct
+attachment handoff, cancellation and foreground ownership. Screenshots and video
+cover the continuous menu/container transition. Share Extension retains its system
+attachment sheet because the keyboard overlay requires application-only APIs;
+its shared capture service is compiled into both targets.
+`verify:native --case composer` also checks JPEG storage, invalid input, overlay
+viewport resizing and ChatKit attachment handoff geometry/cleanup. Real camera
+preview, orientation, focus, flash and lens switching require iPhone validation;
+the fixture does not establish their hardware behavior.
+
+`--suite paste-plain` checks the native Paste as Plain Text menu in chat and the
+new-session composer, in English light/dark appearances. It verifies that long
+text stays inline and records menu/result screenshots and video. The native
+composer check also covers mixed text/image/RTF clipboard representations, selected
+text replacement and unavailable actions for nontext or read-only inputs.
+
+`message-details` uses the offline message fixture to verify the native collection-view
+Sheet, recorded configuration, exact token breakdown, absent metadata, late usage
+updates while open and the independent message-action menu in English light/dark
+appearances. Screenshots and video cover the states; no cloud turn is sent.
+
+`simulator-preview` uses the production preview hook, full-screen host, floating
+chat host and JPEG decoder with a local native frame source. It checks that the
+same renderer and connection survive return/expand, dragging stays within the
+chat, the keyboard stays clear, drafts survive, and close/reopen creates a fresh
+stream. Light/dark screenshots and video cover the transitions. This fixture
+requires neither cloud access nor a connected computer; it does not prove the
+remote tunnel's availability or background network continuity.
+It also cancels an interactive return, changes the selected device, stops sharing,
+and re-enters the chat; the fixture's active-source counter must stay at one, so
+an abandoned renderer cannot keep running unnoticed.
+Native presentation-layer traces verify fade blur in on each return, removal of
+the entrance blur, and no replay during dragging or keyboard layout changes.
+
+`--case attachment-overlay-create` additionally exercises the production native
+`CreateSessionController` form: photo authorization, keyboard coverage, attachment
+handoff and draft preservation. It uses the offline create-parity fixture and full
+Photos access.

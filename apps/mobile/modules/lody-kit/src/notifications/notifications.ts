@@ -28,6 +28,7 @@ export type LiveActivityDebugAction =
   | 'update-permission'
   | 'complete-one'
   | 'complete-all'
+  | 'fail-all'
   | 'end';
 export const liveActivityStatus = () => native.liveActivityStatus();
 export const setLiveActivitiesEnabled = (enabled: boolean) =>

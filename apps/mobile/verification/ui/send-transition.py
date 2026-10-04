@@ -1,6 +1,7 @@
 """Long-text landing and mixed attachment transitions through chat and sheet hosts."""
 import json
 import shutil
+import subprocess
 from pathlib import Path
 import sys
 from driver import UI
@@ -11,15 +12,33 @@ ui = UI(*sys.argv[1:])
 trace = ThrowTrace(ui)
 attachment_before = set(trace.folder.glob("lody-attachment-*.json"))
 source = 'create-session-input' if any(i.get('AXUniqueId') == 'create-session-input' for i in ui.state()) else 'session-input'
-for item in ui.state():
-    if item.get('AXLabel') == catalog.text('native.chat.attachment.remove', name='fixture.txt'):
-        ui.axe('tap', '--label', item['AXLabel'])
-        break
+remove_label = catalog.text('native.chat.attachment.remove', name='fixture.txt')
+if not any(item.get('AXLabel') == remove_label for item in ui.state()):
+    ui.paste_file(source)
+    remove_label = catalog.text('native.chat.attachment.remove', name='clipboard-fixture.txt')
+ui.capture('attachment-before-remove')
+ui.axe('tap', '--label', remove_label, '--post-delay', '.5')
+assert not any(item.get('AXLabel') == remove_label for item in ui.state())
+ui.capture('attachment-after-remove')
 names = ['01-notes.txt', '02-landscape.png', '03-report.txt', '04-portrait.png', '05-summary.txt']
 ui._paste_provider(source, 'mixed-pasteboard.swift', names)
-body = '\n'.join(f'{i:02d} This message keeps all text.' for i in range(1, 13))
+body = '\n'.join(f'Line {i:02d} This message keeps all text.' for i in range(1, 13))
 ui.axe('tap', '--id', source)
-ui.type_into(source, body)
+# This case verifies landing and attachment ownership, not HID key synthesis.
+# Paste through the real edit menu so Shift/autocorrection cannot alter the fixture.
+subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input=body, text=True, check=True, timeout=20)
+field = ui.element(source)['frame']
+ui.axe('touch', '-x', str(field['x'] + field['width'] / 2), '-y', str(field['y'] + field['height'] / 2), '--down', '--up', '--delay', '.8')
+paste = ui.wait(lambda items: max(
+    (item for item in items if item.get('AXLabel') == catalog.system('paste')),
+    key=lambda item: item['frame']['width'] * item['frame']['height'], default=None,
+), 'Paste did not appear for the long-text fixture')['frame']
+ui.axe('tap', '-x', str(paste['x'] + paste['width'] / 2), '-y', str(paste['y'] + paste['height'] / 2), '--post-delay', '.5')
+assert ui.element(source)['AXValue'] == body, 'Long-text fixture did not paste exactly'
+# HID typing may connect a hardware keyboard. Restore the phone keyboard before
+# measuring the input or its destination; preceding cases must not change this.
+subprocess.run([str(ui.output.parent.parent / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
+assert ui.element('inputView')['frame']['height'] > 200
 actual = ui.element(source)['AXValue']
 source_frame = ui.element(source)['frame']
 assert source_frame['height'] >= 130, 'Fixture did not reach the input height limit'
@@ -27,6 +46,7 @@ ui.capture('source-long-mixed')
 ui.axe('tap', '--id', 'session-send', '--post-delay', '1')
 timer = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':duration')), None), 'Destination did not show the local send')
 turn = timer['AXUniqueId'].removesuffix(':duration')
+assert timer['AXLabel'] == catalog.text('native.chat.transcript.status.confirming'), 'Unacked send must confirm delivery on the duration row'
 message_id = turn + ':user-text'
 message = ui.element(message_id)
 assert message['AXLabel'] == actual, 'Sending truncated message contents'
@@ -34,7 +54,8 @@ assert message['AXValue'] == catalog.text('native.chat.message.expand')
 assert abs(message['frame']['height'] - 24 - source_frame['height']) < 1.5, 'Bubble landing height differs from source viewport'
 # With the software keyboard open, the attachment row can be above the
 # viewport. Dismiss it through the production list's interactive scroll.
-if not any(item.get('AXUniqueId') == turn + ':attachments-toggle' for item in ui.state()):
+attachments_offscreen = not any(item.get('AXUniqueId') == turn + ':attachments-toggle' for item in ui.state())
+if attachments_offscreen:
     ui.capture('landed-keyboard')
     ui.axe('swipe', '--start-x', '200', '--start-y', '250', '--end-x', '200', '--end-y', '700', '--duration', '.5', '--post-delay', '.6')
 ui.element(turn + ':attachments-toggle')
@@ -72,9 +93,23 @@ assert ui.element(message_id)['AXValue'] == catalog.text('native.chat.message.ex
 ui.capture('attachments-expanded')
 image = next(item for item in items if '02-landscape.png' in (item.get('AXLabel') or ''))
 ui.axe('tap', '--id', image['AXUniqueId'])
-ui.wait(lambda items: any(item.get('AXLabel') == catalog.text('native.chat.image.closePreview') for item in items), 'Image tap did not open preview')
+close_preview = catalog.text('native.chat.image.closePreview')
+ui.wait(lambda items: any(item.get('AXLabel') == close_preview for item in items), 'Image tap did not open preview')
 ui.capture('image-preview')
-ui.axe('tap', '--label', catalog.text('native.chat.image.closePreview'), '--post-delay', '.5')
+screen = next(item for item in ui.state() if item.get('frame') and item['frame'].get('height', 0) > 500)
+width, height = screen['frame']['width'], screen['frame']['height']
+page_one = catalog.text('native.chat.image.page', current=1, total=2)
+page_two = catalog.text('native.chat.image.page', current=2, total=2)
+assert any(item.get('AXLabel') == page_one for item in ui.state()), 'Mixed attachments must open as a gallery'
+ui.axe('swipe', '--start-x', str(width * 0.8), '--start-y', str(height * 0.5),
+       '--end-x', str(width * 0.2), '--end-y', str(height * 0.5), '--duration', '0.4', '--post-delay', '0.8')
+assert any(item.get('AXLabel') == page_two for item in ui.state()), 'Gallery must swipe to the other photo'
+ui.axe('drag', '--start-x', str(width / 2), '--start-y', str(height * 0.45),
+       '--end-x', str(width / 2), '--end-y', str(height * 0.85),
+       '--duration', '0.6', '--post-delay', '2')
+assert not any(item.get('AXLabel') == close_preview for item in ui.state()), (
+    'Local attachment preview must dismiss with the zoom gesture'
+)
 ui.axe('tap', '--id', turn + ':attachments-toggle', '--post-delay', '.5')
 ui.capture('attachments-collapsed')
 
@@ -118,6 +153,7 @@ ui.capture('file-only-source')
 ui.axe('tap', '--id', 'session-send')
 status = ui.wait(lambda items: next((item for item in items if (item.get('AXUniqueId') or '').endswith(':duration') and not (item.get('AXUniqueId') or '').startswith(turn)), None), 'Attachment-only send missing')
 file_turn = status['AXUniqueId'].removesuffix(':duration')
+assert status['AXLabel'] == catalog.text('native.chat.transcript.status.confirming'), 'Unacked attachment-only send must confirm delivery on the duration row'
 file_items = [item for item in ui.state() if (item.get('AXUniqueId') or '').startswith(file_turn + ':attachment:')]
 assert len(file_items) == 1 and 'clipboard-fixture.txt' in file_items[0]['AXLabel']
 assert file_items[0].get('AXValue') == catalog.text('send.status.uploading'), 'File-only tile must show loading'
@@ -133,14 +169,29 @@ for file in files:
     data = json.loads(file.read_text())
     assert abs(data['source'][3] - data['destination'][3]) < 1.5, 'Flight changed the long-text viewport height'
     assert data['destination'][3] <= 140.5
-print('PASS: same-height long-text landing, independent expansion, ordered mixed attachments, image preview and native flight continuity')
+print('PASS: same-height long-text landing, independent expansion, ordered mixed attachments, image preview and native transition continuity')
 
 attachment_paths = set(trace.folder.glob('lody-attachment-*.json')) - attachment_before
-assert len(attachment_paths) >= 2, 'Both file and image flights must be recorded'
+# A reader drag cancels offscreen pending copies instead of starting a flight
+# against the moving viewport. The later file-only send must still animate.
+assert len(attachment_paths) >= (1 if attachments_offscreen else 2), 'Missing visible attachment flight'
 attachment_reports = []
 for path in sorted(attachment_paths):
     shutil.copy2(path, ui.output / path.name)
     data = json.loads(path.read_text())
+    viewport = data['samples'][0]['listFrame']
+    x, y, width, height = data['destination']
+    assert x >= viewport[0] - 1.5 and y >= viewport[1] - 1.5, 'Attachment flew to a clipped destination'
+    assert x + width <= viewport[0] + viewport[2] + 1.5 and y + height <= viewport[1] + viewport[3] + 1.5, 'Attachment landed outside the list viewport'
+    if data.get('transition') == 'reveal':
+        frames = [sample for sample in data['samples'] if sample['event'] == 'frame' and sample['t'] >= sample['budget']]
+        assert len(frames) >= 4 and not data['cancelled'], 'Missing late attachment reveal samples'
+        assert all(not sample['targetHidden'] for sample in frames), 'Late attachment stayed hidden'
+        assert frames[0]['opacity'] < .75 and frames[-1]['opacity'] >= .99, 'Late attachment did not fade into view'
+        error = max(max(abs(a - b) for a, b in zip(sample['frame'], data['destination'])) for sample in frames)
+        assert error <= 1.5, f'Late attachment moved {error}pt during reveal'
+        attachment_reports.append({'file': path.name, 'transition': 'reveal', 'landingErrorPt': error, 'frames': len(frames)})
+        continue
     flight = [sample for sample in data['samples'] if not sample['adopted']]
     landed = [sample for sample in data['samples'] if sample['adopted']]
     assert flight and landed and not data['cancelled'], 'Attachment flight did not complete'
@@ -150,4 +201,4 @@ for path in sorted(attachment_paths):
     assert error <= 1.5, f'Attachment jumped {error}pt when it landed'
     attachment_reports.append({'file': path.name, 'landingErrorPt': error, 'frames': len(flight)})
 (ui.output / 'attachment-summary.json').write_text(json.dumps(attachment_reports, indent=2))
-print('PASS: file/image/overflow flights hide their destinations until a continuous landing')
+print('PASS: file/image/overflow handoffs either land continuously or reveal the late destination without a stale flight')

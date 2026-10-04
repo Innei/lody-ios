@@ -2,14 +2,17 @@ import UIKit
 
 extension LodyChatView {
   var composerInset: CGFloat {
-    processEntryID.isEmpty ? max(0, bounds.maxY - composer.frame.minY - collection.safeAreaInsets.bottom) + 8 : 0
+    // Retiring glass keeps its drawing space, not the transcript's scroll space.
+    processEntryID.isEmpty ? max(0, bounds.maxY - composer.frame.minY - composer.retiringQueueHeight - collection.safeAreaInsets.bottom) + 8 : 0
   }
 
   @discardableResult
   func updateBottomInset() -> Bool {
     let base = composerInset
     var space: CGFloat = 0
-    if let id = anchoredUserID, let index = dataSource.indexPath(for: id),
+    if let id = anchoredUserID,
+       let entryID = rows[id]?.entryID,
+       let index = dataSource.indexPath(for: entryID + ":delivery") ?? dataSource.indexPath(for: id),
        let frame = collection.layoutAttributesForItem(at: index)?.frame {
       let naturalBottom = collection.contentSize.height - collection.bounds.height + collection.safeAreaInsets.bottom + base
       space = max(0, frame.minY - collection.adjustedContentInset.top - naturalBottom)
@@ -40,9 +43,9 @@ extension LodyChatView {
       toggleExpansion(row)
       return
     }
-    if let cell = collectionView.cellForItem(at: indexPath) as? ChatImageCell, let controller = presenter() {
-      pauseTracking()
-      cell.presentPreview(from: controller)
+    if let cell = collectionView.cellForItem(at: indexPath) as? ChatImageCell,
+       let id = dataSource.itemIdentifier(for: indexPath) {
+      openImageGallery(id: id, source: cell)
       return
     }
     guard let id = dataSource.itemIdentifier(for: indexPath), let row = rows[id], row.actionable else { return }
@@ -54,11 +57,47 @@ extension LodyChatView {
       onRetrySend([:])
       return
     }
-    if let pendingSend, id == pendingSend.id + ":pending", pendingSend.reconnect == true {
-      onReconnect([:])
-      return
-    }
     onActivityPress(["entryId": row.entryID, "itemId": row.itemID, "processStartId": row.processStartID])
+  }
+
+  func galleryItems() -> [ChatImagePreviewItem] {
+    ChatImageGallery.items(from: dataSource.snapshot().itemIdentifiers.compactMap { rows[$0] })
+  }
+
+  func imageCell(id: String) -> ChatImageCell? {
+    if let index = dataSource.indexPath(for: id),
+       let cell = collection.cellForItem(at: index) as? ChatImageCell {
+      return cell
+    }
+    guard let row = rows.values.first(where: {
+      $0.kind == "attachments" && id.hasPrefix($0.entryID + ":attachment:")
+    }), let index = dataSource.indexPath(for: row.id),
+      let cell = collection.cellForItem(at: index) as? ChatMessageAttachmentsCell else { return nil }
+    return cell.imageCell(id: id)
+  }
+
+  func openImageGallery(id: String, source: ChatImageCell?) {
+    guard let controller = presenter(), controller.presentedViewController == nil else { return }
+    let items = galleryItems()
+    guard let index = ChatImageGallery.index(of: id, in: items) else { return }
+    pauseTracking()
+    var placeholders: [String: UIImage] = [:]
+    for item in items {
+      if let image = imageCell(id: item.id)?.displayedImage { placeholders[item.id] = image }
+    }
+    if let source, let image = source.displayedImage { placeholders[id] = image }
+    imagePreview = ChatImagePreview.present(
+      from: controller,
+      items: items,
+      index: index,
+      workspace: imageWorkspace,
+      session: imageSession,
+      placeholders: placeholders,
+      sourceView: { [weak self] pageId in
+        guard let cell = self?.imageCell(id: pageId), cell.window != nil else { return nil }
+        return cell.zoomSource
+      }
+    )
   }
 
   func openAttachment(_ attachment: ChatMessageAttachment) {
@@ -138,15 +177,54 @@ extension LodyChatView {
   }
 
   func pauseTracking() {
+    if let handoffID { ChatSendHandoff.cancelWaitingAttachments(id: handoffID) }
     followsBottom = false
     trackingPausedByGesture = true
     sendScroll = nil
     awaitingUserAnchor = false
   }
 
+  /// Reuse measured geometry; scrolling must never parse or size unseen text.
+  @discardableResult
+  func updateDeferredStreams() -> Bool {
+    guard hasPositionedContent, !applying, !rendering else { return false }
+    let candidates = Set(rows.values.filter(\.streaming).map(\.entryID)).union(deferredRows.keys)
+    let viewport = collection.bounds.inset(by: UIEdgeInsets(
+      top: collection.adjustedContentInset.top, left: 0,
+      bottom: collection.safeAreaInsets.bottom + composerInset, right: 0))
+    var resumed = false
+    for entryID in candidates {
+      let entryRows = deferredRows[entryID] ?? rows.values.filter { $0.entryID == entryID }
+      let textRows = entryRows.filter { $0.streaming && ($0.kind == "text" || $0.kind == "thought") }
+      // Resume before the boundary reaches the screen, with hysteresis to avoid churn.
+      let margin: CGFloat = deferredRows[entryID] == nil ? 80 : 160
+      let nearby = viewport.insetBy(dx: 0, dy: -margin)
+      let offscreen = !textRows.isEmpty && textRows.allSatisfy { row in
+        guard let index = dataSource.indexPath(for: row.id),
+              let frame = collection.layoutAttributesForItem(at: index)?.frame else { return false }
+        let changing = store.tailFrame(id: row.id)?.offsetBy(dx: frame.minX, dy: frame.minY) ?? frame
+        return !changing.intersects(nearby)
+      }
+      if !followsBottom, !findPresented, offscreen {
+        if deferredRows[entryID] == nil {
+          deferredRows[entryID] = dataSource.snapshot().itemIdentifiers.compactMap { rows[$0] }.filter { $0.entryID == entryID }
+          stream.finish(entries: [entryID])
+          for row in entryRows { rowHeights[row.id] = nil }
+        }
+      } else if deferredRows.removeValue(forKey: entryID) != nil {
+        catchingUpEntries.insert(entryID)
+        resumed = true
+      }
+    }
+    if resumed { startFrameTimer() }
+    return resumed
+  }
+
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
     guard scrollView === collection else { return }
+    updateDeferredStreams()
     updateBottomButton()
+    refreshFindHighlights()
     prefetchHistoryIfNeeded()
   }
 
@@ -177,13 +255,7 @@ extension LodyChatView {
 
   func updateBottomButton() {
     let bottom = bottomOffset
-    let visible = processEntryID.isEmpty && !followsBottom && bottom - collection.contentOffset.y > CGFloat(ChatScroll.resumeDistance)
-    guard visible != bottomButton.isUserInteractionEnabled else { return }
-    bottomButton.isUserInteractionEnabled = visible
-    bottomButton.accessibilityElementsHidden = !visible
-    UIView.animate(withDuration: 0.15, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
-      self.bottomButton.alpha = visible ? 1 : 0
-    }
+    overlay.scrollVisible = processEntryID.isEmpty && !followsBottom && bottom - collection.contentOffset.y > CGFloat(ChatScroll.resumeDistance)
   }
 
   func scrollToBottom() {
@@ -220,6 +292,12 @@ extension LodyChatView {
       collection.layoutIfNeeded()
       updateBottomInset()
       restoreAnchor(anchor)
+      for (id, originalHeight) in deliveryExits {
+        if let index = dataSource.indexPath(for: id), let cell = collection.cellForItem(at: index) {
+          let height = rowHeights[id]?.current ?? 0
+          cell.contentView.alpha = max(0, height / max(1, originalHeight))
+        }
+      }
     }
     let tracking = followsBottom && !collection.isDragging && !collection.isDecelerating
     if tracking {
@@ -239,6 +317,7 @@ extension LodyChatView {
     }
     deliverPendingContent()
     movingLayout = false
+    if deliveryExits.keys.contains(where: { rowHeights[$0] == nil }) { applyRows() }
     updateBottomButton()
     if rowHeights.isEmpty && (!tracking || abs(collection.contentOffset.y - bottomOffset) <= 0.5) {
       link.invalidate()
@@ -256,6 +335,9 @@ extension LodyChatView {
   }
 
   func restoreAnchor(_ anchor: (String, CGFloat)?) {
+    // UIKit owns the top rubber band, including deceleration after release.
+    // A live update must not clamp it to the resting boundary.
+    guard collection.contentOffset.y >= -collection.adjustedContentInset.top else { return }
     guard let (id, y) = anchor, let index = dataSource.indexPath(for: id),
           let frame = collection.layoutAttributesForItem(at: index)?.frame else { return }
     collection.contentOffset.y = max(-collection.adjustedContentInset.top, frame.minY - y)
@@ -270,10 +352,11 @@ extension LodyChatView {
     }
     let width = ChatReadingColumn.itemWidth(in: collection.bounds.width)
     for row in projected where row != previous[row.id] {
+      if catchingUpEntries.contains(row.entryID) { rowHeights[row.id] = nil; continue }
       // Long replies grow at the content-commit cadence. Animating their height
       // would invalidate the entire collection at display refresh rate; the
-      // bottom follower and block opacity animation already keep motion smooth.
-      if (row.kind == "text" || row.kind == "thought") && row.text.utf16.count > ChatStream.blockAnimationLength {
+      // bottom follower and text fades already keep motion smooth.
+      if (row.kind == "text" || row.kind == "thought") && row.text.utf16.count > 1024 {
         rowHeights[row.id] = nil
         continue
       }
@@ -336,6 +419,7 @@ extension LodyChatView {
       return CGSize(width: width, height: height.current)
     }
     rowHeights[id] = nil
+    if deliveryExits[id] != nil { return CGSize(width: width, height: 0) }
     return CGSize(width: width, height: rowHeight(row, width: width))
   }
 
@@ -343,14 +427,16 @@ extension LodyChatView {
     if row.kind == "attachments" {
       return ChatMessageAttachmentsCell.height(count: row.attachments.count, width: width, expanded: expandedAttachments.contains(row.entryID))
     }
-    if row.kind == "meta" { return ChatMetaCell.height(for: row, width: width, traits: traitCollection) }
+    if row.kind == "chat_failed" { return ChatErrorCell.height(row, width: width, traits: traitCollection) }
+    if row.subagent != nil { return ChatSubagentCell.height(row, width: width, traits: traitCollection) }
+    if row.kind == "meta" { return ChatMetaCell.height(for: row, width: width, traits: traitCollection, detailsEnabled: turnInfoEnabled) }
     if row.kind == "changesHeader" { return 28 }
     if row.kind == "changes" { return ChatFileCell.rowHeight() }
     let measured = measure(row, width: width)
     if row.kind == "user" {
       return ChatMessageContent.height(textHeight: measured,
         limit: collapsedMessageHeights[row.entryID] ?? ChatMessageContent.maximumCollapsedHeight,
-        expanded: expandedMessages.contains(row.entryID)) + 24
+        expanded: expandedMessages.contains(row.entryID)) + ChatRowPadding.content + 12
     }
     // Process and pending status rows are buttons. Duration stays copy-sized
     // even after the folded process makes it tappable — a 44 pt floor would
@@ -383,7 +469,11 @@ extension LodyChatView {
   }
 
   func deliverPendingContent() {
-    guard window != nil, hasAppeared, !applying else { return }
+    guard window != nil, hasAppeared, !applying, !needsApply else { return }
+    // The native optimistic row precedes the published local connection/queue state.
+    // Start from that committed projection, not a destination that its echo moves.
+    if let pendingSend, pendingSend.id == handoffID,
+       publishedPendingID != pendingSend.id, !composerHasAcknowledgedSend { return }
     collection.layoutIfNeeded()
     let distance = followsBottom ? bottomOffset - collection.contentOffset.y : 0
     if let handoffID, followsBottom, abs(distance) > 0.5,
@@ -421,11 +511,11 @@ private final class ChatMotionTarget: NSObject {
   }
 }
 
-#if DEBUG
 // Opt-in, offline fixture geometry only. No message text or account data leaves
 // the view. The independent sampler observes UIKit, not the motion's targets.
 @MainActor
 final class ChatScrollProbe: NSObject {
+  private let capturesOpening = LodyUIVerify.has("--ui-verify-opening")
   weak var view: LodyChatView?
   private var link: CADisplayLink?
   private var samples: [[String: Any]] = []
@@ -440,23 +530,24 @@ final class ChatScrollProbe: NSObject {
   }
   @objc private func sample(_ link: CADisplayLink) {
     guard let view, samples.count < 10800 else { stop(); return }
-    guard view.rows.keys.contains(where: { $0.hasPrefix("scroll-") || $0.hasPrefix("perf-") }) else { return }
+    guard capturesOpening || view.rows.keys.contains(where: { $0.hasPrefix("scroll-") || $0.hasPrefix("perf-") }) else { return }
     let list = view.collection
     var visible: [String: Any] = [:]
     for index in list.indexPathsForVisibleItems {
       guard let id = view.dataSource.itemIdentifier(for: index),
-            id.hasPrefix("scroll-") || id.hasPrefix("perf-"),
+            capturesOpening || id.hasPrefix("scroll-") || id.hasPrefix("perf-"),
             let cell = list.cellForItem(at: index) else { continue }
       let frame = cell.layer.presentation()?.frame ?? cell.frame
       let offset = list.layer.presentation()?.bounds.minY ?? list.contentOffset.y
       visible[id] = ["y": frame.minY - offset, "height": frame.height]
     }
     samples.append(["t": link.timestamp - started, "offset": list.contentOffset.y,
-      "bottom": view.bottomOffset, "contentHeight": list.contentSize.height,
+      "bottom": view.bottomOffset, "top": -list.adjustedContentInset.top, "contentHeight": list.contentSize.height,
       "inset": list.adjustedContentInset.bottom, "following": view.followsBottom,
       "dragging": list.isDragging || list.isDecelerating,
       "touching": list.isTracking, "panY": list.panGestureRecognizer.translation(in: view.window).y,
       "paging": view.preparingHistory, "scrollingToTop": view.scrollingToTop,
+      "loadingVisible": !view.empty.isHidden,
       "count": view.rows.count, "rows": visible])
   }
   func stop() {
@@ -469,9 +560,7 @@ final class ChatScrollProbe: NSObject {
     samples.removeAll()
   }
 }
-#endif
 
-#if DEBUG
 // Measures main-run-loop delivery, not GPU presentation. No text is recorded.
 @MainActor
 final class ChatPerformanceProbe: NSObject {
@@ -597,4 +686,42 @@ final class ChatPerformanceProbe: NSObject {
     return result == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
   }
 }
-#endif
+
+
+extension LodyChatView {
+  func messageMenu(entryID: String, source: UIButton) -> UIMenu {
+    UIMenu(children: [UIDeferredMenuElement.uncached { [weak self, weak source] completion in
+      guard let self, let source,
+        let content = ChatMessageShare.content(in: self.transcript, entryID: entryID) else {
+        completion([])
+        return
+      }
+      @MainActor func action(_ key: String, symbol: String, disabled: Bool = false) -> UIAction {
+        UIAction(title: LodyStrings.text("native.chat.message." + key), image: UIImage(systemName: symbol),
+          attributes: disabled ? .disabled : []) { [weak self, weak source] _ in
+          guard let self, let source else { return }
+          if key == "copy" {
+            UIPasteboard.general.setMessageMarkdown(content.text)
+            LodyToastOverlay.shared.show(message: LodyStrings.text("native.chat.message.copied"), kind: "info")
+          } else if key == "image" {
+            var snapshot = content
+            snapshot.workspace = self.imageWorkspace
+            snapshot.session = self.imageSession
+            guard let data = try? JSONEncoder().encode(snapshot), let json = String(data: data, encoding: .utf8) else { return }
+            self.onShareImage(["contentJSON": json])
+          } else if let owner = self.presenter(), owner.presentedViewController == nil {
+            let sheet = UIActivityViewController(activityItems: [content.text], applicationActivities: nil)
+            sheet.popoverPresentationController?.sourceView = source
+            sheet.popoverPresentationController?.sourceRect = source.bounds
+            owner.present(sheet, animated: true)
+          }
+        }
+      }
+      completion([
+        action("copy", symbol: "doc.on.doc", disabled: content.text.isEmpty),
+        action("image", symbol: "photo", disabled: !self.imageSharingEnabled),
+        action("share", symbol: "square.and.arrow.up", disabled: content.text.isEmpty),
+      ])
+    }])
+  }
+}

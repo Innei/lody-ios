@@ -3,17 +3,25 @@ import {
   useContext,
   useEffect,
   useState,
+  useSyncExternalStore,
   type PropsWithChildren,
 } from 'react';
 import { showToast } from '@/ui/toast';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { subscribeCatalog } from './runtime';
+import { keepRepos } from './model';
 import { usePendingSends } from '../send/pendingSends';
+import { useOutboxDispatcher } from '../send/outboxDispatcher';
+import {
+  getForegroundSession,
+  subscribeForegroundSession,
+} from '../send/foregroundSession';
 import { publishConnection } from './connection';
 import { localGeneration, readLocal, writeLocal } from '../kv';
 import { catalogKey, selectionKey } from './persist';
 import type { Catalog, SavedCatalog } from '../../models/catalog.ts';
 import { t } from '../../lib/i18n/index.ts';
+import { deleteSession } from '@lody-ios/kit';
 
 const empty: Catalog = { projects: [], sessions: [], machineIds: [] };
 function valid(saved: SavedCatalog | null): saved is SavedCatalog {
@@ -33,6 +41,11 @@ function useCatalogState() {
     account?.workspaces.find((w) => w.id === workspaceId) ??
     account?.workspaces[0];
   const pending = usePendingSends(account?.user.id ?? '', selected?.id ?? '');
+  const foregroundSessionId = useSyncExternalStore(
+    subscribeForegroundSession,
+    getForegroundSession,
+    getForegroundSession,
+  );
   const key =
     account && selected ? catalogKey(account.user.id, selected.id) : '';
   const [snapshot, setSnapshot] = useState({
@@ -67,6 +80,7 @@ function useCatalogState() {
         ? initialCatalog
         : null;
     syncedAt = seed?.syncedAt;
+    let known = seed?.catalog ?? empty;
     machines = seed?.catalog.machineIds.length ?? 0;
     setSnapshot((old) => ({
       key,
@@ -78,6 +92,7 @@ function useCatalogState() {
     publishConnection({ state, machines, syncedAt });
     void readLocal<SavedCatalog>(key).then((saved) => {
       if (!active || received || !valid(saved)) return;
+      known = saved.catalog;
       syncedAt = saved.syncedAt;
       machines = saved.catalog.machineIds.length;
       setSnapshot((old) =>
@@ -97,8 +112,10 @@ function useCatalogState() {
       selected.slug ?? selected.id,
       selected.name,
       account.user.id,
-      (event, data) => {
+      (event, fresh) => {
+        const data = fresh && keepRepos(fresh, known);
         if (data) {
+          known = data;
           received = true;
           syncedAt = Date.now();
           machines = data.machineIds.length;
@@ -150,6 +167,13 @@ function useCatalogState() {
       showToast(t('catalog.toast.workspaceSaveFailed')),
     );
   }
+  useOutboxDispatcher({
+    outbox: pending,
+    userId: account?.user.id ?? '',
+    connected: current.connected && !current.loading,
+    serverSessions: current.catalog.sessions,
+    foregroundSessionId,
+  });
   return {
     ...current,
     serverSessions: current.catalog.sessions,
@@ -170,9 +194,33 @@ function useCatalogState() {
     selected,
     setWorkspaceId,
     refresh: () => setRevision((n) => n + 1),
+    deleteSessionRequest: async (payload: string) => {
+      const args = JSON.parse(payload) as {
+        workspaceId: string;
+        sessionIds: string[];
+      };
+      const currentPending = pending.getSnapshot();
+      if (
+        args.workspaceId !== selected?.id ||
+        !currentPending.ready ||
+        currentPending.records.some((record) =>
+          args.sessionIds.includes(record.session.id),
+        )
+      )
+        throw new Error('session_has_pending_send');
+      return deleteSession(payload);
+    },
   };
 }
-const Context = createContext<ReturnType<typeof useCatalogState> | null>(null);
+type CatalogState = Omit<
+  ReturnType<typeof useCatalogState>,
+  'deleteSessionRequest'
+> & {
+  syncedAt?: number;
+  key?: string;
+  deleteSessionRequest?: typeof deleteSession;
+};
+const Context = createContext<CatalogState | null>(null);
 export function CatalogProvider({ children }: PropsWithChildren) {
   const value = useCatalogState();
   return <Context value={value}>{children}</Context>;

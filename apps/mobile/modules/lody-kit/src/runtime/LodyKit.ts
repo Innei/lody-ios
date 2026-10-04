@@ -3,10 +3,16 @@ import { NativeModule, requireNativeModule } from 'expo';
 export interface RuntimeInfo {
   offlineProbe?: boolean;
   uiVerifyHome: boolean;
+  uiVerifySessionSearch: boolean;
   moduleName: string;
   systemVersion: string;
 }
+export type InboxSearchHits = {
+  projectIds: string[];
+  sessions: { id: string; snippet: string | null }[];
+};
 export type DataRuntimeEvent = {
+  shareProgress?: import('../../../../src/models/session-sharing').ShareProgress;
   sessionId?: string;
   session?: string;
   owner: string;
@@ -29,13 +35,21 @@ export type AttachmentUploadProgress = {
   phase: 'preparing' | 'uploading' | 'verifying' | 'complete';
   percent?: number;
 };
+export type PickedWorkspaceIcon = {
+  uri: string;
+  name: string;
+  type: string;
+  size: number;
+};
 type Events = {
+  onAccentColorChange: (event: { value: string }) => void;
   onAttachmentUploadProgress: (event: AttachmentUploadProgress) => void;
   onPushClick: () => void;
   onAppActive: () => void;
   onDataRuntime: (event: DataRuntimeEvent) => void;
 };
 declare class LodyKitNativeModule extends NativeModule<Events> {
+  sessionSharing(payload: string): Promise<string>;
   verifyPushSubscription(): Promise<void>;
   setPushUser(userId: string | null): Promise<void>;
   pushStatus(): Promise<import('../notifications/notifications').PushStatus>;
@@ -51,6 +65,11 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
     catalog?: string;
   }>;
   readLocalValue(key: string): Promise<string | null>;
+  searchInbox(
+    userId: string,
+    workspaceId: string,
+    query: string,
+  ): Promise<InboxSearchHits>;
   writeLocalValue(key: string, value: string): Promise<void>;
   clearLocalValues(): Promise<void>;
   readonly runtimeInfo: RuntimeInfo;
@@ -58,28 +77,64 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   saveInboxView(index: number): void;
   readonly initialInboxProjectSort: number;
   saveInboxProjectSort(index: number): void;
+  readonly initialAccentColor: string;
+  saveAccentColor(value: string): void;
+  accentHex(value: string, dark: boolean): string;
+  accentForegroundHex(value: string): string;
+  showAccentColorPicker(title: string): Promise<void>;
+  getAppIcon(): Promise<string>;
+  setAppIcon(name: string): Promise<string>;
   readonly initialDarkBackground: string;
   saveDarkBackground(value: string): void;
+  readonly initialQueuedMessageBehavior: string;
+  saveQueuedMessageBehavior(value: string): void;
+  readonly initialQuickRepliesJSON: string;
+  saveQuickReplies(json: string): void;
   readInboxExpansion(): Record<string, boolean>;
   saveInboxExpansion(projectId: string, expanded: boolean): void;
+  readInboxPinOrder(userId: string, workspaceId: string): string[];
+  saveInboxPinOrder(userId: string, workspaceId: string, ids: string[]): void;
   watchSession(id: string): Promise<void>;
+  prepareChatEntries(
+    json: string,
+  ): Promise<import('../chat/PreparedChatEntries').PreparedChatEntries>;
   unwatchSession(id: string): Promise<void>;
+  ensureSession(id: string): Promise<void>;
+  releaseReserve(id: string): Promise<void>;
   sessionCreationOptions(payload: string): Promise<string>;
+  workspaceBillingEntitlement(
+    workspaceId: string,
+    userId: string,
+  ): Promise<string>;
   githubPullRequest(payload: string): Promise<string>;
   githubRepositories(workspaceId: string): Promise<string[]>;
+  shareWriteCatalog(json: string): void;
+  shareWriteOptions(target: string, json: string): void;
+  sharePending(): string;
+  shareAdopt(id: string): string;
+  shareRemove(id: string): void;
   localProjects(payload: string): Promise<string>;
   remoteSettings(payload: string): Promise<string>;
   createSession(payload: string): Promise<string>;
   archiveSession(payload: string): Promise<string>;
+  deleteSession(payload: string): Promise<string>;
   pinSession(payload: string): Promise<string>;
   markSessionRead(payload: string): Promise<string>;
+  renameSession(payload: string): Promise<string>;
   controlSessionTurn(payload: string): Promise<string>;
+  sessionPreview(payload: string): Promise<string>;
+  iosSimulatorControl(payload: string): Promise<string>;
+  openPreviewBrowser(url: string): Promise<void>;
   sendSessionTurn(payload: string): Promise<string>;
+  readSessionEdit(payload: string): Promise<string>;
+  prepareSessionEdit(payload: string): Promise<string>;
+  sendSessionEdit(payload: string): Promise<string>;
   sessionItemDetail(payload: string): Promise<string>;
   respondSessionPermission(payload: string): Promise<string>;
   turnDiff(payload: string): Promise<string>;
   fileDiff(payload: string): Promise<string>;
   readFile(payload: string): Promise<string>;
+  openFile(sessionId: string, path: string, line: number): Promise<boolean>;
   listDir(payload: string): Promise<string>;
   mentionCatalog(payload: string): Promise<string>;
   readContentText(handle: string): Promise<string | null>;
@@ -103,7 +158,15 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   debugProbeSchema(): Promise<string>;
   debugRestartDataRuntime(): Promise<void>;
   selectionFeedback(): Promise<void>;
+  debugReplyHaptics(
+    chunksMs: number[],
+    config: ReplyHapticsConfig,
+  ): Promise<number>;
+  pickWorkspaceIcon(): Promise<PickedWorkspaceIcon | null>;
+  cancelComposerRelay(id: string): Promise<void>;
   showToast(message: string, kind: string): void;
+  prepareMorphReveal(sourceLabel: string): void;
+  morphDismiss(): Promise<void>;
   copyText(text: string): void;
   showSessionBanner(title: string, kind: string): void;
   dismissSessionBanner(): void;
@@ -121,12 +184,64 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
 export const native = requireNativeModule<LodyKitNativeModule>('LodyKit');
 export const remoteSettingsRaw = (payload: string): Promise<string> =>
   native.remoteSettings(payload);
+export const sessionSharingRaw = (payload: string): Promise<string> =>
+  native.sessionSharing(payload);
 export const runtimeInfo = native.runtimeInfo;
+export const initialAccentColor = native.initialAccentColor;
+export const saveAccentColor = (value: string) => native.saveAccentColor(value);
+export const accentForegroundHex = (value: string) =>
+  native.accentForegroundHex(value);
+export const accentHex = (value: string, dark: boolean) =>
+  native.accentHex(value, dark);
+export const showAccentColorPicker = (title: string) =>
+  native.showAccentColorPicker(title);
+export const addAccentColorListener = (
+  listener: (event: { value: string }) => void,
+) => native.addListener('onAccentColorChange', listener);
+export const getAppIcon = () => native.getAppIcon();
+export const setAppIcon = (name: string) => native.setAppIcon(name);
 export const initialDarkBackground = native.initialDarkBackground;
 export const saveDarkBackground = (value: string) =>
   native.saveDarkBackground(value);
+export const initialQueuedMessageBehavior = native.initialQueuedMessageBehavior;
+export const saveQueuedMessageBehavior = (value: string) =>
+  native.saveQueuedMessageBehavior(value);
+export const initialQuickRepliesJSON = native.initialQuickRepliesJSON;
+export const saveQuickReplies = (json: string) => native.saveQuickReplies(json);
 export function selectionFeedback(): Promise<void> {
   return native.selectionFeedback();
+}
+
+export type ReplyHapticsConfig = {
+  window: number;
+  duration: number;
+  interval: number;
+  count: number;
+  intensity: number;
+  endIntensity: number;
+  curve: number;
+  sharpness: number;
+};
+
+export const debugReplyHaptics = (
+  chunksMs: number[],
+  config: ReplyHapticsConfig,
+) => native.debugReplyHaptics(chunksMs, config);
+
+export function pickWorkspaceIcon(): Promise<PickedWorkspaceIcon | null> {
+  return native.pickWorkspaceIcon();
+}
+
+export function cancelComposerRelay(id: string): Promise<void> {
+  return native.cancelComposerRelay(id);
+}
+
+export function prepareMorphReveal(sourceLabel: string): void {
+  native.prepareMorphReveal(sourceLabel);
+}
+
+export function morphDismiss(): Promise<void> {
+  return native.morphDismiss();
 }
 
 export type ToastKind = 'info' | 'warning' | 'error';
@@ -161,6 +276,63 @@ export const saveAuthToken = (token: string) => native.saveAuthToken(token);
 export const clearAuthToken = () => native.clearAuthToken();
 export const openAuthBrowser = (url: string) => native.openAuthBrowser(url);
 export const closeAuthBrowser = () => native.closeAuthBrowser();
+export type SessionPreviewReply = {
+  url?: string;
+  error?: string;
+  message?: string;
+};
+export const sessionPreview = async (
+  sessionId: string,
+  action: 'create' | 'revoke' = 'create',
+): Promise<SessionPreviewReply> =>
+  JSON.parse(
+    await native.sessionPreview(JSON.stringify({ sessionId, action })),
+  );
+export type IosSimulatorCommand =
+  | { action: 'list' }
+  | { action: 'exterior'; udid: string }
+  | { action: 'start'; udid: string }
+  | { action: 'status'; operationId?: string }
+  | { action: 'stop'; operationId: string };
+export type IosSimulatorDevice = {
+  udid: string;
+  name: string;
+  runtime: string;
+  deviceType: string;
+  state: string;
+  available: boolean;
+  unavailableReason?: string;
+  occupancy: 'available' | 'this-session' | 'other-session';
+};
+export type IosSimulatorPreview = {
+  operationId: string;
+  udid: string;
+  phase: 'preparing' | 'booting' | 'connecting' | 'ready' | 'closed' | 'failed';
+  transport: 'local' | 'remote';
+  viewerUrl?: string;
+  message?: string;
+};
+export type IosSimulatorReply = {
+  success?: boolean;
+  error?: string;
+  status?: number;
+  message?: string;
+  capabilities?: Record<string, number>;
+  devices?: IosSimulatorDevice[];
+  preview?: IosSimulatorPreview;
+};
+export const iosSimulatorControl = async (
+  workspaceId: string,
+  sessionId: string,
+  command: IosSimulatorCommand,
+): Promise<IosSimulatorReply> =>
+  JSON.parse(
+    await native.iosSimulatorControl(
+      JSON.stringify({ workspaceId, sessionId, command }),
+    ),
+  );
+export const openPreviewBrowser = (url: string) =>
+  native.openPreviewBrowser(url);
 export const decodeFlock = (
   snapshot: string,
   updates: string[],
@@ -188,10 +360,18 @@ export const debugRestartDataRuntime = () => native.debugRestartDataRuntime();
 
 export const watchSession = (id: string) => native.watchSession(id);
 export const unwatchSession = (id: string) => native.unwatchSession(id);
+export const ensureSession = (id: string) => native.ensureSession(id);
+export const releaseReserve = (id: string) => native.releaseReserve(id);
 export const controlSessionTurn = (payload: string) =>
   native.controlSessionTurn(payload);
 export const sendSessionTurn = (payload: string) =>
   native.sendSessionTurn(payload);
+export const readSessionEdit = (payload: string) =>
+  native.readSessionEdit(payload);
+export const prepareSessionEdit = (payload: string) =>
+  native.prepareSessionEdit(payload);
+export const sendSessionEdit = (payload: string) =>
+  native.sendSessionEdit(payload);
 export const sessionItemDetail = (payload: string) =>
   native.sessionItemDetail(payload);
 export const respondSessionPermission = (payload: string) =>
@@ -199,6 +379,11 @@ export const respondSessionPermission = (payload: string) =>
 export const turnDiffRaw = (payload: string) => native.turnDiff(payload);
 export const fileDiffRaw = (payload: string) => native.fileDiff(payload);
 export const readFileRaw = (payload: string) => native.readFile(payload);
+export const openFile = (args: {
+  sessionId: string;
+  path: string;
+  line?: number;
+}) => native.openFile(args.sessionId, args.path, args.line ?? 0);
 export const mentionCatalogRaw = (payload: string) =>
   native.mentionCatalog(payload);
 export const listDirRaw = (payload: string) => native.listDir(payload);
@@ -208,16 +393,29 @@ export const previewContent = (handle: string) => native.previewContent(handle);
 
 export const sessionCreationOptions = (payload: string) =>
   native.sessionCreationOptions(payload);
+export const workspaceBillingEntitlement = (
+  workspaceId: string,
+  userId: string,
+) => native.workspaceBillingEntitlement(workspaceId, userId);
 export const githubPullRequest = (payload: string) =>
   native.githubPullRequest(payload);
 export const githubRepositories = (workspaceId: string) =>
   native.githubRepositories(workspaceId);
+export const shareWriteCatalog = (json: string) =>
+  native.shareWriteCatalog(json);
+export const shareWriteOptions = (target: string, json: string) =>
+  native.shareWriteOptions(target, json);
+export const sharePending = () => native.sharePending();
+export const shareAdopt = (id: string) => native.shareAdopt(id);
+export const shareRemove = (id: string) => native.shareRemove(id);
 export const createSession = (payload: string) => native.createSession(payload);
 export const archiveSession = (payload: string) =>
   native.archiveSession(payload);
+export const deleteSession = (payload: string) => native.deleteSession(payload);
 export const pinSession = (payload: string) => native.pinSession(payload);
 export const markSessionRead = (payload: string) =>
   native.markSessionRead(payload);
+export const renameSession = (payload: string) => native.renameSession(payload);
 
 export const initialInboxView = [0, 1, 2].includes(native.initialInboxView)
   ? native.initialInboxView
@@ -231,8 +429,20 @@ export const saveInboxProjectSort = (index: number) =>
 export const readInboxExpansion = () => native.readInboxExpansion();
 export const saveInboxExpansion = (projectId: string, expanded: boolean) =>
   native.saveInboxExpansion(projectId, expanded);
+export const readInboxPinOrder = (userId: string, workspaceId: string) =>
+  native.readInboxPinOrder(userId, workspaceId);
+export const saveInboxPinOrder = (
+  userId: string,
+  workspaceId: string,
+  ids: string[],
+) => native.saveInboxPinOrder(userId, workspaceId, ids);
 
 export const readLocalValue = (key: string) => native.readLocalValue(key);
+export const searchInbox = (
+  userId: string,
+  workspaceId: string,
+  query: string,
+) => native.searchInbox(userId, workspaceId, query);
 export const writeLocalValue = (key: string, value: string) =>
   native.writeLocalValue(key, value);
 export const clearLocalValues = () => native.clearLocalValues();

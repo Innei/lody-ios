@@ -1,3 +1,4 @@
+import Litext
 import MarkdownParser
 import MarkdownView
 import UIKit
@@ -27,7 +28,7 @@ final class ChatMarkdownView: UIView {
     var height: CGFloat = 0
     var topSpacing: CGFloat = 0
     var bottomSpacing: CGFloat = 0
-    var usesBlockAnimation = false
+    var settle = false
     var fileActions: [UIAccessibilityCustomAction] = []
 
     init() {
@@ -36,10 +37,25 @@ final class ChatMarkdownView: UIView {
     }
   }
 
+  var selectionLabels: [TextLabelView] { blocks.map(\.label) }
+
+  func clearSelection() {
+    func clear(_ view: UIView) {
+      (view as? TextLabelView)?.clearSelection()
+      for child in view.subviews { clear(child) }
+    }
+    clear(self)
+  }
+
   private var blocks: [Block] = []
   private var theme: MarkdownTheme?
   private var measuredWidth: CGFloat = 0
   private(set) var measuredHeight: CGFloat = 0
+  var isAnimating: Bool {
+    window != nil && !UIAccessibility.isReduceMotionEnabled && blocks.contains {
+      $0.label.isFading || $0.view.layer.animation(forKey: "stream-block") != nil
+    }
+  }
   var onLink: ((String) -> Void)?
   weak var trackedScrollView: UIScrollView? {
     didSet {
@@ -48,9 +64,16 @@ final class ChatMarkdownView: UIView {
     }
   }
 
-  func update(_ sources: [ChatMarkdownBlock], theme: MarkdownTheme, streaming: Bool, width: CGFloat) {
+  // A visible prefix of a long reply does not make its changing block visible.
+  var tailFrame: CGRect? { blocks.last?.view.frame }
+
+  func setShine(_ on: Bool) {
+    for block in blocks { block.label.setShine(on) }
+  }
+
+  func update(_ sources: [ChatMarkdownBlock], theme: MarkdownTheme, streaming: Bool, width: CGFloat, animateChanges: Bool = true) {
     let sameTheme = self.theme == theme
-    let animate = window != nil && streaming && !UIAccessibility.isReduceMotionEnabled
+    let animate = animateChanges && window != nil && streaming && !UIAccessibility.isReduceMotionEnabled
     self.theme = theme
     while blocks.count > sources.count { blocks.removeLast().view.removeFromSuperview() }
     for (index, source) in sources.enumerated() {
@@ -69,24 +92,21 @@ final class ChatMarkdownView: UIView {
       let block = blocks[index]
       guard block.source !== source || !sameTheme else { continue }
       let isNew = block.source == nil
-      let wasBlockAnimated = block.usesBlockAnimation
-      let previousLength = block.label.attributedText.length
-      // A complete new block gets one layer animation. An active long/bursty
-      // block also avoids per-character diff/draw work; never refade old text.
-      block.usesBlockAnimation = wasBlockAnimated || (isNew && index < sources.count - 1)
-      if case .codeBlock = source.node { block.usesBlockAnimation = true }
-      if case .table = source.node { block.usesBlockAnimation = true }
-      block.label.prepare(animate: animate && !block.usesBlockAnimation, reset: isNew)
-      block.view.setContentImmediately(source.content, theme: theme)
-      if block.label.attributedText.length > ChatStream.blockAnimationLength ||
-         block.label.attributedText.length - previousLength >= ChatStream.blockAnimationBatch {
-        block.usesBlockAnimation = true
-      }
-      if block.usesBlockAnimation {
+      // Only newly inserted complete blocks fade as a whole. Long live text
+      // keeps its animated tail; code and tables own separate native labels.
+      var blockAnimation = isNew && index < sources.count - 1
+      if case .codeBlock = source.node { blockAnimation = true }
+      if case .table = source.node { blockAnimation = true }
+      block.label.prepare(animate: animate && !blockAnimation, reset: isNew)
+      // MarkdownView lays out synchronously inside setContentImmediately, adding
+      // fresh code/table views at .zero. Completion folds the reply inside a
+      // UIView animation block, which would grow them from the top-left corner.
+      UIView.performWithoutAnimation { block.view.setContentImmediately(source.content, theme: theme) }
+      if blockAnimation {
         block.label.prepare(animate: false, reset: true)
         block.label.finishAnimation()
       }
-      if animate && isNew && block.usesBlockAnimation {
+      if animate && isNew && blockAnimation {
         let fade = CABasicAnimation(keyPath: "opacity")
         fade.fromValue = 0
         fade.toValue = 1
@@ -94,6 +114,7 @@ final class ChatMarkdownView: UIView {
         block.view.layer.add(fade, forKey: "stream-block")
       }
       block.source = source
+      block.settle = true
       block.fileActions = block.view.fileActions(source.content)
       block.width = 0
       // CoreText's natural height excludes the final paragraph's spacing.
@@ -124,7 +145,15 @@ final class ChatMarkdownView: UIView {
         block.width = width
       }
       let frame = CGRect(x: 0, y: y, width: width, height: block.height)
-      if block.view.frame != frame { block.view.frame = frame }
+      if block.settle {
+        block.settle = false
+        UIView.performWithoutAnimation {
+          block.view.frame = frame
+          block.view.layoutIfNeeded()
+        }
+      } else if block.view.frame != frame {
+        block.view.frame = frame
+      }
       y += block.height
       if index < blocks.count - 1 { y += block.bottomSpacing }
     }
@@ -144,6 +173,7 @@ final class ChatMarkdownView: UIView {
   }
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    guard !isHidden, alpha > 0.01, isUserInteractionEnabled else { return nil }
     for subview in subviews.reversed() {
       if let hit = subview.hitTest(subview.convert(point, from: self), with: event) { return hit }
     }

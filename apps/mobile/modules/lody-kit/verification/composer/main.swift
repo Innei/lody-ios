@@ -1,3 +1,5 @@
+import ChatKit
+import AVFoundation
 import UIKit
 import UniformTypeIdentifiers
 
@@ -5,11 +7,79 @@ import UniformTypeIdentifiers
   [view] + view.subviews.flatMap(descendants)
 }
 
+@MainActor func allWindows() -> [UIWindow] {
+  var windows = UIApplication.shared.connectedScenes
+    .compactMap { $0 as? UIWindowScene }
+    .flatMap(\.windows)
+  if let overlay = LodyToastOverlay.shared.hostedWindow, !windows.contains(where: { $0 === overlay }) {
+    windows.append(overlay)
+  }
+  return windows
+}
+
 @MainActor func onMain<T>(_ body: @MainActor () -> T) -> T {
   body()
 }
 
+// Camera results use the same temporary-file/preview path as other attachments.
+let capture = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 48)).image { context in
+  UIColor.systemBlue.setFill()
+  context.fill(CGRect(x: 0, y: 0, width: 32, height: 48))
+}
+let capturedPhoto = ChatCameraCapture.store(capture.jpegData(compressionQuality: 0.9)!)!
+precondition(capturedPhoto.isImage && capturedPhoto.url.isFileURL)
+precondition(ChatAttachment.thumbnail(capturedPhoto.url) != nil, "Captured photo must persist as a previewable attachment")
+try FileManager.default.removeItem(at: capturedPhoto.url)
+precondition(ChatCameraCapture.store(Data("invalid image".utf8)) == nil, "Invalid capture must not become an attachment")
+print("Camera: valid JPEG storage and invalid image rejection pass")
+
+// The overlay camera fills its continuously resizing container.
+let overlayCamera = ChatAttachmentOverlayCameraView(session: AVCaptureSession())
+overlayCamera.setExpanded(true)
+for size in [CGSize(width: 280, height: 300), CGSize(width: 390, height: 524)] {
+  overlayCamera.frame = CGRect(origin: .zero, size: size)
+  overlayCamera.setNeedsLayout()
+  overlayCamera.layoutIfNeeded()
+  precondition(overlayCamera.previewLayer.frame == overlayCamera.bounds,
+    "Camera preview must fill the overlay viewport")
+  let controls = descendants(overlayCamera).filter { $0.accessibilityIdentifier == "camera-shutter" }
+  precondition(controls.count == 1, "Camera must retain one shutter while resizing")
+}
+print("Camera: overlay viewport resizing passes")
+
+let handoffBar = ChatAttachmentBar()
+handoffBar.frame = CGRect(x: 0, y: 0, width: 390, height: 34)
+let handoffItem = ChatAttachment(id: "handoff", name: "photo.jpg", url: URL(fileURLWithPath: "/tmp/photo.jpg"), isImage: true)
+handoffBar.render([handoffItem])
+handoffBar.layoutIfNeeded()
+let handoffTarget = handoffBar.handoffDestination(id: handoffItem.id)!
+precondition(handoffTarget.frame == handoffBar.attachmentFrame(id: handoffItem.id),
+  "The animation target must follow ChatKit's public attachment geometry")
+handoffBar.render([])
+handoffBar.setNeedsLayout()
+handoffBar.layoutIfNeeded()
+precondition(handoffTarget.isHidden, "Removing the draft attachment must invalidate its handoff target")
+handoffBar.finishHandoff()
+precondition(handoffTarget.superview == nil, "Completing or cancelling the handoff must release its target")
+precondition(handoffBar.handoffDestination(id: "missing") == nil)
+print("Attachments: ChatKit handoff geometry, removal and cleanup pass")
+
 let composer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
+let initialScroll = UIScrollView()
+initialScroll.bottomEdgeEffect.isHidden = true
+composer.attachScrollEdge(to: initialScroll)
+let scrollInteraction = composer.interactions.compactMap { $0 as? UIScrollEdgeElementContainerInteraction }.first!
+precondition(scrollInteraction.scrollView === initialScroll && scrollInteraction.edge == .bottom)
+precondition(!initialScroll.bottomEdgeEffect.isHidden && initialScroll.bottomEdgeEffect.style == .soft,
+  "Attaching a composer must enable soft occlusion without RNSScreen discovery")
+let replacementScroll = UIScrollView()
+composer.attachScrollEdge(to: replacementScroll)
+precondition(scrollInteraction.scrollView === replacementScroll && replacementScroll.bottomEdgeEffect.style == .soft,
+  "Moving the composer to another host must configure the new scroll view")
+composer.attachScrollEdge(to: nil)
+precondition(scrollInteraction.scrollView == nil,
+  "Detaching the composer must release its scroll target")
+print("Composer scroll edge: direct attachment, host replacement and detachment pass")
 composer.setInputIdentifier("create-session-input")
 var height: CGFloat = 0
 composer.onHeightChange = { height = $0 }
@@ -82,9 +152,40 @@ let actionButton = descendants(actionComposer).compactMap { $0 as? UIButton }.fi
 }!
 let actionVisual = descendants(actionButton).first { $0.accessibilityIdentifier == "session-action-visual" }
 precondition(
-  actionVisual?.backgroundColor?.isEqual(UIColor.systemBlue) == true,
-  "An actionable Send must render as a blue circular control"
+  actionVisual?.backgroundColor?.resolvedColor(with: actionComposer.traitCollection).isEqual(UIColor.lodyAccent.resolvedColor(with: actionComposer.traitCollection)) == true,
+  "An actionable Send must render as an accent circular control"
 )
+let originalAccent = LodyAccentChoice.current.rawValue
+LodyAccentChoice.save("purple")
+RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+for host in [composer, actionComposer] {
+  let visual = descendants(host).first { $0.accessibilityIdentifier == "session-action-visual" }!
+  precondition(visual.backgroundColor?.resolvedColor(with: host.traitCollection).isEqual(UIColor.systemPurple.resolvedColor(with: host.traitCollection)) == true,
+    "Existing chat and sheet composers must recolor when the accent changes")
+}
+LodyAccentChoice.save("unknown")
+precondition(LodyAccentChoice.current == .purple, "An unknown accent must not replace the saved choice")
+for value in ["#FFFFAA", "#123abc"] {
+  LodyAccentChoice.save(value)
+  RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+  precondition(UserDefaults.standard.string(forKey: "accentColor") == value.uppercased())
+  precondition(LodyAccentChoice.hex(LodyAccentChoice.current.rawValue, dark: false) == value.uppercased())
+  precondition(LodyAccentChoice.hex(LodyAccentChoice.current.rawValue, dark: true) == value.uppercased())
+  for host in [composer, actionComposer] {
+    let visual = descendants(host).first { $0.accessibilityIdentifier == "session-action-visual" }!
+    precondition(visual.backgroundColor?.isEqual(LodyAccentChoice.current.color) == true,
+      "A custom accent must update existing chat and sheet send controls")
+    let symbol = descendants(visual).compactMap { $0 as? UIImageView }.first!
+    precondition(symbol.tintColor.isEqual(value == "#FFFFAA" ? UIColor.black : UIColor.white),
+      "Bright custom colors need a readable send glyph")
+  }
+  for invalid in ["#123", "#GGFFFF", "#12345678", "#123456\n", "unknown"] { LodyAccentChoice.save(invalid) }
+  precondition(LodyAccentChoice.current.rawValue == value.uppercased(), "Invalid values cannot overwrite a custom color")
+}
+LodyAccentChoice.save(originalAccent)
+RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+print("Composer: persisted accent changes update existing hosts and reject unknown choices")
+
 actionInput.text = ""
 actionComposer.textViewDidChange(actionInput)
 actionComposer.setComposerState(
@@ -130,7 +231,7 @@ let attachmentComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, 
 attachmentComposer.setComposerState(ready)
 attachmentComposer.setInitialAttachments(#"[{"id":"synthetic-file","name":"test.txt","uri":"file:///tmp/lody-composer-test.txt","kind":"file"}]"#)
 let attachButton = descendants(attachmentComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-attach" }!
-precondition(attachButton.isEnabled && attachButton.menu?.children.count == 3, "Plus must offer the existing photo and file pickers")
+precondition(attachButton.isEnabled, "An attachment draft must still allow adding attachments")
 let attachmentSend = descendants(attachmentComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }!
 precondition(attachmentSend.isEnabled, "Attachment-only drafts must be sendable")
 var sentAttachments: [[String: String]] = []
@@ -181,6 +282,145 @@ precondition(pasteInput.text == "normal text paste", "Ordinary text paste must k
 UIPasteboard.general.items = []
 print("Composer paste: file attachment and ordinary text fallback passed")
 
+let webArchiveType = UTType("com.apple.webarchive")!
+let selection = NSItemProvider()
+selection.registerDataRepresentation(forTypeIdentifier: webArchiveType.identifier, visibility: .all) { completion in
+  completion(Data("webarchive-bytes".utf8), nil)
+  return nil
+}
+selection.registerObject("lodyUserBubble" as NSString, visibility: .all)
+precondition(ChatAttachment.transferType(for: selection) == nil,
+  "A copied web selection must not become a file attachment")
+precondition(!ChatAttachment.canPaste([selection]),
+  "A copied web selection must not claim Paste as an attachment")
+pasteComposer.restoreDraft(token: 1)
+pasteInput.text = ""
+pasteInput.paste(itemProviders: [selection])
+let webDeadline = Date().addingTimeInterval(3)
+while pasteInput.text != "lodyUserBubble" && Date() < webDeadline {
+  RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+}
+precondition(pasteInput.text == "lodyUserBubble", "Copied in-app text must paste as text, not a webarchive file")
+
+let archiveFile = FileManager.default.temporaryDirectory.appendingPathComponent("selection.webarchive")
+try! Data("webarchive-bytes".utf8).write(to: archiveFile)
+let archiveFileProvider = NSItemProvider(contentsOf: archiveFile)!
+archiveFileProvider.suggestedName = archiveFile.lastPathComponent
+let archiveText = NSItemProvider(object: "lodyUserBubble" as NSString)
+precondition(ChatAttachment.transferType(for: archiveFileProvider) == nil,
+  "A webarchive file URL must not become an attachment")
+precondition(!ChatAttachment.canPaste([archiveFileProvider, archiveText]),
+  "A split webarchive + text paste must not claim the paste as an attachment")
+pasteComposer.restoreDraft(token: 1)
+pasteInput.text = ""
+pasteInput.paste(itemProviders: [archiveFileProvider, archiveText])
+let splitDeadline = Date().addingTimeInterval(3)
+while pasteInput.text != "lodyUserBubble" && Date() < splitDeadline {
+  RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+}
+precondition(pasteInput.text == "lodyUserBubble", "A split webarchive pasteboard must insert the copied text, got \(pasteInput.text!.debugDescription)")
+print("Composer paste: webarchive selections stay text")
+
+pasteComposer.restoreDraft(token: 1)
+pasteInput.text = "round trip"
+pasteInput.selectedRange = NSRange(location: 0, length: 10)
+pasteInput.copy(nil)
+precondition(!ChatAttachment.canPaste(UIPasteboard.general.itemProviders),
+  "Text copied from the composer must not claim Paste as an attachment")
+UIPasteboard.general.items = []
+print("Composer paste: in-composer copy is not an attachment")
+
+precondition(!ChatAttachment.shouldPromotePastedText("hello"))
+precondition(!ChatAttachment.shouldPromotePastedText(String(repeating: "x", count: 1999)))
+precondition(ChatAttachment.shouldPromotePastedText(String(repeating: "x", count: 2000)))
+precondition(!ChatAttachment.shouldPromotePastedText((1...15).map { "line \($0)" }.joined(separator: "\n")))
+precondition(ChatAttachment.shouldPromotePastedText((1...16).map { "line \($0)" }.joined(separator: "\n")))
+let promoted = ChatAttachment.makePastedTextFile("long body")
+precondition(promoted?.name == "Text.txt" && promoted?.isImage == false)
+precondition((try? String(contentsOf: promoted!.url, encoding: .utf8)) == "long body")
+print("Composer paste: long text promotion threshold passed")
+
+let longBody = (1...16).map { "line \($0)" }.joined(separator: "\n")
+let longProvider = NSItemProvider(object: longBody as NSString)
+let longComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
+longComposer.setComposerState(ready)
+let longInput = descendants(longComposer).compactMap { $0 as? UITextView }.first!
+let longSend = descendants(longComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }!
+longInput.paste(itemProviders: [longProvider])
+let longDeadline = Date().addingTimeInterval(3)
+while !longSend.isEnabled && Date() < longDeadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+precondition(longInput.text.isEmpty, "Long pasted text must not fill the composer")
+precondition(longSend.isEnabled, "Long pasted text becomes a sendable text file")
+LodyToastOverlay.shared.dismiss()
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+
+let plainComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
+plainComposer.setComposerState(ready)
+let plainInput = descendants(plainComposer).compactMap { $0 as? UITextView }.first!
+let plainAction = NSSelectorFromString("pastePlainText:")
+let mixedPlainProvider = NSItemProvider(object: longBody as NSString)
+for type in [UTType.rtf, UTType.flatRTFD, UTType.png] {
+  mixedPlainProvider.registerDataRepresentation(forTypeIdentifier: type.identifier, visibility: .all) { completion in
+    completion(Data([0, 1, 2]), nil)
+    return nil
+  }
+}
+UIPasteboard.general.setItemProviders([mixedPlainProvider], localOnly: true, expirationDate: nil)
+precondition(plainInput.canPerformAction(plainAction, withSender: nil))
+let plainMenu = plainComposer.textView(plainInput, editMenuForTextIn: NSRange(location: 0, length: 0), suggestedActions: [])!
+precondition(plainMenu.children.first?.title == LodyStrings.text("native.chat.composer.pastePlainText"))
+plainInput.text = "before replace after"
+plainInput.selectedRange = NSRange(location: 7, length: 7)
+(plainInput as! ChatComposerInput).pastePlainText(from: [mixedPlainProvider])
+let expectedPlain = "before " + longBody + " after"
+let plainDeadline = Date().addingTimeInterval(3)
+while plainInput.text != expectedPlain && Date() < plainDeadline {
+  RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+}
+precondition(plainInput.text == expectedPlain, "Plain paste must replace selection and keep long text inline: \(plainInput.text ?? "nil")")
+var plainPayload: [String: Any] = [:]
+plainComposer.onSend = { plainPayload = $0 }
+plainComposer.perform(NSSelectorFromString("submit"))
+precondition(plainPayload["text"] as? String == expectedPlain)
+precondition((plainPayload["attachments"] as? [[String: String]])?.isEmpty == true,
+  "Plain paste must ignore rich/image representations and bypass text-file promotion")
+plainInput.isEditable = false
+precondition(!plainInput.canPerformAction(plainAction, withSender: nil))
+plainInput.isEditable = true
+UIPasteboard.general.items = [[UTType.png.identifier: Data([0, 1, 2])]]
+precondition(!plainInput.canPerformAction(plainAction, withSender: nil))
+precondition(plainComposer.textView(plainInput, editMenuForTextIn: .init(location: 0, length: 0), suggestedActions: [])!.children.isEmpty)
+print("Composer paste: explicit plain text ignores attachments and preserves selected-range insertion")
+
+let undoComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
+undoComposer.setComposerState(ready)
+let undoWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+undoWindow.addSubview(undoComposer)
+undoWindow.isHidden = false
+let undoInput = descendants(undoComposer).compactMap { $0 as? UITextView }.first!
+undoInput.text = "keep me"
+undoInput.selectedRange = NSRange(location: (undoInput.text as NSString).length, length: 0)
+undoInput.paste(itemProviders: [longProvider])
+let undoDeadline = Date().addingTimeInterval(3)
+var undo: UIButton?
+while Date() < undoDeadline {
+  undo = allWindows().flatMap(descendants).compactMap { $0 as? UIButton }
+    .first { $0.accessibilityIdentifier == "lody.toast.undo" }
+  if undo != nil { break }
+  RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+}
+precondition(undoInput.text == "keep me", "Long pasted text must leave the existing draft in place")
+precondition(undo != nil, "Long paste must offer an undo toast action")
+LodyToastOverlay.shared.performFrontAction()
+let restoredDeadline = Date().addingTimeInterval(1)
+while !undoInput.text.contains(longBody) && Date() < restoredDeadline {
+  RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+}
+precondition(undoInput.text.contains("keep me") && undoInput.text.contains(longBody),
+  "Undo must insert the pasted text back into the composer")
+precondition(undoInput.text.count == "keep me".count + longBody.count)
+print("Composer paste: long text becomes a file with undo")
+
 let movie = FileManager.default.temporaryDirectory.appendingPathComponent("IMG_3933.mov")
 try! Data("video-bytes".utf8).write(to: movie)
 let poster = FileManager.default.temporaryDirectory.appendingPathComponent("IMG_3933.png")
@@ -228,7 +468,7 @@ precondition(draftInput.text == "上次没发出去的话", "Empty input must re
 draftComposer.setStoredDraft("其他会话的草稿")
 precondition(draftInput.text == "上次没发出去的话", "A stored draft must never overwrite typed text")
 draftComposer.textViewDidEndEditing(draftInput)
-precondition(savedDrafts == ["上次没发出去的话"], "Ending editing must persist the draft")
+precondition(savedDrafts.count == 1 && savedDrafts[0].contains("\"lexical\""), "Ending editing must persist the draft as an editor state envelope")
 draftComposer.setComposerState(#"{"editable":true,"canSend":true,"sending":true,"notice":"","reconnect":false,"placeholder":"任务"}"#)
 draftComposer.clearDraft(token: 1)
 precondition(savedDrafts.last == "" && draftInput.text.isEmpty, "Sending must clear the stored draft")
@@ -275,7 +515,9 @@ panelInput.text = "Keep this draft visible"
 panelComposer.textViewDidChange(panelInput)
 var panelPayload: [String: Any] = [:]
 panelComposer.onSend = { panelPayload = $0 }
-panelSend.sendActions(for: .touchUpInside)
+for action in panelSend.actions(forTarget: panelComposer, forControlEvent: .touchUpInside) ?? [] {
+  panelComposer.perform(NSSelectorFromString(action))
+}
 precondition(panelPayload["text"] as? String == "Keep this draft visible")
 precondition(!ChatSendHandoff.isWaiting(id: panelPayload["id"] as! String),
   "Cross-container creation must not leave a flying copy in the window")
@@ -350,25 +592,99 @@ precondition(persistedTyping.last == "", "An empty current input must never pers
 print("Composer persistence: either hydration order and current-only draft writes passed")
 
 // A cancelled throw must reveal its destination and never adopt stale content.
-let throwWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+// This executable has no render server; UI checks exercise real snapshot pixels.
+final class HandoffWindow: UIWindow {
+  override func resizableSnapshotView(from rect: CGRect, afterScreenUpdates afterUpdates: Bool, withCapInsets capInsets: UIEdgeInsets) -> UIView? { UIView(frame: rect) }
+}
+let throwWindow = HandoffWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
 let throwInput = UITextView(frame: CGRect(x: 16, y: 700, width: 350, height: 60))
 throwInput.text = "Preserve this message"
 throwWindow.addSubview(throwInput)
 let throwTarget = ChatMessageContent(frame: CGRect(x: 200, y: 100, width: 170, height: 45))
 throwTarget.label.setText(NSAttributedString(string: throwInput.text))
 throwWindow.addSubview(throwTarget)
-onMain { ChatSendHandoff.begin(id: "cancel-throw", text: throwInput.text, source: throwInput) }
+onMain { ChatSendHandoff.begin(id: "cancel-throw", source: throwInput) }
 onMain { ChatSendHandoff.hold(id: "cancel-throw", target: throwTarget) }
 precondition(throwTarget.isHidden, "The destination must not duplicate the flying message")
 onMain { ChatSendHandoff.deliver(id: "cancel-throw", to: throwTarget) }
 let flyingText = throwWindow.subviews.compactMap { $0 as? ChatMessageContent }.first { $0 !== throwTarget }
 precondition(flyingText != nil && flyingText!.label.bounds.width > 0 && flyingText!.label.bounds.height > 0,
   "The hidden background layer must not skip the flying text layout")
+onMain {
+  ChatSendHandoff.begin(id: "cancel-throw:attachment:offscreen", source: throwInput)
+  ChatSendHandoff.cancelWaitingAttachments(id: "cancel-throw")
+}
+precondition(!ChatSendHandoff.hasWaitingAttachments(id: "cancel-throw") && throwTarget.isHidden,
+  "Offscreen attachment cleanup must remove waiting copies without interrupting a visible flight")
 onMain { ChatSendHandoff.cancel(id: "cancel-throw") }
 RunLoop.current.run(until: Date().addingTimeInterval(0.5))
 precondition(!throwTarget.isHidden, "Cancellation must reveal the destination")
 precondition(throwWindow.subviews.count == 2, "Cancellation must remove every flight overlay")
 print("Send throw: cancellation reveals target, removes overlays without replacing destination content")
+
+var settledTurns: [String] = []
+ChatSendHandoff.onSettled = { settledTurns.append($0) }
+onMain { ChatSendHandoff.begin(id: "status-throw", source: throwInput) }
+precondition(onMain { ChatSendHandoff.isInFlight(id: "status-throw") }, "A waiting copy is in flight")
+precondition(settledTurns.isEmpty, "Flight start must not reveal status")
+onMain {
+  ChatSendHandoff.hold(id: "status-throw", target: throwTarget)
+  ChatSendHandoff.deliver(id: "status-throw", to: throwTarget)
+}
+precondition(onMain { ChatSendHandoff.isInFlight(id: "status-throw") }, "Delivery must hide status until the throw lands")
+precondition(settledTurns.isEmpty, "A moving copy must not reveal status")
+onMain { ChatSendHandoff.cancel(id: "status-throw") }
+precondition(onMain { !ChatSendHandoff.isInFlight(id: "status-throw") })
+precondition(settledTurns == ["status-throw"], "Settling must reveal status once")
+settledTurns.removeAll()
+onMain {
+  ChatSendHandoff.begin(id: "status-throw", source: throwInput)
+  ChatSendHandoff.begin(id: "status-throw:attachment:a", source: throwInput)
+}
+precondition(onMain { ChatSendHandoff.isInFlight(id: "status-throw") })
+onMain { ChatSendHandoff.cancel(id: "status-throw", includingAttachments: false) }
+precondition(onMain { ChatSendHandoff.isInFlight(id: "status-throw") }, "Attachment copies keep the turn in flight")
+precondition(settledTurns.isEmpty, "Status waits until every copy lands")
+onMain { ChatSendHandoff.cancel(id: "status-throw:attachment:a") }
+precondition(onMain { !ChatSendHandoff.isInFlight(id: "status-throw") })
+precondition(settledTurns == ["status-throw"], "The last copy settling reveals status")
+ChatSendHandoff.onSettled = nil
+final class StatusHost: UIView, ChatSendHandoffSettling {
+  var settled: [String] = []
+  func handoffDidSettle(_ id: String) { settled.append(id) }
+}
+let statusHost = StatusHost(frame: throwWindow.bounds)
+throwWindow.addSubview(statusHost)
+let hostedInput = UITextView(frame: CGRect(x: 16, y: 700, width: 350, height: 60))
+statusHost.addSubview(hostedInput)
+onMain { ChatSendHandoff.begin(id: "owner-throw", source: hostedInput) }
+onMain { ChatSendHandoff.cancel(id: "owner-throw") }
+precondition(statusHost.settled == ["owner-throw"], "The transcript host must insert status after its own throw settles")
+print("Send throw: status waits until every copy settles")
+
+let relayComposer = ChatComposerView(frame: composer.frame)
+relayComposer.setComposerState(ready)
+relayComposer.setInitialDraft("Keep until adopted")
+let relayInput = descendants(relayComposer).compactMap { $0 as? UITextView }.first!
+var relayPayload: [String: Any]?
+var relayDispatches = 0
+relayComposer.prepareSend = { payload in
+  relayPayload = payload
+  relayComposer.relaying = true
+  relayDispatches += 1
+  return true
+}
+relayComposer.perform(NSSelectorFromString("submit"))
+relayComposer.perform(NSSelectorFromString("submit"))
+relayComposer.setComposerState(#"{"editable":true,"canSend":false,"sending":true}"#)
+precondition(relayInput.text == "Keep until adopted" && relayDispatches == 1,
+  "Preparing a destination must preserve the draft and dispatch only once")
+relayComposer.onSend = { _ in preconditionFailure("Adoption cannot dispatch the creation twice") }
+relayComposer.commitSend(relayPayload!)
+precondition(relayInput.text.isEmpty, "Only adoption consumes the source draft")
+relayComposer.restoreDraft(token: 1)
+precondition(relayInput.text == "Keep until adopted", "An adopted send must remain restorable")
+print("Composer relay: prepare preserves draft, adoption consumes once, failure restores")
 
 let queueComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 244))
 let runningState = #"{"editable":true,"canSend":true,"sending":false,"running":true,"canStop":true,"notice":"","reconnect":false,"placeholder":"任务"}"#
@@ -420,8 +736,33 @@ queueComposer.setInitialAttachments(#"[{"id":"queue-file","name":"next.txt","uri
 precondition(queueSend.accessibilityIdentifier == "session-send" && queueSend.isEnabled, "An attachment switches Stop to Send even with empty text")
 print("Queue composer: Stop, whitespace, typing, queued submission, ACK, bounded queue and attachment-only input passed")
 
+let guideWindow = HandoffWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+let guideComposer = ChatComposerView(frame: CGRect(x: 0, y: 600, width: 390, height: 244))
+guideWindow.addSubview(guideComposer)
+guideWindow.isHidden = false
+guideComposer.setComposerState(#"{"editable":true,"canSend":true,"sending":false,"running":true,"canStop":true,"steerInterrupts":false,"queuedMessageBehavior":"guide","notice":"","reconnect":false,"placeholder":"任务"}"#)
+let guideInput = descendants(guideComposer).compactMap { $0 as? UITextView }.first!
+let guideSend = descendants(guideComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-stop" || $0.accessibilityIdentifier == "session-send" }!
+var guidePayload: [String: Any] = [:]
+guideComposer.onSend = { guidePayload = $0 }
+guideInput.text = "Steer now"
+guideComposer.textViewDidChange(guideInput)
+precondition(guideSend.accessibilityIdentifier == "session-send" && guideSend.isEnabled, "Guide still sends from a running composer")
+@MainActor func tapGuideAction() {
+  for action in guideSend.actions(forTarget: guideComposer, forControlEvent: .touchUpInside) ?? [] {
+    guideComposer.perform(NSSelectorFromString(action))
+  }
+}
+tapGuideAction()
+precondition(guidePayload["queue"] as? Bool == false, "Guide must not mark the send as queued")
+precondition(guidePayload["guide"] as? Bool == true, "Guide must mark the send for steer delivery")
+precondition(guideInput.text.isEmpty, "Guide send must clear the draft")
+precondition(onMain { ChatSendHandoff.isWaiting(id: guidePayload["id"] as! String) }, "Guide send must fly from the composer, not sit in the queue")
+onMain { ChatSendHandoff.cancel(id: guidePayload["id"] as! String) }
+print("Guide composer: busy send skips the queue and starts a straight handoff")
+
 // A steered queue row hands its frame to the send animation instead of vanishing.
-let steerWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+let steerWindow = HandoffWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
 let steerComposer = ChatComposerView(frame: CGRect(x: 0, y: 600, width: 390, height: 244))
 steerWindow.addSubview(steerComposer)
 steerWindow.isHidden = false
@@ -479,7 +820,7 @@ let glassSend = descendants(glassComposer).compactMap { $0 as? UIButton }.first 
 let glassModel = descendants(glassComposer).compactMap { $0 as? UIButton }.first {
   $0.accessibilityIdentifier == "session-model"
 }!
-let glassInputSurface = glassInput.superview!.superview as! UIVisualEffectView
+let glassInputSurface = sequence(first: glassInput.superview, next: { $0?.superview }).lazy.compactMap { $0 as? UIVisualEffectView }.first!
 let glassAttachSurface = glassAttach.superview!.superview as! UIVisualEffectView
 
 precondition(
@@ -496,10 +837,18 @@ precondition(
 )
 glassComposer.setMentionItems("[]")
 let restingAttachGlyphSize = glassAttachGlyph!.bounds.size
+precondition(
+  abs(restingAttachGlyphSize.width - (glassAttachGlyph!.image?.size.width ?? 0)) < 0.5,
+  "Resting Add plus must keep its symbol size"
+)
 precondition(glassInput.becomeFirstResponder(), "The glass composer input must accept focus")
 precondition(glassAttachSurface.effect is UIGlassEffect
   && !glassAttachSurface.isDescendant(of: glassInputSurface),
   "The opening transition must retain both glass surfaces until their native merge completes")
+precondition(
+  glassAttachGlyph!.alpha == 1 && glassAttach.isDescendant(of: glassAttachSurface),
+  "Opening must keep the Add plus visible on its attach glass"
+)
 RunLoop.current.run(until: Date().addingTimeInterval(0.35))
 glassComposer.layoutIfNeeded()
 
@@ -507,11 +856,11 @@ let mentionEntry = descendants(glassComposer).first { $0.accessibilityIdentifier
 glassComposer.setComposerState(ready)
 precondition(!mentionEntry.isHidden, "Ordinary composer state updates must not erase the separately loaded reference catalog")
 let focusedInputFrame = glassInputSurface.convert(glassInputSurface.bounds, to: glassComposer)
-let focusedAttachFrame = glassAttachSurface.convert(glassAttachSurface.bounds, to: glassComposer)
-precondition(glassAttachSurface.effect == nil,
-  "Merged Add must not retain an independent circular glass effect")
+let focusedAttachFrame = glassAttach.convert(glassAttach.bounds, to: glassComposer)
+precondition(glassAttach.isDescendant(of: glassInputSurface) && !glassAttachSurface.isUserInteractionEnabled,
+  "Merged Add must use the input's interaction surface, with one 44-point action")
 glassInputSurface.transform = CGAffineTransform(scaleX: 1.05, y: 1.05)
-let pressedAttachFrame = glassAttachSurface.convert(glassAttachSurface.bounds, to: glassComposer)
+let pressedAttachFrame = glassAttach.convert(glassAttach.bounds, to: glassComposer)
 precondition(abs(pressedAttachFrame.width - focusedAttachFrame.width * 1.05) < 0.5,
   "Pressing the input glass must scale the merged Add along with its content")
 glassInputSurface.transform = .identity
@@ -558,8 +907,8 @@ let focusedAttachGlyphSize = focusedGlyph.bounds.size
 precondition(
   abs(focusedAttachGlyphSize.width - mergedImage.size.width) < 0.5
     && abs(focusedAttachGlyphSize.height - mergedImage.size.height) < 0.5
-    && focusedGlyph.alpha == 1 && glassAttachGlyph!.alpha == 0,
-  "Focus must render the regular glyph at its intended size while fading out the separate medium glyph"
+    && focusedGlyph.alpha == 1,
+  "Focus must render the regular glyph at its intended size"
 )
 let attachGlyphCenter = glassAttachGlyph!.convert(
   CGPoint(x: glassAttachGlyph!.bounds.midX, y: glassAttachGlyph!.bounds.midY),
@@ -587,9 +936,9 @@ glassComposer.layoutIfNeeded()
 precondition(glassAttachSurface.effect is UIGlassEffect
   && !glassAttachSurface.isDescendant(of: glassInputSurface),
   "Leaving focus must restore Add's separate interactive glass")
-precondition(glassAttachGlyph!.alpha == 1 && focusedGlyph.alpha == 0
+precondition(glassAttachGlyph!.alpha == 1 && glassAttach.isDescendant(of: glassAttachSurface)
   && abs(glassAttachGlyph!.bounds.width - restingAttachGlyphSize.width) < 0.5,
-  "Leaving focus must restore the separate medium glyph without retaining the regular overlay")
+  "Leaving focus must restore the separate medium glyph and its original action host")
 glassInput.becomeFirstResponder()
 RunLoop.current.run(until: Date().addingTimeInterval(0.05))
 glassInput.resignFirstResponder()
@@ -635,7 +984,7 @@ RunLoop.current.run(until: Date().addingTimeInterval(0.3))
 precondition(!referencePanel.isHidden && referencePanel.alpha == 1 && referencePanel.panelHeight > 0,
              "An interrupted exit must leave the reopened panel visible and usable")
 referenceText("ordinary text")
-RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+RunLoop.current.run(until: Date().addingTimeInterval(0.4))
 precondition(referencePanel.isHidden && referencePanel.panelHeight == 0,
              "A completed exit must release the reserved layout space")
 referenceInput.text = "@"
@@ -655,7 +1004,7 @@ precondition(referenceInput.becomeFirstResponder())
 referenceInput.text = "/"
 referenceInput.selectedRange = NSRange(location: 1, length: 0)
 referencePanel.update(input: referenceInput, items: [skill])
-RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+RunLoop.current.run(until: Date().addingTimeInterval(0.4))
 precondition(referencePanel.isHidden, "An agent without commands must not show an empty slash menu")
 let command = ChatMentionItem(path: "compact", name: "compact", kind: "cmd", subtitle: "Compact", insertText: "/compact")
 referencePanel.update(input: referenceInput, items: [skill, command])
@@ -682,8 +1031,483 @@ let prDraft = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 402, height: 180
 prDraft.setInitialDraft("Existing draft")
 var savedPRDraft = ""
 prDraft.onDraftChange = { savedPRDraft = $0 }
+let prInput = descendants(prDraft).compactMap { $0 as? UITextView }.first!
 prDraft.appendDraft(#"{"id":"pr-1","text":"Investigate CI"}"#)
-precondition(savedPRDraft == "Existing draft\n\nInvestigate CI")
+precondition(prInput.text == "Existing draft\n\nInvestigate CI" && savedPRDraft.contains("\"lexical\""))
 prDraft.appendDraft(#"{"id":"pr-1","text":"Investigate CI"}"#)
-precondition(savedPRDraft == "Existing draft\n\nInvestigate CI", "A prop replay must not append twice")
+precondition(prInput.text == "Existing draft\n\nInvestigate CI", "A prop replay must not append twice")
 print("PR investigation: existing draft preserved, appended text saved and prop replay ignored")
+
+let materialWindow = HandoffWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+let materialComposer = ChatComposerView(frame: CGRect(x: 0, y: 500, width: 390, height: 200))
+materialWindow.addSubview(materialComposer)
+materialWindow.isHidden = false
+materialComposer.setComposerState(ready)
+var materialHeight: CGFloat = 0
+materialComposer.onHeightChange = { materialHeight = $0 }
+materialComposer.setQueue([ChatQueuedDraft(id: "material-queue", text: "Last queued turn")])
+materialComposer.layoutIfNeeded()
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+let materialQueue = descendants(materialComposer).first { $0.accessibilityIdentifier == "session-queue" } as! CKGlassSurface
+let withQueue = materialHeight
+materialComposer.setQueue([])
+precondition(!materialQueue.isHidden && !materialQueue.isUserInteractionEnabled && materialHeight == withQueue,
+  "The last queue card must keep its space until its glass leaves")
+precondition(materialComposer.retiringQueueHeight == 44,
+  "Retiring glass must stop reserving transcript space before the message flies")
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+precondition(materialQueue.isHidden && materialHeight == withQueue - 44 && materialComposer.retiringQueueHeight == 0)
+ChatSendHandoff.cancel(id: "material-queue")
+
+materialComposer.setInitialAttachments(#"[{"id":"remove-a","name":"a.txt","uri":"file:///tmp/a.txt","kind":"file"},{"id":"keep-b","name":"b.txt","uri":"file:///tmp/b.txt","kind":"file"}]"#)
+materialComposer.layoutIfNeeded()
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+let materialBar = descendants(materialComposer).compactMap { $0 as? ChatAttachmentBar }.first!
+let retained = descendants(materialBar).compactMap { $0 as? UIButton }.first {
+  $0.accessibilityLabel == LodyStrings.text("native.chat.attachment.preview", ["name": "b.txt"])
+}!
+@MainActor func removeMaterialAttachment(_ name: String) {
+  let button = descendants(materialBar).compactMap { $0 as? UIButton }.first {
+    $0.accessibilityLabel == LodyStrings.text("native.chat.attachment.remove", ["name": name])
+  }!
+  button.sendActions(for: .touchUpInside)
+}
+removeMaterialAttachment("a.txt")
+precondition(materialBar.attachmentFrame(id: "remove-a") == nil && retained.window != nil,
+  "Deleting a pill updates the draft immediately and preserves the other native control")
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+precondition(materialBar.attachmentFrame(id: "keep-b") != nil)
+let withAttachment = materialHeight
+removeMaterialAttachment("b.txt")
+precondition(materialBar.hasVisiblePills && materialHeight == withAttachment,
+  "The final attachment reserves its height through dematerialization")
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+precondition(!materialBar.hasVisiblePills && materialHeight == withAttachment - 42)
+print("Glass hosts: queue and final attachment retain their space through exit; unrelated pills retain identity")
+
+let quickComposer = ChatComposerView(frame: CGRect(x: 0, y: 600, width: 390, height: 108))
+materialWindow.addSubview(quickComposer)
+let quickInput = descendants(quickComposer).compactMap { $0 as? UITextView }.first!
+let quickStrip = descendants(quickComposer).compactMap { $0 as? ChatQuickRepliesView }.first!
+let quickMessage = "Commit and push the changes from this task."
+let quickReady: [String: Any] = [
+  "editable": true, "canSend": true, "sending": false, "running": false,
+  "notice": "", "reconnect": false, "placeholder": "Message",
+  "quickReplies": [["id": "commit", "label": "Commit & Push", "message": quickMessage]],
+]
+@MainActor func quickState(_ changes: [String: Any] = [:]) {
+  let json = try! JSONSerialization.data(withJSONObject: quickReady.merging(changes) { _, value in value })
+  quickComposer.setComposerState(String(decoding: json, as: UTF8.self))
+  quickComposer.layoutIfNeeded()
+}
+quickState()
+let quickChipHeight = ChatQuickRepliesView.chipHeight
+let connectingChipHeight = ChatQuickRepliesView.titleFont.lineHeight + 12
+precondition(abs(quickChipHeight - connectingChipHeight - 4) < 0.5,
+  "Quick-reply chips must sit four points above the connecting overlay height")
+precondition(!quickStrip.isHidden && abs(quickStrip.bounds.height - quickChipHeight) < 0.5)
+let quickButton = descendants(quickStrip).compactMap { $0 as? UIButton }.first!
+let singleChip = quickButton.convert(quickButton.bounds, to: quickStrip)
+precondition(abs(singleChip.height - quickChipHeight) < 0.5)
+precondition(singleChip.width < 200 && singleChip.maxX < quickStrip.bounds.width - 8,
+  "A single chip must follow its title instead of filling the composer")
+var quickSends: [[String: Any]] = []
+quickComposer.onSend = { quickSends.append($0) }
+quickInput.becomeFirstResponder()
+quickComposer.layoutIfNeeded()
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+let quickEditingHeight = quickComposer.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height
+for draft in ["Existing draft", " "] {
+  quickInput.text = draft
+  quickComposer.textViewDidChange(quickInput)
+  quickButton.sendActions(for: .touchUpInside)
+  precondition(!quickStrip.isUserInteractionEnabled && quickStrip.accessibilityElementsHidden)
+  precondition(quickStrip.hitTest(CGPoint(x: singleChip.midX, y: singleChip.midY), with: nil) == nil,
+    "Fading quick replies must stop intercepting touches immediately")
+  quickComposer.layoutIfNeeded()
+  precondition(abs(quickComposer.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height - quickEditingHeight) < 0.5,
+    "Typing must preserve the quick-reply slot and composer height")
+  RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+  precondition(quickStrip.isHidden && quickStrip.accessibilityElementsHidden && quickInput.text == draft && quickSends.isEmpty,
+    "Quick replies must never replace even a whitespace-only draft")
+}
+quickInput.text = ""
+quickComposer.textViewDidChange(quickInput)
+quickComposer.layoutIfNeeded()
+precondition(abs(quickComposer.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height - quickEditingHeight) < 0.5,
+  "Deleting the last character must reveal replies without changing composer height")
+let quickUnavailableStates: [[String: Any]] = [
+  ["running": true], ["sending": true], ["canSend": false], ["editable": false],
+  ["stopping": true], ["controlling": true], ["connection": "paused"], ["quickReplies": []],
+]
+for (index, unavailable) in quickUnavailableStates.enumerated() {
+  quickState(unavailable)
+  RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+  quickButton.sendActions(for: .touchUpInside)
+  precondition(quickStrip.isHidden && quickSends.isEmpty, "A stale quick-reply tap must not send while unavailable")
+  precondition(quickStrip.bounds.height < 0.5, "Unavailable replies must release their reserved height")
+  // The ordinary sending prop captures a pending draft, just as production does.
+  quickComposer.clearDraft(token: index + 1)
+}
+quickState()
+quickComposer.setInitialAttachments(#"[{"id":"quick-file","name":"quick.txt","uri":"file:///tmp/quick.txt","kind":"file"}]"#)
+precondition(quickStrip.isHidden, "An attachment-only draft must hide quick replies")
+let quickRemove = descendants(quickComposer).compactMap { $0 as? UIButton }.first {
+  $0.accessibilityLabel == LodyStrings.text("native.chat.attachment.remove", ["name": "quick.txt"])
+}!
+quickRemove.sendActions(for: .touchUpInside)
+quickComposer.setQueue([ChatQueuedDraft(id: "quick-queued", text: "Waiting")])
+precondition(quickStrip.isHidden, "Queued work must not expose an idle shortcut")
+quickComposer.setQueue([])
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+quickState()
+let activeQuickButton = descendants(quickStrip).compactMap { $0 as? UIButton }.first!
+activeQuickButton.sendActions(for: .touchUpInside)
+activeQuickButton.sendActions(for: .touchUpInside)
+precondition(quickSends.count == 1 && quickSends[0]["text"] as? String == quickMessage,
+  "A quick reply sends its full message once through the ordinary send event")
+precondition(quickSends[0]["queue"] as? Bool == false && quickSends[0]["guide"] as? Bool == false)
+precondition(quickStrip.isHidden && quickInput.text.isEmpty)
+quickComposer.restoreDraft(token: 1)
+precondition(quickInput.text == quickMessage && quickStrip.isHidden,
+  "Rejected quick replies must restore the original message, not silently send again")
+quickInput.text = ""
+quickComposer.textViewDidChange(quickInput)
+quickState([
+  "quickReplies": [
+    ["id": "ok", "label": "OK", "message": "OK"],
+    ["id": "go", "label": "Commit & Push", "message": "Go"],
+  ],
+])
+let huggingButtons = descendants(quickStrip).compactMap { $0 as? UIButton }
+precondition(huggingButtons.count == 2)
+let okChip = huggingButtons[0].convert(huggingButtons[0].bounds, to: quickStrip)
+let longChip = huggingButtons[1].convert(huggingButtons[1].bounds, to: quickStrip)
+precondition(okChip.width < longChip.width)
+precondition(okChip.width < 100, "A short label must not stretch toward an equal share of the row")
+precondition(longChip.maxX < quickStrip.bounds.width,
+  "Two compact chips must leave trailing space instead of filling the composer")
+let manyReplies = (1...8).map { ["id": "r\($0)", "label": "Reply \($0)", "message": "Reply \($0)"] }
+quickState(["quickReplies": manyReplies])
+precondition(quickStrip.contentSize.width > quickStrip.bounds.width,
+  "Overflowing chips must scroll horizontally")
+print("Quick replies: idle-only visibility, draft/attachment preservation, queue gating, single send and failed draft recovery passed")
+
+@MainActor func previewChip(_ label: String, state: String = "ready") -> [String: Any] {
+  ["label": label, "symbol": "safari", "state": state, "accessibilityLabel": "Open preview \(label)",
+   "actions": [["id": "copy", "title": "Copy Share Link", "symbol": "link"]]]
+}
+@MainActor func contextButton() -> UIButton? {
+  descendants(quickStrip).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-preview" }
+}
+@MainActor func shownReplies() -> [UIButton] {
+  descendants(quickStrip).compactMap { $0 as? UIButton }.filter {
+    $0.accessibilityIdentifier?.hasPrefix("quick-reply:") == true && !$0.isHidden && $0.alpha > 0.01
+  }
+}
+let contextReply: [[String: Any]] = [["id": "commit", "label": "Commit & Push", "message": quickMessage]]
+quickState(["quickReplies": contextReply, "preview": previewChip("Connecting…", state: "connecting")])
+let context = contextButton()!
+let connectingWidth = context.bounds.width
+let contextFrame = context.convert(context.bounds, to: quickStrip)
+let replyFrame = shownReplies().first!.convert(shownReplies().first!.bounds, to: quickStrip)
+precondition(!quickStrip.isHidden && abs(contextFrame.minX - 16) < 0.5 && abs(contextFrame.height - quickChipHeight) < 0.5,
+  "The context chip leads the row at chip height")
+precondition(replyFrame.minX - contextFrame.maxX > 12, "A separator divides the context zone from suggestions")
+precondition(quickStrip.hitTest(CGPoint(x: contextFrame.midX, y: contextFrame.midY), with: nil) === context,
+  "Hosted chip content must leave touches to the native button")
+quickState(["quickReplies": contextReply, "preview": previewChip("localhost:5173")])
+precondition(contextButton() === context, "The context chip keeps its identity so state changes animate in place")
+precondition(context.bounds.width > connectingWidth + 8, "The context chip follows its label width")
+var contextOpens: [String] = []
+quickComposer.onPreview = { contextOpens.append($0) }
+context.sendActions(for: .touchUpInside)
+precondition(contextOpens == ["open"])
+quickState(["quickReplies": contextReply, "preview": previewChip("localhost:5173"), "running": true])
+precondition(!quickStrip.isHidden && contextButton() === context && shownReplies().isEmpty,
+  "A running agent keeps the context chip and hides suggestions")
+quickState(["quickReplies": contextReply, "preview": previewChip("localhost:5173")])
+quickInput.becomeFirstResponder()
+quickComposer.layoutIfNeeded()
+let contextFocusedHeight = quickComposer.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height
+quickInput.text = "Draft"
+quickComposer.textViewDidChange(quickInput)
+quickComposer.layoutIfNeeded()
+precondition(!quickStrip.isHidden && !quickStrip.accessibilityElementsHidden && shownReplies().isEmpty,
+  "Typing keeps the context chip while suggestions leave")
+precondition(abs(context.bounds.width - quickChipHeight) < 0.5, "Typing collapses the context chip to its icon")
+precondition(abs(quickComposer.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height - contextFocusedHeight) < 0.5,
+  "The compact context chip reuses the reserved slot")
+quickInput.text = ""
+quickComposer.textViewDidChange(quickInput)
+quickComposer.layoutIfNeeded()
+precondition(context.bounds.width > quickChipHeight + 40 && shownReplies().count == 1,
+  "Clearing the draft restores the labelled chip and suggestions")
+quickState(["quickReplies": contextReply, "preview": previewChip("localhost:5173"), "connection": "paused"])
+precondition(quickStrip.isHidden, "A disconnected session hides the context chip")
+quickState(["quickReplies": contextReply])
+precondition(contextButton()?.isHidden != false && shownReplies().count == 1,
+  "Without a resource the context zone leaves the row")
+quickInput.text = "Draft"
+quickComposer.textViewDidChange(quickInput)
+precondition(quickStrip.alpha < 0.01 && shownReplies().count == 1,
+  "Without a context chip, suggestions fade out with the row instead of vanishing first")
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+quickInput.text = ""
+quickComposer.textViewDidChange(quickInput)
+quickState(["quickReplies": manyReplies])
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+quickStrip.contentOffset.x = 150
+quickState(["quickReplies": manyReplies, "preview": previewChip("localhost:5173")])
+precondition(context.convert(context.bounds, to: quickStrip).minX - quickStrip.contentOffset.x >= 0,
+  "A context chip appearing in a scrolled row must be scrolled into view")
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+precondition(quickStrip.contentSize.width > quickStrip.bounds.width + 150)
+quickStrip.contentOffset.x = 150
+quickInput.text = "Draft"
+quickComposer.textViewDidChange(quickInput)
+quickComposer.layoutIfNeeded()
+precondition(context.convert(context.bounds, to: quickStrip).minX - quickStrip.contentOffset.x >= 0,
+  "Collapsing suggestions must bring a scrolled-away context chip back into view")
+print("Context chip: persistent identity, label-driven width, compact while typing, survives running, native touch ownership passed")
+
+@MainActor func makeRichComposer() -> (ChatComposerView, ChatComposerInput) {
+  let composer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
+  let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+  window.addSubview(composer)
+  window.isHidden = false
+  composer.setComposerState(ready)
+  composer.layoutIfNeeded()
+  let input = descendants(composer).compactMap { $0 as? ChatComposerInput }.first!
+  precondition(input.becomeFirstResponder())
+  return (composer, input)
+}
+@MainActor func typeInto(_ input: ChatComposerInput, _ text: String) {
+  for character in text { input.insertText(String(character)) }
+}
+@MainActor func tapSend(on composer: ChatComposerView) {
+  let button = descendants(composer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }!
+  for action in button.actions(forTarget: composer, forControlEvent: .touchUpInside) ?? [] {
+    composer.perform(NSSelectorFromString(action))
+  }
+}
+
+let (richComposer, richInput) = makeRichComposer()
+precondition(richInput.textLayoutManager != nil, "The composer must stay on TextKit 2")
+var richSent: [String] = []
+richComposer.onSend = { richSent.append($0["text"] as! String) }
+typeInto(richInput, "**bold** and `code`")
+precondition(richInput.text == "bold and code", "Markdown shortcuts must format in place instead of leaving tags")
+typeInto(richInput, "\nnext")
+tapSend(on: richComposer)
+precondition(richSent == ["**bold** and `code`\nnext"], "The sent body must be Markdown with the newline the user typed")
+richComposer.setComposerState(ready)
+richComposer.restoreDraft(token: 1)
+precondition(richInput.text == "bold and code\nnext", "A rejected send must restore the draft")
+tapSend(on: richComposer)
+precondition(richSent.last == "**bold** and `code`\nnext", "A restored draft must keep its formatting")
+print("Rich composer: shortcuts, Markdown body, typed newlines and formatted restore passed")
+
+let (envelopeComposer, envelopeInput) = makeRichComposer()
+var storedDrafts: [String] = []
+envelopeComposer.onDraftChange = { storedDrafts.append($0) }
+typeInto(envelopeInput, "**keep**")
+envelopeComposer.textViewDidEndEditing(envelopeInput)
+precondition(storedDrafts.last?.contains("\"lexical\"") == true, "Drafts must persist the editor state envelope")
+let (restoredComposer, restoredInput) = makeRichComposer()
+restoredComposer.setStoredDraft(storedDrafts.last!)
+var restoredSent: [String] = []
+restoredComposer.onSend = { restoredSent.append($0["text"] as! String) }
+precondition(restoredInput.text == "keep", "An envelope draft must restore its document, not its JSON")
+tapSend(on: restoredComposer)
+precondition(restoredSent == ["**keep**"], "A restored envelope draft must keep its formatting")
+let (legacyComposer, legacyInput) = makeRichComposer()
+legacyComposer.setStoredDraft("plain *text*\nline two")
+var legacySent: [String] = []
+legacyComposer.onSend = { legacySent.append($0["text"] as! String) }
+precondition(legacyInput.text == "plain *text*\nline two", "A plain-text draft from an older build must restore verbatim")
+tapSend(on: legacyComposer)
+precondition(legacySent == ["plain *text*\nline two"], "Plain drafts must send exactly what was stored")
+print("Rich composer: envelope and legacy draft restoration passed")
+
+let (chipComposer, chipInput) = makeRichComposer()
+let chipPanel = ChatMentionPanel(frame: CGRect(x: 16, y: 280, width: 358, height: 112))
+chipComposer.window!.addSubview(chipPanel)
+chipInput.text = "/"
+chipInput.selectedRange = NSRange(location: 1, length: 0)
+let chipCommand = ChatMentionItem(path: "compact", name: "compact", kind: "cmd", subtitle: "Compact", insertText: "/compact")
+chipPanel.update(input: chipInput, items: [chipCommand])
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+let chipList = descendants(chipPanel).compactMap { $0 as? UICollectionView }.first!
+chipPanel.collectionView(chipList, didSelectItemAt: IndexPath(item: 0, section: 0))
+precondition(chipInput.text == "/compact ", "A reference must insert exactly its token")
+precondition(chipInput.referenceTokens == ["/compact"], "An inserted reference must become a chip node")
+typeInto(chipInput, "now")
+var chipSent: [String] = []
+chipComposer.onSend = { chipSent.append($0["text"] as! String) }
+tapSend(on: chipComposer)
+precondition(chipSent == ["/compact now"], "A chip must send the same token text as before")
+chipComposer.setComposerState(ready)
+chipComposer.restoreDraft(token: 1)
+precondition(chipInput.referenceTokens == ["/compact"], "A restored draft must keep its chips")
+for _ in 0..<5 { chipInput.deleteBackward() }
+precondition(chipInput.text == "", "Deleting into a chip must remove the whole token")
+print("Rich composer: reference chips insert, send, restore and delete as one token")
+
+let (retryComposer, retryInput) = makeRichComposer()
+var retrySent: [String] = []
+retryComposer.onSend = { retrySent.append($0["text"] as! String) }
+typeInto(retryInput, "**bold** first")
+tapSend(on: retryComposer)
+retryComposer.setComposerState(ready)
+typeInto(retryInput, "second")
+retryComposer.restoreDraft(token: 1)
+precondition(retryInput.text == "second", "A failed send must not overwrite text typed after it")
+retryComposer.perform(NSSelectorFromString("reconnect"))
+tapSend(on: retryComposer)
+precondition(retrySent.last?.contains("**bold** first") == true, "Retrying a failed send must keep its Markdown, got \(retrySent)")
+print("Rich composer: retried failed send keeps its Markdown")
+
+let (historyComposer, historyInput) = makeRichComposer()
+let historySend = descendants(historyComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }!
+typeInto(historyInput, "undo me")
+precondition(historySend.isEnabled && historyInput.undoManager?.canUndo == true, "Typing in the composer must be undoable")
+historyInput.undoManager?.undo()
+precondition(historyInput.text == "", "Undo must revert typing, got \(historyInput.text!)")
+precondition(!historySend.isEnabled, "Undo must refresh the composer like any other edit")
+historyInput.undoManager?.redo()
+precondition(historyInput.text == "undo me" && historySend.isEnabled, "Redo must restore the typed text")
+print("Rich composer: undo and redo revert typing and refresh the composer")
+
+@MainActor func richProvider(_ representations: [(String, String)]) -> NSItemProvider {
+  let provider = NSItemProvider()
+  for (type, value) in representations {
+    provider.registerDataRepresentation(forTypeIdentifier: type, visibility: .all) { completion in
+      completion(Data(value.utf8), nil)
+      return nil
+    }
+  }
+  return provider
+}
+@MainActor func waitFor(_ condition: () -> Bool) {
+  let deadline = Date().addingTimeInterval(3)
+  while !condition() && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+}
+
+let (htmlComposer, htmlInput) = makeRichComposer()
+var htmlSent: [String] = []
+htmlComposer.onSend = { htmlSent.append($0["text"] as! String) }
+htmlInput.paste(itemProviders: [richProvider([(UTType.html.identifier, "<p>Use <b>bold</b> and <code>code</code></p><ul><li>one</li></ul>"), (UTType.utf8PlainText.identifier, "Use bold and code\none")])])
+waitFor { htmlInput.text.contains("one") }
+tapSend(on: htmlComposer)
+precondition(htmlSent.last == "Use **bold** and `code`\n- one", "HTML must paste as formatted nodes, got \(htmlSent)")
+
+let (mdComposer, mdInput) = makeRichComposer()
+var mdSent: [String] = []
+mdComposer.onSend = { mdSent.append($0["text"] as! String) }
+mdInput.paste(itemProviders: [richProvider([("net.daringfireball.markdown", "# Title\n**strong**"), (UTType.utf8PlainText.identifier, "# Title\n**strong**")])])
+waitFor { mdInput.text.contains("strong") }
+precondition(mdInput.text == "Title\nstrong", "Markdown-typed content must render, got \(mdInput.text!)")
+tapSend(on: mdComposer)
+precondition(mdSent.last == "# Title\n**strong**")
+
+let (literalComposer, literalInput) = makeRichComposer()
+literalInput.paste(itemProviders: [richProvider([(UTType.utf8PlainText.identifier, "def f(): # **not** bold")])])
+waitFor { literalInput.text.contains("bold") }
+precondition(literalInput.text == "def f(): # **not** bold", "Unmarked plain text must stay literal, got \(literalInput.text!)")
+let safariProvider = richProvider([(UTType.html.identifier, "<b>web</b>"), (UTType.flatRTFD.identifier, "rtfd"), (UTType.rtf.identifier, "rtf"), (UTType.utf8PlainText.identifier, "web")])
+precondition(!ChatAttachment.canPaste([safariProvider]), "Rich text selections must not claim Paste as an attachment")
+let (safariComposer, safariInput) = makeRichComposer()
+var safariSent: [String] = []
+safariComposer.onSend = { safariSent.append($0["text"] as! String) }
+safariInput.paste(itemProviders: [safariProvider])
+waitFor { safariInput.text.contains("web") }
+tapSend(on: safariComposer)
+precondition(safariSent.last == "**web**", "A Safari-style selection must paste as formatted text, got \(safariSent)")
+print("Rich composer: HTML and Markdown paste as nodes, plain text stays literal")
+
+let (codeComposer, codeInput) = makeRichComposer()
+typeInto(codeInput, "```")
+typeInto(codeInput, " ")
+codeInput.paste(itemProviders: [richProvider([(UTType.html.identifier, "<b>x</b>"), (UTType.utf8PlainText.identifier, "**x**")])])
+waitFor { codeInput.text.contains("x") }
+var codeSent: [String] = []
+codeComposer.onSend = { codeSent.append($0["text"] as! String) }
+tapSend(on: codeComposer)
+precondition(codeSent.last == "```\n**x**\n```", "Pasting inside code must insert plain text, got \(codeSent)")
+
+let (undoPasteComposer, undoPasteInput) = makeRichComposer()
+typeInto(undoPasteInput, "base ")
+undoPasteInput.paste(itemProviders: [richProvider([(UTType.html.identifier, "<i>one</i> <b>two</b>"), (UTType.utf8PlainText.identifier, "one two")])])
+waitFor { undoPasteInput.text.contains("two") }
+undoPasteInput.undoManager?.undo()
+precondition(undoPasteInput.text == "base ", "One undo must remove the whole paste, got \(undoPasteInput.text!)")
+_ = undoPasteComposer
+print("Rich composer: code blocks take plain text and a paste is one undo step")
+
+let (longRichComposer, longRichInput) = makeRichComposer()
+let longRichHTML = (1...16).map { "<p><b>row \($0)</b></p>" }.joined()
+longRichInput.paste(itemProviders: [richProvider([(UTType.html.identifier, longRichHTML), (UTType.utf8PlainText.identifier, "rows")])])
+var longRichUndo: UIButton?
+waitFor {
+  longRichUndo = allWindows().flatMap(descendants).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "lody.toast.undo" }
+  return longRichUndo != nil
+}
+var longRichSent: [[String: String]] = []
+longRichComposer.onSend = { longRichSent = $0["attachments"] as! [[String: String]] }
+precondition(longRichInput.text.isEmpty && longRichUndo != nil, "Long rich pastes must become a file with undo")
+LodyToastOverlay.shared.performFrontAction()
+waitFor { longRichInput.text.contains("row 16") }
+var longRichText: [String] = []
+longRichComposer.onSend = { longRichText.append($0["text"] as! String) }
+tapSend(on: longRichComposer)
+precondition(longRichText.last?.hasPrefix("**row 1**\n**row 2**") == true, "Undo must re-insert the formatted nodes, got \(longRichText)")
+
+let (fileComposer, fileInput) = makeRichComposer()
+var fileAttachments: [[String: String]] = []
+fileComposer.onSend = { fileAttachments = $0["attachments"] as! [[String: String]] }
+fileInput.paste(itemProviders: [richProvider([(UTType.html.identifier, longRichHTML), (UTType.utf8PlainText.identifier, "rows")])])
+waitFor { descendants(fileComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }?.isEnabled == true }
+LodyToastOverlay.shared.dismiss()
+tapSend(on: fileComposer)
+let fileURL = URL(string: fileAttachments.first?["uri"] ?? "")
+precondition(fileAttachments.first?["name"] == "Text.md", "Rich long pastes are Markdown files, got \(fileAttachments)")
+precondition(fileURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) }?.hasPrefix("**row 1**") == true, "The file must hold the Markdown")
+
+let (limitComposer, limitInput) = makeRichComposer()
+typeInto(limitInput, "x")
+limitInput.pastePlainText(from: [richProvider([(UTType.utf8PlainText.identifier, String(repeating: "y", count: 32000))])])
+RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+precondition(limitInput.text == "x", "A paste past 32,000 characters must be rejected")
+_ = limitComposer
+print("Rich composer: long rich pastes become Text.md with formatted undo; the limit uses Markdown length")
+
+let copyBoard = UIPasteboard.withUniqueName()
+copyBoard.setMessageMarkdown("**copied**")
+precondition(copyBoard.contains(pasteboardTypes: ["net.daringfireball.markdown", UTType.utf8PlainText.identifier]), "Copied messages must carry Markdown")
+print("Rich composer: copied messages carry the Markdown type")
+
+let (logComposer, logInput) = makeRichComposer()
+var logAttachments: [[String: String]] = []
+logComposer.onSend = { logAttachments = $0["attachments"] as! [[String: String]] }
+logInput.paste(itemProviders: [richProvider([(UTType.utf8PlainText.identifier, (1...3000).map { "log \($0)" }.joined(separator: "\n"))])])
+waitFor { descendants(logComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }?.isEnabled == true }
+LodyToastOverlay.shared.dismiss()
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+tapSend(on: logComposer)
+precondition(logAttachments.first?["name"] == "Text.txt" && logInput.text.isEmpty, "A 3,000-line log must become Text.txt, got \(logAttachments)")
+
+let (bigComposer, bigInput) = makeRichComposer()
+bigInput.paste(itemProviders: [richProvider([(UTType.utf8PlainText.identifier, String(repeating: "z", count: 40000))])])
+var bigUndo: UIButton?
+waitFor {
+  bigUndo = allWindows().flatMap(descendants).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "lody.toast.undo" }
+  return bigUndo != nil
+}
+LodyToastOverlay.shared.performFrontAction()
+RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+var bigAttachments: [[String: String]] = []
+bigComposer.onSend = { bigAttachments = $0["attachments"] as! [[String: String]] }
+tapSend(on: bigComposer)
+precondition(bigAttachments.first?["name"] == "Text.txt", "Undo that cannot insert must keep the file, got \(bigAttachments)")
+print("Rich composer: huge logs become Text.txt and a refused undo keeps the file")

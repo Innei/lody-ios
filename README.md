@@ -7,7 +7,7 @@
     <img src="https://img.shields.io/badge/Platform-iOS%2026%2B-blue?style=flat-square&logo=apple" alt="Platform" />
     <img src="https://img.shields.io/badge/Expo-SDK%2057-000020?style=flat-square&logo=expo" alt="Expo SDK 57" />
     <img src="https://img.shields.io/badge/React%20Native-0.86-61dafb?style=flat-square&logo=react" alt="React Native 0.86" />
-    <img src="https://img.shields.io/badge/Swift-5.9-f05138?style=flat-square&logo=swift" alt="Swift 5.9" />
+    <img src="https://img.shields.io/badge/Swift-6.0-f05138?style=flat-square&logo=swift" alt="Swift 6.0" />
     <img src="https://img.shields.io/badge/CRDT-Loro%20%26%20Flock-orange?style=flat-square" alt="CRDT" />
     <img src="https://img.shields.io/badge/License-AGPL--3.0--only-blue?style=flat-square" alt="License: AGPL-3.0-only" />
   </p>
@@ -18,6 +18,8 @@
     </a>
   </p>
 </div>
+
+https://github.com/user-attachments/assets/0bc0ab48-6f12-44e9-ae13-07af9c6b780d
 
 ![Lody on iPad and iPhone](https://github.com/user-attachments/assets/e4b1b2ad-434d-4a47-bf62-c9a6bb5c5cc9)
 
@@ -53,12 +55,28 @@ The project uses a hybrid architecture of **React Native + a deeply customized S
 
 ---
 
+## How this was built
+
+Lody iOS started as a one-day prototype and became a usable TestFlight client in about a week, driven by coding agents under tight product constraints: iOS only, one native kit module, system UI when React Native cannot meet HIG, and an offscreen WebView for Flock/Loro because official Node/CRDT packages do not bundle in Metro.
+
+The full first-person write-up is **[Prototype in a Day, Shipped in a Week: Building Lody iOS in Live](https://innei.in/en/posts/tech/lody-ios-prototype-to-product)**.
+
+What that week actually looked like:
+
+- **Constraints before features.** The first prompt named the architecture (RN template, one Kit module, no Android, Swift when RN is not enough) and left product surface to be inferred.
+- **Decide, then implement.** Navigation chrome, search, iPad shell, and onboarding were argued in the open; rejected paths stayed off `main`.
+- **HIG as acceptance, not taste.** Native `UIBarButtonItem`, system sheets, and semantic colors were required; RN fakes of system chrome were rejected on screenshots.
+- **Verify without login.** Offline Debug scenes, leased Simulators, screenshots for visual state, and video for temporal behavior became the gate: if the verify script was right, the change shipped.
+- **RN as the base, Swift where it matters.** Chat, composer, list rows, and diffs moved into LodyKit. Swift grew from a few hundred lines on day one to nearly half the UI surface by the end of the week.
+
+---
+
 ## Features
 
 ### Authentic Apple HIG Native Experience
 
 - **Human Interface Guidelines Compliance**: Native adoption of iOS semantic colors, automatic light and dark mode adaptation, and Dynamic Type with SF Pro and SF Mono.
-- **Native Navigation**: A single Expo Router native Stack with typed routes, transparent headers, and soft scroll edge effects. Transient flows open as native sheets through the shared `present()` runtime, and system grouped rows use UIKit `UICollectionViewListCell` via `LodyGroupedList`.
+- **Native Navigation**: A single Expo Router native Stack with typed routes, transparent headers, and automatic scroll edge effects. Transient flows open as native sheets through the shared `present()` runtime, and system grouped rows use UIKit `UICollectionViewListCell` via `LodyGroupedList`.
 - **Bilingual by Default**: English and Simplified Chinese product copy lives in `apps/mobile/locales`, is checked in CI, and is projected into native `xcstrings` catalogs by the local `withLocales` config plugin.
 
 ### High-Performance Native Streaming Chat
@@ -75,6 +93,11 @@ The project uses a hybrid architecture of **React Native + a deeply customized S
 - **Remote Workspace File Tree**: Browse project directories and files on remote Macs or servers at any time, with previews via native code view `LodyCodeView` or system Quick Look.
 
 **Agent Conversation Sync** in Settings lists supported local projects and agents on your own computers. Refresh their history, select conversations to import, and explicitly confirm any conflict replacement. Imports run in batches and retain partial progress; this is a manual history import, not automatic device-to-device mirroring.
+
+### Live Preview & Simulator Streaming
+
+- **Preview Chip**: When an agent reports a local dev server, a chip above the composer opens it through the machine's Lody Quick Tunnel. Long-press copies the share link, opens it in Safari, or stops sharing. The control proof is signed natively with the Keychain credential; only short-lived tunnel links reach the app.
+- **Native Simulator Viewer**: A [baguette](https://github.com/tddworks/baguette) server behind the tunnel opens a pushed native page instead of a web view. H.264 frames decode into `AVSampleBufferDisplayLayer`, touches go back over the same WebSocket, and the device frame and its side buttons are drawn natively. Hardware actions (Home, lock, rotate, shake, volume, screenshot) sit in the navigation bar.
 
 ### Offscreen WASM CRDT Data Sync Engine
 
@@ -173,8 +196,8 @@ lody-ios/
 
 ### Prerequisites
 
-- **macOS**: Sequoia or later (CI builds on macOS 26)
-- **Xcode**: 26.5 with Command Line Tools — the toolchain CI pins and the offline Simulator baselines require
+- **macOS**: Sequoia or later — GitHub iOS verification and TestFlight use the macOS 27 preview image
+- **Xcode**: 26.5 or later with Command Line Tools — local offline Simulator baselines default to iOS 26.5; GitHub iOS jobs use the Xcode 27 preview image and iOS 27.0
 - **Node.js**: `>= 22.13` (React Native 0.86 also accepts `^20.19.4`, `^24.3`, and `>= 25`)
 - **pnpm**: `11.10.0` (`corepack enable`)
 - **Ruby & Bundler**: `apps/mobile/Gemfile` pins `cocoapods ~> 1.16` and `cocoapods-spm`
@@ -232,6 +255,7 @@ UI baselines run without login, user credentials, cloud access, or a connected m
 pnpm verify:simulator --name '<current verify>' -- <command>   # Lease a Lody * Verify Simulator
 pnpm verify:native                                             # Swift behavior checks
 pnpm verify:ui --app /absolute/path/to/Lody.app                # Offline UI baselines
+pnpm verify:ui --suite core --embedded --app /absolute/path/to/Lody.app  # PR core paths, Release app
 ```
 
 The runner captures screenshots for visual states and video for temporal behavior; missing scenes and timeouts fail the run. See [`apps/mobile/verification/ui/README.md`](apps/mobile/verification/ui/README.md) for the case inventory and Simulator leasing rules.
@@ -261,3 +285,5 @@ Lody iOS is made possible thanks to these open-source projects and creators:
 - **[Loro](https://github.com/loro-dev/loro)**: High-performance, production-grade next-generation CRDT state synchronization.
 - **[Expo DOM WebView](https://github.com/expo/expo/tree/main/packages/%40expo/dom-webview)**: Vendored under `packages/dom-webview` (MIT) and extended to host the shared diff view.
 - **[AXe](https://github.com/cameroncooke/AXe)**: Simulator UI automation driving the offline UI baselines.
+- **[baguette](https://github.com/tddworks/baguette)**: Headless iOS Simulator control and streaming (Apache-2.0). The native simulator viewer is a client of its HTTP and WebSocket protocol; baguette itself runs on the Mac and is not bundled.
+- **[vphone-client](https://github.com/datdadev/vphone-client)**: Its native remote iPhone viewer (hardware decode into `AVSampleBufferDisplayLayer`, raw UIKit touch forwarding, never dropping input behind video) shaped the design of Lody's simulator viewer.

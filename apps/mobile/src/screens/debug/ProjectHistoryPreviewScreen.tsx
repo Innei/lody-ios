@@ -36,7 +36,6 @@ function View() {
   const failLoad = useRef(true),
     failImport = useRef(true);
   const service = useCallback<HistoryService>(async (request) => {
-    if (!__DEV__) throw new Error('Development only');
     if (request.kind === 'targets')
       return [
         target,

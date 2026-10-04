@@ -1,6 +1,7 @@
 import { requireNativeView } from 'expo';
 import type { ComponentType } from 'react';
 import type { NativeSyntheticEvent, ViewProps } from 'react-native';
+import type { PreparedChatEntries } from './PreparedChatEntries';
 
 export type ChatDraftAttachment = {
   id: string;
@@ -12,6 +13,28 @@ export type ChatDraftAttachment = {
 export const NativeChat: ComponentType<
   ViewProps & {
     entriesJSON: string;
+    simulatorPreviewJSON?: string;
+    editableMessageId?: string;
+    editedMessageId?: string;
+    onEditMessage?: (event: NativeSyntheticEvent<{ entryId: string }>) => void;
+    turnInfoEnabled?: boolean;
+    onTurnInfoPress?: (
+      event: NativeSyntheticEvent<{ entryId: string }>,
+    ) => void;
+    imageSharingEnabled?: boolean;
+    onShareImage?: (
+      event: NativeSyntheticEvent<{ contentJSON: string }>,
+    ) => void;
+    findRequestJSON?: string;
+    errorRetryJSON?: string;
+    onErrorRetry?: (
+      event: NativeSyntheticEvent<{
+        entryId: string;
+        itemId: string;
+        id: string;
+      }>,
+    ) => void;
+    preparedEntries?: PreparedChatEntries;
     debugBenchmarkRun?: number;
     debugStreamBenchmarkRun?: number;
     pendingSendJSON?: string;
@@ -19,8 +42,12 @@ export const NativeChat: ComponentType<
     navigationTitle?: string;
     navigationSubtitle?: string;
     navigationMachine?: string;
+    navigationBranch?: string;
     mentionRepository?: string;
     onTitlePress?: () => void;
+    titleMenuJSON?: string;
+    onTitleMenu?: (event: NativeSyntheticEvent<{ id: string }>) => void;
+    onPreview?: (event: NativeSyntheticEvent<{ action: string }>) => void;
     processEntryId?: string;
     processStartId?: string;
     composerJSON: string;
@@ -45,6 +72,7 @@ export const NativeChat: ComponentType<
         text: string;
         startedAt: number;
         queue?: boolean;
+        guide?: boolean;
         attachments: ChatDraftAttachment[];
       }>,
     ) => void;

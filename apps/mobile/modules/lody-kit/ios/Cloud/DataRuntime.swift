@@ -8,15 +8,18 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   private var webView: WKWebView?
   private var sessionId: String?
   private var retainedSessions: [String] = []
+  private var reservedSessions: [String] = []
   private var userId = ""
   private let localStore: LocalStore
+  private let billing = WorkspaceBilling()
   private var cacheErrorShown = false
-  private var commands: [UUID: Promise] = [:]
+  private var commands: [UUID: CommandSink] = [:]
   private var timer: Timer?
-  private var attachmentTask: Task<Void, Never>?
-  private var attachmentAttempt: UUID?
+  private var attachmentTasks: [String: Task<Void, Never>] = [:]
+  private var attachmentAttempts: [String: UUID] = [:]
   private var grantTask: URLSessionDataTask?
   private var githubTasks: [String: Task<Void, Never>] = [:]
+  private var shareTasks: [String: Task<Void, Never>] = [:]
   private var health = RuntimeHealth()
   private var pingPending = false
   private var workspace: String?
@@ -63,7 +66,9 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   }
   func start(workspace: String, slug: String, name: String, owner: String, userId: String) {
     disposeView()
-    if self.workspace != workspace || self.userId != userId { sessionId = nil; retainedSessions = [] }
+    if self.workspace != workspace || self.userId != userId {
+      sessionId = nil; retainedSessions = []; reservedSessions = []; billing.clear()
+    }
     self.userId = userId; cacheErrorShown = false
     self.workspace = workspace; self.owner = owner; health = RuntimeHealth()
     workspaceSlug = slug; workspaceName = name
@@ -73,18 +78,16 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   }
   func stop(owner: String? = nil) {
     if let owner, self.owner != owner { return }
-    workspace = nil; sessionId = nil; retainedSessions = []; userId = ""; disposeView(); publish("stopped", reason: "unsubscribe")
+    workspace = nil; sessionId = nil; retainedSessions = []; reservedSessions = []; userId = ""; billing.clear(); disposeView(); publish("stopped", reason: "unsubscribe")
   }
   func status() -> [String: any Sendable] {
     var value: [String: any Sendable] = ["owner": owner, "generation": generation, "state": phase, "reason": reason, "acknowledgements": acknowledgements, "lastStartReason": lastStartReason]
-    #if DEBUG
     if backgroundProbe {
       value["probeBackgroundUpdates"] = probeBackgroundUpdates
       value["probeUpdates"] = probeUpdates
       value["backgroundTaskState"] = SessionBackgroundTasks.shared.debugState
       value["backgroundTaskCount"] = SessionBackgroundTasks.shared.debugCount
     }
-    #endif
     return value
   }
   private func publish(_ state: String, reason: String, extra: [String: Any] = [:]) {
@@ -114,12 +117,10 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       MainActor.assumeIsolated { self?.tick() }
     }
     if let timer { RunLoop.main.add(timer, forMode: .common) }
-    #if DEBUG
     if backgroundProbe {
       view.loadHTMLString(Self.backgroundProbeHTML, baseURL: URL(string: "https://lody.ai"))
       return
     }
-    #endif
     do {
       guard let url = Bundle(for: LodyKitModule.self).url(forResource: "DataRuntime", withExtension: "html") ?? Bundle.main.url(forResource: "DataRuntime", withExtension: "html") else { throw NSError(domain: "MissingDataRuntime", code: 1) }
       // A bundled document with the official site's origin; no remote scripts are loaded.
@@ -128,11 +129,14 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   }
   private func disposeView() {
     SessionBackgroundTasks.shared.finishAll(owner: owner)
-    attachmentTask?.cancel(); attachmentTask = nil
+    for task in attachmentTasks.values { task.cancel() }
+    attachmentTasks.removeAll()
+    attachmentAttempts.removeAll()
     for promise in commands.values { fail(promise, "runtime_replaced", LodyStrings.text("native.runtime.replaced")) }; commands.removeAll()
     timer?.invalidate(); timer = nil
     grantTask?.cancel(); grantTask = nil
     githubTasks.values.forEach { $0.cancel() }; githubTasks.removeAll()
+    shareTasks.values.forEach { $0.cancel() }; shareTasks.removeAll()
     pingPending = false
     let old = webView; webView = nil
     old?.configuration.userContentController.removeScriptMessageHandler(forName: "dataRuntime")
@@ -164,26 +168,25 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       guard !health.ready, let workspace else { return }
       health.acknowledged(at: now)
       publish("syncing", reason: "runtime_ready")
-      view.callAsyncJavaScript("globalThis.dataRuntime.start(workspace)", arguments: ["workspace": workspace], in: nil, in: .page) { [weak self, weak view] result in
+      view.callAsyncJavaScript("globalThis.dataRuntime.start(workspace, userId)", arguments: ["workspace": workspace, "userId": userId], in: nil, in: .page) { [weak self, weak view] result in
         guard let self, let view, self.webView === view else { return }
         if case .failure = result { self.recover("start_failed") }
         else {
-          view.callAsyncJavaScript("globalThis.dataRuntime.restoreSessions(ids, current)", arguments: ["ids": self.retainedSessions, "current": self.sessionId as Any? ?? NSNull()], in: nil, in: .page, completionHandler: nil)
+          view.callAsyncJavaScript("globalThis.dataRuntime.restoreSessions(ids, current, reserved)", arguments: ["ids": self.retainedSessions, "current": self.sessionId as Any? ?? NSNull(), "reserved": self.reservedSessions], in: nil, in: .page, completionHandler: nil)
         }
       }
-    #if DEBUG
     case "backgroundProbe":
       guard backgroundProbe else { return }
       probeUpdates += 1
       if UIApplication.shared.applicationState == .background { probeBackgroundUpdates += 1 }
       emitStatus()
-    #endif
     case "diagnostic":
       #if DEBUG
       NSLog("LodyRuntime stage=%@ stream=%@", body["stage"] as? String ?? "", body["stream"] as? String ?? "")
       #endif
     case "sessionSubscriptions":
       if let ids = body["ids"] as? [String] { retainedSessions = ids }
+      reservedSessions = body["reserved"] as? [String] ?? reservedSessions
     case "session", "sessionCache":
       if let work = body["backgroundWork"] as? [String: Any] {
         SessionBackgroundTasks.shared.update(work, owner: owner)
@@ -208,6 +211,24 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       guard type == "session", id == sessionId else { return }
       let payload = fits ? session : #"{"v":1,"overflow":true}"#
       emitStatus(["sessionId": id, "session": payload])
+    case "shareProgress":
+      if let progress = body["progress"] as? [String: Any] { emitStatus(["shareProgress": progress]) }
+    case "shareRequest":
+      guard let workspace, body["workspaceId"] as? String == workspace,
+        let id = body["id"] as? String, UUID(uuidString: id) != nil,
+        let operation = body["operation"] as? String, let args = body["args"] as? [String: Any],
+        shareTasks[id] == nil else { return }
+      guard shareTasks.count < 4 else {
+        view.callAsyncJavaScript("globalThis.dataRuntime.shareResult(id, null, true)", arguments: ["id": id], in: nil, in: .page, completionHandler: nil)
+        return
+      }
+      let user = userId
+      shareTasks[id] = Task { [weak self, weak view] in
+        let result = try? await SessionSharing.run(operation, args: args, workspace: workspace, userId: user)
+        guard !Task.isCancelled, let self, let view, self.webView === view, self.workspace == workspace, self.userId == user else { return }
+        self.shareTasks.removeValue(forKey: id)
+        view.callAsyncJavaScript("globalThis.dataRuntime.shareResult(id, value, failed)", arguments: ["id": id, "value": result ?? NSNull(), "failed": result == nil], in: nil, in: .page, completionHandler: nil)
+      }
     case "githubMentions":
       guard let workspace, body["workspaceId"] as? String == workspace,
             let id = body["id"] as? String, UUID(uuidString: id) != nil,
@@ -240,7 +261,6 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     }
   }
   func openSession(_ id: String) {
-    if sessionId != id { attachmentTask?.cancel(); attachmentTask = nil }
     sessionId = id
     guard health.ready, let view = webView else { return }
     view.callAsyncJavaScript("return await globalThis.dataRuntime.session(id)", arguments: ["id": id], in: nil, in: .page, completionHandler: nil)
@@ -248,17 +268,117 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   func closeSession(_ id: String) {
     ContentStore.shared.clear(session: id)
     guard sessionId == id else { return }
-    attachmentTask?.cancel(); attachmentTask = nil
     sessionId = nil
     webView?.evaluateJavaScript("globalThis.dataRuntime.closeSession()", completionHandler: nil)
   }
-  func sendTurn(_ payload: String, promise: Promise) {
+  func ensureSession(_ id: String, promise: Promise) {
+    guard let workspace, let payload = try? String(
+      data: JSONSerialization.data(withJSONObject: ["sessionId": id, "workspaceId": workspace]),
+      encoding: .utf8
+    ) else {
+      fail(promise, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
+      return
+    }
+    command("ensureSession", payload: payload, promise: promise)
+  }
+  func releaseReserve(_ id: String) {
+    reservedSessions.removeAll { $0 == id }
+    guard health.ready, let view = webView else { return }
+    view.callAsyncJavaScript(
+      "return globalThis.dataRuntime.releaseReserve(args)",
+      arguments: ["args": ["sessionId": id]],
+      in: nil,
+      in: .page,
+      completionHandler: nil
+    )
+  }
+  func createSession(_ payload: String, promise: Promise) {
+    guard let workspace else { command("createSession", payload: payload, promise: promise); return }
+    let user = userId, generation = self.generation
+    Task { @MainActor in
+      let entitlement = await billing.entitlement(workspace: workspace, user: user)
+      guard self.generation == generation, self.workspace == workspace, self.userId == user else {
+        promise.resolve(#"{"state":"rejected"}"#); return
+      }
+      command("createSession", payload: payload, promise: promise, billing: entitlement)
+    }
+  }
+  func workspaceBillingEntitlement(workspace: String, user: String, promise: Promise) {
+    guard self.workspace == workspace, userId == user else { promise.resolve("{}"); return }
+    let generation = self.generation
+    Task { @MainActor in
+      let entitlement = await billing.entitlement(workspace: workspace, user: user)
+      guard self.generation == generation, self.workspace == workspace, self.userId == user else {
+        promise.resolve("{}"); return
+      }
+      let data = (try? JSONSerialization.data(withJSONObject: entitlement ?? [:])) ?? Data("{}".utf8)
+      promise.resolve(String(data: data, encoding: .utf8) ?? "{}")
+    }
+  }
+  func prepareSessionEdit(_ payload: String, promise: Promise) {
+    let generation = self.generation
+    guard let workspace, let session = sessionId else { promise.reject("not_ready", "Session unavailable"); return }
+    Task { @MainActor in
+      do {
+        let result = try await command("editSession", payload: payload)
+        guard var draft = try JSONSerialization.jsonObject(with: Data(result.utf8)) as? [String: Any],
+              draft["state"] as? String == "ready" else { promise.resolve(result); return }
+        var attachments: [[String: Any]] = []
+        let originals = draft["attachments"] as? [[String: Any]] ?? []
+        guard originals.count <= 16 else { throw SessionAttachments.error(LodyStrings.text("native.attachment.error.limit")) }
+        let downloads = AttachmentDownloadBatch()
+        // ponytail: download at most 16 originals for the shared local-file composer; use lazy remote previews if large attachments make editing slow.
+        for block in originals {
+          let image = block["type"] as? String == "image"
+          guard let id = block[image ? "imageId" : "fileId"] as? String,
+                let editID = block["editId"] as? String else { throw SessionAttachments.error("Invalid attachment") }
+          let name = block["fileName"] as? String ?? (image ? "image.jpg" : "file")
+          let directory = downloads.makeDirectory()
+          let url = try await SessionAttachments.download(workspace: workspace,
+            session: block["storageSessionId"] as? String ?? session, fileId: id, fileName: name,
+            sizeBytes: block["sizeBytes"] as? Int, directory: directory, image: image)
+          guard self.generation == generation, self.sessionId == session else { throw CancellationError() }
+          attachments.append(["id": editID, "name": name, "uri": url.absoluteString, "kind": image ? "image" : "file"])
+        }
+        guard self.generation == generation, self.sessionId == session else { throw CancellationError() }
+        draft["attachments"] = attachments
+        let encoded = String(data: try JSONSerialization.data(withJSONObject: draft), encoding: .utf8)!
+        downloads.handOff()
+        promise.resolve(encoded)
+      } catch { promise.reject("edit_prepare_failed", error.localizedDescription) }
+    }
+  }
+  func sendTurn(_ payload: String, promise: Promise, method: String = "sendTurn") {
+    guard let workspace else { command(method, payload: payload, promise: promise); return }
+    let user = userId, generation = self.generation
+    Task { @MainActor in
+      let entitlement = await billing.entitlement(workspace: workspace, user: user)
+      guard self.generation == generation, self.workspace == workspace, self.userId == user else {
+        promise.resolve(notSentJSON("native.runtime.connectionSwitched")); return
+      }
+      let hasAttachments = payload.data(using: .utf8)
+        .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        .flatMap { $0["attachments"] as? [[String: Any]] }
+        .map { !$0.isEmpty } ?? false
+      if hasAttachments,
+         let result = try? await command("checkTurnQuota", payload: payload, billing: entitlement),
+         let data = result.data(using: .utf8),
+         let check = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+         check["state"] as? String == "not_sent" {
+        promise.resolve(result); return
+      }
+      sendTurnWithBilling(payload, promise: promise, billing: entitlement, method: method)
+    }
+  }
+  private func sendTurnWithBilling(_ payload: String, promise: Promise, billing: [String: Any]?, method: String) {
     guard let data = payload.data(using: .utf8), data.count <= 128 * 1024,
           var args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let attachments = args.removeValue(forKey: "attachments") as? [[String: Any]], !attachments.isEmpty else {
-      command("sendTurn", payload: payload, promise: promise); return
+      command(method, payload: payload, promise: promise, billing: billing); return
     }
-    guard health.ready, let workspace, let sessionId, args["sessionId"] as? String == sessionId, attachmentTask == nil else {
+    guard health.ready, let workspace,
+          let target = args["sessionId"] as? String, !target.isEmpty,
+          attachmentTasks[target] == nil else {
       promise.resolve(notSentJSON("native.runtime.sessionNotReady")); return
     }
     if !backgrounded {
@@ -268,14 +388,16 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     let generation = self.generation
     let sendID = args["id"] as? String ?? ""
     let attempt = UUID()
-    attachmentAttempt = attempt
-    attachmentTask = Task.detached { [weak self] in
+    let billingTier = billing?["effectivePlanTier"] as? String
+    let checkoutPending = billing?["checkoutPending"] as? Bool
+    attachmentAttempts[target] = attempt
+    attachmentTasks[target] = Task.detached { [weak self] in
       do {
-        args["attachmentBlocks"] = try await SessionAttachments.upload(attachments, workspace: workspace, session: sessionId) { [weak self] attachmentID, phase, percent in
+        args["attachmentBlocks"] = try await SessionAttachments.upload(attachments, workspace: workspace, session: target) { [weak self] attachmentID, phase, percent in
           DispatchQueue.main.async { [weak self] in
             guard let self, self.generation == generation, self.workspace == workspace,
-              self.sessionId == sessionId, self.attachmentAttempt == attempt, self.attachmentTask != nil else { return }
-            var event: [String: Any] = ["sessionId": sessionId, "sendId": sendID,
+              self.attachmentAttempts[target] == attempt, self.attachmentTasks[target] != nil else { return }
+            var event: [String: Any] = ["sessionId": target, "sendId": sendID,
               "attachmentId": attachmentID, "phase": phase]
             if let percent { event["percent"] = percent }
             self.emitUploadProgress(event)
@@ -284,17 +406,25 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         try Task.checkCancellation()
         let prepared = String(data: try JSONSerialization.data(withJSONObject: args), encoding: .utf8)!
         await MainActor.run { [weak self] in
-          guard let self, self.generation == generation, self.sessionId == sessionId, !Task.isCancelled else {
+          guard let self, self.generation == generation, !Task.isCancelled else {
             if let backgroundTaskId { SessionBackgroundTasks.shared.finish(backgroundTaskId, success: false) }
             promise.resolve(notSentJSON("native.runtime.connectionSwitched")); return
           }
-          self.attachmentTask = nil
-          self.command("sendTurn", payload: prepared, promise: promise)
+          self.attachmentTasks[target] = nil
+          self.attachmentAttempts[target] = nil
+          var projection: [String: Any]?
+          if let billingTier, let checkoutPending {
+            projection = ["effectivePlanTier": billingTier, "checkoutPending": checkoutPending]
+          }
+          self.command(method, payload: prepared, promise: promise, billing: projection)
         }
       } catch {
         let result = (try? JSONSerialization.data(withJSONObject: ["state": "not_sent", "reason": error.localizedDescription])) ?? Data()
         await MainActor.run { [weak self] in
-          if let self, self.generation == generation, self.sessionId == sessionId, !Task.isCancelled { self.attachmentTask = nil }
+          if let self, self.generation == generation, !Task.isCancelled {
+            self.attachmentTasks[target] = nil
+            self.attachmentAttempts[target] = nil
+          }
           if let backgroundTaskId { SessionBackgroundTasks.shared.finish(backgroundTaskId, success: false) }
           promise.resolve(String(data: result, encoding: .utf8)!)
         }
@@ -350,8 +480,41 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     guard let output = try? JSONSerialization.data(withJSONObject: object), let text = String(data: output, encoding: .utf8) else { return json }
     return text
   }
+  private enum CommandSink {
+    case promise(Promise)
+    case continuation(CheckedContinuation<String, Error>)
+
+    func resolve(_ value: Any?) {
+      switch self {
+      case .promise(let promise):
+        promise.resolve(value)
+      case .continuation(let continuation):
+        if let text = value as? String {
+          continuation.resume(returning: text)
+        } else if value == nil {
+          continuation.resume(returning: "")
+        } else {
+          continuation.resume(returning: String(describing: value as Any))
+        }
+      }
+    }
+
+    func reject(_ error: Error) {
+      switch self {
+      case .promise(let promise):
+        promise.reject(error as NSError)
+      case .continuation(let continuation):
+        continuation.resume(throwing: error)
+      }
+    }
+  }
+
   private func fail(_ promise: Promise, _ code: String, _ message: String) {
-    promise.reject(
+    fail(.promise(promise), code, message)
+  }
+
+  private func fail(_ sink: CommandSink, _ code: String, _ message: String) {
+    sink.reject(
       NSError(
         domain: "LodyKit.DataRuntime",
         code: 1,
@@ -360,28 +523,58 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     )
   }
 
-  private static let sessionCommands: Set<String> = ["sendTurn", "controlTurn", "itemDetail", "respondPermission", "turnDiff", "fileDiff", "readFile"]
+  private static let sessionCommands: Set<String> = ["editSession", "sendTurn", "controlTurn", "itemDetail", "respondPermission", "turnDiff", "fileDiff", "readFile", "sessionPreview"]
   private static let contentCommands: Set<String> = ["turnDiff", "fileDiff", "readFile"]
-  func command(_ method: String, payload: String, promise: Promise) {
+  func command(_ method: String, payload: String, billing: [String: Any]? = nil) async throws -> String {
+    try await withCheckedThrowingContinuation { continuation in
+      command(method, payload: payload, sink: .continuation(continuation), billing: billing)
+    }
+  }
+  func command(_ method: String, payload: String, promise: Promise, billing: [String: Any]? = nil) {
+    command(method, payload: payload, sink: .promise(promise), billing: billing)
+  }
+  private func command(_ method: String, payload: String, sink: CommandSink, billing: [String: Any]? = nil) {
     guard health.ready, let view = webView, let data = payload.data(using: .utf8), data.count <= 128 * 1024,
-          var args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-          (Self.sessionCommands.contains(method)
-            ? args["sessionId"] as? String == sessionId
-            : args["workspaceId"] as? String == workspace) else {
-      if method == "sendTurn" {
-        promise.resolve(notSentJSON("native.runtime.sessionNotSyncedRetry"))
+          var args = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+      if method == "sendTurn" || method == "checkTurnQuota" {
+        sink.resolve(notSentJSON("native.runtime.sessionNotSyncedRetry"))
       } else {
-        fail(promise, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
+        fail(sink, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
       }
       return
     }
+    let sessionKey = args["sessionId"] as? String
+    let allowed: Bool
+    if method == "sendTurn" || method == "checkTurnQuota" || method == "ensureSession" || method == "releaseReserve" {
+      allowed = workspace != nil && sessionKey?.isEmpty == false
+    } else if Self.sessionCommands.contains(method) {
+      allowed = sessionKey == sessionId
+    } else {
+      allowed = args["workspaceId"] as? String == workspace
+    }
+    guard allowed else {
+      if method == "sendTurn" || method == "checkTurnQuota" {
+        sink.resolve(notSentJSON("native.runtime.sessionNotSyncedRetry"))
+      } else {
+        fail(sink, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
+      }
+      return
+    }
+    if method == "createSession" || method == "sendTurn" || method == "editSession" || method == "checkTurnQuota" {
+      args["billingEntitlement"] = billing ?? NSNull()
+    }
     if method == "remoteSettings" || method == "localProjects" || method == "mentionCatalog" { args["userId"] = userId }
-    let id = UUID(); commands[id] = promise
-    if method == "sendTurn", args["backgroundTaskId"] == nil, !backgrounded {
+    if method == "editSession" || method == "sessionPreview" || method == "iosSimulatorControl" { args["userId"] = userId }
+    let id = UUID(); commands[id] = sink
+    if (method == "sendTurn" || (method == "editSession" && args["action"] as? String == "send")), args["backgroundTaskId"] == nil, !backgrounded {
       args["backgroundTaskId"] = SessionBackgroundTasks.shared.begin(owner: owner)
     }
     let backgroundTaskId = args["backgroundTaskId"] as? String
     var timeout: Double = 45
+    if method == "editSession" { timeout = 130 }
+    if method == "sessionSharing" { timeout = 130 }
+    if method == "sessionPreview" { timeout = 330 }
+    if method == "iosSimulatorControl" { timeout = 100 }
     if method == "localProjects" && args["action"] as? String == "history" { timeout = 130 }
     // Catalog expansion precedes the durable send and has its own bounded read.
     if method == "sendTurn", let text = args["text"] as? String,
@@ -413,7 +606,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         let value = try? result.get() as? String
         let data = value?.data(using: .utf8)
         let reply = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-        if reply?["state"] as? String != "accepted" {
+        if reply?["state"] as? String != "accepted" && reply?["awaitingGuide"] as? Bool != true {
           SessionBackgroundTasks.shared.finish(backgroundTaskId, success: reply?["state"] as? String == "queued")
         }
       }
@@ -482,12 +675,11 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { if self.webView === webView { recover("process_terminated") } }
   func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { if self.webView === webView { recover("navigation_failed") } }
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { if self.webView === webView { recover("navigation_failed") } }
-  #if DEBUG
   private var backgroundProbe = false
   private var probeUpdates = 0
   private var probeBackgroundUpdates = 0
   func debugBackground(_ action: String, promise: Promise) {
-    guard ProcessInfo.processInfo.arguments.contains("--ui-verify"), workspace == nil || backgroundProbe else {
+    guard LodyUIVerify.enabled, workspace == nil || backgroundProbe else {
       fail(promise, "probe_unavailable", "offline acceptance builds only"); return
     }
     switch action {
@@ -530,7 +722,6 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   """#
   func debugHang() { webView?.evaluateJavaScript("while (true) {}", completionHandler: nil) }
   func debugRestart() { recover("debug_process_loss") }
-  #endif
 }
 
 final class NotificationObservers {

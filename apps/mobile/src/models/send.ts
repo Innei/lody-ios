@@ -49,6 +49,7 @@ export type PendingSend = {
   startedAt: number;
   attachments: ChatDraftAttachment[];
   queue?: boolean;
+  guide?: boolean;
   phase:
     | 'waiting'
     | 'creating'
@@ -90,6 +91,7 @@ export type CreatePrefs = {
 };
 
 export type CreatedSession = {
+  composerRelayId?: string;
   session: Session;
   projectName: string;
   machineName: string;

@@ -4,16 +4,20 @@ import {
 } from '@/screens/debug/HomePreviewScreen';
 import { type PropsWithChildren, useEffect, useMemo } from 'react';
 import { PushCoordinator } from '@/features/notifications/PushCoordinator';
+import { ShareSnapshot } from '@/features/share/ShareSnapshot';
+import { ShareCoordinator } from '@/features/share/ShareCoordinator';
 import { Stack, ThemeProvider } from 'expo-router';
 import { CatalogProvider } from '@/cloud/catalog/CatalogProvider';
 import { AuthProvider } from '@/cloud/auth/AuthProvider';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, useColorScheme } from 'react-native';
 import { nativePresentationOptions } from '@/lib/presentation';
-import { navigationThemes } from '@/lib/theme/palette';
+import { navigationThemes, usePalette } from '@/lib/theme/palette';
 import { AppearanceProvider, useAppearance } from '@/lib/theme/appearance';
+import { QueuedMessageBehaviorProvider } from '@/features/settings/queued-message-behavior';
+import { QuickRepliesProvider } from '@/features/settings/quick-replies';
 import { softDarkBackground } from '@/lib/theme/tokens';
-import { softScrollEdgeEffects } from '@/ui/Screen';
+import { navigationScrollEdgeEffects } from '@lody-ios/kit';
 import { useBindSessionNav } from '@/hooks/screens/useBindSessionNav';
 import { useOnboardingGate } from '@/hooks/screens/useOnboardingGate';
 import { assertVendoredDomWebView } from '@/lib/assert-vendored-dom-webview';
@@ -23,7 +27,11 @@ export const unstable_settings = { initialRouteName: 'index' };
 export default function RootLayout() {
   return (
     <AppearanceProvider>
-      <Root />
+      <QueuedMessageBehaviorProvider>
+        <QuickRepliesProvider>
+          <Root />
+        </QuickRepliesProvider>
+      </QueuedMessageBehaviorProvider>
     </AppearanceProvider>
   );
 }
@@ -31,22 +39,29 @@ export default function RootLayout() {
 function Root() {
   const colorScheme = useColorScheme();
   const { darkBackground } = useAppearance();
+  const colors = usePalette();
   const theme = useMemo(() => {
-    if (colorScheme !== 'dark') return navigationThemes.light;
-    if (darkBackground === 'black') return navigationThemes.dark;
+    const base =
+      colorScheme === 'dark' ? navigationThemes.dark : navigationThemes.light;
     return {
-      ...navigationThemes.dark,
+      ...base,
       colors: {
-        ...navigationThemes.dark.colors,
-        background: softDarkBackground,
+        ...base.colors,
+        primary: colors.accent,
+        background:
+          colorScheme === 'dark' && darkBackground === 'soft'
+            ? softDarkBackground
+            : base.colors.background,
       },
     };
-  }, [colorScheme, darkBackground]);
+  }, [colorScheme, darkBackground, colors.accent]);
   return (
     <ThemeProvider value={theme}>
       <Providers>
         <Bindings />
         <PushCoordinator />
+        <ShareSnapshot />
+        <ShareCoordinator />
         <StatusBar style="auto" />
         <Stack
           screenOptions={{
@@ -54,7 +69,7 @@ function Root() {
             headerLargeTitle: false,
             headerBackButtonDisplayMode: 'minimal',
             headerShadowVisible: false,
-            scrollEdgeEffects: softScrollEdgeEffects,
+            scrollEdgeEffects: navigationScrollEdgeEffects,
           }}
         >
           <Stack.Screen name="index" options={{ title: '' }} />

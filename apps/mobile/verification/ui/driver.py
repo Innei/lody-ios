@@ -7,16 +7,51 @@ import time
 from pathlib import Path
 
 
+def axe_session_dead(error):
+    """AXe's XCTest session can die mid-run; creating or restoring it is retryable."""
+    if isinstance(error, subprocess.TimeoutExpired):
+        return True
+    message = str(error).casefold()
+    return 'remote automation session' in message or 'accessibility automation' in message
+
+
+def launch_covered(items, app_pid):
+    """describe-ui of another process means SpringBoard covered the launched app."""
+    if not app_pid or not items:
+        return False
+    return not any(str(item.get('pid')) == str(app_pid) for item in items)
+
+
 class UI:
     def __init__(self, udid, output):
         self.udid, self.output = udid, Path(output)
         self.output.mkdir(parents=True, exist_ok=True)
+        self._axe_ready = False
 
-    def axe(self, *args):
-        output = subprocess.check_output(['axe', *args, '--udid', self.udid], text=True, timeout=20)
-        if output.startswith('Error:'):
-            raise RuntimeError(output)
-        return output
+    def invalidate_axe(self):
+        """Forget the XCTest session after terminate/relaunch so the next describe retries."""
+        self._axe_ready = False
+
+    def axe(self, *args, timeout=20, recover=True):
+        # AXe's automatic style sends a simulator tapAt, which a focused Lexical input's keyboard session can swallow; fingers are down/up.
+        if args and args[0] == 'tap' and '--tap-style' not in args:
+            args = (*args, '--tap-style', 'physical')
+        deadline = time.monotonic() + (90 if recover else timeout)
+        last = None
+        while True:
+            try:
+                bound = 30 if not self._axe_ready else timeout
+                output = subprocess.check_output(['axe', *args, '--udid', self.udid], text=True, timeout=bound)
+                if output.startswith('Error:'):
+                    raise RuntimeError(output.strip())
+                self._axe_ready = True
+                return output
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError) as error:
+                last = error
+                if not recover or not axe_session_dead(error) or time.monotonic() >= deadline:
+                    raise
+                self._axe_ready = False
+                time.sleep(2)
 
     def type_into(self, identifier, text):
         """A Chinese App Language activates the pinyin IME, which holds typed Latin
@@ -24,20 +59,30 @@ class UI:
         keyboard and retype only when the field disagrees, so a run never toggles a
         keyboard that is already Latin."""
         import catalog
+        def committed():
+            got = self.element(identifier).get('AXValue') or ''
+            # AXe type can hold Shift, so Latin fixture text may land in all caps.
+            return got == text or got.casefold() == text.casefold()
         self.axe('type', text)
-        if catalog.LANGUAGE == 'en' or self.element(identifier).get('AXValue') == text:
+        if committed():
             return
-        self.axe('tap', '--label', catalog.system('nextKeyboard'), '--post-delay', '.6')
-        for _ in range(len(text) + 4):
+        try:
+            self.axe('tap', '--label', catalog.system('nextKeyboard'), '--post-delay', '.6', recover=False)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError):
+            pass
+        for _ in range(len(text) + 8):
             self.axe('key', '42')
         self.axe('type', text)
-        assert self.element(identifier).get('AXValue') == text, 'Typed text did not commit'
+        assert committed(), f'Typed text did not commit: {self.element(identifier).get("AXValue")!r}'
 
     def paste_file(self, identifier):
         return self._paste_provider(identifier, 'file-pasteboard.swift', ['clipboard-fixture.txt'])
 
     def paste_video(self, identifier):
         return self._paste_provider(identifier, 'video-pasteboard.swift', ['IMG_3933.mov', 'IMG_3933.mp4'])
+
+    def paste_html(self, identifier):
+        return self._paste_provider(identifier, 'html-pasteboard.swift', None)
 
     def _paste_provider(self, identifier, helper, names):
         import catalog
@@ -67,6 +112,10 @@ class UI:
                 )
                 frame = paste['frame']
                 self.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.5')
+                if any(item.get('AXLabel') == 'Allow Paste' for item in self.state()):
+                    self.axe('tap', '--label', 'Allow Paste', '--post-delay', '.5')
+                if names is None:
+                    return None
                 labels = [catalog.text('native.chat.attachment.preview', name=name) for name in names]
                 found = self.wait(
                     lambda items: next((label for label in labels if any(item.get('AXLabel') == label for item in items)), None),
@@ -92,28 +141,65 @@ class UI:
             elif isinstance(node, list):
                 for child in node:
                     yield from walk(child)
-        # Right after install+launch the simulator can briefly refuse describe-ui.
-        for attempt in range(6):
+        def describe():
+            return list(walk(json.loads(self.axe('describe-ui', timeout=30 if not self._axe_ready else 20))))
+        if self._axe_ready:
             try:
-                return list(walk(json.loads(self.axe('describe-ui'))))
-            except subprocess.CalledProcessError:
-                if attempt == 5:
-                    raise
-                time.sleep(1)
+                return describe()
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError, json.JSONDecodeError):
+                self._axe_ready = False
+        deadline = time.monotonic() + 90
+        last = None
+        while time.monotonic() < deadline:
+            try:
+                items = describe()
+                self._axe_ready = True
+                return items
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError, json.JSONDecodeError) as error:
+                last = error
+                time.sleep(2)
+        raise last
 
     def wait(self, predicate, message, timeout=30):
         deadline = time.monotonic() + timeout
+        last = None
         while time.monotonic() < deadline:
-            result = predicate(self.state())
+            try:
+                result = predicate(self.state())
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError, json.JSONDecodeError) as error:
+                if not axe_session_dead(error):
+                    raise
+                last = error
+                time.sleep(2)
+                continue
             if result:
                 return result
+            last = None
             time.sleep(.2)
+        if last is not None:
+            raise last
         raise AssertionError(message)
 
     def element(self, identifier, timeout=30):
         return self.wait(lambda items: next((i for i in items if i.get('AXUniqueId') == identifier), None),
                          f'Missing {identifier}', timeout)
 
+    def screenshot(self, name):
+        """Framebuffer capture that does not depend on AXe remaining responsive."""
+        path = self.output / f'{name}.png'
+        for attempt in range(2):
+            try:
+                subprocess.run(
+                    ['xcrun', 'simctl', 'io', self.udid, 'screenshot', str(path)],
+                    check=True,
+                    timeout=20,
+                    capture_output=True,
+                )
+                return path
+            except subprocess.TimeoutExpired:
+                if attempt:
+                    raise
+
     def capture(self, name):
+        self.screenshot(name)
         (self.output / f'{name}.json').write_text(self.axe('describe-ui'))
-        subprocess.run(['xcrun', 'simctl', 'io', self.udid, 'screenshot', str(self.output / f'{name}.png')], check=True, timeout=20, capture_output=True)

@@ -3,7 +3,23 @@ import Foundation
 import ActivityKit
 #endif
 
-struct LodyActivityAttributes: Codable, Hashable, Sendable {
+// ActivityKit uses the concrete Swift type name on the wire. Keep the server's
+// existing name; a typealias alone does not change the registered APNs type.
+typealias LodyActivityAttributes = LodyConversationLiveActivityAttributes
+
+enum LodyActivityIcon {
+  static var defaults: UserDefaults? { UserDefaults(suiteName: "group.app.innei.lody") }
+  static let key = "appIcon"
+
+  static var name: String { defaults?.string(forKey: key) ?? "default" }
+
+  static func asset(name: String, mark: Bool) -> String {
+    let base = name == "Aqua" ? "lody-aqua" : "lody-jelly"
+    return mark ? "\(base)-mark" : base
+  }
+}
+
+struct LodyConversationLiveActivityAttributes: Codable, Hashable, Sendable {
   struct ContentState: Codable, Hashable, Sendable {
     struct Counts: Codable, Hashable, Sendable {
       var permission: Int
@@ -29,7 +45,7 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
 
     struct Item: Codable, Hashable, Sendable {
       enum Status: String, Codable, Sendable {
-        case permission, question, running, unread
+        case permission, question, running, unread, failed
 
         var priority: Int {
           switch self {
@@ -37,6 +53,7 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
           case .permission: 1
           case .running: 2
           case .unread: 3
+          case .failed: 4
           }
         }
       }
@@ -51,8 +68,13 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
       var title: String
       var updatedAt: Double
       var updatedAtLabel: String
+      var startedAt: Double?
+      var completedAt: Double?
 
       var updatedDate: Date { Date(timeIntervalSince1970: updatedAt / 1000) }
+      var startDate: Date { Date(timeIntervalSince1970: (startedAt ?? updatedAt) / 1000) }
+      var completedDate: Date? { completedAt.map { Date(timeIntervalSince1970: $0 / 1000) } }
+      var isDone: Bool { status == .unread || status == .failed }
     }
 
     struct PermissionAlert: Codable, Hashable, Sendable {
@@ -69,6 +91,13 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
       var lastSync: String
       var openHint: String
       var runningSummary: String?
+      var completedSummary: String?
+      var completedLabel: String?
+      var failedLabel: String?
+      var failedSummary: String?
+      var elapsed: String?
+      var waiting: String?
+      var took: String?
 
       init(stale: String, empty: String, others: String, lastSync: String, openHint: String) {
         self.stale = stale
@@ -86,6 +115,13 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
         lastSync = try container.decodeIfPresent(String.self, forKey: .lastSync) ?? "Last synced"
         openHint = try container.decodeIfPresent(String.self, forKey: .openHint) ?? "Tap to review"
         runningSummary = try container.decodeIfPresent(String.self, forKey: .runningSummary)
+        completedSummary = try container.decodeIfPresent(String.self, forKey: .completedSummary)
+        completedLabel = try container.decodeIfPresent(String.self, forKey: .completedLabel)
+        failedLabel = try container.decodeIfPresent(String.self, forKey: .failedLabel)
+        failedSummary = try container.decodeIfPresent(String.self, forKey: .failedSummary)
+        elapsed = try container.decodeIfPresent(String.self, forKey: .elapsed)
+        waiting = try container.decodeIfPresent(String.self, forKey: .waiting)
+        took = try container.decodeIfPresent(String.self, forKey: .took)
       }
     }
 
@@ -94,6 +130,9 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
     var items: [Item]
     var permissionAlert: PermissionAlert?
     var copy: Copy?
+    // Invalidates existing presentations on a local icon change. Rendering reads
+    // the App Group preference so server payloads cannot reset this device choice.
+    var appIcon: String?
 
     var staleLabel: String { copy?.stale ?? "Disconnected" }
 
@@ -108,8 +147,24 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
         .replacingOccurrences(of: "{count}", with: "\(count)")
     }
 
+    var elapsedCaption: String { copy?.elapsed ?? "elapsed" }
+
+    var waitingCaption: String { copy?.waiting ?? "waiting" }
+
+    var tookCaption: String { copy?.took ?? "took" }
+
+    func completedSummary(_ count: Int) -> String {
+      (copy?.completedSummary ?? "{count} tasks finished")
+        .replacingOccurrences(of: "{count}", with: "\(count)")
+    }
+
+    func failedSummary(_ count: Int) -> String {
+      (copy?.failedSummary ?? "{count} tasks failed")
+        .replacingOccurrences(of: "{count}", with: "\(count)")
+    }
+
     private var ordered: [Item] {
-      items.filter { $0.status != .unread }.sorted { left, right in
+      items.sorted { left, right in
         if left.status.priority != right.status.priority {
           return left.status.priority < right.status.priority
         }
@@ -127,6 +182,12 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
 
     var showsOverview: Bool { activeCount > 1 && !needsAttention }
 
+    var completedItems: [Item] { items.filter(\.isDone) }
+
+    var isCompleted: Bool { !isActive && !completedItems.isEmpty }
+
+    var allFailed: Bool { isCompleted && completedItems.allSatisfy { $0.status == .failed } }
+
     var visibleItems: [Item] { Array(ordered.prefix(2)) }
 
     var runningSummary: String {
@@ -143,13 +204,26 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
       activeCount > 0
     }
 
+    func timerCaption(for item: Item) -> String {
+      switch item.status {
+      case .unread, .failed: tookCaption
+      case .permission, .question: waitingCaption
+      case .running: elapsedCaption
+      }
+    }
+
+    func showsTimer(for item: Item, isStale: Bool) -> Bool {
+      if isStale { return false }
+      return !item.isDone || item.startedAt != nil
+    }
+
     func staleDate(from updatedAt: Date) -> Date {
       updatedAt.addingTimeInterval(30 * 60)
     }
 
     func dismissalDate(from updatedAt: Date) -> Date? {
       guard !isActive else { return nil }
-      return updatedAt.addingTimeInterval(10)
+      return updatedAt.addingTimeInterval(60)
     }
   }
 
@@ -157,6 +231,12 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
   var workspaceSlug: String
   var workspaceName: String
   var userId: String
+
+  var activityId: String { Self.activityId(workspaceId: workspaceId, userId: userId) }
+
+  private enum CodingKeys: String, CodingKey {
+    case workspaceId, workspaceSlug, workspaceName, userId, activityId
+  }
 
   init(workspaceId: String, workspaceSlug: String, workspaceName: String, userId: String) {
     self.workspaceId = workspaceId
@@ -170,7 +250,31 @@ struct LodyActivityAttributes: Codable, Hashable, Sendable {
     workspaceId = try container.decode(String.self, forKey: .workspaceId)
     workspaceSlug = try container.decodeIfPresent(String.self, forKey: .workspaceSlug) ?? ""
     workspaceName = try container.decode(String.self, forKey: .workspaceName)
-    userId = try container.decode(String.self, forKey: .userId)
+    let explicitUser = try container.decodeIfPresent(String.self, forKey: .userId)
+    if let wireId = try container.decodeIfPresent(String.self, forKey: .activityId) {
+      let prefix = "lody-conversations:v5:\(workspaceId):"
+      guard wireId.hasPrefix(prefix), wireId.count > prefix.count else {
+        throw DecodingError.dataCorruptedError(forKey: .activityId, in: container, debugDescription: "Invalid activity identity")
+      }
+      userId = String(wireId.dropFirst(prefix.count))
+      guard explicitUser == nil || explicitUser == userId else {
+        throw DecodingError.dataCorruptedError(forKey: .userId, in: container, debugDescription: "Activity owner mismatch")
+      }
+    } else {
+      userId = try container.decode(String.self, forKey: .userId)
+    }
+    guard !workspaceId.isEmpty, !userId.isEmpty else {
+      throw DecodingError.dataCorruptedError(forKey: .userId, in: container, debugDescription: "Missing activity owner")
+    }
+  }
+
+  func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(workspaceId, forKey: .workspaceId)
+    try container.encode(workspaceSlug, forKey: .workspaceSlug)
+    try container.encode(workspaceName, forKey: .workspaceName)
+    try container.encode(userId, forKey: .userId)
+    try container.encode(activityId, forKey: .activityId)
   }
 
   var routeSlug: String { workspaceSlug.isEmpty ? workspaceId : workspaceSlug }

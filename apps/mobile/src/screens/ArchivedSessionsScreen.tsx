@@ -4,13 +4,22 @@ import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { useSessionListCatalog } from '@/features/sessions/useSessionListCatalog';
 import { usePalette } from '@/lib/theme/palette';
-import { byActivity, sessionRow } from '@/features/sessions/inbox';
+import {
+  byActivity,
+  sessionRow,
+  sessionTreeRows,
+} from '@/features/sessions/inbox';
 import { listRowAction } from '@/features/sessions/sessionActions';
 import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
 import { t } from '../lib/i18n/index.ts';
 
 function View() {
-  const { catalog: sourceCatalog, selected, loading } = useCatalog();
+  const {
+    catalog: sourceCatalog,
+    selected,
+    loading,
+    deleteSessionRequest,
+  } = useCatalog();
   const { account } = useAuth();
   const catalog = useSessionListCatalog(
     sourceCatalog,
@@ -19,10 +28,11 @@ function View() {
   );
   const colors = usePalette();
   const names = new Map(catalog.projects.map((p) => [p.id, p.name]));
-  const rows = catalog.sessions
-    .filter((s) => s.archived)
-    .sort(byActivity)
-    .map((s) => sessionRow(s, colors.accent, names.get(s.projectId)));
+  const rows = sessionTreeRows(
+    catalog.sessions.filter((s) => s.archived).sort(byActivity),
+    catalog.sessions,
+    (s) => sessionRow(s, colors.accent, names.get(s.projectId)),
+  );
   return (
     <>
       <NativeGroupedList
@@ -39,7 +49,14 @@ function View() {
           openCatalogRow(nativeEvent.id, catalog)
         }
         onRowAction={({ nativeEvent: { id, actionId } }) => {
-          if (selected) listRowAction(selected.id, catalog, id, actionId);
+          if (selected)
+            listRowAction(
+              selected,
+              catalog,
+              id,
+              actionId,
+              deleteSessionRequest,
+            );
         }}
       />
     </>

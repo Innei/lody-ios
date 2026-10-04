@@ -67,12 +67,32 @@ def expand_island(focus_title, message):
     return label
 
 
+def change_icon(value):
+    ui.axe('tap', '--id', 'live-activity-icon', '--post-delay', '.6')
+    selected = catalog.text('native.chat.attachment.selected')
+    if ui.element(f'app-icon-{value}').get('AXValue') != selected:
+        ui.axe('tap', '--id', f'app-icon-{value}', '--post-delay', '1')
+        # The icon confirmation belongs to SpringBoard and is absent from AXe's
+        # tree on this simulator; use the same fallback as the appearance check.
+        try:
+            ui.axe('tap', '--label', 'OK', '--post-delay', '.5', timeout=3, recover=False)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError):
+            ui.axe('tap', '-x', '201', '-y', '505', '--post-delay', '.5')
+        ui.invalidate_axe()
+        ui.wait(lambda _: ui.element(f'app-icon-{value}').get('AXValue') == selected,
+                'System icon change did not complete')
+    ui.capture(f'icon-{value}')
+    ui.axe('tap', '--id', 'BackButton', '--post-delay', '.6')
+    ui.element('live-activity-status')
+
+
 # A fixture activity outlives a failed run, and starting is a no-op while one exists,
 # so the scene resets itself before it asserts anything.
 if status() != '0 个活动':
     ui.axe('tap', '--id', 'live-activity-end', '--tap-style', 'physical')
     ui.wait(lambda items: status() == '0 个活动', 'Could not end a leftover fixture activity')
 
+change_icon('default')
 ui.axe('tap', '--id', 'live-activity-start', '--tap-style', 'physical')
 allow(8)
 ui.wait(lambda items: status() != '0 个活动', 'Fixture activity did not start')
@@ -86,13 +106,20 @@ assert status() != '0 个活动', 'Toggling the injected switch ended the fixtur
 
 ui.axe('button', 'home')
 time.sleep(2)
+ui.capture('island-default-icon')
+foreground()
+change_icon('Aqua')
+assert status() != '0 个活动', 'Changing the icon ended the running activity'
+
+ui.axe('button', 'home')
+time.sleep(2)
 ui.capture('island-running')
 summary = catalog.text('native.liveActivity.runningSummary').replace('{count}', '2')
 running_expanded = expand_island(summary, 'Expanded island never showed the task overview')
 assert 'git push origin main --force' not in running_expanded, \
     'A running focus showed the permission command strip'
-assert catalog.text('native.liveActivity.debug.title1') not in running_expanded, \
-    'Multiple running tasks still pin a session title'
+assert catalog.text('native.liveActivity.debug.title1') in running_expanded, \
+    'The expanded overview lost its first session row'
 assert catalog.text('native.liveActivity.openHint') not in running_expanded, \
     'A running focus showed the permission hint'
 for over_ceiling in [catalog.text('native.liveActivity.debug.title2'), catalog.text('native.liveActivity.debug.title3')]:
@@ -162,19 +189,51 @@ ui.axe('button', 'home')
 foreground()
 ui.axe('tap', '--id', 'live-activity-complete-all', '--tap-style', 'physical')
 ui.wait(lambda items: status() == '0 个活动', 'Completing all tasks did not end the activity')
+# An ended activity keeps its completed rows on the Lock Screen for 60 s so the
+# finished titles and frozen durations are readable; the island drops it at once.
 ui.axe('button', 'lock')
 time.sleep(1)
 ui.capture('lockscreen-completed')
-time.sleep(11)
+time.sleep(61)
 ui.capture('lockscreen-dismissed')
 ui.axe('button', 'lock')
 ui.axe('swipe', '--start-x', '200', '--start-y', '780', '--end-x', '200', '--end-y', '300', '--duration', '0.4', '--post-delay', '1.0')
 foreground()
 ui.capture('ended')
+# A new activity must also use the persisted choice, without another icon switch.
 ui.axe('tap', '--id', 'live-activity-start', '--tap-style', 'physical')
 ui.wait(lambda items: status() != '0 个活动', 'New work did not restart the activity')
-ui.axe('tap', '--id', 'live-activity-end', '--tap-style', 'physical')
-ui.wait(lambda items: status() == '0 个活动', 'Restarted fixture did not end')
+ui.axe('button', 'home')
+time.sleep(2)
+ui.capture('island-new-aqua')
+foreground()
+change_icon('default')
+ui.axe('button', 'home')
+time.sleep(2)
+ui.capture('island-restored-default')
+# Compare only the app mark, excluding the clock, pulsing status and task count.
+# Coordinates are in points on the verification pool's iPhone 17 Pro.
+marks = {}
+for name in ['island-default-icon', 'island-running', 'island-new-aqua', 'island-restored-default']:
+    marks[name] = subprocess.check_output([
+        'ffmpeg', '-v', 'error', '-i', str(ui.output / f'{name}.png'),
+        '-vf', 'scale=402:-1,crop=24:24:114:20', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-',
+    ], timeout=20)
+def difference(left, right):
+    return sum(abs(a - b) for a, b in zip(marks[left], marks[right])) / len(marks[left])
+assert difference('island-default-icon', 'island-running') > 15, 'Active Island kept the default icon'
+assert difference('island-running', 'island-new-aqua') < 5, 'New activity lost the chosen icon'
+assert difference('island-default-icon', 'island-restored-default') < 5, 'Island did not restore the default icon'
+foreground()
+ui.axe('tap', '--id', 'live-activity-fail-all', '--tap-style', 'physical')
+ui.wait(lambda items: status() == '0 个活动', 'Failing every task did not end the activity')
+ui.axe('button', 'lock')
+time.sleep(1)
+ui.capture('lockscreen-failed')
+ui.axe('button', 'lock')
+ui.axe('swipe', '--start-x', '200', '--start-y', '780', '--end-x', '200', '--end-y', '300', '--duration', '0.4', '--post-delay', '1.0')
+foreground()
+ui.element('live-activity-end')
 
 subprocess.run(['xcrun', 'simctl', 'openurl', udid, 'lody:///debug/sessions/x'], check=True, timeout=30)
 allow(6, OPEN)

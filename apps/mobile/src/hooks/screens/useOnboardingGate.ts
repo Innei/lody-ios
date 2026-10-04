@@ -3,13 +3,14 @@ import { useAuth } from '@/cloud/auth/AuthProvider';
 import { offerCommunityNotice } from '@/features/community/notice';
 import { present } from '@/lib/presentation';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
+import { uiVerify } from '@/lib/uiVerify';
 
 export function useOnboardingGate() {
   const { account, localReady } = useAuth();
   const presenting = useRef(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    if (!localReady || presenting.current) return;
+    if (uiVerify || !localReady || presenting.current) return;
     if (!account) {
       presenting.current = true;
       present(OnboardingScreen).then(

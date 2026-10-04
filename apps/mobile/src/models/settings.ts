@@ -1,3 +1,9 @@
+export type QuickReply = {
+  id: string;
+  label: string;
+  message: string;
+};
+
 export type RemoteSetting = {
   kind: 'machine' | 'agent' | 'mcp';
   id: string;

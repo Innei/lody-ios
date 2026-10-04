@@ -19,6 +19,7 @@ final class LocalStore: @unchecked Sendable {
     do {
       guard sqlite3_open(url.path, &db) == SQLITE_OK else { throw failure() }
       try execute("CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+      try execute("CREATE TABLE IF NOT EXISTS session_prose (user_id TEXT NOT NULL, workspace_id TEXT NOT NULL, session_id TEXT NOT NULL, entry_id TEXT NOT NULL, item_id TEXT NOT NULL, text TEXT NOT NULL, PRIMARY KEY (user_id, workspace_id, session_id, entry_id, item_id))")
     } catch {
       sqlite3_close(db); db = nil
       throw error
@@ -56,7 +57,82 @@ final class LocalStore: @unchecked Sendable {
       throw NSError(domain: "Lody.LocalStoreLimit", code: 1)
     }
     try open()
-    try execute("INSERT INTO cache VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [key, value])
+    try transaction {
+      try execute("INSERT INTO cache VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [key, value])
+      try indexSession(key, value)
+    }
+  }
+
+  private func transaction(_ body: () throws -> Void) throws {
+    try execute("BEGIN IMMEDIATE")
+    do { try body(); try execute("COMMIT") }
+    catch { try? execute("ROLLBACK"); throw error }
+  }
+
+  private func indexSession(_ key: String, _ value: String) throws {
+    guard key.hasPrefix("session:"),
+      let scope = try? JSONSerialization.jsonObject(with: Data(key.dropFirst(8).utf8)) as? [String],
+      scope.count == 3, scope.allSatisfy({ !$0.isEmpty }) else { return }
+    try execute("DELETE FROM session_prose WHERE user_id = ? AND workspace_id = ? AND session_id = ?", scope)
+    for item in SessionProse.extract(value) {
+      try execute("INSERT OR REPLACE INTO session_prose VALUES (?, ?, ?, ?, ?, ?)", scope + [item.entryID, item.itemID, item.text])
+    }
+  }
+
+  private func backfillProse() throws {
+    guard try read("session-prose-version") != "1" else { return }
+    try transaction {
+      let statement = try prepare("SELECT key, value FROM cache WHERE key LIKE 'session:%'", [])
+      defer { sqlite3_finalize(statement) }
+      while true {
+        let status = sqlite3_step(statement)
+        if status == SQLITE_DONE { break }
+        guard status == SQLITE_ROW else { throw failure() }
+        try indexSession(String(cString: sqlite3_column_text(statement, 0)), String(cString: sqlite3_column_text(statement, 1)))
+      }
+      try execute("INSERT OR REPLACE INTO cache VALUES ('session-prose-version', '1')")
+    }
+  }
+
+  func searchInbox(userID: String, workspaceID: String, query: String) throws -> [String: Any] {
+    let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !term.isEmpty else { return ["projectIds": [String](), "sessions": [[String: Any]]()] }
+    try open()
+    try backfillProse()
+    let saved = try read("catalog:\(userID):\(workspaceID)") ?? "{}"
+    let object = (try? JSONSerialization.jsonObject(with: Data(saved.utf8))) as? [String: Any]
+    let catalog = object?["catalog"] as? [String: Any] ?? [:]
+    let projects = catalog["projects"] as? [[String: Any]] ?? []
+    let sessions = catalog["sessions"] as? [[String: Any]] ?? []
+    func matches(_ value: Any?) -> Bool { (value as? String)?.localizedStandardContains(term) == true }
+    let projectIDs = projects.compactMap { project -> String? in
+      guard let id = project["id"] as? String, !id.hasSuffix(":unassigned"),
+        matches(project["name"]) || matches(project["rootPath"]) else { return nil }
+      return id
+    }
+    var hits: [String: Any] = [:]
+    for session in sessions {
+      guard let id = session["id"] as? String else { continue }
+      let projectID = session["projectId"] as? String ?? ""
+      let project = projects.first { $0["id"] as? String == projectID }
+      let name = projectID.hasSuffix(":unassigned") ? LodyStrings.text("inbox.section.chat") : project?["name"] as? String
+      if [session["title"], name, session["branchName"], project?["rootPath"]].contains(where: matches) {
+        hits[id] = NSNull()
+      }
+    }
+    // ponytail: scan cached prose on the store queue; use FTS if measured search latency outgrows this scope.
+    let statement = try prepare("SELECT session_id, text FROM session_prose WHERE user_id = ? AND workspace_id = ? ORDER BY rowid", [userID, workspaceID])
+    defer { sqlite3_finalize(statement) }
+    while true {
+      let status = sqlite3_step(statement)
+      if status == SQLITE_DONE { break }
+      guard status == SQLITE_ROW else { throw failure() }
+      let id = String(cString: sqlite3_column_text(statement, 0))
+      if hits[id] != nil { continue }
+      let body = String(cString: sqlite3_column_text(statement, 1))
+      if let snippet = TextSearch.snippet(body, query: term) { hits[id] = snippet }
+    }
+    return ["projectIds": projectIDs, "sessions": hits.map { ["id": $0.key, "snippet": $0.value] }]
   }
   func writeSession(_ session: String, userId: String, workspace: String, id: String) throws {
     let data = try JSONSerialization.data(withJSONObject: [userId, workspace, id], options: [.withoutEscapingSlashes])
@@ -82,6 +158,10 @@ final class LocalStore: @unchecked Sendable {
   }
   func clear() throws {
     try open()
-    try execute("DELETE FROM cache")
+    try transaction {
+      try execute("DELETE FROM cache")
+      try execute("DELETE FROM session_prose")
+    }
+    MarkdownPlainText.clearCache()
   }
 }

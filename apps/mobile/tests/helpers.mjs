@@ -110,6 +110,7 @@ export async function openTestSession({
   const runtime = await loadRuntime();
   let resolveEmit;
   const events = [];
+  const background = [];
   const nextEmit = () =>
     new Promise((resolve) => {
       resolveEmit = resolve;
@@ -120,6 +121,8 @@ export async function openTestSession({
     'w1',
     async () => ({ token: 'synthetic', gatewayBaseUrl: 'https://x.invalid' }),
     (e) => {
+      if (e.backgroundWork) background.push(e.backgroundWork);
+      if (!e.session) return;
       const value = JSON.parse(e.session);
       events.push(value);
       if (value.status === 'live') resolveEmit?.(value);
@@ -146,5 +149,5 @@ export async function openTestSession({
     runtime.stopSessions();
     delete globalThis.__sessionClient;
   };
-  return { runtime, server, pushUpdate, events, appends, close };
+  return { runtime, server, pushUpdate, events, background, appends, close };
 }

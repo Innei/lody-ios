@@ -1,4 +1,3 @@
-#if DEBUG
 import ExpoModulesCore
 import React
 import UIKit
@@ -108,9 +107,8 @@ private final class NativePOCPageController: UIViewController, UISearchResultsUp
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     if let scroll = findScroll(page) {
-      setContentScrollView(scroll, for: .top)
-      scroll.topEdgeEffect.style = .soft
-      scroll.bottomEdgeEffect.style = .soft
+      LodyScrollEdges.bind(scroll, to: self)
+      LodyScrollEdges.grouped(scroll)
     }
   }
 
@@ -150,9 +148,8 @@ private final class NativeCollectionPOCController: UICollectionViewController, U
     collectionView.accessibilityIdentifier = session == nil ? "poc-native-collection" : "poc-native-session"
     collectionView.contentInsetAdjustmentBehavior = .automatic
     collectionView.keyboardDismissMode = .onDrag
-    setContentScrollView(collectionView, for: .top)
-    collectionView.topEdgeEffect.style = .soft
-    collectionView.bottomEdgeEffect.style = .soft
+    LodyScrollEdges.bind(collectionView, to: self)
+    LodyScrollEdges.grouped(collectionView)
     let search = UISearchController(searchResultsController: nil)
     search.obscuresBackgroundDuringPresentation = false
     search.hidesNavigationBarDuringPresentation = false
@@ -172,7 +169,7 @@ private final class NativeCollectionPOCController: UICollectionViewController, U
       content.text = isRoot ? "Session \(number)" : "Message \(number)"
       content.secondaryText = "Native collection row · \(number)"
       content.image = UIImage(systemName: isRoot ? "folder" : "text.bubble")
-      content.imageProperties.tintColor = .systemBlue
+      content.imageProperties.tintColor = .lodyAccent
       cell.contentConfiguration = content
       cell.accessibilityIdentifier = "poc-collection-row-\(number)"
       cell.accessories = isRoot ? [.disclosureIndicator()] : []
@@ -297,4 +294,3 @@ final class LodyNativeShellPOC: ExpoView, UINavigationControllerDelegate {
     }
   }
 }
-#endif

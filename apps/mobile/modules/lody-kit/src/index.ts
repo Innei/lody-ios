@@ -1,9 +1,27 @@
 export {
+  sessionSharingRaw,
   remoteSettingsRaw,
   runtimeInfo,
+  initialAccentColor,
+  showAccentColorPicker,
+  addAccentColorListener,
+  saveAccentColor,
+  accentHex,
+  accentForegroundHex,
+  getAppIcon,
+  setAppIcon,
   initialDarkBackground,
   saveDarkBackground,
+  initialQueuedMessageBehavior,
+  saveQueuedMessageBehavior,
+  initialQuickRepliesJSON,
+  saveQuickReplies,
   selectionFeedback,
+  debugReplyHaptics,
+  pickWorkspaceIcon,
+  cancelComposerRelay,
+  prepareMorphReveal,
+  morphDismiss,
   showToast,
   copyText,
   showSessionBanner,
@@ -12,11 +30,20 @@ export {
   type SessionBannerKind,
   addAppActiveListener,
   type RuntimeInfo,
+  type PickedWorkspaceIcon,
 } from './runtime/LodyKit';
 export {
   NativeCloseButton,
   type NativeCloseButtonProps,
 } from './chrome/NativeCloseButton';
+export {
+  NativeNavigationHeader,
+  type NativeNavigationHeaderProps,
+} from './chrome/NativeNavigationHeader';
+export {
+  navigationScrollEdgeEffects,
+  panelScrollEdgeEffects,
+} from './chrome/scrollEdges';
 
 export {
   readAuthToken,
@@ -24,6 +51,14 @@ export {
   clearAuthToken,
   openAuthBrowser,
   closeAuthBrowser,
+  sessionPreview,
+  iosSimulatorControl,
+  openPreviewBrowser,
+  type SessionPreviewReply,
+  type IosSimulatorCommand,
+  type IosSimulatorDevice,
+  type IosSimulatorPreview,
+  type IosSimulatorReply,
   decodeFlock,
 } from './runtime/LodyKit';
 
@@ -44,17 +79,30 @@ export {
 export {
   watchSession,
   unwatchSession,
+  ensureSession,
+  releaseReserve,
   sendSessionTurn,
+  readSessionEdit,
+  prepareSessionEdit,
+  sendSessionEdit,
   controlSessionTurn,
   sessionItemDetail,
   respondSessionPermission,
   sessionCreationOptions,
+  workspaceBillingEntitlement,
   githubPullRequest,
   githubRepositories,
+  shareWriteCatalog,
+  shareWriteOptions,
+  sharePending,
+  shareAdopt,
+  shareRemove,
   createSession,
   archiveSession,
+  deleteSession,
   pinSession,
   markSessionRead,
+  renameSession,
   localProjects,
 } from './runtime/LodyKit';
 
@@ -108,10 +156,14 @@ export {
   projectSorts,
   readInboxExpansion,
   saveInboxExpansion,
+  readInboxPinOrder,
+  saveInboxPinOrder,
 } from './runtime/LodyKit';
 
 export {
   readLocalValue,
+  searchInbox,
+  type InboxSearchHits,
   writeLocalValue,
   clearLocalValues,
 } from './runtime/LodyKit';
@@ -135,6 +187,13 @@ export { NativeChat, type ChatDraftAttachment } from './chat/NativeChat';
 export { NativeComposer } from './chat/NativeComposer';
 
 export {
+  NativeCreateSession,
+  type CreateSessionRequest,
+  type CreateSessionSelection,
+  type CreateSessionSubmit,
+} from './create/NativeCreateSession';
+
+export {
   turnDiff,
   fileDiff,
   readFile,
@@ -147,17 +206,18 @@ export {
   type DirectoryEntry,
   type DirectoryListing,
 } from './diff/files';
-export { readContentText, previewContent } from './runtime/LodyKit';
+export { readContentText, previewContent, openFile } from './runtime/LodyKit';
 export {
   NativeInlineDiff,
   type NativeInlineDiffProps,
 } from './diff/NativeInlineDiff';
 export {
-  NativeCodeView,
-  type NativeCodeViewProps,
-} from './diff/NativeCodeView';
+  NativeMarkdownDocumentView,
+  type NativeMarkdownDocumentViewProps,
+} from './markdown/NativeMarkdownDocumentView';
 export {
   NativeDiffToolbar,
+  NativeDiffSurface,
   type NativeDiffToolbarProps,
 } from './diff/NativeDiffToolbar';
 
@@ -167,5 +227,21 @@ export { NativeMentionPicker } from './chat/NativeMentionPicker';
 
 export { getMentionCatalog } from './chat/mentions';
 export { NativeShellPOC, NativePagePOC } from './chrome/NativeShellPOC';
+export { ComposerHandoffPOC } from './chat/ComposerHandoffPOC';
 
 export { NativeSidebar, type NativeSidebarProps } from './list/NativeSidebar';
+export {
+  prepareChatEntries,
+  type PreparedChatEntries,
+} from './chat/PreparedChatEntries';
+
+export {
+  NativeMessageShare,
+  type MessageShareBlock,
+} from './chat/NativeMessageShare';
+
+export { NativeAppIconGrid } from './appearance/NativeAppIconGrid';
+
+export { NativeSessionShare } from './session-share/NativeSessionShare';
+
+export { SimulatorView, type SimulatorSource } from './simulator/SimulatorView';

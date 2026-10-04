@@ -1,4 +1,3 @@
-import ExpoModulesCore
 import UIKit
 
 enum LodyDarkBackground: String {
@@ -19,30 +18,99 @@ enum LodyDarkBackground: String {
   }
 }
 
-extension Notification.Name {
-  static let lodyAppearanceDidChange = Notification.Name("LodyAppearanceDidChange")
-}
+enum LodyAccentChoice: Equatable, RawRepresentable {
+  case blue, indigo, purple, pink
+  case custom(String)
 
-class LodyAppearanceView: ExpoView {
-  required init(appContext: AppContext? = nil) {
-    super.init(appContext: appContext)
-    NotificationCenter.default.addObserver(
-      self,
-      selector: #selector(lodyAppearanceDidChange),
-      name: .lodyAppearanceDidChange,
-      object: nil
-    )
+  init?(rawValue: String) {
+    switch rawValue {
+    case "blue": self = .blue
+    case "indigo": self = .indigo
+    case "purple": self = .purple
+    case "pink": self = .pink
+    default:
+      guard rawValue.utf8.count == 7, rawValue.range(of: "^#[0-9A-Fa-f]{6}$", options: .regularExpression) != nil else { return nil }
+      self = .custom(rawValue.uppercased())
+    }
   }
 
-  deinit { NotificationCenter.default.removeObserver(self) }
+  var rawValue: String {
+    switch self {
+    case .blue: "blue"
+    case .indigo: "indigo"
+    case .purple: "purple"
+    case .pink: "pink"
+    case .custom(let hex): hex
+    }
+  }
 
-  @objc func lodyAppearanceDidChange() {}
+  // The Share Extension has its own standard defaults; the app mirrors the accent here.
+  static var shared: UserDefaults? { UserDefaults(suiteName: "group.app.innei.lody") }
+
+  static var current: Self {
+    #if LODY_SHARE_EXTENSION
+    let defaults = shared ?? .standard
+    #else
+    let defaults = UserDefaults.standard
+    #endif
+    return Self(rawValue: defaults.string(forKey: "accentColor") ?? "") ?? .blue
+  }
+
+  static func mirror() {
+    shared?.set(current.rawValue, forKey: "accentColor")
+  }
+
+  var color: UIColor {
+    switch self {
+    case .blue: .systemBlue
+    case .indigo: .systemIndigo
+    case .purple: .systemPurple
+    case .pink: .systemPink
+    case .custom(let hex): lodyTint(hex) ?? .systemBlue
+    }
+  }
+
+  var foregroundColor: UIColor {
+    guard case .custom = self else { return .white }
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    func linear(_ value: CGFloat) -> CGFloat {
+      value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+    }
+    let luminance = 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+    return luminance > 0.179 ? .black : .white
+  }
+
+  static func save(_ value: String) {
+    guard let next = Self(rawValue: value), next != current else { return }
+    UserDefaults.standard.set(next.rawValue, forKey: "accentColor")
+    mirror()
+    DispatchQueue.main.async {
+      lodyApplyWindowAccent()
+      NotificationCenter.default.post(name: .lodyAppearanceDidChange, object: nil)
+    }
+  }
+
+  static func hex(_ value: String, dark: Bool) -> String {
+    hex((Self(rawValue: value) ?? .blue).color.resolvedColor(with: UITraitCollection(userInterfaceStyle: dark ? .dark : .light)))
+  }
+
+  static func hex(_ color: UIColor) -> String {
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    return String(format: "#%02X%02X%02X", Int(min(255, max(0, (red * 255).rounded()))), Int(min(255, max(0, (green * 255).rounded()))), Int(min(255, max(0, (blue * 255).rounded()))))
+  }
+}
+
+extension Notification.Name {
+  static let lodyAppearanceDidChange = Notification.Name("LodyAppearanceDidChange")
 }
 
 func lodyTint(_ value: String) -> UIColor? {
   switch value {
   case "": return nil
-  case "blue": return .systemBlue
+  case "blue": return UIColor.lodyAccent
+  case "green": return .systemGreen
   case "purple": return .systemPurple
   case "warning": return .systemOrange
   case "danger": return .systemRed
@@ -87,15 +155,12 @@ extension UIColor {
   }
 
   static let lodyAccent = UIColor { traits in
-    traits.userInterfaceStyle == .dark
-      ? UIColor(red: 0x7B / 255, green: 0x8A / 255, blue: 0xFF / 255, alpha: 1)
-      : UIColor(red: 0x3B / 255, green: 0x4F / 255, blue: 0xD9 / 255, alpha: 1)
+    LodyAccentChoice.current.color.resolvedColor(with: traits)
   }
 
-  /// Accent washed with the reading canvas so the user bubble stays tinted, not solid.
   static let lodyUserBubble = UIColor { traits in
     let amount: CGFloat = traits.userInterfaceStyle == .dark ? 0.14 : 0.10
-    return UIColor.lodyAccent.mixed(with: .lodyBackground, amount: amount, traits: traits)
+    return UIColor.lodyAccent.resolvedColor(with: traits).withAlphaComponent(amount)
   }
 
   /// Recessed chip on the reading canvas. Light is Tailwind `neutral-100`;
@@ -122,20 +187,17 @@ extension UIColor {
   static let lodyFileGroupSelected = UIColor { traits in
     UIColor.lodyInsetSelected.resolvedColor(with: traits)
   }
+}
 
-  func mixed(with other: UIColor, amount: CGFloat, traits: UITraitCollection) -> UIColor {
-    let lhs = resolvedColor(with: traits)
-    let rhs = other.resolvedColor(with: traits)
-    var lr: CGFloat = 0, lg: CGFloat = 0, lb: CGFloat = 0, la: CGFloat = 0
-    var rr: CGFloat = 0, rg: CGFloat = 0, rb: CGFloat = 0, ra: CGFloat = 0
-    lhs.getRed(&lr, green: &lg, blue: &lb, alpha: &la)
-    rhs.getRed(&rr, green: &rg, blue: &rb, alpha: &ra)
-    let t = min(1, max(0, amount))
-    return UIColor(
-      red: lr * t + rr * (1 - t),
-      green: lg * t + rg * (1 - t),
-      blue: lb * t + rb * (1 - t),
-      alpha: 1
-    )
+@MainActor
+func lodyApplyWindowAccent() {
+  UIWindow.appearance().tintColor = .lodyAccent
+  #if !LODY_SHARE_EXTENSION
+  for scene in UIApplication.shared.connectedScenes {
+    guard let scene = scene as? UIWindowScene else { continue }
+    for window in scene.windows {
+      window.tintColor = LodyAccentChoice.current.color
+    }
   }
+  #endif
 }

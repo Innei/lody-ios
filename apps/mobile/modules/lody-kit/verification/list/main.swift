@@ -21,6 +21,18 @@ assert(loaded.size.width == LodyMenuButtonStyle.avatarSide)
 assert(letter.pngData() != loaded.pngData(), "An account photo must replace the letter fallback")
 assert(LodyMenuButtonStyle.trailingInset > 4, "The workspace name needs room after the last glyph")
 
+let shortMenu = UIButton(type: .system)
+LodyMenuButtonStyle.apply(label: "Innei", avatar: letter, to: shortMenu)
+let shortWidth = LodyMenuButtonStyle.unconstrainedWidth(for: shortMenu)
+
+let longMenu = UIButton(type: .system)
+LodyMenuButtonStyle.apply(label: "我的超长工作区名称不能折行", avatar: letter, to: longMenu)
+let longWidth = LodyMenuButtonStyle.unconstrainedWidth(for: longMenu)
+assert(longWidth > 200, "The long fixture must exceed the old RN width cap")
+LodyMenuButtonStyle.apply(label: "Innei", avatar: loaded, to: shortMenu)
+assert(abs(LodyMenuButtonStyle.unconstrainedWidth(for: shortMenu) - shortWidth) < 1,
+       "Loading the avatar must not resize the workspace button")
+
 var swipedState = UICellConfigurationState(traitCollection: UITraitCollection())
 swipedState.isSwiped = true
 swipedState.isSelected = true
@@ -105,6 +117,7 @@ struct LodyListRow {
   var pinned = false
   var diff: [String: Int] = [:]
   var monogram = ""
+  var image = ""
   var imageTint = ""
 }
 
@@ -230,6 +243,17 @@ assert(
 
 print("PASS: a badge without a project name keeps the two-line session row")
 
+let statsRow = LodyListRow(title: "Review", subtitle: "main", diff: ["add": 4, "del": 2])
+let stats = LodySessionRowView.meta(for: statsRow)
+let statsText = stats.string as NSString
+let addRange = statsText.range(of: "+4")
+let delRange = statsText.range(of: "−2")
+assert(addRange.location != NSNotFound && delRange.location != NSNotFound, statsText as String)
+let addColor = stats.attribute(.foregroundColor, at: addRange.location, effectiveRange: nil) as! UIColor
+let delColor = stats.attribute(.foregroundColor, at: delRange.location, effectiveRange: nil) as! UIColor
+assert(addColor.isEqual(UIColor.systemGreen), "Diff additions must be system green")
+assert(delColor.isEqual(UIColor.systemRed), "Diff deletions must be system red")
+
 // Compare the same real content view at the same width, including reuse back
 // into the default host. Sidebar typography can shrink, but not text or touch targets.
 @MainActor func fittedHeight(_ view: UIView) -> CGFloat {
@@ -263,6 +287,9 @@ assert(abs(fittedHeight(densitySession) - groupedSessionHeight) < 0.5, "Reuse mu
 sidebarSession.row = LodyListRow(title: "No metadata")
 densitySession.configuration = sidebarSession
 assert(fittedHeight(densitySession) >= 44, "A one-line sidebar row must still be tappable")
+
+let pinnedHeader = LodyProjectRowView(LodyProjectRowContent(row: LodyListRow(title: "Pinned", image: "pin.fill"), accent: .systemBlue))
+assert(pinnedHeader.subviews.contains { ($0 as? UIImageView)?.image != nil }, "A symbol project header must show its glyph")
 
 let projectContent = LodyProjectRowContent(row: LodyListRow(title: "Lody", subtitle: "/tmp/lody", monogram: "L"), accent: .systemBlue)
 let densityProject = LodyProjectRowView(projectContent)
@@ -315,3 +342,100 @@ assert(
   "A footer-only help section stays visible when the host has no placeholder"
 )
 print("PASS: empty-to-populated list sections skip the footer interpolation")
+
+let glyphAsset = UIGraphicsImageRenderer(size: CGSize(width: 24, height: 24)).image { _ in
+  UIColor.black.setFill()
+  UIRectFill(CGRect(x: 0, y: 0, width: 24, height: 24))
+}.withRenderingMode(.alwaysTemplate)
+
+func glyphContent(image: UIImage?, asset: Bool) -> UIListContentConfiguration {
+  var content = UIListContentConfiguration.subtitleCell()
+  content.text = "Claude Code"
+  content.secondaryText = "助手"
+  LodyListGlyph.apply(&content, image: image, asset: asset)
+  return content
+}
+
+func laidOutGlyph(_ content: UIListContentConfiguration) -> UIView {
+  let cell = UICollectionViewListCell()
+  cell.contentConfiguration = content
+  let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+  window.makeKeyAndVisible()
+  let host = UIView(frame: window.bounds)
+  window.addSubview(host)
+  host.addSubview(cell)
+  cell.translatesAutoresizingMaskIntoConstraints = false
+  NSLayoutConstraint.activate([
+    cell.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+    cell.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+    cell.topAnchor.constraint(equalTo: host.topAnchor),
+  ])
+  host.layoutIfNeeded()
+  withExtendedLifetime(window) {}
+  return cell
+}
+
+let symbolGlyph = glyphContent(image: UIImage(systemName: "sparkles"), asset: false)
+let assetGlyph = glyphContent(image: glyphAsset, asset: true)
+assert(assetGlyph.imageProperties.maximumSize == LodyListGlyph.size, "Provider icons must match the title3 symbol size, not a 24 pt asset canvas")
+assert(assetGlyph.imageProperties.reservedLayoutSize == LodyListGlyph.reservedSize, "Provider icons must reserve the same list slot as SF Symbols")
+assert(symbolGlyph.imageProperties.reservedLayoutSize == LodyListGlyph.reservedSize, "SF Symbols must share the list image slot with provider icons")
+let symbolGlyphView = laidOutGlyph(symbolGlyph)
+let assetGlyphView = laidOutGlyph(assetGlyph)
+let symbolGlyphTitle = frame(sessionLabel(symbolGlyphView, "Claude Code"), in: symbolGlyphView)
+let assetGlyphTitle = frame(sessionLabel(assetGlyphView, "Claude Code"), in: assetGlyphView)
+assert(
+  abs(symbolGlyphTitle.minX - assetGlyphTitle.minX) < 1,
+  "Provider icons must keep the same text leading edge as SF Symbols (\(symbolGlyphTitle.minX) vs \(assetGlyphTitle.minX))"
+)
+assert(
+  abs(symbolGlyphTitle.minY - assetGlyphTitle.minY) < 1,
+  "Provider icons must keep the same text baseline as SF Symbols (\(symbolGlyphTitle.minY) vs \(assetGlyphTitle.minY))"
+)
+print("PASS: list asset glyphs keep SF Symbol text alignment")
+
+let resizingSession = LodySessionRowView(LodySessionRowContent(
+  row: LodyListRow(title: "Steer E2E", value: "Now"), dot: .systemBlue, live: true
+))
+for badgeText in ["Running", "", "Completed"] {
+  resizingSession.configuration = LodySessionRowContent(
+    row: LodyListRow(title: "Steer E2E", value: "Now", badge: badgeText),
+    dot: .systemBlue, live: !badgeText.isEmpty
+  )
+  let fitting = resizingSession.systemLayoutSizeFitting(
+    CGSize(width: 370, height: CGFloat.greatestFiniteMagnitude),
+    withHorizontalFittingPriority: .required,
+    verticalFittingPriority: .defaultLow
+  )
+  assert(fitting.height >= 20 && fitting.height < 200, "Outline updates must produce a bounded content height: \(fitting)")
+}
+print("PASS: session state changes remain self-sizing under an expanded outline proposal")
+
+var hold = LodyUnreadNavigationHold()
+hold.begin(rowID: "unread", unread: true, coversList: true)
+assert(
+  hold.applied(rowID: "unread", unread: false) == true,
+  "A covering push must keep unread emphasis while the source row is still on screen"
+)
+assert(
+  hold.applied(rowID: "other", unread: false) == false,
+  "Unread hold is only for the row that is being opened"
+)
+assert(hold.end() == "unread")
+assert(
+  hold.applied(rowID: "unread", unread: false) == false,
+  "Unread emphasis drops after the covering transition finishes"
+)
+
+var split = LodyUnreadNavigationHold()
+split.begin(rowID: "unread", unread: true, coversList: false)
+assert(
+  split.applied(rowID: "unread", unread: false) == false,
+  "A list that stays on screen applies the viewed state immediately"
+)
+split.begin(rowID: "read", unread: false, coversList: true)
+assert(
+  split.applied(rowID: "read", unread: false) == false,
+  "Opening an already-read row does not hold emphasis"
+)
+print("PASS: unread emphasis waits for a covering push to finish")

@@ -1,3 +1,5 @@
+import { useMessageDetailsSheet } from '@/hooks/screens/useMessageDetailsSheet';
+import { openMessageShare } from '@/screens/MessageShareScreen';
 import { uiVerify } from './uiVerify';
 import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -8,6 +10,8 @@ import { t } from '@/lib/i18n/index.ts';
 import { definePage, present } from '@/lib/presentation';
 import { FileDiffScreen } from '@/screens/FileDiffScreen';
 import { ItemDetailScreen } from '@/screens/ItemDetailScreen';
+import { openSubagentTask } from '@/hooks/screens/openSubagentTask';
+import type { ItemSummary } from '@/models/session';
 import { basename } from '@/features/sessions/path';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
 import {
@@ -19,7 +23,7 @@ import type {
   PermissionTargetSource,
 } from '@/features/sessions/permissionTarget';
 
-const answer = `## 原生聊天布局\n\n列表使用 **UICollectionView**，正文直接由 UIKit 渲染。\n\n- 输入区始终可见，跟随键盘移动\n- 执行过程在 Sheet 中平铺\n- 完成后保持回答和过程入口\n\n### 代码示例\n\n\`\`\`swift\nlet layout = UICollectionViewFlowLayout()\nlet list = UICollectionView(\n  frame: .zero,\n  collectionViewLayout: layout\n)\n\`\`\`\n\n这是一条用于检查换行、**粗体**和 \`inline code\` 的较长段落。切换浅色和深色外观，正文和输入框都应清晰可读。\n\n> 引用块用于确认左侧竖条与次级文字颜色。\n\n1. 有序列表\n   - 嵌套的无序项\n   - [x] 已完成的任务\n   - [ ] 未完成的任务\n2. 第二项，见 [Apple HIG](https://developer.apple.com/design/human-interface-guidelines/)\n\n| table-bleed-start | table-bleed-mid | table-bleed-end |\n| --- | --- | --- |\n| AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA | BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB | CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC |\n\n---\n\n分割线之后的收尾段落。`;
+const answer = `## 原生聊天布局\n\n列表使用 **UICollectionView**，正文直接由 UIKit 渲染。\n\n- 输入区始终可见，跟随键盘移动\n- 执行过程在 Sheet 中平铺\n- 完成后保持回答和过程入口\n\n### 代码示例\n\n\`\`\`swift\nlet layout = UICollectionViewFlowLayout()\nlet list = UICollectionView(\n  frame: .zero,\n  collectionViewLayout: layout\n)\n\`\`\`\n\n这是一条用于检查换行、**粗体**和 \`inline code\` 的较长段落。切换浅色和深色外观，正文和输入框都应清晰可读。\n\n> 引用块用于确认左侧竖条与次级文字颜色。\n\n1. 有序列表\n   - 嵌套的无序项\n   - [x] 已完成的任务\n   - [ ] 未完成的任务\n2. 第二项，见 [Apple HIG](https://developer.apple.com/design/human-interface-guidelines/)\n\n| table-bleed-start | table-bleed-mid | table-bleed-end |\n| --- | --- | --- |\n| AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA | BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB | CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC |\n\n---\n\nRuby: <ruby>日本語<rt>にほんご</rt></ruby> · <ruby>勉強<rp>(</rp><rt>べんきょう</rt><rp>)</rp></ruby> · <ruby>コンピューター<rt>こんぴゅーたー</rt></ruby>\n\n分割线之后的收尾段落。`;
 const history = Array.from({ length: 80 }, (_, index) => ({
   id: `history-${index}`,
   role: index % 2 ? 'assistant' : 'user',
@@ -69,6 +73,195 @@ function editStatus(mode: 'normal' | 'attention', length: number) {
   if (mode === 'attention') return 'failed';
   if (length < 240) return 'in_progress';
   return 'completed';
+}
+
+function imageFixture(assistant: boolean) {
+  if (assistant) {
+    return {
+      id: 'preview-image',
+      role: 'assistant' as const,
+      status: 'completed',
+      finished: true,
+      items: [
+        {
+          itemId: 'photo',
+          type: 'image_group',
+          images: ['first.png', 'second.png'].map((fileName) => ({
+            id: 'ui-verify-image',
+            fileName,
+            width: 600,
+            height: 400,
+          })),
+        },
+        { itemId: 'caption', type: 'text', text: '离线图片验收' },
+      ],
+    };
+  }
+  const photos = [
+    { fileName: 'fixture.png', width: 600, height: 400 },
+    { fileName: 'two.png', width: 400, height: 600 },
+    { fileName: 'three.png', width: 600, height: 400 },
+  ];
+  return {
+    id: 'preview-image',
+    role: 'user' as const,
+    status: 'completed',
+    finished: true,
+    items: [
+      ...photos.map((photo, index) => ({
+        itemId: `photo-${index}`,
+        type: 'image',
+        image: {
+          id: index === 0 ? 'ui-verify-image' : `ui-verify-image-${index}`,
+          fileName: photo.fileName,
+          width: photo.width,
+          height: photo.height,
+        },
+      })),
+      { itemId: 'caption', type: 'text', text: '离线图片验收' },
+    ],
+  };
+}
+
+function overlayTaskEntries() {
+  return [
+    {
+      id: 'task-user',
+      role: 'user',
+      status: 'handled',
+      finished: true,
+      items: [{ itemId: 'text', type: 'text', text: '并行探索登录超时。' }],
+    },
+    {
+      id: 'task-reply',
+      role: 'assistant',
+      status: 'running',
+      finished: false,
+      items: [
+        {
+          itemId: 'explore',
+          type: 'subagent_task',
+          taskId: 't1',
+          status: 'in_progress',
+          actor: 'Explore',
+          description: 'Find overlay chrome',
+          lastToolName: 'Read',
+          isBackgrounded: true,
+        },
+        {
+          itemId: 'house',
+          type: 'subagent_task',
+          taskId: 'house',
+          status: 'in_progress',
+          actor: 'Housekeeping',
+          skipTranscript: true,
+        },
+        {
+          itemId: 'tests',
+          type: 'subagent_task',
+          taskId: 't2',
+          status: 'completed',
+          actor: 'test-runner',
+          description: 'Run the auth tests',
+          summary:
+            'All 12 cases pass. Session refresh is not covered; add expiry and concurrent refresh cases after the split.',
+        },
+        {
+          itemId: 'review',
+          type: 'subagent_task',
+          taskId: 't3',
+          status: 'failed',
+          actor: 'code-reviewer',
+          description: 'Review token storage',
+          error: 'Machine connection lost',
+        },
+        {
+          itemId: 'answer',
+          type: 'text',
+          text: '已派出三个子任务，结果回来后合并成拆分方案。',
+        },
+      ],
+    },
+  ];
+}
+
+function failedToolEntries(startedAt: number) {
+  return [
+    {
+      id: 'failed-preview',
+      role: 'assistant',
+      status: 'running',
+      finished: false,
+      startedAt,
+      modelInfo: {
+        modelId: 'gpt-5.6-sol',
+        name: 'GPT-5.6 Sol',
+        thoughtLevel: 'High',
+      },
+      items: [
+        {
+          itemId: 'thought',
+          type: 'thought',
+          text: '先核对失败的工具',
+          status: 'in_progress',
+        },
+        {
+          itemId: 'tool',
+          type: 'tool_call',
+          kind: 'mcp',
+          title: '失败的工具',
+          status: 'failed',
+        },
+        {
+          itemId: 'read',
+          type: 'tool_call',
+          kind: 'read',
+          path: 'File.swift',
+          title: '继续读取',
+          status: 'in_progress',
+        },
+      ],
+    },
+  ];
+}
+
+function processCountEntries(count: number, startedAt: number) {
+  return [
+    {
+      id: 'counts-preview',
+      role: 'assistant',
+      status: 'running',
+      finished: false,
+      startedAt,
+      modelInfo: {
+        modelId: 'gpt-5.6-sol',
+        name: 'GPT-5.6 Sol',
+        thoughtLevel: 'High',
+      },
+      items: [
+        {
+          itemId: 'thought',
+          type: 'thought',
+          text: '正在更新计数',
+        },
+        ...Array.from({ length: count }, (_, index) => ({
+          itemId: `tool-${index}`,
+          type: 'tool_call',
+          kind: 'mcp',
+          title: `工具 ${index + 1}`,
+          status: 'completed',
+        })),
+        ...Array.from({ length: count }, (_, index) => ({
+          itemId: `edit-${index}`,
+          type: 'tool_call',
+          kind: 'edit',
+          path: `File${index}.swift`,
+          title: `编辑 File${index}.swift`,
+          status: 'completed',
+        })),
+      ],
+    },
+  ];
 }
 
 const permissionTarget: PermissionTarget = {
@@ -203,7 +396,9 @@ function openQuestionFixture() {
 }
 
 function View() {
+  const [startedAt] = useState(Date.now);
   const [showImage, setShowImage] = useState(false);
+  const [selectionFixture, setSelectionFixture] = useState(false);
   const [assistantImages, setAssistantImages] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
   const [durationFixture, setDurationFixture] = useState<{
@@ -211,6 +406,11 @@ function View() {
     finished: boolean;
     permissionWaitMs?: number;
   } | null>(null);
+  const [processCounts, setProcessCounts] = useState<{
+    count: number;
+    startedAt: number;
+  } | null>(null);
+  const [failedToolAt, setFailedToolAt] = useState<number | null>(null);
   const [length, setLength] = useState(totalLength);
   const [navigationTitle, setNavigationTitle] = useState('原生聊天预览');
   const [sessionActionsReady, setSessionActionsReady] = useState(false);
@@ -221,7 +421,21 @@ function View() {
     effort: 'medium',
     fast: false,
   });
+  const [connection, setConnection] = useState<'' | 'connecting' | 'paused'>(
+    '',
+  );
+  const [overlayTasks, setOverlayTasks] = useState(false);
   const [clearDraftToken, setClearDraftToken] = useState(0);
+  useEffect(() => {
+    if (processCounts == null || processCounts.count >= 9) return;
+    const id = setInterval(() => {
+      setProcessCounts((current) => {
+        if (current == null || current.count >= 9) return current;
+        return { ...current, count: current.count + 1 };
+      });
+    }, 900);
+    return () => clearInterval(id);
+  }, [processCounts]);
   const [sent, setSent] = useState<{
     text: string;
     id: number;
@@ -236,35 +450,7 @@ function View() {
     return () => clearInterval(timer);
   }, [length < totalLength, step]);
   const entriesJSON = JSON.stringify([
-    ...(showImage
-      ? [
-          {
-            id: 'preview-image',
-            role: assistantImages ? 'assistant' : 'user',
-            status: 'completed',
-            finished: true,
-            items: [
-              {
-                itemId: 'photo',
-                type: assistantImages ? 'image_group' : 'image',
-                images: ['first.png', 'second.png'].map((fileName) => ({
-                  id: 'ui-verify-image',
-                  fileName,
-                  width: 600,
-                  height: 400,
-                })),
-                image: {
-                  id: 'ui-verify-image',
-                  fileName: 'fixture.png',
-                  width: 600,
-                  height: 400,
-                },
-              },
-              { itemId: 'caption', type: 'text', text: '离线图片验收' },
-            ],
-          },
-        ]
-      : history),
+    ...(showImage ? [imageFixture(assistantImages)] : history),
     ...(sent
       ? [
           {
@@ -279,6 +465,8 @@ function View() {
     {
       id: sent ? `preview-${sent.id}` : 'preview',
       role: 'assistant',
+      startedAt,
+      endedAt: length >= totalLength ? startedAt + 10_000 : undefined,
       status: length < totalLength ? 'running' : 'completed',
       finished: length >= totalLength,
       modelInfo: {
@@ -362,7 +550,29 @@ function View() {
     },
   ]);
   let displayedEntriesJSON = entriesJSON;
-  if (durationFixture) {
+  if (selectionFixture) {
+    displayedEntriesJSON = JSON.stringify([
+      {
+        id: 'selection',
+        role: 'assistant',
+        status: 'running',
+        finished: false,
+        items: [
+          { itemId: 'first', type: 'text', text: 'Alpha begins here.' },
+          { itemId: 'second', type: 'text', text: 'Bravo finishes here.' },
+          {
+            itemId: 'table',
+            type: 'text',
+            text: '| Fruit | Color |\n| --- | --- |\n| Apple | Red |\n| Pear | Gold |',
+          },
+        ],
+      },
+    ]);
+  } else if (processCounts) {
+    displayedEntriesJSON = JSON.stringify(
+      processCountEntries(processCounts.count, processCounts.startedAt),
+    );
+  } else if (durationFixture) {
     displayedEntriesJSON = JSON.stringify([
       {
         id: 'duration-preview',
@@ -401,6 +611,8 @@ function View() {
         ],
       },
     ]);
+  } else if (failedToolAt != null) {
+    displayedEntriesJSON = JSON.stringify(failedToolEntries(failedToolAt));
   } else if (showChanges) {
     displayedEntriesJSON = JSON.stringify([
       {
@@ -463,79 +675,32 @@ function View() {
     ]);
   } else if (showImage) {
     displayedEntriesJSON = JSON.stringify(JSON.parse(entriesJSON).slice(0, 1));
+  } else if (overlayTasks) {
+    displayedEntriesJSON = JSON.stringify(overlayTaskEntries());
   }
-  const openProcess = useProcessSheet(displayedEntriesJSON, () =>
-    setMode('attention'),
+  const openMessageDetails = useMessageDetailsSheet(displayedEntriesJSON);
+  const openItem = (entryId: string, itemId: string) => {
+    const entries = JSON.parse(displayedEntriesJSON) as {
+      id: string;
+      items: ItemSummary[];
+    }[];
+    const entry = entries.find((candidate) => candidate.id === entryId);
+    return openSubagentTask(
+      entry?.items.find((candidate) => candidate.itemId === itemId),
+    );
+  };
+  const openProcess = useProcessSheet(
+    displayedEntriesJSON,
+    (entryId, itemId) => {
+      if (!openItem(entryId, itemId)) setMode('attention');
+    },
   );
   return (
     <>
       <Stack.Screen options={{ title: navigationTitle }} />
       <Stack.Toolbar placement="right">
-        {uiVerify && (
-          <Stack.Toolbar.Menu icon="wrench" accessibilityLabel="Fixtures">
-            <Stack.Toolbar.MenuAction
-              children="Session Created"
-              icon="checkmark"
-              onPress={() => setSessionActionsReady(true)}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Rename Session"
-              icon="pencil"
-              onPress={() => setNavigationTitle('Updated session title')}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Diff Fixture"
-              icon="doc.text"
-              onPress={() => {
-                setDurationFixture(null);
-                setShowImage(false);
-                setShowChanges(true);
-              }}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Image Fixture"
-              icon="photo"
-              onPress={() => {
-                setDurationFixture(null);
-                setShowChanges(false);
-                setShowImage(true);
-                setAssistantImages(false);
-              }}
-            />
-            <Stack.Toolbar.MenuAction
-              children="MCP Image Fixture"
-              icon="photo.on.rectangle"
-              onPress={() => {
-                setDurationFixture(null);
-                setShowChanges(false);
-                setShowImage(true);
-                setAssistantImages(true);
-              }}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Duration Fixture"
-              icon="timer"
-              onPress={() => {
-                setShowImage(false);
-                setShowChanges(false);
-                setDurationFixture({
-                  startedAt: Date.now(),
-                  finished: false,
-                });
-              }}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Inline Diff Fixture"
-              icon="plusminus"
-              onPress={() =>
-                void present(ItemDetailScreen, {
-                  sessionId: 'ui-verify-diff',
-                  entryId: 'diff-preview',
-                  itemIds: ['edit'],
-                  generation: 0,
-                })
-              }
-            />
+        <Stack.Toolbar.Menu icon="wrench" accessibilityLabel="Fixtures">
+          <Stack.Toolbar.Menu title="Requests" icon="lock.open">
             <Stack.Toolbar.MenuAction
               children="Permission Fixture"
               icon="lock.open"
@@ -554,7 +719,137 @@ function View() {
               onPress={openQuestionFixture}
             />
           </Stack.Toolbar.Menu>
-        )}
+          <Stack.Toolbar.Menu title="Overlays" icon="wifi">
+            <Stack.Toolbar.MenuAction
+              children="Connecting Overlay"
+              icon="wifi"
+              onPress={() => setConnection('connecting')}
+            />
+            <Stack.Toolbar.MenuAction
+              children="Paused Overlay"
+              icon="wifi.slash"
+              onPress={() => setConnection('paused')}
+            />
+            <Stack.Toolbar.MenuAction
+              children="Tasks Overlay"
+              icon="person.2"
+              onPress={() => {
+                setDurationFixture(null);
+                setProcessCounts(null);
+                setShowChanges(false);
+                setShowImage(false);
+                setConnection('');
+                setOverlayTasks(true);
+              }}
+            />
+            <Stack.Toolbar.MenuAction
+              children="Clear Overlay"
+              icon="xmark"
+              onPress={() => {
+                setConnection('');
+                setOverlayTasks(false);
+              }}
+            />
+          </Stack.Toolbar.Menu>
+          <Stack.Toolbar.MenuAction
+            children="Selection Fixture"
+            icon="text.cursor"
+            onPress={() => setSelectionFixture(true)}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Failed Tool Fixture"
+            icon="exclamationmark.triangle"
+            onPress={() => {
+              setShowImage(false);
+              setShowChanges(false);
+              setDurationFixture(null);
+              setProcessCounts(null);
+              setFailedToolAt(Date.now());
+            }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Session Created"
+            icon="checkmark"
+            onPress={() => setSessionActionsReady(true)}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Rename Session"
+            icon="pencil"
+            onPress={() => setNavigationTitle('Updated session title')}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Diff Fixture"
+            icon="doc.text"
+            onPress={() => {
+              setDurationFixture(null);
+              setProcessCounts(null);
+              setShowImage(false);
+              setShowChanges(true);
+            }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Image Fixture"
+            icon="photo"
+            onPress={() => {
+              setDurationFixture(null);
+              setProcessCounts(null);
+              setShowChanges(false);
+              setShowImage(true);
+              setAssistantImages(false);
+            }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="MCP Image Fixture"
+            icon="photo.on.rectangle"
+            onPress={() => {
+              setDurationFixture(null);
+              setProcessCounts(null);
+              setShowChanges(false);
+              setShowImage(true);
+              setAssistantImages(true);
+            }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Duration Fixture"
+            icon="timer"
+            onPress={() => {
+              setShowImage(false);
+              setShowChanges(false);
+              setProcessCounts(null);
+              setFailedToolAt(null);
+              setDurationFixture({
+                startedAt: Date.now(),
+                finished: false,
+              });
+            }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Process Counts Fixture"
+            icon="number"
+            onPress={() => {
+              setShowImage(false);
+              setShowChanges(false);
+              setDurationFixture(null);
+              setFailedToolAt(null);
+              setProcessCounts({
+                count: 1,
+                startedAt: Date.now(),
+              });
+            }}
+          />
+          <Stack.Toolbar.MenuAction
+            children="Inline Diff Fixture"
+            icon="plusminus"
+            onPress={() =>
+              void present(ItemDetailScreen, {
+                sessionId: 'ui-verify-diff',
+                entryId: 'diff-preview',
+                itemIds: ['edit'],
+                generation: 0,
+              })
+            }
+          />
+        </Stack.Toolbar.Menu>
         {durationFixture && !durationFixture.finished && (
           <Stack.Toolbar.Button
             accessibilityLabel="Finish Duration Fixture"
@@ -582,8 +877,10 @@ function View() {
           icon="forward.end"
           onPress={() => {
             setDurationFixture(null);
+            setProcessCounts(null);
             setShowImage(false);
             setShowChanges(false);
+            setSelectionFixture(false);
             setStep(240);
             setMode('normal');
             setLength(0);
@@ -594,6 +891,7 @@ function View() {
           icon="arrow.trianglehead.clockwise.rotate.90"
           onPress={() => {
             setDurationFixture(null);
+            setProcessCounts(null);
             setShowImage(false);
             setShowChanges(false);
             setStep(48);
@@ -622,6 +920,12 @@ function View() {
           >
             {t('session.action.archive')}
           </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            icon="square.and.arrow.up"
+            onPress={() => {}}
+          >
+            {t('session.action.share')}
+          </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.Menu inline>
             <Stack.Toolbar.MenuAction icon="folder" onPress={() => {}}>
               {t('session.action.projectFiles')}
@@ -630,9 +934,18 @@ function View() {
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
       <NativeChat
+        turnInfoEnabled
+        onTurnInfoPress={({ nativeEvent }) =>
+          openMessageDetails(nativeEvent.entryId)
+        }
+        imageSharingEnabled
+        onShareImage={({ nativeEvent }) =>
+          openMessageShare(nativeEvent.contentJSON)
+        }
         navigationTitle={navigationTitle}
         navigationSubtitle="lody-ios"
         navigationMachine="Studio"
+        navigationBranch="main"
         onTitlePress={() =>
           Alert.alert(t('session.debug.title'), previewDebugBody, [
             {
@@ -650,6 +963,7 @@ function View() {
           sending: false,
           notice: '',
           reconnect: false,
+          connection,
           placeholder: '输入文字，检查键盘布局…',
         })}
         composerOptionsJSON={JSON.stringify({
@@ -679,9 +993,10 @@ function View() {
           setMode('normal');
           setLength(0);
         }}
-        onActivityPress={({ nativeEvent }) =>
-          openProcess(nativeEvent.entryId, nativeEvent.processStartId)
-        }
+        onActivityPress={({ nativeEvent }) => {
+          if (!openItem(nativeEvent.entryId, nativeEvent.itemId))
+            openProcess(nativeEvent.entryId, nativeEvent.processStartId);
+        }}
         onReconnect={() => {}}
         onTurnChangesPress={({ nativeEvent }) => {
           if (showChanges)

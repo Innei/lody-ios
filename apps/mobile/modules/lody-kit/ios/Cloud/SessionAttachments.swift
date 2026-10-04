@@ -4,6 +4,33 @@ import ImageIO
 import UIKit
 import UniformTypeIdentifiers
 
+final class AttachmentDownloadBatch {
+  private let root: URL
+  private var directories: [URL] = []
+  private var handedOff = false
+
+  init(root: URL = FileManager.default.temporaryDirectory) {
+    self.root = root
+  }
+
+  func makeDirectory() -> URL {
+    let directory = root.appendingPathComponent(UUID().uuidString)
+    directories.append(directory)
+    return directory
+  }
+
+  func handOff() {
+    handedOff = true
+  }
+
+  deinit {
+    guard !handedOff else { return }
+    for directory in directories {
+      try? FileManager.default.removeItem(at: directory)
+    }
+  }
+}
+
 /// Upload bytes in native code; only the server's attachment references enter Streams.
 enum SessionAttachments {
   typealias ProgressHandler = @Sendable (_ attachmentID: String, _ phase: String, _ percent: Int?) -> Void
@@ -12,6 +39,25 @@ enum SessionAttachments {
   }
   static func segment(_ value: String) -> String {
     value.addingPercentEncoding(withAllowedCharacters: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_")))!
+  }
+
+  static func imageDownloadURL(workspace: String, session: String, imageId: String) -> URL {
+    let path = [workspace, session, imageId].map(segment)
+    return URL(string: "https://api.lody.ai/api/workspaces/\(path[0])/session-images/\(path[1])/\(path[2])")!
+  }
+
+  static func imageThumbnailURL(workspace: String, session: String, imageId: String, width: Int) -> URL {
+    var components = URLComponents(
+      url: imageDownloadURL(workspace: workspace, session: session, imageId: imageId)
+        .appendingPathComponent("thumbnail"),
+      resolvingAgainstBaseURL: false
+    )!
+    components.queryItems = [
+      URLQueryItem(name: "width", value: String(width)),
+      URLQueryItem(name: "fit", value: "scale-down"),
+      URLQueryItem(name: "quality", value: "85"),
+    ]
+    return components.url!
   }
   static func upload(_ attachments: [[String: Any]], workspace: String, session: String,
     onProgress: @escaping ProgressHandler = { _, _, _ in }) async throws -> [[String: Any]] {
@@ -125,7 +171,7 @@ enum SessionAttachments {
   }
 
   /// Download to disk so a video never becomes a base64/RN or in-memory file body.
-  static func download(workspace: String, session: String, fileId: String, fileName: String, sizeBytes: Int?, directory: URL) async throws -> URL {
+  static func download(workspace: String, session: String, fileId: String, fileName: String, sizeBytes: Int?, directory: URL, image: Bool = false) async throws -> URL {
     guard !workspace.isEmpty, !session.isEmpty, !fileId.isEmpty else {
       throw error(LodyStrings.text("native.attachment.error.invalid"))
     }
@@ -135,7 +181,8 @@ enum SessionAttachments {
     }
     guard let token = try AuthKeychain.read() else { throw error(LodyStrings.text("native.attachment.error.signIn")) }
     let path = [workspace, session, fileId].map(segment)
-    var request = URLRequest(url: URL(string: "https://api.lody.ai/api/workspaces/\(path[0])/session-files/\(path[1])/\(path[2])")!, timeoutInterval: 120)
+    let kind = image ? "session-images" : "session-files"
+    var request = URLRequest(url: URL(string: "https://api.lody.ai/api/workspaces/\(path[0])/\(kind)/\(path[1])/\(path[2])")!, timeoutInterval: 120)
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     let (temporary, response) = try await URLSession.shared.download(for: request)
     defer { try? FileManager.default.removeItem(at: temporary) }

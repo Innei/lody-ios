@@ -1,11 +1,31 @@
+import {
+  readTurnMetadata,
+  type TurnMetadata,
+} from '../../../src/cloud/turnMetadata.ts';
+import { executionProjection, type SteerReceipt } from './execution';
 import type { LoroDoc, LoroList, LoroMap } from 'loro-crdt/base64';
 import {
   parseQuestionMeta,
   samePermissionOutcome,
 } from '../../../src/cloud/permissionQuestions.ts';
 import type { QuestionMeta } from '../../../src/models/session.ts';
+import { billableTurnCount } from './billing';
+import { previewSummary } from './preview';
+
+export type SystemNoticeMeta = {
+  reason?: string;
+  code?: string;
+  message?: string;
+};
 
 export type ItemSummary =
+  | {
+      itemId: string;
+      rev: number;
+      type: 'system_notice';
+      name: string;
+      meta?: SystemNoticeMeta;
+    }
   | { itemId: string; rev: number; type: 'text'; text: string }
   | { itemId: string; rev: number; type: 'thought'; text: string }
   | {
@@ -41,15 +61,26 @@ export type ItemSummary =
       status: string;
       actor?: string;
       description?: string;
+      lastToolName?: string;
+      summary?: string;
+      error?: string;
+      isBackgrounded?: boolean;
+      skipTranscript?: boolean;
     }
   | { itemId: string; rev: number; type: string };
 
-export type EntrySummary = {
+export type EntrySummary = TurnMetadata & {
   id: string;
   rev: number;
   role: string;
   status: string;
   finished: boolean;
+  userTurnId?: string;
+  executionId?: string;
+  executionFinished?: boolean;
+  steerCount?: number;
+  delivery?: string;
+  holdOpen?: boolean;
   timestamp?: string;
   startedAt?: number;
   endedAt?: number;
@@ -63,7 +94,9 @@ export type Envelope = {
   status: string;
   reason?: string;
   revision: number;
+  billableTurnCount: number;
   awaitingUserSince?: number;
+  preview?: { label: string; active: boolean };
   composer?: {
     modelId?: string;
     modeId?: string;
@@ -142,7 +175,20 @@ function summarizeItem(
 
   if (type === 'system_notice') {
     const name = typeof raw.name === 'string' ? raw.name : '';
-    return { itemId, rev: bump(projection, key, name), type, name };
+    const meta = {
+      reason:
+        typeof raw.meta?.reason === 'string' ? raw.meta.reason : undefined,
+      code: typeof raw.meta?.code === 'string' ? raw.meta.code : undefined,
+      message:
+        typeof raw.meta?.message === 'string' ? raw.meta.message : undefined,
+    };
+    return {
+      itemId,
+      rev: bump(projection, key, JSON.stringify({ name, meta })),
+      type,
+      name,
+      meta,
+    };
   }
 
   if (type === 'text' || type === 'thought') {
@@ -268,6 +314,14 @@ function summarizeItem(
       actor: raw.actor == null ? undefined : String(raw.actor),
       description:
         raw.description == null ? undefined : String(raw.description),
+      lastToolName:
+        raw.lastToolName == null ? undefined : String(raw.lastToolName),
+      summary: raw.summary == null ? undefined : String(raw.summary),
+      error: raw.error == null ? undefined : String(raw.error),
+      isBackgrounded:
+        raw.isBackgrounded == null ? undefined : Boolean(raw.isBackgrounded),
+      skipTranscript:
+        raw.skipTranscript == null ? undefined : Boolean(raw.skipTranscript),
     };
     summary.rev = bump(projection, key, JSON.stringify(summary));
     return summary as ItemSummary;
@@ -345,13 +399,15 @@ function summarizeEntry(
         ? model._meta.lodyThoughtLevel.trim()
         : undefined,
   };
+  const metadata = readTurnMetadata(entry);
   const value = {
+    ...metadata,
     id,
     rev: bump(
       projection,
       `entry/${id}`,
       summarizedItems.map((i) => `${i.itemId}:${i.rev}`).join(',') +
-        `|${entry?.status}|${entry?.finished}|${JSON.stringify(fileDiffs)}|${JSON.stringify(modelInfo)}`,
+        `|${entry?.status}|${entry?.finished}|${JSON.stringify(fileDiffs)}|${JSON.stringify(modelInfo)}|${JSON.stringify(metadata)}`,
     ),
     role: String(entry?.role ?? 'assistant'),
     status: entry?.status ?? (entry?.read ? 'seen' : 'pending'),
@@ -374,9 +430,29 @@ export function projectSession(
   status: string,
   reason?: string,
   pendingOutcomes?: ReadonlyMap<string, unknown>,
+  steerReceipts?: ReadonlyMap<string, SteerReceipt>,
 ): Envelope {
   const history = doc.getList('history') as LoroList;
-  const raw = history.toJSON() as any[];
+  const links = doc.getMap('lodySteerLinks').toJSON() as Record<string, any>;
+  const configFor = (id: string, input: any) => {
+    const link = links[id];
+    if (
+      !link ||
+      typeof link.targetId !== 'string' ||
+      !['interrupt', 'native'].includes(link.mode)
+    )
+      return input;
+    return {
+      ...input,
+      _lodyDeliveryKind: 'steer',
+      _lodySteerTarget: link.targetId,
+      _lodySteerMode: link.mode,
+    };
+  };
+  const raw = (history.toJSON() as any[]).map((entry) => ({
+    ...entry,
+    inputConfig: configFor(entry.id, entry.inputConfig),
+  }));
   const input = raw.findLast((entry) => entry?.role === 'user')?.inputConfig;
   const options =
     input?.configOptionValues && typeof input.configOptionValues === 'object'
@@ -415,10 +491,27 @@ export function projectSession(
         ],
   );
 
-  const waitingSteerIds = new Set(
-    raw
-      .filter((entry) => entry.inputConfig?._lodyDeliveryKind === 'steer')
-      .map((entry) => entry.id),
+  const queued = (doc.getMovableList('mq').toJSON() as any[]).map((item) => ({
+    ...item,
+    acpSessionConfig: configFor(item.userTurnId, item.acpSessionConfig),
+  }));
+  const execution = executionProjection(
+    [
+      ...raw,
+      ...queued
+        .filter((item) => !userIds.has(item.userTurnId))
+        .map((item) => ({
+          id: item.userTurnId,
+          role: 'user',
+          status:
+            item.acpSessionConfig?._lodySteerMode === 'interrupt'
+              ? 'pending_apply'
+              : 'queued',
+          inputConfig: item.acpSessionConfig,
+        })),
+    ],
+    status === 'live',
+    steerReceipts,
   );
   revision += 1;
   const session = doc.getMap('session').toJSON();
@@ -427,10 +520,12 @@ export function projectSession(
     status,
     reason,
     revision,
+    billableTurnCount: billableTurnCount({ history: raw, mq: queued }),
     awaitingUserSince:
       typeof session?.awaitingUserSince === 'number'
         ? session.awaitingUserSince
         : undefined,
+    preview: previewSummary(doc),
     ...(input
       ? {
           composer: {
@@ -448,16 +543,8 @@ export function projectSession(
         }
       : {}),
     entries: [
-      ...ordered.map(({ userTurnId, ...entry }) => {
-        const waitingSteer =
-          entry.role === 'user' &&
-          waitingSteerIds.has(entry.id) &&
-          ['pending_apply', 'pending', 'seen'].includes(entry.status) &&
-          !replies.has(entry.id);
-        if (!waitingSteer) return entry;
-        return { ...entry, status: 'queued', canSteer: false };
-      }),
-      ...(doc.getMovableList('mq').toJSON() as any[])
+      ...ordered.map((entry) => ({ ...entry, ...execution.get(entry.id) })),
+      ...queued
         .filter(
           (item) =>
             typeof item.userTurnId === 'string' &&
@@ -466,7 +553,11 @@ export function projectSession(
         .map((item) => ({
           id: item.userTurnId,
           role: 'user',
-          status: 'queued',
+          status:
+            item.acpSessionConfig?._lodySteerMode === 'interrupt'
+              ? 'pending_apply'
+              : 'queued',
+          ...execution.get(item.userTurnId),
           finished: false,
           rev: 0,
           timestamp: item.timestamp,

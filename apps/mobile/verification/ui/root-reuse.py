@@ -18,10 +18,11 @@ original = pid()
 for host in ['chat', 'sheet']:
     if host == 'sheet':
         for _ in range(8):
-            if any(i.get('AXUniqueId') == 'model-memory' for i in ui.state()):
+            if any(i.get('AXUniqueId') == 'model-memory' and 120 < i['frame']['y'] < 600 for i in ui.state()):
                 break
-            ui.axe('swipe', '--start-x', '200', '--start-y', '700', '--end-x', '200', '--end-y', '500', '--duration', '.4', '--post-delay', '.4')
-        ui.axe('tap', '--id', 'model-memory', '--tap-style', 'physical', '--post-delay', '.6')
+            ui.axe('swipe', '--start-x', '200', '--start-y', '700', '--end-x', '200', '--end-y', '500', '--duration', '.5', '--post-delay', '.6')
+        ui.capture('sheet-entry')
+        ui.axe('tap', '--id', 'model-memory', '--tap-style', 'physical', '--pre-delay', '.8', '--post-delay', '.6')
         ui.element('create-session-input')
     ui.axe('tap', '--id', 'session-input' if host == 'chat' else 'create-session-input', '--post-delay', '.6')
     ui.axe('tap', '--id', 'session-model', '--post-delay', '.5')

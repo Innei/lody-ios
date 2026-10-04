@@ -1,19 +1,15 @@
+import ChatKit
 import ExpoModulesCore
+import Litext
 import UIKit
-
-private final class ChatCollectionLayout: UICollectionViewFlowLayout {
-  override func invalidationContext(forBoundsChange newBounds: CGRect) -> UICollectionViewLayoutInvalidationContext {
-    let context = super.invalidationContext(forBoundsChange: newBounds)
-    (context as? UICollectionViewFlowLayoutInvalidationContext)?.invalidateFlowLayoutDelegateMetrics = true
-    return context
-  }
-}
 
 private final class ChatCollectionView: UICollectionView {
   var contentDidLayout: (() -> Void)?
+  var selectionDidLayout: (() -> Void)?
   private var lastSize = CGSize.zero
   override func layoutSubviews() {
     super.layoutSubviews()
+    selectionDidLayout?()
     guard contentSize != lastSize else { return }
     lastSize = contentSize
     contentDidLayout?()
@@ -56,36 +52,81 @@ private final class ChatNavigationController: UIViewController {
   }
 }
 
-final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout, UIGestureRecognizerDelegate {
+final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout, UIGestureRecognizerDelegate, ChatSendHandoffSettling {
   let onSend = EventDispatcher()
+  let onEditMessage = EventDispatcher()
+  var editableMessageID = "" {
+    didSet {
+      for cell in collection.visibleCells {
+        (cell as? ChatCell)?.updateEditAccessibility()
+        (cell as? ChatMessageAttachmentsCell)?.updateEditAccessibility()
+      }
+    }
+  }
+  var editedMessageID = "" { didSet { scrollToEditedMessage() } }
+  func scrollToEditedMessage() {
+    guard !editedMessageID.isEmpty, !applying,
+      let row = dataSource.snapshot().itemIdentifiers.compactMap({ rows[$0] }).first(where: { $0.entryID == editedMessageID }),
+      let index = dataSource.indexPath(for: row.id) else { return }
+    editedMessageID = ""
+    pauseTracking()
+    collection.scrollToItem(at: index, at: .top, animated: false)
+  }
   let onStop = EventDispatcher()
   let onSteer = EventDispatcher()
+  let onErrorRetry = EventDispatcher()
+  var errorRetryState: ChatErrorRetryState?
   let onActivityPress = EventDispatcher()
+  let onTurnInfoPress = EventDispatcher()
+  var turnInfoEnabled = false
+  let onShareImage = EventDispatcher()
+  var imageSharingEnabled = false
   let onFilePress = EventDispatcher()
   let onTurnChangesPress = EventDispatcher()
   let onReconnect = EventDispatcher()
   let onRetrySend = EventDispatcher()
   let onTitlePress = EventDispatcher()
+  let onPreview = EventDispatcher()
+  private let simulatorPreview = SimulatorPreview(frame: .zero)
+
+  func setSimulatorPreview(_ json: String) {
+    simulatorPreview.setSource(json)
+  }
+  let onTitleMenu = EventDispatcher()
   let onComposerOptionChange = EventDispatcher()
   let onMentionBrowse = EventDispatcher()
-  private let titleButton = UIButton(type: .system)
+  private let titleButton = ChatNavigationTitleButton()
   private var navigationTitle = ""
   private var navigationSubtitle = ""
   private var navigationMachine = ""
+  private var navigationBranch = ""
   private var titleDisappearing = false
   private let navigation = ChatNavigationController()
   let collection: UICollectionView
-  let measuringText = ChatTextView()
+  let measuringText = CKTextView()
   var measurements: [String: (width: CGFloat, text: NSAttributedString, height: CGFloat)] = [:]
   let store = ChatMarkdownStore(traits: .current)
-  let composer = ChatComposerView(frame: .zero)
-  let bottomButton = UIButton(type: .system)
+  var markdownSelections: [String: TextSelectionGroup] = [:]
+  let findBar = ChatFindBar()
+  var findPresented = false
+  var lastFindRequest = ""
+  var findMatches: [ChatFindMatch] = []
+  var findSelection: ChatFindMatch?
+  var findNeedsInitialPosition = false
+  var findFocusRequest: Bool?
+  let findHighlightedViews = NSHashTable<UIView>.weakObjects()
+  var composer = ChatComposerView(frame: .zero)
+  var composerBottom: NSLayoutConstraint!
+  var composerRetired = false
+  let edgeFade = LodyEdgeFade()
+  let overlay = ChatOverlay()
   var localAttachments: [String: [ChatMessageAttachment]] = [:]
   var expandedMessages = Set<String>()
   var expandedAttachments = Set<String>()
   var collapsedMessageHeights: [String: CGFloat] = [:]
   var imageWorkspace = ""
   var imageSession = ""
+  weak var imagePreview: ChatImagePreview?
   var mentionRepository = "" {
     didSet {
       guard oldValue != mentionRepository else { return }
@@ -94,20 +135,22 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
   let empty = UILabel()
   private weak var scrollOwner: UIViewController?
-  private var titleObservation: NSKeyValueObservation?
   var dataSource: UICollectionViewDiffableDataSource<String, String>!
   var transcript = ChatTranscript()
   var processEntryID = ""
   var processStartID = ""
   var stream = ChatStream()
+  // Frozen presentation only. ChatStream keeps accepting authoritative updates.
+  var deferredRows: [String: [ChatRow]] = [:]
+  var catchingUpEntries: Set<String> = []
   var frameTimer: Timer?
   var rendering = false
   var framePending = false
   var lastRenderTime = 0.0
   var renderTailLength = 0
   var rows: [String: ChatRow] = [:]
-  var update: DispatchWorkItem?
   var pendingEntries: String?
+  var preparedEntries: PreparedChatEntries?
   var workDurationTimer: Timer?
   let preparation = DispatchQueue(label: "app.innei.lody.chat", qos: .userInitiated)
   var decoding = false
@@ -128,6 +171,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var trackingPausedByGesture = false
   var liveEntryID: String?
   let turnFeedback = UINotificationFeedbackGenerator()
+  let replyHaptics = ChatReplyHaptics()
+  var replyText: (entryID: String, length: Int)?
   var lastUserID: String?
   var anchoredUserID: String?
   var awaitingUserAnchor = false
@@ -135,8 +180,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var motionTime: CFTimeInterval = 0
   var movingLayout = false
   var hasPositionedContent = false
+  var deliveryExits: [String: CGFloat] = [:]
   var rowHeights: [String: (current: CGFloat, target: CGFloat, width: CGFloat)] = [:]
-  #if DEBUG
   var historyLoadStarted = 0.0
   var historyFirstContent = 0.0
   var historyFirstRows = 0
@@ -146,7 +191,6 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var scrollProbe: ChatScrollProbe?
   var performanceProbe: ChatPerformanceProbe?
   var streamPerformanceProbe: ChatStreamPerformanceProbe?
-  #endif
   private var laidOutHeight: CGFloat = 0
   private var hasInitialDraft = false
   var pendingSend: ChatPendingSend?
@@ -169,7 +213,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     if let file = row.fileDiff {
       let counts = UILabel()
       counts.font = .monospacedDigitSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize, weight: .regular)
-      let value = NSMutableAttributedString(string: "+\(file.add ?? 0)", attributes: [.foregroundColor: UIColor.systemBlue])
+      let value = NSMutableAttributedString(string: "+\(file.add ?? 0)", attributes: [.foregroundColor: UIColor.systemGreen])
       value.append(NSAttributedString(string: "  −\(file.del ?? 0)", attributes: [.foregroundColor: UIColor.systemRed]))
       counts.attributedText = value
       cell.accessories = [.customView(configuration: .init(customView: counts, placement: .trailing()))]
@@ -190,7 +234,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     cell.contentConfiguration = content
     let counts = UILabel()
     counts.font = .monospacedDigitSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize, weight: .regular)
-    let value = NSMutableAttributedString(string: "+\(file.add ?? 0)", attributes: [.foregroundColor: UIColor.systemBlue])
+    let value = NSMutableAttributedString(string: "+\(file.add ?? 0)", attributes: [.foregroundColor: UIColor.systemGreen])
     value.append(NSAttributedString(string: "  −\(file.del ?? 0)", attributes: [.foregroundColor: UIColor.systemRed]))
     counts.attributedText = value
     cell.accessories = [.customView(configuration: .init(customView: counts, placement: .trailing())), .disclosureIndicator()]
@@ -228,18 +272,19 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     navigation.updateTitle = { [weak self] in self?.attachTitle() }
     navigation.onDidAppear = { [weak self] in
       self?.hasAppeared = true
+      self?.adoptComposerIfNeeded()
       self?.deliverPendingContent()
     }
     navigation.onWillAppear = { [weak self] animated, coordinator in
-      self?.titleDisappearing = false
+      self?.setTitleDisappearing(false)
       self?.deselectFileOnReturn(animated: animated, coordinator: coordinator)
     }
     navigation.onWillDisappear = { [weak self] coordinator in
-      self?.titleDisappearing = true
+      self?.setTitleDisappearing(true)
       self?.preserveTitleSubtitle()
       coordinator?.animate(alongsideTransition: nil) { context in
         guard context.isCancelled else { return }
-        self?.titleDisappearing = false
+        self?.setTitleDisappearing(false)
         self?.attachTitle()
       }
     }
@@ -254,22 +299,44 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     collection.addGestureRecognizer(tap)
     collection.contentInsetAdjustmentBehavior = .automatic
     collection.delegate = self
+    collection.selectionDidLayout = { [weak self] in self?.refreshMarkdownSelections() }
     collection.contentDidLayout = { [weak self] in
       guard let self, !self.applying, !self.movingLayout else { return }
       self.updateBottomInset()
       if self.followsBottom { self.scrollToBottom() }
+      self.refreshFindHighlights()
     }
     collection.register(ChatMessageAttachmentsCell.self, forCellWithReuseIdentifier: "attachments")
     collection.register(ChatImageCell.self, forCellWithReuseIdentifier: "image")
     collection.register(ChatHistoryHeader.self, forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader, withReuseIdentifier: "history")
+    collection.register(ChatErrorCell.self, forCellWithReuseIdentifier: "error")
+    collection.register(ChatSubagentCell.self, forCellWithReuseIdentifier: "subagent")
     collection.register(ChatCell.self, forCellWithReuseIdentifier: "message")
     collection.register(ChatMetaCell.self, forCellWithReuseIdentifier: "meta")
     collection.register(ChatMarkdownCell.self, forCellWithReuseIdentifier: "markdown")
     dataSource = UICollectionViewDiffableDataSource<String, String>(collectionView: collection) { [weak self] collection, index, id in
       guard let self, let row = self.rows[id] else { return nil }
+      if row.kind == "chat_failed" {
+        let cell = collection.dequeueReusableCell(withReuseIdentifier: "error", for: index) as! ChatErrorCell
+        cell.configure(row)
+        cell.onDetail = { [weak self] in self?.onActivityPress(["entryId": row.entryID, "itemId": row.itemID]) }
+        cell.onRetry = { [weak self] in self?.onErrorRetry(["entryId": row.entryID, "itemId": row.itemID, "id": UUID().uuidString.lowercased()]) }
+        return cell
+      }
+      if row.subagent != nil {
+        let cell = collection.dequeueReusableCell(withReuseIdentifier: "subagent", for: index) as! ChatSubagentCell
+        cell.configure(row)
+        return cell
+      }
       if row.kind == "meta" {
         let cell = collection.dequeueReusableCell(withReuseIdentifier: "meta", for: index) as! ChatMetaCell
+        cell.detailsButton.isHidden = !turnInfoEnabled
         cell.configure(row)
+        cell.detailsButton.removeAction(identifiedBy: .init("turn-info"), for: .touchUpInside)
+        cell.detailsButton.addAction(UIAction(identifier: .init("turn-info")) { [weak self] _ in
+          self?.onTurnInfoPress(["entryId": row.entryID])
+        }, for: .touchUpInside)
+        cell.actionButton.menu = messageMenu(entryID: row.entryID, source: cell.actionButton)
         return cell
       }
       if row.kind == "changesHeader" {
@@ -280,12 +347,16 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       }
       if row.kind == "attachments" {
         let cell = collection.dequeueReusableCell(withReuseIdentifier: "attachments", for: index) as! ChatMessageAttachmentsCell
+        cell.canEdit = { [weak self] in self?.editableMessageID == row.entryID }
+        cell.onEdit = { [weak self] in self?.onEditMessage(["entryId": row.entryID]) }
         cell.configure(row, workspace: self.imageWorkspace, session: self.imageSession, expanded: self.expandedAttachments.contains(row.entryID))
         cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
         cell.onPreview = { [weak self] attachment, image in
-          guard let self, let controller = self.presenter() else { return }
-          self.pauseTracking()
-          if let image { image.presentPreview(from: controller); return }
+          guard let self else { return }
+          if let image, let id = image.accessibilityIdentifier, !id.isEmpty {
+            self.openImageGallery(id: id, source: image)
+            return
+          }
           self.openAttachment(attachment)
         }
         return cell
@@ -309,6 +380,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       }
       let cell = collection.dequeueReusableCell(withReuseIdentifier: "message", for: index) as! ChatCell
       cell.onInteraction = { [weak self] in self?.pauseTracking() }
+      cell.canEdit = { [weak self] in self?.editableMessageID == row.entryID && row.kind == "user" }
+      cell.onEdit = { [weak self] in self?.onEditMessage(["entryId": row.entryID]) }
       cell.label.onLink = row.kind == "user" ? { [weak self] in self?.openMessageLink($0) } : nil
       cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
       cell.onActivate = { [weak self] in
@@ -320,9 +393,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       cell.configure(row, text: self.text(for: row))
       return cell
     }
-    collection.topEdgeEffect.style = .soft
-    collection.bottomEdgeEffect.style = .soft
-    composer.attachScrollEdge(to: collection)
+    LodyScrollEdges.chat(collection)
     dataSource.supplementaryViewProvider = { [weak self] collection, kind, index in
       let header = collection.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: "history", for: index) as! ChatHistoryHeader
       if let self {
@@ -347,6 +418,9 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     composer.onStop = { [weak self] in self?.onStop() }
     composer.onSteer = { [weak self] in self?.onSteer(["id": $0]) }
     composer.onReconnect = { [weak self] in self?.onReconnect([:]) }
+    composer.onPreview = { [weak self] in self?.onPreview(["action": $0]) }
+    addSubview(simulatorPreview)
+    simulatorPreview.onAction = { [weak self] in self?.onPreview(["action": $0]) }
     composer.onMentionBrowse = { [weak self] in self?.onMentionBrowse($0) }
     composer.onComposerOptionChange = { [weak self] in self?.onComposerOptionChange($0) }
     empty.numberOfLines = 0
@@ -356,50 +430,62 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     empty.text = LodyStrings.text("native.chat.empty.loading")
     collection.backgroundView = empty
     addSubview(collection)
+    addSubview(edgeFade)
     addSubview(composer)
-    var bottomConfiguration = UIButton.Configuration.glass()
-    bottomConfiguration.image = UIImage(systemName: "arrow.down")
-    bottomConfiguration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(
-      pointSize: 14,
-      weight: .semibold
-    )
-    bottomConfiguration.cornerStyle = .capsule
-    bottomButton.configuration = bottomConfiguration
-    bottomButton.accessibilityLabel = LodyStrings.text("native.chat.scrollToBottom")
-    bottomButton.accessibilityIdentifier = "chat-scroll-to-bottom"
-    bottomButton.alpha = 0
-    bottomButton.isUserInteractionEnabled = false
-    bottomButton.addAction(UIAction { [weak self] _ in
+    overlay.onReconnect = { [weak self] in self?.onReconnect([:]) }
+    overlay.onTasksPress = { [weak self] in
+      guard let self else { return }
+      self.onActivityPress([
+        "entryId": self.transcript.entries.last(where: { $0.role == "assistant" })?.id ?? "",
+        "processStartId": ChatOverlay.tasksProcessStartID,
+      ])
+    }
+    overlay.onScrollToBottom = { [weak self] in
       guard let self else { return }
       self.scrollingToTop = false
       self.collection.setContentOffset(self.collection.contentOffset, animated: false)
       self.trackingPausedByGesture = false
       self.followsBottom = true
-      self.scrollToBottom()
-    }, for: .touchUpInside)
-    addSubview(bottomButton)
-    bottomButton.translatesAutoresizingMaskIntoConstraints = false
+      if !self.updateDeferredStreams() { self.scrollToBottom() }
+    }
+    addSubview(overlay)
+    addSubview(findBar)
+    overlay.translatesAutoresizingMaskIntoConstraints = false
     collection.translatesAutoresizingMaskIntoConstraints = false
+    edgeFade.translatesAutoresizingMaskIntoConstraints = false
     composer.translatesAutoresizingMaskIntoConstraints = false
     let composerWidth = composer.widthAnchor.constraint(equalTo: widthAnchor)
     composerWidth.priority = .defaultHigh
     NSLayoutConstraint.activate([
-      bottomButton.centerXAnchor.constraint(equalTo: composer.centerXAnchor),
-      bottomButton.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
-      bottomButton.widthAnchor.constraint(equalToConstant: 44), bottomButton.heightAnchor.constraint(equalToConstant: 44),
+      overlay.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
+      overlay.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16),
+      overlay.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
+      overlay.heightAnchor.constraint(equalToConstant: ChatOverlay.controlSize),
       collection.topAnchor.constraint(equalTo: topAnchor),
       collection.leadingAnchor.constraint(equalTo: leadingAnchor),
       collection.trailingAnchor.constraint(equalTo: trailingAnchor),
       collection.bottomAnchor.constraint(equalTo: bottomAnchor),
+      edgeFade.topAnchor.constraint(equalTo: composer.topAnchor, constant: -LodyEdgeFade.overlap),
+      edgeFade.leadingAnchor.constraint(equalTo: leadingAnchor),
+      edgeFade.trailingAnchor.constraint(equalTo: trailingAnchor),
+      edgeFade.bottomAnchor.constraint(equalTo: bottomAnchor),
       composer.centerXAnchor.constraint(equalTo: centerXAnchor),
       composer.widthAnchor.constraint(lessThanOrEqualToConstant: ChatReadingColumn.maximumWidth),
       composerWidth,
-      composer.bottomAnchor.constraint(equalTo: keyboardLayoutGuide.topAnchor),
     ])
+    composerBottom = composer.bottomAnchor.constraint(equalTo: keyboardLayoutGuide.topAnchor)
+    composerBottom.isActive = true
   }
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    layoutFind()
+    simulatorPreview.layout(in: CGRect(
+      x: safeAreaInsets.left, y: safeAreaInsets.top,
+      width: bounds.width - safeAreaInsets.left - safeAreaInsets.right,
+      height: max(0, composer.frame.minY - safeAreaInsets.top - 40)))
+    bringSubviewToFront(simulatorPreview)
+    adoptComposerIfNeeded()
     bindScrollOwnerIfNeeded()
     attachTitle()
     updateBottomButton()
@@ -417,6 +503,28 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     updateTitleButton()
   }
 
+  func setTitleMenu(_ json: String) {
+    struct Item: Decodable {
+      let id: String
+      let title: String
+      var subtitle: String?
+      let symbol: String
+      var group: Int?
+      var destructive: Bool?
+    }
+    let items = (try? JSONDecoder().decode([Item].self, from: Data(json.utf8))) ?? []
+    let groups = Dictionary(grouping: items) { $0.group ?? 0 }
+    titleButton.menu = items.isEmpty ? nil : UIMenu(children: groups.keys.sorted().map { key in
+      UIMenu(options: .displayInline, children: groups[key]!.map { item in
+        UIAction(title: item.title, subtitle: item.subtitle, image: UIImage(systemName: item.symbol),
+                 attributes: item.destructive == true ? .destructive : []) { [weak self] _ in
+          self?.onTitleMenu(["id": item.id])
+        }
+      })
+    })
+    titleButton.showsMenuAsPrimaryAction = !items.isEmpty
+  }
+
   func setNavigationSubtitle(_ subtitle: String) {
     guard navigationSubtitle != subtitle else { return }
     navigationSubtitle = subtitle
@@ -429,8 +537,15 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     updateTitleButton()
   }
 
+  func setNavigationBranch(_ name: String) {
+    let branch = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard navigationBranch != branch else { return }
+    navigationBranch = branch
+    updateTitleButton()
+  }
+
   private func titleSubtitle() -> String {
-    ChatNavigationTitle.plainSubtitle(project: navigationSubtitle, machine: navigationMachine)
+    ChatNavigationTitle.plainSubtitle(project: navigationSubtitle, machine: navigationMachine, branch: navigationBranch)
   }
 
   private func updateTitleButton() {
@@ -438,7 +553,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       titleButton,
       title: navigationTitle,
       subtitle: navigationSubtitle,
-      machine: navigationMachine
+      machine: navigationMachine,
+      branch: navigationBranch
     )
     attachTitle()
   }
@@ -450,15 +566,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       if let controller = current as? UIViewController {
         controller.setContentScrollView(collection, for: .top)
         controller.setContentScrollView(collection, for: .bottom)
+        LodyScrollEdges.chat(collection)
         scrollOwner = controller
-        titleObservation = controller.navigationItem.observe(\.titleView) { [weak self] item, _ in
-          MainActor.assumeIsolated {
-            guard let self, !self.titleDisappearing, item.titleView !== self.titleButton else { return }
-            // Header action updates can clear titleView without laying out the chat.
-            // Restore on the next layout, after screens finishes its header update.
-            self.setNeedsLayout()
-          }
-        }
         if navigation.parent == nil {
           controller.addChild(navigation)
           addSubview(navigation.view)
@@ -473,7 +582,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   private func attachTitle() {
     bindScrollOwnerIfNeeded()
     guard window != nil, let owner = scrollOwner else { return }
-    guard !navigationTitle.isEmpty || !navigationSubtitle.isEmpty || !navigationMachine.isEmpty else {
+    ChatNavigationTitle.setDisappearing(titleDisappearing, on: owner.navigationItem)
+    guard !navigationTitle.isEmpty || !navigationSubtitle.isEmpty || !navigationMachine.isEmpty || !navigationBranch.isEmpty else {
       ChatNavigationTitle.detach(button: titleButton, from: owner.navigationItem)
       return
     }
@@ -494,6 +604,12 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     ChatNavigationTitle.preserveSubtitle(titleSubtitle(), on: owner.navigationItem)
   }
 
+  private func setTitleDisappearing(_ disappearing: Bool) {
+    titleDisappearing = disappearing
+    guard let owner = scrollOwner else { return }
+    ChatNavigationTitle.setDisappearing(disappearing, on: owner.navigationItem)
+  }
+
   override func willMove(toSuperview newSuperview: UIView?) {
     if newSuperview == nil, navigation.parent != nil {
       navigation.willMove(toParent: nil)
@@ -512,7 +628,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
 
   override func lodyAppearanceDidChange() {
-    backgroundColor = .lodyBackground
+    backgroundColor = !processEntryID.isEmpty && traitCollection.userInterfaceIdiom == .phone ? .clear : .lodyBackground
+    edgeFade.color = .lodyBackground
     refreshTextRendering()
   }
 
@@ -535,22 +652,21 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   override func didMoveToWindow() {
     super.didMoveToWindow()
     if window == nil {
+      for group in markdownSelections.values { group.labels = [] }
+      markdownSelections.removeAll()
       scrollingToTop = false
       historyPreparation?.cancel(); historyPreparation = nil
       if let handoffID { ChatSendHandoff.cancel(id: handoffID) }
       motionLink?.invalidate(); motionLink = nil
       rowHeights.removeAll()
-      #if DEBUG
+      deliveryExits.removeAll()
       scrollProbe?.stop(); scrollProbe = nil
       performanceProbe?.stop(); performanceProbe = nil
       streamPerformanceProbe?.stop(); streamPerformanceProbe = nil
-      #endif
       liveEntryID = nil
-      update?.cancel(); update = nil
       frameTimer?.invalidate(); frameTimer = nil
       workDurationTimer?.invalidate(); workDurationTimer = nil
       stream.finish()
-      titleObservation = nil
       if let owner = scrollOwner {
         ChatNavigationTitle.detach(button: titleButton, from: owner.navigationItem)
       }
@@ -560,12 +676,9 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       }
       scrollOwner = nil
     } else {
-      #if DEBUG
-      if ProcessInfo.processInfo.arguments.contains("--ui-verify-scroll"),
-         ProcessInfo.processInfo.arguments.contains("--ui-verify") {
+      if LodyUIVerify.scroll {
         scrollProbe = ChatScrollProbe(self)
       }
-      #endif
       bindScrollOwnerIfNeeded()
       attachTitle()
       if pendingEntries != nil { scheduleUpdate() }
@@ -583,7 +696,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     }
   }
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-    !(touch.view is UITextView)
+    // Row actions own their tap. Dismissing the keyboard first moves the row
+    // before UICollectionView can deliver selection (notably Retry).
+    if let index = collection.indexPathForItem(at: touch.location(in: collection)),
+       let id = dataSource.itemIdentifier(for: index), rows[id]?.actionable == true { return false }
+    return !(touch.view is UITextView)
   }
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
   func setDraftKey(_ key: String) {
@@ -602,6 +719,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     guard !json.isEmpty else {
       // A stale initial empty prop must not erase a send handled in this native frame.
       if let publishedPendingID, let pendingSend, pendingSend.id == publishedPendingID {
+        if LodyComposerView.relays[pendingSend.id] != nil {
+          composerHasAcknowledgedSend = true
+          self.publishedPendingID = nil
+          return
+        }
         composer.clearPendingSend(id: publishedPendingID)
         composerHasAcknowledgedSend = true
         // entriesJSON is decoded off-main. Keep the local rows until the same
@@ -614,6 +736,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     }
     guard let value = try? JSONDecoder().decode(ChatPendingSend.self, from: Data(json.utf8)), !value.id.isEmpty else { return }
     publishedPendingID = value.id
+    if LodyComposerView.relays[value.id] != nil {
+      pendingSend = value
+      adoptComposerIfNeeded()
+      return
+    }
     composer.setPendingSend(value)
     setPendingSend(value)
   }
@@ -637,7 +764,14 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       anchoredUserID = value.id + ":user"
       followsBottom = true
       trackingPausedByGesture = false
+      replyHaptics.arm()
     }
+    applyRows()
+  }
+
+  func handoffDidSettle(_ id: String) {
+    guard window != nil else { return }
+    guard pendingSend?.id == id || handoffID == id || rows.values.contains(where: { $0.entryID == id }) else { return }
     applyRows()
   }
 
@@ -666,7 +800,105 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     }
     composer.restoreDraft(token: token)
   }
-  func setComposerState(_ json: String) { composer.setComposerState(json) }
+  func setComposerState(_ json: String) {
+    composer.setComposerState(json)
+    let retired = composer.suppressesComposer
+    if retired != composerRetired {
+      composerRetired = retired
+      retireComposer(retired)
+    }
+    applyOverlay()
+  }
+
+  func retireComposer(_ retired: Bool) {
+    composer.isUserInteractionEnabled = !retired && processEntryID.isEmpty
+    if retired { endEditing(true) }
+    if processEntryID.isEmpty { composer.isHidden = false }
+    let distance = max(composer.bounds.height + 16, 88)
+    composerBottom.constant = retired ? distance : 0
+    let changes = {
+      self.composer.alpha = retired ? 0 : 1
+      self.layoutIfNeeded()
+    }
+    let finish: (Bool) -> Void = { finished in
+      guard finished, self.composerRetired == retired else { return }
+      self.composer.isHidden = retired || !self.processEntryID.isEmpty
+    }
+    let duration = UIAccessibility.isReduceMotionEnabled ? 0.2 : 0.45
+    UIView.animate(
+      withDuration: duration,
+      delay: 0,
+      options: [.beginFromCurrentState, .allowUserInteraction, .curveEaseInOut],
+      animations: changes,
+      completion: finish
+    )
+  }
+
+  func adoptComposerIfNeeded() {
+    guard hasAppeared, let window, bounds.width > 0, bounds.height > 0, let pendingSend,
+          let source = LodyComposerView.relays[pendingSend.id],
+          let payload = source.relayPayload else { return }
+    source.prepareDestination(self)
+    guard source.window == nil else { return }
+    let old = composer
+    let acknowledged = composerHasAcknowledgedSend
+    let incoming = source.composer
+    let frame = incoming.convert(incoming.bounds, to: window)
+    let inputBefore = incoming.relayInputState
+    let links = constraints.filter { ($0.firstItem as? UIView) === old || ($0.secondItem as? UIView) === old }
+    let replacements = links.map { link in
+      let replacement = NSLayoutConstraint(
+        item: (link.firstItem as? UIView) === old ? incoming : link.firstItem!,
+        attribute: link.firstAttribute, relatedBy: link.relation,
+        toItem: (link.secondItem as? UIView) === old ? incoming : link.secondItem,
+        attribute: link.secondAttribute, multiplier: link.multiplier, constant: link.constant
+      )
+      replacement.priority = link.priority
+      return replacement
+    }
+    incoming.onSend = old.onSend
+    incoming.onStop = old.onStop
+    incoming.onSteer = old.onSteer
+    incoming.onReconnect = old.onReconnect
+    incoming.onPreview = old.onPreview
+    incoming.onMentionBrowse = old.onMentionBrowse
+    incoming.onComposerOptionChange = old.onComposerOptionChange
+    incoming.onDraftChange = old.onDraftChange
+    incoming.setInputIdentifier("session-input")
+    NSLayoutConstraint.deactivate(links)
+    old.removeFromSuperview()
+    composer = incoming
+    source.completeRelay()
+    UIView.performWithoutAnimation {
+      addSubview(incoming)
+      incoming.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate(replacements)
+      bringSubviewToFront(overlay)
+      layoutIfNeeded()
+    }
+    if LodyUIVerify.enabled {
+      let adopted = incoming.convert(incoming.bounds, to: window)
+      let report: [String: Any] = [
+        "sameComposer": composer === source.composer,
+        "inputBefore": inputBefore, "inputAfter": incoming.relayInputState,
+        "source": [frame.minX, frame.minY, frame.width, frame.height],
+        "adopted": [adopted.minX, adopted.minY, adopted.width, adopted.height],
+      ]
+      if let data = try? JSONSerialization.data(withJSONObject: report) {
+        try? data.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("lody-production-composer-relay.json"))
+      }
+    }
+    incoming.commitSend(payload)
+    incoming.adoptConfiguration(from: old)
+    incoming.setPendingSend(pendingSend)
+    self.pendingSend = nil
+    setPendingSend(pendingSend)
+    if acknowledged {
+      incoming.clearPendingSend(id: pendingSend.id)
+      composerHasAcknowledgedSend = true
+      applyRows()
+    }
+  }
   func setComposerOptions(_ json: String) { composer.setComposerOptions(json) }
   func setEmptyText(_ text: String) { empty.text = text }
 }

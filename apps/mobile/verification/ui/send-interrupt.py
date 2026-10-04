@@ -25,6 +25,9 @@ assert not ui.element('session-stop')['enabled']
 ui.capture('interrupting')
 ui.axe('tap', '--id', 'send-complete')
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'queue-count' and i.get('AXLabel') == 'Queue: 1' for i in items), 'Interrupt did not advance the queue')
+ui.element(turns[0] + ':reply:text')
+if not any(i.get('AXUniqueId') == turns[0] + ':user' for i in ui.state()):
+    ui.axe('swipe', '--start-x', '200', '--start-y', '350', '--end-x', '200', '--end-y', '700', '--duration', '.4', '--post-delay', '.6')
 ui.element(turns[0] + ':user')
 ui.element(turns[1] + ':queued')
 ui.wait(lambda items: any(i.get('AXUniqueId') == turns[1] + ':steer' and i.get('enabled') for i in items), 'The next queued message must offer Steer')

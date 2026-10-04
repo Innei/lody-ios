@@ -15,12 +15,14 @@ final class ChatParseCache: @unchecked Sendable {
     cache.totalCostLimit = 8 * 1024 * 1024
   }
 
-  func parse(_ text: String) -> MarkdownParser.ParseResult {
-    if let cached = cache.object(forKey: text as NSString) { return cached.result }
+  func parse(_ text: String, streaming: Bool = false) -> MarkdownParser.ParseResult {
+    let key = "\(streaming)\u{0}\(text)" as NSString
+    if let cached = cache.object(forKey: key) { return cached.result }
     // ponytail: full background parsing preserves late reference/math changes;
     // incremental source parsing needs parser-owned invalidation if it dominates.
-    let result = MarkdownParser().parse(text)
-    cache.setObject(Box(result), forKey: text as NSString, cost: text.utf8.count)
+    let source = streaming ? ChatMarkdownRepair.shared.repair(text) : text
+    let result = MarkdownParser().parse(source)
+    cache.setObject(Box(result), forKey: key, cost: text.utf8.count)
     return result
   }
 }
@@ -46,6 +48,8 @@ final class ChatMarkdownStore {
   }
   private static let sizingLimit = 24
 
+  private(set) var updateCount = 0
+  var nonAnimatedRows: Set<String> = []
   let parser = ChatParseCache()
   private var entries: [String: Entry] = [:]
   private var views: [String: ChatMarkdownView] = [:]
@@ -61,7 +65,13 @@ final class ChatMarkdownStore {
 
   func theme(secondary: Bool) -> MarkdownTheme { secondary ? secondaryTheme : theme }
 
+  func tailFrame(id: String) -> CGRect? {
+    guard let markdown = views[id], let frame = markdown.tailFrame else { return nil }
+    return frame.offsetBy(dx: markdown.frame.minX, dy: markdown.frame.minY)
+  }
+
   func tailLength(id: String) -> Int { views[id]?.tailLength ?? 0 }
+  func isAnimating(id: String) -> Bool { views[id]?.isAnimating == true }
 
   func apply(traits: UITraitCollection) {
     theme = ChatMarkdownTheme.make(traits: traits, secondary: false)
@@ -75,7 +85,8 @@ final class ChatMarkdownStore {
   private func blocks(id: String, text: String, secondary: Bool, streaming: Bool) -> [ChatMarkdownBlock] {
     let previous = entries[id]
     if let previous, previous.text == text, previous.secondary == secondary, previous.streaming == streaming { return previous.blocks }
-    let parsed = parser.parse(text)
+    updateCount += 1
+    let parsed = parser.parse(text, streaming: streaming)
     let sameContext = previous?.secondary == secondary && previous?.math == parsed.mathContext
     let rendered = sameContext ? previous!.context.rendered : parsed.renderedContent(theme: theme(secondary: secondary))
     let context = MarkdownContent(blocks: parsed.document, rendered: rendered,
@@ -101,7 +112,7 @@ final class ChatMarkdownStore {
   func view(id: String, text: String, secondary: Bool, streaming: Bool, width: CGFloat) -> ChatMarkdownView {
     let view = views[id] ?? ChatMarkdownView()
     views[id] = view
-    view.update(blocks(id: id, text: text, secondary: secondary, streaming: streaming), theme: theme(secondary: secondary), streaming: streaming, width: width)
+    view.update(blocks(id: id, text: text, secondary: secondary, streaming: streaming), theme: theme(secondary: secondary), streaming: streaming, width: width, animateChanges: !nonAnimatedRows.contains(id))
     heights[id] = Height(text: text, secondary: secondary, streaming: streaming, width: max(1, width), height: view.measuredHeight)
     recent.removeAll { $0 == id }
     recent.append(id)
@@ -125,6 +136,9 @@ final class ChatMarkdownStore {
   }
 
   func retain(_ ids: Set<String>) {
+    // Diffable deletion can leave the old cell in UIKit's reuse pool. Retire
+    // selection with the row, including the table's independently owned group.
+    for (id, view) in views where !ids.contains(id) { view.clearSelection() }
     entries = entries.filter { ids.contains($0.key) }
     heights = heights.filter { ids.contains($0.key) }
     views = views.filter { ids.contains($0.key) }

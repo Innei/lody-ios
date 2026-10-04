@@ -42,13 +42,13 @@ import UIKit
         symbol = "link"
       } else { continue }
       var attributes = source.attributes(at: match.range.location, effectiveRange: nil)
-      attributes[.foregroundColor] = UIColor.systemBlue
+      attributes[.foregroundColor] = UIColor.lodyAccent
       attributes[.link] = target
       let font = attributes[.font] as? UIFont ?? .preferredFont(forTextStyle: .body)
       let size = font.pointSize * 0.85
       let attachment = NSTextAttachment()
       attachment.image = UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: size))?
-        .withTintColor(UIColor.systemBlue.resolvedColor(with: traits), renderingMode: .alwaysOriginal)
+        .withTintColor(UIColor.lodyAccent.resolvedColor(with: traits), renderingMode: .alwaysOriginal)
       attachment.bounds = CGRect(x: 0, y: font.descender / 2, width: size, height: size)
       let node = NSMutableAttributedString(attachment: attachment)
       node.append(NSAttributedString(string: "\u{00a0}" + label))

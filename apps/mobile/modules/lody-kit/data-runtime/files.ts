@@ -8,6 +8,7 @@ export type MachineContext = {
   getGrant: Grant;
   signal: AbortSignal;
 };
+export type FileContext = MachineContext & { ownerSessionId: string };
 
 type EncodedText =
   | { encoding: 'plain' | 'utf8-plain'; text: string; rawBytes: number }
@@ -106,14 +107,14 @@ async function toDiffResult(
 }
 
 export async function fileDiff(
-  ctx: MachineContext,
+  ctx: FileContext,
   args: { sessionId: string; path: string },
 ): Promise<DiffResult> {
   const response = (await sealedRpc(
     ctx.workspaceId,
     ctx.machineId,
     'code-collab/open-current-diff',
-    args.sessionId,
+    ctx.ownerSessionId,
     { sessionId: args.sessionId, path: args.path },
     ctx.getGrant,
     ctx.signal,
@@ -122,14 +123,14 @@ export async function fileDiff(
 }
 
 export async function turnDiff(
-  ctx: MachineContext,
+  ctx: FileContext,
   args: { sessionId: string; entryId: string; path: string },
 ): Promise<DiffResult> {
   const response = (await sealedRpc(
     ctx.workspaceId,
     ctx.machineId,
     'code-collab/open-turn-diff',
-    args.sessionId,
+    ctx.ownerSessionId,
     { sessionId: args.sessionId, turnId: args.entryId, path: args.path },
     ctx.getGrant,
     ctx.signal,
@@ -203,14 +204,14 @@ export type FileContent =
   | { status: 'error'; path: string; code: string; message?: string };
 
 export async function readFile(
-  ctx: MachineContext,
+  ctx: FileContext,
   args: { sessionId: string; path: string },
 ): Promise<FileContent> {
   const response = (await sealedRpc(
     ctx.workspaceId,
     ctx.machineId,
     'file/preview',
-    args.sessionId,
+    ctx.ownerSessionId,
     {
       v: 3,
       sessionId: args.sessionId,

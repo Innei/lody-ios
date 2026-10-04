@@ -460,13 +460,7 @@ internal final class DomWebView: ExpoView, UIScrollViewDelegate, WKUIDelegate, W
         window.dispatchEvent(new CustomEvent("$$dom_event", { detail: { type: "$$props", data: initial } }));
         var props = initial.props || {};
         if (window.__lodyAttachDiff) {
-          window.__lodyAttachDiff({
-            path: props.path || "",
-            oldText: props.oldText || "",
-            newText: props.newText || "",
-            diffStyle: props.diffStyle || "unified",
-            theme: props.theme || "light"
-          });
+          window.__lodyAttachDiff(props);
         }
       } else if (window.__lodyAttachDiff) {
         window.__lodyAttachDiff();

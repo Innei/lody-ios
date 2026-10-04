@@ -182,22 +182,16 @@ function View() {
     );
   if (target?.questionMeta)
     return (
-      <Screen automaticallyAdjustKeyboardInsets>
-        <QuestionCard
-          key={`${target.entryId}/${target.itemId}/${target.requestId}`}
-          meta={target.questionMeta}
-          disabled={!!submitting}
-          onSubmit={(answers) => {
-            if (submitOption) void answer(submitOption.optionId, answers);
-            else setError(t('permission.error.options'));
-          }}
-        />
-        {error ? (
-          <AppText variant="meta" style={{ color: colors.danger }}>
-            {error}
-          </AppText>
-        ) : null}
-      </Screen>
+      <QuestionCard
+        key={`${target.entryId}/${target.itemId}/${target.requestId}`}
+        meta={target.questionMeta}
+        disabled={!!submitting}
+        error={error}
+        onSubmit={(answers) => {
+          if (submitOption) void answer(submitOption.optionId, answers);
+          else setError(t('permission.error.options'));
+        }}
+      />
     );
   return (
     <Screen>
@@ -262,10 +256,8 @@ export const PermissionScreen = definePage<PermissionParams, PermissionResult>({
     style: 'formSheet',
     // `fitToContents` cannot measure through SheetStack's absolutely filled
     // inner stack, which leaves the sheet blank and full height.
-    sheetAllowedDetents: [0.5, 1],
-    // A late-resolving target may be a multi-question form. Start with enough
-    // room for its navigation and allow the user to collapse the sheet.
-    sheetInitialDetentIndex: 'last',
+    sheetAllowedDetents: [0.6, 1],
+    sheetInitialDetentIndex: 0,
     sheetGrabberVisible: false,
     // Answering is the way out; the header close button is the escape hatch.
     dismissible: false,

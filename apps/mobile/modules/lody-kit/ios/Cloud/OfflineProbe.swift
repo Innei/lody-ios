@@ -1,7 +1,6 @@
-#if DEBUG
 import Foundation
 
-/// Cold-launch network failure injection; never registered in release builds.
+/// Cold-launch network failure injection. Registered only when launched with `--lody-offline`.
 final class OfflineProbe: URLProtocol {
   override class func canInit(with request: URLRequest) -> Bool {
     request.url?.host == "backend.lody.ai"
@@ -13,4 +12,3 @@ final class OfflineProbe: URLProtocol {
   }
   override func stopLoading() {}
 }
-#endif

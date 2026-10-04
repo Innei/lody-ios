@@ -62,7 +62,6 @@ function View() {
   const failLoad = useRef(true),
     failSave = useRef(true);
   const service = useCallback<SettingsService>(async (request) => {
-    if (!__DEV__) throw new Error('Development only');
     if (failLoad.current) {
       failLoad.current = false;
       throw new Error(t('settings.remote.loadFailed'));

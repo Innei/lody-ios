@@ -1,11 +1,22 @@
+#if !LODY_SHARE_EXTENSION
 import AnchoredOverlayKit
 import AVFoundation
 import Photos
+#endif
+import ChatKit
+import EditorHistoryPlugin
+import Lexical
+import LexicalHTML
+import LexicalLinkPlugin
+import LexicalListPlugin
+import LexicalMarkdown
 import UIKit
 import UniformTypeIdentifiers
 
 private struct ChatComposerState: Decodable {
   var mentionItems: [ChatMentionItem]?
+  var quickReplies: [ChatQuickReply]?
+  var preview: ChatPreviewChip?
   var editable = true
   var canSend = false
   var sending = false
@@ -15,8 +26,11 @@ private struct ChatComposerState: Decodable {
   var controlling: Bool?
   var steerID: String?
   var steerInterrupts: Bool?
+  var queuedMessageBehavior: String?
   var notice = ""
+  var quotaNotice: String?
   var reconnect = false
+  var connection: String?
   var placeholder = LodyStrings.text("native.chat.composer.placeholder")
 }
 
@@ -36,20 +50,24 @@ struct ChatQueuedDraft: Equatable {
   }
 }
 
-private final class ChatQueueView: UIVisualEffectView {
+private final class ChatQueueView: CKGlassSurface {
   private let scroll = UIScrollView()
   private let stack = UIStackView()
   private var rendered: [ChatQueuedDraft] = []
   private var buttons: [String: UIButton] = [:]
   private var rows: [String: UIView] = [:]
   var onSteer: ((String) -> Void)?
+  var onHeightChange: (() -> Void)?
+  private(set) var panelHeight: CGFloat = 0
 
   init() {
-    super.init(effect: nil)
+    super.init(interactive: true)
     accessibilityIdentifier = "session-queue"
-    let glass = UIGlassEffect(style: .regular)
-    glass.isInteractive = true
-    effect = glass
+    onHidden = { [weak self] in
+      guard let self else { return }
+      self.panelHeight = 0
+      self.onHeightChange?()
+    }
     cornerConfiguration = .corners(radius: .fixed(20))
     stack.axis = .vertical
     scroll.addSubview(stack)
@@ -76,7 +94,7 @@ private final class ChatQueueView: UIVisualEffectView {
       // frame to the send animation before the row disappears.
       for draft in rendered where !drafts.contains(where: { $0.id == draft.id }) {
         guard let row = rows[draft.id], !draft.text.isEmpty else { continue }
-        ChatSendHandoff.begin(id: draft.id, text: draft.text, source: row, straight: true)
+        ChatSendHandoff.begin(id: draft.id, source: row, straight: true)
       }
       rendered = drafts
       stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
@@ -135,7 +153,8 @@ private final class ChatQueueView: UIVisualEffectView {
       buttons[draft.id]?.isEnabled = enabled && draft.canSteer && (!firstOnly || draft.id == first)
       buttons[draft.id]?.accessibilityHint = waiting ? LodyStrings.text("native.chat.composer.steering") : nil
     }
-    isHidden = drafts.isEmpty
+    if !drafts.isEmpty { panelHeight = ChatQueuedDraft.panelHeight(drafts) }
+    setVisible(!drafts.isEmpty)
   }
 
   private static func caption(_ attachments: [String]) -> UIView {
@@ -154,10 +173,147 @@ private final class ChatQueueView: UIVisualEffectView {
   }
 }
 
-private final class ChatComposerInput: UITextView {
+struct ComposerPaste {
+  let trial: RichPaste.Trial
+  let plainText: String?
+
+  var fileName: String { trial.source == .plain ? ChatAttachment.pastedTextName : "Text.md" }
+  var fileText: String { trial.source == .plain ? plainText ?? trial.markdown : trial.markdown }
+}
+
+// The editor is only touched on the main actor; the trial runs on a headless peer.
+private final class ComposerPasteJob: @unchecked Sendable {
+  let editor: Editor
+  let providers: [NSItemProvider]
+
+  init(editor: Editor, providers: [NSItemProvider]) {
+    self.editor = editor
+    self.providers = providers
+  }
+}
+
+final class ChatComposerInput: TextView {
   var onPasteItems: (([NSItemProvider]) -> Bool)?
+  var onPasteLongText: ((ComposerPaste) -> Bool)?
+
+  static func makeEditorView() -> LexicalView {
+    let theme = Theme()
+    theme.root = [.font: UIFont.dynamic(of: 17), .foregroundColor: UIColor.label]
+    theme.setValue(.text, forSubtype: TextNodeThemeSubtype.code, value: [.fontFamily: "Menlo", .backgroundColor: UIColor.tertiarySystemFill])
+    theme.code = [
+      .fontFamily: "Menlo", .paddingHead: 8.0, .paddingTail: -8.0,
+      .codeBlockCustomDrawing: CodeBlockCustomDrawingAttributes(background: .secondarySystemFill, border: .separator, borderWidth: 0.5),
+    ]
+    theme.quote = [
+      .paddingHead: 12.0,
+      .quoteCustomDrawing: QuoteCustomDrawingAttributes(barColor: .separator, barWidth: 3, rounded: true, barInsets: .zero),
+    ]
+    let history = EditorHistoryPlugin()
+    let config = EditorConfig(theme: theme, plugins: [ListPlugin(), LinkPlugin(), MarkdownShortcutPlugin(), history])
+    let view = LexicalView(editorConfig: config, featureFlags: FeatureFlags(), textViewType: ChatComposerInput.self)
+    try? view.editor.registerNode(nodeType: .lodyReference, class: ChatReferenceNode.self)
+    (view.textView as? ChatComposerInput)?.history = history
+    return view
+  }
+
+  private var history: EditorHistoryPlugin? {
+    didSet {
+      guard let undoManager = history?.undoManager else { return }
+      for name in [Notification.Name.NSUndoManagerDidUndoChange, .NSUndoManagerDidRedoChange] {
+        NotificationCenter.default.addObserver(self, selector: #selector(historyDidChange), name: name, object: undoManager)
+      }
+    }
+  }
+
+  override var undoManager: UndoManager? {
+    history?.undoManager ?? super.undoManager
+  }
+
+  @objc private func historyDidChange() {
+    delegate?.textViewDidChange?(self)
+  }
+
+  override var font: UIFont? {
+    didSet {
+      guard let font, (editor.getTheme().root?[.font] as? UIFont) != font else { return }
+      editor.getTheme().root?[.font] = font
+      try? editor.update { editor.dirtyType = .fullReconcile }
+    }
+  }
+
+  var markdown: String {
+    (try? MarkdownExporter.gfm.export(editor)) ?? (text ?? "")
+  }
+
+  var serializedState: String? {
+    text.isEmpty ? nil : try? editor.getEditorState().toJSON()
+  }
+
+  // Drafts persist the editor state; anything else is plain text from an older build.
+  var draftEnvelope: String {
+    guard let state = serializedState, let json = try? JSONSerialization.jsonObject(with: Data(state.utf8)),
+      let data = try? JSONSerialization.data(withJSONObject: ["v": 1, "lexical": json]), let envelope = String(data: data, encoding: .utf8)
+    else { return text ?? "" }
+    return envelope
+  }
+
+  func restoreDraft(_ stored: String) {
+    if let data = stored.data(using: .utf8), let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      object["v"] as? Int == 1, let lexical = object["lexical"], let state = try? JSONSerialization.data(withJSONObject: lexical),
+      let json = String(data: state, encoding: .utf8), restore(state: json) {
+      return
+    }
+    text = stored
+  }
+
+  @discardableResult
+  func restore(state json: String) -> Bool {
+    guard let state = try? EditorState.fromJSON(json: json, editor: editor), (try? editor.setEditorState(state)) != nil else { return false }
+    try? editor.update { _ = try getRoot()?.selectEnd() }
+    return true
+  }
+
+  func appendParagraphs(_ value: String) {
+    guard !text.isEmpty else {
+      text = value
+      return
+    }
+    try? editor.update {
+      guard let root = getRoot() else { return }
+      var last: ParagraphNode?
+      for line in [""] + value.components(separatedBy: "\n") {
+        let paragraph = createParagraphNode()
+        if !line.isEmpty { try paragraph.append([createTextNode(text: line)]) }
+        try root.append([paragraph])
+        last = paragraph
+      }
+      _ = try last?.selectEnd()
+    }
+  }
+
+  func insertReference(_ token: String, replacing range: NSRange) {
+    selectedRange = range
+    try? editor.update {
+      guard let selection = try getSelection() as? RangeSelection else { return }
+      _ = try selection.insertNodes(nodes: [ChatReferenceNode(text: token, key: nil), createTextNode(text: " ")], selectStart: false)
+    }
+    delegate?.textViewDidChange?(self)
+  }
+
+  var referenceTokens: [String] {
+    var tokens: [String] = []
+    try? editor.read {
+      func collect(_ node: Node) {
+        if let reference = node as? ChatReferenceNode { tokens.append(reference.getTextContent()) }
+        (node as? ElementNode)?.getChildren().forEach(collect)
+      }
+      getRoot().map(collect)
+    }
+    return tokens
+  }
 
   override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+    if action == #selector(pastePlainText(_:)) { return isEditable && UIPasteboard.general.hasStrings }
     if action == #selector(paste(_:)), isEditable, UIPasteboard.general.numberOfItems > 0 { return true }
     return super.canPerformAction(action, withSender: sender)
   }
@@ -167,17 +323,53 @@ private final class ChatComposerInput: UITextView {
   }
 
   override func paste(itemProviders: [NSItemProvider]) {
-    guard onPasteItems?(itemProviders) == true else {
-      super.paste(itemProviders: itemProviders)
-      return
-    }
+    pasteContent(itemProviders, plainTextOnly: false)
   }
 
   override func paste(_ sender: Any?) {
-    guard onPasteItems?(UIPasteboard.general.itemProviders) == true else {
-      super.paste(sender)
-      return
+    pasteContent(UIPasteboard.general.itemProviders, plainTextOnly: false)
+  }
+
+  @objc func pastePlainText(_ sender: Any?) {
+    pastePlainText(from: UIPasteboard.general.itemProviders)
+  }
+
+  func pastePlainText(from providers: [NSItemProvider]) {
+    pasteContent(providers, plainTextOnly: true)
+  }
+
+  private func pasteContent(_ providers: [NSItemProvider], plainTextOnly: Bool) {
+    guard isEditable else { return }
+    if !plainTextOnly, onPasteItems?(providers) == true { return }
+    unmarkText()
+    let job = ComposerPasteJob(editor: editor, providers: providers)
+    let plain = plainTextOnly || ((try? RichPaste.gfm.prefersPlainText(in: editor)) ?? false)
+    Task { @MainActor [weak self] in
+      let sources = await PasteboardReader.sources(job.providers, plainTextOnly: plain)
+      let trial = await Task.detached { try? RichPaste.gfm.trial(sources, for: job.editor) }.value
+      guard let self, self.isEditable else { return }
+      guard let trial else {
+        if !plainTextOnly && sources.isEmpty { self.pasteProviders(providers) }
+        return
+      }
+      let paste = ComposerPaste(trial: trial, plainText: sources.first { $0.kind == .plain }?.text)
+      if !plainTextOnly, ChatAttachment.shouldPromotePastedText(trial.markdown), self.onPasteLongText?(paste) == true { return }
+      self.insertPaste(paste)
     }
+  }
+
+  @discardableResult
+  func insertPaste(_ paste: ComposerPaste, at location: Int? = nil) -> Bool {
+    if let location { selectedRange = NSRange(location: min(location, (text as NSString).length), length: 0) }
+    guard delegate?.textView?(self, shouldChangeTextIn: selectedRange, replacementText: paste.trial.markdown) != false,
+      (try? RichPaste.gfm.insert(paste.trial, into: editor)) != nil
+    else { return false }
+    delegate?.textViewDidChange?(self)
+    return true
+  }
+
+  private func pasteProviders(_ providers: [NSItemProvider]) {
+    super.paste(itemProviders: providers)
   }
 }
 
@@ -235,7 +427,7 @@ private enum ChatComposerActionMode {
 
   var color: UIColor {
     switch self {
-    case .send: .systemBlue
+    case .send: LodyAccentChoice.current.color
     case .loading: .systemGray
     case .stop: .systemRed
     }
@@ -285,6 +477,7 @@ private final class ChatComposerActionVisual: UIView {
       progress.heightAnchor.constraint(equalToConstant: 15),
     ])
     render(.send)
+    NotificationCenter.default.addObserver(self, selector: #selector(refreshAccent), name: .lodyAppearanceDidChange, object: nil)
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -294,10 +487,16 @@ private final class ChatComposerActionVisual: UIView {
     layer.cornerRadius = bounds.width / 2
   }
 
+  @objc private func refreshAccent() {
+    backgroundColor = mode?.color
+    symbol.tintColor = mode == .send ? LodyAccentChoice.current.foregroundColor : .white
+  }
+
   func render(_ nextMode: ChatComposerActionMode) {
     guard mode != nextMode else { return }
     let shouldAnimate = mode != nil && window != nil
     mode = nextMode
+    symbol.tintColor = nextMode == .send ? LodyAccentChoice.current.foregroundColor : .white
     guard shouldAnimate else {
       backgroundColor = nextMode.color
       applyContent(nextMode)
@@ -337,7 +536,7 @@ private final class ChatComposerActionVisual: UIView {
   private func applyContent(_ mode: ChatComposerActionMode) {
     symbol.image = UIImage(
       systemName: mode.symbolName,
-      withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
+      withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .bold, scale: .medium)
     )
     symbol.isHidden = mode == .loading
     if mode == .loading { progress.startAnimating() } else { progress.stopAnimating() }
@@ -347,14 +546,18 @@ private final class ChatComposerActionVisual: UIView {
 final class ChatComposerView: UIView, UITextViewDelegate {
   private let composer = UIVisualEffectView(effect: nil)
   private let inputSurface = UIVisualEffectView(effect: nil)
-  private let input = ChatComposerInput()
+  private let editorView = ChatComposerInput.makeEditorView()
+  private lazy var input = editorView.textView as! ChatComposerInput
   private let hint = UILabel()
   private let notice = UIButton(type: .system)
+  private let quotaNotice = UILabel()
   private let send = UIButton(type: .system)
   private let sendVisual = ChatComposerActionVisual()
   private let sendFeedback = UIImpactFeedbackGenerator(style: .medium)
+  #if !LODY_SHARE_EXTENSION
   private let attachmentOverlay = AnchoredOverlayController()
   private lazy var attachmentPages = OverlayPages(controller: attachmentOverlay)
+  #endif
   private enum AttachmentPage { case photos, camera }
   private let attach = UIButton(type: .system)
   private let attachSurface = UIVisualEffectView(effect: nil)
@@ -370,6 +573,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private var hintLeading: NSLayoutConstraint!
   private var hintTop: NSLayoutConstraint!
   private var noticeHeight: NSLayoutConstraint!
+  private var quotaNoticeHeight: NSLayoutConstraint!
+  private var quotaGap: NSLayoutConstraint!
   private var attachmentHeight: NSLayoutConstraint!
   private let mentionPanel = ChatMentionPanel(frame: .zero)
   private var separateMentionItems: [ChatMentionItem]?
@@ -384,21 +589,38 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private var mentionHeight: NSLayoutConstraint!
   private let queueView = ChatQueueView()
   private var queueHeight: NSLayoutConstraint!
+  private var queueGap: NSLayoutConstraint!
+  private var queueDockedLeading: NSLayoutConstraint!
+  private var queueFloatingLeading: NSLayoutConstraint!
+  private let quickRepliesView = ChatQuickRepliesView(frame: .zero)
+  private var quickRepliesHeight: NSLayoutConstraint!
   private var queuedDrafts: [ChatQueuedDraft] = []
+  var retiringQueueHeight: CGFloat { queuedDrafts.isEmpty ? queueView.panelHeight + queueGap.constant : 0 }
   private var state = ChatComposerState()
   private var composerOptions = ChatComposerOptions()
   private var composerExpanded = false
-  private var pendingDraft: (text: String, attachments: [ChatAttachment])?
+  private var pendingDraft: (text: String, attachments: [ChatAttachment], state: String?)?
+  private var sentStates: [String: String] = [:]
   var sendHandoff = true
+  var autoFocus = false
   private var lastRestoreToken = 0
   private var hasInitialDraft = false
   private var hasInitialAttachments = false
   private var lastClearToken = 0
   var onSend: (([String: Any]) -> Void)?
+  var prepareSend: (([String: Any]) -> Bool)?
+  var relaying = false
+  var previewBeforeSubmit: (() -> Bool)?
   var onStop: (() -> Void)?
   var onSteer: ((String) -> Void)?
-  var queuesSubmission: Bool { state.running == true || !queuedDrafts.isEmpty }
+  var guidesSubmission: Bool {
+    state.queuedMessageBehavior == "guide" && state.running == true && state.steerInterrupts != true
+  }
+  var queuesSubmission: Bool {
+    !guidesSubmission && (state.running == true || !queuedDrafts.isEmpty)
+  }
   var onReconnect: (() -> Void)?
+  var onPreview: ((String) -> Void)?
   var onMentionBrowse: (([String: String]) -> Void)?
   private var mentionResultID = ""
   private var mentionNeedsFocus = false
@@ -416,13 +638,33 @@ final class ChatComposerView: UIView, UITextViewDelegate {
 
   func setInputIdentifier(_ id: String) { input.accessibilityIdentifier = id }
 
+  func adoptConfiguration(from other: ChatComposerView) {
+    state = other.state
+    composerOptions = other.composerOptions
+    separateMentionItems = other.separateMentionItems
+    usesSeparateMentionItems = other.usesSeparateMentionItems
+    queuedDrafts = other.queuedDrafts
+    lastRestoreToken = other.lastRestoreToken
+    lastClearToken = other.lastClearToken
+    hasInitialDraft = true
+    hasInitialAttachments = true
+    updateComposerOptions()
+    updateComposer()
+  }
+
+  var relayInputState: [String: Any] {
+    ["focused": input.isFirstResponder, "selection": [input.selectedRange.location, input.selectedRange.length],
+     "appearance": traitCollection.userInterfaceStyle.rawValue]
+  }
+
   func attachScrollEdge(to scrollView: UIScrollView?) {
-    let existing = composer.interactions.compactMap { $0 as? UIScrollEdgeElementContainerInteraction }.first
+    if let scrollView { LodyScrollEdges.floatingControls(scrollView) }
+    let existing = interactions.compactMap { $0 as? UIScrollEdgeElementContainerInteraction }.first
     guard scrollView != nil || existing != nil else { return }
     let edge = existing ?? UIScrollEdgeElementContainerInteraction()
     edge.scrollView = scrollView
     edge.edge = .bottom
-    if edge.view == nil { composer.addInteraction(edge) }
+    if edge.view == nil { addInteraction(edge) }
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -441,6 +683,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     input.font = .dynamic(of: 17, compatibleWith: traitCollection)
     hint.font = input.font
     notice.titleLabel?.font = .dynamic(of: 13, compatibleWith: traitCollection)
+    quotaNotice.font = .dynamic(of: 13, compatibleWith: traitCollection)
     updateComposer()
   }
 
@@ -457,6 +700,9 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       guard let self, self.state.editable else { return false }
       return ChatAttachment.paste(providers) { [weak self] in self?.addAttachments($0) }
     }
+    input.onPasteLongText = { [weak self] paste in
+      self?.pasteLongText(paste) ?? false
+    }
     input.accessibilityIdentifier = "session-input"
     input.accessibilityLabel = LodyStrings.text("native.chat.composer.input")
     hint.text = state.placeholder
@@ -464,7 +710,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     hint.textColor = .placeholderText
     hint.isUserInteractionEnabled = false
     hint.isAccessibilityElement = false
-    send.tintColor = .systemBlue
+    send.tintColor = .lodyAccent
     sendVisual.translatesAutoresizingMaskIntoConstraints = false
     send.addSubview(sendVisual)
     NSLayoutConstraint.activate([
@@ -483,8 +729,26 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     attach.tintColor = .label
     attach.accessibilityLabel = LodyStrings.text("native.chat.composer.attach")
     attach.accessibilityIdentifier = "session-attach"
+#if LODY_SHARE_EXTENSION
+    attach.showsMenuAsPrimaryAction = true
+    attach.menu = UIMenu(children: [
+      UIAction(title: LodyStrings.text("native.chat.composer.takePhoto"), image: UIImage(systemName: "camera")) { [weak self] _ in
+        self?.presentAttachmentCamera()
+      },
+      UIAction(title: LodyStrings.text("native.chat.composer.recentPhotos"), image: UIImage(systemName: "photo")) { [weak self] _ in self?.presentRecentPhotos() },
+      UIAction(title: LodyStrings.text("native.chat.composer.photoLibrary"), image: UIImage(systemName: "photo.on.rectangle.angled")) { [weak self] _ in
+        guard let self, let controller = self.presenter() else { return }
+        self.libraryPicker.present(from: controller)
+      },
+      UIAction(title: LodyStrings.text("native.chat.composer.files"), image: UIImage(systemName: "folder")) { [weak self] _ in
+        guard let self, let controller = self.presenter() else { return }
+        self.filePicker.files(from: controller)
+      },
+    ])
+#else
     attachmentOverlay.anchorTransition = .fade
     attach.addTarget(self, action: #selector(presentAttachments), for: .touchUpInside)
+#endif
     modelButton.accessibilityIdentifier = "session-model"
     modelButton.addTarget(self, action: #selector(presentComposerOptions), for: .touchUpInside)
     modelButton.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -497,41 +761,68 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     attachmentBar.onRemove = { [weak self] id in
       guard let self else { return }
       self.attachments.removeAll { $0.id == id }
+      self.attachmentBar.render(self.attachments, animatedRemoval: true)
       UIImpactFeedbackGenerator(style: .light).impactOccurred()
       self.updateComposer()
     }
     notice.titleLabel?.font = .dynamic(of: 13)
     notice.titleLabel?.numberOfLines = 0
     notice.addTarget(self, action: #selector(reconnect), for: .touchUpInside)
+    quotaNotice.font = .dynamic(of: 13)
+    quotaNotice.textColor = .secondaryLabel
+    quotaNotice.numberOfLines = 0
+    quotaNotice.accessibilityIdentifier = "session-free-turn-notice"
     mentionButton.setImage(UIImage(systemName: "at", withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .regular)), for: .normal)
     mentionButton.tintColor = .label
     mentionButton.accessibilityLabel = LodyStrings.text("native.chat.mention.open")
     mentionButton.accessibilityIdentifier = "session-mention"
     mentionButton.addTarget(self, action: #selector(openMentions), for: .touchUpInside)
     mentionPanel.onChange = { [weak self] in self?.updateComposer() }
+    attachmentBar.onHeightChange = { [weak self] in self?.updateComposer() }
+    queueView.onHeightChange = { [weak self] in self?.updateComposer() }
     mentionPanel.onBrowse = { [weak self] in self?.onMentionBrowse?($0) }
     addSubview(composer)
     composer.contentView.addSubview(mentionPanel)
     composer.contentView.addSubview(queueView)
     queueView.onSteer = { [weak self] in self?.onSteer?($0) }
+    // Standalone buttons must not also contribute to the composer's merged glass.
+    addSubview(quickRepliesView)
+    quickRepliesView.onSelect = { [weak self] id in
+      guard let self, self.canShowQuickReplies,
+            let reply = self.state.quickReplies?.first(where: { $0.id == id }),
+            !reply.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            reply.message.utf16.count <= 32000 else { return }
+      self.input.text = reply.message
+      self.updateComposer()
+      self.layoutIfNeeded()
+      self.submit()
+    }
+    quickRepliesView.onPreview = { [weak self] in self?.onPreview?($0) }
     composer.contentView.addSubview(notice)
     composer.contentView.addSubview(attachmentBar)
+    composer.contentView.addSubview(quotaNotice)
     composer.contentView.addSubview(attachSurface)
     composer.contentView.addSubview(inputSurface)
     attachSurface.contentView.addSubview(attach)
-    for view in [input, hint, accessoryBar, modelButton, mentionButton, send] {
+    for view in [editorView, hint, accessoryBar, modelButton, mentionButton, send] {
       inputSurface.contentView.addSubview(view)
     }
-    for view in [composer, mentionPanel, mentionButton, queueView, inputSurface, attachSurface, notice, attachmentBar, input, hint, accessoryBar, send, attach, modelButton] {
+    for view in [composer, mentionPanel, mentionButton, queueView, quickRepliesView, inputSurface, attachSurface, notice, attachmentBar, quotaNotice, editorView, hint, accessoryBar, send, attach, modelButton] {
       view.translatesAutoresizingMaskIntoConstraints = false
     }
-    inputHeight = input.heightAnchor.constraint(equalToConstant: 48)
+    inputHeight = editorView.heightAnchor.constraint(equalToConstant: 48)
     accessoryHeight = accessoryBar.heightAnchor.constraint(equalToConstant: 0)
-    hintLeading = hint.leadingAnchor.constraint(equalTo: input.leadingAnchor, constant: 21)
-    hintTop = hint.topAnchor.constraint(equalTo: input.topAnchor, constant: 13)
+    hintLeading = hint.leadingAnchor.constraint(equalTo: editorView.leadingAnchor, constant: 21)
+    hintTop = hint.topAnchor.constraint(equalTo: editorView.topAnchor, constant: 13)
     noticeHeight = notice.heightAnchor.constraint(equalToConstant: 0)
+    quotaNoticeHeight = quotaNotice.heightAnchor.constraint(equalToConstant: 0)
+    quotaGap = inputSurface.topAnchor.constraint(equalTo: quotaNotice.bottomAnchor)
     attachmentHeight = attachmentBar.heightAnchor.constraint(equalToConstant: 0)
     queueHeight = queueView.heightAnchor.constraint(equalToConstant: 0)
+    queueGap = quickRepliesView.topAnchor.constraint(equalTo: queueView.bottomAnchor)
+    queueDockedLeading = queueView.leadingAnchor.constraint(equalTo: inputSurface.leadingAnchor)
+    queueFloatingLeading = queueView.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16)
+    quickRepliesHeight = quickRepliesView.heightAnchor.constraint(equalToConstant: 0)
     mentionHeight = mentionPanel.heightAnchor.constraint(equalToConstant: 0)
     surfaceLayout.activate()
     NSLayoutConstraint.activate([
@@ -543,21 +834,26 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       mentionPanel.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
       mentionPanel.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16), mentionHeight,
       queueView.topAnchor.constraint(equalTo: mentionPanel.bottomAnchor),
-      queueView.leadingAnchor.constraint(equalTo: inputSurface.leadingAnchor),
-      queueView.trailingAnchor.constraint(equalTo: inputSurface.trailingAnchor), queueHeight,
-      notice.topAnchor.constraint(equalTo: queueView.bottomAnchor), notice.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 20),
+      queueDockedLeading,
+      queueView.trailingAnchor.constraint(equalTo: inputSurface.trailingAnchor), queueHeight, queueGap,
+      quickRepliesView.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
+      quickRepliesView.trailingAnchor.constraint(equalTo: composer.trailingAnchor), quickRepliesHeight,
+      notice.topAnchor.constraint(equalTo: quickRepliesView.bottomAnchor), notice.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 20),
       notice.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -20), noticeHeight,
       attachmentBar.topAnchor.constraint(equalTo: notice.bottomAnchor),
       attachmentBar.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
       attachmentBar.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16), attachmentHeight,
-      inputSurface.topAnchor.constraint(equalTo: attachmentBar.bottomAnchor, constant: 8),
+      quotaNotice.topAnchor.constraint(equalTo: attachmentBar.bottomAnchor),
+      quotaNotice.leadingAnchor.constraint(equalTo: inputSurface.leadingAnchor, constant: 16),
+      quotaNotice.trailingAnchor.constraint(equalTo: inputSurface.trailingAnchor, constant: -16), quotaNoticeHeight,
+      quotaGap,
       attachSurface.widthAnchor.constraint(equalToConstant: 44), attachSurface.heightAnchor.constraint(equalToConstant: 44),
       inputSurface.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16),
       inputSurface.bottomAnchor.constraint(equalTo: composer.bottomAnchor, constant: -8),
-      input.topAnchor.constraint(equalTo: inputSurface.contentView.topAnchor),
-      input.leadingAnchor.constraint(equalTo: inputSurface.contentView.leadingAnchor),
-      input.trailingAnchor.constraint(equalTo: inputSurface.contentView.trailingAnchor), inputHeight,
-      accessoryBar.topAnchor.constraint(equalTo: input.bottomAnchor),
+      editorView.topAnchor.constraint(equalTo: inputSurface.contentView.topAnchor),
+      editorView.leadingAnchor.constraint(equalTo: inputSurface.contentView.leadingAnchor),
+      editorView.trailingAnchor.constraint(equalTo: inputSurface.contentView.trailingAnchor), inputHeight,
+      accessoryBar.topAnchor.constraint(equalTo: editorView.bottomAnchor),
       accessoryBar.leadingAnchor.constraint(equalTo: inputSurface.contentView.leadingAnchor),
       accessoryBar.trailingAnchor.constraint(equalTo: inputSurface.contentView.trailingAnchor),
       accessoryBar.bottomAnchor.constraint(equalTo: inputSurface.contentView.bottomAnchor), accessoryHeight,
@@ -591,18 +887,17 @@ final class ChatComposerView: UIView, UITextViewDelegate {
           let text = value["text"], !text.isEmpty else { return }
     lastAppendedDraftID = id
     // Keep the user's existing text AND attachments. Sending remains explicit.
-    input.text = [input.text ?? "", text].filter { !$0.isEmpty }.joined(separator: "\n\n")
-    input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0)
+    input.appendParagraphs(text)
     updateComposer()
     saveDraft()
   }
   func setStoredDraft(_ text: String) {
     guard !text.isEmpty, input.text.isEmpty else { return }
-    input.text = text
+    input.restoreDraft(text)
     updateComposer()
   }
   private func saveDraft() {
-    onDraftChange?(input.text ?? "")
+    onDraftChange?(input.draftEnvelope)
   }
   @objc private func appDidEnterBackground() {
     saveDraft()
@@ -611,10 +906,16 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     super.didMoveToWindow()
     if window == nil {
       saveDraft()
+      #if !LODY_SHARE_EXTENSION
       attachmentOverlay.cancel()
+      #endif
       optionsPopover?.dismiss(animated: false)
     }
-    else if mentionNeedsFocus { focusAfterMentionPicker() }
+    else if mentionNeedsFocus || autoFocus {
+      if autoFocus { input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0) }
+      autoFocus = false
+      focusAfterMentionPicker()
+    }
   }
   func setInitialAttachments(_ json: String) {
     guard !hasInitialAttachments else { return }
@@ -636,6 +937,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     lastClearToken = token
     guard pendingDraft != nil else { return }
     acknowledgedSendID = pendingSendID
+    pendingSendID.map { sentStates[$0] = nil }
     pendingDraft = nil
     pendingSendID = nil
     updateComposer()
@@ -644,6 +946,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   func clearPendingSend(id: String) {
     guard pendingSendID == id else { return }
     acknowledgedSendID = id
+    sentStates[id] = nil
     pendingDraft = nil
     pendingSendID = nil
     updateComposer()
@@ -657,7 +960,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     pendingSendID = nil
     if let draft = pendingDraft {
       if !sendHandoff || ((input.text ?? "").isEmpty && attachments.isEmpty) {
-        input.text = draft.text
+        if draft.state.map({ input.restore(state: $0) }) != true { input.text = draft.text }
         attachments = draft.attachments
       } else {
         failedDraft = ChatPendingSend(id: id, text: draft.text, attachments: draft.attachments.map { item in
@@ -686,18 +989,32 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     pendingDraft = (pending.text, pending.attachments.compactMap { item in
       guard let url = URL(string: item.uri), url.isFileURL else { return nil }
       return ChatAttachment(id: item.id, name: item.name, url: url, isImage: item.kind == "image")
-    })
+    }, sentStates[pending.id])
     updateComposer()
   }
 
   private func takeDraft() {
     guard pendingDraft == nil else { return }
-    pendingDraft = (input.text ?? "", attachments)
+    pendingDraft = (input.markdown, attachments, input.serializedState)
     // Cross-container creation keeps its draft visible while its host dismisses.
     guard sendHandoff else { return }
     input.text = ""
     attachments = []
   }
+  #if LODY_SHARE_EXTENSION
+  private func presentAttachmentCamera() {
+    guard let controller = presenter() else { return }
+    let camera = ChatAttachmentSheet(cameraOnly: true)
+    camera.onPick = { [weak self] picked in self?.addAttachments(picked) }
+    controller.present(camera, animated: true)
+  }
+  private func presentRecentPhotos() {
+    guard let controller = presenter() else { return }
+    let sheet = ChatAttachmentSheet()
+    sheet.onPick = { [weak self] picked in self?.addAttachments(picked) }
+    controller.present(sheet, animated: true)
+  }
+  #else
   @objc private func presentAttachments() {
     guard attach.isEnabled else { return }
     if attachmentOverlay.isPresented { attachmentOverlay.dismiss(); return }
@@ -789,15 +1106,16 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     guard let first = accepted.first else { attachmentOverlay.dismiss(); return }
     addAttachments(accepted)
     window?.layoutIfNeeded()
-    // One handoff represents the entire batch, in selection order. The library
-    // fades in place if the first new thumbnail is outside the visible strip.
+    // Newly inserted ChatKit pills have not rendered yet. Use the accepted photo
+    // as the transition content and the package's public geometry as its target.
     guard let image = ChatAttachment.thumbnail(first.url) else { attachmentOverlay.dismiss(); return }
-    let destination = attachmentBar.thumbnailView(id: first.id)
     let representation = UIImageView(image: image)
     representation.contentMode = .scaleAspectFill
     representation.clipsToBounds = true
-    attachmentOverlay.dismiss(to: destination, representation: representation, cornerRadius: 4,
-                              destinationVisibility: .hideDuringTransition) { _ in }
+    let destination = attachmentBar.handoffDestination(id: first.id)
+    attachmentOverlay.dismiss(to: destination, representation: representation, cornerRadius: 17) { [weak self] _ in
+      self?.attachmentBar.finishHandoff()
+    }
   }
 
   private func requestCameraAccess() {
@@ -848,10 +1166,33 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       })
   }
 
+  #endif
+
   private func addAttachments(_ picked: [ChatAttachment]) {
     attachments += picked.filter { new in !attachments.contains { $0.id == new.id } }
     UIImpactFeedbackGenerator(style: .light).impactOccurred()
     updateComposer()
+  }
+
+  private func pasteLongText(_ paste: ComposerPaste) -> Bool {
+    guard state.editable, let file = ChatAttachment.makePastedTextFile(paste.fileText, name: paste.fileName) else { return false }
+    let location = input.selectedRange.location
+    addAttachments([file])
+    LodyToastOverlay.shared.show(
+      message: LodyStrings.text("native.chat.composer.pasteAsFile", ["name": file.name]),
+      kind: "success",
+      actionTitle: LodyStrings.text("native.chat.composer.pasteUndo")
+    ) { [weak self] in
+      self?.undoPastedTextFile(id: file.id, paste: paste, location: location)
+    }
+    return true
+  }
+
+  private func undoPastedTextFile(id: String, paste: ComposerPaste, location: Int) {
+    guard pendingDraft == nil, let index = attachments.firstIndex(where: { $0.id == id }), input.insertPaste(paste, at: location) else { return }
+    attachments.remove(at: index)
+    updateComposer()
+    saveDraft()
   }
   private func presenter() -> UIViewController? {
     var responder: UIResponder? = next
@@ -861,11 +1202,23 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     }
     return window?.rootViewController
   }
+  var connection: String { state.connection ?? "" }
+
+  private(set) var suppressesComposer = false
+
   func setComposerState(_ json: String) {
     guard let value = try? JSONDecoder().decode(ChatComposerState.self, from: Data(json.utf8)) else { return }
-    if value.sending && !state.sending { takeDraft() }
+    if value.sending && !state.sending && !relaying { takeDraft() }
     state = value
+    suppressesComposer = quotaLocked(json)
     updateComposer()
+  }
+
+  private func quotaLocked(_ json: String) -> Bool {
+    guard let data = json.data(using: .utf8),
+          let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else { return false }
+    return object["quotaLocked"] as? Bool == true
   }
   func setComposerOptions(_ json: String) {
     guard let value = try? JSONDecoder().decode(ChatComposerOptions.self, from: Data(json.utf8)) else { return }
@@ -877,12 +1230,22 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     queuedDrafts = drafts
     updateComposer()
   }
+  private var canShowQuickReplies: Bool {
+    quickRepliesAvailable && input.text.isEmpty
+  }
+  private var quickRepliesAvailable: Bool {
+    state.running == false && state.editable && state.canSend && !state.sending &&
+      state.stopping != true && state.controlling != true && pendingDraft == nil &&
+      failedDraft == nil && displayError == nil && queuedDrafts.isEmpty && !relaying &&
+      attachments.isEmpty && connection.isEmpty
+  }
   private func updateComposer() {
     mentionPanel.update(input: input, items: activeMentionItems ?? [], enabled: activeMentionItems != nil)
     mentionHeight.constant = mentionPanel.panelHeight
     mentionButton.isHidden = activeMentionItems == nil || !input.isFirstResponder
     mentionButton.isEnabled = state.editable && !state.sending && pendingDraft == nil
     let sending = state.sending || pendingDraft != nil
+    if !state.editable && input.isFirstResponder { input.resignFirstResponder() }
     let expanded = input.isFirstResponder
     let expansionChanged = composerExpanded != expanded
     if expansionChanged && window != nil { layoutIfNeeded() }
@@ -890,13 +1253,15 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     surfaceLayout.update(isFocused: expanded)
     input.isEditable = state.editable && (sendHandoff || !sending)
     attach.isEnabled = state.editable && !sending
-    if !attach.isEnabled {
-      attachmentOverlay.cancel()
-    }
+    #if !LODY_SHARE_EXTENSION
+    if !attach.isEnabled { attachmentOverlay.cancel() }
     if !attachmentOverlay.isPresented { attach.alpha = attach.isEnabled ? 1 : 0.5 }
+    #else
+    attach.alpha = attach.isEnabled ? 1 : 0.5
+    #endif
     attachmentBar.isUserInteractionEnabled = state.editable && !sending
     attachmentBar.render(attachments)
-    attachmentHeight.constant = attachments.isEmpty ? 0 : 42
+    attachmentHeight.constant = attachmentBar.hasVisiblePills ? 42 : 0
     hint.text = state.placeholder
     hint.isHidden = !input.text.isEmpty
     let hasContent = !input.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
@@ -916,16 +1281,36 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     sendVisual.render(actionMode)
     sendVisual.isHidden = false
     sendVisual.alpha = send.isEnabled || loading ? 1 : 0.35
-    queueHeight.constant = ChatQueuedDraft.panelHeight(queuedDrafts)
     queueView.render(queuedDrafts, enabled: state.canStop == true && !sending && state.controlling != true, steeringID: state.steerID ?? "", firstOnly: state.steerInterrupts == true)
+    queueHeight.constant = queueView.panelHeight
+    let replies = quickRepliesAvailable ? (state.quickReplies ?? []) : []
+    let context = connection.isEmpty ? state.preview : nil
+    let typing = !input.text.isEmpty
+    let showsRow = context != nil || (!replies.isEmpty && !typing)
+    let reservesQuickReplies = (context != nil || !replies.isEmpty) &&
+      (showsRow || (input.isFirstResponder && quickRepliesHeight.constant > 0))
+    quickRepliesView.render(replies, context: context, showsReplies: !typing, compact: typing, visible: showsRow, animated: reservesQuickReplies)
+    quickRepliesHeight.constant = reservesQuickReplies ? ChatQuickRepliesView.chipHeight : 0
+    let queueFloats = reservesQuickReplies && queueHeight.constant > 0
+    queueGap.constant = queueFloats ? 8 : 0
+    let (queueLeading, idleLeading) = queueFloats ? (queueFloatingLeading!, queueDockedLeading!) : (queueDockedLeading!, queueFloatingLeading!)
+    idleLeading.isActive = false
+    queueLeading.isActive = true
     let noticeText = failedDraft == nil ? (displayError ?? state.notice) : LodyStrings.text("native.chat.composer.failedDraft")
     let canReconnect = failedDraft != nil || displayError != nil || state.reconnect
     notice.setTitle(noticeText, for: .normal)
-    notice.setTitleColor(canReconnect ? .systemBlue : .secondaryLabel, for: .normal)
+    notice.setTitleColor(canReconnect ? .lodyAccent : .secondaryLabel, for: .normal)
     notice.isUserInteractionEnabled = canReconnect
     notice.accessibilityTraits = canReconnect ? .button : .staticText
     let noticeSize = notice.sizeThatFits(CGSize(width: max(1, bounds.width - 40), height: .greatestFiniteMagnitude))
     noticeHeight.constant = noticeText.isEmpty ? 0 : max(44, noticeSize.height + 12)
+    quotaNotice.text = state.quotaNotice
+    quotaNotice.isHidden = state.quotaNotice?.isEmpty != false
+    quotaNotice.isAccessibilityElement = !quotaNotice.isHidden
+    let quotaWidth = inputSurface.bounds.width > 32 ? inputSurface.bounds.width - 32 : bounds.width - 96
+    let quotaSize = quotaNotice.sizeThatFits(CGSize(width: max(1, quotaWidth), height: .greatestFiniteMagnitude))
+    quotaNoticeHeight.constant = quotaNotice.isHidden ? 0 : max(quotaNotice.font.lineHeight, quotaSize.height)
+    quotaGap.constant = quotaNotice.isHidden ? 8 : 6
     accessoryHeight.constant = expanded ? 44 : 0
     let verticalInset = expanded ? 13 : max(0, (48 - input.font!.lineHeight) / 2)
     input.textContainerInset = UIEdgeInsets(top: verticalInset, left: 16, bottom: verticalInset, right: expanded ? 16 : 46)
@@ -935,7 +1320,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     inputHeight.constant = min(ChatMessageContent.maximumCollapsedHeight, max(expanded ? 68 : 48, height))
     input.isScrollEnabled = height > ChatMessageContent.maximumCollapsedHeight
     updateComposerOptions()
-    onHeightChange?(mentionHeight.constant + queueHeight.constant + noticeHeight.constant + attachmentHeight.constant + inputHeight.constant + accessoryHeight.constant + 16)
+    onHeightChange?(mentionHeight.constant + queueHeight.constant + queueGap.constant + quickRepliesHeight.constant + noticeHeight.constant + attachmentHeight.constant + quotaNoticeHeight.constant + inputHeight.constant + accessoryHeight.constant + 16)
     setNeedsLayout()
     if expansionChanged {
       if window != nil && !UIAccessibility.isReduceMotionEnabled {
@@ -957,7 +1342,17 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     if !composerOptions.efforts.isEmpty || !composerOptions.effort.isEmpty {
       title.append(NSAttributedString(string: " " + composerOptions.effortTitle, attributes: [.foregroundColor: UIColor.secondaryLabel]))
     }
-    title.addAttribute(.font, value: UIFont.preferredFont(forTextStyle: .caption1), range: NSRange(location: 0, length: title.length))
+    let summary = title.string
+    let font = UIFont.preferredFont(forTextStyle: .caption1)
+    if composerOptions.fast == true {
+      let symbol = NSTextAttachment()
+      symbol.image = UIImage(systemName: "bolt.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: font.pointSize - 2, weight: .regular))?
+        .withTintColor(.lodyAccent, renderingMode: .alwaysOriginal)
+      let prefix = NSMutableAttributedString(attachment: symbol)
+      prefix.append(NSAttributedString(string: " "))
+      title.insert(prefix, at: 0)
+    }
+    title.addAttribute(.font, value: font, range: NSRange(location: 0, length: title.length))
     var configuration = UIButton.Configuration.plain()
     configuration.attributedTitle = AttributedString(title)
     configuration.image = UIImage(systemName: "chevron.down")
@@ -968,7 +1363,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     configuration.baseForegroundColor = .secondaryLabel
     configuration.titleLineBreakMode = .byTruncatingTail
     modelButton.configuration = configuration
-    modelButton.accessibilityLabel = LodyStrings.text("native.chat.composer.modelButton", ["summary": title.string])
+    modelButton.accessibilityLabel = LodyStrings.text("native.chat.composer.modelButton", ["summary": summary])
+    modelButton.accessibilityValue = composerOptions.fast == true ? LodyStrings.text("native.chat.composer.fast") + ": " + LodyStrings.text("native.chat.composer.fastOn") : nil
     optionsPopover?.render(composerOptions)
     if !modelButton.isEnabled { optionsPopover?.dismiss(animated: true) }
   }
@@ -1036,41 +1432,65 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   func textViewDidChange(_ textView: UITextView) { updateComposer() }
   func textViewDidBeginEditing(_ textView: UITextView) { updateComposer() }
   func textViewDidEndEditing(_ textView: UITextView) { updateComposer(); saveDraft() }
+  func textView(_ textView: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+    let action = #selector(ChatComposerInput.pastePlainText(_:))
+    guard textView.canPerformAction(action, withSender: nil) else {
+      return UIMenu(children: suggestedActions)
+    }
+    let plainText = UIAction(title: LodyStrings.text("native.chat.composer.pastePlainText")) { [weak textView] _ in
+      (textView as? ChatComposerInput)?.pastePlainText(nil)
+    }
+    return UIMenu(children: [plainText] + suggestedActions)
+  }
   func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
-    (textView.text as NSString).length - range.length + (text as NSString).length <= 32000
+    !relaying && (textView.text as NSString).length - range.length + (text as NSString).length <= 32000
   }
   @objc private func submit() {
     guard send.isEnabled else { return }
+    if previewBeforeSubmit?() == true { return }
     if state.running == true && input.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty {
       onStop?()
       return
     }
     sendFeedback.impactOccurred(intensity: 0.85)
     let queued = queuesSubmission
+    let guiding = guidesSubmission
     let id = UUID().uuidString.lowercased()
+    let body = input.markdown
+    let payload: [String: Any] = [
+      "id": id, "queue": queued, "guide": guiding, "text": body,
+      "startedAt": Date().timeIntervalSince1970 * 1000,
+      "attachments": attachments.map {
+        ["id": $0.id, "name": $0.name, "uri": $0.url.absoluteString, "kind": $0.isImage ? "image" : "file"]
+      },
+    ]
+    if relaying || prepareSend?(payload) == true { return }
+    commitSend(payload)
+    onSend?(payload)
+  }
+
+  /// The creation host publishes once; the adopted composer starts the visual send later.
+  func commitSend(_ payload: [String: Any]) {
+    guard let id = payload["id"] as? String else { return }
+    let queued = payload["queue"] as? Bool == true
+    let guiding = payload["guide"] as? Bool == true
     let body = input.text ?? ""
+    relaying = false
     if !queued && sendHandoff {
-      if !body.isEmpty { ChatSendHandoff.begin(id: id, text: body, source: input, background: inputSurface) }
+      if !body.isEmpty { ChatSendHandoff.begin(id: id, source: input, straight: guiding) }
       ChatSendHandoff.beginAttachments(id: id, attachments: attachments, source: attachmentBar)
     }
+    LodyToastOverlay.shared.dismiss()
+    input.serializedState.map { sentStates[id] = $0 }
     takeDraft()
     saveDraft()
     pendingSendID = id
-    guard let draft = pendingDraft else { return }
     updateComposer()
-    onSend?([
-      "id": id,
-      "queue": queued,
-      "text": draft.text,
-      "startedAt": Date().timeIntervalSince1970 * 1000,
-      "attachments": draft.attachments.map {
-        ["id": $0.id, "name": $0.name, "uri": $0.url.absoluteString, "kind": $0.isImage ? "image" : "file"]
-      },
-    ])
   }
   @objc private func reconnect() {
     guard let failed = failedDraft else { onReconnect?(); return }
-    input.text = [input.text ?? "", failed.text].filter { !$0.isEmpty }.joined(separator: "\n\n")
+    let restored = input.text.isEmpty && sentStates[failed.id].map { input.restore(state: $0) } == true
+    if !restored { input.appendParagraphs(failed.text) }
     for item in failed.attachments where !attachments.contains(where: { $0.id == item.id }) {
       guard let url = URL(string: item.uri), url.isFileURL else { continue }
       attachments.append(ChatAttachment(id: item.id, name: item.name, url: url, isImage: item.kind == "image"))

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   requestOpenSession,
+  requestShareSession,
   subscribeSessionNav,
 } from '../../src/features/sessions/sessionNav.ts';
 
@@ -15,6 +16,24 @@ const session = {
   projectId: 'p',
   createdAt: '2026-01-01',
 };
+
+test('sharing can open while the same navigation owner awaits a session page', async () => {
+  let release;
+  const page = new Promise((resolve) => {
+    release = resolve;
+  });
+  const seen = [];
+  const stop = subscribeSessionNav(async (intent) => {
+    seen.push(intent.kind);
+    if (intent.kind === 'open') await page;
+  });
+  const open = requestOpenSession(session);
+  await requestShareSession('workspace', session.id);
+  assert.deepEqual(seen, ['open', 'share']);
+  release();
+  await open;
+  stop();
+});
 
 test('requestOpenSession waits for the subscriber and preserves order', async () => {
   const seen = [];

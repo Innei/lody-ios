@@ -49,7 +49,6 @@ ui.axe('swipe', '--start-x', '2', '--start-y', '400', '--end-x', '370', '--end-y
 tap('settings-agent')
 ui.wait(lambda items: any(item.get('AXUniqueId') == 'setting:agent:m1:a1' and 'Codex' in (item.get('AXLabel') or '') for item in items), 'Agent section did not open')
 synced = catalog.text('settings.remote.syncedAt', time='').strip()
-assert any(synced in spoken(item) for item in ui.state()), 'Confirmed settings must show a refresh time'
 assert catalog.text('settings.usage.used', percent=32) in label('usage:m1:a1:codex:0')
 assert catalog.text('settings.usage.used', percent=61) in label('usage:m1:a1:codex:1')
 assert 'Spark' in label('usage:m1:a1:codex_bengalfox:0')
@@ -70,6 +69,7 @@ assert catalog.text('settings.usage.used', percent=100) in label('usage:m1:a2:cl
 assert catalog.text('settings.remote.readOnly') in label('setting:agent:m1:a2')
 assert catalog.text('settings.usage.empty') in label('usage:m1:a3:empty')
 ui.element('setting:agent:m1:a4')
+assert any(synced in spoken(item) for item in ui.state()), 'Confirmed settings must show a refresh time in the final section footer'
 assert not any((item.get('AXUniqueId') or '').startswith('usage:m1:a4:') for item in ui.state()), 'Custom API incorrectly displays subscription quota'
 ui.capture('agent-usage-readonly-empty-api')
 ui.axe('swipe', '--start-x', '180', '--start-y', '300', '--end-x', '180', '--end-y', '730', '--duration', '.6', '--post-delay', '.5')

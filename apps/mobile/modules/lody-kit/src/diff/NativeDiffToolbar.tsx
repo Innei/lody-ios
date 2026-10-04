@@ -14,3 +14,7 @@ export type NativeDiffToolbarProps = ViewProps & {
 
 export const NativeDiffToolbar: ComponentType<NativeDiffToolbarProps> =
   requireNativeView('LodyKit', 'LodyDiffToolbar');
+
+export const NativeDiffSurface: ComponentType<
+  ViewProps & { contentRevision?: number }
+> = requireNativeView('LodyKit', 'LodyDiffSurface');

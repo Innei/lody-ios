@@ -117,8 +117,7 @@ final class InlineDiffRenderer: UIView {
 }
 
 extension InlineDiffRenderer {
-  /// Additions read as a system-blue fade, deletions as system red. Dark mode
-  /// needs a stronger fade to survive over the grouped card background.
+  /// Dark mode needs a stronger fade to survive over the grouped card background.
   static func fade(_ base: UIColor, light: CGFloat, dark: CGFloat) -> UIColor {
     UIColor { traits in
       base.withAlphaComponent(traits.userInterfaceStyle == .dark ? dark : light)
@@ -127,7 +126,7 @@ extension InlineDiffRenderer {
 
   static func lineTint(for kind: InlineDiffLine.Kind) -> UIColor {
     switch kind {
-    case .insert: return fade(.systemBlue, light: 0.12, dark: 0.20)
+    case .insert: return fade(.systemGreen, light: 0.12, dark: 0.20)
     case .delete: return fade(.systemRed, light: 0.12, dark: 0.20)
     case .context: return .clear
     }
@@ -135,7 +134,7 @@ extension InlineDiffRenderer {
 
   static func gutterTint(for kind: InlineDiffLine.Kind) -> UIColor {
     switch kind {
-    case .insert: return fade(.systemBlue, light: 0.09, dark: 0.15)
+    case .insert: return fade(.systemGreen, light: 0.09, dark: 0.15)
     case .delete: return fade(.systemRed, light: 0.09, dark: 0.15)
     case .context: return .clear
     }
@@ -143,7 +142,7 @@ extension InlineDiffRenderer {
 
   static func emphasisTint(for kind: InlineDiffLine.Kind) -> UIColor {
     switch kind {
-    case .insert: return fade(.systemBlue, light: 0.22, dark: 0.32)
+    case .insert: return fade(.systemGreen, light: 0.22, dark: 0.32)
     case .delete: return fade(.systemRed, light: 0.22, dark: 0.32)
     case .context: return .clear
     }
@@ -151,7 +150,7 @@ extension InlineDiffRenderer {
 
   static func barColor(for kind: InlineDiffLine.Kind) -> UIColor {
     switch kind {
-    case .insert: return .systemBlue
+    case .insert: return .systemGreen
     case .delete: return .systemRed
     case .context: return .clear
     }

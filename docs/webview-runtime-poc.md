@@ -77,4 +77,4 @@ LodyKit 的 SQLite 保存账号展示信息、上次工作区和完整目录投�
 
 当前按工作区保存完整 JSON 投影，受运行时 12 MiB 输出上限约束；不是分页数据库，也不缓存消息正文。目录规模增长时应先测恢复耗时，再迁移到索引行与分页读取。Debug 日志 `LodyLocal startup_ms` 测量原生 SQLite 读取（不含 RN 渲染）。
 
-可运行 `swiftc apps/mobile/modules/lody-kit/ios/Cloud/LocalStore.swift apps/mobile/modules/lody-kit/verification/local-store/main.swift -o /tmp/lody-local-store-check && /tmp/lody-local-store-check` 验证真实 SQLite 重开、工作区回退和清理。开发构建通过 `simctl launch … app.innei.lody --lody-offline` 注入账号恢复失败及官方后台的 URLProtocol 网络错误，用于有本地目录时的冷启动验收；Release 不注册此协议。
+可运行 `swiftc apps/mobile/modules/lody-kit/ios/Cloud/LocalStore.swift apps/mobile/modules/lody-kit/verification/local-store/main.swift -o /tmp/lody-local-store-check && /tmp/lody-local-store-check` 验证真实 SQLite 重开、工作区回退和清理。`simctl launch … app.innei.lody --lody-offline` 注入账号恢复失败及官方后台的 URLProtocol 网络错误，用于有本地目录时的冷启动验收；只有带该启动参数时才注册此协议。

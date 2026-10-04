@@ -41,6 +41,7 @@ export function useSessionControl(
             machineId: session.machineId,
             turnId,
             messageId,
+            interrupt: action === 'steer' && !steerable,
           }),
         ),
       );
@@ -57,11 +58,14 @@ export function useSessionControl(
     running:
       !!turnId || ['live', 'attention'].includes(sessionState(session.status)),
     canStop: canControl,
-    controlling: !!busy || stopping,
+    controlling:
+      stopping ||
+      (!!busy &&
+        !snapshot.entries.some((entry) => entry.id === busy && entry.delivery)),
     stopping: busy === 'stop' || stopping,
     steerID: busy === 'stop' ? '' : busy,
     steerInterrupts: !steerable,
     stop: () => void act('stop'),
-    steer: (id: string) => void (steerable ? act('steer', id) : act('stop')),
+    steer: (id: string) => void act('steer', id),
   };
 }

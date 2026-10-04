@@ -134,6 +134,20 @@ final class LodySessionRowView: UIView, UIContentView {
   @available(*, unavailable)
   required init?(coder: NSCoder) { nil }
 
+  override func systemLayoutSizeFitting(
+    _ targetSize: CGSize,
+    withHorizontalFittingPriority horizontalFittingPriority: UILayoutPriority,
+    verticalFittingPriority: UILayoutPriority
+  ) -> CGSize {
+    // List self-sizing requests may carry an expanded height during an outline
+    // update. This content's height is determined by its labels, not that proposal.
+    super.systemLayoutSizeFitting(
+      CGSize(width: targetSize.width, height: UIView.layoutFittingCompressedSize.height),
+      withHorizontalFittingPriority: horizontalFittingPriority,
+      verticalFittingPriority: .fittingSizeLevel
+    )
+  }
+
   private func apply() {
     guard let content = configuration as? LodySessionRowContent else { return }
     let row = content.row
@@ -209,7 +223,7 @@ final class LodySessionRowView: UIView, UIContentView {
       if !row.subtitle.isEmpty {
         text.append(NSAttributedString(string: " · ", attributes: [.font: footnote, .foregroundColor: UIColor.tertiaryLabel]))
       }
-      text.append(NSAttributedString(string: "+\(add)", attributes: [.font: mono, .foregroundColor: UIColor.systemBlue]))
+      text.append(NSAttributedString(string: "+\(add)", attributes: [.font: mono, .foregroundColor: UIColor.systemGreen]))
       text.append(NSAttributedString(string: " −\(del)", attributes: [.font: mono, .foregroundColor: UIColor.systemRed]))
     }
     return text

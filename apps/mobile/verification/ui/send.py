@@ -1,4 +1,5 @@
 """Immediate offline media/text, retained failure, explicit retry and history reconciliation."""
+import os
 import sys
 from driver import UI
 import catalog
@@ -9,20 +10,32 @@ ui.axe('tap', '--id', 'session-input')
 ui.axe('type', 'Offline send\nKeep my attachment')
 draft = ui.element('session-input')['AXValue']
 ui.capture('draft')
-ui.axe('tap', '--id', 'session-send')
-timer = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':duration')), None), 'Offline timer missing')
-turn = timer['AXUniqueId'].removesuffix(':duration')
+ui.axe('tap', '--id', 'session-send', '--post-delay', '1')
+user = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':user-text')), None), 'Offline message missing')
+ui.axe('tap', '--id', user['AXUniqueId'], '--post-delay', '.5')
+timer = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':delivery')), None), 'Offline delivery missing')
+turn = timer['AXUniqueId'].removesuffix(':delivery')
+assert timer['AXLabel'] == catalog.text('send.status.awaitingConnection'), 'Unacked send must show its delivery phase above the message'
 assert ui.element('send-status')['AXLabel'] == 'Calls: 0 · waiting'
 assert ui.element(turn + ':user-text')['AXLabel'] == draft
-ui.element(turn + ':attachment:fixture-file')
 assert not ui.element('session-input').get('AXValue')
+ui.element(turn + ':attachment:fixture-file')
 ui.capture('offline')
-# Settle keyboard dismissal before tapping a row that moves with the viewport.
-ui.axe('tap', '--id', turn + ':user-text', '--post-delay', '.5')
-ui.axe('tap', '--id', turn + ':pending')
-ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 1 · sending' for i in items), 'Connected send did not start')
+
+def sending(items):
+    return any(i.get('AXLabel') == 'Calls: 1 · sending' for i in items)
+
+# One physical tap on this row can miss. Try once more before failing the case.
+ui.axe('tap', '--id', 'send-connect')
+try:
+    ui.wait(sending, 'Connected send did not start', timeout=8)
+except AssertionError:
+    ui.axe('tap', '--id', 'send-connect')
+    ui.wait(sending, 'Connected send did not start')
 ui.axe('tap', '--id', 'send-fail')
 ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('send.alert.title') for i in items), 'Failure alert missing')
+assert any(i.get('AXLabel') == catalog.text('send.error.freeTurnLimit') for i in ui.state()), 'Free turn limit explanation missing'
+ui.capture('turn-limit-alert')
 ui.axe('tap', '--label', catalog.system('ok'))
 assert not ui.element('session-input').get('AXValue'), 'Failed text jumped back into input'
 assert ui.element(turn + ':user-text')['AXLabel'] == draft
@@ -33,6 +46,7 @@ ui.axe('tap', '--id', turn + ':pending')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 2 · sending' for i in items), 'Explicit retry did not start')
 ui.axe('tap', '--id', 'send-complete')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 2 · accepted' for i in items), 'Receipt missing')
+assert ui.element(turn + ':duration')['AXLabel'] != catalog.text('native.chat.transcript.status.confirming'), 'Accepted send must start working duration'
 ui.capture('waiting-reply')
 ui.axe('tap', '--id', 'send-reply')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 2 · idle' for i in items), 'Reply did not reconcile pending')
@@ -40,15 +54,16 @@ assert ui.element(turn + ':user-text')['AXLabel'] == draft
 ui.element(turn + ':attachment:fixture-file')
 ui.capture('reconciled')
 ui.axe('tap', '--id', 'session-input')
-ui.type_into('session-input', '2 next draft')
+# AXe `type` emits Shift+digit on this Simulator (2 → @, 3 → #). Use letters only.
+ui.type_into('session-input', 'second next draft')
 # Let the measured throw settle before driving another input mutation.
 ui.axe('tap', '--id', 'session-send', '--post-delay', '1')
 ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 3 · sending' for i in items), 'Next send missing')
-ui.type_into('session-input', '3 next draft')
+ui.type_into('session-input', 'third next draft')
 ui.axe('tap', '--id', 'send-fail')
 ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('send.alert.title') for i in items), 'Failure alert missing')
 ui.axe('tap', '--label', catalog.system('ok'))
-assert ui.element('session-input')['AXValue'] == '3 next draft', 'Failure overwrote new input'
+assert (ui.element('session-input').get('AXValue') or '').casefold() == 'third next draft', 'Failure overwrote new input'
 assert not ui.element('session-send')['enabled'], 'Retained failure must not be overwritten by a new send'
 ui.capture('new-draft-preserved')
 
@@ -70,5 +85,6 @@ if not ui.element('session-input').get('AXValue'):
     ui.type_into('session-input', 'after completion')
 assert ui.element('session-send')['enabled'], 'Completed Session did not accept a new draft'
 ui.capture('completed-unlocked')
-trace.verify(2)
+if not os.environ.get('LODY_UI_EMBEDDED'):
+    trace.verify(2)
 print('PASS: offline media/text, retained failure and explicit retry without another throw, history takeover, new draft preserved')

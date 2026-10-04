@@ -1,86 +1,66 @@
+import ChatKitCore
 import Foundation
 
-/// Presentation-only pacing. Small tails keep a short character reveal; long
-/// replies and bursts are committed together and animated by the block view.
+/// Presentation-only pacing, driven by elapsed time and input pressure.
 /// Network history remains authoritative, including corrections and completion.
 struct ChatStream {
-  static let blockAnimationLength = 1024
-  static let blockAnimationBatch = 48
-  private struct Reveal {
-    var source = ""
-    var shown = ""
-    var pending: [Character] = []
-    var offset = 0
-    var batch = 1
-    var hasPending: Bool { offset < pending.count }
-
-    mutating func receive(_ text: String, animate: Bool) {
-      guard text != source else {
-        if !animate { finish() }
-        return
-      }
-      guard animate, text.hasPrefix(source) else {
-        source = text
-        finish()
-        return
-      }
-      pending = Array(pending.dropFirst(offset)) + Array(text.dropFirst(source.count))
-      offset = 0
-      source = text
-      if text.utf16.count > ChatStream.blockAnimationLength || pending.count >= ChatStream.blockAnimationBatch {
-        batch = pending.count
-      } else {
-        batch = max(1, Int(ceil(Double(pending.count) / 8)))
-      }
-    }
-    mutating func advance() {
-      guard hasPending else { return }
-      let end = min(pending.count, offset + batch)
-      shown += String(pending[offset..<end])
-      offset = end
-      if !hasPending { finish() }
-    }
-    mutating func finish() {
-      shown = source
-      pending.removeAll(keepingCapacity: false)
-      offset = 0
-    }
-  }
-
   private struct ID: Hashable { let entry: String; let item: String }
-  private var reveals: [ID: Reveal] = [:]
+  private var reveals: [ID: CKTextReveal] = [:]
   private var targets: [ChatEntry] = []
   private var initialized = false
-  var hasPending: Bool { reveals.values.contains { $0.hasPending } }
+  private var settling: Set<String> = []
+  var hasPending: Bool { !settling.isEmpty || reveals.values.contains { $0.hasPending } }
+
+  /// Keep offscreen Markdown geometry, but never hide permission/error/tool updates.
+  static func deferringMarkdown(_ projected: [ChatRow], previous: [ChatRow]) -> [ChatRow] {
+    let latest = Dictionary(projected.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+    let ids = Set(previous.map(\.id))
+    let retained = previous.compactMap { row -> ChatRow? in
+      if row.kind == "text" || row.kind == "thought" { return row }
+      return latest[row.id]
+    }
+    return retained + projected.filter { !ids.contains($0.id) && $0.kind != "text" && $0.kind != "thought" }
+  }
 
   static func commitInterval(tailLength: Int) -> Double {
     min(0.096, 0.048 * (1 + Double(tailLength) / 256))
   }
 
-  mutating func receive(_ entries: [ChatEntry], animate: Bool) {
+  mutating func receive(_ entries: [ChatEntry], animate: Bool, deferredEntries: Set<String> = [], at time: Double = ProcessInfo.processInfo.systemUptime) {
     let wasRunning = Set(targets.filter(\.isRunning).map(\.id))
     var retained: Set<ID> = []
     for entry in entries where entry.role != "user" {
       for item in entry.items where item.type == "text" || item.type == "thought" {
         let id = ID(entry: entry.id, item: item.itemId)
         retained.insert(id)
-        var reveal = reveals[id] ?? Reveal()
-        let shouldAnimate = initialized && animate && entry.role == "assistant" && (entry.isRunning || wasRunning.contains(entry.id) || reveal.hasPending)
-        reveal.receive(item.text ?? "", animate: shouldAnimate)
+        var reveal = reveals[id] ?? CKTextReveal()
+        let shouldAnimate = initialized && animate && !deferredEntries.contains(entry.id) && entry.role == "assistant" && (entry.isRunning || wasRunning.contains(entry.id) || reveal.hasPending)
+        reveal.receive(item.text ?? "", animate: shouldAnimate, at: time)
         reveals[id] = reveal
       }
     }
     reveals = reveals.filter { retained.contains($0.key) }
     targets = entries
+    settling.formIntersection(entries.map(\.id))
+    if !animate { settling.removeAll() }
     initialized = true
   }
 
-  mutating func advance() {
-    for id in reveals.keys { reveals[id]?.advance() }
+  mutating func advance(at time: Double = ProcessInfo.processInfo.systemUptime, animatingEntries: Set<String> = []) {
+    let completed = Set(targets.filter { !$0.isRunning }.map(\.id))
+    settling = animatingEntries.intersection(completed)
+    for id in reveals.keys {
+      let before = reveals[id]?.shown
+      reveals[id]?.advance(at: time)
+      // Let the final commit reach the renderer before asking whether it faded.
+      if completed.contains(id.entry), before != reveals[id]?.shown { settling.insert(id.entry) }
+    }
   }
 
-  mutating func finish() {
-    for id in reveals.keys { reveals[id]?.finish() }
+  mutating func finish(entries: Set<String>? = nil) {
+    if let entries { settling.subtract(entries) }
+    else { settling.removeAll() }
+    for id in reveals.keys where entries?.contains(id.entry) ?? true { reveals[id]?.finish() }
   }
 
   var presentation: [ChatEntry] {
@@ -90,7 +70,7 @@ struct ChatStream {
         guard let reveal = reveals[ID(entry: entry.id, item: entry.items[index].itemId)] else { continue }
         entry.items[index].text = reveal.shown
         // Completion folding waits for the visible tail, never the network ACK.
-        if reveal.hasPending { entry.finished = false }
+        if reveal.hasPending || settling.contains(entry.id) { entry.finished = false }
       }
       return entry
     }

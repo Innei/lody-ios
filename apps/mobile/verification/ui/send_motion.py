@@ -1,4 +1,4 @@
-"""Check every native presentation sample, including the window-to-cell handoff."""
+"""Check committed animation samples, including the window-to-cell handoff."""
 import json
 import math
 from pathlib import Path
@@ -41,9 +41,20 @@ class ThrowTrace:
             shutil.copy2(path, self.ui.output / path.name)
             trace = json.loads(path.read_text())
             samples = trace['samples']
-            # A display-link callback can reference the frame before the flight
-            # began; its fallback model geometry is not an animation frame.
-            frames = [s for s in samples if s['event'] == 'frame' and s['t'] >= 0]
+            # The first display interval can precede the animation transaction's
+            # commit; model/stale presentation values there are not a rendered flight.
+            frames = [s for s in samples if s['event'] == 'frame' and s['t'] >= s['budget']]
+            if trace.get('transition') == 'reveal':
+                opacity = [s['opacity'] for s in frames]
+                drift = max([distance(s['frame'][:2], trace['destination'][:2]) for s in frames], default=math.inf)
+                report = dict(file=path.name, transition='reveal', samples=len(frames), maxDriftPt=drift,
+                              firstOpacity=opacity[0] if opacity else None, lastOpacity=opacity[-1] if opacity else None)
+                reports.append(report)
+                if trace['cancelled'] or len(frames) < 4 or drift > 1.5 or any(s.get('targetHidden') for s in frames):
+                    failures.append((path.name, 'late destination did not remain visible and stationary'))
+                if not opacity or opacity[0] > .75 or opacity[-1] < .99 or any(b < a for a, b in zip(opacity, opacity[1:])):
+                    failures.append((path.name, 'late destination must fade in without resurrecting the source'))
+                continue
             flight = [s for s in frames if not s['adopted']]
             adopted = [s for s in samples if s['adopted']]
             end = center(trace['destination'])
@@ -67,9 +78,9 @@ class ThrowTrace:
             # Presentation state is read at sampleTime, after CADisplayLink's
             # previous-frame timestamp. Both endpoints must precede the settle.
             backward = max([0] + [-step for step, sample in zip(steps, flight[1:]) if sample['sampleTime'] <= flight_time])
-            # Origins, not centers: the fixture may re-render the landed row's
-            # height afterwards, which is content, not a handoff shift.
-            landing = max([0] + [distance(s['modelFrame'][:2], trace['destination'][:2]) for s in adopted])
+            # Measure the handoff itself. Subsequent reply growth or user scrolling
+            # can legitimately move the adopted cell within the 350 ms tail.
+            landing = distance(adopted[0]['modelFrame'][:2], trace['destination'][:2]) if adopted else math.inf
             presentation_error = max([0] + [distance(s['frame'][:2], s['modelFrame'][:2]) for s in adopted])
             stalls = sum(abs(step) < .1 and .15 * length < along[i] < .85 * length
                          for i, step in enumerate(steps))

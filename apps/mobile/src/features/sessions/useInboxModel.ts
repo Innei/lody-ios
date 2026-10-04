@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   initialInboxView,
   saveInboxView,
@@ -7,6 +7,10 @@ import {
   projectSorts,
   readInboxExpansion,
   saveInboxExpansion,
+  readInboxPinOrder,
+  saveInboxPinOrder,
+  searchInbox,
+  type InboxSearchHits,
 } from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
@@ -16,10 +20,13 @@ import { showToast } from '@/ui/toast';
 import { t } from '@/lib/i18n';
 import { useSessionListCatalog } from './useSessionListCatalog';
 import {
+  activityAt,
   inboxSections,
   isChatSectionRow,
   projectSections,
+  reconcilePinOrder,
   searchSections,
+  matchCatalog,
   type ProjectSort,
 } from './inbox';
 import { requestNewSession } from './sessionNav';
@@ -54,6 +61,7 @@ export function useInboxModel() {
     setWorkspaceId,
     loading,
     connected,
+    deleteSessionRequest,
   } = useCatalog();
   const catalog = useSessionListCatalog(
     sourceCatalog,
@@ -66,14 +74,76 @@ export function useInboxModel() {
   const [query, setQuery] = useState('');
   const creating = useRef(false);
   const searching = !!query.trim();
+  const userId = account?.user.id ?? '';
+  const workspaceId = selected?.id ?? '';
+  const searchKey = JSON.stringify([userId, workspaceId, query.trim()]);
+  const [search, setSearch] = useState<{
+    key: string;
+    catalog: typeof catalog;
+    hits: InboxSearchHits;
+  }>();
+  const searchGeneration = useRef(0);
+  useEffect(() => {
+    const generation = ++searchGeneration.current;
+    if (!query.trim() || !userId || !workspaceId) return;
+    // Debounce before crossing the bridge; stale queued reads cannot change the list.
+    const timer = setTimeout(() => {
+      void searchInbox(userId, workspaceId, query.trim()).then(
+        (hits) => {
+          if (generation === searchGeneration.current)
+            setSearch({ key: searchKey, catalog, hits });
+        },
+        () => {
+          if (generation !== searchGeneration.current) return;
+          showToast(t('search.toast.failed'));
+          setSearch({
+            key: searchKey,
+            catalog,
+            hits: matchCatalog(catalog, query),
+          });
+        },
+      );
+    }, 120);
+    return () => {
+      clearTimeout(timer);
+      searchGeneration.current++;
+    };
+  }, [searchKey, catalog, userId, workspaceId, query]);
+  const searchPending =
+    searching && (search?.key !== searchKey || search.catalog !== catalog);
+  const pinOrder = useMemo(() => {
+    const stored =
+      userId && workspaceId ? readInboxPinOrder(userId, workspaceId) : [];
+    const pinnedIds = catalog.sessions
+      .filter((session) => session.pinned)
+      .map((session) => session.id);
+    return reconcilePinOrder(stored, pinnedIds, (id) => {
+      const session = catalog.sessions.find((item) => item.id === id);
+      return session ? activityAt(session) : 0;
+    });
+  }, [catalog, userId, workspaceId]);
+  useEffect(() => {
+    if (!userId || !workspaceId) return;
+    const stored = readInboxPinOrder(userId, workspaceId);
+    if (stored.join('\0') === pinOrder.join('\0')) return;
+    saveInboxPinOrder(userId, workspaceId, pinOrder);
+  }, [pinOrder, userId, workspaceId]);
   const sections = useMemo(() => {
     if (mode === 0)
-      return projectSections(catalog, colors.accent, expanded, undefined, sort);
+      return projectSections(
+        catalog,
+        colors.accent,
+        expanded,
+        undefined,
+        sort,
+        pinOrder,
+      );
     return inboxSections(catalog, {
       accent: colors.accent,
       chatOnly: mode === 2,
+      pinOrder,
     });
-  }, [mode, sort, catalog, colors.accent, expanded]);
+  }, [mode, sort, catalog, colors.accent, expanded, pinOrder]);
   const setView = useCallback((next: (typeof inboxViews)[number]['mode']) => {
     setMode(next);
     saveInboxView(next);
@@ -94,12 +164,13 @@ export function useInboxModel() {
         selected.id,
         catalog,
         undefined,
-        mode === 2 ? 'chat' : undefined,
+        undefined,
+        t('tabs.newSession'),
       );
     } finally {
       creating.current = false;
     }
-  }, [catalog, mode, selected]);
+  }, [catalog, selected]);
   return {
     account,
     catalog,
@@ -112,10 +183,21 @@ export function useInboxModel() {
     ready: localReady && !!account,
     searching,
     sections: searching
-      ? searchSections(catalog, query, colors.accent)
+      ? searchSections(
+          catalog,
+          search?.key === searchKey
+            ? search.hits
+            : { projectIds: [], sessions: [] },
+          colors.accent,
+        )
       : sections,
     placeholder: searching
-      ? searchPlaceholder({ signedIn: true, query, loading, connected })
+      ? searchPlaceholder({
+          signedIn: true,
+          query,
+          loading: searchPending,
+          connected: true,
+        })
       : listPlaceholder({ loading, connected }),
     consumeRowPress: (id: string, expanded = true) => {
       if (id === 'view:chat') {
@@ -131,7 +213,8 @@ export function useInboxModel() {
       return isChatSectionRow(id);
     },
     rowAction: (id: string, actionId: string) => {
-      if (selected) listRowAction(selected.id, catalog, id, actionId);
+      if (selected)
+        listRowAction(selected, catalog, id, actionId, deleteSessionRequest);
     },
     selected,
     setExpanded,

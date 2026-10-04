@@ -1,4 +1,6 @@
+import ChatKit
 import ImageIO
+import Lexical
 import PhotosUI
 import QuickLook
 import UIKit
@@ -57,17 +59,45 @@ struct ChatAttachment: Equatable {
       return image
     }
     if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) { return .image }
+    if isWebArchiveProvider(provider) { return nil }
     if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) { return .fileURL }
     if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) { return nil }
     return provider.registeredContentTypes.first { type in
       !type.conforms(to: .directory)
         && !type.conforms(to: .url)
         && !type.conforms(to: .text)
+        && !isRichTextDocument(type)
+        && type.identifier != LexicalConstants.pasteboardIdentifier
+        && !isWebArchive(type)
     }
   }
 
+  // UIKit synthesizes RTF and RTFD beside copied HTML; those are the selection's text, not a file.
+  private static func isRichTextDocument(_ type: UTType) -> Bool {
+    [UTType.rtf, .rtfd, .flatRTFD].contains { type.conforms(to: $0) }
+  }
+
+  private static func isWebArchiveProvider(_ provider: NSItemProvider) -> Bool {
+    if isWebArchiveName(provider.suggestedName) { return true }
+    if provider.hasItemConformingToTypeIdentifier("com.apple.webarchive") { return true }
+    return provider.registeredContentTypes.contains(where: isWebArchive)
+  }
+
+  private static func isWebArchiveName(_ name: String?) -> Bool {
+    guard let name, !name.isEmpty else { return false }
+    return URL(fileURLWithPath: name).pathExtension.lowercased() == "webarchive"
+  }
+
+  private static func isWebArchive(_ type: UTType) -> Bool {
+    if type.identifier == "com.apple.webarchive" || type.identifier == "Apple Web Archive pasteboard type" {
+      return true
+    }
+    return type.preferredFilenameExtension?.lowercased() == "webarchive"
+  }
+
   static func make(suggestedName: String?, type: UTType, source: URL, id: String? = nil) -> ChatAttachment? {
-    guard source.isFileURL, let copy = store(source) else { return nil }
+    guard source.isFileURL, !isWebArchiveName(source.lastPathComponent), !isWebArchiveName(suggestedName) else { return nil }
+    guard let copy = store(source) else { return nil }
     var name = suggestedName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     if name.isEmpty { name = source.lastPathComponent }
     if URL(fileURLWithPath: name).pathExtension.isEmpty {
@@ -79,6 +109,23 @@ struct ChatAttachment: Equatable {
 
   static func canPaste(_ providers: [NSItemProvider]) -> Bool {
     providers.contains { transferType(for: $0) != nil }
+  }
+
+  static let pastedTextName = "Text.txt"
+
+  static func shouldPromotePastedText(_ text: String) -> Bool {
+    if text.count >= 2000 { return true }
+    var lines = 1
+    for character in text where character.isNewline {
+      lines += 1
+      if lines > 15 { return true }
+    }
+    return false
+  }
+
+  static func makePastedTextFile(_ text: String, name: String = pastedTextName) -> ChatAttachment? {
+    guard let url = store(Data(text.utf8), name: name) else { return nil }
+    return ChatAttachment(id: UUID().uuidString, name: name, url: url, isImage: false)
   }
 
   @discardableResult
@@ -161,13 +208,14 @@ final class ChatAttachmentPicker: NSObject, UIDocumentPickerDelegate {
 final class ChatPhotoLibraryPicker: NSObject, PHPickerViewControllerDelegate {
   var onPick: (([ChatAttachment]) -> Void)?
 
-  func present(from controller: UIViewController) {
+  func present(from controller: UIViewController, fullScreen: Bool = false) {
     var config = PHPickerConfiguration(photoLibrary: .shared())
     config.filter = .any(of: [.images, .videos])
     config.preferredAssetRepresentationMode = .current
     config.selectionLimit = 10
     config.selection = .ordered
     let picker = PHPickerViewController(configuration: config)
+    if fullScreen { picker.modalPresentationStyle = .fullScreen }
     picker.delegate = self
     controller.present(picker, animated: true)
   }
@@ -214,107 +262,65 @@ final class ChatAttachmentPreview: QLPreviewController, QLPreviewControllerDataS
   func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem { urls[index] as NSURL }
 }
 
-final class ChatAttachmentBar: UIScrollView {
-  var onRemove: ((String) -> Void)?
-  var onPreview: ((String) -> Void)?
-  private let stack = UIStackView()
-  private var rendered: [ChatAttachment] = []
+/// Converts local draft files to the package's display-only attachment model.
+final class ChatAttachmentBar: CKAttachmentStrip {
+  private var projected: [String: (source: ChatAttachment, item: CKAttachmentItem)] = [:]
 
-  init() {
-    super.init(frame: .zero)
-    showsHorizontalScrollIndicator = false
-    alwaysBounceHorizontal = false
-    stack.axis = .horizontal
-    stack.spacing = 8
-    stack.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(stack)
-    NSLayoutConstraint.activate([
-      stack.topAnchor.constraint(equalTo: contentLayoutGuide.topAnchor),
-      stack.bottomAnchor.constraint(equalTo: contentLayoutGuide.bottomAnchor),
-      stack.leadingAnchor.constraint(equalTo: contentLayoutGuide.leadingAnchor),
-      stack.trailingAnchor.constraint(equalTo: contentLayoutGuide.trailingAnchor),
-      stack.heightAnchor.constraint(equalTo: frameLayoutGuide.heightAnchor),
-    ])
-  }
-  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+  // The package exposes attachment geometry and snapshots, not its private
+  // button/image hierarchy. This caller-owned target follows that public geometry.
+  private var handoff: (id: String, target: UIView)?
 
-  func render(_ items: [ChatAttachment]) {
-    guard items != rendered else { return }
-    rendered = items
-    stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-    for item in items { stack.addArrangedSubview(pill(item)) }
-  }
-
-  func attachmentFrame(id: String) -> CGRect? {
-    guard let index = rendered.firstIndex(where: { $0.id == id }), index < stack.arrangedSubviews.count else { return nil }
-    let view = stack.arrangedSubviews[index]
-    return view.convert(view.bounds, to: self)
-  }
-
-  /// Actual rendered image destination, including the horizontal scroll offset.
-  func thumbnailView(id: String) -> UIView? {
-    guard let index = rendered.firstIndex(where: { $0.id == id }), index < stack.arrangedSubviews.count,
-          let surface = stack.arrangedSubviews[index] as? UIVisualEffectView,
-          let button = surface.contentView.subviews.first as? UIButton,
-          let image = button.imageView else { return nil }
+  func handoffDestination(id: String) -> UIView? {
+    finishHandoff()
     layoutIfNeeded()
-    let rect = image.convert(image.bounds, to: self)
-    guard bounds.contains(rect) else { return nil }
-    return image
+    guard let frame = attachmentFrame(id: id), bounds.contains(frame) else { return nil }
+    let target = UIView(frame: frame)
+    target.isUserInteractionEnabled = false
+    target.accessibilityElementsHidden = true
+    addSubview(target)
+    handoff = (id, target)
+    return target
   }
 
-  func snapshot(id: String) -> UIView? {
-    guard let index = rendered.firstIndex(where: { $0.id == id }), index < stack.arrangedSubviews.count else { return nil }
-    let pill = stack.arrangedSubviews[index]
-    return pill.snapshotView(afterScreenUpdates: false)
+  func finishHandoff() {
+    handoff?.target.removeFromSuperview()
+    handoff = nil
   }
 
-  private func pill(_ item: ChatAttachment) -> UIView {
-    var config = UIButton.Configuration.plain()
-    let fileType = UTType(filenameExtension: (item.name as NSString).pathExtension)
-    let symbol: String
-    if item.isImage { symbol = "photo" }
-    else if fileType?.conforms(to: .movie) == true { symbol = "video" }
-    else { symbol = "doc" }
-    config.image = UIImage(systemName: symbol)
-    if item.isImage, let image = ChatAttachment.thumbnail(item.url) {
-      config.image = image.preparingThumbnail(of: CGSize(width: 28, height: 28))?.withRenderingMode(.alwaysOriginal)
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    guard let handoff else { return }
+    if let frame = attachmentFrame(id: handoff.id), bounds.contains(frame) {
+      handoff.target.frame = frame
+      handoff.target.isHidden = false
+    } else {
+      handoff.target.isHidden = true
     }
-    config.imagePadding = 5
-    config.baseForegroundColor = .label
-    config.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 12)
-    config.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 11, bottom: 0, trailing: 32)
-    config.attributedTitle = AttributedString(item.name, attributes: AttributeContainer([
-      .font: UIFont.systemFont(ofSize: 13),
-    ]))
-    config.titleLineBreakMode = .byTruncatingMiddle
-    let button = UIButton(configuration: config)
-    button.accessibilityLabel = LodyStrings.text("native.chat.attachment.preview", ["name": item.name])
-    button.addAction(UIAction { [weak self] _ in self?.onPreview?(item.id) }, for: .touchUpInside)
-    let remove = UIButton(type: .system)
-    remove.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
-    remove.setPreferredSymbolConfiguration(UIImage.SymbolConfiguration(pointSize: 13), forImageIn: .normal)
-    remove.tintColor = .tertiaryLabel
-    remove.accessibilityLabel = LodyStrings.text("native.chat.attachment.remove", ["name": item.name])
-    remove.addAction(UIAction { [weak self] _ in self?.onRemove?(item.id) }, for: .touchUpInside)
-    let surface = UIVisualEffectView(effect: nil)
-    let glass = UIGlassEffect(style: .regular)
-    glass.isInteractive = true
-    surface.effect = glass
-    surface.cornerConfiguration = .capsule()
-    surface.contentView.addSubview(button)
-    surface.contentView.addSubview(remove)
-    button.translatesAutoresizingMaskIntoConstraints = false
-    remove.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      button.topAnchor.constraint(equalTo: surface.contentView.topAnchor), button.bottomAnchor.constraint(equalTo: surface.contentView.bottomAnchor),
-      button.leadingAnchor.constraint(equalTo: surface.contentView.leadingAnchor), button.trailingAnchor.constraint(equalTo: surface.contentView.trailingAnchor),
-      remove.topAnchor.constraint(equalTo: surface.contentView.topAnchor), remove.bottomAnchor.constraint(equalTo: surface.contentView.bottomAnchor),
-      remove.trailingAnchor.constraint(equalTo: surface.contentView.trailingAnchor, constant: -4),
-      remove.widthAnchor.constraint(equalToConstant: 30),
-      surface.widthAnchor.constraint(lessThanOrEqualToConstant: 200),
-      surface.heightAnchor.constraint(equalToConstant: 34),
-    ])
-    return surface
+  }
+
+  func render(_ attachments: [ChatAttachment], animatedRemoval: Bool = false) {
+    let items = attachments.map { attachment -> CKAttachmentItem in
+      if let cached = projected[attachment.id], cached.source == attachment { return cached.item }
+      let type = UTType(filenameExtension: (attachment.name as NSString).pathExtension)
+      let symbol: String
+      if attachment.isImage { symbol = "photo" }
+      else if type?.conforms(to: .movie) == true { symbol = "video" }
+      else { symbol = "doc" }
+      let thumbnail = attachment.isImage ? ChatAttachment.thumbnail(attachment.url)?.preparingThumbnail(of: CGSize(width: 28, height: 28)) : nil
+      let item = CKAttachmentItem(id: attachment.id, name: attachment.name, symbol: symbol, thumbnail: thumbnail,
+        previewAccessibilityLabel: LodyStrings.text("native.chat.attachment.preview", ["name": attachment.name]),
+        removeAccessibilityLabel: LodyStrings.text("native.chat.attachment.remove", ["name": attachment.name]))
+      projected[attachment.id] = (attachment, item)
+      return item
+    }
+    let ids = Set(attachments.map(\.id))
+    projected = projected.filter { ids.contains($0.key) }
+    super.render(items, animatedRemoval: animatedRemoval)
+  }
+}
+
+extension UIPasteboard {
+  func setMessageMarkdown(_ markdown: String) {
+    items = [[UTType.utf8PlainText.identifier: markdown, "net.daringfireball.markdown": Data(markdown.utf8)]]
   }
 }

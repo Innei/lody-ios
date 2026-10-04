@@ -1,13 +1,16 @@
 import type { Catalog, Session } from '../../models/catalog.ts';
 
 export type SessionNavIntent =
-  | { kind: 'open'; session: Session }
+  | { kind: 'share'; workspaceId: string; sessionId: string }
+  | { kind: 'open'; session: Session; findQuery?: string }
   | {
       kind: 'create';
       workspaceId: string;
       catalog: Catalog;
       projectId?: string;
       context?: 'project' | 'chat';
+      morphSourceLabel?: string;
+      draft?: { text: string; attachmentsJSON: string };
     };
 
 type Stored = SessionNavIntent & {
@@ -57,8 +60,17 @@ async function flush() {
   }
 }
 
-export function requestOpenSession(session: Session) {
-  return enqueue({ kind: 'open', session });
+export function requestOpenSession(session: Session, findQuery?: string) {
+  return enqueue({ kind: 'open', session, findQuery });
+}
+export function requestShareSession(workspaceId: string, sessionId: string) {
+  // A transient share can open while the navigation mailbox awaits an open page.
+  const handler = handlers.at(-1);
+  if (!handler) return Promise.reject(new Error('Navigation unavailable'));
+  return handler.handle(
+    { kind: 'share', workspaceId, sessionId },
+    handler.controller.signal,
+  );
 }
 
 export function requestNewSession(
@@ -66,8 +78,18 @@ export function requestNewSession(
   catalog: Catalog,
   projectId?: string,
   context?: 'project' | 'chat',
+  morphSourceLabel?: string,
+  draft?: { text: string; attachmentsJSON: string },
 ) {
-  return enqueue({ kind: 'create', workspaceId, catalog, projectId, context });
+  return enqueue({
+    kind: 'create',
+    workspaceId,
+    catalog,
+    projectId,
+    context,
+    morphSourceLabel,
+    draft,
+  });
 }
 
 export function subscribeSessionNav(next: Handler) {

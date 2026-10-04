@@ -1,9 +1,11 @@
 import type { ExpoConfig } from 'expo/config';
 
+const fixtureBuild = process.env.EXPO_PUBLIC_UI_VERIFY === '1';
+
 const config: ExpoConfig = {
   name: 'Lody',
   slug: 'lody-ios',
-  version: '0.1.0',
+  version: '0.2.0',
   platforms: ['ios'],
   scheme: 'lody',
   orientation: 'portrait',
@@ -19,12 +21,24 @@ const config: ExpoConfig = {
       // Clear the old continued-processing declarations on incremental prebuilds.
       BGTaskSchedulerPermittedIdentifiers: [],
       UIBackgroundModes: [],
+      UIApplicationSceneManifest: {
+        UIApplicationSupportsMultipleScenes: false,
+        UISceneConfigurations: {
+          UIWindowSceneSessionRoleApplication: [
+            {
+              UISceneConfigurationName: 'Default Configuration',
+              UISceneDelegateClassName: '$(PRODUCT_MODULE_NAME).SceneDelegate',
+            },
+          ],
+        },
+      },
     },
   },
   plugins: [
     'expo-router',
     './plugins/withAnchoredOverlay',
     ['expo-dev-client', { toolsButton: false }],
+    './plugins/withSceneLifecycle',
     './plugins/withMarkdownView',
     './plugins/withLocales',
     './plugins/withLodyIcons',
@@ -37,12 +51,13 @@ const config: ExpoConfig = {
           'e383bf31-7c8e-4641-b3f6-3486e77b9a82',
       },
     ],
+    './plugins/withShareExtension',
   ],
   experiments: { typedRoutes: true, reactCompiler: true },
   runtimeVersion: { policy: 'fingerprint' },
   updates: {
     url: 'https://ota.innei.in/manifest',
-    enabled: true,
+    enabled: !fixtureBuild,
     fallbackToCacheTimeout: 0,
     requestHeaders: {
       'expo-channel-name': 'production',

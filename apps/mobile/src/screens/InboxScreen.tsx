@@ -1,4 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
+import { useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   NativeGroupedList,
   NativeMenuButton,
@@ -15,6 +17,10 @@ import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
 import { definePage, present } from '@/lib/presentation';
 import { t } from '@/lib/i18n';
 import { SettingsScreen } from './SettingsScreen';
+import {
+  WorkspaceEditorScreen,
+  workspaceEditActionId,
+} from './WorkspaceEditorScreen';
 
 function InboxList({ model }: { model: InboxModel }) {
   if (!model.ready || !model.account) return <Screen />;
@@ -29,7 +35,7 @@ function InboxList({ model }: { model: InboxModel }) {
       previewWorkspaceId={model.selected?.id}
       onRowPress={({ nativeEvent: { id, expanded } }) => {
         if (!model.consumeRowPress(id, expanded))
-          openCatalogRow(id, model.catalog);
+          openCatalogRow(id, model.catalog, model.query.trim() || undefined);
       }}
       onRowAction={({ nativeEvent: { id, actionId } }) =>
         model.rowAction(id, actionId)
@@ -40,6 +46,8 @@ function InboxList({ model }: { model: InboxModel }) {
 
 function RouterChrome({ model }: { model: InboxModel }) {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { account, colors, mode, selected, sort } = model;
   if (!model.ready || !account) return null;
   const workspaceName = selected?.name ?? t('common.workspace');
@@ -50,6 +58,10 @@ function RouterChrome({ model }: { model: InboxModel }) {
         <Stack.Toolbar.View>
           <NativeMenuButton
             testID="workspace-menu"
+            style={{
+              // Leave room for both trailing actions and UIKit's glass group margins.
+              maxWidth: Math.max(44, width - insets.left - insets.right - 192),
+            }}
             accessibilityName={t('inbox.workspaceSwitch.accessibility', {
               name: workspaceName,
             })}
@@ -59,12 +71,33 @@ function RouterChrome({ model }: { model: InboxModel }) {
               image: selected?.image,
             }}
             label={workspaceName}
-            items={account.workspaces.map((workspace) => ({
-              id: workspace.id,
-              title: workspace.name,
-              selected: workspace.id === selected?.id,
-            }))}
-            onSelect={model.setWorkspaceId}
+            items={[
+              ...account.workspaces.map((workspace) => ({
+                id: workspace.id,
+                title: workspace.name,
+                selected: workspace.id === selected?.id,
+              })),
+              ...(selected
+                ? [
+                    {
+                      id: workspaceEditActionId,
+                      title: t('workspace.edit.action'),
+                    },
+                  ]
+                : []),
+            ]}
+            onSelect={(id) => {
+              if (id === workspaceEditActionId && selected) {
+                void present(WorkspaceEditorScreen, {
+                  workspaceId: selected.id,
+                  name: selected.name,
+                  image: selected.image,
+                  color: colors.accent,
+                });
+                return;
+              }
+              model.setWorkspaceId(id);
+            }}
           />
         </Stack.Toolbar.View>
       </Stack.Toolbar>

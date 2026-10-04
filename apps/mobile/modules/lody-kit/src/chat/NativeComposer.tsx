@@ -3,7 +3,14 @@ import { useState, type ComponentProps, type ComponentType } from 'react';
 import type { NativeSyntheticEvent, ViewProps } from 'react-native';
 import type { NativeChat } from './NativeChat';
 
-type Props = ViewProps & { scrollEdge?: boolean; sendHandoff?: boolean } & Pick<
+type Props = ViewProps & {
+  scrollEdge?: boolean;
+  autoFocus?: boolean;
+  inputIdentifier?: string;
+  sendHandoff?: boolean;
+  composerRelay?: boolean;
+  onRelayReady?: () => void;
+} & Pick<
     ComponentProps<typeof NativeChat>,
     | 'composerJSON'
     | 'composerOptionsJSON'
@@ -11,6 +18,8 @@ type Props = ViewProps & { scrollEdge?: boolean; sendHandoff?: boolean } & Pick<
     | 'mentionResultJSON'
     | 'onMentionBrowse'
     | 'restoreDraftToken'
+    | 'initialDraft'
+    | 'initialAttachmentsJSON'
     | 'onSend'
     | 'onComposerOptionChange'
   >;

@@ -1,4 +1,9 @@
-import type { NativeListRow, NativeListSection } from '@lody-ios/kit';
+import type {
+  InboxSearchHits,
+  NativeListRow,
+  NativeListSection,
+} from '@lody-ios/kit';
+import { sessionTree } from './sessionTree.ts';
 import type { Catalog, Project, Session } from '../../models/catalog.ts';
 import {
   sessionIsUnread as unreadOf,
@@ -13,9 +18,22 @@ import {
   type PluralKey,
   type TranslationKey,
 } from '../../lib/i18n/index.ts';
+import {
+  isPinnedSectionRow,
+  orderPinned,
+  PINNED_SECTION_ID,
+  pinnedProjectSection,
+} from './inboxPinned.ts';
+
+export {
+  isPinnedSectionRow,
+  PINNED_SECTION_ID,
+  reconcilePinOrder,
+} from './inboxPinned.ts';
 
 const groups = [
   { id: 'attention', header: 'inbox.section.attention' },
+  { id: PINNED_SECTION_ID, header: 'inbox.section.pinned' },
   { id: 'live', header: 'inbox.section.live' },
   { id: 'unread', header: 'inbox.section.unread' },
   { id: 'today', header: 'inbox.section.today' },
@@ -45,12 +63,14 @@ export function isChatSectionRow(id: string) {
   );
 }
 export function projectIdOfRow(id: string) {
-  if (isChatSectionRow(id) || id.startsWith('view:')) return;
+  if (isChatSectionRow(id) || isPinnedSectionRow(id) || id.startsWith('view:'))
+    return;
   if (id.startsWith('toggle:')) return id.slice(7);
   if (id.startsWith('project:')) return id.slice(8);
 }
 export const byActivity = (a: Session, b: Session) =>
   Number(b.pinned) - Number(a.pinned) || activityAt(b) - activityAt(a);
+
 const badges: Partial<Record<SessionState, TranslationKey>> = {
   attention: 'inbox.badge.attention',
   failed: 'inbox.badge.failed',
@@ -72,6 +92,7 @@ const inboxGroup = (session: Session, now?: number) => {
   if (state === 'attention' || state === 'failed') return 'attention';
   if (state === 'live') return 'live';
   if (unreadOf(session)) return 'unread';
+  if (session.pinned) return PINNED_SECTION_ID;
   return activityBucket(activityAt(session), now);
 };
 
@@ -80,6 +101,7 @@ export type InboxOptions = {
   accent: string;
   now?: number;
   chatOnly?: boolean;
+  pinOrder?: string[];
 };
 
 export function activeSessionSections(catalog: Catalog, accent: string) {
@@ -109,7 +131,7 @@ function sessionPlace(session: Session, names: Map<string, string>) {
 
 export function inboxSections(
   catalog: Catalog,
-  { keyword = '', accent, now, chatOnly = false }: InboxOptions,
+  { keyword = '', accent, now, chatOnly = false, pinOrder = [] }: InboxOptions,
 ): NativeListSection[] {
   const names = new Map(catalog.projects.map((p) => [p.id, p.name]));
   const term = keyword.trim().toLocaleLowerCase();
@@ -133,7 +155,11 @@ export function inboxSections(
     else buckets.set(id, [session]);
   }
   return groups.flatMap((group) => {
-    const rows = (buckets.get(group.id) ?? []).map((session) => {
+    const sessions =
+      group.id === PINNED_SECTION_ID
+        ? orderPinned(buckets.get(group.id) ?? [], pinOrder, activityAt)
+        : (buckets.get(group.id) ?? []);
+    const rows = sessionTreeRows(sessions, catalog.sessions, (session) => {
       const state = stateOf(session);
       return {
         id: session.id,
@@ -189,11 +215,28 @@ const newChatAction = () => ({
   title: t('session.action.newChat'),
   symbol: 'square.and.pencil',
 });
+const renameAction = () => ({
+  id: 'rename',
+  title: t('session.action.rename'),
+  symbol: 'pencil',
+});
+const shareAction = () => ({
+  id: 'share',
+  title: t('session.action.share'),
+  symbol: 'square.and.arrow.up',
+});
 const sessionMenu = (session: Session) => ({
   menuActions: [
-    newSessionAction(),
+    renameAction(),
     pinAction(session.pinned),
     archiveAction(session.archived),
+    shareAction(),
+    {
+      id: 'delete',
+      title: t('session.action.delete'),
+      symbol: 'trash',
+      destructive: true,
+    },
   ],
   preview: 'session' as const,
 });
@@ -307,6 +350,36 @@ export function sessionRow(
   };
 }
 
+export function sessionTreeRows(
+  sessions: Session[],
+  allSessions: Session[],
+  rowOf: (session: Session) => NativeListRow,
+  maxRoots = Infinity,
+): NativeListRow[] {
+  return sessionTree(sessions, allSessions)
+    .slice(0, maxRoots)
+    .flatMap(({ session, children }) => {
+      const row = rowOf(session);
+      if (!children.length) return [row];
+      const members = [session, ...children];
+      const urgent = ['attention', 'failed', 'live'].flatMap((state) =>
+        members.filter((member) => stateOf(member) === state),
+      )[0];
+      const status = urgent ? rowOf(urgent) : row;
+      return [
+        {
+          ...row,
+          collapsedValue: tp('inbox.session.children', children.length, {
+            count: children.length,
+          }),
+          collapsedBadge: status.badge,
+          collapsedImageTint: status.imageTint,
+        },
+        ...children.map((child) => ({ ...rowOf(child), parentId: session.id })),
+      ];
+    });
+}
+
 const countKeys = {
   failed: 'inbox.project.failed',
   attention: 'inbox.project.attention',
@@ -341,6 +414,13 @@ function projectTrailing(
 
 const homePath = (path = '') => path.replace(/^\/(Users|home)\/[^/]+/, '~');
 
+const ownerAvatar = (repo = '') => {
+  const owner = repo.split('/')[0];
+  return owner
+    ? `https://avatars.githubusercontent.com/${encodeURIComponent(owner)}?size=96`
+    : undefined;
+};
+
 function projectRow(
   project: Project,
   sessions: Session[],
@@ -351,6 +431,7 @@ function projectRow(
     id: sessions.length ? `toggle:${project.id}` : `project:${project.id}`,
     parent: true,
     monogram: project.name.slice(0, 1),
+    image: ownerAvatar(project.repoFullName),
     title: project.name,
     subtitle: homePath(project.rootPath),
     subtitleMono: true,
@@ -365,16 +446,20 @@ function sessionGroup(
   parent: NativeListRow,
   sessions: Session[],
   accent: string,
-  now?: number,
+  now: number | undefined,
+  allSessions: Session[],
   moreId = `project:${id}`,
 ): NativeListSection {
   const rows = [
     parent,
-    ...sessions
-      .slice(0, 5)
-      .map((session) => sessionRow(session, accent, '', now)),
+    ...sessionTreeRows(
+      sessions,
+      allSessions,
+      (session) => sessionRow(session, accent, '', now),
+      5,
+    ),
   ];
-  const rest = sessions.length - 5;
+  const rest = sessions.length - (rows.length - 1);
   if (rest > 0) {
     rows.push({
       id: moreId,
@@ -393,56 +478,76 @@ export function projectSections(
   expanded: Record<string, boolean> = {},
   now?: number,
   sort: ProjectSort = 'name',
+  pinOrder: string[] = [],
 ): NativeListSection[] {
-  const projects = sortCatalogProjects(
-    catalog.projects,
-    catalog.sessions,
-    sort,
+  const unpinned = catalog.sessions.filter(
+    (session) => !session.pinned && !session.archived,
   );
-  const sections = projects.map((project) => {
-    const sessions = catalog.sessions
-      .filter((s) => s.projectId === project.id && !s.archived)
+  const pinned = orderPinned(
+    catalog.sessions.filter((session) => session.pinned && !session.archived),
+    pinOrder,
+    activityAt,
+  );
+  const projects = sortCatalogProjects(catalog.projects, unpinned, sort);
+  const sections: NativeListSection[] = projects.map((project) => {
+    const sessions = unpinned
+      .filter((s) => s.projectId === project.id)
       .sort(byActivity);
     const open = expanded[project.id] ?? true;
     const parent = projectRow(project, sessions, open, accent);
-    const group = sessionGroup(project.id, parent, sessions, accent, now);
-    return { ...group, headerExpanded: open };
-  });
-  const chats = catalog.sessions
-    .filter((session) => isChatSession(session) && !session.archived)
-    .sort(byActivity);
-  if (!chats.length) return sections;
-  const open = expanded[CHAT_SECTION_ID] ?? true;
-  const title = t('inbox.section.chat');
-  sections.push({
-    ...sessionGroup(
-      CHAT_SECTION_ID,
-      {
-        id: `toggle:${CHAT_SECTION_ID}`,
-        parent: true,
-        image: 'bubble.left',
-        title,
-        action: true,
-        menuActions: [newChatAction()],
-        ...projectTrailing(chats, open, accent),
-      },
-      chats,
+    const group = sessionGroup(
+      project.id,
+      parent,
+      sessions,
       accent,
       now,
-      `view:${CHAT_SECTION_ID}`,
-    ),
-    headerExpanded: open,
+      catalog.sessions,
+    );
+    return { ...group, headerExpanded: open };
   });
+  const chats = unpinned.filter(isChatSession).sort(byActivity);
+  if (chats.length) {
+    const open = expanded[CHAT_SECTION_ID] ?? true;
+    const title = t('inbox.section.chat');
+    sections.push({
+      ...sessionGroup(
+        CHAT_SECTION_ID,
+        {
+          id: `toggle:${CHAT_SECTION_ID}`,
+          parent: true,
+          image: 'bubble.left',
+          title,
+          action: true,
+          menuActions: [newChatAction()],
+          ...projectTrailing(chats, open, accent),
+        },
+        chats,
+        accent,
+        now,
+        catalog.sessions,
+        `view:${CHAT_SECTION_ID}`,
+      ),
+      headerExpanded: open,
+    });
+  }
+  if (!pinned.length) return sections;
+  sections.unshift(
+    pinnedProjectSection(
+      sessionTreeRows(pinned, catalog.sessions, (session) =>
+        sessionRow(session, accent, '', now),
+      ),
+      expanded,
+    ),
+  );
   return sections;
 }
 
-export function searchSections(
+export function matchCatalog(
   catalog: Catalog,
   keyword: string,
-  accent: string,
-): NativeListSection[] {
+): InboxSearchHits {
   const term = keyword.trim().toLocaleLowerCase();
-  if (!term) return [];
+  if (!term) return { projectIds: [], sessions: [] };
   const names = new Map(catalog.projects.map((p) => [p.id, p.name]));
   const projects = catalog.projects.filter(
     (p) => !isChatProjectId(p.id) && p.name.toLocaleLowerCase().includes(term),
@@ -451,6 +556,24 @@ export function searchSections(
     .filter((s) =>
       `${s.title} ${sessionPlace(s, names)}`.toLocaleLowerCase().includes(term),
     )
+    .sort(byActivity);
+  return {
+    projectIds: projects.map((p) => p.id),
+    sessions: sessions.map((s) => ({ id: s.id, snippet: null })),
+  };
+}
+
+export function searchSections(
+  catalog: Catalog,
+  hits: InboxSearchHits,
+  accent: string,
+): NativeListSection[] {
+  const names = new Map(catalog.projects.map((p) => [p.id, p.name]));
+  const projectIds = new Set(hits.projectIds);
+  const matches = new Map(hits.sessions.map((hit) => [hit.id, hit.snippet]));
+  const projects = catalog.projects.filter((p) => projectIds.has(p.id));
+  const sessions = catalog.sessions
+    .filter((s) => matches.has(s.id))
     .sort(byActivity);
   return [
     {
@@ -470,7 +593,13 @@ export function searchSections(
     {
       id: 'sessions',
       header: t('inbox.section.sessions'),
-      rows: sessions.map((s) => sessionRow(s, accent, sessionPlace(s, names))),
+      rows: sessionTreeRows(sessions, catalog.sessions, (s) => {
+        const row = sessionRow(s, accent, sessionPlace(s, names));
+        const snippet = matches.get(s.id);
+        return snippet == null
+          ? row
+          : { ...row, subtitle: snippet, subtitleMono: false };
+      }),
     },
   ].filter((section) => section.rows.length);
 }

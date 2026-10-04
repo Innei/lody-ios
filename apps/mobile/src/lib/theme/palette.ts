@@ -1,3 +1,4 @@
+import { accentHex, accentForegroundHex } from '@lody-ios/kit';
 import { PlatformColor, useColorScheme } from 'react-native';
 import { DarkTheme, DefaultTheme } from 'expo-router';
 import { useAppearance } from './appearance';
@@ -6,7 +7,6 @@ import {
   danger,
   inset,
   label,
-  onAccent,
   opaqueCard,
   separator,
   softDarkBackground,
@@ -31,14 +31,14 @@ export type ColorRole =
 
 export function usePalette() {
   const theme: ThemeName = useColorScheme() === 'dark' ? 'dark' : 'light';
-  const { darkBackground } = useAppearance();
+  const { darkBackground, accentColor } = useAppearance();
   const comfortable = theme === 'dark' && darkBackground === 'soft';
   return {
     theme,
     label: PlatformColor('label'),
     secondaryLabel: PlatformColor('secondaryLabel'),
     tertiaryLabel: PlatformColor('tertiaryLabel'),
-    accent: accent[theme],
+    accent: accentHex(accentColor, theme === 'dark'),
     warning: PlatformColor('systemOrange'),
     danger: PlatformColor('systemRed'),
     background: comfortable
@@ -51,7 +51,7 @@ export function usePalette() {
     inset: inset[theme],
     separator: PlatformColor('separator'),
     fill: PlatformColor('tertiarySystemFill'),
-    onAccent,
+    onAccent: accentForegroundHex(accentColor),
   } as const;
 }
 

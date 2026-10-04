@@ -9,7 +9,7 @@ final class ChatCameraPage: UIView, OverlayPageActivity, OverlayContentSafeArea,
   var onRequestAccess: (() -> Void)?
   var onPick: ((ChatAttachment) -> Void)?
   private let camera = ChatCameraCapture()
-  private lazy var cameraView = ChatAttachmentCameraView(session: camera.session)
+  private lazy var cameraView = ChatAttachmentOverlayCameraView(session: camera.session)
   private var active = false
   private var handingOff = false
   var overlayExtendsToEdges: Bool { true }

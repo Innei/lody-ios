@@ -10,13 +10,11 @@ final class SessionBackgroundTasks {
     let task: UIBackgroundTaskIdentifier
   }
   private var work: [String: Work] = [:]
-  #if DEBUG
   private(set) var debugState = "idle"
   var debugCount: Int { work.count }
   func debugExpire() {
     for id in work.keys { expire(id) }
   }
-  #endif
 
   func begin(owner: String) -> String? {
     guard UIApplication.shared.applicationState == .active else { return nil }
@@ -25,15 +23,11 @@ final class SessionBackgroundTasks {
       self?.expire(id)
     }
     guard task != .invalid else {
-      #if DEBUG
       debugState = "unavailable"
-      #endif
       return nil
     }
     work[id] = Work(owner: owner, task: task)
-    #if DEBUG
     debugState = "running"
-    #endif
     return id
   }
 
@@ -50,17 +44,13 @@ final class SessionBackgroundTasks {
   private func expire(_ id: String) {
     guard work[id] != nil else { return }
     finish(id, success: false)
-    #if DEBUG
     debugState = "expired"
-    #endif
   }
 
   func finish(_ id: String, success: Bool) {
     guard let current = work.removeValue(forKey: id) else { return }
     UIApplication.shared.endBackgroundTask(current.task)
-    #if DEBUG
     debugState = success ? "completed" : "stopped"
-    #endif
   }
 
   func finishAll(owner: String) {

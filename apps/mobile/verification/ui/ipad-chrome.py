@@ -31,12 +31,27 @@ def assert_selected(stage, identifier='ui-design', selected=True):
     processes = subprocess.check_output(['xcrun', 'simctl', 'spawn', ui.udid, 'launchctl', 'list'], text=True)
     pid = next(line.split()[0] for line in processes.splitlines() if 'UIKitApplication:app.innei.lody[' in line)
     expression = '''({ NSMutableArray *q = [NSMutableArray array];
+      NSMutableArray *controllers = [NSMutableArray array];
       for (UIWindowScene *scene in [[UIApplication sharedApplication] connectedScenes]) {
-        if ([scene isKindOfClass:[UIWindowScene class]]) [q addObjectsFromArray:(NSArray *)[scene windows]];
+        if (![scene isKindOfClass:[UIWindowScene class]]) continue;
+        for (UIWindow *window in [scene windows]) {
+          if (window.rootViewController) [controllers addObject:window.rootViewController];
+        }
       }
+      /* A pushed controller detaches the previous view from the window,
+         but its loaded collection owns selection until navigation returns. */
+      for (NSUInteger i = 0; i < [controllers count]; i++) {
+        UIViewController *controller = controllers[i];
+        if (controller.viewIfLoaded) [q addObject:controller.viewIfLoaded];
+        [controllers addObjectsFromArray:controller.childViewControllers];
+        if (controller.presentedViewController) [controllers addObject:controller.presentedViewController];
+      }
+      NSHashTable *visited = [NSHashTable hashTableWithOptions:NSPointerFunctionsObjectPointerPersonality];
       NSMutableArray *result = [NSMutableArray array];
       for (NSUInteger i = 0; i < [q count]; i++) {
         UIView *v = q[i];
+        if ([visited containsObject:v]) continue;
+        [visited addObject:v];
         if ([[v accessibilityIdentifier] isEqualToString:@"IDENTIFIER"] && [v isKindOfClass:[UICollectionViewCell class]]) {
           [result addObject:@{@"selected": @([(UICollectionViewCell *)v isSelected]),
             @"selectedTrait": @(([v accessibilityTraits] & UIAccessibilityTraitSelected) != 0)}];
@@ -67,12 +82,14 @@ view_menu = labeled(catalog.text('inbox.settings.section.view'))['frame']
 workspace_item = ui.wait(lambda items: next((item for item in items if (item.get('AXLabel') or '').startswith('Switch workspace,')), None), 'Missing workspace switch')
 workspace = workspace_item['frame']
 fab = labeled(catalog.text('tabs.newSession'))['frame']
-assert settings['y'] < search['y'] < panel['y'] + 150
-assert settings['x'] < view_menu['x'] < panel['x'] + panel['width'] / 2
-assert workspace['y'] > panel['y'] + panel['height'] - 110
+assert workspace['y'] + workspace['height'] <= search['y'] < panel['y'] + 150
 assert workspace['x'] < panel['x'] + 40
-assert workspace['x'] + workspace['width'] < fab['x']
-assert abs(workspace['y'] - fab['y']) < 10
+assert workspace['x'] + workspace['width'] <= panel['x'] + panel['width'] - 8
+assert view_menu['x'] < settings['x'] < fab['x']
+for action in (settings, view_menu):
+    assert action['y'] > panel['y'] + panel['height'] - 110
+    assert abs(action['y'] - fab['y']) < 10
+assert workspace['width'] >= 44 and workspace['height'] >= 44
 assert fab['width'] >= 44 and fab['height'] >= 44
 assert fab['x'] > panel['x'] + panel['width'] - 100
 assert fab['y'] > panel['y'] + panel['height'] - 110
@@ -80,7 +97,40 @@ ui.capture('sidebar-glass-fab')
 
 tap_label(workspace_item['AXLabel'])
 labeled('我的超长工作区名称不能折行')
+edit_workspace = labeled(catalog.text('workspace.edit.action'))
+assert 'selected' not in str(edit_workspace.get('traits') or []).lower(), edit_workspace
 ui.capture('workspace-menu')
+tap_label(catalog.text('workspace.edit.action'))
+ui.element('workspace-name')
+ui.capture('workspace-editor')
+ui.axe('tap', '--label', catalog.text('workspace.edit.changeIcon'), '--post-delay', '1')
+picker_cancel = ui.wait(
+    lambda _items: (
+        item
+        if (item := json.loads(ui.axe('describe-ui', '--point', '91,302'))).get('AXLabel') == catalog.system('cancel')
+        else None
+    ),
+    'Photo picker must present its cancel button',
+    timeout=10,
+)
+ui.capture('workspace-icon-picker')
+ui.axe('tap', '-x', '355', '-y', '520', '--post-delay', '1.5')
+ui.wait(
+    lambda _items: (
+        True
+        if json.loads(ui.axe('describe-ui', '--point', '91,302')).get('AXLabel') != catalog.system('cancel')
+        else None
+    ),
+    'Photo picker must dismiss after selecting an icon',
+    timeout=10,
+)
+ui.element('workspace-name')
+ui.capture('workspace-icon-updated')
+tap_label(catalog.text('common.cancel'))
+tap_label(workspace_item['AXLabel'])
+edit_workspace = labeled(catalog.text('workspace.edit.action'))
+assert 'selected' not in str(edit_workspace.get('traits') or []).lower(), edit_workspace
+ui.capture('workspace-menu-after-edit')
 tap_label('我的超长工作区名称不能折行')
 
 # Selection belongs to the sidebar's detail, including across outline updates.
@@ -214,4 +264,4 @@ ui.element('session-input')
 ui.capture('handoff-landed')
 trace.verify(1)
 
-print('PASS: Native toolbar, window form navigation, search, navigating-row selection until return, and first-message handoff into the iPad detail.')
+print('PASS: Native toolbar, workspace editor, window form navigation, search, navigating-row selection until return, and first-message handoff into the iPad detail.')

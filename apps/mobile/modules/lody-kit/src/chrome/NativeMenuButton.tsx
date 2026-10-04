@@ -33,9 +33,12 @@ export function NativeMenuButton({
   return (
     <NativeView
       {...props}
+      collapsable={false}
       style={[{ width, height: 44 }, style]}
       onSelect={({ nativeEvent }) => onSelect(nativeEvent.id)}
-      onSize={({ nativeEvent }) => setWidth(Math.ceil(nativeEvent.width))}
+      onSize={({ nativeEvent }) => {
+        setWidth(Math.ceil(nativeEvent.width));
+      }}
     />
   );
 }

@@ -41,6 +41,35 @@ def stop_process(process):
             process.wait()
 
 
+def load_expo_manifest(port, timeout=60):
+    request = Request(
+        f'http://127.0.0.1:{port}/?disableOnboarding=1',
+        headers={'expo-platform': 'ios', 'accept': 'application/expo+json'},
+    )
+    with urlopen(request, timeout=timeout) as response:
+        return json.load(response)
+
+
+def read_launch_asset(url, timeout=120):
+    with urlopen(url, timeout=timeout) as response:
+        return response.read()
+
+
+def prewarm_bundle(port, attempts=3, manifest_timeout=60, asset_timeout=120, pause=1):
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            manifest = load_expo_manifest(port, manifest_timeout)
+            read_launch_asset(manifest['launchAsset']['url'], asset_timeout)
+            return manifest
+        except Exception as error:
+            last_error = error
+            if attempt + 1 == attempts:
+                break
+            time.sleep(pause)
+    raise TimeoutError(f'Metro bundle prewarm failed after {attempts} attempts') from last_error
+
+
 @contextmanager
 def managed_metro(root, port, output):
     # Never attach a verification run to another task's server/bundle.
@@ -76,12 +105,11 @@ def managed_metro(root, port, output):
                     raise TimeoutError('Metro did not become ready')
                 time.sleep(.5)
             diagnose_metro(port, output, 'startup', metro)
-            request = Request(f'http://127.0.0.1:{port}/?disableOnboarding=1',
-                              headers={'expo-platform': 'ios', 'accept': 'application/expo+json'})
-            with urlopen(request, timeout=30) as response:
-                manifest = json.load(response)
-            with urlopen(manifest['launchAsset']['url'], timeout=90) as response:
-                response.read()
+            try:
+                prewarm_bundle(port)
+            except Exception:
+                diagnose_metro(port, output, 'startup', metro)
+                raise
             yield
         finally:
             stop_process(metro)

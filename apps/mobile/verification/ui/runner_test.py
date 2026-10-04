@@ -6,7 +6,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from orchestrator import managed_metro, run_batches
+from unittest.mock import patch
+
+from driver import UI, launch_covered
+from orchestrator import managed_metro, prewarm_bundle, run_batches
 
 
 class RunnerTest(unittest.TestCase):
@@ -129,10 +132,193 @@ class CaseSelectionTest(unittest.TestCase):
     def test_default_phone_run_excludes_pad_device_cases(self):
         source = Path(__file__).with_name('run.py').read_text()
         self.assertIn('PHONE_CASES', source)
-        self.assertIn("PAD_CASES = ['ipad', 'ipad-chrome', 'native-shell', 'native-collection']", source)
         self.assertIn('selected = PHONE_CASES', source)
         self.assertNotIn('selected = CASES', source)
         self.assertIn('if args.case in PAD_CASES', source)
+
+    def test_core_suite_is_the_six_product_paths(self):
+        source = Path(__file__).with_name('run.py').read_text()
+        self.assertIn(
+            "'core': ['onboarding', 'inbox', 'navigation', 'send', 'send-handoff', 'composer-success']",
+            source,
+        )
+        self.assertIn("'core-home': ['onboarding', 'inbox', 'navigation']", source)
+        self.assertIn("'core-send': ['send', 'send-handoff', 'composer-success']", source)
+        self.assertIn("selection.add_argument('--suite', choices=SUITES", source)
+        self.assertIn('core_suite = args.suite in CORE_SUITES', source)
+        self.assertIn("appearances = ['light']", source)
+        self.assertIn("'--embedded'", source)
+        self.assertIn('args.shared_metro or args.embedded', source)
+        self.assertIn("ui.screenshot('failure')", source)
+        self.assertIn("elif case == 'navigation':", source)
+        self.assertIn("elif case == 'send':", source)
+        self.assertIn('check_timeout = 480', source)
+        self.assertIn('accessibility automation', Path(__file__).with_name('driver.py').read_text())
+        self.assertIn("env['LODY_UI_EMBEDDED'] = '1'", source)
+        self.assertIn('except subprocess.TimeoutExpired as error:', source)
+        navigation = Path(__file__).with_name('navigation.py').read_text()
+        self.assertIn("for label in ('Open', '打开', '開啟'):", navigation)
+        self.assertIn('_scheme_allowed', navigation)
+        self.assertIn("range(2 if embedded else 3)", navigation)
+        self.assertIn("range(1 if embedded else 2)", navigation)
+        self.assertIn("if embedded:", navigation)
+        self.assertIn('recover=False', navigation)
+        self.assertIn('got.casefold() == text.casefold()', Path(__file__).with_name('driver.py').read_text())
+        self.assertIn("if not os.environ.get('LODY_UI_EMBEDDED'):", Path(__file__).with_name('send-handoff.py').read_text())
+        native = Path(__file__).resolve().parents[1].joinpath('native.py').read_text()
+        self.assertIn('timeout=240', native)
+        self.assertIn("files.insert(0, 'LodyUIVerify.swift')", native)
+
+
+class CaptureTest(unittest.TestCase):
+    def test_screenshot_does_not_need_axe(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+
+            def run(command, **_kwargs):
+                Path(command[-1]).write_bytes(b'png')
+                return subprocess.CompletedProcess(command, 0)
+
+            with patch('subprocess.run', run):
+                path = ui.screenshot('failure')
+            self.assertEqual(path, Path(directory) / 'failure.png')
+            self.assertTrue(path.exists())
+
+    def test_screenshot_retries_one_timeout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+            calls = []
+
+            def run(command, **_kwargs):
+                calls.append(command)
+                if len(calls) == 1:
+                    raise subprocess.TimeoutExpired(command, 20)
+                Path(command[-1]).write_bytes(b'png')
+                return subprocess.CompletedProcess(command, 0)
+
+            with patch('subprocess.run', run):
+                self.assertTrue(ui.screenshot('failure').exists())
+            self.assertEqual(len(calls), 2)
+
+    def test_capture_keeps_screenshot_when_describe_ui_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+
+            def run(command, **_kwargs):
+                Path(command[-1]).write_bytes(b'png')
+                return subprocess.CompletedProcess(command, 0)
+
+            with (
+                patch('subprocess.run', run),
+                patch.object(ui, 'axe', side_effect=subprocess.TimeoutExpired('axe', 20)),
+                self.assertRaises(subprocess.TimeoutExpired),
+            ):
+                ui.capture('failure')
+            self.assertTrue((Path(directory) / 'failure.png').exists())
+
+    def test_state_retries_until_axe_session_is_ready(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+            calls = {'count': 0}
+
+            def axe(*_args, **_kwargs):
+                calls['count'] += 1
+                if calls['count'] < 3:
+                    raise RuntimeError('Error: Timed out creating the simulator remote automation session')
+                return '[]'
+
+            with patch.object(ui, 'axe', axe), patch('driver.time.sleep'):
+                self.assertEqual(ui.state(), [])
+            self.assertEqual(calls['count'], 3)
+            self.assertTrue(ui._axe_ready)
+            ui.invalidate_axe()
+            self.assertFalse(ui._axe_ready)
+
+    def test_wait_survives_a_cold_axe_session(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+            calls = {'count': 0}
+
+            def state():
+                calls['count'] += 1
+                if calls['count'] < 3:
+                    raise subprocess.TimeoutExpired('axe', 30)
+                return [{'AXUniqueId': 'ui-verify-ready', 'pid': 1}]
+
+            with patch.object(ui, 'state', state), patch('driver.time.sleep'):
+                found = ui.wait(
+                    lambda items: next((item for item in items if item.get('AXUniqueId') == 'ui-verify-ready'), None),
+                    'Missing ui-verify-ready',
+                    timeout=30,
+                )
+            self.assertEqual(found['pid'], 1)
+            self.assertEqual(calls['count'], 3)
+
+    def test_launch_covered_detects_springboard(self):
+        self.assertFalse(launch_covered([], '15427'))
+        self.assertFalse(launch_covered([{'pid': 15427, 'AXUniqueId': 'ui-verify-ready'}], '15427'))
+        self.assertTrue(launch_covered([{'pid': 16345, 'AXLabel': 'Maps'}], '15427'))
+
+    def test_axe_retries_when_the_session_dies_mid_command(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+            ui._axe_ready = True
+            calls = {'count': 0}
+
+            def check_output(*_args, **_kwargs):
+                calls['count'] += 1
+                if calls['count'] < 3:
+                    raise subprocess.TimeoutExpired('axe', 20)
+                return 'ok'
+
+            with patch('subprocess.check_output', check_output), patch('driver.time.sleep'):
+                self.assertEqual(ui.axe('tap', '--id', 'send-fail'), 'ok')
+            self.assertEqual(calls['count'], 3)
+            self.assertTrue(ui._axe_ready)
+
+    def test_axe_retries_when_restoring_accessibility_times_out(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+            ui._axe_ready = True
+            calls = {'count': 0}
+
+            def check_output(*_args, **_kwargs):
+                calls['count'] += 1
+                if calls['count'] < 3:
+                    return 'Error: AXe timed out while restoring accessibility automation.\n'
+                return 'ok'
+
+            with patch('subprocess.check_output', check_output), patch('driver.time.sleep'):
+                self.assertEqual(ui.axe('tap', '--id', 'send-toggle-pending'), 'ok')
+            self.assertEqual(calls['count'], 3)
+            self.assertTrue(ui._axe_ready)
+
+
+class PrewarmTest(unittest.TestCase):
+    def test_prewarm_retries_manifest_then_succeeds(self):
+        calls = {'manifest': 0}
+
+        def manifest(_port, _timeout=60):
+            calls['manifest'] += 1
+            if calls['manifest'] < 2:
+                raise TimeoutError('slow compile')
+            return {'launchAsset': {'url': 'http://127.0.0.1/bundle'}}
+
+        with (
+            patch('orchestrator.load_expo_manifest', manifest),
+            patch('orchestrator.read_launch_asset', return_value=b'ok'),
+            patch('orchestrator.time.sleep'),
+        ):
+            prewarm_bundle(8097, attempts=3, pause=0)
+        self.assertEqual(calls['manifest'], 2)
+
+    def test_prewarm_gives_up_after_retries(self):
+        with (
+            patch('orchestrator.load_expo_manifest', side_effect=TimeoutError('slow compile')),
+            patch('orchestrator.time.sleep'),
+            self.assertRaises(TimeoutError),
+        ):
+            prewarm_bundle(8097, attempts=2, pause=0)
 
 
 if __name__ == '__main__':

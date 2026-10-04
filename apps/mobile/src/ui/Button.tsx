@@ -12,6 +12,7 @@ export function Button({
   variant = 'plain',
   disabled = false,
   destructive = false,
+  radius = 14,
   testID,
   style,
 }: {
@@ -21,6 +22,7 @@ export function Button({
   variant?: ButtonVariant;
   disabled?: boolean;
   destructive?: boolean;
+  radius?: number;
   testID?: string;
   style?: StyleProp<ViewStyle>;
 }) {
@@ -52,7 +54,9 @@ export function Button({
         style,
       ]}
     >
-      {glass ? <NativeGlassSurface radius={14} tint={colors.accent} /> : null}
+      {glass ? (
+        <NativeGlassSurface radius={radius} tint={colors.accent} />
+      ) : null}
       <AppText
         variant="body"
         style={{

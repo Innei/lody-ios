@@ -1,3 +1,4 @@
+import ChatKitCore
 import Foundation
 
 let json = """
@@ -20,7 +21,7 @@ let finished = json.replacingOccurrences(of: "\"finished\":false", with: "\"fini
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(finished.utf8))
 assert(!streaming.contains { $0.kind == "meta" }, "A live reply must not offer completed-message actions")
 assert(transcript.rows().filter { $0.kind != "meta" }.map(\.id) == streaming.map(\.id), "Completion preserves existing main-list rows")
-assert(!transcript.rows().contains { $0.kind == "meta" }, "Old replies do not invent model metadata")
+assert(transcript.rows().contains { $0.kind == "meta" && $0.text.isEmpty }, "Old replies retain actions without inventing metadata")
 assert(transcript.rows(processEntryID: "reply").map(\.id) == process.map(\.id), "The process sheet stays flat after completion")
 let failure = finished.replacingOccurrences(of: "\"status\":\"completed\"", with: "\"status\":\"failed\"")
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(failure.utf8))
@@ -30,6 +31,22 @@ let failedSummary = transcript.rows().first { $0.kind == "summary" }!
 assert(!failedSummary.text.contains("native.chat.transcript.status.failed"), failedSummary.text)
 assert(failedSummary.text.contains("native.chat.transcript.activity.thought"), failedSummary.text)
 assert(failedSummary.text.contains("native.chat.transcript.activity.tools"), failedSummary.text)
+assert(failedSummary.symbol == "exclamationmark.triangle.fill",
+  "A failed tool in the process must replace the status pip with a warning mark")
+assert(!failedSummary.shines, "A finished process must not shine")
+
+let liveFailedJSON = """
+[{"id":"live-fail","role":"assistant","status":"running","finished":false,"items":[
+{"itemId":"intro","type":"thought","text":"先检查"},
+{"itemId":"tool","type":"tool_call","title":"读取文件","status":"failed"}]}]
+"""
+transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(liveFailedJSON.utf8))
+let liveFailed = transcript.rows().first { $0.kind == "summary" }!
+assert(liveFailed.attention)
+assert(liveFailed.running)
+assert(liveFailed.shines, "A live process with a failed tool must keep the shine")
+assert(liveFailed.symbol == "exclamationmark.triangle.fill",
+  "A live process with a failed tool must show a warning mark instead of the pip")
 let permission = finished.replacingOccurrences(of: "\"status\":\"completed\"", with: "\"permission\":{\"requestId\":\"p\",\"pending\":true}")
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(permission.utf8))
 assert(transcript.rows().contains { $0.kind == "summary" && $0.attention })
@@ -61,16 +78,32 @@ assert(transcript.rows().map(\.kind) == ["text", "summary", "text", "summary", "
 assert(transcript.rows(processEntryID: "steps", processStartID: "think1").map(\.itemID) == ["think1", "read"])
 assert(transcript.rows(processEntryID: "steps", processStartID: "think2").map(\.itemID) == ["think2", "write"])
 transcript.entries[0].finished = true
-assert(transcript.rows().map(\.kind) == ["summary", "text"])
+assert(transcript.rows().map(\.kind) == ["summary", "text", "meta"])
 assert(transcript.rows().last(where: { $0.kind == "text" })?.itemID == "final")
 transcript.entries[0].modelInfo = ChatEntry.ModelInfo(modelId: "actual", name: "Actual Model", thoughtLevel: "High")
 assert(transcript.rows().last?.text == "Actual Model · High")
+assert(transcript.rows().last?.imageAsset == "", "Unknown models must not invent a provider mark")
+assert(LodyAgentIcon.asset(modelId: "gpt-5.6-sol", name: "GPT-5.6 Sol") == "lody-agent-openai")
+assert(LodyAgentIcon.asset(modelId: "claude-opus-4", name: "Opus 4") == "lody-agent-claude")
+assert(LodyAgentIcon.asset(modelId: "grok-4.6", name: nil) == "lody-agent-grok")
+assert(LodyAgentIcon.asset(modelId: "kimi-code", name: nil) == "lody-agent-kimi")
+assert(LodyAgentIcon.asset(modelId: "gemini-2.5-pro", name: "Gemini 2.5 Pro") == "lody-agent-gemini")
+assert(LodyAgentIcon.asset(modelId: "actual", name: "Actual Model") == nil)
 let modelOnlyJSON = """
 [{"id":"no-text","role":"assistant","status":"completed","finished":true,
 "modelInfo":{"modelId":"id-only"},"items":[]}]
 """
 let modelOnlyRows = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(modelOnlyJSON.utf8))).rows()
 assert(modelOnlyRows.last?.text == "id-only", "Model-only replies still show metadata")
+assert(modelOnlyRows.last?.imageAsset == "", "An unmatched model id stays text-only")
+let openaiMetaJSON = """
+[{"id":"openai-meta","role":"assistant","status":"completed","finished":true,
+"modelInfo":{"modelId":"gpt-5.6-sol","name":"GPT-5.6 Sol","thoughtLevel":"High"},"items":[]}]
+"""
+let openaiMetaRows = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(openaiMetaJSON.utf8))).rows()
+assert(openaiMetaRows.last?.kind == "meta")
+assert(openaiMetaRows.last?.text == "GPT-5.6 Sol · High")
+assert(openaiMetaRows.last?.imageAsset == "lody-agent-openai", "Known providers put their mark on the model line")
 assert(transcript.rows(processEntryID: "steps").map(\.itemID) == ["first", "think1", "read", "middle", "think2", "write"])
 assert(transcript.rows(processEntryID: "steps", processStartID: "think1").map(\.itemID) == ["think1", "read"], "An open segment must not change scope on completion")
 print("Chat folding: live text boundaries, scoped process, and conclusion-only completion passed")
@@ -126,6 +159,19 @@ assert(finishedDurationRows.map(\.kind) == ["duration", "text", "meta"],
 let finishedDurationRow = finishedDurationRows.first
 assert(finishedDurationRow?.workDurationMs == 125_000, "A finished turn must freeze at endedAt")
 assert(finishedDurationRow?.actionable == true, "The merged work row must open the process")
+let timedThoughtJSON = finishedDurationJSON.replacingOccurrences(
+  of: "\"type\":\"tool_call\",\"status\":\"completed\"",
+  with: "\"type\":\"thought\",\"text\":\"Analyze\""
+)
+let timedThoughtTranscript = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(timedThoughtJSON.utf8)))
+let timedThoughtRow = timedThoughtTranscript.rows().first!
+assert(timedThoughtRow.kind == "duration" && timedThoughtRow.workDurationMs == 125_000)
+assert(timedThoughtRow.text == LodyStrings.text("native.chat.transcript.status.workedFor", ["duration": ChatWorkDuration.format(
+  125_000, hour: LodyStrings.text("native.chat.duration.hour"),
+  minute: LodyStrings.text("native.chat.duration.minute"), second: LodyStrings.text("native.chat.duration.second")
+)]), "Completed thought-only work shows elapsed time without a redundant thought label or separator")
+assert(timedThoughtRow.actionable && timedThoughtTranscript.rows(processEntryID: "timed-finished").first?.text == "Analyze",
+  "The duration must still open the original thought content")
 assert(
   finishedDurationRow?.text.contains("native.chat.transcript.activity.tools") == true
     || finishedDurationRow?.text.contains(" · ") == true,
@@ -227,7 +273,7 @@ let completedWithNotice = """
 let noticeEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(completedWithNotice.utf8))
 let noticeTranscript = ChatTranscript(entries: noticeEntries)
 assert(!noticeEntries.contains(where: \.isRunning), "A system notice is not an active assistant turn")
-assert(noticeTranscript.rows().map(\.kind) == ["summary", "text", "changesHeader", "changes"])
+assert(noticeTranscript.rows().map(\.kind) == ["summary", "text", "meta", "changesHeader", "changes"])
 assert(noticeTranscript.rows().last?.fileDiff?.path == "docs/.diff-check.md")
 assert(noticeTranscript.rows().last?.fileDiff?.add == 1)
 assert(noticeTranscript.rows().last?.group == "only")
@@ -268,6 +314,7 @@ let mixedFail = """
 transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(mixedFail.utf8))
 let mixedSummary = transcript.rows().first { $0.kind == "summary" }!
 assert(mixedSummary.attention)
+assert(mixedSummary.symbol == "exclamationmark.triangle.fill")
 assert(!mixedSummary.text.contains("native.chat.transcript.status.failed"), mixedSummary.text)
 assert(!mixedSummary.text.contains("native.chat.transcript.status.done"), mixedSummary.text)
 assert(mixedSummary.text.contains("native.chat.transcript.activity.thought"), mixedSummary.text)
@@ -283,6 +330,21 @@ transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(liveT
 let liveSummary = transcript.rows().first { $0.kind == "summary" }!
 assert(liveSummary.text.contains("native.chat.transcript.activity.thinking"), liveSummary.text)
 assert(!liveSummary.text.contains("native.chat.transcript.status.running"), liveSummary.text)
+// Earlier process groups keep the turn's live label while only the latest group animates.
+transcript.entries[0].items.append(try JSONDecoder().decode(ChatItem.self, from: Data(
+  #"{"itemId":"progress","type":"text","text":"Still working"}"#.utf8
+)))
+transcript.entries[0].items.append(try JSONDecoder().decode(ChatItem.self, from: Data(
+  #"{"itemId":"next-thought","type":"thought","text":"Next step"}"#.utf8
+)))
+let liveGroups = transcript.rows().filter { $0.kind == "summary" }
+assert(liveGroups.count == 2)
+assert(liveGroups.allSatisfy { $0.text.contains("native.chat.transcript.activity.thinking") })
+assert(!liveGroups[0].running && liveGroups[1].running)
+transcript.entries[0].finished = true
+let finishedGroup = transcript.rows().first { $0.kind == "summary" }!
+assert(!finishedGroup.running)
+assert(!finishedGroup.text.contains("native.chat.transcript.activity.thinking"))
 let previewCache = "{\"v\":1,\"status\":\"live\",\"revision\":1,\"entries\":" + mixedFail + "}"
 let previewRows = ChatTranscript.previewRows(from: previewCache)
 let previewKinds = Set(previewRows.map(\.kind))
@@ -308,16 +370,16 @@ print("Process summary enumerates activity and keeps partial failures off the ti
 var stream = ChatStream()
 stream.receive([], animate: true)
 let live = try JSONDecoder().decode([ChatEntry].self, from: Data(json.utf8))
-stream.receive(live, animate: true)
+stream.receive(live, animate: true, at: 0)
 assert(stream.hasPending)
 assert(stream.presentation[0].items[2].text == "")
-stream.advance()
-assert(stream.presentation[0].items[2].text == "最")
+stream.advance(at: 0.048)
+assert(!stream.presentation[0].items[2].text!.isEmpty && "最终答案".hasPrefix(stream.presentation[0].items[2].text!) && stream.hasPending)
 let complete = try JSONDecoder().decode([ChatEntry].self, from: Data(finished.utf8))
-stream.receive(complete, animate: true)
+stream.receive(complete, animate: true, at: 0.05)
 assert(!stream.presentation[0].finished, "Do not finish before the visible text drains")
 assert(!ChatTranscript(entries: stream.presentation).rows().contains { $0.kind == "meta" })
-for _ in 0..<30 { stream.advance() }
+for tick in 2...30 { stream.advance(at: Double(tick) * 0.048) }
 assert(!stream.hasPending && stream.presentation[0].finished)
 assert(stream.presentation[0].items[2].text == "最终答案")
 var historyStream = ChatStream()
@@ -329,17 +391,40 @@ assert(stream.presentation[0].items[2].text == "更正后的答案", "Replacemen
 var unicodeStream = ChatStream()
 unicodeStream.receive([], animate: true)
 let unicode = json.replacingOccurrences(of: "最终答案", with: "👩🏽‍💻你好é")
-unicodeStream.receive(try JSONDecoder().decode([ChatEntry].self, from: Data(unicode.utf8)), animate: true)
-unicodeStream.advance()
+unicodeStream.receive(try JSONDecoder().decode([ChatEntry].self, from: Data(unicode.utf8)), animate: true, at: 0)
+unicodeStream.advance(at: 0.024)
 assert(unicodeStream.presentation[0].items[2].text == "👩🏽‍💻")
 unicodeStream.finish()
 assert(!unicodeStream.hasPending && unicodeStream.presentation[0].items[2].text == "👩🏽‍💻你好é")
 print("Chat stream: paced bursts, completion drain, history, replacement and Unicode passed")
+// Leaving the viewport drains presentation pacing without losing input or completion.
+var offscreenStream = ChatStream()
+offscreenStream.receive([], animate: true)
+offscreenStream.receive(live, animate: true, at: 0)
+let offscreenID = live[0].id
+offscreenStream.finish(entries: [offscreenID])
+assert(!offscreenStream.hasPending)
+offscreenStream.receive(complete, animate: true, deferredEntries: [offscreenID], at: 1)
+assert(!offscreenStream.hasPending && offscreenStream.presentation[0].finished)
+assert(offscreenStream.presentation[0].items[2].text == "最终答案")
+offscreenStream.receive(try JSONDecoder().decode([ChatEntry].self, from: Data(corrected.utf8)),
+  animate: true, deferredEntries: [offscreenID], at: 2)
+assert(offscreenStream.presentation[0].items[2].text == "更正后的答案")
+offscreenStream.receive([], animate: true, at: 3)
+assert(offscreenStream.presentation.isEmpty && !offscreenStream.hasPending)
+let frozenText = ChatRow(id: "reply:text", entryID: "reply", kind: "text", text: "Visible prefix", streaming: true)
+let latestText = ChatRow(id: "reply:text", entryID: "reply", kind: "text", text: "Visible prefix and offscreen tail")
+let offscreenPermission = ChatRow(id: "reply:permission", entryID: "reply", kind: "tool_call", text: "Permission required", actionable: true)
+let frozenProjection = ChatStream.deferringMarkdown([latestText, offscreenPermission], previous: [frozenText])
+assert(frozenProjection == [frozenText, offscreenPermission], "Offscreen Markdown must not hide newly actionable rows")
+assert(ChatStream.deferringMarkdown([latestText], previous: frozenProjection) == [frozenText], "Dismissed actions must not stay in frozen rows")
+print("Offscreen stream: full input, correction, completion and removal without reveal backlog passed")
+
 var burstStream = ChatStream()
 burstStream.receive([], animate: true)
 let burst = json.replacingOccurrences(of: "最终答案", with: String(repeating: "文", count: 3000))
-burstStream.receive(try JSONDecoder().decode([ChatEntry].self, from: Data(burst.utf8)), animate: true)
-for _ in 0..<30 { burstStream.advance() }
+burstStream.receive(try JSONDecoder().decode([ChatEntry].self, from: Data(burst.utf8)), animate: true, at: 0)
+for tick in 1...30 { burstStream.advance(at: Double(tick) * 0.048) }
 assert(!burstStream.hasPending, "Large bursts must increase batch size instead of taking minutes")
 
 var fastStream = ChatStream()
@@ -348,22 +433,44 @@ for chunk in 1...240 {
   var input = live
   let source = String(repeating: "word", count: chunk * 15)
   input[0].items[2].text = source
-  fastStream.receive(input, animate: true)
-  fastStream.advance()
-  precondition(fastStream.presentation[0].items[2].text == source,
-    "300 synthetic TPS must not accumulate an artificial character queue")
+  let time = Double(chunk) * 0.05
+  fastStream.receive(input, animate: true, at: time)
+  fastStream.advance(at: time + 0.048)
+  let lag = source.count - fastStream.presentation[0].items[2].text!.count
+  precondition(lag <= 180, "300 synthetic TPS must keep bounded latency, not an ever-growing queue")
 }
 var longTail = live
 longTail[0].items[2].text = String(repeating: "word", count: 3600) + "👩🏽‍💻"
-fastStream.receive(longTail, animate: true)
-fastStream.advance()
+fastStream.receive(longTail, animate: true, at: 12.05)
+fastStream.advance(at: 12.55)
 precondition(!fastStream.hasPending && fastStream.presentation[0].items[2].text == longTail[0].items[2].text,
-  "A long block must commit even a small final suffix without another character queue")
+  "A long block must drain its last suffix promptly")
+
+// Long and short replies use the same cadence; completion waits for the renderer.
+for prefix in ["", String(repeating: "existing ", count: 1500)] {
+  var paced = ChatStream()
+  var input = live
+  input[0].items[2].text = prefix
+  paced.receive(input, animate: true, at: 0)
+  input[0].items[2].text = prefix + String(repeating: "新", count: 48)
+  paced.receive(input, animate: true, at: 0.1)
+  paced.advance(at: 0.148)
+  let shown = paced.presentation[0].items[2].text!.count - prefix.count
+  assert(shown > 0 && shown < 48, "A 48-character burst must spread across commits at every message length")
+  input[0].finished = true
+  paced.receive(input, animate: true, at: 0.2)
+  paced.advance(at: 0.56)
+  assert(!paced.presentation[0].finished, "Final text must reach the renderer before completion")
+  paced.advance(at: 0.6, animatingEntries: [input[0].id])
+  assert(paced.hasPending && !paced.presentation[0].finished, "Do not fold while the final glyphs fade")
+  paced.advance(at: 0.9)
+  assert(!paced.hasPending && paced.presentation[0].finished)
+}
 precondition(ChatScroll.advance(100, toward: 101, elapsed: 1.0 / 60, response: 0.1, minimumStep: 1.0 / 3) == 101,
   "The bottom follower must finish when UIKit would round its next step away")
 print("Streaming pressure: sustained 300 TPS, long tail drain, and pixel-aligned scroll completion passed")
 
-var fade = ChatTextFade()
+var fade = CKTextFade()
 fade.update("已有文字", animate: false, at: 0, reset: true)
 fade.update("已有文字👩🏽‍💻你好", animate: true, at: 1)
 assert(fade.active.count == 3 && fade.active[0].range.location == 4)
@@ -381,6 +488,27 @@ print("Character fade: graphemes, opacity, stable text, Markdown edits and reduc
 fade.update("aa", animate: false, at: 6, reset: true)
 fade.update("aaa", animate: true, at: 7)
 assert(fade.active.count == 1 && fade.active[0].range.location == 2)
+
+let longPrefix = String(repeating: "stable ", count: 2000)
+fade.update(longPrefix + "\n", animate: false, at: 8)
+fade.update(longPrefix + "👩🏽‍💻new\n", animate: true, at: 8.096)
+assert(fade.active.count == 4 && fade.active.first?.range.location == longPrefix.utf16.count)
+let originalBirth = fade.active[0].start
+fade.update(longPrefix + "👩🏽‍💻new!\n", animate: true, at: 8.15)
+assert(fade.active[0].start == originalBirth, "Appending must preserve in-flight fades")
+fade.update("hello **world", animate: false, at: 9)
+fade.update("hello **world!", animate: true, at: 9.1)
+let punctuationBirth = fade.active[0].start
+fade.update("hello world!", animate: true, at: 9.15)
+assert(fade.active.count == 1 && fade.active[0].range.location == 11 && fade.active[0].start == punctuationBirth,
+  "Markdown closure moves the active suffix without replaying old words")
+fade.update("", animate: false, at: 10)
+fade.update(String(repeating: "👩🏽‍💻", count: 3000), animate: true, at: 10.096)
+assert(fade.active.count <= 128 && NSMaxRange(fade.active.last!.range) == 3000 * "👩🏽‍💻".utf16.count)
+assert(!fade.isAnimating(at: 10.4), "A large append must not leave seconds of invisible text")
+fade.update("done", animate: false, at: 10.5)
+assert(fade.active.isEmpty)
+print("Long-text fades: bounded active ranges, Unicode, syntax closure, preserved births and visual completion passed")
 
 assert(ChatScroll.bottom(contentHeight: 600, viewportHeight: 200, topInset: 100, bottomInset: 40) == 440)
 assert(ChatScroll.bottom(contentHeight: 616, viewportHeight: 200, topInset: 100, bottomInset: 40) == 456,
@@ -423,12 +551,12 @@ precondition(liveImageRows.first?.image?.storageSessionId == "source")
 uploadedTranscript.entries[0].finished = true
 precondition(uploadedTranscript.rows().filter { $0.image != nil } == liveImageRows,
   "Completion must preserve every uploaded image and its row identity")
-precondition(uploadedTranscript.rows().map(\.kind) == ["summary", "image", "image", "text", "image"])
+precondition(uploadedTranscript.rows().map(\.kind) == ["summary", "image", "image", "text", "image", "meta"])
 precondition(uploadedTranscript.rows(processEntryID: "upload").map(\.kind) == ["tool_call"],
   "Uploaded images belong in the conversation, not the collapsed process")
 precondition(ChatTranscript.previewRows(from: assistantImages).filter { $0.image != nil } == liveImageRows)
 uploadedTranscript.entries[0].items.removeAll { !$0.isImage }
-precondition(uploadedTranscript.rows().map(\.kind) == ["image", "image", "image"],
+precondition(uploadedTranscript.rows().map(\.kind) == ["image", "image", "image", "meta"],
   "Standalone MCP uploads must render without a tool or final text")
 print("MCP images: multiple images, completion, standalone upload and cache restore passed")
 
@@ -479,19 +607,17 @@ let localPendingJSON = """
 """
 let localPending = try! JSONDecoder().decode(ChatPendingSend.self, from: Data(localPendingJSON.utf8))
 let pendingRows = localPending.rows(entries: [])
-precondition(pendingRows.map(\.kind) == ["attachments", "user", "duration"],
-  "A send must show its attachment, text and a separate static duration immediately")
-precondition(pendingRows.first?.attachments.first?.localURI == "file:///tmp/cat.png" && pendingRows.last?.running == true)
-precondition(pendingRows.last?.id == "local-send:duration")
-precondition((2_400...3_000).contains(pendingRows.last?.workDurationMs ?? -1),
-  "The local duration must start at submission time")
-precondition(ChatWorkDuration.needsTimer(pendingRows),
-  "A local duration row must keep advancing before the server replies")
+precondition(pendingRows.map(\.kind) == ["delivery", "attachments", "user"],
+  "Delivery belongs above text and attachments")
+precondition(pendingRows.first?.text == localPending.status)
+precondition(!ChatWorkDuration.needsTimer(pendingRows),
+  "An unconfirmed send must not show a working duration")
 precondition(ChatWorkDuration.needsTimer(liveDurationRows))
 precondition(!ChatWorkDuration.needsTimer(finishedDurationRows))
 let authoritative = ChatEntry(id: "local-send", role: "user", status: "completed", finished: true, timestamp: nil, endedAt: nil, startedAt: nil, items: [], fileDiffs: nil)
-precondition(localPending.rows(entries: [authoritative]).map(\.kind) == ["duration"],
-  "Authoritative user history must replace the pending user row without interrupting duration")
+let authoritativeDuration = localPending.rows(entries: [authoritative])
+precondition(authoritativeDuration.map(\.kind) == ["delivery"],
+  "History without a receipt must retain delivery status without duplicating the message")
 var failedPending = localPending
 failedPending.failed = true
 let failedRows = failedPending.rows(entries: [])
@@ -499,29 +625,51 @@ var uploadingPending = localPending
 uploadingPending.phase = "sending"
 uploadingPending.uploadProgress = ["photo": ChatAttachmentUploadProgress(phase: "uploading", percent: 37)]
 let uploadingRows = uploadingPending.rows(entries: [])
-precondition(uploadingRows.first?.uploadProgress["photo"]?.percent == 37 && uploadingRows.first?.running == true)
-precondition(uploadingRows.first?.attachments == pendingRows.first?.attachments,
+precondition(uploadingRows.first(where: { $0.kind == "attachments" })?.uploadProgress["photo"]?.percent == 37 && uploadingRows.first(where: { $0.kind == "attachments" })?.running == true)
+precondition(uploadingRows.first(where: { $0.kind == "attachments" })?.attachments == pendingRows.first(where: { $0.kind == "attachments" })?.attachments,
   "Progress must not replace attachment identities or restart image loaders")
+precondition(uploadingRows.first?.text == localPending.status,
+  "Upload copy belongs above the message")
 uploadingPending.phase = "accepted"
-precondition(uploadingPending.rows(entries: []).first?.running == false,
+let acceptedRows = uploadingPending.rows(entries: [])
+precondition(acceptedRows.first?.running == false,
   "An accepted send must stop upload indicators before history arrives")
-precondition(pendingRows.first?.running == true && failedRows.first?.running == false,
+precondition(acceptedRows.last?.kind == "duration" && acceptedRows.last?.text != LodyStrings.text("native.chat.transcript.status.confirming"),
+  "An accepted send must show working duration before history arrives")
+precondition(pendingRows.first(where: { $0.kind == "attachments" })?.running == true && failedRows.first?.running == false,
   "Loading belongs to attachment tiles and must stop on failure")
-precondition(failedRows.first?.attachments == pendingRows.first?.attachments && failedRows.last?.actionable == true,
+precondition(failedRows.first?.attachments == pendingRows.first(where: { $0.kind == "attachments" })?.attachments && failedRows.last?.actionable == true,
   "A definite failure must retain the attachment and offer explicit retry")
+let flying = ChatPendingSend.hidingStatus(pendingRows, inFlight: ["local-send"])
+precondition(flying.map(\.kind) == ["delivery", "attachments", "user"],
+  "Delivery above the bubble must reserve its space throughout the flight")
+precondition(ChatPendingSend.hidingStatus(pendingRows, inFlight: []).map(\.kind) == pendingRows.map(\.kind),
+  "A send with no flight must show its duration immediately")
+precondition(ChatPendingSend.hidingStatus(failedRows, inFlight: ["local-send"]).last?.kind != "pending",
+  "Retry must wait for the throw to finish")
+precondition(ChatPendingSend.hidingStatus(failedRows, inFlight: []).last?.kind == "pending")
+precondition(ChatPendingSend.hidingStatus(authoritativeDuration, inFlight: ["local-send"]).first?.kind == "delivery",
+  "History takeover must retain the same delivery placement during flight")
+let neighbor = pendingRows + [ChatRow(id: "other:duration", entryID: "other", kind: "duration", text: "kept")]
+precondition(ChatPendingSend.hidingStatus(neighbor, inFlight: ["local-send"]).contains { $0.id == "other:duration" },
+  "Another turn's duration must stay visible during this throw")
 print("Pending send: immediate text and attachment, processing, stable history takeover and failure passed")
 
 var disconnectedPending = localPending
 disconnectedPending.reconnect = true
 let reconnectRows = disconnectedPending.rows(entries: [])
-precondition(reconnectRows.count == pendingRows.count + 1 && reconnectRows.first?.running == false,
-  "Reconnection replaces tile loading with an actionable status row")
-precondition(
-  reconnectRows.contains { $0.kind == "pending" && $0.actionable } && reconnectRows.last?.actionable == false,
-  "Disconnected pending state must offer reconnect on the status row, not the timer"
-)
+precondition(reconnectRows.map(\.kind) == pendingRows.map(\.kind),
+  "Connection chrome must not insert a list status row")
+precondition(!reconnectRows.contains { $0.kind == "pending" },
+  "Waiting for a connection is not a transcript cell")
+precondition(reconnectRows.first(where: { $0.kind == "attachments" })?.running == false,
+  "Reconnection replaces tile loading")
+precondition(reconnectRows.firstIndex(where: { $0.kind == "duration" }) == pendingRows.firstIndex(where: { $0.kind == "duration" }),
+  "Removing the reconnect row must not shift the reply header")
+precondition(reconnectRows.first?.text == localPending.status,
+  "Reconnection must keep the delivery status")
 precondition(pendingRows.last?.actionable == false, "Ordinary pending status must not open the execution process")
-print("Pending reconnect: one actionable status row while disconnected passed")
+print("Pending reconnect: connection stays off the transcript passed")
 
 func notifyTurn(_ previous: String?, _ next: String?, process: String = "", window: Bool = true) -> Bool {
   ChatHaptics.shouldNotifyTurnCompletion(
@@ -539,6 +687,26 @@ precondition(notifyTurn("a", "b"), "A queued next turn must still buzz for the f
 precondition(!notifyTurn("a", nil, process: "a"), "The process sheet must not duplicate the session haptic")
 precondition(!notifyTurn("a", nil, window: false), "Detached chat must not buzz")
 print("Chat haptics: completion fires once per finished round")
+
+let replyConfig = ChatReplyPulses.Config()
+let steady = ChatReplyPulses.schedule(chunks: (0..<60).map { 1 + Double($0) * 0.05 }, config: replyConfig)
+precondition(steady.count == replyConfig.count, "Dense chunks stop at the pulse cap")
+precondition(zip(steady, steady.dropFirst()).allSatisfy { $1.time - $0.time >= replyConfig.interval - 1e-9 },
+  "Pulses respect the minimum interval")
+precondition(zip(steady, steady.dropFirst()).allSatisfy { $1.intensity < $0.intensity }, "Pulse strength decays")
+precondition(abs(steady[0].intensity - replyConfig.intensity) < 1e-6, "The first pulse starts at full strength")
+precondition(steady.last!.intensity >= replyConfig.endIntensity, "Decay never drops below the end strength")
+let throttled = ChatReplyPulses.schedule(chunks: [1, 1.01, 1.02, 1.1], config: replyConfig)
+precondition(throttled.map(\.time) == [1, 1.1], "Chunks inside the interval are swallowed, not queued")
+precondition(ChatReplyPulses.schedule(chunks: [5.5, 5.6], config: replyConfig).isEmpty,
+  "A first chunk after the window keeps the whole reply silent")
+let lingering = ChatReplyPulses.schedule(chunks: [1, 2, 2.9, 3], config: replyConfig)
+precondition(lingering.map(\.time) == [1, 2], "Chunks after the duration stay silent")
+var armed = ChatReplyPulses(sentAt: 0)
+precondition(!armed.isFinished(at: 4.9) && armed.isFinished(at: 5.1), "An armed send without text expires with the window")
+_ = armed.textGrew(at: 1)
+precondition(!armed.isFinished(at: 2.7) && armed.isFinished(at: 2.9), "A started reply expires after its duration")
+print("Reply haptics: window, duration, interval, cap and decay passed")
 
 var queueTranscript = ChatTranscript()
 queueTranscript.entries = try! JSONDecoder().decode([ChatEntry].self, from: Data(#"[{"id":"queued-turn","role":"user","status":"queued","finished":false,"items":[{"itemId":"text","type":"text","text":"Wait for me"}]}]"#.utf8))
@@ -565,3 +733,168 @@ assertReadingColumn(collectionWidth: 800, itemWidth: 760, inset: 20)
 assertReadingColumn(collectionWidth: 1180, itemWidth: 760, inset: 210)
 precondition(ChatReadingColumn.columnWidth(in: 1180) == 800)
 print("Reading column: wide hosts keep a 760 pt column inside a full-bleed scroll view")
+
+let failureJSON = """
+[{"id":"error","role":"assistant","status":"completed","finished":true,"items":[
+{"itemId":"text","type":"text","text":"Completed answer"},
+{"itemId":"failure","type":"system_notice","name":"chat_failed","meta":{"reason":"future_reason","message":"raw error"}}
+]}]
+"""
+let failureRows = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(failureJSON.utf8))).rows()
+precondition(failureRows.contains { $0.kind == "text" && $0.text == "Completed answer" })
+precondition(failureRows.contains { $0.kind == "chat_failed" && !$0.actionable && $0.attention })
+precondition(!failureRows.contains { $0.kind == "summary" })
+
+precondition(ChatFailure.hasDetail(failureRows.first { $0.kind == "chat_failed" }?.errorMeta))
+precondition(!ChatFailure.hasDetail(nil))
+
+// Provider-proven continuation: user bubbles outside one AI-only process.
+let guidedJSON = """
+[
+{"id":"root","role":"user","status":"handled","finished":true,"executionId":"root","executionFinished":true,"items":[{"itemId":"u","type":"text","text":"Original task"}]},
+{"id":"before","role":"assistant","status":"handled","finished":true,"executionId":"root","executionFinished":true,"items":[{"itemId":"intro","type":"text","text":"Earlier partial answer"},{"itemId":"tool","type":"tool_call","title":"Inspect","hasDetail":true}]},
+{"id":"guide","role":"user","status":"handled","finished":true,"executionId":"root","executionFinished":true,"items":[{"itemId":"u","type":"text","text":"Guide one"}]},
+{"id":"after","role":"assistant","status":"handled","finished":true,"executionId":"root","executionFinished":true,"steerCount":1,"items":[{"itemId":"work","type":"thought","text":"Later process"},{"itemId":"answer1","type":"text","text":"Final answer part one"},{"itemId":"answer2","type":"text","text":"Final answer part two"}]}]
+"""
+var guidedEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(guidedJSON.utf8))
+let guidedRows = ChatTranscript(entries: guidedEntries).rows()
+assert(guidedRows.map(\.kind) == ["user", "user", "summary", "text", "text", "meta"])
+assert(guidedRows.prefix(2).map(\.entryID) == ["root", "guide"])
+let guidedProcess = ChatTranscript(entries: guidedEntries).rows(processEntryID: "after", processStartID: "__execution__")
+assert(guidedProcess.map(\.itemID) == ["intro", "tool", "work"])
+assert(guidedProcess[1].entryID == "before" && guidedProcess[1].actionable)
+assert(!guidedProcess.contains { $0.kind == "user" })
+let shared = ChatMessageShare.content(in: ChatTranscript(entries: guidedEntries), entryID: "after")!
+assert(shared.text == "Final answer part one\n\nFinal answer part two", "Sharing includes all final blocks, never the earlier process")
+assert(ChatMessageShare.content(in: ChatTranscript(entries: guidedEntries), entryID: "root") == nil)
+var runningShare = guidedEntries
+runningShare[runningShare.count - 1].finished = false
+assert(ChatMessageShare.content(in: ChatTranscript(entries: runningShare), entryID: "after") == nil)
+assert(ChatMessageShare.accepts(height: 6000) && !ChatMessageShare.accepts(height: 6001))
+assert(!ChatMessageShare.accepts(height: .infinity))
+let roundTrip = try JSONDecoder().decode(ChatMessageShare.self, from: JSONEncoder().encode(shared))
+assert(roundTrip.text == shared.text)
+for i in guidedEntries.indices { guidedEntries[i].executionFinished = false }
+let continuing = ChatTranscript(entries: guidedEntries).rows()
+assert(continuing.contains { $0.itemID == "intro" })
+assert(!continuing.contains { $0.id == "root:execution" })
+print("Steer: user bubbles outside one process, all final text survives, tool owners preserved")
+
+let taskJSON = """
+[{"id":"reply","role":"assistant","status":"running","finished":false,"items":[
+{"itemId":"think","type":"thought","text":"split work"},
+{"itemId":"read","type":"tool_call","kind":"read","title":"读取","status":"completed"},
+{"itemId":"explore","type":"subagent_task","taskId":"t1","status":"in_progress","actor":"Explore","description":"Find chrome","lastToolName":"Read"},
+{"itemId":"house","type":"subagent_task","taskId":"house","status":"in_progress","actor":"Housekeeping","skipTranscript":true},
+{"itemId":"done","type":"subagent_task","taskId":"t0","status":"completed","actor":"Explore","description":"Already finished"}]}]
+"""
+transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(taskJSON.utf8))
+assert(transcript.liveSubagentItems().map(\.itemId) == ["explore"])
+let liveTaskRows = transcript.rows().filter { $0.kind == "subagent_task" }
+assert(liveTaskRows.map(\.itemID) == ["explore", "done"])
+assert(!transcript.rows().contains { $0.itemID == "house" })
+assert(liveTaskRows.allSatisfy(\.actionable))
+assert(liveTaskRows[0].subagent == ChatSubagentCard(actor: "Explore", description: "Find chrome", status: "in_progress",
+  detail: LodyStrings.text("native.chat.subagent.runningTool", ["tool": "Read"]), background: false))
+assert(transcript.rows().contains { $0.kind == "summary" })
+let processTasks = transcript.rows(processEntryID: "reply")
+assert(processTasks.contains { $0.itemID == "explore" && $0.kind == "subagent_task" })
+assert(processTasks.contains { $0.itemID == "done" && $0.kind == "subagent_task" })
+assert(!processTasks.contains { $0.itemID == "house" })
+assert(transcript.rows(processEntryID: "reply", processStartID: "__tasks__").map(\.itemID) == ["explore", "done"])
+transcript.entries[0].finished = true
+assert(transcript.rows().filter { $0.kind == "subagent_task" }.map(\.itemID) == ["explore", "done"])
+print("Chat: subagent task cards stay in the main list around the process and skip housekeeping")
+
+let screen = ChatImagePreviewGeometry.Size(width: 400, height: 800)
+assert(
+  ChatImagePreviewGeometry.fitContain(ChatImagePreviewGeometry.Size(width: 1600, height: 900), in: screen)
+    == ChatImagePreviewGeometry.Rect(x: 0, y: 287.5, width: 400, height: 225),
+  "A wide picture fits the screen width and stays centred"
+)
+assert(
+  ChatImagePreviewGeometry.fitContain(ChatImagePreviewGeometry.Size(width: 1000, height: 4000), in: screen)
+    == ChatImagePreviewGeometry.Rect(x: 100, y: 0, width: 200, height: 800),
+  "A tall picture fits the screen height and stays centred"
+)
+assert(
+  ChatImagePreviewGeometry.fitContain(.zero, in: screen)
+    == ChatImagePreviewGeometry.Rect(x: 0, y: 0, width: 400, height: 800),
+  "An unknown size fills the box instead of vanishing"
+)
+let box = ChatImagePreviewGeometry.box(
+  viewport: screen, safeTop: 62, safeBottom: 34, inset: 16
+)
+assert(box.x == 16 && box.width == 368)
+assert(box.y == 62 + 16 && box.height == 800 - 2 * (62 + 16), "Vertical inset uses the larger safe edge so the picture stays centred")
+let fitted = ChatImagePreviewGeometry.fitWithin(ChatImagePreviewGeometry.Size(width: 1600, height: 900), in: box)
+assert(fitted.x == box.x && fitted.width == box.width)
+assert(fitted.y + fitted.height / 2 == box.y + box.height / 2)
+
+let width: CGFloat = 416
+assert(ChatImagePreviewGeometry.snapPage(offset: -100, velocity: 0, current: 0, count: 5, pageWidth: width) == 0)
+assert(ChatImagePreviewGeometry.snapPage(offset: -100, velocity: -1200, current: 0, count: 5, pageWidth: width) == 1)
+assert(ChatImagePreviewGeometry.snapPage(offset: -300, velocity: 0, current: 0, count: 5, pageWidth: width) == 1)
+assert(ChatImagePreviewGeometry.snapPage(offset: -width * 3, velocity: -8000, current: 1, count: 5, pageWidth: width) == 2)
+assert(ChatImagePreviewGeometry.snapPage(offset: 50, velocity: 900, current: 0, count: 5, pageWidth: width) == 0)
+assert(ChatImagePreviewGeometry.snapPage(offset: 0, velocity: 0, current: 0, count: 1, pageWidth: width) == 0)
+
+let hit = ChatImagePreviewGeometry.Rect(x: 0, y: 287.5, width: 400, height: 225)
+assert(ChatImagePreviewGeometry.hits(CGPoint(x: 200, y: 400), rect: hit, scale: 1, translation: .zero))
+assert(!ChatImagePreviewGeometry.hits(CGPoint(x: 200, y: 100), rect: hit, scale: 1, translation: .zero))
+assert(ChatImagePreviewGeometry.hits(CGPoint(x: 200, y: 100), rect: hit, scale: 3, translation: .zero))
+
+let clamped = ChatImagePreviewGeometry.rubberBandClamp(300, min: 0, max: 100, dimension: 400)
+assert(clamped > 100 && clamped < 300, "Overshoot must resist without reaching the push")
+assert(ChatImagePreviewGeometry.panBound(fitted: 400, scale: 1, viewport: 400) == 0)
+assert(ChatImagePreviewGeometry.panBound(fitted: 400, scale: 2, viewport: 400) == 200)
+assert(!ChatImagePreviewGeometry.shouldPage(zoomScale: 1, velocity: CGPoint(x: 0, y: 400), count: 3))
+assert(!ChatImagePreviewGeometry.shouldPage(zoomScale: 2, velocity: CGPoint(x: 400, y: 0), count: 3))
+assert(!ChatImagePreviewGeometry.shouldPage(zoomScale: 1, velocity: CGPoint(x: 400, y: 0), count: 1))
+assert(ChatImagePreviewGeometry.shouldPage(zoomScale: 1, velocity: CGPoint(x: 400, y: 0), count: 3))
+print("Image preview geometry: fit, paging snap, hit testing and rubber-band passed")
+
+let userPhoto = ChatImage(id: "image1", fileName: "sample.png", storageSessionId: nil, width: 800, height: 600)
+let fileOnly = ChatMessageAttachment(id: "notes", fileName: "notes.txt")
+let photoAttachment = ChatMessageAttachment(id: "image1", fileName: "sample.png", image: userPhoto, localURI: "file:///tmp/sample.png")
+let mixedRows = [
+  ChatRow(id: "turn:user", entryID: "turn", kind: "attachments", text: "", attachments: [fileOnly, photoAttachment]),
+  ChatRow(id: "turn:user-text", entryID: "turn", kind: "user", text: "caption"),
+  ChatRow(
+    id: "reply:photos:image:0", entryID: "reply", kind: "image", text: "", itemID: "photos",
+    image: ChatImage(id: "one", fileName: "one.png", storageSessionId: "source", width: 600, height: 400)
+  ),
+  ChatRow(
+    id: "reply:photos:image:1", entryID: "reply", kind: "image", text: "", itemID: "photos",
+    image: ChatImage(id: "two", fileName: "two.png", storageSessionId: nil, width: nil, height: nil)
+  ),
+]
+let gallery = ChatImageGallery.items(from: mixedRows)
+assert(gallery.map(\.id) == ["turn:attachment:image1", "reply:photos:image:0", "reply:photos:image:1"])
+assert(gallery.map(\.image.id) == ["image1", "one", "two"])
+assert(gallery.first?.localURI == "file:///tmp/sample.png")
+assert(ChatImageGallery.items(from: mixedRows.filter { $0.kind == "user" }).isEmpty)
+assert(ChatImageGallery.index(of: "reply:photos:image:1", in: gallery) == 2)
+assert(ChatImageGallery.index(of: "missing", in: gallery) == nil)
+let userAlbum = ChatImageGallery.items(from: [
+  ChatRow(
+    id: "turn:user", entryID: "turn", kind: "attachments", text: "",
+    attachments: [
+      ChatMessageAttachment(id: "ui-verify-image", fileName: "fixture.png", image: userPhoto),
+      ChatMessageAttachment(
+        id: "ui-verify-image-1", fileName: "two.png",
+        image: ChatImage(id: "ui-verify-image-1", fileName: "two.png", storageSessionId: nil, width: 400, height: 600)
+      ),
+      ChatMessageAttachment(
+        id: "ui-verify-image-2", fileName: "three.png",
+        image: ChatImage(id: "ui-verify-image-2", fileName: "three.png", storageSessionId: nil, width: 600, height: 400)
+      ),
+    ]
+  ),
+])
+assert(userAlbum.map(\.id) == [
+  "turn:attachment:ui-verify-image",
+  "turn:attachment:ui-verify-image-1",
+  "turn:attachment:ui-verify-image-2",
+])
+print("Image gallery: list order, skip files, attachment ids, and lookup passed")

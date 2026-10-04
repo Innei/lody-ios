@@ -30,10 +30,11 @@ enum LiveActivityFixtures {
     _ title: String,
     agent: String,
     ago seconds: Double,
+    took: Double? = nil,
     command: String? = nil
   ) -> Item {
     let labels: [Item.Status: String] = [
-      .running: "Working", .permission: "Needs your approval", .question: "Has a question for you", .unread: "New reply",
+      .running: "Working", .permission: "Needs your approval", .question: "Has a question for you", .unread: "Completed", .failed: "Failed",
     ]
     let glyphs = ["claude": "CC", "codex": "CX"]
     return Item(
@@ -46,7 +47,9 @@ enum LiveActivityFixtures {
       agentLogoText: glyphs[agent] ?? agent.prefix(2).uppercased(),
       title: title,
       updatedAt: now - seconds * 1000,
-      updatedAtLabel: ""
+      updatedAtLabel: "",
+      startedAt: now - (seconds + (took ?? 0)) * 1000,
+      completedAt: took.map { _ in now - seconds * 1000 }
     )
   }
 
@@ -90,7 +93,16 @@ enum LiveActivityFixtures {
   ])
 
   static let done = state([
-    item("1", .unread, "Fix the CI cache key", agent: "codex", ago: 200),
+    item("1", .unread, "Fix the CI cache key", agent: "codex", ago: 20, took: 754),
+  ])
+
+  static let failed = state([
+    item("1", .failed, "Fix the CI cache key", agent: "codex", ago: 20, took: 754),
+  ])
+
+  static let doneMany = state([
+    item("1", .unread, "Refactor session list paging", agent: "claude", ago: 20, took: 754),
+    item("2", .unread, "Poll GitHub PR status", agent: "codex", ago: 20, took: 187),
   ])
 }
 
@@ -104,6 +116,8 @@ enum LiveActivityFixtures {
   LiveActivityFixtures.unknownAgent
   LiveActivityFixtures.brands
   LiveActivityFixtures.done
+  LiveActivityFixtures.failed
+  LiveActivityFixtures.doneMany
 }
 
 #Preview("Island Expanded", as: .dynamicIsland(.expanded), using: LiveActivityFixtures.attributes) {

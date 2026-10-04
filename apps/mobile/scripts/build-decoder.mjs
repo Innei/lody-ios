@@ -18,6 +18,30 @@ const result = await build({
 });
 const output = root + 'modules/lody-kit/ios/Resources';
 await mkdir(output, { recursive: true });
+const markdownRepair = await build({
+  stdin: {
+    contents: `import remend from 'remend';
+      globalThis.repairMarkdown = text => remend(text, {
+        linkMode: 'text-only', katex: false, inlineKatex: false,
+        htmlTags: false, comparisonOperators: false, singleTilde: false,
+        setextHeadings: false,
+      });`,
+    resolveDir: root,
+  },
+  bundle: true,
+  format: 'iife',
+  platform: 'browser',
+  target: 'safari17',
+  write: false,
+});
+await writeFile(
+  output + '/MarkdownRepair.js',
+  markdownRepair.outputFiles[0].text,
+);
+await copyFile(
+  root + '../../node_modules/remend/LICENSE',
+  output + '/Remend-LICENSE.txt',
+);
 await writeFile(
   output + '/FlockDecoder.html',
   '<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\' \'wasm-unsafe-eval\'"><script type="module">' +

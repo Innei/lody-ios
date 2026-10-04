@@ -7,6 +7,7 @@ struct LodyRuntimeInfo {
   var moduleName: String = "LodyKit"
   var offlineProbe: Bool = false
   var uiVerifyHome: Bool = false
+  var uiVerifySessionSearch: Bool = false
   var systemVersion: String = ""
 }
 
@@ -14,6 +15,14 @@ struct LodyRuntimeInfo {
 public final class LodyKitModule: Module, @unchecked Sendable {
   private let localStore = LocalStore.shared
   private var authBrowser: SFSafariViewController?
+
+  private static func previewURL(_ address: String) -> URL? {
+    guard let url = URL(string: address), url.scheme == "https", url.user == nil, url.password == nil,
+          url.host?.hasSuffix(".trycloudflare.com") == true else { return nil }
+    return url
+  }
+  @MainActor private lazy var accentPicker = AccentColorPicker()
+  @MainActor private lazy var workspaceIconPicker = WorkspaceIconPicker()
 
   @MainActor private lazy var dataRuntime = DataRuntime(localStore: localStore,
     emit: { [weak self] event in self?.sendEvent("onDataRuntime", event) },
@@ -35,42 +44,68 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   @JS
+  var initialAccentColor: String { LodyAccentChoice.current.rawValue }
+
+  @JS
+  func saveAccentColor(value: String) { LodyAccentChoice.save(value) }
+
+  @JS
+  func accentHex(value: String, dark: Bool) -> String { LodyAccentChoice.hex(value, dark: dark) }
+
+  @JS
+  func accentForegroundHex(value: String) -> String {
+    LodyAccentChoice.hex((LodyAccentChoice(rawValue: value) ?? .blue).foregroundColor)
+  }
+
+  @JS
   var initialDarkBackground: String { LodyDarkBackground.current.rawValue }
 
   @JS
+  var initialQueuedMessageBehavior: String {
+    UserDefaults.standard.string(forKey: "queuedMessageBehavior") == "guide" ? "guide" : "queue"
+  }
+
+  @JS
+  var initialQuickRepliesJSON: String {
+    UserDefaults.standard.string(forKey: "quickReplies") ?? ""
+  }
+
+  @JS
+  func saveQuickReplies(json: String) {
+    UserDefaults.standard.set(json, forKey: "quickReplies")
+  }
+
+  @JS
   var runtimeInfo: LodyRuntimeInfo {
-    var offlineProbe = false
-    var uiVerifyHome = false
-    #if DEBUG
-    offlineProbe = ProcessInfo.processInfo.arguments.contains("--lody-offline")
-    uiVerifyHome = ProcessInfo.processInfo.arguments.contains("--ui-verify")
-      && ProcessInfo.processInfo.arguments.contains("--ui-verify-home")
-    #endif
+    let offlineProbe = LodyUIVerify.offline
+    let uiVerifyHome = LodyUIVerify.home
     let version = ProcessInfo.processInfo.operatingSystemVersion
     let components = [version.majorVersion, version.minorVersion, version.patchVersion]
     return LodyRuntimeInfo(
       moduleName: "LodyKit",
       offlineProbe: offlineProbe,
       uiVerifyHome: uiVerifyHome,
+      uiVerifySessionSearch: LodyUIVerify.enabled && LodyUIVerify.has("--ui-verify-search"),
       systemVersion: components.prefix(version.patchVersion == 0 ? 2 : 3).map(String.init).joined(separator: ".")
     )
   }
 
   public override func didCreate() {
     Task { @MainActor in
+      lodyApplyWindowAccent()
+      LiveActivities.shared.syncAppIcon()
       PushNotifications.shared.onClickAvailable = { [weak self] in self?.sendEvent("onPushClick", [:]) }
     }
     ContentPreview.clearAll()
-    #if DEBUG
-    if ProcessInfo.processInfo.arguments.contains("--lody-offline") {
+    if LodyUIVerify.offline {
       URLProtocol.registerClass(OfflineProbe.self)
     }
-    #endif
   }
 
   public override func willDestroy() {
     Task { @MainActor in
       self.dataRuntime.stop()
+      self.accentPicker.dismiss()
       PushNotifications.shared.onClickAvailable = nil
     }
   }
@@ -78,6 +113,19 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   @JS
   func showToast(message: String, kind: String) {
     Task { @MainActor in LodyToastOverlay.shared.show(message: message, kind: kind) }
+  }
+
+  @JS
+  func prepareMorphReveal(sourceLabel: String) {
+    // Must be armed before the router's presentation lands on the main queue,
+    // so this blocks JS until the main thread has run it.
+    if Thread.isMainThread {
+      MainActor.assumeIsolated { LodyMorphReveal.prepare(sourceLabel: sourceLabel) }
+      return
+    }
+    DispatchQueue.main.sync {
+      MainActor.assumeIsolated { LodyMorphReveal.prepare(sourceLabel: sourceLabel) }
+    }
   }
 
   @JS
@@ -115,6 +163,11 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   @JS
+  func saveQueuedMessageBehavior(value: String) {
+    UserDefaults.standard.set(value == "guide" ? "guide" : "queue", forKey: "queuedMessageBehavior")
+  }
+
+  @JS
   func readInboxExpansion() -> [String: Bool] {
     UserDefaults.standard.dictionary(forKey: "inboxExpansion") as? [String: Bool] ?? [:]
   }
@@ -126,8 +179,27 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     UserDefaults.standard.set(values, forKey: "inboxExpansion")
   }
 
+  private func pinOrderKey(userId: String, workspaceId: String) -> String {
+    "inboxPinOrder.\(userId).\(workspaceId)"
+  }
+
+  @JS
+  func readInboxPinOrder(userId: String, workspaceId: String) -> [String] {
+    guard !userId.isEmpty, !workspaceId.isEmpty else { return [] }
+    return UserDefaults.standard.stringArray(forKey: pinOrderKey(userId: userId, workspaceId: workspaceId)) ?? []
+  }
+
+  @JS
+  func saveInboxPinOrder(userId: String, workspaceId: String, ids: [String]) {
+    guard !userId.isEmpty, !workspaceId.isEmpty else { return }
+    UserDefaults.standard.set(ids, forKey: pinOrderKey(userId: userId, workspaceId: workspaceId))
+  }
+
   public func definition() -> ModuleDefinition {
-    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress")
+    AsyncFunction("sessionSharing") { (payload: String, promise: Promise) in
+      MainActor.assumeIsolated { self.dataRuntime.command("sessionSharing", payload: payload, promise: promise) }
+    }.runOnQueue(.main)
+    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onAccentColorChange")
     AsyncFunction("watchCatalog") { (workspace: String, slug: String, name: String, owner: String, userId: String) in
       try MainActor.assumeIsolated {
         guard !workspace.isEmpty, !owner.isEmpty, !userId.isEmpty else {
@@ -145,6 +217,12 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("unwatchSession") { (id: String) in
       MainActor.assumeIsolated { self.dataRuntime.closeSession(id) }
     }.runOnQueue(.main)
+    AsyncFunction("ensureSession") { (id: String, promise: Promise) in
+      MainActor.assumeIsolated { self.dataRuntime.ensureSession(id, promise: promise) }
+    }.runOnQueue(.main)
+    AsyncFunction("releaseReserve") { (id: String) in
+      MainActor.assumeIsolated { self.dataRuntime.releaseReserve(id) }
+    }.runOnQueue(.main)
     AsyncFunction("readContentText") { (handle: String) -> String? in
       MainActor.assumeIsolated {
         ContentStore.shared.get(handle).flatMap { String(data: $0.data, encoding: .utf8) }
@@ -159,17 +237,16 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
     }.runOnQueue(.main)
     AsyncFunction("debugHangDataRuntime") {
-      #if DEBUG
       MainActor.assumeIsolated { self.dataRuntime.debugHang() }
-      #endif
     }.runOnQueue(.main)
     AsyncFunction("debugRestartDataRuntime") {
-      #if DEBUG
       MainActor.assumeIsolated { self.dataRuntime.debugRestart() }
-      #endif
     }.runOnQueue(.main)
     AsyncFunction("readLocalStartup") { try self.localStore.startup() }.runOnQueue(LocalStore.queue)
     AsyncFunction("readLocalValue") { (key: String) in try self.localStore.read(key) }.runOnQueue(LocalStore.queue)
+    AsyncFunction("searchInbox") { (userId: String, workspaceId: String, query: String) in
+      try self.localStore.searchInbox(userID: userId, workspaceID: workspaceId, query: query)
+    }.runOnQueue(LocalStore.queue)
     AsyncFunction("writeLocalValue") { (key: String, value: String) in try self.localStore.write(key, value) }.runOnQueue(LocalStore.queue)
     AsyncFunction("readAuthToken") { try AuthKeychain.read() }.runOnQueue(.main)
     AsyncFunction("saveAuthToken") { (token: String) in try AuthKeychain.save(token) }.runOnQueue(.main)
@@ -193,14 +270,92 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         controller.present(browser, animated: true)
       }
     }.runOnQueue(.main)
+    AsyncFunction("sessionPreview") { (payload: String, promise: Promise) in
+      MainActor.assumeIsolated { self.dataRuntime.command("sessionPreview", payload: payload, promise: promise) }
+    }.runOnQueue(.main)
+    AsyncFunction("iosSimulatorControl") { (payload: String, promise: Promise) in
+      MainActor.assumeIsolated { self.dataRuntime.command("iosSimulatorControl", payload: payload, promise: promise) }
+    }.runOnQueue(.main)
+    AsyncFunction("openPreviewBrowser") { (address: String) in
+      try MainActor.assumeIsolated {
+        guard let url = Self.previewURL(address),
+              let controller = self.appContext?.utilities?.currentViewController() else {
+          throw NSError(domain: "LodyKit.PreviewBrowser", code: 1)
+        }
+        controller.present(SFSafariViewController(url: url), animated: true)
+      }
+    }.runOnQueue(.main)
     AsyncFunction("closeAuthBrowser") {
       MainActor.assumeIsolated {
         self.authBrowser?.dismiss(animated: true)
         self.authBrowser = nil
       }
     }.runOnQueue(.main)
+    AsyncFunction("showAccentColorPicker") { (title: String, promise: Promise) in
+      MainActor.assumeIsolated {
+        guard let controller = self.appContext?.utilities?.currentViewController() else {
+          promise.reject("ERR_COLOR_PICKER", "No presenting controller")
+          return
+        }
+        self.accentPicker.onChange = { [weak self] value in
+          self?.sendEvent("onAccentColorChange", ["value": value])
+        }
+        self.accentPicker.present(from: controller, title: title)
+        promise.resolve(nil)
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("getAppIcon") { UIApplication.shared.alternateIconName ?? "default" }.runOnQueue(.main)
+    AsyncFunction("setAppIcon") { (name: String, promise: Promise) in
+      guard name == "default" || name == "Aqua" else {
+        promise.reject("ERR_APP_ICON", "Unknown app icon")
+        return
+      }
+      let app = UIApplication.shared
+      let alternate = name == "default" ? nil : name
+      guard app.alternateIconName != alternate else {
+        MainActor.assumeIsolated { LiveActivities.shared.syncAppIcon() }
+        promise.resolve(name)
+        return
+      }
+      guard app.supportsAlternateIcons else {
+        promise.reject("ERR_APP_ICON", "Alternate icons are unavailable")
+        return
+      }
+      app.setAlternateIconName(alternate) { error in
+        DispatchQueue.main.async {
+          if let error { promise.reject("ERR_APP_ICON", error.localizedDescription) }
+          else {
+            LiveActivities.shared.syncAppIcon()
+            promise.resolve(app.alternateIconName ?? "default")
+          }
+        }
+      }
+    }.runOnQueue(.main)
     AsyncFunction("selectionFeedback") {
       UISelectionFeedbackGenerator().selectionChanged()
+    }.runOnQueue(.main)
+    AsyncFunction("debugReplyHaptics") { (chunksMs: [Double], values: [String: Double]) -> Int in
+      MainActor.assumeIsolated {
+        var config = ChatReplyPulses.Config()
+        let seconds = { (key: String) in values[key].map { $0 / 1000 } }
+        config.window = seconds("window") ?? config.window
+        config.duration = seconds("duration") ?? config.duration
+        config.interval = seconds("interval") ?? config.interval
+        config.count = values["count"].map { Int($0) } ?? config.count
+        config.intensity = values["intensity"].map { Float($0) } ?? config.intensity
+        config.endIntensity = values["endIntensity"].map { Float($0) } ?? config.endIntensity
+        config.curve = values["curve"].map { Float($0) } ?? config.curve
+        config.sharpness = values["sharpness"].map { Float($0) } ?? config.sharpness
+        let pulses = ChatReplyPulses.schedule(chunks: chunksMs.filter(\.isFinite).map { $0 / 1000 }, config: config)
+        ChatReplyHaptics.preview.play(pulses, sharpness: config.sharpness)
+        return pulses.count
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("morphDismiss") { (promise: Promise) in
+      MainActor.assumeIsolated { LodyMorphReveal.dismiss { promise.resolve() } }
+    }.runOnQueue(.main)
+    AsyncFunction("cancelComposerRelay") { (id: String) in
+      LodyComposerView.cancelRelay(id)
     }.runOnQueue(.main)
     AsyncFunction("verifyPushSubscription") {
       #if DEBUG
@@ -221,47 +376,59 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("liveActivityStatus") { MainActor.assumeIsolated { LiveActivities.shared.status() } }.runOnQueue(.main)
     AsyncFunction("setLiveActivitiesEnabled") { (enabled: Bool) in MainActor.assumeIsolated { LiveActivities.shared.enabled = enabled } }.runOnQueue(.main)
     AsyncFunction("debugLiveActivity") { (action: String) in
-      #if DEBUG
       MainActor.assumeIsolated { LiveActivities.shared.debug(action) }
-      #endif
     }.runOnQueue(.main)
     AsyncFunction("setPushVisibleRoute") { (route: String) in MainActor.assumeIsolated { PushNotifications.shared.visibleRoute = route } }.runOnQueue(.main)
 
     AsyncFunction("githubPullRequest") { (payload: String) async throws -> String in
       try await GitHubPullRequests.run(payload)
     }
+    AsyncFunction("pickWorkspaceIcon") { (promise: Promise) in
+      MainActor.assumeIsolated {
+        guard let controller = self.appContext?.utilities?.currentViewController() else {
+          promise.reject("PICKER_UNAVAILABLE", "The workspace icon picker could not be presented")
+          return
+        }
+        self.workspaceIconPicker.present(from: controller, promise: promise)
+      }
+    }.runOnQueue(.main)
     AsyncFunction("githubRepositories") { (workspace: String, promise: Promise) in
       Task { @MainActor in
-        #if DEBUG
-        if workspace == "ui-home", ProcessInfo.processInfo.arguments.contains("--ui-verify"),
-           ProcessInfo.processInfo.arguments.contains("--ui-verify-mentions") {
+        if workspace == "ui-home", LodyUIVerify.mentions {
           promise.resolve(["LodyAI/FreshProject"]); return
         }
-        #endif
+        if LodyUIVerify.enabled, workspace == "ui-project-picker" {
+          promise.resolve((1...20).map { "Owner/Repo\($0)" }); return
+        }
         do { promise.resolve(try await GitHubCloud.repositories(workspace: workspace)) }
         catch { promise.reject(error) }
       }
     }
     AsyncFunction("sessionCreationOptions") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
-        #if DEBUG
         if let response = MentionFixture.response(payload, options: true) { promise.resolve(response); return }
-        #endif
         self.dataRuntime.command("creationOptions", payload: payload, promise: promise)
       }
     }.runOnQueue(.main)
     AsyncFunction("localProjects") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("localProjects", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("remoteSettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("remoteSettings", payload: payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("createSession", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.createSession(payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("workspaceBillingEntitlement") { (workspace: String, user: String, promise: Promise) in
+      MainActor.assumeIsolated { self.dataRuntime.workspaceBillingEntitlement(workspace: workspace, user: user, promise: promise) }
+    }.runOnQueue(.main)
     AsyncFunction("archiveSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("archiveSession", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("deleteSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("deleteSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("pinSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("pinSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("markSessionRead") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("markSessionRead", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("renameSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("renameSession", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("controlSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("controlTurn", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("sendSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("readSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("editSession", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("prepareSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.prepareSessionEdit(payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("sendSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, promise: promise, method: "editSession") } }.runOnQueue(.main)
     AsyncFunction("sessionItemDetail") { (payload: String, promise: Promise) in
       try MainActor.assumeIsolated {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-verify"),
+        if LodyUIVerify.enabled,
           let data = payload.data(using: .utf8),
           let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           params["sessionId"] as? String == "ui-verify-diff",
@@ -282,15 +449,13 @@ public final class LodyKitModule: Module, @unchecked Sendable {
           promise.resolve(String(decoding: result, as: UTF8.self))
           return
         }
-        #endif
         self.dataRuntime.command("itemDetail", payload: payload, promise: promise)
       }
     }.runOnQueue(.main)
     AsyncFunction("respondSessionPermission") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("respondPermission", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("turnDiff") { (payload: String, promise: Promise) in
       try MainActor.assumeIsolated {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-verify"),
+        if LodyUIVerify.enabled,
           let data = payload.data(using: .utf8),
           let params = try? JSONSerialization.jsonObject(with: data) as? [String: String],
           params["sessionId"] == "ui-verify-diff", params["entryId"] == "diff-preview",
@@ -322,37 +487,52 @@ public final class LodyKitModule: Module, @unchecked Sendable {
           promise.resolve(String(decoding: result, as: UTF8.self))
           return
         }
-        #endif
         self.dataRuntime.command("turnDiff", payload: payload, promise: promise)
       }
     }.runOnQueue(.main)
     AsyncFunction("fileDiff") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("fileDiff", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("readFile") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
-        #if DEBUG
-        if let response = FilePreviewFixture.response(payload) {
-          // Exercise both slow reads and an immediate Quick Look result during push.
-          let delay = payload.contains("document.pdf") ? 0.0 : 5.0
-          DispatchQueue.main.asyncAfter(deadline: .now() + delay) { promise.resolve(response) }
+        let runtime = self.dataRuntime
+        Task { @MainActor in
+          do {
+            guard let args = try JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any],
+              let sessionId = args["sessionId"] as? String,
+              let path = args["path"] as? String
+            else {
+              throw NSError(domain: "LodyKit.FilePreview", code: 3)
+            }
+            promise.resolve(try await FilePreview.read(sessionId: sessionId, path: path, runtime: runtime))
+          } catch {
+            promise.reject(error as NSError)
+          }
+        }
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("openFile") { (sessionId: String, path: String, line: Int, promise: Promise) in
+      MainActor.assumeIsolated {
+        guard let controller = self.appContext?.utilities?.currentViewController() else {
+          promise.reject(NSError(domain: "LodyKit.FilePreview", code: 2))
           return
         }
-        #endif
-        self.dataRuntime.command("readFile", payload: payload, promise: promise)
+        let runtime = self.dataRuntime
+        Task { @MainActor in
+          let opened = await FilePreview.open(
+            sessionId: sessionId, path: path, line: line, runtime: runtime, from: controller
+          )
+          promise.resolve(opened)
+        }
       }
     }.runOnQueue(.main)
     AsyncFunction("mentionCatalog") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
-        #if DEBUG
         if let response = MentionFixture.response(payload) { promise.resolve(response); return }
-        #endif
         self.dataRuntime.command("mentionCatalog", payload: payload, promise: promise)
       }
     }.runOnQueue(.main)
     AsyncFunction("listDir") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
-        #if DEBUG
         if let response = FilePreviewFixture.response(payload, listing: true) { promise.resolve(response); return }
-        #endif
         self.dataRuntime.command("listDir", payload: payload, promise: promise)
       }
     }.runOnQueue(.main)
@@ -361,26 +541,27 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }.runOnQueue(.main)
     AsyncFunction("debugProbeSchema") { (promise: Promise) in
       MainActor.assumeIsolated {
-        #if DEBUG
         self.dataRuntime.debugProbeSchema(promise: promise)
-        #else
-        promise.resolve("{}")
-        #endif
       }
     }.runOnQueue(.main)
     AsyncFunction("debugBackgroundDataRuntime") { (action: String, promise: Promise) in
       MainActor.assumeIsolated {
-        #if DEBUG
         self.dataRuntime.debugBackground(action, promise: promise)
-        #else
-        promise.resolve("{}")
-        #endif
       }
     }.runOnQueue(.main)
+    Function("shareWriteCatalog") { (json: String) throws in try ShareStore.writeCatalog(json) }
+    Function("shareWriteOptions") { (target: String, json: String) throws in
+      guard let options = CreateJSON.decode(CreationOptions.self, json) else { throw CocoaError(.coderReadCorrupt) }
+      try ShareStore.writeOptions(options, target: target)
+    }
+    Function("sharePending") { () -> String in CreateJSON.encode(ShareStore.pending()) }
+    Function("shareAdopt") { (id: String) throws -> String in CreateJSON.encode(try ShareStore.adopt(id)) }
+    Function("shareRemove") { (id: String) in ShareStore.remove(id) }
     AsyncFunction("clearLocalValues") { (promise: Promise) in
       MainActor.assumeIsolated {
         // Stop producers before clearing their queued writes, including background Sessions.
         self.dataRuntime.stop()
+        ShareStore.clear()
         LocalStore.queue.async {
           do { try self.localStore.clear(); promise.resolve(nil) }
           catch { promise.reject(error) }
@@ -405,7 +586,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       self.onAppActive()
     }
 
-    #if DEBUG
+    View(LodyComposerHandoffPOC.self) {
+      Events("onClose")
+    }
     View(LodyNativeShellPOC.self) {
       Events("onAction")
       Prop("collectionSidebar") { (view: LodyNativeShellPOC, value: Bool) in view.collectionSidebar = value }
@@ -414,26 +597,73 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("layoutRoot") { (_: LodyNativePagePOC, _: Bool) in }
       Prop("pageKind") { (view: LodyNativePagePOC, value: String) in view.pageKind = value }
     }
-    #endif
+
+    View(LodyNavigationHeaderView.self) {
+      Events("onAction")
+      Prop("itemsJSON") { (view: LodyNavigationHeaderView, value: String) in view.setItems(value) }
+      Prop("leftItemsJSON") { (view: LodyNavigationHeaderView, value: String) in view.setLeftItems(value) }
+      Prop("title") { (view: LodyNavigationHeaderView, value: String) in view.setTitle(value) }
+    }
 
     View(LodyMentionPickerView.self) {
       Events("onPick", "onQueryReset", "onRetry")
       Prop("configurationJSON") { (view: LodyMentionPickerView, value: String) in view.configure(value) }
     }
 
+    View(LodyCreateSessionView.self) {
+      Events("onRequest", "onPrefs", "onSelection", "onSubmit", "onRelayReady", "onMentionBrowse", "onCancel")
+      Prop("configJSON") { (view: LodyCreateSessionView, value: String) in view.configure(value) }
+      Prop("responseJSON") { (view: LodyCreateSessionView, value: String) in view.respond(value) }
+      Prop("composerRelay") { (view: LodyCreateSessionView, value: Bool) in view.setComposerRelay(value) }
+      Prop("sendHandoff") { (view: LodyCreateSessionView, value: Bool?) in view.setSendHandoff(value ?? true) }
+      Prop("restoreDraftToken") { (view: LodyCreateSessionView, value: Int) in view.restore(value) }
+      Prop("mentionItemsJSON") { (view: LodyCreateSessionView, value: String) in view.setMentionItems(value) }
+      Prop("mentionResultJSON") { (view: LodyCreateSessionView, value: String) in view.setMentionResult(value) }
+    }
+
     View(LodyComposerView.self) {
+      Prop("initialDraft") { (view: LodyComposerView, value: String) in view.composer.setInitialDraft(value) }
+      Prop("initialAttachmentsJSON") { (view: LodyComposerView, value: String) in view.composer.setInitialAttachments(value) }
+      Prop("autoFocus") { (view: LodyComposerView, value: Bool) in view.composer.autoFocus = value }
+      Prop("inputIdentifier") { (view: LodyComposerView, value: String) in view.composer.setInputIdentifier(value) }
+      Prop("composerRelay") { (view: LodyComposerView, value: Bool) in view.composerRelay = value }
       Prop("sendHandoff") { (view: LodyComposerView, value: Bool?) in view.composer.sendHandoff = value ?? true }
       Prop("scrollEdge") { (view: LodyComposerView, value: Bool) in view.scrollEdge = value }
-      Events("onSend", "onHeightChange", "onComposerOptionChange", "onMentionBrowse")
+      Events("onSend", "onRelayReady", "onHeightChange", "onComposerOptionChange", "onMentionBrowse")
       Prop("composerJSON") { (view: LodyComposerView, value: String) in view.composer.setComposerState(value) }
       Prop("mentionItemsJSON") { (view: LodyComposerView, value: String) in view.composer.setMentionItems(value) }
       Prop("mentionResultJSON") { (view: LodyComposerView, value: String) in view.composer.setMentionResult(value) }
       Prop("composerOptionsJSON") { (view: LodyComposerView, value: String) in view.composer.setComposerOptions(value) }
-      Prop("restoreDraftToken") { (view: LodyComposerView, value: Int) in view.composer.restoreDraft(token: value) }
+      Prop("restoreDraftToken") { (view: LodyComposerView, value: Int) in view.restoreDraft(token: value) }
+    }
+
+    Class(PreparedChatEntries.self) {}
+    AsyncFunction("prepareChatEntries") { (json: String) in
+      try PreparedChatEntries(json)
+    }.runOnQueue(PreparedChatEntries.queue)
+
+    View(LodySessionShareView.self) {
+      Events("onAction")
+      Prop("configurationJSON") { (view: LodySessionShareView, value: String) in view.configure(value) }
+    }
+
+    View(LodyMessageShareView.self) {
+      Events("onState", "onBlocks")
+      Prop("selectedJSON") { (view: LodyMessageShareView, value: String) in view.setSelected(value) }
+      Prop("contentJSON") { (view: LodyMessageShareView, value: String) in view.setContent(value) }
+      Prop("shareToken") { (view: LodyMessageShareView, value: Int) in view.share(value) }
+      Prop("retryToken") { (view: LodyMessageShareView, value: Int) in view.retry(value) }
+    }
+
+    View(LodySimulatorView.self) {
+      Prop("sourceJSON") { (view: LodySimulatorView, value: String) in view.setSource(value) }
+      Prop("commandJSON") { (view: LodySimulatorView, value: String) in view.setCommand(value) }
     }
 
     View(LodyChatView.self) {
-      #if DEBUG
+      Prop("simulatorPreviewJSON") { (view: LodyChatView, value: String) in view.setSimulatorPreview(value) }
+      Prop("imageSharingEnabled") { (view: LodyChatView, value: Bool) in view.imageSharingEnabled = value }
+      Prop("findRequestJSON") { (view: LodyChatView, value: String) in view.setFindRequest(value) }
       Prop("debugStreamBenchmarkRun") { (view: LodyChatView, value: Int) in
         guard value > 0 else { return }
         view.streamPerformanceProbe?.stop()
@@ -444,14 +674,21 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         view.performanceProbe?.stop()
         view.performanceProbe = ChatPerformanceProbe(view)
       }
-      #endif
-      Events("onStop", "onSteer", "onSend", "onActivityPress", "onFilePress", "onTurnChangesPress", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse")
+      Events("onStop", "onSteer", "onSend", "onEditMessage", "onShareImage", "onTurnInfoPress", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse", "onPreview", "onTitleMenu")
+      Prop("editableMessageId") { (view: LodyChatView, value: String) in view.editableMessageID = value }
+      Prop("editedMessageId") { (view: LodyChatView, value: String) in view.editedMessageID = value }
       Prop("navigationTitle") { (view: LodyChatView, value: String) in view.setNavigationTitle(value) }
       Prop("navigationSubtitle") { (view: LodyChatView, value: String) in view.setNavigationSubtitle(value) }
       Prop("navigationMachine") { (view: LodyChatView, value: String) in view.setNavigationMachine(value) }
+      Prop("navigationBranch") { (view: LodyChatView, value: String) in view.setNavigationBranch(value) }
+      Prop("titleMenuJSON") { (view: LodyChatView, value: String) in view.setTitleMenu(value) }
       Prop("mentionRepository") { (view: LodyChatView, value: String) in view.mentionRepository = value }
       Prop("attachmentContextJSON") { (view: LodyChatView, value: String) in view.setAttachmentContext(value) }
+      Prop("errorRetryJSON") { (view: LodyChatView, value: String) in view.setErrorRetryState(value) }
+      Prop("turnInfoEnabled") { (view: LodyChatView, value: Bool) in view.turnInfoEnabled = value }
       Prop("entriesJSON") { (view: LodyChatView, value: String) in view.setEntries(value) }
+      Prop("preparedEntries") { (view: LodyChatView, value: PreparedChatEntries?) in view.preparedEntries = value }
+      OnViewDidUpdateProps { (view: LodyChatView) in view.scheduleUpdate() }
       Prop("pendingSendJSON") { (view: LodyChatView, value: String) in view.setPendingSendJSON(value) }
       Prop("processStartId") { (view: LodyChatView, value: String) in view.setProcessStartID(value) }
       Prop("processEntryId") { (view: LodyChatView, value: String) in view.setProcessEntryID(value) }
@@ -470,6 +707,10 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("emptyText") { (view: LodyChatView, value: String) in view.setEmptyText(value) }
     }
 
+    View(LodyDiffSurface.self) {
+      Prop("contentRevision") { (view: LodyDiffSurface, _: Double?) in view.setNeedsLayout() }
+    }
+
     View(LodyDiffToolbar.self) {
       Events("onStyleChange")
       Prop("add") { (view: LodyDiffToolbar, value: Int?) in view.pendingAdd = value ?? 0; view.applyStats() }
@@ -478,12 +719,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("diffStyle") { (view: LodyDiffToolbar, value: String?) in view.setStyle(value ?? "unified") }
     }
 
-    View(LodyCodeView.self) {
+    View(LodyMarkdownDocumentView.self) {
       Events("onFail", "onFilePress")
-      Prop("renderMarkdown") { (view: LodyCodeView, value: Bool) in view.setMarkdown(value) }
-      Prop("line") { (view: LodyCodeView, value: Int) in view.setLine(value) }
-      Prop("handle") { (view: LodyCodeView, value: String) in view.setHandle(value) }
-      Prop("path") { (view: LodyCodeView, value: String) in view.setPath(value) }
+      Prop("handle") { (view: LodyMarkdownDocumentView, value: String) in view.setHandle(value) }
     }
 
     View(LodyInlineDiffView.self) {
@@ -491,6 +729,14 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("path") { (view: LodyInlineDiffView, value: String) in view.setPath(value) }
       Prop("oldText") { (view: LodyInlineDiffView, value: String?) in view.setOldText(value) }
       Prop("newText") { (view: LodyInlineDiffView, value: String?) in view.setNewText(value) }
+    }
+
+    View(LodyAppIconGrid.self) {
+      Events("onSelect")
+      Prop("items") { (view: LodyAppIconGrid, value: [LodyAppIconItem]) in view.setItems(value) }
+      Prop("selected") { (view: LodyAppIconGrid, value: String) in view.setSelected(value) }
+      Prop("pending") { (view: LodyAppIconGrid, value: String) in view.setPending(value) }
+      Prop("enabled") { (view: LodyAppIconGrid, value: Bool) in view.setEnabled(value) }
     }
 
     View(LodyPagedList.self) {
@@ -524,9 +770,14 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("contentStyle") { (view: LodyGroupedList, value: Bool) in
         view.setContentStyle(value)
       }
-      Events("onRowPress", "onRowToggle", "onRowAction", "onRefresh", "onSegmentChange")
+      Events("onRowPress", "onRowToggle", "onRowAction", "onReorder", "onRefresh", "onSegmentChange", "onSearchChange")
+      Prop("reordering") { (view: LodyGroupedList, value: Bool) in view.setReordering(value) }
       Prop("segments") { (view: LodyGroupedList, labels: [String]) in view.setSegments(labels) }
       Prop("selectedSegment") { (view: LodyGroupedList, index: Int) in view.setSelectedSegment(index) }
+      Prop("segmentsStyle") { (view: LodyGroupedList, value: String) in view.setSegmentsStyle(value) }
+      Prop("segmentsDone") { (view: LodyGroupedList, value: [Bool]) in view.setSegmentsDone(value) }
+      Prop("searchPlaceholder") { (view: LodyGroupedList, value: String) in view.setSearchPlaceholder(value) }
+      Prop("searchText") { (view: LodyGroupedList, value: String) in view.setSearchText(value) }
       Prop("sections") { (view: LodyGroupedList, sections: [LodyListSection]) in
         view.setSections(sections)
       }

@@ -1,4 +1,18 @@
+import { type TurnMetadata } from '../cloud/turnMetadata';
+export type SystemNoticeMeta = {
+  reason?: string;
+  code?: string;
+  message?: string;
+};
+
 export type ItemSummary =
+  | {
+      itemId: string;
+      rev: number;
+      type: 'system_notice';
+      name: string;
+      meta?: SystemNoticeMeta;
+    }
   | { itemId: string; rev: number; type: 'text'; text: string }
   | { itemId: string; rev: number; type: 'thought'; text: string }
   | {
@@ -34,16 +48,27 @@ export type ItemSummary =
       status: string;
       actor?: string;
       description?: string;
+      lastToolName?: string;
+      summary?: string;
+      error?: string;
+      isBackgrounded?: boolean;
+      skipTranscript?: boolean;
     }
   | { itemId: string; rev: number; type: string };
 
-export type EntrySummary = {
+export type EntrySummary = TurnMetadata & {
   id: string;
   rev: number;
   role: string;
   status: string;
   finished: boolean;
   canSteer?: boolean;
+  userTurnId?: string;
+  executionId?: string;
+  executionFinished?: boolean;
+  steerCount?: number;
+  delivery?: string;
+  holdOpen?: boolean;
   timestamp?: string;
   startedAt?: number;
   endedAt?: number;
@@ -58,7 +83,9 @@ export type Envelope = {
   status: string;
   reason?: string;
   revision: number;
+  billableTurnCount?: number;
   awaitingUserSince?: number;
+  preview?: { label: string; active: boolean };
   composer?: {
     modelId?: string;
     modeId?: string;

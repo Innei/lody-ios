@@ -1,19 +1,65 @@
+import ChatKitCore
+import ChatKit
 import CoreText
 import Litext
 import UIKit
 
 final class ChatFadeLayout: TextLabel.Layout {
-  var fades: () -> [ChatTextFade.RangeFade] = { [] }
+  var fades: () -> [CKTextFade.RangeFade] = { [] }
+  var shines: () -> Bool = { false }
+  var displayScale: () -> CGFloat = { 1 }
+
+  override func draw(in context: CGContext, visibleRect: CGRect?) {
+    super.draw(in: context, visibleRect: visibleRect)
+    guard shines() else { return }
+    let textWidth = min(
+      containerSize.width,
+      max(1, sizeThatFits(CGSize(width: containerSize.width, height: .greatestFiniteMagnitude)).width)
+    )
+    let bounds = CGRect(origin: .zero, size: containerSize)
+    let overlay = CKTextShine.overlay(
+      for: CGRect(x: 0, y: 0, width: textWidth, height: containerSize.height),
+      height: containerSize.height,
+      at: CACurrentMediaTime()
+    )
+    guard let mask = CKTextShine.mask(
+      size: containerSize,
+      scale: displayScale(),
+      overlay: overlay
+    ) else { return }
+    context.saveGState()
+    context.clip(to: bounds, mask: mask)
+    context.setBlendMode(.copy)
+    context.setAlpha(0.32)
+    super.draw(in: context, visibleRect: visibleRect)
+    context.restoreGState()
+  }
 
   override func draw(line: CTLine, at index: Int, in context: CGContext) {
     let time = CACurrentMediaTime()
     let lineRange = CTLineGetStringRange(line)
-    let active = fades().filter {
-      $0.opacity(at: time) < 1 && NSIntersectionRange($0.range, NSRange(location: lineRange.location, length: lineRange.length)).length > 0
+    let ranges = fades()
+    var lower = 0
+    var upper = ranges.count
+    while lower < upper {
+      let middle = (lower + upper) / 2
+      if NSMaxRange(ranges[middle].range) <= lineRange.location { lower = middle + 1 }
+      else { upper = middle }
     }
+    var end = lower
+    while end < ranges.count && ranges[end].range.location < lineRange.location + lineRange.length { end += 1 }
+    let active = ranges[lower..<end].filter { $0.opacity(at: time) < 1 }
     guard !active.isEmpty else { CTLineDraw(line, context); return }
     func opacity(at character: CFIndex) -> CGFloat {
-      active.reduce(1) { NSLocationInRange(character, $1.range) ? min($0, CGFloat($1.opacity(at: time))) : $0 }
+      var low = 0
+      var high = active.count
+      while low < high {
+        let middle = (low + high) / 2
+        if NSMaxRange(active[middle].range) <= character { low = middle + 1 }
+        else { high = middle }
+      }
+      guard low < active.count, NSLocationInRange(character, active[low].range) else { return 1 }
+      return CGFloat(active[low].opacity(at: time))
     }
     for run in CTLineGetGlyphRuns(line) as! [CTRun] {
       let count = CTRunGetGlyphCount(run)
@@ -43,20 +89,25 @@ final class ChatFadeLayout: TextLabel.Layout {
 
 /// Fades newly rendered graphemes in while a message streams. Ticks only redraw;
 /// they never touch the attributed string or the layout.
-final class ChatFadeLabelView: TextLabelView, UIGestureRecognizerDelegate {
-  private var fade = ChatTextFade()
+final class ChatFadeLabelView: TextLabelView {
+  private var fade = CKTextFade()
   private var timer: Timer?
   private var animateNext = false
   private var resetNext = false
-  private var renderedLayout: TextLabel.Layout?
   private var wasAnimating = false
+  private var shineEnabled = false
+  private weak var fadeLayout: ChatFadeLayout?
+  private var fadeRect: CGRect?
+  private var fadeRectSize: CGSize = .zero
+  var isFading: Bool {
+    window != nil && !UIAccessibility.isReduceMotionEnabled && fade.isAnimating(at: CACurrentMediaTime())
+  }
 
-  override init(frame: CGRect) {
-    super.init(frame: frame)
-    let longPress = UILongPressGestureRecognizer(target: self, action: #selector(selectWord(_:)))
-    longPress.cancelsTouchesInView = false
-    longPress.delegate = self
-    addGestureRecognizer(longPress)
+  func setShine(_ on: Bool) {
+    guard shineEnabled != on else { pokeTimer(); return }
+    shineEnabled = on
+    setNeedsDisplay()
+    pokeTimer()
   }
 
   func prepare(animate: Bool, reset: Bool) {
@@ -66,12 +117,15 @@ final class ChatFadeLabelView: TextLabelView, UIGestureRecognizerDelegate {
 
   override var attributedText: NSAttributedString {
     didSet {
+      fadeRect = nil
       let animate = animateNext && window != nil && !UIAccessibility.isReduceMotionEnabled
       guard animate else { finishAnimation(); return }
-      if !wasAnimating && !resetNext {
+      if resetNext {
+        fade.update("", animate: false, at: CACurrentMediaTime(), reset: true)
+      } else if !wasAnimating {
         fade.update(oldValue.string, animate: false, at: CACurrentMediaTime(), reset: true)
       }
-      fade.update(attributedText.string, animate: animate, at: CACurrentMediaTime(), reset: resetNext)
+      fade.update(attributedText.string, animate: animate, at: CACurrentMediaTime())
       resetNext = false
       wasAnimating = true
       pokeTimer()
@@ -79,43 +133,46 @@ final class ChatFadeLabelView: TextLabelView, UIGestureRecognizerDelegate {
   }
 
   func finishAnimation() {
-    fade = ChatTextFade()
+    fade = CKTextFade()
     wasAnimating = false
     resetNext = false
     timer?.invalidate()
     timer = nil
     setNeedsDisplay()
+    pokeTimer()
   }
 
   override func makeTextLayout(_ attributedText: NSAttributedString) -> TextLabel.Layout {
     let layout = ChatFadeLayout(attributedString: attributedText)
+    fadeLayout = layout
     layout.fades = { [weak self] in self?.fade.active ?? [] }
-    renderedLayout = layout
+    layout.shines = { [weak self] in
+      self?.shineEnabled == true && !UIAccessibility.isReduceMotionEnabled
+    }
+    layout.displayScale = { [weak self] in max(1, self?.traitCollection.displayScale ?? 1) }
     return layout
   }
 
-  @objc private func selectWord(_ gesture: UILongPressGestureRecognizer) {
-    guard gesture.state == .began, let layout = renderedLayout else { return }
-    let point = gesture.location(in: self)
-    let layoutPoint = CGPoint(x: point.x, y: layout.containerSize.height - point.y)
-    guard let index = layout.textIndex(at: layoutPoint) else { return }
-    let text = layout.attributedString.string as NSString
-    var selected = NSRange(location: NSNotFound, length: 0)
-    text.enumerateSubstrings(
-      in: NSRange(location: 0, length: text.length),
-      options: [.byWords, .substringNotRequired]
-    ) { _, range, _, stop in
-      guard NSLocationInRange(index, range) else { return }
-      selected = range
-      stop.pointee = true
+  private func redrawFade() {
+    guard !shineEnabled, let layout = fadeLayout, layout.containerSize == bounds.size,
+          let first = fade.active.first, let last = fade.active.last else {
+      setNeedsDisplay()
+      return
     }
-    if selected.location != NSNotFound { selectionRange = selected }
+    if fadeRect == nil || fadeRectSize != bounds.size {
+      fadeRectSize = bounds.size
+      let range = NSUnionRange(first.range, last.range)
+      let rect = layout.rects(for: range).reduce(CGRect.null) { $0.union($1) }
+      if !rect.isNull {
+        // Rects are in CoreText coordinates. Include whole line width and a
+        // little ink overhang; UIKit retains all pixels outside this dirty area.
+        fadeRect = CGRect(x: 0, y: bounds.height - rect.maxY - 4,
+          width: bounds.width, height: rect.height + 8).intersection(bounds)
+      }
+    }
+    if let fadeRect { setNeedsDisplay(fadeRect) }
+    else { setNeedsDisplay() }
   }
-
-  func gestureRecognizer(
-    _ gestureRecognizer: UIGestureRecognizer,
-    shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
-  ) -> Bool { true }
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
@@ -124,15 +181,17 @@ final class ChatFadeLabelView: TextLabelView, UIGestureRecognizerDelegate {
   }
 
   private func pokeTimer() {
-    let keep = window != nil && !UIAccessibility.isReduceMotionEnabled && fade.isAnimating(at: CACurrentMediaTime())
+    let keep = window != nil && !UIAccessibility.isReduceMotionEnabled
+      && (shineEnabled || fade.isAnimating(at: CACurrentMediaTime()))
     guard keep else { timer?.invalidate(); timer = nil; return }
     guard timer == nil else { return }
     let ticker = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
       guard self != nil else { timer.invalidate(); return }
       MainActor.assumeIsolated {
         guard let self else { return }
-        self.setNeedsDisplay()
-        if self.window == nil || !self.fade.isAnimating(at: CACurrentMediaTime()) {
+        self.redrawFade()
+        if self.window == nil || UIAccessibility.isReduceMotionEnabled
+          || !(self.shineEnabled || self.fade.isAnimating(at: CACurrentMediaTime())) {
           self.timer?.invalidate()
           self.timer = nil
         }

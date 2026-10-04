@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   NativeChat,
   NativeComposer,
@@ -12,6 +13,7 @@ import { useSessionControl } from '@/features/sessions/useSessionControl';
 import type { Session } from '@/models/catalog';
 import type { Snapshot } from '@/features/sessions/useSessionRuntime';
 import { Button } from '@/ui/Button';
+import { ComposerSheet } from '@/ui/ComposerSheet';
 import { usePalette } from '@/lib/theme/palette';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 
@@ -27,6 +29,7 @@ const session: Session = {
   cliType: 'builtin',
   agentType: 'fixture',
 };
+const fixtureControl = { minWidth: 44 };
 const attachment = {
   id: 'fixture-file',
   name: 'fixture.txt',
@@ -35,16 +38,15 @@ const attachment = {
 };
 
 function advanceQueue(old: Snapshot, messageId?: string): Snapshot {
-  const next = old.entries.find(
-    (entry) =>
-      entry.status === 'queued' && (!messageId || entry.id === messageId),
+  const next = old.entries.find((entry) =>
+    messageId ? entry.id === messageId : entry.status === 'queued',
   );
   const history = old.entries
-    .filter((entry) => entry.status !== 'queued')
+    .filter((entry) => entry.status !== 'queued' && entry.id !== next?.id)
     .map((entry) => ({ ...entry, finished: true }));
   if (next)
     history.push(
-      { ...next, status: 'processing', finished: true },
+      { ...next, status: 'processing', delivery: 'accepted', finished: true },
       {
         id: next.id + ':reply',
         role: 'assistant',
@@ -74,18 +76,32 @@ function advanceQueue(old: Snapshot, messageId?: string): Snapshot {
 }
 
 function SendSource() {
-  const { finish } = usePageRuntime<undefined, void>();
+  const { params, finish } = usePageRuntime<{ prepare: () => void }, void>();
   const outbox = usePendingSends('ui-send-preview', 'fixture');
-  const colors = usePalette();
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: 'flex-end',
-        backgroundColor: colors.background,
-      }}
+    <ComposerSheet
+      onRowPress={() => {}}
+      sections={[
+        {
+          id: 'machine',
+          rows: [
+            {
+              id: 'machine',
+              title: 'Offline machine',
+              image: 'desktopcomputer',
+            },
+          ],
+        },
+        {
+          id: 'agent',
+          rows: [{ id: 'agent', title: 'Offline agent', image: 'sparkles' }],
+        },
+      ]}
     >
       <NativeComposer
+        composerRelay
+        onRelayReady={() => finish()}
+        scrollEdge
         composerJSON={JSON.stringify({
           editable: true,
           canSend: true,
@@ -104,20 +120,30 @@ function SendSource() {
               creation: '{}',
             },
           });
-          finish();
+          params.prepare();
         }}
       />
-    </View>
+    </ComposerSheet>
   );
 }
 
 function SendPreview() {
   const { params } = usePageRuntime<
-    { queue?: boolean; steer?: boolean } | undefined,
+    | {
+        queue?: boolean;
+        steer?: boolean;
+        queuedMessageBehavior?: 'queue' | 'guide';
+      }
+    | undefined,
     void
   >();
   const queue = params?.queue === true;
+  const previewSession = {
+    ...session,
+    status: queue ? 'running' : session.status,
+  };
   const colors = usePalette();
+  const insets = useSafeAreaInsets();
   const outbox = usePendingSends('ui-send-preview', 'fixture');
   const record = outbox.records.find(
     (entry) => entry.session.id === session.id,
@@ -151,6 +177,8 @@ function SendPreview() {
       : [],
   });
   const completion = useRef<((result: string) => void) | null>(null);
+  const submitted = useRef<{ id: string; guide?: boolean } | null>(null);
+  const guideReceipts = useRef<string[]>([]);
   const uploadListener = useRef<
     ((event: AttachmentUploadProgress) => void) | null
   >(null);
@@ -160,6 +188,7 @@ function SendPreview() {
     resolve: (result: string) => void;
   } | null>(null);
   const [controlRequest, setControlRequest] = useState('');
+  const [contextChip, setContextChip] = useState(false);
   const control = useSessionControl(
     session,
     snapshot,
@@ -167,12 +196,24 @@ function SendPreview() {
     params?.steer !== false,
     (payload) => {
       setControlRequest(payload);
+      const args = JSON.parse(payload);
+      if (args.action === 'steer')
+        setSnapshot((old) => ({
+          ...old,
+          revision: old.revision + 1,
+          entries: old.entries.map((entry) =>
+            entry.id === args.messageId
+              ? { ...entry, status: 'pending_apply', delivery: 'confirming' }
+              : entry,
+          ),
+        }));
       return new Promise((resolve) => {
-        controlPending.current = { args: JSON.parse(payload), resolve };
+        controlPending.current = { args, resolve };
       });
     },
   );
   const services = useRef({
+    ensureSession: async () => {},
     addAttachmentUploadProgressListener: (
       listener: (event: AttachmentUploadProgress) => void,
     ) => {
@@ -190,21 +231,24 @@ function SendPreview() {
         setCalls((n) => n + 1);
         completion.current = resolve;
       }),
-    sendSessionTurn: () =>
+    sendSessionTurn: (payload: string) =>
       new Promise<string>((resolve) => {
+        submitted.current = JSON.parse(payload);
         setCalls((n) => n + 1);
         completion.current = resolve;
       }),
   }).current;
   const send = useSessionSend({
     outbox,
-    session,
+    session: previewSession,
     record,
     snapshot,
     connected,
     serverCreated: false,
     userId: 'ui-send-preview',
     overflow: false,
+    queuedMessageBehavior: params?.queuedMessageBehavior ?? 'queue',
+    steerable: params?.steer !== false,
     services,
   });
   useEffect(
@@ -217,7 +261,17 @@ function SendPreview() {
   const complete = (failure: boolean) => {
     if (controlPending.current) {
       const { args, resolve } = controlPending.current;
-      controlPending.current = null;
+      if (!failure) controlPending.current = null;
+      if (failure && args.action === 'steer')
+        setSnapshot((old) => ({
+          ...old,
+          revision: old.revision + 1,
+          entries: old.entries.map((entry) =>
+            entry.id === args.messageId
+              ? { ...entry, delivery: 'unknown' }
+              : entry,
+          ),
+        }));
       if (!failure) setSnapshot((old) => advanceQueue(old, args.messageId));
       resolve(
         JSON.stringify({
@@ -228,8 +282,98 @@ function SendPreview() {
       );
       return;
     }
+    // Durable writes and per-message RPC receipts settle independently.
+    if (!completion.current && guideReceipts.current.length) {
+      const id = guideReceipts.current.shift()!;
+      setSnapshot((old) => ({
+        ...old,
+        revision: old.revision + 1,
+        entries: old.entries.map((entry) =>
+          entry.id === id
+            ? {
+                ...entry,
+                status: failure ? 'pending_apply' : 'processing',
+                delivery: failure ? 'unknown' : 'accepted',
+              }
+            : entry,
+        ),
+      }));
+      return;
+    }
     const resolve = completion.current;
     if (!resolve) return;
+    if (submitted.current?.guide && record) {
+      const target = snapshot.entries.findLast(
+        (entry) => entry.role === 'assistant' && !entry.finished,
+      );
+      completion.current = null;
+      if (!failure && target) {
+        const id = record.send.id;
+        guideReceipts.current.push(id);
+        setControlRequest(
+          JSON.stringify({ action: 'steer', turnId: target.id, messageId: id }),
+        );
+        setSnapshot((old) => ({
+          ...old,
+          revision: old.revision + 1,
+          entries: [
+            ...old.entries,
+            {
+              id,
+              role: 'user',
+              status: 'pending_apply',
+              delivery: 'confirming',
+              finished: true,
+              rev: 0,
+              items: [
+                {
+                  itemId: 'text',
+                  type: 'text',
+                  text: record.send.text,
+                  rev: 0,
+                },
+              ],
+            },
+          ],
+        }));
+        resolve(JSON.stringify({ state: 'uploaded', awaitingGuide: true }));
+        return;
+      }
+      if (!failure) {
+        setControlRequest(
+          JSON.stringify({ action: 'dispatch', messageId: record.send.id }),
+        );
+        setSnapshot((old) => ({
+          ...old,
+          revision: old.revision + 1,
+          entries: [
+            ...old.entries,
+            {
+              id: record.send.id,
+              role: 'user',
+              status: 'pending',
+              finished: true,
+              rev: 0,
+              items: [
+                {
+                  itemId: 'text',
+                  type: 'text',
+                  text: record.send.text,
+                  rev: 0,
+                },
+              ],
+            },
+          ],
+        }));
+      }
+      resolve(
+        JSON.stringify({
+          state: failure ? 'not_sent' : 'accepted',
+          reason: failure ? 'free_session_turn_limit_reached' : undefined,
+        }),
+      );
+      return;
+    }
     completion.current = null;
     let state = failure ? 'not_sent' : 'accepted';
     if (record?.send.queue && !failure) {
@@ -253,7 +397,13 @@ function SendPreview() {
       }));
     }
     if (record?.send.creation) state = failure ? 'rejected' : 'created';
-    resolve(JSON.stringify({ state, session, reason: '验收：明确未发送' }));
+    resolve(
+      JSON.stringify({
+        state,
+        session,
+        reason: failure ? 'free_session_turn_limit_reached' : undefined,
+      }),
+    );
   };
   const reply = (finished: boolean) => {
     if (queue) {
@@ -309,7 +459,9 @@ function SendPreview() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <View
         style={{
-          paddingTop: 108,
+          // The transparent navigation bar's hit region extends past its title.
+          // Keep these controls clear of it so a physical tap reaches the button.
+          paddingTop: Math.max(insets.top + 72, 140),
           paddingHorizontal: 16,
           flexDirection: 'row',
           gap: 8,
@@ -317,6 +469,7 @@ function SendPreview() {
       >
         <Button
           testID="send-connect"
+          style={fixtureControl}
           onPress={() => {
             setConnected(true);
             setSnapshot((old) => ({ ...old, status: 'live' }));
@@ -324,21 +477,47 @@ function SendPreview() {
         >
           连接
         </Button>
-        <Button testID="send-complete" onPress={() => complete(false)}>
+        <Button
+          testID="send-complete"
+          style={fixtureControl}
+          onPress={() => complete(false)}
+        >
           确认
         </Button>
-        <Button testID="send-fail" onPress={() => complete(true)}>
+        <Button
+          testID="send-fail"
+          style={fixtureControl}
+          onPress={() => complete(true)}
+        >
           失败
         </Button>
-        <Button testID="send-start-reply" onPress={() => reply(false)}>
+        <Button
+          testID="send-start-reply"
+          style={fixtureControl}
+          onPress={() => reply(false)}
+        >
           开始回复
         </Button>
-        <Button testID="send-reply" onPress={() => reply(true)}>
+        <Button
+          testID="send-reply"
+          style={fixtureControl}
+          onPress={() => reply(true)}
+        >
           回复
         </Button>
+        {queue && (
+          <Button
+            testID="send-toggle-context"
+            style={fixtureControl}
+            onPress={() => setContextChip((value) => !value)}
+          >
+            上下文
+          </Button>
+        )}
         {!queue && (
           <Button
             testID="send-toggle-pending"
+            style={fixtureControl}
             onPress={() =>
               record
                 ? void outbox.remove(session.id)
@@ -381,6 +560,24 @@ function SendPreview() {
       >
         上传进度
       </Button>
+      {params?.queuedMessageBehavior === 'guide' && (
+        <Button
+          testID="send-reset-guide"
+          onPress={async () => {
+            await outbox.remove(session.id);
+            setControlRequest('');
+            setSnapshot((old) => ({
+              ...old,
+              revision: old.revision + 1,
+              entries: old.entries
+                .filter((entry) => entry.id === 'running-reply')
+                .map((entry) => ({ ...entry, finished: false })),
+            }));
+          }}
+        >
+          重置引导场景
+        </Button>
+      )}
       <Text
         testID="send-status"
         style={{ color: colors.label, padding: 12 }}
@@ -405,6 +602,14 @@ function SendPreview() {
         entriesJSON={JSON.stringify(snapshot.entries)}
         pendingSendJSON={send.pendingSendJSON}
         composerJSON={JSON.stringify({
+          preview: contextChip
+            ? {
+                label: 'localhost:5173',
+                accessibilityLabel: 'localhost:5173',
+                symbol: 'safari',
+                state: 'ready',
+              }
+            : undefined,
           editable: true,
           canSend: send.canSend,
           sending: send.sending,
@@ -414,6 +619,7 @@ function SendPreview() {
           controlling: control.controlling,
           steerID: control.steerID,
           steerInterrupts: control.steerInterrupts,
+          queuedMessageBehavior: params?.queuedMessageBehavior ?? 'queue',
           notice: '',
           reconnect: false,
           placeholder: '断网也可以发送',
@@ -438,10 +644,13 @@ function SendPreview() {
   );
 }
 
-const sourcePage = definePage<undefined, void>({
+const sourcePage = definePage<{ prepare: () => void }, void>({
   id: 'send-source',
   title: '新建会话交接',
   Component: SendSource,
+  parseRouteParams: () => {
+    throw new Error('Open from Debug');
+  },
   presentation: {
     style: 'formSheet',
     headerVariant: 'transparent',
@@ -449,7 +658,12 @@ const sourcePage = definePage<undefined, void>({
   },
 });
 const targetPage = definePage<
-  { queue?: boolean; steer?: boolean } | undefined,
+  | {
+      queue?: boolean;
+      steer?: boolean;
+      queuedMessageBehavior?: 'queue' | 'guide';
+    }
+  | undefined,
   void
 >({
   id: 'send-preview',
@@ -460,15 +674,31 @@ const targetPage = definePage<
 });
 
 export async function openSendPreview(
-  source: boolean,
+  source: boolean | 'delayed',
   queue = false,
   steer = true,
+  queuedMessageBehavior: 'queue' | 'guide' = 'queue',
 ) {
   const { getPendingSendStore } = await import('@/cloud/send/pendingSends');
   await getPendingSendStore('ui-send-preview', 'fixture').remove(session.id);
   if (source) {
-    const result = await present(sourcePage);
+    let destination: Promise<unknown> | undefined;
+    const result = await present(sourcePage, {
+      prepare: () => {
+        destination = (async () => {
+          if (source === 'delayed')
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+          return present(
+            targetPage,
+            { queue, steer, queuedMessageBehavior },
+            { animationType: 'none' },
+          );
+        })();
+      },
+    });
     if (result.status !== 'completed') return;
+    await destination;
+    return;
   }
-  await present(targetPage, { queue, steer });
+  await present(targetPage, { queue, steer, queuedMessageBehavior });
 }

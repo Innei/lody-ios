@@ -145,6 +145,44 @@ test('reply metadata preserves each recorded model and updates when it arrives a
     thoughtLevel: 'High',
   });
   assert.ok(after.entries[2].rev > before.entries[2].rev);
+  const usage = {
+    inputTokens: 1234,
+    outputTokens: 6640,
+    reasoningOutputTokens: 2000,
+    cacheReadInputTokens: 120000,
+    cacheCreationInputTokens: 4096,
+  };
+  reply.set('tokenUsage', usage);
+  reply.set('inputConfig', {
+    modeId: 'plan',
+    configOptionValues: {
+      fast: false,
+      effort: 'high',
+      secret_token: 'hidden',
+      invalid: {},
+    },
+  });
+  doc.commit();
+  const late = projectSession(doc, 'live').entries[2];
+  assert.deepEqual(late.tokenUsage, usage);
+  assert.deepEqual(late.inputConfig, {
+    modeId: 'plan',
+    configOptionValues: { fast: false, effort: 'high' },
+  });
+  assert.ok(
+    late.rev > after.entries[2].rev,
+    'Late usage invalidates the rendered entry',
+  );
+  assert.equal(projectSession(doc, 'live').entries[0].tokenUsage, undefined);
+  for (const invalid of [
+    { ...usage, inputTokens: -1 },
+    { ...usage, outputTokens: '20' },
+    { inputTokens: 20 },
+  ]) {
+    reply.set('tokenUsage', invalid);
+    doc.commit();
+    assert.equal(projectSession(doc, 'live').entries[2].tokenUsage, undefined);
+  }
   reply.set('modelInfo', {
     modelId: 'id-only',
     name: 42,
@@ -585,6 +623,39 @@ test('projection carries stable item ids, tool summaries, and diff counts', asyn
   assert.ok(second.revision > first.revision);
 });
 
+test('projection keeps subagent task identity and live fields', async () => {
+  const { projectSession } = await loadProject();
+  const doc = new LoroDoc();
+  const entry = doc.getList('history').pushContainer(new LoroMap());
+  entry.set('id', 'e-task');
+  entry.set('role', 'assistant');
+  const task = entry
+    .setContainer('items', new LoroList())
+    .pushContainer(new LoroMap());
+  task.set('type', 'subagent_task');
+  task.set('taskId', 't1');
+  task.set('status', 'in_progress');
+  task.set('actor', 'Explore');
+  task.set('description', 'Find overlay chrome');
+  task.set('lastToolName', 'Read');
+  task.set('summary', 'Still looking');
+  task.set('error', 'none');
+  task.set('isBackgrounded', true);
+  task.set('skipTranscript', false);
+  doc.commit();
+  const item = projectSession(doc, 'live').entries[0].items[0];
+  assert.equal(item.type, 'subagent_task');
+  assert.equal(item.taskId, 't1');
+  assert.equal(item.status, 'in_progress');
+  assert.equal(item.actor, 'Explore');
+  assert.equal(item.description, 'Find overlay chrome');
+  assert.equal(item.lastToolName, 'Read');
+  assert.equal(item.summary, 'Still looking');
+  assert.equal(item.error, 'none');
+  assert.equal(item.isBackgrounded, true);
+  assert.equal(item.skipTranscript, false);
+});
+
 test('MCP image groups survive projection, cache updates and history bootstrap', async () => {
   const { projectSession } = await loadProject();
   const doc = new LoroDoc();
@@ -820,6 +891,7 @@ test(
     const until = (predicate) =>
       new Promise((resolve) => waiters.push({ predicate, resolve }));
     const emit = (event) => {
+      if (!event.session) return;
       const value = { ...event, data: JSON.parse(event.session) };
       events.push(value);
       for (const waiter of [...waiters]) {
@@ -837,6 +909,17 @@ test(
       async bootstrap({ signal }) {
         this.signal = signal;
         const server = servers.get(this.id) ?? new LoroDoc();
+        if (!server.getList('history').length) {
+          const entry = server.getList('history').pushContainer(new LoroMap());
+          entry.set('id', 'same-entry');
+          entry.set('role', 'assistant');
+          entry.set('finished', this.id.startsWith('idle-'));
+          const item = entry
+            .setContainer('items', new LoroList())
+            .pushContainer(new LoroMap());
+          item.set('type', 'tool_call');
+          item.set('toolCallId', 'same-tool');
+        }
         servers.set(this.id, server);
         this.version = server.version();
         return ok({
@@ -872,6 +955,7 @@ test(
           item.set('type', 'tool_call');
           item.set('toolCallId', 'same-tool');
         }
+        entry.set('finished', false);
         entry.get('items').get(0).set('title', text);
         server.commit();
         const body = frame(
@@ -916,6 +1000,18 @@ test(
     await open('a');
     await open('b');
     await open('c');
+    runtime.closeSession();
+    for (const id of ['idle-one', 'idle-two', 'idle-three']) await open(id);
+    assert.ok(
+      ['a', 'b', 'c'].every((id) => !client(id).signal.aborted),
+      'idle visits must not evict working sessions',
+    );
+    assert.ok(
+      client('idle-one').signal.aborted && client('idle-two').signal.aborted,
+      'idle sessions must not remain in the background LRU',
+    );
+    runtime.closeSession();
+    assert.equal(client('idle-three').signal.aborted, true);
     await open('d');
     assert.equal(clients.filter((c) => !c.signal.aborted).length, 4);
     const background = until(
@@ -1020,8 +1116,174 @@ test(
     const oldClients = [...clients];
     await open('b', 'other-workspace');
     assert.ok(oldClients.every((c) => c.signal.aborted));
+    await open('idle-start', 'other-workspace');
+    const started = until(
+      (e) =>
+        e.sessionId === 'idle-start' && e.data.entries[0]?.finished === false,
+    );
+    client('idle-start').push('actually working now');
+    await started;
+    runtime.closeSession();
+    assert.equal(
+      client('idle-start').signal.aborted,
+      false,
+      'an idle foreground session enters the LRU once it starts working',
+    );
     runtime.stopSessions();
     assert.ok(clients.every((c) => c.signal.aborted));
+  },
+);
+
+test('closeSession does not abort an in-flight send or block a later send on the retained replica', async () => {
+  let releaseExpand;
+  const fixture = await openTestSession({
+    onRpc: () => ({ result: { accepted: true } }),
+  });
+  const args = {
+    sessionId: 's1',
+    machineId: 'm1',
+    userId: 'u1',
+    cliType: 'builtin',
+    agentType: 'grok',
+    text: 'keep sending',
+  };
+  try {
+    const sending = fixture.runtime.sendTurn(args, async (text) => {
+      await new Promise((resolve) => {
+        releaseExpand = resolve;
+      });
+      return text;
+    });
+    fixture.runtime.closeSession();
+    releaseExpand();
+    assert.equal((await sending).state, 'accepted');
+    assert.equal(
+      (await fixture.runtime.sendTurn({ ...args, text: 'second' })).state,
+      'queued',
+    );
+  } finally {
+    fixture.close();
+  }
+});
+
+test(
+  'ensureSession reserves a replica so visit-order LRU cannot evict it until release',
+  { timeout: 15000 },
+  async (t) => {
+    const servers = new Map();
+    const clients = [];
+    const events = [];
+    const waiters = [];
+    const ok = (result) => ({ ok: true, result });
+    const until = (predicate) =>
+      new Promise((resolve) => waiters.push({ predicate, resolve }));
+    const emit = (event) => {
+      if (!event.session) return;
+      const value = { ...event, data: JSON.parse(event.session) };
+      events.push(value);
+      for (const waiter of [...waiters]) {
+        if (waiter.predicate(value)) {
+          waiters.splice(waiters.indexOf(waiter), 1);
+          waiter.resolve(value);
+        }
+      }
+    };
+    const grant = async () => ({
+      token: 'synthetic',
+      gatewayBaseUrl: 'https://x.invalid',
+    });
+    globalThis.__sessionClient = class {
+      constructor({ url }) {
+        this.id = decodeURIComponent(url).split(':s:')[1];
+        clients.push(this);
+      }
+      async bootstrap({ signal }) {
+        this.signal = signal;
+        const server = servers.get(this.id) ?? new LoroDoc();
+        if (!server.getList('history').length)
+          server.getList('history').push({
+            id: 'working',
+            role: 'assistant',
+            finished: false,
+            items: [],
+          });
+        servers.set(this.id, server);
+        this.version = server.version();
+        return ok({
+          snapshotOffset: '1',
+          nextOffset: '1',
+          upToDate: true,
+          snapshot: { body: server.export({ mode: 'snapshot' }) },
+          updates: [],
+        });
+      }
+      readOnce(request) {
+        this.request = request;
+        return new Promise((resolve, reject) => {
+          this.resolve = resolve;
+          request.signal.addEventListener(
+            'abort',
+            () => reject(new Error('aborted')),
+            { once: true },
+          );
+        });
+      }
+    };
+    const runtime = await loadRuntime();
+    t.after(() => {
+      runtime.stopSessions();
+      delete globalThis.__sessionClient;
+    });
+    const live = (id) =>
+      until((e) => e.sessionId === id && e.data.status === 'live');
+    const open = async (id) => {
+      const ready = live(id);
+      await runtime.openSession(id, 'w1', grant, emit, async () => {});
+      return ready;
+    };
+    const ensure = async (id) => {
+      const ready = live(id);
+      await runtime.ensureSession(id, 'w1', grant, emit, async () => {});
+      return ready;
+    };
+    const client = (id) => clients.findLast((c) => c.id === id);
+
+    await ensure('held');
+    assert.equal(
+      events.filter((e) => e.sessionId === 'held' && e.type === 'session')
+        .length,
+      0,
+      'ensure must not steal the foreground pointer',
+    );
+    const heldCount = clients.filter((c) => c.id === 'held').length;
+    await ensure('held');
+    assert.equal(
+      clients.filter((c) => c.id === 'held').length,
+      heldCount,
+      'ensure of a live replica must not bootstrap again',
+    );
+
+    await open('b');
+    await open('c');
+    await open('d');
+    await open('e');
+    assert.equal(client('held').signal.aborted, false);
+    assert.equal(
+      clients.filter((c) => !c.signal.aborted).length,
+      5,
+      'one reserved replica sits outside the three background LRU slots',
+    );
+
+    runtime.releaseReserve('held');
+    await open('f');
+    await open('g');
+    await open('h');
+    await open('i');
+    assert.equal(
+      client('held').signal.aborted,
+      true,
+      'a graduated replica returns to visit-order eviction',
+    );
   },
 );
 
@@ -1059,13 +1321,14 @@ test(
       );
     authorize({ token: 'synthetic', gatewayBaseUrl: 'https://x.invalid' });
     await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(bootstraps.length, 4);
+    assert.equal(bootstraps.length, 1);
     assert.ok(
       bootstraps.every((url) => !decodeURIComponent(url).endsWith(':late-a')),
     );
     assert.ok(
       events
         .filter((e) => e.sessionId === 'late-a')
+        .filter((e) => e.session)
         .every((e) => JSON.parse(e.session).status === 'syncing'),
     );
     const before = bootstraps.length;
@@ -1271,6 +1534,386 @@ test('busy turns use the OSS FIFO queue, durable before watermark; lost ACK is n
     );
     assert.equal(fixture.appends.length, count);
     assert.equal(watermarks.length, 2);
+  } finally {
+    fixture.close();
+  }
+});
+
+test('guide writes a steer history turn instead of the FIFO queue', async () => {
+  const requests = [];
+  const fixture = await openTestSession({
+    onRpc: (request) => {
+      requests.push(request);
+      const raw = fixture.server.toJSON();
+      const entry = raw.history.find(
+        (item) => item.id === request.params.userTurnId,
+      );
+      assert.equal(
+        entry.status,
+        'pending_apply',
+        'guide intent must be durable before RPC',
+      );
+      assert.equal((raw.mq ?? []).length, 0);
+      return { result: { applied: true } };
+    },
+  });
+  try {
+    fixture.server.getList('history').push({
+      id: 'running',
+      role: 'assistant',
+      finished: false,
+      items: [],
+    });
+    fixture.server.commit();
+    await fixture.pushUpdate();
+    const result = await fixture.runtime.sendTurn({
+      sessionId: 's1',
+      machineId: 'm1',
+      userId: 'u1',
+      text: 'steer now',
+      cliType: 'builtin',
+      agentType: 'codex',
+      guide: true,
+    });
+    assert.equal(result.state, 'uploaded');
+    await new Promise((resolve) => setImmediate(resolve));
+    const raw = fixture.server.toJSON();
+    assert.equal((raw.mq ?? []).length, 0);
+    const entry = raw.history.find((item) => item.id === result.id);
+    assert.equal(entry.role, 'user');
+    assert.equal(entry.status, 'processing');
+    assert.equal(entry.inputConfig?._lodyDeliveryKind, 'steer');
+    const projected = fixture.runtime
+      .projectSession(fixture.server, 'live')
+      .entries.find((item) => item.id === result.id);
+    assert.equal(projected.status, 'processing');
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].method, 'session/steer');
+    assert.equal(requests[0].params.expectedTurnId, 'running');
+    assert.equal(requests[0].params.userTurnId, result.id);
+  } finally {
+    fixture.close();
+  }
+});
+
+test('foreground sends retain their replica through page changes and only released reserves enter the LRU', async () => {
+  const fixture = await openTestSession({
+    onRpc: () => ({ result: { accepted: true } }),
+  });
+  const grant = async () => ({
+    token: 'synthetic',
+    gatewayBaseUrl: 'https://x.invalid',
+  });
+  try {
+    let resume;
+    const send = fixture.runtime.sendTurn(
+      {
+        sessionId: 's1',
+        machineId: 'm1',
+        userId: 'u1',
+        text: 'expanded',
+        cliType: 'builtin',
+        agentType: 'codex',
+      },
+      () =>
+        new Promise((resolve) => {
+          resume = resolve;
+        }),
+    );
+    fixture.runtime.closeSession();
+    for (let i = 0; i < 6; i++)
+      await fixture.runtime.openSession(
+        `visit-${i}`,
+        'w1',
+        grant,
+        () => {},
+        async () => {},
+      );
+    assert.ok(fixture.runtime.retainedSessionIds().includes('s1'));
+    resume('expanded');
+    assert.equal((await send).state, 'accepted');
+    fixture.runtime.releaseReserve('s1');
+    assert.ok(
+      fixture.runtime.retainedSessionIds().includes('s1'),
+      'a submitted turn stays subscribed before its first assistant event',
+    );
+    for (let i = 6; i < 10; i++) {
+      await fixture.runtime.openSession(
+        `visit-${i}`,
+        'w1',
+        grant,
+        () => {},
+        async () => {},
+      );
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    assert.ok(!fixture.runtime.retainedSessionIds().includes('s1'));
+  } finally {
+    fixture.close();
+  }
+});
+
+test('completed background work retires its idle replica without reporting a failure', async () => {
+  const fixture = await openTestSession({
+    onRpc: () => ({ result: { accepted: true } }),
+  });
+  try {
+    const sent = await fixture.runtime.sendTurn({
+      sessionId: 's1',
+      machineId: 'm1',
+      userId: 'u1',
+      text: 'finish offscreen',
+      cliType: 'builtin',
+      agentType: 'codex',
+      backgroundTaskId: 'completion',
+    });
+    assert.equal(sent.state, 'accepted');
+    fixture.runtime.releaseReserve('s1');
+    fixture.runtime.closeSession();
+    fixture.server.getList('history').push({
+      id: 'reply',
+      role: 'assistant',
+      userTurnId: sent.id,
+      finished: true,
+      items: [],
+    });
+    await fixture.pushUpdate();
+    assert.deepEqual(fixture.background.at(-1), {
+      id: 'completion',
+      state: 'completed',
+    });
+    assert.deepEqual(fixture.runtime.retainedSessionIds(), []);
+  } finally {
+    fixture.close();
+  }
+});
+
+test('restoring ordinary background visits does not reserve them', async () => {
+  const fixture = await openTestSession();
+  const grant = async () => ({
+    token: 'synthetic',
+    gatewayBaseUrl: 'https://x.invalid',
+  });
+  try {
+    fixture.runtime.stopSessions();
+    for (const id of ['old-a', 'old-b', 'old-c'])
+      await fixture.runtime.openSession(
+        id,
+        'w1',
+        grant,
+        () => {},
+        async () => {},
+        false,
+      );
+    for (let i = 0; i < 6; i++)
+      await fixture.runtime.openSession(
+        `new-${i}`,
+        'w1',
+        grant,
+        () => {},
+        async () => {},
+      );
+    assert.ok(
+      fixture.runtime.retainedSessionIds().every((id) => id.startsWith('new-')),
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(fixture.runtime.retainedSessionIds().length, 1);
+    assert.equal(fixture.runtime.reservedSessionIds().length, 0);
+  } finally {
+    fixture.close();
+  }
+});
+
+test('guide rechecks the target after preparation and dispatches normally if it ended', async () => {
+  const requests = [];
+  const fixture = await openTestSession({
+    onRpc: (request) => {
+      requests.push(request);
+      return { result: { accepted: true } };
+    },
+  });
+  try {
+    fixture.server
+      .getList('history')
+      .push({ id: 'running', role: 'assistant', finished: false, items: [] });
+    fixture.server.commit();
+    await fixture.pushUpdate();
+    const result = await fixture.runtime.sendTurn(
+      {
+        sessionId: 's1',
+        machineId: 'm1',
+        userId: 'u1',
+        text: 'follow-up',
+        cliType: 'builtin',
+        agentType: 'codex',
+        guide: true,
+      },
+      async (text) => {
+        fixture.server.getList('history').delete(0, 1);
+        fixture.server.getList('history').push({
+          id: 'running',
+          role: 'assistant',
+          finished: true,
+          items: [],
+        });
+        fixture.server.commit();
+        await fixture.pushUpdate();
+        fixture.runtime.closeSession();
+        return text;
+      },
+    );
+    assert.equal(result.state, 'accepted');
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].method, 'session/dispatch-turn');
+    assert.equal(
+      fixture.server.toJSON().history.find((entry) => entry.id === result.id)
+        .status,
+      'pending',
+    );
+  } finally {
+    fixture.close();
+  }
+});
+
+test('guide continues offscreen and an uncertain or rejected steer never masquerades as an accepted send or replays', async () => {
+  for (const outcome of ['applied', 'no-active-turn', 'lost-ack']) {
+    let requests = 0;
+    const fixture = await openTestSession({
+      onRpc: () => {
+        requests++;
+        if (outcome === 'lost-ack') throw new Error('reply_stream_lost');
+        return {
+          result: { applied: outcome === 'applied', disposition: outcome },
+        };
+      },
+    });
+    try {
+      fixture.server
+        .getList('history')
+        .push({ id: 'running', role: 'assistant', finished: false, items: [] });
+      fixture.server.commit();
+      await fixture.pushUpdate();
+      const args = {
+        sessionId: 's1',
+        machineId: 'm1',
+        userId: 'u1',
+        text: 'guide',
+        cliType: 'builtin',
+        agentType: 'codex',
+        guide: true,
+      };
+      fixture.runtime.closeSession();
+      const result = await fixture.runtime.sendTurn(args);
+      assert.equal(result.state, 'uploaded');
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(requests, 1);
+      const appends = fixture.appends.length;
+      assert.equal(
+        (await fixture.runtime.sendTurn({ ...args, id: result.id })).state,
+        'unknown',
+      );
+      assert.equal(fixture.appends.length, appends);
+    } finally {
+      fixture.close();
+    }
+  }
+});
+
+test('chat failures retain raw diagnostics and update when only metadata changes', async () => {
+  const { projectSession } = await loadRuntime();
+  const doc = new LoroDoc();
+  const entry = doc.getList('history').pushContainer(new LoroMap());
+  entry.set('id', 'failure');
+  entry.set('role', 'system');
+  const item = entry
+    .setContainer('items', new LoroList())
+    .pushContainer(new LoroMap());
+  item.set('type', 'system_notice');
+  item.set('name', 'chat_failed');
+  item.set('meta', { reason: 'acp_unknown_error', message: 'raw\nerror' });
+  doc.commit();
+  const before = projectSession(doc, 'live');
+  assert.equal(before.entries[0].items[0].meta.message, 'raw\nerror');
+  item.set('meta', {
+    reason: 'future_reason',
+    code: 'future_code',
+    message: 'updated',
+  });
+  doc.commit();
+  const after = projectSession(doc, 'live');
+  assert.deepEqual(after.entries[0].items[0].meta, {
+    reason: 'future_reason',
+    code: 'future_code',
+    message: 'updated',
+  });
+  assert.ok(after.entries[0].rev > before.entries[0].rev);
+  assert.ok(after.entries[0].items[0].rev > before.entries[0].items[0].rev);
+  item.set('meta', { message: 42 });
+  doc.commit();
+  assert.equal(
+    projectSession(doc, 'live').entries[0].items[0].meta.message,
+    undefined,
+  );
+});
+
+test('multiple durable guides await independent receipts without locking the session or replaying', async () => {
+  const receipts = new Map();
+  const fixture = await openTestSession({
+    onRpc: (request) =>
+      new Promise((resolve) =>
+        receipts.set(request.params.userTurnId, resolve),
+      ),
+  });
+  try {
+    fixture.server
+      .getList('history')
+      .push({ id: 'running', role: 'assistant', finished: false, items: [] });
+    fixture.server.commit();
+    await fixture.pushUpdate();
+    const args = {
+      sessionId: 's1',
+      machineId: 'm1',
+      userId: 'u1',
+      text: 'guide',
+      cliType: 'builtin',
+      agentType: 'codex',
+      guide: true,
+    };
+    const first = await fixture.runtime.sendTurn(args);
+    const second = await fixture.runtime.sendTurn(args);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(first.state, 'uploaded');
+    assert.equal(second.state, 'uploaded');
+    assert.notEqual(first.id, second.id);
+    assert.equal(receipts.size, 2);
+    assert.equal(
+      fixture.server
+        .toJSON()
+        .history.filter((entry) => entry.status === 'pending_apply').length,
+      2,
+    );
+    receipts.get(second.id)({ result: { applied: true } });
+    receipts.get(first.id)({ error: { message: 'lost_ack' } });
+    await new Promise((resolve) => setImmediate(resolve));
+    const history = fixture.server.toJSON().history;
+    assert.equal(
+      history.find((entry) => entry.id === second.id).status,
+      'processing',
+    );
+    assert.equal(
+      history.find((entry) => entry.id === first.id).status,
+      'pending_apply',
+    );
+    assert.equal(
+      (await fixture.runtime.sendTurn({ ...args, id: first.id })).state,
+      'unknown',
+    );
+    const third = await fixture.runtime.sendTurn(args);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(third.state, 'uploaded');
+    assert.equal(receipts.size, 3);
+    receipts.get(third.id)({ result: { applied: true } });
+    await new Promise((resolve) => setImmediate(resolve));
   } finally {
     fixture.close();
   }

@@ -107,12 +107,36 @@ final class UploadProtocol: URLProtocol {
 
 @main struct Check {
   static func main() async throws {
+    let original = SessionAttachments.imageDownloadURL(workspace: "ws", session: "source", imageId: "img1")
+    assert(original.absoluteString == "https://api.lody.ai/api/workspaces/ws/session-images/source/img1")
+    assert(!original.path.contains("thumbnail"), "Full image download must not use the thumbnail route")
+    let thumb = SessionAttachments.imageThumbnailURL(workspace: "ws", session: "source", imageId: "img1", width: 768)
+    assert(thumb.path.hasSuffix("/session-images/source/img1/thumbnail"))
+    assert(thumb.query == "width=768&fit=scale-down&quality=85")
+    assert(thumb != original, "Lightbox preview must not reuse the thumbnail URL")
     URLProtocol.registerClass(UploadProtocol.self)
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
     let file = root.appendingPathComponent("test.txt")
     try Data("hi!".utf8).write(to: file)
+    let abandonedDirectory: URL
+    do {
+      let batch = AttachmentDownloadBatch(root: root)
+      abandonedDirectory = batch.makeDirectory()
+      try FileManager.default.createDirectory(at: abandonedDirectory, withIntermediateDirectories: true)
+      try Data("downloaded".utf8).write(to: abandonedDirectory.appendingPathComponent("attachment.txt"))
+    }
+    assert(!FileManager.default.fileExists(atPath: abandonedDirectory.path),
+      "A failed edit preparation must remove every downloaded attachment directory")
+    var handedOffBatch: AttachmentDownloadBatch? = AttachmentDownloadBatch(root: root)
+    let handedOffDirectory = handedOffBatch!.makeDirectory()
+    try FileManager.default.createDirectory(at: handedOffDirectory, withIntermediateDirectories: true)
+    handedOffBatch?.handOff()
+    handedOffBatch = nil
+    assert(FileManager.default.fileExists(atPath: handedOffDirectory.path),
+      "A successful edit preparation must retain files handed to the composer")
+    try FileManager.default.removeItem(at: handedOffDirectory)
     func attachment(_ url: URL, _ kind: String = "file") -> [String: Any] {
       ["id": url.lastPathComponent, "uri": url.absoluteString, "name": url.lastPathComponent, "kind": kind]
     }

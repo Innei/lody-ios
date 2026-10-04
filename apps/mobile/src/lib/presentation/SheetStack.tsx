@@ -19,7 +19,7 @@ import {
   SearchBar,
   ScreenStackItem,
 } from 'react-native-screens';
-import { NativeCloseButton } from '@lody-ios/kit';
+import { NativeCloseButton, panelScrollEdgeEffects } from '@lody-ios/kit';
 
 import type {
   PageDefinitionBase,
@@ -39,6 +39,7 @@ export type SheetHeaderItems = {
   right: HeaderItems;
   left?: HeaderItems;
   rightView?: ReactNode;
+  title?: string;
 };
 export const SheetHeaderContext = createContext<
   ((items: SheetHeaderItems | undefined) => void) | null
@@ -162,13 +163,17 @@ export function SheetStack({
     <ScreenStack style={StyleSheet.absoluteFill}>
       <ScreenStackItem
         screenId={`presented-${session.id}`}
+        scrollEdgeEffects={panelScrollEdgeEffects}
         style={StyleSheet.absoluteFill}
         headerConfig={{
           ...headerConfig(
             session.page,
-            session.presentation,
+            {
+              ...session.presentation,
+              title: headerItems?.title ?? session.presentation.title,
+            },
             headerItems?.rightView ??
-              (showClose && !headerItems ? (
+              (showClose && !headerItems?.right && !headerItems?.left ? (
                 <NativeCloseButton
                   label={t('accessibility.closeSheet', {
                     title: session.page.title,
@@ -232,12 +237,16 @@ function PushedLevel({
   return (
     <ScreenStackItem
       screenId={`presented-level-${level.key}`}
+      scrollEdgeEffects={panelScrollEdgeEffects}
       stackPresentation="push"
       style={StyleSheet.absoluteFill}
       headerConfig={{
         ...headerConfig(
           level.page,
-          level.presentation,
+          {
+            ...level.presentation,
+            title: headerItems?.title ?? level.presentation.title,
+          },
           headerItems?.rightView,
           search,
         ),

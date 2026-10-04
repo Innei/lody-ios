@@ -1,4 +1,5 @@
 """Finished replies keep tappable file cards, never a running system warning."""
+import subprocess
 import sys
 import time
 from driver import UI
@@ -64,6 +65,27 @@ times = []
 for index, path in enumerate(paths):
     ui.axe('tap', '--id', 'diff-preview:changes:' + path)
     ui.wait(lambda items: any(i.get('type') == 'Heading' and i.get('AXLabel') == path.split('/')[-1] for i in items), 'Wrong file opened')
+    if index == 0:
+        subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input='clipboard sentinel', text=True, check=True, timeout=10)
+        ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('common.more') for i in items), 'Diff more action was missing')
+        ui.axe('tap', '--label', catalog.text('common.more'), '--element-type', 'Button', '--post-delay', '.4')
+        ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('diff.action.copyFileName') for i in items), 'Copy filename action was missing')
+        ui.capture('diff-menu')
+        ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('diff.action.copyPath') for i in items), 'Copy path action was missing')
+        ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('diff.action.copyContents') for i in items), 'Copy contents action was missing')
+        ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('diff.action.copyPatch') for i in items), 'Copy patch action was missing')
+        ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('diff.action.previewFile') for i in items), 'Preview file action was missing')
+        ui.axe('tap', '--label', catalog.text('diff.action.copyFileName'), '--post-delay', '.4')
+        copied = subprocess.check_output(['xcrun', 'simctl', 'pbpaste', ui.udid], text=True, timeout=10)
+        assert copied == path.split('/')[-1], repr(copied)
+        ui.wait(lambda items: any(i.get('AXUniqueId') == 'lody.toast' and i.get('AXLabel') == catalog.text('diff.toast.copied') for i in items), 'Copy toast was missing')
+        ui.capture('copied-toast')
+        ui.axe('tap', '--label', catalog.text('common.more'), '--element-type', 'Button', '--post-delay', '.4')
+        ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('diff.action.copyPath') for i in items), 'Copy path action did not reopen')
+        ui.axe('tap', '--label', catalog.text('diff.action.copyPath'), '--post-delay', '.4')
+        copied_path = subprocess.check_output(['xcrun', 'simctl', 'pbpaste', ui.udid], text=True, timeout=10)
+        assert copied_path == path, repr(copied_path)
+        ui.wait(lambda items: any(i.get('AXUniqueId') == 'lody.toast' and i.get('AXLabel') == catalog.text('diff.toast.copied') for i in items), 'Copy path toast was missing')
     ui.wait(lambda items: any(i.get('AXLabel') == 'Unified' for i in items), 'Diff response did not load')
     current = ui.wait(lambda items: probe(items), 'Shared Diff WebView probe was missing')
     probes.append(current)
@@ -80,6 +102,22 @@ for index, path in enumerate(paths):
         'Diff render timing probe was missing',
     )
     times.append(int(rendered['AXLabel']))
+    if index == 0:
+        ui.axe('tap', '--label', catalog.text('common.more'), '--element-type', 'Button', '--post-delay', '.4')
+        ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('diff.action.copyContents') for i in items), 'Copy contents action did not reopen')
+        ui.axe('tap', '--label', catalog.text('diff.action.copyContents'), '--post-delay', '.4')
+        copied_contents = subprocess.check_output(['xcrun', 'simctl', 'pbpaste', ui.udid], text=True, timeout=10)
+        assert copied_contents == 'a\nhello\nc\n', repr(copied_contents)
+        ui.wait(lambda items: any(i.get('AXUniqueId') == 'lody.toast' and i.get('AXLabel') == catalog.text('diff.toast.copied') for i in items), 'Copy contents toast was missing')
+        ui.axe('tap', '--label', catalog.text('common.more'), '--element-type', 'Button', '--post-delay', '.4')
+        ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('diff.action.copyPatch') for i in items), 'Copy patch action did not reopen')
+        ui.axe('tap', '--label', catalog.text('diff.action.copyPatch'), '--post-delay', '.4')
+        copied_patch = subprocess.check_output(['xcrun', 'simctl', 'pbpaste', ui.udid], text=True, timeout=10)
+        assert f'--- a/{path}' in copied_patch, repr(copied_patch)
+        assert f'+++ b/{path}' in copied_patch, repr(copied_patch)
+        assert '-b\n+hello\n' in copied_patch, repr(copied_patch)
+        ui.wait(lambda items: any(i.get('AXUniqueId') == 'lody.toast' and i.get('AXLabel') == catalog.text('diff.toast.copied') for i in items), 'Copy patch toast was missing')
+        ui.capture('copied-patch')
     time.sleep(1)
     ui.capture('diff-' + str(index))
     ui.axe('tap', '--label', 'Split')

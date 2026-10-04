@@ -2,7 +2,11 @@ import { router } from 'expo-router';
 import type { Catalog } from '@/models/catalog';
 import { requestOpenSession } from '@/features/sessions/sessionNav';
 
-export function openCatalogRow(id: string, catalog: Catalog) {
+export function openCatalogRow(
+  id: string,
+  catalog: Catalog,
+  findQuery?: string,
+) {
   if (id.startsWith('project:')) {
     router.push({
       pathname: '/project/[projectId]',
@@ -11,5 +15,5 @@ export function openCatalogRow(id: string, catalog: Catalog) {
     return;
   }
   const session = catalog.sessions.find((s) => s.id === id);
-  if (session) void requestOpenSession(session);
+  if (session) void requestOpenSession(session, findQuery);
 }

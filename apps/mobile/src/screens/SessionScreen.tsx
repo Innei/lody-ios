@@ -1,15 +1,27 @@
+import { useMessageDetailsSheet } from '@/hooks/screens/useMessageDetailsSheet';
+import { openMessageShare } from '@/screens/MessageShareScreen';
+import { EditMessageScreen } from './EditMessageScreen';
+import { useEditableMessage } from '@/features/sessions/useEditableMessage';
+import { useAgentErrorRetry } from '@/features/sessions/useAgentErrorRetry';
+import { openAgentError } from '@/hooks/screens/openAgentError';
+import { openSubagentTask } from '@/hooks/screens/openSubagentTask';
 import { fastModeFor, withFastMode } from '@/cloud/send/capability';
 import { useComposerMentions } from '@/hooks/screens/useComposerMentions';
-import { setPushVisibleRoute } from '@lody-ios/kit';
+import { NativeNavigationHeader, setPushVisibleRoute } from '@lody-ios/kit';
 import { useFocusEffect } from 'expo-router';
-import { Stack } from 'expo-router';
 import { usePendingSends } from '@/cloud/send/pendingSends';
 import { useConnection } from '@/cloud/catalog/connection';
 import { useSessionControl } from '@/features/sessions/useSessionControl';
 import { useSessionSend } from '@/features/sessions/useSessionSend';
+import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
+import { useQuickReplies } from '@/features/settings/quick-replies';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
-import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View as RNView, Alert } from 'react-native';
+import { useSessionPreview } from '@/hooks/screens/useSessionPreview';
+import { useSessionSimulator } from '@/hooks/screens/useSessionSimulator';
+import { composerContext } from '@/hooks/screens/composerContext';
+import { showToast } from '@/ui/toast';
 import { usePalette } from '@/lib/theme/palette';
 import {
   NativeChat,
@@ -18,10 +30,15 @@ import {
   sessionCreationOptions,
 } from '@lody-ios/kit';
 import { definePage, present } from '@/lib/presentation';
-import { requestNewSession } from '@/features/sessions/sessionNav';
-import { isChatSession } from '@/features/sessions/inbox';
 import { sessionTitleDetails } from '@/features/sessions/sessionTitle';
-import { setArchived, setPinned } from '@/features/sessions/sessionActions';
+import {
+  setArchived,
+  shareSession,
+  sessionRowAction,
+  confirmSessionDeletion,
+  subscribeSessionDeletion,
+  isSessionDeleting,
+} from '@/features/sessions/sessionActions';
 import { useSessionViewed } from '@/features/sessions/useSessionViewed';
 import { sessionDebugText } from '@/features/sessions/sessionDebug';
 import { useAuth } from '@/cloud/auth/AuthProvider';
@@ -30,11 +47,19 @@ import type { Capability, CreationOptions } from '@/models/send';
 import { effortsFor } from '@/cloud/send/capability';
 
 import { useSessionRuntime } from '@/features/sessions/useSessionRuntime';
+import { useWorkspaceBillingTier } from '@/cloud/billing/useWorkspaceBillingTier';
+import {
+  freeTurnLimitReached,
+  freeTurnNotice,
+} from '@/features/sessions/freeTurnNotice';
+import {
+  sessionEntriesJSON,
+  type PreparedSessionHistory,
+} from '@/features/sessions/prepareSessionHistory';
 import { ItemDetailScreen } from '@/screens/ItemDetailScreen';
 import { basename } from '@/features/sessions/path';
 import { FileDiffScreen } from '@/screens/FileDiffScreen';
 import { FilesScreen } from '@/screens/FilesScreen';
-import { changedFiles } from '@/features/sessions/transcript/changes';
 import { DiffWebViewWarmer } from '@/features/diff/DiffWebViewWarmer';
 import { PermissionScreen } from '@/screens/PermissionScreen';
 import {
@@ -46,38 +71,41 @@ import {
 } from '@/features/sessions/permissionTarget';
 import { useOpenFile } from '@/hooks/screens/useOpenFile';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
-import type { ModelChoice } from './ModelScreen';
+import type { ModelChoice } from '@/models/send';
 import { t } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { useOpenPullRequest } from '@/hooks/screens/useOpenPullRequest';
-import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
 import type {
   HeaderBarButtonItemMenuAction,
   HeaderBarButtonItemSubmenu,
 } from 'react-native-screens';
-import {
-  SheetHeaderContext,
-  type HeaderItems,
-} from '@/lib/presentation/SheetStack';
+import type { HeaderItems } from '@/lib/presentation/SheetStack';
 
-function composerPlaceholder({
-  archived,
+function composerPlaceholder(archived: boolean, quotaLocked: boolean) {
+  if (archived) return t('chat.composer.archived');
+  if (quotaLocked) return '';
+  return t('chat.composer.placeholder');
+}
+
+function connectionChrome({
   disconnected,
   overflow,
   live,
 }: {
-  archived: boolean;
   disconnected: boolean;
   overflow: boolean;
   live: boolean;
 }) {
-  if (archived) return t('chat.composer.archived');
-  if (!disconnected && !overflow && !live) return t('chat.composer.connecting');
-  return t('chat.composer.placeholder');
+  if (overflow) return '';
+  if (disconnected) return 'paused';
+  if (!live) return 'connecting';
+  return '';
 }
 
 export type SessionParams = {
   session: Session;
+  findQuery?: string;
+  initialHistory?: PreparedSessionHistory;
   navigationTitleHidden?: boolean;
   projectName?: string;
   machineName?: string;
@@ -89,10 +117,12 @@ export type SessionParams = {
 const noPullRequests: NonNullable<Session['pullRequests']> = [];
 
 function View() {
-  const embeddedHeader = use(SheetHeaderContext) !== null;
+  const runtime = usePageRuntime<SessionParams>();
   const {
     params: {
       session,
+      initialHistory,
+      findQuery,
       navigationTitleHidden,
       projectName: creationProjectName,
       machineName: creationMachineName,
@@ -100,13 +130,44 @@ function View() {
       effort,
       modeId,
     },
-  } = usePageRuntime<SessionParams>();
+  } = runtime;
   const { account } = useAuth(),
     colors = usePalette();
-  const { catalog, selected, serverSessions, refresh } = useCatalog();
+  const { catalog, selected, serverSessions, refresh, deleteSessionRequest } =
+    useCatalog();
+  const [deleting, setDeleting] = useState(() =>
+    isSessionDeleting(selected?.id ?? '', session.id),
+  );
+  useEffect(() => {
+    setDeleting(isSessionDeleting(selected?.id ?? '', session.id));
+    return subscribeSessionDeletion((event) => {
+      if (
+        event.workspaceId !== selected?.id ||
+        !event.sessionIds.includes(session.id)
+      )
+        return;
+      setDeleting(event.state === 'deleting');
+      if (event.state === 'deleted') runtime.cancel();
+    });
+  }, [runtime, selected?.id, session.id]);
   const currentSession =
     catalog.sessions.find((s) => s.id === session.id) ?? session;
   const [appendDraftJSON, setAppendDraftJSON] = useState('');
+  const [editedMessageId, setEditedMessageId] = useState('');
+  const [findRequest, setFindRequest] = useState({
+    token: 0,
+    query: '',
+    keyboard: false,
+    open: false,
+  });
+  useEffect(() => {
+    setFindRequest((previous) => ({
+      token: previous.token + 1,
+      query: findQuery ?? '',
+      keyboard: false,
+      open: !!findQuery,
+    }));
+  }, [runtime.params]);
   const openPullRequest = useOpenPullRequest(
     selected?.id ?? '',
     account?.user.id ?? '',
@@ -221,21 +282,49 @@ function View() {
     !currentSession.archived &&
     !!localProjectIdOf(session.projectId);
   const onTurnChangesPress = (entryId: string, path: string) => {
-    const entry = snapshot.entries.find((e) => e.id === entryId);
-    if (!entry) return;
-    if (!changedFiles(entry).some((file) => file.path === path)) return;
+    // Displayed native rows can lag the current JS replica; turnDiff validates the target.
     void present(
       FileDiffScreen,
       { sessionId: session.id, entryId, path },
       { title: basename(path) },
     );
   };
-  const { snapshot, overflow, cursor, reconnect } = useSessionRuntime(
+  const {
+    snapshot,
+    overflow,
+    cursor,
+    reconnect,
+    initialHistory: preparedHistory,
+  } = useSessionRuntime(
     session.id,
     account?.user.id ?? '',
     selected?.id ?? '',
     outbox.ready && !pending?.send.creation,
+    initialHistory,
   );
+  const billableTurns =
+    snapshot.status === 'live' ? snapshot.billableTurnCount : undefined;
+  const billingTier = useWorkspaceBillingTier(
+    selected?.id ?? '',
+    account?.user.id ?? '',
+    billableTurns !== undefined && billableTurns >= 25,
+  );
+  const quotaLocked = freeTurnLimitReached(billableTurns, billingTier);
+  const quotaEntry = useRef<'pending' | 'open' | 'closed'>('pending');
+  useEffect(() => {
+    quotaEntry.current = 'pending';
+  }, [currentSession.id]);
+  useEffect(() => {
+    if (snapshot.status !== 'live' || billingTier === undefined) return;
+    if (quotaEntry.current !== 'pending') return;
+    quotaEntry.current = quotaLocked ? 'closed' : 'open';
+    if (!quotaLocked) return;
+    Alert.alert(
+      t('chat.composer.freeTurnLimitTitle'),
+      t('chat.composer.freeTurnLimitBody'),
+      [{ text: t('common.ok') }],
+    );
+  }, [snapshot.status, billingTier, quotaLocked, currentSession.id]);
   useEffect(() => {
     if (
       !outbox.ready ||
@@ -250,6 +339,14 @@ function View() {
   const activeChoice = choiceHydrated.current
     ? choice
     : (snapshot.composer ?? choice);
+  const { queuedMessageBehavior } = useQueuedMessageBehavior();
+  const { quickReplies } = useQuickReplies();
+  const control = useSessionControl(
+    currentSession,
+    snapshot,
+    overflow,
+    capability?.steer === true,
+  );
   const send = useSessionSend({
     outbox,
     session: currentSession,
@@ -259,6 +356,52 @@ function View() {
     serverCreated: serverSessions.some((entry) => entry.id === session.id),
     userId: account?.user.id ?? '',
     overflow,
+    queuedMessageBehavior,
+    steerable: capability?.steer === true,
+  });
+  const editableMessageId = useEditableMessage(
+    session.id,
+    snapshot,
+    snapshot.status === 'live' &&
+      connection.state === 'live' &&
+      !currentSession.archived &&
+      !send.sending &&
+      !control.controlling &&
+      !overflow &&
+      !deleting &&
+      !quotaLocked,
+    connection.syncedAt,
+  );
+  const errorRetry = useAgentErrorRetry({
+    sessionId: session.id,
+    entries: snapshot.entries,
+    enabled:
+      snapshot.status === 'live' &&
+      connection.state === 'live' &&
+      send.canSend &&
+      !send.sending &&
+      !send.awaitingReply &&
+      !control.running &&
+      !control.controlling &&
+      !overflow &&
+      !currentSession.archived &&
+      !!account?.user.id,
+    payload: {
+      machineId: currentSession.machineId,
+      userId: account?.user.id,
+      cliType: currentSession.cliType,
+      agentType: currentSession.agentType,
+      resume: currentSession.resume,
+      modelId: capability
+        ? (activeChoice.modelId ?? null)
+        : activeChoice.modelId,
+      modeId: activeChoice.modeId,
+      reasoningEffort: capability
+        ? (activeChoice.effort ?? null)
+        : activeChoice.effort,
+      reasoningEffortConfigId: capability?.reasoningEffortConfigId,
+      configOptionValues: activeChoice.configOptionValues,
+    },
   });
   const gate = useRef(createPermissionGate()).current;
   const listeners = useRef(new Set<(state: PermissionTargetState) => void>());
@@ -308,6 +451,9 @@ function View() {
   }, [snapshot]);
 
   const onActivityPress = (entryId: string, itemId: string) => {
+    const entry = snapshot.entries.find((e) => e.id === entryId);
+    const item = entry?.items.find((i) => i.itemId === itemId);
+    if (openAgentError(item) || openSubagentTask(item)) return;
     if (snapshot.status !== 'live') {
       Alert.alert(
         t('session.alert.syncing.title'),
@@ -315,8 +461,6 @@ function View() {
       );
       return;
     }
-    const entry = snapshot.entries.find((e) => e.id === entryId);
-    const item = entry?.items.find((i) => i.itemId === itemId);
     if (!entry || !item) return;
     const target = firstPermissionTarget([{ ...entry, items: [item] }]);
     if (target) {
@@ -336,26 +480,15 @@ function View() {
   );
   const entriesJSON = useMemo(
     () =>
-      JSON.stringify(
-        snapshot.entries.map((entry) => ({
-          ...entry,
-          fileDiffs: changedFiles(entry),
-        })),
-      ),
-    [snapshot.entries],
+      preparedHistory?.snapshot.entries === snapshot.entries
+        ? preparedHistory.entriesJSON
+        : sessionEntriesJSON(snapshot),
+    [snapshot.entries, preparedHistory],
   );
   const openFile = useOpenFile(session.id);
+  const openMessageDetails = useMessageDetailsSheet(entriesJSON);
   const openProcess = useProcessSheet(entriesJSON, onActivityPress, session.id);
-  let notice = '';
-  if (overflow) notice = t('chat.notice.syncStopped');
-  else if (disconnected && !send.sending)
-    notice = t('chat.notice.connectionPaused');
-  const control = useSessionControl(
-    currentSession,
-    snapshot,
-    overflow,
-    capability?.steer === true,
-  );
+  const notice = overflow ? t('chat.notice.syncStopped') : '';
   const mentions = useComposerMentions(
     selected && account
       ? {
@@ -367,9 +500,29 @@ function View() {
       : undefined,
     present,
   );
+  const preview = useSessionPreview(session.id, snapshot.preview);
+  const simulator = useSessionSimulator(
+    selected?.id,
+    session.id,
+    catalog.machineSimulators?.[currentSession.machineId],
+    currentSession.iosSimulatorPreviewRequestId,
+  );
+  const context = composerContext([
+    {
+      chip: preview.chip,
+      onChip: preview.onPreview,
+      openTitle: (chip) => t('session.preview.open', { target: chip.label }),
+    },
+    {
+      chip: simulator.chip,
+      onChip: simulator.onChip,
+      openTitle: (chip) => t('simulator.chip.open', { target: chip.label }),
+    },
+  ]);
   const composerJSON = JSON.stringify({
-    editable: !currentSession.archived,
-    canSend: send.canSend,
+    preview: context.chip,
+    editable: !currentSession.archived && !deleting && !quotaLocked,
+    canSend: send.canSend && !errorRetry.pending && !deleting && !quotaLocked,
     sending: send.sending,
     running: control.running || send.awaitingReply,
     canStop: control.canStop,
@@ -377,14 +530,24 @@ function View() {
     controlling: control.controlling,
     steerID: control.steerID,
     steerInterrupts: control.steerInterrupts,
+    queuedMessageBehavior,
     notice,
-    reconnect: disconnected || overflow,
-    placeholder: composerPlaceholder({
-      archived: currentSession.archived,
+    quotaNotice: quotaLocked ? '' : freeTurnNotice(billableTurns, billingTier),
+    quotaLocked,
+    quickReplies:
+      snapshot.status === 'live' &&
+      snapshot.entries.some(
+        (entry) => entry.role === 'user' || entry.role === 'assistant',
+      )
+        ? quickReplies
+        : [],
+    reconnect: overflow,
+    connection: connectionChrome({
       disconnected,
       overflow,
       live: snapshot.status === 'live',
     }),
+    placeholder: composerPlaceholder(currentSession.archived, quotaLocked),
   });
   const efforts = effortsFor(capability, activeChoice.modelId);
   const composerOptionsJSON = JSON.stringify({
@@ -407,6 +570,66 @@ function View() {
       title: project?.name ?? t('session.action.projectFiles'),
     });
   }, [account, browsable, project?.name, selected, session.id]);
+  const titleMenuJSON = JSON.stringify([
+    ...(browsable && account
+      ? [
+          {
+            id: 'files',
+            title: t('session.action.projectFiles'),
+            subtitle: projectName,
+            symbol: 'folder',
+          },
+        ]
+      : []),
+    ...(currentSession.branchName
+      ? [
+          {
+            id: 'branch',
+            title: t('session.title.copyBranch'),
+            subtitle: currentSession.branchName,
+            symbol: 'arrow.triangle.branch',
+          },
+        ]
+      : []),
+    ...(machineName
+      ? [
+          {
+            id: 'machine',
+            title: t('session.title.machine'),
+            subtitle: machineName,
+            symbol: 'desktopcomputer',
+          },
+        ]
+      : []),
+    ...(simulator.titleItem ? [simulator.titleItem] : []),
+    {
+      id: 'rename',
+      title: t('session.action.rename'),
+      symbol: 'pencil',
+      group: 1,
+    },
+    ...(__DEV__
+      ? [
+          {
+            id: 'details',
+            title: t('session.debug.title'),
+            symbol: 'info.circle',
+            group: 2,
+          },
+        ]
+      : []),
+  ]);
+  const onTitleMenu = (id: string) => {
+    if (id === 'files') openProjectFiles();
+    if (id === 'simulator') void simulator.open();
+    if (id === 'branch' && currentSession.branchName) {
+      copyText(currentSession.branchName);
+      showToast(t('session.title.branchCopied'), 'info');
+    }
+    if (id === 'rename' && selected)
+      sessionRowAction(selected.id, catalog, currentSession.id, 'rename');
+    if (id === 'details') showDetails();
+  };
   const showDetails = () => {
     const body = sessionDebugText({
       session: currentSession,
@@ -427,7 +650,7 @@ function View() {
       { text: t('common.ok'), style: 'cancel' },
     ]);
   };
-  const embeddedHeaderItems = useMemo<HeaderItems>(() => {
+  const headerItems = useMemo<HeaderItems>(() => {
     const items: HeaderItems = [];
     if (pullRequests.length === 1) {
       const pullRequest = pullRequests[0];
@@ -458,33 +681,22 @@ function View() {
     )[] = [
       {
         type: 'action',
-        title: t('session.action.newSession'),
-        icon: { type: 'sfSymbol', name: 'square.and.pencil' },
-        onPress: () => {
-          if (!selected) return;
-          void requestNewSession(
-            selected.id,
-            catalog,
-            isChatSession(currentSession)
-              ? undefined
-              : currentSession.projectId,
-            isChatSession(currentSession) ? 'chat' : undefined,
-          );
-        },
+        title: t('session.action.find'),
+        icon: { type: 'sfSymbol', name: 'magnifyingglass' },
+        onPress: () =>
+          setFindRequest((previous) => ({
+            token: previous.token + 1,
+            query: '',
+            keyboard: true,
+            open: true,
+          })),
       },
       {
         type: 'action',
-        title: t(
-          currentSession.pinned ? 'session.action.unpin' : 'session.action.pin',
-        ),
-        icon: {
-          type: 'sfSymbol',
-          name: currentSession.pinned ? 'pin.slash' : 'pin',
-        },
-        disabled: !!pending?.send.creation,
+        title: t('session.action.share'),
+        icon: { type: 'sfSymbol', name: 'square.and.arrow.up' },
         onPress: () => {
-          if (selected)
-            void setPinned(selected.id, currentSession, !currentSession.pinned);
+          if (selected) shareSession(selected, currentSession.id);
         },
       },
       {
@@ -509,14 +721,30 @@ function View() {
         },
       },
     ];
-    if (browsable && account) {
-      actions.push({
-        type: 'action',
-        title: t('session.action.projectFiles'),
-        icon: { type: 'sfSymbol', name: 'folder' },
-        onPress: openProjectFiles,
-      });
-    }
+    actions.push({
+      type: 'submenu',
+      displayInline: true,
+      items: [
+        {
+          type: 'action',
+          title: t(
+            deleting ? 'session.delete.pending' : 'session.action.delete',
+          ),
+          icon: { type: 'sfSymbol', name: 'trash' },
+          destructive: true,
+          disabled: deleting || !!pending,
+          onPress: () => {
+            if (selected)
+              confirmSessionDeletion(
+                selected.id,
+                currentSession,
+                catalog,
+                deleteSessionRequest,
+              );
+          },
+        },
+      ],
+    });
     items.push({
       type: 'menu',
       icon: { type: 'sfSymbol', name: 'ellipsis' },
@@ -529,120 +757,42 @@ function View() {
     browsable,
     catalog,
     currentSession,
-    openProjectFiles,
+    deleting,
+    deleteSessionRequest,
+    pending,
     openPullRequest,
     pending?.send.creation,
     prAttention,
     pullRequests,
     selected,
   ]);
-  useSheetHeader(embeddedHeaderItems);
   return (
     <RNView style={{ flex: 1, backgroundColor: colors.reading }}>
-      {!embeddedHeader ? (
-        <Stack.Screen
-          options={{
-            title: currentSession.title,
-          }}
-        />
-      ) : null}
-      {!embeddedHeader ? (
-        <Stack.Toolbar placement="right">
-          {pullRequests.length === 1 && (
-            <Stack.Toolbar.Button
-              accessibilityLabel={`PR #${pullRequests[0].number}`}
-              onPress={() => void openPullRequest(pullRequests[0])}
-            >
-              {`PR #${pullRequests[0].number}`}
-              {prAttention ? (
-                <Stack.Toolbar.Badge>!</Stack.Toolbar.Badge>
-              ) : null}
-            </Stack.Toolbar.Button>
-          )}
-          {pullRequests.length > 1 && (
-            <Stack.Toolbar.Menu accessibilityLabel={t('pr.pullRequests')}>
-              <Stack.Toolbar.Label>{`PR · ${pullRequests.length}`}</Stack.Toolbar.Label>
-              {pullRequests.map((pr) => (
-                <Stack.Toolbar.MenuAction
-                  key={pr.url}
-                  onPress={() => void openPullRequest(pr)}
-                >{`${pr.repository} #${pr.number} · ${t(`pr.state.${pr.status}`)}`}</Stack.Toolbar.MenuAction>
-              ))}
-            </Stack.Toolbar.Menu>
-          )}
-          <Stack.Toolbar.Menu
-            icon="ellipsis"
-            accessibilityLabel={t('common.more')}
-          >
-            <Stack.Toolbar.MenuAction
-              icon="square.and.pencil"
-              onPress={() => {
-                if (selected)
-                  void requestNewSession(
-                    selected.id,
-                    catalog,
-                    isChatSession(currentSession)
-                      ? undefined
-                      : currentSession.projectId,
-                    isChatSession(currentSession) ? 'chat' : undefined,
-                  );
-              }}
-            >
-              {t('session.action.newSession')}
-            </Stack.Toolbar.MenuAction>
-            <Stack.Toolbar.MenuAction
-              icon={currentSession.pinned ? 'pin.slash' : 'pin'}
-              disabled={!!pending?.send.creation}
-              onPress={() => {
-                if (selected)
-                  void setPinned(
-                    selected.id,
-                    currentSession,
-                    !currentSession.pinned,
-                  );
-              }}
-            >
-              {t(
-                currentSession.pinned
-                  ? 'session.action.unpin'
-                  : 'session.action.pin',
-              )}
-            </Stack.Toolbar.MenuAction>
-            <Stack.Toolbar.MenuAction
-              icon={
-                currentSession.archived ? 'tray.and.arrow.up' : 'archivebox'
-              }
-              disabled={!!pending?.send.creation}
-              onPress={() => {
-                if (selected)
-                  void setArchived(
-                    selected.id,
-                    currentSession,
-                    !currentSession.archived,
-                  );
-              }}
-            >
-              {t(
-                currentSession.archived
-                  ? 'session.action.unarchive'
-                  : 'session.action.archive',
-              )}
-            </Stack.Toolbar.MenuAction>
-            {browsable && account ? (
-              <Stack.Toolbar.Menu inline>
-                <Stack.Toolbar.MenuAction
-                  icon="folder"
-                  onPress={openProjectFiles}
-                >
-                  {t('session.action.projectFiles')}
-                </Stack.Toolbar.MenuAction>
-              </Stack.Toolbar.Menu>
-            ) : null}
-          </Stack.Toolbar.Menu>
-        </Stack.Toolbar>
-      ) : null}
+      <NativeNavigationHeader items={headerItems} />
       <DiffWebViewWarmer />
       <NativeChat
+        simulatorPreviewJSON={simulator.previewJSON}
+        turnInfoEnabled
+        onTurnInfoPress={({ nativeEvent }) =>
+          openMessageDetails(nativeEvent.entryId)
+        }
+        editableMessageId={editableMessageId}
+        editedMessageId={editedMessageId}
+        onEditMessage={({ nativeEvent }) => {
+          if (nativeEvent.entryId === editableMessageId)
+            void present(EditMessageScreen, {
+              sessionId: session.id,
+              entryId: nativeEvent.entryId,
+            }).then((result) => {
+              if (result.status === 'completed')
+                setEditedMessageId(result.value);
+            });
+        }}
+        imageSharingEnabled
+        onShareImage={({ nativeEvent }) =>
+          openMessageShare(nativeEvent.contentJSON)
+        }
+        findRequestJSON={JSON.stringify(findRequest)}
         appendDraftJSON={appendDraftJSON}
         mentionItemsJSON={mentions.mentionItemsJSON}
         mentionResultJSON={mentions.mentionResultJSON}
@@ -650,13 +800,31 @@ function View() {
         navigationTitle={navigationTitleHidden ? '' : currentSession.title}
         navigationSubtitle={navigationTitleHidden ? '' : projectName}
         navigationMachine={navigationTitleHidden ? '' : machineName}
+        navigationBranch={
+          navigationTitleHidden ? '' : (currentSession.branchName ?? '')
+        }
         onTitlePress={showDetails}
+        titleMenuJSON={navigationTitleHidden ? '[]' : titleMenuJSON}
+        onTitleMenu={({ nativeEvent }) => onTitleMenu(nativeEvent.id)}
+        onPreview={({ nativeEvent }) => {
+          if (!simulator.onPreview(nativeEvent.action))
+            context.onPreview(nativeEvent.action);
+        }}
         style={{ flex: 1 }}
         attachmentContextJSON={JSON.stringify({
           workspaceId: selected?.id,
           sessionId: session.id,
         })}
         entriesJSON={entriesJSON}
+        errorRetryJSON={errorRetry.stateJSON}
+        onErrorRetry={({ nativeEvent }) =>
+          void errorRetry.retry(
+            nativeEvent.entryId,
+            nativeEvent.itemId,
+            nativeEvent.id,
+          )
+        }
+        preparedEntries={preparedHistory?.nativeEntries}
         mentionRepository={
           session.projectId?.startsWith('github:')
             ? session.projectId.slice(7)
@@ -680,12 +848,9 @@ function View() {
         onStop={control.stop}
         onSteer={({ nativeEvent }) => control.steer(nativeEvent.id)}
         onSend={({ nativeEvent }) =>
+          !deleting &&
           send.submit({
-            id: nativeEvent.id,
-            text: nativeEvent.text,
-            startedAt: nativeEvent.startedAt,
-            queue: nativeEvent.queue,
-            attachments: nativeEvent.attachments,
+            ...nativeEvent,
             phase: 'waiting',
             choice: {
               modelId: capability

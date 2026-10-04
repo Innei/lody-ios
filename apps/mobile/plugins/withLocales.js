@@ -20,10 +20,22 @@ function load(projectRoot) {
   return catalogs;
 }
 
+// The native creation form reuses these keys instead of native.* copies.
+const NATIVE_PREFIXES = [
+  'native.',
+  'common.',
+  'create.',
+  'model.',
+  'picker.',
+  'projectPicker.',
+  'settings.history.selected',
+  'accessibility.closeSheet',
+];
+
 /** Foundation selects the plural variation, so `{count}` becomes its substitution. */
 function nativeStrings(catalogs) {
   const keys = Object.keys(catalogs.en).filter((key) =>
-    key.startsWith('native.'),
+    NATIVE_PREFIXES.some((prefix) => key.startsWith(prefix)),
   );
   const strings = {};
   for (const key of keys) {

@@ -12,10 +12,15 @@ import type { NativeListSection } from './NativeList';
 export type NativeGroupedListProps = ViewProps & {
   sections: NativeListSection[];
   segments?: string[];
+  segmentsStyle?: 'control' | 'steps';
+  segmentsDone?: boolean[];
   /** Ride the search bar's scope bar; only for screens that also want search. */
   segmentsUseSearchScope?: boolean;
   selectedSegment?: number;
   onSegmentChange?: (event: NativeSyntheticEvent<{ index: number }>) => void;
+  searchPlaceholder?: string;
+  searchText?: string;
+  onSearchChange?: (event: NativeSyntheticEvent<{ text: string }>) => void;
   /** Default row tint; `#RRGGBB`. Rows may override with `imageTint`. */
   accent?: string;
   /** Drop the list's own background so a sheet's material shows through. */
@@ -37,6 +42,9 @@ export type NativeGroupedListProps = ViewProps & {
   onRowAction?: (
     event: NativeSyntheticEvent<{ id: string; actionId: string }>,
   ) => void;
+  /** Show native drag handles for a flat, single-section list. */
+  reordering?: boolean;
+  onReorder?: (event: NativeSyntheticEvent<{ ids: string[] }>) => void;
   previewUserId?: string;
   previewWorkspaceId?: string;
 };

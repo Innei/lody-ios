@@ -3,19 +3,16 @@
 From the repository root:
 
 ```sh
-swiftc -swift-version 6 apps/mobile/modules/lody-kit/ios/LodyStrings.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatTranscript.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatStream.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatTextFade.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatHaptics.swift \
-  apps/mobile/modules/lody-kit/verification/chat/main.swift \
-  -o /tmp/lody-chat-test && /tmp/lody-chat-test
+pnpm verify:native --case chat
 ```
 
 Settings → Debug → Native Chat Preview (`原生聊天预览`) uses the production native view with 80 history
 entries and a simulated burst stream. Replay sends 48 characters every 700 ms;
-Swift spreads each burst over presentation frames; new graphemes fade in over
-220 ms. Fade ticks redraw glyphs without updating list layout. The preview sends no network
+Swift paces each burst using elapsed time and arrival rate; new graphemes fade in over
+180 ms with a stagger based on the commit interval. Long replies keep their tail
+animation. Fade ticks redraw only the affected text lines without updating list
+layout. Completion waits for the final text commit and its visible fades before
+merging blocks for cross-paragraph selection. The preview sends no network
 writes. Sending preview input appends a local user message and starts a simulated
 reply. Tapping a tool in the process sheet simulates a failure.
 
@@ -30,7 +27,10 @@ check multiline input and interactive keyboard dismissal; repeat in dark mode.
 The RN page owns navigation and cloud actions; LodyKit owns collection cells,
 Markdown, text pacing, expansion, measured row heights, keyboard and input state.
 MarkdownView parses Markdown, including unfinished input; the active tail is parsed
-on a serial background queue and parse results are cached by source text. Row heights
+on a serial background queue and parse results are cached by source text and streaming state.
+Streaming display first runs pinned Remend in an isolated, serialized JavaScriptCore
+context. Incomplete links stay plain text; completion and history bypass repair.
+Neither persisted text nor copy/share source is rewritten. Row heights
 come from an offscreen `MarkdownTextView` per row that keeps its document across width
 changes. Presentation pacing is inspired by FlowDown's `BalancedEmitter`; MarkdownView
 and Litext are SPM dependencies pulled in through `cocoapods-spm`.
@@ -45,21 +45,7 @@ drawn by `ChatFadeLabelView`, a `TextLabelView` subclass injected into
 Scroll drawing regression (with a booted iOS Simulator):
 
 ```sh
-xcrun --sdk iphonesimulator swiftc -swift-version 6 -target arm64-apple-ios18.0-simulator \
-  -sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
-  apps/mobile/modules/lody-kit/ios/LodyStrings.swift \
-  apps/mobile/modules/lody-kit/ios/LodyTint.swift \
-  apps/mobile/modules/lody-kit/ios/UIFont+Dynamic.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatTranscript.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatTextFade.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatTextView.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatThrowCurve.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatAttachments.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatSendHandoff.swift \
-  apps/mobile/modules/lody-kit/ios/Chat/ChatCell.swift \
-  apps/mobile/modules/lody-kit/verification/chat-render/main.swift \
-  -o /tmp/lody-chat-render-test
-xcrun simctl spawn booted /tmp/lody-chat-render-test
+pnpm verify:native --case chat-render
 ```
 
 The same long text must draw identically when partially offscreen and after

@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
+import { AppIconScreen } from './AppIconScreen';
 import { ProjectHistoryScreen } from './ProjectHistoryScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
-import { AppearanceScreen } from '@/screens/AppearanceScreen';
+import { QuickRepliesScreen } from './QuickRepliesScreen';
 import { useRouter } from 'expo-router';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { AccountScreen } from './AccountScreen';
@@ -9,17 +11,29 @@ import { LicensesScreen } from './LicensesScreen';
 import { RemoteSettingsScreen, settingsTitle } from './RemoteSettingsScreen';
 import { Linking } from 'react-native';
 import Constants from 'expo-constants';
-import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
+import {
+  NativeGroupedList,
+  getAppIcon,
+  showAccentColorPicker,
+  addAppActiveListener,
+  type NativeListSection,
+} from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { useConnection } from '@/cloud/catalog/connection';
 import { usePalette } from '@/lib/theme/palette';
-import { useAppearance } from '@/lib/theme/appearance';
+import {
+  useAppearance,
+  accentChoices,
+  isAccentColor,
+} from '@/lib/theme/appearance';
+import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
 import { relativeTime } from '@/ui/time';
 import { showToast } from '@/ui/toast';
 import { definePage } from '@/lib/presentation';
 import type { RemoteSetting } from '@/models/settings';
 import { t, tp } from '../lib/i18n/index.ts';
+import { uiVerify } from '@/lib/uiVerify';
 
 const connectionRow = {
   live: { symbol: 'circle.fill', label: 'settings.connection.live' },
@@ -35,7 +49,29 @@ function View() {
   const router = useRouter();
   const { push, cancel } = usePageRuntime();
   const colors = usePalette();
-  const { darkBackground } = useAppearance();
+  const { darkBackground, setDarkBackground, accentColor, setAccentColor } =
+    useAppearance();
+  const [appIcon, setCurrentAppIcon] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    const refreshIcon = () => {
+      void getAppIcon()
+        .then((name) => {
+          if (active) setCurrentAppIcon(name);
+        })
+        .catch(() => {
+          if (active) showToast(t('settings.appearance.iconFailed'));
+        });
+    };
+    refreshIcon();
+    const subscription = addAppActiveListener(refreshIcon);
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
+  const { queuedMessageBehavior, setQueuedMessageBehavior } =
+    useQueuedMessageBehavior();
   const connection = useConnection();
   const { refresh } = useCatalog();
   const shape = connectionRow[connection.state];
@@ -43,6 +79,7 @@ function View() {
     ? relativeTime(new Date(connection.syncedAt).toISOString())
     : '';
 
+  const presetAccent = accentChoices.find((value) => value === accentColor);
   const sections: NativeListSection[] = [
     {
       id: 'account',
@@ -88,21 +125,93 @@ function View() {
       ],
     },
     {
-      id: 'preferences',
+      id: 'appearance-section',
+      header: t('settings.appearance.title'),
       rows: [
         {
           id: 'appearance',
-          title: t('settings.appearance.title'),
+          title: t('settings.appearance.darkBackground'),
           value: t(`settings.appearance.${darkBackground}`),
           image: 'circle.lefthalf.filled',
+          action: true,
+          options: (['soft', 'black'] as const).map((value) => ({
+            id: value,
+            title: t(`settings.appearance.${value}`),
+            selected: value === darkBackground,
+          })),
+        },
+        {
+          id: 'accent-color',
+          title: t('settings.appearance.accent'),
+          value: presetAccent
+            ? t(`settings.appearance.${presetAccent}`)
+            : t('settings.appearance.custom'),
+          image: 'circle.fill',
+          imageTint: colors.accent,
+          action: true,
+          options: [
+            ...accentChoices.map((value) => ({
+              id: value,
+              title: t(`settings.appearance.${value}`),
+              selected: value === accentColor,
+            })),
+            {
+              id: 'custom',
+              title: t('settings.appearance.customPicker'),
+              selected: accentColor.startsWith('#'),
+            },
+          ],
+        },
+        {
+          id: 'app-icon',
+          title: t('settings.appearance.appIcon'),
+          value:
+            appIcon === 'Aqua' ? 'Aqua' : t('settings.appearance.defaultIcon'),
+          accessibilityValue:
+            appIcon === 'Aqua' ? 'Aqua' : t('settings.appearance.defaultIcon'),
+          imageAsset: `AppIconPreview-${appIcon ?? 'default'}`,
+          imageOriginal: true,
           action: true,
           disclosure: true,
           navigates: true,
         },
+      ],
+    },
+    {
+      id: 'notifications-section',
+      header: t('settings.notifications.title'),
+      rows: [
         {
           id: 'notifications',
           title: t('settings.notifications.title'),
           image: 'bell',
+          action: true,
+          disclosure: true,
+          navigates: true,
+        },
+      ],
+    },
+    {
+      id: 'chat',
+      header: t('settings.section.chat'),
+      footer: t('settings.queuedMessageBehavior.hint'),
+      rows: [
+        {
+          id: 'queued-message-behavior',
+          title: t('settings.queuedMessageBehavior.title'),
+          value: t(`settings.queuedMessageBehavior.${queuedMessageBehavior}`),
+          image: 'arrow.uturn.forward',
+          action: true,
+          options: (['queue', 'guide'] as const).map((value) => ({
+            id: value,
+            title: t(`settings.queuedMessageBehavior.${value}`),
+            selected: value === queuedMessageBehavior,
+          })),
+        },
+        {
+          id: 'quick-replies',
+          title: t('settings.quickReplies.title'),
+          image: 'text.bubble',
           action: true,
           disclosure: true,
           navigates: true,
@@ -136,7 +245,7 @@ function View() {
   if (auth.account)
     sections.splice(1, 0, {
       id: 'remote',
-      header: t('settings.remote.title'),
+      header: t('settings.section.workspace'),
       rows: (['machine', 'agent', 'mcp'] as const).map((kind) => ({
         id: `remote-${kind}`,
         title: t(`settings.remote.${kind}`),
@@ -174,7 +283,7 @@ function View() {
       ],
     });
 
-  if (__DEV__)
+  if (__DEV__ || uiVerify)
     sections.push({
       id: 'developer',
       header: t('settings.section.developer'),
@@ -197,6 +306,24 @@ function View() {
       accent={colors.accent}
       sections={sections}
       placeholder=""
+      onRowAction={({ nativeEvent: { id, actionId } }) => {
+        if (id === 'accent-color' && isAccentColor(actionId))
+          setAccentColor(actionId);
+        if (id === 'accent-color' && actionId === 'custom')
+          void showAccentColorPicker(t('settings.appearance.accent')).catch(
+            () => showToast(t('settings.appearance.colorFailed')),
+          );
+        if (
+          id === 'appearance' &&
+          (actionId === 'soft' || actionId === 'black')
+        )
+          setDarkBackground(actionId);
+        if (
+          id === 'queued-message-behavior' &&
+          (actionId === 'queue' || actionId === 'guide')
+        )
+          setQueuedMessageBehavior(actionId);
+      }}
       onRowPress={({ nativeEvent }) => {
         if (nativeEvent.id.startsWith('remote-')) {
           const kind = nativeEvent.id.slice(7) as RemoteSetting['kind'];
@@ -206,9 +333,10 @@ function View() {
             { title: settingsTitle(kind) },
           );
         }
+        if (nativeEvent.id === 'app-icon') void push(AppIconScreen);
         if (nativeEvent.id === 'notifications')
           void push(NotificationSettingsScreen, {});
-        if (nativeEvent.id === 'appearance') void push(AppearanceScreen, {});
+        if (nativeEvent.id === 'quick-replies') void push(QuickRepliesScreen);
         if (nativeEvent.id === 'project-history')
           void push(ProjectHistoryScreen);
         if (nativeEvent.id === 'archived') void push(ArchivedSessionsScreen);

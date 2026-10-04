@@ -1,4 +1,5 @@
 import { parseNotificationRoute, routeFromDeepLink } from './routing.ts';
+import { isShareLink, wakeShareInbox } from '../share/shareInbox.ts';
 
 let nextId = 0;
 let pending: { id: string; route: string } | null = null;
@@ -11,6 +12,10 @@ export function redirectSystemPath({
   path: string;
   initial: boolean;
 }): string | null {
+  if (isShareLink(path)) {
+    wakeShareInbox();
+    return initial ? '/' : null;
+  }
   const route = routeFromDeepLink(path) ?? path;
   if (!parseNotificationRoute(route)) return path;
   pending = { id: `link:${++nextId}`, route };

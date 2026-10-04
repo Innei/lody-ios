@@ -4,14 +4,28 @@ const path = require('path');
 
 const PACKAGES = [
   {
+    name: 'ChatKit',
+    path: '../../../packages/chat-kit',
+  },
+  {
+    name: 'Lexical',
+    path: '../../../packages/lexical-swift',
+  },
+  {
     name: 'MarkdownView',
     url: 'https://github.com/Lakr233/MarkdownView.git',
-    version: '4.3.2',
+    version: '4.6.5',
+  },
+  {
+    name: 'swift-collections',
+    url: 'https://github.com/apple/swift-collections',
+    version: '1.7.1',
+    products: ['OrderedCollections'],
   },
   {
     name: 'Litext',
     url: 'https://github.com/Lakr233/Litext',
-    version: '2.2.2',
+    version: '3.3.2',
   },
 ];
 
@@ -56,8 +70,14 @@ end
 Pod::SPM::UpdateScript::Mixin.prepend(LodySPMFileLists)
 `;
 
-const spmPkg = (pkg) =>
-  `  spm_pkg "${pkg.name}", :url => "${pkg.url}", :version => "${pkg.version}"\n`;
+const spmPkg = (pkg) => {
+  if (pkg.path)
+    return `  spm_pkg "${pkg.name}", :path => File.expand_path("${pkg.path}", __dir__)\n`;
+  const products = pkg.products
+    ? `, :products => [${pkg.products.map((name) => `"${name}"`).join(', ')}]`
+    : '';
+  return `  spm_pkg "${pkg.name}", :url => "${pkg.url}", :version => "${pkg.version}"${products}\n`;
+};
 
 module.exports = function withMarkdownView(config) {
   return withDangerousMod(config, [
@@ -70,17 +90,16 @@ module.exports = function withMarkdownView(config) {
       let contents = fs.readFileSync(podfile, 'utf8');
       if (!contents.includes('LodyUniqueProjectUUIDs'))
         contents = header + contents;
+      // Retire the previous local package declaration when regenerating iOS.
+      contents = contents.replace(/^ *spm_pkg "NativeChatUI"[^\n]*\n/gm, '');
       for (const pkg of PACKAGES) {
-        const existing = new RegExp(`^ *spm_pkg "${pkg.name}"[^\\n]*\\n`, 'm');
-        if (existing.test(contents)) {
-          contents = contents.replace(existing, spmPkg(pkg));
-          continue;
-        }
-        contents = contents.replace(
-          /^target '([^']+)' do\n/m,
-          (line) => line + spmPkg(pkg),
-        );
+        const existing = new RegExp(`^ *spm_pkg "${pkg.name}"[^\\n]*\\n`, 'gm');
+        contents = contents.replace(existing, '');
       }
+      contents = contents.replace(
+        /^target '([^']+)' do\n/m,
+        (line) => line + PACKAGES.map(spmPkg).join(''),
+      );
       fs.writeFileSync(podfile, contents);
       return config;
     },

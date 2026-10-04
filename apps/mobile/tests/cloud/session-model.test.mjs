@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Flock } from '@loro-dev/flock-wasm/base64';
-import { projectRows } from '../../src/cloud/catalog/model.ts';
+import { keepRepos, projectRows } from '../../src/cloud/catalog/model.ts';
 import {
   inboxSections,
   projectSections,
   searchSections,
+  matchCatalog,
   sessionRow,
 } from '../../src/features/sessions/inbox.ts';
 import { setLocale } from '../../src/lib/i18n/index.ts';
@@ -37,7 +38,7 @@ test('catalog model changes reach every session row without loading a transcript
   const rows = [
     inboxSections(data, { accent: 'blue' })[0].rows[0],
     projectSections(data, 'blue')[0].rows[1],
-    searchSections(data, 'Session', 'blue')[0].rows[0],
+    searchSections(data, matchCatalog(data, 'Session'), 'blue')[0].rows[0],
     sessionRow(data.sessions[0], 'blue'),
   ];
   for (const row of rows) {
@@ -60,4 +61,74 @@ test('catalog model changes reach every session row without loading a transcript
   };
   assert.equal(sessionRow(legacy, 'blue').modelName, '');
   assert.equal(sessionRow(legacy, 'blue').subtitle, '');
+});
+
+test('the catalog carries lastRunningSeen so the Live Activity can time the current turn', () => {
+  const flock = new Flock('session-turn-start');
+  flock.set(['e', 'session-s2'], true);
+  flock.set(['m', 'session-s2'], {
+    id: 's2',
+    machineId: 'm1',
+    title: 'Turn',
+    status: { type: 'running' },
+    createdAt: '2026-09-15T00:00:00Z',
+    lastMessageAt: 1_757_000_000_000,
+    lastRunningSeen: 1_757_000_500_000,
+  });
+  const read = () => projectRows(flock.scan(), 'meta').sessions[0];
+  assert.equal(read().lastRunningSeen, 1_757_000_500_000);
+  assert.equal(read().status, 'running');
+  flock.set(['m', 'session-s2', 'lastRunningSeen'], null);
+  assert.equal(read().lastRunningSeen, undefined);
+});
+
+test('a GitHub-linked project header shows the owner avatar instead of its letter', () => {
+  const flock = new Flock('project-avatar');
+  const session = (id, project) => {
+    flock.set(['e', `session-${id}`], true);
+    flock.set(['m', `session-${id}`], {
+      id,
+      machineId: 'm1',
+      title: id,
+      status: 'completed',
+      createdAt: '2026-09-12T00:00:00Z',
+      project,
+    });
+  };
+  session('s1', { kind: 'local', localProjectId: 'p1' });
+  session('s2', {
+    kind: 'local',
+    localProjectId: 'p1',
+    githubRepoFullName: 'lody-ai/lody-ios',
+  });
+  session('s3', { kind: 'local', localProjectId: 'p2' });
+  const data = projectRows(flock.scan(), 'meta');
+  const header = (id) =>
+    projectSections(data, 'blue').find((s) => s.rows[0].id === `toggle:${id}`)
+      .rows[0];
+  assert.equal(
+    header('m1:local:p1').image,
+    'https://avatars.githubusercontent.com/lody-ai?size=96',
+  );
+  assert.equal(header('m1:local:p2').image, undefined);
+});
+
+test('a fresh catalog keeps a repo learned earlier until it reports its own', () => {
+  const project = {
+    id: 'm1:local:p1',
+    machineId: 'm1',
+    name: 'afilmory',
+    rootPath: '/a',
+  };
+  const catalog = (p) => ({ projects: [p], sessions: [], machineIds: [] });
+  const previous = catalog({ ...project, repoFullName: 'Afilmory/afilmory' });
+  assert.equal(
+    keepRepos(catalog(project), previous).projects[0].repoFullName,
+    'Afilmory/afilmory',
+  );
+  assert.equal(
+    keepRepos(catalog({ ...project, repoFullName: 'Innei/afilmory' }), previous)
+      .projects[0].repoFullName,
+    'Innei/afilmory',
+  );
 });

@@ -1,3 +1,4 @@
+import ChatKit
 import UIKit
 
 let mentionText = "#30 @src/app.ts @\"folder/my file.swift\" use /review [Skill Path](/skills/review/SKILL.md)"
@@ -5,7 +6,7 @@ let mentionSource = NSAttributedString(string: mentionText, attributes: [.font: 
 let richMentions = ChatUserMentions.decorate(mentionSource, repository: "Innei/lody-ios", traits: .current)
 precondition(mentionSource.string == mentionText, "Decorating must not change the stored or copied prompt")
 precondition(richMentions.string.contains("$review") && !richMentions.string.contains("[Skill Path]"))
-let mentionView = ChatTextView(frame: CGRect(x: 0, y: 0, width: 180, height: 400))
+let mentionView = CKTextView(frame: CGRect(x: 0, y: 0, width: 180, height: 400))
 mentionView.setText(richMentions)
 var mentionOpened = ""
 mentionView.onLink = { mentionOpened = $0 }
@@ -30,10 +31,10 @@ print("User mentions: rich labels, file and GitHub targets, VoiceOver actions, w
 
 // A partially offscreen text view must retain every line when scrolling exposes it.
 let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 400))
-let view = ChatTextView(frame: CGRect(x: 0, y: 350, width: 350, height: 600))
+let view = CKTextView(frame: CGRect(x: 0, y: 350, width: 350, height: 600))
 window.addSubview(view)
 view.setText(NSAttributedString(string: (1...20).map { "Line \($0): scrolling keeps this content" }.joined(separator: "\n"), attributes: [.font: UIFont.systemFont(ofSize: 17), .foregroundColor: UIColor.black]))
-func draw() -> Data {
+@MainActor func draw() -> Data {
   UIGraphicsImageRenderer(size: view.bounds.size).image { context in
     UIColor.white.setFill()
     context.fill(view.bounds)
@@ -46,13 +47,13 @@ let exposedByScrolling = draw()
 precondition(initiallyClipped == exposedByScrolling, "Text drawing must not depend on the current scroll position")
 print("Chat render: offscreen lines remain drawn across scrolling")
 
-let shineView = ChatTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 20))
+let shineView = CKTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 20))
 window.addSubview(shineView)
 shineView.setText(NSAttributedString(string: "正在处理", attributes: [
   .font: UIFont.systemFont(ofSize: 13),
   .foregroundColor: UIColor.systemBlue,
 ]))
-func shineSnapshot() -> Data {
+@MainActor func shineSnapshot() -> Data {
   UIGraphicsImageRenderer(size: shineView.bounds.size).image { context in
     UIColor.white.setFill()
     context.fill(shineView.bounds)
@@ -89,7 +90,7 @@ let durationCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
 window.addSubview(durationCell)
 durationCell.configure(durationRow, text: NSAttributedString(string: durationRow.text))
 durationCell.layoutIfNeeded()
-precondition(!durationCell.spinner.isAnimating, "The duration label must not show a loading indicator")
+precondition(!durationRow.shines, "The duration label must stay static")
 precondition(ChatCell.leading(durationRow) == 0, "The duration label must align to the full row's leading edge")
 precondition(ChatCell.textWidth(durationRow, width: 320) == 320,
   "The duration label must not reserve a trailing indicator slot")
@@ -106,7 +107,7 @@ precondition(durationSeparator?.frame.maxY == durationCell.contentView.bounds.ma
 print("Chat render: duration separator spans the row below the label")
 
 func chromeHeight(_ row: ChatRow, text: String, width: CGFloat, traits: UITraitCollection) -> CGFloat {
-  let view = ChatTextView()
+  let view = CKTextView()
   view.setText(NSAttributedString(string: text, attributes: [
     .font: ChatCell.messageFont(for: row, compatibleWith: traits),
   ]))
@@ -198,13 +199,39 @@ precondition(abs(thoughtWidth - toolWidth) <= 2,
   "Thought and tool icons must share the same optical size, thought=\(thoughtWidth) tool=\(toolWidth)")
 print("Chat render: thought icon stays inside the leading gutter")
 
+let runningToolRow = ChatRow(
+  id: "reply:running-read",
+  entryID: "reply",
+  kind: "tool_call",
+  text: "正在读取文件",
+  symbol: "doc.text.magnifyingglass",
+  running: true
+)
+let runningToolCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
+window.addSubview(runningToolCell)
+runningToolCell.configure(runningToolRow, text: NSAttributedString(string: runningToolRow.text, attributes: [
+  .font: UIFont.systemFont(ofSize: 13),
+  .foregroundColor: UIColor.secondaryLabel,
+]))
+runningToolCell.layoutIfNeeded()
+precondition(runningToolRow.shines, "A running process detail must shine")
+precondition(
+  !runningToolCell.contentView.subviews.contains { $0 is UIActivityIndicatorView },
+  "A running process detail must not retain the old spinner"
+)
+precondition(
+  ChatCell.textWidth(runningToolRow, width: 320) == 320 - ChatCell.leading(runningToolRow),
+  "Process text must reclaim the trailing spinner slot"
+)
+print("Chat render: process details replace spinners with traveling text shine")
+
 func summaryRow(running: Bool, attention: Bool) -> ChatRow {
   ChatRow(
     id: "reply:process",
     entryID: "reply",
     kind: "summary",
     text: "执行过程",
-    symbol: "circle.fill",
+    symbol: attention ? "exclamationmark.triangle.fill" : "circle.fill",
     actionable: true,
     running: running,
     attention: attention
@@ -224,15 +251,36 @@ func summaryCell(for row: ChatRow) -> ChatCell {
 let runningSummary = summaryCell(for: summaryRow(running: true, attention: false))
 let doneSummary = summaryCell(for: summaryRow(running: false, attention: false))
 let failedSummary = summaryCell(for: summaryRow(running: false, attention: true))
+let failedLiveSummary = summaryCell(for: summaryRow(running: true, attention: true))
 let traits = runningSummary.traitCollection
-precondition(resolved(runningSummary.icon.tintColor, traits: traits) == resolved(.systemBlue, traits: traits),
-  "A live process pip must be system blue")
+precondition(resolved(runningSummary.icon.tintColor, traits: traits) == resolved(.lodyAccent, traits: traits),
+  "A live process pip must use the accent color")
 precondition(resolved(doneSummary.icon.tintColor, traits: traits) == resolved(.secondaryLabel, traits: traits),
   "A finished process pip must use secondary label")
 precondition(resolved(failedSummary.icon.tintColor, traits: traits) == resolved(.systemOrange, traits: traits),
   "A failed or pending process pip must be system orange")
+precondition(runningSummary.row!.shines, "A live process pip must shine")
+precondition(!doneSummary.row!.shines, "A finished process must not shine")
+precondition(failedLiveSummary.row!.shines, "A live process with a failed tool must keep the shine")
+precondition(failedLiveSummary.row!.symbol == "exclamationmark.triangle.fill",
+  "A live process with a failed tool must use a warning mark")
+precondition(failedSummary.row!.symbol == "exclamationmark.triangle.fill",
+  "A failed process must use a warning mark")
+precondition(runningSummary.row!.symbol == "circle.fill", "A healthy live process must keep the pip")
+let warnMark = UIImage(
+  systemName: "exclamationmark.triangle.fill",
+  withConfiguration: ChatCell.iconSymbolConfiguration(for: failedLiveSummary.row!)
+)
+precondition(
+  failedLiveSummary.icon.image?.pngData() == warnMark?.pngData(),
+  "The leading mark must draw the warning symbol, not the pip"
+)
+precondition(resolved(failedLiveSummary.icon.tintColor, traits: traits) == resolved(.systemOrange, traits: traits),
+  "The warning mark must stay system orange")
 precondition((runningSummary.icon.image?.size.width ?? .greatestFiniteMagnitude) < (thoughtCell.icon.image?.size.width ?? 0),
   "The process status pip must be smaller than thought and tool icons")
+precondition((failedLiveSummary.icon.image?.size.width ?? .greatestFiniteMagnitude) < (thoughtCell.icon.image?.size.width ?? 0),
+  "The warning mark must stay in the process pip scale")
 precondition(ChatCell.leading(doneSummary.row!) == 12, "The process pip must not keep the 24-point icon gutter")
 precondition(doneSummary.icon.frame.minX == 0, "The process pip must sit on the text leading edge")
 precondition(doneSummary.icon.frame.width == 8, "The process pip slot must match the 6-point dot")
@@ -260,6 +308,48 @@ precondition(
 precondition(
   abs(wrappedSummary.icon.frame.midY - wrappedSummary.label.frame.midY) > 0.5,
   "The process pip must not center on the whole wrapped block"
+)
+
+precondition(
+  !runningSummary.icon.lastReplaceAnimated && !failedLiveSummary.icon.lastReplaceAnimated,
+  "The first process mark must appear without a replace transition"
+)
+let markSwap = summaryCell(for: summaryRow(running: true, attention: false))
+precondition(!markSwap.icon.lastReplaceAnimated, "A newly bound process pip must not animate in")
+let warningSwap = summaryRow(running: true, attention: true)
+let warningSwapText = NSAttributedString(string: warningSwap.text, attributes: [
+  .font: UIFont.systemFont(ofSize: 13),
+])
+markSwap.configure(warningSwap, text: warningSwapText)
+markSwap.layoutIfNeeded()
+if UIAccessibility.isReduceMotionEnabled {
+  precondition(!markSwap.icon.lastReplaceAnimated, "Reduce Motion must keep the process mark swap instant")
+} else {
+  precondition(markSwap.icon.lastReplaceAnimated, "Replacing the process pip with a warning mark must use a symbol replace")
+}
+markSwap.configure(warningSwap, text: warningSwapText)
+if !UIAccessibility.isReduceMotionEnabled {
+  precondition(
+    markSwap.icon.lastReplaceAnimated,
+    "A later process update must not cancel the pip-to-warning replace"
+  )
+}
+precondition(
+  markSwap.icon.image?.pngData() == warnMark?.pngData(),
+  "The leading mark must finish on the warning symbol"
+)
+precondition(
+  resolved(markSwap.icon.tintColor, traits: traits) == resolved(.systemOrange, traits: traits),
+  "The animated warning mark must stay system orange"
+)
+let reusedMark = summaryCell(for: summaryRow(running: true, attention: false))
+reusedMark.prepareForReuse()
+reusedMark.configure(warningSwap, text: warningSwapText)
+reusedMark.layoutIfNeeded()
+precondition(!reusedMark.icon.lastReplaceAnimated, "Reuse must not play the pip-to-warning transition")
+precondition(
+  reusedMark.icon.image?.pngData() == warnMark?.pngData(),
+  "Reuse must still draw the warning symbol"
 )
 print("Chat render: process status pip uses running, done and attention colors")
 
@@ -323,3 +413,426 @@ var activatedRetry = false
 retryCell.onActivate = { activatedRetry = true }
 precondition(retryCell.accessibilityActivate() && activatedRetry, "Accessible status rows must invoke their retry/reconnect action")
 print("Chat render: accessible status actions remain available with expandable messages")
+
+let metaFont = UIFont.preferredFont(forTextStyle: .footnote)
+let providerMark = UIGraphicsImageRenderer(size: CGSize(width: 24, height: 24)).image { _ in
+  UIColor.black.setFill()
+  UIRectFill(CGRect(x: 0, y: 0, width: 24, height: 24))
+}.withRenderingMode(.alwaysTemplate)
+let marked = ChatMetaCell.attributedText("GPT-5.6 Sol · High", image: providerMark, font: metaFont)
+var metaAttachment: NSTextAttachment?
+marked.enumerateAttribute(.attachment, in: NSRange(location: 0, length: marked.length)) { value, _, _ in
+  if let attachment = value as? NSTextAttachment { metaAttachment = attachment }
+}
+precondition(metaAttachment != nil, "A known provider mark sits on the model line")
+let markSize = metaFont.pointSize - 2
+precondition(abs((metaAttachment?.bounds.height ?? 0) - markSize) < 0.01, "The mark is 2 pt smaller than the meta type")
+precondition(
+  abs((metaAttachment?.bounds.minY ?? 0) - (metaFont.capHeight - markSize) / 2) < 0.01,
+  "The mark centers on the cap height so it does not sit flush with the type"
+)
+precondition(
+  marked.string.replacingOccurrences(of: "\u{FFFC}", with: "").trimmingCharacters(in: .whitespaces) == "GPT-5.6 Sol · High"
+)
+let unmarked = ChatMetaCell.attributedText("id-only", image: nil, font: metaFont)
+var unmarkedAttachment = false
+unmarked.enumerateAttribute(.attachment, in: NSRange(location: 0, length: unmarked.length)) { value, _, _ in
+  if value is NSTextAttachment { unmarkedAttachment = true }
+}
+precondition(unmarked.string == "id-only" && !unmarkedAttachment, "Unknown models stay text-only")
+var metaRow = ChatRow(id: "reply:meta", entryID: "reply", kind: "meta", text: "GPT-5.6 Sol · High")
+metaRow.imageAsset = "lody-agent-openai"
+let metaCell = ChatMetaCell(frame: CGRect(x: 0, y: 0, width: 320, height: 32))
+metaCell.detailsButton.isHidden = true
+window.addSubview(metaCell)
+metaCell.configure(metaRow)
+func modelLabel(_ root: UIView) -> UILabel? {
+  if let label = root as? UILabel, label.accessibilityIdentifier == "reply:meta:model" { return label }
+  return root.subviews.compactMap(modelLabel).first
+}
+precondition(modelLabel(metaCell)?.accessibilityLabel == "GPT-5.6 Sol · High", "VoiceOver reads the model line without the mark")
+
+func lowestInkRow(_ image: UIImage) -> Int {
+  guard let cgImage = image.cgImage else { return -1 }
+  let width = cgImage.width
+  let height = cgImage.height
+  var pixels = [UInt8](repeating: 0, count: width * height * 4)
+  guard let ctx = CGContext(
+    data: &pixels,
+    width: width,
+    height: height,
+    bitsPerComponent: 8,
+    bytesPerRow: width * 4,
+    space: CGColorSpaceCreateDeviceRGB(),
+    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+  ) else { return -1 }
+  ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+  var last = -1
+  for row in 0..<height {
+    for column in 0..<width {
+      let i = (row * width + column) * 4
+      if Int(pixels[i]) + Int(pixels[i + 1]) + Int(pixels[i + 2]) < 720 { last = row }
+    }
+  }
+  return last
+}
+
+func snapshotCell(_ cell: ChatMetaCell, text: String) -> UIImage {
+  let row = ChatRow(id: "reply:meta", entryID: "reply", kind: "meta", text: text)
+  cell.detailsButton.isHidden = true
+  cell.frame.size.height = ChatMetaCell.height(for: row, width: cell.bounds.width, traits: .current, detailsEnabled: false)
+  cell.configure(row)
+  cell.backgroundColor = .white
+  cell.contentView.backgroundColor = .white
+  cell.layoutIfNeeded()
+  return UIGraphicsImageRenderer(size: cell.bounds.size).image { context in
+    UIColor.white.setFill()
+    context.fill(CGRect(origin: .zero, size: cell.bounds.size))
+    cell.layer.render(in: context.cgContext)
+  }
+}
+
+let metaY = snapshotCell(metaCell, text: "Gy")
+let metaX = snapshotCell(metaCell, text: "Gx")
+precondition(
+  lowestInkRow(metaY) >= lowestInkRow(metaX) + Int(metaY.scale * 2),
+  "The descender of y on the model line must not be clipped"
+)
+print("Chat render: meta bar provider marks sit on the model line")
+
+func pixelBuffer(_ image: UIImage) -> (pixels: [UInt8], width: Int, height: Int)? {
+  guard let cgImage = image.cgImage else { return nil }
+  let width = cgImage.width
+  let height = cgImage.height
+  var pixels = [UInt8](repeating: 0, count: width * height * 4)
+  guard let ctx = CGContext(
+    data: &pixels,
+    width: width,
+    height: height,
+    bitsPerComponent: 8,
+    bytesPerRow: width * 4,
+    space: CGColorSpaceCreateDeviceRGB(),
+    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+  ) else { return nil }
+  ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+  return (pixels, width, height)
+}
+
+struct ActionInk {
+  var minX = Int.max
+  var maxX = -1
+  var minY = Int.max
+  var maxY = -1
+  var red = 0
+  var green = 0
+  var blue = 0
+}
+
+func actionInk(_ image: UIImage) -> ActionInk {
+  guard let buffer = pixelBuffer(image) else { return ActionInk() }
+  var ink = ActionInk()
+  var darkest = 765
+  for row in 0..<buffer.height {
+    for column in 0..<buffer.width {
+      let i = (row * buffer.width + column) * 4
+      let red = Int(buffer.pixels[i])
+      let green = Int(buffer.pixels[i + 1])
+      let blue = Int(buffer.pixels[i + 2])
+      let sum = red + green + blue
+      if sum >= 720 { continue }
+      ink.minX = min(ink.minX, column)
+      ink.maxX = max(ink.maxX, column)
+      ink.minY = min(ink.minY, row)
+      ink.maxY = max(ink.maxY, row)
+      if sum < darkest {
+        darkest = sum
+        ink.red = red
+        ink.green = green
+        ink.blue = blue
+      }
+    }
+  }
+  return ink
+}
+
+metaCell.frame.size.height = ChatMetaCell.height(for: metaRow, width: 320, traits: .current, detailsEnabled: false)
+metaCell.configure(metaRow)
+metaCell.layoutIfNeeded()
+let actions = metaCell.actionButton
+precondition(actions.bounds.width >= 44 && actions.bounds.height >= 44, "Message actions keep a 44 pt target")
+let actionShot = UIGraphicsImageRenderer(size: actions.bounds.size).image { context in
+  UIColor.white.setFill()
+  context.fill(CGRect(origin: .zero, size: actions.bounds.size))
+  actions.layer.render(in: context.cgContext)
+}
+let ink = actionInk(actionShot)
+precondition(ink.maxX >= 0, "Message actions draw an ellipsis")
+let actionScale = max(1, actionShot.scale)
+let glyphWidth = CGFloat(ink.maxX - ink.minX + 1) / actionScale
+let trailingPad = actions.bounds.width - CGFloat(ink.maxX + 1) / actionScale
+precondition(
+  glyphWidth <= metaFont.pointSize + 4,
+  "The action glyph is no larger than the model type"
+)
+precondition(
+  trailingPad <= 1,
+  "The action glyph sits on the trailing edge so button padding does not inset it from the type"
+)
+precondition(
+  ink.blue <= ink.red + 24 && ink.blue <= ink.green + 24,
+  "Message actions use the same color as the model line"
+)
+print("Chat render: meta bar actions match the model line and sit on the trailing edge")
+
+final class FoldSizes: NSObject, UICollectionViewDelegateFlowLayout {
+  var source: UICollectionViewDiffableDataSource<String, String>?
+  func collectionView(_ collectionView: UICollectionView, layout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
+    CGSize(width: 320, height: source?.itemIdentifier(for: indexPath) == "answer" ? 200 : 44)
+  }
+}
+let foldCollection = UICollectionView(frame: window.bounds, collectionViewLayout: ChatCollectionLayout())
+let foldSizes = FoldSizes()
+foldCollection.delegate = foldSizes
+foldCollection.register(ChatMetaCell.self, forCellWithReuseIdentifier: "meta")
+foldCollection.register(UICollectionViewCell.self, forCellWithReuseIdentifier: "row")
+let foldSource = UICollectionViewDiffableDataSource<String, String>(collectionView: foldCollection) { collection, index, id in
+  guard id == metaRow.id else { return collection.dequeueReusableCell(withReuseIdentifier: "row", for: index) }
+  let cell = collection.dequeueReusableCell(withReuseIdentifier: "meta", for: index) as! ChatMetaCell
+  cell.configure(metaRow)
+  return cell
+}
+foldSizes.source = foldSource
+window.addSubview(foldCollection)
+window.isHidden = false
+var liveReply = NSDiffableDataSourceSnapshot<String, String>()
+liveReply.appendSections(["reply"])
+liveReply.appendItems(["duration", "tool-1", "tool-2", "answer"])
+foldSource.apply(liveReply, animatingDifferences: false)
+foldCollection.layoutIfNeeded()
+CATransaction.flush()
+var foldedReply = NSDiffableDataSourceSnapshot<String, String>()
+foldedReply.appendSections(["reply"])
+foldedReply.appendItems(["duration", "answer", metaRow.id])
+UIView.animate(withDuration: 0.22) {
+  foldSource.apply(foldedReply, animatingDifferences: true)
+  foldCollection.collectionViewLayout.invalidateLayout()
+  foldCollection.layoutIfNeeded()
+}
+@MainActor func travel(_ id: String) -> CGFloat {
+  let cell = foldCollection.cellForItem(at: foldSource.indexPath(for: id)!)!
+  let animation = cell.layer.animation(forKey: "position") as? CABasicAnimation
+  return (animation?.fromValue as? CGPoint)?.y ?? 0
+}
+precondition(travel("answer") > 0, "The regression check must fold process rows above the answer")
+precondition(travel(metaRow.id) == travel("answer"),
+  "New metadata must travel with the answer above it, not slide over it during reply completion")
+foldCollection.removeFromSuperview()
+print("Chat render: metadata inserted by completion folding travels with its answer")
+
+func processAttributed(_ string: String, row: ChatRow, traits: UITraitCollection) -> NSAttributedString {
+  let font = ChatCell.messageFont(for: row, compatibleWith: traits)
+  let lineHeight = 18 * UIFont.dynamicScale(compatibleWith: traits)
+  let paragraph = NSMutableParagraphStyle()
+  paragraph.minimumLineHeight = lineHeight
+  paragraph.maximumLineHeight = lineHeight
+  return NSAttributedString(string: string, attributes: [
+    .font: font,
+    .foregroundColor: UIColor.secondaryLabel,
+    .paragraphStyle: paragraph,
+    .baselineOffset: (lineHeight - font.lineHeight) / 2,
+  ])
+}
+
+let countRow = ChatRow(
+  id: "reply:process",
+  entryID: "reply",
+  kind: "summary",
+  text: "思考过程 · 调用了 2 个工具 · 编辑了 2 个文件",
+  symbol: "circle.fill",
+  actionable: true,
+  running: true
+)
+let countText = processAttributed(countRow.text, row: countRow, traits: traits)
+let countWidth = ChatCell.textWidth(countRow, width: 320)
+let measureKit = CKTextView()
+measureKit.setText(countText)
+let textKitHeight = measureKit.sizeThatFits(CGSize(width: countWidth, height: .greatestFiniteMagnitude)).height
+let numericHost = ChatNumericTextHost(frame: CGRect(x: 0, y: 0, width: countWidth, height: 8))
+window.addSubview(numericHost)
+numericHost.apply(text: countText, animated: false, shines: false)
+let hostHeight = numericHost.sizeThatFits(CGSize(width: countWidth, height: .greatestFiniteMagnitude)).height
+precondition(
+  hostHeight <= textKitHeight + 0.5,
+  "SwiftUI process text must not measure taller than TextKit, host=\(hostHeight) text=\(textKitHeight)"
+)
+
+let shortText = processAttributed("思考过程", row: countRow, traits: traits)
+let shortWidth = ceil(shortText.boundingRect(
+  with: CGSize(width: countWidth, height: .greatestFiniteMagnitude),
+  options: [.usesLineFragmentOrigin, .usesFontLeading],
+  context: nil
+).width)
+let shortHost = ChatNumericTextHost(frame: CGRect(x: 0, y: 0, width: countWidth, height: textKitHeight))
+window.addSubview(shortHost)
+shortHost.apply(text: shortText, animated: false, shines: false)
+shortHost.layoutIfNeeded()
+let countTextWidth = ceil(countText.boundingRect(
+  with: CGSize(width: countWidth, height: .greatestFiniteMagnitude),
+  options: [.usesLineFragmentOrigin, .usesFontLeading],
+  context: nil
+).width)
+let suffixWidth = min(80, countTextWidth)
+numericHost.frame.size.height = textKitHeight
+numericHost.layoutIfNeeded()
+@MainActor func processSnapshot(_ host: ChatNumericTextHost, x: CGFloat, width: CGFloat) -> Data {
+  let size = CGSize(width: width, height: host.bounds.height)
+  return UIGraphicsImageRenderer(size: size).image { context in
+    UIColor.white.setFill()
+    context.fill(CGRect(origin: .zero, size: size))
+    context.cgContext.translateBy(x: -x, y: 0)
+    host.layer.render(in: context.cgContext)
+  }.pngData()!
+}
+let shortRest = processSnapshot(shortHost, x: 0, width: shortWidth)
+let blankX = shortWidth + 4
+let blankRest = processSnapshot(shortHost, x: blankX, width: countWidth - blankX)
+let suffixRest = processSnapshot(numericHost, x: countTextWidth - suffixWidth, width: suffixWidth)
+shortHost.apply(text: shortText, animated: false, shines: true)
+numericHost.apply(text: countText, animated: false, shines: true)
+var shortFrames: [Data] = []
+var suffixFrames: [Data] = []
+for _ in 0..<10 {
+  RunLoop.main.run(until: Date().addingTimeInterval(0.16))
+  shortFrames.append(processSnapshot(shortHost, x: 0, width: shortWidth))
+  precondition(
+    processSnapshot(shortHost, x: blankX, width: countWidth - blankX) == blankRest,
+    "Shine must not draw a shifted copy of the text in the trailing blank area"
+  )
+  suffixFrames.append(processSnapshot(numericHost, x: countTextWidth - suffixWidth, width: suffixWidth))
+}
+func sameProcessPixels(_ image: Data, _ reference: Data) -> Bool {
+  let pixels = UIImage(data: image)!.cgImage!.dataProvider!.data! as Data
+  let expected = UIImage(data: reference)!.cgImage!.dataProvider!.data! as Data
+  // Gradient interpolation can round an unchanged channel by one 8-bit step.
+  return pixels.count == expected.count && zip(pixels, expected).allSatisfy { abs(Int($0) - Int($1)) <= 1 }
+}
+if !UIAccessibility.isReduceMotionEnabled {
+  precondition(shortFrames.contains { $0 != shortRest }, "Shine must cross the visible short process title")
+  precondition(Set(shortFrames).count > 1, "Shine must travel across the short process title")
+  precondition(shortFrames.contains { sameProcessPixels($0, shortRest) }, "Text outside the pale shine keeps its normal color")
+  precondition(suffixFrames.contains { $0 != suffixRest }, "Shine must cross the full process row suffix")
+  precondition(Set(suffixFrames).count > 1, "Shine must travel through the full process row suffix")
+  precondition(suffixFrames.contains { sameProcessPixels($0, suffixRest) }, "The full-row suffix keeps its normal color outside the shine")
+}
+shortHost.apply(text: shortText, animated: false, shines: false)
+numericHost.apply(text: countText, animated: false, shines: false)
+let shortStill = processSnapshot(shortHost, x: 0, width: shortWidth)
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+precondition(shortStill == processSnapshot(shortHost, x: 0, width: shortWidth), "Completed SwiftUI process text must stay still")
+print("Chat render: SwiftUI shine travels across the full process row")
+
+let attentionText = NSAttributedString(string: "思考过程", attributes: [
+  .font: UIFont.systemFont(ofSize: 13),
+  .foregroundColor: UIColor.systemOrange,
+])
+let attentionHost = ChatNumericTextHost(frame: CGRect(x: 0, y: 0, width: countWidth, height: textKitHeight))
+window.addSubview(attentionHost)
+attentionHost.apply(text: attentionText, animated: false, shines: false)
+attentionHost.layoutIfNeeded()
+let attentionWidth = ceil(attentionText.boundingRect(
+  with: CGSize(width: countWidth, height: .greatestFiniteMagnitude),
+  options: [.usesLineFragmentOrigin, .usesFontLeading],
+  context: nil
+).width)
+let attentionRest = processSnapshot(attentionHost, x: 0, width: attentionWidth)
+attentionHost.apply(text: attentionText, animated: false, shines: true)
+var attentionFrames: [Data] = []
+for _ in 0..<10 {
+  RunLoop.main.run(until: Date().addingTimeInterval(0.16))
+  attentionFrames.append(processSnapshot(attentionHost, x: 0, width: attentionWidth))
+}
+if !UIAccessibility.isReduceMotionEnabled {
+  precondition(attentionFrames.contains { $0 != attentionRest }, "Shine must still travel across yellow failed-tool process text")
+  precondition(Set(attentionFrames).count > 1, "Shine must keep moving on yellow failed-tool process text")
+  precondition(attentionFrames.contains { sameProcessPixels($0, attentionRest) }, "Yellow process text outside the shine must keep its color")
+}
+print("Chat render: failed-tool process text stays yellow and keeps the shine")
+
+let countCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
+window.addSubview(countCell)
+countCell.configure(countRow, text: countText)
+countCell.layoutIfNeeded()
+precondition(countCell.bounds.height == 44, "A one-line process row stays on the 44-point floor")
+precondition(!countCell.numericText.isHidden, "Process rows render through the numeric-text host")
+precondition(countCell.label.isHidden, "TextKit process text must not draw under the SwiftUI host")
+precondition(
+  abs(countCell.numericText.frame.height - countCell.label.frame.height) < 0.5,
+  "The numeric-text host must occupy the TextKit label frame"
+)
+precondition(
+  countCell.numericText.frame.maxY <= countCell.bounds.maxY + 0.5,
+  "The numeric-text host must not extend the process cell"
+)
+
+var nextCount = countRow
+nextCount.text = "思考过程 · 调用了 3 个工具 · 编辑了 3 个文件"
+countCell.configure(nextCount, text: processAttributed(nextCount.text, row: nextCount, traits: traits))
+countCell.layoutIfNeeded()
+precondition(countCell.bounds.height == 44, "Incrementing tabular counts must not grow the process cell")
+precondition(
+  abs(countCell.numericText.frame.height - countCell.label.frame.height) < 0.5,
+  "Count updates must keep the host inside the TextKit frame"
+)
+print("Chat render: process numeric-text host does not raise the row")
+
+func userBubbleCell(_ text: String) -> ChatCell {
+  let font = UIFont.systemFont(ofSize: 17)
+  let cell = ChatCell(frame: CGRect(x: 0, y: 0, width: 350, height: 80))
+  window.addSubview(cell)
+  cell.configure(
+    ChatRow(id: "bubble:\(text)", entryID: "bubble", kind: "user", text: text),
+    text: NSAttributedString(string: text, attributes: [.font: font])
+  )
+  cell.layoutIfNeeded()
+  return cell
+}
+
+let glyphBubble = userBubbleCell("1").messageContent.bubble
+let glyphMinSide = min(glyphBubble.bounds.width, glyphBubble.bounds.height)
+precondition(glyphMinSide > 0 && glyphMinSide < ChatMessageContent.bubbleRadius * 2,
+  "A one-glyph bubble must be smaller than two full corners")
+precondition(glyphBubble.layer.cornerCurve == .circular,
+  "A short user bubble must stay round, not pointed")
+precondition(glyphBubble.layer.cornerRadius <= glyphMinSide / 2 + 0.01,
+  "A short user bubble's radius must fit inside its bounds")
+
+let wideBubble = userBubbleCell("看看 ci 的 tf 过了嘛").messageContent.bubble
+precondition(wideBubble.layer.cornerCurve == .circular,
+  "User bubbles use circular corners at every width")
+precondition(abs(wideBubble.layer.cornerRadius - ChatMessageContent.bubbleRadius) < 0.01,
+  "A wide user bubble keeps the full corner radius")
+print("Chat render: short user bubbles stay circular capsules")
+
+func rgba(_ color: UIColor, style: UIUserInterfaceStyle) -> (CGFloat, CGFloat, CGFloat, CGFloat) {
+  var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+  color.resolvedColor(with: UITraitCollection(userInterfaceStyle: style)).getRed(&r, green: &g, blue: &b, alpha: &a)
+  return (r, g, b, a)
+}
+
+func sameRGB(_ lhs: (CGFloat, CGFloat, CGFloat, CGFloat), _ rhs: (CGFloat, CGFloat, CGFloat, CGFloat)) -> Bool {
+  abs(lhs.0 - rhs.0) < 0.001 && abs(lhs.1 - rhs.1) < 0.001 && abs(lhs.2 - rhs.2) < 0.001
+}
+
+let lightBubble = rgba(.lodyUserBubble, style: .light)
+let lightAccent = rgba(.lodyAccent, style: .light)
+precondition(abs(lightBubble.3 - 0.10) < 0.001, "Light user bubbles are a 10% accent wash")
+precondition(sameRGB(lightBubble, lightAccent), "Light user bubbles keep accent chroma instead of mixing toward the canvas")
+let darkBubble = rgba(.lodyUserBubble, style: .dark)
+let darkAccent = rgba(.lodyAccent, style: .dark)
+precondition(abs(darkBubble.3 - 0.14) < 0.001, "Dark user bubbles are a 14% accent wash")
+precondition(sameRGB(darkBubble, darkAccent), "Dark user bubbles keep accent chroma instead of mixing toward the canvas")
+let glyphFill = glyphBubble.backgroundColor!.resolvedColor(with: glyphBubble.traitCollection)
+var glyphAlpha: CGFloat = 1
+glyphFill.getRed(nil, green: nil, blue: nil, alpha: &glyphAlpha)
+precondition(glyphAlpha < 1, "The on-screen user bubble must stay translucent")
+print("Chat render: user bubbles tint the canvas instead of baking a mix")

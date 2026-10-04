@@ -4,6 +4,7 @@ import {
   inboxSections,
   projectSections,
   searchSections,
+  matchCatalog,
   sessionRow,
 } from '../../src/features/sessions/inbox.ts';
 import { withSessionViews } from '../../src/features/sessions/sessionViews.ts';
@@ -119,7 +120,7 @@ const builders = {
   activity: (data) => inboxSections(data, { accent: 'blue', now }),
   chat: (data) => inboxSections(data, { accent: 'blue', now, chatOnly: true }),
   projects: (data) => projectSections(data, 'blue', {}, now),
-  search: (data) => searchSections(data, 'e', 'blue'),
+  search: (data) => searchSections(data, matchCatalog(data, 'e'), 'blue'),
   projectOrArchive: (data) => [
     {
       id: 'sessions',

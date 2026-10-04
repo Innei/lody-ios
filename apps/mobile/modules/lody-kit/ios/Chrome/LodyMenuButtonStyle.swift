@@ -3,7 +3,10 @@ import UIKit
 @MainActor
 enum LodyMenuButtonStyle {
   static let avatarSide: CGFloat = 28
+  static let imagePadding: CGFloat = 8
+  static let leadingInset: CGFloat = 2
   static let trailingInset: CGFloat = 10
+  static let height: CGFloat = 44
 
   static func apply(_ value: UIButton.Configuration, to button: UIButton) {
     var configuration = value
@@ -11,6 +14,27 @@ enum LodyMenuButtonStyle {
     button.configuration = configuration
     button.titleLabel?.numberOfLines = 1
     button.titleLabel?.lineBreakMode = .byTruncatingTail
+  }
+
+  static func apply(label: String, avatar: UIImage, to button: UIButton) {
+    var configuration = UIButton.Configuration.plain()
+    configuration.image = avatar
+    configuration.imagePadding = imagePadding
+    configuration.contentInsets = NSDirectionalEdgeInsets(
+      top: 4, leading: leadingInset, bottom: 4, trailing: trailingInset
+    )
+    configuration.attributedTitle = AttributedString(
+      label,
+      attributes: AttributeContainer([
+        .font: UIFont.preferredFont(forTextStyle: .headline),
+        .foregroundColor: UIColor.label,
+      ])
+    )
+    apply(configuration, to: button)
+  }
+
+  static func unconstrainedWidth(for button: UIButton) -> CGFloat {
+    button.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude, height: height)).width
   }
 
   static func avatarImage(text: String, fill: UIColor, photo: UIImage?) -> UIImage {

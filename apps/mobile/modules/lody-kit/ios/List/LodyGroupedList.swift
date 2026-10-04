@@ -1,11 +1,18 @@
+#if !LODY_SHARE_EXTENSION
 import ExpoModulesCore
+#endif
 import UIKit
 
 private final class ListAppearanceController: UIViewController {
   var onWillAppear: ((Bool, UIViewControllerTransitionCoordinator?) -> Void)?
+  var onWillDisappear: ((Bool, UIViewControllerTransitionCoordinator?) -> Void)?
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
     onWillAppear?(animated, transitionCoordinator ?? parent?.transitionCoordinator)
+  }
+  override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    onWillDisappear?(animated, transitionCoordinator ?? parent?.transitionCoordinator)
   }
 }
 
@@ -20,51 +27,136 @@ private final class RowSwitch: UISwitch {
   var rowID = ""
 }
 
+private final class SettingsListCell: UICollectionViewListCell {
+  let optionButton = UIButton(type: .system)
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    optionButton.showsMenuAsPrimaryAction = true
+    addSubview(optionButton)
+    optionButton.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      optionButton.leadingAnchor.constraint(equalTo: leadingAnchor),
+      optionButton.trailingAnchor.constraint(equalTo: trailingAnchor),
+      optionButton.topAnchor.constraint(equalTo: topAnchor),
+      optionButton.bottomAnchor.constraint(equalTo: bottomAnchor),
+    ])
+  }
+
+  required init?(coder: NSCoder) { fatalError() }
+}
+
+private final class SearchHeaderCell: UICollectionViewCell {
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    backgroundColor = .clear
+    contentView.backgroundColor = .clear
+  }
+
+  required init?(coder: NSCoder) { fatalError() }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    for subview in contentView.subviews {
+      guard let field = subview as? UISearchTextField else { continue }
+      field.frame = CGRect(
+        x: 20, y: 0, width: contentView.bounds.width - 40, height: 36
+      )
+    }
+  }
+}
+
 private struct ListItemID: Hashable {
   let section: String
   let row: String
 }
 
-final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISearchBarDelegate {
+final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISearchBarDelegate, UITextFieldDelegate {
   let onRowPress = EventDispatcher()
   let onRowToggle = EventDispatcher()
   let onRowAction = EventDispatcher()
+  let onReorder = EventDispatcher()
   let onRefresh = EventDispatcher()
   let onSegmentChange = EventDispatcher()
-  var forwardedRowPress: (([String: Any]) -> Void)?
+  let onSearchChange = EventDispatcher()
+  var forwarded: ((String, [String: Any]) -> Void)?
 
   func emitRowPress(_ body: [String: Any]) {
+    if body["expanded"] == nil,
+       let id = body["id"] as? String,
+       let row = rowsByID.first(where: { $0.key.row == id })?.value {
+      unreadHold.begin(
+        rowID: row.id,
+        unread: row.unread,
+        coversList: scrollOwner?.splitViewController?.isCollapsed ?? true
+      )
+    }
     onRowPress(body)
-    forwardedRowPress?(body)
+    forwarded?("rowPress", body)
   }
   private let segments = UISegmentedControl(items: [])
+  private let steps = LodyStepStrip()
+  private let searchField = UISearchTextField()
   private let segmentContainer = UIView()
   private var scopeSearch: UISearchController?
   private var segmentLabels: [String] = []
   private var segmentsUseSearchScope = false
+  private var searchEnabled = false
   private var selectedSegment = 0
   private let appearance = ListAppearanceController()
   private weak var scrollOwner: UIViewController?
   private var sections: [LodyListSection] = []
   private let collection: UICollectionView
+  var contentScrollView: UIScrollView { collection }
   private let refreshControl = UIRefreshControl()
   private let placeholder = UILabel()
+  private let topFade = LodyEdgeFade(edge: .top)
+  private let bottomFade = LodyEdgeFade()
   private var placeholderText = ""
 
-  private static var accent: UIColor = .systemBlue
+  private static var accent: UIColor = .lodyAccent
   private var bottomInset: CGFloat = 0
   private var transparent = false
   private var contentStyle = false
+  private var reordering = false
   var previewUserId = ""
   var previewWorkspaceId = ""
   private var rowsByID: [ListItemID: LodyListRow] = [:]
+  private var unreadHold = LodyUnreadNavigationHold()
+  private var collapsedSessions = Set<String>()
   private var toggles: [String: RowSwitch] = [:]
   private var dataSource: UICollectionViewDiffableDataSource<String, ListItemID>!
 
-  private static let restingCard = UIColor.secondarySystemGroupedBackground
+  private static let restingCard = UIColor.tertiarySystemGroupedBackground
 
-  private lazy var registration = UICollectionView.CellRegistration<UICollectionViewListCell, LodyListRow> { [weak self] cell, _, row in
-    LodyGroupedList.configureSystem(cell, row, toggle: self?.toggle(for: row))
+  private lazy var registration = UICollectionView.CellRegistration<SettingsListCell, LodyListRow> { [weak self] cell, _, row in
+    self?.configureSettingsCell(cell, row)
+  }
+
+  private func configureSettingsCell(_ cell: SettingsListCell, _ row: LodyListRow) {
+    Self.configureSystem(cell, row, toggle: toggle(for: row))
+    if reordering { cell.accessories.append(.reorder(displayed: .always)) }
+    let button = cell.optionButton
+    button.isHidden = row.options.isEmpty
+    button.isEnabled = row.action
+    button.accessibilityIdentifier = row.id
+    button.accessibilityLabel = row.title
+    button.accessibilityValue = row.value
+    button.menu = row.options.isEmpty ? nil : UIMenu(options: .singleSelection, children: row.options.map { option in
+      UIAction(title: option.title, state: option.selected ? .on : .off) { [weak self] _ in
+        self?.onRowAction(["id": row.id, "actionId": option.id])
+      }
+    })
+    cell.isAccessibilityElement = row.options.isEmpty
+    cell.accessibilityElements = row.options.isEmpty ? nil : [button]
+    if !row.options.isEmpty {
+      cell.accessibilityIdentifier = nil
+      let indicator = UIImageView(image: UIImage(systemName: "chevron.up.chevron.down"))
+      indicator.tintColor = .tertiaryLabel
+      indicator.preferredSymbolConfiguration = .init(pointSize: 11, weight: .semibold)
+      cell.accessories.append(.customView(configuration: .init(customView: indicator, placement: .trailing(at: { $0.count }))))
+      cell.bringSubviewToFront(button)
+    }
   }
 
   private lazy var sessionRegistration = UICollectionView.CellRegistration<LodyIndentedCell, LodyListRow> { [weak self] cell, _, row in
@@ -93,7 +185,9 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       dot: tint,
       live: tint != nil && row.imageTint.hasPrefix("#") && row.badge.isEmpty
     )
-    cell.accessories = []
+    cell.accessories = row.collapsedValue.isEmpty ? [] : [
+      .outlineDisclosure(options: .init(style: .cell, tintColor: .tertiaryLabel))
+    ]
     cell.accessibilityIdentifier = row.id
     cell.accessibilityTraits = row.action ? .button : .staticText
   }
@@ -119,7 +213,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     let subtitle = [row.subtitle, row.badge].filter { !$0.isEmpty }.joined(separator: " · ")
     content.secondaryText = subtitle.isEmpty ? nil : subtitle
     content.textProperties.numberOfLines = 0
-    content.secondaryTextProperties.numberOfLines = 1
+    content.secondaryTextProperties.numberOfLines = row.wrapSubtitle ? 0 : 1
     if row.subtitleMono {
       content.secondaryTextProperties.font = .monospacedSystemFont(
         ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize,
@@ -127,8 +221,13 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       )
     }
     content.textProperties.color = row.destructive ? .systemRed : .label
-    if !row.filePath.isEmpty {
-      content.image = MaterialFileIcon.image(for: row.filePath)
+    #if LODY_SHARE_EXTENSION
+    let fileIcon: UIImage? = nil
+    #else
+    let fileIcon = row.filePath.isEmpty ? nil : MaterialFileIcon.image(for: row.filePath)
+    #endif
+    if let fileIcon {
+      content.image = fileIcon
     } else if let url = LodyListPhoto.url(row.image) {
       if let image = LodyListPhoto.image(for: url, ready: { [weak cell] image in
         guard let cell, cell.accessibilityIdentifier == row.id,
@@ -140,18 +239,25 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       } else if let placeholder = UIImage(systemName: "person.crop.circle.fill") {
         LodyListPhoto.apply(&content, image: placeholder, placeholder: true)
       }
+    } else if row.imageOriginal && !row.imageAsset.isEmpty {
+      content.image = UIImage(named: row.imageAsset)?.withRenderingMode(.alwaysOriginal)
+      content.imageProperties.maximumSize = CGSize(width: 29, height: 29)
+      content.imageProperties.reservedLayoutSize = LodyListGlyph.reservedSize
+      content.imageProperties.cornerRadius = 6
     } else if !row.imageAsset.isEmpty || !row.image.isEmpty {
       if !row.imageAsset.isEmpty {
-        content.image = UIImage(named: row.imageAsset, in: Bundle(for: LodyKitModule.self), compatibleWith: nil)?
-          .withRenderingMode(.alwaysTemplate)
-          ?? UIImage(named: row.imageAsset)?.withRenderingMode(.alwaysTemplate)
-        content.imageProperties.maximumSize = CGSize(width: 24, height: 24)
+        LodyListGlyph.apply(
+          &content,
+          image: UIImage(named: row.imageAsset, in: .main, compatibleWith: nil)?
+            .withRenderingMode(.alwaysTemplate)
+            ?? UIImage(named: row.imageAsset)?.withRenderingMode(.alwaysTemplate),
+          asset: true
+        )
       } else {
-        content.image = UIImage(systemName: row.image)
+        LodyListGlyph.apply(&content, image: UIImage(systemName: row.image), asset: false)
       }
       content.imageProperties.tintColor =
         lodyTint(row.imageTint) ?? (row.destructive ? .systemRed : accent)
-      content.imageProperties.preferredSymbolConfiguration = .init(textStyle: .title3)
     }
     cell.contentConfiguration = content
     var accessories: [UICellAccessory] = []
@@ -193,6 +299,14 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       : nil
   }
 
+  private static let searchKind = "list-search-header"
+
+  private lazy var searchRegistration = UICollectionView.SupplementaryRegistration<SearchHeaderCell>(
+    elementKind: Self.searchKind
+  ) { [weak self] cell, _, _ in
+    self?.installSearch(in: cell)
+  }
+
   private let headerRegistration = UICollectionView.SupplementaryRegistration<SectionSupplementaryCell>(
     elementKind: UICollectionView.elementKindSectionHeader
   ) { _, _, _ in }
@@ -208,22 +322,34 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     _ = sessionRegistration
     _ = projectRegistration
     _ = registration
+    _ = searchRegistration
     collection.backgroundColor = .lodyGroupedBackground
+    collection.tintColor = .lodyAccent
     collection.contentInsetAdjustmentBehavior = .automatic
     collection.alwaysBounceVertical = true
     collection.keyboardDismissMode = .onDrag
     dataSource = UICollectionViewDiffableDataSource<String, ListItemID>(collectionView: collection) { [weak self] collection, index, id in
       guard let self, let row = self.rowsByID[id] else { return nil }
-      return self.cell(in: collection, at: index, row: row)
+      return self.cell(in: collection, at: index, row: self.displayed(row))
     }
     dataSource.supplementaryViewProvider = { [weak self] collection, kind, index in
       self?.supplementary(in: collection, kind: kind, at: index)
     }
+    dataSource.reorderingHandlers.canReorderItem = { [weak self] _ in
+      guard let self else { return false }
+      return self.reordering && self.sections.count == 1 && !self.outline
+    }
+    dataSource.reorderingHandlers.didReorder = { [weak self] transaction in
+      guard let self, self.sections.count == 1 else { return }
+      let ids = transaction.finalSnapshot.itemIdentifiers
+      self.sections[0].rows = ids.compactMap { self.rowsByID[$0] }
+      self.onReorder(["ids": ids.map(\.row)])
+    }
     dataSource.sectionSnapshotHandlers.willExpandItem = { [weak self] item in
-      self?.emitRowPress(["id": item.row, "expanded": true])
+      self?.outlineChanged(item, expanded: true)
     }
     dataSource.sectionSnapshotHandlers.willCollapseItem = { [weak self] item in
-      self?.emitRowPress(["id": item.row, "expanded": false])
+      self?.outlineChanged(item, expanded: false)
     }
     collection.delegate = self
     let layout = UICollectionViewCompositionalLayout { [weak self] index, environment in
@@ -258,8 +384,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     }
     layout.register(LodySectionCardView.self, forDecorationViewOfKind: LodySectionCardView.kind)
     collection.setCollectionViewLayout(layout, animated: false)
-    collection.topEdgeEffect.style = .soft
-    collection.bottomEdgeEffect.style = .soft
+    LodyScrollEdges.grouped(collection)
     refreshControl.addTarget(self, action: #selector(refreshPulled), for: .valueChanged)
     placeholder.textAlignment = .center
     placeholder.numberOfLines = 0
@@ -269,9 +394,27 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     placeholder.isHidden = true
     addSubview(collection)
     addSubview(placeholder)
+    topFade.color = .lodyGroupedBackground
+    bottomFade.color = .lodyGroupedBackground
+    addSubview(topFade)
+    addSubview(bottomFade)
     segments.addTarget(self, action: #selector(segmentChanged), for: .valueChanged)
+    segments.accessibilityIdentifier = "list-segments"
+    steps.addTarget(self, action: #selector(stepChanged), for: .valueChanged)
+    steps.tintColor = Self.accent
+    steps.isHidden = true
+    searchField.autocapitalizationType = .none
+    searchField.autocorrectionType = .no
+    searchField.spellCheckingType = .no
+    searchField.returnKeyType = .search
+    searchField.delegate = self
+    searchField.isHidden = true
+    searchField.accessibilityIdentifier = "list-search"
+    searchField.addTarget(self, action: #selector(searchFieldChanged), for: .editingChanged)
+    segmentContainer.accessibilityIdentifier = "list-strip"
     segmentContainer.isHidden = true
     segmentContainer.addSubview(segments)
+    segmentContainer.addSubview(steps)
     addSubview(segmentContainer)
     // Registers the overlay with the scroll view so UIKit shapes the top edge
     // effect around it. Without this the control floats with nothing behind it.
@@ -284,6 +427,9 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     appearance.onWillAppear = { [weak self] animated, coordinator in
       self?.deselectOnReturn(animated: animated, coordinator: coordinator)
     }
+    appearance.onWillDisappear = { [weak self] _, coordinator in
+      self?.finishUnreadHold(coordinator: coordinator)
+    }
   }
 
   override func layoutSubviews() {
@@ -295,10 +441,31 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       // Content starts below the bar plus the strip; the strip sits in that gap.
       let top = max(0, insets.top - collection.contentInset.top)
       segmentContainer.frame = CGRect(x: 0, y: top, width: bounds.width, height: segmentBarHeight)
-      segments.frame = segmentContainer.bounds.insetBy(dx: 20, dy: 8)
+      segments.frame = segmentContainer.bounds.insetBy(dx: 20, dy: Self.stripInset)
+      steps.frame = segments.frame
     }
     placeholder.frame = bounds.inset(by: UIEdgeInsets(top: insets.top + 24, left: 32, bottom: insets.bottom + 24, right: 32))
     attachScrollOwner()
+    updateEdgeFades()
+  }
+
+  private func updateEdgeFades() {
+    let fades = contentStyle && !transparent
+    topFade.isHidden = !fades
+    bottomFade.isHidden = !fades
+    collection.topEdgeEffect.isHidden = fades
+    collection.bottomEdgeEffect.isHidden = fades
+    guard fades else { return }
+    let insets = collection.adjustedContentInset
+    let topBottom = insets.top + LodyEdgeFade.topExtent
+    let topHeight = max(100, topBottom)
+    topFade.frame = CGRect(x: 0, y: topBottom - topHeight, width: bounds.width, height: topHeight)
+    let bottomHeight = max(100, insets.bottom + LodyEdgeFade.overlap)
+    bottomFade.frame = CGRect(x: 0, y: bounds.height - bottomHeight, width: bounds.width, height: bottomHeight)
+  }
+
+  func scrollViewDidChangeAdjustedContentInset(_ scrollView: UIScrollView) {
+    setNeedsLayout()
   }
 
   override func willMove(toSuperview newSuperview: UIView?) {
@@ -315,8 +482,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     if window == nil {
       detachSegments()
       if scrollOwner?.contentScrollView(for: .top) === collection {
-        scrollOwner?.setContentScrollView(nil, for: .top)
-        scrollOwner?.setContentScrollView(nil, for: .bottom)
+        if let scrollOwner { LodyScrollEdges.unbind(collection, from: scrollOwner) }
       }
       scrollOwner = nil
     } else {
@@ -329,8 +495,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     var responder: UIResponder? = next
     while let current = responder {
       if let controller = current as? UIViewController {
-        controller.setContentScrollView(collection, for: .top)
-        controller.setContentScrollView(collection, for: .bottom)
+        LodyScrollEdges.bind(collection, to: controller)
+        LodyScrollEdges.grouped(collection)
         scrollOwner = controller
         attachSegments(to: controller)
         if appearance.parent == nil {
@@ -347,7 +513,15 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   /// The bar owns the segmented control, the way Calendar's New sheet does:
   /// content scrolls under it and the navigation bar supplies the material and
   /// the scroll edge effect. A floating sibling view gets neither.
-  private var segmentBarHeight: CGFloat { 52 }
+  private static let stripInset: CGFloat = 8
+  private static let stripControlHeight: CGFloat = 36
+  private var segmentBarHeight: CGFloat {
+    Self.stripInset + Self.stripControlHeight + Self.stripInset
+  }
+
+  private var searchHeaderHeight: CGFloat {
+    Self.stripControlHeight + Self.stripInset
+  }
 
   /// The edge effect covers the adjusted content inset region, and
   /// `contentInset` feeds into that — unlike `additionalSafeAreaInsets`, which
@@ -394,16 +568,53 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     guard index != selectedSegment else { return }
     selectedSegment = index
     onSegmentChange(["index": index])
+    forwarded?("segmentChange", ["index": index])
+  }
+
+  @objc private func searchFieldChanged() {
+    onSearchChange(["text": searchField.text ?? ""])
+    forwarded?("searchChange", ["text": searchField.text ?? ""])
+  }
+
+  func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+    textField.resignFirstResponder()
+    return true
+  }
+
+  func setSearchPlaceholder(_ value: String) {
+    searchField.placeholder = value
+    let show = !value.isEmpty && !segmentsUseSearchScope
+    searchField.isHidden = !show
+    if show != searchEnabled {
+      searchEnabled = show
+      applySearchBoundary()
+    }
+    syncSegmentInset()
+    setNeedsLayout()
+  }
+
+  func setSearchText(_ value: String) {
+    guard searchField.text != value else { return }
+    searchField.text = value
   }
 
   func setSegmentsUseSearchScope(_ value: Bool) {
     segmentsUseSearchScope = value
+    let show = !(searchField.placeholder ?? "").isEmpty && !value
+    searchField.isHidden = !show
+    if show != searchEnabled {
+      searchEnabled = show
+      applySearchBoundary()
+    }
+    syncSegmentInset()
+    setNeedsLayout()
   }
 
   func setSegments(_ labels: [String]) {
     segmentLabels = labels
     segments.removeAllSegments()
     for (index, label) in labels.enumerated() { segments.insertSegment(withTitle: label, at: index, animated: false) }
+    steps.setTitles(labels)
     segments.selectedSegmentIndex = selectedSegment
     segmentContainer.isHidden = labels.isEmpty || segmentsUseSearchScope
     syncSegmentInset()
@@ -412,31 +623,67 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     } else if let controller = scrollOwner {
       attachSegments(to: controller)
     }
-    collection.contentInset.top = labels.isEmpty ? 0 : 60
     setNeedsLayout()
   }
 
   func setSelectedSegment(_ index: Int) {
     selectedSegment = index
     segments.selectedSegmentIndex = index
+    steps.setSelectedIndex(index)
     scopeSearch?.searchBar.selectedScopeButtonIndex = index
+  }
+
+  func setSegmentsStyle(_ value: String) {
+    steps.isHidden = value != "steps"
+    segments.isHidden = !steps.isHidden
+  }
+
+  func setSegmentsDone(_ value: [Bool]) {
+    steps.setDone(value)
+  }
+
+  @objc private func stepChanged() {
+    selectedSegment = steps.selectedIndex
+    onSegmentChange(["index": selectedSegment])
+    forwarded?("segmentChange", ["index": selectedSegment])
+    collection.setContentOffset(CGPoint(x: 0, y: -collection.adjustedContentInset.top), animated: false)
   }
 
   @objc private func segmentChanged() {
     selectedSegment = segments.selectedSegmentIndex
     onSegmentChange(["index": selectedSegment])
+    forwarded?("segmentChange", ["index": selectedSegment])
     collection.setContentOffset(CGPoint(x: 0, y: -collection.adjustedContentInset.top), animated: false)
+  }
+
+  private func outlineChanged(_ item: ListItemID, expanded: Bool) {
+    guard let row = rowsByID[item] else { return }
+    if row.parent {
+      emitRowPress(["id": item.row, "expanded": expanded])
+      return
+    }
+    if expanded { collapsedSessions.remove(item.row) }
+    else { collapsedSessions.insert(item.row) }
+    // UIKit finishes its outline update before refreshing the parent's summary.
+    DispatchQueue.main.async { [weak self] in
+      guard let self, let index = self.dataSource.indexPath(for: item),
+            let cell = self.collection.cellForItem(at: index) as? UICollectionViewListCell,
+            let current = self.rowsByID[item] else { return }
+      self.configure(cell, row: self.displayed(current))
+    }
   }
 
   func setSections(_ value: [LodyListSection], animated: Bool = true) {
     let previous = dataSource.snapshot()
+    let previousRows = rowsByID
     sections = value
     rowsByID = Dictionary(value.flatMap { section in
       section.rows.map { (ListItemID(section: section.id, row: $0.id), $0) }
     }, uniquingKeysWith: { _, latest in latest })
     let live = Set(rowsByID.keys.map(\.row))
     toggles = toggles.filter { live.contains($0.key) }
-    if contentStyle, value.contains(where: { $0.rows.first?.parent == true }) {
+    // Hierarchy belongs to the data, even when sections arrives before contentStyle.
+    if value.contains(where: { $0.rows.contains { $0.parent || !$0.collapsedValue.isEmpty } }) {
       applyOutline(value, previous: previous)
       updatePlaceholder()
       return
@@ -449,7 +696,15 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       snapshot.appendItems(section.rows.map { ListItemID(section: section.id, row: $0.id) }, toSection: section.id)
     }
     let existing = Set(previous.itemIdentifiers)
-    snapshot.reconfigureItems(snapshot.itemIdentifiers.filter { existing.contains($0) })
+    let retained = snapshot.itemIdentifiers.filter { existing.contains($0) }
+    // Reconfiguring must dequeue from the cell's original registration, so a
+    // row whose kind changed (a new session gaining its badge) reloads instead.
+    let rekinded = Set(retained.filter { id in
+      guard let old = previousRows[id], let new = rowsByID[id] else { return false }
+      return kind(of: old) != kind(of: new)
+    })
+    snapshot.reloadItems(Array(rekinded))
+    snapshot.reconfigureItems(retained.filter { !rekinded.contains($0) })
     // Start disclosure rotation alongside the snapshot's row animation.
     for index in collection.indexPathsForVisibleSupplementaryElements(ofKind: UICollectionView.elementKindSectionHeader) {
       guard previous.sectionIdentifiers.indices.contains(index.section),
@@ -508,20 +763,14 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     }
     let animate = sameSections && window != nil && !UIAccessibility.isReduceMotionEnabled
     for section in value {
-      var snapshot = NSDiffableDataSourceSectionSnapshot<ListItemID>()
-      let items = section.rows.map { ListItemID(section: section.id, row: $0.id) }
-      if let parent = items.first, section.rows[0].parent {
-        snapshot.append([parent])
-        snapshot.append(Array(items.dropFirst()), to: parent)
-        if section.headerExpanded ?? true { snapshot.expand([parent]) }
-      } else {
-        snapshot.append(items)
+      let snapshot = section.outlineSnapshot(collapsed: collapsedSessions) {
+        ListItemID(section: section.id, row: $0)
       }
       dataSource.apply(snapshot, to: section.id, animatingDifferences: animate)
     }
     for index in collection.indexPathsForVisibleItems {
       guard let cell = collection.cellForItem(at: index) as? UICollectionViewListCell, let row = row(at: index) else { continue }
-      configure(cell, row: row)
+      configure(cell, row: displayed(row))
     }
   }
 
@@ -529,20 +778,35 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     guard value != contentStyle else { return }
     contentStyle = value
     collection.reloadData()
+    setNeedsLayout()
+  }
+
+  func setReordering(_ value: Bool) {
+    guard value != reordering else { return }
+    reordering = value
+    collection.isEditing = value
+    for index in collection.indexPathsForVisibleItems {
+      guard let cell = collection.cellForItem(at: index) as? UICollectionViewListCell,
+            let row = row(at: index) else { continue }
+      configure(cell, row: displayed(row))
+    }
   }
 
   /// A sheet paints its own material. Dropping the list's ground lets that
-  /// material show between groups. Cells use the secondary grouped surface,
-  /// above the system form sheet's grouped ground.
+  /// material show between groups. The tertiary grouped surface keeps cells
+  /// distinct when an expanded sheet switches to an opaque secondary surface.
   func setTransparent(_ value: Bool) {
     guard value != transparent else { return }
     transparent = value
     collection.backgroundColor = value ? .clear : .lodyGroupedBackground
     collection.reloadData()
+    setNeedsLayout()
   }
 
   override func lodyAppearanceDidChange() {
     collection.backgroundColor = transparent ? .clear : .lodyGroupedBackground
+    topFade.color = .lodyGroupedBackground
+    bottomFade.color = .lodyGroupedBackground
   }
 
   func setBottomInset(_ height: CGFloat) {
@@ -568,6 +832,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   func setAccent(_ value: String) {
     guard let color = lodyTint(value), color != LodyGroupedList.accent else { return }
     LodyGroupedList.accent = color
+    collection.tintColor = color
+    steps.tintColor = color
     collection.reloadData()
   }
 
@@ -633,7 +899,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   private func configure(_ cell: UICollectionViewListCell, row: LodyListRow) {
     switch kind(of: row) {
-    case .system: Self.configureSystem(cell, row, toggle: toggle(for: row))
+    case .system: if let cell = cell as? SettingsListCell { configureSettingsCell(cell, row) }
     case .session: if let cell = cell as? LodyIndentedCell { configureSession(cell, row) }
     case .project: configureProject(cell, row)
     }
@@ -642,6 +908,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   @objc private func rowSwitchChanged(_ sender: RowSwitch) {
     onRowToggle(["id": sender.rowID, "value": sender.isOn])
+    forwarded?("rowToggle", ["id": sender.rowID, "value": sender.isOn])
   }
 
   /// Reused per row id so a reconfigure keeps the live switch instead of swapping in a
@@ -663,8 +930,9 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   private func decorate(_ cell: UICollectionViewListCell, row: LodyListRow) {
-    // Outline children carry indentation level 1; the row views own their columns.
-    cell.indentationWidth = 0
+    // Project membership keeps the existing columns; only opened sessions indent.
+    cell.indentationWidth = 20
+    cell.indentationLevel = row.parentId.isEmpty ? 0 : 1
     cell.configurationUpdateHandler = nil
     cell.automaticallyUpdatesBackgroundConfiguration = true
     if contentStyle {
@@ -708,7 +976,43 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     return sections.first { $0.id == id }
   }
 
+  private func applySearchBoundary() {
+    guard let layout = collection.collectionViewLayout as? UICollectionViewCompositionalLayout else {
+      return
+    }
+    var configuration = layout.configuration
+    if searchEnabled {
+      let item = NSCollectionLayoutBoundarySupplementaryItem(
+        layoutSize: NSCollectionLayoutSize(
+          widthDimension: .fractionalWidth(1),
+          heightDimension: .absolute(searchHeaderHeight)
+        ),
+        elementKind: Self.searchKind,
+        alignment: .top
+      )
+      item.pinToVisibleBounds = false
+      configuration.boundarySupplementaryItems = [item]
+    } else {
+      configuration.boundarySupplementaryItems = []
+    }
+    layout.configuration = configuration
+    layout.invalidateLayout()
+  }
+
+  private func installSearch(in cell: SearchHeaderCell) {
+    if searchField.superview !== cell.contentView {
+      searchField.removeFromSuperview()
+      cell.contentView.addSubview(searchField)
+    }
+    cell.setNeedsLayout()
+  }
+
   private func supplementary(in collectionView: UICollectionView, kind: String, at indexPath: IndexPath) -> UICollectionReusableView? {
+    if kind == Self.searchKind {
+      return collectionView.dequeueConfiguredReusableSupplementary(
+        using: searchRegistration, for: indexPath
+      )
+    }
     guard let section = section(at: indexPath.section) else { return nil }
     let header = kind == UICollectionView.elementKindSectionHeader
     let view = collectionView.dequeueConfiguredReusableSupplementary(
@@ -731,7 +1035,11 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       view.contentConfiguration = nil
       return
     }
-    var content = header ? UIListContentConfiguration.groupedHeader() : UIListContentConfiguration.groupedFooter()
+    var content = UIListContentConfiguration.groupedFooter()
+    if header {
+      content = section.headerProminent ? .prominentInsetGroupedHeader() : .groupedHeader()
+      if section.headerProminent { content.textProperties.color = .label }
+    }
     content.text = text
     content.textProperties.numberOfLines = 0
     if contentStyle {
@@ -796,7 +1104,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   private func selectable(_ indexPath: IndexPath) -> Bool {
     guard let row = row(at: indexPath) else { return false }
-    return row.action && row.toggle == nil
+    return row.action && row.toggle == nil && row.options.isEmpty
   }
   func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
     selectable(indexPath)
@@ -861,6 +1169,32 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   private func indexPath(for id: String) -> IndexPath? {
     rowsByID.keys.first { $0.row == id }.flatMap { dataSource.indexPath(for: $0) }
+  }
+
+  private func displayed(_ row: LodyListRow) -> LodyListRow {
+    var copy = row.displayingCollapsed(collapsedSessions.contains(row.id))
+    copy.unread = unreadHold.applied(rowID: row.id, unread: row.unread)
+    return copy
+  }
+
+  private func finishUnreadHold(coordinator: UIViewControllerTransitionCoordinator?) {
+    guard unreadHold.isHolding else { return }
+    let apply = { [weak self] in self?.releaseUnreadHold() }
+    guard let coordinator else {
+      apply()
+      return
+    }
+    let started = coordinator.animate(alongsideTransition: nil, completion: { _ in apply() })
+    if !started { apply() }
+  }
+
+  private func releaseUnreadHold() {
+    guard let id = unreadHold.end() else { return }
+    guard let item = rowsByID.keys.first(where: { $0.row == id }) else { return }
+    var snapshot = dataSource.snapshot()
+    guard snapshot.itemIdentifiers.contains(item) else { return }
+    snapshot.reconfigureItems([item])
+    dataSource.apply(snapshot, animatingDifferences: false)
   }
 
   private func deselectOnReturn(animated: Bool, coordinator: UIViewControllerTransitionCoordinator?) {

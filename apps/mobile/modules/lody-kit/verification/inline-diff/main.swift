@@ -107,12 +107,14 @@ let codeXs = Set(renderer.rowProbes.map { $0.code.minX.rounded() })
 precondition(numberXs.count == 1, "Every line number must sit on the same left column")
 precondition(codeXs.count == 1, "Every code band must share one left edge")
 
-// Additions read as system blue and deletions as system red in both
-// appearances: no green accent may leak into either tint.
 func channels(_ color: UIColor, _ style: UIUserInterfaceStyle) -> (r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat) {
   var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
   color.resolvedColor(with: UITraitCollection(userInterfaceStyle: style)).getRed(&r, green: &g, blue: &b, alpha: &a)
   return (r, g, b, a)
+}
+
+func resolved(_ color: UIColor, _ style: UIUserInterfaceStyle) -> UIColor {
+  color.resolvedColor(with: UITraitCollection(userInterfaceStyle: style))
 }
 
 for style in [UIUserInterfaceStyle.light, .dark] {
@@ -123,10 +125,18 @@ for style in [UIUserInterfaceStyle.light, .dark] {
       InlineDiffRenderer.emphasisTint(for: kind),
       InlineDiffRenderer.barColor(for: kind),
     ]
+    let expected = kind == .insert ? UIColor.systemGreen : .systemRed
+    precondition(
+      resolved(InlineDiffRenderer.barColor(for: kind), style).isEqual(resolved(expected, style)),
+      "\(kind) bar must match \(kind == .insert ? "systemGreen" : "systemRed")"
+    )
     for tint in tints {
       let parts = channels(tint, style)
-      let dominant = kind == .insert ? parts.b : parts.r
-      precondition(dominant > parts.g, "\(kind) tint must not be green: \(parts)")
+      if kind == .insert {
+        precondition(parts.g > parts.r && parts.g > parts.b, "insert tint must be green: \(parts)")
+      } else {
+        precondition(parts.r > parts.g && parts.r > parts.b, "delete tint must be red: \(parts)")
+      }
     }
     let alphas = tints.dropLast().map { channels($0, style).a }
     precondition(alphas == alphas.sorted(), "Gutter fade must stay quieter than line and word fades")
@@ -137,4 +147,4 @@ for style in [UIUserInterfaceStyle.light, .dark] {
   }
 }
 
-print("PASS: inline diff model, hunks, emphasis, layout height, scroll axes, blue/red tint scale")
+print("PASS: inline diff model, hunks, emphasis, layout height, scroll axes, green/red tint scale")

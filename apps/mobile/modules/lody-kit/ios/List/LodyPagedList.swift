@@ -1,4 +1,6 @@
+#if !LODY_SHARE_EXTENSION
 import ExpoModulesCore
+#endif
 import UIKit
 
 struct LodyPagedPage: Record {
@@ -10,6 +12,8 @@ struct LodyPagedPage: Record {
 final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
   let onRowPress = EventDispatcher()
   let onPageChange = EventDispatcher()
+  var forwardedRowPress: (([String: Any]) -> Void)?
+  var forwardedPageChange: ((Int) -> Void)?
 
   private let pager = UIPageViewController(transitionStyle: .scroll, navigationOrientation: .horizontal)
   private let rail = LodyPageSectionRail()
@@ -30,7 +34,9 @@ final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewC
     init(appContext: AppContext?, onPress: @escaping ([String: Any]) -> Void) {
       controller = UIViewController()
       list = LodyGroupedList(appContext: appContext)
-      list.forwardedRowPress = onPress
+      list.forwarded = { name, body in
+        if name == "rowPress" { onPress(body) }
+      }
       list.translatesAutoresizingMaskIntoConstraints = false
       controller.view.addSubview(list)
       NSLayoutConstraint.activate([
@@ -111,6 +117,7 @@ final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewC
     boxes = pages.map { page in
       let box = PageBox(appContext: appContext) { [weak self] body in
         self?.onRowPress(body)
+        self?.forwardedRowPress?(body)
       }
       box.list.setTransparent(transparent)
       box.list.setBottomInset(bottomInset)
@@ -146,7 +153,9 @@ final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewC
   private func commit(_ index: Int) {
     currentPage = index
     rail.setSelected(index)
+    bindVisibleScrollView()
     onPageChange(["index": index])
+    forwardedPageChange?(index)
   }
 
   private func attachHostIfNeeded() {
@@ -174,9 +183,19 @@ final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewC
     }
     if pagingEnabled { attachRail() }
     pageScrollView?.isScrollEnabled = pagingEnabled
+    bindVisibleScrollView()
+  }
+
+  private func bindVisibleScrollView() {
+    guard let host, let page = boxes[safe: currentPage] else { return }
+    LodyScrollEdges.bind(page.list.contentScrollView, to: host)
+    LodyScrollEdges.grouped(page.list.contentScrollView)
   }
 
   private func detachHost() {
+    if let host {
+      for box in boxes { LodyScrollEdges.unbind(box.list.contentScrollView, from: host) }
+    }
     titleObservation = nil
     detachRail()
     offsetObservation = nil

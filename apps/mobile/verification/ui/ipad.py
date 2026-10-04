@@ -114,7 +114,7 @@ tell application "System Events" to tell process "Simulator"
   if not (exists (first window whose name starts with "{window_name}")) then
     click menu bar item "File" of menu bar 1
     delay 0.2
-    click menu item "{window_name}" of menu 1 of menu item "iOS 26.5" of menu 1 of menu item "Open Simulator" of menu 1 of menu bar item "File" of menu bar 1
+    click menu item "{window_name}" of menu 1 of menu item "iOS 27.0" of menu 1 of menu item "Open Simulator" of menu 1 of menu bar item "File" of menu bar 1
   end if
   set targetWindow to missing value
   repeat 80 times
