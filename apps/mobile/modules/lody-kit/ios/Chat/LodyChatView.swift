@@ -99,6 +99,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   private var navigationTitle = ""
   private var navigationSubtitle = ""
   private var navigationMachine = ""
+  private var navigationMachineState = ""
   private var navigationBranch = ""
   private var titleDisappearing = false
   private let navigation = ChatNavigationController()
@@ -536,6 +537,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     navigationMachine = name
     updateTitleButton()
   }
+  func setNavigationMachineState(_ state: String) {
+    guard navigationMachineState != state else { return }
+    navigationMachineState = state
+    updateTitleButton()
+  }
 
   func setNavigationBranch(_ name: String) {
     let branch = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -554,7 +560,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       title: navigationTitle,
       subtitle: navigationSubtitle,
       machine: navigationMachine,
-      branch: navigationBranch
+      branch: navigationBranch,
+      machineState: navigationMachineState
     )
     attachTitle()
   }

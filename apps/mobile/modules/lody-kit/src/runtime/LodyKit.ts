@@ -12,6 +12,7 @@ export type InboxSearchHits = {
   sessions: { id: string; snippet: string | null }[];
 };
 export type DataRuntimeEvent = {
+  machinePresence?: string;
   shareProgress?: import('../../../../src/models/session-sharing').ShareProgress;
   sessionId?: string;
   session?: string;

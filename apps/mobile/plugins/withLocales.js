@@ -25,6 +25,7 @@ const NATIVE_PREFIXES = [
   'native.',
   'common.',
   'create.',
+  'devices.',
   'model.',
   'picker.',
   'projectPicker.',

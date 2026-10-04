@@ -17,7 +17,11 @@ import { NotificationPreviewScreen } from './NotificationPreviewScreen';
 import { LiveActivityPreviewScreen } from './LiveActivityPreviewScreen';
 import { ReplyHapticsPreviewScreen } from './ReplyHapticsPreviewScreen';
 import { uiVerify } from './uiVerify';
-import { openCreateParity, openModelMemory } from './createFixture';
+import {
+  openCreateParity,
+  openCreateRecovery,
+  openModelMemory,
+} from './createFixture';
 import { ComposerPreviewScreen } from './ComposerPreviewScreen';
 import { EditMessagePreviewScreen } from './EditMessagePreviewScreen';
 import { ComposerHandoffPreviewScreen } from './ComposerHandoffPreviewScreen';
@@ -136,6 +140,11 @@ function View() {
       id: 'ui',
       header: '界面验收',
       rows: [
+        openRow(
+          'create-recovery',
+          'Device recovery verification',
+          'desktopcomputer',
+        ),
         openRow('reply-haptics-preview', '回复触感试验', 'waveform'),
         openRow(
           'pull-request-preview',
@@ -357,6 +366,7 @@ function View() {
       void present(ChatStreamPerformanceScreen, {}),
     'model-memory': () => void openModelMemory(),
     'create-parity': () => void openCreateParity(),
+    'create-recovery': () => void openCreateRecovery(),
     'mention-chat': () =>
       void present(
         ComposerPreviewScreen,

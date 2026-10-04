@@ -7,12 +7,16 @@ export type NativeMenuItem = {
   title: string;
   symbol?: string;
   selected?: boolean;
+  subtitle?: string;
+  disabled?: boolean;
+  children?: NativeMenuItem[];
 };
 
 export interface NativeMenuButtonProps extends ViewProps {
   accessibilityName: string;
   avatar: { text: string; color: string; image?: string };
   label: string;
+  status?: 'online' | 'offline' | 'unknown';
   items: NativeMenuItem[];
   onSelect: (id: string) => void;
 }

@@ -1022,5 +1022,16 @@
   "native.chat.camera.more": "相机选项",
   "native.chat.attachment.grid.inset": "留白布局",
   "native.chat.attachment.grid.edgeToEdge": "铺满布局",
-  "native.chat.attachment.grid.options": "照片布局"
+  "native.chat.attachment.grid.options": "照片布局",
+  "devices.title": "设备",
+  "devices.online": "在线",
+  "devices.offline": "离线",
+  "devices.unknown": "状态待更新",
+  "create.devices.offline": "暂无设备在线，等待上线",
+  "create.devices.projectOffline": "离线，等待上线",
+  "create.devices.failed": "暂时无法获取 · 点按重试",
+  "create.devices.noAgents": "暂无可用助手 · 点按重试",
+  "create.devices.selectedOffline": "离线，等待上线",
+  "create.devices.chooseAgent": "请选择可用的助手",
+  "devices.summary": "{count} 台在线 / 共 {total} 台"
 }

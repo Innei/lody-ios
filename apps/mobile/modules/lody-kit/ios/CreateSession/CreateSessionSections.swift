@@ -45,9 +45,12 @@ enum CreateSessionSections {
   static func root(_ form: CreateSessionForm, page: CreateSessionPage) -> [LodyListSection] {
     let machine = page.machine
     let capability = page.capability
+    let unavailable = form.deferUnresolved ? nil : page.unavailableMessage
+    let machineName = machine?.name ?? form.machineNames[page.machineId]
     let machineRow = LodyListRow.item(
-      "machine", machine?.name ?? pickTitle(page.loading, text("create.row.selectMachine")),
-      subtitle: text("create.label.machine"), image: "desktopcomputer", disclosure: true, navigates: true)
+      "machine", machineName ?? text("create.label.machine"),
+      subtitle: unavailable ?? text("create.label.machine"), image: "desktopcomputer",
+      disclosure: !page.machines.isEmpty, navigates: !page.machines.isEmpty)
     let modelRow = LodyListRow.item(
       "model", capability.map { CreateModelOptions.summary($0, page.choice) } ?? text("model.default"),
       subtitle: text("create.label.model"), image: "cpu",
@@ -56,20 +59,22 @@ enum CreateSessionSections {
     var footer = text(form.deferUnresolved ? "native.share.deferred" : "create.machineConfig.retry")
     if page.loading { footer = text("create.machineConfig.loading") }
     else if agent != nil { footer = text("create.machineConfig.ready") }
-    let agentSection = LodyListSection.group("agent", footer: footer, [
+    if unavailable != nil { footer = "" }
+    let agentRows: [LodyListRow] = [
       .item(
         "agent", agent?.name ?? pickTitle(page.loading, text("create.row.selectAgent")),
-        subtitle: text("create.label.agent"), image: "sparkles",
+        subtitle: (!page.chat && !page.github && page.failed ? unavailable : nil) ?? text("create.label.agent"), image: "sparkles",
         imageAsset: LodyAgentIcon.asset(modelId: agent?.agentType, name: nil) ?? "",
-        disclosure: true, navigates: true),
+        disclosure: !page.agents.isEmpty, navigates: !page.agents.isEmpty),
       modelRow,
-    ])
+    ]
+    let agentSection = LodyListSection.group("agent", footer: footer, agentRows)
     if page.chat { return [.group("machine", [machineRow]), agentSection] }
 
     let project = form.projects.first { $0.id == page.projectId }
     let subtitle = page.github ? "GitHub" : [
       form.machineNames[project?.machineId ?? ""] ?? machine?.name ?? project?.machineId,
-      project?.rootPath,
+      (!page.failed ? unavailable : nil) ?? project?.rootPath,
     ].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
     var projectRows: [LodyListRow] = [.item(
       "project", project?.name ?? text("create.row.selectProject"), subtitle: subtitle,

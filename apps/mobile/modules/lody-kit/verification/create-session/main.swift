@@ -149,4 +149,30 @@ do {
   check(chat?.projectId == nil && chat?.branch == nil && chat?.projectName == "", "chat draft")
   check(form.prefs?.context == "chat", "page switch remembered")
 }
+// A failed/empty configuration can recover in the same form without retargeting a draft.
+do {
+  var form = CreateSessionForm(userId: "u", workspaceId: "w")
+  form.open(projectId: nil, context: "chat")
+  form.failOptions(chat: true)
+  check(!form.canSend && form.current.needsOptions, "failed options keep a recovery path")
+  var empty = options
+  empty.agents = []
+  empty.availability = "offline"
+  form.applyOptions(empty, chat: true)
+  check(!form.canSend && form.current.needsOptions, "empty successful response also retries")
+  form.applyOptions(options, chat: true)
+  check(form.canSend, "device return restores sending without reopening")
+  let selected = form.current.agent!
+  let choice = form.current.choice
+  var different = options
+  different.agents = options.agents.filter { $0.machineId != selected.machineId }
+  form.applyOptions(different, chat: true)
+  check(!form.canSend && form.current.machineId == selected.machineId, "never move a draft to another device automatically")
+  form.applyOptions(options, chat: true)
+  check(form.canSend && form.current.agent == selected && form.current.choice == choice, "selected device and configuration return")
+  form.failOptions(chat: true)
+  check(!form.canSend, "a failed refresh must not enable sending with stale options")
+  form.deferUnresolved = true
+  check(form.canSend, "Share Extension can still defer unresolved selection to the app")
+}
 print("PASS: create-session form logic")

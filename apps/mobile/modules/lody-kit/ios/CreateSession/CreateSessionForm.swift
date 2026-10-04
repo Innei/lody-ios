@@ -22,7 +22,24 @@ struct CreateSessionPage: Equatable {
       seen.insert(agent.machineId).inserted ? (agent.machineId, agent.machineName) : nil
     }
   }
-  var machine: (id: String, name: String)? { machines.first { $0.id == machineId } ?? machines.first }
+  var machine: (id: String, name: String)? {
+    if machineId.isEmpty { return machines.first }
+    return machines.first { $0.id == machineId }
+  }
+  var needsOptions: Bool { failed || options == nil || agent == nil }
+  var unavailableMessage: String? {
+    if failed { return LodyStrings.text("create.devices.failed") }
+    if options?.availability == "unknown" { return LodyStrings.text("devices.unknown") }
+    if !machineId.isEmpty && machine == nil {
+      return LodyStrings.text(!chat && !github ? "create.devices.projectOffline" : "create.devices.selectedOffline")
+    }
+    if options?.availability == "offline" {
+      return LodyStrings.text(!chat && !github ? "create.devices.projectOffline" : "create.devices.offline")
+    }
+    if !agents.isEmpty && agent == nil { return LodyStrings.text("create.devices.chooseAgent") }
+    if options != nil && agent == nil { return LodyStrings.text("create.devices.noAgents") }
+    return nil
+  }
   var agents: [CreationAgent] { (options?.agents ?? []).filter { $0.machineId == machine?.id } }
   var agent: CreationAgent? { agents.first { $0.key == agentKey } }
   var capability: Capability? { CreateLogic.capabilityFor(options, agent) }
@@ -74,6 +91,7 @@ struct CreateSessionForm {
 
   mutating func applyOptions(_ options: CreationOptions, chat: Bool) {
     var page = chat ? chatPage : project
+    let previous = page
     page.options = options
     page.loading = false
     page.failed = false
@@ -81,6 +99,16 @@ struct CreateSessionForm {
     page.machineId = restored.machineId
     page.agentKey = restored.agentKey
     page.choice = restored.choice
+    // Refreshing availability must never silently move a draft to another computer.
+    if previous.options != nil && !previous.machineId.isEmpty {
+      page.machineId = previous.machineId
+      page.agentKey = previous.agentKey
+      page.choice = previous.choice
+      if let agent = page.agent {
+        page.choice = CreateLogic.rememberedModelChoice(
+          prefs, agentKey: agent.key, capability: page.capability, modelId: previous.choice.modelId)
+      }
+    }
     if chat { chatPage = page } else { project = page }
   }
 
@@ -135,10 +163,11 @@ struct CreateSessionForm {
     prefs = value
   }
 
-  var canSend: Bool { !userId.isEmpty && !current.loading && (current.agent != nil || deferUnresolved) }
+  var canSend: Bool { !userId.isEmpty && !current.loading && (deferUnresolved || (!current.failed && current.agent != nil)) }
 
   var notice: String {
     if signedOut { return "" }
+    if !deferUnresolved, current.unavailableMessage != nil { return "" }
     if current.loading { return LodyStrings.text("create.composer.loading") }
     if current.agent == nil {
       return LodyStrings.text(deferUnresolved ? "native.share.deferred" : "create.composer.needAgent")

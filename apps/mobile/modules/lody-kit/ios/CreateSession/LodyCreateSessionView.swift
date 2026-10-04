@@ -15,6 +15,7 @@ final class LodyCreateSessionView: ExpoView {
   private let navigation: UINavigationController
   private var pending: [String: CheckedContinuation<String?, Error>] = [:]
   private var configured = false
+  private var refreshKey = ""
   private var persistShare = false
 
   required init(appContext: AppContext? = nil) {
@@ -116,6 +117,12 @@ final class LodyCreateSessionView: ExpoView {
       controller.load(chat: false)
       if !controller.form.locked { controller.load(chat: true) }
     }
+  }
+
+  func setRefreshKey(_ value: String) {
+    guard value != refreshKey else { return }
+    refreshKey = value
+    if configured { controller.refreshOptions() }
   }
 
   func setComposerRelay(_ value: Bool) { input.composerRelay = value }

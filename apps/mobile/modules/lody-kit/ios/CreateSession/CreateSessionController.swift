@@ -21,6 +21,9 @@ final class CreateSessionController: UIViewController {
   private let single = LodyGroupedList(appContext: nil)
   private lazy var hostHeight = host.heightAnchor.constraint(equalToConstant: 64)
   private var loads: [Bool: Task<Void, Never>] = [:]
+  private var retryTimer: Timer?
+
+  isolated deinit { retryTimer?.invalidate() }
 
   init(composer: ChatComposerView, host: UIView) {
     self.composer = composer
@@ -74,6 +77,17 @@ final class CreateSessionController: UIViewController {
     render()
     load(chat: false)
     if !form.locked { load(chat: true) }
+    if !form.deferUnresolved {
+      retryTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+        MainActor.assumeIsolated {
+          guard let self, self.viewIfLoaded?.window != nil, !self.sending else { return }
+          for chat in [false, true] where !chat || !self.form.locked {
+            let page = chat ? self.form.chatPage : self.form.project
+            if !page.loading && page.needsOptions { self.load(chat: chat) }
+          }
+        }
+      }
+    }
   }
 
   override func viewDidLayoutSubviews() {
@@ -146,6 +160,7 @@ final class CreateSessionController: UIViewController {
   }
 
   func load(chat: Bool) {
+    guard !sending else { return }
     var page = chat ? form.chatPage : form.project
     if !chat && page.projectId.isEmpty { return }
     page.loading = true
@@ -165,9 +180,14 @@ final class CreateSessionController: UIViewController {
         guard let self, !Task.isCancelled else { return }
         self.form.failOptions(chat: chat)
         self.changed(prefs: false)
-        self.showMessage?(LodyStrings.text("create.error.machineConfig"))
       }
     }
+  }
+
+  func refreshOptions() {
+    guard isViewLoaded, !sending, !form.deferUnresolved else { return }
+    load(chat: false)
+    if !form.locked { load(chat: true) }
   }
 
   private func pageChanged(_ index: Int) {
@@ -185,7 +205,8 @@ final class CreateSessionController: UIViewController {
     switch id {
     case "project": pickProject()
     case "machine", "agent":
-      guard page.options != nil else { return load(chat: form.chat) }
+      guard !page.failed, page.options != nil, !page.machines.isEmpty else { return load(chat: form.chat) }
+      if id == "agent" && page.agents.isEmpty { return load(chat: form.chat) }
       id == "machine" ? pickMachine() : pickAgent()
     case "model": pickModel()
     case "branch": editBranch()

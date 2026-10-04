@@ -76,6 +76,23 @@ test('persistent runtime applies live increments to the existing replica and adv
       {
         name: 'synthetic-stream',
         setup(build) {
+          build.onResolve(
+            { filter: /^@loro-dev\/streams-crdt\/loro$/ },
+            () => ({ path: 'presence', namespace: 'presence-test' }),
+          );
+          build.onLoad({ filter: /.*/, namespace: 'presence-test' }, () => ({
+            contents: `
+              export const EphemeralStoreAdaptor = store => store;
+              export class EphemeralStreamCrdt {
+                constructor({ adaptor }) { this.store = adaptor; globalThis.__runtimePresence = this; }
+                async join({ onStatusChange }) {
+                  onStatusChange('joined');
+                  return { ok: true, value: { unsubscribe() {} } };
+                }
+                async close() { this.closed = true; }
+              }
+            `,
+          }));
           build.onResolve({ filter: /^\.\/files$/ }, () => ({
             path: 'files',
             namespace: 'file-test',
@@ -143,6 +160,31 @@ test('persistent runtime applies live increments to the existing replica and adv
   assert.equal(requests[1].offset, '2');
   assert.equal(events.filter((e) => e.type === 'grant').length, 1);
   assert.equal(globalThis.dataRuntime.ping(), true);
+  globalThis.__runtimePresence.store.set('machine:m1', {
+    kind: 'machine',
+    machineId: 'm1',
+    instanceId: 'test',
+    updatedAt: Date.now(),
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(
+    JSON.parse(
+      events.filter((e) => e.type === 'machinePresence').at(-1).presence,
+    ),
+    {
+      state: 'live',
+      onlineMachineIds: ['m1'],
+    },
+  );
+  globalThis.dataRuntime.setActive(false);
+  assert.equal(globalThis.__runtimePresence.closed, true);
+  assert.equal(
+    JSON.parse(
+      events.filter((e) => e.type === 'machinePresence').at(-1).presence,
+    ).state,
+    'unknown',
+  );
+  delete globalThis.__runtimePresence;
   delete globalThis.webkit;
   delete globalThis.__runtimeTestClient;
   delete globalThis.dataRuntime;

@@ -39,6 +39,9 @@ importers:
       '@loro-dev/streams-client':
         specifier: 0.7.0
         version: 0.7.0
+      '@loro-dev/streams-crdt':
+        specifier: 0.16.1
+        version: 0.16.1(@loro-dev/flock-wasm@0.4.3)(loro-crdt@1.15.1)
       '@pierre/diffs':
         specifier: 1.4.1
         version: 1.4.1(@shikijs/themes@4.4.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1080,6 +1083,21 @@ packages:
   '@loro-dev/streams-client@0.7.0':
     resolution: {integrity: sha512-O+LphfngoJe0g0QmRV2OIQKsiytZuvHoSsQeYxiRK00UYHcpqjiZw2OmcXCU4Q5reuxI5kZJz6du24iAamBVtQ==}
     engines: {node: '>=18'}
+
+  '@loro-dev/streams-client@0.8.0':
+    resolution: {integrity: sha512-ILqMGzgIOp8xpfi5oAVdNEm+ldbM5xjdDotkfkc/MI8dziby9yPL29qGWcjeNCwnDTAyseJadgATzWI7M0Thlw==}
+    engines: {node: '>=18'}
+
+  '@loro-dev/streams-crdt@0.16.1':
+    resolution: {integrity: sha512-SsSVv2QEuv7fPfY45miTsP5PmgzcfZ3k0jlhajpreLuC7w6ta9bP1r90yMY+cYVj8MhCod0+VP9LnrOuQZTCyw==}
+    peerDependencies:
+      '@loro-dev/flock-wasm': ^0.4.0
+      loro-crdt: ^1.10.3
+    peerDependenciesMeta:
+      '@loro-dev/flock-wasm':
+        optional: true
+      loro-crdt:
+        optional: true
 
   '@oxc-project/types@0.148.0':
     resolution: {integrity: sha512-Nm4s/jB+4FpFsPhWGEC4h7rzksesmtnMXomo6rCMcg/b8zLQuOziRgkCS1fxDCXOlJB/6Q8oABOZ/OP6RIPj9A==}
@@ -5004,6 +5022,15 @@ snapshots:
   '@loro-dev/flock-wasm@0.4.3': {}
 
   '@loro-dev/streams-client@0.7.0': {}
+
+  '@loro-dev/streams-client@0.8.0': {}
+
+  '@loro-dev/streams-crdt@0.16.1(@loro-dev/flock-wasm@0.4.3)(loro-crdt@1.15.1)':
+    dependencies:
+      '@loro-dev/streams-client': 0.8.0
+    optionalDependencies:
+      '@loro-dev/flock-wasm': 0.4.3
+      loro-crdt: 1.15.1
 
   '@oxc-project/types@0.148.0': {}
 

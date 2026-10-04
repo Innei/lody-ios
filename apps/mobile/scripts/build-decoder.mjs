@@ -56,6 +56,19 @@ await writeFile(output + '/Flock-LICENSE.txt', license);
 console.log('Built isolated Flock decoder');
 
 const runtime = await build({
+  plugins: [
+    {
+      name: 'bundled-loro-wasm',
+      setup(build) {
+        build.onResolve({ filter: /^loro-crdt$/ }, () =>
+          build.resolve('loro-crdt/base64', {
+            resolveDir: root,
+            kind: 'import-statement',
+          }),
+        );
+      },
+    },
+  ],
   entryPoints: [root + 'modules/lody-kit/data-runtime/index.ts'],
   bundle: true,
   format: 'esm',
@@ -73,6 +86,10 @@ await writeFile(
 await writeFile(
   output + '/Loro-LICENSE.txt',
   await readFile(root + '../../node_modules/loro-crdt/LICENSE'),
+);
+await copyFile(
+  root + '../../node_modules/@loro-dev/streams-crdt/LICENSE',
+  output + '/StreamsCrdt-LICENSE.txt',
 );
 for (const name of [
   'MarkdownView',

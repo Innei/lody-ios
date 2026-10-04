@@ -82,6 +82,7 @@ struct Capability: Codable, Equatable, Sendable {
 }
 
 struct CreationOptions: Codable, Equatable, Sendable {
+  var availability: String? = nil
   var sessionId: String
   var project: CreateProject?
   var agents: [CreationAgent]

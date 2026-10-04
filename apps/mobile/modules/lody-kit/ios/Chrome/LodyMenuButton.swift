@@ -7,6 +7,9 @@ struct LodyMenuItem {
   var title: String = ""
   var symbol: String = ""
   var selected: Bool?
+  var subtitle: String = ""
+  var disabled: Bool = false
+  var children: [LodyMenuItem] = []
 }
 
 @Record
@@ -20,6 +23,8 @@ final class LodyMenuButton: ExpoView {
   let onSelect = EventDispatcher()
   let onSize = EventDispatcher()
   private let button = UIButton(type: .system)
+  private let statusImage = UIImageView()
+  private var status = ""
   private var avatar = LodyMenuAvatar()
   private var photoURL: URL?
   private var photo: UIImage?
@@ -30,6 +35,9 @@ final class LodyMenuButton: ExpoView {
     button.changesSelectionAsPrimaryAction = false
     button.showsMenuAsPrimaryAction = true
     addSubview(button)
+    statusImage.isUserInteractionEnabled = false
+    statusImage.isAccessibilityElement = false
+    button.addSubview(statusImage)
   }
 
   override func didMoveToWindow() {
@@ -40,6 +48,7 @@ final class LodyMenuButton: ExpoView {
   override func layoutSubviews() {
     super.layoutSubviews()
     button.frame = bounds
+    statusImage.frame = CGRect(x: bounds.width - LodyMenuButtonStyle.trailingInset - 6, y: (bounds.height - 6) / 2, width: 6, height: 6)
   }
 
   func setAccessibilityName(_ value: String) {
@@ -65,13 +74,30 @@ final class LodyMenuButton: ExpoView {
     apply()
   }
 
+  func setStatus(_ value: String) {
+    status = value
+    statusImage.isHidden = value.isEmpty
+    statusImage.image = UIImage(systemName: value == "unknown" ? "circle" : "circle.fill")
+    statusImage.tintColor = value == "online" ? .systemBlue : .secondaryLabel
+    apply()
+  }
+
   func setItems(_ value: [LodyMenuItem]) {
     func action(_ item: LodyMenuItem, state: UIMenuElement.State = .off) -> UIAction {
-      UIAction(
+      let result = UIAction(
         title: item.title,
         image: item.symbol.isEmpty ? nil : UIImage(systemName: item.symbol),
+        attributes: item.disabled ? .disabled : [],
         state: state
       ) { [weak self] _ in self?.onSelect(["id": item.id]) }
+      result.subtitle = item.subtitle.isEmpty ? nil : item.subtitle
+      return result
+    }
+
+    func element(_ item: LodyMenuItem) -> UIMenuElement {
+      if item.children.isEmpty { return action(item) }
+      return UIMenu(title: item.title, subtitle: item.subtitle.isEmpty ? nil : item.subtitle,
+        image: item.symbol.isEmpty ? nil : UIImage(systemName: item.symbol), children: item.children.map(element))
     }
 
     let choices = value.compactMap { item -> UIAction? in
@@ -83,7 +109,7 @@ final class LodyMenuButton: ExpoView {
       children.append(UIMenu(options: [.displayInline, .singleSelection], children: choices))
     }
     let actions = value.compactMap { item in
-      item.selected == nil ? action(item) : nil
+      item.selected == nil ? element(item) : nil
     }
     if !actions.isEmpty {
       children.append(UIMenu(options: .displayInline, children: actions))
@@ -94,6 +120,7 @@ final class LodyMenuButton: ExpoView {
   private func apply() {
     LodyMenuButtonStyle.apply(
       label: label,
+      showsStatus: !status.isEmpty,
       avatar: LodyMenuButtonStyle.avatarImage(
         text: avatar.text,
         fill: lodyTint(avatar.color) ?? .systemIndigo,

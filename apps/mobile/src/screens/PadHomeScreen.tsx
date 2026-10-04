@@ -18,6 +18,7 @@ import {
   SearchBar,
 } from 'react-native-screens';
 import type { HeaderBarButtonItem } from 'react-native-screens';
+import { useDevices } from '@/hooks/screens/useDevices';
 
 import {
   useInboxModel,
@@ -214,6 +215,7 @@ function InboxPanelItem({
   selectedSessionId?: string;
   onOpenRow: (id: string, catalog: Catalog, findQuery?: string) => void;
 }) {
+  const devices = useDevices();
   const model = useInboxModel();
   const account = model.account;
   const selected = model.selected;
@@ -237,18 +239,24 @@ function InboxPanelItem({
             {account ? (
               <ScreenStackHeaderLeftView>
                 <NativeMenuButton
+                  testID="workspace-menu"
                   // Reserve space for UIKit’s sidebar toggle and bar margins.
                   style={{ maxWidth: Math.max(44, (width ?? 320) - 112) }}
                   label={workspaceName}
-                  accessibilityName={t('inbox.workspaceSwitch.accessibility', {
-                    name: workspaceName,
-                  })}
+                  status={devices.status}
+                  accessibilityName={`${t(
+                    'inbox.workspaceSwitch.accessibility',
+                    {
+                      name: workspaceName,
+                    },
+                  )}, ${devices.summary}`}
                   avatar={{
                     text: workspaceName.slice(0, 1),
                     color: model.colors.accent,
                     image: selected?.image,
                   }}
                   items={[
+                    devices.menuItem,
                     ...account.workspaces.map((workspace) => ({
                       id: workspace.id,
                       title: workspace.name,

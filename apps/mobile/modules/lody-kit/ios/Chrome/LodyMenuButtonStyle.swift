@@ -16,12 +16,12 @@ enum LodyMenuButtonStyle {
     button.titleLabel?.lineBreakMode = .byTruncatingTail
   }
 
-  static func apply(label: String, avatar: UIImage, to button: UIButton) {
+  static func apply(label: String, showsStatus: Bool = false, avatar: UIImage, to button: UIButton) {
     var configuration = UIButton.Configuration.plain()
     configuration.image = avatar
     configuration.imagePadding = imagePadding
     configuration.contentInsets = NSDirectionalEdgeInsets(
-      top: 4, leading: leadingInset, bottom: 4, trailing: trailingInset
+      top: 4, leading: leadingInset, bottom: 4, trailing: trailingInset + (showsStatus ? 14 : 0)
     )
     configuration.attributedTitle = AttributedString(
       label,

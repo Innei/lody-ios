@@ -1022,5 +1022,16 @@
   "native.chat.camera.more": "Camera options",
   "native.chat.attachment.grid.inset": "Inset grid",
   "native.chat.attachment.grid.edgeToEdge": "Edge-to-edge grid",
-  "native.chat.attachment.grid.options": "Photo layout"
+  "native.chat.attachment.grid.options": "Photo layout",
+  "devices.title": "Devices",
+  "devices.online": "Online",
+  "devices.offline": "Offline",
+  "devices.unknown": "Status unavailable",
+  "create.devices.offline": "No devices online · Waiting",
+  "create.devices.projectOffline": "Offline, waiting for this device",
+  "create.devices.failed": "Unavailable · Tap to retry",
+  "create.devices.noAgents": "No assistants available · Tap to retry",
+  "create.devices.selectedOffline": "Offline, waiting for this device",
+  "create.devices.chooseAgent": "Choose an available assistant",
+  "devices.summary": "{count} online / {total} devices"
 }

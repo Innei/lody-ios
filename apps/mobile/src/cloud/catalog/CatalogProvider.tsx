@@ -17,6 +17,7 @@ import {
   subscribeForegroundSession,
 } from '../send/foregroundSession';
 import { publishConnection } from './connection';
+import { publishMachinePresence } from './machines';
 import { localGeneration, readLocal, writeLocal } from '../kv';
 import { catalogKey, selectionKey } from './persist';
 import type { Catalog, SavedCatalog } from '../../models/catalog.ts';
@@ -57,6 +58,7 @@ function useCatalogState() {
   });
   const [revision, setRevision] = useState(0);
   useEffect(() => {
+    publishMachinePresence(selected?.id ?? '');
     if (!key || !account || !selected) {
       setSnapshot({
         key: '',
@@ -113,6 +115,23 @@ function useCatalogState() {
       selected.name,
       account.user.id,
       (event, fresh) => {
+        if (event.machinePresence) {
+          try {
+            const presence = JSON.parse(event.machinePresence);
+            if (
+              ['live', 'unknown'].includes(presence.state) &&
+              Array.isArray(presence.onlineMachineIds)
+            )
+              publishMachinePresence(selected.id, presence);
+          } catch {
+            publishMachinePresence(selected.id);
+          }
+          return;
+        }
+        if (
+          ['starting', 'failed', 'stopped', 'background'].includes(event.state)
+        )
+          publishMachinePresence(selected.id);
         const data = fresh && keepRepos(fresh, known);
         if (data) {
           known = data;
@@ -149,6 +168,7 @@ function useCatalogState() {
     );
     return () => {
       active = false;
+      publishMachinePresence('');
       stop();
     };
   }, [key, revision, localReady]);

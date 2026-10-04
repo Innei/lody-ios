@@ -11,6 +11,7 @@ import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { useComposerMentions } from '@/hooks/screens/useComposerMentions';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
+import { useMachinePresence } from '@/cloud/catalog/machines';
 import { githubProject } from '@/cloud/catalog/model';
 import { readLocal, writeLocal } from '@/cloud/kv';
 import { usePendingSends } from '@/cloud/send/pendingSends';
@@ -52,6 +53,7 @@ function View() {
   >();
   const { account } = useAuth();
   const { catalog } = useCatalog();
+  const presence = useMachinePresence(params.workspaceId);
   const userId = account?.user.id ?? '';
   const outbox = usePendingSends(userId, params.workspaceId);
   const prefsKey = createPrefsKey(userId, params.workspaceId);
@@ -132,6 +134,11 @@ function View() {
   return (
     <NativeCreateSession
       style={{ flex: 1 }}
+      refreshKey={JSON.stringify({
+        presence,
+        machines: catalog.machineIds,
+        usage: catalog.agentUsage,
+      })}
       configJSON={JSON.stringify({
         userId,
         workspaceId: params.workspaceId,

@@ -147,6 +147,19 @@ layout. The native `list` check exercises shared content at both densities;
 `home` verifies the iPhone grouped host. The older `ipad` script records the
 superseded panel-local sheet experiment and is not current business acceptance.
 
+`devices` covers the workspace's status dot and device submenu, mixed/offline/unknown
+states, the current session's device subtitle, and recovery in
+the open new-session sheet. The recovery scene starts with an options-load failure,
+then waits for its project computer; another computer coming online must not
+enable Send or replace the selection. It preserves edited text and an attachment
+through recovery and Project/Chat switching. `devices-pad` exercises the workspace
+indicator and device menu in the iPad sidebar. Both run in English, light and dark, with video.
+The Debug-only boundary reads `ui-device-presence` and `ui-device-options-error`
+from the local fixture cache; no credentials, cloud traffic, or real turn are used.
+Production liveness comes from the workspace ephemeral presence stream, not the
+registered catalog or the app's cloud connection. Transport/TTL behavior is checked
+separately by the machine-presence and data-runtime behavioral checks.
+
 For a verified build, wrap the build and checks so Xcode cannot select a personal
 Simulator. The wrapper exposes its device as `LODY_VERIFY_UDID`; `pnpm
 verify:build` builds for that lease and prints the App path, and nested verify

@@ -4,6 +4,7 @@ import { present } from '@/lib/presentation';
 import type { Project } from '@/models/catalog';
 import type { CreationOptions } from '@/models/send';
 import { CreateSessionScreen } from '../CreateSessionScreen';
+import { readLocalValue, writeLocalValue } from '@lody-ios/kit';
 
 const select = (id: string, name: string, values: string[], category = id) => ({
   id,
@@ -177,5 +178,49 @@ export async function openCreateParity() {
         'ui-create-parity',
         projects.find((project) => project.id === projectId),
       ),
+  });
+}
+
+export async function openCreateRecovery() {
+  const project: Project = {
+    id: 'ui:local:alpha',
+    name: 'Alpha',
+    machineId: 'ui',
+    rootPath: '/tmp/alpha',
+  };
+  await writeLocalValue('ui-device-options-error', 'true');
+  await present(CreateSessionScreen, {
+    workspaceId: 'ui-home',
+    projects: [project],
+    initialText: 'Keep this draft',
+    initialAttachmentsJSON: JSON.stringify([
+      {
+        id: 'device-draft',
+        name: 'notes.txt',
+        kind: 'file',
+        uri: 'file:///tmp/device-recovery-notes.txt',
+      },
+    ]),
+    loadOptions: async (projectId) => {
+      if ((await readLocalValue('ui-device-options-error')) === 'true')
+        throw new Error('fixture_device_unavailable');
+      const presence = JSON.parse(
+        (await readLocalValue('ui-device-presence')) ?? '{}',
+      );
+      const options = fixtureOptions(
+        'ui-device-recovery',
+        projectId ? project : undefined,
+      );
+      let availability: 'online' | 'offline' | 'unknown' = 'unknown';
+      if (presence.state === 'live')
+        availability = presence.onlineMachineIds.includes('ui')
+          ? 'online'
+          : 'offline';
+      return {
+        ...options,
+        availability,
+        agents: availability === 'online' ? options.agents : [],
+      };
+    },
   });
 }

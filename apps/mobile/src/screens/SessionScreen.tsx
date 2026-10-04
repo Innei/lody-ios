@@ -11,6 +11,8 @@ import { NativeNavigationHeader, setPushVisibleRoute } from '@lody-ios/kit';
 import { useFocusEffect } from 'expo-router';
 import { usePendingSends } from '@/cloud/send/pendingSends';
 import { useConnection } from '@/cloud/catalog/connection';
+import { useMachinePresence } from '@/cloud/catalog/machines';
+import { machineState } from '@/models/machines';
 import { useSessionControl } from '@/features/sessions/useSessionControl';
 import { useSessionSend } from '@/features/sessions/useSessionSend';
 import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
@@ -201,6 +203,8 @@ function View() {
     }, [selected?.id, selected?.slug, session.id]),
   );
   const connection = useConnection();
+  const presence = useMachinePresence(selected?.id);
+  const deviceState = machineState(presence, currentSession.machineId);
   const outbox = usePendingSends(account?.user.id ?? '', selected?.id ?? '');
   const pending = outbox.records.find(
     (record) => record.session.id === session.id,
@@ -488,7 +492,8 @@ function View() {
   const openFile = useOpenFile(session.id);
   const openMessageDetails = useMessageDetailsSheet(entriesJSON);
   const openProcess = useProcessSheet(entriesJSON, onActivityPress, session.id);
-  const notice = overflow ? t('chat.notice.syncStopped') : '';
+  let notice = '';
+  if (overflow) notice = t('chat.notice.syncStopped');
   const mentions = useComposerMentions(
     selected && account
       ? {
@@ -596,7 +601,7 @@ function View() {
           {
             id: 'machine',
             title: t('session.title.machine'),
-            subtitle: machineName,
+            subtitle: `${machineName} · ${t(`devices.${deviceState}`)}`,
             symbol: 'desktopcomputer',
           },
         ]
@@ -799,7 +804,10 @@ function View() {
         onMentionBrowse={mentions.onMentionBrowse}
         navigationTitle={navigationTitleHidden ? '' : currentSession.title}
         navigationSubtitle={navigationTitleHidden ? '' : projectName}
-        navigationMachine={navigationTitleHidden ? '' : machineName}
+        navigationMachine={
+          navigationTitleHidden ? '' : machineName || t('session.title.machine')
+        }
+        navigationMachineState={navigationTitleHidden ? '' : deviceState}
         navigationBranch={
           navigationTitleHidden ? '' : (currentSession.branchName ?? '')
         }

@@ -19,6 +19,7 @@
     "@expo/dom-webview": "workspace:*",
     "@loro-dev/flock-wasm": "0.4.3",
     "@loro-dev/streams-client": "0.7.0",
+    "@loro-dev/streams-crdt": "0.16.1",
     "@pierre/diffs": "1.4.1",
     "@rien7/anchored-overlay-kit": "0.1.2",
     "base64-js": "1.5.1",

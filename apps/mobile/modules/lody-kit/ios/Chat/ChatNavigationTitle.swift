@@ -214,17 +214,18 @@ enum ChatNavigationTitle {
     [branch, project, machine].filter { !$0.isEmpty }.joined(separator: " · ")
   }
 
-  static func configureButton(_ button: ChatNavigationTitleButton, title: String, subtitle: String, machine: String = "", branch: String = "") {
+  static func configureButton(_ button: ChatNavigationTitleButton, title: String, subtitle: String, machine: String = "", branch: String = "", machineState: String = "") {
     button.titleHost.apply(title, animated: true)
-    button.captionLabel.lineBreakMode = branch.isEmpty ? .byTruncatingMiddle : .byTruncatingTail
-    if let attributed = attributedSubtitle(project: subtitle, machine: machine, branch: branch) {
+    button.captionLabel.lineBreakMode = branch.isEmpty || !machineState.isEmpty ? .byTruncatingMiddle : .byTruncatingTail
+    if let attributed = attributedSubtitle(project: subtitle, machine: machine, branch: branch, machineState: machineState) {
       button.captionLabel.attributedText = NSAttributedString(attributed)
       button.captionLabel.isHidden = false
     } else {
       button.captionLabel.attributedText = nil
       button.captionLabel.isHidden = true
     }
-    button.accessibilityLabel = [title, branch, subtitle, machine].filter { !$0.isEmpty }.joined(separator: ", ")
+    let status = machineState.isEmpty ? "" : LodyStrings.text("devices.\(machineState)")
+    button.accessibilityLabel = [title, branch, subtitle, machine, status].filter { !$0.isEmpty }.joined(separator: ", ")
     button.sizeToFit()
     button.bounds.size.height = 44
   }
@@ -259,7 +260,7 @@ enum ChatNavigationTitle {
     }
   }
 
-  private static func attributedSubtitle(project: String, machine: String, branch: String) -> AttributedString? {
+  private static func attributedSubtitle(project: String, machine: String, branch: String, machineState: String) -> AttributedString? {
     let font = UIFont.preferredFont(forTextStyle: .caption1)
     let color = UIColor.secondaryLabel
     let attributes: [NSAttributedString.Key: Any] = [
@@ -281,6 +282,17 @@ enum ChatNavigationTitle {
     append(branch, symbol: "arrow.triangle.branch")
     append(project, symbol: "folder")
     append(machine, symbol: "desktopcomputer")
+    if !machine.isEmpty && !machineState.isEmpty {
+      text.append(NSAttributedString(string: " ", attributes: attributes))
+      let symbol = machineState == "unknown" ? "circle" : "circle.fill"
+      let tint: UIColor = machineState == "online" ? .systemBlue : .secondaryLabel
+      if let dot = symbolAttachment(symbol, font: UIFont.systemFont(ofSize: 10), color: tint) {
+        text.append(NSAttributedString(attachment: dot))
+      }
+      if machineState == "offline" {
+        text.append(NSAttributedString(string: " · " + LodyStrings.text("devices.offline"), attributes: attributes))
+      }
+    }
     return text.length == 0 ? nil : AttributedString(text)
   }
 

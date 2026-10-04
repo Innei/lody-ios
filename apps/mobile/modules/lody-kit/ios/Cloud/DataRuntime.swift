@@ -48,6 +48,8 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         guard let self, self.workspace != nil else { return }
         self.backgrounded = true
         self.health.suspend()
+        self.publishPresenceUnknown()
+        self.webView?.evaluateJavaScript("globalThis.dataRuntime?.setActive(false)", completionHandler: nil)
       }
     })
     observers.add(NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { _ in
@@ -60,7 +62,10 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         self.health.resume(at: self.now)
         self.pingPending = false
         if self.webView == nil { self.build(reason: "foreground") }
-        else { self.tick() }
+        else {
+          self.webView?.evaluateJavaScript("globalThis.dataRuntime?.setActive(true)", completionHandler: nil)
+          self.tick()
+        }
       }
     })
   }
@@ -96,6 +101,9 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   }
   private func emitStatus(_ extra: [String: Any] = [:]) {
     emit((status() as [String: Any]).merging(extra, uniquingKeysWith: { _, new in new }))
+  }
+  private func publishPresenceUnknown() {
+    emitStatus(["machinePresence": #"{"state":"unknown","onlineMachineIds":[]}"#])
   }
   private func build(reason: String) {
     guard workspace != nil else { return }
@@ -168,7 +176,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       guard !health.ready, let workspace else { return }
       health.acknowledged(at: now)
       publish("syncing", reason: "runtime_ready")
-      view.callAsyncJavaScript("globalThis.dataRuntime.start(workspace, userId)", arguments: ["workspace": workspace, "userId": userId], in: nil, in: .page) { [weak self, weak view] result in
+      view.callAsyncJavaScript("globalThis.dataRuntime.start(workspace, userId, active)", arguments: ["workspace": workspace, "userId": userId, "active": !backgrounded], in: nil, in: .page) { [weak self, weak view] result in
         guard let self, let view, self.webView === view else { return }
         if case .failure = result { self.recover("start_failed") }
         else {
@@ -244,6 +252,9 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         view.callAsyncJavaScript("globalThis.dataRuntime.githubMentionsResult(id, value)", arguments: ["id": id, "value": result as Any? ?? NSNull()], in: nil, in: .page, completionHandler: nil)
       }
     case "grant": fetchGrant(view: view)
+    case "machinePresence":
+      guard !backgrounded, let presence = body["presence"] as? String, presence.utf8.count <= 1024 * 1024 else { return }
+      publish(phase, reason: "machine_presence", extra: ["machinePresence": presence])
     case "catalog":
       guard let catalog = body["catalog"] as? String, catalog.utf8.count <= 12 * 1024 * 1024 else { return }
       publish("live", reason: "catalog", extra: ["catalog": catalog, "revision": body["revision"] ?? 0])
@@ -657,6 +668,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
              let url = URL(string: address), url.scheme == "https", url.user == nil, url.password == nil,
              let expiry = value["expiresIn"] as? Double, expiry > 0 {
             grant = ["token": token, "gatewayBaseUrl": address, "expiresIn": expiry]
+            if let suffix = value["shardHostSuffix"] as? String { grant?["shardHostSuffix"] = suffix }
           }
           self.deliverGrant(grant, view: view)
         }

@@ -42,6 +42,7 @@ export const NativeChat: ComponentType<
     navigationTitle?: string;
     navigationSubtitle?: string;
     navigationMachine?: string;
+    navigationMachineState?: 'online' | 'offline' | 'unknown' | '';
     navigationBranch?: string;
     mentionRepository?: string;
     onTitlePress?: () => void;

@@ -66,8 +66,21 @@ import {
   editSession,
 } from './session';
 import { decodeFrames, encodeFrame } from '../decoder/frames';
+import {
+  watchMachinePresence,
+  availableCreationOptions,
+} from './machine-presence';
+import {
+  unknownPresence,
+  type MachinePresence,
+} from '../../../src/models/machines.ts';
 
-type Grant = { token: string; gatewayBaseUrl: string; expiresIn: number };
+type Grant = {
+  token: string;
+  gatewayBaseUrl: string;
+  expiresIn: number;
+  shardHostSuffix?: string;
+};
 const host = (globalThis as any).webkit.messageHandlers.dataRuntime;
 const send = (message: object) => host.postMessage(message);
 let grantResolve: ((grant: Grant) => void) | undefined;
@@ -128,6 +141,15 @@ const delay = (ms: number, signal: AbortSignal) =>
   });
 let metaReplica: { flock: Flock; client: StreamsClient } | undefined;
 let workspace = '';
+let presence: MachinePresence = unknownPresence;
+let stopPresence: (() => void) | undefined;
+function startPresence() {
+  stopPresence?.();
+  stopPresence = watchMachinePresence(workspace, getGrant, (value) => {
+    presence = value;
+    send({ type: 'machinePresence', presence: JSON.stringify(value) });
+  });
+}
 const machineReplicas = new Map<string, Flock>();
 let creating = false;
 let registering = false;
@@ -839,11 +861,12 @@ Object.assign(globalThis, {
     creationOptions(args: { workspaceId: string; projectId?: string }) {
       if (args.workspaceId !== workspace || !metaReplica || unhealthy.size)
         throw new Error('metadata_not_ready');
-      return creationOptions(
+      const options = creationOptions(
         args.projectId,
         metaReplica.flock,
         machineReplicas,
       );
+      return availableCreationOptions(options, presence);
     },
     async createSession(args: CreateSessionArgs) {
       if (
@@ -1049,10 +1072,19 @@ Object.assign(globalThis, {
         ),
       );
     },
-    start(id: string, userId?: string) {
+    start(id: string, userId?: string, active = true) {
       workspace = id;
       runtimeUserId = userId ?? '';
       watch('meta');
+      if (active) startPresence();
+    },
+    setActive(active: boolean) {
+      if (!workspace) return;
+      if (active) startPresence();
+      else {
+        stopPresence?.();
+        stopPresence = undefined;
+      }
     },
     grant(value: Grant | null) {
       if (!value) grantReject?.(new Error('grant_failed'));

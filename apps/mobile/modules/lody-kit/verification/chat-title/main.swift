@@ -353,4 +353,16 @@ precondition(
   "Title descenders must not collide with the subtitle (gap=\(descenderGap))"
 )
 
+// Device liveness stays with the computer, preserving the existing caption order.
+ChatNavigationTitle.configureButton(button, title: "Session", subtitle: "Project", machine: "Studio", branch: "feature/a-very-long-branch-name", machineState: "online")
+let onlineSubtitle = subtitleText(button)
+precondition(onlineSubtitle.range(of: "Studio")!.lowerBound > onlineSubtitle.range(of: "feature/")!.lowerBound,
+  "Device status must not reorder the conversation context")
+precondition(button.captionLabel.lineBreakMode == .byTruncatingMiddle,
+  "A long branch still leaves the trailing device state visible")
+precondition(button.accessibilityLabel!.contains(LodyStrings.text("devices.online")), "VoiceOver states device liveness")
+ChatNavigationTitle.configureButton(button, title: "Session", subtitle: "Project", machine: "Studio", branch: "feature/a-very-long-branch-name", machineState: "offline")
+precondition(subtitleText(button).contains(LodyStrings.text("devices.offline")), "Offline is visible text, not color alone")
+precondition(!button.accessibilityLabel!.contains(LodyStrings.text("devices.online")), "VoiceOver does not retain the previous state")
+precondition(button.sizeThatFits(CGSize(width: 220, height: 44)).height == 44, "Device status adds no navigation row")
 print("PASS: chat navigation subtitle shows project and computer names")

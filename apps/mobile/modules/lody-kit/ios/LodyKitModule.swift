@@ -613,6 +613,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     View(LodyCreateSessionView.self) {
       Events("onRequest", "onPrefs", "onSelection", "onSubmit", "onRelayReady", "onMentionBrowse", "onCancel")
       Prop("configJSON") { (view: LodyCreateSessionView, value: String) in view.configure(value) }
+      Prop("refreshKey") { (view: LodyCreateSessionView, value: String) in view.setRefreshKey(value) }
       Prop("responseJSON") { (view: LodyCreateSessionView, value: String) in view.respond(value) }
       Prop("composerRelay") { (view: LodyCreateSessionView, value: Bool) in view.setComposerRelay(value) }
       Prop("sendHandoff") { (view: LodyCreateSessionView, value: Bool?) in view.setSendHandoff(value ?? true) }
@@ -680,6 +681,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("navigationTitle") { (view: LodyChatView, value: String) in view.setNavigationTitle(value) }
       Prop("navigationSubtitle") { (view: LodyChatView, value: String) in view.setNavigationSubtitle(value) }
       Prop("navigationMachine") { (view: LodyChatView, value: String) in view.setNavigationMachine(value) }
+      Prop("navigationMachineState") { (view: LodyChatView, value: String) in view.setNavigationMachineState(value) }
       Prop("navigationBranch") { (view: LodyChatView, value: String) in view.setNavigationBranch(value) }
       Prop("titleMenuJSON") { (view: LodyChatView, value: String) in view.setTitleMenu(value) }
       Prop("mentionRepository") { (view: LodyChatView, value: String) in view.mentionRepository = value }
@@ -808,6 +810,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }
     View(LodyMenuButton.self) {
       Events("onSelect", "onSize")
+      Prop("status") { (view: LodyMenuButton, value: String) in view.setStatus(value) }
       Prop("accessibilityName") { (view: LodyMenuButton, name: String) in
         view.setAccessibilityName(name)
       }

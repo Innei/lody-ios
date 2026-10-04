@@ -33,6 +33,7 @@ export type CreateSessionSelection = {
 export const NativeCreateSession: ComponentType<
   ViewProps & {
     configJSON: string;
+    refreshKey?: string;
     responseJSON?: string;
     composerRelay?: boolean;
     sendHandoff?: boolean;

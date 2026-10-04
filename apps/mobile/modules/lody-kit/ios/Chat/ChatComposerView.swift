@@ -1297,6 +1297,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     let noticeText = failedDraft == nil ? (displayError ?? state.notice) : LodyStrings.text("native.chat.composer.failedDraft")
     let canReconnect = failedDraft != nil || displayError != nil || state.reconnect
     notice.setTitle(noticeText, for: .normal)
+    notice.isHidden = noticeText.isEmpty
     notice.setTitleColor(canReconnect ? .lodyAccent : .secondaryLabel, for: .normal)
     notice.isUserInteractionEnabled = canReconnect
     notice.accessibilityTraits = canReconnect ? .button : .staticText

@@ -75,8 +75,22 @@ export const bundledLicenses: LicensesData = {
       text: 5,
     },
     {
-      name: '@loro-dev/streams-client',
+      name: '@loro-dev/streams-client@0.7.0',
       version: '0.7.0',
+      license: 'MIT',
+      url: 'https://github.com/loro-dev/loro-streams',
+      text: 6,
+    },
+    {
+      name: '@loro-dev/streams-client@0.8.0',
+      version: '0.8.0',
+      license: 'MIT',
+      url: 'https://github.com/loro-dev/loro-streams',
+      text: 6,
+    },
+    {
+      name: '@loro-dev/streams-crdt',
+      version: '0.16.1',
       license: 'MIT',
       url: 'https://github.com/loro-dev/loro-streams',
       text: 6,

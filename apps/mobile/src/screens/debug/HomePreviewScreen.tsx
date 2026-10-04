@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useAppNavigationState } from '@/lib/presentation/useAppNavigationState';
 import type { PropsWithChildren } from 'react';
-import { runtimeInfo, writeLocalValue } from '@lody-ios/kit';
+import { runtimeInfo, readLocalValue, writeLocalValue } from '@lody-ios/kit';
+import { publishMachinePresence } from '@/cloud/catalog/machines';
 import { AuthContext } from '@/cloud/auth/AuthProvider';
 import { CatalogContext } from '@/cloud/catalog/CatalogProvider';
 import type { Catalog } from '@/models/catalog';
@@ -86,7 +87,8 @@ const catalog: Catalog = {
       pinned: false,
     },
   ],
-  machineIds: [],
+  machineIds: ['ui', 'mini', 'studio'],
+  machineNames: { ui: 'Fixture Mac', mini: 'Mac mini', studio: 'Studio' },
 };
 const noop = async () => {};
 const emptyCatalog: Catalog = { projects: [], sessions: [], machineIds: [] };
@@ -185,7 +187,29 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
   const selectedCatalog =
     selected.id === workspace.id ? previewCatalog : emptyCatalog;
   useEffect(() => {
+    let active = true;
+    const update = async () => {
+      const raw = await readLocalValue('ui-device-presence');
+      if (!active) return;
+      const value = raw
+        ? JSON.parse(raw)
+        : { state: 'unknown', onlineMachineIds: [] };
+      publishMachinePresence(selected.id, value);
+    };
+    void update();
+    const timer = setInterval(() => void update(), 500);
+    return () => {
+      active = false;
+      clearInterval(timer);
+      publishMachinePresence('');
+    };
+  }, [selected.id]);
+  useEffect(() => {
     void Promise.all([
+      writeLocalValue(
+        'ui-device-presence',
+        JSON.stringify({ state: 'live', onlineMachineIds: ['ui', 'mini'] }),
+      ),
       writeLocalValue(
         'catalog:ui-home:ui-home',
         JSON.stringify({ catalog, syncedAt: 0 }),
