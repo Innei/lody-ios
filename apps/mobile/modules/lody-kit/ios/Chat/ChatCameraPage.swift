@@ -50,6 +50,9 @@ final class ChatCameraPage: UIView, OverlayPageActivity, OverlayContentSafeArea,
         try? FileManager.default.removeItem(at: photo.url)
         return
       }
+      // The closing panel scales its content while the photo fades in over it;
+      // controls would visibly shrink with the viewfinder.
+      cameraView.controls.isHidden = true
       onPick(photo)
     }
     NotificationCenter.default.addObserver(self, selector: #selector(suspend), name: UIApplication.willResignActiveNotification, object: nil)

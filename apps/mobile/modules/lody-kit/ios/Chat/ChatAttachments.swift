@@ -266,36 +266,22 @@ final class ChatAttachmentPreview: QLPreviewController, QLPreviewControllerDataS
 final class ChatAttachmentBar: CKAttachmentStrip {
   private var projected: [String: (source: ChatAttachment, item: CKAttachmentItem)] = [:]
 
-  // The package exposes attachment geometry and snapshots, not its private
-  // button/image hierarchy. This caller-owned target follows that public geometry.
-  private var handoff: (id: String, target: UIView)?
+  static let thumbnailRadius: CGFloat = 6
+
+  private static func rounded(_ image: UIImage) -> UIImage {
+    let format = UIGraphicsImageRendererFormat.preferred()
+    format.scale = image.scale
+    return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in
+      UIBezierPath(roundedRect: CGRect(origin: .zero, size: image.size), cornerRadius: thumbnailRadius).addClip()
+      image.draw(at: .zero)
+    }
+  }
 
   func handoffDestination(id: String) -> UIView? {
-    finishHandoff()
     layoutIfNeeded()
-    guard let frame = attachmentFrame(id: id), bounds.contains(frame) else { return nil }
-    let target = UIView(frame: frame)
-    target.isUserInteractionEnabled = false
-    target.accessibilityElementsHidden = true
-    addSubview(target)
-    handoff = (id, target)
-    return target
-  }
-
-  func finishHandoff() {
-    handoff?.target.removeFromSuperview()
-    handoff = nil
-  }
-
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    guard let handoff else { return }
-    if let frame = attachmentFrame(id: handoff.id), bounds.contains(frame) {
-      handoff.target.frame = frame
-      handoff.target.isHidden = false
-    } else {
-      handoff.target.isHidden = true
-    }
+    guard let frame = attachmentFrame(id: id) else { return nil }
+    scrollRectToVisible(frame, animated: true)
+    return thumbnailView(id: id)
   }
 
   func render(_ attachments: [ChatAttachment], animatedRemoval: Bool = false) {
@@ -306,7 +292,7 @@ final class ChatAttachmentBar: CKAttachmentStrip {
       if attachment.isImage { symbol = "photo" }
       else if type?.conforms(to: .movie) == true { symbol = "video" }
       else { symbol = "doc" }
-      let thumbnail = attachment.isImage ? ChatAttachment.thumbnail(attachment.url)?.preparingThumbnail(of: CGSize(width: 28, height: 28)) : nil
+      let thumbnail = attachment.isImage ? ChatAttachment.thumbnail(attachment.url)?.preparingThumbnail(of: CGSize(width: 28, height: 28)).map(Self.rounded) : nil
       let item = CKAttachmentItem(id: attachment.id, name: attachment.name, symbol: symbol, thumbnail: thumbnail,
         previewAccessibilityLabel: LodyStrings.text("native.chat.attachment.preview", ["name": attachment.name]),
         removeAccessibilityLabel: LodyStrings.text("native.chat.attachment.remove", ["name": attachment.name]))

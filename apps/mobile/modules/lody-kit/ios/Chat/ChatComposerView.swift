@@ -1106,16 +1106,14 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     guard let first = accepted.first else { attachmentOverlay.dismiss(); return }
     addAttachments(accepted)
     window?.layoutIfNeeded()
-    // Newly inserted ChatKit pills have not rendered yet. Use the accepted photo
-    // as the transition content and the package's public geometry as its target.
+    // The photo lands in the new pill's own thumbnail, which stays hidden until
+    // the panel arrives so the swap is invisible.
     guard let image = ChatAttachment.thumbnail(first.url) else { attachmentOverlay.dismiss(); return }
     let representation = UIImageView(image: image)
     representation.contentMode = .scaleAspectFill
     representation.clipsToBounds = true
-    let destination = attachmentBar.handoffDestination(id: first.id)
-    attachmentOverlay.dismiss(to: destination, representation: representation, cornerRadius: 17) { [weak self] _ in
-      self?.attachmentBar.finishHandoff()
-    }
+    attachmentOverlay.dismiss(to: attachmentBar.handoffDestination(id: first.id), representation: representation,
+      cornerRadius: ChatAttachmentBar.thumbnailRadius, destinationVisibility: .hideDuringTransition) { _ in }
   }
 
   private func requestCameraAccess() {
