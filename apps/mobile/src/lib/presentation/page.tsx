@@ -21,7 +21,7 @@ export interface PagePresentationOptions {
   dismissible: boolean;
   headerShown: boolean;
   headerVariant: 'glass' | 'transparent';
-  morphSourceLabel?: string;
+  zoomSourceLabel?: string;
   sheetAllowedDetents?: number[] | 'fitToContents';
   sheetGrabberVisible?: boolean;
   sheetInitialDetentIndex?: number | 'last';

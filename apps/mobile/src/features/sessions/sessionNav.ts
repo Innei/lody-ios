@@ -9,7 +9,7 @@ export type SessionNavIntent =
       catalog: Catalog;
       projectId?: string;
       context?: 'project' | 'chat';
-      morphSourceLabel?: string;
+      zoomSourceLabel?: string;
       draft?: { text: string; attachmentsJSON: string };
     };
 
@@ -78,7 +78,7 @@ export function requestNewSession(
   catalog: Catalog,
   projectId?: string,
   context?: 'project' | 'chat',
-  morphSourceLabel?: string,
+  zoomSourceLabel?: string,
   draft?: { text: string; attachmentsJSON: string },
 ) {
   return enqueue({
@@ -87,7 +87,7 @@ export function requestNewSession(
     catalog,
     projectId,
     context,
-    morphSourceLabel,
+    zoomSourceLabel,
     draft,
   });
 }

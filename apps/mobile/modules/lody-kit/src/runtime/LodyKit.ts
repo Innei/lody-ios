@@ -165,8 +165,8 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   pickWorkspaceIcon(): Promise<PickedWorkspaceIcon | null>;
   cancelComposerRelay(id: string): Promise<void>;
   showToast(message: string, kind: string): void;
-  prepareMorphReveal(sourceLabel: string): void;
-  morphDismiss(): Promise<void>;
+  prepareSheetZoom(sourceLabel: string): void;
+  dismissSheetZoom(): Promise<void>;
   copyText(text: string): void;
   showSessionBanner(title: string, kind: string): void;
   dismissSessionBanner(): void;
@@ -236,12 +236,12 @@ export function cancelComposerRelay(id: string): Promise<void> {
   return native.cancelComposerRelay(id);
 }
 
-export function prepareMorphReveal(sourceLabel: string): void {
-  native.prepareMorphReveal(sourceLabel);
+export function prepareSheetZoom(sourceLabel: string): void {
+  native.prepareSheetZoom(sourceLabel);
 }
 
-export function morphDismiss(): Promise<void> {
-  return native.morphDismiss();
+export function dismissSheetZoom(): Promise<void> {
+  return native.dismissSheetZoom();
 }
 
 export type ToastKind = 'info' | 'warning' | 'error';

@@ -116,15 +116,15 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   @JS
-  func prepareMorphReveal(sourceLabel: String) {
+  func prepareSheetZoom(sourceLabel: String) {
     // Must be armed before the router's presentation lands on the main queue,
     // so this blocks JS until the main thread has run it.
     if Thread.isMainThread {
-      MainActor.assumeIsolated { LodyMorphReveal.prepare(sourceLabel: sourceLabel) }
+      MainActor.assumeIsolated { LodySheetZoom.prepare(sourceLabel: sourceLabel) }
       return
     }
     DispatchQueue.main.sync {
-      MainActor.assumeIsolated { LodyMorphReveal.prepare(sourceLabel: sourceLabel) }
+      MainActor.assumeIsolated { LodySheetZoom.prepare(sourceLabel: sourceLabel) }
     }
   }
 
@@ -351,8 +351,8 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         return pulses.count
       }
     }.runOnQueue(.main)
-    AsyncFunction("morphDismiss") { (promise: Promise) in
-      MainActor.assumeIsolated { LodyMorphReveal.dismiss { promise.resolve() } }
+    AsyncFunction("dismissSheetZoom") { (promise: Promise) in
+      MainActor.assumeIsolated { LodySheetZoom.dismiss { promise.resolve() } }
     }.runOnQueue(.main)
     AsyncFunction("cancelComposerRelay") { (id: String) in
       LodyComposerView.cancelRelay(id)

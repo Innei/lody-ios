@@ -14,7 +14,7 @@ import {
 } from 'react';
 
 import { Platform, type ColorValue } from 'react-native';
-import { morphDismiss, navigationScrollEdgeEffects } from '@lody-ios/kit';
+import { dismissSheetZoom, navigationScrollEdgeEffects } from '@lody-ios/kit';
 
 import {
   type PageDefinitionBase,
@@ -218,7 +218,7 @@ function usePresentedPageSession(expectedPage?: PageDefinitionBase) {
       if (!session || closing.current) return;
       closing.current = true;
       try {
-        if (session.presentation.morphSourceLabel) await morphDismiss();
+        if (session.presentation.zoomSourceLabel) await dismissSheetZoom();
       } finally {
         if (settle()) dismiss();
       }

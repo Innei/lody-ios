@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { cancelComposerRelay, prepareMorphReveal } from '@lody-ios/kit';
+import { cancelComposerRelay, prepareSheetZoom } from '@lody-ios/kit';
 import { present, type PagePresentationOptions } from '@/lib/presentation';
 import { showToast } from '@/ui/toast';
 import { subscribeSessionNav } from '@/features/sessions/sessionNav';
@@ -12,13 +12,13 @@ import { t } from '../../lib/i18n/index.ts';
 import { prepareSessionHistory } from '@/features/sessions/prepareSessionHistory';
 
 function sheetOptions(
-  morphSourceLabel: string | undefined,
+  zoomSourceLabel: string | undefined,
   embedded: boolean,
 ): Partial<PagePresentationOptions> | undefined {
   if (embedded) return { sheetAllowedDetents: [1], sheetGrabberVisible: false };
-  if (!morphSourceLabel) return undefined;
-  prepareMorphReveal(morphSourceLabel);
-  return { animationType: 'none', morphSourceLabel };
+  if (!zoomSourceLabel) return undefined;
+  prepareSheetZoom(zoomSourceLabel);
+  return { animationType: 'slide', zoomSourceLabel };
 }
 
 export function useBindSessionNav({
@@ -89,7 +89,7 @@ export function useBindSessionNav({
               return opening;
             },
           },
-          sheetOptions(intent.morphSourceLabel, !!openSession),
+          sheetOptions(intent.zoomSourceLabel, !!openSession),
         );
         if (result.status === 'completed') {
           relayId = result.value.composerRelayId;

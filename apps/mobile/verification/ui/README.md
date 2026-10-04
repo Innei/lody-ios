@@ -510,11 +510,14 @@ regressions. Performance numbers are reported without arbitrary pass thresholds.
 ### Send animation frame checks
 
 `--case morph` opens the production new-session sheet from offline Home and
-checks close, backdrop dismissal and first-message handoff in both appearances.
-Native `lody-morph-*.json` samples must show a shrinking sheet and fading backdrop
-on every path. The send check also requires the same composer, unchanged focus
-and input state, and adoption within 1.5 pt. Review `run.mp4` for visual continuity;
-these fixtures do not send a cloud message.
+checks close, cancelled drag, backdrop dismissal, completed swipe and first-message
+handoff in both appearances. Dismissals must remove the Router presentation,
+and reopening must remain possible. The send check requires the same composer,
+unchanged focus and input state, and adoption within 1.5 pt. Review `run.mp4`
+with `transition-events.json` for the system button-to-sheet zoom, reverse zoom
+and the source-less send dismissal. `--case sheet-zoom-project` covers the
+Project page navigation button, repeated opening/cancellation, and retaining the
+owning project route. These fixtures do not send a cloud message.
 
 `send`, `send-handoff`, `send-rounds`, `send-queue`, `send-guide`, `send-transition`, and `send-transition-handoff` enable the `--ui-verify-throw` probe.
 It requests the Simulator screen's maximum refresh rate and samples Core Animation
