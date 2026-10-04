@@ -12,6 +12,11 @@ struct ChatAttachment: Equatable {
   let url: URL
   let isImage: Bool
 
+  /// Only for newly imported files that were never accepted into a draft.
+  static func discardImports(_ items: [ChatAttachment]) {
+    for item in items { try? FileManager.default.removeItem(at: item.url) }
+  }
+
   static func thumbnail(_ url: URL) -> UIImage? {
     guard url.isFileURL, let source = CGImageSourceCreateWithURL(url as CFURL, nil),
       let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
@@ -260,6 +265,38 @@ final class ChatAttachmentPreview: QLPreviewController, QLPreviewControllerDataS
 /// Converts local draft files to the package's display-only attachment model.
 final class ChatAttachmentBar: CKAttachmentStrip {
   private var projected: [String: (source: ChatAttachment, item: CKAttachmentItem)] = [:]
+
+  // The package exposes attachment geometry and snapshots, not its private
+  // button/image hierarchy. This caller-owned target follows that public geometry.
+  private var handoff: (id: String, target: UIView)?
+
+  func handoffDestination(id: String) -> UIView? {
+    finishHandoff()
+    layoutIfNeeded()
+    guard let frame = attachmentFrame(id: id), bounds.contains(frame) else { return nil }
+    let target = UIView(frame: frame)
+    target.isUserInteractionEnabled = false
+    target.accessibilityElementsHidden = true
+    addSubview(target)
+    handoff = (id, target)
+    return target
+  }
+
+  func finishHandoff() {
+    handoff?.target.removeFromSuperview()
+    handoff = nil
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    guard let handoff else { return }
+    if let frame = attachmentFrame(id: handoff.id), bounds.contains(frame) {
+      handoff.target.frame = frame
+      handoff.target.isHidden = false
+    } else {
+      handoff.target.isHidden = true
+    }
+  }
 
   func render(_ attachments: [ChatAttachment], animatedRemoval: Bool = false) {
     let items = attachments.map { attachment -> CKAttachmentItem in

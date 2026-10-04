@@ -628,6 +628,88 @@ Ordinary regression runs are never ingested: `results.json` stays a programmatic
 CI gate. Simulator Debug evidence cannot claim physical-device performance,
 haptics or cloud persistence, whatever the round says.
 
+Attachment overlays:
+
+- `--case attachment-overlay-chat` and `--case attachment-overlay-sheet` use the
+  production composer with real Simulator Photos, seeded with the app icon. They
+  check keyboard coverage, retained selection across back/forward navigation,
+  attachment import and continued draft editing in both themes.
+
+Attachment authorization regression: `--case attachment-overlay-chat` and
+`--case attachment-overlay-sheet` reset Photos permission before each appearance
+and use the real system prompt. `--photo-access full|limited|denied|settings`
+selects the outcome; `settings` denies first, opens system Settings, then
+returns without changing authorization to verify the live continuation. Changing
+privacy in Settings can terminate the app and is a separate cold-launch path. Evidence includes the system handoff, restored
+recent-photos surface, retained draft/selection and continued keyboard input.
+Run native UI drivers serially to avoid simulator accessibility contention.
+
+`attachment-camera-chat` / `attachment-camera-sheet` exercise the production
+three-action menu and inline camera page with `--ui-verify-camera`. The native
+capture fixture fails the first shutter press, then creates a local image;
+checks cover back/reopen, inline glass tools, flash cycling, retry, direct attachment handoff and
+capture-session shutdown on page exit/dismissal. Both appearances are recorded.
+This verifies UI and ownership, not physical camera hardware or sensor output.
+The Photos permission cases above continue to exercise actual system prompts.
+Use `--camera-access allow` or `--camera-access deny` with these same camera
+cases to reset only the leased device's camera permission and exercise the real
+system prompt. The returned panel must remain above the keyboard; capture on
+Simulator may show the native unavailable-camera message. Never reset privacy on
+a user preview device.
+
+Attachment media geometry checks assert a 60% window-height viewport and 12 pt
+side/bottom insets for photos and camera. The root menu uses 56 pt rows with
+40 pt icon discs and 16 pt symbols (visually review the captured root menu).
+Photo checks also cover multiline drafts and, in the chat host, a hidden keyboard.
+
+Attachment controls share 40 pt visible height and a minimum 44 pt hit area.
+The root menu uses 20 pt side and 12 pt vertical padding: its first/last icon
+centers coincide with the nominal 40 pt menu corner centers. Camera checks tap
+the expanded edge of the back button, outside its visible glass.
+
+Camera capture accepts a photo directly into the draft without a review screen or
+sending a message. The overlay closes into the actual attachment thumbnail using
+a transient image; Reduce Motion and offscreen targets fade in place. Ownership
+is transferred before animation, so cancellation cannot delete an accepted file.
+
+Continuous attachment pages retain one outer glass panel across push/back.
+The camera body uses `contentLayout: .viewport`; the photo grid keeps the default
+`.stable` allocation and its scroll offset. Both expose `OverlayPageChrome` for
+fixed-size foreground controls that follow the live bottom edge and safe inset.
+Review `run.mp4` through entry and return in both hosts, checking for clipped
+controls, scaled labels/icons and outgoing media behind incoming menu labels.
+The upstream library's Reliability scene also samples rapid reversal and
+same-size page changes through the public API.
+
+Recent-photo confirmation shares the camera's draft-first thumbnail handoff.
+Full-access photo cases capture single selection, clearing the last selection
+(neutral All Photos), and multiple selection (system-blue Add N Items), then
+verify both single and batch imports without sending a message. Review the
+recording through each confirmation: the first newly accepted image represents
+the batch and contracts into its actual thumbnail. Offscreen destinations and
+Reduce Motion keep the library's existing in-place fade.
+
+The overlay kit now owns external-interaction continuations, destination visibility,
+menu rows, glass action buttons and bottom action-bar geometry. Keep the permission
+request and media/draft ownership in Lody. Reuse `attachment-overlay-*` with both
+`--photo-access full` and `--photo-access settings` to cover prompt restoration and
+an actual Settings round trip in both composer hosts; the camera cases also exercise
+the shared action bar with a custom shutter. Upstream Reliability checks stale
+continuations, exactly-once restoration, and destination alpha on cancellation or
+replacement.
+
+The full-access attachment overlay flow also exercises the photo layout toggle in
+both directions, including reversal while the corner spring is settling. Review
+the screenshots and recording for an 18pt top panel radius in inset mode
+(6pt photo radius + 12pt inset), restored 40pt in edge-to-edge mode, and the
+same inset corners after reopening the page. Bottom corners remain device-concentric.
+The flow runs in
+both composer hosts and appearances. It checks 12pt margins on all four edges,
+edge-to-edge restoration, a saved layout after the page stack is recreated,
+selection retention, and the visible photo anchor after switching while scrolled.
+The Photos fixture includes enough rows for a real scroll. Layout controls reuse
+AnchoredOverlayKit; the preference and photo layout stay in LodyKit.
+
 `agent-error` verifies native inline alert cards, separate detail/copy actions, hidden actions for historical or incomplete failures, single-dispatch manual retry, definite rejection, accepted continuation, compact content-driven height, stable pending action geometry and preserved composer drafts in both appearances. Its retry service is local; no cloud turn is sent. Set `LODY_VERIFY_RUNTIME` to an installed Simulator runtime identifier when the default iOS 27.0 runtime is unavailable.
 
 ### Scroll edge host coverage
@@ -670,18 +752,18 @@ and video cover both hosts. Service data is offline; this does not establish liv
 cloud synchronization. Session trees use `openedBySessionId`; contained Tabs and
 transcript `subagent_task` items retain their existing UI.
 
-`--suite camera` opens the recent-photo grid from both production composer hosts.
-The first cell expands its preview into an edge-to-edge camera inside the same
-3:4 sheet, while controls float over the image with safe-area clearance. The menu camera instead opens full-screen with black control regions outside a 3:4 viewfinder. The explicit `--ui-verify-camera`
-launch fixture supplies a local image and rejects the first shutter press; it
-never requests camera or photo-library access. Both English appearances exercise
-retry, review, retake/temporary-file cleanup, multiple captured selections,
-attachment handoff, separate full-screen camera entry and direct confirmation, cancellation and foreground
-ownership. The grid morph keeps preview geometry fixed and scales it with the viewport while the sheet background and controls transition together. Screenshots/video cover the transition and camera UI. The lifecycle
-record proves session start/stop requests, not physical sensor activity.
-`verify:native --case composer` also checks actual JPEG storage and invalid input.
-Real camera preview, orientation, focus, flash and lens switching require iPhone
-validation; the fixture does not establish their hardware behavior.
+`--suite camera` exercises the attachment overlay camera in both composer hosts,
+using the same checks as `attachment-camera-chat` and `attachment-camera-sheet`.
+The explicit `--ui-verify-camera` launch fixture supplies a local image and rejects
+the first shutter press. The checks cover retry, flash/lens controls, direct
+attachment handoff, cancellation and foreground ownership. Screenshots and video
+cover the continuous menu/container transition. Share Extension retains its system
+attachment sheet because the keyboard overlay requires application-only APIs;
+its shared capture service is compiled into both targets.
+`verify:native --case composer` also checks JPEG storage, invalid input, overlay
+viewport resizing and ChatKit attachment handoff geometry/cleanup. Real camera
+preview, orientation, focus, flash and lens switching require iPhone validation;
+the fixture does not establish their hardware behavior.
 
 `--suite paste-plain` checks the native Paste as Plain Text menu in chat and the
 new-session composer, in English light/dark appearances. It verifies that long
@@ -706,3 +788,8 @@ and re-enters the chat; the fixture's active-source counter must stay at one, so
 an abandoned renderer cannot keep running unnoticed.
 Native presentation-layer traces verify fade blur in on each return, removal of
 the entrance blur, and no replay during dragging or keyboard layout changes.
+
+`--case attachment-overlay-create` additionally exercises the production native
+`CreateSessionController` form: photo authorization, keyboard coverage, attachment
+handoff and draft preservation. It uses the offline create-parity fixture and full
+Photos access.

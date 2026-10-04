@@ -547,8 +547,8 @@
   "native.chat.composer.send": "Send",
   "native.chat.composer.sending": "Sending",
   "native.chat.composer.attach": "Add attachment",
-  "native.chat.composer.recentPhotos": "Recent Photos",
-  "native.chat.composer.photoLibrary": "Photo Library",
+  "native.chat.composer.recentPhotos": "Photos",
+  "native.chat.composer.photoLibrary": "All Photos",
   "native.chat.composer.files": "Files",
   "native.chat.composer.failedDraft": "One message was not sent · Tap to merge it into the draft",
   "native.chat.attachment.selected": "Selected",
@@ -1016,5 +1016,11 @@
   "session.context.count": "{count} previews",
   "simulator.chooseAnother": "Choose Another Simulator",
   "native.simulator.expand": "Expand Simulator preview",
-  "native.simulator.close": "Close Simulator preview"
+  "native.simulator.close": "Close Simulator preview",
+  "native.chat.attachment.back": "Back to attachment menu",
+  "native.chat.attachment.noPhotos": "No recent photos",
+  "native.chat.camera.more": "Camera options",
+  "native.chat.attachment.grid.inset": "Inset grid",
+  "native.chat.attachment.grid.edgeToEdge": "Edge-to-edge grid",
+  "native.chat.attachment.grid.options": "Photo layout"
 }

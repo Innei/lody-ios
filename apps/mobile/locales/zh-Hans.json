@@ -547,8 +547,8 @@
   "native.chat.composer.send": "发送",
   "native.chat.composer.sending": "正在发送",
   "native.chat.composer.attach": "添加附件",
-  "native.chat.composer.recentPhotos": "最近照片",
-  "native.chat.composer.photoLibrary": "照片图库",
+  "native.chat.composer.recentPhotos": "照片",
+  "native.chat.composer.photoLibrary": "所有照片",
   "native.chat.composer.files": "文件",
   "native.chat.composer.failedDraft": "有一条未发出的消息 · 点此合并到草稿",
   "native.chat.attachment.selected": "已选择",
@@ -1016,5 +1016,11 @@
   "session.context.count": "{count} 个预览",
   "simulator.chooseAnother": "选择其他模拟器",
   "native.simulator.expand": "展开模拟器预览",
-  "native.simulator.close": "关闭模拟器预览"
+  "native.simulator.close": "关闭模拟器预览",
+  "native.chat.attachment.back": "返回附件菜单",
+  "native.chat.attachment.noPhotos": "暂无最近照片",
+  "native.chat.camera.more": "相机选项",
+  "native.chat.attachment.grid.inset": "留白布局",
+  "native.chat.attachment.grid.edgeToEdge": "铺满布局",
+  "native.chat.attachment.grid.options": "照片布局"
 }

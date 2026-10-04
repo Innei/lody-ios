@@ -1,3 +1,4 @@
+#if LODY_SHARE_EXTENSION
 import AVFoundation
 import Photos
 import UIKit
@@ -674,3 +675,5 @@ final class ChatAttachmentSheet: UIViewController, UICollectionViewDataSource, U
     }
   }
 }
+
+#endif

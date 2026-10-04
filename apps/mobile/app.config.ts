@@ -36,6 +36,7 @@ const config: ExpoConfig = {
   },
   plugins: [
     'expo-router',
+    './plugins/withAnchoredOverlay',
     ['expo-dev-client', { toolsButton: false }],
     './plugins/withSceneLifecycle',
     './plugins/withMarkdownView',

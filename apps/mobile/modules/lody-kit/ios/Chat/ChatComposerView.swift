@@ -1,3 +1,8 @@
+#if !LODY_SHARE_EXTENSION
+import AnchoredOverlayKit
+import AVFoundation
+import Photos
+#endif
 import ChatKit
 import EditorHistoryPlugin
 import Lexical
@@ -549,6 +554,11 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private let send = UIButton(type: .system)
   private let sendVisual = ChatComposerActionVisual()
   private let sendFeedback = UIImpactFeedbackGenerator(style: .medium)
+  #if !LODY_SHARE_EXTENSION
+  private let attachmentOverlay = AnchoredOverlayController()
+  private lazy var attachmentPages = OverlayPages(controller: attachmentOverlay)
+  #endif
+  private enum AttachmentPage { case photos, camera }
   private let attach = UIButton(type: .system)
   private let attachSurface = UIVisualEffectView(effect: nil)
   private let accessoryBar = UIView()
@@ -719,6 +729,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     attach.tintColor = .label
     attach.accessibilityLabel = LodyStrings.text("native.chat.composer.attach")
     attach.accessibilityIdentifier = "session-attach"
+#if LODY_SHARE_EXTENSION
     attach.showsMenuAsPrimaryAction = true
     attach.menu = UIMenu(children: [
       UIAction(title: LodyStrings.text("native.chat.composer.takePhoto"), image: UIImage(systemName: "camera")) { [weak self] _ in
@@ -734,6 +745,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
         self.filePicker.files(from: controller)
       },
     ])
+#else
+    attachmentOverlay.anchorTransition = .fade
+    attach.addTarget(self, action: #selector(presentAttachments), for: .touchUpInside)
+#endif
     modelButton.accessibilityIdentifier = "session-model"
     modelButton.addTarget(self, action: #selector(presentComposerOptions), for: .touchUpInside)
     modelButton.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -884,11 +899,16 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private func saveDraft() {
     onDraftChange?(input.draftEnvelope)
   }
-  @objc private func appDidEnterBackground() { saveDraft() }
+  @objc private func appDidEnterBackground() {
+    saveDraft()
+  }
   override func didMoveToWindow() {
     super.didMoveToWindow()
     if window == nil {
       saveDraft()
+      #if !LODY_SHARE_EXTENSION
+      attachmentOverlay.cancel()
+      #endif
       optionsPopover?.dismiss(animated: false)
     }
     else if mentionNeedsFocus || autoFocus {
@@ -981,6 +1001,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     input.text = ""
     attachments = []
   }
+  #if LODY_SHARE_EXTENSION
   private func presentAttachmentCamera() {
     guard let controller = presenter() else { return }
     let camera = ChatAttachmentSheet(cameraOnly: true)
@@ -993,6 +1014,160 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     sheet.onPick = { [weak self] picked in self?.addAttachments(picked) }
     controller.present(sheet, animated: true)
   }
+  #else
+  @objc private func presentAttachments() {
+    guard attach.isEnabled else { return }
+    if attachmentOverlay.isPresented { attachmentOverlay.dismiss(); return }
+    let page = OverlayPage(id: "attachments", layout: OverlayLayout(width: .fixed(280), height: .content(max: 300)),
+      appearance: OverlayAppearance(corners: .fixed(OverlayControlMetrics().menuRadius))) { [weak self] in
+      ChatAttachmentMenu.content { [weak self] action in
+        guard let self else { return }
+        switch action {
+        case .recentPhotos: self.presentRecentPhotos()
+        case .takePhoto: self.openCamera()
+        case .files:
+          self.finishAttachmentOverlay { owner, controller in owner.filePicker.files(from: controller) }
+        }
+      }
+    }
+    attachmentPages.present(page, anchoredTo: attach, dismissLabel: LodyStrings.text("native.close"))
+  }
+
+  private func finishAttachmentOverlay(onCancel: (() -> Void)? = nil, _ action: @escaping (ChatComposerView, UIViewController) -> Void) {
+    attachmentOverlay.dismissWithResult { [weak self] result in
+      guard result == .dismissed, let self, self.window != nil,
+            self.attach.isEnabled, let controller = self.presenter() else { onCancel?(); return }
+      action(self, controller)
+    }
+  }
+
+  private var attachmentMediaLayout: OverlayLayout {
+    .bottomEdge(inset: 12, height: .viewportFraction(0.60))
+  }
+
+  private func presentRecentPhotos() {
+    attachmentPages.push(OverlayPage(id: "recent-photos", layout: attachmentMediaLayout,
+      appearance: ChatRecentPhotosView.initialAppearance) { [weak self] in
+      let photos = ChatRecentPhotosView()
+      photos.onAppearanceChange = { [weak self] appearance in
+        guard let self, self.attachmentPages.pageID == "recent-photos" else { return }
+        self.attachmentPages.controller.updateAppearance(appearance)
+      }
+      photos.onBack = { [weak self] in self?.attachmentPages.back() }
+      photos.onLibrary = { [weak self] in
+        self?.finishAttachmentOverlay { owner, controller in owner.libraryPicker.present(from: controller) }
+      }
+      photos.onRequestAccess = { [weak self] in self?.requestPhotoAccess() }
+      photos.onManageLimited = { [weak self] in
+        self?.performMediaAccess { controller, complete in
+          PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: controller) { _ in
+            Task { @MainActor in complete(true) }
+          }
+        }
+      }
+      photos.onPick = { [weak self] picked in
+        guard let self else { ChatAttachment.discardImports(picked); return }
+        self.acceptOverlayAttachments(picked)
+      }
+      return photos
+    })
+  }
+  private func openCamera() {
+    if !ChatCameraCapture.fixture && AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined {
+      requestCameraAccess()
+    } else { presentCamera() }
+  }
+
+  private func presentCamera() {
+    attachmentPages.push(OverlayPage(id: "camera", layout: attachmentMediaLayout,
+      appearance: OverlayAppearance(corners: .bottomConcentric(top: 40)), contentLayout: .viewport) { [weak self] in
+      let camera = ChatCameraPage()
+      camera.onBack = { [weak self] in self?.attachmentPages.back() }
+      camera.onRequestAccess = { [weak self] in self?.requestCameraAccess() }
+      camera.onPick = { [weak self] photo in
+        guard let self else { try? FileManager.default.removeItem(at: photo.url); return }
+        self.acceptOverlayAttachments([photo])
+      }
+      return camera
+    })
+  }
+
+  /// The draft owns imports before the visual handoff; animation cancellation
+  /// must never discard an accepted attachment.
+  private func acceptOverlayAttachments(_ picked: [ChatAttachment]) {
+    guard window != nil, attach.isEnabled, attachmentOverlay.isPresented else {
+      ChatAttachment.discardImports(picked.filter { item in !attachments.contains { $0.url == item.url } })
+      return
+    }
+    let accepted = picked.filter { item in !attachments.contains { $0.id == item.id } }
+    ChatAttachment.discardImports(picked.filter { item in
+      attachments.contains { $0.id == item.id } && !attachments.contains { $0.url == item.url }
+    })
+    guard let first = accepted.first else { attachmentOverlay.dismiss(); return }
+    addAttachments(accepted)
+    window?.layoutIfNeeded()
+    // Newly inserted ChatKit pills have not rendered yet. Use the accepted photo
+    // as the transition content and the package's public geometry as its target.
+    guard let image = ChatAttachment.thumbnail(first.url) else { attachmentOverlay.dismiss(); return }
+    let representation = UIImageView(image: image)
+    representation.contentMode = .scaleAspectFill
+    representation.clipsToBounds = true
+    let destination = attachmentBar.handoffDestination(id: first.id)
+    attachmentOverlay.dismiss(to: destination, representation: representation, cornerRadius: 17) { [weak self] _ in
+      self?.attachmentBar.finishHandoff()
+    }
+  }
+
+  private func requestCameraAccess() {
+    let needsPrompt = AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined
+    performMediaAccess(page: .camera, waitForActivation: !needsPrompt) { _, complete in
+      if needsPrompt {
+        AVCaptureDevice.requestAccess(for: .video) { _ in
+          Task { @MainActor in complete(true) }
+        }
+      } else if let url = URL(string: UIApplication.openSettingsURLString) {
+        UIApplication.shared.open(url) { opened in
+          Task { @MainActor in complete(opened) }
+        }
+      }
+    }
+  }
+
+  private func requestPhotoAccess() {
+    let needsPrompt = PHPhotoLibrary.authorizationStatus(for: .readWrite) == .notDetermined
+    performMediaAccess(waitForActivation: !needsPrompt) { _, complete in
+      if needsPrompt {
+        PHPhotoLibrary.requestAuthorization(for: .readWrite) { _ in
+          Task { @MainActor in complete(true) }
+        }
+      } else if let url = URL(string: UIApplication.openSettingsURLString) {
+        UIApplication.shared.open(url) { opened in
+          Task { @MainActor in complete(opened) }
+        }
+      }
+    }
+  }
+
+  private func performMediaAccess(page: AttachmentPage = .photos, waitForActivation: Bool = false,
+      _ action: @escaping (UIViewController, @escaping @MainActor (Bool) -> Void) -> Void) {
+    guard let controller = presenter() else { return }
+    attachmentOverlay.performExternalInteraction(from: controller,
+      interaction: waitForActivation ? .leavingApp : .inApp,
+      isValid: { [weak self, weak controller] in
+        guard let self, let controller else { return false }
+        return self.attach.isEnabled && self.presenter() === controller
+      }, operation: action, resume: { [weak self] in
+        guard let self else { return }
+        self.presentAttachments()
+        switch page {
+        case .photos: self.presentRecentPhotos()
+        case .camera: self.presentCamera()
+        }
+      })
+  }
+
+  #endif
+
   private func addAttachments(_ picked: [ChatAttachment]) {
     attachments += picked.filter { new in !attachments.contains { $0.id == new.id } }
     UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -1078,7 +1253,12 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     surfaceLayout.update(isFocused: expanded)
     input.isEditable = state.editable && (sendHandoff || !sending)
     attach.isEnabled = state.editable && !sending
+    #if !LODY_SHARE_EXTENSION
+    if !attach.isEnabled { attachmentOverlay.cancel() }
+    if !attachmentOverlay.isPresented { attach.alpha = attach.isEnabled ? 1 : 0.5 }
+    #else
     attach.alpha = attach.isEnabled ? 1 : 0.5
+    #endif
     attachmentBar.isUserInteractionEnabled = state.editable && !sending
     attachmentBar.render(attachments)
     attachmentHeight.constant = attachmentBar.hasVisiblePills ? 42 : 0
