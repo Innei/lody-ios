@@ -14,6 +14,7 @@ Pod::Spec.new do |s|
   s.source = { git: 'https://github.com/Innei/lody-ios.git', tag: s.version.to_s }
   s.static_framework = true
   s.libraries = 'sqlite3'
+  s.dependency 'AnchoredOverlayKit', '0.1.2'
   s.dependency 'ExpoModulesCore'
   s.dependency 'OneSignalXCFramework/OneSignal', '5.5.1'
   # Precompiled ExpoModulesCore skips autolinking's macro-plugin injection.

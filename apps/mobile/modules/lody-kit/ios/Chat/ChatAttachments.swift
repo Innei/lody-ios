@@ -10,6 +10,11 @@ struct ChatAttachment: Equatable {
   let url: URL
   let isImage: Bool
 
+  /// Only for newly imported files that were never accepted into a draft.
+  static func discardImports(_ items: [ChatAttachment]) {
+    for item in items { try? FileManager.default.removeItem(at: item.url) }
+  }
+
   static func thumbnail(_ url: URL) -> UIImage? {
     guard url.isFileURL, let source = CGImageSourceCreateWithURL(url as CFURL, nil),
       let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
@@ -244,6 +249,18 @@ final class ChatAttachmentBar: UIScrollView {
     guard let index = rendered.firstIndex(where: { $0.id == id }), index < stack.arrangedSubviews.count else { return nil }
     let view = stack.arrangedSubviews[index]
     return view.convert(view.bounds, to: self)
+  }
+
+  /// Actual rendered image destination, including the horizontal scroll offset.
+  func thumbnailView(id: String) -> UIView? {
+    guard let index = rendered.firstIndex(where: { $0.id == id }), index < stack.arrangedSubviews.count,
+          let surface = stack.arrangedSubviews[index] as? UIVisualEffectView,
+          let button = surface.contentView.subviews.first as? UIButton,
+          let image = button.imageView else { return nil }
+    layoutIfNeeded()
+    let rect = image.convert(image.bounds, to: self)
+    guard bounds.contains(rect) else { return nil }
+    return image
   }
 
   func snapshot(id: String) -> UIView? {

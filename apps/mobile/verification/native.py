@@ -34,7 +34,7 @@ checks = {
     'content-store': ['Cloud/ContentStore.swift'],
     'chat-render': ['LodyStrings.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'Chat/ChatThrowCurve.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatCell.swift', 'Chat/ChatUserMentions.swift'],
     'model-panel': ['LodyStrings.swift', 'UIFont+Dynamic.swift', 'Chat/ChatComposerModelPanel.swift'],
-    'composer': ['LodyStrings.swift', 'UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatAttachmentSheet.swift', 'Chat/ChatComposerSurfaceLayout.swift', 'Chat/ChatComposerLiquidGlassSurfaceLayout.swift', 'Chat/ChatMentionPanel.swift', 'Chat/ChatComposerModelPanel.swift', 'Chat/ChatComposerView.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'Chat/ChatThrowCurve.swift', 'LodyTint.swift'],
+    'composer': ['LodyStrings.swift', 'UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatRecentPhotosView.swift', 'Chat/ChatAttachmentMenu.swift', 'Chat/ChatAttachmentCamera.swift', 'Chat/ChatCameraPage.swift', 'Chat/ChatComposerSurfaceLayout.swift', 'Chat/ChatComposerLiquidGlassSurfaceLayout.swift', 'Chat/ChatMentionPanel.swift', 'Chat/ChatComposerModelPanel.swift', 'Chat/ChatComposerView.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatTextView.swift', 'Chat/ChatTextFade.swift', 'Chat/ChatThrowCurve.swift', 'LodyTint.swift'],
     'attachments': ['LodyStrings.swift', 'Cloud/SessionAttachments.swift'],
     'inline-diff': ['UIFont+Dynamic.swift', 'Diff/InlineDiffModel.swift', 'Diff/InlineDiffRenderer.swift'],
     'list': [
@@ -73,6 +73,18 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             arch = 'arm64' if platform.machine() == 'arm64' else 'x86_64'
             ios = '26.0'
             command += ['-sdk', sdk, '-target', f'{arch}-apple-ios{ios}-simulator']
+        if name == 'composer':
+            manifest = subprocess.check_output([
+                'node', '-p', 'require.resolve("@rien7/anchored-overlay-kit/package.json")',
+            ], cwd=root / 'apps/mobile', text=True).strip()
+            sources = sorted((Path(manifest).parent / 'Sources/AnchoredOverlayKit').glob('*.swift'))
+            subprocess.run([
+                *command, '-emit-library', '-static', '-emit-module',
+                '-module-name', 'AnchoredOverlayKit',
+                '-emit-module-path', str(Path(output) / 'AnchoredOverlayKit.swiftmodule'),
+                *map(str, sources), '-o', str(Path(output) / 'libAnchoredOverlayKit.a'),
+            ], check=True, timeout=120)
+            command += ['-I', output, '-L', output, '-lAnchoredOverlayKit']
         if name in ['attachments', 'github-mentions', 'github-pr']:
             command += ['-parse-as-library']
         if name == 'inline-diff':
