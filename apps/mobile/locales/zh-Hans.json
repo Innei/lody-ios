@@ -931,6 +931,7 @@
   "native.chat.camera.restricted": "此设备的相机访问受到限制。",
   "native.chat.camera.saveFailed": "无法保存照片，请重新拍摄。",
   "ios.info.cameraUsage": "拍摄照片并添加到消息附件。",
+  "ios.info.localNetworkUsage": "连接局域网中的 Mac，查看和控制其 iOS 模拟器。",
   "native.chat.camera.collapse": "收起相机",
   "native.chat.camera.flip": "切换镜头",
   "native.chat.camera.photo": "照片",

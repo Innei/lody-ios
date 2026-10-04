@@ -39,9 +39,8 @@ import UIKit
   private var frameSize = CGSize.zero
   private let status = UILabel()
   private let decoder = SimulatorStreamDecoder()
-  private var session: URLSession?
-  private var socket: URLSessionWebSocketTask?
-  private var receiving: Task<Void, Never>?
+  private var transport: SimulatorTransport?
+  private var rtcDisabled = false
   private var h264Disabled = false
   private var usingH264 = false
   private var transportRetries = 0
@@ -105,6 +104,7 @@ import UIKit
     source = next
     viewer = URL(string: next.url)
     h264Disabled = false
+    rtcDisabled = false
     transportRetries = 0
     guard let viewer else { return setStatus("native.simulator.unavailable") }
     if next.url != Self.fixtureURL {
@@ -169,7 +169,7 @@ import UIKit
   }
 
   private func connect() {
-    guard socket == nil, fixtureTimer == nil, retryTimer == nil, let source, let viewer else { return }
+    guard transport == nil, fixtureTimer == nil, retryTimer == nil, let source, let viewer else { return }
     decoder.reset()
     recoveries = 0
     if LodyUIVerify.enabled, source.url == Self.fixtureURL {
@@ -182,19 +182,35 @@ import UIKit
     }
     if device == nil { setStatus("native.simulator.connecting") }
     usingH264 = !h264Disabled
-    guard let address = SimulatorRemote.endpoint(
-      viewer, "stream", query: usingH264 ? [URLQueryItem(name: "codec", value: "h264")] : [], websocket: true) else {
-      return setStatus("native.simulator.unavailable")
+    let transport = SimulatorTransport(viewer: viewer, h264: usingH264)
+    self.transport = transport
+    transport.onOpen = { [weak self, weak transport] in
+      guard let self, let transport, self.transport === transport else { return }
+      self.opened(transport)
     }
-    let session = URLSession(configuration: .ephemeral)
-    let task = session.webSocketTask(with: SimulatorRemote.request(viewer, address, timeout: 20))
-    task.maximumMessageSize = 16 * 1024 * 1024 + 16
-    self.session = session
-    socket = task
-    task.resume()
+    transport.onMessage = { [weak self, weak transport] message in
+      guard let self, let transport, self.transport === transport else { return }
+      self.receive(message, transport: transport)
+    }
+    transport.onClose = { [weak self, weak transport] code in
+      guard let self, let transport else { return }
+      self.failed(transport, code: code)
+    }
+    transport.onFallback = { [weak self, weak transport] in
+      guard let self, let transport, self.transport === transport else { return }
+      self.rtcDisabled = true
+      self.decoder.reset()
+      self.finger = nil
+      self.edge = nil
+      self.timers.forEach { $0.invalidate() }
+      self.timers = []
+    }
+    transport.start(preferRTC: !rtcDisabled)
+  }
+
+  private func opened(_ transport: SimulatorTransport) {
+    let mode = transport.mode
     configuredSize = .zero
-    sendStreamConfig()
-    send(["type": "heartbeat"])
     lastMessageAt = Date()
     let started = Date()
     timers = [
@@ -203,26 +219,19 @@ import UIKit
       },
       Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
         MainActor.assumeIsolated {
-          guard let self, self.socket === task else { return }
-          if self.usingH264, Date().timeIntervalSince(self.lastMessageAt) >= 8 { return self.failed(task) }
-          if self.frameSize == .zero, Date().timeIntervalSince(started) >= 20 { self.failed(task) }
+          guard let self, self.transport === transport else { return }
+          if self.usingH264, Date().timeIntervalSince(self.lastMessageAt) >= 8 { return self.failed(transport) }
+          if self.frameSize == .zero, Date().timeIntervalSince(started) >= 20 { self.failed(transport) }
         }
       },
     ]
-    receiving = Task { [weak self] in
-      while !Task.isCancelled {
-        let message: URLSessionWebSocketTask.Message
-        do { message = try await task.receive() } catch {
-          self?.failed(task)
-          return
-        }
-        guard let self, self.socket === task else { return }
-        self.receive(message, task: task)
-      }
-    }
+    // Sending can synchronously fail RTC and open its fallback. Install timers
+    // first so that transition cancels this connection's timers as well.
+    sendStreamConfig()
+    if self.transport === transport, transport.mode == mode { send(["type": "heartbeat"]) }
   }
 
-  private func receive(_ message: URLSessionWebSocketTask.Message, task: URLSessionWebSocketTask) {
+  private func receive(_ message: URLSessionWebSocketTask.Message, transport: SimulatorTransport) {
     lastMessageAt = Date()
     switch message {
     case .string(let text):
@@ -233,10 +242,11 @@ import UIKit
     case .data(let data):
       let packet: SimulatorStreamDecoder.Packet
       do { packet = try decoder.handle(data, h264: usingH264) } catch {
-        return failed(task, codec: usingH264)
+        return failed(transport, codec: usingH264)
       }
       if let size = packet.size { install(size) }
       if let output = packet.output { show(output) }
+      guard self.transport === transport else { return }
       send(["type": "frame-ack", "sequence": packet.sequence])
     @unknown default:
       break
@@ -245,9 +255,9 @@ import UIKit
 
   /// Transport loss retries H.264 twice per stream; a codec failure falls back to MJPEG
   /// once. Neither replays input.
-  private func failed(_ task: URLSessionWebSocketTask, codec: Bool = false) {
-    guard socket === task else { return }
-    let fallback = usingH264 && (codec || task.closeCode.rawValue == 4002)
+  private func failed(_ transport: SimulatorTransport, code: Int = 1000, codec: Bool = false) {
+    guard self.transport === transport else { return }
+    let fallback = usingH264 && (codec || code == 4002)
     let retry = usingH264 && !fallback
     disconnect()
     if fallback {
@@ -275,18 +285,15 @@ import UIKit
     configTimer = nil
     timers.forEach { $0.invalidate() }
     timers = []
-    receiving?.cancel()
-    receiving = nil
-    socket?.cancel(with: .goingAway, reason: nil)
-    socket = nil
-    session?.invalidateAndCancel()
-    session = nil
+    transport?.close()
+    transport = nil
+    controlBusy = false
     finger = nil
     edge = nil
   }
 
   private func scheduleStreamConfig() {
-    guard socket != nil else { return }
+    guard transport != nil else { return }
     configTimer?.invalidate()
     configTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: false) { [weak self] _ in
       MainActor.assumeIsolated { self?.sendStreamConfig() }
@@ -342,7 +349,7 @@ import UIKit
       if layer.status == .failed {
         layer.flush()
         recoveries += 1
-        if recoveries > 3, let socket { return failed(socket, codec: true) }
+        if recoveries > 3, let transport { return failed(transport, codec: true) }
         decoder.awaitKeyFrame()
         return send(["type": "keyframe-request"])
       }
@@ -358,7 +365,7 @@ import UIKit
   }
 
   func perform(_ action: String) {
-    guard let viewer, let operationId = source?.operationId, !controlBusy else { return }
+    guard let transport, let operationId = source?.operationId, !controlBusy else { return }
     let control: [String: String]
     if let button = Self.buttons[action] {
       control = ["kind": "button", "button": button]
@@ -372,13 +379,13 @@ import UIKit
     lift()
     controlBusy = true
     Task { [weak self] in
-      _ = await SimulatorRemote.control(viewer, operationId: operationId, control: control)
-      self?.controlBusy = false
+      _ = await transport.perform(operationId: operationId, control: control)
+      if self?.transport === transport { self?.controlBusy = false }
     }
   }
 
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-    guard finger == nil, !controlBusy, socket != nil, let device, let touch = touches.first,
+    guard finger == nil, !controlBusy, let transport, transport.mode == .webRTC || transport.mode == .webSocket, let device, let touch = touches.first,
           device.display.bounds.contains(touch.location(in: device.display)) else { return }
     let point = location(touch)
     finger = touch
@@ -430,8 +437,6 @@ import UIKit
   }
 
   private func send(_ envelope: [String: Any]) {
-    guard let socket, let data = try? JSONSerialization.data(withJSONObject: envelope),
-          let text = String(data: data, encoding: .utf8) else { return }
-    socket.send(.string(text)) { _ in }
+    transport?.send(envelope)
   }
 }

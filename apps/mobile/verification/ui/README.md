@@ -817,10 +817,20 @@ chat, the keyboard stays clear, drafts survive, and close/reopen creates a fresh
 stream. Light/dark screenshots and video cover the transitions. This fixture
 requires neither cloud access nor a connected computer; it does not prove the
 remote tunnel's availability or background network continuity.
-Left/right/down swipes inside the device must not dismiss Preview. It also cancels
-an interactive return, changes the selected device, stops sharing, and re-enters
-the chat; the fixture's active-source counter must stay at one, so
-an abandoned renderer cannot keep running unnoticed.
+`pnpm verify:native --case simulator-transport` separately exercises the production
+native transport with a real local WebRTC DTLS/SCTP pair and a loopback WebSocket
+server: bounded frame reassembly, acknowledged controls, disconnect without
+replaying uncertain commands, old/malformed/redirecting signaling fallback, and
+close during negotiation. It uses synthetic HTTP signaling and does not establish
+live TURN, cross-network latency or compatibility with a deployed CLI version.
+Left/right/down swipes inside the device must not dismiss Preview. A slow border
+swipe must visibly shrink and move the device while held, then cancel without
+replacing the decoder. A longer edge swipe must track touch before completing
+into the PiP. The check measures decoded-frame pixels in intermediate screenshots
+because UIKit's transition container leaves the renderer's own layer/AX geometry
+unchanged. It also changes the selected device, stops sharing, and re-enters the
+chat; the fixture's active-source counter must stay at one, so an abandoned
+renderer cannot keep running unnoticed.
 Native presentation-layer traces verify fade blur in on each return, removal of
 the entrance blur, and no replay during dragging or keyboard layout changes.
 

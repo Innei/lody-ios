@@ -17,12 +17,13 @@ enum SimulatorRemote {
   static func request(_ viewer: URL, _ address: URL, timeout: TimeInterval) -> URLRequest {
     var request = URLRequest(url: address, timeoutInterval: timeout)
     if let scheme = viewer.scheme, let host = viewer.host {
-      request.setValue("\(scheme)://\(host)", forHTTPHeaderField: "Origin")
+      let port = viewer.port.map { ":\($0)" } ?? ""
+      request.setValue("\(scheme)://\(host)\(port)", forHTTPHeaderField: "Origin")
     }
     return request
   }
 
-  static func control(_ viewer: URL, operationId: String, control: [String: String]) async -> Bool {
+  static func control(_ viewer: URL, operationId: String, control: [String: String], session: URLSession? = nil) async -> Bool {
     guard let address = endpoint(viewer, "control"),
           let body = try? JSONSerialization.data(withJSONObject: [
             "operationId": operationId, "requestId": UUID().uuidString, "control": control,
@@ -31,7 +32,8 @@ enum SimulatorRemote {
     post.httpMethod = "POST"
     post.setValue("application/json", forHTTPHeaderField: "Content-Type")
     post.httpBody = body
-    guard let (data, _) = try? await session.data(for: post),
+    guard let (data, response) = try? await (session ?? Self.session).data(for: post),
+          (response as? HTTPURLResponse)?.statusCode == 200,
           let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
     return result["success"] as? Bool == true
   }

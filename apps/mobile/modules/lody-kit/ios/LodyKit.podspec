@@ -16,6 +16,7 @@ Pod::Spec.new do |s|
   s.libraries = 'sqlite3'
   s.dependency 'AnchoredOverlayKit', '0.1.2'
   s.dependency 'ExpoModulesCore'
+  s.dependency 'WebRTC-lib', '154.0.0'
   s.dependency 'OneSignalXCFramework/OneSignal', '5.5.1'
   # Precompiled ExpoModulesCore skips autolinking's macro-plugin injection.
   macros_plugin = File.join(File.dirname(`node --print "require.resolve('@expo/expo-modules-macros-plugin/package.json')"`.strip), 'apple')

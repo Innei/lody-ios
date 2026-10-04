@@ -931,6 +931,7 @@
   "native.chat.camera.restricted": "Camera access is restricted on this device.",
   "native.chat.camera.saveFailed": "Could not save the photo. Please take it again.",
   "ios.info.cameraUsage": "Take photos to attach to your messages.",
+  "ios.info.localNetworkUsage": "Connect to your Mac on the local network to view and control its iOS Simulator.",
   "native.chat.camera.collapse": "Collapse camera",
   "native.chat.camera.flip": "Switch camera",
   "native.chat.camera.photo": "PHOTO",

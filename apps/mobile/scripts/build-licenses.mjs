@@ -94,6 +94,12 @@ const buildTooling = [
  */
 const nativeComponents = [
   {
+    name: 'WebRTC',
+    license: 'BSD-3-Clause',
+    url: 'https://webrtc.org',
+    file: 'modules/lody-kit/licenses/WebRTC-LICENSE.txt',
+  },
+  {
     name: 'Octicons',
     license: 'MIT',
     url: 'https://github.com/primer/octicons',

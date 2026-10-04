@@ -6,6 +6,20 @@ final class LodySimulatorView: ExpoView {
   private var stream: SimulatorStreamView?
   private var lastCommand = 0
 
+  required init(appContext: AppContext? = nil) {
+    super.init(appContext: appContext)
+    NotificationCenter.default.addObserver(self, selector: #selector(willPush(_:)),
+      name: Notification.Name("RNSScreenWillPush"), object: nil)
+  }
+
+  isolated deinit { NotificationCenter.default.removeObserver(self) }
+
+  @objc private func willPush(_ notification: Notification) {
+    guard let controller = notification.object as? UIViewController,
+          isDescendant(of: controller.view) else { return }
+    adoptZoomTransition(on: controller)
+  }
+
   func setSource(_ json: String) {
     let next = SimulatorStreamView.shared(json)
     guard next !== stream else { return }
@@ -42,9 +56,9 @@ final class LodySimulatorView: ExpoView {
     if stream?.superview === self { stream?.frame = bounds }
   }
 
-  private func adoptZoomTransition() {
-    guard let controller = sequence(first: self as UIResponder, next: { $0.next })
-      .first(where: { $0 is UIViewController }) as? UIViewController,
+  private func adoptZoomTransition(on destination: UIViewController? = nil) {
+    guard let controller = destination ?? (sequence(first: self as UIResponder, next: { $0.next })
+      .first(where: { $0 is UIViewController }) as? UIViewController),
       controller.preferredTransition == nil else { return }
     let options = UIViewController.Transition.ZoomOptions()
     options.interactiveDismissShouldBegin = { [weak self, weak controller] context in

@@ -17,6 +17,23 @@ traces = container / 'tmp'
 entrances = 0
 
 
+def rendered_device(name):
+    # UIKit renders interactive zoom through a transition container; the
+    # renderer's own layer/AX frame stays unchanged. Measure actual pixels.
+    width = 402
+    pixels = subprocess.check_output([
+        'ffmpeg', '-v', 'error', '-i', str(ui.output / f'{name}.png'),
+        '-vf', f'scale={width}:-1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-',
+    ], timeout=20)
+    points = [i // 3 for i in range(0, len(pixels), 3)
+              if pixels[i + 2] > pixels[i] + 65 and pixels[i + 2] > pixels[i + 1] + 65
+              and abs(pixels[i] - pixels[i + 1]) < 35]
+    assert points, f'{name}: no decoded device frame was visible'
+    xs = [point % width for point in points]
+    ys = [point // width for point in points]
+    return {'width': max(xs) - min(xs), 'top': min(ys), 'height': max(ys) - min(ys)}
+
+
 def stream():
     item = ui.element('simulator-stream')
     value = item.get('AXValue') or ''
@@ -80,8 +97,10 @@ def tap_chip(name, taps=1):
     chip = ui.element('session-preview')['frame']
     point = ('-x', str(chip['x'] + chip['width'] / 2), '-y', str(chip['y'] + chip['height'] / 2))
     started = time.monotonic()
+    steps = []
     for _ in range(taps):
-        ui.axe('tap', *point)
+        steps += ['--step', 'tap ' + ' '.join(point) + ' --tap-style physical']
+    ui.axe('batch', *steps)
     # The fixture delays the first resume by 8 s; every tap must land before the first push.
     elapsed = time.monotonic() - started
     assert elapsed < 7.5, f'Repeated taps took {elapsed:.1f}s, too slow to race the resume'
@@ -121,11 +140,63 @@ for name, start_x, start_y, end_x, end_y in (
     assert stream()[0] == first[0], f'A {name} swipe replaced the decoder'
     assert motions('land') == before_swipes, f'A {name} swipe started a navigation return'
     ui.capture(f'device-swipe-{name}')
-ui.axe('swipe', '--start-x', '1', '--start-y', '450', '--end-x', '30', '--end-y', '450', '--duration', '1.5', '--post-delay', '.8')
+# First-open dismissal must already be interactive.
+before_swipes = motions('land')
+command = ['axe', 'swipe', '--start-x', '15', '--start-y', '300',
+           '--end-x', '15', '--end-y', '360', '--duration', '6',
+           '--delta', '1', '--udid', ui.udid]
+gesture = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+try:
+    time.sleep(2)
+    ui.screenshot('return-progress-early')
+    time.sleep(2)
+    ui.screenshot('return-progress-late')
+    assert motions('land') == before_swipes, 'The controller finished dismissing while the finger was still held'
+finally:
+    stdout, _ = gesture.communicate(timeout=15)
+    assert gesture.returncode == 0, stdout
+time.sleep(.8)
+
+
+early = rendered_device('return-progress-early')
+late = rendered_device('return-progress-late')
+assert early['width'] - late['width'] >= 3 and late['top'] - early['top'] >= 8, (early, late)
 assert ui.element('simulator-stream')['frame']['width'] > 200, 'A cancelled return left the renderer in the floating host'
 assert stream()[0] == first[0], 'A cancelled return replaced the decoder'
 ui.capture('cancelled-return')
+restored = rendered_device('cancelled-return')
+baseline = rendered_device('fullscreen')
+assert all(abs(restored[key] - baseline[key]) <= 1 for key in baseline), (baseline, restored)
 back()
+ui.axe('tap', '--id', 'simulator-preview-expand', '--post-delay', '1')
+assert stream()[0] == first[0], 'Expanding the PiP replaced the decoder'
+# A longer edge swipe commits; its intermediate frames must also track touch.
+before_commit = motions('land')
+gesture = subprocess.Popen([
+    'axe', 'swipe', '--start-x', '1', '--start-y', '450',
+    '--end-x', '280', '--end-y', '450', '--duration', '6',
+    '--delta', '2', '--udid', ui.udid,
+], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+try:
+    time.sleep(2)
+    ui.screenshot('commit-progress-early')
+    time.sleep(2)
+    ui.screenshot('commit-progress-late')
+    assert motions('land') == before_commit, 'Edge swipe dismissed before release'
+finally:
+    stdout, _ = gesture.communicate(timeout=15)
+    assert gesture.returncode == 0, stdout
+commit_early = rendered_device('commit-progress-early')
+commit_late = rendered_device('commit-progress-late')
+assert commit_early['height'] - commit_late['height'] >= 20, (commit_early, commit_late)
+(ui.output / 'gesture-progress.json').write_text(json.dumps({
+    'cancel': [early, late], 'commit': [commit_early, commit_late],
+    'baseline': baseline, 'restored': restored,
+}, indent=2))
+ui.element('simulator-preview-expand')
+landing = motion('land', before_commit)
+assert landing['zoomed'] and landing['standIn'] and not landing['hiddenWhileLanding'], landing
+entrances += 1
 returned = stream()
 assert returned[0] == first[0] and returned[1] == 1 and returned[2] > first[2], (first, returned)
 for action in ('expand', 'close'):
@@ -211,3 +282,5 @@ assert ui.element('session-preview')['AXLabel'] == chip_label('iPhone Simulator'
 ui.capture('chip-running')
 print(f'PASS: shared stream {first[0]} kept one connection and decoded frames across navigation; close created a fresh stream {reopened[0]}')
 print(f'PASS: {entrances} returns zoomed the full-screen device into the PiP; hide travelled to the chip')
+
+print('PASS: held dismissal follows touch, short drag cancels, edge drag commits into the same PiP')

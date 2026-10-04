@@ -23,6 +23,7 @@ if args.udid is None:
     raise SystemExit(run_with_simulator(SimulatorPool(), 'Native', command))
 sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'], text=True).strip()
 checks = {
+    'simulator-transport': ['LodyStrings.swift', 'SimulatorStream/SimulatorDeviceView.swift', 'SimulatorStream/SimulatorRemote.swift', 'SimulatorStream/SimulatorRTCFrame.swift', 'SimulatorStream/SimulatorRTC.swift', 'SimulatorStream/SimulatorTransport.swift'],
     'chat-kit': [],
     'lexical-swift': [],
     'scroll-edges': ['Chrome/LodyScrollEdges.swift', 'LodyTint.swift', 'Chrome/LodyEdgeFade.swift'],
@@ -140,9 +141,12 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             subprocess.run(['swift', 'run', '--package-path', str(package), '--scratch-path', str(root / '.artifacts/native-local-store')], check=True, timeout=600)
             continue
         binary = str(Path(output) / name)
-        simulator = name in ['share-ingest', 'chat-kit', 'scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'context-chip', 'attachments', 'inline-diff', 'list', 'banner', 'chat-title', 'live-activity', 'chat-chrome']
+        simulator = name in ['simulator-transport', 'share-ingest', 'chat-kit', 'scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'context-chip', 'attachments', 'inline-diff', 'list', 'banner', 'chat-title', 'live-activity', 'chat-chrome']
         command = ['xcrun', '--sdk', 'iphonesimulator', 'swiftc'] if simulator else ['xcrun', 'swiftc']
         command += ['-swift-version', '6']
+        if name == 'simulator-transport':
+            framework = root / 'apps/mobile/ios/Pods/WebRTC-lib/WebRTC.xcframework/ios-x86_64_arm64-simulator'
+            command += ['-F', str(framework), '-framework', 'WebRTC', '-Xlinker', '-rpath', '-Xlinker', str(framework)]
         if simulator:
             arch = 'arm64' if platform.machine() == 'arm64' else 'x86_64'
             ios = '26.0'
@@ -181,7 +185,17 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
         subprocess.run(command, check=True, timeout=240)
         # A cold CI Simulator draws its first text far slower than a warm local one.
         command = ['xcrun', 'simctl', 'spawn', args.udid, binary] if simulator else [binary]
-        if name == 'attachments':
+        if name == 'simulator-transport':
+            subprocess.run(['codesign', '--force', '--sign', '-', binary], check=True)
+            with subprocess.Popen(['node', str(kit / 'verification/simulator-transport/server.mjs')], stdout=subprocess.PIPE, text=True) as server:
+                try:
+                    endpoint = server.stdout.readline().strip()
+                    if not endpoint.startswith('http://127.0.0.1:'):
+                        raise RuntimeError('Simulator transport fixture server did not start')
+                    subprocess.run(command, check=True, timeout=90, env={**os.environ, 'SIMCTL_CHILD_LODY_SIMULATOR_TEST_URL': endpoint})
+                finally:
+                    server.terminate()
+        elif name == 'attachments':
             with subprocess.Popen([sys.executable, str(kit / 'verification/attachments/progress-server.py')], stdout=subprocess.PIPE, text=True) as server:
                 try:
                     endpoint = server.stdout.readline().strip()

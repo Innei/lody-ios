@@ -475,19 +475,21 @@ with metro_context:
                     elif case not in HOME_CASES:
                         # The Debug list is a native UICollectionView; offscreen rows are not in the tree.
                         # Returning to the root keeps the list's scroll offset, so the row can sit above the viewport.
-                        for attempt in range(16):
-                            if any(item.get('AXUniqueId') == preview for item in ui.state()):
-                                break
-                            start, end = ('700', '500') if attempt < 8 else ('300', '700')
-                            ui.axe('swipe', '--start-x', '200', '--start-y', start, '--end-x', '200', '--end-y', end, '--duration', '0.5', '--post-delay', '0.6')
-                        # UIKit can expose a prefetched row behind the transparent header.
-                        # Move it into the tappable viewport before any physical tap.
-                        for _ in range(4):
-                            frame = ui.element(preview)['frame']
-                            if 140 <= frame['y'] <= 700:
-                                break
-                            start, end = ('300', '550') if frame['y'] < 140 else ('650', '400')
-                            ui.axe('swipe', '--start-x', '200', '--start-y', start, '--end-x', '200', '--end-y', end, '--duration', '0.5', '--post-delay', '0.6')
+                        for attempt in range(32):
+                            row = next((item for item in ui.state() if item.get('AXUniqueId') == preview), None)
+                            if row is not None:
+                                center = row['frame']['y'] + row['frame']['height'] / 2
+                                if 140 <= center <= 700:
+                                    break
+                                # Small, slow moves keep prefetched rows from
+                                # disappearing past the opposite viewport edge.
+                                travel = max(-180, min(180, 420 - center))
+                                start, end = 450, 450 + travel
+                            else:
+                                start, end = (700, 500) if attempt < 16 else (300, 500)
+                            ui.axe('swipe', '--start-x', '200', '--start-y', str(start), '--end-x', '200', '--end-y', str(end), '--duration', '0.8', '--post-delay', '1')
+                        else:
+                            raise AssertionError(f'Debug row is not visible: {preview}')
                         # A swipe keeps gliding after the row appears; tapping a moving row opens its neighbour.
                         settled = None
                         for _ in range(10):
@@ -583,8 +585,8 @@ with metro_context:
                         # to the existing source, diff and Quick Look round trips.
                         check_timeout = 300
                     elif case == 'simulator-preview':
-                        # Five zoom returns plus hide, stop and reopen flows, each waiting on recorded motion.
-                        check_timeout = 300
+                        # Held/cancelled/committed zoom gestures plus hide, stop and reopen flows.
+                        check_timeout = 420
                     elif case == 'send':
                         # Product path can finish, then AXe restore during pending
                         # toggles eats the rest of a 300s budget.
