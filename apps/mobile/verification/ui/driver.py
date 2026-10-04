@@ -15,6 +15,21 @@ def axe_session_dead(error):
     return 'remote automation session' in message or 'accessibility automation' in message
 
 
+def restart_accessibility(udid):
+    """A hung describe-ui keeps the simulator accessibility session until that client dies.
+    AXe restarts testmanagerd only after a channel disconnect, so a client timeout does it here."""
+    try:
+        subprocess.run(
+            ['xcrun', 'simctl', 'spawn', udid, 'launchctl', 'kickstart', '-k',
+             'user/foreground/com.apple.testmanagerd'],
+            check=False,
+            timeout=8,
+            capture_output=True,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return
+
+
 def launch_covered(items, app_pid):
     """describe-ui of another process means SpringBoard covered the launched app."""
     if not app_pid or not items:
@@ -51,6 +66,8 @@ class UI:
                 if not recover or not axe_session_dead(error) or time.monotonic() >= deadline:
                     raise
                 self._axe_ready = False
+                if isinstance(error, subprocess.TimeoutExpired):
+                    restart_accessibility(self.udid)
                 time.sleep(2)
 
     def type_into(self, identifier, text):

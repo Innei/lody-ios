@@ -341,7 +341,9 @@ the run requires it, including failures. A failed case always takes a Simulator
 framebuffer screenshot first (`failure.png`, also copied to `failures/`); that
 does not wait on AXe. The first `describe-ui` after a fresh Simulator boot
 retries until AXe's XCTest session exists. Later AXe commands retry the same way
-when that session dies. `navigation` dismisses the first-open SpringBoard alert
+when that session dies. A command that hangs restarts the simulator
+`testmanagerd` before the retry, because killing the client alone leaves the
+next `describe-ui` stuck on the same session. `navigation` dismisses the first-open SpringBoard alert
 by tapping Open without waiting on `describe-ui`, which hangs on that dialog, and
 does that only once so later links are not delayed by missing-label probes.
 Embedded `navigation` does two cold relaunches and one unknown-URL return, and

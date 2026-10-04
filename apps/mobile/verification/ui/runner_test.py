@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from driver import UI, launch_covered
+from driver import UI, launch_covered, restart_accessibility
 from orchestrator import managed_metro, prewarm_bundle, run_batches
 
 
@@ -271,10 +271,24 @@ class CaptureTest(unittest.TestCase):
                     raise subprocess.TimeoutExpired('axe', 20)
                 return 'ok'
 
-            with patch('subprocess.check_output', check_output), patch('driver.time.sleep'):
+            with (
+                patch('subprocess.check_output', check_output),
+                patch('driver.time.sleep'),
+                patch('driver.restart_accessibility') as restart,
+            ):
                 self.assertEqual(ui.axe('tap', '--id', 'send-fail'), 'ok')
             self.assertEqual(calls['count'], 3)
+            self.assertEqual(restart.call_count, 2)
+            restart.assert_called_with('UDID')
             self.assertTrue(ui._axe_ready)
+
+    def test_restart_accessibility_kickstarts_testmanagerd(self):
+        with patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0)) as run:
+            restart_accessibility('UDID')
+        command = run.call_args.args[0]
+        self.assertEqual(command[:4], ['xcrun', 'simctl', 'spawn', 'UDID'])
+        self.assertEqual(command[-2:], ['-k', 'user/foreground/com.apple.testmanagerd'])
+        self.assertFalse(run.call_args.kwargs['check'])
 
     def test_axe_retries_when_restoring_accessibility_times_out(self):
         with tempfile.TemporaryDirectory() as directory:
