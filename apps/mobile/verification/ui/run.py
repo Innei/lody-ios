@@ -454,7 +454,7 @@ with metro_context:
                     ui.wait(verify_ready, 'Missing ui-verify-ready', timeout=180)
                     preview = PREVIEW.get(case, 'chat-preview')
                     ready = 'ui-verify-ready' if case in HOME_CASES else READY.get(case, 'session-input')
-                    if case.startswith(('attachment-overlay-', 'attachment-camera-')):
+                    if case.startswith(('attachment-overlay-', 'attachment-camera-')) or case in ('quick-replies', 'context-chip'):
                         # Native list AX includes clipped rows. Only touch a row
                         # inside the content viewport, using its current frame.
                         for _ in range(24):

@@ -82,15 +82,17 @@ const previews = [
     },
 );
 
+type Params = { simulator: boolean } | undefined;
+
 function ViewContent() {
   const colors = usePalette();
-  const { present } = usePageRuntime();
+  const { present, params } = usePageRuntime<Params>();
   const { quickReplies, setQuickReplies } = useQuickReplies();
   const outbox = usePendingSends('quick-reply-preview', 'fixture');
   const record = outbox.records.find((item) => item.session.id === session.id);
   const [snapshot, setSnapshot] = useState(history);
   const [running, setRunning] = useState(false);
-  const [preview, setPreview] = useState(0);
+  const [preview, setPreview] = useState(params?.simulator ? 3 : 0);
   const [revision, setRevision] = useState(0);
   const [calls, setCalls] = useState(0);
   const completion = useRef<((value: string) => void) | null>(null);
@@ -185,6 +187,14 @@ function ViewContent() {
         >
           Preview
         </Button>
+        <Button
+          testID="quick-open-simulator"
+          onPress={() =>
+            void present(QuickRepliesPreviewScreen, { simulator: true })
+          }
+        >
+          Open with Simulator
+        </Button>
         <Button testID="quick-running" onPress={() => setRunning(true)}>
           Work
         </Button>
@@ -254,9 +264,10 @@ function ViewContent() {
   );
 }
 
-export const QuickRepliesPreviewScreen = definePage({
+export const QuickRepliesPreviewScreen = definePage<Params>({
   id: 'quick-replies-preview',
   title: 'Quick Replies',
   Component: ViewContent,
+  parseRouteParams: () => undefined,
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

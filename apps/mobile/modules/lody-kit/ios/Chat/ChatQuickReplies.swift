@@ -21,7 +21,7 @@ struct ChatPreviewChip: Decodable, Equatable {
   var actions: [Action]?
 }
 
-struct ChatContextChipContent: View {
+struct ChatContextChipContent: View, Equatable {
   var label = ""
   var symbol = "safari"
   var connecting = false
@@ -60,6 +60,7 @@ final class ChatContextChipButton: UIButton {
   private let clip = UIView()
   private var width: NSLayoutConstraint!
   private var height: NSLayoutConstraint!
+  private var renderedContent: ChatContextChipContent?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -88,6 +89,8 @@ final class ChatContextChipButton: UIButton {
   required init?(coder: NSCoder) { fatalError() }
 
   func apply(_ content: ChatContextChipContent, animation: Animation?) {
+    guard renderedContent != content else { return }
+    renderedContent = content
     if let animation {
       withAnimation(animation) { hosting.rootView = content }
     } else {
@@ -125,6 +128,14 @@ final class ChatQuickRepliesView: UIScrollView {
   private var rendered: [ChatQuickReply] = []
   private var renderedActions: [ChatPreviewChip.Action]?
   private var buttons: [UIButton] = []
+  private struct Content: Equatable {
+    let items: [ChatQuickReply]
+    let context: ChatPreviewChip?
+    let showsReplies: Bool
+    let compact: Bool
+    let visible: Bool
+  }
+  private var content: Content?
   var onSelect: ((String) -> Void)?
   var onPreview: ((String) -> Void)?
 
@@ -157,9 +168,16 @@ final class ChatQuickRepliesView: UIScrollView {
   required init?(coder: NSCoder) { fatalError() }
 
   func render(_ items: [ChatQuickReply], context: ChatPreviewChip?, showsReplies: Bool, compact: Bool, visible: Bool, animated: Bool = false) {
+    let next = Content(items: items, context: context, showsReplies: showsReplies, compact: compact, visible: visible)
+    guard next != content else { return }
+    // Mount at the final geometry during navigation. Only a row that already
+    // has content on screen can morph; unrelated composer echoes are no-ops.
+    let hadContent = !rendered.isEmpty || contextChip != nil
+    content = next
     let showsRow = visible && (context != nil || (showsReplies && !items.isEmpty))
     let visibilityChanged = isUserInteractionEnabled != showsRow
-    let motion = animated && window != nil && !UIAccessibility.isReduceMotionEnabled
+    let motion = animated && hadContent && window != nil && bounds.height > 0 && !isTransitioning && !UIAccessibility.isReduceMotionEnabled
+    if motion { layoutIfNeeded() }
     isUserInteractionEnabled = showsRow
     accessibilityElementsHidden = !showsRow
     if visibilityChanged {
@@ -206,12 +224,23 @@ final class ChatQuickRepliesView: UIScrollView {
     if motion && contextChip?.window != nil {
       UIView.animate(Self.motion, changes: layout) { retiring.forEach { $0.removeFromSuperview() } }
     } else {
-      layout()
+      UIView.performWithoutAnimation(layout)
       retiring.forEach { $0.removeFromSuperview() }
     }
   }
 
   private static let motion = Animation.smooth(duration: 0.35)
+
+  // Composer state can arrive in several updates during a push. Let UIKit own
+  // the page's entrance instead of animating a second displacement inside it.
+  private var isTransitioning: Bool {
+    var responder: UIResponder? = next
+    while let current = responder {
+      if let controller = current as? UIViewController, controller.transitionCoordinator != nil { return true }
+      responder = current.next
+    }
+    return false
+  }
 
   // UIStackView miscounts repeated isHidden writes inside animations and leaves a shown view hidden.
   private func show(_ view: UIView?, _ shown: Bool) {

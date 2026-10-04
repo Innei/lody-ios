@@ -21,6 +21,14 @@ def cycle(label):
 ui.axe('tap', '--id', 'quick-reset', '--post-delay', '.8')
 ui.element('quick-reply:continue')
 assert not any(i.get('AXUniqueId') == 'session-preview' for i in ui.state()), 'The fixture starts without a resource'
+ui.axe('tap', '--id', 'quick-open-simulator', '--post-delay', '.8')
+initial = chip(lambda i: i.get('AXLabel') == 'iPhone 17 Pro', 'A newly opened conversation lost its Simulator chip')['frame']
+first = min(replies(), key=lambda i: i['frame']['x'])['frame']
+assert abs(initial['x'] - 16) < 1, initial
+assert first['x'] - initial['x'] - initial['width'] > 12, 'Initial suggestions overlap the Simulator chip'
+ui.capture('simulator-opening')
+ui.axe('tap', '--id', 'BackButton', '--post-delay', '.8')
+assert not any(i.get('AXUniqueId') == 'session-preview' for i in ui.state()), 'Return changed the original context row'
 widths = {}
 for step, label in enumerate(['Connecting…', 'localhost:5173', 'iPhone 17 Pro', 'Preview Unavailable']):
     frame = cycle(label)['frame']
@@ -42,7 +50,7 @@ compact = chip(lambda i: abs(i['frame']['width'] - i['frame']['height']) < 2, 'T
 assert not replies(), 'Suggestions must leave while typing'
 ui.capture('typing')
 for _ in range(5):
-    ui.axe('key', '42')
+    ui.axe('tap', '--id', 'delete', '--post-delay', '.15')
 chip(lambda i: i['frame']['width'] > compact['frame']['width'] + 40, 'Clearing the draft did not restore the label')
 ui.wait(lambda items: len(replies(items)) == 3, 'Suggestions did not return')
 ui.capture('restored')

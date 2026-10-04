@@ -343,7 +343,8 @@ function View() {
       void present(AppIconFailurePreviewScreen, {}),
     'appearance-preview': () => void present(SettingsScreen, {}),
     'queued-message-behavior-preview': () => void present(SettingsScreen, {}),
-    'quick-replies-preview': () => void present(QuickRepliesPreviewScreen),
+    'quick-replies-preview': () =>
+      void present(QuickRepliesPreviewScreen, undefined),
     'session-tree-preview': () => void present(SessionTreePreviewScreen),
     'inbox-preview': () => void present(InboxPreviewScreen, {}),
     'background-preview': () => void present(BackgroundPreviewScreen, {}),

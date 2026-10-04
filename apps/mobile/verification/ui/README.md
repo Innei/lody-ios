@@ -210,6 +210,12 @@ connecting, ready, simulator and unavailable. The composer's single context
 chip must keep a separator before the suggestions and follow its label width.
 It collapses to its icon while a draft exists and stays when work hides the
 suggestions. `run.mp4` is the evidence for the width and text morphs.
+It also pushes a fresh conversation with a Simulator chip already present and
+returns to the original row. The native `context-chip` check samples presentation
+geometry through first display and repeated identical updates, rejecting a
+second entrance animation or a restarted horizontal displacement. It also
+delivers replies after a real navigation push has begun, checking that the row
+moves with its page instead of independently expanding during the transition.
 
 `pull-request` opens Debug → GitHub PR / CI 预览 with an injected OSS-shaped
 projection. It captures the native chat entry, PR summary, grouped checks,
