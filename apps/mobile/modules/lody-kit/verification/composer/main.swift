@@ -48,21 +48,25 @@ for size in [CGSize(width: 280, height: 300), CGSize(width: 390, height: 524)] {
 print("Camera: overlay viewport resizing passes")
 
 let handoffBar = ChatAttachmentBar()
-handoffBar.frame = CGRect(x: 0, y: 0, width: 390, height: 34)
-let handoffItem = ChatAttachment(id: "handoff", name: "photo.jpg", url: URL(fileURLWithPath: "/tmp/photo.jpg"), isImage: true)
-handoffBar.render([handoffItem])
+handoffBar.frame = CGRect(x: 0, y: 0, width: 200, height: 34)
+let handoffURL = FileManager.default.temporaryDirectory.appendingPathComponent("handoff-photo.png")
+try! UIGraphicsImageRenderer(size: CGSize(width: 30, height: 40)).image { context in
+  UIColor.systemBlue.setFill()
+  context.fill(CGRect(x: 0, y: 0, width: 30, height: 40))
+}.pngData()!.write(to: handoffURL)
+let handoffFiles = (0..<4).map { ChatAttachment(id: "file-\($0)", name: "notes-\($0).txt", url: URL(fileURLWithPath: "/tmp/notes-\($0).txt"), isImage: false) }
+let handoffItem = ChatAttachment(id: "handoff", name: "photo.png", url: handoffURL, isImage: true)
+handoffBar.render(handoffFiles + [handoffItem])
 handoffBar.layoutIfNeeded()
 let handoffTarget = handoffBar.handoffDestination(id: handoffItem.id)!
-precondition(handoffTarget.frame == handoffBar.attachmentFrame(id: handoffItem.id),
-  "The animation target must follow ChatKit's public attachment geometry")
-handoffBar.render([])
-handoffBar.setNeedsLayout()
-handoffBar.layoutIfNeeded()
-precondition(handoffTarget.isHidden, "Removing the draft attachment must invalidate its handoff target")
-handoffBar.finishHandoff()
-precondition(handoffTarget.superview == nil, "Completing or cancelling the handoff must release its target")
+let handoffPill = handoffBar.attachmentFrame(id: handoffItem.id)!
+precondition(handoffPill.contains(handoffTarget.convert(handoffTarget.bounds, to: handoffBar))
+  && handoffTarget.bounds.width < handoffPill.width / 2,
+  "The photo must land in the pill's thumbnail, not cover its name")
+precondition(handoffBar.handoffDestination(id: handoffFiles[0].id) == nil, "File pills have no thumbnail to land in")
 precondition(handoffBar.handoffDestination(id: "missing") == nil)
-print("Attachments: ChatKit handoff geometry, removal and cleanup pass")
+try? FileManager.default.removeItem(at: handoffURL)
+print("Attachments: ChatKit thumbnail handoff target and reveal pass")
 
 let composer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
 let initialScroll = UIScrollView()
