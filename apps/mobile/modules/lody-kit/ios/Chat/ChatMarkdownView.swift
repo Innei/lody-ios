@@ -164,7 +164,7 @@ final class ChatMarkdownView: UIView {
   override func layoutSubviews() {
     super.layoutSubviews()
     if bounds.width != measuredWidth { measure(width: bounds.width) }
-    ChatTableBleed.apply(to: self)
+    ChatTableViewport.apply(to: self)
   }
 
   override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {

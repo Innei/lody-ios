@@ -19,7 +19,7 @@ enum ChatMarkdownTheme {
     theme.colors.highlight = .lodyAccent
     theme.colors.emphasis = .lodyAccent
     theme.colors.codeBackground = .lodyInset
-    theme.colors.selectionBackground = UIColor.lodyAccent.withAlphaComponent(0.2)
+    theme.colors.selectionBackground = nil
     theme.spacings.paragraph = 8
     theme.spacings.headingBefore = 12
     theme.spacings.final = 0

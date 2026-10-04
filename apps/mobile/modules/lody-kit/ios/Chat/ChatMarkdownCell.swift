@@ -75,7 +75,7 @@ final class ChatMarkdownCell: UICollectionViewCell {
     contentView.clipsToBounds = false
     layer.masksToBounds = false
     contentView.layer.masksToBounds = false
-    ChatTableBleed.apply(to: markdown)
+    ChatTableViewport.apply(to: markdown)
   }
 
   override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
@@ -135,6 +135,6 @@ extension LodyChatView: TextSelectionGroupDelegate {
   }
 
   func textSelectionGroup(_ group: TextSelectionGroup, didDragSelectionIn label: TextLabelView, at location: CGPoint) {
-    ChatTableBleed.markdown(from: label)?.textLabelView(label, didDragSelectionAt: location)
+    ChatTableViewport.markdown(from: label)?.textLabelView(label, didDragSelectionAt: location)
   }
 }

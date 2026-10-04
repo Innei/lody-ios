@@ -38,10 +38,12 @@ def back(label=None):
 
 def dismiss_quicklook():
     frame = ui.element('QLPreviewControllerView')['frame']
+    grabber = next((i.get('frame') for i in ui.state() if i.get('AXLabel') == 'Sheet Grabber'), None)
+    start_y = grabber['y'] + grabber['height'] / 2 if grabber else max(frame['y'] + 16, 70)
     ui.axe(
         'swipe',
         '--start-x', str(frame['x'] + frame['width'] / 2),
-        '--start-y', str(max(frame['y'] + 16, 70)),
+        '--start-y', str(start_y),
         '--end-x', str(frame['x'] + frame['width'] / 2),
         '--end-y', str(frame['y'] + min(frame['height'] - 24, 720)),
         '--duration', '.5',
@@ -52,9 +54,72 @@ def dismiss_quicklook():
     if any(i.get('AXLabel') == catalog.text('native.close') for i in ui.state()):
         ui.axe('tap', '--label', catalog.text('native.close'), '--post-delay', '.5')
         return
+    # Quick Look hides its controls when the image is tapped. Reveal them
+    # before looking for the system dismissal action.
+    ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2),
+           '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.5')
     close = next((i for i in ui.state() if i.get('type') == 'Button' and str(i.get('AXLabel') or '').lower() in ['done', 'close']), None)
     assert close, 'Presented Quick Look must dismiss with a pull-down or Close'
     ui.axe('tap', '--label', close['AXLabel'], '--post-delay', '.5')
+
+
+def document_selection(name):
+    frame = ui.element('file-document-content')['frame']
+    x, y = frame['x'] + 20, frame['y'] + 18
+    ui.axe('touch', '-x', str(x), '-y', str(y), '--down')
+    try:
+        time.sleep(.8)
+        ui.screenshot(name + '-loupe-held')
+    finally:
+        ui.axe('touch', '-x', str(x), '-y', str(y), '--up')
+    copy = catalog.system('copy')
+    action = ui.wait(lambda items: next((item for item in items if
+        (item.get('AXLabel') or '').casefold() == copy.casefold() and
+        item.get('type') == 'GenericElement' and item.get('frame')), None),
+        'Document selection did not restore its Copy menu')
+    ui.capture(name + '-selection-released')
+    display_probe = Path(container) / 'tmp/lody-system-selection.json'
+    def native_selection(_):
+        if not display_probe.exists():
+            return None
+        value = json.loads(display_probe.read_text())
+        displays = value['displays']
+        return value if len(displays) == 1 and len(displays[0]['handles']) == 2 else None
+    display = ui.wait(native_selection, 'Document did not show one native selection with two handles')
+    assert display['customHandles'] == 0, display
+    (ui.output / (name + '-system-selection.json')).write_text(json.dumps(display, indent=2))
+    button = action['frame']
+    ui.axe('tap', '-x', str(button['x'] + button['width'] / 2),
+           '-y', str(button['y'] + button['height'] / 2), '--post-delay', '.3')
+    copied = subprocess.check_output(['xcrun', 'simctl', 'pbpaste', ui.udid], text=True).strip()
+    assert copied == 'Performance', repr(copied)
+    (ui.output / (name + '-copy.txt')).write_text(copied)
+    ui.axe('tap', '-x', str(frame['x'] + frame['width'] - 12), '-y', str(y), '--post-delay', '.3')
+
+if os.environ.get('LODY_VERIFY_FILE_SELECTION_ONLY') == '1':
+    ui.axe('tap', '--label', 'File Browser', '--post-delay', '.5')
+    ui.axe('tap', '--id', 'entry:report.md', '--post-delay', '.2')
+    title('report.md')
+    ui.element('file-document')
+    document_selection('browser-document')
+    back()
+    back()
+    ui.element('file-links:answer')
+    link(0)
+    title('report.md')
+    ui.element('file-document')
+    document_selection('chat-document')
+    back()
+    ui.axe('tap', '--id', 'file-links:process', '--post-delay', '.6')
+    ui.element('file-links:thought')
+    link(0, row='file-links:thought')
+    title('report.md')
+    ui.element('file-document')
+    document_selection('process-document')
+    back()
+    ui.element('file-links:thought')
+    print('PASS: browser, chat and process documents use one system selection, two native handles and no custom handles; held loupe and released Copy produce Performance')
+    sys.exit(0)
 
 assert ui.element('file-links:answer')['custom_actions'] == ['完整报告', '代码', '图片', 'PDF 文档', '不存在的文件', '读取失败']
 ui.capture('links')
@@ -67,6 +132,7 @@ ui.element('file-loading', timeout=2)
 ui.capture('browser-loading')
 ui.element('file-document')
 ui.capture('browser-document')
+document_selection('browser-document')
 # A short, slow pull cancels the sheet return.
 ui.axe('swipe', '--start-x', '201', '--start-y', '80', '--end-x', '201', '--end-y', '160', '--duration', '.8', '--post-delay', '.6')
 title('report.md')
@@ -94,6 +160,7 @@ ui.element('file-document')
 ui.wait(lambda items: any('Performance report' in (i.get('AXLabel') or '') for i in items), 'Markdown content missing')
 ui.wait(lambda items: any('Ruby: <ruby>Tokyo<rt>toh-kee-oh</rt></ruby>.' in (i.get('AXLabel') or '') for i in items), 'Ruby base text missing from Markdown preview')
 ui.capture('markdown')
+document_selection('chat-document')
 ui.axe('tap', '--label', catalog.text('file.source'), '--post-delay', '.4')
 source = ui.element('file-source')
 assert geometry('markdown-source')['sourceMatches']
@@ -163,6 +230,7 @@ link(0, row='file-links:thought')
 title('report.md')
 ui.element('file-document')
 ui.capture('process-document')
+document_selection('process-document')
 ui.axe('tap', '--label', catalog.text('file.source'), '--post-delay', '.4')
 ui.element('file-source')
 ui.axe('tap', '--label', catalog.text('file.preview'), '--post-delay', '.4')

@@ -22,7 +22,7 @@ CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker'],
     'send': ['quick-replies', 'context-chip', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'paste-plain-chat', 'paste-plain-sheet', 'rich-paste-chat', 'rich-paste-sheet', 'attachment-overlay-chat', 'attachment-overlay-sheet', 'attachment-overlay-create', 'attachment-camera-chat', 'attachment-camera-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'model-memory'],
-    'chat': ['message-share', 'user-mentions', 'file-preview', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'chat-chrome', 'title-rename', 'simulator-preview'],
+    'chat': ['message-share', 'user-mentions', 'file-preview', 'file-selection', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'chat-chrome', 'title-rename', 'simulator-preview'],
 }
 SUITES = {
     'paste-plain': ['paste-plain-chat', 'paste-plain-sheet'],
@@ -81,6 +81,7 @@ PREVIEW = {
     'send-rounds': 'send-preview',
     'user-mentions': 'file-preview',
     'file-preview': 'file-preview',
+    'file-selection': 'file-preview',
     'mcp-files': 'file-preview',
     'chat-performance': 'chat-performance',
     'chat-stream-performance': 'chat-stream-performance',
@@ -157,6 +158,7 @@ READY = {
     'send-rounds': 'send-status',
     'user-mentions': 'file-links:answer',
     'file-preview': 'file-links:answer',
+    'file-selection': 'file-links:answer',
     'mcp-files': 'file-links:answer',
     'project-history': 'history-project:["studio","demo"]',
     'project-picker': 'create-session-input',
@@ -478,14 +480,14 @@ with metro_context:
                                 break
                             start, end = ('700', '500') if attempt < 8 else ('300', '700')
                             ui.axe('swipe', '--start-x', '200', '--start-y', start, '--end-x', '200', '--end-y', end, '--duration', '0.5', '--post-delay', '0.6')
-                        if case == 'agent-error':
-                            # UIKit can expose a prefetched row above the transparent header.
-                            for _ in range(4):
-                                frame = ui.element(preview)['frame']
-                                if 140 <= frame['y'] <= 700:
-                                    break
-                                start, end = ('300', '550') if frame['y'] < 140 else ('650', '400')
-                                ui.axe('swipe', '--start-x', '200', '--start-y', start, '--end-x', '200', '--end-y', end, '--duration', '0.5', '--post-delay', '0.6')
+                        # UIKit can expose a prefetched row behind the transparent header.
+                        # Move it into the tappable viewport before any physical tap.
+                        for _ in range(4):
+                            frame = ui.element(preview)['frame']
+                            if 140 <= frame['y'] <= 700:
+                                break
+                            start, end = ('300', '550') if frame['y'] < 140 else ('650', '400')
+                            ui.axe('swipe', '--start-x', '200', '--start-y', start, '--end-x', '200', '--end-y', end, '--duration', '0.5', '--post-delay', '0.6')
                         # A swipe keeps gliding after the row appears; tapping a moving row opens its neighbour.
                         settled = None
                         for _ in range(10):
@@ -511,6 +513,8 @@ with metro_context:
                         ui.element('preview-image:attachment:ui-verify-image')
                     ui.capture('before')
                     script = Path(__file__).with_name(f'{case}.py') if case in ['simulator-preview', 'message-details', 'message-share', 'pull-request', 'project-history-entry', 'project-history', 'project-picker', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'context-menu', 'chat-chrome', 'title-rename', 'composer-rich'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                    if case == 'file-selection':
+                        script = Path(__file__).with_name('file-selection.py')
                     if case in {'quick-replies', 'context-chip', 'morph', 'native-shell', 'native-collection', 'ipad-chrome', 'ipad-sidebar', 'composer-relay', 'outbox', 'navigation-toolbar', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'free-turn-notice', 'create-parity'}:
                         script = Path(__file__).with_name(f'{case}.py')
                     if case in ['session-tree', 'session-tree-pad']:
@@ -572,6 +576,10 @@ with metro_context:
                         # Includes a real 61-second dismissal wait plus lock/unlock
                         # and Dynamic Island transitions; 180s cuts off deep links.
                         check_timeout = 480
+                    elif case == 'file-preview':
+                        # Browser, chat and process document selection add held captures
+                        # to the existing source, diff and Quick Look round trips.
+                        check_timeout = 300
                     elif case == 'simulator-preview':
                         # Five zoom returns plus hide, stop and reopen flows, each waiting on recorded motion.
                         check_timeout = 300

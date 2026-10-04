@@ -25,21 +25,15 @@ final class FileMarkdownView: MarkdownTextView {
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    ChatTableBleed.apply(to: self)
+    ChatTableViewport.apply(to: self)
     ChatContextViewProbe.record(self)
-  }
-
-  override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-    if super.point(inside: point, with: event) { return true }
-    return ChatTableBleed.tables(in: self).contains {
-      ChatTableBleed.contains($0, point: point, from: self, event: event)
-    }
   }
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
     guard !isHidden, alpha > 0.01, isUserInteractionEnabled else { return nil }
-    for table in ChatTableBleed.tables(in: self) {
-      if let hit = ChatTableBleed.hit(table, point: point, from: self, event: event) { return hit }
+    for table in ChatTableViewport.tables(in: self) {
+      let local = table.convert(point, from: self)
+      if table.bounds.contains(local), let hit = table.hitTest(local, with: event) { return hit }
     }
     return super.hitTest(point, with: event)
   }
@@ -117,21 +111,9 @@ final class FileMarkdownView: MarkdownTextView {
 }
 
 @MainActor
-enum ChatTableBleed {
+enum ChatTableViewport {
   static func apply(to root: UIView) {
-    for table in tables(in: root) {
-      hook(table)
-      finish(table)
-    }
-  }
-
-  static func collection(for view: UIView) -> UICollectionView? {
-    var current: UIView = view
-    while let parent = current.superview {
-      if let found = parent as? UICollectionView { return found }
-      current = parent
-    }
-    return nil
+    for table in tables(in: root) { configure(table) }
   }
 
   static func markdown(from view: UIView) -> FileMarkdownView? {
@@ -159,28 +141,6 @@ enum ChatTableBleed {
     table.subviews.compactMap { $0 as? UIScrollView }.first
   }
 
-  static func contains(_ table: UIView, point: CGPoint, from view: UIView, event: UIEvent?) -> Bool {
-    if table.point(inside: table.convert(point, from: view), with: event) { return true }
-    guard let scroll = scroll(in: table) else { return false }
-    return scroll.point(inside: scroll.convert(point, from: view), with: event)
-  }
-
-  static func hit(_ table: UIView, point: CGPoint, from view: UIView, event: UIEvent?) -> UIView? {
-    let local = table.convert(point, from: view)
-    if table.bounds.contains(local) { return table.hitTest(local, with: event) }
-    guard let scroll = scroll(in: table) else { return nil }
-    return scroll.hitTest(scroll.convert(point, from: view), with: event)
-  }
-
-  static func unclip(from view: UIView) {
-    var current: UIView? = view
-    while let node = current, !(node is UICollectionView) {
-      node.clipsToBounds = false
-      node.layer.masksToBounds = false
-      current = node.superview
-    }
-  }
-
   static func contentSpan(_ scroll: UIScrollView) -> CGFloat {
     let frames = scroll.subviews.filter { !($0 is UIImageView) }.map(\.frame)
     guard let minX = frames.map(\.minX).min(), let maxX = frames.map(\.maxX).max() else {
@@ -189,61 +149,15 @@ enum ChatTableBleed {
     return max(0, maxX - minX)
   }
 
-  static func finish(_ table: UIView) {
-    guard !finishing else { return }
-    guard isTable(table), table.window != nil else { return }
-    finishing = true
-    defer { finishing = false }
-    guard let collection = collection(for: table) else { return }
-    guard let markdown = markdown(from: table) ?? table.superview else { return }
-    guard let scroll = scroll(in: table) else { return }
-    unclip(from: table)
-    let span = contentSpan(scroll)
-    guard span > markdown.bounds.width + 1 else { return }
-    let inCollection = scroll.convert(scroll.bounds, to: collection)
-    let bled = CGRect(
-      x: collection.bounds.minX,
-      y: inCollection.minY,
-      width: collection.bounds.width,
-      height: inCollection.height
-    )
-    let local = table.convert(bled, from: collection)
-    // Widen only the viewport: the native title bar and row heights stay put.
-    // Compensate the columns when upstream restores its inset frame on layout.
-    let shift = scroll.frame.minX - local.minX
-    if scroll.frame != local { scroll.frame = local }
-    let column = markdown.convert(markdown.bounds, to: collection)
-    let left = max(0, column.minX - collection.bounds.minX)
-    let right = max(0, collection.bounds.maxX - column.maxX)
-    let bodies = scroll.subviews.filter { !($0 is UIImageView) }
-    if shift != 0 {
-      for view in bodies { view.frame.origin.x += shift }
-    }
-    let width = span + left + right
-    if abs(scroll.contentSize.width - width) > 0.5 {
-      scroll.contentSize = CGSize(width: width, height: scroll.contentSize.height)
-    }
-    scroll.clipsToBounds = true
+  static func configure(_ table: UIView) {
+    guard table.window != nil, let scroll = scroll(in: table) else { return }
+    // MarkdownView owns the viewport and its selection-aware clipping mask.
+    // Widening just the scroller lets text escape the stationary table border.
     scroll.contentInsetAdjustmentBehavior = .never
-    scroll.alwaysBounceHorizontal = true
     scroll.isDirectionalLockEnabled = true
     scroll.accessibilityIdentifier = "markdown-table-scroll"
     watch(scroll)
     dump()
-  }
-
-  static func hook(_ table: UIView) {
-    guard !hooked else { return }
-    hooked = true
-    let cls: AnyClass = type(of: table)
-    let originalSel = #selector(UIView.layoutSubviews)
-    let hookSel = #selector(UIView.lody_tableLayoutSubviews)
-    guard let hookMethod = class_getInstanceMethod(UIView.self, hookSel) else { return }
-    class_addMethod(cls, hookSel, method_getImplementation(hookMethod), method_getTypeEncoding(hookMethod))
-    guard let original = class_getInstanceMethod(cls, originalSel),
-      let hookedMethod = class_getInstanceMethod(cls, hookSel)
-    else { return }
-    method_exchangeImplementations(original, hookedMethod)
   }
 
   static func watch(_ scroll: UIScrollView) {
@@ -269,7 +183,25 @@ enum ChatTableBleed {
     else { return }
     var rows: [[String: Double]] = []
     var labels: [[String: Any]] = []
+    var systemSelections: [[String: Any]] = []
+    var customHandles = 0
     func walk(_ view: UIView) {
+      if let handle = view as? SelectionHandle, !handle.isHidden, handle.window === window {
+        customHandles += 1
+      }
+      if #available(iOS 17.0, *) {
+        for interaction in view.interactions.compactMap({ $0 as? UITextSelectionDisplayInteraction }) where interaction.isActivated {
+          let handles = interaction.handleViews.filter { !$0.isHidden && $0.window === window }
+          guard !handles.isEmpty else { continue }
+          systemSelections.append([
+            "handles": handles.map { handle in
+              let frame = handle.convert(handle.bounds, to: window)
+              return ["x": frame.minX, "y": frame.minY, "width": frame.width, "height": frame.height]
+            },
+            "rectCount": interaction.highlightView.selectionRects.count,
+          ])
+        }
+      }
       if let label = view as? TextLabelView {
         let frame = label.convert(label.bounds, to: window)
         var item: [String: Any] = ["text": label.attributedText.string,
@@ -285,6 +217,7 @@ enum ChatTableBleed {
       }
       if let scroll = view as? UIScrollView, scroll.accessibilityIdentifier == "markdown-table-scroll" {
         let frame = scroll.convert(scroll.bounds, to: window)
+        let tableFrame = scroll.superview.map { $0.convert($0.bounds, to: window) } ?? frame
         rows.append([
           "x": Double(frame.minX),
           "y": Double(frame.minY),
@@ -295,6 +228,8 @@ enum ChatTableBleed {
           "boundsWidth": Double(scroll.bounds.width),
           "naturalWidth": Double(contentSpan(scroll)),
           "tableWidth": Double(scroll.bounds.width),
+          "borderX": Double(tableFrame.minX),
+          "borderWidth": Double(tableFrame.width),
           "contentLeft": Double(scroll.subviews.filter { !($0 is UIImageView) }.map(\.frame.minX).min() ?? 0),
         ])
       }
@@ -303,24 +238,15 @@ enum ChatTableBleed {
     walk(window)
     let selectionURL = FileManager.default.temporaryDirectory.appendingPathComponent("lody-markdown-selection.json")
     try? JSONSerialization.data(withJSONObject: labels).write(to: selectionURL, options: .atomic)
+    let displayURL = FileManager.default.temporaryDirectory.appendingPathComponent("lody-system-selection.json")
+    try? JSONSerialization.data(withJSONObject: ["displays": systemSelections, "customHandles": customHandles]).write(to: displayURL, options: .atomic)
     let url = FileManager.default.temporaryDirectory.appendingPathComponent("lody-table-bleed.json")
     guard let data = try? JSONSerialization.data(withJSONObject: rows) else { return }
     try? data.write(to: url, options: .atomic)
   }
 
-  private static var hooked = false
-  private static var finishing = false
   private static var offsetWatches: [ObjectIdentifier: NSKeyValueObservation] = [:]
   private static var timer: Timer?
-}
-
-extension UIView {
-  @objc func lody_tableLayoutSubviews() {
-    lody_tableLayoutSubviews()
-    MainActor.assumeIsolated {
-      ChatTableBleed.finish(self)
-    }
-  }
 }
 
 @MainActor
@@ -390,7 +316,7 @@ enum ChatContextViewProbe {
     var grown: [String] = []
     for view in markdown.subviews {
       let name = NSStringFromClass(type(of: view))
-      guard name.hasSuffix("CodeView") || ChatTableBleed.isTable(view) else { continue }
+      guard name.hasSuffix("CodeView") || ChatTableViewport.isTable(view) else { continue }
       for key in view.layer.animationKeys() ?? [] {
         guard let animation = view.layer.animation(forKey: key) as? CABasicAnimation,
           let path = animation.keyPath, path.hasPrefix("bounds") || path.hasPrefix("position") else { continue }

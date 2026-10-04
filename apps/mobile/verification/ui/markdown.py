@@ -1,4 +1,4 @@
-"""Production Markdown supports code copy, selection, and full-bleed tables."""
+"""Production Markdown supports code copy, selection, and clipped, horizontally scrolling tables."""
 import json
 import subprocess
 import sys
@@ -38,6 +38,20 @@ def save_probe(name):
 
 
 copy_label = catalog.system('copy')
+word_press_count = 0
+
+
+def system_selection(name):
+    path = table_bleed_path().with_name('lody-system-selection.json')
+    def ready(_):
+        if not path.exists():
+            return None
+        value = json.loads(path.read_text())
+        displays = value['displays']
+        return value if len(displays) == 1 and len(displays[0]['handles']) == 2 and displays[0]['rectCount'] > 0 else None
+    value = ui.wait(ready, 'Selection must have exactly one UIKit display and two system handles')
+    assert value['customHandles'] == 0, value
+    (ui.output / (name + '-system-selection.json')).write_text(json.dumps(value, indent=2))
 
 
 def copy_frames():
@@ -48,15 +62,23 @@ def copy_frames():
 
 
 def long_press_copy(x, y):
+    global word_press_count
+    word_press_count += 1
     old = copy_frames()
     subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input='selection sentinel', text=True, check=True, timeout=10)
-    ui.axe('touch', '-x', str(x), '-y', str(y), '--down', '--up', '--delay', '.7')
+    ui.axe('touch', '-x', str(x), '-y', str(y), '--down')
+    try:
+        time.sleep(.8)
+        ui.screenshot(f'word-loupe-{word_press_count}-held')
+    finally:
+        ui.axe('touch', '-x', str(x), '-y', str(y), '--up')
     action = ui.wait(
         lambda items: next((item for item in items
                             if (item.get('AXLabel') or '').casefold() == copy_label.casefold() and item.get('type') == 'GenericElement' and item.get('frame') and
                             tuple(item['frame'][key] for key in ('x', 'y', 'width', 'height')) not in old), None),
         'Long press did not open the selection menu')
     ui.capture('word-selection-before-copy')
+    system_selection(f'word-{word_press_count}')
     probe = table_bleed_path().with_name('lody-markdown-selection.json')
     (ui.output / 'word-selection-before-copy.probe.json').write_text(probe.read_text())
     action = ui.wait(lambda items: next((i for i in items if (i.get('AXLabel') or '').casefold() == copy_label.casefold() and i.get('type') == 'GenericElement'), None), 'Copy menu disappeared')
@@ -69,11 +91,19 @@ def long_press_copy(x, y):
 
 
 rest = widest_table(table_bleed_rows())
-assert rest['x'] <= 1, rest
-assert rest['x'] + rest['width'] >= rest['boundsWidth'] - 1, rest
+assert rest['x'] >= rest['borderX'] - 1, rest
+assert rest['x'] + rest['width'] <= rest['borderX'] + rest['borderWidth'] + 1, rest
 assert rest['offsetX'] <= 1, rest
 save_probe('table-bleed')
 ui.capture('table-bleed')
+# Use explicit down/move/up events before and after held touches. AXe swipe
+# can report success without delivery once its HID broker owns the session.
+# First prove ordinary scrolling before any selection owns the gesture.
+ui.axe('drag', '--start-x', str(rest['x'] + rest['width'] - 48), '--start-y', str(rest['y'] + 60), '--end-x', str(rest['x'] + 48), '--end-y', str(rest['y'] + 60), '--duration', '.35', '--post-delay', '.5')
+plain_scroll = widest_table(table_bleed_rows())
+assert plain_scroll['offsetX'] > 20, ('Unselected table did not scroll', plain_scroll)
+ui.axe('drag', '--start-x', str(rest['x'] + 48), '--start-y', str(rest['y'] + 60), '--end-x', str(rest['x'] + rest['width'] - 48), '--end-y', str(rest['y'] + 60), '--duration', '.35', '--post-delay', '.5')
+ui.wait(lambda _: abs(widest_table(table_bleed_rows())['offsetX']) <= 1, 'Table did not return to its start')
 assert '<ruby>日本語<rt>にほんご</rt></ruby>' in ui.element('preview:answer')['AXLabel']
 ui.capture('ruby-annotations')
 cell_word = long_press_copy(rest['x'] + rest['contentLeft'] + 24, rest['y'] + 16)
@@ -84,7 +114,7 @@ for _ in range(3):
     if widest_table(table_bleed_rows())['offsetX'] > 20:
         break
     ui.axe(
-        'swipe',
+        'drag',
         '--start-x', str(rest['x'] + rest['width'] - 48),
         '--start-y', str(mid_y),
         '--end-x', str(rest['x'] + 48),
@@ -97,8 +127,8 @@ ui.wait(
     'Wide table did not scroll horizontally',
 )
 scrolled = widest_table(table_bleed_rows())
-assert scrolled['x'] <= 1, scrolled
-assert scrolled['x'] + scrolled['width'] >= scrolled['boundsWidth'] - 1, scrolled
+assert scrolled['x'] >= scrolled['borderX'] - 1, scrolled
+assert scrolled['x'] + scrolled['width'] <= scrolled['borderX'] + scrolled['borderWidth'] + 1, scrolled
 save_probe('table-bleed-scrolled')
 ui.capture('table-bleed-scrolled')
 
@@ -111,9 +141,28 @@ for _ in range(16):
     if copies:
         copy = max(copies, key=lambda frame: frame['y'])
         break
-    ui.axe('swipe', '--start-x', '200', '--start-y', '400', '--end-x', '200', '--end-y', '500', '--duration', '.8', '--post-delay', '1')
+    ui.axe('drag', '--start-x', '200', '--start-y', '400', '--end-x', '200', '--end-y', '500', '--duration', '.8', '--post-delay', '1')
 else:
     raise AssertionError('Markdown code copy action not visible')
+# AX can report a prefetched row while the preceding swipe is still settling.
+# Re-resolve the visible code button until its geometry stops moving.
+last_copy = None
+
+
+def settled_code_copy(items):
+    global last_copy
+    frames = [i['frame'] for i in items
+              if (i.get('AXLabel') or '').casefold() == copy_label.casefold() and i.get('type') == 'Button'
+              and i.get('frame', {}).get('height', 0) >= 40
+              and 140 <= i.get('frame', {}).get('y', 0) <= 650]
+    current = max(frames, key=lambda frame: frame['y']) if frames else None
+    settled = current is not None and current == last_copy
+    last_copy = current
+    return current if settled else None
+
+
+copy = ui.wait(settled_code_copy, 'Code Copy button did not settle')
+ui.capture('code-copy-target')
 subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input='clipboard sentinel', text=True, check=True, timeout=10)
 ui.axe('tap', '-x', str(copy['x'] + copy['width'] / 2), '-y', str(copy['y'] + copy['height'] / 2), '--post-delay', '.3')
 text = subprocess.check_output(['xcrun', 'simctl', 'pbpaste', ui.udid], text=True, timeout=10)
@@ -124,7 +173,7 @@ for _ in range(8):
     frame = answer['frame']
     if frame['y'] + frame['height'] <= 750:
         break
-    ui.axe('swipe', '--start-x', '200', '--start-y', '650', '--end-x', '200', '--end-y', '350', '--duration', '.5', '--post-delay', '.3')
+    ui.axe('drag', '--start-x', '200', '--start-y', '650', '--end-x', '200', '--end-y', '350', '--duration', '.5', '--post-delay', '.3')
 selected = long_press_copy(frame['x'] + 70, frame['y'] + frame['height'] - 25)
 assert selected in answer['AXLabel'], repr(selected)
 ui.capture('markdown-code')
@@ -145,7 +194,7 @@ checks = json.loads(hit_testing.read_text())
 assert checks and all(checks.values()), checks
 (ui.output / 'markdown-hit-testing.json').write_text(hit_testing.read_text())
 ui.capture('markdown-folded')
-print('PASS: production Markdown code copy, long-press selection in body and table, gutter bleed, and fold without regrowth')
+print('PASS: production Markdown code copy, long-press selection in body and table, clipped table viewport, and fold without regrowth')
 
 # Small production rows make both boundaries reachable without scrolling.
 ui.axe('tap', '--label', 'Fixtures', '--post-delay', '.3')
@@ -164,15 +213,33 @@ def label(text):
 
 def press(text):
     item = ui.wait(lambda _: label(text), f'Missing rendered label: {text}')
-    ui.axe('touch', '-x', str(item['x'] + 15), '-y', str(item['y'] + item['height'] / 2), '--down', '--up', '--delay', '.7')
+    x, y = item['x'] + 15, item['y'] + item['height'] / 2
+    ui.axe('touch', '-x', str(x), '-y', str(y), '--down')
+    try:
+        time.sleep(.8)
+        ui.screenshot('selection-loupe-' + text.split()[0].lower())
+        system_selection('held-' + text.split()[0].lower())
+    finally:
+        ui.axe('touch', '-x', str(x), '-y', str(y), '--up')
     return ui.wait(lambda _: next((i for i in labels() if i['text'].strip() == text and i.get('rects')), None), 'Word selection did not appear')
 
 
-def extend(selected, target):
+def extend(selected, target, name):
     rect = selected['rects'][-1]
-    ui.axe('drag', '--start-x', str(rect['x'] + rect['width']), '--start-y', str(rect['y'] + rect['height'] + 4),
-           '--end-x', str(target['x'] + target['width'] - 3), '--end-y', str(target['y'] + target['height'] / 2 + 8),
-           '--duration', '1', '--steps', '60', '--post-delay', '.5')
+    # Capture the actual system loupe while the finger is still dragging. After
+    # release the loupe must disappear and the menu/clipboard checks resume.
+    command = ['axe', 'drag', '--udid', ui.udid,
+               '--start-x', str(rect['x'] + rect['width']), '--start-y', str(rect['y'] + rect['height'] + 4),
+               '--end-x', str(target['x'] + target['width'] + 8), '--end-y', str(target['y'] + target['height'] / 2 + 8),
+               '--duration', '3', '--steps', '180', '--post-delay', '.5']
+    drag = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        time.sleep(1.5)
+        assert drag.poll() is None, 'Selection drag ended before its held capture'
+        ui.screenshot(name + '-loupe-dragging')
+    finally:
+        stdout, stderr = drag.communicate(timeout=20)
+    assert drag.returncode == 0, (stdout, stderr)
 
 
 def copy_selection():
@@ -183,17 +250,19 @@ def copy_selection():
 
 
 selected = press('Alpha begins here.')
-extend(selected, label('Bravo finishes here.'))
+extend(selected, label('Bravo finishes here.'), 'cross-row')
 ui.wait(lambda _: sum(bool(i.get('selected')) for i in labels()) >= 2, 'Handle did not cross Markdown rows')
 ui.capture('cross-row-selection')
+system_selection('cross-row')
 copied = copy_selection()
 assert 'Alpha begins here.' in copied and 'Bravo finishes here' in copied, repr(copied)
 (ui.output / 'cross-row-copy.txt').write_text(copied)
 
 selected = press('Fruit')
-extend(selected, label('Red'))
+extend(selected, label('Red'), 'cross-table')
 ui.wait(lambda _: sum(bool(i.get('selected')) for i in labels()) >= 4, 'Handle did not cross table cells')
 ui.capture('cross-table-selection')
+system_selection('cross-table')
 copied = copy_selection()
 assert 'Fruit\tColor\nApple\tRed' in copied, repr(copied)
 (ui.output / 'cross-table-copy.txt').write_text(copied)

@@ -24,8 +24,8 @@ const PACKAGES = [
   },
   {
     name: 'Litext',
-    url: 'https://github.com/Lakr233/Litext',
-    version: '3.3.2',
+    url: 'https://github.com/Innei/Litext.git',
+    commit: 'f7b6322051d8f9308cf63f5f5adb3c80549a6dd0',
   },
 ];
 
@@ -76,7 +76,10 @@ const spmPkg = (pkg) => {
   const products = pkg.products
     ? `, :products => [${pkg.products.map((name) => `"${name}"`).join(', ')}]`
     : '';
-  return `  spm_pkg "${pkg.name}", :url => "${pkg.url}", :version => "${pkg.version}"${products}\n`;
+  const requirement = pkg.commit
+    ? `:commit => "${pkg.commit}"`
+    : `:version => "${pkg.version}"`;
+  return `  spm_pkg "${pkg.name}", :url => "${pkg.url}", ${requirement}${products}\n`;
 };
 
 module.exports = function withMarkdownView(config) {
