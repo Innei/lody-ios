@@ -47,6 +47,15 @@ final class LodySimulatorView: ExpoView {
       .first(where: { $0 is UIViewController }) as? UIViewController,
       controller.preferredTransition == nil else { return }
     let options = UIViewController.Transition.ZoomOptions()
+    options.interactiveDismissShouldBegin = { [weak self, weak controller] context in
+      guard context.willBegin else { return false }
+      guard let self, let controller, let stream = self.stream,
+            stream.superview === self else { return true }
+      // Swipes on the remote device belong to its touch stream, not the
+      // enclosing controller's interactive zoom return.
+      let deviceFrame = stream.convert(stream.displayFrame, to: controller.view)
+      return !deviceFrame.contains(context.location)
+    }
     options.alignmentRectProvider = { [weak self] context in
       guard let stream = self?.stream, stream.superview === self else { return nil }
       return stream.convert(stream.displayFrame, to: context.zoomedViewController.view)

@@ -103,6 +103,24 @@ assert ui.element('simulator-stream')['AXLabel'] == 'Second Simulator', 'The chi
 first = stream()
 assert first[1] == 1
 ui.capture('fullscreen')
+before_swipes = motions('land')
+display = ui.element('simulator-stream')['frame']
+left = display['x'] + display['width'] * .2
+right = display['x'] + display['width'] * .8
+center_y = display['y'] + display['height'] * .5
+center_x = display['x'] + display['width'] * .5
+for name, start_x, start_y, end_x, end_y in (
+    ('left', right, center_y, left, center_y),
+    ('right', left, center_y, right, center_y),
+    ('down', center_x, display['y'] + display['height'] * .3,
+     center_x, display['y'] + display['height'] * .8),
+):
+    ui.axe('swipe', '--start-x', str(start_x), '--start-y', str(start_y),
+           '--end-x', str(end_x), '--end-y', str(end_y), '--duration', '.5', '--post-delay', '.8')
+    assert ui.element('simulator-stream')['frame']['width'] > 200, f'A {name} swipe inside the device dismissed Preview'
+    assert stream()[0] == first[0], f'A {name} swipe replaced the decoder'
+    assert motions('land') == before_swipes, f'A {name} swipe started a navigation return'
+    ui.capture(f'device-swipe-{name}')
 ui.axe('swipe', '--start-x', '1', '--start-y', '450', '--end-x', '30', '--end-y', '450', '--duration', '1.5', '--post-delay', '.8')
 assert ui.element('simulator-stream')['frame']['width'] > 200, 'A cancelled return left the renderer in the floating host'
 assert stream()[0] == first[0], 'A cancelled return replaced the decoder'
