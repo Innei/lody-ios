@@ -33,42 +33,36 @@ try FileManager.default.removeItem(at: capturedPhoto.url)
 precondition(ChatCameraCapture.store(Data("invalid image".utf8)) == nil, "Invalid capture must not become an attachment")
 print("Camera: valid JPEG storage and invalid image rejection pass")
 
-// During the tile morph, the live layer keeps its crop and scales uniformly.
-let cameraMorph = ChatAttachmentCameraView(session: AVCaptureSession())
-let viewport = CGSize(width: 390, height: 430)
-cameraMorph.frame = CGRect(x: 0, y: 0, width: 116, height: 116)
-cameraMorph.prepareTransition(viewport: viewport)
-for size in [CGSize(width: 116, height: 116), CGSize(width: 240, height: 280), viewport] {
-  cameraMorph.frame.size = size
-  cameraMorph.setNeedsLayout()
-  cameraMorph.layoutIfNeeded()
-  let live = cameraMorph.previewLayer
-  precondition(live.bounds.size == viewport, "Live preview must not recrop independently during the morph")
-  let transform = live.affineTransform()
-  precondition(abs(transform.a - transform.d) < 0.001, "Camera contents must never stretch")
-  precondition(live.frame.width >= size.width - 0.01 && live.frame.height >= size.height - 0.01,
-    "Preview must cover the moving viewport without exposing blank edges")
+// The overlay camera fills its continuously resizing container.
+let overlayCamera = ChatAttachmentOverlayCameraView(session: AVCaptureSession())
+overlayCamera.setExpanded(true)
+for size in [CGSize(width: 280, height: 300), CGSize(width: 390, height: 524)] {
+  overlayCamera.frame = CGRect(origin: .zero, size: size)
+  overlayCamera.setNeedsLayout()
+  overlayCamera.layoutIfNeeded()
+  precondition(overlayCamera.previewLayer.frame == overlayCamera.bounds,
+    "Camera preview must fill the overlay viewport")
+  let controls = descendants(overlayCamera).filter { $0.accessibilityIdentifier == "camera-shutter" }
+  precondition(controls.count == 1, "Camera must retain one shutter while resizing")
 }
-cameraMorph.prepareTransition(viewport: nil)
-let fullCamera = ChatAttachmentSheet(cameraOnly: true)
-fullCamera.loadViewIfNeeded()
-precondition(fullCamera.modalPresentationStyle == .fullScreen)
-precondition(!descendants(fullCamera.view).contains { $0 is UICollectionView },
-  "Direct capture must not construct a recent-photo grid underneath")
-cameraMorph.letterboxed = true
-cameraMorph.setExpanded(true)
-cameraMorph.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
-cameraMorph.controlInsets = UIEdgeInsets(top: 62, left: 0, bottom: 34, right: 0)
-cameraMorph.setNeedsLayout()
-cameraMorph.layoutIfNeeded()
-let finder = cameraMorph.previewLayer.frame
-precondition(abs(finder.width / finder.height - 0.75) < 0.001)
-let cameraButtons = descendants(cameraMorph)
-let closeFrame = cameraButtons.first { $0.accessibilityIdentifier == "camera-collapse" }!.frame
-let shutterFrame = cameraButtons.first { $0.accessibilityIdentifier == "camera-shutter" }!.frame
-precondition(closeFrame.maxY <= finder.minY && shutterFrame.minY >= finder.maxY,
-  "Full-screen controls must stay in the black bars outside the 3:4 viewfinder")
-print("Camera: uniform preview morph, independent full-screen entry and 3:4 viewfinder pass")
+print("Camera: overlay viewport resizing passes")
+
+let handoffBar = ChatAttachmentBar()
+handoffBar.frame = CGRect(x: 0, y: 0, width: 390, height: 34)
+let handoffItem = ChatAttachment(id: "handoff", name: "photo.jpg", url: URL(fileURLWithPath: "/tmp/photo.jpg"), isImage: true)
+handoffBar.render([handoffItem])
+handoffBar.layoutIfNeeded()
+let handoffTarget = handoffBar.handoffDestination(id: handoffItem.id)!
+precondition(handoffTarget.frame == handoffBar.attachmentFrame(id: handoffItem.id),
+  "The animation target must follow ChatKit's public attachment geometry")
+handoffBar.render([])
+handoffBar.setNeedsLayout()
+handoffBar.layoutIfNeeded()
+precondition(handoffTarget.isHidden, "Removing the draft attachment must invalidate its handoff target")
+handoffBar.finishHandoff()
+precondition(handoffTarget.superview == nil, "Completing or cancelling the handoff must release its target")
+precondition(handoffBar.handoffDestination(id: "missing") == nil)
+print("Attachments: ChatKit handoff geometry, removal and cleanup pass")
 
 let composer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
 let initialScroll = UIScrollView()
@@ -86,18 +80,6 @@ composer.attachScrollEdge(to: nil)
 precondition(scrollInteraction.scrollView == nil,
   "Detaching the composer must release its scroll target")
 print("Composer scroll edge: direct attachment, host replacement and detachment pass")
-let photoSheet = ChatAttachmentSheet()
-photoSheet.loadViewIfNeeded()
-photoSheet.view.frame = CGRect(x: 0, y: 0, width: 390, height: 430)
-photoSheet.additionalSafeAreaInsets.bottom = 34
-photoSheet.view.layoutIfNeeded()
-let photoScroll = photoSheet.contentScrollView(for: .bottom)
-precondition(photoScroll?.frame == photoSheet.view.bounds, "Photo grid must reach the sheet edges despite bottom safe area")
-precondition(photoScroll is UICollectionView && photoSheet.contentScrollView(for: .top) === photoScroll,
-  "Photo selection must publish its native grid as the sheet's scroll content")
-let photoFades = descendants(photoSheet.view).compactMap { $0 as? LodyEdgeFade }
-precondition(photoFades.count == 1 && photoFades[0].isHidden && photoScroll?.bottomEdgeEffect.isHidden == true,
-  "The confirmation fade must not occlude photos before a selection exists")
 composer.setInputIdentifier("create-session-input")
 var height: CGFloat = 0
 composer.onHeightChange = { height = $0 }
