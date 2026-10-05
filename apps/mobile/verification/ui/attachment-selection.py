@@ -1,4 +1,4 @@
-"""Selected photo contours in both composer hosts with an authorized local library."""
+"""Photo resizing and selection in all composer hosts with an authorized local library."""
 import sys
 from driver import UI
 from attachment_geometry import check_media_geometry
@@ -47,6 +47,16 @@ tap('attachment-photo-0')
 tap('attachment-photo-2')
 count(2)
 ui.capture('selected-top-corners-white-numbers')
+# Exercise repeated resizing while selected; native checks guard cell identity
+# during the transition, and this recording covers the production overlay hosts.
+for _ in range(2):
+    for mode in ['inset', 'edgeToEdge']:
+        layout(mode)
+        count(2)
+        fourth_row = [ui.element('attachment-photo-' + str(i))['frame'] for i in [9, 10, 11]]
+        assert max(rect['y'] for rect in fourth_row) - min(rect['y'] for rect in fourth_row) < 1
+        assert fourth_row[0]['x'] < fourth_row[1]['x'] < fourth_row[2]['x']
+ui.capture('selected-after-repeated-resizing')
 tap('attachment-photo-0')
 tap('attachment-photo-2')
 count(0)
@@ -88,4 +98,4 @@ ui.wait(lambda items: not any(i.get('AXUniqueId') == 'attachment-photos-confirm'
 assert ui.element(field).get('AXValue') == draft, 'Photo import changed the draft'
 ui.wait(lambda items: any((i.get('AXLabel') or '').startswith(prefix) and i.get('AXLabel') not in initial_attachments for i in items), 'Selected photo did not reach the draft')
 ui.capture('selected-photo-attached')
-print('PASS: edge/inset selection, both top corners, partial scroll, renumbering and draft-preserving import')
+print('PASS: repeated edge/inset resizing, retained selection, both top corners, partial scroll, renumbering and draft-preserving import')

@@ -21,6 +21,55 @@ import UniformTypeIdentifiers
   body()
 }
 
+// Width changes must keep three columns in the very first layout pass, so
+// visible photos retain their cells and do not restart thumbnail requests.
+@MainActor final class PhotoGridFixture: NSObject, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
+  var configurations = 0
+  func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int { 60 }
+  func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+    configurations += 1
+    return collectionView.dequeueReusableCell(withReuseIdentifier: "photo", for: indexPath)
+  }
+  func collectionView(_ collectionView: UICollectionView, layout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
+    let side = floor((collectionView.bounds.width - 6) / 3)
+    return CGSize(width: side, height: side)
+  }
+}
+let photoLayout = ChatPhotoGridLayout()
+photoLayout.minimumLineSpacing = 3
+photoLayout.minimumInteritemSpacing = 3
+let photoGrid = UICollectionView(frame: CGRect(x: 0, y: 0, width: 378, height: 450), collectionViewLayout: photoLayout)
+let photoFixture = PhotoGridFixture()
+photoGrid.dataSource = photoFixture
+photoGrid.delegate = photoFixture
+photoGrid.register(UICollectionViewCell.self, forCellWithReuseIdentifier: "photo")
+let photoWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+photoWindow.addSubview(photoGrid)
+photoWindow.isHidden = false
+photoGrid.layoutIfNeeded()
+let fourthRow = [10, 11].map { IndexPath(item: $0, section: 0) }
+let originalPhotoCells = fourthRow.map { photoGrid.cellForItem(at: $0)! }
+let initialPhotoConfigurations = photoFixture.configurations
+for width: CGFloat in [354, 378, 354, 378] {
+  UIView.animate(withDuration: 0.28) {
+    photoGrid.bounds.size.width = width
+    photoGrid.layoutIfNeeded()
+  }
+  let side = floor((width - 6) / 3)
+  for (index, path) in fourthRow.enumerated() {
+    let frame = photoLayout.layoutAttributesForItem(at: path)!.frame
+    precondition(frame.minY == 3 * (side + 3) && frame.width == side,
+      "Photo resizing must use the new three-column metrics on its first pass")
+    precondition(photoGrid.cellForItem(at: path) === originalPhotoCells[index],
+      "Resizing must retain fourth-row photo cells instead of fading replacement cells")
+  }
+  precondition(photoFixture.configurations == initialPhotoConfigurations,
+    "Resizing visible photos must not reconfigure cells or restart thumbnails")
+  RunLoop.main.run(until: Date().addingTimeInterval(0.32))
+}
+photoWindow.isHidden = true
+print("Photos: repeated width changes retain three columns and visible cell identities")
+
 // Camera results use the same temporary-file/preview path as other attachments.
 let capture = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 48)).image { context in
   UIColor.systemBlue.setFill()

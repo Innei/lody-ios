@@ -2,6 +2,20 @@ import AnchoredOverlayKit
 import Photos
 import UIKit
 
+final class ChatPhotoGridLayout: UICollectionViewFlowLayout {
+  override func invalidationContext(forBoundsChange newBounds: CGRect) -> UICollectionViewLayoutInvalidationContext {
+    let context = super.invalidationContext(forBoundsChange: newBounds)
+    if let grid = collectionView, grid.bounds.width != newBounds.width,
+       let flowContext = context as? UICollectionViewFlowLayoutInvalidationContext {
+      // Refresh sizes before the first layout at the new width. Reusing the old
+      // sizes can briefly turn three columns into two and replace visible cells.
+      flowContext.invalidateFlowLayoutDelegateMetrics = true
+      flowContext.invalidateFlowLayoutAttributes = true
+    }
+    return context
+  }
+}
+
 private enum PhotoGridPresentation: String, CaseIterable {
   case inset, edgeToEdge
   static let preferenceKey = "chat.photoGridPresentation"
@@ -130,7 +144,6 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
   var onManageLimited: (() -> Void)?
   var onRequestAccess: (() -> Void)?
   private let back = OverlayActionButton()
-  private var measuredGridWidth: CGFloat = 0
   private let grid: UICollectionView
   private let status = UIStackView()
   private let statusLabel = UILabel()
@@ -142,7 +155,7 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
   private let images = PHImageManager.default()
 
   init() {
-    let layout = UICollectionViewFlowLayout()
+    let layout = ChatPhotoGridLayout()
     layout.minimumLineSpacing = 3
     layout.minimumInteritemSpacing = 3
     grid = UICollectionView(frame: .zero, collectionViewLayout: layout)
@@ -265,7 +278,6 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
     onAppearanceChange?(mode.appearance)
     let updates = {
       self.layoutIfNeeded()
-      self.grid.collectionViewLayout.invalidateLayout()
       self.grid.layoutIfNeeded()
       self.updateInsets()
       if let first, let frame = self.grid.layoutAttributesForItem(at: first)?.frame {
@@ -368,10 +380,6 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
   override func layoutSubviews() {
     super.layoutSubviews()
     updateSelectionBoundary()
-    if abs(grid.bounds.width - measuredGridWidth) > 0.5 {
-      measuredGridWidth = grid.bounds.width
-      grid.collectionViewLayout.invalidateLayout()
-    }
   }
 
   func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
