@@ -305,7 +305,7 @@ export const bundledLicenses: LicensesData = {
     },
     {
       name: '@rien7/anchored-overlay-kit',
-      version: '0.2.0',
+      version: '0.3.0',
       license: 'MIT',
       url: 'https://github.com/rien7/anchored-overlay-kit',
       text: 14,

@@ -875,3 +875,21 @@ appearances. They check 44 pt controls, separation from mentions/model controls,
 selection round trips, menu reopening, and retained drafts. The runtime regression
 checks persistence before RPC and restoration from history; no live agent turn is
 sent by these UI fixtures.
+
+### Library-owned selection boundary
+
+`ChatRecentPhotosView` adopts `OverlayBoundaryHighlighting` and returns selected
+visible image regions with the collection view as `clippedTo`. Lody keeps the
+ordered selection, badges and each photo's own border. AnchoredOverlayKit owns
+the panel-edge stroke, live corners, coordinate conversion and clipping; there
+is no app-owned boundary view, shape mask or scroll/layout refresh callback.
+
+The app pins the published `@rien7/anchored-overlay-kit@0.3.0` package.
+The temporary 0.2.0 dependency patch has been removed; CocoaPods resolves the
+released Swift sources from node_modules.
+
+Reuse `attachment-overlay-chat`, `attachment-overlay-sheet` and
+`attachment-overlay-create` with `--photo-access granted --embedded` to verify
+selection at both top corners, repeated edge/inset layout switching, partially
+scrolled selection, renumbering and draft-preserving import in both appearances.
+Review the screenshots and videos for border continuity and stale highlights.

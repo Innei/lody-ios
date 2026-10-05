@@ -124,17 +124,12 @@ private final class ChatPhotoCell: UICollectionViewCell {
   }
 }
 
-final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout, OverlayContentSafeArea, OverlayPageChrome {
+final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout, OverlayContentSafeArea, OverlayPageChrome, OverlayBoundaryHighlighting {
   static var initialAppearance: OverlayAppearance { PhotoGridPresentation.saved.appearance }
   var onAppearanceChange: ((OverlayAppearance) -> Void)?
   var overlayChrome: UIView { actionBar }
   private lazy var actions = ChatPhotoActions(toggle: layoutToggle, confirm: confirm)
   private lazy var actionBar = OverlayActionBar(leading: back, trailing: actions)
-  // Complete the photo border where the panel clips it. UIKit resolves the
-  // very same continuous/container-concentric corners as the overlay surface;
-  // the mask limits that boundary to the selected photos currently beneath it.
-  private let selectionBoundary = UIView()
-  private let selectionBoundaryMask = CAShapeLayer()
   private let layoutToggle = OverlayActionButton()
   private var presentation = PhotoGridPresentation.saved
   private var gridEdges: [NSLayoutConstraint] = []
@@ -179,18 +174,9 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
       // Preserve the existing media indicator while refreshing the selection color.
       cell.refreshAccent()
     }
-    updateSelectionBoundary()
   }
 
   private func configure() {
-    selectionBoundary.isUserInteractionEnabled = false
-    selectionBoundary.accessibilityElementsHidden = true
-    selectionBoundary.cornerConfiguration = .corners(radius: .containerConcentric(minimum: 0))
-    selectionBoundary.layer.cornerCurve = .continuous
-    selectionBoundary.layer.borderWidth = 2
-    selectionBoundary.layer.mask = selectionBoundaryMask
-    selectionBoundary.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    overlayChrome.insertSubview(selectionBoundary, at: 0)
     grid.backgroundColor = .clear
     grid.dataSource = self
     grid.delegate = self
@@ -291,7 +277,6 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
       for case let cell as ChatPhotoCell in self.grid.visibleCells {
         cell.image.layer.cornerRadius = mode.cornerRadius
       }
-      self.updateSelectionBoundary()
     }
     if UIAccessibility.isReduceMotionEnabled { updates() }
     else {
@@ -352,7 +337,6 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
   func overlaySafeAreaInsetsDidChange(_ insets: UIEdgeInsets) {
     actionBar.safeAreaClearance = insets
     updateInsets()
-    updateSelectionBoundary()
   }
 
   private func updateInsets() {
@@ -360,28 +344,14 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
     grid.verticalScrollIndicatorInsets.bottom = grid.contentInset.bottom
   }
 
-  private func updateSelectionBoundary() {
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    selectionBoundary.frame = overlayChrome.bounds
-    selectionBoundary.layer.borderColor = UIColor.lodyAccent.resolvedColor(with: traitCollection).cgColor
-    let path = UIBezierPath()
-    for case let cell as ChatPhotoCell in grid.visibleCells {
-      guard let id = cell.assetID, selection.contains(id) else { continue }
-      let rect = cell.image.convert(cell.image.bounds, to: selectionBoundary)
-      path.append(UIBezierPath(roundedRect: rect, cornerRadius: presentation.cornerRadius))
+  var overlayBoundaryHighlights: [OverlayBoundaryHighlight] {
+    grid.visibleCells.compactMap { cell in
+      guard let cell = cell as? ChatPhotoCell,
+            let id = cell.assetID, selection.contains(id) else { return nil }
+      return OverlayBoundaryHighlight(view: cell.image,
+        shape: .roundedRect(radius: presentation.cornerRadius), clippedTo: grid,
+        color: .lodyAccent, lineWidth: 2)
     }
-    selectionBoundaryMask.frame = selectionBoundary.bounds
-    let viewport = CGPath(rect: grid.convert(grid.bounds, to: selectionBoundary), transform: nil)
-    selectionBoundaryMask.path = path.cgPath.intersection(viewport)
-    CATransaction.commit()
-  }
-
-  func scrollViewDidScroll(_ scrollView: UIScrollView) { updateSelectionBoundary() }
-
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    updateSelectionBoundary()
   }
 
   func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
@@ -429,7 +399,6 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
       (collectionView.cellForItem(at: path) as? ChatPhotoCell)?.mark(
         order: selection.firstIndex(of: item.localIdentifier).map { $0 + 1 }, video: item.mediaType == .video)
     }
-    updateSelectionBoundary()
     UISelectionFeedbackGenerator().selectionChanged()
     updateConfirm()
   }
