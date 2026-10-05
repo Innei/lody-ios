@@ -209,7 +209,7 @@ selection.add_argument('--suite', choices=SUITES, help='Named case set; core* is
 selection.add_argument('--parallel', action='store_true', help='Run all three batches on separate leased Simulators sharing one Metro')
 parser.add_argument('--shared-metro', action='store_true', help=argparse.SUPPRESS)
 parser.add_argument('--camera-access', choices=['fixture', 'allow', 'deny'], default='fixture', help='Camera capture fixture or real system permission return')
-parser.add_argument('--photo-access', choices=['full', 'limited', 'denied', 'settings'], default='full', help='Real system Photos permission outcome for attachment overlay cases')
+parser.add_argument('--photo-access', choices=['full', 'limited', 'denied', 'settings', 'granted'], default='full', help='Real system Photos permission outcome for attachment overlay cases')
 parser.add_argument('--language', choices=['en'], default='en', help='UI verification runs in English only')
 parser.add_argument('--appearance', choices=['light', 'dark'], help='One appearance; omit to run light and dark, or light only for --suite core')
 parser.add_argument('--fail-fast', action='store_true', help='Stop after the first failed case')
@@ -323,7 +323,7 @@ with metro_context:
         subprocess.run(['xcrun', 'clang', '-fobjc-arc', '-framework', 'Foundation', str(Path(__file__).with_name('software-keyboard.m')), '-o', str(keyboard)], check=True, timeout=60)
         subprocess.run([str(keyboard), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), args.udid], check=True, timeout=30)
         sim('install', args.udid, str(args.app.resolve()))
-        if args.photo_access in ['full', 'limited'] and any(case.startswith('attachment-overlay-') for case in selected):
+        if args.photo_access in ['full', 'limited', 'granted'] and any(case.startswith('attachment-overlay-') for case in selected):
             # Photos outlives app launches. Seed once per app container so repeats
             # don't fill the grid with duplicates or reinitialize the photo service.
             container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
@@ -362,7 +362,7 @@ with metro_context:
                             sim('privacy', args.udid, 'reset', 'camera', 'app.innei.lody')
                     if case.startswith('attachment-overlay-'):
                         terminate_app()
-                        sim('privacy', args.udid, 'reset', 'photos', 'app.innei.lody')
+                        sim('privacy', args.udid, 'grant' if args.photo_access == 'granted' else 'reset', 'photos', 'app.innei.lody')
                         launch_mode = None
                     mode = (case in HOME_CASES, case in ('smooth-scroll', 'chat-performance'), case in ('camera-chat', 'camera-sheet'))
                     if case == 'chat-performance':
@@ -534,8 +534,8 @@ with metro_context:
                     if case in ['fast-chat', 'fast-sheet']:
                         script = Path(__file__).with_name('fast.py')
                     if case.startswith('attachment-overlay-'):
-                        script = Path(__file__).with_name('attachment-overlay.py')
-                    if case == 'attachment-overlay-create':
+                        script = Path(__file__).with_name('attachment-selection.py' if args.photo_access == 'granted' else 'attachment-overlay.py')
+                    if case == 'attachment-overlay-create' and args.photo_access != 'granted':
                         script = Path(__file__).with_name('attachment-create.py')
                     if case.startswith('attachment-camera-') or case in ('camera-chat', 'camera-sheet'):
                         script = Path(__file__).with_name('attachment-camera.py')
@@ -567,7 +567,7 @@ with metro_context:
                     check_timeout = 180
                     if case == 'quick-replies':
                         check_timeout = 420
-                    if case.startswith('attachment-overlay-') and args.photo_access == 'full':
+                    if case.startswith('attachment-overlay-') and args.photo_access in ['full', 'granted']:
                         check_timeout = 360
                     if case == 'chat-performance':
                         check_timeout = 480

@@ -9,6 +9,7 @@ overrides:
 
 patchedDependencies:
   expo-dev-menu@57.0.18: 8ca36ad35cef3916456afc8c503f6c3602b821ab8b08d4a7b7f32206ab2a435f
+  '@rien7/anchored-overlay-kit@0.1.2': 73d0dd133582947dfded2fd4b5ddbe2d6b15550e6f6841eba8aca5870f309a53
   expo-router@57.0.19: 348be25bcabb3214248c8fa36f535b838bed14d0aacc1c80c7c054f8d794ae3f
   react-native-screens@4.26.2: f871866ac01ac018e617c472c18708394274e7f4fa59188545ea12de19598363
 
@@ -48,7 +49,7 @@ importers:
         version: 1.4.1(@shikijs/themes@4.4.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@rien7/anchored-overlay-kit':
         specifier: 0.1.2
-        version: 0.1.2
+        version: 0.1.2(patch_hash=73d0dd133582947dfded2fd4b5ddbe2d6b15550e6f6841eba8aca5870f309a53)
       base64-js:
         specifier: 1.5.1
         version: 1.5.1
@@ -5395,7 +5396,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.18
 
-  '@rien7/anchored-overlay-kit@0.1.2': {}
+  '@rien7/anchored-overlay-kit@0.1.2(patch_hash=73d0dd133582947dfded2fd4b5ddbe2d6b15550e6f6841eba8aca5870f309a53)': {}
 
   '@rolldown/binding-android-arm-eabi@1.2.7':
     optional: true

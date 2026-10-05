@@ -4,6 +4,7 @@ import UIKit
 /// The camera page owns one session. Configuration, capture and start/stop share a serial queue.
 final class ChatCameraCapture: NSObject, AVCapturePhotoCaptureDelegate, @unchecked Sendable {
   let session = AVCaptureSession()
+  var onPreparePreview: ((AVCaptureDevice?, @escaping @Sendable () -> Void) -> Void)?
   var onReady: ((AVCaptureDevice?, Bool) -> Void)?
   var onPhoto: ((ChatAttachment) -> Void)?
   var onError: ((String) -> Void)?
@@ -65,10 +66,29 @@ final class ChatCameraCapture: NSObject, AVCapturePhotoCaptureDelegate, @uncheck
       }
       do {
         if input == nil { try configure(position: .back) }
-        if !session.isRunning { session.startRunning() }
-        guard session.isRunning else { fail("native.chat.camera.unavailable"); return }
-        ready()
+        prepareAndStart()
       } catch { fail("native.chat.camera.unavailable") }
+    }
+  }
+
+  // Configure the main-thread preview before the serial capture queue starts
+  // producing frames. A stopped/replaced activation cannot resume this start.
+  private func prepareAndStart() {
+    let expectedGeneration = generation
+    let device = input?.device
+    DispatchQueue.main.async { [weak self] in
+      guard let self, self.wantsActive else { return }
+      let start: @Sendable () -> Void = { [weak self] in
+        guard let self else { return }
+        self.queue.async { [self] in
+          guard generation == expectedGeneration else { return }
+          if !session.isRunning { session.startRunning() }
+          guard session.isRunning else { fail("native.chat.camera.unavailable"); return }
+          ready()
+        }
+      }
+      if let prepare = self.onPreparePreview { prepare(device, start) }
+      else { start() }
     }
   }
 
@@ -110,8 +130,10 @@ final class ChatCameraCapture: NSObject, AVCapturePhotoCaptureDelegate, @uncheck
       guard captureGeneration == nil else { return }
       if Self.fixture { DispatchQueue.main.async { [weak self] in self?.onReady?(nil, true) }; return }
       do {
+        generation += 1
+        if session.isRunning { session.stopRunning() }
         try configure(position: input?.device.position == .front ? .back : .front)
-        ready()
+        prepareAndStart()
       } catch { fail("native.chat.camera.unavailable") }
     }
   }

@@ -707,8 +707,8 @@ a transient image; Reduce Motion and offscreen targets fade in place. Ownership
 is transferred before animation, so cancellation cannot delete an accepted file.
 
 Continuous attachment pages retain one outer glass panel across push/back.
-The camera body uses `contentLayout: .viewport`; the photo grid keeps the default
-`.stable` allocation and its scroll offset. Both expose `OverlayPageChrome` for
+The camera body and photo grid use `contentLayout: .stable` with their destination
+allocation and the grid retains its scroll offset. Both expose `OverlayPageChrome` for
 fixed-size foreground controls that follow the live bottom edge and safe inset.
 Review `run.mp4` through entry and return in both hosts, checking for clipped
 controls, scaled labels/icons and outgoing media behind incoming menu labels.
@@ -838,3 +838,17 @@ the entrance blur, and no replay during dragging or keyboard layout changes.
 `CreateSessionController` form: photo authorization, keyboard coverage, attachment
 handoff and draft preservation. It uses the offline create-parity fixture and full
 Photos access.
+
+Camera entry checks sample the production page during the panel transition: the
+viewfinder allocation must remain fixed while the visible panel changes height.
+Initial preview orientation is configured before capture starts, with implicit
+preview geometry animations disabled. Actual sensor startup/orientation still
+requires iPhone verification. Authorized photo selection checks capture both selected top
+corners, partial scrolling and inset mode to review the continuous theme-accent outline
+and opaque white selection numbers.
+
+For photo selection visual checks independent of the system authorization
+continuation, use `--photo-access granted`. The runner grants Photos access only
+on its leased Simulator and runs focused layout, selection, scrolling and
+attachment checks through `attachment-selection.py`. This mode does not establish permission-prompt restoration;
+use the existing `full`/`limited`/`denied`/`settings` modes for that contract.

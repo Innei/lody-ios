@@ -21,6 +21,8 @@ def events():
 
 tap(field)
 ui.type_into(field, 'camera draft')
+draft = ui.element(field).get('AXValue')
+assert draft and draft.casefold() == 'camera draft', 'Keyboard did not enter the fixture draft'
 tap('session-attach')
 for identifier in ['takePhoto', 'recentPhotos', 'files']:
     assert ui.element('attachment-menu-'+identifier)['frame']['height'] == 56
@@ -36,7 +38,7 @@ if mode != 'fixture':
     ui.element('camera-collapse')
     if mode == 'deny':
         assert ui.element('camera-status').get('AXLabel') == catalog.text('native.chat.camera.denied')
-    assert ui.element(field).get('AXValue') == 'camera draft'
+    assert ui.element(field).get('AXValue') == draft
     keyboard = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar')), None), 'Keyboard missing')['frame']
     assert ui.element('camera-collapse')['frame']['y'] > keyboard['y'], 'Camera returned behind keyboard'
     check_media_geometry(ui, 'camera-viewfinder')
@@ -60,6 +62,14 @@ back_frame = ui.element('camera-collapse')['frame']
 ui.axe('tap', '-x', str(back_frame['x'] + 1), '-y', str(back_frame['y'] + 22), '--tap-style', 'physical', '--post-delay', '.6')
 ui.element('attachment-menu-takePhoto')
 assert events()[-1] == 'stop', 'Back left the camera running'
+container = subprocess.check_output(['xcrun', 'simctl', 'get_app_container', ui.udid, 'app.innei.lody', 'data'], text=True).strip()
+frames = json.loads((Path(container)/'tmp/lody-camera-layout.json').read_text())
+(ui.output / 'viewfinder-layout.json').write_text(json.dumps(frames, indent=2))
+assert len(frames) > 2, 'Camera transition geometry was not sampled'
+assert max(f['width'] for f in frames) - min(f['width'] for f in frames) < .5, 'Viewfinder width scaled during opening'
+assert max(f['height'] for f in frames) - min(f['height'] for f in frames) < .5, 'Viewfinder height scaled during opening'
+assert max(f['visibleHeight'] for f in frames) - min(f['visibleHeight'] for f in frames) > 20, 'Fixture did not exercise a resizing panel'
+ui.capture('camera-stable-preview-returned')
 ui.capture('camera-back')
 tap('attachment-menu-takePhoto')
 tap('camera-more')
@@ -82,14 +92,14 @@ tap('camera-retry')
 tap('camera-shutter')
 ui.wait(lambda items: not any(i.get('AXUniqueId') == 'camera-shutter' for i in items), 'Camera did not dismiss after capture')
 assert not any(i.get('AXUniqueId') in ['camera-retake', 'camera-add'] for i in ui.state())
-assert ui.element(field).get('AXValue') == 'camera draft'
+assert ui.element(field).get('AXValue') == draft
 ui.wait(lambda items: any('Photo.jpg' in (i.get('AXLabel') or '') for i in items), 'Captured photo missing from composer')
 assert events()[-1] == 'stop'
 assert any(i.get('AXLabel') == 'Requests: 0' for i in ui.state()), 'Capture sent a message'
 ui.capture('captured-photo-attached')
 # Focus must survive handoff; type without tapping/re-focusing the input.
 ui.axe('type', ' continues')
-assert ui.element(field).get('AXValue') == 'camera draft continues'
+assert ui.element(field).get('AXValue') == draft + ' continues'
 ui.capture('continued-typing')
 # A new presentation gets a fresh page/session; outside dismissal must release it.
 tap('session-attach')
@@ -108,7 +118,7 @@ subprocess.run(['xcrun', 'simctl', 'launch', ui.udid, 'com.apple.Preferences'], 
 ui.wait(lambda items: not any(i.get('AXUniqueId') == field for i in items), 'App did not leave foreground')
 assert events()[-1] == 'stop', 'Background left camera active'
 subprocess.run(['xcrun', 'simctl', 'launch', ui.udid, 'app.innei.lody'], check=True, timeout=30)
-assert ui.element(field).get('AXValue') == 'camera draft continues'
+assert ui.element(field).get('AXValue') == draft + ' continues'
 assert not any(i.get('AXUniqueId') == 'camera-shutter' for i in ui.state())
 assert any('Photo.jpg' in (i.get('AXLabel') or '') for i in ui.state()), 'Background lost the accepted photo'
 ui.capture('foreground-restored')

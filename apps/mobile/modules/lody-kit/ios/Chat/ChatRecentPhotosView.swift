@@ -46,9 +46,10 @@ private final class ChatPhotoActions: UIView {
 
 private final class ChatPhotoCell: UICollectionViewCell {
   let image = UIImageView()
-  private let badge = UIImageView()
+  private let badge = UILabel()
   private let videoMark = UIImageView(image: UIImage(systemName: "video.fill"))
   var assetID: String?
+  private var selectionOrder: Int?
   override init(frame: CGRect) {
     super.init(frame: frame)
     image.contentMode = .scaleAspectFill
@@ -56,7 +57,14 @@ private final class ChatPhotoCell: UICollectionViewCell {
     image.backgroundColor = .tertiarySystemFill
     image.layer.cornerRadius = 6
     image.layer.cornerCurve = .continuous
-    badge.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 20)
+    badge.font = .systemFont(ofSize: 13, weight: .semibold)
+    badge.textAlignment = .center
+    badge.clipsToBounds = true
+    badge.textColor = .white
+    badge.layer.cornerRadius = 10
+    badge.layer.borderWidth = 1.5
+    badge.layer.borderColor = UIColor.white.cgColor
+    badge.accessibilityElementsHidden = true
     badge.layer.shadowRadius = 2
     badge.layer.shadowOffset = .zero
     videoMark.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 11, weight: .bold)
@@ -76,6 +84,8 @@ private final class ChatPhotoCell: UICollectionViewCell {
       image.leadingAnchor.constraint(equalTo: contentView.leadingAnchor), image.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
       videoMark.leadingAnchor.constraint(equalTo: image.leadingAnchor, constant: 6),
       videoMark.bottomAnchor.constraint(equalTo: image.bottomAnchor, constant: -6),
+      badge.widthAnchor.constraint(equalToConstant: 20),
+      badge.heightAnchor.constraint(equalToConstant: 20),
       badge.trailingAnchor.constraint(equalTo: image.trailingAnchor, constant: -5),
       badge.bottomAnchor.constraint(equalTo: image.bottomAnchor, constant: -5),
     ])
@@ -83,14 +93,18 @@ private final class ChatPhotoCell: UICollectionViewCell {
     accessibilityTraits = .image
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+  func refreshAccent() {
+    badge.backgroundColor = selectionOrder == nil ? .clear : UIColor.lodyAccent.resolvedColor(with: traitCollection)
+    image.layer.borderColor = UIColor.lodyAccent.resolvedColor(with: traitCollection).cgColor
+  }
   func mark(order: Int?, video: Bool = false) {
+    selectionOrder = order
     let selected = order != nil
-    if let order { badge.image = UIImage(systemName: "\(order).circle.fill") }
-    else { badge.image = UIImage(systemName: "circle") }
-    badge.tintColor = selected ? .systemBlue : .white.withAlphaComponent(0.9)
+    badge.text = order.map(String.init)
+    refreshAccent()
+    badge.layer.borderWidth = selected ? 0 : 1.5
     badge.layer.shadowOpacity = selected ? 0 : 0.3
     image.layer.borderWidth = selected ? 2 : 0
-    image.layer.borderColor = UIColor.systemBlue.resolvedColor(with: traitCollection).cgColor
     videoMark.isHidden = !video
     accessibilityValue = selected ? LodyStrings.text("native.chat.attachment.selected") : nil
   }
@@ -102,6 +116,11 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
   var overlayChrome: UIView { actionBar }
   private lazy var actions = ChatPhotoActions(toggle: layoutToggle, confirm: confirm)
   private lazy var actionBar = OverlayActionBar(leading: back, trailing: actions)
+  // Complete the photo border where the panel clips it. UIKit resolves the
+  // very same continuous/container-concentric corners as the overlay surface;
+  // the mask limits that boundary to the selected photos currently beneath it.
+  private let selectionBoundary = UIView()
+  private let selectionBoundaryMask = CAShapeLayer()
   private let layoutToggle = OverlayActionButton()
   private var presentation = PhotoGridPresentation.saved
   private var gridEdges: [NSLayoutConstraint] = []
@@ -129,10 +148,35 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
     grid = UICollectionView(frame: .zero, collectionViewLayout: layout)
     super.init(frame: .zero)
     configure()
+    NotificationCenter.default.addObserver(self, selector: #selector(refreshAccent), name: .lodyAppearanceDidChange, object: nil)
+    registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (view: ChatRecentPhotosView, _: UITraitCollection) in
+      view.refreshAccent()
+    }
+    refreshAccent()
   }
+  deinit { NotificationCenter.default.removeObserver(self) }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+  @objc private func refreshAccent() {
+    let accent = LodyAccentChoice.current.color.resolvedColor(with: traitCollection)
+    layoutToggle.accentColor = accent
+    confirm.accentColor = accent
+    for case let cell as ChatPhotoCell in grid.visibleCells {
+      // Preserve the existing media indicator while refreshing the selection color.
+      cell.refreshAccent()
+    }
+    updateSelectionBoundary()
+  }
+
   private func configure() {
+    selectionBoundary.isUserInteractionEnabled = false
+    selectionBoundary.accessibilityElementsHidden = true
+    selectionBoundary.cornerConfiguration = .corners(radius: .containerConcentric(minimum: 0))
+    selectionBoundary.layer.cornerCurve = .continuous
+    selectionBoundary.layer.borderWidth = 2
+    selectionBoundary.layer.mask = selectionBoundaryMask
+    selectionBoundary.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    overlayChrome.insertSubview(selectionBoundary, at: 0)
     grid.backgroundColor = .clear
     grid.dataSource = self
     grid.delegate = self
@@ -233,6 +277,7 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
       for case let cell as ChatPhotoCell in self.grid.visibleCells {
         cell.image.layer.cornerRadius = mode.cornerRadius
       }
+      self.updateSelectionBoundary()
     }
     if UIAccessibility.isReduceMotionEnabled { updates() }
     else {
@@ -293,6 +338,7 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
   func overlaySafeAreaInsetsDidChange(_ insets: UIEdgeInsets) {
     actionBar.safeAreaClearance = insets
     updateInsets()
+    updateSelectionBoundary()
   }
 
   private func updateInsets() {
@@ -300,8 +346,28 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
     grid.verticalScrollIndicatorInsets.bottom = grid.contentInset.bottom
   }
 
+  private func updateSelectionBoundary() {
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    selectionBoundary.frame = overlayChrome.bounds
+    selectionBoundary.layer.borderColor = UIColor.lodyAccent.resolvedColor(with: traitCollection).cgColor
+    let path = UIBezierPath()
+    for case let cell as ChatPhotoCell in grid.visibleCells {
+      guard let id = cell.assetID, selection.contains(id) else { continue }
+      let rect = cell.image.convert(cell.image.bounds, to: selectionBoundary)
+      path.append(UIBezierPath(roundedRect: rect, cornerRadius: presentation.cornerRadius))
+    }
+    selectionBoundaryMask.frame = selectionBoundary.bounds
+    let viewport = CGPath(rect: grid.convert(grid.bounds, to: selectionBoundary), transform: nil)
+    selectionBoundaryMask.path = path.cgPath.intersection(viewport)
+    CATransaction.commit()
+  }
+
+  func scrollViewDidScroll(_ scrollView: UIScrollView) { updateSelectionBoundary() }
+
   override func layoutSubviews() {
     super.layoutSubviews()
+    updateSelectionBoundary()
     if abs(grid.bounds.width - measuredGridWidth) > 0.5 {
       measuredGridWidth = grid.bounds.width
       grid.collectionViewLayout.invalidateLayout()
@@ -353,6 +419,7 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
       (collectionView.cellForItem(at: path) as? ChatPhotoCell)?.mark(
         order: selection.firstIndex(of: item.localIdentifier).map { $0 + 1 }, video: item.mediaType == .video)
     }
+    updateSelectionBoundary()
     UISelectionFeedbackGenerator().selectionChanged()
     updateConfirm()
   }

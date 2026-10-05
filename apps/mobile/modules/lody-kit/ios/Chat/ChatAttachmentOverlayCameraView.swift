@@ -141,9 +141,12 @@ final class ChatAttachmentOverlayCameraView: UIView {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
     preview.frame = bounds
     image.frame = bounds
     shutterFlash.frame = bounds
+    CATransaction.commit()
     controls.layoutIfNeeded()
     let diameter = OverlayControlMetrics().diameter
     var tools: [UIButton] = []
@@ -168,10 +171,7 @@ final class ChatAttachmentOverlayCameraView: UIView {
     render()
   }
 
-  func setReady(device: AVCaptureDevice?, canFlip: Bool) {
-    ready = true
-    busy = false
-    status.text = nil
+  func preparePreview(device: AVCaptureDevice?) {
     rotationObservation = nil
     rotation = device.map { AVCaptureDevice.RotationCoordinator(device: $0, previewLayer: previewLayer) }
     rotationObservation = rotation?.observe(\.videoRotationAngleForHorizonLevelPreview, options: [.initial, .new]) { [weak self] coordinator, _ in
@@ -179,9 +179,18 @@ final class ChatAttachmentOverlayCameraView: UIView {
       MainActor.assumeIsolated {
         guard let connection = self?.previewLayer.connection else { return }
         let angle = coordinator.videoRotationAngleForHorizonLevelPreview
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
+        CATransaction.commit()
       }
     }
+  }
+
+  func setReady(device: AVCaptureDevice?, canFlip: Bool) {
+    ready = true
+    busy = false
+    status.text = nil
     supportsFlash = device?.hasFlash == true || ChatCameraCapture.fixture
     canSwitchCamera = canFlip
     updateOptions()

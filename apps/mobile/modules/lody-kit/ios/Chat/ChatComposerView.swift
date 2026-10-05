@@ -1080,7 +1080,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
 
   private func presentCamera() {
     attachmentPages.push(OverlayPage(id: "camera", layout: attachmentMediaLayout,
-      appearance: OverlayAppearance(corners: .bottomConcentric(top: 40)), contentLayout: .viewport) { [weak self] in
+      appearance: OverlayAppearance(corners: .bottomConcentric(top: 40)), contentLayout: .stable) { [weak self] in
       let camera = ChatCameraPage()
       camera.onBack = { [weak self] in self?.attachmentPages.back() }
       camera.onRequestAccess = { [weak self] in self?.requestCameraAccess() }

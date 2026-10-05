@@ -1,0 +1,38 @@
+diff --git a/Sources/AnchoredOverlayKit/OverlayControls.swift b/Sources/AnchoredOverlayKit/OverlayControls.swift
+index b93dfc3cbb374b89ed297dd00a3a199f4e0b9a2b..665b1937c1590cb86bc2dbfcb8ae12eddaf6f495 100644
+--- a/Sources/AnchoredOverlayKit/OverlayControls.swift
++++ b/Sources/AnchoredOverlayKit/OverlayControls.swift
+@@ -36,9 +36,16 @@ public enum OverlayActionStyle: Sendable { case neutral, emphasized }
+     let old = configuration
+     var next: UIButton.Configuration
+     if #available(iOS 26.0, *) {
+-      next = actionStyle == .neutral ? .prominentClearGlass() : .prominentGlass()
+-    } else { next = .filled() }
+-    next.baseBackgroundColor = actionStyle == .neutral ? .black.withAlphaComponent(0.35) : accentColor
++      next = actionStyle == .neutral ? .clearGlass() : .prominentGlass()
++      // A real backing fill attenuates the media before the clear glass samples
++      // it. A glass tint is not an equivalent fixed-opacity dimming layer.
++      backgroundColor = actionStyle == .neutral ? .black.withAlphaComponent(0.35) : .clear
++      next.baseBackgroundColor = actionStyle == .neutral ? nil : accentColor
++    } else {
++      next = .filled()
++      backgroundColor = .clear
++      next.baseBackgroundColor = actionStyle == .neutral ? .black.withAlphaComponent(0.35) : accentColor
++    }
+     next.baseForegroundColor = .white
+     next.cornerStyle = .capsule
+     next.titleLineBreakMode = .byTruncatingTail
+@@ -48,6 +55,13 @@ public enum OverlayActionStyle: Sendable { case neutral, emphasized }
+     next.showsActivityIndicator = old?.showsActivityIndicator ?? false
+     configuration = next
+   }
++  public override func layoutSubviews() {
++    super.layoutSubviews()
++    // Round only the backing fill; do not clip the native glass highlights,
++    // shadow, or its interaction effects.
++    layer.cornerRadius = min(bounds.width, bounds.height) / 2
++    layer.cornerCurve = .continuous
++  }
+   private var hitBounds: CGRect {
+     bounds.insetBy(dx: -max(0, (metrics.hitSize - bounds.width) / 2),
+                    dy: -max(0, (metrics.hitSize - bounds.height) / 2))
