@@ -5,7 +5,12 @@ import { useEditableMessage } from '@/features/sessions/useEditableMessage';
 import { useAgentErrorRetry } from '@/features/sessions/useAgentErrorRetry';
 import { openAgentError } from '@/hooks/screens/openAgentError';
 import { openSubagentTask } from '@/hooks/screens/openSubagentTask';
-import { fastModeFor, withFastMode } from '@/cloud/send/capability';
+import {
+  fastModeFor,
+  withFastMode,
+  permissionModeFor,
+  withPermissionMode,
+} from '@/cloud/send/capability';
 import { useComposerMentions } from '@/hooks/screens/useComposerMentions';
 import { NativeNavigationHeader, setPushVisibleRoute } from '@lody-ios/kit';
 import { useFocusEffect } from 'expo-router';
@@ -555,7 +560,15 @@ function View() {
     placeholder: composerPlaceholder(currentSession.archived, quotaLocked),
   });
   const efforts = effortsFor(capability, activeChoice.modelId);
+  const permission = permissionModeFor(capability, activeChoice);
   const composerOptionsJSON = JSON.stringify({
+    permissionId: permission?.value ?? '',
+    permissions:
+      permission?.options.map((item) => ({
+        id: item.id,
+        title: item.name,
+        description: item.description,
+      })) ?? [],
     fast: fastModeFor(capability, activeChoice)?.enabled,
     modelId: activeChoice.modelId ?? '',
     effort: activeChoice.effort ?? '',
@@ -888,6 +901,16 @@ function View() {
         onReconnect={pending?.send.creation ? refresh : reconnect}
         onComposerOptionChange={({ nativeEvent }) => {
           choiceHydrated.current = true;
+          if (nativeEvent.permissionId !== undefined) {
+            setChoice(
+              withPermissionMode(
+                capability,
+                activeChoice,
+                nativeEvent.permissionId,
+              ),
+            );
+            return;
+          }
           if (typeof nativeEvent.fast === 'boolean') {
             setChoice(withFastMode(capability, activeChoice, nativeEvent.fast));
             return;

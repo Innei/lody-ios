@@ -4,11 +4,14 @@ import MetalKit
 struct ChatComposerOption: Decodable {
   let id: String
   let title: String
+  var description: String?
 }
 
 struct ChatComposerOptions: Decodable {
   var modelId = ""
   var effort = ""
+  var permissionId: String?
+  var permissions: [ChatComposerOption]?
   var fast: Bool?
   var models: [ChatComposerOption] = []
   var efforts: [ChatComposerOption] = []

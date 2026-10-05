@@ -176,3 +176,32 @@ do {
   check(form.canSend, "Share Extension can still defer unresolved selection to the app")
 }
 print("PASS: create-session form logic")
+
+// Permission changes survive form preferences and preserve independent settings.
+do {
+  let permissions = [CapabilityChoice(id: "ask", name: "Ask"), CapabilityChoice(id: "auto", name: "Auto")]
+  let selector = ConfigOption(id: "permission_mode", name: "Permission", category: "_permission", type: "select", currentValue: .string("ask"), options: permissions)
+  var capability = Capability(machineId: "m1", cliType: "builtin", agentType: "codex", models: [CapabilityChoice(id: "a", name: "A")], modes: [CapabilityChoice(id: "plan", name: "Plan")], reasoningEfforts: ["a": ["high"]], configOptions: [selector])
+  let choice = ModelChoice(modelId: "a", effort: "high", modeId: "plan", configOptionValues: ["fast": .bool(true)])
+  let next = CreateLogic.withPermissionMode(capability, choice, value: "auto")
+  check(next.modelId == "a" && next.effort == "high" && next.modeId == "plan", "permission preserves model, effort and interaction mode")
+  check(next.configOptionValues?["fast"] == .bool(true), "permission preserves unrelated options")
+  check(CreateLogic.permissionMode(capability, next)?.value == "auto", "permission displays chosen option")
+  check(CreateLogic.withPermissionMode(capability, next, value: "removed") == next, "unsupported permission is ignored")
+  var form = CreateSessionForm(userId: "u", workspaceId: "w")
+  form.open(projectId: nil, context: "chat")
+  form.applyOptions(CreationOptions(sessionId: "s", agents: [codex], capabilities: [capability]), chat: true)
+  form.updateChoice(next)
+  check(form.draft(sessionId: "s")?.choice.configOptionValues?["permission_mode"] == .string("auto"), "permission enters first-turn draft")
+  check(CreateLogic.rememberedModelChoice(roundTrip(form.prefs), agentKey: codex.key, capability: capability, modelId: "a").configOptionValues?["permission_mode"] == .string("auto"), "permission restores from persisted prefs")
+  capability.configOptions = []
+  capability.modes = permissions
+  check(CreateLogic.withPermissionMode(capability, choice, value: "auto").modeId == "auto", "legacy permission uses modeId")
+  capability.modes = permissions // Picker compatibility projection is not legacy ACP modes.
+  capability.legacyModes = []
+  capability.configOptions = [ConfigOption(id: "interaction_mode", name: "Interaction", category: "mode", type: "select", options: permissions)]
+  check(CreateLogic.permissionMode(capability, choice) == nil, "interaction mode alone is not permission")
+  capability.configOptions?.append(ConfigOption(id: "approval", name: "Approval", category: "mode", type: "select", options: permissions))
+  let generic = CreateLogic.withPermissionMode(capability, choice, value: "auto")
+  check(generic.configOptionValues?["approval"] == .string("auto"), "generic mode fallback uses config value")
+}

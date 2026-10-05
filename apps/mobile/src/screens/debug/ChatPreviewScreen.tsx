@@ -420,6 +420,7 @@ function View() {
     modelId: 'gpt-5.6-sol',
     effort: 'medium',
     fast: false,
+    permissionId: 'ask',
   });
   const [connection, setConnection] = useState<'' | 'connecting' | 'paused'>(
     '',
@@ -968,6 +969,19 @@ function View() {
         })}
         composerOptionsJSON={JSON.stringify({
           ...composerOptions,
+          permissions: [
+            {
+              id: 'ask',
+              title: 'Ask Every Time',
+              description: 'Ask before executing tools.',
+            },
+            { id: 'auto', title: 'Auto Approve' },
+            {
+              id: 'danger-full-access',
+              title: 'Dangerous Mode',
+              description: 'Allow unrestricted tool execution.',
+            },
+          ],
           models: [
             { id: 'gpt-5.6-sol', title: 'GPT-5.6 Sol' },
             { id: 'gpt-6-astra', title: 'GPT-6 Astra' },

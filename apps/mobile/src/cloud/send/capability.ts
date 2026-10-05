@@ -54,3 +54,58 @@ export function withFastMode(
     configOptionValues: { ...choice.configOptionValues, [mode.id]: enabled },
   };
 }
+
+// Match OSS resolvePermissionModeFace: explicit permissions, legacy modes,
+// then a generic mode selector. Interaction mode is a separate control.
+export function permissionModeFor(
+  capability: Capability | undefined,
+  choice: ModelChoice,
+) {
+  const selectors =
+    capability?.configOptions?.filter((item) => item.type === 'select') ?? [];
+  let option = selectors.find(
+    (item) => item.id === 'permission_mode' || item.category === '_permission',
+  );
+  const modes = capability?.legacyModes ?? capability?.modes ?? [];
+  if (!option && modes.length) {
+    return {
+      options: modes,
+      value: choice.modeId,
+      configId: undefined,
+    };
+  }
+  option ??= selectors.find(
+    (item) =>
+      item.category === 'mode' &&
+      item.id !== 'interaction_mode' &&
+      !isThoughtLevel(item),
+  );
+  if (!option?.options.length) return undefined;
+  const selected = choice.configOptionValues?.[option.id];
+  const value = validConfigValue(option, selected)
+    ? selected
+    : option.currentValue;
+  return {
+    options: option.options,
+    value: typeof value === 'string' ? value : undefined,
+    configId: option.id,
+  };
+}
+
+export function withPermissionMode(
+  capability: Capability | undefined,
+  choice: ModelChoice,
+  value: string,
+): ModelChoice {
+  const permission = permissionModeFor(capability, choice);
+  if (!permission?.options.some((item) => item.id === value)) return choice;
+  if (permission.configId)
+    return {
+      ...choice,
+      configOptionValues: {
+        ...choice.configOptionValues,
+        [permission.configId]: value,
+      },
+    };
+  return { ...choice, modeId: value };
+}

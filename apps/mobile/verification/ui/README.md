@@ -838,3 +838,10 @@ the entrance blur, and no replay during dragging or keyboard layout changes.
 `CreateSessionController` form: photo authorization, keyboard coverage, attachment
 handoff and draft preservation. It uses the offline create-parity fixture and full
 Photos access.
+
+`--suite permission-composer` runs `permission-mode-chat`,
+`permission-mode-sheet`, and `permission-mode-create`. These exercise the shared composer permission menu with offline agent options in both
+appearances. They check 44 pt controls, separation from mentions/model controls,
+selection round trips, menu reopening, and retained drafts. The runtime regression
+checks persistence before RPC and restoration from history; no live agent turn is
+sent by these UI fixtures.

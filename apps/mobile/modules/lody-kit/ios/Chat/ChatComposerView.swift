@@ -586,6 +586,9 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     updateComposer()
   }
   private let mentionButton = UIButton(type: .system)
+  private let permissionButton = UIButton(type: .system)
+  private var modelLeading: NSLayoutConstraint?
+  private var permissionLeading: NSLayoutConstraint?
   private var mentionHeight: NSLayoutConstraint!
   private let queueView = ChatQueueView()
   private var queueHeight: NSLayoutConstraint!
@@ -777,6 +780,11 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     mentionButton.accessibilityLabel = LodyStrings.text("native.chat.mention.open")
     mentionButton.accessibilityIdentifier = "session-mention"
     mentionButton.addTarget(self, action: #selector(openMentions), for: .touchUpInside)
+    permissionButton.setImage(UIImage(systemName: "shield.lefthalf.filled", withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .regular)), for: .normal)
+    permissionButton.tintColor = .label
+    permissionButton.accessibilityLabel = LodyStrings.text("model.tab.permission")
+    permissionButton.accessibilityIdentifier = "session-permission"
+    permissionButton.showsMenuAsPrimaryAction = true
     mentionPanel.onChange = { [weak self] in self?.updateComposer() }
     attachmentBar.onHeightChange = { [weak self] in self?.updateComposer() }
     queueView.onHeightChange = { [weak self] in self?.updateComposer() }
@@ -804,10 +812,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     composer.contentView.addSubview(attachSurface)
     composer.contentView.addSubview(inputSurface)
     attachSurface.contentView.addSubview(attach)
-    for view in [editorView, hint, accessoryBar, modelButton, mentionButton, send] {
+    for view in [editorView, hint, accessoryBar, modelButton, mentionButton, permissionButton, send] {
       inputSurface.contentView.addSubview(view)
     }
-    for view in [composer, mentionPanel, mentionButton, queueView, quickRepliesView, inputSurface, attachSurface, notice, attachmentBar, quotaNotice, editorView, hint, accessoryBar, send, attach, modelButton] {
+    for view in [composer, mentionPanel, mentionButton, permissionButton, queueView, quickRepliesView, inputSurface, attachSurface, notice, attachmentBar, quotaNotice, editorView, hint, accessoryBar, send, attach, modelButton] {
       view.translatesAutoresizingMaskIntoConstraints = false
     }
     inputHeight = editorView.heightAnchor.constraint(equalToConstant: 48)
@@ -865,11 +873,16 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       mentionButton.leadingAnchor.constraint(equalTo: inputSurface.leadingAnchor, constant: 52),
       mentionButton.centerYAnchor.constraint(equalTo: send.centerYAnchor),
       mentionButton.widthAnchor.constraint(equalToConstant: 44), mentionButton.heightAnchor.constraint(equalToConstant: 44),
-      modelButton.leadingAnchor.constraint(greaterThanOrEqualTo: inputSurface.contentView.leadingAnchor, constant: 2),
+      permissionButton.centerYAnchor.constraint(equalTo: send.centerYAnchor),
+      permissionButton.widthAnchor.constraint(equalToConstant: 44), permissionButton.heightAnchor.constraint(equalToConstant: 44),
       modelButton.centerYAnchor.constraint(equalTo: send.centerYAnchor),
       modelButton.heightAnchor.constraint(equalToConstant: 44),
       modelButton.trailingAnchor.constraint(equalTo: send.leadingAnchor, constant: -2),
     ])
+    permissionLeading = permissionButton.leadingAnchor.constraint(equalTo: mentionButton.trailingAnchor)
+    permissionLeading?.isActive = true
+    modelLeading = modelButton.leadingAnchor.constraint(greaterThanOrEqualTo: inputSurface.contentView.leadingAnchor, constant: 2)
+    modelLeading?.isActive = true
     updateComposer()
   }
 
@@ -1335,6 +1348,26 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     }
   }
   private func updateComposerOptions() {
+    let permissions = composerOptions.permissions ?? []
+    permissionButton.isHidden = !composerExpanded || permissions.isEmpty
+    permissionButton.isEnabled = state.editable && !state.sending && pendingDraft == nil
+    permissionButton.accessibilityValue = permissions.first { $0.id == composerOptions.permissionId }?.title
+      ?? LodyStrings.text("model.useDefault")
+    permissionButton.menu = UIMenu(title: LodyStrings.text("model.tab.permission"), children: permissions.map { option in
+      UIAction(title: option.title, subtitle: option.description, state: option.id == composerOptions.permissionId ? .on : .off) { [weak self] _ in
+        guard let self, self.permissionButton.isEnabled,
+          self.composerOptions.permissions?.contains(where: { $0.id == option.id }) == true else { return }
+        self.composerOptions.permissionId = option.id
+        self.updateComposerOptions()
+        self.onComposerOptionChange?(["modelId": self.composerOptions.modelId, "effort": self.composerOptions.effort, "permissionId": option.id])
+      }
+    })
+    permissionLeading?.constant = mentionButton.isHidden ? -44 : 0
+    if !permissionButton.isHidden {
+      modelLeading?.constant = mentionButton.isHidden ? 96 : 140
+    } else {
+      modelLeading?.constant = mentionButton.isHidden ? 2 : 96
+    }
     modelButton.isHidden = !composerExpanded || composerOptions.models.isEmpty
     modelButton.isEnabled = state.editable && !state.sending && pendingDraft == nil
     let title = NSMutableAttributedString(string: composerOptions.modelTitle, attributes: [.foregroundColor: UIColor.label])

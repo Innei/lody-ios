@@ -21,10 +21,11 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker'],
-    'send': ['quick-replies', 'context-chip', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'paste-plain-chat', 'paste-plain-sheet', 'rich-paste-chat', 'rich-paste-sheet', 'attachment-overlay-chat', 'attachment-overlay-sheet', 'attachment-overlay-create', 'attachment-camera-chat', 'attachment-camera-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'model-memory'],
+    'send': ['quick-replies', 'context-chip', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'permission-mode-chat', 'permission-mode-sheet', 'permission-mode-create', 'paste-plain-chat', 'paste-plain-sheet', 'rich-paste-chat', 'rich-paste-sheet', 'attachment-overlay-chat', 'attachment-overlay-sheet', 'attachment-overlay-create', 'attachment-camera-chat', 'attachment-camera-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'model-memory'],
     'chat': ['message-share', 'user-mentions', 'file-preview', 'file-selection', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'chat-chrome', 'title-rename', 'simulator-preview'],
 }
 SUITES = {
+    'permission-composer': ['permission-mode-chat', 'permission-mode-sheet', 'permission-mode-create'],
     'paste-plain': ['paste-plain-chat', 'paste-plain-sheet'],
     'rich-paste': ['rich-paste-chat', 'rich-paste-sheet'],
     'chat-kit': ['chat-stream-performance', 'composer', 'send-transition-handoff'],
@@ -113,6 +114,9 @@ PREVIEW = {
     'rich-paste-chat': 'chat-preview',
     'composer': 'composer-preview',
     'composer-glass': 'composer-preview',
+    'permission-mode-chat': 'mention-chat',
+    'permission-mode-sheet': 'mention-sheet',
+    'permission-mode-create': 'create-parity',
     'fast-chat': 'chat-preview',
     'fast-sheet': 'composer-preview',
     'composer-glass-chat': 'composer-success',
@@ -182,6 +186,9 @@ READY = {
     'rich-paste-chat': 'session-input',
     'composer': 'create-session-input',
     'composer-glass': 'create-session-input',
+    'permission-mode-chat': 'session-input',
+    'permission-mode-sheet': 'create-session-input',
+    'permission-mode-create': 'create-session-input',
     'fast-chat': 'session-input',
     'fast-sheet': 'create-session-input',
     'composer-glass-chat': 'session-input',
@@ -531,6 +538,8 @@ with metro_context:
                         script = Path(__file__).with_name('session-share.py')
                     if case in {'session-delete', 'session-delete-pad'}:
                         script = Path(__file__).with_name('session-delete.py')
+                    if case.startswith('permission-mode-'):
+                        script = Path(__file__).with_name('permission-mode.py')
                     if case in ['fast-chat', 'fast-sheet']:
                         script = Path(__file__).with_name('fast.py')
                     if case.startswith('attachment-overlay-'):

@@ -52,6 +52,37 @@ enum CreateLogic {
     return next
   }
 
+  // Same precedence as OSS resolvePermissionModeFace and the chat projection.
+  static func permissionMode(_ capability: Capability?, _ choice: ModelChoice)
+    -> (options: [CapabilityChoice], value: String?, configId: String?)?
+  {
+    let selectors = (capability?.configOptions ?? []).filter { $0.type == "select" }
+    var option = selectors.first { $0.id == "permission_mode" || $0.category == "_permission" }
+    if option == nil, let modes = capability?.legacyModes ?? capability?.modes, !modes.isEmpty {
+      return (modes, choice.modeId, nil)
+    }
+    if option == nil {
+      option = selectors.first { $0.category == "mode" && $0.id != "interaction_mode" && !isThoughtLevel($0) }
+    }
+    guard let option, !option.options.isEmpty else { return nil }
+    let selected = choice.configOptionValues?[option.id]
+    let current = validConfigValue(option, selected) ? selected : option.currentValue
+    var value: String?
+    if case .string(let id) = current { value = id }
+    return (option.options, value, option.id)
+  }
+
+  static func withPermissionMode(_ capability: Capability?, _ choice: ModelChoice, value: String) -> ModelChoice {
+    guard let permission = permissionMode(capability, choice), permission.options.contains(where: { $0.id == value }) else { return choice }
+    var next = choice
+    if let id = permission.configId {
+      next.configOptionValues = (choice.configOptionValues ?? [:]).merging([id: .string(value)]) { $1 }
+    } else {
+      next.modeId = value
+    }
+    return next
+  }
+
   static func rememberedProject(_ prefs: CreatePrefs?, _ projects: [CreateProject]) -> String? {
     projects.first { $0.id == prefs?.projectId }?.id
   }
@@ -87,7 +118,8 @@ enum CreateLogic {
       modeId = capability?.modes.first { fullAccessModes.contains($0.id) }?.id
     }
     var values: [String: ConfigValue] = [:]
-    for option in extraConfigOptions(capability) {
+    // Mode config values selected by the composer must survive reopening too.
+    for option in capability?.configOptions ?? [] where option.category != "model" && !isThoughtLevel(option) {
       let value = saved?.configOptionValues?[option.id]
       if validConfigValue(option, value) { values[option.id] = value }
     }

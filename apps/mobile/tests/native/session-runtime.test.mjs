@@ -69,8 +69,8 @@ test('independent configuration reaches durable history before RPC, inherits on 
     assert.deepEqual(
       fixture.runtime.projectSession(fixture.server, 'live').composer
         .configOptionValues,
-      { fast: false },
-      'Reopened composer must restore explicit Fast off from the sent turn',
+      configOptionValues,
+      'Reopened composer restores permission and other agent choices, including explicit Fast off',
     );
     assert.equal((await fixture.runtime.sendTurn(args)).state, 'queued');
     assert.deepEqual(
