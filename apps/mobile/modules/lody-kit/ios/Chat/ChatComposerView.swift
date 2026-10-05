@@ -1030,7 +1030,9 @@ final class ChatComposerView: UIView, UITextViewDelegate {
         }
       }
     }
-    attachmentPages.present(page, anchoredTo: attach, dismissLabel: LodyStrings.text("native.close"))
+    if attachmentPages.present(page, anchoredTo: attach, dismissLabel: LodyStrings.text("native.close")) == .presented {
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
   }
 
   private func finishAttachmentOverlay(onCancel: (() -> Void)? = nil, _ action: @escaping (ChatComposerView, UIViewController) -> Void) {
