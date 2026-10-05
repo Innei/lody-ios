@@ -196,6 +196,8 @@ export {
 export {
   turnDiff,
   fileDiff,
+  workspaceChanges,
+  type WorkspaceChanges,
   readFile,
   listDir,
   localProjectIdOf,

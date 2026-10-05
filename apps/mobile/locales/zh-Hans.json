@@ -1034,5 +1034,14 @@
   "create.devices.noAgents": "暂无可用助手 · 点按重试",
   "create.devices.selectedOffline": "离线，等待上线",
   "create.devices.chooseAgent": "请选择可用的助手",
-  "devices.summary": "{count} 台在线 / 共 {total} 台"
+  "devices.summary": "{count} 台在线 / 共 {total} 台",
+  "workspaceChanges.title": "工作区变更",
+  "workspaceChanges.empty": "工作区暂无变更",
+  "workspaceChanges.base": "对比基准：{base}",
+  "workspaceChanges.localBase": "本地变更历史",
+  "workspaceChanges.error": "无法加载工作区变更，请检查电脑连接后重试。",
+  "workspaceChanges.refresh": "刷新变更",
+  "workspaceChanges.added": "新增",
+  "workspaceChanges.deleted": "删除",
+  "workspaceChanges.modified": "修改"
 }

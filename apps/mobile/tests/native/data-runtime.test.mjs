@@ -101,6 +101,7 @@ test('persistent runtime applies live increments to the existing replica and adv
             contents: `
               export const readFile = (ctx, args) => ({ ctx, args });
               export const fileDiff = readFile;
+              export const workspaceChanges = readFile;
               export const turnDiff = readFile;
               export const listDir = readFile;
             `,
@@ -129,7 +130,12 @@ test('persistent runtime applies live increments to the existing replica and adv
   assert.equal(JSON.parse((await first).catalog).sessions[0].title, 'Before');
   assert.equal(requests[0].live, 'long-poll');
   const fileArgs = { sessionId: 's1', path: 'README.md', entryId: 'turn' };
-  for (const method of ['readFile', 'fileDiff', 'turnDiff']) {
+  for (const method of [
+    'readFile',
+    'fileDiff',
+    'turnDiff',
+    'workspaceChanges',
+  ]) {
     const request = globalThis.dataRuntime[method](fileArgs);
     assert.equal(request.ctx.ownerSessionId, 's1');
     assert.equal(request.args.sessionId, 's1');
@@ -152,7 +158,12 @@ test('persistent runtime applies live increments to the existing replica and adv
     'parent',
   );
   // No session document was opened: ownership must come from live Meta Flock.
-  for (const method of ['readFile', 'fileDiff', 'turnDiff']) {
+  for (const method of [
+    'readFile',
+    'fileDiff',
+    'turnDiff',
+    'workspaceChanges',
+  ]) {
     const request = globalThis.dataRuntime[method](fileArgs);
     assert.equal(request.ctx.ownerSessionId, 'parent');
     assert.equal(request.args.sessionId, 's1');

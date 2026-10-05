@@ -839,6 +839,14 @@ the entrance blur, and no replay during dragging or keyboard layout changes.
 handoff and draft preservation. It uses the offline create-parity fixture and full
 Photos access.
 
+`workspace-changes` opens the shared production overflow actions, then the workspace
+list and current-file diff. It covers refresh failure, retry and successful empty
+results in English light/dark with screenshots and video. `simulator-preview`
+now enters through that same overflow menu. Both use offline service fixtures;
+they do not prove availability of a deployed Machine. Workspace changes use the
+Machine All Changes comparison base, displayed in the list, and may include
+committed branch changes as well as uncommitted files.
+
 `--suite permission-composer` runs `permission-mode-chat`,
 `permission-mode-sheet`, and `permission-mode-create`. These exercise the shared composer permission menu with offline agent options in both
 appearances. They check 44 pt controls, separation from mentions/model controls,

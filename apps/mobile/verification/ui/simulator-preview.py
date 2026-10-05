@@ -1,4 +1,4 @@
-"""The title menu opens a picked device; one live decoder survives full-screen/back,
+"""The overflow menu opens a picked device; one live decoder survives full-screen/back,
 dragging and typing; close hides it, choosing another device replaces it, stop ends it."""
 import re
 import sys
@@ -67,11 +67,11 @@ def back():
 
 
 def open_simulator(name='iPhone Simulator'):
-    ui.axe('tap', '--id', 'chat-navigation-title', '--post-delay', '.6')
+    ui.axe('tap', '--label', catalog.text('common.more'), '--post-delay', '.6')
     title = catalog.text('simulator.menu')
     entry = ui.wait(
         lambda items: next((i for i in items if (i.get('AXLabel') or '').startswith(title)), None),
-        'The title menu has no simulator entry')['frame']
+        'The overflow menu has no simulator entry')['frame']
     ui.axe('tap', '-x', str(entry['x'] + entry['width'] / 2), '-y', str(entry['y'] + entry['height'] / 2), '--post-delay', '.8')
     chooser = catalog.text('simulator.section.booted')
 

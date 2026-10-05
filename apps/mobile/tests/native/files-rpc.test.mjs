@@ -423,3 +423,88 @@ test('child file and diff requests use the workspace owner envelope but keep the
     'The current-diff fallback must preserve the parent envelope too',
   );
 });
+
+test('workspace changes use the session worktree and owner key, retaining deferred and binary files without transporting bodies to RN', async () => {
+  const text = {
+    kind: 'text',
+    text: { encoding: 'plain', text: 'private body', rawBytes: 12 },
+  };
+  const calls = machine((method, params, envelope) => {
+    assert.equal(method, 'code-collab/open-all-changes-diff');
+    assert.equal(envelope.params.ownerSessionId, 'parent');
+    assert.deepEqual(params, { sessionId: 'child' });
+    return {
+      result: {
+        status: 'ok',
+        base: 'abc123',
+        truncated: true,
+        entries: [
+          {
+            status: 'ok',
+            path: 'new.ts',
+            oldSnapshot: { kind: 'missing' },
+            newSnapshot: text,
+            add: 1,
+            del: 0,
+          },
+          {
+            status: 'ok',
+            path: 'removed.ts',
+            oldSnapshot: text,
+            newSnapshot: { kind: 'missing' },
+            add: 0,
+            del: 1,
+          },
+          {
+            status: 'ok',
+            path: 'image.png',
+            oldSnapshot: { kind: 'binary' },
+            newSnapshot: { kind: 'binary' },
+          },
+          { status: 'deferred', path: 'large.ts', add: 200, del: 10 },
+          {
+            status: 'unavailable',
+            path: 'unchanged.ts',
+            reason: 'not_changed',
+          },
+        ],
+      },
+    };
+  });
+  const result = await runtime.workspaceChanges(
+    { ...ctx(), ownerSessionId: 'parent' },
+    { sessionId: 'child' },
+  );
+  assert.equal(result.base, 'abc123');
+  assert.deepEqual(
+    result.files.map((file) => file.path),
+    ['image.png', 'large.ts', 'new.ts', 'removed.ts'],
+  );
+  assert.equal(result.files[1].add, 200);
+  assert.equal(result.files[2].kind, 'added');
+  assert.equal(result.files[3].kind, 'deleted');
+  assert.ok(!JSON.stringify(result).includes('private body'));
+  assert.equal(calls.length, 1);
+});
+
+test('workspace changes distinguish unavailable, rejected and successfully empty reads', async () => {
+  machine(() => ({
+    result: { status: 'unavailable', reason: 'transient_io' },
+  }));
+  assert.equal(
+    (await runtime.workspaceChanges(ctx(), { sessionId: 's1' })).status,
+    'unavailable',
+  );
+  machine(() => ({
+    error: { code: 'method_not_found', message: 'Upgrade required' },
+  }));
+  await assert.rejects(runtime.workspaceChanges(ctx(), { sessionId: 's1' }));
+  machine(() => ({
+    result: { status: 'ok', base: 'HEAD', entries: [], truncated: false },
+  }));
+  assert.deepEqual(await runtime.workspaceChanges(ctx(), { sessionId: 's1' }), {
+    status: 'ok',
+    base: 'HEAD',
+    files: [],
+  });
+});
