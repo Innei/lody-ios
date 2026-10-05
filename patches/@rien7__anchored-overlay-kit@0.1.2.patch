@@ -1,8 +1,16 @@
 diff --git a/Sources/AnchoredOverlayKit/OverlayControls.swift b/Sources/AnchoredOverlayKit/OverlayControls.swift
-index b93dfc3cbb374b89ed297dd00a3a199f4e0b9a2b..665b1937c1590cb86bc2dbfcb8ae12eddaf6f495 100644
+index b93dfc3cbb374b89ed297dd00a3a199f4e0b9a2b..6f3eb23f33a193849f2a9aa5a3caec021373109e 100644
 --- a/Sources/AnchoredOverlayKit/OverlayControls.swift
 +++ b/Sources/AnchoredOverlayKit/OverlayControls.swift
-@@ -36,9 +36,16 @@ public enum OverlayActionStyle: Sendable { case neutral, emphasized }
+@@ -22,6 +22,7 @@ public enum OverlayActionStyle: Sendable { case neutral, emphasized }
+ /// A native glass control with a separate minimum hit area. Its parent must reserve
+ /// the hit area (OverlayActionBar does this); visual bounds remain unchanged.
+ @MainActor public final class OverlayActionButton: UIButton {
++  private static let neutralBackingColor = UIColor.black.withAlphaComponent(0.60)
+   public let metrics: OverlayControlMetrics
+   public var actionStyle: OverlayActionStyle = .neutral { didSet { if oldValue != actionStyle { applyStyle() } } }
+   public var accentColor: UIColor = .systemBlue { didSet { if !oldValue.isEqual(accentColor) { applyStyle() } } }
+@@ -36,9 +37,16 @@ public enum OverlayActionStyle: Sendable { case neutral, emphasized }
      let old = configuration
      var next: UIButton.Configuration
      if #available(iOS 26.0, *) {
@@ -12,17 +20,17 @@ index b93dfc3cbb374b89ed297dd00a3a199f4e0b9a2b..665b1937c1590cb86bc2dbfcb8ae12ed
 +      next = actionStyle == .neutral ? .clearGlass() : .prominentGlass()
 +      // A real backing fill attenuates the media before the clear glass samples
 +      // it. A glass tint is not an equivalent fixed-opacity dimming layer.
-+      backgroundColor = actionStyle == .neutral ? .black.withAlphaComponent(0.35) : .clear
++      backgroundColor = actionStyle == .neutral ? Self.neutralBackingColor : .clear
 +      next.baseBackgroundColor = actionStyle == .neutral ? nil : accentColor
 +    } else {
 +      next = .filled()
 +      backgroundColor = .clear
-+      next.baseBackgroundColor = actionStyle == .neutral ? .black.withAlphaComponent(0.35) : accentColor
++      next.baseBackgroundColor = actionStyle == .neutral ? Self.neutralBackingColor : accentColor
 +    }
      next.baseForegroundColor = .white
      next.cornerStyle = .capsule
      next.titleLineBreakMode = .byTruncatingTail
-@@ -48,6 +55,13 @@ public enum OverlayActionStyle: Sendable { case neutral, emphasized }
+@@ -48,6 +56,13 @@ public enum OverlayActionStyle: Sendable { case neutral, emphasized }
      next.showsActivityIndicator = old?.showsActivityIndicator ?? false
      configuration = next
    }
