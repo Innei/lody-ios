@@ -707,8 +707,8 @@ a transient image; Reduce Motion and offscreen targets fade in place. Ownership
 is transferred before animation, so cancellation cannot delete an accepted file.
 
 Continuous attachment pages retain one outer glass panel across push/back.
-The camera body uses `contentLayout: .viewport`; the photo grid keeps the default
-`.stable` allocation and its scroll offset. Both expose `OverlayPageChrome` for
+The camera body and photo grid use `contentLayout: .stable` with their destination
+allocation and the grid retains its scroll offset. Both expose `OverlayPageChrome` for
 fixed-size foreground controls that follow the live bottom edge and safe inset.
 Review `run.mp4` through entry and return in both hosts, checking for clipped
 controls, scaled labels/icons and outgoing media behind incoming menu labels.
@@ -839,6 +839,28 @@ the entrance blur, and no replay during dragging or keyboard layout changes.
 handoff and draft preservation. It uses the offline create-parity fixture and full
 Photos access.
 
+Camera entry checks sample the production page during the panel transition: the
+viewfinder allocation must remain fixed while the visible panel changes height.
+Initial preview orientation is configured before capture starts, with implicit
+preview geometry animations disabled. Actual sensor startup/orientation still
+requires iPhone verification. Authorized photo selection checks capture both selected top
+corners, partial scrolling and inset mode to review the continuous theme-accent outline
+and opaque white selection numbers.
+
+For photo selection visual checks independent of the system authorization
+continuation, use `--photo-access granted`. The runner grants Photos access only
+on its leased Simulator and runs focused layout, selection, scrolling and
+attachment checks through `attachment-selection.py`. This mode does not establish permission-prompt restoration;
+use the existing `full`/`limited`/`denied`/`settings` modes for that contract.
+
+`attachment-motion-chat`, `attachment-motion-sheet` and `attachment-motion-create`
+record the same menu open → camera → back → photos → back → close/reopen flow.
+They use granted fixture photos and the deterministic camera, retain the draft,
+and check that the viewfinder keeps its destination size during transitions.
+Run with `--require-video` and omit `--appearance` for light/dark coverage.
+`motion-events.json` records wall-clock action boundaries for trimming idle waits
+from before/after clips; preserve original playback speed and inspect the frames.
+
 `workspace-changes` opens the shared production overflow actions, then the workspace
 list and current-file diff. It covers refresh failure, retry and successful empty
 results in English light/dark with screenshots and video. `simulator-preview`
@@ -853,3 +875,21 @@ appearances. They check 44 pt controls, separation from mentions/model controls,
 selection round trips, menu reopening, and retained drafts. The runtime regression
 checks persistence before RPC and restoration from history; no live agent turn is
 sent by these UI fixtures.
+
+### Library-owned selection boundary
+
+`ChatRecentPhotosView` adopts `OverlayBoundaryHighlighting` and returns selected
+visible image regions with the collection view as `clippedTo`. Lody keeps the
+ordered selection, badges and each photo's own border. AnchoredOverlayKit owns
+the panel-edge stroke, live corners, coordinate conversion and clipping; there
+is no app-owned boundary view, shape mask or scroll/layout refresh callback.
+
+The app pins the published `@rien7/anchored-overlay-kit@0.3.0` package.
+The temporary 0.2.0 dependency patch has been removed; CocoaPods resolves the
+released Swift sources from node_modules.
+
+Reuse `attachment-overlay-chat`, `attachment-overlay-sheet` and
+`attachment-overlay-create` with `--photo-access granted --embedded` to verify
+selection at both top corners, repeated edge/inset layout switching, partially
+scrolled selection, renumbering and draft-preserving import in both appearances.
+Review the screenshots and videos for border continuity and stale highlights.

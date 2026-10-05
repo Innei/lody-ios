@@ -12,6 +12,7 @@ final class ChatCameraPage: UIView, OverlayPageActivity, OverlayContentSafeArea,
   private lazy var cameraView = ChatAttachmentOverlayCameraView(session: camera.session)
   private var active = false
   private var handingOff = false
+  private var verificationFrames: [[String: CGFloat]] = []
   var overlayExtendsToEdges: Bool { true }
 
   init() {
@@ -30,6 +31,11 @@ final class ChatCameraPage: UIView, OverlayPageActivity, OverlayContentSafeArea,
         camera.setActive(false)
         updateSession()
       }
+    }
+    camera.onPreparePreview = { [weak self] device, completion in
+      guard let self, active, !handingOff else { return }
+      cameraView.preparePreview(device: device)
+      completion()
     }
     camera.onReady = { [weak self] device, canFlip in
       guard let self, active, !handingOff else { return }
@@ -63,6 +69,10 @@ final class ChatCameraPage: UIView, OverlayPageActivity, OverlayContentSafeArea,
   }
   override func layoutSubviews() { super.layoutSubviews(); cameraView.frame = bounds }
   func overlaySafeAreaInsetsDidChange(_ insets: UIEdgeInsets) {
+    if active, ChatCameraCapture.fixture, verificationFrames.count < 240, bounds.width > 0, bounds.height > 0 {
+      verificationFrames.append(["width": bounds.width, "height": bounds.height,
+        "visibleHeight": overlayChrome.bounds.height])
+    }
     if cameraView.controlInsets != insets {
       cameraView.controlInsets = insets
       cameraView.setNeedsLayout()
@@ -71,7 +81,16 @@ final class ChatCameraPage: UIView, OverlayPageActivity, OverlayContentSafeArea,
   func overlayPageActivityDidChange(isActive: Bool) {
     active = isActive
     if isActive { updateSession() }
-    else { camera.setActive(false) }
+    else {
+      camera.setActive(false)
+      if ChatCameraCapture.fixture {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("lody-camera-layout.json")
+        if let data = try? JSONSerialization.data(withJSONObject: verificationFrames) {
+          try? data.write(to: url, options: .atomic)
+        }
+        verificationFrames.removeAll()
+      }
+    }
   }
   @objc private func suspend() { camera.setActive(false) }
   private func updateSession() {

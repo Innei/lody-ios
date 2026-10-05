@@ -47,8 +47,8 @@ importers:
         specifier: 1.4.1
         version: 1.4.1(@shikijs/themes@4.4.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@rien7/anchored-overlay-kit':
-        specifier: 0.1.2
-        version: 0.1.2
+        specifier: 0.3.0
+        version: 0.3.0
       base64-js:
         specifier: 1.5.1
         version: 1.5.1
@@ -1445,8 +1445,8 @@ packages:
       '@types/react':
         optional: true
 
-  '@rien7/anchored-overlay-kit@0.1.2':
-    resolution: {integrity: sha512-J4Bo8qtapZ62AfFz9hy3YMHVESpdiXgYFT9SPPoyaqMPRUSNdbPzTRT/6+OffHyspuDy4MvxhGrlWLMscqa/CQ==}
+  '@rien7/anchored-overlay-kit@0.3.0':
+    resolution: {integrity: sha512-z2ojk4HVqsTisdl4uQS2z8Rg7DnHXucOKWSnYUm5taf5Epbj9id/xy1inWbNnQzECLb+FP3EqywEzlYqMojsWQ==}
 
   '@rolldown/binding-android-arm-eabi@1.2.7':
     resolution: {integrity: sha512-EypzgnYCwyVY4NDHKzGmNJT5b+XaQEBniHxsMdeIQLB/tcCzZnhqrzHpZFbX9iaxx+5RiB8caATBtfvZP7zVxQ==}
@@ -5395,7 +5395,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.18
 
-  '@rien7/anchored-overlay-kit@0.1.2': {}
+  '@rien7/anchored-overlay-kit@0.3.0': {}
 
   '@rolldown/binding-android-arm-eabi@1.2.7':
     optional: true

@@ -2,6 +2,20 @@ import AnchoredOverlayKit
 import Photos
 import UIKit
 
+final class ChatPhotoGridLayout: UICollectionViewFlowLayout {
+  override func invalidationContext(forBoundsChange newBounds: CGRect) -> UICollectionViewLayoutInvalidationContext {
+    let context = super.invalidationContext(forBoundsChange: newBounds)
+    if let grid = collectionView, grid.bounds.width != newBounds.width,
+       let flowContext = context as? UICollectionViewFlowLayoutInvalidationContext {
+      // Refresh sizes before the first layout at the new width. Reusing the old
+      // sizes can briefly turn three columns into two and replace visible cells.
+      flowContext.invalidateFlowLayoutDelegateMetrics = true
+      flowContext.invalidateFlowLayoutAttributes = true
+    }
+    return context
+  }
+}
+
 private enum PhotoGridPresentation: String, CaseIterable {
   case inset, edgeToEdge
   static let preferenceKey = "chat.photoGridPresentation"
@@ -46,9 +60,10 @@ private final class ChatPhotoActions: UIView {
 
 private final class ChatPhotoCell: UICollectionViewCell {
   let image = UIImageView()
-  private let badge = UIImageView()
+  private let badge = UILabel()
   private let videoMark = UIImageView(image: UIImage(systemName: "video.fill"))
   var assetID: String?
+  private var selectionOrder: Int?
   override init(frame: CGRect) {
     super.init(frame: frame)
     image.contentMode = .scaleAspectFill
@@ -56,7 +71,14 @@ private final class ChatPhotoCell: UICollectionViewCell {
     image.backgroundColor = .tertiarySystemFill
     image.layer.cornerRadius = 6
     image.layer.cornerCurve = .continuous
-    badge.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 20)
+    badge.font = .systemFont(ofSize: 13, weight: .semibold)
+    badge.textAlignment = .center
+    badge.clipsToBounds = true
+    badge.textColor = .white
+    badge.layer.cornerRadius = 10
+    badge.layer.borderWidth = 1.5
+    badge.layer.borderColor = UIColor.white.cgColor
+    badge.accessibilityElementsHidden = true
     badge.layer.shadowRadius = 2
     badge.layer.shadowOffset = .zero
     videoMark.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 11, weight: .bold)
@@ -76,6 +98,8 @@ private final class ChatPhotoCell: UICollectionViewCell {
       image.leadingAnchor.constraint(equalTo: contentView.leadingAnchor), image.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
       videoMark.leadingAnchor.constraint(equalTo: image.leadingAnchor, constant: 6),
       videoMark.bottomAnchor.constraint(equalTo: image.bottomAnchor, constant: -6),
+      badge.widthAnchor.constraint(equalToConstant: 20),
+      badge.heightAnchor.constraint(equalToConstant: 20),
       badge.trailingAnchor.constraint(equalTo: image.trailingAnchor, constant: -5),
       badge.bottomAnchor.constraint(equalTo: image.bottomAnchor, constant: -5),
     ])
@@ -83,20 +107,24 @@ private final class ChatPhotoCell: UICollectionViewCell {
     accessibilityTraits = .image
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+  func refreshAccent() {
+    badge.backgroundColor = selectionOrder == nil ? .clear : UIColor.lodyAccent.resolvedColor(with: traitCollection)
+    image.layer.borderColor = UIColor.lodyAccent.resolvedColor(with: traitCollection).cgColor
+  }
   func mark(order: Int?, video: Bool = false) {
+    selectionOrder = order
     let selected = order != nil
-    if let order { badge.image = UIImage(systemName: "\(order).circle.fill") }
-    else { badge.image = UIImage(systemName: "circle") }
-    badge.tintColor = selected ? .systemBlue : .white.withAlphaComponent(0.9)
+    badge.text = order.map(String.init)
+    refreshAccent()
+    badge.layer.borderWidth = selected ? 0 : 1.5
     badge.layer.shadowOpacity = selected ? 0 : 0.3
     image.layer.borderWidth = selected ? 2 : 0
-    image.layer.borderColor = UIColor.systemBlue.resolvedColor(with: traitCollection).cgColor
     videoMark.isHidden = !video
     accessibilityValue = selected ? LodyStrings.text("native.chat.attachment.selected") : nil
   }
 }
 
-final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout, OverlayContentSafeArea, OverlayPageChrome {
+final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout, OverlayContentSafeArea, OverlayPageChrome, OverlayBoundaryHighlighting {
   static var initialAppearance: OverlayAppearance { PhotoGridPresentation.saved.appearance }
   var onAppearanceChange: ((OverlayAppearance) -> Void)?
   var overlayChrome: UIView { actionBar }
@@ -111,7 +139,6 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
   var onManageLimited: (() -> Void)?
   var onRequestAccess: (() -> Void)?
   private let back = OverlayActionButton()
-  private var measuredGridWidth: CGFloat = 0
   private let grid: UICollectionView
   private let status = UIStackView()
   private let statusLabel = UILabel()
@@ -123,14 +150,31 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
   private let images = PHImageManager.default()
 
   init() {
-    let layout = UICollectionViewFlowLayout()
+    let layout = ChatPhotoGridLayout()
     layout.minimumLineSpacing = 3
     layout.minimumInteritemSpacing = 3
     grid = UICollectionView(frame: .zero, collectionViewLayout: layout)
     super.init(frame: .zero)
+    back.appearance = ChatAttachmentMenu.mediaActionAppearance
     configure()
+    NotificationCenter.default.addObserver(self, selector: #selector(refreshAccent), name: .lodyAppearanceDidChange, object: nil)
+    registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (view: ChatRecentPhotosView, _: UITraitCollection) in
+      view.refreshAccent()
+    }
+    refreshAccent()
   }
+  deinit { NotificationCenter.default.removeObserver(self) }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  @objc private func refreshAccent() {
+    let accent = LodyAccentChoice.current.color.resolvedColor(with: traitCollection)
+    layoutToggle.accentColor = accent
+    confirm.accentColor = accent
+    for case let cell as ChatPhotoCell in grid.visibleCells {
+      // Preserve the existing media indicator while refreshing the selection color.
+      cell.refreshAccent()
+    }
+  }
 
   private func configure() {
     grid.backgroundColor = .clear
@@ -200,6 +244,7 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
   private func updatePresentationControl() {
     let inset = presentation == .inset
     layoutToggle.actionStyle = inset ? .emphasized : .neutral
+    layoutToggle.appearance = inset ? .automatic : ChatAttachmentMenu.mediaActionAppearance
     layoutToggle.configuration?.image = UIImage(systemName: inset ? "arrow.down.forward.and.arrow.up.backward" : "arrow.down.backward.and.arrow.up.forward")
     layoutToggle.isSelected = inset
     layoutToggle.accessibilityValue = presentation.title
@@ -221,7 +266,6 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
     onAppearanceChange?(mode.appearance)
     let updates = {
       self.layoutIfNeeded()
-      self.grid.collectionViewLayout.invalidateLayout()
       self.grid.layoutIfNeeded()
       self.updateInsets()
       if let first, let frame = self.grid.layoutAttributesForItem(at: first)?.frame {
@@ -300,11 +344,13 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
     grid.verticalScrollIndicatorInsets.bottom = grid.contentInset.bottom
   }
 
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    if abs(grid.bounds.width - measuredGridWidth) > 0.5 {
-      measuredGridWidth = grid.bounds.width
-      grid.collectionViewLayout.invalidateLayout()
+  var overlayBoundaryHighlights: [OverlayBoundaryHighlight] {
+    grid.visibleCells.compactMap { cell in
+      guard let cell = cell as? ChatPhotoCell,
+            let id = cell.assetID, selection.contains(id) else { return nil }
+      return OverlayBoundaryHighlight(view: cell.image,
+        shape: .roundedRect(radius: presentation.cornerRadius), clippedTo: grid,
+        color: .lodyAccent, lineWidth: 2)
     }
   }
 
@@ -362,6 +408,7 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
       ? LodyStrings.text("native.chat.composer.photoLibrary")
       : LodyStrings.plural("native.chat.attachment.addCount", selection.count)
     confirm.actionStyle = selection.isEmpty ? .neutral : .emphasized
+    confirm.appearance = selection.isEmpty ? ChatAttachmentMenu.mediaActionAppearance : .automatic
     confirm.horizontalPadding = 20
     confirm.configuration?.title = title
     confirm.accessibilityValue = String(selection.count)

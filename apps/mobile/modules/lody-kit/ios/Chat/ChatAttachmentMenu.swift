@@ -3,6 +3,10 @@ import UIKit
 
 /// App-owned actions/localization; layout and controls belong to the overlay kit.
 @MainActor enum ChatAttachmentMenu {
+  static var mediaActionAppearance: OverlayActionAppearance {
+    .clearGlass(backingColor: .black.withAlphaComponent(0.60))
+  }
+
   enum Action: String, CaseIterable {
     case takePhoto, recentPhotos, files
     var image: String {
