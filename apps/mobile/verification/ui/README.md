@@ -860,3 +860,18 @@ and check that the viewfinder keeps its destination size during transitions.
 Run with `--require-video` and omit `--appearance` for light/dark coverage.
 `motion-events.json` records wall-clock action boundaries for trimming idle waits
 from before/after clips; preserve original playback speed and inspect the frames.
+
+`workspace-changes` opens the shared production overflow actions, then the workspace
+list and current-file diff. It covers refresh failure, retry and successful empty
+results in English light/dark with screenshots and video. `simulator-preview`
+now enters through that same overflow menu. Both use offline service fixtures;
+they do not prove availability of a deployed Machine. Workspace changes use the
+Machine All Changes comparison base, displayed in the list, and may include
+committed branch changes as well as uncommitted files.
+
+`--suite permission-composer` runs `permission-mode-chat`,
+`permission-mode-sheet`, and `permission-mode-create`. These exercise the shared composer permission menu with offline agent options in both
+appearances. They check 44 pt controls, separation from mentions/model controls,
+selection round trips, menu reopening, and retained drafts. The runtime regression
+checks persistence before RPC and restoration from history; no live agent turn is
+sent by these UI fixtures.

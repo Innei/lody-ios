@@ -129,7 +129,7 @@ export function useSessionSimulator(
     subtitle = `${t(simulatorPhaseKey[operation.phase])} · ${operation.name}`;
 
   return {
-    titleItem: availability && {
+    menuItem: availability && {
       id: 'simulator',
       title: t('simulator.menu'),
       subtitle,

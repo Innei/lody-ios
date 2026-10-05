@@ -1,3 +1,7 @@
+import {
+  permissionModeFor,
+  withPermissionMode,
+} from '../../src/cloud/send/capability.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
@@ -199,6 +203,28 @@ test('create a project session, open its empty history and dispatch the first tu
     grok.configOptions.find((item) => item.id === 'permission_mode').options[1]
       .id,
     'always-approve',
+  );
+  const interactionOnly = {
+    ...grok,
+    configOptions: grok.configOptions.filter(
+      (item) => item.id !== 'permission_mode',
+    ),
+  };
+  assert.equal(
+    permissionModeFor(interactionOnly, {}),
+    undefined,
+    'projected interaction modes are not permission modes',
+  );
+  const generic = {
+    ...interactionOnly,
+    configOptions: interactionOnly.configOptions.map((item) =>
+      item.id === 'interaction_mode' ? { ...item, id: 'approval' } : item,
+    ),
+  };
+  assert.equal(
+    withPermissionMode(generic, {}, 'agent').configOptionValues.approval,
+    'agent',
+    'config-only mode sends its config ID, not legacy modeId',
   );
   assert.equal(
     grok.configOptions.some((item) => item.id === 'invalid'),

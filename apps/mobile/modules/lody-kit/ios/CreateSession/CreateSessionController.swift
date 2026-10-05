@@ -140,6 +140,10 @@ final class CreateSessionController: UIViewController {
       "models": (capability?.models ?? []).map { ["id": $0.id, "title": $0.name] },
       "efforts": CreateLogic.effortsFor(capability, modelId: page.choice.modelId).map { ["id": $0, "title": $0] },
     ]
+    if let permission = CreateLogic.permissionMode(capability, page.choice) {
+      options["permissionId"] = permission.value ?? ""
+      options["permissions"] = permission.options.map { ["id": $0.id, "title": $0.name, "description": $0.description ?? ""] }
+    }
     if let fast { options["fast"] = fast.enabled }
     composer.setComposerOptions(Self.json(options))
     composer.setComposerState(Self.json([
@@ -293,7 +297,9 @@ final class CreateSessionController: UIViewController {
 
   func composerOptionChanged(_ body: [String: Any]) {
     let page = form.current
-    if let fast = body["fast"] as? Bool {
+    if let permission = body["permissionId"] as? String {
+      form.updateChoice(CreateLogic.withPermissionMode(page.capability, page.choice, value: permission))
+    } else if let fast = body["fast"] as? Bool {
       form.updateChoice(CreateLogic.withFastMode(page.capability, page.choice, enabled: fast))
     } else {
       let modelId = (body["modelId"] as? String).flatMap { $0.isEmpty ? nil : $0 }

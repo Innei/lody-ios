@@ -1034,5 +1034,14 @@
   "create.devices.noAgents": "No assistants available · Tap to retry",
   "create.devices.selectedOffline": "Offline, waiting for this device",
   "create.devices.chooseAgent": "Choose an available assistant",
-  "devices.summary": "{count} online / {total} devices"
+  "devices.summary": "{count} online / {total} devices",
+  "workspaceChanges.title": "Workspace Changes",
+  "workspaceChanges.empty": "No changes in this workspace",
+  "workspaceChanges.base": "Compared with {base}",
+  "workspaceChanges.localBase": "Local change history",
+  "workspaceChanges.error": "Could not load workspace changes. Check the computer connection and try again.",
+  "workspaceChanges.refresh": "Refresh Changes",
+  "workspaceChanges.added": "Added",
+  "workspaceChanges.deleted": "Deleted",
+  "workspaceChanges.modified": "Modified"
 }

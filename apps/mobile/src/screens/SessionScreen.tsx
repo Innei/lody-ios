@@ -5,7 +5,12 @@ import { useEditableMessage } from '@/features/sessions/useEditableMessage';
 import { useAgentErrorRetry } from '@/features/sessions/useAgentErrorRetry';
 import { openAgentError } from '@/hooks/screens/openAgentError';
 import { openSubagentTask } from '@/hooks/screens/openSubagentTask';
-import { fastModeFor, withFastMode } from '@/cloud/send/capability';
+import {
+  fastModeFor,
+  withFastMode,
+  permissionModeFor,
+  withPermissionMode,
+} from '@/cloud/send/capability';
 import { useComposerMentions } from '@/hooks/screens/useComposerMentions';
 import { NativeNavigationHeader, setPushVisibleRoute } from '@lody-ios/kit';
 import { useFocusEffect } from 'expo-router';
@@ -60,6 +65,8 @@ import {
 } from '@/features/sessions/prepareSessionHistory';
 import { ItemDetailScreen } from '@/screens/ItemDetailScreen';
 import { basename } from '@/features/sessions/path';
+import { WorkspaceChangesScreen } from '@/screens/WorkspaceChangesScreen';
+import { workspaceMenuActions } from '@/features/sessions/workspaceMenu';
 import { FileDiffScreen } from '@/screens/FileDiffScreen';
 import { FilesScreen } from '@/screens/FilesScreen';
 import { DiffWebViewWarmer } from '@/features/diff/DiffWebViewWarmer';
@@ -280,11 +287,13 @@ function View() {
     currentSession.cliType,
     currentSession.agentType,
   ]);
-  const browsable =
-    !!selected &&
-    !pending?.send.creation &&
-    !currentSession.archived &&
-    !!localProjectIdOf(session.projectId);
+  const workspaceAvailable =
+    !!selected && !pending?.send.creation && !currentSession.archived;
+  const browsable = workspaceAvailable && !!localProjectIdOf(session.projectId);
+  const reviewable =
+    workspaceAvailable &&
+    (!!localProjectIdOf(session.projectId) ||
+      session.projectId.startsWith('github:'));
   const onTurnChangesPress = (entryId: string, path: string) => {
     // Displayed native rows can lag the current JS replica; turnDiff validates the target.
     void present(
@@ -555,7 +564,15 @@ function View() {
     placeholder: composerPlaceholder(currentSession.archived, quotaLocked),
   });
   const efforts = effortsFor(capability, activeChoice.modelId);
+  const permission = permissionModeFor(capability, activeChoice);
   const composerOptionsJSON = JSON.stringify({
+    permissionId: permission?.value ?? '',
+    permissions:
+      permission?.options.map((item) => ({
+        id: item.id,
+        title: item.name,
+        description: item.description,
+      })) ?? [],
     fast: fastModeFor(capability, activeChoice)?.enabled,
     modelId: activeChoice.modelId ?? '',
     effort: activeChoice.effort ?? '',
@@ -606,7 +623,6 @@ function View() {
           },
         ]
       : []),
-    ...(simulator.titleItem ? [simulator.titleItem] : []),
     {
       id: 'rename',
       title: t('session.action.rename'),
@@ -626,7 +642,6 @@ function View() {
   ]);
   const onTitleMenu = (id: string) => {
     if (id === 'files') openProjectFiles();
-    if (id === 'simulator') void simulator.open();
     if (id === 'branch' && currentSession.branchName) {
       copyText(currentSession.branchName);
       showToast(t('session.title.branchCopied'), 'info');
@@ -684,6 +699,13 @@ function View() {
     const actions: (
       HeaderBarButtonItemMenuAction | HeaderBarButtonItemSubmenu
     )[] = [
+      ...workspaceMenuActions({
+        openChanges: reviewable
+          ? () =>
+              void present(WorkspaceChangesScreen, { sessionId: session.id })
+          : undefined,
+        simulator,
+      }),
       {
         type: 'action',
         title: t('session.action.find'),
@@ -770,6 +792,9 @@ function View() {
     prAttention,
     pullRequests,
     selected,
+    session.id,
+    reviewable,
+    simulator,
   ]);
   return (
     <RNView style={{ flex: 1, backgroundColor: colors.reading }}>
@@ -888,6 +913,16 @@ function View() {
         onReconnect={pending?.send.creation ? refresh : reconnect}
         onComposerOptionChange={({ nativeEvent }) => {
           choiceHydrated.current = true;
+          if (nativeEvent.permissionId !== undefined) {
+            setChoice(
+              withPermissionMode(
+                capability,
+                activeChoice,
+                nativeEvent.permissionId,
+              ),
+            );
+            return;
+          }
           if (typeof nativeEvent.fast === 'boolean') {
             setChoice(withFastMode(capability, activeChoice, nativeEvent.fast));
             return;

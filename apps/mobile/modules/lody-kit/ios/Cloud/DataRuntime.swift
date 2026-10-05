@@ -534,7 +534,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     )
   }
 
-  private static let sessionCommands: Set<String> = ["editSession", "sendTurn", "controlTurn", "itemDetail", "respondPermission", "turnDiff", "fileDiff", "readFile", "sessionPreview"]
+  private static let sessionCommands: Set<String> = ["editSession", "sendTurn", "controlTurn", "itemDetail", "respondPermission", "turnDiff", "fileDiff", "workspaceChanges", "readFile", "sessionPreview"]
   private static let contentCommands: Set<String> = ["turnDiff", "fileDiff", "readFile"]
   func command(_ method: String, payload: String, billing: [String: Any]? = nil) async throws -> String {
     try await withCheckedThrowingContinuation { continuation in

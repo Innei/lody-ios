@@ -106,6 +106,60 @@ async function toDiffResult(
   };
 }
 
+export type WorkspaceChanges =
+  | {
+      status: 'ok';
+      base: string;
+      files: {
+        path: string;
+        add?: number;
+        del?: number;
+        kind?: 'added' | 'deleted' | 'modified';
+      }[];
+    }
+  | { status: 'unavailable'; reason: string; message?: string };
+
+export async function workspaceChanges(
+  ctx: FileContext,
+  args: { sessionId: string },
+): Promise<WorkspaceChanges> {
+  const response = (await sealedRpc(
+    ctx.workspaceId,
+    ctx.machineId,
+    'code-collab/open-all-changes-diff',
+    ctx.ownerSessionId,
+    { sessionId: args.sessionId },
+    ctx.getGrant,
+    ctx.signal,
+  )) as
+    | {
+        status: 'ok';
+        base: string;
+        entries: (
+          | DiffResponse
+          | { status: 'deferred'; path: string; add?: number; del?: number }
+        )[];
+      }
+    | { status: 'unavailable'; reason: string; message?: string };
+  if (response.status !== 'ok') return response;
+  return {
+    status: 'ok',
+    base: response.base,
+    files: response.entries
+      .filter((entry) => entry.status !== 'unavailable')
+      .map((entry) => {
+        let kind: 'added' | 'deleted' | 'modified' | undefined;
+        if (entry.status === 'ok') {
+          kind = 'modified';
+          if (entry.oldSnapshot.kind === 'missing') kind = 'added';
+          else if (entry.newSnapshot.kind === 'missing') kind = 'deleted';
+        }
+        return { path: entry.path, add: entry.add, del: entry.del, kind };
+      })
+      .sort((a, b) => a.path.localeCompare(b.path)),
+  };
+}
+
 export async function fileDiff(
   ctx: FileContext,
   args: { sessionId: string; path: string },

@@ -1,5 +1,6 @@
 import {
   fileDiffRaw,
+  workspaceChangesRaw,
   listDirRaw,
   readFileRaw,
   turnDiffRaw,
@@ -71,3 +72,9 @@ export function localProjectIdOf(projectId: string): string | undefined {
   const index = projectId.indexOf(':local:');
   return index > 0 ? projectId.slice(index + ':local:'.length) : undefined;
 }
+
+export type { WorkspaceChanges } from '../../data-runtime/files';
+export const workspaceChanges = async (args: {
+  sessionId: string;
+}): Promise<import('../../data-runtime/files').WorkspaceChanges> =>
+  JSON.parse(await workspaceChangesRaw(JSON.stringify(args)));

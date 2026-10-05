@@ -75,6 +75,7 @@ struct Capability: Codable, Equatable, Sendable {
   var agentType: String
   var models: [CapabilityChoice] = []
   var modes: [CapabilityChoice] = []
+  var legacyModes: [CapabilityChoice]?
   var reasoningEfforts: [String: [String]] = [:]
   var reasoningEffortConfigId: String?
   var configOptions: [ConfigOption]?

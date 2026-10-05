@@ -458,10 +458,13 @@ export function projectSession(
     input?.configOptionValues && typeof input.configOptionValues === 'object'
       ? input.configOptionValues
       : {};
-  const fastValues = Object.fromEntries(
-    ['fast', 'fast-mode'].flatMap((id) =>
-      typeof options[id] === 'boolean' ? [[id, options[id]]] : [],
-    ),
+  // Restore agent-specific permission selectors as well as Fast. Effort has
+  // its own composer field, so a model change can clear it independently.
+  const composerValues = Object.fromEntries(
+    Object.entries(
+      readTurnMetadata({ inputConfig: input }).inputConfig
+        ?.configOptionValues ?? {},
+    ).filter(([id]) => id !== 'effort' && id !== 'reasoning_effort'),
   );
   const effort = [options.reasoning_effort, options.effort].find(
     (value) => typeof value === 'string',
@@ -536,8 +539,8 @@ export function projectSession(
               ? { modeId: input.modeId }
               : {}),
             ...(typeof effort === 'string' ? { effort } : {}),
-            ...(Object.keys(fastValues).length
-              ? { configOptionValues: fastValues }
+            ...(Object.keys(composerValues).length
+              ? { configOptionValues: composerValues }
               : {}),
           },
         }

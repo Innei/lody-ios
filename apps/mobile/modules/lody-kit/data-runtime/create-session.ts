@@ -155,6 +155,7 @@ export function creationOptions(
           agentType,
           models: modelOption?.options ?? choices(value.models, 'modelId'),
           modes: modeOption?.options ?? choices(value.modes, 'id'),
+          legacyModes: choices(value.modes, 'id'),
           configOptions,
           reasoningEfforts: Object.fromEntries(
             Object.entries(

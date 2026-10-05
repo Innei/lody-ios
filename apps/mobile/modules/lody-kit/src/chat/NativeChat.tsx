@@ -97,6 +97,7 @@ export const NativeChat: ComponentType<
         modelId: string;
         effort: string;
         fast?: boolean;
+        permissionId?: string;
       }>,
     ) => void;
   }

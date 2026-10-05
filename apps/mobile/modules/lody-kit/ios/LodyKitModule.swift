@@ -490,7 +490,21 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         self.dataRuntime.command("turnDiff", payload: payload, promise: promise)
       }
     }.runOnQueue(.main)
-    AsyncFunction("fileDiff") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("fileDiff", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("workspaceChanges") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("workspaceChanges", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("fileDiff") { (payload: String, promise: Promise) in
+      try MainActor.assumeIsolated {
+        if LodyUIVerify.enabled,
+          let params = try? JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: String],
+          params["sessionId"] == "ui-verify-workspace", let path = params["path"] {
+          let contents = try JSONSerialization.data(withJSONObject: ["old": "export const greeting = 'hi';\n", "new": "export const greeting = 'hello';\n"])
+          let handle = ContentStore.shared.put(StoredContent(data: contents, kind: "diff", path: path, session: "ui-verify-workspace", mimeType: nil))
+          let result = try JSONSerialization.data(withJSONObject: ["status": "ok", "path": path, "handle": handle, "base": "current", "oldKind": "text", "newKind": "text", "add": 1, "del": 1])
+          promise.resolve(String(decoding: result, as: UTF8.self))
+          return
+        }
+        self.dataRuntime.command("fileDiff", payload: payload, promise: promise)
+      }
+    }.runOnQueue(.main)
     AsyncFunction("readFile") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
         let runtime = self.dataRuntime

@@ -40,6 +40,7 @@ import { remoteSettings } from './settings';
 import type { SettingsRequest } from '../../../src/models/settings.ts';
 import {
   fileDiff,
+  workspaceChanges,
   type FileContext,
   listDir,
   readFile,
@@ -835,6 +836,9 @@ Object.assign(globalThis, {
     },
     turnDiff(args: { sessionId: string; entryId: string; path: string }) {
       return turnDiff(machineFor(args.sessionId, args.path), args);
+    },
+    workspaceChanges(args: { sessionId: string }) {
+      return workspaceChanges(machineFor(args.sessionId, '/'), args);
     },
     fileDiff(args: { sessionId: string; path: string }) {
       return fileDiff(machineFor(args.sessionId, args.path), args);
