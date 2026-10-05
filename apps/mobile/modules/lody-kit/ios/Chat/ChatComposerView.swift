@@ -1019,7 +1019,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     guard attach.isEnabled else { return }
     if attachmentOverlay.isPresented { attachmentOverlay.dismiss(); return }
     let page = OverlayPage(id: "attachments", layout: OverlayLayout(width: .fixed(280), height: .content(max: 300)),
-      appearance: OverlayAppearance(corners: .fixed(OverlayControlMetrics().menuRadius))) { [weak self] in
+      appearance: OverlayAppearance(corners: .fixed(OverlayControlMetrics().menuRadius)), contentLayout: .scaled) { [weak self] in
       ChatAttachmentMenu.content { [weak self] action in
         guard let self else { return }
         switch action {

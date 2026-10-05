@@ -21,7 +21,7 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker'],
-    'send': ['quick-replies', 'context-chip', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'paste-plain-chat', 'paste-plain-sheet', 'rich-paste-chat', 'rich-paste-sheet', 'attachment-overlay-chat', 'attachment-overlay-sheet', 'attachment-overlay-create', 'attachment-camera-chat', 'attachment-camera-sheet', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'model-memory'],
+    'send': ['quick-replies', 'context-chip', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'paste-plain-chat', 'paste-plain-sheet', 'rich-paste-chat', 'rich-paste-sheet', 'attachment-overlay-chat', 'attachment-overlay-sheet', 'attachment-overlay-create', 'attachment-camera-chat', 'attachment-camera-sheet', 'attachment-motion-chat', 'attachment-motion-sheet', 'attachment-motion-create', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'model-memory'],
     'chat': ['message-share', 'user-mentions', 'file-preview', 'file-selection', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'changes', 'inline-diff', 'chat-chrome', 'title-rename', 'simulator-preview'],
 }
 SUITES = {
@@ -102,6 +102,9 @@ PREVIEW = {
     'send-handoff': 'send-handoff',
     'send-handoff-delayed': 'send-handoff-delayed',
     'background': 'background-preview',
+    'attachment-motion-chat': 'composer-success',
+    'attachment-motion-sheet': 'composer-preview',
+    'attachment-motion-create': 'create-parity',
     'attachment-camera-chat': 'composer-success',
     'attachment-camera-sheet': 'composer-preview',
     'attachment-overlay-chat': 'composer-success',
@@ -171,6 +174,9 @@ READY = {
     'send-handoff': 'create-session-input',
     'send-handoff-delayed': 'create-session-input',
     'background': 'background-status',
+    'attachment-motion-chat': 'session-input',
+    'attachment-motion-sheet': 'create-session-input',
+    'attachment-motion-create': 'create-session-input',
     'attachment-camera-chat': 'session-input',
     'attachment-camera-sheet': 'create-session-input',
     'attachment-overlay-chat': 'session-input',
@@ -323,7 +329,7 @@ with metro_context:
         subprocess.run(['xcrun', 'clang', '-fobjc-arc', '-framework', 'Foundation', str(Path(__file__).with_name('software-keyboard.m')), '-o', str(keyboard)], check=True, timeout=60)
         subprocess.run([str(keyboard), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), args.udid], check=True, timeout=30)
         sim('install', args.udid, str(args.app.resolve()))
-        if args.photo_access in ['full', 'limited', 'granted'] and any(case.startswith('attachment-overlay-') for case in selected):
+        if any(case.startswith('attachment-motion-') for case in selected) or (args.photo_access in ['full', 'limited', 'granted'] and any(case.startswith('attachment-overlay-') for case in selected)):
             # Photos outlives app launches. Seed once per app container so repeats
             # don't fill the grid with duplicates or reinitialize the photo service.
             container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
@@ -360,9 +366,10 @@ with metro_context:
                         launch_mode = None
                         if args.camera_access != 'fixture':
                             sim('privacy', args.udid, 'reset', 'camera', 'app.innei.lody')
-                    if case.startswith('attachment-overlay-'):
+                    if case.startswith(('attachment-overlay-', 'attachment-motion-')):
                         terminate_app()
-                        sim('privacy', args.udid, 'grant' if args.photo_access == 'granted' else 'reset', 'photos', 'app.innei.lody')
+                        grant_photos = case.startswith('attachment-motion-') or args.photo_access == 'granted'
+                        sim('privacy', args.udid, 'grant' if grant_photos else 'reset', 'photos', 'app.innei.lody')
                         launch_mode = None
                     mode = (case in HOME_CASES, case in ('smooth-scroll', 'chat-performance'), case in ('camera-chat', 'camera-sheet'))
                     if case == 'chat-performance':
@@ -381,6 +388,8 @@ with metro_context:
                             launch.append('--ui-verify-mentions')
                         if mode[2] or (case.startswith('attachment-camera-') and args.camera_access == 'fixture'):
                             sim('privacy', args.udid, 'reset', 'photos', 'app.innei.lody')
+                            launch.append('--ui-verify-camera')
+                        if case.startswith('attachment-motion-'):
                             launch.append('--ui-verify-camera')
                         if mode[1]:
                             launch.append('--ui-verify-scroll')
@@ -454,7 +463,7 @@ with metro_context:
                     ui.wait(verify_ready, 'Missing ui-verify-ready', timeout=180)
                     preview = PREVIEW.get(case, 'chat-preview')
                     ready = 'ui-verify-ready' if case in HOME_CASES else READY.get(case, 'session-input')
-                    if case.startswith(('attachment-overlay-', 'attachment-camera-')) or case in ('quick-replies', 'context-chip'):
+                    if case.startswith(('attachment-overlay-', 'attachment-camera-', 'attachment-motion-')) or case in ('quick-replies', 'context-chip'):
                         # Native list AX includes clipped rows. Only touch a row
                         # inside the content viewport, using its current frame.
                         for _ in range(24):
@@ -535,6 +544,8 @@ with metro_context:
                         script = Path(__file__).with_name('fast.py')
                     if case.startswith('attachment-overlay-'):
                         script = Path(__file__).with_name('attachment-selection.py' if args.photo_access == 'granted' else 'attachment-overlay.py')
+                    if case.startswith('attachment-motion-'):
+                        script = Path(__file__).with_name('attachment-motion.py')
                     if case == 'attachment-overlay-create' and args.photo_access != 'granted':
                         script = Path(__file__).with_name('attachment-create.py')
                     if case.startswith('attachment-camera-') or case in ('camera-chat', 'camera-sheet'):
@@ -567,7 +578,7 @@ with metro_context:
                     check_timeout = 180
                     if case == 'quick-replies':
                         check_timeout = 420
-                    if case.startswith('attachment-overlay-') and args.photo_access in ['full', 'granted']:
+                    if case.startswith(('attachment-overlay-', 'attachment-motion-')) and args.photo_access in ['full', 'granted']:
                         check_timeout = 360
                     if case == 'chat-performance':
                         check_timeout = 480

@@ -852,3 +852,11 @@ continuation, use `--photo-access granted`. The runner grants Photos access only
 on its leased Simulator and runs focused layout, selection, scrolling and
 attachment checks through `attachment-selection.py`. This mode does not establish permission-prompt restoration;
 use the existing `full`/`limited`/`denied`/`settings` modes for that contract.
+
+`attachment-motion-chat`, `attachment-motion-sheet` and `attachment-motion-create`
+record the same menu open → camera → back → photos → back → close/reopen flow.
+They use granted fixture photos and the deterministic camera, retain the draft,
+and check that the viewfinder keeps its destination size during transitions.
+Run with `--require-video` and omit `--appearance` for light/dark coverage.
+`motion-events.json` records wall-clock action boundaries for trimming idle waits
+from before/after clips; preserve original playback speed and inspect the frames.
