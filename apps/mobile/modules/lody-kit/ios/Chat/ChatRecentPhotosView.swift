@@ -160,6 +160,7 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
     layout.minimumInteritemSpacing = 3
     grid = UICollectionView(frame: .zero, collectionViewLayout: layout)
     super.init(frame: .zero)
+    back.appearance = ChatAttachmentMenu.mediaActionAppearance
     configure()
     NotificationCenter.default.addObserver(self, selector: #selector(refreshAccent), name: .lodyAppearanceDidChange, object: nil)
     registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (view: ChatRecentPhotosView, _: UITraitCollection) in
@@ -257,6 +258,7 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
   private func updatePresentationControl() {
     let inset = presentation == .inset
     layoutToggle.actionStyle = inset ? .emphasized : .neutral
+    layoutToggle.appearance = inset ? .automatic : ChatAttachmentMenu.mediaActionAppearance
     layoutToggle.configuration?.image = UIImage(systemName: inset ? "arrow.down.forward.and.arrow.up.backward" : "arrow.down.backward.and.arrow.up.forward")
     layoutToggle.isSelected = inset
     layoutToggle.accessibilityValue = presentation.title
@@ -437,6 +439,7 @@ final class ChatRecentPhotosView: UIView, UICollectionViewDataSource, UICollecti
       ? LodyStrings.text("native.chat.composer.photoLibrary")
       : LodyStrings.plural("native.chat.attachment.addCount", selection.count)
     confirm.actionStyle = selection.isEmpty ? .neutral : .emphasized
+    confirm.appearance = selection.isEmpty ? ChatAttachmentMenu.mediaActionAppearance : .automatic
     confirm.horizontalPadding = 20
     confirm.configuration?.title = title
     confirm.accessibilityValue = String(selection.count)

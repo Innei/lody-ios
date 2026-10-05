@@ -556,7 +556,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private let sendFeedback = UIImpactFeedbackGenerator(style: .medium)
   #if !LODY_SHARE_EXTENSION
   private let attachmentOverlay = AnchoredOverlayController()
-  private lazy var attachmentPages = OverlayPages(controller: attachmentOverlay)
+  private lazy var attachmentPages = OverlayPages(controller: attachmentOverlay, transitionStyle: .blurredCrossfade)
   #endif
   private enum AttachmentPage { case photos, camera }
   private let attach = UIButton(type: .system)
@@ -1019,7 +1019,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     guard attach.isEnabled else { return }
     if attachmentOverlay.isPresented { attachmentOverlay.dismiss(); return }
     let page = OverlayPage(id: "attachments", layout: OverlayLayout(width: .fixed(280), height: .content(max: 300)),
-      appearance: OverlayAppearance(corners: .fixed(OverlayControlMetrics().menuRadius)), contentLayout: .scaled) { [weak self] in
+      appearance: OverlayAppearance(corners: .fixed(OverlayControlMetrics().menuRadius)), contentScaling: .fit) { [weak self] in
       ChatAttachmentMenu.content { [weak self] action in
         guard let self else { return }
         switch action {

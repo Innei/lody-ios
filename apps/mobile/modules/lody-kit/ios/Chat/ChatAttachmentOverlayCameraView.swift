@@ -60,6 +60,9 @@ final class ChatAttachmentOverlayCameraView: UIView {
     shutterFlash.alpha = 0
     shutterFlash.isUserInteractionEnabled = false
     for item in [preview, image, shutterFlash, controls] { addSubview(item) }
+    for button in [collapse, more, flip, flash, retry] {
+      button.appearance = ChatAttachmentMenu.mediaActionAppearance
+    }
     collapse.setImage(UIImage(systemName: "chevron.left"), for: .normal)
     collapse.accessibilityLabel = LodyStrings.text(dismissKey)
     collapse.accessibilityIdentifier = "camera-collapse"

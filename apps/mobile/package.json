@@ -21,7 +21,7 @@
     "@loro-dev/streams-client": "0.7.0",
     "@loro-dev/streams-crdt": "0.16.1",
     "@pierre/diffs": "1.4.1",
-    "@rien7/anchored-overlay-kit": "0.1.2",
+    "@rien7/anchored-overlay-kit": "0.2.0",
     "base64-js": "1.5.1",
     "diff": "9.0.0",
     "expo": "~57.0.20",
