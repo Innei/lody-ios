@@ -20,10 +20,16 @@ test('prebuild replaces stale Markdown and Litext declarations idempotently', as
   }
   try {
     const fresh = await generate(base);
+    assert.match(
+      fresh,
+      /spm_pkg "Litext", :url => "https:\/\/github.com\/Lakr233\/Litext.git", :version => "3.6.2"/,
+    );
+    assert.doesNotMatch(fresh, /Innei\/Litext/);
     const legacy = base.replace(
       "target 'Lody' do\n",
       "target 'Lody' do\n" +
         '  spm_pkg "MarkdownView", :url => "https://github.com/Innei/MarkdownView.git", :branch => "lody/inject-text-label-view"\n' +
+        '  spm_pkg "Litext", :url => "https://github.com/Innei/Litext.git", :commit => "f7b6322051d8f9308cf63f5f5adb3c80549a6dd0"\n' +
         '  spm_pkg "Litext", :url => "https://github.com/Lakr233/Litext", :version => "3.3.2"\n' +
         '  spm_pkg "Litext", :path => File.expand_path("../../../packages/litext", __dir__)\n',
     );

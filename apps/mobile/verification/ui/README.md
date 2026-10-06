@@ -20,7 +20,7 @@ Fixture uses production rendering without account or cloud access. User bubbles,
 tool rows and unloaded history form selection boundaries; changing visible group
 membership clears selection. Table selections keep their upstream group and menu.
 
-The pinned [Litext fork](https://github.com/Innei/Litext/tree/f7b6322051d8f9308cf63f5f5adb3c80549a6dd0) uses UIKit's public `UITextSelectionDisplayInteraction`
+Pinned [Litext](https://github.com/Lakr233/Litext) 3.6.2 uses UIKit's public `UITextSelectionDisplayInteraction`
 for highlights/handles and `UITextLoupeSession` on iOS 17 and later. `markdown`
 checks one system display with two handles and no visible custom handles, and
 captures the loupe while long presses and cross-row/table

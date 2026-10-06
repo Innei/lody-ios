@@ -24,8 +24,8 @@ const PACKAGES = [
   },
   {
     name: 'Litext',
-    url: 'https://github.com/Innei/Litext.git',
-    commit: 'f7b6322051d8f9308cf63f5f5adb3c80549a6dd0',
+    url: 'https://github.com/Lakr233/Litext.git',
+    version: '3.6.2',
   },
 ];
 
