@@ -42,8 +42,13 @@ import { SettingsPreviewScreen } from './SettingsPreviewScreen';
 import { SettingsScreen } from '../SettingsScreen';
 import { QuickRepliesPreviewScreen } from './QuickRepliesPreviewScreen';
 import { OnboardingPreviewScreen } from './OnboardingPreviewScreen';
-import { useNavigation, useRouter, useTheme } from 'expo-router';
-import { useEffect, useState } from 'react';
+import {
+  useLocalSearchParams,
+  useNavigation,
+  useRouter,
+  useTheme,
+} from 'expo-router';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Text, View as RNView } from 'react-native';
 import {
   NativeCloseButton,
@@ -76,6 +81,11 @@ function openRow(id: string, title: string, image: string): NativeListRow {
 function View() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { verifyCase, request } = useLocalSearchParams<{
+    verifyCase?: string;
+    request?: string;
+  }>();
+  const openedRequest = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!uiVerify) return;
     globalThis.__lodyUiVerifyReset = () =>
@@ -450,6 +460,23 @@ function View() {
         .catch((error) => setResult(String(error)));
     },
   };
+
+  const openVerifyCase = useEffectEvent((id: string) => {
+    if (!Object.hasOwn(actions, id))
+      throw new Error(`Unknown UI verify case: ${id}`);
+    actions[id]();
+  });
+  useEffect(() => {
+    if (
+      !uiVerify ||
+      !verifyCase ||
+      !request ||
+      openedRequest.current === request
+    )
+      return;
+    openedRequest.current = request;
+    openVerifyCase(verifyCase);
+  }, [verifyCase, request]);
 
   return (
     <NativeGroupedList

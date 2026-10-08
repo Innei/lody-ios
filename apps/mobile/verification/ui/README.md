@@ -95,6 +95,23 @@ target, VoiceOver label and existing open action.
 
 ## Run locally
 
+After the offline ready marker, the runner opens each Debug scene with
+`lody:///debug?verifyCase=<preview-id>&request=<unique-id>`, reusing the same
+menu action without scrolling or tapping the Debug list. Only the offline
+verification bundle handles these parameters; each request opens once.
+Home cases keep their native launch fixtures. Use `UI.open_case` for later fixture
+entries and relaunches as well; no case should scroll the Debug menu merely to
+reach its fixture. Results include `caseEntrySeconds` and `checkSeconds`.
+
+The runner establishes English and software-keyboard mode once per batch.
+Cases reuse that baseline. `UI.axe("type", text)` / `UI.type_into` submit text
+through one AXe composite HID batch rather than individual key submissions;
+do not repeat keyboard setup, switch IMEs, or erase/retry a mismatched draft.
+A mismatch fails immediately. Individual software-key taps remain only when the
+specific key interaction is under test (for example, the `$` mention trigger).
+Retain keyboard geometry assertions where keyboard behavior is the requirement.
+Recording starts after shared startup is ready, immediately before scene entry.
+
 `session-search` and `session-search-pad` run the production Inbox/sidebar and
 session find with isolated cached fixtures. They cover title/path/branch and
 Markdown body matches, excluded tool/URL metadata, snippets, real rendered
@@ -358,8 +375,9 @@ supply `--udid` or wrap it in a single-device lease. Build separately with
 
 The runner enables request diagnostics only for its owned Metro. `metro.log`
 records manifest/status request starts, completion/connection-close, status and
-duration without headers, query parameters or bodies. `metro-startup.json` and
-per-case `metro-failure.json` probe host-side status and manifest HEAD/GET with
+duration without headers, query parameters or bodies. A successful start only
+waits for status and prewarms the bundle once. On failures, `metro-startup.json`
+and per-case `metro-failure.json` probe host-side status and manifest HEAD/GET with
 10-second deadlines; they do not prove Simulator reachability. Compare these
 with the five-minute `native.log` and failure screenshot to distinguish no
 incoming request, an unfinished server response, and app-side failure.

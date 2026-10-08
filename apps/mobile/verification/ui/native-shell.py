@@ -39,8 +39,6 @@ ui.capture('native-shell-search')
 tap_label('Project')
 ui.element('poc-project-draft')
 counter('project')
-subprocess.run([str(ui.output.parents[1] / 'software-keyboard'),
-                subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True)
 ui.axe('tap', '--id', 'poc-project-draft')
 keyboard = ui.wait(lambda items: next((i['frame'] for i in items if (i.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar')), None), 'Software keyboard did not appear')
 field = ui.element('poc-project-draft')['frame']

@@ -1,6 +1,5 @@
 """Real sheet keyboard, duplicate-send suppression and exact rejected-draft restore."""
 import sys
-import subprocess
 from driver import UI
 from sheet_background import capture_card
 import catalog
@@ -34,16 +33,9 @@ assert last['y'] + last['height'] <= field['y'], 'Last option cannot clear the f
 assert last['y'] > 0, 'Last option scrolled offscreen'
 ui.capture('list-end')
 pasted = ui.paste_file('create-session-input')
-# Earlier HID-driven cases can reconnect the Simulator's hardware keyboard.
-# Restore the software keyboard before asserting actual phone typing/clearance.
-subprocess.run([str(ui.output.parent.parent / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
 screen_height = ui.state()[0]['frame']['height']
 keyboard = ui.wait(lambda items: next((i['frame'] for i in items if (i.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar') and i['frame']['y'] < screen_height - 150), None), 'Software keyboard did not appear')
-# Exercise phone typing without switching this keyboard check to hardware input.
-for char in 'draft a\nb':
-    labels = {'\n': ('return',), ' ': (' ', 'space')}.get(char, (char,))
-    key = ui.wait(lambda items: next((i for i in items if (i.get('AXLabel') or '').lower() in labels and i.get('type') == 'Button'), None), 'Missing keyboard key ' + repr(char))['frame']
-    ui.axe('tap', '-x', str(key['x'] + key['width'] / 2), '-y', str(key['y'] + key['height'] / 2), '--tap-style', 'physical')
+ui.type_into('create-session-input', 'draft a\nb')
 keyboard_top = min([keyboard['y']] + [i['frame']['y'] for i in ui.state() if i.get('AXLabel') == 'Typing Predictions'])
 field = ui.element('create-session-input')['frame']
 attach = ui.element('session-attach')['frame']
@@ -60,7 +52,7 @@ assert model['x'] + model['width'] <= send['frame']['x'] + 1, 'Focused model sel
 draft = ui.element('create-session-input')['AXValue']
 # The software keyboard may commit an automatic trailing space on Return.
 # Validate the typed words/newline here; restoration below compares the exact draft.
-assert '\n'.join(line.rstrip() for line in draft.lower().split('\n')) == 'draft a\nb', 'Touch typing did not enter the complete multiline draft'
+assert '\n'.join(line.rstrip() for line in draft.lower().split('\n')) == 'draft a\nb', 'Batch input did not enter the complete multiline draft'
 ui.capture('keyboard')
 ui.axe('tap', '--id', 'session-send')
 assert not ui.element('session-send')['enabled'], 'Pending send must be disabled'

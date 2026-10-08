@@ -1,12 +1,10 @@
 """Typing autocompletes in place; explicit categories open a full-screen searchable picker."""
 import sys
-import subprocess
 from driver import UI
 import catalog
 
 ui = UI(*sys.argv[1:])
 field = 'create-session-input' if 'mention-sheet' in str(ui.output) else 'session-input'
-keyboard_ready = False
 
 def search_field():
     return ui.wait(lambda items: next((i for i in items if i.get('subrole') == 'AXSearchField'), None), 'Navigation search missing')
@@ -44,25 +42,11 @@ def keyboard_clear():
     assert send['y'] + send['height'] <= top + 1, 'Composer overlaps the keyboard'
 
 def type_keys(text):
-    global keyboard_ready
-    # Pick English explicitly: the globe value names the NEXT keyboard, not the current one.
-    globe = next((i for i in ui.state() if i.get('AXLabel') == catalog.system('nextKeyboard')), None)
-    if globe and not keyboard_ready:
-        frame = globe['frame']
-        ui.axe('touch', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--down', '--up', '--delay', '1')
-        key = ui.wait(lambda items: next((i for i in items if i.get('AXLabel') in ['English (US)', '英语（美国）', '英语(美国)']), None), 'English keyboard menu missing')
-        frame = key['frame']
-        ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--tap-style', 'physical', '--post-delay', '.3')
-        # A newly leased Simulator may show the QuickPath introduction after switching keyboards.
-        intro = next((i for i in ui.state() if i.get('AXLabel') in ['Continue', '继续'] and i.get('type') == 'Button'), None)
-        if intro:
-            ui.axe('tap', '--label', intro['AXLabel'], '--post-delay', '.4')
-        keyboard_ready = True
-    # Physical software-keyboard taps keep this a touch interaction, not hardware typing.
-    for char in text:
-        key = ui.wait(lambda items: next((i for i in items if (i.get('AXLabel') or '').lower() == char and i.get('type') == 'Button'), None), 'Missing keyboard key ' + char)
-        frame = key['frame']
-        ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--tap-style', 'physical')
+    if text == '$':
+        # Keep the exact skill trigger on the software symbol key; HID maps it to "4".
+        ui.axe('tap', '--label', '$', '--tap-style', 'physical')
+    else:
+        ui.axe('type', text)
 
 def open_category(kind):
     tap('session-mention')
@@ -166,28 +150,24 @@ print('PASS: all seven references, actionable skill display and send-time sessio
 
 field = 'session-input'
 tap(field)
-ui.axe('type', '/')
+ui.axe('tap', '--label', 'numbers', '--tap-style', 'physical')
+ui.axe('tap', '--label', '/', '--tap-style', 'physical')
 ui.element('mention-item:compact')
 assert not any(i.get('AXUniqueId') == 'mention-item:file' for i in ui.state()), 'Slash opened the category index'
 ui.capture('slash-direct')
-ui.axe('key', '42')
+ui.axe('tap', '--id', 'delete', '--tap-style', 'physical')
 assert value() == '', 'Cancelling slash left inserted command text'
 # Hardware modifier injection can deliver "4" instead of "$". Use the visible
 # software key so this still proves the user's actual trigger.
-subprocess.run([str(ui.output.parents[1] / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
 tap(field)
 keyboard_clear()
-ui.axe('tap', '--label', 'numbers', '--tap-style', 'physical')
 type_keys('$')
 assert value().strip() == '$', 'The software keyboard did not enter the skill trigger'
 ui.element('mention-item:skills/auth-review/SKILL.md')
 assert not any(i.get('AXUniqueId') == 'mention-item:file' for i in ui.state()), 'Dollar opened the category index'
 ui.capture('skill-direct')
-ui.axe('key', '42')
+ui.axe('tap', '--id', 'delete', '--tap-style', 'physical')
 assert not value().strip(), 'Cancelling skill completion changed the draft'
 
-# AXe hardware typing changes the per-device keyboard mode; restore the runner's
-# software keyboard before the next appearance reuses this process.
-subprocess.run([str(ui.output.parents[1] / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
 tap(field)
 keyboard_clear()

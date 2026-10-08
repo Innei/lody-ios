@@ -108,20 +108,8 @@ if 'devices-pad' not in str(ui.output):
     ui.axe('tap', '-x', str(f['x'] + f['width']/2), '-y', str(f['y'] + f['height']/2), '--post-delay', '.8')
     ui.element('ui-design')
 
-    settings = label(catalog.text('tabs.settings'))['frame']
-    ui.axe('touch', '-x', str(settings['x'] + settings['width']/2), '-y', str(settings['y'] + settings['height']/2), '--down', '--up', '--delay', '1.2')
-    time.sleep(1)
-    for _ in range(24):
-        row = next((i for i in ui.state() if i.get('AXUniqueId') == 'create-recovery'), None)
-        center = row['frame']['y'] + row['frame']['height']/2 if row else None
-        if center is not None and 140 < center < 740:
-            break
-        start, end = (400, 600) if center is not None and center <= 140 else (650, 450)
-        ui.axe('swipe', '--start-x', '200', '--start-y', str(start), '--end-x', '200', '--end-y', str(end), '--duration', '.8', '--post-delay', '1')
-    else:
-        raise AssertionError('Device recovery Debug row is not visible')
     presence([])
-    ui.axe('tap', '--id', 'create-recovery', '--post-delay', '1')
+    ui.open_case('create-recovery')
     ui.element('create-session-input')
     label(catalog.text('create.devices.failed'))
     send_enabled(False)

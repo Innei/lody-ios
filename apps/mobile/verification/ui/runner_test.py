@@ -2,10 +2,12 @@
 import json
 from pathlib import Path
 import socket
+import shlex
 import subprocess
 import sys
 import tempfile
 import unittest
+from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
 
 from driver import UI, launch_covered, restart_accessibility
@@ -13,6 +15,44 @@ from orchestrator import managed_metro, prewarm_bundle, run_batches
 
 
 class RunnerTest(unittest.TestCase):
+    def test_case_links_encode_the_action_and_allow_repeated_entry(self):
+        with tempfile.TemporaryDirectory() as directory, patch('driver.subprocess.run') as run:
+            ui = UI('owned-simulator', directory)
+            ui.open_case('case with & query')
+            ui.open_case('case with & query')
+            urls = [call.args[0][-1] for call in run.call_args_list]
+            queries = [parse_qs(urlparse(url).query) for url in urls]
+            self.assertEqual([q['verifyCase'] for q in queries], [['case with & query']] * 2)
+            self.assertNotEqual(queries[0]['request'], queries[1]['request'])
+            self.assertTrue(all(urlparse(url).path == '/debug' for url in urls))
+            self.assertTrue(all(call.kwargs['check'] and call.kwargs['timeout'] == 30 for call in run.call_args_list))
+
+    def test_failed_case_link_is_not_silently_replaced_by_menu_navigation(self):
+        with tempfile.TemporaryDirectory() as directory, patch('driver.subprocess.run', side_effect=subprocess.CalledProcessError(1, 'openurl')):
+            with self.assertRaises(subprocess.CalledProcessError):
+                UI('owned-simulator', directory).open_case('send-handoff')
+
+    def test_typing_submits_one_batch_without_losing_quotes_or_newlines(self):
+        text = "draft 'quoted' \"double\"\nnext line & $value"
+        with tempfile.TemporaryDirectory() as directory, patch('driver.subprocess.check_output', return_value='ok') as run:
+            UI('owned-simulator', directory).axe('type', text)
+            command = run.call_args.args[0]
+            self.assertEqual(command[:4], ['axe', 'batch', '--type-submission', 'composite'])
+            self.assertEqual(shlex.split(command[command.index('--step') + 1]), ['type', text])
+            self.assertEqual(command[-2:], ['--udid', 'owned-simulator'])
+            run.assert_called_once()
+
+    def test_batch_typing_uses_one_input_command_and_fails_without_retyping(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('owned-simulator', directory)
+            with patch.object(ui, 'axe') as axe, patch.object(ui, 'element', return_value={'AXValue': 'DRAFT'}):
+                ui.type_into('field', 'draft')
+                axe.assert_called_once_with('type', 'draft')
+            with patch.object(ui, 'axe') as axe, patch.object(ui, 'element', return_value={'AXValue': 'different'}):
+                with self.assertRaisesRegex(AssertionError, 'did not commit'):
+                    ui.type_into('field', 'draft')
+                axe.assert_called_once_with('type', 'draft')
+
     def test_parallel_workers_keep_sibling_results_after_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)

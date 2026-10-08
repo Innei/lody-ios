@@ -89,8 +89,6 @@ hidden()
 ui.axe('tap', '--id', 'quick-reset', '--post-delay', '.7')
 
 # Click the short label, but send the full configured message.
-# AXe typing connects a hardware keyboard; detach it again before this press check.
-subprocess.run([str(ui.output.parents[1] / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
 ui.axe('tap', '--id', 'session-input', '--tap-style', 'physical', '--post-delay', '1')
 ui.wait(lambda items: any((i.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar') and i['frame']['y'] < 800 for i in items), 'Software keyboard did not appear')
 chip = ui.element('quick-reply:commit-push')
@@ -171,14 +169,7 @@ if port:
     launch += ['--initialUrl', f'http://127.0.0.1:{port}?disableOnboarding=1']
 subprocess.run(launch, check=True, timeout=30)
 ui.element('ui-verify-ready', timeout=90)
-for _ in range(8):
-    if any(i.get('AXUniqueId') == 'quick-replies-preview' and 140 <= i['frame']['y'] <= 700 for i in ui.state()):
-        break
-    ui.axe('swipe', '--start-x', '200', '--start-y', '700', '--end-x', '200', '--end-y', '500', '--duration', '.5', '--post-delay', '1.5')
-time.sleep(1)
-ui.capture('restart-menu')
-preview = ui.element('quick-replies-preview')['frame']
-ui.axe('tap', '-x', str(preview['x'] + preview['width'] / 2), '-y', str(preview['y'] + preview['height'] / 2), '--post-delay', '.8')
+ui.open_case('quick-replies-preview')
 ui.element('quick-reset')
 ui.element('quick-reply:' + custom_id)
 assert chips()[0]['AXUniqueId'] == 'quick-reply:' + custom_id

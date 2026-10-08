@@ -1,6 +1,5 @@
 """Guide preference sends into the transcript and steers, without a queue card."""
 import json
-import subprocess
 import sys
 from driver import UI
 import catalog
@@ -74,7 +73,6 @@ ui.capture('guide-applied')
 # A definite pre-write failure retains the original text and offers one retry.
 ui.axe('tap', '--id', 'session-input')
 ui.type_into('session-input', 'retry this guide')
-subprocess.run([str(ui.output.parent.parent / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
 assert ui.element('inputView')['frame']['height'] > 200, 'Retry must be exercised with the software keyboard visible'
 retry_text = ui.element('session-input')['AXValue']
 ui.axe('tap', '--id', 'session-send', '--post-delay', '1')

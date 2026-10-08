@@ -1,12 +1,10 @@
 """Last-turn context menu, full-screen composer, attachment edits and failed-send retention."""
 import json
-import subprocess
 import sys
 from driver import UI
 import catalog
 
 ui = UI(*sys.argv[1:])
-subprocess.run([str(ui.output.parents[1] / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
 
 def hold(identifier):
     frame = ui.element(identifier)['frame']

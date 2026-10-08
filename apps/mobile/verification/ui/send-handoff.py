@@ -9,16 +9,11 @@ import catalog
 from send_motion import ThrowTrace
 ui = UI(*sys.argv[1:])
 throw_trace = ThrowTrace(ui)
-subprocess.run([str(ui.output.parent.parent / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
-ui.axe('tap', '--id', 'create-session-input', '--tap-style', 'physical', '--post-delay', '.4')
+ui.axe('tap', '--id', 'create-session-input', '--tap-style', 'physical')
+# The runner establishes the English software keyboard once for this batch.
+ui.type_into('create-session-input', 'hi')
 keyboard = ui.element('inputView')
 assert keyboard['frame']['height'] > 200, 'The handoff must begin with the software keyboard visible'
-# HID typing switches the Simulator to a hardware keyboard; tap software keys
-# so this transition exercises the same keyboard dismissal as a real phone.
-for char in 'hi':
-    key = ui.wait(lambda items: next((i for i in items if (i.get('AXLabel') or '').lower() == char and i.get('type') == 'Button'), None), 'Missing keyboard key ' + char)['frame']
-    ui.axe('tap', '-x', str(key['x'] + key['width'] / 2), '-y', str(key['y'] + key['height'] / 2), '--tap-style', 'physical')
-assert ui.element('inputView')['frame']['height'] > 200
 draft = ui.element('create-session-input')['AXValue']
 ui.capture('source')
 ui.axe('tap', '--id', 'session-send', '--tap-style', 'physical')

@@ -36,16 +36,6 @@ def open_color_picker():
     ui.element('UIColorPicker')
     time.sleep(2)
 
-def open_preview(identifier):
-    for _ in range(10):
-        row = next((i for i in ui.state() if i.get('AXUniqueId') == identifier), None)
-        if row and 140 <= row['frame']['y'] <= 680:
-            break
-        start, end = ('300', '550') if row and row['frame']['y'] < 140 else ('700', '450')
-        ui.axe('swipe', '--start-x', '200', '--start-y', start, '--end-x', '200', '--end-y', end, '--duration', '.5', '--post-delay', '.6')
-    row = ui.element(identifier)
-    assert 140 <= row['frame']['y'] <= 680, row['frame']
-    ui.axe('tap', '--id', identifier, '--tap-style', 'physical', '--pre-delay', '.8', '--post-delay', '.8')
 
 container = Path(subprocess.check_output(['xcrun', 'simctl', 'get_app_container', ui.udid, 'app.innei.lody', 'data'], text=True).strip())
 prefs = container / 'Library/Preferences/app.innei.lody.plist'
@@ -70,7 +60,7 @@ if metro:
 subprocess.run(launch, check=True)
 ui.invalidate_axe()
 ui.element('ui-verify-ready', timeout=120)
-open_preview('appearance-preview')
+ui.open_case('appearance-preview')
 ui.wait(lambda _: ui.element('accent-color').get('AXValue') == catalog.text('settings.appearance.custom'), 'Cold launch lost custom color')
 assert saved_color() == custom
 open_color_picker()
@@ -107,7 +97,7 @@ ui.axe('tap', '--wait-timeout', '5', '--id', 'BackButton', '--post-delay', '.6')
 ui.wait(lambda _: ui.element('app-icon').get('AXValue') == catalog.text('settings.appearance.defaultIcon'), 'Settings did not retain the current icon')
 ui.capture('settings-restored')
 ui.axe('tap', '--wait-timeout', '5', '--label', 'Close Settings', '--post-delay', '.6')
-open_preview('app-icon-failure-preview')
+ui.open_case('app-icon-failure-preview')
 ui.element('app-icon-default')
 assert selected('default')
 ui.axe('tap', '--id', 'app-icon-Aqua', '--post-delay', '.5')

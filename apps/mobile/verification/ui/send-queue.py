@@ -1,6 +1,5 @@
 """Queue above the composer; Steer delivers the selected item, Stop advances FIFO."""
 import json
-import subprocess
 import sys
 from driver import UI
 import catalog
@@ -49,7 +48,6 @@ assert abs(queue['x'] - ui.element('session-input')['frame']['x']) < 1, 'A queue
 assert turns[0] != turns[1]
 assert not set(trace.folder.glob('lody-throw-*.json')) - trace.existing, 'Queuing a message must not fly it into the transcript'
 ui.type_into('session-input', '123456')
-subprocess.run([str(ui.output.parents[1] / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'inputView' and i['frame']['height'] > 200 for i in items),
         'Queue landing must be exercised with the software keyboard open')
 

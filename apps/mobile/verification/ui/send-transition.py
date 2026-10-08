@@ -35,9 +35,6 @@ paste = ui.wait(lambda items: max(
 ), 'Paste did not appear for the long-text fixture')['frame']
 ui.axe('tap', '-x', str(paste['x'] + paste['width'] / 2), '-y', str(paste['y'] + paste['height'] / 2), '--post-delay', '.5')
 assert ui.element(source)['AXValue'] == body, 'Long-text fixture did not paste exactly'
-# HID typing may connect a hardware keyboard. Restore the phone keyboard before
-# measuring the input or its destination; preceding cases must not change this.
-subprocess.run([str(ui.output.parent.parent / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
 assert ui.element('inputView')['frame']['height'] > 200
 actual = ui.element(source)['AXValue']
 source_frame = ui.element(source)['frame']

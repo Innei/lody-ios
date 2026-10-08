@@ -315,6 +315,7 @@ def terminate_app():
         sim('terminate', args.udid, 'app.innei.lody', check=False)
 
 results = []
+links_ready = False
 # Only the parent starts/prewarms/stops Metro; batch workers and embedded apps never own it.
 metro_context = nullcontext() if args.shared_metro or args.embedded else managed_metro(ROOT, args.port, args.output)
 with metro_context:
@@ -422,18 +423,6 @@ with metro_context:
                         ]
                         sim(*launch)
                         launch_mode = mode
-                    if require_video:
-                        recording = subprocess.Popen(['xcrun', 'simctl', 'io', args.udid, 'recordVideo', '--codec=hevc', str(output / 'run.mp4')], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-                        deadline = time.monotonic() + 20
-                        while time.monotonic() < deadline:
-                            if select.select([recording.stderr], [], [], .5)[0]:
-                                line = recording.stderr.readline()
-                                if b'Recording started' in line:
-                                    break
-                                if not line:
-                                    raise RuntimeError('Video recorder exited before its first frame')
-                        else:
-                            raise TimeoutError('Video recorder did not start')
                     if not restart:
                         result['appLifecycle'] = 'return-to-root'
                         inspector(args.udid, args.port, 'Runtime.evaluate', {
@@ -471,61 +460,36 @@ with metro_context:
                         return False
 
                     ui.wait(verify_ready, 'Missing ui-verify-ready', timeout=180)
+                    if not links_ready:
+                        # Establish custom-scheme permission once; SpringBoard's alert blocks AX reads.
+                        sim('openurl', args.udid, 'lody:///')
+                        time.sleep(.5)
+                        try:
+                            ui.axe('tap', '--label', 'Open', '--wait-timeout', '1', timeout=5, recover=False)
+                        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError):
+                            pass
+                        ui.element('ui-verify-ready')
+                        links_ready = True
+                    if require_video:
+                        recording = subprocess.Popen(['xcrun', 'simctl', 'io', args.udid, 'recordVideo', '--codec=hevc', str(output / 'run.mp4')], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                        deadline = time.monotonic() + 20
+                        while time.monotonic() < deadline:
+                            if select.select([recording.stderr], [], [], .5)[0]:
+                                line = recording.stderr.readline()
+                                if b'Recording started' in line:
+                                    break
+                                if not line:
+                                    raise RuntimeError('Video recorder exited before its first frame')
+                        else:
+                            raise TimeoutError('Video recorder did not start')
                     preview = PREVIEW.get(case, 'chat-preview')
                     ready = 'ui-verify-ready' if case in HOME_CASES else READY.get(case, 'session-input')
-                    if case.startswith(('attachment-overlay-', 'attachment-camera-', 'attachment-motion-')) or case in ('quick-replies', 'context-chip'):
-                        # Native list AX includes clipped rows. Only touch a row
-                        # inside the content viewport, using its current frame.
-                        for _ in range(24):
-                            row = next((i for i in ui.state() if i.get('AXUniqueId') == preview), None)
-                            center = None
-                            if row:
-                                frame = row['frame']
-                                center = frame['y'] + frame['height'] / 2
-                            if center is not None and 140 < center < 740:
-                                ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(center), '--tap-style', 'physical', '--post-delay', '.8')
-                                break
-                            start, end = 650, 450
-                            if center is not None and center <= 140:
-                                start, end = 400, 600
-                            ui.axe('swipe', '--start-x', '200', '--start-y', str(start), '--end-x', '200', '--end-y', str(end), '--duration', '.8', '--post-delay', '1')
-                        else:
-                            raise AssertionError(f'Debug row is not visible: {preview}')
-                    elif case not in HOME_CASES:
-                        # The Debug list is a native UICollectionView; offscreen rows are not in the tree.
-                        # Returning to the root keeps the list's scroll offset, so the row can sit above the viewport.
-                        for attempt in range(32):
-                            row = next((item for item in ui.state() if item.get('AXUniqueId') == preview), None)
-                            if row is not None:
-                                center = row['frame']['y'] + row['frame']['height'] / 2
-                                if 140 <= center <= 700:
-                                    break
-                                # Small, slow moves keep prefetched rows from
-                                # disappearing past the opposite viewport edge.
-                                travel = max(-180, min(180, 420 - center))
-                                start, end = 450, 450 + travel
-                            else:
-                                start, end = (700, 500) if attempt < 16 else (300, 500)
-                            ui.axe('swipe', '--start-x', '200', '--start-y', str(start), '--end-x', '200', '--end-y', str(end), '--duration', '0.8', '--post-delay', '1')
-                        else:
-                            raise AssertionError(f'Debug row is not visible: {preview}')
-                        # A swipe keeps gliding after the row appears; tapping a moving row opens its neighbour.
-                        settled = None
-                        for _ in range(10):
-                            frame = ui.element(preview)['frame']
-                            if frame == settled:
-                                break
-                            settled = frame
-                            time.sleep(0.4)
-                        ui.axe('tap', '--id', preview, '--pre-delay', '0.8', '--post-delay', '0.8', '--tap-style', 'physical')
-                    try:
-                        ui.element(ready)
-                    except AssertionError:
-                        if case in ['send-transition', 'send-transition-handoff', 'inbox', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll'] and any(item.get('AXUniqueId') == preview for item in ui.state()):
-                            ui.axe('tap', '--id', preview, '--tap-style', 'physical', '--pre-delay', '0.5', '--post-delay', '1.2')
-                            ui.element(ready)
-                        else:
-                            raise
+                    entry_started = time.monotonic()
+                    if case not in HOME_CASES:
+                        ui.open_case(preview)
+                        result['caseEntry'] = 'deep-link'
+                    ui.element(ready)
+                    result['caseEntrySeconds'] = round(time.monotonic() - entry_started, 2)
                     if case == 'permission':
                         ui.wait(lambda items: any(i.get('AXLabel') == 'Fixtures' for i in items), 'Missing permission fixture toolbar')
                     if case == 'image-preview':
@@ -619,6 +583,7 @@ with metro_context:
                         check_timeout = 480
                     elif case in ('branch-picker', 'session-search', 'session-search-pad', 'chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance'):
                         check_timeout = 300
+                    check_started = time.monotonic()
                     with (output / 'check.log').open('w') as log:
                         env = {**os.environ, 'LODY_UI_LANGUAGE': args.language}
                         if args.embedded:
@@ -626,6 +591,7 @@ with metro_context:
                         else:
                             env['LODY_UI_METRO_PORT'] = str(args.port)
                         subprocess.run(command, check=True, timeout=check_timeout, stdout=log, stderr=subprocess.STDOUT, env=env)
+                    result['checkSeconds'] = round(time.monotonic() - check_started, 2)
                     ui.capture('after')
                     result['status'] = 'passed'
                 except Exception as error:

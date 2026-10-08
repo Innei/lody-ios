@@ -56,7 +56,6 @@ for action in ('close', 'backdrop', 'swipe', 'send'):
         ui.axe('tap', '-x', str(frame['x'] + frame['width'] * .75), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '1')
         ui.axe('tap', '--id', 'create-session-input')
         ui.type_into('create-session-input', 'System zoom handoff')
-        subprocess.run([str(ui.output.parent.parent / 'software-keyboard'), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), ui.udid], check=True, timeout=30)
         ui.capture('send-draft')
         draft = ui.element('create-session-input')['AXValue']
         mark('send-dismiss')

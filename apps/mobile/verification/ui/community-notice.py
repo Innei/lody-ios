@@ -20,16 +20,16 @@ def notice_gone(items):
     return catalog.text('communityNotice.title') not in (item.get('AXLabel') or '' for item in items)
 
 
-ui.wait(has_notice, 'Missing community notice after opening the Debug row')
+ui.wait(has_notice, 'Missing community notice after opening the offline entry')
 ui.capture('alert')
 
 ui.axe('tap', '--label', catalog.text('communityNotice.later'), '--post-delay', '.8')
 ui.wait(notice_gone, 'Community notice stayed after Not Now')
 
-ui.axe('tap', '--id', 'community-notice', '--post-delay', '.8')
-ui.wait(has_notice, 'Debug row must show the community notice again')
+ui.open_case('community-notice')
+ui.wait(has_notice, 'offline entry must show the community notice again')
 ui.capture('again')
 
 ui.axe('tap', '--label', catalog.text('communityNotice.later'), '--post-delay', '.8')
 ui.wait(notice_gone, 'Community notice stayed after the second dismiss')
-print('Community notice shows unofficial-project copy, Star and Not Now, and the Debug row can show it again.')
+print('Community notice shows unofficial-project copy, Star and Not Now, and the offline entry can show it again.')

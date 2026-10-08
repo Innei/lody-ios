@@ -104,7 +104,6 @@ def managed_metro(root, port, output):
                 if time.monotonic() > deadline:
                     raise TimeoutError('Metro did not become ready')
                 time.sleep(.5)
-            diagnose_metro(port, output, 'startup', metro)
             try:
                 prewarm_bundle(port)
             except Exception:
