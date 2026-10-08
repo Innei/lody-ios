@@ -5,6 +5,10 @@ final class CreateSessionController: UIViewController {
   var form = CreateSessionForm()
   var loadOptions: ((_ projectId: String?) async throws -> CreationOptions)?
   var loadRepositories: (() async throws -> [CreateProject])?
+  var loadBranches: ((_ repo: String, _ page: Int) async throws -> CreateBranches)?
+  var onBranches: ((String, CreateBranches) -> Void)?
+  private var branchTask: Task<Void, Never>?
+  private weak var branchPicker: CreateBranchController?
   var browseProject: (() async -> CreateProject?)?
   var onPrefs: ((CreatePrefs) -> Void)?
   var onSelection: ((CreateSessionForm) -> Void)?
@@ -23,7 +27,7 @@ final class CreateSessionController: UIViewController {
   private var loads: [Bool: Task<Void, Never>] = [:]
   private var retryTimer: Timer?
 
-  isolated deinit { retryTimer?.invalidate() }
+  isolated deinit { retryTimer?.invalidate(); branchTask?.cancel() }
 
   init(composer: ChatComposerView, host: UIView) {
     self.composer = composer
@@ -76,6 +80,7 @@ final class CreateSessionController: UIViewController {
     composer.setComposerState(CreateJSON.encode(["placeholder": LodyStrings.text("create.composer.placeholder")]))
     render()
     load(chat: false)
+    fetchBranches()
     if !form.locked { load(chat: true) }
     if !form.deferUnresolved {
       retryTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
@@ -213,7 +218,7 @@ final class CreateSessionController: UIViewController {
       if id == "agent" && page.agents.isEmpty { return load(chat: form.chat) }
       id == "machine" ? pickMachine() : pickAgent()
     case "model": pickModel()
-    case "branch": editBranch()
+    case "branch": pickBranch()
     default: break
     }
   }
@@ -231,7 +236,12 @@ final class CreateSessionController: UIViewController {
       picker?.navigationController?.popViewController(animated: true)
       let changedProject = project.id != self.form.project.projectId
       self.form.selectProject(project)
-      if changedProject { self.load(chat: false) }
+      if changedProject {
+        self.branchTask?.cancel()
+        self.branchPicker = nil
+        self.load(chat: false)
+        self.fetchBranches()
+      }
       self.changed(prefs: false)
     }
     push(picker)
@@ -281,18 +291,50 @@ final class CreateSessionController: UIViewController {
     push(controller)
   }
 
-  private func editBranch() {
-    let alert = UIAlertController(
-      title: LodyStrings.text("create.branch.label"), message: LodyStrings.text("create.branch.placeholder"),
-      preferredStyle: .alert)
-    alert.addTextField { [weak self] field in field.text = self?.form.project.branch }
-    alert.addAction(UIAlertAction(title: LodyStrings.text("common.cancel"), style: .cancel))
-    alert.addAction(UIAlertAction(title: LodyStrings.text("common.ok"), style: .default) { [weak self, weak alert] _ in
-      let value = alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespaces) ?? ""
-      self?.form.project.branch = String(value.prefix(255))
+  func fetchBranches() {
+    guard form.project.github, !form.project.branchesLoading, let loadBranches else { return }
+    if form.project.branches != nil && (form.project.branches?.nextPage == nil || form.deferUnresolved) { return }
+    let projectId = form.project.projectId
+    let repo = String(projectId.dropFirst(7))
+    let page = form.project.branches?.nextPage ?? 1
+    form.project.branchesLoading = true
+    form.project.branchesFailed = false
+    render()
+    updateBranchPicker()
+    branchTask?.cancel()
+    branchTask = Task { [weak self] in
+      do {
+        let value = try await loadBranches(repo, page)
+        guard let self, !Task.isCancelled, self.form.project.projectId == projectId else { return }
+        self.form.applyBranches(value)
+        if let branches = self.form.project.branches { self.onBranches?(repo, branches) }
+      } catch {
+        guard let self, !Task.isCancelled, self.form.project.projectId == projectId else { return }
+        self.form.project.branchesLoading = false
+        self.form.project.branchesFailed = true
+      }
       self?.changed(prefs: false)
-    })
-    present(alert, animated: true)
+      self?.updateBranchPicker()
+    }
+  }
+
+  private func updateBranchPicker() {
+    branchPicker?.update(form.project, cachedOnly: form.deferUnresolved)
+  }
+
+  private func pickBranch() {
+    let projectId = form.project.projectId
+    let picker = CreateBranchController(repo: String(projectId.dropFirst(7)))
+    picker.onMore = { [weak self] in self?.fetchBranches() }
+    picker.onPick = { [weak self] name in
+      guard let self, self.form.project.projectId == projectId,
+        self.form.project.branches?.names.contains(name) == true else { return }
+      self.form.project.branch = name
+      self.changed(prefs: false)
+    }
+    branchPicker = picker
+    updateBranchPicker()
+    push(picker)
   }
 
   func composerOptionChanged(_ body: [String: Any]) {
@@ -325,7 +367,7 @@ final class CreateSessionController: UIViewController {
       restore()
       return false
     }
-    if form.current.github && form.current.branch.trimmingCharacters(in: .whitespaces).isEmpty {
+    if !form.deferUnresolved && form.current.github && form.current.branch.trimmingCharacters(in: .whitespaces).isEmpty {
       restore()
       message(LodyStrings.text("create.toast.branchRequired"))
       return false

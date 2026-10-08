@@ -1,5 +1,15 @@
 # Offline UI verification
 
+`branch-picker` exercises the native new-session branch selector without an account:
+repository defaults, pagination during case-insensitive search, selection and back
+cancellation, long names, failed-load retry, and empty repositories. It captures
+English light/dark screenshots and video. `share-probe.py --branches --app <app>`
+exercises the real Share Extension's cached branch search and selected-branch inbox
+payload, then verifies missing-cache handoff preserves the shared text. Run that
+probe with `--appearance light` and `--appearance dark`. Native `create-session`,
+`github-mentions`, and `share` checks cover selection boundaries, paged GitHub
+responses, credential isolation and account/workspace cache separation.
+
 `edit-message` exercises the production last-user-message context menu and full-screen
 editor in English light/dark appearances. It checks cancellation preserving the chat
 draft, removing an original attachment, adding a file through paste, rejected resend

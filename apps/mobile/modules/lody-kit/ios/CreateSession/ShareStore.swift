@@ -70,7 +70,7 @@ enum ShareStore {
   static func writeCatalog(_ json: String) throws {
     guard let catalog = CreateJSON.decode(ShareCatalog.self, json) else { throw CocoaError(.coderReadCorrupt) }
     if let previous = self.catalog(), previous.userId != catalog.userId || previous.workspaceId != catalog.workspaceId {
-      for path in ["options", "prefs.json"] {
+      for path in ["options", "branches", "prefs.json"] {
         if let stale = url(path) { try? FileManager.default.removeItem(at: stale) }
       }
     }
@@ -80,6 +80,17 @@ enum ShareStore {
   static func writeOptions(_ options: CreationOptions, target: String) throws {
     try write(Data(CreateJSON.encode(options).utf8), to: optionsPath(target))
   }
+
+  private static func branchesPath(_ repo: String) -> String {
+    "branches/" + (repo.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "invalid") + ".json"
+  }
+
+  static func writeBranches(_ branches: CreateBranches, repo: String, userId: String, workspaceId: String) throws {
+    guard let catalog = catalog(), catalog.userId == userId, catalog.workspaceId == workspaceId else { return }
+    try write(Data(CreateJSON.encode(branches).utf8), to: branchesPath(repo))
+  }
+
+  static func branches(_ repo: String) -> CreateBranches? { read(CreateBranches.self, branchesPath(repo)) }
 
   static func writePrefs(_ prefs: CreatePrefs) throws {
     try write(Data(CreateJSON.encode(prefs).utf8), to: "prefs.json")

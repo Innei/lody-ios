@@ -24,7 +24,13 @@ check(ShareStore.options("p1") == options && ShareStore.options("chat") == optio
 check(ShareStore.optionsPath("github:o/r") == "options/github%3Ao%2Fr.json", "targets are file-safe")
 try ShareStore.writePrefs(CreatePrefs(projectId: "p1", context: "project"))
 check(ShareStore.prefs()?.projectId == "p1", "prefs round-trip")
+let branches = CreateBranches(names: ["trunk", "feature/share"], defaultBranch: "trunk", nextPage: 2)
+try ShareStore.writeBranches(branches, repo: "Owner/Repo", userId: "u1", workspaceId: "w1")
+check(ShareStore.branches("Owner/Repo") == branches, "offline branch snapshot round-trips including incomplete state")
+try ShareStore.writeBranches(CreateBranches(names: ["wrong-account"]), repo: "Owner/Repo", userId: "u2", workspaceId: "w1")
+check(ShareStore.branches("Owner/Repo") == branches, "late branch responses cannot cross accounts")
 try ShareStore.writeCatalog(#"{"userId":"u1","workspaceId":"w2","projects":[]}"#)
+check(ShareStore.branches("Owner/Repo") == nil, "workspace switch clears branch snapshots")
 check(ShareStore.options("p1") == nil, "switching workspace drops cached options")
 check(ShareStore.prefs() == nil, "switching workspace drops remembered prefs")
 

@@ -110,11 +110,26 @@ final class LodyCreateSessionView: ExpoView {
       userId: config.userId, workspaceId: config.workspaceId, projects: config.projects,
       machineNames: config.machineNames, prefs: config.prefs)
     controller.form.open(projectId: config.projectId, context: config.context)
+    var branchAttempts: [String: Int] = [:]
+    controller.loadBranches = { repo, page in
+      if LodyUIVerify.enabled, config.workspaceId == "ui-project-picker" {
+        let key = "\(repo):\(page)"
+        branchAttempts[key, default: 0] += 1
+        return try await LodyUIVerify.branches(repo: repo, page: page, attempt: branchAttempts[key]!)
+      }
+      return try await GitHubCloud.branches(workspace: config.workspaceId, repo: repo, page: page)
+    }
+    controller.onBranches = { repo, branches in
+      if config.persistShare {
+        try? ShareStore.writeBranches(branches, repo: repo, userId: config.userId, workspaceId: config.workspaceId)
+      }
+    }
     if !config.initialText.isEmpty { input.composer.setInitialDraft(config.initialText) }
     if !config.initialAttachments.isEmpty { input.composer.setInitialAttachments(config.initialAttachments) }
     if controller.isViewLoaded {
       controller.render()
       controller.load(chat: false)
+      controller.fetchBranches()
       if !controller.form.locked { controller.load(chat: true) }
     }
   }

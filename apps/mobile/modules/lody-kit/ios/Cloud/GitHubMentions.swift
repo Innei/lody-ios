@@ -48,6 +48,37 @@ import Foundation
       ![".", ".."].contains(repo.components(separatedBy: "/").last ?? "")
   }
 
+  static func branches(workspace: String, repo: String, page: Int) async throws -> CreateBranches {
+    guard validRepository(repo), page > 0, page < Int.max else { throw failure() }
+    let account = try AuthKeychain.read()
+    guard let result = try await call(
+      "action", path: "github:getAccessTokenByRepoNameForClient",
+      args: ["workspaceId": workspace, "repoFullName": repo]
+    ) as? [String: Any], result["success"] as? Bool == true,
+      let token = result["token"] as? String, !token.isEmpty else { throw failure() }
+    try Task.checkCancellation()
+    let base = "https://api.github.com/repos/\(repo)"
+    var defaultBranch: String?
+    if page == 1 {
+      guard let repository = try await request(base, token: token) as? [String: Any] else { throw failure() }
+      guard let name = repository["default_branch"] as? String, !name.isEmpty, name.utf8.count <= 255 else { throw failure() }
+      defaultBranch = name
+    }
+    guard let rows = try await request("\(base)/branches?per_page=100&page=\(page)", token: token) as? [[String: Any]],
+      rows.count <= 100 else { throw failure() }
+    var names = try rows.map { row -> String in
+      guard let name = row["name"] as? String, !name.isEmpty, name.utf8.count <= 255 else { throw failure() }
+      return name
+    }
+    // An empty repository has a configured default name but no branch to select.
+    if !names.isEmpty, let name = defaultBranch, !name.isEmpty, name.utf8.count <= 255 {
+      names.append(name)
+    } else if names.isEmpty { defaultBranch = nil }
+    try Task.checkCancellation()
+    guard try AuthKeychain.read() == account else { throw failure() }
+    return CreateBranches(names: Array(Set(names)), defaultBranch: defaultBranch, nextPage: rows.count == 100 ? page + 1 : nil)
+  }
+
   static func repositories(workspace: String) async throws -> [String] {
     let value = try await call("query", path: "github:getWorkspaceRepositories", args: ["workspaceId": workspace])
     if value is NSNull { return [] }
