@@ -10,7 +10,7 @@
           "image-name": "character.png",
           "name": "Aqua",
           "position": {
-            "scale": 0.8165869218500797,
+            "scale": 1,
             "translation-in-points": [0, 0]
           }
         }

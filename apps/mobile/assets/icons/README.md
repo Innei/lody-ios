@@ -16,8 +16,11 @@ The foreground was extracted with the built-in imagegen tool using this prompt:
 > text. This will be the foreground layer in Apple Icon Composer; glass rendering
 > happens there. Output 1024x1024 transparent PNG.
 
-The generated foreground is 1254 × 1254; its Composer layer scale fits it to the
-1024 pt canvas. The `.icon` package is the source asset, not a flattened preview.
+The generated foreground was downscaled to 1024 × 1024 and quantized with
+`pngquant --nofs`; Xcode stores the Composer renders losslessly, so dithering
+noise or extra source pixels grow `Assets.car` without a visible gain. Keep the
+layer scale at 1 for a 1024 px image. The `.icon` package is the source asset,
+not a flattened preview.
 
 ## Settings previews
 
