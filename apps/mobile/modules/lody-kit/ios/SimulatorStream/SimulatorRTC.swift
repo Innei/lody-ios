@@ -18,6 +18,7 @@ import os
   private(set) var isOpen = false
   private var closed = false
   private var offerSent = false
+  private var readyReceived = false
   private var gatheringComplete = false
   private var gatheringGrace: Task<Void, Never>?
   private var gatheringTimedOut = false
@@ -81,6 +82,7 @@ import os
     self.control = control
     for channel in [media, control] {
       Self.owners[channel] = Weak(rtc: self)
+      rtcSetOpenCallback(channel, onChannelOpen)
       rtcSetClosedCallback(channel, onChannelClosed)
       rtcSetMessageCallback(channel, onChannelMessage)
     }
@@ -94,7 +96,7 @@ import os
   }
 
   fileprivate enum Event: Sendable {
-    case failed(String), state(rtcState), candidate, gathered, message(Data, binary: Bool)
+    case failed(String), state(rtcState), opened, candidate, gathered, message(Data, binary: Bool)
   }
 
   fileprivate static func handle(_ id: Int32, _ event: Event) {
@@ -104,6 +106,7 @@ import os
     case .state(let state):
       log.info("peer state \(state.rawValue)")
       if [RTC_FAILED, RTC_DISCONNECTED, RTC_CLOSED].contains(state) { rtc.fail("peer state \(state.rawValue)") }
+    case .opened: rtc.openIfReady()
     case .candidate: rtc.exchangeOffer()
     case .gathered:
       rtc.gatheringComplete = true
@@ -215,6 +218,16 @@ import os
     onFailure?(code)
   }
 
+  /// The remote ready message can overtake the local open event of the other channel.
+  private func openIfReady() {
+    guard !closed, readyReceived, !isOpen, let media, let control, rtcIsOpen(media), rtcIsOpen(control) else { return }
+    isOpen = true
+    deadline?.cancel()
+    deadline = nil
+    if let peer { Self.log.info("ready via \(Self.candidateTypes(peer), privacy: .public) candidates") }
+    onOpen?()
+  }
+
   private func receive(_ data: Data, binary: Bool, channel: Int32) {
     guard !closed else { return }
     if channel == media {
@@ -228,12 +241,9 @@ import os
           let message = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return fail("control message") }
     switch message["type"] as? String {
     case "rtc-ready":
-      guard !isOpen, let media, let control, rtcIsOpen(media), rtcIsOpen(control) else { return fail("ready") }
-      isOpen = true
-      deadline?.cancel()
-      deadline = nil
-      if let peer { Self.log.info("ready via \(Self.candidateTypes(peer), privacy: .public) candidates") }
-      onOpen?()
+      guard !isOpen, !readyReceived else { return fail("ready") }
+      readyReceived = true
+      openIfReady()
     case "rtc-close":
       fail("rtc-close", code: message["code"] as? Int == 4002 ? 4002 : 1000)
     case "rtc-control-result":
@@ -340,6 +350,7 @@ private let onGathering: rtcGatheringStateCallbackFunc = { peer, state, _ in
 private let onCandidate: rtcCandidateCallbackFunc = { peer, _, _, _ in post(peer, .candidate) }
 // Both channels must be created by us; reject unsolicited remote channels.
 private let onRemoteChannel: rtcDataChannelCallbackFunc = { peer, _, _ in post(peer, .failed("remote channel")) }
+private let onChannelOpen: rtcOpenCallbackFunc = { channel, _ in post(channel, .opened) }
 private let onChannelClosed: rtcClosedCallbackFunc = { channel, _ in post(channel, .failed("channel closed")) }
 private let onChannelMessage: rtcMessageCallbackFunc = { channel, message, size, _ in
   guard let message else { return }
