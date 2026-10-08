@@ -28,6 +28,7 @@ parser.add_argument('--app', required=True)
 parser.add_argument('--udid', default=os.environ.get('LODY_VERIFY_UDID'))
 parser.add_argument('--output', default='.artifacts/share-probe/ui')
 parser.add_argument('--appearance', choices=['light', 'dark'], default='light')
+parser.add_argument('--branches', action='store_true', help='Exercise cached GitHub branch selection and missing-cache handoff')
 args = parser.parse_args()
 if not args.udid:
     raise SystemExit(run_with_simulator(SimulatorPool(), 'Share Probe', [sys.executable, __file__, *sys.argv[1:]]))
@@ -108,10 +109,16 @@ def open_extension(name):
         ui.axe('tap', '-x', '156', '-y', '653', '--tap-style', 'physical', '--post-delay', '1')
     # Remote extension trees are hit-tested, not descendants of the source app.
     deadline = time.monotonic() + 30
+    retried_tray = False
     while True:
         send = find_send()
         if send and send['frame']['y'] < 830:
             return send
+        if not retried_tray and time.monotonic() > deadline - 25:
+            items = ui.state()
+            if any(item.get('AXLabel') in ['Lody', 'dismiss popup'] for item in items):
+                ui.axe('tap', '-x', '156', '-y', '653', '--tap-style', 'physical', '--post-delay', '1')
+            retried_tray = True
         if time.monotonic() >= deadline:
             ui.capture(f'{name}-unsettled')
             log = subprocess.run(['xcrun', 'simctl', 'spawn', args.udid, 'log', 'show', '--last', '2m', '--style', 'compact',
@@ -152,10 +159,17 @@ try:
 
     (store / 'options').mkdir(parents=True)
     project = {'id': 'ui:local:alpha', 'machineId': 'ui', 'name': 'Alpha', 'rootPath': '/tmp/alpha'}
+    if args.branches:
+        project = {'id': 'github:Owner/Repo', 'machineId': '', 'name': 'Owner/Repo', 'rootPath': ''}
+        (store / 'branches').mkdir()
+        (store / 'branches' / 'Owner%2FRepo.json').write_text(json.dumps({
+            'names': ['trunk', 'feature/cached'], 'defaultBranch': 'trunk', 'nextPage': 2,
+        }))
     (store / 'catalog.json').write_text(json.dumps({'userId': 'probe-user', 'workspaceId': 'probe-ws', 'projects': [project], 'machineNames': {'ui': 'Fixture Mac'}}))
     options = {'sessionId': 'cached', 'project': project, 'agents': [{'id': 'agent', 'name': 'Fixture Agent', 'machineId': 'ui', 'machineName': 'Fixture Mac', 'cliType': 'builtin', 'agentType': 'codex'}],
         'capabilities': [{'machineId': 'ui', 'cliType': 'builtin', 'agentType': 'codex', 'models': [{'id': 'a', 'name': 'Model A'}], 'modes': [], 'reasoningEfforts': {}}]}
-    for target in ['chat', 'ui%3Alocal%3Aalpha']:
+    from urllib.parse import quote
+    for target in ['chat', quote(project['id'], safe='')]:
         (store / 'options' / f'{target}.json').write_text(json.dumps(options))
     send = open_extension('ready')
     deadline = time.monotonic() + 10
@@ -164,6 +178,38 @@ try:
         time.sleep(.3)
         send = find_send() or send
     ui.capture('ready')
+    if args.branches:
+        def remote(identifier):
+            deadline = time.monotonic() + 15
+            while time.monotonic() < deadline:
+                for point in ['200,244', '200,320', '200,440', '200,580', '200,150']:
+                    nodes = list(flatten(json.loads(ui.axe('describe-ui', '--point', point))))
+                    item = next((n for n in nodes if n.get('AXUniqueId') == identifier), None)
+                    if item:
+                        return item
+            (output / ('missing-' + identifier.replace(':', '-') + '.json')).write_text(json.dumps(nodes, indent=2))
+            ui.capture('missing-remote-element')
+            raise AssertionError('Missing remote extension element: ' + identifier)
+
+        def remote_tap(identifier):
+            frame = remote(identifier)['frame']
+            ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--tap-style', 'physical', '--post-delay', '.6')
+
+        assert 'trunk' in str(remote('branch')), 'Cached default must be chosen in the extension'
+        remote_tap('branch')
+        remote('branch:trunk')
+        remote('branches-cached')
+        ui.capture('cached-branches')
+        remote_tap('list-search')
+        ui.axe('type', 'cached')
+        assert (remote('list-search').get('AXValue') or '').casefold() == 'cached', 'Search lost characters while refreshing'
+        remote('branch:feature/cached')
+        ui.capture('cached-search')
+        remote_tap('branch:feature/cached')
+        assert 'feature/cached' in str(remote('branch'))
+        ui.capture('cached-selected')
+        send = find_send()
+        assert send and send['enabled']
     frame = send['frame']
     ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--tap-style', 'physical', '--post-delay', '3')
     entries = [json.loads((entry / 'manifest.json').read_text()) for entry in (store / 'inbox').iterdir()]
@@ -171,6 +217,8 @@ try:
     entry = entries[0]
     assert 'Lody share probe' in entry['text'], 'Shared text must reach the manifest'
     assert entry['draft']['agent']['id'] == 'agent' and entry['draft']['sessionId'] != 'cached', 'Draft must carry the agent and a fresh session id'
+    if args.branches:
+        assert entry['draft']['branch'] == 'feature/cached', 'Selected branch must reach the inbox draft'
     (output / 'manifest.json').write_text(json.dumps(entry, indent=2))
     deadline = time.monotonic() + 12
     while any(item.get('AXUniqueId') == 'share-probe-host.open' for item in ui.state()):
@@ -182,6 +230,25 @@ try:
             raise AssertionError('Lody did not come forward')
         time.sleep(.5)
     ui.capture('handoff')
+    if args.branches:
+        shutil.rmtree(store / 'branches')
+        shutil.rmtree(store / 'inbox', ignore_errors=True)
+        send = open_extension('missing-cache')
+        remote_tap('branch')
+        remote('branches-cached')
+        ui.capture('missing-cache')
+        # Back belongs to the remote extension's own navigation stack.
+        nodes = list(flatten(json.loads(ui.axe('describe-ui', '--point', '30,112'))))
+        button = next(n for n in nodes if n.get('type') == 'Button' and n.get('AXLabel') in ['Back', 'New Session'])
+        frame = button['frame']
+        ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--tap-style', 'physical', '--post-delay', '.6')
+        send = find_send()
+        assert send and send['enabled'], 'No branch cache must still allow handoff to the app'
+        frame = send['frame']
+        ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--tap-style', 'physical', '--post-delay', '3')
+        entries = [json.loads((entry / 'manifest.json').read_text()) for entry in (store / 'inbox').iterdir()]
+        assert len(entries) == 1 and entries[0].get('draft') is None and 'Lody share probe' in entries[0]['text'], 'Missing branch must preserve text and defer resolution'
+        (output / 'unresolved-manifest.json').write_text(json.dumps(entries[0], indent=2))
     print('PASS: signed-out guidance, ready snapshot form, inbox entry written, Lody opened')
     print('NOT VERIFIED: authenticated drain into the outbox (covered by tests/share and a signed-in device run)')
 finally:

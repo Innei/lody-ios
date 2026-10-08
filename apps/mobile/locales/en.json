@@ -417,7 +417,7 @@
   "create.picker.machine.placeholder": "No connected computers.",
   "create.picker.agent.placeholder": "No assistant is configured. Add one on the computer first.",
   "create.branch.label": "Base branch",
-  "create.branch.placeholder": "e.g. main",
+  "create.branch.placeholder": "Select a branch",
   "directory.title": "Choose Folder",
   "directory.saving": "Registering the folder…",
   "directory.loading": "Reading folders…",
@@ -1043,5 +1043,15 @@
   "workspaceChanges.refresh": "Refresh Changes",
   "workspaceChanges.added": "Added",
   "workspaceChanges.deleted": "Deleted",
-  "workspaceChanges.modified": "Modified"
+  "workspaceChanges.modified": "Modified",
+  "create.branch.title": "Select Base Branch",
+  "create.branch.search": "Search branches",
+  "create.branch.default": "Default",
+  "create.branch.hint": "A working branch will be created from this branch.",
+  "create.branch.cachedHint": "Only cached branches are available here. Continue in Lody to load more.",
+  "create.branch.unavailable": "Unavailable",
+  "create.branch.failed": "Unable to load branches. Tap to retry.",
+  "create.branch.more": "Load more branches",
+  "create.branch.empty": "This repository has no branches.",
+  "create.branch.noMatch": "No matching branches"
 }

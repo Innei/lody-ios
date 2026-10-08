@@ -66,6 +66,10 @@ final class ShareViewController: UIViewController {
       guard let options = ShareStore.options(projectId ?? CreateLogic.chatTarget) else { throw CocoaError(.fileNoSuchFile) }
       return options
     }
+    form.loadBranches = { repo, _ in
+      guard let branches = ShareStore.branches(repo) else { throw CocoaError(.fileNoSuchFile) }
+      return branches
+    }
     form.onPrefs = { try? ShareStore.writePrefs($0) }
     form.onSubmit = { [weak self] draft, payload in self?.send(draft, payload) }
   }

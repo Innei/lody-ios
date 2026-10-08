@@ -129,3 +129,26 @@ enum CreateJSON {
     try? JSONDecoder().decode(type, from: Data(text.utf8))
   }
 }
+
+// Credential-free pages can also be read by the offline Share Extension.
+struct CreateBranches: Codable, Equatable, Sendable {
+  var names: [String]
+  var defaultBranch: String?
+  var nextPage: Int?
+
+  func matching(_ query: String) -> [String] {
+    let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    return names.filter { term.isEmpty || $0.localizedCaseInsensitiveContains(term) }.sorted {
+      if $0 == $1 { return false }
+      if $0 == defaultBranch { return true }
+      if $1 == defaultBranch { return false }
+      return $0.localizedStandardCompare($1) == .orderedAscending
+    }
+  }
+
+  mutating func append(_ page: CreateBranches) {
+    names = Array(Set(names + page.names))
+    defaultBranch = page.defaultBranch ?? defaultBranch
+    nextPage = page.nextPage
+  }
+}
