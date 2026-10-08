@@ -1,8 +1,10 @@
 import Foundation
+import os
 
 /// WebRTC-first transport. A single switch to WebSocket discards partial media
 /// and pending inputs. Codec recovery remains owned by SimulatorStreamView.
 @MainActor final class SimulatorTransport {
+  private nonisolated static let log = Logger(subsystem: "app.innei.lody", category: "simulator-transport")
   enum Mode { case connecting, webRTC, webSocket, closed }
   private(set) var mode: Mode = .connecting
   var onOpen: (() -> Void)?
@@ -30,6 +32,7 @@ import Foundation
     rtc.onOpen = { [weak self, weak rtc] in
       guard let self, let rtc, self.rtc === rtc, self.mode != .closed else { return }
       self.mode = .webRTC
+      Self.log.info("open: WebRTC data channels")
       self.onOpen?()
     }
     rtc.onMessage = { [weak self, weak rtc] message in
@@ -40,6 +43,7 @@ import Foundation
       guard let self, let rtc, self.rtc === rtc, self.mode != .closed else { return }
       self.rtc = nil
       self.mode = .connecting
+      Self.log.info("WebRTC failed (\(code, privacy: .public)); falling back to WebSocket")
       self.onFallback?()
       // Codec rejection changes the next connection's codec as well.
       if code == 4002 { return self.fail(code) }
@@ -57,6 +61,7 @@ import Foundation
     socket.maximumMessageSize = 16 * 1024 * 1024 + 16
     socket.resume()
     mode = .webSocket
+    Self.log.info("open: WebSocket")
     onOpen?()
     receiving = Task { [weak self] in
       while !Task.isCancelled {

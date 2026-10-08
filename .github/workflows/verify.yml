@@ -41,6 +41,8 @@ jobs:
           submodules: true
       - name: Install Metal Toolchain
         run: /bin/bash .github/scripts/ensure-metal-toolchain.sh iphonesimulator
+      - name: Ensure cmake
+        run: command -v cmake >/dev/null || brew install cmake
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
@@ -85,6 +87,8 @@ jobs:
           submodules: true
       - name: Install Metal Toolchain
         run: /bin/bash .github/scripts/ensure-metal-toolchain.sh iphonesimulator
+      - name: Ensure cmake
+        run: command -v cmake >/dev/null || brew install cmake
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:

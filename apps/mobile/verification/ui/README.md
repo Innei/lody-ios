@@ -818,11 +818,12 @@ stream. Light/dark screenshots and video cover the transitions. This fixture
 requires neither cloud access nor a connected computer; it does not prove the
 remote tunnel's availability or background network continuity.
 `pnpm verify:native --case simulator-transport` separately exercises the production
-native transport with a real local WebRTC DTLS/SCTP pair and a loopback WebSocket
-server: bounded frame reassembly, acknowledged controls, disconnect without
-replaying uncertain commands, old/malformed/redirecting signaling fallback, and
-close during negotiation. It uses synthetic HTTP signaling and does not establish
-live TURN, cross-network latency or compatibility with a deployed CLI version.
+native transport against a loopback werift peer (the CLI gateway's WebRTC stack)
+over real DTLS/SCTP, plus a loopback WebSocket server: bounded frame reassembly,
+acknowledged controls, disconnect without replaying uncertain commands,
+old/malformed/redirecting signaling fallback, and close during negotiation. It
+uses synthetic HTTP signaling and does not establish live TURN, cross-network
+latency or compatibility with a deployed CLI version.
 Left/right/down swipes inside the device must not dismiss Preview. A slow border
 swipe must visibly shrink and move the device while held, then cancel without
 replacing the decoder. A longer edge swipe must track touch before completing
