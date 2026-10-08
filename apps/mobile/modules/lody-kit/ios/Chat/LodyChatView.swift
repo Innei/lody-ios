@@ -842,9 +842,12 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
 
   func adoptComposerIfNeeded() {
-    guard hasAppeared, let window, bounds.width > 0, bounds.height > 0, let pendingSend,
+    guard let pendingSend,
           let source = LodyComposerView.relays[pendingSend.id],
           let payload = source.relayPayload else { return }
+    // The source remains visible above navigation until this page can adopt it.
+    composer.isHidden = true
+    guard hasAppeared, let window, bounds.width > 0, bounds.height > 0 else { return }
     source.prepareDestination(self)
     guard source.window == nil else { return }
     let old = composer
@@ -887,6 +890,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       let adopted = incoming.convert(incoming.bounds, to: window)
       let report: [String: Any] = [
         "sameComposer": composer === source.composer,
+        "placeholderHidden": old.isHidden,
         "inputBefore": inputBefore, "inputAfter": incoming.relayInputState,
         "source": [frame.minX, frame.minY, frame.width, frame.height],
         "adopted": [adopted.minX, adopted.minY, adopted.width, adopted.height],
