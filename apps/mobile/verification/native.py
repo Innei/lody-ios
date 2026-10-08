@@ -28,7 +28,7 @@ checks = {
     'lexical-swift': [],
     'scroll-edges': ['Chrome/LodyScrollEdges.swift', 'LodyTint.swift', 'Chrome/LodyEdgeFade.swift'],
     'glass-transition': [],
-    'github-mentions': ['Cloud/GitHubMentions.swift'],
+    'github-mentions': ['Cloud/GitHubMentions.swift', 'CreateSession/CreateSessionModels.swift'],
     'github-pr': ['Cloud/GitHubPullRequests.swift'],
     'session-sharing': ['Cloud/SessionSharing.swift'],
     'notifications': ['Notifications/PushPermissionLaunchRequest.swift', 'Notifications/PushClickBuffer.swift'],
@@ -146,7 +146,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
         command += ['-swift-version', '6']
         if name == 'simulator-transport':
             subprocess.run(['/bin/bash', str(kit / 'datachannel/build.sh')], check=True)
-            command += ['-F', str(kit / 'ios/Vendor/LodyDataChannel.xcframework/ios-arm64-simulator'),
+            command += ['-F', str(kit / 'ios/Vendor/LodyDataChannel.xcframework/ios-arm64_x86_64-simulator'),
                         '-framework', 'LodyDataChannel']
         if simulator:
             arch = 'arm64' if platform.machine() == 'arm64' else 'x86_64'
