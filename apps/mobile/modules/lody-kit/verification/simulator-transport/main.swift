@@ -35,7 +35,10 @@ func chunk(_ bytes: Data, total: Int, offset: Int) -> Data {
   transport.onClose = { code in preconditionFailure("Unexpected close \(code)") }
   transport.start(preferRTC: true)
   var iterator = messages.makeAsyncIterator()
-  guard case .data(let frame) = await iterator.next() else { preconditionFailure("No RTC frame") }
+  let first = await iterator.next()
+  guard case .data(let frame) = first else {
+    preconditionFailure("No RTC frame: \(String(describing: first)), mode \(transport.mode), fallbacks \(fallbacks)")
+  }
   precondition(frame == Data((0..<40_000).map { UInt8($0 % 251) }) && transport.mode == .webRTC && fallbacks == 0)
   let success = await transport.perform(operationId: "synthetic-operation", control: ["kind": "button", "button": "home"])
   precondition(success)
