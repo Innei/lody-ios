@@ -33,6 +33,8 @@ ui.capture('target-offline')
 container = Path(subprocess.check_output(['xcrun', 'simctl', 'get_app_container', ui.udid, 'app.innei.lody', 'data'], text=True).strip())
 relay = json.loads((container / 'tmp/lody-production-composer-relay.json').read_text())
 assert relay['sameComposer'], 'The destination replaced the source composer'
+assert relay['destinationContentHidden'], 'Destination text/status remained visible beneath the relayed glass'
+assert relay['destinationContentRestored'], 'Adoption did not restore destination content'
 assert relay['placeholderHidden'], 'The destination exposed a second composer while awaiting adoption'
 assert relay['inputBefore'] == relay['inputAfter'], 'Adoption changed focus, selection, or appearance'
 assert relay['inputBefore']['focused'], 'The source lost keyboard focus before adoption'

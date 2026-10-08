@@ -133,6 +133,7 @@ final class LodyComposerView: ExpoView {
     if let id = relayPayload?["id"] as? String {
       Self.relays[id] = nil
       relayPayload = nil
+      relayTarget?.setRelayContentHidden(false)
       relayTarget = nil
       addSubview(composer)
       composer.translatesAutoresizingMaskIntoConstraints = false
@@ -147,6 +148,7 @@ final class LodyComposerView: ExpoView {
   func completeRelay() {
     if let id = relayPayload?["id"] as? String { Self.relays[id] = nil }
     relayPayload = nil
+    relayTarget?.setRelayContentHidden(false)
     relayTarget = nil
     composer.prepareSend = nil
     composer.onHeightChange = nil

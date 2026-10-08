@@ -841,12 +841,19 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     )
   }
 
+  func setRelayContentHidden(_ hidden: Bool) {
+    // Window-hosted glass must not sample the destination before adoption.
+    collection.alpha = hidden ? 0 : 1
+    overlay.alpha = hidden ? 0 : 1
+    composer.isHidden = hidden || composerRetired || !processEntryID.isEmpty
+  }
+
   func adoptComposerIfNeeded() {
     guard let pendingSend,
           let source = LodyComposerView.relays[pendingSend.id],
           let payload = source.relayPayload else { return }
     // The source remains visible above navigation until this page can adopt it.
-    composer.isHidden = true
+    setRelayContentHidden(true)
     guard hasAppeared, let window, bounds.width > 0, bounds.height > 0 else { return }
     source.prepareDestination(self)
     guard source.window == nil else { return }
@@ -855,6 +862,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     let incoming = source.composer
     let frame = incoming.convert(incoming.bounds, to: window)
     let inputBefore = incoming.relayInputState
+    let destinationContentHidden = collection.alpha == 0 && overlay.alpha == 0
     let links = constraints.filter { ($0.firstItem as? UIView) === old || ($0.secondItem as? UIView) === old }
     let replacements = links.map { link in
       let replacement = NSLayoutConstraint(
@@ -891,6 +899,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       let report: [String: Any] = [
         "sameComposer": composer === source.composer,
         "placeholderHidden": old.isHidden,
+        "destinationContentHidden": destinationContentHidden,
+        "destinationContentRestored": collection.alpha == 1 && overlay.alpha == 1,
         "inputBefore": inputBefore, "inputAfter": incoming.relayInputState,
         "source": [frame.minX, frame.minY, frame.width, frame.height],
         "adopted": [adopted.minX, adopted.minY, adopted.width, adopted.height],
