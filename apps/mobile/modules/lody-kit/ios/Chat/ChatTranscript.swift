@@ -87,6 +87,8 @@ struct ChatItem: Decodable {
   var error: String? = nil
   var isBackgrounded: Bool? = nil
   var skipTranscript: Bool? = nil
+  var processDurationMs: Int? = nil
+  var isProcess: Bool { type != "text" && !isAttachment && !isChatFailure && type != "subagent_task" }
   var hidesFromTranscript: Bool { type == "subagent_task" && skipTranscript == true }
   var isLiveSubagent: Bool {
     type == "subagent_task" && skipTranscript != true && (status == "in_progress" || status == "pending")
@@ -461,11 +463,18 @@ struct ChatTranscript {
           let process = indices.map { entry.items[$0] }
           let needsPermission = process.contains { $0.permission?.pending == true }
           let failed = process.contains { $0.status == "failed" }
-          let running = entry.isRunning && indices.last == entry.items.indices.last
+          let tail = entry.items.indices.last { !entry.items[$0].hidesFromTranscript }
+          let running = entry.isRunning && indices.last == tail && process.first?.processDurationMs == nil
           let firstGroup = index == groups.keys.min()
           let attention = needsPermission || failed
+          var title = ChatProcessSummary.title(items: process, running: running)
+          if !running, let duration = process.first?.processDurationMs {
+            let summary = ChatProcessSummary.title(items: process, running: false, includesThought: false)
+            title = workDurationTitle(duration, running: false)
+            if !summary.isEmpty { title += " · " + summary }
+          }
           result.append(ChatRow(id: entry.id + ":process" + (firstGroup ? "" : ":" + entry.items[index].itemId), entryID: entry.id, kind: "summary",
-            text: ChatProcessSummary.title(items: process, running: entry.isRunning),
+            text: title,
             symbol: ChatProcessSummary.mark(attention: attention),
             processStartID: entry.finished ? "" : entry.items[index].itemId,
             actionable: true, running: running, attention: attention))

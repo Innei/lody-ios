@@ -1,6 +1,7 @@
-"""Assistant work duration advances while live and freezes when finished."""
+"""Turn and process-segment durations freeze independently at their boundaries."""
 import sys
 import time
+import re
 from driver import UI
 import catalog
 
@@ -59,6 +60,31 @@ assert process['frame']['y'] >= advanced['frame']['y'] + advanced['frame']['heig
 assert copy['working'] not in process['AXLabel'], process['AXLabel']
 ui.capture('working')
 assert not any((item.get('AXUniqueId') or '').startswith('duration-preview:meta') for item in ui.state()), 'Live replies must not show metadata actions'
+
+ui.axe('tap', '--label', 'Continue Duration Fixture', '--post-delay', '.5')
+segment = ui.wait(
+    lambda items: next((item for item in items
+        if item.get('AXUniqueId') == 'duration-preview:process'
+        and (item.get('AXLabel') or '').startswith(copy['worked'])), None),
+    'The earlier process segment still shows processing while the reply continues',
+)
+assert re.search(r'\d+s', segment['AXLabel']), segment['AXLabel']
+assert catalog.text('native.chat.transcript.activity.thinking') not in segment['AXLabel'], segment['AXLabel']
+assert catalog.plural('native.chat.transcript.activity.readFiles', 1) in segment['AXLabel'], segment['AXLabel']
+next_process = ui.element('duration-preview:process:next-thought')
+assert catalog.text('native.chat.transcript.activity.thinking') in next_process['AXLabel'], next_process['AXLabel']
+assert next_process['frame']['y'] > segment['frame']['y'], (segment, next_process)
+assert duration_row(ui.state(), copy['working']), 'A finished segment must not finish the whole turn'
+segment_label = segment['AXLabel']
+time.sleep(1.2)
+assert ui.element('duration-preview:process')['AXLabel'] == segment_label
+ui.capture('segment-finished')
+ui.axe('tap', '--id', 'duration-preview:process', '--post-delay', '.6')
+ui.wait(lambda items: any(item.get('AXUniqueId') == 'duration-preview:thought' for item in items),
+        'The completed segment no longer opens its process details')
+assert not any(item.get('AXUniqueId') == 'duration-preview:next-thought' for item in ui.state()), 'The first segment opened the later process'
+ui.capture('segment-details')
+ui.axe('tap', '--label', catalog.text('accessibility.closeSheet', title=catalog.text('process.title')), '--post-delay', '.6')
 
 ui.axe('tap', '--label', 'Finish Duration Fixture', '--post-delay', '.5')
 finished = ui.wait(

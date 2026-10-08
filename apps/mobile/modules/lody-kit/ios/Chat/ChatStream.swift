@@ -6,6 +6,7 @@ import Foundation
 struct ChatStream {
   private struct ID: Hashable { let entry: String; let item: String }
   private var reveals: [ID: CKTextReveal] = [:]
+  private var processTimes: [ID: (start: Double, end: Double?)] = [:]
   private var targets: [ChatEntry] = []
   private var initialized = false
   private var settling: Set<String> = []
@@ -27,6 +28,7 @@ struct ChatStream {
   }
 
   mutating func receive(_ entries: [ChatEntry], animate: Bool, deferredEntries: Set<String> = [], at time: Double = ProcessInfo.processInfo.systemUptime) {
+    receiveProcessTimes(entries, at: time)
     let wasRunning = Set(targets.filter(\.isRunning).map(\.id))
     var retained: Set<ID> = []
     for entry in entries where entry.role != "user" {
@@ -44,6 +46,34 @@ struct ChatStream {
     settling.formIntersection(entries.map(\.id))
     if !animate { settling.removeAll() }
     initialized = true
+  }
+
+  private mutating func receiveProcessTimes(_ entries: [ChatEntry], at time: Double) {
+    var retained = Set<ID>()
+    for entry in entries where entry.role == "assistant" {
+      var start: ID?
+      for item in entry.items {
+        if item.hidesFromTranscript { continue }
+        if item.type == "system_notice" && (item.name == nil || item.name == "agent_warning") { continue }
+        if item.isProcess {
+          if start == nil { start = ID(entry: entry.id, item: item.itemId) }
+        } else if let id = start {
+          retained.insert(id)
+          if processTimes[id]?.end == nil { processTimes[id]?.end = time }
+          start = nil
+        }
+      }
+      if let id = start {
+        retained.insert(id)
+        if entry.isRunning {
+          // shortcut: time observed live segments only, use persisted timing when the protocol provides it.
+          if processTimes[id] == nil { processTimes[id] = (time, nil) }
+        } else if processTimes[id]?.end == nil {
+          processTimes[id]?.end = time
+        }
+      }
+    }
+    processTimes = processTimes.filter { retained.contains($0.key) }
   }
 
   mutating func advance(at time: Double = ProcessInfo.processInfo.systemUptime, animatingEntries: Set<String> = []) {
@@ -67,7 +97,11 @@ struct ChatStream {
     targets.map { target in
       var entry = target
       for index in entry.items.indices {
-        guard let reveal = reveals[ID(entry: entry.id, item: entry.items[index].itemId)] else { continue }
+        let id = ID(entry: entry.id, item: entry.items[index].itemId)
+        if let timing = processTimes[id], let end = timing.end {
+          entry.items[index].processDurationMs = Int(max(0, end - timing.start) * 1000)
+        }
+        guard let reveal = reveals[id] else { continue }
         entry.items[index].text = reveal.shown
         // Completion folding waits for the visible tail, never the network ACK.
         if reveal.hasPending || settling.contains(entry.id) { entry.finished = false }

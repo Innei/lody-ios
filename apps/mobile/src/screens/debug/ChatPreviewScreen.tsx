@@ -404,6 +404,7 @@ function View() {
   const [durationFixture, setDurationFixture] = useState<{
     startedAt: number;
     finished: boolean;
+    continued?: boolean;
     permissionWaitMs?: number;
   } | null>(null);
   const [processCounts, setProcessCounts] = useState<{
@@ -593,13 +594,35 @@ function View() {
         permissionWaitMs: durationFixture.permissionWaitMs,
         items: [
           {
+            itemId: 'thought',
+            type: 'thought',
+            text: 'Checking the timing data.',
+          },
+          {
             itemId: 'work',
             type: 'tool_call',
             kind: 'read',
             title: '读取计时数据',
-            status: durationFixture.finished ? 'completed' : 'in_progress',
+            status:
+              durationFixture.finished || durationFixture.continued
+                ? 'completed'
+                : 'in_progress',
             hasDetail: false,
           },
+          ...(durationFixture.continued
+            ? [
+                {
+                  itemId: 'middle',
+                  type: 'text',
+                  text: 'The first step is complete. Checking the next step.',
+                },
+                {
+                  itemId: 'next-thought',
+                  type: 'thought',
+                  text: 'Checking the next step.',
+                },
+              ]
+            : []),
           ...(durationFixture.finished
             ? [
                 {
@@ -851,6 +874,19 @@ function View() {
             }
           />
         </Stack.Toolbar.Menu>
+        {durationFixture &&
+          !durationFixture.finished &&
+          !durationFixture.continued && (
+            <Stack.Toolbar.Button
+              accessibilityLabel="Continue Duration Fixture"
+              icon="arrow.right.circle"
+              onPress={() =>
+                setDurationFixture((current) =>
+                  current ? { ...current, continued: true } : current,
+                )
+              }
+            />
+          )}
         {durationFixture && !durationFixture.finished && (
           <Stack.Toolbar.Button
             accessibilityLabel="Finish Duration Fixture"

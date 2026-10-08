@@ -77,6 +77,9 @@ transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(multi
 assert(transcript.rows().map(\.kind) == ["text", "summary", "text", "summary", "text"])
 assert(transcript.rows(processEntryID: "steps", processStartID: "think1").map(\.itemID) == ["think1", "read"])
 assert(transcript.rows(processEntryID: "steps", processStartID: "think2").map(\.itemID) == ["think2", "write"])
+let closedSegments = transcript.rows().filter { $0.kind == "summary" }
+assert(closedSegments.allSatisfy { !$0.running && !$0.shines && !$0.text.contains("native.chat.transcript.activity.thinking") },
+  "Earlier process segments must stop processing while the same reply continues")
 transcript.entries[0].finished = true
 assert(transcript.rows().map(\.kind) == ["summary", "text", "meta"])
 assert(transcript.rows().last(where: { $0.kind == "text" })?.itemID == "final")
@@ -107,6 +110,44 @@ assert(openaiMetaRows.last?.imageAsset == "lody-agent-openai", "Known providers 
 assert(transcript.rows(processEntryID: "steps").map(\.itemID) == ["first", "think1", "read", "middle", "think2", "write"])
 assert(transcript.rows(processEntryID: "steps", processStartID: "think1").map(\.itemID) == ["think1", "read"], "An open segment must not change scope on completion")
 print("Chat folding: live text boundaries, scoped process, and conclusion-only completion passed")
+
+var segmentStream = ChatStream()
+var segmentEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(multiStep.utf8))
+segmentEntries[0].items = Array(segmentEntries[0].items.prefix(3))
+segmentStream.receive(segmentEntries, animate: false, at: 10)
+let activeSegment = ChatTranscript(entries: segmentStream.presentation).rows().first { $0.kind == "summary" }!
+assert(activeSegment.running && activeSegment.text.contains("native.chat.transcript.activity.thinking"))
+segmentEntries[0].items = Array(try JSONDecoder().decode([ChatEntry].self, from: Data(multiStep.utf8))[0].items.prefix(6))
+segmentStream.receive(segmentEntries, animate: true, at: 33)
+let segmentRows = ChatTranscript(entries: segmentStream.presentation).rows().filter { $0.kind == "summary" }
+assert(segmentRows[0].id == activeSegment.id && !segmentRows[0].running && !segmentRows[0].shines)
+assert(segmentRows[0].text.contains("native.chat.transcript.status.workedFor") && !segmentRows[0].text.contains("native.chat.transcript.activity.thought"),
+  "A completed segment replaces thinking copy with its frozen elapsed time")
+assert(segmentStream.presentation[0].items[1].processDurationMs == 23_000)
+assert(segmentRows[1].running && segmentRows[1].shines, "Only the newest segment keeps processing")
+segmentEntries[0].items.append(try JSONDecoder().decode(ChatItem.self, from: Data(
+  #"{"itemId":"housekeeping","type":"subagent_task","skipTranscript":true}"#.utf8
+)))
+segmentStream.receive(segmentEntries, animate: false, at: 42)
+assert(segmentStream.presentation[0].items[1].processDurationMs == 23_000, "Later tool updates must not advance completed segment time")
+assert(segmentStream.presentation[0].items[4].processDurationMs == nil && ChatTranscript(entries: segmentStream.presentation).rows().last?.running == true,
+  "Hidden housekeeping must not finish a visible process segment")
+segmentEntries[0].finished = true
+segmentStream.receive(segmentEntries, animate: true, at: 48)
+assert(segmentStream.presentation[0].items[4].processDurationMs == 15_000, "Turn completion ends the remaining process timer")
+assert(!ChatTranscript(entries: segmentStream.presentation).rows().contains { $0.kind == "summary" && $0.running },
+  "Text pacing must not keep a completed process running")
+var cachedSegmentStream = ChatStream()
+cachedSegmentStream.receive(segmentEntries, animate: false, at: 99)
+assert(cachedSegmentStream.presentation[0].items.allSatisfy { $0.processDurationMs == nil },
+  "Opening completed history must not invent segment timings")
+segmentStream.receive([], animate: false, at: 50)
+segmentEntries[0].finished = false
+segmentStream.receive(segmentEntries, animate: false, at: 60)
+segmentEntries[0].finished = true
+segmentStream.receive(segmentEntries, animate: false, at: 62)
+assert(segmentStream.presentation[0].items[4].processDurationMs == 2_000, "Replaced transcripts must release old process timers")
+print("Process segments: live scope, frozen observed time, completion pacing, history fallback and replacement passed")
 
 let liveDurationJSON = """
 [{"id":"timed-live","role":"assistant","status":"running","finished":false,
@@ -330,7 +371,7 @@ transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(liveT
 let liveSummary = transcript.rows().first { $0.kind == "summary" }!
 assert(liveSummary.text.contains("native.chat.transcript.activity.thinking"), liveSummary.text)
 assert(!liveSummary.text.contains("native.chat.transcript.status.running"), liveSummary.text)
-// Earlier process groups keep the turn's live label while only the latest group animates.
+// Earlier process groups finish independently while only the latest group stays live.
 transcript.entries[0].items.append(try JSONDecoder().decode(ChatItem.self, from: Data(
   #"{"itemId":"progress","type":"text","text":"Still working"}"#.utf8
 )))
@@ -339,7 +380,8 @@ transcript.entries[0].items.append(try JSONDecoder().decode(ChatItem.self, from:
 )))
 let liveGroups = transcript.rows().filter { $0.kind == "summary" }
 assert(liveGroups.count == 2)
-assert(liveGroups.allSatisfy { $0.text.contains("native.chat.transcript.activity.thinking") })
+assert(liveGroups[0].text.contains("native.chat.transcript.activity.thought"))
+assert(liveGroups[1].text.contains("native.chat.transcript.activity.thinking"))
 assert(!liveGroups[0].running && liveGroups[1].running)
 transcript.entries[0].finished = true
 let finishedGroup = transcript.rows().first { $0.kind == "summary" }!

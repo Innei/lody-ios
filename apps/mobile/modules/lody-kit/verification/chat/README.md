@@ -69,6 +69,13 @@ an entry uses `present` to show a form sheet with that segment’s items (or the
 `useSyncExternalStore`; it does not call `watchSession` or `unwatchSession`.
 Dismiss and reopen during a replay to verify subscriptions and live updates.
 
+Earlier process segments stop showing processing when the next text arrives,
+even while the turn continues. Live-observed segments show their frozen elapsed
+time, measured with the native monotonic clock before text pacing. The protocol
+does not persist segment timestamps; pre-existing segments keep completed copy
+without inventing a duration. `verify:ui --case duration` checks these boundaries,
+the still-running next segment and opening the earlier segment's scoped details.
+
 Add `--send` to the geometry check to verify the preview's send-to-top behavior.
 New user messages use the native smooth scroll animation. Bottom inset reserves
 space for the current turn, shrinks as the reply grows, and remains after short
