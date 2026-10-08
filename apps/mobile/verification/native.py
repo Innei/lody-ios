@@ -78,6 +78,9 @@ for files in checks.values():
         files.append('Chat/ChatPendingSend.swift')
     if 'Chat/ChatSendHandoff.swift' in files or 'Chat/ChatMentionPanel.swift' in files:
         files.insert(0, 'LodyUIVerify.swift')
+    # The branch fixture returns CreateBranches, so every isolated compile of the fixture needs that model.
+    if 'LodyUIVerify.swift' in files and 'CreateSession/CreateSessionModels.swift' not in files:
+        files.append('CreateSession/CreateSessionModels.swift')
 if 'markdown-repair' in checks:
     subprocess.run(['node', str(root / 'apps/mobile/scripts/build-decoder.mjs')], cwd=root, check=True, timeout=120)
 with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
