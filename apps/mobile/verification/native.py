@@ -193,7 +193,8 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
                     endpoint = server.stdout.readline().strip()
                     if not endpoint.startswith('http://127.0.0.1:'):
                         raise RuntimeError('Simulator transport fixture server did not start')
-                    subprocess.run(command, check=True, timeout=90, env={**os.environ, 'SIMCTL_CHILD_LODY_SIMULATOR_TEST_URL': endpoint})
+                    subprocess.run(command, check=True, timeout=90, env={**os.environ, 'SIMCTL_CHILD_LODY_SIMULATOR_TEST_URL': endpoint,
+                                                                       'SIMCTL_CHILD_OS_ACTIVITY_DT_MODE': 'enable'})
                 finally:
                     server.terminate()
         elif name == 'attachments':
