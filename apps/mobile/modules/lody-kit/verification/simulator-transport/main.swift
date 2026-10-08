@@ -1,5 +1,4 @@
 import Foundation
-@preconcurrency import WebRTC
 
 func chunk(_ bytes: Data, total: Int, offset: Int) -> Data {
   var result = Data()
@@ -7,140 +6,6 @@ func chunk(_ bytes: Data, total: Int, offset: Int) -> Data {
   withUnsafeBytes(of: UInt32(offset).bigEndian) { result.append(contentsOf: $0) }
   result.append(bytes)
   return result
-}
-
-// Real DTLS/SCTP pair; only HTTP signaling is injected. The framing/labels and
-// envelopes match LodyAI/Lody e135cdb5. This is not a live TURN/werift acceptance.
-@MainActor final class Gateway: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegate {
-  static var current: Gateway?
-  static let frame = Data((0..<40_000).map { UInt8($0 % 251) })
-  let factory = RTCPeerConnectionFactory()
-  var peer: RTCPeerConnection!
-  var channels: [String: RTCDataChannel] = [:]
-  var gathering: CheckedContinuation<Void, Never>?
-  var ready = false
-  var framesSent = false
-  var commands = 0
-
-  override init() {
-    super.init()
-    let config = RTCConfiguration()
-    config.iceServers = []
-    peer = factory.peerConnection(with: config,
-      constraints: RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil), delegate: self)!
-  }
-
-  func answer(_ sdp: String) async throws -> String {
-    try await peer.setRemoteDescription(RTCSessionDescription(type: .offer, sdp: sdp))
-    let answer = try await peer.answer(for: RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil))
-    try await peer.setLocalDescription(answer)
-    if peer.iceGatheringState != .complete {
-      await withCheckedContinuation { gathering = $0 }
-    }
-    return peer.localDescription!.sdp
-  }
-
-  func send(_ object: [String: Any]) {
-    precondition(channels["control"]!.sendData(RTCDataBuffer(
-      data: try! JSONSerialization.data(withJSONObject: object), isBinary: false)))
-  }
-
-  func opened() {
-    guard !ready, channels["media"]?.readyState == .open, channels["control"]?.readyState == .open else { return }
-    ready = true
-    send(["type": "rtc-ready"])
-  }
-
-  func receive(_ data: Data) {
-    let object = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
-    if object["type"] as? String == "heartbeat", !framesSent {
-      framesSent = true
-      for offset in stride(from: 0, to: Self.frame.count, by: 12_000) {
-        let part = Self.frame.subdata(in: offset..<min(offset + 12_000, Self.frame.count))
-        precondition(channels["media"]!.sendData(RTCDataBuffer(
-          data: chunk(part, total: Self.frame.count, offset: offset), isBinary: true)))
-      }
-    }
-    if let id = object["requestId"] as? String {
-      commands += 1
-      let control = object["control"] as! [String: String]
-      if control["button"] == "lock" {
-        // It executed, but its reply was lost. Client must not replay on fallback.
-        peer.close()
-      } else {
-        send(["type": "rtc-control-result", "requestId": id, "success": true])
-      }
-    }
-  }
-
-  nonisolated func peerConnection(_ peerConnection: RTCPeerConnection, didChange stateChanged: RTCSignalingState) {}
-  nonisolated func peerConnection(_ peerConnection: RTCPeerConnection, didAdd stream: RTCMediaStream) {}
-  nonisolated func peerConnection(_ peerConnection: RTCPeerConnection, didRemove stream: RTCMediaStream) {}
-  nonisolated func peerConnectionShouldNegotiate(_ peerConnection: RTCPeerConnection) {}
-  nonisolated func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCIceConnectionState) {}
-  nonisolated func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCIceGatheringState) {
-    if newState == .complete {
-      DispatchQueue.main.async { [weak self] in self?.gathering?.resume(); self?.gathering = nil }
-    }
-  }
-  nonisolated func peerConnection(_ peerConnection: RTCPeerConnection, didGenerate candidate: RTCIceCandidate) {}
-  nonisolated func peerConnection(_ peerConnection: RTCPeerConnection, didRemove candidates: [RTCIceCandidate]) {}
-  nonisolated func peerConnection(_ peerConnection: RTCPeerConnection, didOpen dataChannel: RTCDataChannel) {
-    DispatchQueue.main.async { [weak self] in
-      guard let self else { return }
-      self.channels[dataChannel.label] = dataChannel
-      dataChannel.delegate = self
-      self.opened()
-    }
-  }
-  nonisolated func dataChannelDidChangeState(_ dataChannel: RTCDataChannel) {
-    DispatchQueue.main.async { [weak self] in self?.opened() }
-  }
-  nonisolated func dataChannel(_ dataChannel: RTCDataChannel, didReceiveMessageWith buffer: RTCDataBuffer) {
-    let data = buffer.data
-    DispatchQueue.main.async { [weak self] in self?.receive(data) }
-  }
-}
-
-final class Signaling: URLProtocol, @unchecked Sendable {
-  override class func canInit(with request: URLRequest) -> Bool {
-    request.url?.path.hasPrefix("/native/") == true && ["rtc", "rtc-config"].contains(request.url!.lastPathComponent)
-  }
-  override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-  override func startLoading() {
-    let request = request
-    precondition(request.url!.query == "token=synthetic")
-    precondition(request.value(forHTTPHeaderField: "Origin") == "http://127.0.0.1:\(request.url!.port!)")
-    var body = request.httpBody ?? Data()
-    if let input = request.httpBodyStream {
-      input.open()
-      defer { input.close() }
-      var buffer = [UInt8](repeating: 0, count: 4096)
-      while input.hasBytesAvailable {
-        let count = input.read(&buffer, maxLength: buffer.count)
-        if count <= 0 { break }
-        body.append(contentsOf: buffer.prefix(count))
-      }
-    }
-    let capturedBody = body
-    Task { @MainActor in
-      let result: [String: Any]
-      if request.url!.lastPathComponent == "rtc-config" {
-        result = ["iceServers": []]
-      } else {
-        let offer = try! JSONSerialization.jsonObject(with: capturedBody) as! [String: String]
-        precondition(offer["codec"] == "h264")
-        let gateway = Gateway()
-        Gateway.current = gateway
-        result = ["sdp": try! await gateway.answer(offer["sdp"]!)]
-      }
-      self.client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200,
-        httpVersion: nil, headerFields: ["Content-Type": "application/json"])!, cacheStoragePolicy: .notAllowed)
-      self.client?.urlProtocol(self, didLoad: try! JSONSerialization.data(withJSONObject: result))
-      self.client?.urlProtocolDidFinishLoading(self)
-    }
-  }
-  override func stopLoading() {}
 }
 
 @MainActor func verify() async throws {
@@ -159,9 +24,7 @@ final class Signaling: URLProtocol, @unchecked Sendable {
 
   let base = ProcessInfo.processInfo.environment["LODY_SIMULATOR_TEST_URL"]!
   func make(_ mode: String) -> SimulatorTransport {
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.protocolClasses = [Signaling.self]
-    return SimulatorTransport(viewer: URL(string: "\(base)/\(mode)/?token=synthetic")!, h264: true, configuration: configuration)
+    SimulatorTransport(viewer: URL(string: "\(base)/\(mode)/?token=synthetic")!, h264: true)
   }
   let transport = make("native")
   var fallbacks = 0
@@ -173,15 +36,15 @@ final class Signaling: URLProtocol, @unchecked Sendable {
   transport.start(preferRTC: true)
   var iterator = messages.makeAsyncIterator()
   guard case .data(let frame) = await iterator.next() else { preconditionFailure("No RTC frame") }
-  precondition(frame == Gateway.frame && transport.mode == .webRTC && fallbacks == 0)
+  precondition(frame == Data((0..<40_000).map { UInt8($0 % 251) }) && transport.mode == .webRTC && fallbacks == 0)
   let success = await transport.perform(operationId: "synthetic-operation", control: ["kind": "button", "button": "home"])
   precondition(success)
-  print("PASS real WebRTC frames and acknowledged control")
+  print("PASS libdatachannel <-> werift frames and acknowledged control")
 
   let uncertain = await transport.perform(operationId: "synthetic-operation", control: ["kind": "button", "button": "lock"])
   precondition(!uncertain)
   guard case .string("fallback-ready") = await iterator.next() else { preconditionFailure("No WebSocket fallback") }
-  precondition(fallbacks == 1 && transport.mode == .webSocket && Gateway.current!.commands == 2)
+  precondition(fallbacks == 1 && transport.mode == .webSocket)
   // Echo is an ordering barrier: fallback has accepted input before inspecting its receipts.
   guard case .string = await iterator.next() else { preconditionFailure("No fallback heartbeat") }
   transport.close()
@@ -216,6 +79,7 @@ final class Signaling: URLProtocol, @unchecked Sendable {
   let (data, _) = try await URLSession.shared.data(from: URL(string: "\(base)/stats")!)
   let stats = try JSONSerialization.jsonObject(with: data) as! [String: Any]
   precondition((stats["controls"] as! [String]).isEmpty, "Uncertain control replayed over HTTP")
+  precondition(stats["rtcCommands"] as! Int == 2, "RTC controls were not each delivered once")
   precondition(stats["redirects"] as! Int == 0, "Capability followed redirect")
   precondition(stats["hanging"] as! Int == 1, "Negotiation was not in flight")
   precondition(!(stats["sockets"] as! [String]).contains("/hanging/stream"))

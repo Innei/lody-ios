@@ -51,6 +51,7 @@
     "@react-native/metro-config": "0.86.3",
     "@types/react": "~19.2.2",
     "expo-build-properties": "~57.0.22",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "werift": "0.24.4"
   }
 }

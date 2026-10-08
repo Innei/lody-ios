@@ -145,8 +145,9 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
         command = ['xcrun', '--sdk', 'iphonesimulator', 'swiftc'] if simulator else ['xcrun', 'swiftc']
         command += ['-swift-version', '6']
         if name == 'simulator-transport':
-            framework = root / 'apps/mobile/ios/Pods/WebRTC-lib/WebRTC.xcframework/ios-x86_64_arm64-simulator'
-            command += ['-F', str(framework), '-framework', 'WebRTC', '-Xlinker', '-rpath', '-Xlinker', str(framework)]
+            subprocess.run(['/bin/bash', str(kit / 'datachannel/build.sh')], check=True)
+            command += ['-F', str(kit / 'ios/Vendor/LodyDataChannel.xcframework/ios-arm64-simulator'),
+                        '-framework', 'LodyDataChannel']
         if simulator:
             arch = 'arm64' if platform.machine() == 'arm64' else 'x86_64'
             ios = '26.0'

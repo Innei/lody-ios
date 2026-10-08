@@ -94,10 +94,34 @@ const buildTooling = [
  */
 const nativeComponents = [
   {
-    name: 'WebRTC',
+    name: 'libdatachannel',
+    license: 'MPL-2.0',
+    url: 'https://github.com/paullouisageneau/libdatachannel',
+    file: 'modules/lody-kit/licenses/libdatachannel-LICENSE.txt',
+  },
+  {
+    name: 'libjuice',
+    license: 'MPL-2.0',
+    url: 'https://github.com/paullouisageneau/libjuice',
+    file: 'modules/lody-kit/licenses/libjuice-LICENSE.txt',
+  },
+  {
+    name: 'usrsctp',
     license: 'BSD-3-Clause',
-    url: 'https://webrtc.org',
-    file: 'modules/lody-kit/licenses/WebRTC-LICENSE.txt',
+    url: 'https://github.com/sctplab/usrsctp',
+    file: 'modules/lody-kit/licenses/usrsctp-LICENSE.txt',
+  },
+  {
+    name: 'Mbed TLS',
+    license: 'Apache-2.0',
+    url: 'https://github.com/Mbed-TLS/mbedtls',
+    file: 'modules/lody-kit/licenses/MbedTLS-LICENSE.txt',
+  },
+  {
+    name: 'plog',
+    license: 'MIT',
+    url: 'https://github.com/SergiusTheBest/plog',
+    file: 'modules/lody-kit/licenses/plog-LICENSE.txt',
   },
   {
     name: 'Octicons',

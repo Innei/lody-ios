@@ -28,7 +28,11 @@ reset and stream configuration is sent afresh. A hardware action whose reply was
 lost is rejected locally, never retried over HTTP. There is no input queue across
 connections. Codec rejection (4002) retains the existing MJPEG recovery path.
 
-WebRTC-lib 154.0.0 is pinned in `LodyKit.podspec`; notices ship in Settings.
+The peer is libdatachannel, built by `datachannel/build.sh` from pinned commits
+into `ios/Vendor/LodyDataChannel.xcframework` when CocoaPods evaluates
+`LodyKit.podspec` (needs `cmake`); notices ship in Settings. Its ICE agent,
+libjuice, relays through TURN over UDP only: `turn:?transport=tcp` and `turns:`
+servers are skipped, and a UDP-blocked network falls back to WebSocket.
 Run `pnpm verify:native --case simulator-transport` for native transport behavior
 and `pnpm verify:ui --app <app> --case simulator-preview` for both preview hosts.
 These offline checks do not prove real TURN service availability or WAN performance.
