@@ -58,6 +58,9 @@ jobs:
       - name: Ensure Metal Toolchain
         run: /bin/bash .github/scripts/ensure-metal-toolchain.sh iphoneos
 
+      - name: Ensure cmake
+        run: command -v cmake >/dev/null || brew install cmake
+
       - name: Record commit
         id: meta
         run: echo "source_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
