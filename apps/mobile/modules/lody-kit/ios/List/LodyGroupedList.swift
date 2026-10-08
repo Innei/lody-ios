@@ -47,6 +47,7 @@ private final class SettingsListCell: UICollectionViewListCell {
 }
 
 private final class SearchHeaderCell: UICollectionViewCell {
+  var onLayout: ((SearchHeaderCell) -> Void)?
   override init(frame: CGRect) {
     super.init(frame: frame)
     backgroundColor = .clear
@@ -57,12 +58,7 @@ private final class SearchHeaderCell: UICollectionViewCell {
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    for subview in contentView.subviews {
-      guard let field = subview as? UISearchTextField else { continue }
-      field.frame = CGRect(
-        x: 20, y: 0, width: contentView.bounds.width - 40, height: 36
-      )
-    }
+    onLayout?(self)
   }
 }
 
@@ -97,6 +93,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private let segments = UISegmentedControl(items: [])
   private let steps = LodyStepStrip()
   private let searchField = UISearchTextField()
+  private weak var searchHeader: SearchHeaderCell?
   private let segmentContainer = UIView()
   private var scopeSearch: UISearchController?
   private var segmentLabels: [String] = []
@@ -411,6 +408,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     searchField.isHidden = true
     searchField.accessibilityIdentifier = "list-search"
     searchField.addTarget(self, action: #selector(searchFieldChanged), for: .editingChanged)
+    // Keep the input attached while diffable snapshots recycle its layout header.
+    collection.addSubview(searchField)
     segmentContainer.accessibilityIdentifier = "list-strip"
     segmentContainer.isHidden = true
     segmentContainer.addSubview(segments)
@@ -1000,9 +999,13 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   private func installSearch(in cell: SearchHeaderCell) {
-    if searchField.superview !== cell.contentView {
-      searchField.removeFromSuperview()
-      cell.contentView.addSubview(searchField)
+    searchHeader?.onLayout = nil
+    searchHeader = cell
+    cell.onLayout = { [weak self] header in
+      guard let self else { return }
+      self.searchField.frame = header.convert(
+        CGRect(x: 20, y: 0, width: header.bounds.width - 40, height: 36), to: self.collection)
+      self.collection.bringSubviewToFront(self.searchField)
     }
     cell.setNeedsLayout()
   }

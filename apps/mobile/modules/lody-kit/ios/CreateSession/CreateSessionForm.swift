@@ -8,6 +8,9 @@ struct CreateSessionPage: Equatable {
   var agentKey = ""
   var choice = ModelChoice()
   var branch = ""
+  var branches: CreateBranches?
+  var branchesLoading = false
+  var branchesFailed = false
   var loading = true
   var failed = false
 
@@ -128,6 +131,15 @@ struct CreateSessionForm {
     project = CreateSessionPage(chat: false, projectId: picked.id)
   }
 
+  mutating func applyBranches(_ value: CreateBranches) {
+    if project.branches == nil { project.branches = value }
+    else { project.branches?.append(value) }
+    project.branchesLoading = false
+    project.branchesFailed = false
+    if project.branch.isEmpty, let name = project.branches?.defaultBranch,
+      project.branches?.names.contains(name) == true { project.branch = name }
+  }
+
   mutating func selectMachine(_ id: String) {
     current.machineId = id
     let first = current.options?.agents.first { $0.machineId == id }
@@ -163,7 +175,10 @@ struct CreateSessionForm {
     prefs = value
   }
 
-  var canSend: Bool { !userId.isEmpty && !current.loading && (deferUnresolved || (!current.failed && current.agent != nil)) }
+  var canSend: Bool {
+    !userId.isEmpty && !current.loading &&
+      (deferUnresolved || (!current.failed && current.agent != nil && (!current.github || !current.branch.isEmpty)))
+  }
 
   var notice: String {
     if signedOut { return "" }
@@ -177,7 +192,7 @@ struct CreateSessionForm {
 
   func draft(sessionId: String) -> CreateSessionDraft? {
     let page = current
-    guard let agent = page.agent, !userId.isEmpty else { return nil }
+    guard let agent = page.agent, !userId.isEmpty, !page.github || !page.branch.isEmpty else { return nil }
     let project = projects.first { $0.id == page.projectId }
     return CreateSessionDraft(
       sessionId: sessionId,

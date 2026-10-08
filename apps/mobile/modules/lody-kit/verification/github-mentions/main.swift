@@ -58,11 +58,22 @@ final class GitHubProtocol: URLProtocol {
       }
     } else {
       assert(request.url?.host == "api.github.com")
-      assert(request.url?.path == "/repos/LodyAI/Lody/issues")
+      let branchRequest = request.url?.path == "/repos/LodyAI/Lody/branches"
+      let repoRequest = request.url?.path == "/repos/LodyAI/Lody"
+      assert(branchRequest || repoRequest || request.url?.path == "/repos/LodyAI/Lody/issues")
       let token = request.value(forHTTPHeaderField: "Authorization")!
       assert(token.hasPrefix("Bearer synthetic-repo-"), "App credentials must never go to GitHub")
       if token.hasSuffix("failure") { status = 503 }
-      if token.hasSuffix("full") {
+      if repoRequest {
+        body = ["default_branch": "trunk"]
+      } else if branchRequest {
+        let page = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!.first { $0.name == "page" }!.value!
+        if token.hasSuffix("empty") { body = [] as [[String: String]] }
+        else if token.hasSuffix("malformed") { body = [["name": ""]] }
+        else if page == "1" { body = (1...100).map { ["name": "feature/\($0)"] } }
+        else { body = [["name": "feature/later"]] }
+        if token.hasSuffix("account-switch") { AuthKeychain.token.withLock { $0 = "new-account" } }
+      } else if token.hasSuffix("full") {
         let page = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!.first { $0.name == "page" }!.value!
         let offset = (Int(page)! - 1) * 100
         body = (1...100).map { ["number": offset + $0, "title": "Issue \(offset + $0)", "state": "open"] as [String: Any] }
@@ -116,6 +127,21 @@ final class GitHubProtocol: URLProtocol {
       catch { assert(error.localizedDescription == "github_unavailable") }
     }
     AuthKeychain.token.withLock { $0 = "synthetic-app-token" }
+    let first = try await GitHubCloud.branches(workspace: "linked", repo: "LodyAI/Lody", page: 1)
+    assert(first.defaultBranch == "trunk" && first.names.contains("trunk") && first.nextPage == 2)
+    let second = try await GitHubCloud.branches(workspace: "linked", repo: "LodyAI/Lody", page: 2)
+    assert(second.names == ["feature/later"] && second.nextPage == nil)
+    let emptyBranches = try await GitHubCloud.branches(workspace: "empty", repo: "LodyAI/Lody", page: 1)
+    assert(emptyBranches.names.isEmpty && emptyBranches.defaultBranch == nil, "Empty repo must not offer a nonexistent configured default")
+    for workspace in ["unlinked", "failure", "malformed", "account-switch"] {
+      do { _ = try await GitHubCloud.branches(workspace: workspace, repo: "LodyAI/Lody", page: 1); fatalError("Invalid branch response accepted") }
+      catch { assert(error.localizedDescription == "github_unavailable") }
+    }
+    AuthKeychain.token.withLock { $0 = "synthetic-app-token" }
+    let beforeInvalid = GitHubProtocol.urls.withLock { $0.count }
+    do { _ = try await GitHubCloud.branches(workspace: "linked", repo: "owner/..", page: 1); fatalError("Invalid branch repo accepted") } catch {}
+    do { _ = try await GitHubCloud.branches(workspace: "linked", repo: "LodyAI/Lody", page: 0); fatalError("Invalid page accepted") } catch {}
+    assert(GitHubProtocol.urls.withLock { $0.count } == beforeInvalid)
     print("GitHub mentions: Issue/PR references, unconnected project, bounded listing, credential isolation and failure behavior passed")
   }
 }

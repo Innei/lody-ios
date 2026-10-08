@@ -71,6 +71,10 @@ assert search['frame']['y'] < ui.element(LOCAL)['frame']['y'], 'Search must sit 
 ui.capture('local')
 
 type_search('Alpha')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'list-search' and (i.get('AXValue') or '').casefold() == 'alpha' for i in items), 'Project search lost input during filtering')
+ui.axe('tap', '--label', 'x', '--pre-delay', '.5', '--post-delay', '.5')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'list-search' and (i.get('AXValue') or '').casefold() == 'alphax' for i in items), 'Project filtering lost input focus')
+ui.axe('tap', '--id', 'delete', '--post-delay', '.5')
 ui.element(LOCAL)
 assert 'ui:local:beta' not in ids(), 'Search must hide local projects that do not match'
 ui.capture('local-search')

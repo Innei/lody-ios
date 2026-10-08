@@ -205,3 +205,26 @@ do {
   let generic = CreateLogic.withPermissionMode(capability, choice, value: "auto")
   check(generic.configOptionValues?["approval"] == .string("auto"), "generic mode fallback uses config value")
 }
+
+do {
+  var form = CreateSessionForm(userId: "u", workspaceId: "w")
+  form.selectProject(CreateProject(id: "github:Owner/Repo", machineId: "", name: "Repo"))
+  form.applyOptions(options, chat: false)
+  check(!form.canSend && form.draft(sessionId: "s") == nil, "GitHub must have an existing base branch before sending")
+  form.applyBranches(CreateBranches(names: ["trunk", "develop"], defaultBranch: "trunk", nextPage: 2))
+  check(form.canSend && form.project.branch == "trunk", "repository default is selected without typing")
+  form.project.branch = "develop"
+  form.applyBranches(CreateBranches(names: ["feature/Search", "develop"]))
+  check(form.project.branch == "develop", "pagination never replaces an explicit choice")
+  check(form.project.branches?.matching(" SEARCH ") == ["feature/Search"], "search matches later pages case-insensitively")
+  check(form.project.branches?.matching("").first == "trunk", "default sorts first")
+  check(form.project.branches?.names.count == 3 && form.project.branches?.nextPage == nil, "pages deduplicate and terminate")
+  form.selectMachine("m2")
+  check(form.project.branch == "develop" && form.draft(sessionId: "s")?.branch == "develop", "changing machines keeps selected GitHub branch in the draft")
+  form.selectProject(CreateProject(id: "github:Owner/Empty", machineId: "", name: "Empty"))
+  form.applyOptions(options, chat: false)
+  form.applyBranches(CreateBranches(names: []))
+  check(form.project.branch.isEmpty && !form.canSend, "new empty repository cannot reuse previous branch")
+  form.deferUnresolved = true
+  check(form.canSend && form.draft(sessionId: "s") == nil, "offline share defers unresolved branch to the app")
+}

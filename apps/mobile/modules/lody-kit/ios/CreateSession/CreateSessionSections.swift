@@ -81,12 +81,20 @@ enum CreateSessionSections {
       image: page.github ? "" : "folder", imageAsset: page.github ? "lody-mark-github" : "",
       disclosure: true, navigates: true)]
     if page.github {
-      let branch = page.branch.isEmpty ? text("create.branch.placeholder") : page.branch
-      projectRows.append(.item(
-        "branch", text("create.branch.label"), value: branch, image: "arrow.triangle.branch",
-        disclosure: true, accessibilityValue: branch))
+      var branch = page.branch
+      if branch.isEmpty {
+        branch = text("create.branch.placeholder")
+        if page.branchesLoading { branch = text("common.reading") }
+        else if page.branchesFailed { branch = text("create.branch.unavailable") }
+      }
+      var branchRow = LodyListRow.item(
+        "branch", text("create.branch.label"), subtitle: branch, image: "arrow.triangle.branch",
+        disclosure: true, navigates: true, accessibilityValue: branch)
+      branchRow.wrapSubtitle = true
+      projectRows.append(branchRow)
     }
-    var sections: [LodyListSection] = [.group("project", projectRows)]
+    let branchHint = form.deferUnresolved ? "create.branch.cachedHint" : "create.branch.hint"
+    var sections: [LodyListSection] = [.group("project", footer: page.github ? text(branchHint) : "", projectRows)]
     if page.github { sections.append(.group("machine", [machineRow])) }
     sections.append(agentSection)
     return sections
