@@ -37,7 +37,10 @@ slices=()
 for sdk in iphoneos iphonesimulator; do
   prefix="$work/$sdk"
   rm -rf "$prefix" "$work/build-$sdk"
-  flags=(-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT="$sdk" -DCMAKE_OSX_ARCHITECTURES=arm64
+  # Generic simulator builds (CI) still request x86_64.
+  archs=arm64
+  [ "$sdk" = iphonesimulator ] && archs="arm64;x86_64"
+  flags=(-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT="$sdk" -DCMAKE_OSX_ARCHITECTURES="$archs"
     -DCMAKE_OSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" -DCMAKE_BUILD_TYPE=MinSizeRel
     -DCMAKE_INSTALL_PREFIX="$prefix" -DCMAKE_PREFIX_PATH="$prefix" -DCMAKE_FIND_ROOT_PATH="$prefix")
   cmake "${flags[@]}" -S "$work/mbedtls" -B "$work/build-$sdk/mbedtls" \
