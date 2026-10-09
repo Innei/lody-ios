@@ -43,7 +43,7 @@ private final class Typist {
 
 @MainActor
 @Test func blockShortcutsConvertTheParagraph() {
-  let cases = [("- item", "- item"), ("1. first", "1. first"), ("3. third", "3. third"), ("> quoted", "> quoted"), ("```swift let a", "```swift\nlet a\n```")]
+  let cases = [("# title", "# title"), ("### three", "### three"), ("#tag", "#tag"), ("- item", "- item"), ("1. first", "1. first"), ("3. third", "3. third"), ("> quoted", "> quoted"), ("```swift let a", "```swift\nlet a\n```")]
   for (typed, expected) in cases {
     let typist = Typist()
     typist.type(typed)
@@ -64,4 +64,14 @@ private final class Typist {
   typist.type("**a*")
   typist.view.textView.setMarkedText("*", selectedRange: NSRange(location: 1, length: 0))
   #expect(typist.text == "**a**")
+}
+
+@MainActor
+@Test func headingKeepsTypedCaseAndBackspacesToEmpty() {
+  let typist = Typist()
+  typist.type("# title")
+  #expect(typist.text == "title")
+  for _ in 0..<7 { typist.view.textView.deleteBackward() }
+  #expect(typist.text == "")
+  #expect(typist.markdown == "")
 }

@@ -455,6 +455,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     collection.translatesAutoresizingMaskIntoConstraints = false
     edgeFade.translatesAutoresizingMaskIntoConstraints = false
     composer.translatesAutoresizingMaskIntoConstraints = false
+    composer.allowsFullScreen = true
     let composerWidth = composer.widthAnchor.constraint(equalTo: widthAnchor)
     composerWidth.priority = .defaultHigh
     NSLayoutConstraint.activate([
@@ -882,6 +883,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     incoming.onMentionBrowse = old.onMentionBrowse
     incoming.onComposerOptionChange = old.onComposerOptionChange
     incoming.onDraftChange = old.onDraftChange
+    incoming.allowsFullScreen = old.allowsFullScreen
     incoming.setInputIdentifier("session-input")
     NSLayoutConstraint.deactivate(links)
     old.removeFromSuperview()

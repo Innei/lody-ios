@@ -19,6 +19,12 @@ ui.axe('tap', '--id', 'create-session-input', '--post-delay', '.6')
 for _ in range(len(value()) + 4):
     ui.axe('key', '42')
 ui.wait(lambda items: not value(), 'Could not clear the fixture draft')
+ui.axe('type', '# title')
+ui.wait(lambda items: value().lower() == 'title', f'Heading shortcut left its tag in the input: {value()!r}')
+ui.capture('heading')
+for _ in range(len(value()) + 2):
+    ui.axe('key', '42')
+ui.wait(lambda items: not value(), 'Could not clear the heading')
 ui.axe('type', '**bold** and `code` ')
 ui.wait(lambda items: value().rstrip() == 'bold and code', 'Shortcuts left their Markdown tags in the input')
 ui.capture('formatted')

@@ -208,12 +208,21 @@ final class ChatComposerInput: TextView {
       .paddingHead: 12.0,
       .quoteCustomDrawing: QuoteCustomDrawingAttributes(barColor: .separator, barWidth: 3, rounded: true, barInsets: .zero),
     ]
+    setHeadingFont(of: theme, body: UIFont.dynamic(of: 17))
     let history = EditorHistoryPlugin()
     let config = EditorConfig(theme: theme, plugins: [ListPlugin(), LinkPlugin(), MarkdownShortcutPlugin(), history])
     let view = LexicalView(editorConfig: config, featureFlags: FeatureFlags(), textViewType: ChatComposerInput.self)
     try? view.editor.registerNode(nodeType: .lodyReference, class: ChatReferenceNode.self)
     (view.textView as? ChatComposerInput)?.history = history
     return view
+  }
+
+  // Matches ChatMarkdownTheme's title font, which the transcript uses for every heading level.
+  private static func setHeadingFont(of theme: Theme, body: UIFont) {
+    let font = UIFont.systemFont(ofSize: body.pointSize * 20 / 17, weight: .semibold)
+    for tag in ["h1", "h2", "h3", "h4", "h5", "h6"] {
+      theme.setValue(.heading, forSubtype: tag, value: [.font: font])
+    }
   }
 
   private var history: EditorHistoryPlugin? {
@@ -237,6 +246,7 @@ final class ChatComposerInput: TextView {
     didSet {
       guard let font, (editor.getTheme().root?[.font] as? UIFont) != font else { return }
       editor.getTheme().root?[.font] = font
+      Self.setHeadingFont(of: editor.getTheme(), body: font)
       try? editor.update { editor.dirtyType = .fullReconcile }
     }
   }
@@ -602,6 +612,12 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private var state = ChatComposerState()
   private var composerOptions = ChatComposerOptions()
   private var composerExpanded = false
+  var allowsFullScreen = false { didSet { updateComposer() } }
+  private var fullScreen = false
+  private let expandButton = UIButton(type: .system)
+  private lazy var formatBar = ChatComposerFormatBar(editor: input.editor)
+  private var formatHeight: NSLayoutConstraint!
+  private let fullScreenDim = UIView()
   private var pendingDraft: (text: String, attachments: [ChatAttachment], state: String?)?
   private var sentStates: [String: String] = [:]
   var sendHandoff = true
@@ -785,6 +801,14 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     permissionButton.accessibilityLabel = LodyStrings.text("model.tab.permission")
     permissionButton.accessibilityIdentifier = "session-permission"
     permissionButton.showsMenuAsPrimaryAction = true
+    expandButton.tintColor = .secondaryLabel
+    expandButton.accessibilityIdentifier = "session-expand"
+    expandButton.addTarget(self, action: #selector(toggleFullScreen), for: .touchUpInside)
+    formatBar.clipsToBounds = true
+    formatBar.onChange = { [weak self] in self?.updateComposer() }
+    fullScreenDim.backgroundColor = UIColor.black.withAlphaComponent(0.22)
+    fullScreenDim.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    fullScreenDim.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleFullScreen)))
     mentionPanel.onChange = { [weak self] in self?.updateComposer() }
     attachmentBar.onHeightChange = { [weak self] in self?.updateComposer() }
     queueView.onHeightChange = { [weak self] in self?.updateComposer() }
@@ -812,14 +836,15 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     composer.contentView.addSubview(attachSurface)
     composer.contentView.addSubview(inputSurface)
     attachSurface.contentView.addSubview(attach)
-    for view in [editorView, hint, accessoryBar, modelButton, mentionButton, permissionButton, send] {
+    for view in [editorView, hint, formatBar, accessoryBar, modelButton, mentionButton, permissionButton, send, expandButton] {
       inputSurface.contentView.addSubview(view)
     }
-    for view in [composer, mentionPanel, mentionButton, permissionButton, queueView, quickRepliesView, inputSurface, attachSurface, notice, attachmentBar, quotaNotice, editorView, hint, accessoryBar, send, attach, modelButton] {
+    for view in [composer, mentionPanel, mentionButton, permissionButton, queueView, quickRepliesView, inputSurface, attachSurface, notice, attachmentBar, quotaNotice, editorView, hint, formatBar, accessoryBar, send, attach, modelButton, expandButton] {
       view.translatesAutoresizingMaskIntoConstraints = false
     }
     inputHeight = editorView.heightAnchor.constraint(equalToConstant: 48)
     accessoryHeight = accessoryBar.heightAnchor.constraint(equalToConstant: 0)
+    formatHeight = formatBar.heightAnchor.constraint(equalToConstant: 0)
     hintLeading = hint.leadingAnchor.constraint(equalTo: editorView.leadingAnchor, constant: 21)
     hintTop = hint.topAnchor.constraint(equalTo: editorView.topAnchor, constant: 13)
     noticeHeight = notice.heightAnchor.constraint(equalToConstant: 0)
@@ -861,7 +886,13 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       editorView.topAnchor.constraint(equalTo: inputSurface.contentView.topAnchor),
       editorView.leadingAnchor.constraint(equalTo: inputSurface.contentView.leadingAnchor),
       editorView.trailingAnchor.constraint(equalTo: inputSurface.contentView.trailingAnchor), inputHeight,
-      accessoryBar.topAnchor.constraint(equalTo: editorView.bottomAnchor),
+      formatBar.topAnchor.constraint(equalTo: editorView.bottomAnchor),
+      formatBar.leadingAnchor.constraint(equalTo: inputSurface.contentView.leadingAnchor),
+      formatBar.trailingAnchor.constraint(equalTo: inputSurface.contentView.trailingAnchor), formatHeight,
+      expandButton.topAnchor.constraint(equalTo: editorView.topAnchor, constant: 2),
+      expandButton.trailingAnchor.constraint(equalTo: inputSurface.contentView.trailingAnchor, constant: -2),
+      expandButton.widthAnchor.constraint(equalToConstant: 44), expandButton.heightAnchor.constraint(equalToConstant: 44),
+      accessoryBar.topAnchor.constraint(equalTo: formatBar.bottomAnchor),
       accessoryBar.leadingAnchor.constraint(equalTo: inputSurface.contentView.leadingAnchor),
       accessoryBar.trailingAnchor.constraint(equalTo: inputSurface.contentView.trailingAnchor),
       accessoryBar.bottomAnchor.constraint(equalTo: inputSurface.contentView.bottomAnchor), accessoryHeight,
@@ -1208,12 +1239,51 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     saveDraft()
   }
   private func presenter() -> UIViewController? {
+    owningController().map { $0.presentedViewController ?? $0 } ?? window?.rootViewController
+  }
+  private func owningController() -> UIViewController? {
     var responder: UIResponder? = next
     while let current = responder {
-      if let controller = current as? UIViewController { return controller.presentedViewController ?? controller }
+      if let controller = current as? UIViewController { return controller }
       responder = current.next
     }
-    return window?.rootViewController
+    return nil
+  }
+  private func fullScreenInputHeight(chrome: CGFloat) -> CGFloat {
+    guard let superview, let host = owningController()?.view else { return ChatMessageContent.maximumCollapsedHeight }
+    // Touches outside the superview never reach the composer, so the controller's safe area alone is not enough.
+    let top = max(host.convert(CGPoint(x: 0, y: host.safeAreaInsets.top), to: superview).y, superview.safeAreaInsets.top) + 8
+    return max(ChatMessageContent.maximumCollapsedHeight, frame.maxY - top - chrome)
+  }
+  @objc private func toggleFullScreen() {
+    setFullScreen(!fullScreen)
+  }
+  private func setFullScreen(_ value: Bool, animated: Bool = true) {
+    guard fullScreen != value, let superview else { return }
+    superview.layoutIfNeeded()
+    fullScreen = value
+    if value {
+      fullScreenDim.frame = superview.bounds
+      fullScreenDim.alpha = 0
+      superview.addSubview(fullScreenDim)
+      superview.bringSubviewToFront(self)
+      formatBar.refresh()
+    }
+    updateComposer()
+    let changes = {
+      self.fullScreenDim.alpha = value ? 1 : 0
+      superview.layoutIfNeeded()
+      self.input.scrollRangeToVisible(self.input.selectedRange)
+    }
+    let finish = { (_: Bool) in
+      if !self.fullScreen { self.fullScreenDim.removeFromSuperview() }
+    }
+    guard animated, window != nil, !UIAccessibility.isReduceMotionEnabled else {
+      changes()
+      finish(true)
+      return
+    }
+    UIView.animate(springDuration: 0.42, bounce: 0, options: [.beginFromCurrentState], animations: changes, completion: finish)
   }
   var connection: String { state.connection ?? "" }
 
@@ -1325,16 +1395,30 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     let quotaSize = quotaNotice.sizeThatFits(CGSize(width: max(1, quotaWidth), height: .greatestFiniteMagnitude))
     quotaNoticeHeight.constant = quotaNotice.isHidden ? 0 : max(quotaNotice.font.lineHeight, quotaSize.height)
     quotaGap.constant = quotaNotice.isHidden ? 8 : 6
+    if fullScreen && (!allowsFullScreen || !expanded || !state.editable) {
+      fullScreen = false
+      fullScreenDim.removeFromSuperview()
+    }
     accessoryHeight.constant = expanded ? 44 : 0
+    formatHeight.constant = fullScreen ? 44 : 0
+    formatBar.isHidden = !fullScreen
+    formatBar.accessibilityElementsHidden = !fullScreen
     let verticalInset = expanded ? 13 : max(0, (48 - input.font!.lineHeight) / 2)
-    input.textContainerInset = UIEdgeInsets(top: verticalInset, left: 16, bottom: verticalInset, right: expanded ? 16 : 46)
+    input.textContainerInset = UIEdgeInsets(top: verticalInset, left: 16, bottom: verticalInset, right: expanded && !allowsFullScreen ? 16 : 46)
     hintLeading.constant = 21
     hintTop.constant = verticalInset
     let height = input.sizeThatFits(CGSize(width: max(1, input.bounds.width), height: .greatestFiniteMagnitude)).height
-    inputHeight.constant = min(ChatMessageContent.maximumCollapsedHeight, max(expanded ? 68 : 48, height))
-    input.isScrollEnabled = height > ChatMessageContent.maximumCollapsedHeight
+    let overflows = height > ChatMessageContent.maximumCollapsedHeight
+    let chrome = mentionHeight.constant + queueHeight.constant + queueGap.constant + quickRepliesHeight.constant + noticeHeight.constant + attachmentHeight.constant + quotaNoticeHeight.constant + accessoryHeight.constant + formatHeight.constant + 16
+    inputHeight.constant = fullScreen ? fullScreenInputHeight(chrome: chrome) : min(ChatMessageContent.maximumCollapsedHeight, max(expanded ? 68 : 48, height))
+    input.isScrollEnabled = fullScreen || overflows
+    expandButton.isHidden = !(fullScreen || (allowsFullScreen && expanded && overflows))
+    expandButton.accessibilityElementsHidden = expandButton.isHidden
+    let expandSymbol = fullScreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right"
+    expandButton.setImage(UIImage(systemName: expandSymbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .medium)), for: .normal)
+    expandButton.accessibilityLabel = LodyStrings.text(fullScreen ? "native.chat.composer.collapse" : "native.chat.composer.expand")
     updateComposerOptions()
-    onHeightChange?(mentionHeight.constant + queueHeight.constant + queueGap.constant + quickRepliesHeight.constant + noticeHeight.constant + attachmentHeight.constant + quotaNoticeHeight.constant + inputHeight.constant + accessoryHeight.constant + 16)
+    onHeightChange?(chrome + inputHeight.constant)
     setNeedsLayout()
     if expansionChanged {
       if window != nil && !UIAccessibility.isReduceMotionEnabled {
@@ -1460,12 +1544,17 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   }
   @objc private func openMentions() { mentionPanel.open(input: input) }
   func textViewDidChangeSelection(_ textView: UITextView) {
+    if fullScreen { formatBar.refresh() }
     guard activeMentionItems != nil else { return }
     updateComposer()
   }
   func textViewDidChange(_ textView: UITextView) { updateComposer() }
   func textViewDidBeginEditing(_ textView: UITextView) { updateComposer() }
-  func textViewDidEndEditing(_ textView: UITextView) { updateComposer(); saveDraft() }
+  func textViewDidEndEditing(_ textView: UITextView) {
+    setFullScreen(false)
+    updateComposer()
+    saveDraft()
+  }
   func textView(_ textView: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
     let action = #selector(ChatComposerInput.pastePlainText(_:))
     guard textView.canPerformAction(action, withSender: nil) else {
@@ -1487,6 +1576,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       return
     }
     sendFeedback.impactOccurred(intensity: 0.85)
+    if fullScreen { UIView.performWithoutAnimation { setFullScreen(false, animated: false) } }
     let queued = queuesSubmission
     let guiding = guidesSubmission
     let id = UUID().uuidString.lowercased()

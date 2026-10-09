@@ -12,7 +12,7 @@ LODY_SHARE_SOURCES = %w[
   List/LodyRowDensity.swift List/LodySessionRowView.swift List/LodyStepStrip.swift
   List/LodyUnreadNavigationHold.swift
   Chat/LodyAgentIcon.swift Chat/ChatAttachments.swift Chat/ChatAttachmentSheet.swift Chat/ChatCameraCapture.swift Chat/ChatAttachmentCamera.swift
-  Chat/ChatComposerView.swift Chat/ChatReferenceNode.swift Chat/ChatComposerModelPanel.swift Chat/ChatComposerSurfaceLayout.swift
+  Chat/ChatComposerView.swift Chat/ChatComposerFormatBar.swift Chat/ChatReferenceNode.swift Chat/ChatComposerModelPanel.swift Chat/ChatComposerSurfaceLayout.swift
   Chat/ChatComposerLiquidGlassSurfaceLayout.swift Chat/ChatQuickReplies.swift Chat/ChatMentionPanel.swift
   Chat/ChatSendHandoff.swift Chat/ChatThrowCurve.swift Chat/ChatNumericText.swift Chat/ChatPendingSend.swift
   Toast/LodyToastOverlay.swift Toast/LodyToastPillView.swift Toast/LodySessionBannerView.swift

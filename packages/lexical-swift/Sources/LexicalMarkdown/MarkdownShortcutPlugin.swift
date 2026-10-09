@@ -21,6 +21,14 @@ extension BlockShortcut {
     try replaceWithList(paragraph, remainder, type: .number, start: Int(match[2]) ?? 1)
   }
 
+  public static let heading = BlockShortcut(pattern: #"^(#{1,6})\s"#) { paragraph, remainder, match in
+    let tags: [HeadingTagType] = [.h1, .h2, .h3, .h4, .h5, .h6]
+    let heading = createHeadingNode(headingTag: tags[match[1].count - 1])
+    try heading.append(remainder)
+    _ = try paragraph.replace(replaceWith: heading)
+    _ = try heading.selectStart()
+  }
+
   public static let quote = BlockShortcut(pattern: #"^>\s"#) { paragraph, remainder, _ in
     let quote = createQuoteNode()
     try quote.append(remainder)
@@ -35,7 +43,7 @@ extension BlockShortcut {
     _ = try code.selectStart()
   }
 
-  public static let composer: [BlockShortcut] = [bulletList, orderedList, quote, codeFence]
+  public static let composer: [BlockShortcut] = [heading, bulletList, orderedList, quote, codeFence]
 }
 
 private func replaceWithList(_ paragraph: ElementNode, _ remainder: [Node], type: ListType, start: Int) throws {

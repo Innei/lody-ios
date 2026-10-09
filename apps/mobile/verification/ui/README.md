@@ -17,6 +17,10 @@ retaining edits, and successful replacement. Screenshots and video capture the s
 The service boundary is synthetic; no cloud history is rewritten. Protocol tests cover
 eligibility, server-owned history replacement and non-replay of uncertain requests.
 
+`composer-fullscreen` types past the chat input's inline cap, expands it in place to
+full screen, checks the upward growth and format bar, collapses it, then sends from full
+screen. It uses the offline chat-success fixture in English light/dark.
+
 `--suite chat-kit` exercises the Swift Package migration through the
 production streaming transcript, standalone Composer sheet and attachment send
 handoff. It retains English light/dark coverage, screenshots and video. Run
