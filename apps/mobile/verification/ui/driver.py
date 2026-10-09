@@ -39,6 +39,25 @@ def launch_covered(items, app_pid):
     return not any(str(item.get('pid')) == str(app_pid) for item in items)
 
 
+def allow_custom_scheme(ui):
+    """SpringBoard's first-use scheme alert blocks describe-ui; tap Open without reading the tree."""
+    ui.invalidate_axe()
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline:
+        for label in ('Open', '打开', '開啟'):
+            try:
+                ui.axe('tap', '--label', label, '--post-delay', '1', timeout=3, recover=False)
+                return
+            except subprocess.TimeoutExpired:
+                ui.axe('tap', '-x', '280', '-y', '450', '--post-delay', '1', timeout=3, recover=False)
+                return
+            except (subprocess.CalledProcessError, RuntimeError) as error:
+                if 'no accessibility element matched' not in str(error).casefold():
+                    ui.axe('tap', '-x', '280', '-y', '450', '--post-delay', '1', timeout=3, recover=False)
+                    return
+        time.sleep(0.4)
+
+
 class UI:
     def __init__(self, udid, output):
         self.udid, self.output = udid, Path(output)

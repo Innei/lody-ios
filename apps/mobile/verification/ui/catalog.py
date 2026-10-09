@@ -17,6 +17,10 @@ def text(key, **variables):
                   template)
 
 
+def workspace_switch(name, count=2, total=3):
+    return f"{text('inbox.workspaceSwitch.accessibility', name=name)}, {text('devices.summary', count=count, total=total)}"
+
+
 def plural(key, count, **variables):
     category = 'one' if LANGUAGE == 'en' and count == 1 else 'other'
     return text(f'{key}.{category}', count=count, **variables)

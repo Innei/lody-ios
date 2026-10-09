@@ -32,7 +32,7 @@ def tap_create():
 
 
 workspace_name = '我的超长工作区名称不能折行'
-avatar_label = catalog.text('inbox.workspaceSwitch.accessibility', name=workspace_name)
+avatar_label = catalog.workspace_switch(workspace_name)
 
 
 def home_ready():
@@ -449,9 +449,7 @@ ui.axe('type', '2026')
 assert ui.element('workspace-name')['AXValue'] == '2026'
 ui.capture('workspace-editor-filled')
 ui.axe('tap', '--label', catalog.text('workspace.edit.save'), '--post-delay', '1')
-renamed_label = catalog.text(
-    'inbox.workspaceSwitch.accessibility', name='2026'
-)
+renamed_label = catalog.workspace_switch('2026')
 ui.wait(
     lambda items: any(i.get('AXLabel') == renamed_label for i in items),
     'Saving the workspace name must update the home menu',

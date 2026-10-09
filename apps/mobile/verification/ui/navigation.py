@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 import time
-from driver import UI
+from driver import UI, allow_custom_scheme
 import catalog
 from inspector import inspector
 
@@ -37,16 +37,7 @@ def open_url(path):
     if _scheme_allowed:
         time.sleep(0.5)
         return
-    time.sleep(1)
-    ui.invalidate_axe()
-    for label in ('Open', '打开', '開啟'):
-        try:
-            ui.axe('tap', '--label', label, '--post-delay', '1', timeout=3, recover=False)
-            _scheme_allowed = True
-            return
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError):
-            continue
-    ui.axe('tap', '-x', '280', '-y', '450', '--post-delay', '1', timeout=3, recover=False)
+    allow_custom_scheme(ui)
     _scheme_allowed = True
 
 
@@ -62,7 +53,7 @@ _root_swiped = False
 
 def home(name):
     stack(['index'])
-    label = catalog.text('inbox.workspaceSwitch.accessibility', name='我的超长工作区名称不能折行')
+    label = catalog.workspace_switch('我的超长工作区名称不能折行')
     button = ui.wait(lambda items: next((i for i in items if i.get('AXLabel') == label and i.get('type') == 'Button'), None), 'Workspace button disappeared')
     frame = button['frame']
     assert frame['width'] > 200 and frame['height'] >= 44, frame
@@ -140,7 +131,7 @@ if embedded:
     raise SystemExit(0)
 
 # Sheets and an old workspace must not remain below the newly opened session.
-avatar = catalog.text('inbox.workspaceSwitch.accessibility', name='我的超长工作区名称不能折行')
+avatar = catalog.workspace_switch('我的超长工作区名称不能折行')
 ui.axe('tap', '--label', avatar, '--post-delay', '.5')
 ui.axe('tap', '--label', '另一个工作区', '--post-delay', '.6')
 ui.wait(lambda items: not any(i.get('AXUniqueId') == 'ui-design' for i in items), 'Old workspace catalog remained visible')
@@ -150,7 +141,7 @@ open_url('ui-home/sessions/ui-design')
 session('首页交互设计')
 swipe_back()
 home('workspace-return')
-avatar = catalog.text('inbox.workspaceSwitch.accessibility', name='我的超长工作区名称不能折行')
+avatar = catalog.workspace_switch('我的超长工作区名称不能折行')
 ui.wait(lambda items: any(i.get('AXLabel') == avatar for i in items), 'Link did not select the target workspace')
 
 # Missing Router pages return to the existing root, never replace the top with another Home.

@@ -11,7 +11,7 @@ import sys
 import time
 from contextlib import nullcontext
 from orchestrator import diagnose_metro, managed_metro, run_batches
-from driver import UI, launch_covered
+from driver import UI, allow_custom_scheme, launch_covered
 from inspector import inspector
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -463,13 +463,8 @@ with metro_context:
 
                     ui.wait(verify_ready, 'Missing ui-verify-ready', timeout=180)
                     if not links_ready:
-                        # Establish custom-scheme permission once; SpringBoard's alert blocks AX reads.
                         sim('openurl', args.udid, 'lody:///')
-                        time.sleep(.5)
-                        try:
-                            ui.axe('tap', '--label', 'Open', '--wait-timeout', '1', timeout=5, recover=False)
-                        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError):
-                            pass
+                        allow_custom_scheme(ui)
                         ui.element('ui-verify-ready')
                         links_ready = True
                     if require_video:

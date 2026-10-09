@@ -6,7 +6,7 @@ import catalog
 ui = UI(sys.argv[1], sys.argv[2])
 
 workspace_name = '我的超长工作区名称不能折行'
-avatar_label = catalog.text('inbox.workspaceSwitch.accessibility', name=workspace_name)
+avatar_label = catalog.workspace_switch(workspace_name)
 
 
 def dismiss_debug():
