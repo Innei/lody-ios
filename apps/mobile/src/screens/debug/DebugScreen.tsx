@@ -1,3 +1,4 @@
+import { ProposedPlanPreviewScreen } from './ProposedPlanPreviewScreen';
 import { AppIconFailurePreviewScreen } from './AppIconFailurePreviewScreen';
 import { MessageSharePreviewScreen } from './MessageSharePreviewScreen';
 import { SessionSharePreviewScreen } from './SessionSharePreviewScreen';
@@ -223,6 +224,7 @@ function View() {
         openRow('mention-chat', '@ 引用交互 · 聊天', 'at'),
         openRow('mention-sheet', '@ 引用交互 · 新会话', 'at'),
         openRow('composer-preview', '输入框验收', 'square.and.pencil'),
+        openRow('proposed-plan-preview', 'Proposed plan', 'doc.text'),
         openRow('edit-message-preview', 'Message editing', 'pencil'),
         openRow('scroll-edge-pages', '分页表单滚动边缘', 'rectangle.split.2x1'),
         openRow('scroll-edge-diff', 'Diff 滚动边缘', 'doc.text'),
@@ -414,6 +416,7 @@ function View() {
         { host: 'chat', outcome: 'failure' },
         { style: 'push' },
       ),
+    'proposed-plan-preview': () => void present(ProposedPlanPreviewScreen, {}),
     'agent-error-preview': () => void present(AgentErrorPreviewScreen, {}),
     'edit-message-preview': () => void present(EditMessagePreviewScreen),
     'simulator-preview': () => void present(SimulatorPreviewScreen),

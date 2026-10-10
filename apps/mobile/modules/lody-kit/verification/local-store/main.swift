@@ -144,3 +144,14 @@ try reopened.clear()
 try check(try sessions(reopened, "replacement").isEmpty)
 try check(try sessions(reopened, "别人的秘密", user: "b").isEmpty)
 print("PASS: legacy backfill, retry, atomic writes, native field matching, scope isolation, replacement and logout")
+
+let planProse = SessionProse.extract(##"{"v":1,"entries":[{"id":"plan","role":"assistant","items":[{"itemId":"doc","type":"proposed_plan","markdown":"# Read [lighthouse](https://hidden.example)","status":"completed"},{"itemId":"removed","type":"proposed_plan","markdown":"Gone","status":"cleared"},{"itemId":"tasks","type":"plan","entries":[]}]}]}"##)
+assert(planProse.count == 1 && planProse[0].itemID == "doc")
+assert(planProse[0].text.contains("lighthouse") && !planProse[0].text.contains("hidden.example"))
+
+let searchablePlan = #"{"v":1,"entries":[{"id":"plan","role":"assistant","items":[{"itemId":"doc","type":"proposed_plan","markdown":"Hidden lighthouse paragraph","status":"completed"}]}]}"#
+try reopened.writeSession(searchablePlan, userId: "a", workspace: "w", id: "plan-session")
+try check(try sessions(reopened, "lighthouse").count == 1)
+try reopened.writeSession(searchablePlan.replacingOccurrences(of: "completed", with: "cleared"), userId: "a", workspace: "w", id: "plan-session")
+try check(try sessions(reopened, "lighthouse").isEmpty)
+print("PASS: proposed document prose is searchable and clearing removes persisted matches")

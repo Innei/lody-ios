@@ -2,6 +2,8 @@ import { useMessageDetailsSheet } from '@/hooks/screens/useMessageDetailsSheet';
 import { openMessageShare } from '@/screens/MessageShareScreen';
 import { EditMessageScreen } from './EditMessageScreen';
 import { useEditableMessage } from '@/features/sessions/useEditableMessage';
+import { useProposedPlan } from '@/features/sessions/useProposedPlan';
+import { planExecutionChoice } from '@/features/sessions/proposedPlan';
 import { useAgentErrorRetry } from '@/features/sessions/useAgentErrorRetry';
 import { openAgentError } from '@/hooks/screens/openAgentError';
 import { openSubagentTask } from '@/hooks/screens/openSubagentTask';
@@ -416,6 +418,43 @@ function View() {
       configOptionValues: activeChoice.configOptionValues,
     },
   });
+  const executionChoice = planExecutionChoice(activeChoice, capability);
+  const proposedPlan = useProposedPlan({
+    sessionId: session.id,
+    entries: snapshot.entries,
+    enabled:
+      currentSession.agentType === 'codex' &&
+      currentSession.status === 'idle' &&
+      snapshot.status === 'live' &&
+      connection.state === 'live' &&
+      send.canSend &&
+      !send.sending &&
+      !send.awaitingReply &&
+      !control.running &&
+      !control.controlling &&
+      !errorRetry.pending &&
+      !overflow &&
+      !deleting &&
+      !quotaLocked &&
+      !currentSession.archived &&
+      !!account?.user.id,
+    payload: {
+      machineId: currentSession.machineId,
+      userId: account?.user.id,
+      cliType: currentSession.cliType,
+      agentType: currentSession.agentType,
+      resume: currentSession.resume,
+      modelId: capability
+        ? (executionChoice.modelId ?? null)
+        : executionChoice.modelId,
+      reasoningEffort: capability
+        ? (executionChoice.effort ?? null)
+        : executionChoice.effort,
+      reasoningEffortConfigId: capability?.reasoningEffortConfigId,
+      modeId: executionChoice.modeId,
+      configOptionValues: executionChoice.configOptionValues,
+    },
+  });
   const gate = useRef(createPermissionGate()).current;
   const listeners = useRef(new Set<(state: PermissionTargetState) => void>());
   const targetState = useRef<PermissionTargetState>({ ready: false });
@@ -536,7 +575,12 @@ function View() {
   const composerJSON = JSON.stringify({
     preview: context.chip,
     editable: !currentSession.archived && !deleting && !quotaLocked,
-    canSend: send.canSend && !errorRetry.pending && !deleting && !quotaLocked,
+    canSend:
+      send.canSend &&
+      !proposedPlan.pending &&
+      !errorRetry.pending &&
+      !deleting &&
+      !quotaLocked,
     sending: send.sending,
     running: control.running || send.awaitingReply,
     canStop: control.canStop,
@@ -849,6 +893,15 @@ function View() {
           sessionId: session.id,
         })}
         entriesJSON={entriesJSON}
+        planDecisionJSON={proposedPlan.stateJSON}
+        onPlanDecision={({ nativeEvent }) =>
+          void proposedPlan.decide(
+            nativeEvent.entryId,
+            nativeEvent.itemId,
+            nativeEvent.action,
+            nativeEvent.id,
+          )
+        }
         errorRetryJSON={errorRetry.stateJSON}
         onErrorRetry={({ nativeEvent }) =>
           void errorRetry.retry(
@@ -882,6 +935,7 @@ function View() {
         onSteer={({ nativeEvent }) => control.steer(nativeEvent.id)}
         onSend={({ nativeEvent }) =>
           !deleting &&
+          !proposedPlan.pending &&
           send.submit({
             ...nativeEvent,
             phase: 'waiting',

@@ -1062,5 +1062,19 @@
   "create.branch.failed": "无法加载分支，轻点重试。",
   "create.branch.more": "加载更多分支",
   "create.branch.empty": "此仓库没有可用分支。",
-  "create.branch.noMatch": "未找到匹配的分支"
+  "create.branch.noMatch": "未找到匹配的分支",
+  "native.chat.proposedPlan.title": "计划",
+  "native.chat.proposedPlan.earlier": "先前计划",
+  "native.chat.proposedPlan.copy": "复制计划",
+  "native.chat.proposedPlan.expand": "展开计划",
+  "native.chat.proposedPlan.collapse": "收起计划",
+  "native.chat.proposedPlan.review": "查看授权请求",
+  "native.chat.proposedPlan.execute": "执行计划",
+  "native.chat.proposedPlan.discuss": "继续讨论",
+  "native.chat.proposedPlan.executePrompt": "执行该计划",
+  "native.chat.proposedPlan.sending": "正在发送…",
+  "native.chat.proposedPlan.failed": "计划未发送，请重试。",
+  "native.chat.proposedPlan.unknown": "尚未确认送达。请检查会话后再发送。",
+  "native.chat.proposedPlan.executeCompact": "执行计划",
+  "native.chat.proposedPlan.expandCompact": "展开"
 }

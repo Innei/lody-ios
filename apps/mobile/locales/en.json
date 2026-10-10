@@ -1062,5 +1062,19 @@
   "create.branch.failed": "Unable to load branches. Tap to retry.",
   "create.branch.more": "Load more branches",
   "create.branch.empty": "This repository has no branches.",
-  "create.branch.noMatch": "No matching branches"
+  "create.branch.noMatch": "No matching branches",
+  "native.chat.proposedPlan.title": "Plan",
+  "native.chat.proposedPlan.earlier": "Earlier plan",
+  "native.chat.proposedPlan.copy": "Copy plan",
+  "native.chat.proposedPlan.expand": "Expand plan",
+  "native.chat.proposedPlan.collapse": "Collapse plan",
+  "native.chat.proposedPlan.review": "Review request",
+  "native.chat.proposedPlan.execute": "Execute plan",
+  "native.chat.proposedPlan.discuss": "Continue discussing",
+  "native.chat.proposedPlan.executePrompt": "Implement the plan",
+  "native.chat.proposedPlan.sending": "Sending…",
+  "native.chat.proposedPlan.failed": "The plan was not sent. Try again.",
+  "native.chat.proposedPlan.unknown": "Delivery is unconfirmed. Check the conversation before sending again.",
+  "native.chat.proposedPlan.executeCompact": "Execute",
+  "native.chat.proposedPlan.expandCompact": "Expand"
 }

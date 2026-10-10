@@ -979,3 +979,21 @@ assert(userAlbum.map(\.id) == [
   "turn:attachment:ui-verify-image-2",
 ])
 print("Image gallery: list order, skip files, attachment ids, and lookup passed")
+
+let proposedJSON = ##"[{"id":"proposed","role":"assistant","status":"completed","finished":true,"items":[{"itemId":"old","type":"proposed_plan","markdown":"Earlier body","status":"completed","isLatest":false},{"itemId":"doc","type":"proposed_plan","markdown":"# Full document","status":"delta","isLatest":true},{"itemId":"approval","type":"tool_call","kind":"switch_mode","permission":{"pending":true,"requestId":"request"}},{"itemId":"cleared","type":"proposed_plan","markdown":"Removed","status":"cleared"},{"itemId":"blank","type":"proposed_plan","markdown":"  ","status":"delta"}]}]"##
+let proposedEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(proposedJSON.utf8))
+let proposedTranscript = ChatTranscript(entries: proposedEntries)
+let proposedRows = proposedTranscript.rows().filter { $0.kind == "proposed_plan" }
+assert(proposedRows.map(\.itemID) == ["old", "doc"])
+assert(proposedRows[0].planPermissionItemID.isEmpty && !proposedRows[0].planIsLatest)
+assert(proposedRows[1].text == "# Full document" && proposedRows[1].streaming)
+assert(proposedRows[1].planPermissionItemID == "approval")
+assert(!proposedTranscript.rows(processEntryID: "proposed").contains { $0.kind == "proposed_plan" })
+var executingPlan = proposedEntries[0]
+executingPlan.executionId = "execution"
+executingPlan.executionFinished = true
+let answerJSON = #"{"itemId":"answer","type":"text","text":"Done"}"#
+executingPlan.items.append(try JSONDecoder().decode(ChatItem.self, from: Data(answerJSON.utf8)))
+let executionTranscript = ChatTranscript(entries: [executingPlan])
+assert(executionTranscript.rows().filter { $0.kind == "proposed_plan" }.map(\.itemID) == ["old", "doc"])
+assert(!executionTranscript.rows(processEntryID: "proposed", processStartID: "__execution__").contains { $0.kind == "proposed_plan" })

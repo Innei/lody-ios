@@ -75,6 +75,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   let onStop = EventDispatcher()
   let onSteer = EventDispatcher()
   let onErrorRetry = EventDispatcher()
+  let onPlanDecision = EventDispatcher()
+  var planDecisionState: ChatPlanDecisionState?
   var errorRetryState: ChatErrorRetryState?
   let onActivityPress = EventDispatcher()
   let onTurnInfoPress = EventDispatcher()
@@ -103,6 +105,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   private var navigationBranch = ""
   private var titleDisappearing = false
   private let navigation = ChatNavigationController()
+  let findClip = CALayer()
   let collection: UICollectionView
   let measuringText = CKTextView()
   var measurements: [String: (width: CGFloat, text: NSAttributedString, height: CGFloat)] = [:]
@@ -122,6 +125,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   let edgeFade = LodyEdgeFade()
   let overlay = ChatOverlay()
   var localAttachments: [String: [ChatMessageAttachment]] = [:]
+  var expandedPlans = Set<String>()
   var expandedMessages = Set<String>()
   var expandedAttachments = Set<String>()
   var collapsedMessageHeights: [String: CGFloat] = [:]
@@ -314,6 +318,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     collection.register(ChatSubagentCell.self, forCellWithReuseIdentifier: "subagent")
     collection.register(ChatCell.self, forCellWithReuseIdentifier: "message")
     collection.register(ChatMetaCell.self, forCellWithReuseIdentifier: "meta")
+    collection.register(ChatPlanCell.self, forCellWithReuseIdentifier: "proposed-plan")
     collection.register(ChatMarkdownCell.self, forCellWithReuseIdentifier: "markdown")
     dataSource = UICollectionViewDiffableDataSource<String, String>(collectionView: collection) { [weak self] collection, index, id in
       guard let self, let row = self.rows[id] else { return nil }
@@ -365,6 +370,17 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       if row.image != nil {
         let cell = collection.dequeueReusableCell(withReuseIdentifier: "image", for: index) as! ChatImageCell
         cell.configure(row, workspace: self.imageWorkspace, session: self.imageSession)
+        return cell
+      }
+      if row.kind == "proposed_plan" {
+        let cell = collection.dequeueReusableCell(withReuseIdentifier: "proposed-plan", for: index) as! ChatPlanCell
+        let width = max(1, ChatReadingColumn.itemWidth(in: collection.bounds.width) - 32)
+        let markdown = self.store.view(id: id, text: row.text, secondary: false, streaming: row.streaming, width: width)
+        markdown.onLink = { [weak self] in self?.openMessageLink($0) }
+        cell.configure(row, markdown: markdown, expanded: self.expandedPlans.contains(id))
+        cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
+        cell.onDecision = { [weak self] action in self?.onPlanDecision(["entryId": row.entryID, "itemId": row.itemID, "action": action, "id": UUID().uuidString.lowercased()]) }
+        cell.onReview = { [weak self] in self?.onActivityPress(["entryId": row.entryID, "itemId": row.planPermissionItemID]) }
         return cell
       }
       if row.kind == "text" || row.kind == "thought" {

@@ -99,6 +99,7 @@ extension LodyChatView: TextSelectionGroupDelegate {
   func collectionView(_ collectionView: UICollectionView, didEndDisplaying cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
     if !collectionView.visibleCells.contains(where: { $0 === cell }) {
       (cell as? ChatMarkdownCell)?.clearSelection()
+      (cell as? ChatPlanCell)?.clearSelection()
     }
   }
 

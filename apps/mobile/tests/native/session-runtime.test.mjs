@@ -2024,3 +2024,43 @@ test('multiple durable guides await independent receipts without locking the ses
     fixture.close();
   }
 });
+
+test('proposed documents preserve identity across streaming, completion and clearing', async () => {
+  const { projectSession } = await loadProject();
+  const doc = new LoroDoc();
+  const entry = doc.getList('history').pushContainer(new LoroMap());
+  entry.set('id', 'plan');
+  entry.set('role', 'assistant');
+  const items = entry.setContainer('items', new LoroList());
+  const plan = items.pushContainer(new LoroMap());
+  for (const [key, value] of Object.entries({
+    type: 'proposed_plan',
+    markdown: '# Plan',
+    turnId: 'turn',
+    status: 'delta',
+    isLatest: true,
+  }))
+    plan.set(key, value);
+  doc.commit();
+  const first = projectSession(doc, 'live').entries[0].items[0];
+  assert.equal(first.markdown, '# Plan');
+  plan.set('markdown', '# Plan\n\nComplete body');
+  plan.set('status', 'completed');
+  doc.commit();
+  const complete = projectSession(doc, 'live').entries[0].items[0];
+  assert.equal(complete.itemId, first.itemId);
+  assert.notEqual(complete.rev, first.rev);
+  assert.equal(complete.markdown, '# Plan\n\nComplete body');
+  assert.equal(complete.status, 'completed');
+  plan.set('isLatest', false);
+  doc.commit();
+  const historical = projectSession(doc, 'live').entries[0].items[0];
+  assert.equal(historical.isLatest, false);
+  assert.notEqual(historical.rev, complete.rev);
+  plan.set('status', 'cleared');
+  doc.commit();
+  assert.equal(
+    projectSession(doc, 'live').entries[0].items[0].status,
+    'cleared',
+  );
+});

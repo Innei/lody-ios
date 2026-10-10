@@ -23,6 +23,7 @@ def inbox_field():
 
 def replace(field, text):
     tap(field)
+    field = ui.element(field['AXUniqueId']) if field.get('AXUniqueId') else inbox_field()
     frame = field['frame']
     clear = next((i for i in ui.state() if i.get('AXLabel') == catalog.system('clear')
                   and frame['x'] <= i['frame']['x'] < frame['x'] + frame['width']
@@ -169,7 +170,7 @@ ui.wait(keyboard, 'Manual find did not focus the search field')
 replace(ui.element('chat-find-field'), 'needle')
 count('6 / 6')
 find_layout()
-ui.axe('key', '40')
+tap(ui.element('Search'))
 count('1 / 6')
 ui.capture('manual-find-keyboard')
 replace(ui.element('chat-find-field'), 'crossformatbody')

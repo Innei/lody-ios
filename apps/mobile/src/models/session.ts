@@ -18,6 +18,15 @@ export type ItemSummary =
   | {
       itemId: string;
       rev: number;
+      type: 'proposed_plan';
+      turnId: string;
+      markdown: string;
+      status: 'delta' | 'completed' | 'cleared';
+      isLatest: boolean;
+    }
+  | {
+      itemId: string;
+      rev: number;
       type: 'tool_call';
       kind: string;
       title: string;

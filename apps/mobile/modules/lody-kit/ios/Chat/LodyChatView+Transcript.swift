@@ -1,6 +1,13 @@
 import UIKit
 
 extension LodyChatView {
+  func setPlanDecisionState(_ json: String) {
+    let next = try? JSONDecoder().decode(ChatPlanDecisionState.self, from: Data(json.utf8))
+    guard next != planDecisionState else { return }
+    planDecisionState = next
+    applyRows()
+  }
+
   func setErrorRetryState(_ json: String) {
     let next = try? JSONDecoder().decode(ChatErrorRetryState.self, from: Data(json.utf8))
     guard next != errorRetryState else { return }
@@ -212,6 +219,11 @@ extension LodyChatView {
         return ChatStream.deferringMarkdown(byEntry[row.entryID] ?? [], previous: frozen)
       }
     }
+    for index in projected.indices where projected[index].kind == "proposed_plan" {
+      if let state = planDecisionState, state.entryId == projected[index].entryID, state.itemId == projected[index].itemID {
+        projected[index].planDecision = state
+      }
+    }
     for index in projected.indices where projected[index].kind == "chat_failed" {
       if let state = errorRetryState, state.entryId == projected[index].entryID, state.itemId == projected[index].itemID {
         projected[index].errorRetry = state
@@ -277,6 +289,7 @@ extension LodyChatView {
       }
     }
     let retainedIDs = Set(projected.map(\.id))
+    expandedPlans.formIntersection(retainedIDs)
     projected = prepareHistory(projected)
     let insertingHistory = previousHistoryStart != nil && previousHistoryStart != historyStartID
     // Starting/waiting for a page changes only the header, not the collection.

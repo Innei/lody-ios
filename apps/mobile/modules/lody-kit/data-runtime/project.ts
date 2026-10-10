@@ -31,6 +31,15 @@ export type ItemSummary =
   | {
       itemId: string;
       rev: number;
+      type: 'proposed_plan';
+      turnId: string;
+      markdown: string;
+      status: 'delta' | 'completed' | 'cleared';
+      isLatest: boolean;
+    }
+  | {
+      itemId: string;
+      rev: number;
       type: 'tool_call';
       kind: string;
       title: string;
@@ -198,6 +207,24 @@ function summarizeItem(
       rev: bump(projection, key, text),
       type,
       text,
+    } as ItemSummary;
+  }
+
+  if (type === 'proposed_plan') {
+    const plan = {
+      turnId: typeof raw.turnId === 'string' ? raw.turnId : '',
+      markdown: typeof raw.markdown === 'string' ? raw.markdown : '',
+      status:
+        raw.status === 'delta' || raw.status === 'completed'
+          ? raw.status
+          : 'cleared',
+      isLatest: raw.isLatest === true,
+    };
+    return {
+      itemId,
+      rev: bump(projection, key, JSON.stringify(plan)),
+      type,
+      ...plan,
     } as ItemSummary;
   }
 

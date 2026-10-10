@@ -85,7 +85,7 @@ extension LodyChatView {
     let ids = dataSource.snapshot().itemIdentifiers
     let oldSelection = findSelection
     findMatches = ids.flatMap { id -> [ChatFindMatch] in
-      guard let row = rows[id], ["user", "text", "thought"].contains(row.kind) else { return [] }
+      guard let row = rows[id], ["user", "text", "thought", "proposed_plan"].contains(row.kind) else { return [] }
       let text = SessionProse.text(row.text, role: row.kind == "user" ? "user" : "assistant")
       return TextSearch.ranges(in: text, query: query).indices.map { ChatFindMatch(rowID: id, ordinal: $0) }
     }
@@ -114,6 +114,11 @@ extension LodyChatView {
   private func scrollToFind() {
     guard let match = findSelection, let index = dataSource.indexPath(for: match.rowID) else { return }
     pauseTracking()
+    if rows[match.rowID]?.kind == "proposed_plan", expandedPlans.insert(match.rowID).inserted {
+      rowHeights[match.rowID] = nil
+      (collection.cellForItem(at: index) as? ChatPlanCell)?.expanded = true
+      collection.collectionViewLayout.invalidateLayout()
+    }
     layoutIfNeeded()
     collection.scrollToItem(at: index, at: .centeredVertically, animated: false)
     collection.layoutIfNeeded()
@@ -126,11 +131,19 @@ extension LodyChatView {
   }
 
   func refreshFindHighlights() {
+    // Clip behind search without changing scroll geometry during keyboard dismissal.
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    findClip.backgroundColor = UIColor.black.cgColor
+    findClip.frame = collection.bounds.inset(by: UIEdgeInsets(
+      top: findPresented ? findBar.frame.maxY : 0, left: 0, bottom: 0, right: 0))
+    collection.layer.mask = findPresented ? findClip : nil
+    CATransaction.commit()
     guard findPresented else { return }
     let query = (findBar.field.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     for cell in collection.visibleCells {
       guard let index = collection.indexPath(for: cell), let id = dataSource.itemIdentifier(for: index) else { continue }
-      let searchable = rows[id].map { ["user", "text", "thought"].contains($0.kind) } == true
+      let searchable = rows[id].map { ["user", "text", "thought", "proposed_plan"].contains($0.kind) } == true
       findHighlightedViews.add(cell.contentView)
       ChatFindHighlight.apply(to: cell.contentView, query: searchable ? query : "",
         active: findSelection?.rowID == id ? findSelection?.ordinal : nil)

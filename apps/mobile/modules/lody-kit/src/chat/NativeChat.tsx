@@ -26,6 +26,15 @@ export const NativeChat: ComponentType<
       event: NativeSyntheticEvent<{ contentJSON: string }>,
     ) => void;
     findRequestJSON?: string;
+    planDecisionJSON?: string;
+    onPlanDecision?: (event: {
+      nativeEvent: {
+        entryId: string;
+        itemId: string;
+        action: string;
+        id: string;
+      };
+    }) => void;
     errorRetryJSON?: string;
     onErrorRetry?: (
       event: NativeSyntheticEvent<{

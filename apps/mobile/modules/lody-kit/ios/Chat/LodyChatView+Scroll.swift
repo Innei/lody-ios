@@ -21,7 +21,9 @@ extension LodyChatView {
     // Compensate even one pixel of reply growth: at 3x, a 0.5pt deadband
     // lets the bottom follower move the pinned turn by 1px and back again.
     guard collection.contentInset.bottom != bottom else { return false }
+    let offset = collection.contentOffset
     collection.contentInset.bottom = bottom
+    if !followsBottom { collection.contentOffset = offset }
     collection.verticalScrollIndicatorInsets.bottom = base
     return true
   }
@@ -114,7 +116,11 @@ extension LodyChatView {
     guard let index = dataSource.indexPath(for: row.id), let cell = collection.cellForItem(at: index) else { return }
     pauseTracking()
     ChatSendHandoff.cancel(id: row.entryID)
-    if let cell = cell as? ChatMessageAttachmentsCell {
+    if let cell = cell as? ChatPlanCell {
+      if !expandedPlans.insert(row.id).inserted { expandedPlans.remove(row.id) }
+      cell.expanded = expandedPlans.contains(row.id)
+      rowHeights[row.id] = nil
+    } else if let cell = cell as? ChatMessageAttachmentsCell {
       if !expandedAttachments.insert(row.entryID).inserted { expandedAttachments.remove(row.entryID) }
       cell.expanded = expandedAttachments.contains(row.entryID)
     } else if let cell = cell as? ChatCell {
@@ -424,6 +430,10 @@ extension LodyChatView {
   }
 
   func rowHeight(_ row: ChatRow, width: CGFloat, previousKind: String? = nil) -> CGFloat {
+    if row.kind == "proposed_plan" {
+      let body = store.height(id: row.id, text: row.text, secondary: false, streaming: row.streaming, width: max(1, width - 32))
+      return ChatPlanCell.height(body: body, expanded: expandedPlans.contains(row.id), review: !row.planPermissionItemID.isEmpty, decision: row.planDecision)
+    }
     if row.kind == "attachments" {
       return ChatMessageAttachmentsCell.height(count: row.attachments.count, width: width, expanded: expandedAttachments.contains(row.entryID))
     }

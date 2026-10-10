@@ -82,14 +82,21 @@ struct ChatItem: Decodable {
   let entries: [Plan]?
   let description: String?
   let actor: String?
+  var markdown: String? = nil
+  var isLatest: Bool? = nil
   var lastToolName: String? = nil
   var summary: String? = nil
   var error: String? = nil
   var isBackgrounded: Bool? = nil
   var skipTranscript: Bool? = nil
   var processDurationMs: Int? = nil
-  var isProcess: Bool { type != "text" && !isAttachment && !isChatFailure && type != "subagent_task" }
-  var hidesFromTranscript: Bool { type == "subagent_task" && skipTranscript == true }
+  var isProcess: Bool { type != "text" && type != "proposed_plan" && !isAttachment && !isChatFailure && type != "subagent_task" }
+  var hidesFromTranscript: Bool {
+    if type == "proposed_plan" {
+      return !["delta", "completed"].contains(status ?? "") || (markdown ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    return type == "subagent_task" && skipTranscript == true
+  }
   var isLiveSubagent: Bool {
     type == "subagent_task" && skipTranscript != true && (status == "in_progress" || status == "pending")
   }
@@ -107,6 +114,9 @@ struct ChatRow: Equatable {
   var text: String
   var errorMeta: ChatItem.NoticeMeta? = nil
   var errorRetry: ChatErrorRetryState? = nil
+  var planIsLatest = true
+  var planPermissionItemID = ""
+  var planDecision: ChatPlanDecisionState? = nil
   var symbol = ""
   var itemID = ""
   var processStartID = ""
@@ -307,6 +317,9 @@ struct ChatTranscript {
             text: LodyStrings.text("native.chat.transcript.execution", ["count": String(tail.steerCount ?? 0)]),
             symbol: "circle.fill", processStartID: "__execution__", actionable: true))
         }
+        result += members.filter { $0.role == "assistant" }.flatMap {
+          ChatTranscript(entries: [$0]).entryRows(processEntryID: $0.id, flatItems: true).filter { $0.kind == "proposed_plan" }
+        }
         let ids = executionResultIDs(tail)
         result += ChatTranscript(entries: [tail]).entryRows(processEntryID: tail.id, flatItems: true).filter { ids.contains($0.itemID) }
         result += ChatTranscript(entries: [tail]).entryRows(now: now).filter { ["meta", "changesHeader", "changes"].contains($0.kind) }
@@ -346,7 +359,7 @@ struct ChatTranscript {
     let resultIDs = executionResultIDs(tail)
     return assistants.flatMap { entry in
       ChatTranscript(entries: [entry]).entryRows(processEntryID: entry.id, flatItems: true).filter {
-        entry.id != tail.id || !resultIDs.contains($0.itemID)
+        $0.kind != "proposed_plan" && (entry.id != tail.id || !resultIDs.contains($0.itemID))
       }
     }
   }
@@ -362,7 +375,7 @@ struct ChatTranscript {
       var entry = source
       // Older cached projections omitted notice names. Neither these placeholders nor
       // agent warnings belong in the conversation's execution process.
-      entry.items.removeAll { $0.type == "system_notice" && ($0.name == nil || $0.name == "agent_warning") }
+      entry.items.removeAll { $0.hidesFromTranscript || ($0.type == "system_notice" && ($0.name == nil || $0.name == "agent_warning")) }
       let processOnly = !processEntryID.isEmpty
       if processOnly && entry.id != processEntryID { return [] }
       if entry.role == "user" {
@@ -398,20 +411,20 @@ struct ChatTranscript {
         if flatItems {
           visible = entry.items.indices.filter { !entry.items[$0].hidesFromTranscript }
         } else if !processStartID.isEmpty, let start = entry.items.firstIndex(where: { $0.itemId == processStartID }) {
-          let end = entry.items.indices.dropFirst(start + 1).first { entry.items[$0].type == "text" || entry.items[$0].isAttachment } ?? entry.items.endIndex
-          visible = Array(start..<end).filter { !entry.items[$0].isAttachment && !entry.items[$0].isChatFailure && !entry.items[$0].hidesFromTranscript }
+          let end = entry.items.indices.dropFirst(start + 1).first { entry.items[$0].type == "text" || entry.items[$0].type == "proposed_plan" || entry.items[$0].isAttachment } ?? entry.items.endIndex
+          visible = Array(start..<end).filter { entry.items[$0].type != "proposed_plan" && !entry.items[$0].isAttachment && !entry.items[$0].isChatFailure && !entry.items[$0].hidesFromTranscript }
         } else {
-          visible = entry.items.indices.filter { $0 != finalText && !entry.items[$0].isAttachment && !entry.items[$0].hidesFromTranscript }
+          visible = entry.items.indices.filter { $0 != finalText && entry.items[$0].type != "proposed_plan" && !entry.items[$0].isAttachment && !entry.items[$0].hidesFromTranscript }
         }
       } else if entry.finished {
         let process = entry.items.indices.filter {
-          $0 != finalText && !entry.items[$0].isAttachment && !entry.items[$0].isChatFailure && entry.items[$0].type != "subagent_task"
+          $0 != finalText && entry.items[$0].type != "proposed_plan" && !entry.items[$0].isAttachment && !entry.items[$0].isChatFailure && entry.items[$0].type != "subagent_task"
         }
         if let first = process.first { groups[first] = process }
         visible = process.first.map { [$0] } ?? []
         if let finalText { visible.append(finalText) }
         visible.append(contentsOf: entry.items.indices.filter {
-          entry.items[$0].isAttachment || entry.items[$0].isChatFailure
+          entry.items[$0].type == "proposed_plan" || entry.items[$0].isAttachment || entry.items[$0].isChatFailure
             || (entry.items[$0].type == "subagent_task" && !entry.items[$0].hidesFromTranscript)
         })
         visible.sort()
@@ -421,7 +434,7 @@ struct ChatTranscript {
             if !entry.items[index].hidesFromTranscript { visible.append(index) }
             continue
           }
-          if entry.items[index].type == "text" || entry.items[index].isAttachment || entry.items[index].isChatFailure {
+          if entry.items[index].type == "text" || entry.items[index].type == "proposed_plan" || entry.items[index].isAttachment || entry.items[index].isChatFailure {
             visible.append(index)
           } else if let previous = visible.last, groups[previous] != nil {
             groups[previous]!.append(index)
@@ -514,6 +527,15 @@ struct ChatTranscript {
           row.text = file.fileName
           row.symbol = "doc"
           row.actionable = true
+        case "proposed_plan":
+          row.text = item.markdown ?? ""
+          row.streaming = item.status == "delta"
+          row.planIsLatest = item.isLatest == true
+          if row.planIsLatest {
+            row.planPermissionItemID = entry.items.first {
+              $0.type == "tool_call" && $0.kind == "switch_mode" && $0.permission?.pending == true
+            }?.itemId ?? ""
+          }
         case "text": break
         case "thought": row.symbol = "brain"
         case "tool_call":
@@ -808,4 +830,12 @@ extension ChatFailure {
     if message.isEmpty || message.hasPrefix("{") || message.hasPrefix("[") { return LodyStrings.text("native.chat.error.summary") }
     return String(message.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ").prefix(260))
   }
+}
+
+struct ChatPlanDecisionState: Decodable, Equatable {
+  let entryId: String
+  let itemId: String
+  let enabled: Bool
+  let pending: Bool
+  let message: String
 }
