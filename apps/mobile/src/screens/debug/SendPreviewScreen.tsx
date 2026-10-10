@@ -446,13 +446,17 @@ function SendPreview() {
         {
           id: `${record.send.id}:reply`,
           role: 'assistant',
+          userTurnId: record.send.id,
           status: '',
           finished,
           startedAt: Date.now(),
           rev: 0,
           items: [],
         },
-      ],
+      ].filter(
+        (entry) =>
+          record.send.phase !== 'unknown' || entry.id !== record.send.id,
+      ),
     }));
   };
   return (

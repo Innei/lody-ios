@@ -399,6 +399,7 @@ function View() {
   const [startedAt] = useState(Date.now);
   const [showImage, setShowImage] = useState(false);
   const [selectionFixture, setSelectionFixture] = useState(false);
+  const [causalFixture, setCausalFixture] = useState<number | null>(null);
   const [assistantImages, setAssistantImages] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
   const [durationFixture, setDurationFixture] = useState<{
@@ -552,7 +553,56 @@ function View() {
     },
   ]);
   let displayedEntriesJSON = entriesJSON;
-  if (selectionFixture) {
+  if (causalFixture !== null) {
+    const entries = [
+      {
+        id: 'causal-u1',
+        role: 'user',
+        status: 'handled',
+        finished: true,
+        startedAt: 1000,
+        items: [{ itemId: 'text', type: 'text', text: 'First request' }],
+      },
+      {
+        id: 'causal-a1',
+        role: 'assistant',
+        userTurnId: 'causal-u1',
+        status: 'completed',
+        finished: true,
+        startedAt: 2000,
+        endedAt: 4000,
+        items: [
+          { itemId: 'text', type: 'text', text: 'First reply stays visible.' },
+        ],
+      },
+      {
+        id: 'causal-a2',
+        role: 'assistant',
+        userTurnId: 'causal-u2',
+        status: 'completed',
+        finished: true,
+        startedAt: 6000,
+        endedAt: 9000,
+        items: [
+          {
+            itemId: 'text',
+            type: 'text',
+            text: 'Second reply arrived before its request.',
+          },
+        ],
+      },
+    ];
+    if (causalFixture > 0)
+      entries.splice(causalFixture === 1 ? 3 : 2, 0, {
+        id: 'causal-u2',
+        role: 'user',
+        status: 'handled',
+        finished: true,
+        startedAt: 5000,
+        items: [{ itemId: 'text', type: 'text', text: 'Late second request' }],
+      });
+    displayedEntriesJSON = JSON.stringify(entries);
+  } else if (selectionFixture) {
     displayedEntriesJSON = JSON.stringify([
       {
         id: 'selection',
@@ -848,6 +898,14 @@ function View() {
             }}
           />
           <Stack.Toolbar.MenuAction
+            children="Causal Reply Fixture"
+            icon="arrow.triangle.swap"
+            onPress={() => {
+              setDurationFixture(null);
+              setCausalFixture(0);
+            }}
+          />
+          <Stack.Toolbar.MenuAction
             children="Process Counts Fixture"
             icon="number"
             onPress={() => {
@@ -874,6 +932,15 @@ function View() {
             }
           />
         </Stack.Toolbar.Menu>
+        {causalFixture !== null && causalFixture < 2 && (
+          <Stack.Toolbar.Button
+            accessibilityLabel={
+              causalFixture === 0 ? 'Receive Late Input' : 'Order Causal Input'
+            }
+            icon="arrow.right.circle"
+            onPress={() => setCausalFixture((current) => (current ?? 0) + 1)}
+          />
+        )}
         {durationFixture &&
           !durationFixture.finished &&
           !durationFixture.continued && (

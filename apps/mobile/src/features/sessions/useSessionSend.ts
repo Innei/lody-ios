@@ -140,15 +140,17 @@ export function useSessionSend({
     const userIndex = snapshot.entries.findIndex(
       (entry) => entry.id === send.id,
     );
+    let precedingUserId: string | undefined;
+    const hasReply = snapshot.entries.some((entry) => {
+      if (entry.role === 'user') precedingUserId = entry.id;
+      return (
+        entry.role === 'assistant' &&
+        (entry.userTurnId ?? precedingUserId) === send.id
+      );
+    });
     // A cached user row can come from a write whose ACK was lost. Only an
     // actual reply or the send receipt confirms delivery; never replay the row.
-    if (
-      userIndex >= 0 &&
-      !send.creation &&
-      snapshot.entries
-        .slice(userIndex + 1)
-        .some((entry) => entry.role === 'assistant')
-    ) {
+    if (!send.creation && hasReply) {
       if (cleared.current !== send.id) {
         cleared.current = send.id;
         setClearDraftToken((token) => token + 1);

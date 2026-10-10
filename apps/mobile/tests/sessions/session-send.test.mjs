@@ -398,6 +398,48 @@ test('a cached user entry cannot confirm an ambiguous write or discard the draft
   assert.equal(hooks.result.clearDraftToken, 0);
 });
 
+test('only a causally matching reply resolves an unknown send, even when its user row arrives late', async () => {
+  const { hooks, outbox } = await setup(
+    { ...draft, phase: 'unknown' },
+    {
+      async sendSessionTurn() {
+        throw Error('must not replay');
+      },
+    },
+  );
+  for (const entries of [
+    [
+      { id: draft.id, role: 'user' },
+      { id: 'unrelated', role: 'assistant', userTurnId: 'other' },
+    ],
+    [
+      { id: draft.id, role: 'user' },
+      { id: 'other', role: 'user' },
+      { id: 'legacy-reply', role: 'assistant' },
+    ],
+  ]) {
+    hooks.update({ snapshot: { status: 'live', entries } });
+    await tick();
+    assert.equal(
+      outbox.records[0]?.send.phase,
+      'unknown',
+      'An unrelated reply cannot discard the pending draft',
+    );
+    assert.equal(hooks.result.canSend, false);
+  }
+  hooks.update({
+    snapshot: {
+      status: 'live',
+      entries: [{ id: 'own-reply', role: 'assistant', userTurnId: draft.id }],
+    },
+  });
+  await tick();
+  assert.equal(outbox.records.length, 0);
+  assert.equal(hooks.result.canSend, true);
+  assert.equal(hooks.result.clearDraftToken, 1);
+  hooks.unmount();
+});
+
 test('a send superseded while its state is being saved cannot dispatch', async () => {
   const disk = deferred();
   let sends = 0;

@@ -187,6 +187,33 @@ let locallyTimedReplyRows = ChatTranscript(entries: emptyReplyEntries).rows(
 assert(locallyTimedReplyRows.last?.workDurationMs == 3_000,
   "The locally published submission clock must survive authoritative takeover")
 
+let orphanReplyJSON = """
+[{"id":"u1","role":"user","status":"completed","finished":true,"startedAt":1000,"items":[]},
+{"id":"a1","role":"assistant","userTurnId":"u1","status":"completed","finished":true,
+"startedAt":2000,"endedAt":4000,"items":[]},
+{"id":"a2","role":"assistant","userTurnId":"u2","status":"running","finished":false,
+"startedAt":6000,"items":[]}]
+"""
+var causalEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(orphanReplyJSON.utf8))
+let orphanRows = ChatTranscript(entries: causalEntries).rows(now: 9000)
+assert(Set(orphanRows.map(\.id)).count == orphanRows.count,
+  "A reply arriving before its input must not make the conversation unrenderable")
+assert(orphanRows.last?.id == "u2:duration" && orphanRows.last?.workDurationMs == 3000,
+  "An orphan reply uses its own clock, never an unrelated user's start")
+let causalUserJSON = """
+{"id":"u2","role":"user","status":"completed","finished":true,"startedAt":5000,"items":[]}
+"""
+causalEntries.append(try JSONDecoder().decode(ChatEntry.self, from: Data(causalUserJSON.utf8)))
+let lateUserRows = ChatTranscript(entries: causalEntries).rows(now: 9000)
+assert(lateUserRows.first { $0.entryID == "a2" }?.workDurationMs == 4000,
+  "A causal user arriving after its reply supplies the correct submission clock")
+causalEntries.swapAt(2, 3)
+let orderedRows = ChatTranscript(entries: causalEntries).rows(now: 9000, turnStartedAt: ["u2": 4500])
+assert(Set(orderedRows.map(\.id)).count == orderedRows.count)
+assert(orderedRows.last?.id == orphanRows.last?.id && orderedRows.last?.workDurationMs == 4500,
+  "Causal reordering preserves the pending-send identity and local clock")
+print("Chat causal duration: orphan reply, late input and pending-send takeover passed")
+
 let finishedDurationJSON = """
 [{"id":"timed-finished","role":"assistant","status":"completed","finished":true,
 "timestamp":"1970-01-01T00:00:00.000Z","endedAt":125000,
@@ -678,6 +705,18 @@ precondition(acceptedRows.first?.running == false,
   "An accepted send must stop upload indicators before history arrives")
 precondition(acceptedRows.last?.kind == "duration" && acceptedRows.last?.text != LodyStrings.text("native.chat.transcript.status.confirming"),
   "An accepted send must show working duration before history arrives")
+let causalPendingJSON = """
+{"id":"u2","text":"Second request","attachments":[],"status":"Confirming","phase":"accepted"}
+"""
+let causalPending = try JSONDecoder().decode(ChatPendingSend.self, from: Data(causalPendingJSON.utf8))
+let orphanEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(orphanReplyJSON.utf8))
+let takeoverRows = ChatTranscript(entries: orphanEntries).rows(now: 9000) + causalPending.rows(entries: orphanEntries)
+assert(Set(takeoverRows.map(\.id)).count == takeoverRows.count,
+  "An orphan reply takes over its local pending timer without requiring the user row first")
+var unrelatedReply = orphanEntries.last!
+unrelatedReply.userTurnId = "another-user"
+assert(causalPending.rows(entries: [causalEntries[2], unrelatedReply]).contains { $0.kind == "duration" },
+  "Another turn's explicit reply must not acknowledge this pending send")
 precondition(pendingRows.first(where: { $0.kind == "attachments" })?.running == true && failedRows.first?.running == false,
   "Loading belongs to attachment tiles and must stop on failure")
 precondition(failedRows.first?.attachments == pendingRows.first(where: { $0.kind == "attachments" })?.attachments && failedRows.last?.actionable == true,

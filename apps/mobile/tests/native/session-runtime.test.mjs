@@ -4,6 +4,96 @@ import { build } from 'esbuild';
 import { LoroDoc, LoroMap, LoroList, LoroText } from 'loro-crdt/base64';
 import { openTestSession, loadRuntime, frame } from '../helpers.mjs';
 
+test('continuing a Role session preserves its frozen identity through dispatch and queue', async () => {
+  const calls = [];
+  const fixture = await openTestSession({
+    onRpc: (request) => {
+      calls.push(request);
+      return { result: { accepted: true } };
+    },
+  });
+  const previous = {
+    cliType: 'builtin',
+    agentType: 'codex',
+    modelId: 'frozen-model',
+    modeId: 'plan',
+    configOptionValues: { effort: 'high', fast: false },
+    agentRoleId: 'role-coder',
+    agentRoleRevision: 7,
+    mcpServerIds: ['workspace-files'],
+  };
+  try {
+    fixture.server.getList('history').push({
+      id: 'previous',
+      role: 'user',
+      status: 'handled',
+      finished: true,
+      inputConfig: previous,
+      items: [],
+    });
+    fixture.server.commit();
+    await fixture.pushUpdate();
+    const args = {
+      sessionId: 's1',
+      machineId: 'm1',
+      userId: 'u1',
+      cliType: 'builtin',
+      agentType: 'codex',
+      text: 'Continue the review',
+    };
+    assert.equal((await fixture.runtime.sendTurn(args)).state, 'accepted');
+    const input = calls[0].params.inputConfig;
+    for (const key of Object.keys(previous))
+      assert.deepEqual(input[key], previous[key]);
+    assert.deepEqual(fixture.server.toJSON().history.at(-1).inputConfig, input);
+    assert.equal(
+      (await fixture.runtime.sendTurn({ ...args, queue: true })).state,
+      'queued',
+    );
+    const queued = fixture.server.toJSON().mq[0].acpSessionConfig;
+    for (const key of Object.keys(previous))
+      assert.deepEqual(queued[key], previous[key]);
+    for (const override of [
+      { modelId: 'different-model' },
+      { modelId: null },
+      { modeId: 'code' },
+      { reasoningEffort: 'low' },
+      { configOptionValues: { fast: true } },
+    ]) {
+      assert.equal(
+        (await fixture.runtime.sendTurn({ ...args, ...override, queue: true }))
+          .state,
+        'queued',
+      );
+      const changed = fixture.server.toJSON().mq.at(-1).acpSessionConfig;
+      assert.equal(
+        changed.agentRoleId,
+        null,
+        'Overrides explicitly detach the frozen Role',
+      );
+      assert.equal(changed.agentRoleRevision, undefined);
+    }
+    assert.equal(
+      (
+        await fixture.runtime.sendTurn({
+          ...args,
+          queue: true,
+          modelId: previous.modelId,
+          configOptionValues: { fast: false, effort: 'high' },
+        })
+      ).state,
+      'queued',
+    );
+    assert.equal(
+      fixture.server.toJSON().mq.at(-1).acpSessionConfig.agentRoleId,
+      previous.agentRoleId,
+      'Restored composer values do not detach an unchanged Role',
+    );
+  } finally {
+    fixture.close();
+  }
+});
+
 test('independent configuration reaches durable history before RPC, inherits on later turns and rejects malformed overrides', async () => {
   const calls = [];
   const fixture = await openTestSession({
@@ -1539,7 +1629,7 @@ test('busy turns use the OSS FIFO queue, durable before watermark; lost ACK is n
   }
 });
 
-test('guide writes a steer history turn instead of the FIFO queue', async () => {
+test('guide writes a steer history turn instead of the FIFO queue and retains its Role', async () => {
   const requests = [];
   const fixture = await openTestSession({
     onRpc: (request) => {
@@ -1558,6 +1648,19 @@ test('guide writes a steer history turn instead of the FIFO queue', async () => 
     },
   });
   try {
+    fixture.server.getList('history').push({
+      id: 'role-input',
+      role: 'user',
+      finished: true,
+      status: 'handled',
+      items: [],
+      inputConfig: {
+        cliType: 'builtin',
+        agentType: 'codex',
+        agentRoleId: 'role-coder',
+        agentRoleRevision: 3,
+      },
+    });
     fixture.server.getList('history').push({
       id: 'running',
       role: 'assistant',
@@ -1591,6 +1694,9 @@ test('guide writes a steer history turn instead of the FIFO queue', async () => 
     assert.equal(requests[0].method, 'session/steer');
     assert.equal(requests[0].params.expectedTurnId, 'running');
     assert.equal(requests[0].params.userTurnId, result.id);
+    assert.equal(requests[0].params.inputConfig.agentRoleId, 'role-coder');
+    assert.equal(requests[0].params.inputConfig.agentRoleRevision, 3);
+    assert.equal(entry.inputConfig.agentRoleId, 'role-coder');
   } finally {
     fixture.close();
   }

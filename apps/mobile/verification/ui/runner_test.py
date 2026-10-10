@@ -415,6 +415,23 @@ class SchemePermissionTest(unittest.TestCase):
             self.assertEqual(labels[:3], ['Open', '打开', '開啟'])
             self.assertFalse(any(args[:2] == ('tap', '-x') for args in calls))
 
+    def test_missing_open_from_cli_exit_does_not_tap_underlying_app(self):
+        from driver import allow_custom_scheme
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+            clock = {'t': 0}
+            missing = subprocess.CalledProcessError(
+                1, 'axe', output="Error: No accessibility element matched --label 'Open'.")
+            with (
+                patch('driver.subprocess.check_output', side_effect=missing) as command,
+                patch('driver.time.monotonic', lambda: clock['t']),
+                patch('driver.time.sleep', lambda seconds: clock.update(t=clock['t'] + seconds)),
+            ):
+                allow_custom_scheme(ui)
+            self.assertTrue(command.call_args_list)
+            self.assertFalse(any('-x' in call.args[0] for call in command.call_args_list))
+            self.assertEqual(command.call_args.kwargs['stderr'], subprocess.STDOUT)
+
     def test_allow_custom_scheme_retries_until_open_appears(self):
         from driver import allow_custom_scheme
         with tempfile.TemporaryDirectory() as directory:

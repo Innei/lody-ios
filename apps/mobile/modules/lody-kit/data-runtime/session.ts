@@ -633,8 +633,6 @@ export async function sendTurn(
       (state.doc.toJSON().history as any[] | undefined)?.findLast(
         (entry) => entry.role === 'user',
       )?.inputConfig ?? {};
-    if (previous.agentRoleId)
-      throw new Error('agent_role_requires_configuration');
     const configOptionValues = {
       ...(previous.configOptionValues &&
       typeof previous.configOptionValues === 'object' &&
@@ -663,8 +661,28 @@ export async function sendTurn(
         : undefined,
       mcpServerIds: previous.mcpServerIds ?? [],
       taskToolsEnabled: previous.taskToolsEnabled ?? false,
+      agentRoleId: previous.agentRoleId,
+      agentRoleRevision: previous.agentRoleRevision,
       resume: args.resume,
     };
+    if (previous.agentRoleId) {
+      const previousOptions = previous.configOptionValues ?? {};
+      const changed =
+        ['cliType', 'agentType', 'modelId', 'modeId'].some(
+          (key) =>
+            inputConfig[key as keyof typeof inputConfig] !== previous[key],
+        ) ||
+        Object.keys(configOptionValues).length !==
+          Object.keys(previousOptions).length ||
+        Object.entries(configOptionValues).some(
+          ([key, value]) => previousOptions[key] !== value,
+        );
+      if (changed) {
+        // A changed run configuration no longer represents the frozen Role.
+        inputConfig.agentRoleId = null;
+        inputConfig.agentRoleRevision = undefined;
+      }
+    }
     const raw = state.doc.toJSON();
     const history = (raw.history ?? []) as any[];
     const lastUser = history.findLastIndex((entry) => entry.role === 'user');

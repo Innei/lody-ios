@@ -136,3 +136,27 @@ assert ui.element('duration-preview:duration')['AXLabel'] == waited['AXLabel']
 ui.capture('waited')
 print('PASS: duration freezes and the metadata bar reads left-aligned under the answer')
 print('PASS: permission wait is subtracted from the frozen work duration')
+
+ui.axe('tap', '--label', 'Fixtures')
+ui.axe('tap', '--label', 'Causal Reply Fixture')
+
+def causal_rows(seconds):
+    ui.element('causal-a1:text')
+    ui.element('causal-a2:text')
+    ui.wait(lambda items: any(item.get('AXUniqueId') == 'causal-u2:duration'
+            and item.get('AXLabel') == f"{copy['worked']}{seconds}s" for item in items),
+            'The second reply borrowed the first request clock or disappeared')
+    assert ui.element('causal-u1:duration')['AXLabel'] == f"{copy['worked']}3s"
+    assert not any(item.get('AXLabel') == catalog.text('native.chat.error.transcript') for item in ui.state())
+
+causal_rows(3)
+ui.capture('causal-orphan')
+ui.axe('tap', '--label', 'Receive Late Input')
+ui.element('causal-u2:user')
+causal_rows(4)
+ui.capture('causal-late-input')
+ui.axe('tap', '--label', 'Order Causal Input')
+causal_rows(4)
+assert ui.element('causal-u2:user')['frame']['y'] < ui.element('causal-a2:text')['frame']['y']
+ui.capture('causal-ordered')
+print('PASS: both replies remain readable through orphan, late input and causal reordering')

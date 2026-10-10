@@ -434,8 +434,14 @@ struct ChatTranscript {
       var result: [ChatRow] = []
       var absorbedProcess = false
       if entry.role == "assistant", !processOnly {
-        let turn = entries[..<entryIndex].last { $0.role == "user" }
-        let turnID = turn?.id ?? entry.id
+        let turn: ChatEntry?
+        if let userTurnID = entry.userTurnId {
+          // A reply may arrive before its input; never borrow a neighboring turn's clock.
+          turn = entries.first { $0.role == "user" && $0.id == userTurnID }
+        } else {
+          turn = entries[..<entryIndex].last { $0.role == "user" }
+        }
+        let turnID = entry.userTurnId ?? turn?.id ?? entry.id
         let start = turnStartedAt[turnID] ?? turn.flatMap(ChatWorkDuration.startMilliseconds)
         if let duration = ChatWorkDuration.milliseconds(for: entry, now: now, startOverride: start) {
           var row = ChatRow(
@@ -740,8 +746,11 @@ extension ChatPendingSend {
         actionable: true, attention: true))
       return result
     }
-    let acceptedIndex = entries.firstIndex { $0.id == id }
-    let hasReply = acceptedIndex.map { entries.dropFirst($0 + 1).contains { $0.role == "assistant" } } ?? false
+    var precedingUserID: String?
+    let hasReply = entries.contains { entry in
+      if entry.role == "user" { precedingUserID = entry.id }
+      return entry.role == "assistant" && (entry.userTurnId ?? precedingUserID) == id
+    }
     let hasDelivery = entries.contains { $0.id == id && $0.delivery != nil }
     let acknowledged = phase == "accepted"
     if !hasReply && !acknowledged && !hasDelivery {
