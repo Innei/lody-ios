@@ -17,6 +17,12 @@ const PACKAGES = [
     version: '4.6.5',
   },
   {
+    name: 'BeautifulMermaidSwift',
+    url: 'https://github.com/lukilabs/beautiful-mermaid-swift.git',
+    version: '1.0.4',
+    products: ['BeautifulMermaid'],
+  },
+  {
     name: 'swift-collections',
     url: 'https://github.com/apple/swift-collections',
     version: '1.7.1',

@@ -22,9 +22,10 @@ CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker', 'branch-picker'],
     'send': ['quick-replies', 'context-chip', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'permission-mode-chat', 'permission-mode-sheet', 'permission-mode-create', 'paste-plain-chat', 'paste-plain-sheet', 'rich-paste-chat', 'rich-paste-sheet', 'attachment-overlay-chat', 'attachment-overlay-sheet', 'attachment-overlay-create', 'attachment-camera-chat', 'attachment-camera-sheet', 'attachment-motion-chat', 'attachment-motion-sheet', 'attachment-motion-create', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'composer-fullscreen', 'model-memory'],
-    'chat': ['workspace-changes', 'message-share', 'user-mentions', 'file-preview', 'file-selection', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'chat-chrome', 'title-rename', 'simulator-preview'],
+    'chat': ['workspace-changes', 'message-share', 'user-mentions', 'file-preview', 'file-selection', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'mermaid', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'chat-chrome', 'title-rename', 'simulator-preview'],
 }
 SUITES = {
+    'markdown-files': ['markdown', 'file-preview'],
     'permission-composer': ['permission-mode-chat', 'permission-mode-sheet', 'permission-mode-create'],
     'paste-plain': ['paste-plain-chat', 'paste-plain-sheet'],
     'rich-paste': ['rich-paste-chat', 'rich-paste-sheet'],
@@ -46,6 +47,7 @@ CASES = PHONE_CASES + PAD_CASES + ['devices', 'camera-chat', 'camera-sheet', 'me
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'sheet-zoom-project', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome', 'ipad-sidebar'}
 HOME_CASES.update({'session-delete', 'session-delete-pad', 'devices', 'devices-pad'})
 PREVIEW = {
+    'mermaid': 'mermaid-preview',
     'workspace-changes': 'simulator-preview',
     'simulator-preview': 'simulator-preview',
     'message-details': 'message-share-preview',
@@ -136,6 +138,7 @@ PREVIEW = {
     'community-notice': 'community-notice',
 }
 READY = {
+    'mermaid': 'mermaid-preview:text',
     'message-details': 'paper-reply:meta:details',
     'free-turn-notice': 'free-turn-24',
     'camera-chat': 'session-input',
@@ -496,7 +499,7 @@ with metro_context:
                         ui.axe('tap', '--label', 'Image Fixture')
                         ui.element('preview-image:attachment:ui-verify-image')
                     ui.capture('before')
-                    script = Path(__file__).with_name(f'{case}.py') if case in ['workspace-changes', 'simulator-preview', 'message-details', 'message-share', 'pull-request', 'project-history-entry', 'project-history', 'project-picker', 'branch-picker', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'context-menu', 'chat-chrome', 'title-rename', 'composer-rich', 'composer-fullscreen'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                    script = Path(__file__).with_name(f'{case}.py') if case in ['workspace-changes', 'simulator-preview', 'message-details', 'message-share', 'pull-request', 'project-history-entry', 'project-history', 'project-picker', 'branch-picker', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'mermaid', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'context-menu', 'chat-chrome', 'title-rename', 'composer-rich', 'composer-fullscreen'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
                     if case in {'devices', 'devices-pad'}:
                         script = Path(__file__).with_name('devices.py')
                     if case == 'file-selection':
@@ -569,10 +572,12 @@ with metro_context:
                         # Includes a real 61-second dismissal wait plus lock/unlock
                         # and Dynamic Island transitions; 180s cuts off deep links.
                         check_timeout = 480
-                    elif case == 'file-preview':
-                        # Browser, chat and process document selection add held captures
-                        # to the existing source, diff and Quick Look round trips.
+                    elif case == 'mermaid':
+                        # Six graph types, fallbacks, plan expansion and document copy.
                         check_timeout = 300
+                    elif case == 'file-preview':
+                        # Held selections plus loaded image/PDF close, reopen and drag dismissal.
+                        check_timeout = 420
                     elif case == 'simulator-preview':
                         # Held/cancelled/committed zoom gestures plus hide, stop and reopen flows.
                         check_timeout = 420

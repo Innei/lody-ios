@@ -1,4 +1,5 @@
 import { ProposedPlanPreviewScreen } from './ProposedPlanPreviewScreen';
+import { MermaidPreviewScreen } from './MermaidPreviewScreen';
 import { AppIconFailurePreviewScreen } from './AppIconFailurePreviewScreen';
 import { MessageSharePreviewScreen } from './MessageSharePreviewScreen';
 import { SessionSharePreviewScreen } from './SessionSharePreviewScreen';
@@ -173,6 +174,11 @@ function View() {
         },
         openRow('permission-preview', '权限验收', 'hand.raised'),
         openRow('file-preview', '文件预览验收', 'doc'),
+        openRow(
+          'mermaid-preview',
+          'Mermaid 图表验收',
+          'point.3.connected.trianglepath.dotted',
+        ),
         openRow('onboarding-preview', '登录引导验收', 'hand.wave'),
         {
           id: 'community-notice',
@@ -335,6 +341,7 @@ function View() {
       .catch((error) => setRuntime({ title: String(error) }));
   };
   const actions: Record<string, () => void> = {
+    'mermaid-preview': () => void present(MermaidPreviewScreen, {}),
     'reply-haptics-preview': () => void present(ReplyHapticsPreviewScreen, {}),
     'notification-preview': () => {
       void present(NotificationPreviewScreen, {});

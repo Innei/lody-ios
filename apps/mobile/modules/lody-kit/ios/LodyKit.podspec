@@ -27,6 +27,7 @@ Pod::Spec.new do |s|
   }
   s.spm_dependency 'MarkdownView/MarkdownView'
   s.spm_dependency 'MarkdownView/MarkdownParser'
+  s.spm_dependency 'BeautifulMermaidSwift/BeautifulMermaid'
   s.spm_dependency 'ChatKit/ChatKit'
   s.spm_dependency 'Lexical/Lexical'
   s.spm_dependency 'Lexical/LexicalListPlugin'

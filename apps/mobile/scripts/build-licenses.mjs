@@ -136,6 +136,18 @@ const nativeComponents = [
     file: 'modules/lody-kit/licenses/MarkdownView-LICENSE.txt',
   },
   {
+    name: 'Beautiful Mermaid Swift',
+    license: 'MIT',
+    url: 'https://github.com/lukilabs/beautiful-mermaid-swift',
+    file: 'modules/lody-kit/licenses/BeautifulMermaid-LICENSE.txt',
+  },
+  {
+    name: 'ElkSwift',
+    license: 'EPL-2.0',
+    url: 'https://github.com/lukilabs/elk-swift',
+    file: 'modules/lody-kit/licenses/ElkSwift-LICENSE.txt',
+  },
+  {
     name: 'Lexical iOS',
     license: 'MIT',
     url: 'https://github.com/facebook/lexical-ios',
