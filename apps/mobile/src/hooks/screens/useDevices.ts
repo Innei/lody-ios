@@ -1,6 +1,6 @@
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { useMachinePresence } from '@/cloud/catalog/machines';
-import { machineState } from '@/models/machines';
+import { machineState } from '@lody/cloud-runtime/models/machines';
 import { t } from '@/lib/i18n';
 import type { NativeMenuItem } from '@lody-ios/kit';
 

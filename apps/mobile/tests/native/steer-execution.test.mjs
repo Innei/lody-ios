@@ -1,7 +1,7 @@
 import { openTestSession } from '../helpers.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { executionProjection } from '../../modules/lody-kit/data-runtime/execution.ts';
+import { executionProjection } from '../../../../packages/cloud-runtime/src/runtime/execution.ts';
 
 const user = (id, guide = false) => ({
   id,

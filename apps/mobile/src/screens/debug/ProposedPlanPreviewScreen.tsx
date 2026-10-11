@@ -4,8 +4,10 @@ import { definePage, present } from '@/lib/presentation';
 import { PermissionScreen } from '@/screens/PermissionScreen';
 import { useProposedPlan } from '@/features/sessions/useProposedPlan';
 import { planExecutionChoice } from '@/features/sessions/proposedPlan';
-import type { EntrySummary } from '@/models/session';
-import type { PermissionTarget } from '@/models/session';
+import type {
+  EntrySummary,
+  PermissionTarget,
+} from '@lody/cloud-runtime/models/session';
 
 const body = `# A clearer session list
 

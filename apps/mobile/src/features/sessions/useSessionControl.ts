@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { controlSessionTurn } from '@lody-ios/kit';
-import type { Session } from '@/models/catalog';
-import type { Snapshot } from '@/models/session';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
+import type { Snapshot } from '@lody/cloud-runtime/models/session';
 import { showToast } from '@/ui/toast';
 import { t } from '@/lib/i18n';
 import { sessionState } from './status';

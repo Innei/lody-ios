@@ -102,7 +102,7 @@ final class ChatMarkdownStore {
           return previous.blocks[index]
         }
         let content = MarkdownContent(blocks: [node], rendered: context.rendered, highlightMaps: context.highlightMaps)
-        return ChatMarkdownBlock(node: node, content: FileMarkdownView.content(content))
+        return ChatMarkdownBlock(node: node, content: FileMarkdownView.content(content, streaming: streaming))
       }
     }
     entries[id] = Entry(text: text, secondary: secondary, streaming: streaming, context: context, math: parsed.mathContext, blocks: blocks)

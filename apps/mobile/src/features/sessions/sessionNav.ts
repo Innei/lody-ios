@@ -1,4 +1,4 @@
-import type { Catalog, Session } from '../../models/catalog.ts';
+import type { Catalog, Session } from '@lody/cloud-runtime/models/catalog';
 
 export type SessionNavIntent =
   | { kind: 'share'; workspaceId: string; sessionId: string }

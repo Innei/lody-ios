@@ -1,4 +1,4 @@
-import type { Session } from '../../models/catalog.ts';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
 
 /** Input order is the list's ranking. A group takes its freshest member's place. */
 export function sessionTree(sessions: Session[], allSessions: Session[]) {

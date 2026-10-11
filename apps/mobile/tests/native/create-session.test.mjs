@@ -159,7 +159,7 @@ test('create a project session, open its empty history and dispatch the first tu
   };
   const bundle = await build({
     stdin: {
-      contents: `export * from './apps/mobile/modules/lody-kit/data-runtime/create-session'; export { openSession, sendTurn, closeSession } from './apps/mobile/modules/lody-kit/data-runtime/session';`,
+      contents: `export * from './packages/cloud-runtime/src/runtime/create-session'; export { openSession, sendTurn, closeSession } from './packages/cloud-runtime/src/runtime/session';`,
       resolveDir: process.cwd(),
     },
     bundle: true,
@@ -460,7 +460,7 @@ test('chat and fresh GitHub repositories can use workspace machines while local 
   };
   const bundle = await build({
     stdin: {
-      contents: `export * from './apps/mobile/modules/lody-kit/data-runtime/create-session';`,
+      contents: `export * from './packages/cloud-runtime/src/runtime/create-session';`,
       resolveDir: process.cwd(),
     },
     bundle: true,

@@ -382,7 +382,7 @@ test('send persists user before dispatch; duplicate incremental imports preserve
     }
   };
   const bundle = await build({
-    entryPoints: ['apps/mobile/modules/lody-kit/data-runtime/session.ts'],
+    entryPoints: ['packages/cloud-runtime/src/runtime/session.ts'],
     bundle: true,
     format: 'esm',
     platform: 'browser',
@@ -641,8 +641,10 @@ test('send persists user before dispatch; duplicate incremental imports preserve
 async function loadProject() {
   const bundle = await build({
     entryPoints: [
-      new URL('../../modules/lody-kit/data-runtime/project.ts', import.meta.url)
-        .pathname,
+      new URL(
+        '../../../../packages/cloud-runtime/src/runtime/project.ts',
+        import.meta.url,
+      ).pathname,
     ],
     bundle: true,
     format: 'esm',

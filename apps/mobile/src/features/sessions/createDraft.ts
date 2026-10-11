@@ -1,11 +1,10 @@
 import type { ChatDraftAttachment } from '@lody-ios/kit';
-import type { Session } from '../../models/catalog.ts';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
 import type {
-  CreatedSession,
   CreationOptions,
   ModelChoice,
-  PendingSession,
-} from '../../models/send.ts';
+} from '@lody/cloud-runtime/models/send';
+import type { CreatedSession, PendingSession } from '../../models/send.ts';
 import { draftTitle } from './draftTitle.ts';
 import { t } from '../../lib/i18n/index.ts';
 

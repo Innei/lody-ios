@@ -67,14 +67,15 @@ final class FileQuickLookController: QLPreviewController, QLPreviewControllerDat
     await withCheckedContinuation { continuation in
       let preview = FileQuickLookController(sessionId: sessionId, path: path, runtime: runtime)
       preview.onClose = { continuation.resume() }
-      preview.modalPresentationStyle = .pageSheet
-      if let sheet = preview.sheetPresentationController {
+      let navigation = UINavigationController(rootViewController: preview)
+      navigation.modalPresentationStyle = .pageSheet
+      if let sheet = navigation.sheetPresentationController {
         sheet.detents = [.large()]
         sheet.prefersGrabberVisible = true
       }
       var host = controller
       while let presented = host.presentedViewController { host = presented }
-      host.present(preview, animated: true)
+      host.present(navigation, animated: true)
     }
   }
 
@@ -90,6 +91,12 @@ final class FileQuickLookController: QLPreviewController, QLPreviewControllerDat
     super.viewDidLoad()
     dataSource = self
     delegate = self
+    let close = UIBarButtonItem(systemItem: .close, primaryAction: UIAction { [weak self] _ in
+      self?.dismiss(animated: true)
+    })
+    close.accessibilityLabel = LodyStrings.text("native.close")
+    close.accessibilityIdentifier = "file-quicklook-close"
+    navigationItem.leftBarButtonItem = close
     spinner.color = .secondaryLabel
     spinner.accessibilityIdentifier = "file-loading"
     spinner.accessibilityLabel = LodyStrings.text("native.file.reading")
@@ -108,8 +115,6 @@ final class FileQuickLookController: QLPreviewController, QLPreviewControllerDat
     var loading = UIContentUnavailableConfiguration.loading()
     loading.text = LodyStrings.text("native.file.reading")
     loading.background.backgroundColor = .systemBackground
-    loading.button.title = LodyStrings.text("native.close")
-    loading.buttonProperties.primaryAction = UIAction { [weak self] _ in self?.dismiss(animated: true) }
     contentUnavailableConfiguration = loading
     spinner.startAnimating()
     let sessionId = sessionId
@@ -171,25 +176,26 @@ final class FileQuickLookController: QLPreviewController, QLPreviewControllerDat
     failed.secondaryText = message
     failed.button.title = LodyStrings.text("native.file.retry")
     failed.buttonProperties.primaryAction = UIAction { [weak self] _ in self?.load() }
-    failed.secondaryButton.title = LodyStrings.text("native.close")
-    failed.secondaryButtonProperties.primaryAction = UIAction { [weak self] _ in self?.dismiss(animated: true) }
     spinner.stopAnimating()
     contentUnavailableConfiguration = failed
   }
 
   func previewControllerDidDismiss(_ controller: QLPreviewController) {
+    finish()
+  }
+
+  private func finish() {
     loadTask?.cancel()
     try? FileManager.default.removeItem(at: directory)
-    onClose?()
+    let close = onClose
     onClose = nil
+    close?()
   }
 
   override func viewDidDisappear(_ animated: Bool) {
     super.viewDidDisappear(animated)
-    if isBeingDismissed {
-      loadTask?.cancel()
-      onClose?()
-      onClose = nil
+    if isBeingDismissed || navigationController?.isBeingDismissed == true {
+      finish()
     }
   }
 

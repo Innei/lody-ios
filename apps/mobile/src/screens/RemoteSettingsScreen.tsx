@@ -8,7 +8,7 @@ import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
 import { usePalette } from '@/lib/theme/palette';
-import type { RemoteSetting } from '@/models/settings';
+import type { RemoteSetting } from '@lody/cloud-runtime/models/settings';
 import { t } from '../lib/i18n/index.ts';
 import {
   loadRemoteSettings,
@@ -21,7 +21,7 @@ import {
   type SettingsListCache,
   type SettingsService,
 } from '@/features/settings/remote-settings';
-import type { Catalog } from '@/models/catalog';
+import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import { RemoteSettingEditorScreen } from './RemoteSettingEditorScreen';
 
 export type { SettingsService };

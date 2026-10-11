@@ -5,13 +5,13 @@ import type {
   PermissionResult,
   PermissionTarget,
   PermissionTargetState,
-} from '../../models/session.ts';
+} from '@lody/cloud-runtime/models/session';
 
 export type {
   PermissionResult,
   PermissionTarget,
   PermissionTargetState,
-} from '../../models/session.ts';
+} from '@lody/cloud-runtime/models/session';
 
 export type PermissionTargetSource = (
   onState: (state: PermissionTargetState) => void,

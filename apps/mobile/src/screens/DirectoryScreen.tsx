@@ -6,8 +6,8 @@ import {
   type NativeListSection,
 } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
-import type { Project } from '@/models/catalog';
-import type { Directory } from '../../modules/lody-kit/data-runtime/local-projects';
+import type { Project } from '@lody/cloud-runtime/models/catalog';
+import type { Directory } from '@lody/cloud-runtime/local-projects';
 import { usePalette } from '@/lib/theme/palette';
 import { t } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';

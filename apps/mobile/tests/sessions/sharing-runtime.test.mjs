@@ -3,9 +3,9 @@ import test from 'node:test';
 import {
   createSharingRuntime,
   shareCandidates,
-} from '../../modules/lody-kit/data-runtime/sharing/runtime.ts';
-import { verifyShareObject } from '../../modules/lody-kit/data-runtime/sharing/session-share-package.ts';
-import { hashSessionShareSecret } from '../../modules/lody-kit/data-runtime/sharing/session-share-credentials.ts';
+} from '../../../../packages/cloud-runtime/src/runtime/sharing/runtime.ts';
+import { verifyShareObject } from '../../../../packages/cloud-runtime/src/runtime/sharing/session-share-package.ts';
+import { hashSessionShareSecret } from '../../../../packages/cloud-runtime/src/runtime/sharing/session-share-credentials.ts';
 
 test('dismissal and duplicate taps cannot publish after a pending read', async () => {
   let release;

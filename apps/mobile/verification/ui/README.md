@@ -34,6 +34,11 @@ Fixture uses production rendering without account or cloud access. User bubbles,
 tool rows and unloaded history form selection boundaries; changing visible group
 membership clears selection. Table selections keep their upstream group and menu.
 
+`--suite markdown-files` verifies table scrolling back to the first column and
+file previews together in both appearances. Quick Look checks wait for image/PDF
+loading to finish, then close, reopen and dismiss by dragging the sheet grabber;
+closing during loading must not reopen a preview after its response arrives.
+
 Pinned [Litext](https://github.com/Lakr233/Litext) 3.6.2 uses UIKit's public `UITextSelectionDisplayInteraction`
 for highlights/handles and `UITextLoupeSession` on iOS 17 and later. `markdown`
 checks one system display with two handles and no visible custom handles, and
@@ -49,6 +54,14 @@ The chat check also verifies annotation readings, selectable base text and incre
 line height during streaming and after completion. The `local-store` native check
 covers parsed Ruby in lists, headings, tables and links, with literal code and
 incomplete or unsupported markup preserved.
+
+`mermaid` exercises the shared native Beautiful Mermaid renderer in chat and
+Markdown file preview: six diagram types, Chinese labels, source copy, plan expansion,
+invalid/unsupported/oversized input fallback, and streaming-to-completed handoff.
+In-flight messages retain code until completion. Inputs above 12 KiB, 128 nonempty
+lines, 128 flow/state nodes plus edges, or 8192 pt layout dimensions retain their
+original code blocks. Diagram colors follow UIKit semantic light/dark colors.
+Quoted fences retain the existing parser behavior, which flattens them into text.
 
 `session-share` exercises the production SwiftUI conversation-sharing Form with an
 independently resettable Debug source: default scope, sub-conversation selection,

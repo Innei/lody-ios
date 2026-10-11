@@ -1,5 +1,5 @@
 import { useMemo, useSyncExternalStore } from 'react';
-import type { Catalog } from '../../models/catalog.ts';
+import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import { getSessionViewStore } from './sessionViewStore.ts';
 import { withSessionViews } from './sessionViews.ts';
 

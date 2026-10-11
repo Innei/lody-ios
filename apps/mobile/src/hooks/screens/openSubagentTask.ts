@@ -3,7 +3,7 @@ import {
   SubagentTaskScreen,
   type SubagentTask,
 } from '@/screens/SubagentTaskScreen';
-import type { ItemSummary } from '@/models/session';
+import type { ItemSummary } from '@lody/cloud-runtime/models/session';
 
 export function openSubagentTask(item: ItemSummary | undefined): boolean {
   if (item?.type !== 'subagent_task') return false;

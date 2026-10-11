@@ -10,8 +10,8 @@ import {
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { usePalette } from '@/lib/theme/palette';
-import type { Session } from '@/models/catalog';
-import type { Snapshot } from '@/models/session';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
+import type { Snapshot } from '@lody/cloud-runtime/models/session';
 import { Button } from '@/ui/Button';
 import { SettingsScreen } from '../SettingsScreen';
 

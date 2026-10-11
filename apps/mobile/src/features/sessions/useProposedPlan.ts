@@ -1,6 +1,6 @@
 import { useMemo, useRef, useSyncExternalStore } from 'react';
 import { sendSessionTurn } from '@lody-ios/kit';
-import type { EntrySummary } from '@/models/session';
+import type { EntrySummary } from '@lody/cloud-runtime/models/session';
 import { createPlanDecision, latestProposedPlan } from './proposedPlan';
 import { t } from '@/lib/i18n';
 

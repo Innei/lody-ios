@@ -1,5 +1,5 @@
 import { t } from '../../lib/i18n/index.ts';
-import type { Session } from '../../models/catalog';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
 
 export type NotificationClick = { id: string; route: string; userId: string };
 export function parseNotificationRoute(

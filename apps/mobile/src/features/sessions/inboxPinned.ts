@@ -1,5 +1,5 @@
 import type { NativeListRow, NativeListSection } from '@lody-ios/kit';
-import type { Session } from '../../models/catalog.ts';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
 import { t } from '../../lib/i18n/index.ts';
 
 export const PINNED_SECTION_ID = 'pinned';

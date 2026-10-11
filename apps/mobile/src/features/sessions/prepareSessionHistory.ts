@@ -1,6 +1,6 @@
 import { prepareChatEntries, type PreparedChatEntries } from '@lody-ios/kit';
 import { localGeneration, readLocal } from '../../cloud/kv';
-import type { Envelope, Snapshot } from '../../models/session';
+import type { Envelope, Snapshot } from '@lody/cloud-runtime/models/session';
 import { changedFiles } from './transcript/changes';
 
 export type PreparedSessionHistory = {

@@ -45,7 +45,7 @@ test('presence reconnects a stalled join, expires heartbeats and fences replaced
     },
   });
   const { watchMachinePresence } =
-    await import('../../modules/lody-kit/data-runtime/machine-presence.ts');
+    await import('../../../../packages/cloud-runtime/src/runtime/machine-presence.ts');
   const events = [];
   const stop = watchMachinePresence(
     'w',

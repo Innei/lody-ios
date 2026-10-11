@@ -8,7 +8,7 @@ import { useSessionListCatalog } from '@/features/sessions/useSessionListCatalog
 import { useSessionViewed } from '@/features/sessions/useSessionViewed';
 import { usePalette } from '@/lib/theme/palette';
 import { inboxSections } from '@/features/sessions/inbox';
-import type { Catalog, Session } from '@/models/catalog';
+import type { Catalog, Session } from '@lody/cloud-runtime/models/catalog';
 
 const NOW = Date.parse('2026-09-06T15:00:00+08:00');
 const start = new Date(NOW);

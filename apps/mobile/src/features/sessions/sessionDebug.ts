@@ -1,4 +1,8 @@
-import type { Connection, Project, Session } from '@/models/catalog';
+import type {
+  Connection,
+  Project,
+  Session,
+} from '@lody/cloud-runtime/models/catalog';
 import type { Workspace } from '@/models/auth';
 
 function field(key: string, value: unknown) {

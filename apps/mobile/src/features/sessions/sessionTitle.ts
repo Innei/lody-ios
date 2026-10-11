@@ -1,4 +1,4 @@
-import type { Catalog, Session } from '../../models/catalog.ts';
+import type { Catalog, Session } from '@lody/cloud-runtime/models/catalog';
 import { isChatSession } from './inbox.ts';
 import { t } from '../../lib/i18n/index.ts';
 

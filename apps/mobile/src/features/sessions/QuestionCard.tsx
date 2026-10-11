@@ -2,7 +2,10 @@ import { use, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeListRow } from '@lody-ios/kit';
-import type { QuestionAnswers, QuestionMeta } from '../../models/session.ts';
+import type {
+  QuestionAnswers,
+  QuestionMeta,
+} from '@lody/cloud-runtime/models/session';
 import {
   questionAllowsText,
   questionAnswerKey,

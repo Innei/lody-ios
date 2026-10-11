@@ -7,7 +7,7 @@ import type {
   MentionCatalog,
   MentionCategory,
   MentionSource,
-} from '@/models/mentions';
+} from '@lody/cloud-runtime/models/mentions';
 import { t } from '@/lib/i18n';
 
 const labels = {

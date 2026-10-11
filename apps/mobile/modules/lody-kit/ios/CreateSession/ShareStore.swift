@@ -1,3 +1,4 @@
+import LodyCore
 import Foundation
 
 struct ShareCatalog: Codable, Equatable {

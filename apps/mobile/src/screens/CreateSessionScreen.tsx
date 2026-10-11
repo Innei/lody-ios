@@ -25,9 +25,12 @@ import {
   sortCatalogProjects,
 } from '@/features/sessions/inbox';
 import { showToast } from '@/ui/toast';
-import type { MentionSource } from '@/models/mentions';
-import type { Project } from '@/models/catalog';
-import type { CreatePrefs, CreationOptions } from '@/models/send';
+import type { MentionSource } from '@lody/cloud-runtime/models/mentions';
+import type { Project } from '@lody/cloud-runtime/models/catalog';
+import type {
+  CreatePrefs,
+  CreationOptions,
+} from '@lody/cloud-runtime/models/send';
 import type { CreatedSession } from '../models/send.ts';
 import { DirectoryScreen } from './DirectoryScreen';
 import { t } from '../lib/i18n/index.ts';

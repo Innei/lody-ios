@@ -7,7 +7,7 @@ import {
   useState,
   type PropsWithChildren,
 } from 'react';
-import type { QuickReply } from '@/models/settings';
+import type { QuickReply } from '@lody/cloud-runtime/models/settings';
 import { t } from '@/lib/i18n';
 import { showToast } from '@/ui/toast';
 import { parseQuickReplies } from './quickReplies';

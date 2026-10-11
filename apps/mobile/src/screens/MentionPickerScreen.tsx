@@ -6,7 +6,10 @@ import { NativeGroupedList, NativeMentionPicker } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { usePalette } from '@/lib/theme/palette';
-import type { MentionCatalog, MentionItem } from '@/models/mentions';
+import type {
+  MentionCatalog,
+  MentionItem,
+} from '@lody/cloud-runtime/models/mentions';
 
 type Params = {
   category: string;

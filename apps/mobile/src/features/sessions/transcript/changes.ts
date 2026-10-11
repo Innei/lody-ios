@@ -1,4 +1,7 @@
-import type { EntrySummary, ItemSummary } from '../../../models/session.ts';
+import type {
+  EntrySummary,
+  ItemSummary,
+} from '@lody/cloud-runtime/models/session';
 
 export type ChangedFile = {
   path: string;

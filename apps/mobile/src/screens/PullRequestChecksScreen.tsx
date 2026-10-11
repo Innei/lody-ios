@@ -11,7 +11,7 @@ import {
 import type {
   PullRequestCheck,
   PullRequestActions,
-} from '@/models/pull-request';
+} from '@lody/cloud-runtime/models/pull-request';
 import type { PullRequestSource } from '@/features/pull-request/source';
 import { usePullRequestSource } from '@/hooks/screens/usePullRequestSource';
 import { pullRequestError } from '@/features/pull-request/errors';

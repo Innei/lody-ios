@@ -3,7 +3,7 @@ import { copyText } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { t } from '@/lib/i18n/index.ts';
-import type { SystemNoticeMeta } from '@/models/session';
+import type { SystemNoticeMeta } from '@lody/cloud-runtime/models/session';
 import { Screen } from '@/ui/Screen';
 import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';

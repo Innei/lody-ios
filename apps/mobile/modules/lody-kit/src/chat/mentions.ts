@@ -3,7 +3,7 @@ import type {
   MentionCatalog,
   MentionCategory,
   MentionSource,
-} from '../../../../src/models/mentions';
+} from '@lody/cloud-runtime/models/mentions';
 
 export async function getMentionCatalog(
   source: MentionSource,

@@ -20,7 +20,7 @@ import { publishConnection } from './connection';
 import { publishMachinePresence } from './machines';
 import { localGeneration, readLocal, writeLocal } from '../kv';
 import { catalogKey, selectionKey } from './persist';
-import type { Catalog, SavedCatalog } from '../../models/catalog.ts';
+import type { Catalog, SavedCatalog } from '@lody/cloud-runtime/models/catalog';
 import { t } from '../../lib/i18n/index.ts';
 import { deleteSession } from '@lody-ios/kit';
 

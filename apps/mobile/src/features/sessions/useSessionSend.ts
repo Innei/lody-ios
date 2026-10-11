@@ -12,7 +12,7 @@ import type {
   PendingSession,
   usePendingSends,
 } from '@/cloud/send/pendingSends';
-import type { Session } from '@/models/catalog';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
 import type { Snapshot } from './useSessionRuntime';
 import { sessionState } from './status';
 import { resolveSessionMessageSubmitRoute } from './messageSubmitRoute';

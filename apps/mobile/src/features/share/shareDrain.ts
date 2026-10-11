@@ -1,6 +1,7 @@
 import type { ChatDraftAttachment } from '@lody-ios/kit';
-import type { Session } from '../../models/catalog.ts';
-import type { CreationOptions, PendingSession } from '../../models/send.ts';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
+import type { CreationOptions } from '@lody/cloud-runtime/models/send';
+import type { PendingSession } from '../../models/send.ts';
 import {
   pendingSessionFromDraft,
   type NativeCreateDraft,

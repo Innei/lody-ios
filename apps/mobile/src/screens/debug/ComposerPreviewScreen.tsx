@@ -1,5 +1,5 @@
-import type { MentionItem } from '@/models/mentions';
-import { expandMentionText } from '../../../modules/lody-kit/data-runtime/mention-expansion';
+import type { MentionItem } from '@lody/cloud-runtime/models/mentions';
+import { expandMentionText } from '@lody/cloud-runtime/mention-expansion';
 import { MentionPickerPreviewScreen } from './MentionPickerPreviewScreen';
 import { PickerScreen } from '../PickerScreen';
 import { ComposerSheet } from '@/ui/ComposerSheet';

@@ -8,7 +8,7 @@ import { AppText } from '@/ui/AppText';
 import { FormGroup, formInputStyle } from '@/ui/FormGroup';
 import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
 import { showToast } from '@/ui/toast';
-import type { RemoteSetting } from '@/models/settings';
+import type { RemoteSetting } from '@lody/cloud-runtime/models/settings';
 import type { SettingsService } from './RemoteSettingsScreen';
 import { t } from '../lib/i18n/index.ts';
 

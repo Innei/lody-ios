@@ -11,14 +11,14 @@ import {
 import { acceptEnvelope } from './acceptEnvelope';
 import { localGeneration, readLocal } from '../../cloud/kv';
 import { showToast } from '../../ui/toast';
-import type { Envelope, Snapshot } from '../../models/session.ts';
+import type { Envelope, Snapshot } from '@lody/cloud-runtime/models/session';
 import { t } from '../../lib/i18n/index.ts';
 import {
   sessionHistoryKey,
   type PreparedSessionHistory,
 } from './prepareSessionHistory';
 
-export type { Snapshot } from '../../models/session.ts';
+export type { Snapshot } from '@lody/cloud-runtime/models/session';
 
 export function useSessionRuntime(
   sessionId: string,

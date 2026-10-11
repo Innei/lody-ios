@@ -19,7 +19,7 @@ import { useFocusEffect } from 'expo-router';
 import { usePendingSends } from '@/cloud/send/pendingSends';
 import { useConnection } from '@/cloud/catalog/connection';
 import { useMachinePresence } from '@/cloud/catalog/machines';
-import { machineState } from '@/models/machines';
+import { machineState } from '@lody/cloud-runtime/models/machines';
 import { useSessionControl } from '@/features/sessions/useSessionControl';
 import { useSessionSend } from '@/features/sessions/useSessionSend';
 import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
@@ -51,8 +51,12 @@ import {
 import { useSessionViewed } from '@/features/sessions/useSessionViewed';
 import { sessionDebugText } from '@/features/sessions/sessionDebug';
 import { useAuth } from '@/cloud/auth/AuthProvider';
-import type { Session } from '@/models/catalog';
-import type { Capability, CreationOptions } from '@/models/send';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
+import type {
+  Capability,
+  CreationOptions,
+  ModelChoice,
+} from '@lody/cloud-runtime/models/send';
 import { effortsFor } from '@/cloud/send/capability';
 
 import { useSessionRuntime } from '@/features/sessions/useSessionRuntime';
@@ -82,7 +86,6 @@ import {
 } from '@/features/sessions/permissionTarget';
 import { useOpenFile } from '@/hooks/screens/useOpenFile';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
-import type { ModelChoice } from '@/models/send';
 import { t } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { useOpenPullRequest } from '@/hooks/screens/useOpenPullRequest';

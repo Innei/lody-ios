@@ -10,7 +10,7 @@ import {
 import { useOutboxDispatcher } from '@/cloud/send/outboxDispatcher';
 import { pendingSendStatus } from '@/features/sessions/useSessionSend';
 import type { PendingSend } from '@/models/send';
-import type { Session } from '@/models/catalog';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
 import { ComposerSheet } from '@/ui/ComposerSheet';
 import { Button } from '@/ui/Button';
 import { usePalette } from '@/lib/theme/palette';

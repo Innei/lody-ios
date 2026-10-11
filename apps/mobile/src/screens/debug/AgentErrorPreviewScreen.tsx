@@ -4,7 +4,7 @@ import { useAgentErrorRetry } from '@/features/sessions/useAgentErrorRetry';
 import { NativeChat } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { openAgentError } from '@/hooks/screens/openAgentError';
-import type { EntrySummary } from '@/models/session';
+import type { EntrySummary } from '@lody/cloud-runtime/models/session';
 
 const entriesJSON = JSON.stringify([
   {

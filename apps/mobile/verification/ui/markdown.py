@@ -102,8 +102,17 @@ ui.capture('table-bleed')
 ui.axe('drag', '--start-x', str(rest['x'] + rest['width'] - 48), '--start-y', str(rest['y'] + 60), '--end-x', str(rest['x'] + 48), '--end-y', str(rest['y'] + 60), '--duration', '.35', '--post-delay', '.5')
 plain_scroll = widest_table(table_bleed_rows())
 assert plain_scroll['offsetX'] > 20, ('Unselected table did not scroll', plain_scroll)
-ui.axe('drag', '--start-x', str(rest['x'] + 48), '--start-y', str(rest['y'] + 60), '--end-x', str(rest['x'] + rest['width'] - 48), '--end-y', str(rest['y'] + 60), '--duration', '.35', '--post-delay', '.5')
+save_probe('table-before-return')
+# Opposite drags need not cancel UIKit's velocity and deceleration.
+for attempt in range(3):
+    current = widest_table(table_bleed_rows())
+    if current['offsetX'] <= 1:
+        break
+    ui.axe('drag', '--start-x', str(current['x'] + 48), '--start-y', str(current['y'] + 60), '--end-x', str(current['x'] + current['width'] - 48), '--end-y', str(current['y'] + 60), '--duration', '.35', '--post-delay', '.5')
+    save_probe(f'table-return-{attempt + 1}')
 ui.wait(lambda _: abs(widest_table(table_bleed_rows())['offsetX']) <= 1, 'Table did not return to its start')
+save_probe('table-returned')
+ui.capture('table-returned')
 assert '<ruby>日本語<rt>にほんご</rt></ruby>' in ui.element('preview:answer')['AXLabel']
 ui.capture('ruby-annotations')
 cell_word = long_press_copy(rest['x'] + rest['contentLeft'] + 24, rest['y'] + 16)

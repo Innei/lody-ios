@@ -22,7 +22,11 @@ const output = path.join(root, 'src/features/licenses/licenses.generated.ts');
 const check = process.argv.includes('--check');
 
 /** Workspace packages whose production dependencies make up the app. */
-const workspacePackages = ['apps/mobile', 'packages/dom-webview'];
+const workspacePackages = [
+  'apps/mobile',
+  'packages/dom-webview',
+  'packages/cloud-runtime',
+];
 
 /**
  * Build-only dependencies. These run while bundling or compiling the app and
@@ -134,6 +138,18 @@ const nativeComponents = [
     license: 'MIT',
     url: 'https://github.com/Lakr233/MarkdownView',
     file: 'modules/lody-kit/licenses/MarkdownView-LICENSE.txt',
+  },
+  {
+    name: 'Beautiful Mermaid Swift',
+    license: 'MIT',
+    url: 'https://github.com/lukilabs/beautiful-mermaid-swift',
+    file: 'modules/lody-kit/licenses/BeautifulMermaid-LICENSE.txt',
+  },
+  {
+    name: 'ElkSwift',
+    license: 'EPL-2.0',
+    url: 'https://github.com/lukilabs/elk-swift',
+    file: 'modules/lody-kit/licenses/ElkSwift-LICENSE.txt',
   },
   {
     name: 'Lexical iOS',

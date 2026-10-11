@@ -2,7 +2,7 @@ import { StreamsClient } from '@loro-dev/streams-client';
 import { fromByteArray } from 'base64-js';
 import { decodeFlock } from '@lody-ios/kit';
 import { getStreamsGrant, record } from '../auth/api.ts';
-import type { Catalog } from '../../models/catalog.ts';
+import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import { t } from '../../lib/i18n/index.ts';
 
 async function readCatalog(

@@ -73,8 +73,8 @@ export function localProjectIdOf(projectId: string): string | undefined {
   return index > 0 ? projectId.slice(index + ':local:'.length) : undefined;
 }
 
-export type { WorkspaceChanges } from '../../data-runtime/files';
+export type { WorkspaceChanges } from '@lody/cloud-runtime/files';
 export const workspaceChanges = async (args: {
   sessionId: string;
-}): Promise<import('../../data-runtime/files').WorkspaceChanges> =>
+}): Promise<import('@lody/cloud-runtime/files').WorkspaceChanges> =>
   JSON.parse(await workspaceChangesRaw(JSON.stringify(args)));

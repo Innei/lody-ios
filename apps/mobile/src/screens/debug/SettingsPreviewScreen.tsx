@@ -8,8 +8,8 @@ import {
   settingsTitle,
   type SettingsService,
 } from '../RemoteSettingsScreen';
-import type { RemoteSetting } from '@/models/settings';
-import type { Catalog } from '@/models/catalog';
+import type { RemoteSetting } from '@lody/cloud-runtime/models/settings';
+import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import { projectRows } from '@/cloud/catalog/model';
 import { t } from '../../lib/i18n/index.ts';
 

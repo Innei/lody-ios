@@ -4,6 +4,11 @@ const path = require('path');
 
 const PACKAGES = [
   {
+    name: 'LodyCore',
+    path: '../../../packages/lody-core',
+    products: ['LodyCore', 'LodyRuntime'],
+  },
+  {
     name: 'ChatKit',
     path: '../../../packages/chat-kit',
   },
@@ -15,6 +20,12 @@ const PACKAGES = [
     name: 'MarkdownView',
     url: 'https://github.com/Lakr233/MarkdownView.git',
     version: '4.6.5',
+  },
+  {
+    name: 'BeautifulMermaidSwift',
+    url: 'https://github.com/lukilabs/beautiful-mermaid-swift.git',
+    version: '1.0.4',
+    products: ['BeautifulMermaid'],
   },
   {
     name: 'swift-collections',

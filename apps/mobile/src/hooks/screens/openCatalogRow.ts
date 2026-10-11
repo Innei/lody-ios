@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import type { Catalog } from '@/models/catalog';
+import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import { requestOpenSession } from '@/features/sessions/sessionNav';
 
 export function openCatalogRow(

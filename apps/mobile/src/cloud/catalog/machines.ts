@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import {
   unknownPresence,
   type MachinePresence,
-} from '../../models/machines.ts';
+} from '@lody/cloud-runtime/models/machines';
 
 let current = { workspaceId: '', presence: unknownPresence };
 const listeners = new Set<() => void>();

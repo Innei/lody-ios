@@ -7,7 +7,7 @@ import {
   releaseReserve,
 } from '@lody-ios/kit';
 import type { PendingSession, usePendingSends } from './pendingSends';
-import type { Session } from '../../models/catalog';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
 import { sessionState } from '../../features/sessions/status';
 import { t } from '../../lib/i18n/index.ts';
 import { outboxInflight } from './outboxInflight';

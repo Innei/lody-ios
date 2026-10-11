@@ -6,7 +6,7 @@ import { runtimeInfo, readLocalValue, writeLocalValue } from '@lody-ios/kit';
 import { publishMachinePresence } from '@/cloud/catalog/machines';
 import { AuthContext } from '@/cloud/auth/AuthProvider';
 import { CatalogContext } from '@/cloud/catalog/CatalogProvider';
-import type { Catalog } from '@/models/catalog';
+import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import { uiVerify } from './uiVerify';
 
 export const homeVerify = uiVerify && runtimeInfo.uiVerifyHome;

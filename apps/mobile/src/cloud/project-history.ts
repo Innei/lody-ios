@@ -3,7 +3,7 @@ import type {
   HistoryRequest,
   HistoryResult,
   HistoryTarget,
-} from '../models/project-history.ts';
+} from '@lody/cloud-runtime/models/project-history';
 import { t } from '../lib/i18n/index.ts';
 
 export async function requestProjectHistory(

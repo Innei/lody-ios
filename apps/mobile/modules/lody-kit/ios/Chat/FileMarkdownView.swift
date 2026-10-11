@@ -12,8 +12,10 @@ final class FileMarkdownView: MarkdownTextView {
   private static let htmlMarker = "\u{F0000}lody-html:"
   static let searchExcluded = NSAttributedString.Key("lody-search-excluded")
 
-  static func content(_ source: MarkdownContent) -> MarkdownContent {
-    let blocks = MarkdownRuby.blocks(source.blocks).rewrite { (node: MarkdownInlineNode) -> [MarkdownInlineNode] in
+  static func content(_ source: MarkdownContent, streaming: Bool = false) -> MarkdownContent {
+    let ruby = MarkdownRuby.blocks(source.blocks)
+    let rendered = streaming ? ruby : MarkdownMermaid.blocks(ruby)
+    let blocks = rendered.rewrite { (node: MarkdownInlineNode) -> [MarkdownInlineNode] in
       if case let .image(source, _) = node { return [.text(imageMarker + source)] }
       if case let .html(source) = node { return [.text(htmlMarker + source)] }
       guard case let .link(destination, children) = node,
@@ -24,9 +26,16 @@ final class FileMarkdownView: MarkdownTextView {
   }
 
   override func layoutSubviews() {
+    MarkdownMermaid.resize(textLabelView, width: bounds.width)
     super.layoutSubviews()
     ChatTableViewport.apply(to: self)
     ChatContextViewProbe.record(self)
+    MarkdownMermaid.record(self)
+  }
+
+  override func boundingSize(for width: CGFloat) -> CGSize {
+    MarkdownMermaid.resize(textLabelView, width: width)
+    return super.boundingSize(for: width)
   }
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
@@ -39,6 +48,9 @@ final class FileMarkdownView: MarkdownTextView {
   }
 
   override func decorate(inlineText text: NSAttributedString, theme: MarkdownTheme) -> NSAttributedString {
+    if let diagram = MarkdownMermaid.attachment(text.string, label: textLabelView, traits: traitCollection) {
+      return diagram.attributedString(attributes: [.font: theme.fonts.body])
+    }
     if let ruby = MarkdownRuby.decode(text.string) {
       // The marker starts with a private-use glyph, whose cached fallback is LastResort.
       var attributes: [NSAttributedString.Key: Any] = [.font: theme.fonts.body, .foregroundColor: theme.colors.body]
@@ -92,7 +104,7 @@ final class FileMarkdownView: MarkdownTextView {
     }
     // Read the parsed content, including tables and the latest streamed links,
     // rather than the label's previous frame while throttled rendering catches up.
-    return inlineNodes(content.blocks).collect { node -> [UIAccessibilityCustomAction] in
+    return MarkdownMermaid.actions(content.blocks) + inlineNodes(content.blocks).collect { node -> [UIAccessibilityCustomAction] in
       guard case let .link(href, children) = node, let target = ChatFileLink(href) else { return [] }
       let label = children.collect { child -> [String] in
         switch child {

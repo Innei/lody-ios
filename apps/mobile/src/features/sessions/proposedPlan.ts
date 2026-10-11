@@ -1,5 +1,5 @@
-import type { EntrySummary } from '../../models/session.ts';
-import type { Capability, ModelChoice } from '../../models/send.ts';
+import type { EntrySummary } from '@lody/cloud-runtime/models/session';
+import type { Capability, ModelChoice } from '@lody/cloud-runtime/models/send';
 
 export type ProposedPlan = { entryId: string; itemId: string; turnId: string };
 export function latestProposedPlan(

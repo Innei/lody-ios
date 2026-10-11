@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
-import type { Connection } from '../../models/catalog.ts';
+import type { Connection } from '@lody/cloud-runtime/models/catalog';
 
-export type { Connection } from '../../models/catalog.ts';
+export type { Connection } from '@lody/cloud-runtime/models/catalog';
 
 const listeners = new Set<() => void>();
 let connection: Connection = { state: 'syncing', machines: 0 };
