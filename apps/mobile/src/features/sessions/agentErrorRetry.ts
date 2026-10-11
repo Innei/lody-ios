@@ -1,4 +1,4 @@
-import type { EntrySummary } from '../../models/session.ts';
+import type { EntrySummary } from '@lody/cloud-runtime/models/session';
 
 const recoverable = new Set([
   'acp_provider_overloaded',

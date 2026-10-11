@@ -1,16 +1,16 @@
 import { mentionCatalog, sessionMentions, commandMentions } from './mentions';
 import { createSharingRuntime } from './sharing/runtime.ts';
 import { readShareHistory } from './sharing/history.ts';
-import type { ShareRequest } from '../../../src/models/session-sharing.ts';
+import type { ShareRequest } from '../models/session-sharing.ts';
 import { expandMentions } from './mention-expansion';
 import { workspaceRoleMentions } from './agent-roles';
 import type {
   MentionCatalog,
   MentionSource,
   MentionCategory,
-} from '../../../src/models/mentions';
+} from '../models/mentions';
 import { projectHistory } from './project-history';
-import type { HistoryRequest } from '../../../src/models/project-history.ts';
+import type { HistoryRequest } from '../models/project-history.ts';
 import {
   projectControl,
   directoryResult,
@@ -37,7 +37,7 @@ import {
 } from './preview';
 import { machineRpc } from './machine-rpc';
 import { remoteSettings } from './settings';
-import type { SettingsRequest } from '../../../src/models/settings.ts';
+import type { SettingsRequest } from '../models/settings.ts';
 import {
   fileDiff,
   workspaceChanges,
@@ -49,9 +49,9 @@ import {
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import { StreamsClient } from '@loro-dev/streams-client';
 import { decompress } from 'fzstd';
-import type { Catalog, Project } from '../../../src/models/catalog.ts';
-import { projectRows } from '../../../src/cloud/catalog/model.ts';
-import { mergeAgentQuotas } from '../../../src/cloud/catalog/agent-usage.ts';
+import type { Catalog, Project } from '../models/catalog.ts';
+import { projectRows } from '../protocol/catalog.ts';
+import { mergeAgentQuotas } from '../protocol/agent-usage.ts';
 import {
   openSession,
   closeSession,
@@ -66,15 +66,12 @@ import {
   checkTurnQuota,
   editSession,
 } from './session';
-import { decodeFrames, encodeFrame } from '../decoder/frames';
+import { decodeFrames, encodeFrame } from '../frames';
 import {
   watchMachinePresence,
   availableCreationOptions,
 } from './machine-presence';
-import {
-  unknownPresence,
-  type MachinePresence,
-} from '../../../src/models/machines.ts';
+import { unknownPresence, type MachinePresence } from '../models/machines.ts';
 
 type Grant = {
   token: string;

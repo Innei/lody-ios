@@ -43,7 +43,7 @@ import {
 } from '@/lib/presentation/SheetStack';
 import { usePalette } from '@/lib/theme/palette';
 import { panelScrollEdgeEffects } from '@lody-ios/kit';
-import type { Catalog } from '@/models/catalog';
+import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import { t } from '@/lib/i18n';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';

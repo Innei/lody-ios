@@ -1,5 +1,5 @@
 import type { NativeListRow, NativeListSection } from '@lody-ios/kit';
-import type { EntrySummary } from '../../models/session.ts';
+import type { EntrySummary } from '@lody/cloud-runtime/models/session';
 import { readTurnMetadata } from '../../cloud/turnMetadata.ts';
 import { t, type TranslationKey } from '../../lib/i18n/index.ts';
 

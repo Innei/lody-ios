@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { retrySessionRead } from '../../modules/lody-kit/data-runtime/session-read.ts';
+import { retrySessionRead } from '../../../../packages/cloud-runtime/src/runtime/session-read.ts';
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 

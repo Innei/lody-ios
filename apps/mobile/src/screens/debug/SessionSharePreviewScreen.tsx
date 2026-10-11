@@ -3,7 +3,10 @@ import { NativeGroupedList } from '@lody-ios/kit';
 import { definePage, present } from '@/lib/presentation';
 import { SessionShareScreen } from '../SessionShareScreen';
 import type { ShareSource } from '@/cloud/session-sharing';
-import type { ShareState, ShareProgress } from '@/models/session-sharing';
+import type {
+  ShareState,
+  ShareProgress,
+} from '@lody/cloud-runtime/models/session-sharing';
 
 function fixture(): ShareSource {
   let failed = false;

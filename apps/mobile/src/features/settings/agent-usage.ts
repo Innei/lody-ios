@@ -1,6 +1,6 @@
 import type { NativeListRow } from '@lody-ios/kit';
-import type { AgentUsage } from '../../models/agent-usage.ts';
-import type { RemoteSetting } from '../../models/settings.ts';
+import type { AgentUsage } from '@lody/cloud-runtime/models/agent-usage';
+import type { RemoteSetting } from '@lody/cloud-runtime/models/settings';
 import { t, tp, currentLocale } from '../../lib/i18n/index.ts';
 
 export function agentUsageRows(

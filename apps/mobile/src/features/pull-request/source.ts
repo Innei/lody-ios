@@ -1,4 +1,4 @@
-import type { PullRequestPreviewData } from '../../models/pull-request.ts';
+import type { PullRequestPreviewData } from '@lody/cloud-runtime/models/pull-request';
 
 export type PullRequestState = {
   data?: PullRequestPreviewData;

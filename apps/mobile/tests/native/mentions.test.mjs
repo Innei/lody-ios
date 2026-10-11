@@ -7,8 +7,10 @@ const bundle = await build({
   stdin: {
     contents:
       "export * from './mentions'; export * from './mention-expansion'; export * from './agent-roles';",
-    resolveDir: new URL('../../modules/lody-kit/data-runtime/', import.meta.url)
-      .pathname,
+    resolveDir: new URL(
+      '../../../../packages/cloud-runtime/src/runtime/',
+      import.meta.url,
+    ).pathname,
     loader: 'ts',
   },
   bundle: true,

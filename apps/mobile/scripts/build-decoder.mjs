@@ -1,3 +1,4 @@
+import { buildDataRuntime } from '../../../packages/cloud-runtime/scripts/build.mjs';
 import { build } from 'esbuild';
 import {
   mkdir,
@@ -55,42 +56,7 @@ const license = await readFile(
 await writeFile(output + '/Flock-LICENSE.txt', license);
 console.log('Built isolated Flock decoder');
 
-const runtime = await build({
-  plugins: [
-    {
-      name: 'bundled-loro-wasm',
-      setup(build) {
-        build.onResolve({ filter: /^loro-crdt$/ }, () =>
-          build.resolve('loro-crdt/base64', {
-            resolveDir: root,
-            kind: 'import-statement',
-          }),
-        );
-      },
-    },
-  ],
-  entryPoints: [root + 'modules/lody-kit/data-runtime/index.ts'],
-  bundle: true,
-  format: 'esm',
-  platform: 'browser',
-  target: 'safari17',
-  write: false,
-});
-await writeFile(
-  output + '/DataRuntime.html',
-  '<!doctype html><title>Lody Data Runtime</title><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; connect-src https:; script-src \'unsafe-inline\' \'wasm-unsafe-eval\'"><script type="module">' +
-    runtime.outputFiles[0].text.replaceAll('</script', '<\\/script') +
-    '</script>',
-);
-
-await writeFile(
-  output + '/Loro-LICENSE.txt',
-  await readFile(root + '../../node_modules/loro-crdt/LICENSE'),
-);
-await copyFile(
-  root + '../../node_modules/@loro-dev/streams-crdt/LICENSE',
-  output + '/StreamsCrdt-LICENSE.txt',
-);
+await buildDataRuntime(output);
 for (const name of [
   'MarkdownView',
   'Litext',

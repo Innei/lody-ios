@@ -11,7 +11,7 @@ declare global {
   var __lodyUiVerifyQuestion:
     | {
         remoteAnswer: () => void;
-        answers?: import('../models/session.ts').QuestionAnswers;
+        answers?: import('@lody/cloud-runtime/models/session').QuestionAnswers;
         attempts: number;
       }
     | undefined;

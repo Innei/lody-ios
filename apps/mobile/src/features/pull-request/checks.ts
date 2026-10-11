@@ -1,5 +1,7 @@
-import type { PullRequestCheck } from '@/models/pull-request';
-import type { PullRequestPreviewData } from '@/models/pull-request';
+import type {
+  PullRequestCheck,
+  PullRequestPreviewData,
+} from '@lody/cloud-runtime/models/pull-request';
 
 export function checkState(check: PullRequestCheck) {
   if (check.status !== 'completed') return check.status;

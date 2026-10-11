@@ -4,8 +4,8 @@ import {
   availableCreationOptions,
   onlineMachines,
   presenceURL,
-} from '../../modules/lody-kit/data-runtime/machine-presence.ts';
-import { machineState } from '../../src/models/machines.ts';
+} from '../../../../packages/cloud-runtime/src/runtime/machine-presence.ts';
+import { machineState } from '@lody/cloud-runtime/models/machines';
 
 test('only fresh machine heartbeats establish liveness; multiple instances do not double-count a computer', () => {
   const now = 100_000;

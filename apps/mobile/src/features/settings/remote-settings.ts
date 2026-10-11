@@ -1,6 +1,9 @@
 import type { NativeListSection } from '@lody-ios/kit';
-import type { Catalog } from '../../models/catalog.ts';
-import type { RemoteSetting, SettingsRequest } from '../../models/settings.ts';
+import type { Catalog } from '@lody/cloud-runtime/models/catalog';
+import type {
+  RemoteSetting,
+  SettingsRequest,
+} from '@lody/cloud-runtime/models/settings';
 import { relativeTime } from '../../ui/time.ts';
 import { t } from '../../lib/i18n/index.ts';
 import { agentUsageRows } from './agent-usage.ts';

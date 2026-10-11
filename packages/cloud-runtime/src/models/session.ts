@@ -1,4 +1,4 @@
-import { type TurnMetadata } from '../cloud/turnMetadata';
+import { type TurnMetadata } from '../protocol/turnMetadata.ts';
 export type SystemNoticeMeta = {
   reason?: string;
   code?: string;

@@ -4,7 +4,7 @@ import { NativeInlineDiff } from '@lody-ios/kit';
 import { usePalette } from '@/lib/theme/palette';
 import { AppText } from '@/ui/AppText';
 import { t } from '../lib/i18n/index.ts';
-import type { DetailBlock } from '../models/session.ts';
+import type { DetailBlock } from '@lody/cloud-runtime/models/session';
 
 function Mono({ children, color }: { children: string; color?: unknown }) {
   return (

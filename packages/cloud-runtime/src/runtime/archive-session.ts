@@ -1,11 +1,11 @@
 import { Flock, type Value } from '@loro-dev/flock-wasm/base64';
-import { projectRows } from '../../../src/cloud/catalog/model.ts';
+import { projectRows } from '../protocol/catalog.ts';
 import {
   sessionDeletionTargets,
   sessionDeletionBlocked,
-} from '../../../src/models/sessionDeletion.ts';
+} from '../models/sessionDeletion.ts';
 import type { StreamsClient } from '@loro-dev/streams-client';
-import { encodeFrame } from '../decoder/frames';
+import { encodeFrame } from '../frames';
 import { clientFor } from './session';
 
 type Grant = () => Promise<{ token: string; gatewayBaseUrl: string }>;

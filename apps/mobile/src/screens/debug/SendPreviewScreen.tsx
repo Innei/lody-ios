@@ -10,7 +10,7 @@ import { definePage, present } from '@/lib/presentation';
 import { usePendingSends } from '@/cloud/send/pendingSends';
 import { useSessionSend } from '@/features/sessions/useSessionSend';
 import { useSessionControl } from '@/features/sessions/useSessionControl';
-import type { Session } from '@/models/catalog';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
 import type { Snapshot } from '@/features/sessions/useSessionRuntime';
 import { Button } from '@/ui/Button';
 import { ComposerSheet } from '@/ui/ComposerSheet';

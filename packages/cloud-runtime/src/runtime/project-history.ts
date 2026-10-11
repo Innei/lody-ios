@@ -4,7 +4,7 @@ import type {
   HistoryRequest,
   HistoryResult,
   HistoryTarget,
-} from '../../../src/models/project-history.ts';
+} from '../models/project-history.ts';
 
 const object = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value)

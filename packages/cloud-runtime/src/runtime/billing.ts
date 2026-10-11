@@ -1,12 +1,12 @@
 import {
   FREE_SESSION_LIMIT_PER_WORKSPACE,
   FREE_SESSION_TURN_LIMIT,
-} from '../../../src/models/billing';
+} from '../models/billing';
 
 export {
   FREE_SESSION_LIMIT_PER_WORKSPACE,
   FREE_SESSION_TURN_LIMIT,
-} from '../../../src/models/billing';
+} from '../models/billing';
 
 export type BillingEntitlement = {
   effectivePlanTier?: string;

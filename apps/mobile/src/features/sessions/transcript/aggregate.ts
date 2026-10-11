@@ -1,4 +1,4 @@
-import type { ItemSummary } from '../../../models/session.ts';
+import type { ItemSummary } from '@lody/cloud-runtime/models/session';
 import { t } from '../../../lib/i18n/index.ts';
 
 export type PlanEntry = { content: string; status: string; priority?: string };

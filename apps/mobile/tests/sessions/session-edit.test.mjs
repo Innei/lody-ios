@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   editableUserTurn,
   replacementInput,
-} from '../../modules/lody-kit/data-runtime/edit-session.ts';
+} from '../../../../packages/cloud-runtime/src/runtime/edit-session.ts';
 import { openTestSession } from '../helpers.mjs';
 
 const meta = { machineId: 'm1', cliType: 'builtin', agentType: 'codex' };

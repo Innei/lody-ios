@@ -28,7 +28,7 @@ checks = {
     'lexical-swift': [],
     'scroll-edges': ['Chrome/LodyScrollEdges.swift', 'LodyTint.swift', 'Chrome/LodyEdgeFade.swift'],
     'glass-transition': [],
-    'github-mentions': ['Cloud/GitHubMentions.swift', 'CreateSession/CreateSessionModels.swift'],
+    'github-mentions': ['Cloud/GitHubMentions.swift'],
     'github-pr': ['Cloud/GitHubPullRequests.swift'],
     'session-sharing': ['Cloud/SessionSharing.swift'],
     'notifications': ['Notifications/PushPermissionLaunchRequest.swift', 'Notifications/PushClickBuffer.swift'],
@@ -36,7 +36,7 @@ checks = {
     'strings': ['LodyStrings.swift'],
     'chat': ['LodyStrings.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatMessageShare.swift', 'Chat/ChatStream.swift', 'Chat/ChatHaptics.swift', 'Chat/ChatImagePreviewGeometry.swift', 'Chat/ChatImageGallery.swift'],
     'markdown-repair': ['Chat/ChatMarkdownRepair.swift'],
-    'watchdog': ['Cloud/RuntimeHealth.swift'],
+    'watchdog': [],
     'local-store': ['Cloud/LocalStore.swift', 'Cloud/SessionProse.swift', 'Text/MarkdownPlainText.swift', 'Text/MarkdownRuby.swift', 'Text/TextSearch.swift', 'LodyStrings.swift'],
     'content-store': ['Cloud/ContentStore.swift'],
     'chat-render': ['LodyStrings.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatThrowCurve.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatCell.swift', 'Chat/ChatUserMentions.swift'],
@@ -63,9 +63,9 @@ checks = {
     'chat-title': ['LodyStrings.swift', 'LodyUIVerify.swift', 'Chrome/LodyNavigationHeader.swift', 'Chat/ChatNavigationTitle.swift'],
     'live-activity': ['../live-activity/LodyActivityAttributes.swift', '../live-activity/LiveActivityCatalog.swift'],
     'page-progress': ['List/LodyPageProgress.swift'],
-    'create-session': ['LodyStrings.swift', 'CreateSession/CreateSessionModels.swift', 'CreateSession/CreateSessionLogic.swift', 'CreateSession/CreateSessionForm.swift'],
-    'share-ingest': ['LodyStrings.swift', 'Chat/ChatAttachments.swift', 'CreateSession/CreateSessionModels.swift', 'CreateSession/CreateSessionLogic.swift', 'CreateSession/CreateSessionForm.swift', 'CreateSession/ShareStore.swift', '../share-extension/ShareIngest.swift'],
-    'share': ['LodyStrings.swift', 'CreateSession/CreateSessionModels.swift', 'CreateSession/CreateSessionLogic.swift', 'CreateSession/CreateSessionForm.swift', 'CreateSession/ShareStore.swift'],
+    'create-session': ['LodyStrings.swift', 'CreateSession/CreateSessionForm.swift'],
+    'share-ingest': ['LodyStrings.swift', 'Chat/ChatAttachments.swift', 'CreateSession/CreateSessionForm.swift', 'CreateSession/ShareStore.swift', '../share-extension/ShareIngest.swift'],
+    'share': ['LodyStrings.swift', 'CreateSession/CreateSessionForm.swift', 'CreateSession/ShareStore.swift'],
 }
 if args.case:
     if args.case not in checks:
@@ -78,9 +78,6 @@ for files in checks.values():
         files.append('Chat/ChatPendingSend.swift')
     if 'Chat/ChatSendHandoff.swift' in files or 'Chat/ChatMentionPanel.swift' in files:
         files.insert(0, 'LodyUIVerify.swift')
-    # The branch fixture returns CreateBranches, so every isolated compile of the fixture needs that model.
-    if 'LodyUIVerify.swift' in files and 'CreateSession/CreateSessionModels.swift' not in files:
-        files.append('CreateSession/CreateSessionModels.swift')
 if 'markdown-repair' in checks:
     subprocess.run(['node', str(root / 'apps/mobile/scripts/build-decoder.mjs')], cwd=root, check=True, timeout=120)
 with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
@@ -175,6 +172,18 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             command += ['-framework', 'SwiftUI']
         main = kit / 'verification' / name / 'main.swift'
         package_sources = [kit / 'ios' / file for file in files] + [main]
+        if any('import LodyCore' in source.read_text() for source in package_sources):
+            directory = Path(output) / ('lody-core-ios' if simulator else 'lody-core-host')
+            if not directory.exists():
+                directory.mkdir()
+                sources = sorted((root / 'packages/lody-core/Sources/LodyCore').glob('*.swift'))
+                compile_core = ['xcrun', 'swiftc', '-swift-version', '6']
+                if simulator:
+                    compile_core += ['-sdk', sdk, '-target', f'{arch}-apple-ios26.0-simulator']
+                subprocess.run(compile_core + ['-emit-module', '-emit-library', '-static', '-module-name', 'LodyCore',
+                    '-emit-module-path', str(directory / 'LodyCore.swiftmodule'), *map(str, sources),
+                    '-o', str(directory / 'libLodyCore.a')], check=True, timeout=120)
+            command += ['-I', str(directory), '-L', str(directory), '-lLodyCore']
         if any('import ChatKit' in source.read_text() for source in package_sources):
             modules = chat_modules(simulator)
             command += ['-I', str(modules), '-L', str(modules), '-lChatKitCore']

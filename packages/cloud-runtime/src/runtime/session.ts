@@ -1,7 +1,7 @@
 import { LoroDoc, LoroMap, LoroList, LoroText } from 'loro-crdt/base64';
 import { StreamsClient } from '@loro-dev/streams-client';
 import { decompress } from 'fzstd';
-import { decodeFrames, encodeFrame } from '../decoder/frames';
+import { decodeFrames, encodeFrame } from '../frames';
 import { identityAt, itemRev, projectSession } from './project';
 import type { SteerReceipt } from './execution';
 import { machineRpc, type RpcReply } from './machine-rpc';
@@ -20,7 +20,7 @@ import {
   parseQuestionMeta,
   questionOutcome,
   samePermissionOutcome,
-} from '../../../src/cloud/permissionQuestions.ts';
+} from '../protocol/permissionQuestions.ts';
 export { projectSession } from './project';
 
 type Grant = { token: string; gatewayBaseUrl: string };
@@ -1309,7 +1309,7 @@ export async function respondPermission(args: {
   itemId: string;
   requestId: string;
   optionId: string;
-  answers?: import('../../../src/models/session.ts').QuestionAnswers;
+  answers?: import('../models/session.ts').QuestionAnswers;
 }) {
   const state = active;
   if (!state || state.id !== args.sessionId || !state.ready)

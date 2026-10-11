@@ -4,7 +4,7 @@ import {
   unwatchCatalog,
   type DataRuntimeEvent,
 } from '@lody-ios/kit';
-import type { Catalog } from '../../models/catalog.ts';
+import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 let nextOwner = 0;
 export function subscribeCatalog(
   workspace: string,

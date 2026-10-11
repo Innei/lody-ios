@@ -3,7 +3,7 @@ import type {
   ShareRequest,
   ShareState,
   ShareProgress,
-} from '../models/session-sharing.ts';
+} from '@lody/cloud-runtime/models/session-sharing';
 
 export type ShareSource = {
   request: (request: ShareRequest) => Promise<ShareState | null>;

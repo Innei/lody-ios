@@ -1,6 +1,6 @@
 import { present } from '@/lib/presentation';
 import { AgentErrorScreen } from '@/screens/AgentErrorScreen';
-import type { ItemSummary } from '@/models/session';
+import type { ItemSummary } from '@lody/cloud-runtime/models/session';
 
 /** Error details are already in the local projection, including while offline. */
 export function openAgentError(item: ItemSummary | undefined): boolean {

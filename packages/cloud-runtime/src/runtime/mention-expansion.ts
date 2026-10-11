@@ -2,7 +2,7 @@ import type {
   MentionCatalog,
   MentionCategory,
   MentionItem,
-} from '../../../src/models/mentions';
+} from '../models/mentions';
 
 // Explicit session/Role IDs survive native text-only draft restoration and
 // renames. Quoted file references own their text, including any dollar signs.

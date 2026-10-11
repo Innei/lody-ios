@@ -1,5 +1,5 @@
 import { iosSimulatorControl, type IosSimulatorReply } from '@lody-ios/kit';
-import type { Session } from '@/models/catalog';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
 
 type Row = { title: string; subtitle?: string };
 

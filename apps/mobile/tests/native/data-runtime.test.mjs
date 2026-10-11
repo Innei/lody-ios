@@ -67,7 +67,7 @@ test('persistent runtime applies live increments to the existing replica and adv
     },
   };
   const bundle = await build({
-    entryPoints: ['apps/mobile/modules/lody-kit/data-runtime/index.ts'],
+    entryPoints: ['packages/cloud-runtime/src/runtime/index.ts'],
     bundle: true,
     format: 'esm',
     platform: 'browser',

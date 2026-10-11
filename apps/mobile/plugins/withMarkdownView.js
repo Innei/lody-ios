@@ -4,6 +4,11 @@ const path = require('path');
 
 const PACKAGES = [
   {
+    name: 'LodyCore',
+    path: '../../../packages/lody-core',
+    products: ['LodyCore', 'LodyRuntime'],
+  },
+  {
     name: 'ChatKit',
     path: '../../../packages/chat-kit',
   },

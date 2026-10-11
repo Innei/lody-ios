@@ -6,9 +6,11 @@ import { usePalette } from '@/lib/theme/palette';
 import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
 import { Screen } from '@/ui/Screen';
-import type { Envelope } from '@/models/session';
+import type {
+  DetailResponse,
+  Envelope,
+} from '@lody/cloud-runtime/models/session';
 import { Blocks, RawBlock } from '@/ui/DetailBlocks';
-import type { DetailResponse } from '../models/session.ts';
 import { fetchDetail } from '@/features/sessions/itemDetail';
 import { t } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';

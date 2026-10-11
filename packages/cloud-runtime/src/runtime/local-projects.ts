@@ -1,8 +1,8 @@
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import { clientFor } from './session';
 import { machineRpc } from './machine-rpc';
-import { encodeFrame } from '../decoder/frames';
-import type { Project } from '../../../src/models/catalog.ts';
+import { encodeFrame } from '../frames';
+import type { Project } from '../models/catalog.ts';
 
 type Grant = () => Promise<{ token: string; gatewayBaseUrl: string }>;
 export type Directory = {

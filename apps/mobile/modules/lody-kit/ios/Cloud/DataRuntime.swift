@@ -1,3 +1,5 @@
+import LodyRuntime
+import LodyCore
 import ExpoModulesCore
 import WebKit
 import UIKit
@@ -108,14 +110,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   private func build(reason: String) {
     guard workspace != nil else { return }
     disposeView(); lastStartReason = reason; generation += 1; health.started(at: now); acknowledgements = 0
-    let config = WKWebViewConfiguration()
-    config.websiteDataStore = .nonPersistent()
-    config.userContentController.add(self, name: "dataRuntime")
-    let view = WKWebView(frame: .zero, configuration: config)
-    #if DEBUG
-    view.isInspectable = true
-    #endif
-    view.navigationDelegate = self
+    let view = RuntimeDocument.makeWebView(handler: self, delegate: self)
     // A signature drift silently drops the optional policy witness, and with it the navigation guard.
     assert(responds(to: #selector(webView(_:decidePolicyFor:decisionHandler:) as (WKWebView, WKNavigationAction, @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) -> Void)))
     webView = view
@@ -130,9 +125,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       return
     }
     do {
-      guard let url = Bundle(for: LodyKitModule.self).url(forResource: "DataRuntime", withExtension: "html") ?? Bundle.main.url(forResource: "DataRuntime", withExtension: "html") else { throw NSError(domain: "MissingDataRuntime", code: 1) }
-      // A bundled document with the official site's origin; no remote scripts are loaded.
-      view.loadHTMLString(try String(contentsOf: url, encoding: .utf8), baseURL: URL(string: "https://lody.ai"))
+      try RuntimeDocument.load(in: view, bundle: Bundle(for: LodyKitModule.self))
     } catch { disposeView(); publish("failed", reason: "missing_resource") }
   }
   private func disposeView() {
@@ -680,9 +673,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     view.callAsyncJavaScript("globalThis.dataRuntime.grant(value)", arguments: ["value": grant as Any? ?? NSNull()], in: nil, in: .page, completionHandler: nil)
   }
   func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
-    let url = navigationAction.request.url
-    let bundledLoad = navigationAction.navigationType == .other && (url?.absoluteString == "about:blank" || url?.absoluteString == "https://lody.ai/")
-    decisionHandler(bundledLoad ? .allow : .cancel)
+    decisionHandler(RuntimeDocument.allows(navigationAction) ? .allow : .cancel)
   }
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { if self.webView === webView { recover("process_terminated") } }
   func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { if self.webView === webView { recover("navigation_failed") } }

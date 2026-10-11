@@ -1,4 +1,4 @@
-import type { QuickReply } from '../../models/settings.ts';
+import type { QuickReply } from '@lody/cloud-runtime/models/settings';
 
 export function parseQuickReplies(json: string): QuickReply[] | null {
   try {

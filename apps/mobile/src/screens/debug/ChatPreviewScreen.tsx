@@ -11,7 +11,7 @@ import { definePage, present } from '@/lib/presentation';
 import { FileDiffScreen } from '@/screens/FileDiffScreen';
 import { ItemDetailScreen } from '@/screens/ItemDetailScreen';
 import { openSubagentTask } from '@/hooks/screens/openSubagentTask';
-import type { ItemSummary } from '@/models/session';
+import type { ItemSummary } from '@lody/cloud-runtime/models/session';
 import { basename } from '@/features/sessions/path';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
 import {

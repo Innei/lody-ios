@@ -65,7 +65,7 @@ import {
 } from '@lody-ios/kit';
 import { EnvironmentScreen } from '@/screens/debug/EnvironmentScreen';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
-import type { Session } from '@/models/catalog';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
 import { latestSession, probeSimulatorList } from './simulatorProbe';
 import {
   definePage,

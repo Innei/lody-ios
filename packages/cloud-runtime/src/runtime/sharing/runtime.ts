@@ -1,10 +1,10 @@
-import type { Session } from '../../../../src/models/catalog.ts';
+import type { Session } from '../../models/catalog.ts';
 import type {
   ShareEntry,
   ShareRequest,
   ShareState,
   ShareProgress,
-} from '../../../../src/models/session-sharing.ts';
+} from '../../models/session-sharing.ts';
 import {
   prepareSharePackage,
   type PreparedSharePackage,

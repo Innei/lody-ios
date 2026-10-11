@@ -1,4 +1,4 @@
-import { decodeFrames } from './frames';
+import { decodeFrames } from '../../../../../packages/cloud-runtime/src/frames.ts';
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import { decompress } from 'fzstd';
 import { projectRows } from '../../../src/cloud/catalog/model.ts';

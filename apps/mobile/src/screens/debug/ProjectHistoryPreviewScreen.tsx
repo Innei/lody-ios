@@ -5,7 +5,7 @@ import type {
   HistoryResult,
   HistoryService,
   HistoryTarget,
-} from '@/models/project-history';
+} from '@lody/cloud-runtime/models/project-history';
 import { t } from '../../lib/i18n/index.ts';
 
 const target: HistoryTarget = {

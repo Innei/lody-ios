@@ -6,7 +6,7 @@ import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
 import { t } from '@/lib/i18n';
 import { messageDetailSections } from '@/features/sessions/messageDetails';
 import type { createProcessSource } from './ProcessScreen';
-import type { EntrySummary } from '@/models/session';
+import type { EntrySummary } from '@lody/cloud-runtime/models/session';
 
 type Params = {
   entryId: string;

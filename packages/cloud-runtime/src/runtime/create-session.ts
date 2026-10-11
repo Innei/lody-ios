@@ -1,21 +1,15 @@
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import type { StreamsClient } from '@loro-dev/streams-client';
-import type { Session } from '../../../src/models/catalog.ts';
+import type { Session } from '../models/catalog.ts';
 import type {
   Capability,
   CapabilityChoice,
   ConfigOption,
   CreationOptions,
-} from '../../../src/models/send.ts';
-import {
-  githubProject,
-  projectRows,
-} from '../../../src/cloud/catalog/model.ts';
-import {
-  isThoughtLevel,
-  validConfigValue,
-} from '../../../src/cloud/send/capability';
-import { encodeFrame } from '../decoder/frames';
+} from '../models/send.ts';
+import { githubProject, projectRows } from '../protocol/catalog.ts';
+import { isThoughtLevel, validConfigValue } from '../protocol/capability';
+import { encodeFrame } from '../frames';
 import { clientFor } from './session';
 import {
   quotaReason,

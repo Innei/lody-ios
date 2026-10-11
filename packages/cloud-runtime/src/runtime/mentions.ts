@@ -4,7 +4,7 @@ import type {
   MentionCatalog,
   MentionCategory,
   MentionItem,
-} from '../../../src/models/mentions';
+} from '../models/mentions';
 
 // Public Lody local-project/list-skills scan roots. Keep this wire data local:
 // @lody/shared's root also imports Node-only modules that cannot run in the WebView.
@@ -284,8 +284,8 @@ export async function mentionCatalog(
 }
 
 export function sessionMentions(
-  sessions: import('../../../src/models/catalog').Session[],
-  projects: import('../../../src/models/catalog').Project[],
+  sessions: import('../models/catalog').Session[],
+  projects: import('../models/catalog').Project[],
   currentId?: string,
 ): MentionCatalog {
   const names = new Map(projects.map((project) => [project.id, project.name]));

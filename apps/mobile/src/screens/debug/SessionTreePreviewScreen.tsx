@@ -13,7 +13,7 @@ import {
   searchSections,
   matchCatalog,
 } from '@/features/sessions/inbox';
-import type { Catalog, Session } from '@/models/catalog';
+import type { Catalog, Session } from '@lody/cloud-runtime/models/catalog';
 
 const NOW = Date.parse('2026-09-19T12:00:00Z');
 const session = (

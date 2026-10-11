@@ -22,7 +22,11 @@ const output = path.join(root, 'src/features/licenses/licenses.generated.ts');
 const check = process.argv.includes('--check');
 
 /** Workspace packages whose production dependencies make up the app. */
-const workspacePackages = ['apps/mobile', 'packages/dom-webview'];
+const workspacePackages = [
+  'apps/mobile',
+  'packages/dom-webview',
+  'packages/cloud-runtime',
+];
 
 /**
  * Build-only dependencies. These run while bundling or compiling the app and

@@ -1,20 +1,20 @@
 import Foundation
 
-enum CreateLogic {
-  static let chatTarget = "chat"
-  static let fullAccessModes = ["agent-full-access", "danger-full-access", "bypassPermissions", "yolo", "always-approve"]
+public enum CreateLogic {
+  public static let chatTarget = "chat"
+  public static let fullAccessModes = ["agent-full-access", "danger-full-access", "bypassPermissions", "yolo", "always-approve"]
 
-  static func isThoughtLevel(_ option: ConfigOption) -> Bool {
+  public static func isThoughtLevel(_ option: ConfigOption) -> Bool {
     option.type == "select" && (option.category == "thought_level" || option.id == "reasoning_effort")
   }
 
-  static func extraConfigOptions(_ capability: Capability?) -> [ConfigOption] {
+  public static func extraConfigOptions(_ capability: Capability?) -> [ConfigOption] {
     (capability?.configOptions ?? []).filter { option in
       !(option.type == "select" && ["model", "mode"].contains(option.category ?? "")) && !isThoughtLevel(option)
     }
   }
 
-  static func validConfigValue(_ option: ConfigOption, _ value: ConfigValue?) -> Bool {
+  public static func validConfigValue(_ option: ConfigOption, _ value: ConfigValue?) -> Bool {
     switch value {
     case .bool: option.type == "boolean"
     case .string(let id): option.type != "boolean" && option.options.contains { $0.id == id }
@@ -22,7 +22,7 @@ enum CreateLogic {
     }
   }
 
-  static func effortsFor(_ capability: Capability?, modelId: String? = nil) -> [String] {
+  public static func effortsFor(_ capability: Capability?, modelId: String? = nil) -> [String] {
     var model = modelId
     if model == nil, case .string(let current)? = capability?.configOptions?.first(where: { $0.category == "model" })?.currentValue {
       model = current
@@ -31,21 +31,21 @@ enum CreateLogic {
     return capability?.configOptions?.first(where: isThoughtLevel)?.options.map(\.id) ?? []
   }
 
-  static func capabilityFor(_ options: CreationOptions?, _ agent: CreationAgent?) -> Capability? {
+  public static func capabilityFor(_ options: CreationOptions?, _ agent: CreationAgent?) -> Capability? {
     guard let options, let agent else { return nil }
     return options.capabilities.first {
       $0.machineId == agent.machineId && $0.cliType == agent.cliType && $0.agentType == agent.agentType
     }
   }
 
-  static func fastMode(_ capability: Capability?, _ choice: ModelChoice) -> (id: String, enabled: Bool)? {
+  public static func fastMode(_ capability: Capability?, _ choice: ModelChoice) -> (id: String, enabled: Bool)? {
     guard let option = capability?.configOptions?.first(where: { ["fast-mode", "fast"].contains($0.id) && $0.type == "boolean" })
     else { return nil }
     let value = choice.configOptionValues?[option.id] ?? option.currentValue
     return (option.id, value == .bool(true))
   }
 
-  static func withFastMode(_ capability: Capability?, _ choice: ModelChoice, enabled: Bool) -> ModelChoice {
+  public static func withFastMode(_ capability: Capability?, _ choice: ModelChoice, enabled: Bool) -> ModelChoice {
     guard let mode = fastMode(capability, choice) else { return choice }
     var next = choice
     next.configOptionValues = (choice.configOptionValues ?? [:]).merging([mode.id: .bool(enabled)]) { $1 }
@@ -53,7 +53,7 @@ enum CreateLogic {
   }
 
   // Same precedence as OSS resolvePermissionModeFace and the chat projection.
-  static func permissionMode(_ capability: Capability?, _ choice: ModelChoice)
+  public static func permissionMode(_ capability: Capability?, _ choice: ModelChoice)
     -> (options: [CapabilityChoice], value: String?, configId: String?)?
   {
     let selectors = (capability?.configOptions ?? []).filter { $0.type == "select" }
@@ -72,7 +72,7 @@ enum CreateLogic {
     return (option.options, value, option.id)
   }
 
-  static func withPermissionMode(_ capability: Capability?, _ choice: ModelChoice, value: String) -> ModelChoice {
+  public static func withPermissionMode(_ capability: Capability?, _ choice: ModelChoice, value: String) -> ModelChoice {
     guard let permission = permissionMode(capability, choice), permission.options.contains(where: { $0.id == value }) else { return choice }
     var next = choice
     if let id = permission.configId {
@@ -83,15 +83,15 @@ enum CreateLogic {
     return next
   }
 
-  static func rememberedProject(_ prefs: CreatePrefs?, _ projects: [CreateProject]) -> String? {
+  public static func rememberedProject(_ prefs: CreatePrefs?, _ projects: [CreateProject]) -> String? {
     projects.first { $0.id == prefs?.projectId }?.id
   }
 
-  static func modelKey(_ agentKey: String, _ modelId: String?) -> String {
+  public static func modelKey(_ agentKey: String, _ modelId: String?) -> String {
     CreateJSON.encode([agentKey, modelId].map { $0.map(JSONScalar.string) ?? .null })
   }
 
-  static func restoreSelection(_ prefs: CreatePrefs?, target: String, options: CreationOptions)
+  public static func restoreSelection(_ prefs: CreatePrefs?, target: String, options: CreationOptions)
     -> (machineId: String, agentKey: String, choice: ModelChoice)
   {
     let saved = prefs?.projects?[target] ?? ProjectPrefs()
@@ -107,7 +107,7 @@ enum CreateLogic {
     )
   }
 
-  static func rememberedModelChoice(
+  public static func rememberedModelChoice(
     _ prefs: CreatePrefs?, agentKey: String, capability: Capability?, modelId: String? = nil, legacy: ProjectPrefs? = nil
   ) -> ModelChoice {
     let remembered = prefs?.modelChoices?[modelKey(agentKey, modelId)]
@@ -126,7 +126,7 @@ enum CreateLogic {
     return ModelChoice(modelId: modelId, effort: effort, modeId: modeId, configOptionValues: values.isEmpty ? nil : values)
   }
 
-  static func withSelection(_ prefs: CreatePrefs?, target: String, selection: ProjectPrefs, chat: Bool) -> CreatePrefs {
+  public static func withSelection(_ prefs: CreatePrefs?, target: String, selection: ProjectPrefs, chat: Bool) -> CreatePrefs {
     var next = prefs ?? CreatePrefs()
     next.context = chat ? "chat" : "project"
     if !chat { next.projectId = target }

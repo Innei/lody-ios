@@ -34,7 +34,7 @@ import type { PickedWorkspaceIcon } from '@lody-ios/kit';
 import { writeLocal, parseLocal, clearLocal } from '../kv';
 import { accountKey } from './persist';
 import type { SavedAccount } from '../../models/auth.ts';
-import type { SavedCatalog } from '../../models/catalog.ts';
+import type { SavedCatalog } from '@lody/cloud-runtime/models/catalog';
 import { t } from '../../lib/i18n/index.ts';
 import { uiVerify } from '@/lib/uiVerify';
 

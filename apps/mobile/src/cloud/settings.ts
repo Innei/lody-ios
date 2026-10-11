@@ -1,5 +1,8 @@
 import { remoteSettingsRaw } from '@lody-ios/kit';
-import type { RemoteSetting, SettingsRequest } from '../models/settings.ts';
+import type {
+  RemoteSetting,
+  SettingsRequest,
+} from '@lody/cloud-runtime/models/settings';
 import { t } from '../lib/i18n/index.ts';
 
 export async function requestSettings(

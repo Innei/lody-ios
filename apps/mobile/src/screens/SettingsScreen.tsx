@@ -31,7 +31,7 @@ import { useQueuedMessageBehavior } from '@/features/settings/queued-message-beh
 import { relativeTime } from '@/ui/time';
 import { showToast } from '@/ui/toast';
 import { definePage } from '@/lib/presentation';
-import type { RemoteSetting } from '@/models/settings';
+import type { RemoteSetting } from '@lody/cloud-runtime/models/settings';
 import { t, tp } from '../lib/i18n/index.ts';
 import { uiVerify } from '@/lib/uiVerify';
 

@@ -13,7 +13,7 @@ export type InboxSearchHits = {
 };
 export type DataRuntimeEvent = {
   machinePresence?: string;
-  shareProgress?: import('../../../../src/models/session-sharing').ShareProgress;
+  shareProgress?: import('@lody/cloud-runtime/models/session-sharing').ShareProgress;
   sessionId?: string;
   session?: string;
   owner: string;

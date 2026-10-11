@@ -1,5 +1,5 @@
 import type { Flock } from '@loro-dev/flock-wasm/base64';
-import type { MentionCatalog, MentionItem } from '../../../src/models/mentions';
+import type { MentionCatalog, MentionItem } from '../models/mentions';
 import { openSettings } from './settings';
 
 // Shared workspace catalog owner for Role consumers. Authorization is checked

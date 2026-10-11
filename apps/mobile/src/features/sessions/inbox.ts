@@ -4,7 +4,11 @@ import type {
   NativeListSection,
 } from '@lody-ios/kit';
 import { sessionTree } from './sessionTree.ts';
-import type { Catalog, Project, Session } from '../../models/catalog.ts';
+import type {
+  Catalog,
+  Project,
+  Session,
+} from '@lody/cloud-runtime/models/catalog';
 import {
   sessionIsUnread as unreadOf,
   sessionNeedsEmphasis,

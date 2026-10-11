@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { readSessionEdit } from '@lody-ios/kit';
-import type { Snapshot } from '@/models/session';
+import type { Snapshot } from '@lody/cloud-runtime/models/session';
 
 export function useEditableMessage(
   sessionId: string,

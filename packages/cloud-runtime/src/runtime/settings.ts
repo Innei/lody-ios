@@ -1,11 +1,8 @@
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import { decompress } from 'fzstd';
 import { clientFor } from './session';
-import { decodeFrames, encodeFrame } from '../decoder/frames';
-import type {
-  RemoteSetting,
-  SettingsRequest,
-} from '../../../src/models/settings.ts';
+import { decodeFrames, encodeFrame } from '../frames';
+import type { RemoteSetting, SettingsRequest } from '../models/settings.ts';
 
 type Grant = () => Promise<{ token: string; gatewayBaseUrl: string }>;
 const object = (value: unknown): Record<string, unknown> =>

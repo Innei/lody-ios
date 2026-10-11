@@ -4,7 +4,7 @@ import { NativeChat, NativeNavigationHeader } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { PullRequestScreen } from '../PullRequestScreen';
-import type { PullRequestPreviewData } from '@/models/pull-request';
+import type { PullRequestPreviewData } from '@lody/cloud-runtime/models/pull-request';
 import { createPullRequestSource } from '@/features/pull-request/source';
 import { useState } from 'react';
 

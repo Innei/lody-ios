@@ -7,7 +7,7 @@ import { checkState, checkSymbols } from '@/features/pull-request/checks';
 import type {
   PullRequestCheck,
   PullRequestActions,
-} from '@/models/pull-request';
+} from '@lody/cloud-runtime/models/pull-request';
 import { t } from '@/lib/i18n';
 import type { PullRequestSource } from '@/features/pull-request/source';
 import { usePullRequestSource } from '@/hooks/screens/usePullRequestSource';

@@ -7,7 +7,7 @@ import {
 } from '@lody-ios/kit';
 import { Alert } from 'react-native';
 import { showToast } from '../../ui/toast.ts';
-import type { Catalog, Session } from '../../models/catalog.ts';
+import type { Catalog, Session } from '@lody/cloud-runtime/models/catalog';
 import { t } from '../../lib/i18n/index.ts';
 import { openCatalogRow } from '../../hooks/screens/openCatalogRow.ts';
 import { requestNewSession, requestShareSession } from './sessionNav.ts';
@@ -15,7 +15,7 @@ import { isChatSession, projectIdOfRow } from './inbox.ts';
 import {
   sessionDeletionTargets,
   sessionDeletionBlocked,
-} from '../../models/sessionDeletion.ts';
+} from '@lody/cloud-runtime/models/sessionDeletion';
 
 type DeletionEvent = {
   workspaceId: string;

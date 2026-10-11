@@ -3,8 +3,8 @@ import {
   EphemeralStoreAdaptor,
   EphemeralStreamCrdt,
 } from '@loro-dev/streams-crdt/loro';
-import type { MachinePresence } from '../../../src/models/machines.ts';
-import type { CreationOptions } from '../../../src/models/send.ts';
+import type { MachinePresence } from '../models/machines.ts';
+import type { CreationOptions } from '../models/send.ts';
 
 // Official Lody presence protocol: durable machine metadata is not liveness.
 export const machinePresenceTTL = 90_000;

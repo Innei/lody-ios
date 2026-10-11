@@ -10,7 +10,7 @@ import type {
   ShareAction,
   ShareState,
   ShareProgress,
-} from '@/models/session-sharing';
+} from '@lody/cloud-runtime/models/session-sharing';
 
 export type SessionShareParams = {
   workspaceId: string;

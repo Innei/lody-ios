@@ -2,7 +2,7 @@ import { githubPullRequest } from '@lody-ios/kit';
 import type {
   PullRequestPreviewData,
   PullRequestReference,
-} from '@/models/pull-request';
+} from '@lody/cloud-runtime/models/pull-request';
 import { createPullRequestSource } from '@/features/pull-request/source';
 
 export function livePullRequest(

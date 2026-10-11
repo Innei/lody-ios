@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Alert, Linking, Share } from 'react-native';
-import type { PullRequestReference } from '@/models/pull-request';
+import type { PullRequestReference } from '@lody/cloud-runtime/models/pull-request';
 import type { PullRequestSource } from '@/features/pull-request/source';
 import { livePullRequest } from '@/cloud/github/pullRequests';
 import { PullRequestScreen } from '@/screens/PullRequestScreen';

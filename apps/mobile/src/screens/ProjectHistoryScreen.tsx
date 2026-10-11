@@ -18,7 +18,7 @@ import type {
   HistoryResult,
   HistoryService,
   HistoryTarget,
-} from '@/models/project-history';
+} from '@lody/cloud-runtime/models/project-history';
 import { t, tp } from '../lib/i18n/index.ts';
 
 type Params = {

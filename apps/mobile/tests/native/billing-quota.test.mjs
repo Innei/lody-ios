@@ -7,8 +7,10 @@ import { openTestSession } from '../helpers.mjs';
 test('Free quota counts user and queued turns, counts archived sessions, and fails open when plan is unknown', async () => {
   const bundle = await build({
     entryPoints: [
-      new URL('../../modules/lody-kit/data-runtime/billing.ts', import.meta.url)
-        .pathname,
+      new URL(
+        '../../../../packages/cloud-runtime/src/runtime/billing.ts',
+        import.meta.url,
+      ).pathname,
     ],
     bundle: true,
     format: 'esm',

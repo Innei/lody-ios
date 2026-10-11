@@ -13,14 +13,17 @@ import type {
   PermissionOption,
   PermissionResult,
   PermissionTarget,
-} from '../models/session.ts';
+  QuestionAnswers,
+} from '@lody/cloud-runtime/models/session';
 import type { PermissionTargetSource } from '@/features/sessions/permissionTarget';
 import { t, type TranslationKey } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { QuestionCard } from '@/features/sessions/QuestionCard';
-import type { QuestionAnswers } from '../models/session.ts';
 
-export type { PermissionDetail, PermissionOption } from '../models/session.ts';
+export type {
+  PermissionDetail,
+  PermissionOption,
+} from '@lody/cloud-runtime/models/session';
 
 export type PermissionService = {
   detail: (

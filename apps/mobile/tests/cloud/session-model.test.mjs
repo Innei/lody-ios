@@ -9,7 +9,8 @@ import {
   matchCatalog,
   sessionRow,
 } from '../../src/features/sessions/inbox.ts';
-import { setLocale } from '../../src/lib/i18n/index.ts';
+import { projectRows as sharedRows } from '@lody/cloud-runtime/protocol/catalog';
+import { currentLocale, setLocale } from '../../src/lib/i18n/index.ts';
 
 test('catalog model changes reach every session row without loading a transcript', () => {
   setLocale('zh-Hans');
@@ -131,4 +132,31 @@ test('a fresh catalog keeps a repo learned earlier until it reports its own', ()
       .projects[0].repoFullName,
     'Innei/afilmory',
   );
+});
+
+test('mobile fallback copy follows locale while the isolated runtime keeps English defaults', () => {
+  const previous = currentLocale();
+  const rows = [
+    { key: ['e', 'session-no-title'], value: true },
+    {
+      key: ['m', 'session-no-title'],
+      value: {
+        machineId: 'm',
+        project: { kind: 'local', localProjectId: 'p' },
+      },
+    },
+  ];
+  try {
+    setLocale('zh-Hans');
+    const mobile = projectRows(rows, 'meta');
+    assert.equal(mobile.sessions[0].title, '未命名会话');
+    assert.equal(mobile.sessions[0].status, '未知');
+    assert.equal(mobile.projects[0].name, '本地项目');
+    const isolated = sharedRows(rows, 'meta');
+    assert.equal(isolated.sessions[0].title, 'Untitled session');
+    assert.equal(isolated.sessions[0].status, 'Unknown');
+    assert.equal(isolated.projects[0].name, 'Local project');
+  } finally {
+    setLocale(previous);
+  }
 });

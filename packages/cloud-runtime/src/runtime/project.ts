@@ -1,14 +1,14 @@
 import {
   readTurnMetadata,
   type TurnMetadata,
-} from '../../../src/cloud/turnMetadata.ts';
+} from '../protocol/turnMetadata.ts';
 import { executionProjection, type SteerReceipt } from './execution';
 import type { LoroDoc, LoroList, LoroMap } from 'loro-crdt/base64';
 import {
   parseQuestionMeta,
   samePermissionOutcome,
-} from '../../../src/cloud/permissionQuestions.ts';
-import type { QuestionMeta } from '../../../src/models/session.ts';
+} from '../protocol/permissionQuestions.ts';
+import type { QuestionMeta } from '../models/session.ts';
 import { billableTurnCount } from './billing';
 import { previewSummary } from './preview';
 

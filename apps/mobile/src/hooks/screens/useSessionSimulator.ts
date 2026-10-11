@@ -8,7 +8,7 @@ import {
   stopSimulator,
   useSimulatorOperation,
 } from '@/features/simulator/operations';
-import type { Catalog } from '@/models/catalog';
+import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import { present } from '@/lib/presentation';
 import { t } from '../../lib/i18n/index.ts';
 
