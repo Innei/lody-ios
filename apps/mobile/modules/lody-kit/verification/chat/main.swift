@@ -679,6 +679,12 @@ let pendingRows = localPending.rows(entries: [])
 precondition(pendingRows.map(\.kind) == ["delivery", "attachments", "user"],
   "Delivery belongs above text and attachments")
 precondition(pendingRows.first?.text == localPending.status)
+let blankStatus = try! JSONDecoder().decode(ChatPendingSend.self, from: Data(#"{"id":"blank-status","text":"hello","attachments":[],"status":""}"#.utf8))
+precondition(
+  blankStatus.rows(entries: []).contains {
+    $0.kind == "delivery" && $0.text == LodyStrings.text("send.status.awaitingConnection")
+  },
+  "An empty pending status must still show the awaiting-connection line")
 precondition(!ChatWorkDuration.needsTimer(pendingRows),
   "An unconfirmed send must not show a working duration")
 precondition(ChatWorkDuration.needsTimer(liveDurationRows))

@@ -393,7 +393,9 @@ extension LodyChatView {
     }
     measuringText.setText(text)
     let height = measuringText.sizeThatFits(CGSize(width: textWidth, height: .greatestFiniteMagnitude)).height
-    measurements[row.id] = (textWidth, text, height)
+    if height > 0.5 {
+      measurements[row.id] = (textWidth, text, height)
+    }
     return height
   }
 
@@ -452,7 +454,12 @@ extension LodyChatView {
     // even after the folded process makes it tappable — a 44 pt floor would
     // leave an empty gap between the timer and the hairline.
     let tapFloor = row.kind != "duration" && (row.actionable || row.kind == "summary" || row.kind == "pending")
-    return max(tapFloor ? 44 : 0, measured + ChatCell.rowExtra(for: row, previousKind: previousKind ?? kind(before: row.id)))
+    let measuredHeight = measured + ChatCell.rowExtra(for: row, previousKind: previousKind ?? kind(before: row.id))
+    if tapFloor { return max(44, measuredHeight) }
+    if row.kind == "delivery" {
+      return max(ChatCell.messageFont(for: row, compatibleWith: traitCollection).lineHeight, measuredHeight)
+    }
+    return measuredHeight
   }
 
   func kind(before id: String) -> String? {

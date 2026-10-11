@@ -633,6 +633,7 @@ func processAttributed(_ string: String, row: ChatRow, traits: UITraitCollection
   let font = ChatCell.messageFont(for: row, compatibleWith: traits)
   let lineHeight = 18 * UIFont.dynamicScale(compatibleWith: traits)
   let paragraph = NSMutableParagraphStyle()
+  if row.kind == "delivery" { paragraph.alignment = .right }
   paragraph.minimumLineHeight = lineHeight
   paragraph.maximumLineHeight = lineHeight
   return NSAttributedString(string: string, attributes: [
@@ -642,6 +643,43 @@ func processAttributed(_ string: String, row: ChatRow, traits: UITraitCollection
     .baselineOffset: (lineHeight - font.lineHeight) / 2,
   ])
 }
+
+let deliveryRow = ChatRow(
+  id: "local-send:delivery",
+  entryID: "local-send",
+  kind: "delivery",
+  text: LodyStrings.text("send.status.awaitingConnection")
+)
+let deliveryText = processAttributed(deliveryRow.text, row: deliveryRow, traits: traits)
+let deliveryWidth = ChatCell.textWidth(deliveryRow, width: 320)
+let deliveryMeasure = CKTextView()
+deliveryMeasure.setText(deliveryText)
+let deliveryHeight = deliveryMeasure.sizeThatFits(CGSize(width: deliveryWidth, height: .greatestFiniteMagnitude)).height
+precondition(
+  !deliveryRow.text.isEmpty && deliveryHeight >= 18 * UIFont.dynamicScale(compatibleWith: traits) - 0.5,
+  "Offline delivery status must measure a visible line, height=\(deliveryHeight) text=\(deliveryRow.text)"
+)
+let deliveryCellHeight = deliveryHeight + ChatCell.rowExtra(for: deliveryRow)
+precondition(
+  deliveryCellHeight > 0,
+  "Delivery rows must occupy layout space so VoiceOver can find them"
+)
+let deliveryCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: deliveryCellHeight))
+window.addSubview(deliveryCell)
+deliveryCell.configure(deliveryRow, text: deliveryText)
+deliveryCell.layoutIfNeeded()
+precondition(deliveryCell.accessibilityIdentifier == deliveryRow.id)
+precondition(deliveryCell.accessibilityLabel == deliveryRow.text)
+let reusedMeasure = CKTextView()
+reusedMeasure.setText(processAttributed("Offline send", row: ChatRow(id: "local-send:user", entryID: "local-send", kind: "user", text: "Offline send"), traits: traits))
+_ = reusedMeasure.sizeThatFits(CGSize(width: deliveryWidth, height: .greatestFiniteMagnitude))
+reusedMeasure.setText(deliveryText)
+let reusedHeight = reusedMeasure.sizeThatFits(CGSize(width: deliveryWidth, height: .greatestFiniteMagnitude)).height
+precondition(
+  reusedHeight >= 18 * UIFont.dynamicScale(compatibleWith: traits) - 0.5,
+  "A reused measuring view must still size right-aligned delivery, height=\(reusedHeight)"
+)
+print("Chat render: right-aligned delivery status measures a visible line")
 
 let countRow = ChatRow(
   id: "reply:process",

@@ -428,7 +428,13 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
       messageContent.layoutIfNeeded()
       let inset = Self.leading(row)
       let textWidth = Self.textWidth(row, width: width)
-      let height = label.sizeThatFits(CGSize(width: textWidth, height: .greatestFiniteMagnitude)).height
+      let fitted = label.sizeThatFits(CGSize(width: textWidth, height: .greatestFiniteMagnitude)).height
+      let height: CGFloat
+      if row.kind == "delivery" {
+        height = max(Self.messageFont(for: row, compatibleWith: traitCollection).lineHeight, fitted)
+      } else {
+        height = fitted
+      }
       let y: CGFloat
       if row.kind == "delivery" {
         y = 0

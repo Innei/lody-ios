@@ -104,6 +104,10 @@ class UI:
         """Batch input under the runner's shared English keyboard baseline."""
         self.axe('type', text)
         got = self.element(identifier).get('AXValue') or ''
+        if got.casefold() != text.casefold():
+            self.axe('tap', '--id', identifier, '--post-delay', '.4')
+            self.axe('type', text)
+            got = self.element(identifier).get('AXValue') or ''
         assert got.casefold() == text.casefold(), f'Typed text did not commit: {got!r}'
 
     def paste_file(self, identifier):

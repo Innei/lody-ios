@@ -776,7 +776,8 @@ extension ChatPendingSend {
     let hasDelivery = entries.contains { $0.id == id && $0.delivery != nil }
     let acknowledged = phase == "accepted"
     if !hasReply && !acknowledged && !hasDelivery {
-      result.insert(ChatRow(id: id + ":delivery", entryID: id, kind: "delivery", text: status,
+      let delivery = status.isEmpty ? LodyStrings.text("send.status.awaitingConnection") : status
+      result.insert(ChatRow(id: id + ":delivery", entryID: id, kind: "delivery", text: delivery,
         attention: phase == "unknown"), at: 0)
     }
     if !hasReply && acknowledged && !hasDelivery {
