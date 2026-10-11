@@ -223,8 +223,7 @@ This native diagnostic change does not alter start/end policy or add retries.
 The diagnostic code needs a new native build and the backend logging changes need
 deployment to the app's actual Convex environment before a device timeline can be
 collected. Do not infer the deployment from a CLI default (`--prod` can point at a
-different project). Previous support investigation identified
-`nautical-curlew-181`; reconfirm against the running app before reading logs.
+different project). Confirm the running app’s environment before reading logs.
 
 - `pnpm check`, `pnpm test`, `pnpm bundle`, signed iOS Simulator build.
 - `pnpm verify:native --case live-activity` exercises the exact Convex start
