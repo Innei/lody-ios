@@ -146,6 +146,10 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
 }
 
 public final class PushAppDelegateSubscriber: ExpoAppDelegateSubscriber {
+  public func applicationDidEnterBackground(_ application: UIApplication) {
+    LiveActivities.shared.diagnosticSnapshot("background")
+  }
+
   public func applicationDidBecomeActive(_ application: UIApplication) {
     PushNotifications.shared.status { _ in }
     LiveActivities.shared.start()

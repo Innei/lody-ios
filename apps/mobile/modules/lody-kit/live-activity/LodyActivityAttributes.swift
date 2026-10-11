@@ -133,6 +133,8 @@ struct LodyConversationLiveActivityAttributes: Codable, Hashable, Sendable {
     // Invalidates existing presentations on a local icon change. Rendering reads
     // the App Group preference so server payloads cannot reset this device choice.
     var appIcon: String?
+    // Server summary timestamp for diagnostics. Older/local content omits it.
+    var updatedAt: Double?
 
     var staleLabel: String { copy?.stale ?? "Disconnected" }
 

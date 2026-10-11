@@ -27,6 +27,7 @@ func item(_ id: String, _ status: Item.Status, _ updatedAt: Double) -> Item {
 let full = decode("""
 {
   "totalCount": 3,
+  "updatedAt": 1757000000000,
   "statusCounts": { "permission": 1, "question": 1, "running": 1, "unread": 0 },
   "items": [
     {
@@ -46,6 +47,7 @@ let full = decode("""
 }
 """)
 precondition(full.totalCount == 3)
+precondition(full.updatedAt == 1_757_000_000_000, "server timestamp survives decoding for diagnostic correlation")
 precondition(full.statusCounts.permission == 1 && full.statusCounts.unread == 0)
 precondition(full.items[0].permissionRequestId == "req-1")
 precondition(full.items[0].permissionCommand == "rm -rf /tmp/x")
@@ -74,6 +76,7 @@ let minimal = decode("""
 }
 """)
 precondition(minimal.permissionAlert == nil, "missing permissionAlert is tolerated")
+precondition(minimal.updatedAt == nil, "legacy and locally generated content needs no server timestamp")
 precondition(minimal.items[0].permissionRequestId == nil && minimal.items[0].permissionCommand == nil)
 precondition(minimal.statusCounts.running == 2)
 precondition(minimal.statusCounts.permission == 0 && minimal.statusCounts.question == 0 && minimal.statusCounts.unread == 0, "missing count keys default to 0")

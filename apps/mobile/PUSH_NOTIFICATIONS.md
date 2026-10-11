@@ -165,6 +165,67 @@ References: [OneSignal manual Live Activity registration](https://documentation.
 
 ## Verification
 
+### Investigating Live Activities that stop updating
+
+LodyKit writes persistent `notice` events to Apple's unified log under subsystem
+`app.innei.lody`, category `live-activity`. In macOS Console, select the attached
+iPhone, start streaming, and filter by that subsystem/category before reproducing.
+Keep the phone locked/backgrounded through the failure; record the wall-clock time
+before reopening Lody (foreground catalog updates can replace the stalled state).
+For a Simulator, use `xcrun simctl spawn <udid> log stream --level info --style json
+--predicate 'subsystem == "app.innei.lody" AND category == "live-activity"'`.
+Normal verification fixtures do not register with OneSignal and cannot prove APNs delivery.
+
+All activity correlation keys are the first 16 lowercase hex characters of SHA-256
+of the OneSignal activity ID, matching the Convex `[live-activity]` logs. Native
+ActivityKit IDs are hashed separately as `native`, so replacement instances using
+the same topic can be distinguished. No APNs token (or token hash), user ID,
+conversation title/content, SDK response body, or credential is logged. The
+OneSignal SDK's verbose logging remains disabled. Native error logs expose only
+numeric codes; backend receipts expose only validated message UUIDs, counts and
+fixed diagnostic categories. Pseudonymous correlation keys still belong in support
+logs, not public reports.
+
+Trace one `activity` key in this order:
+
+1. `created` / `observe`, then `enter_requested` → `enter_succeeded` or
+   `enter_failed`. A local token is not proof of successful OneSignal registration.
+   `current=false` means the callback arrived after the observer was replaced or
+   removed; it does not restore registration. No callback means outcome unknown.
+2. Convex `request` / `response`: distinguish HTTP acceptance from delivery. Use
+   `messageId` to open the OneSignal report and check recipients/failures/delivery.
+   The same hash may be sent to several app aliases; compare `oneSignalApp` from
+   the native snapshot with the intended backend app configuration.
+3. `content_observed` / `activity_snapshot`: `serverUpdatedAt` preserves the
+   backend summary timestamp in milliseconds, `staleDate` is seconds. Local
+   catalog content omits the server timestamp (reported as zero). Content
+   observations include local updates and are NOT confirmed APNs receipts; a
+   suspended app may not observe them until foreground. Foreground/background
+   snapshots provide the current state. Counts-changing observations are logged
+   immediately; repeated local content is sampled at most once per minute.
+4. `exit_requested` gives the initiating reason (`catalog_inactive`,
+   `workspace_changed`, `identity_changed`, `toggle_off`,
+   `native_activity_replaced`, or a system lifecycle transition). `lifecycle`
+   reports `stale`, `ended`, or `dismissed` independently. A system `ended` event
+   alone does not identify whether APNs or iOS ended the activity.
+
+Investigation on 2026-10-11 reproduced a producer lifetime mismatch: the CLI's
+summary used the retired three-minute `lastRunningSeen` heartbeat predicate.
+The companion CLI fix uses current turn ownership and fresh peer presence while
+honoring explicit prompt completion. The companion backend fix ends when only
+completed/unread history remains, matching the native running/waiting lifetime.
+Neither fix makes ordinary updates recreate an already ended activity.
+There is no three-minute end timer; the failure required a subsequent summary
+trigger. The separate 30-minute content freshness deadline only marks content
+stale. Device logs are still needed to attribute a particular incident.
+This native diagnostic change does not alter start/end policy or add retries.
+
+The diagnostic code needs a new native build and the backend logging changes need
+deployment to the app's actual Convex environment before a device timeline can be
+collected. Do not infer the deployment from a CLI default (`--prod` can point at a
+different project). Previous support investigation identified
+`nautical-curlew-181`; reconfirm against the running app before reading logs.
+
 - `pnpm check`, `pnpm test`, `pnpm bundle`, signed iOS Simulator build.
 - `pnpm verify:native --case live-activity` exercises the exact Convex start
   attributes, identity rejection, content decoding and local catalog behavior.
