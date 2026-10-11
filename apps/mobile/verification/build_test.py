@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 HERE = Path(__file__).parent
@@ -31,6 +32,11 @@ def staged_checkout(root, name='lody-split.abcdef'):
 
 
 class BuildDestinationTests(unittest.TestCase):
+    def test_watch_build_without_a_lease_uses_the_watch_simulator(self):
+        build = load('build')
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(build.destination(None, 'watchsimulator'), 'generic/platform=watchOS Simulator')
+
     def test_an_explicit_destination_wins(self):
         build = load('build')
 

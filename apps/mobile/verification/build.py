@@ -39,6 +39,8 @@ DEFAULT_LOG = ARTIFACTS / 'ui-build' / 'build.log'
 GENERIC_DESTINATION = 'generic/platform=iOS Simulator'
 
 parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--sdk', default=SDK, choices=['iphonesimulator', 'watchsimulator'])
+parser.add_argument('--scheme', default=SCHEME, help='App scheme (default Lody)')
 parser.add_argument('--configuration', default='Debug', help='Build configuration (default Debug)')
 parser.add_argument(
     '--destination',
@@ -59,12 +61,14 @@ def progress(message):
     print(message, file=sys.stderr)
 
 
-def destination(explicit):
+def destination(explicit, sdk=SDK):
     if explicit:
         return explicit
     udid = os.environ.get('LODY_VERIFY_UDID')
     if udid:
         return f'id={udid}'
+    if sdk == 'watchsimulator':
+        return 'generic/platform=watchOS Simulator'
     return GENERIC_DESTINATION
 
 
@@ -74,11 +78,11 @@ def xcodebuild(arguments):
         '-workspace',
         str(WORKSPACE),
         '-scheme',
-        SCHEME,
+        arguments.scheme,
         '-configuration',
         arguments.configuration,
         '-sdk',
-        SDK,
+        arguments.sdk,
         '-destination',
         arguments.destination,
     ]
@@ -161,7 +165,7 @@ def build_lock():
 
 def main(argv=None):
     arguments = parser.parse_args(argv)
-    arguments.destination = destination(arguments.destination)
+    arguments.destination = destination(arguments.destination, arguments.sdk)
     if arguments.derived_data is not None:
         arguments.derived_data = (ROOT / arguments.derived_data).resolve()
         if ARTIFACTS in arguments.derived_data.parents:

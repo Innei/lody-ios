@@ -5,16 +5,11 @@ import WidgetKit
 struct LodyLiveActivityWidget: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: LodyActivityAttributes.self) { context in
-      LodyLockScreenView(
-        state: context.state,
-        workspaceSlug: context.attributes.routeSlug,
-        overviewRoute: context.attributes.overviewRoute,
-        isStale: context.isStale
-      )
-      .activityBackgroundTint(.clear)
+      LodyActivityContent(context: context)
     } dynamicIsland: { context in
       island(context)
     }
+    .supplementalActivityFamilies([.small])
   }
 
   private func island(_ context: ActivityViewContext<LodyActivityAttributes>) -> DynamicIsland {
@@ -123,6 +118,26 @@ struct LodyLiveActivityWidget: Widget {
         .foregroundStyle(.primary)
     } else {
       StatusSymbol(status: focus.status)
+    }
+  }
+}
+
+private struct LodyActivityContent: View {
+  @Environment(\.activityFamily) private var family
+  let context: ActivityViewContext<LodyActivityAttributes>
+
+  var body: some View {
+    if family == .small {
+      LodySmallActivityView(state: context.state, isStale: context.isStale)
+        .widgetURL(context.attributes.route(for: context.state))
+    } else {
+      LodyLockScreenView(
+        state: context.state,
+        workspaceSlug: context.attributes.routeSlug,
+        overviewRoute: context.attributes.overviewRoute,
+        isStale: context.isStale
+      )
+      .activityBackgroundTint(.clear)
     }
   }
 }

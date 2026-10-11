@@ -25,6 +25,11 @@ enum LiveActivityCatalog {
     var elapsed: String = "elapsed"
     var waiting: String = "waiting"
     var took: String = "took"
+    var smallAttention: String = "Waiting for you"
+    var smallWaiting: String = "Waiting"
+    var smallDone: String = "Done"
+    var smallFailed: String = "Failed"
+    var smallStale: String = "Outdated"
   }
 
   static let runningStatuses: Set<String> = ["running", "initializing", "processing", "in_progress", "queued"]
@@ -51,6 +56,11 @@ enum LiveActivityCatalog {
     copy.elapsed = labels.elapsed
     copy.waiting = labels.waiting
     copy.took = labels.took
+    copy.smallAttention = labels.smallAttention
+    copy.smallWaiting = labels.smallWaiting
+    copy.smallDone = labels.smallDone
+    copy.smallFailed = labels.smallFailed
+    copy.smallStale = labels.smallStale
     return LodyActivityAttributes.ContentState(
       totalCount: items.count,
       statusCounts: counts,

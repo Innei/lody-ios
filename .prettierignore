@@ -17,3 +17,6 @@ packages/lexical-swift/Fixtures/haklex/
 packages/lexical-swift/Fixtures/html/
 packages/lexical-swift/Fixtures/markdown/
 packages/lexical-swift/Sources/Lexical/Documentation.docc/
+
+# User-provided conversation attachments are not project source.
+.lody/
