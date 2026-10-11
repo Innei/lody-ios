@@ -24,13 +24,17 @@ assert picked, 'Synthetic attachment missing'
 assert pasted in picked, 'Clipboard file missing from NativeChat composer'
 ui.capture('draft')
 send = ui.element('session-send')
-ui.axe('tap', '--id', 'session-send')
-assert not ui.element('session-send')['enabled']
-assert not ui.element('session-input').get('AXValue') and not attachments(ui.state()), 'Draft must clear while pending'
 f = send['frame']
+# AXe --id taps the AX activation point. After a file paste that point can sit
+# on the 2 pt overlap with the focused Lexical field, which swallows the tap.
+ui.axe('tap', '-x', str(f['x']+f['width']/2), '-y', str(f['y']+f['height']/2), '--post-delay', '1')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-send' and not i.get('enabled') for i in items), 'Pending send must be disabled')
+assert not ui.element('session-input').get('AXValue') and not attachments(ui.state()), 'Draft must clear while pending'
 ui.axe('tap', '-x', str(f['x']+f['width']/2), '-y', str(f['y']+f['height']/2))
 ui.capture('pending')
-ui.axe('tap', '--label', 'Complete Request')
+complete = ui.element('complete-request')
+c = complete['frame']
+ui.axe('tap', '-x', str(c['x']+c['width']/2), '-y', str(c['y']+c['height']/2), '--post-delay', '1')
 if args.expect == 'failure':
     ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-input' and i.get('AXValue') == draft for i in items), 'Exact draft not restored')
     assert attachments(ui.state()) == picked and ui.element('session-send')['enabled']

@@ -9,7 +9,7 @@ import catalog
 from send_motion import ThrowTrace
 ui = UI(*sys.argv[1:])
 throw_trace = ThrowTrace(ui)
-ui.axe('tap', '--id', 'create-session-input', '--tap-style', 'physical')
+ui.axe('tap', '--id', 'create-session-input', '--tap-style', 'physical', '--post-delay', '.5')
 # The runner establishes the English software keyboard once for this batch.
 ui.type_into('create-session-input', 'hi')
 keyboard = ui.element('inputView')
