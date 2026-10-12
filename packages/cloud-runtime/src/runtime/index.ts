@@ -38,6 +38,13 @@ import {
   revokePreview,
 } from './preview';
 import { machineRpc } from './machine-rpc';
+import {
+  providersCommand,
+  stopProviderOperations,
+  type ProviderOperation,
+  type ProviderContext,
+} from './providers.ts';
+import type { ProviderRequest } from '../models/providers.ts';
 import { workspaceRunOptions, resolveTurnRunOptions } from './run-options.ts';
 import type { RunOptionsRequest } from '../models/run-options.ts';
 import { remoteSettings } from './settings';
@@ -167,6 +174,8 @@ let creating = false;
 let registering = false;
 const browsers = new Map<string, AbortController>();
 let runtimeLifetime = new AbortController();
+const providerOperations = new Map<string, ProviderOperation>();
+let providerCleanupContext: ProviderContext | undefined;
 
 async function markDispatch(sessionId: string, turnId: string, queued = false) {
   if (!metaReplica) throw new Error('metadata_not_ready');
@@ -306,6 +315,19 @@ function managementContext(
   };
 }
 function stopRuntime() {
+  const authorization = grant;
+  if (providerCleanupContext)
+    stopProviderOperations({
+      ...providerCleanupContext,
+      signal: AbortSignal.timeout(10000),
+      assertCurrent: undefined,
+      getGrant: async () => {
+        if (!authorization) throw new Error('grant_failed');
+        return authorization;
+      },
+    });
+  else providerOperations.clear();
+  providerCleanupContext = undefined;
   runtimeLifetime.abort();
   for (const args of sharingEditors.values())
     void shareRuntime({ ...args, action: 'close' }).catch(() => {});
@@ -727,6 +749,18 @@ Object.assign(globalThis, {
       if (args.action === 'close') sharingEditors.delete(args.editorId);
       else sharingEditors.set(args.editorId, args);
       return shareRuntime(args);
+    },
+    async providerCommand(args: ProviderRequest & { userId: string }) {
+      const ctx = managementContext(args);
+      const context = {
+        ...ctx,
+        presence,
+        operations: providerOperations,
+      };
+      providerCleanupContext = context;
+      const result = await providersCommand(args, context);
+      ctx.assertCurrent();
+      return result;
     },
     async runOptions(args: RunOptionsRequest & { sessionId?: string }) {
       const ctx = managementContext(args);

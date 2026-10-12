@@ -2,6 +2,7 @@ import Foundation
 
 enum RuntimeCommandPayload {
   private static let limits = [
+    "providerCommand": 400 * 1024,
     "queueMessage": 16 * 1024 * 1024,
     "sendTurn": 2 * 1024 * 1024,
     "editSession": 2 * 1024 * 1024,

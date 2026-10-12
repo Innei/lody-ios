@@ -30,6 +30,7 @@ import { ComposerHandoffPreviewScreen } from './ComposerHandoffPreviewScreen';
 import { ChatPreviewScreen } from './ChatPreviewScreen';
 import { SimulatorPreviewScreen } from './SimulatorPreviewScreen';
 import { PreviewClosePreviewScreen } from './PreviewClosePreviewScreen';
+import { ProviderPreviewScreen } from './ProviderPreviewScreen';
 import { RunOptionsPreviewScreen } from './RunOptionsPreviewScreen';
 import { openSendQueueToolsPreview } from './SendQueueToolsPreviewScreen';
 import { ChatPerformanceScreen } from './ChatPerformanceScreen';
@@ -246,6 +247,7 @@ function View() {
         ),
         openRow('simulator-preview', 'Simulator floating preview', 'iphone'),
         openRow('preview-close-preview', 'Preview Close', 'xmark.circle'),
+        openRow('providers-preview', 'Provider management', 'cpu'),
         openRow(
           'run-options-preview',
           'Creation options',
@@ -442,6 +444,7 @@ function View() {
     'edit-message-preview': () => void present(EditMessagePreviewScreen),
     'simulator-preview': () => void present(SimulatorPreviewScreen),
     'preview-close-preview': () => void present(PreviewClosePreviewScreen, {}),
+    'providers-preview': () => void present(ProviderPreviewScreen),
     'run-options-preview': () => void present(RunOptionsPreviewScreen),
     'chat-preview': () => void present(ChatPreviewScreen, {}),
     'chat-shine-preview': () => void present(ShinePreviewScreen, {}),
