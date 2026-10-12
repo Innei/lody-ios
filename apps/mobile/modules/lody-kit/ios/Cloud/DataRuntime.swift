@@ -21,6 +21,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   private var grantTask: URLSessionDataTask?
   private var githubTasks: [String: Task<Void, Never>] = [:]
   private var shareTasks: [String: Task<Void, Never>] = [:]
+  private var teamTasks: [UUID: Task<Void, Never>] = [:]
   private var health = RuntimeHealth()
   private var pingPending = false
   private var workspace: String?
@@ -136,6 +137,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     grantTask?.cancel(); grantTask = nil
     githubTasks.values.forEach { $0.cancel() }; githubTasks.removeAll()
     shareTasks.values.forEach { $0.cancel() }; shareTasks.removeAll()
+    teamTasks.values.forEach { $0.cancel() }; teamTasks.removeAll()
     pingPending = false
     let old = webView; webView = nil
     old?.evaluateJavaScript("globalThis.dataRuntime?.stop?.()", completionHandler: nil)
@@ -455,6 +457,35 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     let cancelled = matchesWorkspace && sendPreparation.cancel(session: session, id: id, generation: generation, reason: "send_cancelled")
     let result = ["state": cancelled ? "cancelled" : "unknown", "id": id]
     promise.resolve(String(data: try! JSONSerialization.data(withJSONObject: result), encoding: .utf8)!)
+  }
+  func teamRequest(_ payload: String, promise: Promise) {
+    guard payload.utf8.count <= 64 * 1024,
+      let args = try? JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any],
+      let requestedWorkspace = args["workspaceId"] as? String, let requestedUser = args["userId"] as? String,
+      !requestedUser.isEmpty, requestedWorkspace.isEmpty || (workspace == requestedWorkspace && userId == requestedUser),
+      userId.isEmpty || userId == requestedUser else {
+      fail(promise, "team_scope_changed", "Team request unavailable"); return
+    }
+    guard teamTasks.count < 4 else { fail(promise, "team_unavailable", "Team request unavailable"); return }
+    let id = UUID(), generation = self.generation, workspace = self.workspace, user = userId, view = webView
+    teamTasks[id] = Task { @MainActor [weak self] in
+      guard let self else { return }
+      defer { self.teamTasks.removeValue(forKey: id) }
+      do {
+        let result = try await TeamManagement.run(payload, scopeCheck: {
+          try Task.checkCancellation()
+          guard self.generation == generation, self.workspace == workspace, self.userId == user,
+            self.webView === view else {
+            throw NSError(domain: "LodyKit.Team", code: 1, userInfo: [NSLocalizedDescriptionKey: "team_scope_changed"])
+          }
+        })
+        try Task.checkCancellation()
+        guard self.generation == generation, self.workspace == workspace, self.userId == user, self.webView === view else {
+          fail(promise, "team_scope_changed", "Team request unavailable"); return
+        }
+        promise.resolve(result)
+      } catch { promise.reject(error as NSError) }
+    }
   }
   /// The command guard matches the payload's workspace, which a diagnostic has
   /// no way to know. Inject the runtime's own.

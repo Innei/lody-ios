@@ -249,6 +249,7 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
         restore: noop,
         logout: noop,
         reopen: noop,
+        removeWorkspace: noop,
         updateWorkspace: async (id, name) => {
           setPreviewWorkspaces((items) =>
             items.map((item) => (item.id === id ? { ...item, name } : item)),

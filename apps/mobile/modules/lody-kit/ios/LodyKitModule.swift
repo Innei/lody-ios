@@ -418,6 +418,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("queueSessionMessage") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("queueMessage", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("checkSessionSend") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("checkSend", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("cancelSessionSend") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.cancelSessionSend(payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("teamRequest") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.teamRequest(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("remoteSettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("remoteSettings", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.createSession(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("workspaceBillingEntitlement") { (workspace: String, user: String, promise: Promise) in

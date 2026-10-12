@@ -18,6 +18,7 @@ import { FormGroup, formInputStyle } from '@/ui/FormGroup';
 import { Screen } from '@/ui/Screen';
 import { showToast } from '@/ui/toast';
 import { t } from '@/lib/i18n';
+import { TeamScreen } from './TeamScreen';
 
 export const workspaceEditActionId = 'workspace:edit';
 
@@ -42,8 +43,8 @@ function Icon({
 }
 
 function ViewScreen() {
-  const { params, cancel, finish } = usePageRuntime<Params>();
-  const { updateWorkspace, updateWorkspaceIcon } = useAuth();
+  const { params, cancel, finish, push } = usePageRuntime<Params>();
+  const { account, updateWorkspace, updateWorkspaceIcon } = useAuth();
   const colors = usePalette();
   const [name, setName] = useState(params.name);
   const [image, setImage] = useState(params.image);
@@ -160,6 +161,26 @@ function ViewScreen() {
           onChangeText={setName}
           onSubmitEditing={() => void save()}
         />
+      </FormGroup>
+      <FormGroup>
+        <NativePressable
+          accessibilityLabel={t('team.title')}
+          disabled={busy || !account}
+          style={{ minHeight: 44, padding: 16 }}
+          onPress={() => {
+            if (account)
+              void push(TeamScreen, {
+                userId: account.user.id,
+                workspaceId: params.workspaceId,
+                workspaceName:
+                  account.workspaces.find(
+                    (workspace) => workspace.id === params.workspaceId,
+                  )?.name ?? params.name,
+              });
+          }}
+        >
+          <AppText style={{ color: colors.accent }}>{t('team.title')}</AppText>
+        </NativePressable>
       </FormGroup>
     </Screen>
   );

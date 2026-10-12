@@ -85,6 +85,7 @@ export {
   projectCommand,
   providerCommand,
   runOptions,
+  teamRequest,
   watchSession,
   unwatchSession,
   ensureSession,

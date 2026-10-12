@@ -56,6 +56,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   projectCommand(payload: string): Promise<string>;
   providerCommand(payload: string): Promise<string>;
   runOptions(payload: string): Promise<string>;
+  teamRequest(payload: string): Promise<string>;
   sessionSharing(payload: string): Promise<string>;
   verifyPushSubscription(): Promise<void>;
   setPushUser(userId: string | null): Promise<void>;
@@ -437,6 +438,7 @@ export const projectCommand = (payload: string) =>
 export const providerCommand = (payload: string) =>
   native.providerCommand(payload);
 export const runOptions = (payload: string) => native.runOptions(payload);
+export const teamRequest = (payload: string) => native.teamRequest(payload);
 
 export const initialInboxView = [0, 1, 2].includes(native.initialInboxView)
   ? native.initialInboxView
