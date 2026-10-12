@@ -82,6 +82,7 @@ export {
 } from './runtime/LodyKit';
 
 export {
+  projectCommand,
   providerCommand,
   runOptions,
   watchSession,

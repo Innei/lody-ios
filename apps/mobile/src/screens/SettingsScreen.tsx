@@ -4,6 +4,7 @@ import { ProjectHistoryScreen } from './ProjectHistoryScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
 import { QuickRepliesScreen } from './QuickRepliesScreen';
 import { AgentRolesScreen } from './AgentRolesScreen';
+import { ProjectManagementScreen } from './ProjectManagementScreen';
 import { useRouter } from 'expo-router';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { AccountScreen } from './AccountScreen';
@@ -268,6 +269,14 @@ function View() {
           disclosure: true,
           navigates: true,
         },
+        {
+          id: 'project-management',
+          title: t('projectManagement.title'),
+          image: 'folder',
+          action: true,
+          disclosure: true,
+          navigates: true,
+        },
       ],
     });
   if (auth.account)
@@ -351,6 +360,8 @@ function View() {
         if (nativeEvent.id === 'project-history')
           void push(ProjectHistoryScreen);
         if (nativeEvent.id === 'agent-roles') void push(AgentRolesScreen, {});
+        if (nativeEvent.id === 'project-management')
+          void push(ProjectManagementScreen);
         if (nativeEvent.id === 'archived') void push(ArchivedSessionsScreen);
         if (nativeEvent.id === 'licenses') void push(LicensesScreen);
         if (nativeEvent.id === 'debug-open') {

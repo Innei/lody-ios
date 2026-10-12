@@ -1,4 +1,10 @@
-import { mentionCatalog, sessionMentions, commandMentions } from './mentions';
+import {
+  mentionCatalog,
+  sessionMentions,
+  commandMentions,
+  skillMentions,
+  skillDirs,
+} from './mentions';
 import { createSharingRuntime } from './sharing/runtime.ts';
 import { readShareHistory } from './sharing/history.ts';
 import type { ShareRequest } from '../models/session-sharing.ts';
@@ -38,6 +44,8 @@ import {
   revokePreview,
 } from './preview';
 import { machineRpc } from './machine-rpc';
+import { projectManagement } from './project-management.ts';
+import type { ProjectManagementRequest } from '../models/project-management.ts';
 import {
   providersCommand,
   stopProviderOperations,
@@ -661,6 +669,20 @@ async function getMentions(
     .find((item) => item.id === projectId);
   if (args.projectId && !project && !projectId?.startsWith('github:'))
     throw new Error('project_unavailable');
+  if (args.category === 'skill' && projectId?.startsWith('github:')) {
+    const result = await broker(
+      'projectApi',
+      {
+        method: 'github-skills',
+        args: { repoFullName: projectId.slice(7), skillDirs },
+      },
+      ctx.signal,
+    );
+    ctx.assertCurrent();
+    if (!result || typeof result !== 'object' || Array.isArray(result))
+      throw new Error('invalid_skill_list');
+    return skillMentions([result as Record<string, unknown>]);
+  }
   const machineId =
     session?.machineId ??
     (projectId?.startsWith('github:') ? args.machineId : project?.machineId) ??
@@ -749,6 +771,63 @@ Object.assign(globalThis, {
       if (args.action === 'close') sharingEditors.delete(args.editorId);
       else sharingEditors.set(args.editorId, args);
       return shareRuntime(args);
+    },
+    async projectCommand(args: {
+      workspaceId: string;
+      userId: string;
+      editorId: string;
+      request: ProjectManagementRequest;
+    }) {
+      if (
+        typeof args.editorId !== 'string' ||
+        !args.editorId ||
+        args.editorId.length > 256 ||
+        args.editorId.includes('\0')
+      )
+        throw new Error('invalid_project_request');
+      const key = `project:${args.editorId}`;
+      if (args.request.kind === 'cancel') {
+        if (args.workspaceId !== workspace || args.userId !== runtimeUserId)
+          throw new Error('metadata_not_ready');
+        browsers.get(key)?.abort();
+        browsers.delete(key);
+        return { projects: [] };
+      }
+      let controller = browsers.get(key);
+      if (!controller) {
+        controller = new AbortController();
+        browsers.set(key, controller);
+      }
+      const ctx = managementContext(args, controller, 120000);
+      const result = await projectManagement(args.request, {
+        ...ctx,
+        projects: [...catalogs.values()].flatMap((value) => value.projects),
+        sessions: catalogs.get('meta')?.sessions ?? [],
+        onlineMachineIds:
+          presence.state === 'live' ? presence.onlineMachineIds : undefined,
+        cloud: async (method, value) => {
+          ctx.assertCurrent();
+          const result = await broker(
+            'projectApi',
+            { method, args: value },
+            ctx.signal,
+          );
+          ctx.assertCurrent();
+          return result;
+        },
+        skills: (projectId) =>
+          getMentions({
+            workspaceId: ctx.workspaceId,
+            userId: ctx.userId,
+            projectId,
+            category: 'skill',
+          }),
+      });
+      ctx.assertCurrent();
+      for (const [id, flock] of machineReplicas)
+        catalogs.set(id, projectRows(flock.scan(), id));
+      publish();
+      return result;
     },
     async providerCommand(args: ProviderRequest & { userId: string }) {
       const ctx = managementContext(args);

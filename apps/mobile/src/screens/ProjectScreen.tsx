@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { NativeGroupedList } from '@lody-ios/kit';
-import { definePage } from '@/lib/presentation';
+import { definePage, present } from '@/lib/presentation';
+import { ProjectManagementDetailScreen } from './ProjectManagementScreen';
 import {
   useProjectModel,
   type ProjectModel,
@@ -45,6 +46,22 @@ function View() {
       />
       {model.project && !isChatProjectId(model.project.id) ? (
         <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button
+            icon="gearshape"
+            accessibilityLabel={t('projectManagement.title')}
+            onPress={() => {
+              if (model.selected)
+                void present(
+                  ProjectManagementDetailScreen,
+                  {
+                    workspaceId: model.selected.id,
+                    accountId: model.account?.user.id,
+                    projectId: model.project!.id,
+                  },
+                  { title: model.project!.name },
+                );
+            }}
+          />
           <Stack.Toolbar.Button
             icon="plus"
             accessibilityLabel={t('project.newSession.accessibility')}

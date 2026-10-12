@@ -20,7 +20,7 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 OSS_CASES = [
-    'preview-close', 'run-options', 'send-queue-tools', 'providers',
+    'preview-close', 'run-options', 'send-queue-tools', 'project-management', 'providers',
 ]
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker', 'branch-picker'],
@@ -50,6 +50,7 @@ CASES = PHONE_CASES + PAD_CASES + OSS_CASES + ['devices', 'camera-chat', 'camera
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'sheet-zoom-project', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome', 'ipad-sidebar'}
 HOME_CASES.update({'session-delete', 'session-delete-pad', 'devices', 'devices-pad'})
 PREVIEW = {
+    'project-management': 'project-management-preview',
     'providers': 'providers-preview',
     'run-options': 'run-options-preview',
     'send-queue-tools': 'send-queue-tools',
@@ -145,6 +146,7 @@ PREVIEW = {
     'community-notice': 'community-notice',
 }
 READY = {
+    'project-management': 'managed-project:studio:local:demo',
     'providers': 'provider:m1:claude',
     'run-options': 'run-options-ready',
     'send-queue-tools': 'queue-tools-status',

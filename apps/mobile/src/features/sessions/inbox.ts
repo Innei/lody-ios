@@ -133,6 +133,17 @@ function sessionPlace(session: Session, names: Map<string, string>) {
   return names.get(session.projectId) ?? '';
 }
 
+function sessionSearchText(
+  session: Session,
+  catalog: Catalog,
+  names: Map<string, string>,
+) {
+  const project = catalog.projects.find(
+    (item) => item.id === session.projectId,
+  );
+  return `${session.title} ${sessionPlace(session, names)} ${session.branchName ?? ''} ${project?.rootPath ?? ''}`;
+}
+
 export function inboxSections(
   catalog: Catalog,
   { keyword = '', accent, now, chatOnly = false, pinOrder = [] }: InboxOptions,
@@ -141,7 +152,7 @@ export function inboxSections(
   const term = keyword.trim().toLocaleLowerCase();
   const matches = (session: Session) =>
     !term ||
-    `${session.title} ${sessionPlace(session, names)}`
+    sessionSearchText(session, catalog, names)
       .toLocaleLowerCase()
       .includes(term);
 
@@ -554,11 +565,13 @@ export function matchCatalog(
   if (!term) return { projectIds: [], sessions: [] };
   const names = new Map(catalog.projects.map((p) => [p.id, p.name]));
   const projects = catalog.projects.filter(
-    (p) => !isChatProjectId(p.id) && p.name.toLocaleLowerCase().includes(term),
+    (p) =>
+      !isChatProjectId(p.id) &&
+      `${p.name} ${p.rootPath}`.toLocaleLowerCase().includes(term),
   );
   const sessions = catalog.sessions
     .filter((s) =>
-      `${s.title} ${sessionPlace(s, names)}`.toLocaleLowerCase().includes(term),
+      sessionSearchText(s, catalog, names).toLocaleLowerCase().includes(term),
     )
     .sort(byActivity);
   return {

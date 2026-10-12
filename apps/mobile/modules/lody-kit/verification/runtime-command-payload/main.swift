@@ -19,6 +19,14 @@ let providerLimit = 400 * 1024
 precondition(RuntimeCommandPayload.decode(small + String(repeating: " ", count: providerLimit - small.utf8.count), method: "providerCommand") != nil)
 precondition(RuntimeCommandPayload.decode(small + String(repeating: " ", count: providerLimit - small.utf8.count + 1), method: "providerCommand") == nil)
 
+let script = String(repeating: "\u{0001}", count: 65_536)
+let project = json(["workspaceId": "workspace", "editorId": "editor", "request": [
+  "kind": "save-script", "projectId": "github:owner/repo", "phase": "setup",
+  "config": ["scripts": ["bash": script, "powershell": script]]]])
+let projectArgs = RuntimeCommandPayload.decode(project, method: "projectCommand")
+let projectConfig = (projectArgs?["request"] as? [String: Any])?["config"] as? [String: Any]
+precondition((projectConfig?["scripts"] as? [String: String])?["powershell"] == script, "Maximum escaped two-shell scripts reach the project runtime unchanged")
+
 let roleValue = String(repeating: "界", count: 512)
 let roleOptions = Dictionary(uniqueKeysWithValues: (0..<64).map { (String(repeating: "界", count: 125) + String(format: "%03d", $0), roleValue) })
 let role: [String: Any] = ["modelId": String(repeating: "界", count: 4096), "modeId": String(repeating: "界", count: 4096),
@@ -51,7 +59,7 @@ let queueCheck = json(["workspaceId": "workspace", "sessionId": turnId, "id": tu
 let receipt = RuntimeCommandPayload.decode(queueCheck, method: "queueMessage")?["receipt"] as? [String: Any]
 precondition(receipt?["order"] as? [String] == order, "Queue confirmation preserves all ten thousand stable IDs")
 
-for (method, bytes) in [
+for (method, bytes) in [("projectCommand", 1024 * 1024),
   ("queueMessage", 16 * 1024 * 1024), ("sendTurn", 2 * 1024 * 1024), ("editSession", 2 * 1024 * 1024),
   ("checkTurnQuota", 2 * 1024 * 1024), ("createSession", 2 * 1024 * 1024), ("checkSend", 128 * 1024)] {
   precondition(RuntimeCommandPayload.decode(small + String(repeating: " ", count: bytes - small.utf8.count), method: method) != nil)

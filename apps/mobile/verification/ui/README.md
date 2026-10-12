@@ -135,6 +135,8 @@ intended native input owner before copying. An already focused empty
 `RCTUITextField` at selection 0..0 uses one physical caret tap, then rechecks
 native ownership and selection before Paste. Nonempty fields, selected
 ranges and other native input classes keep their existing menu strategy.
+The Project timeout check uses visible NumberPad keys for numeric input
+and range validation.
 Do not repeat keyboard setup, switch IMEs, or erase/retry a mismatched draft.
 `type_into` requires the exact string. Individual software-key taps remain only
 when the specific key interaction is under test (for example, the `$` mention

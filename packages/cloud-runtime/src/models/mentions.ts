@@ -6,6 +6,12 @@ export type MentionItem = {
   kind: MentionCategory | 'directory';
   subtitle: string;
   insertText?: string;
+  scope?: 'project' | 'global' | 'system';
+  dir?: string;
+  description?: string;
+  version?: string;
+  author?: string;
+  content?: string;
 };
 export type MentionSource = {
   workspaceId: string;
