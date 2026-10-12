@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import {
   initialInboxProjectSort,
   sessionCreationOptions,
+  runOptions,
   shareWriteCatalog,
   shareWriteOptions,
 } from '@lody-ios/kit';
@@ -61,7 +62,18 @@ export function ShareSnapshot() {
               ...(projectId ? { projectId } : {}),
             }),
           );
-          if (active) shareWriteOptions(projectId ?? 'chat', raw);
+          const options = JSON.parse(raw);
+          options.runOptions = JSON.parse(
+            await runOptions(
+              JSON.stringify({
+                workspaceId: workspace,
+                userId,
+                ...(projectId ? { projectId } : {}),
+              }),
+            ),
+          );
+          if (active)
+            shareWriteOptions(projectId ?? 'chat', JSON.stringify(options));
         } catch {}
       }
     })();

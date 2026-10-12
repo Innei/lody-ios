@@ -1,13 +1,31 @@
 """Read, copy, stream and search a native proposed document without authorizing it."""
 import subprocess
 import sys
+import json
 from driver import UI
 import catalog
 
 ui = UI(sys.argv[1], sys.argv[2])
 def tap(label):
-    ui.wait(lambda items: any(i.get('AXLabel') == label and i.get('enabled', True) for i in items), f'Missing action: {label}')
-    ui.axe('tap', '--label', label, '--post-delay', '.5')
+    def foreground_button(items):
+        root = next(item['frame'] for item in items if item.get('type') == 'Application')
+        matches = []
+        for item in items:
+            if item.get('type') != 'Button' or item.get('AXLabel') != label or not item.get('enabled'):
+                continue
+            frame = item['frame']
+            x, y = frame['x'] + frame['width'] / 2, frame['y'] + frame['height'] / 2
+            if frame['width'] > 0 and frame['height'] > 0 and root['x'] <= x <= root['x'] + root['width'] and root['y'] <= y <= root['y'] + root['height']:
+                matches.append(item)
+        if len(matches) == 1:
+            return matches[0]
+
+    button = ui.wait(foreground_button, f'Missing action: {label}')
+    frame = button['frame']
+    with (ui.output / 'plan-action-probes.jsonl').open('a') as log:
+        log.write(json.dumps({'label': label, 'id': button.get('AXUniqueId'),
+                              'enabled': button['enabled'], 'frame': frame}) + '\n')
+    ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.5')
 def fixture(label):
     tap('Plan fixtures')
     tap(label)

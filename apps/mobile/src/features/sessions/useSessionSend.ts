@@ -4,6 +4,8 @@ import {
   createSession,
   sendSessionTurn,
   ensureSession,
+  checkSessionSend,
+  cancelSessionSend,
   addAttachmentUploadProgressListener,
   type AttachmentUploadProgress,
 } from '@lody-ios/kit';
@@ -16,9 +18,13 @@ import type { Session } from '@lody/cloud-runtime/models/catalog';
 import type { Snapshot } from './useSessionRuntime';
 import { sessionState } from './status';
 import { resolveSessionMessageSubmitRoute } from './messageSubmitRoute';
-import { outboxInflight } from '../../cloud/send/outboxInflight';
+import {
+  outboxInflight,
+  waitForSendReceipt,
+} from '../../cloud/send/outboxInflight';
 import { quotaError } from '../../cloud/send/quotaError';
 import { t } from '../../lib/i18n/index.ts';
+import { showToast } from '../../ui/toast.ts';
 
 export function pendingSendStatus(send: PendingSend, live: boolean) {
   if (send.phase === 'failed') return t('native.chat.message.retry');
@@ -40,6 +46,8 @@ const network = {
   createSession,
   sendSessionTurn,
   ensureSession,
+  checkSessionSend,
+  cancelSessionSend,
   addAttachmentUploadProgressListener,
 };
 
@@ -71,6 +79,8 @@ export function useSessionSend({
     createSession: typeof createSession;
     sendSessionTurn: typeof sendSessionTurn;
     ensureSession: typeof ensureSession;
+    checkSessionSend?: typeof checkSessionSend;
+    cancelSessionSend?: typeof cancelSessionSend;
     addAttachmentUploadProgressListener?: typeof addAttachmentUploadProgressListener;
   };
 }) {
@@ -79,6 +89,9 @@ export function useSessionSend({
   const working = useRef(false);
   const [dispatching, setDispatching] = useState(false);
   const cleared = useRef('');
+  const checked = useRef('');
+  const recoveryWorking = useRef(false);
+  const [recovering, setRecovering] = useState(false);
   const behaviorRef = useRef(queuedMessageBehavior);
   behaviorRef.current = queuedMessageBehavior;
   const send = record?.send;
@@ -127,6 +140,25 @@ export function useSessionSend({
     session.id,
     services.addAttachmentUploadProgressListener,
   ]);
+
+  useEffect(() => {
+    if (
+      !send ||
+      send.creation ||
+      send.guide ||
+      !['unknown', 'uploaded'].includes(send.phase) ||
+      !live ||
+      !connected ||
+      working.current ||
+      outboxInflight.has(session.id) ||
+      !services.checkSessionSend
+    )
+      return;
+    const key = `${send.id}:${send.phase}`;
+    if (checked.current === key) return;
+    checked.current = key;
+    void recover('check', false);
+  }, [send?.id, send?.phase, live, connected, dispatching]);
 
   useEffect(() => {
     if (
@@ -198,8 +230,9 @@ export function useSessionSend({
         if (send.creation) {
           started = true;
           const result = JSON.parse(
-            await services.createSession(send.creation),
+            await waitForSendReceipt(services.createSession(send.creation)),
           );
+          if (!current()) return;
           if (result.state === 'created') {
             outboxInflight.delete(session.id);
             await outbox.put({
@@ -238,28 +271,36 @@ export function useSessionSend({
         const guiding = (send.guide ?? route.type === 'guide') && steerable;
         started = true;
         const result = JSON.parse(
-          await services.sendSessionTurn(
-            JSON.stringify({
-              id: send.id,
-              sessionId: session.id,
-              machineId: session.machineId,
-              userId,
-              queue: !guiding && route.type !== 'direct_dispatch',
-              guide: guiding,
-              text: send.text,
-              attachments: send.attachments,
-              cliType: session.cliType,
-              agentType: session.agentType,
-              resume: session.resume,
-              modelId: send.choice.modelId,
-              modeId: send.choice.modeId,
-              reasoningEffort: send.choice.effort,
-              reasoningEffortConfigId: send.choice.reasoningEffortConfigId,
-              configOptionValues: send.choice.configOptionValues,
-            }),
+          await waitForSendReceipt(
+            services.sendSessionTurn(
+              JSON.stringify({
+                id: send.id,
+                sessionId: session.id,
+                machineId: session.machineId,
+                userId,
+                queue: !guiding && route.type !== 'direct_dispatch',
+                guide: guiding,
+                text: send.text,
+                attachments: send.attachments,
+                cliType: session.cliType,
+                agentType: session.agentType,
+                resume: session.resume,
+                modelId: send.choice.modelId,
+                modeId: send.choice.modeId,
+                reasoningEffort: send.choice.effort,
+                reasoningEffortConfigId: send.choice.reasoningEffortConfigId,
+                configOptionValues: send.choice.configOptionValues,
+                mcpServerIds: send.choice.mcpServerIds,
+                agentRoleId: send.choice.agentRoleId,
+                agentRoleRevision: send.choice.agentRoleRevision,
+                frozenRole: send.choice.frozenRole,
+              }),
+            ),
           ),
         );
+        if (!current()) return;
         if (result.state === 'not_sent') {
+          if (result.reason === 'send_cancelled') return;
           await fail(quotaError(result.reason, t('send.error.notSent')));
         } else {
           const phase = ['accepted', 'uploaded', 'queued'].includes(
@@ -277,6 +318,7 @@ export function useSessionSend({
           }
         }
       } catch {
+        if (!current()) return;
         if (started) {
           await outbox
             .put({ ...record, send: { ...send, phase: 'unknown' } })
@@ -290,12 +332,21 @@ export function useSessionSend({
         setDispatching(false);
       }
       async function fail(reason: string) {
+        if (!current()) return;
         if (reason === 'mention_expansion_failed')
           reason = t('send.error.mentions');
         await outbox
           .put({ session, send: { ...send, phase: 'failed', reason } })
           .catch(() => {});
         Alert.alert(t('send.alert.title'), reason);
+      }
+      function current() {
+        return outbox
+          .getSnapshot()
+          .records.some(
+            (item) =>
+              item.session.id === session.id && item.send.id === send.id,
+          );
       }
     })();
   }, [
@@ -309,6 +360,110 @@ export function useSessionSend({
     dispatching,
     steerable,
   ]);
+
+  async function recover(
+    action: 'check' | 'resume' | 'cancel',
+    feedback = true,
+  ) {
+    if (!record || recoveryWorking.current) return;
+    const original = outbox
+      .getSnapshot()
+      .records.find(
+        (item) =>
+          item.session.id === session.id && item.send.id === record.send.id,
+      );
+    if (!original) return;
+    const current = () =>
+      outbox
+        .getSnapshot()
+        .records.some(
+          (item) =>
+            item.session.id === session.id && item.send.id === original.send.id,
+        );
+    if (action === 'resume') {
+      if (
+        !['unknown', 'uploaded'].includes(original.send.phase) ||
+        original.send.creation
+      )
+        return;
+      Alert.alert(
+        t('send.recovery.resumeTitle'),
+        t('send.recovery.resumeDetail'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('send.recovery.resume'),
+            onPress: () => {
+              if (!current()) return;
+              void outbox
+                .remove(session.id)
+                .then(() => {
+                  cleared.current = original.send.id;
+                  setClearDraftToken((token) => token + 1);
+                })
+                .catch(() => showToast(t('send.recovery.failed')));
+            },
+          },
+        ],
+      );
+      return;
+    }
+    recoveryWorking.current = true;
+    setRecovering(true);
+    try {
+      if (action === 'cancel') {
+        if (!['waiting', 'sending'].includes(original.send.phase)) return;
+        let cancelled =
+          original.send.phase === 'waiting' &&
+          !working.current &&
+          !outboxInflight.has(session.id);
+        if (!cancelled && services.cancelSessionSend) {
+          const result = JSON.parse(
+            await services.cancelSessionSend(
+              JSON.stringify({ sessionId: session.id, id: original.send.id }),
+            ),
+          );
+          cancelled = result.state === 'cancelled';
+        }
+        if (!current()) return;
+        if (!cancelled) {
+          showToast(t('send.recovery.cannotCancel'));
+          return;
+        }
+        await outbox.remove(session.id);
+        setRestoreDraftToken((token) => token + 1);
+        return;
+      }
+      if (!connected || !live || !services.checkSessionSend) {
+        if (feedback) showToast(t('send.recovery.offline'));
+        return;
+      }
+      const result = JSON.parse(
+        await services.checkSessionSend(
+          JSON.stringify({ sessionId: session.id, id: original.send.id }),
+        ),
+      );
+      if (!current()) return;
+      if (result.state === 'accepted' || result.state === 'queued') {
+        await outbox.put({
+          ...original,
+          send: { ...original.send, phase: result.state, reason: undefined },
+        });
+        if (cleared.current !== original.send.id) {
+          cleared.current = original.send.id;
+          setClearDraftToken((token) => token + 1);
+        }
+        if (feedback) showToast(t('send.recovery.confirmed'));
+      } else if (feedback) {
+        showToast(t('send.recovery.unconfirmed'));
+      }
+    } catch {
+      if (current() && feedback) showToast(t('send.recovery.failed'));
+    } finally {
+      recoveryWorking.current = false;
+      setRecovering(false);
+    }
+  }
 
   function submit(next: PendingSend) {
     if (
@@ -355,8 +510,30 @@ export function useSessionSend({
       });
   }
 
+  let pendingSendJSON = '';
+  if (send) {
+    pendingSendJSON = JSON.stringify({
+      ...send,
+      uploadProgress: send.phase === 'sending' ? uploadProgress : undefined,
+      queue:
+        send.queue === true &&
+        (send.phase === 'queued' ||
+          !['accepted', 'uploaded', 'failed'].includes(send.phase)),
+      status: pendingSendStatus(send, live),
+      reconnect: send.phase === 'waiting' && !live,
+      failed: send.phase === 'failed',
+    });
+  }
   return {
     submit,
+    recover,
+    recovering,
+    sendRecovery: (() => {
+      if (!send || send.creation || send.guide) return undefined;
+      if (['unknown', 'uploaded'].includes(send.phase)) return 'unknown';
+      if (['waiting', 'sending'].includes(send.phase)) return 'preparing';
+      return undefined;
+    })(),
     retry: () => {
       if (!record || record.send.phase !== 'failed' || working.current) return;
       void outbox
@@ -379,18 +556,6 @@ export function useSessionSend({
       !overflow &&
       !session.archived &&
       !!userId,
-    pendingSendJSON: send
-      ? JSON.stringify({
-          ...send,
-          uploadProgress: send.phase === 'sending' ? uploadProgress : undefined,
-          queue:
-            send.queue === true &&
-            (send.phase === 'queued' ||
-              !['accepted', 'uploaded', 'failed'].includes(send.phase)),
-          status: pendingSendStatus(send, live),
-          reconnect: send.phase === 'waiting' && !live,
-          failed: send.phase === 'failed',
-        })
-      : '',
+    pendingSendJSON,
   };
 }

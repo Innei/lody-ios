@@ -17,12 +17,14 @@ import {
   registerProject,
 } from './local-projects';
 import {
+  creationAgentCatalog,
   creationOptions,
   createSession,
   type CreateSessionArgs,
 } from './create-session';
 import {
   archiveSession,
+  docFields,
   deleteSession,
   pinSession,
   markSessionRead,
@@ -36,6 +38,8 @@ import {
   revokePreview,
 } from './preview';
 import { machineRpc } from './machine-rpc';
+import { workspaceRunOptions, resolveTurnRunOptions } from './run-options.ts';
+import type { RunOptionsRequest } from '../models/run-options.ts';
 import { remoteSettings } from './settings';
 import type { SettingsRequest } from '../models/settings.ts';
 import {
@@ -55,6 +59,7 @@ import { mergeAgentQuotas } from '../protocol/agent-usage.ts';
 import {
   openSession,
   closeSession,
+  stopSessions,
   ensureSession,
   releaseReserve,
   retainedSessionIds,
@@ -64,6 +69,8 @@ import {
   controlTurn,
   sendTurn as sendSessionTurn,
   checkTurnQuota,
+  queueMessage,
+  checkSend,
   editSession,
 } from './session';
 import { decodeFrames, encodeFrame } from '../frames';
@@ -103,7 +110,13 @@ function githubMentions(repoFullName: string): Promise<MentionCatalog> {
       if (value) resolve(value);
       else reject(new Error('github_mentions_unavailable'));
     });
-    send({ type: 'githubMentions', id, workspaceId: workspace, repoFullName });
+    send({
+      type: 'githubMentions',
+      id,
+      workspaceId: workspace,
+      userId: runtimeUserId,
+      repoFullName,
+    });
   }).finally(() => githubPending.delete(key));
   githubPending.set(key, request);
   return request;
@@ -111,13 +124,14 @@ function githubMentions(repoFullName: string): Promise<MentionCatalog> {
 async function getGrant() {
   if (grant && Date.now() < expiresAt) return grant;
   if (!grantPending) {
-    grantPending = new Promise<Grant>((resolve, reject) => {
+    const pending = new Promise<Grant>((resolve, reject) => {
       grantResolve = resolve;
       grantReject = reject;
-      send({ type: 'grant' });
+      send({ type: 'grant', workspaceId: workspace, userId: runtimeUserId });
     }).finally(() => {
-      grantPending = undefined;
+      if (grantPending === pending) grantPending = undefined;
     });
+    grantPending = pending;
   }
   return grantPending;
 }
@@ -152,6 +166,7 @@ const machineReplicas = new Map<string, Flock>();
 let creating = false;
 let registering = false;
 const browsers = new Map<string, AbortController>();
+let runtimeLifetime = new AbortController();
 
 async function markDispatch(sessionId: string, turnId: string, queued = false) {
   if (!metaReplica) throw new Error('metadata_not_ready');
@@ -194,21 +209,42 @@ const shareReplies = new Map<
   string,
   (value: unknown, failed: boolean) => void
 >();
-const broker = (operation: string, args: object) =>
+const broker = (operation: string, args: object, signal?: AbortSignal) =>
   new Promise<unknown>((resolve, reject) => {
+    if (!workspace || signal?.aborted) {
+      reject(new Error('metadata_not_ready'));
+      return;
+    }
+    const workspaceId = workspace,
+      userId = runtimeUserId;
     const id = crypto.randomUUID();
-    const timer = setTimeout(() => {
+    const clear = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
       shareReplies.delete(id);
+    };
+    const abort = () => {
+      clear();
+      reject(new Error('cancelled'));
+    };
+    const timer = setTimeout(() => {
+      clear();
       reject(new Error('share_request_timeout'));
     }, 65000);
     shareReplies.set(id, (value, failed) => {
-      clearTimeout(timer);
+      clear();
+      if (workspace !== workspaceId || runtimeUserId !== userId) {
+        reject(new Error('metadata_not_ready'));
+        return;
+      }
       if (failed) reject(new Error('share_request_failed'));
       else resolve(value);
     });
+    signal?.addEventListener('abort', abort, { once: true });
     send({
       type: 'shareRequest',
-      workspaceId: workspace,
+      workspaceId,
+      userId,
       id,
       operation,
       args,
@@ -220,11 +256,90 @@ const shareRuntime = createSharingRuntime({
   progress: (progress) => send({ type: 'shareProgress', progress }),
   broker,
 });
+const sharingEditors = new Map<string, ShareRequest>();
 const unhealthy = new Set<string>();
 const gitRepos = new Map<string, string>();
 const gitStateAsked = new Set<string>();
 let gitStateQueue = Promise.resolve();
 let runtimeUserId = '';
+function managementContext(
+  args: { workspaceId: string; userId: string },
+  controller?: AbortController,
+  timeoutMs = 65000,
+) {
+  const replica = metaReplica;
+  const signal = AbortSignal.any([
+    runtimeLifetime.signal,
+    AbortSignal.timeout(timeoutMs),
+    ...(controller ? [controller.signal] : []),
+  ]);
+  const assertCurrent = () => {
+    signal.throwIfAborted();
+    if (
+      !args.userId ||
+      args.userId !== runtimeUserId ||
+      args.workspaceId !== workspace ||
+      !replica ||
+      metaReplica !== replica ||
+      unhealthy.size
+    )
+      throw new Error('metadata_not_ready');
+  };
+  assertCurrent();
+  return {
+    workspaceId: args.workspaceId,
+    userId: args.userId,
+    meta: replica!.flock,
+    machines: machineReplicas,
+    signal,
+    assertCurrent,
+    agentCatalog: () => {
+      assertCurrent();
+      return creationAgentCatalog(replica!.flock, machineReplicas).agents;
+    },
+    getGrant: async () => {
+      assertCurrent();
+      const value = await getGrant();
+      assertCurrent();
+      return value;
+    },
+  };
+}
+function stopRuntime() {
+  runtimeLifetime.abort();
+  for (const args of sharingEditors.values())
+    void shareRuntime({ ...args, action: 'close' }).catch(() => {});
+  sharingEditors.clear();
+  for (const controller of browsers.values()) controller.abort();
+  browsers.clear();
+  for (const controller of watchers.values()) controller.abort();
+  watchers.clear();
+  stopPresence?.();
+  stopPresence = undefined;
+  presence = unknownPresence;
+  stopSessions();
+  for (const reply of [...shareReplies.values()]) reply(null, true);
+  shareReplies.clear();
+  for (const reply of githubReplies.values()) reply(null);
+  githubReplies.clear();
+  githubPending.clear();
+  grantReject?.(new Error('cancelled'));
+  grantResolve = undefined;
+  grantReject = undefined;
+  grantPending = undefined;
+  grant = undefined;
+  expiresAt = 0;
+  metaReplica = undefined;
+  machineReplicas.clear();
+  catalogs.clear();
+  unhealthy.clear();
+  gitRepos.clear();
+  gitStateAsked.clear();
+  gitStateQueue = Promise.resolve();
+  lastPublished = '';
+  workspace = '';
+  runtimeUserId = '';
+}
 // ponytail: one ask per project per runtime; an offline machine keeps its last repo through the saved catalog until restart.
 function askGitState(project: Project) {
   const localProjectId = project.id.split(':local:')[1];
@@ -235,34 +350,45 @@ function askGitState(project: Project) {
     gitStateAsked.has(project.id)
   )
     return;
+  const source = { workspaceId: workspace, userId: runtimeUserId };
+  const lifetime = runtimeLifetime;
   gitStateAsked.add(project.id);
-  gitStateQueue = gitStateQueue.then(() =>
-    machineRpc(
-      workspace,
-      project.machineId,
-      'local-project/git-state',
-      { localProjectId, requestedByUserId: runtimeUserId },
-      getGrant,
-      AbortSignal.timeout(20000),
-    ).then(
-      (reply) => {
-        const result = reply.result as
-          | {
-              success?: boolean;
-              state?: { git?: boolean; githubRepoFullName?: unknown };
-            }
-          | undefined;
-        const repo =
-          result?.success && result.state?.git
-            ? String(result.state.githubRepoFullName ?? '').trim()
-            : '';
-        if (!repo) return;
-        gitRepos.set(project.id, repo);
-        publish();
-      },
-      () => {},
-    ),
-  );
+  gitStateQueue = gitStateQueue
+    .then(() => {
+      if (lifetime.signal.aborted) return;
+      const ctx = managementContext(source, undefined, 20000);
+      return machineRpc(
+        ctx.workspaceId,
+        project.machineId,
+        'local-project/git-state',
+        { localProjectId, requestedByUserId: ctx.userId },
+        ctx.getGrant,
+        ctx.signal,
+      ).then(
+        (reply) => {
+          try {
+            ctx.assertCurrent();
+          } catch {
+            return;
+          }
+          const result = reply.result as
+            | {
+                success?: boolean;
+                state?: { git?: boolean; githubRepoFullName?: unknown };
+              }
+            | undefined;
+          const repo =
+            result?.success && result.state?.git
+              ? String(result.state.githubRepoFullName ?? '').trim()
+              : '';
+          if (!repo) return;
+          gitRepos.set(project.id, repo);
+          publish();
+        },
+        () => {},
+      );
+    })
+    .catch(() => {});
 }
 let revision = 0;
 let lastPublished = '';
@@ -386,8 +512,9 @@ function watch(mode: string) {
         let pages = 0;
         while (!signal.aborted) {
           if (upToDate) {
-            if (mode === 'meta') metaReplica = { flock, client };
-            else machineReplicas.set(mode, flock);
+            if (mode === 'meta') {
+              if (metaReplica?.flock !== flock) metaReplica = { flock, client };
+            } else machineReplicas.set(mode, flock);
             unhealthy.delete(mode);
             catalogs.set(mode, projectRows(flock.scan(), mode));
             publish();
@@ -494,9 +621,8 @@ function previewControl(sessionId: string, userId: string) {
 }
 async function getMentions(
   args: MentionSource & { category: MentionCategory; userId: string },
-) {
-  if (args.workspaceId !== workspace || !metaReplica || unhealthy.size)
-    throw new Error('metadata_not_ready');
+): Promise<MentionCatalog> {
+  const ctx = managementContext(args, undefined, 35000);
   if (args.category === 'session')
     return sessionMentions(
       catalogs.get('meta')?.sessions ?? [],
@@ -511,18 +637,20 @@ async function getMentions(
   const project = [...catalogs.values()]
     .flatMap((value) => value.projects)
     .find((item) => item.id === projectId);
-  if (args.projectId && !project) throw new Error('project_unavailable');
+  if (args.projectId && !project && !projectId?.startsWith('github:'))
+    throw new Error('project_unavailable');
   const machineId =
     session?.machineId ??
     (projectId?.startsWith('github:') ? args.machineId : project?.machineId) ??
     args.machineId;
-  if (!machineId || !machineReplicas.has(machineId))
+  if (machineId && !machineReplicas.has(machineId))
     throw new Error('machine_unavailable');
   const prefix = `${machineId}:local:`;
   const localProjectId = projectId?.startsWith(prefix)
     ? projectId.slice(prefix.length)
     : undefined;
   if (
+    machineId &&
     localProjectId &&
     machineReplicas
       .get(machineId)
@@ -533,22 +661,21 @@ async function getMentions(
     if (!projectId?.startsWith('github:'))
       return { items: [], truncated: false, incomplete: false };
     const result = await githubMentions(projectId.slice(7));
+    ctx.assertCurrent();
     return {
       ...result,
       items: result.items.filter((item) => item.kind === args.category),
     };
   }
+  if (!machineId) throw new Error('machine_unavailable');
   if (args.category === 'cmd') {
     const metadata = session
-      ? (metaReplica.flock.get(['m', `session-${session.id}`]) as
+      ? (ctx.meta.get(['m', `session-${session.id}`]) as
           Record<string, unknown> | undefined)
       : undefined;
     const configId = session
-      ? (metaReplica.flock.get([
-          'm',
-          `session-${session.id}`,
-          'agentConfigId',
-        ]) ?? metadata?.agentConfigId)
+      ? (ctx.meta.get(['m', `session-${session.id}`, 'agentConfigId']) ??
+        metadata?.agentConfigId)
       : args.agentConfigId;
     if (typeof configId !== 'string') return commandMentions([]);
     const capability = machineReplicas
@@ -571,7 +698,9 @@ async function getMentions(
       args.userId,
       machineReplicas,
       pinned ? machineId : undefined,
-      getGrant,
+      ctx.getGrant,
+      ctx.signal,
+      ctx.agentCatalog,
     );
   }
   return mentionCatalog(
@@ -583,8 +712,8 @@ async function getMentions(
         ? projectId.slice('github:'.length)
         : undefined,
       sessionId: session?.id,
-      getGrant,
-      signal: AbortSignal.timeout(35000),
+      getGrant: ctx.getGrant,
+      signal: ctx.signal,
     },
     args.category,
     args.userId,
@@ -595,7 +724,65 @@ Object.assign(globalThis, {
     sessionSharing(args: ShareRequest) {
       if (args.workspaceId !== workspace)
         throw new Error('share_workspace_changed');
+      if (args.action === 'close') sharingEditors.delete(args.editorId);
+      else sharingEditors.set(args.editorId, args);
       return shareRuntime(args);
+    },
+    async runOptions(args: RunOptionsRequest & { sessionId?: string }) {
+      const ctx = managementContext(args);
+      const session = args.sessionId
+        ? catalogs
+            .get('meta')
+            ?.sessions.find((item) => item.id === args.sessionId)
+        : undefined;
+      if (args.sessionId && !session) throw new Error('session_unavailable');
+      let machineId = args.machineId,
+        agentConfigId = args.agentConfigId;
+      if (session) {
+        machineId = session.machineId;
+        const fields = docFields(ctx.meta, `session-${session.id}`);
+        const configId =
+          ctx.meta.get(['m', `session-${session.id}`, 'agentConfigId']) ??
+          fields?.agentConfigId;
+        if (typeof configId !== 'string')
+          throw new Error('session_unavailable');
+        agentConfigId = configId;
+      }
+      if (machineId && !machineReplicas.has(machineId))
+        throw new Error('machine_unavailable');
+      const projectId = session?.projectId ?? args.projectId;
+      const creationProjectId =
+        session?.projectId === `${session?.machineId}:unassigned`
+          ? undefined
+          : projectId;
+      const options = creationOptions(
+        creationProjectId,
+        ctx.meta,
+        machineReplicas,
+      );
+      if (agentConfigId) {
+        const selected = options.agents.find(
+          (agent) =>
+            agent.id === agentConfigId &&
+            (!machineId || agent.machineId === machineId),
+        );
+        if (!selected) throw new Error('agent_unavailable');
+        machineId = selected.machineId;
+      }
+      const result = await workspaceRunOptions(
+        {
+          ...args,
+          machineId,
+          agentConfigId,
+          projectId: session?.projectId ?? args.projectId,
+        },
+        machineReplicas,
+        ctx.getGrant,
+        ctx.signal,
+        ctx.agentCatalog,
+      );
+      ctx.assertCurrent();
+      return result;
     },
     async sessionPreview(args: {
       sessionId: string;
@@ -668,6 +855,11 @@ Object.assign(globalThis, {
           ? Object.keys(value as Record<string, unknown>).sort()
           : [];
       const report: Record<string, unknown> = {};
+      if (metaReplica)
+        report.agentCatalog = creationAgentCatalog(
+          metaReplica.flock,
+          machineReplicas,
+        ).diagnostics;
       // Run the real projection here so its exception text survives; a JS throw
       // reaches Swift as a generic WKError with no message.
       const trials: Record<string, string> = {};
@@ -873,30 +1065,45 @@ Object.assign(globalThis, {
       if (
         creating ||
         args.workspaceId !== workspace ||
+        !args.userId ||
+        args.userId !== runtimeUserId ||
         !metaReplica ||
         unhealthy.size
       )
-        return { state: 'rejected' };
+        return { state: 'rejected', reason: 'metadata_not_ready' };
       const replica = metaReplica;
       creating = true;
       try {
+        const ctx = managementContext(args, undefined, 120000);
         const options = creationOptions(
           args.projectId,
           replica.flock,
           machineReplicas,
         );
-        const result = await createSession(args, options, replica, getGrant);
+        const result = await createSession(
+          args,
+          options,
+          replica,
+          ctx.getGrant,
+          {
+            machines: ctx.machines,
+            signal: ctx.signal,
+            assertCurrent: ctx.assertCurrent,
+            agentCatalog: ctx.agentCatalog,
+          },
+        );
         if (result.state === 'created' && metaReplica === replica) {
           catalogs.set('meta', projectRows(replica.flock.scan(), 'meta'));
           publish();
         }
         return result;
       } catch (error) {
+        const message = error instanceof Error ? error.message : '';
         return {
-          state:
-            error instanceof Error && error.message === 'session_already_exists'
-              ? 'unknown'
-              : 'rejected',
+          state: message === 'session_already_exists' ? 'unknown' : 'rejected',
+          reason: /^[a-z][a-z0-9_]*$/.test(message)
+            ? message
+            : 'session_creation_failed',
         };
       } finally {
         creating = false;
@@ -1045,6 +1252,40 @@ Object.assign(globalThis, {
     respondPermission,
     controlTurn,
     checkTurnQuota,
+    async queueMessage(
+      args: Parameters<typeof queueMessage>[0] & {
+        workspaceId: string;
+        userId: string;
+      },
+    ) {
+      const ctx = managementContext(args);
+      if (
+        !catalogs
+          .get('meta')
+          ?.sessions.some((item) => item.id === args.sessionId)
+      )
+        return { state: 'rejected', reason: 'session_not_ready' };
+      const result = await queueMessage(args);
+      ctx.assertCurrent();
+      return result;
+    },
+    async checkSend(
+      args: Parameters<typeof checkSend>[0] & {
+        workspaceId: string;
+        userId: string;
+      },
+    ) {
+      const ctx = managementContext(args);
+      if (
+        !catalogs
+          .get('meta')
+          ?.sessions.some((item) => item.id === args.sessionId)
+      )
+        return { state: 'unknown', reason: 'session_not_ready' };
+      const result = await checkSend(args);
+      ctx.assertCurrent();
+      return result;
+    },
     editSession(args: Parameters<typeof editSession>[0]) {
       if (!metaReplica || unhealthy.size)
         return { state: 'not_sent', reason: 'metadata_not_ready' };
@@ -1057,28 +1298,68 @@ Object.assign(globalThis, {
         Record<string, any> | undefined;
       return editSession(args, meta, capability);
     },
-    sendTurn(args: Parameters<typeof sendSessionTurn>[0]) {
+    sendTurn(
+      args: Parameters<typeof sendSessionTurn>[0] & { workspaceId: string },
+    ) {
       if (!metaReplica)
         return { state: 'not_sent', reason: 'metadata_not_ready' };
+      let ctx: ReturnType<typeof managementContext>;
+      try {
+        ctx = managementContext(args, undefined, 120000);
+      } catch {
+        return { state: 'not_sent', reason: 'metadata_not_ready' };
+      }
+      const session = catalogs
+        .get('meta')
+        ?.sessions.find((item) => item.id === args.sessionId);
+      if (!session || session.machineId !== args.machineId)
+        return { state: 'not_sent', reason: 'session_not_ready' };
+      const fields = docFields(ctx.meta, `session-${session.id}`);
+      const agentConfigId =
+        typeof fields.agentConfigId === 'string' ? fields.agentConfigId : '';
       const source = {
-        workspaceId: workspace,
-        sessionId: args.sessionId,
-        userId: args.userId,
-        cliType: args.cliType,
-        agentType: args.agentType,
+        workspaceId: ctx.workspaceId,
+        sessionId: session.id,
+        userId: ctx.userId,
+        projectId: session.projectId,
+        machineId: session.machineId,
+        agentConfigId,
+        cliType: session.cliType,
+        agentType: session.agentType,
       };
-      return sendSessionTurn(args, (text) =>
-        expandMentions(text, (category) =>
-          getMentions({ ...source, category }),
-        ),
+      return sendSessionTurn(
+        args,
+        async (text) => {
+          ctx.assertCurrent();
+          const result = await expandMentions(text, (category) =>
+            getMentions({ ...source, category }),
+          );
+          ctx.assertCurrent();
+          return result;
+        },
+        async (previous, input) => {
+          ctx.assertCurrent();
+          const result = await resolveTurnRunOptions(args, previous, input, {
+            ...ctx,
+            machineId: session.machineId,
+            agentConfigId,
+          });
+          ctx.assertCurrent();
+          return result;
+        },
       );
     },
     start(id: string, userId?: string, active = true) {
+      if (workspace && (workspace !== id || runtimeUserId !== (userId ?? '')))
+        stopRuntime();
+      if (runtimeLifetime.signal.aborted)
+        runtimeLifetime = new AbortController();
       workspace = id;
       runtimeUserId = userId ?? '';
-      watch('meta');
+      if (!watchers.has('meta')) watch('meta');
       if (active) startPresence();
     },
+    stop: stopRuntime,
     setActive(active: boolean) {
       if (!workspace) return;
       if (active) startPresence();

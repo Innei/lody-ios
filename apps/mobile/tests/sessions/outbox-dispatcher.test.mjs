@@ -127,7 +127,7 @@ async function load(hooks, native) {
                 'export const {useEffect,useRef,useState}=globalThis.__outboxHooks;',
               'react-native': 'export const Alert={alert(){}};',
               '@lody-ios/kit':
-                'export const {createSession,sendSessionTurn,ensureSession,releaseReserve}=globalThis.__outboxNative;',
+                'export const {createSession,sendSessionTurn,ensureSession,checkSessionSend,releaseReserve}=globalThis.__outboxNative;',
             }[path],
           }));
         },
@@ -225,7 +225,7 @@ test('the foreground session is left to MessageList and does not consume a reser
   assert.deepEqual(ensured, []);
 });
 
-test('accepted and failed records release reserve; unknown waits for catalog evidence', async () => {
+test('accepted and failed records release reserve; producer catalog pointers cannot confirm unknown sends', async () => {
   const released = [];
   let sends = 0;
   const { outbox, hooks } = await setup(
@@ -260,7 +260,38 @@ test('accepted and failed records release reserve; unknown waits for catalog evi
     serverSessions: [{ id: 's1', latestUserMsgId: draft.id }],
   });
   await tick();
-  assert.equal(outbox.records.length, 0);
+  assert.equal(outbox.records[0].send.phase, 'unknown');
+  assert.equal(outbox.records[0].send.text, draft.text);
+  assert.deepEqual(released, ['s1', 's1']);
+});
+
+test('background confirmation reads history once and does not repeat an uncertain send', async () => {
+  const checks = [];
+  const released = [];
+  const { outbox } = await setup(
+    [{ session, send: { ...draft, phase: 'uploaded' } }],
+    {
+      async ensureSession() {},
+      async checkSessionSend(payload) {
+        checks.push(JSON.parse(payload));
+        return JSON.stringify({ state: 'queued' });
+      },
+      async sendSessionTurn() {
+        throw new Error('Must never replay');
+      },
+      async createSession() {
+        throw new Error('Must never create');
+      },
+      async releaseReserve(id) {
+        released.push(id);
+      },
+    },
+    { serverSessions: [session] },
+  );
+  await tick();
+  assert.deepEqual(checks, [{ sessionId: 's1', id: draft.id }]);
+  assert.equal(outbox.records[0].send.phase, 'queued');
+  assert.deepEqual(released, ['s1']);
 });
 
 test('the ninth background waiting send is not ensured', async () => {

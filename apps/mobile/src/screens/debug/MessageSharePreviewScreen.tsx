@@ -127,7 +127,14 @@ function View() {
         onShareImage={({ nativeEvent }) =>
           openMessageShare(nativeEvent.contentJSON)
         }
-        composerJSON={'{"editable":false,"canSend":false}'}
+        composerJSON={JSON.stringify({
+          editable: false,
+          canSend: false,
+          sending: false,
+          notice: '',
+          reconnect: false,
+          placeholder: 'Message Lody…',
+        })}
         clearDraftToken={0}
         emptyText=""
         onSend={() => {}}

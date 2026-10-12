@@ -19,6 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
+OSS_CASES = [
+    'preview-close', 'run-options', 'send-queue-tools',
+]
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker', 'branch-picker'],
     'send': ['quick-replies', 'context-chip', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'permission-mode-chat', 'permission-mode-sheet', 'permission-mode-create', 'paste-plain-chat', 'paste-plain-sheet', 'rich-paste-chat', 'rich-paste-sheet', 'attachment-overlay-chat', 'attachment-overlay-sheet', 'attachment-overlay-create', 'attachment-camera-chat', 'attachment-camera-sheet', 'attachment-motion-chat', 'attachment-motion-sheet', 'attachment-motion-create', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'composer-fullscreen', 'model-memory'],
@@ -42,14 +45,17 @@ CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 # These lease an iPad. `--case` still accepts them; the default phone run must not.
 PAD_CASES = ['devices-pad', 'session-delete-pad', 'session-tree-pad', 'ipad', 'ipad-chrome', 'ipad-sidebar', 'native-shell', 'native-collection', 'session-search-pad']
-CASES = PHONE_CASES + PAD_CASES + ['devices', 'camera-chat', 'camera-sheet', 'message-details', 'edit-message', 'session-share', 'session-delete', 'session-search', 'morph', 'sheet-zoom-project', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'create-parity']
+CASES = PHONE_CASES + PAD_CASES + OSS_CASES + ['devices', 'camera-chat', 'camera-sheet', 'message-details', 'edit-message', 'session-share', 'session-delete', 'session-search', 'morph', 'sheet-zoom-project', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'create-parity']
 # These select HomePreviewProviders at app launch, using the same shared bundle.
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'sheet-zoom-project', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome', 'ipad-sidebar'}
 HOME_CASES.update({'session-delete', 'session-delete-pad', 'devices', 'devices-pad'})
 PREVIEW = {
+    'run-options': 'run-options-preview',
+    'send-queue-tools': 'send-queue-tools',
     'mermaid': 'mermaid-preview',
     'workspace-changes': 'simulator-preview',
     'simulator-preview': 'simulator-preview',
+    'preview-close': 'preview-close-preview',
     'message-details': 'message-share-preview',
     'edit-message': 'edit-message-preview',
     'free-turn-notice': 'free-turn-notice-preview',
@@ -138,6 +144,9 @@ PREVIEW = {
     'community-notice': 'community-notice',
 }
 READY = {
+    'run-options': 'run-options-ready',
+    'send-queue-tools': 'queue-tools-status',
+    'preview-close': 'session-preview-close',
     'mermaid': 'mermaid-preview:text',
     'message-details': 'paper-reply:meta:details',
     'free-turn-notice': 'free-turn-24',
@@ -216,6 +225,103 @@ READY = {
     'onboarding': 'onboarding-connect',
     'community-notice': 'community-notice',
 }
+
+def enter_case(ui, case):
+    if case in HOME_CASES:
+        ui.element('ui-verify-ready')
+        return
+    if case in OSS_CASES:
+        preview, ready = PREVIEW[case], READY[case]
+    else:
+        preview = PREVIEW.get(case, 'chat-preview')
+        ready = READY.get(case, 'session-input')
+    ui.open_case(preview)
+    ui.element(ready)
+
+def run_case_check(case, command, log, env, photo_access):
+    check_timeout = 420 if case in OSS_CASES else 180
+    if case == 'proposed-plan':
+        # Document, search and business dispatch outcomes share this case.
+        check_timeout = 360
+    if case == 'pull-request':
+        # Both initial appearances reached the detail flows before 180s elapsed.
+        check_timeout = 420
+    if case == 'quick-replies':
+        check_timeout = 420
+    if case.startswith(('attachment-overlay-', 'attachment-motion-')) and photo_access in ['full', 'granted']:
+        check_timeout = 360
+    if case == 'chat-performance':
+        check_timeout = 480
+    elif case in ['send-transition', 'send-transition-handoff']:
+        # Mixed-file import, text expansion, gallery gestures and
+        # per-file upload states need multiple AXe round trips.
+        # Keep each gesture/animation assertion independently bounded.
+        check_timeout = 420
+    elif case == 'live-activity':
+        # Includes a real 61-second dismissal wait plus lock/unlock
+        # and Dynamic Island transitions; 180s cuts off deep links.
+        check_timeout = 480
+    elif case == 'mermaid':
+        # Six graph types, fallbacks, plan expansion and document copy.
+        check_timeout = 300
+    elif case == 'file-preview':
+        # Held selections plus loaded image/PDF close, reopen and drag dismissal.
+        check_timeout = 420
+    elif case == 'simulator-preview':
+        # Held/cancelled/committed zoom gestures plus hide, stop and reopen flows.
+        check_timeout = 420
+    elif case == 'send':
+        # Product path can finish, then AXe restore during pending
+        # toggles eats the rest of a 300s budget.
+        check_timeout = 480
+    elif case == 'navigation':
+        # Three cold relaunches plus catalog links; 360s still dies on a cold CI AXe session.
+        check_timeout = 480
+    elif case in ('branch-picker', 'chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance'):
+        check_timeout = 300
+    elif case in ('session-search', 'session-search-pad'):
+        # iPad search exceeded 300s after completing five of its six queries.
+        check_timeout = 600
+    if case == 'mcp-files':
+        # The 133s discovery prefix omitted the later attachment and cancellation checks.
+        check_timeout = 300
+    return subprocess.run(command, check=True, timeout=check_timeout, stdout=log, stderr=subprocess.STDOUT, env=env)
+
+
+def configure_input_baseline(udid, output):
+    """Establish English and software-keyboard mode once, after inert HID warmup."""
+    for domain, preference in [
+        ('com.apple.keyboard.preferences', ['AutomaticMinimizationEnabled', '-bool', 'false']),
+        ('com.apple.Preferences', ['AppleKeyboards', '-array', 'en_US@sw=QWERTY']),
+    ]:
+        subprocess.run(['xcrun', 'simctl', 'spawn', udid, 'defaults', 'write', domain, *preference],
+                       check=True, capture_output=True, text=True, timeout=30)
+    keyboard = Path(output) / 'software-keyboard'
+    subprocess.run(['xcrun', 'clang', '-fobjc-arc', '-framework', 'Foundation',
+                    str(Path(__file__).with_name('software-keyboard.m')), '-o', str(keyboard)],
+                   check=True, capture_output=True, text=True, timeout=60)
+    # Warm simulator HID before disabling its hardware-keyboard state. Ordinary
+    # text uses the real system Paste menu; this does not validate HID typing.
+    command = ['axe', 'batch', '--udid', udid, '--step', 'key 0', '--step', 'sleep 2']
+    started = time.monotonic()
+    activation = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    report = {'command': command, 'afterSoftwareKeyboard': False, 'textInput': 'system-paste',
+              'seconds': round(time.monotonic() - started, 3), 'returncode': activation.returncode,
+              'stdout': activation.stdout, 'stderr': activation.stderr}
+    path = Path(output) / 'input-baseline.json'
+    path.write_text(json.dumps(report, indent=2))
+    activation.check_returncode()
+    if activation.stdout.startswith('Error:'):
+        raise RuntimeError(activation.stdout.strip())
+    started = time.monotonic()
+    developer = subprocess.check_output(['xcode-select', '-p'], text=True).strip()
+    software = subprocess.run([str(keyboard), developer, udid], check=True, timeout=30,
+                              capture_output=True, text=True)
+    report['softwareKeyboard'] = {'seconds': round(time.monotonic() - started, 3),
+                                  'returncode': software.returncode, 'stdout': software.stdout,
+                                  'stderr': software.stderr}
+    path.write_text(json.dumps(report, indent=2))
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
     '--udid',
@@ -339,13 +445,7 @@ with metro_context:
             'xcode': subprocess.check_output(['xcodebuild', '-version'], text=True).strip(),
             'axe': subprocess.check_output(['axe', '--version'], text=True).strip(),
         }, indent=2))
-        sim('spawn', args.udid, 'defaults', 'write', 'com.apple.keyboard.preferences', 'AutomaticMinimizationEnabled', '-bool', 'false')
-        # A Chinese App Language otherwise brings up the pinyin IME, which buffers typed
-        # fixture text as composition instead of committing it to the field.
-        sim('spawn', args.udid, 'defaults', 'write', 'com.apple.Preferences', 'AppleKeyboards', '-array', 'en_US@sw=QWERTY')
-        keyboard = args.output / 'software-keyboard'
-        subprocess.run(['xcrun', 'clang', '-fobjc-arc', '-framework', 'Foundation', str(Path(__file__).with_name('software-keyboard.m')), '-o', str(keyboard)], check=True, timeout=60)
-        subprocess.run([str(keyboard), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), args.udid], check=True, timeout=30)
+        configure_input_baseline(args.udid, args.output)
         sim('install', args.udid, str(args.app.resolve()))
         if any(case.startswith('attachment-motion-') for case in selected) or (args.photo_access in ['full', 'limited', 'granted'] and any(case.startswith('attachment-overlay-') for case in selected)):
             # Photos outlives app launches. Seed once per app container so repeats
@@ -484,13 +584,10 @@ with metro_context:
                                     raise RuntimeError('Video recorder exited before its first frame')
                         else:
                             raise TimeoutError('Video recorder did not start')
-                    preview = PREVIEW.get(case, 'chat-preview')
-                    ready = 'ui-verify-ready' if case in HOME_CASES else READY.get(case, 'session-input')
                     entry_started = time.monotonic()
+                    enter_case(ui, case)
                     if case not in HOME_CASES:
-                        ui.open_case(preview)
                         result['caseEntry'] = 'deep-link'
-                    ui.element(ready)
                     result['caseEntrySeconds'] = round(time.monotonic() - entry_started, 2)
                     if case == 'permission':
                         ui.wait(lambda items: any(i.get('AXLabel') == 'Fixtures' for i in items), 'Missing permission fixture toolbar')
@@ -500,6 +597,8 @@ with metro_context:
                         ui.element('preview-image:attachment:ui-verify-image')
                     ui.capture('before')
                     script = Path(__file__).with_name(f'{case}.py') if case in ['workspace-changes', 'simulator-preview', 'message-details', 'message-share', 'pull-request', 'project-history-entry', 'project-history', 'project-picker', 'branch-picker', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'mermaid', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'context-menu', 'chat-chrome', 'title-rename', 'composer-rich', 'composer-fullscreen'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                    if case in OSS_CASES:
+                        script = Path(__file__).with_name(f'{case}.py')
                     if case in {'devices', 'devices-pad'}:
                         script = Path(__file__).with_name('devices.py')
                     if case == 'file-selection':
@@ -553,43 +652,6 @@ with metro_context:
                         command += ['--send']
                     else:
                         command += [str(output)]
-                    check_timeout = 180
-                    if case == 'proposed-plan':
-                        # Document, search and business dispatch outcomes share this case.
-                        check_timeout = 360
-                    if case == 'quick-replies':
-                        check_timeout = 420
-                    if case.startswith(('attachment-overlay-', 'attachment-motion-')) and args.photo_access in ['full', 'granted']:
-                        check_timeout = 360
-                    if case == 'chat-performance':
-                        check_timeout = 480
-                    elif case in ['send-transition', 'send-transition-handoff']:
-                        # Mixed-file import, text expansion, gallery gestures and
-                        # per-file upload states need multiple AXe round trips.
-                        # Keep each gesture/animation assertion independently bounded.
-                        check_timeout = 420
-                    elif case == 'live-activity':
-                        # Includes a real 61-second dismissal wait plus lock/unlock
-                        # and Dynamic Island transitions; 180s cuts off deep links.
-                        check_timeout = 480
-                    elif case == 'mermaid':
-                        # Six graph types, fallbacks, plan expansion and document copy.
-                        check_timeout = 300
-                    elif case == 'file-preview':
-                        # Held selections plus loaded image/PDF close, reopen and drag dismissal.
-                        check_timeout = 420
-                    elif case == 'simulator-preview':
-                        # Held/cancelled/committed zoom gestures plus hide, stop and reopen flows.
-                        check_timeout = 420
-                    elif case == 'send':
-                        # Product path can finish, then AXe restore during pending
-                        # toggles eats the rest of a 300s budget.
-                        check_timeout = 480
-                    elif case == 'navigation':
-                        # Three cold relaunches plus catalog links; 360s still dies on a cold CI AXe session.
-                        check_timeout = 480
-                    elif case in ('branch-picker', 'session-search', 'session-search-pad', 'chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance'):
-                        check_timeout = 300
                     check_started = time.monotonic()
                     with (output / 'check.log').open('w') as log:
                         env = {**os.environ, 'LODY_UI_LANGUAGE': args.language}
@@ -597,7 +659,7 @@ with metro_context:
                             env['LODY_UI_EMBEDDED'] = '1'
                         else:
                             env['LODY_UI_METRO_PORT'] = str(args.port)
-                        subprocess.run(command, check=True, timeout=check_timeout, stdout=log, stderr=subprocess.STDOUT, env=env)
+                        run_case_check(case, command, log, env, args.photo_access)
                     result['checkSeconds'] = round(time.monotonic() - check_started, 2)
                     ui.capture('after')
                     result['status'] = 'passed'

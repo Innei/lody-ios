@@ -121,11 +121,24 @@ entries and relaunches as well; no case should scroll the Debug menu merely to
 reach its fixture. Results include `caseEntrySeconds` and `checkSeconds`.
 
 The runner establishes English and software-keyboard mode once per batch.
-Cases reuse that baseline. `UI.axe("type", text)` / `UI.type_into` submit text
-through one AXe composite HID batch rather than individual key submissions;
-do not repeat keyboard setup, switch IMEs, or erase/retry a mismatched draft.
-A mismatch fails immediately. Individual software-key taps remain only when the
-specific key interaction is under test (for example, the `$` mention trigger).
+It first sends one inert HID usage-zero press and waits two seconds, then disables
+hardware-keyboard attachment for the leased device. `input-baseline.json` records
+this order. The headless iOS 27 Indigo transport changed casing and punctuation
+in complete HID submissions; [AXe PR #73](https://github.com/cameroncooke/AXe/pull/73)
+paces DTUHID and does not establish that Indigo input works.
+Cases reuse the baseline. `UI.axe("type", text)` / `UI.type_into` copy one complete
+string to the Simulator clipboard and physically choose the observed system
+Paste menu. Read-only UIKit getters inspect the existing focus, selection and
+caret; opening the menu must preserve the input and selection. Input records
+retain the actual gesture, native reads and timings. `type_into` checks the
+intended native input owner before copying. An already focused empty
+`RCTUITextField` at selection 0..0 uses one physical caret tap, then rechecks
+native ownership and selection before Paste. Nonempty fields, selected
+ranges and other native input classes keep their existing menu strategy.
+Do not repeat keyboard setup, switch IMEs, or erase/retry a mismatched draft.
+`type_into` requires the exact string. Individual software-key taps remain only
+when the specific key interaction is under test (for example, the `$` mention
+trigger).
 Retain keyboard geometry assertions where keyboard behavior is the requirement.
 Recording starts after shared startup is ready, immediately before scene entry.
 
@@ -411,11 +424,10 @@ next `describe-ui` stuck on the same session. `navigation` dismisses the first-o
 by tapping Open without waiting on `describe-ui`, which hangs on that dialog, and
 does that only once so later links are not delayed by missing-label probes.
 Embedded `navigation` does two cold relaunches and one unknown-URL return, and
-is allowed 600s. `send` and `send-handoff` are allowed 300s. Later send drafts are letter-only, and
-`type_into` accepts an all-caps commit because AXe can hold Shift. Embedded core
+is allowed 600s. `send` and `send-handoff` are allowed 300s. Later send drafts are letter-only. Embedded core
 send skips throw-motion sampling; CI Simulators miss the 50ms / blend thresholds. Core suites keep running after one case
-fails so inbox and later send cases still report. English `type_into` retypes when the
-field disagrees even if there is no Next keyboard. `navigation` is allowed 480s because
+fails so inbox and later send cases still report. A text mismatch fails without
+retyping. `navigation` is allowed 480s because
 three cold relaunches plus catalog links overrun a 360s cap on CI. Embedded
 runs skip the Metro `Page.reload` tail of that case. The two CI UI matrix jobs
 keep running after one fails. CI uploads those plus a job-level `simctl io screenshot`

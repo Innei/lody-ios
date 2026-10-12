@@ -4,13 +4,14 @@ import {
   createSession,
   sendSessionTurn,
   ensureSession,
+  checkSessionSend,
   releaseReserve,
 } from '@lody-ios/kit';
 import type { PendingSession, usePendingSends } from './pendingSends';
 import type { Session } from '@lody/cloud-runtime/models/catalog';
 import { sessionState } from '../../features/sessions/status';
 import { t } from '../../lib/i18n/index.ts';
-import { outboxInflight } from './outboxInflight';
+import { outboxInflight, waitForSendReceipt } from './outboxInflight';
 import { quotaError } from './quotaError';
 
 export const MAX_SESSION_RESERVES = 8;
@@ -22,6 +23,7 @@ const network = {
   createSession,
   sendSessionTurn,
   ensureSession,
+  checkSessionSend,
   releaseReserve,
 };
 
@@ -42,10 +44,12 @@ export function useOutboxDispatcher({
     createSession: typeof createSession;
     sendSessionTurn: typeof sendSessionTurn;
     ensureSession: typeof ensureSession;
+    checkSessionSend?: typeof checkSessionSend;
     releaseReserve: typeof releaseReserve;
   };
 }) {
   const released = useRef(new Map<string, string>());
+  const checked = useRef(new Set<string>());
 
   useEffect(() => {
     if (!outbox.ready || !userId) return;
@@ -67,14 +71,6 @@ export function useOutboxDispatcher({
       }
       released.current.delete(session.id);
       const catalog = serverSessions.find((item) => item.id === session.id);
-      if (
-        (send.phase === 'unknown' || send.phase === 'uploaded') &&
-        catalog?.latestUserMsgId === send.id
-      ) {
-        await outbox.remove(session.id).catch(() => {});
-        await services.releaseReserve(session.id).catch(() => {});
-        return;
-      }
       if (send.creation && catalog && send.phase === 'unknown') {
         await outbox
           .put({
@@ -85,6 +81,34 @@ export function useOutboxDispatcher({
         return;
       }
       if (session.id === foregroundSessionId) return;
+      if (
+        !send.creation &&
+        !send.guide &&
+        ['unknown', 'uploaded'].includes(send.phase) &&
+        connected &&
+        catalog &&
+        services.checkSessionSend &&
+        !outboxInflight.has(session.id)
+      ) {
+        const key = `${session.id}:${send.id}:${send.phase}`;
+        if (checked.current.has(key)) return;
+        checked.current.add(key);
+        try {
+          await services.ensureSession(session.id);
+          const result = JSON.parse(
+            await services.checkSessionSend(
+              JSON.stringify({ sessionId: session.id, id: send.id }),
+            ),
+          );
+          if (!current()) return;
+          if (result.state === 'accepted' || result.state === 'queued')
+            await outbox.put({
+              ...record,
+              send: { ...send, phase: result.state, reason: undefined },
+            });
+        } catch {}
+        return;
+      }
       if (send.phase !== 'waiting' || outboxInflight.has(session.id)) return;
       if (!connected) return;
       if (slots >= MAX_SESSION_RESERVES) return;
@@ -107,8 +131,9 @@ export function useOutboxDispatcher({
         if (send.creation) {
           started = true;
           const result = JSON.parse(
-            await services.createSession(send.creation),
+            await waitForSendReceipt(services.createSession(send.creation)),
           );
+          if (!current()) return;
           if (result.state === 'created') {
             outboxInflight.delete(session.id);
             await outbox.put({
@@ -135,31 +160,41 @@ export function useOutboxDispatcher({
         }
         started = true;
         const result = JSON.parse(
-          await services.sendSessionTurn(
-            JSON.stringify({
-              id: send.id,
-              sessionId: session.id,
-              machineId: session.machineId,
-              userId,
-              guide: send.guide === true,
-              queue:
-                !send.guide &&
-                (send.queue === true ||
-                  ['live', 'attention'].includes(sessionState(session.status))),
-              text: send.text,
-              attachments: send.attachments,
-              cliType: session.cliType,
-              agentType: session.agentType,
-              resume: session.resume,
-              modelId: send.choice.modelId,
-              modeId: send.choice.modeId,
-              reasoningEffort: send.choice.effort,
-              reasoningEffortConfigId: send.choice.reasoningEffortConfigId,
-              configOptionValues: send.choice.configOptionValues,
-            }),
+          await waitForSendReceipt(
+            services.sendSessionTurn(
+              JSON.stringify({
+                id: send.id,
+                sessionId: session.id,
+                machineId: session.machineId,
+                userId,
+                guide: send.guide === true,
+                queue:
+                  !send.guide &&
+                  (send.queue === true ||
+                    ['live', 'attention'].includes(
+                      sessionState(session.status),
+                    )),
+                text: send.text,
+                attachments: send.attachments,
+                cliType: session.cliType,
+                agentType: session.agentType,
+                resume: session.resume,
+                modelId: send.choice.modelId,
+                modeId: send.choice.modeId,
+                reasoningEffort: send.choice.effort,
+                reasoningEffortConfigId: send.choice.reasoningEffortConfigId,
+                configOptionValues: send.choice.configOptionValues,
+                mcpServerIds: send.choice.mcpServerIds,
+                agentRoleId: send.choice.agentRoleId,
+                agentRoleRevision: send.choice.agentRoleRevision,
+                frozenRole: send.choice.frozenRole,
+              }),
+            ),
           ),
         );
+        if (!current()) return;
         if (result.state === 'not_sent') {
+          if (result.reason === 'send_cancelled') return;
           if (result.reason === 'session_not_ready') {
             await outbox.put({
               ...record,
@@ -175,6 +210,7 @@ export function useOutboxDispatcher({
           : 'unknown';
         await outbox.put({ ...record, send: { ...send, phase } });
       } catch {
+        if (!current()) return;
         if (started) {
           await outbox
             .put({ ...record, send: { ...send, phase: 'unknown' } })
@@ -186,6 +222,7 @@ export function useOutboxDispatcher({
         outboxInflight.delete(session.id);
       }
       async function fail(reason: string) {
+        if (!current()) return;
         if (reason === 'mention_expansion_failed')
           reason = t('send.error.mentions');
         await outbox
@@ -195,6 +232,14 @@ export function useOutboxDispatcher({
           })
           .catch(() => {});
         Alert.alert(t('send.alert.title'), reason);
+      }
+      function current() {
+        return outbox
+          .getSnapshot()
+          .records.some(
+            (item) =>
+              item.session.id === session.id && item.send.id === send.id,
+          );
       }
     }
   }, [

@@ -56,6 +56,75 @@ final class CreateChoiceController: CreateListController {
 }
 
 @MainActor
+final class CreateRoleController: CreateListController {
+  private let roles: [AgentRoleOption]
+  private let selected: String?
+  private let onPick: (String?) -> Void
+
+  init(roles: [AgentRoleOption], selected: String?, onPick: @escaping (String?) -> Void) {
+    self.roles = roles; self.selected = selected; self.onPick = onPick
+    super.init(nibName: nil, bundle: nil)
+    title = LodyStrings.text("runOptions.roles.choose")
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    let rows = [LodyListRow.item("lody:role:none", LodyStrings.text("runOptions.roles.none"), selected: selected == nil)] + roles.map { role in
+      LodyListRow.item(role.id, role.name,
+        subtitle: role.available ? role.summary : LodyStrings.text("runOptions.roles." + (role.unavailableReason ?? "unavailable")),
+        action: role.available, selected: role.id == selected)
+    }
+    list.setSections([.group("roles", footer: LodyStrings.text("runOptions.roles.desktopHint"), rows)])
+  }
+
+  override func event(_ name: String, _ body: [String: Any]) {
+    guard name == "rowPress", let id = body["id"] as? String,
+      id == "lody:role:none" || roles.contains(where: { $0.id == id && $0.available }) else { return }
+    onPick(id == "lody:role:none" ? nil : id)
+    navigationController?.popViewController(animated: true)
+  }
+}
+
+@MainActor
+final class CreateMcpController: CreateListController {
+  private let servers: [McpServerOption]
+  private var selected: [String]
+  private let onChange: ([String]) -> Void
+
+  init(servers: [McpServerOption], selected: [String], onChange: @escaping ([String]) -> Void) {
+    self.servers = servers; self.selected = selected; self.onChange = onChange
+    super.init(nibName: nil, bundle: nil)
+    title = LodyStrings.text("runOptions.mcp.title")
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override func viewDidLoad() { super.viewDidLoad(); render() }
+
+  private func render() {
+    let rows = [LodyListRow.item("lody:mcp:none", LodyStrings.text("runOptions.mcp.none"), selected: selected.isEmpty)] + servers.map { server in
+      LodyListRow.item(server.id, server.name, subtitle: server.transport, toggle: selected.contains(server.id))
+    }
+    list.setSections([.group("mcp", footer: LodyStrings.text("runOptions.mcp.hint"), rows)])
+  }
+
+  override func event(_ name: String, _ body: [String: Any]) {
+    if name == "rowPress", body["id"] as? String == "lody:mcp:none" { selected = [] }
+    else if name == "rowToggle", let id = body["id"] as? String, let value = body["value"] as? Bool,
+      servers.contains(where: { $0.id == id }) {
+      selected.removeAll { $0 == id }
+      if value { selected.append(id) }
+    } else { return }
+    onChange(selected)
+    render()
+  }
+}
+
+@MainActor
 final class CreateModelController: CreateListController {
   var onChange: ((ModelChoice) -> Void)?
   var choiceForModel: ((String?) -> ModelChoice)?

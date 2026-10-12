@@ -177,6 +177,7 @@ test('attachment progress stays local, targets the current send, and unsubscribe
   );
   hooks.unmount();
   assert.equal(removals, 2);
+  retryResult.resolve(JSON.stringify({ state: 'unknown' }));
 });
 
 async function load(hooks, native) {
@@ -202,9 +203,10 @@ async function load(hooks, native) {
             contents: {
               react:
                 'export const {useEffect,useRef,useState}=globalThis.__sendHooks;',
-              'react-native': 'export const Alert={alert(){}};',
+              'react-native':
+                'export const Alert={alert(...args){globalThis.__sendAlerts?.push(args)}};',
               '@lody-ios/kit':
-                'export const {createSession,sendSessionTurn,ensureSession,addAttachmentUploadProgressListener}=globalThis.__sendNative;',
+                'export const {createSession,sendSessionTurn,ensureSession,checkSessionSend,cancelSessionSend,addAttachmentUploadProgressListener}=globalThis.__sendNative; export const showToast=()=>{};',
             }[path],
           }));
         },
@@ -322,6 +324,39 @@ test('a definite send failure retains the draft and an ambiguous result never au
     await tick();
     assert.equal(calls, 1);
   }
+});
+
+test('invalid combined configuration keeps the draft with actionable reselection and can send after an explicit new pick', async () => {
+  const calls = [];
+  const { hooks, outbox } = await setup(
+    { ...draft, choice: { modelId: 'unavailable' } },
+    {
+      async sendSessionTurn(payload) {
+        calls.push(JSON.parse(payload));
+        if (calls.length === 1)
+          return JSON.stringify({
+            state: 'not_sent',
+            reason: 'invalid_config_options',
+          });
+        return JSON.stringify({ state: 'accepted' });
+      },
+    },
+  );
+  assert.equal(outbox.records[0].send.phase, 'failed');
+  assert.match(outbox.records[0].send.reason, /Choose them again/);
+  assert.equal(outbox.records[0].send.text, draft.text);
+  assert.deepEqual(outbox.records[0].send.attachments, draft.attachments);
+  hooks.update({ snapshot: { status: 'live', entries: [] } });
+  await tick();
+  assert.equal(calls.length, 1);
+  hooks.result.submit({ ...draft, choice: { modelId: 'selected' } });
+  await tick();
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].modelId, 'selected');
+  assert.equal(calls[1].id, draft.id);
+  assert.deepEqual(calls[1].attachments, draft.attachments);
+  assert.equal(outbox.records[0].send.phase, 'accepted');
+  hooks.unmount();
 });
 
 test('resubmitting a failed first turn keeps independent configuration unless the next draft overrides it', async () => {
@@ -643,4 +678,136 @@ test('a durable guide releases Send while each receipt remains in history', asyn
     [draft.id, 'next-guide'],
   );
   assert.equal(outbox.records[0].send.id, 'next-guide');
+});
+
+test('unknown confirmation reads once automatically and manual check unlocks without any send replay', async () => {
+  let checks = 0;
+  let receipt = 'unknown';
+  const { hooks, outbox } = await setup(
+    { ...draft, phase: 'unknown' },
+    {
+      async sendSessionTurn() {
+        throw new Error('Must never replay');
+      },
+      async checkSessionSend(payload) {
+        assert.deepEqual(JSON.parse(payload), {
+          sessionId: 's1',
+          id: draft.id,
+        });
+        checks++;
+        return JSON.stringify({ state: receipt });
+      },
+    },
+  );
+  await tick();
+  assert.equal(checks, 1);
+  assert.equal(outbox.records[0].send.phase, 'unknown');
+  assert.equal(hooks.result.sendRecovery, 'unknown');
+  hooks.update({ snapshot: { status: 'live', revision: 2, entries: [] } });
+  await tick();
+  assert.equal(checks, 1, 'Renders do not poll or replay');
+  receipt = 'queued';
+  await hooks.result.recover('check');
+  await tick();
+  assert.equal(checks, 2);
+  assert.equal(hooks.result.canSend, true);
+  assert.equal(hooks.result.clearDraftToken, 1);
+  assert.equal(outbox.records[0].send.phase, 'queued');
+  hooks.unmount();
+});
+
+test('resume requires an explicit local-clear confirmation and never cancels or resends a remote turn', async () => {
+  globalThis.__sendAlerts = [];
+  const { hooks, outbox } = await setup(
+    { ...draft, phase: 'unknown' },
+    {
+      async sendSessionTurn() {
+        throw new Error('Must never replay');
+      },
+      async cancelSessionSend() {
+        throw new Error('Must never cancel remote work');
+      },
+    },
+  );
+  await hooks.result.recover('resume');
+  assert.equal(outbox.records.length, 1);
+  const actions = globalThis.__sendAlerts.at(-1)[2];
+  assert.equal(actions[0].style, 'cancel');
+  actions[1].onPress();
+  await tick();
+  assert.equal(outbox.records.length, 0);
+  assert.equal(hooks.result.canSend, true);
+  assert.equal(hooks.result.clearDraftToken, 1);
+  assert.equal(
+    hooks.result.restoreDraftToken,
+    0,
+    'Uncertain original must not be restored for duplicate sending',
+  );
+  hooks.unmount();
+  delete globalThis.__sendAlerts;
+});
+
+test('preparation cancellation restores the draft and ignores a late receipt for the removed attempt', async () => {
+  const ack = deferred();
+  const { hooks, outbox } = await setup(draft, {
+    sendSessionTurn: () => ack.promise,
+    async cancelSessionSend(payload) {
+      assert.deepEqual(JSON.parse(payload), { sessionId: 's1', id: draft.id });
+      return JSON.stringify({ state: 'cancelled' });
+    },
+  });
+  assert.equal(hooks.result.sendRecovery, 'preparing');
+  await hooks.result.recover('cancel');
+  await tick();
+  assert.equal(outbox.records.length, 0);
+  assert.equal(hooks.result.restoreDraftToken, 1);
+  ack.resolve(JSON.stringify({ state: 'accepted' }));
+  await tick();
+  assert.equal(
+    outbox.records.length,
+    0,
+    'Late original result cannot revive a cancelled entry',
+  );
+  assert.equal(hooks.result.clearDraftToken, 0);
+  hooks.unmount();
+});
+
+test('a send past the native write boundary cannot pretend cancellation succeeded', async () => {
+  const ack = deferred();
+  const { hooks, outbox } = await setup(draft, {
+    sendSessionTurn: () => ack.promise,
+    async cancelSessionSend() {
+      return JSON.stringify({ state: 'unknown' });
+    },
+  });
+  await hooks.result.recover('cancel');
+  assert.equal(outbox.records[0].send.phase, 'sending');
+  assert.equal(hooks.result.restoreDraftToken, 0);
+  ack.resolve(JSON.stringify({ state: 'unknown' }));
+  await tick();
+  assert.equal(outbox.records[0].send.phase, 'unknown');
+  assert.equal(hooks.result.sendRecovery, 'unknown');
+  hooks.unmount();
+});
+
+test('receipt deadline gives recovery controls without replaying the original request', async () => {
+  const bundle = await build({
+    entryPoints: [
+      new URL('../../src/cloud/send/outboxInflight.ts', import.meta.url)
+        .pathname,
+    ],
+    bundle: true,
+    format: 'esm',
+    write: false,
+  });
+  const { waitForSendReceipt } = await import(
+    `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
+  );
+  const ack = deferred();
+  const result = JSON.parse(await waitForSendReceipt(ack.promise, 5));
+  assert.equal(result.state, 'unknown');
+  assert.equal(result.reason, 'confirmation_timeout');
+  ack.resolve(JSON.stringify({ state: 'accepted' }));
+  await tick();
+  assert.equal(result.state, 'unknown');
 });

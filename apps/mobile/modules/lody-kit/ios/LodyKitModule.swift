@@ -412,6 +412,10 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
     }.runOnQueue(.main)
     AsyncFunction("localProjects") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("localProjects", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("runOptions") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("runOptions", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("queueSessionMessage") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("queueMessage", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("checkSessionSend") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("checkSend", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("cancelSessionSend") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.cancelSessionSend(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("remoteSettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("remoteSettings", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.createSession(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("workspaceBillingEntitlement") { (workspace: String, user: String, promise: Promise) in
@@ -690,7 +694,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         view.performanceProbe?.stop()
         view.performanceProbe = ChatPerformanceProbe(view)
       }
-      Events("onStop", "onSteer", "onSend", "onEditMessage", "onShareImage", "onTurnInfoPress", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onPlanDecision", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse", "onPreview", "onTitleMenu")
+      Events("onStop", "onSteer", "onSend", "onEditMessage", "onShareImage", "onTurnInfoPress", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onPlanDecision", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse", "onPreview", "onTitleMenu", "onQueueAction", "onRecoverSend")
       Prop("editableMessageId") { (view: LodyChatView, value: String) in view.editableMessageID = value }
       Prop("editedMessageId") { (view: LodyChatView, value: String) in view.editedMessageID = value }
       Prop("navigationTitle") { (view: LodyChatView, value: String) in view.setNavigationTitle(value) }

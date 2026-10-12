@@ -40,6 +40,8 @@ struct ChatEntry: Decodable {
   var delivery: String? = nil
   var holdOpen: Bool? = nil
   var canSteer: Bool? = nil
+  var queueEditing: Bool? = nil
+  var queueEditingStartedAt: Double? = nil
   var isRunning: Bool { role == "assistant" && !finished }
   var isQueued: Bool { role == "user" && status == "queued" }
 }

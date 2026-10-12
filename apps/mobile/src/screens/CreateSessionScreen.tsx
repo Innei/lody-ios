@@ -4,6 +4,7 @@ import {
   githubRepositories,
   initialInboxProjectSort,
   sessionCreationOptions,
+  runOptions,
   type CreateSessionRequest,
 } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
@@ -47,6 +48,7 @@ type Params = {
   loadOptions?: (projectId?: string) => Promise<CreationOptions>;
   initialText?: string;
   initialAttachmentsJSON?: string;
+  fixtureUserId?: string;
 };
 
 function View() {
@@ -57,7 +59,7 @@ function View() {
   const { account } = useAuth();
   const { catalog } = useCatalog();
   const presence = useMachinePresence(params.workspaceId);
-  const userId = account?.user.id ?? '';
+  const userId = account?.user.id ?? params.fixtureUserId ?? '';
   const outbox = usePendingSends(userId, params.workspaceId);
   const prefsKey = createPrefsKey(userId, params.workspaceId);
   const [prefs, setPrefs] = useState<CreatePrefs | null>();
@@ -83,16 +85,29 @@ function View() {
   async function answer(request: CreateSessionRequest) {
     if (request.kind === 'options') {
       const projectId = request.projectId || undefined;
-      const options = params.loadOptions
-        ? await params.loadOptions(projectId)
-        : (JSON.parse(
-            await sessionCreationOptions(
-              JSON.stringify({
-                workspaceId: params.workspaceId,
-                ...(projectId ? { projectId } : {}),
-              }),
-            ),
-          ) as CreationOptions);
+      if (params.loadOptions)
+        return JSON.stringify(await params.loadOptions(projectId));
+      const options: CreationOptions = JSON.parse(
+        await sessionCreationOptions(
+          JSON.stringify({
+            workspaceId: params.workspaceId,
+            ...(projectId ? { projectId } : {}),
+          }),
+        ),
+      );
+      try {
+        options.runOptions = JSON.parse(
+          await runOptions(
+            JSON.stringify({
+              workspaceId: params.workspaceId,
+              userId,
+              ...(projectId ? { projectId } : {}),
+            }),
+          ),
+        );
+      } catch {
+        options.runOptions = { roles: [], mcpServers: [], unavailable: true };
+      }
       return JSON.stringify(options);
     }
     if (request.kind === 'repositories') {

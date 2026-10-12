@@ -23,6 +23,8 @@ if args.udid is None:
     raise SystemExit(run_with_simulator(SimulatorPool(), 'Native', command))
 sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'], text=True).strip()
 checks = {
+    'send-preparation': ['Cloud/SendPreparation.swift'],
+    'runtime-command-payload': ['Cloud/RuntimeCommandPayload.swift'],
     'simulator-transport': ['LodyStrings.swift', 'SimulatorStream/SimulatorDeviceView.swift', 'SimulatorStream/SimulatorRemote.swift', 'SimulatorStream/SimulatorRTCFrame.swift', 'SimulatorStream/SimulatorRTC.swift', 'SimulatorStream/SimulatorTransport.swift'],
     'chat-kit': [],
     'lexical-swift': [],
@@ -42,8 +44,9 @@ checks = {
     'chat-render': ['LodyStrings.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatThrowCurve.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatCell.swift', 'Chat/ChatUserMentions.swift'],
     'chat-chrome': ['LodyStrings.swift', 'Chat/ChatOverlay.swift'],
     'context-chip': ['LodyStrings.swift', 'Chat/ChatQuickReplies.swift'],
+    'preview-close': ['LodyStrings.swift', 'Chat/ChatQuickReplies.swift'],
     'model-panel': ['LodyStrings.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Chat/ChatComposerModelPanel.swift'],
-    'composer': ['Chrome/LodyScrollEdges.swift', 'Chrome/LodyEdgeFade.swift', 'LodyStrings.swift', 'UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatRecentPhotosView.swift', 'Chat/ChatAttachmentMenu.swift', 'Chat/ChatCameraCapture.swift', 'Chat/ChatAttachmentOverlayCameraView.swift', 'Chat/ChatCameraPage.swift', 'Chat/ChatComposerSurfaceLayout.swift', 'Chat/ChatComposerLiquidGlassSurfaceLayout.swift', 'Chat/ChatMentionPanel.swift', 'Chat/ChatComposerModelPanel.swift', 'Chat/ChatComposerView.swift', 'Chat/ChatReferenceNode.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatThrowCurve.swift', 'LodyTint.swift', 'Toast/LodyToastOverlay.swift', 'Toast/LodyToastPillView.swift', 'Toast/LodySessionBannerView.swift'],
+    'composer': ['Chrome/LodyScrollEdges.swift', 'Chrome/LodyEdgeFade.swift', 'LodyStrings.swift', 'UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatRecentPhotosView.swift', 'Chat/ChatAttachmentMenu.swift', 'Chat/ChatCameraCapture.swift', 'Chat/ChatAttachmentOverlayCameraView.swift', 'Chat/ChatCameraPage.swift', 'Chat/ChatComposerSurfaceLayout.swift', 'Chat/ChatComposerLiquidGlassSurfaceLayout.swift', 'Chat/ChatMentionPanel.swift', 'Chat/LodyMentionPickerView.swift', 'Chat/ChatComposerModelPanel.swift', 'Chat/ChatComposerView.swift', 'Chat/ChatReferenceNode.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatThrowCurve.swift', 'LodyTint.swift', 'Toast/LodyToastOverlay.swift', 'Toast/LodyToastPillView.swift', 'Toast/LodySessionBannerView.swift'],
     'attachments': ['LodyStrings.swift', 'Cloud/SessionAttachments.swift'],
     'inline-diff': ['UIFont+Dynamic.swift', 'Diff/InlineDiffModel.swift', 'Diff/InlineDiffRenderer.swift'],
     'list': [
@@ -142,7 +145,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             subprocess.run(['swift', 'run', '--package-path', str(package), '--scratch-path', str(root / '.artifacts/native-local-store')], check=True, timeout=600)
             continue
         binary = str(Path(output) / name)
-        simulator = name in ['simulator-transport', 'share-ingest', 'chat-kit', 'scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'context-chip', 'attachments', 'inline-diff', 'list', 'banner', 'chat-title', 'live-activity', 'chat-chrome']
+        simulator = name in ['simulator-transport', 'share-ingest', 'chat-kit', 'scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'context-chip', 'preview-close', 'attachments', 'inline-diff', 'list', 'banner', 'chat-title', 'live-activity', 'chat-chrome']
         command = ['xcrun', '--sdk', 'iphonesimulator', 'swiftc'] if simulator else ['xcrun', 'swiftc']
         command += ['-swift-version', '6']
         if name == 'simulator-transport':
@@ -164,12 +167,20 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
                 '-emit-module-path', str(Path(output) / 'AnchoredOverlayKit.swiftmodule'),
                 *map(str, sources), '-o', str(Path(output) / 'libAnchoredOverlayKit.a'),
             ], check=True, timeout=120)
-            command += ['-I', output, '-L', output, '-lAnchoredOverlayKit']
-        if name in ['attachments', 'github-mentions', 'github-pr', 'session-sharing']:
+            # Compile the picker with the existing standalone Expo host boundary.
+            subprocess.run([
+                *command, '-emit-library', '-static', '-emit-module',
+                '-module-name', 'ExpoModulesCore',
+                '-emit-module-path', str(Path(output) / 'ExpoModulesCore.swiftmodule'),
+                str(kit / 'verification/composer/ExpoAdapter.swift'),
+                '-o', str(Path(output) / 'libExpoModulesCore.a'),
+            ], check=True, timeout=120)
+            command += ['-I', output, '-L', output, '-lAnchoredOverlayKit', '-lExpoModulesCore']
+        if name in ['send-preparation', 'attachments', 'github-mentions', 'github-pr', 'session-sharing']:
             command += ['-parse-as-library']
         if name == 'inline-diff':
             command += ['-framework', 'UIKit']
-        if name in ['chat-render', 'composer', 'context-chip', 'chat-title']:
+        if name in ['chat-render', 'composer', 'context-chip', 'preview-close', 'chat-title']:
             command += ['-framework', 'SwiftUI']
         main = kit / 'verification' / name / 'main.swift'
         package_sources = [kit / 'ios' / file for file in files] + [main]

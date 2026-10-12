@@ -25,6 +25,29 @@ check(ShareStore.options("p1") == options && ShareStore.options("chat") == optio
 check(ShareStore.optionsPath("github:o/r") == "options/github%3Ao%2Fr.json", "targets are file-safe")
 try ShareStore.writePrefs(CreatePrefs(projectId: "p1", context: "project"))
 check(ShareStore.prefs()?.projectId == "p1", "prefs round-trip")
+
+// The extension consumes the same form with credential-free cached run choices.
+do {
+  let role = AgentRoleOption(id: "reviewer", name: "Reviewer", machineId: "m1", agentConfigId: "c", agentName: "Codex",
+    revision: 3, runConfig: RoleRunConfig(modelId: "a", modeId: "read-only"), available: true)
+  var cached = options
+  cached.runOptions = RunOptionsCatalog(roles: [role], mcpServers: [McpServerOption(id: "docs", name: "Docs", transport: "stdio", enabledByDefault: true)], worktreeAvailable: true)
+  try ShareStore.writeOptions(cached, target: "p1")
+  var form = CreateSessionForm(userId: "u1", workspaceId: "w1", projects: [project], deferUnresolved: true)
+  form.open(projectId: "p1", context: nil)
+  form.applyOptions(ShareStore.options("p1")!, chat: false)
+  form.selectRole("reviewer")
+  form.selectMcp([])
+  form.selectWorktree(true)
+  let id = UUID().uuidString
+  let draft = form.draft(sessionId: UUID().uuidString)!
+  try ShareStore.enqueue(ShareManifest(id: id, createdAt: 0, userId: "u1", workspaceId: "w1", projectId: "p1", context: "project", text: "Task", attachments: [], draft: draft), files: [])
+  let adopted = try ShareStore.adopt(id)
+  check(adopted.draft?.choice.agentRoleId == "reviewer" && adopted.draft?.choice.agentRoleRevision == 3, "Share Role survives manifest handoff")
+  check(adopted.draft?.choice.frozenRole == role.runConfig && adopted.draft?.choice.mcpServerIds == [], "Share preserves frozen Role and explicit all-off MCP")
+  check(adopted.draft?.useWorktree == true, "Share preserves remote worktree request")
+  ShareStore.remove(id)
+}
 let branches = CreateBranches(names: ["trunk", "feature/share"], defaultBranch: "trunk", nextPage: 2)
 try ShareStore.writeBranches(branches, repo: "Owner/Repo", userId: "u1", workspaceId: "w1")
 check(ShareStore.branches("Owner/Repo") == branches, "offline branch snapshot round-trips including incomplete state")

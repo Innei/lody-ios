@@ -151,6 +151,13 @@ final class CreateSessionController: UIViewController {
       options["permissions"] = permission.options.map { ["id": $0.id, "title": $0.name, "description": $0.description ?? ""] }
     }
     if let fast { options["fast"] = fast.enabled }
+    if let catalog = page.options?.runOptions {
+      var scoped = catalog
+      scoped.roles = form.availableRoles
+      options["runOptions"] = try? JSONSerialization.jsonObject(with: Data(CreateJSON.encode(scoped).utf8))
+    }
+    options["agentRoleId"] = (page.choice.agentRoleId as Any?) ?? NSNull()
+    options["mcpServerIds"] = page.choice.mcpServerIds ?? []
     composer.setComposerOptions(Self.json(options))
     composer.setComposerState(Self.json([
       "editable": true, "canSend": form.canSend, "sending": sending, "notice": form.notice,
@@ -219,6 +226,10 @@ final class CreateSessionController: UIViewController {
       if id == "agent" && page.agents.isEmpty { return load(chat: form.chat) }
       id == "machine" ? pickMachine() : pickAgent()
     case "model": pickModel()
+    case "role": pickRole()
+    case "mcp": pickMcp()
+    case "worktree": pickWorktree()
+    case "run-options-retry": load(chat: form.chat)
     case "branch": pickBranch()
     default: break
     }
@@ -282,14 +293,46 @@ final class CreateSessionController: UIViewController {
     controller.title = title
     controller.choiceForModel = { [weak self] modelId in
       guard let self else { return ModelChoice(modelId: modelId) }
-      return CreateLogic.rememberedModelChoice(
+      let old = self.form.current.choice
+      if modelId == old.modelId { return old }
+      var next = CreateLogic.rememberedModelChoice(
         self.form.prefs, agentKey: self.form.current.agentKey, capability: capability, modelId: modelId)
+      next.mcpServerIds = old.mcpServerIds
+      next.agentRoleId = old.agentRoleId
+      next.agentRoleRevision = old.agentRoleRevision
+      next.frozenRole = old.frozenRole
+      return CreateLogic.detachingChangedRole(next, capability: capability)
     }
     controller.onChange = { [weak self] choice in
       self?.form.updateChoice(choice)
       self?.changed()
     }
     push(controller)
+  }
+
+  private func pickRole() {
+    push(CreateRoleController(roles: form.availableRoles, selected: form.current.choice.agentRoleId) { [weak self] id in
+      self?.form.selectRole(id)
+      self?.changed()
+    })
+  }
+
+  private func pickMcp() {
+    push(CreateMcpController(servers: form.current.mcpServers, selected: form.current.choice.mcpServerIds ?? []) { [weak self] ids in
+      self?.form.selectMcp(ids)
+      self?.changed()
+    })
+  }
+
+  private func pickWorktree() {
+    let page = form.current
+    var choices = [("current", LodyStrings.text("runOptions.worktree.current"), "")]
+    if page.worktreeAvailable { choices.append(("worktree", LodyStrings.text("runOptions.worktree.new"), LodyStrings.text("runOptions.worktree.hint"))) }
+    push(CreateChoiceController(title: LodyStrings.text("runOptions.worktree.title"), header: "", placeholder: "",
+      options: choices, selected: page.useWorktree ? "worktree" : "current") { [weak self] id in
+      self?.form.selectWorktree(id == "worktree")
+      self?.changed()
+    })
   }
 
   func fetchBranches() {
@@ -340,7 +383,11 @@ final class CreateSessionController: UIViewController {
 
   func composerOptionChanged(_ body: [String: Any]) {
     let page = form.current
-    if let permission = body["permissionId"] as? String {
+    if body.keys.contains("agentRoleId") {
+      form.selectRole(body["agentRoleId"] as? String)
+    } else if let ids = body["mcpServerIds"] as? [String] {
+      form.selectMcp(ids)
+    } else if let permission = body["permissionId"] as? String {
       form.updateChoice(CreateLogic.withPermissionMode(page.capability, page.choice, value: permission))
     } else if let fast = body["fast"] as? Bool {
       form.updateChoice(CreateLogic.withFastMode(page.capability, page.choice, enabled: fast))
