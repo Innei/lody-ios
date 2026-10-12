@@ -45,6 +45,7 @@ export type PullRequestReference = {
   repository: string;
   number: number;
   status: PullRequestPreviewData['state'];
+  reportedAt?: string;
   ci?: 's' | 'f' | 'p' | 'e' | 'x';
 };
 

@@ -31,6 +31,20 @@ export function pullRequestReferences(
       typeof state === 'string' && ['s', 'f', 'p', 'e', 'x'].includes(state)
         ? (state as PullRequestReference['ci'])
         : undefined;
-    return [{ url, repository: match[1], number, status: raw.status, ci }];
+    const reportedAt =
+      typeof raw.reportedAt === 'string' &&
+      Number.isFinite(Date.parse(raw.reportedAt))
+        ? raw.reportedAt
+        : undefined;
+    return [
+      {
+        url,
+        repository: match[1],
+        number,
+        status: raw.status,
+        ci,
+        ...(reportedAt ? { reportedAt } : {}),
+      },
+    ];
   });
 }

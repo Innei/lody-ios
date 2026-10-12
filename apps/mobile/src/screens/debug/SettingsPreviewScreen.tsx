@@ -159,6 +159,7 @@ const SettingsListPreviewScreen = definePage<{
 });
 
 function previewUsage(percent: number): Catalog['agentUsage'] {
+  const providerConfigs: Record<string, string> = { codex: 'a1', claude: 'a2' };
   const configs = [
     ['a1', 'Codex', 'codex'],
     ['a2', 'Claude', 'claude'],
@@ -218,7 +219,7 @@ function previewUsage(percent: number): Catalog['agentUsage'] {
           ],
         },
       ].map((q) => ({
-        key: ['rateLimit', q.provider, q.id],
+        key: ['rateLimit', providerConfigs[q.provider], q.provider, q.id],
         value: {
           limitId: q.id,
           scope: { providerId: q.provider },

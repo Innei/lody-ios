@@ -38,8 +38,8 @@ test('machine replica changes reach usage rows, preserve zero/expired limits and
       },
     ],
   });
-  machine.set(['rateLimit', 'codex', 'codex'], snapshot(0));
-  machine.set(['rateLimit', 'codex', 'codex_bengalfox'], {
+  machine.set(['rateLimit', 'official', 'codex', 'codex'], snapshot(0));
+  machine.set(['rateLimit', 'official', 'codex', 'codex_bengalfox'], {
     ...snapshot(8),
     limitId: 'codex_bengalfox',
   });
@@ -52,7 +52,7 @@ test('machine replica changes reach usage rows, preserve zero/expired limits and
   assert.equal(agentUsageRows({ ...item, id: 'api' }, initial).length, 0);
   assert.equal(agentUsageRows(item, initial)[0].progress, 0);
   assert.match(agentUsageRows(item, initial)[1].title, /Spark/);
-  machine.set(['rateLimit', 'codex', 'codex'], snapshot(72));
+  machine.set(['rateLimit', 'official', 'codex', 'codex'], snapshot(72));
   machine.commit();
   const updated = read();
   setLocale('en');
@@ -70,8 +70,8 @@ test('machine replica changes reach usage rows, preserve zero/expired limits and
     agentUsageRows(item, JSON.parse(JSON.stringify(updated)))[0].progress,
     0.72,
   );
-  machine.delete(['rateLimit', 'codex', 'codex']);
-  machine.delete(['rateLimit', 'codex', 'codex_bengalfox']);
+  machine.delete(['rateLimit', 'official', 'codex', 'codex']);
+  machine.delete(['rateLimit', 'official', 'codex', 'codex_bengalfox']);
   machine.commit();
   setLocale('zh-Hans');
   assert.equal(agentUsageRows(item, read())[0].title, '暂无用量数据');

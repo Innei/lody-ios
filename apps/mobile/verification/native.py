@@ -27,6 +27,7 @@ checks = {
     'runtime-command-payload': ['Cloud/RuntimeCommandPayload.swift'],
     'project-management': ['Cloud/ProjectManagementCloud.swift'],
     'team': ['Cloud/TeamManagement.swift'],
+    'transcript-context': ['LodyStrings.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift'],
     'simulator-transport': ['LodyStrings.swift', 'SimulatorStream/SimulatorDeviceView.swift', 'SimulatorStream/SimulatorRemote.swift', 'SimulatorStream/SimulatorRTCFrame.swift', 'SimulatorStream/SimulatorRTC.swift', 'SimulatorStream/SimulatorTransport.swift'],
     'chat-kit': [],
     'lexical-swift': [],

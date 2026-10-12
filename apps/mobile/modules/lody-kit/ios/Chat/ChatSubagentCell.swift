@@ -108,6 +108,8 @@ final class ChatSubagentCell: UICollectionViewCell {
       "in_progress": "native.chat.subagent.running",
       "completed": "native.chat.subagent.completed",
       "failed": "native.chat.subagent.failed",
+      "cancelled": "subagent.history.cancelled",
+      "unknown": "subagent.history.unknown",
     ]
     return keys[status].map { LodyStrings.text($0) } ?? ""
   }

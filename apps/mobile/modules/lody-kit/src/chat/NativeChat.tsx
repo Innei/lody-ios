@@ -13,6 +13,13 @@ export type ChatDraftAttachment = {
 export const NativeChat: ComponentType<
   ViewProps & {
     entriesJSON: string;
+    readOnly?: boolean;
+    sessionContextJSON?: string;
+    pinnedHistoryId?: string;
+    pinEnabled?: boolean;
+    onPin?: (event: NativeSyntheticEvent<{ entryId: string }>) => void;
+    forkEnabled?: boolean;
+    onFork?: (event: NativeSyntheticEvent<{ entryId: string }>) => void;
     simulatorPreviewJSON?: string;
     editableMessageId?: string;
     editedMessageId?: string;

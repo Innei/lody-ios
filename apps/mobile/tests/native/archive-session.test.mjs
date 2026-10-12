@@ -420,3 +420,31 @@ test('rename writes a user-directed title onto the session meta', async () => {
     /invalid_session/,
   );
 });
+
+test('failed rename keeps the live title, and a base-map read receipt remains monotonic', async () => {
+  const flock = new Flock('rename-failure');
+  flock.set(['m', 'session-s'], {
+    id: 's',
+    title: 'Current title',
+    lastReadAt: 500,
+  });
+  flock.commit();
+  let appends = 0;
+  const replica = {
+    flock,
+    client: {
+      async append() {
+        appends++;
+        throw new Error('offline');
+      },
+    },
+  };
+  await assert.rejects(
+    renameSession({ sessionId: 's', title: 'Replacement' }, replica),
+    /offline/,
+  );
+  assert.equal(flock.get(['m', 'session-s']).title, 'Current title');
+  assert.equal(flock.get(['m', 'session-s', 'title']), undefined);
+  await markSessionRead({ sessionId: 's', lastReadAt: 499 }, replica);
+  assert.equal(appends, 1, 'an older read receipt needs no append');
+});

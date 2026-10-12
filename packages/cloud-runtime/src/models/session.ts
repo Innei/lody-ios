@@ -1,8 +1,17 @@
 import { type TurnMetadata } from '../protocol/turnMetadata.ts';
+import type { SubagentRunMetadata } from './subagent-history.ts';
+import type { MessageAuthor, SessionGoal } from './transcript-context.ts';
+import type { SessionForkOperation } from './session-tools.ts';
 export type SystemNoticeMeta = {
   reason?: string;
   code?: string;
   message?: string;
+  source?: string;
+  sourceSessionId?: string;
+  sourceTitle?: string;
+  truncated?: boolean;
+  terminalOmitted?: boolean;
+  thinkingOmitted?: boolean;
 };
 
 export type MessageAttachment = {
@@ -27,6 +36,7 @@ export type ItemSummary =
     }
   | { itemId: string; rev: number; type: 'text'; text: string }
   | { itemId: string; rev: number; type: 'thought'; text: string }
+  | { itemId: string; rev: number; type: 'goal'; goal?: SessionGoal }
   | { itemId: string; rev: number; type: 'file'; file: MessageAttachment }
   | {
       itemId: string;
@@ -67,6 +77,11 @@ export type ItemSummary =
       rev: number;
       type: 'subagent_task';
       taskId: string;
+      toolUseId?: string;
+      parentTaskId?: string;
+      startedAtEpochSeconds?: number;
+      endedAtEpochSeconds?: number;
+      run?: SubagentRunMetadata;
       status: string;
       actor?: string;
       description?: string;
@@ -85,6 +100,9 @@ export type EntrySummary = TurnMetadata & {
   status: string;
   finished: boolean;
   canSteer?: boolean;
+  acpTurnId?: string;
+  userId?: string;
+  author?: MessageAuthor;
   queueEditing?: boolean;
   queueEditingStartedAt?: number;
   userTurnId?: string;
@@ -109,6 +127,8 @@ export type Envelope = {
   revision: number;
   billableTurnCount?: number;
   awaitingUserSince?: number;
+  goal?: SessionGoal;
+  forkOperation?: SessionForkOperation;
   preview?: { label: string; active: boolean };
   composer?: {
     mcpServerIds?: string[];

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   requestOpenSession,
+  requestOpenSessionFromPage,
   requestShareSession,
   subscribeSessionNav,
 } from '../../src/features/sessions/sessionNav.ts';
@@ -16,6 +17,59 @@ const session = {
   projectId: 'p',
   createdAt: '2026-01-01',
 };
+
+test('a fork pushes through the current navigation owner while its source page is still open', async () => {
+  const stack = [];
+  let closeSource;
+  let closeFork;
+  const stop = subscribeSessionNav(async (intent) => {
+    stack.push(intent.session.id);
+    await new Promise((resolve) => {
+      if (intent.kind === 'open-from-page') closeFork = resolve;
+      else closeSource = resolve;
+    });
+    stack.pop();
+  });
+  const source = requestOpenSession(session);
+  const fork = requestOpenSessionFromPage('workspace', 'viewer', {
+    ...session,
+    id: 'fork',
+  });
+  assert.deepEqual(stack, ['s1', 'fork']);
+  closeFork();
+  await fork;
+  assert.deepEqual(
+    stack,
+    ['s1'],
+    'Back from the fork preserves its source page',
+  );
+  closeSource();
+  await source;
+  assert.deepEqual(stack, []);
+  stop();
+});
+
+test('leaving the navigation scope settles a pending fork and blocks its late completion', async () => {
+  let release;
+  const opened = [];
+  const pendingPage = new Promise((resolve) => {
+    release = resolve;
+  });
+  const stop = subscribeSessionNav(async (intent, signal) => {
+    await pendingPage;
+    if (!signal.aborted) opened.push(intent.session.id);
+  });
+  const fork = requestOpenSessionFromPage(
+    'old-workspace',
+    'old-viewer',
+    session,
+  );
+  stop();
+  await fork;
+  release();
+  await Promise.resolve();
+  assert.deepEqual(opened, []);
+});
 
 test('sharing can open while the same navigation owner awaits a session page', async () => {
   let release;

@@ -56,6 +56,7 @@ function View() {
               id,
               actionId,
               deleteSessionRequest,
+              account?.user.id ?? '',
             );
         }}
       />

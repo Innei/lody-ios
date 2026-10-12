@@ -12,6 +12,8 @@ export type InboxSearchHits = {
   sessions: { id: string; snippet: string | null }[];
 };
 export type DataRuntimeEvent = {
+  subscriptionId?: string;
+  subagentHistory?: string;
   machinePresence?: string;
   shareProgress?: import('@lody/cloud-runtime/models/session-sharing').ShareProgress;
   sessionId?: string;
@@ -55,7 +57,9 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   cancelSessionSend(payload: string): Promise<string>;
   projectCommand(payload: string): Promise<string>;
   providerCommand(payload: string): Promise<string>;
+  sessionTools(payload: string): Promise<string>;
   runOptions(payload: string): Promise<string>;
+  subagentHistory(payload: string): Promise<string>;
   teamRequest(payload: string): Promise<string>;
   sessionSharing(payload: string): Promise<string>;
   verifyPushSubscription(): Promise<void>;
@@ -437,7 +441,10 @@ export const projectCommand = (payload: string) =>
   native.projectCommand(payload);
 export const providerCommand = (payload: string) =>
   native.providerCommand(payload);
+export const sessionTools = (payload: string) => native.sessionTools(payload);
 export const runOptions = (payload: string) => native.runOptions(payload);
+export const subagentHistory = (payload: string) =>
+  native.subagentHistory(payload);
 export const teamRequest = (payload: string) => native.teamRequest(payload);
 
 export const initialInboxView = [0, 1, 2].includes(native.initialInboxView)

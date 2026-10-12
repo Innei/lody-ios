@@ -83,6 +83,10 @@ const reserved = new Set<string>();
 export const retainedSessionIds = () => [...sessions.keys()];
 export const reservedSessionIds = () => [...reserved];
 export const sessionDoc = (id: string) => sessions.get(id)?.doc;
+export function readySessionDoc(id: string) {
+  const state = sessions.get(id);
+  return state?.ready && state.status === 'live' ? state.doc : undefined;
+}
 function signalOf(state: SessionState, status: string) {
   const history = state.doc.getList('history');
   let finished = 0;

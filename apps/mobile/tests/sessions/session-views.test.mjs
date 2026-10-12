@@ -241,3 +241,27 @@ test('invalid persisted values are ignored and save failures reach the caller', 
   await store.markViewed('s', 100);
   assert.equal(disk.get('invalid').s, 100, 'reopening retries a failed save');
 });
+
+test('explicit unread clears the viewer watermark and puts a previously viewed session back in the unread group', async () => {
+  const store = createSessionViewStore('explicit-unread');
+  await store.markViewed('s', 100);
+  await store.clearViewed('s');
+  const data = {
+    ...source,
+    sessions: [session('s', { lastMessageAt: 100, lastReadAt: 99 })],
+  };
+  const sections = builders.activity(
+    withSessionViews(data, store.getSnapshot()),
+  );
+  assert.equal(sections[0].id, 'unread');
+  assert.equal(sections[0].rows[0].unread, true);
+  const restored = createSessionViewStore('explicit-unread');
+  await restored.ready;
+  assert.equal(restored.getSnapshot().s, undefined);
+  await restored.markViewed('s', 100);
+  assert.equal(
+    restored.getSnapshot().s,
+    100,
+    'a subsequent actual view may remove the local emphasis again',
+  );
+});

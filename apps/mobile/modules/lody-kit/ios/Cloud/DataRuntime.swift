@@ -215,6 +215,11 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       emitStatus(["sessionId": id, "session": payload])
     case "shareProgress":
       if let progress = body["progress"] as? [String: Any] { emitStatus(["shareProgress": progress]) }
+    case "subagentHistory":
+      guard let id = body["sessionId"] as? String, !id.isEmpty, id.utf8.count <= 256,
+        let subscription = body["subscriptionId"] as? String, !subscription.isEmpty, subscription.utf8.count <= 256,
+        body["subagentHistory"] as? String == "changed" else { return }
+      emitStatus(["sessionId": id, "subscriptionId": subscription, "subagentHistory": "changed"])
     case "shareRequest":
       guard let workspace, body["workspaceId"] as? String == workspace, body["userId"] as? String == userId,
         let id = body["id"] as? String, UUID(uuidString: id) != nil,
@@ -627,7 +632,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       args["userId"] = userId
     }
     if method == "remoteSettings" || method == "localProjects" || method == "mentionCatalog" { args["userId"] = userId }
-    if ["projectCommand", "providerCommand", "runOptions"].contains(method) { args["userId"] = userId }
+    if ["projectCommand", "providerCommand", "sessionTools", "runOptions", "subagentHistory"].contains(method) { args["userId"] = userId }
     if method == "editSession" || method == "sessionPreview" || method == "iosSimulatorControl" { args["userId"] = userId }
     let id = UUID(); commands[id] = sink
     if (method == "sendTurn" || (method == "editSession" && args["action"] as? String == "send")), args["backgroundTaskId"] == nil, !backgrounded {
@@ -635,7 +640,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     }
     let backgroundTaskId = args["backgroundTaskId"] as? String
     var timeout: Double = 45
-    if ["providerCommand", "runOptions", "queueMessage", "checkSend"].contains(method) { timeout = 90 }
+    if ["providerCommand", "sessionTools", "runOptions", "subagentHistory", "queueMessage", "checkSend"].contains(method) { timeout = 90 }
     // Owned expansion/management reads expire at 120 seconds before any durable send.
     if ["createSession", "sendTurn", "editSession", "sessionSharing", "projectCommand"].contains(method) { timeout = 130 }
     if method == "sessionPreview" { timeout = 330 }

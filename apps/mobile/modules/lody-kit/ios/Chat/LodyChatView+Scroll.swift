@@ -3,7 +3,9 @@ import UIKit
 extension LodyChatView {
   var composerInset: CGFloat {
     // Retiring glass keeps its drawing space, not the transcript's scroll space.
-    processEntryID.isEmpty ? max(0, bounds.maxY - composer.frame.minY - composer.retiringQueueHeight - collection.safeAreaInsets.bottom) + 8 : 0
+    guard processEntryID.isEmpty else { return 0 }
+    if readOnly { return max(0, bounds.maxY - keyboardLayoutGuide.layoutFrame.minY - collection.safeAreaInsets.bottom) }
+    return max(0, bounds.maxY - composer.frame.minY - composer.retiringQueueHeight - collection.safeAreaInsets.bottom) + 8
   }
 
   @discardableResult
@@ -56,6 +58,7 @@ extension LodyChatView {
       return
     }
     if let pendingSend, id == pendingSend.id + ":pending", pendingSend.failed == true {
+      guard !readOnly else { return }
       onRetrySend([:])
       return
     }
@@ -432,6 +435,9 @@ extension LodyChatView {
   }
 
   func rowHeight(_ row: ChatRow, width: CGFloat, previousKind: String? = nil) -> CGFloat {
+    if ["goal", "context", "quota"].contains(row.kind) {
+      return ChatContextCell.height(row, width: width, traits: traitCollection)
+    }
     if row.kind == "proposed_plan" {
       let body = store.height(id: row.id, text: row.text, secondary: false, streaming: row.streaming, width: max(1, width - 32))
       return ChatPlanCell.height(body: body, expanded: expandedPlans.contains(row.id), review: !row.planPermissionItemID.isEmpty, decision: row.planDecision)
@@ -721,6 +727,7 @@ extension LodyChatView {
             UIPasteboard.general.setMessageMarkdown(content.text)
             LodyToastOverlay.shared.show(message: LodyStrings.text("native.chat.message.copied"), kind: "info")
           } else if key == "image" {
+            guard self.imageSharingEnabled else { return }
             var snapshot = content
             snapshot.workspace = self.imageWorkspace
             snapshot.session = self.imageSession
@@ -734,11 +741,18 @@ extension LodyChatView {
           }
         }
       }
-      completion([
+      var actions = [
         action("copy", symbol: "doc.on.doc", disabled: content.text.isEmpty),
         action("image", symbol: "photo", disabled: !self.imageSharingEnabled),
         action("share", symbol: "square.and.arrow.up", disabled: content.text.isEmpty),
-      ])
+      ]
+      if self.canForkMessage(entryID) {
+        actions.append(UIAction(title: LodyStrings.text("native.chat.fork"), image: UIImage(systemName: "arrow.triangle.branch")) { [weak self] _ in
+          guard let self, self.canForkMessage(entryID) else { return }
+          self.onFork(["entryId": entryID])
+        })
+      }
+      completion(actions)
     }])
   }
 }

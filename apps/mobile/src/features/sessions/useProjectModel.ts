@@ -60,7 +60,14 @@ export function useProjectModel(projectId: string) {
     selected,
     rowAction: (id: string, actionId: string) => {
       if (selected)
-        listRowAction(selected, catalog, id, actionId, deleteSessionRequest);
+        listRowAction(
+          selected,
+          catalog,
+          id,
+          actionId,
+          deleteSessionRequest,
+          account?.user.id ?? '',
+        );
     },
   };
 }

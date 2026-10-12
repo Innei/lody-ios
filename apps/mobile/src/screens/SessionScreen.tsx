@@ -33,6 +33,11 @@ import {
   runOptionsFailureNotice,
   runOptionsRecoveryAction,
 } from '@/features/sessions/runOptionsRecovery';
+import { useTeamDirectory } from '@/features/team/useTeamDirectory';
+import { selectSessionQuotas } from '@lody/cloud-runtime/protocol/agent-usage';
+import { requestSessionTools } from '@/cloud/session-tools';
+import { requestOpenSessionFromPage } from '@/features/sessions/sessionNav';
+import { ForkSessionScreen } from '@/screens/ForkSessionScreen';
 import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
 import { useQuickReplies } from '@/features/settings/quick-replies';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
@@ -58,6 +63,8 @@ import {
   confirmSessionDeletion,
   subscribeSessionDeletion,
   isSessionDeleting,
+  setContentPinned,
+  setUnread,
 } from '@/features/sessions/sessionActions';
 import { useSessionViewed } from '@/features/sessions/useSessionViewed';
 import { sessionDebugText } from '@/features/sessions/sessionDebug';
@@ -417,6 +424,15 @@ function SessionView() {
     runOptions.catalog,
     activeChoice,
   );
+  const directory = useTeamDirectory(
+    selected && account
+      ? {
+          workspaceId: selected.id,
+          workspaceName: selected.name,
+          userId: account.user.id,
+        }
+      : undefined,
+  );
   const { queuedMessageBehavior } = useQueuedMessageBehavior();
   const { quickReplies } = useQuickReplies();
   const control = useSessionControl(
@@ -448,6 +464,97 @@ function SessionView() {
       !overflow &&
       !deleting,
   });
+  const [forkAvailable, setForkAvailable] = useState(false);
+  const [forkTarget, setForkTarget] = useState('');
+  const [forkPresenting, setForkPresenting] = useState(false);
+  const forkOpening = useRef(false);
+  const forkReady =
+    !!selected &&
+    !!account &&
+    snapshot.status === 'live' &&
+    !currentSession.archived &&
+    !overflow &&
+    !deleting &&
+    !pending?.send.creation &&
+    deviceState === 'online';
+  useEffect(() => {
+    setForkAvailable(false);
+    if (!forkReady || !selected) return;
+    let active = true;
+    void requestSessionTools({
+      action: 'fork-options',
+      workspaceId: selected.id,
+      sessionId: session.id,
+    })
+      .then((result) => {
+        if (active && result.action === 'fork-options')
+          setForkAvailable(result.shared);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [
+    selected?.id,
+    account?.user.id,
+    session.id,
+    currentSession.archived,
+    currentSession.agentConfigId,
+    currentSession.machineId,
+    snapshot.status,
+    connection.syncedAt,
+    overflow,
+    deleting,
+    pending?.send.creation,
+    deviceState,
+    forkReady,
+  ]);
+  const forkEnabled =
+    forkReady && forkAvailable && !forkPresenting && !forkTarget;
+  const forkFrom = async (entryId: string) => {
+    if (!forkEnabled || forkOpening.current || !selected || !account) return;
+    const entry = snapshot.entries.find((item) => item.id === entryId);
+    if (entry?.role !== 'assistant' || !entry.finished || !entry.acpTurnId)
+      return;
+    forkOpening.current = true;
+    setForkPresenting(true);
+    let completed = false;
+    try {
+      const result = await present(ForkSessionScreen, {
+        workspaceId: selected.id,
+        userId: account.user.id,
+        session: currentSession,
+        sourceTurnId: entry.id,
+      });
+      if (!alive.current || result.status !== 'completed') return;
+      completed = true;
+      setForkTarget(result.value.targetSessionId);
+      refresh();
+    } catch {
+      if (alive.current) showToast(t('session.toast.openFailed'));
+    } finally {
+      if (alive.current && !completed) {
+        forkOpening.current = false;
+        setForkPresenting(false);
+      }
+    }
+  };
+  useEffect(() => {
+    if (!forkTarget || !selected || !account) return;
+    const target = catalog.sessions.find((item) => item.id === forkTarget);
+    if (!target) return;
+    setForkTarget('');
+    void requestOpenSessionFromPage(selected.id, account.user.id, target)
+      .catch(() => {
+        if (alive.current) showToast(t('session.toast.openFailed'));
+      })
+      .finally(() => {
+        if (alive.current) {
+          forkOpening.current = false;
+          setForkPresenting(false);
+        }
+      });
+  }, [forkTarget, catalog.sessions, selected?.id, account?.user.id]);
   const editableMessageId = useEditableMessage(
     session.id,
     snapshot,
@@ -591,7 +698,17 @@ function SessionView() {
   const onActivityPress = (entryId: string, itemId: string) => {
     const entry = snapshot.entries.find((e) => e.id === entryId);
     const item = entry?.items.find((i) => i.itemId === itemId);
-    if (openAgentError(item) || openSubagentTask(item)) return;
+    if (
+      openAgentError(item) ||
+      openSubagentTask(item, {
+        sessionId: session.id,
+        entryId,
+        parentTurnId: entry?.userTurnId ?? entryId,
+        workspaceId: selected?.id ?? '',
+        userId: account?.user.id ?? '',
+      })
+    )
+      return;
     if (snapshot.status !== 'live') {
       Alert.alert(
         t('session.alert.syncing.title'),
@@ -628,6 +745,7 @@ function SessionView() {
   const openProcess = useProcessSheet(entriesJSON, onActivityPress, session.id);
   let notice = runOptionsFailureNotice(runOptions.error);
   if (overflow) notice = t('chat.notice.syncStopped');
+  else if (forkTarget) notice = t('session.fork.waitHint');
   const mentions = useComposerMentions(
     selected && account
       ? {
@@ -718,6 +836,17 @@ function SessionView() {
     agentRoleId: activeChoice.agentRoleId,
     mcpServerIds:
       activeChoice.mcpServerIds ?? snapshot.composer?.mcpServerIds ?? [],
+  });
+  const sessionContextJSON = JSON.stringify({
+    goal: snapshot.goal ?? currentSession.latestGoal,
+    dismissedGoalThreadId: currentSession.dismissedGoalThreadId,
+    contextWindowUsage: currentSession.contextWindowUsage,
+    quotas: selectSessionQuotas(
+      currentSession,
+      catalog.agentUsage?.[currentSession.machineId],
+      activeChoice.modelId,
+    ),
+    ...directory,
   });
   const openProjectFiles = useCallback(() => {
     if (!browsable || !account || !selected) return;
@@ -859,6 +988,34 @@ function SessionView() {
       },
       {
         type: 'action',
+        title: t('session.action.fork'),
+        icon: { type: 'sfSymbol', name: 'arrow.triangle.branch' },
+        disabled:
+          !forkEnabled ||
+          !snapshot.entries.some(
+            (entry) =>
+              entry.role === 'assistant' && entry.finished && !!entry.acpTurnId,
+          ),
+        onPress: () => {
+          const entry = snapshot.entries.findLast(
+            (item) =>
+              item.role === 'assistant' && item.finished && !!item.acpTurnId,
+          );
+          if (entry) void forkFrom(entry.id);
+        },
+      },
+      {
+        type: 'action',
+        title: t('session.action.unread'),
+        icon: { type: 'sfSymbol', name: 'envelope.badge' },
+        disabled: deleting || !!pending?.send.creation,
+        onPress: () => {
+          if (selected && account)
+            void setUnread(selected.id, currentSession, account.user.id);
+        },
+      },
+      {
+        type: 'action',
         title: t('session.action.share'),
         icon: { type: 'sfSymbol', name: 'square.and.arrow.up' },
         onPress: () => {
@@ -935,6 +1092,8 @@ function SessionView() {
     reviewable,
     simulator,
     snapshot.entries,
+    forkEnabled,
+    forkFrom,
     retryRunOptions,
   ]);
   return (
@@ -942,6 +1101,28 @@ function SessionView() {
       <NativeNavigationHeader items={headerItems} />
       <DiffWebViewWarmer />
       <NativeChat
+        sessionContextJSON={sessionContextJSON}
+        pinnedHistoryId={currentSession.pinnedHistoryId ?? ''}
+        pinEnabled={snapshot.status === 'live' && !overflow && !deleting}
+        onPin={({ nativeEvent }) => {
+          if (!selected || snapshot.status !== 'live' || overflow || deleting)
+            return;
+          if (
+            nativeEvent.entryId &&
+            !snapshot.entries.some(
+              (entry) =>
+                entry.id === nativeEvent.entryId && entry.role === 'user',
+            )
+          )
+            return;
+          void setContentPinned(
+            selected.id,
+            session.id,
+            nativeEvent.entryId || null,
+          );
+        }}
+        forkEnabled={forkEnabled}
+        onFork={({ nativeEvent }) => void forkFrom(nativeEvent.entryId)}
         simulatorPreviewJSON={simulator.previewJSON}
         turnInfoEnabled
         onTurnInfoPress={({ nativeEvent }) =>

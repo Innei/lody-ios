@@ -1,124 +1,26 @@
-import {
-  readTurnMetadata,
-  type TurnMetadata,
-} from '../protocol/turnMetadata.ts';
+import { readTurnMetadata } from '../protocol/turnMetadata.ts';
 import { executionProjection, type SteerReceipt } from './execution';
 import type { LoroDoc, LoroList, LoroMap } from 'loro-crdt/base64';
 import {
   parseQuestionMeta,
   samePermissionOutcome,
 } from '../protocol/permissionQuestions.ts';
-import type { QuestionMeta } from '../models/session.ts';
+import type { EntrySummary, Envelope, ItemSummary } from '../models/session.ts';
+import {
+  readMessageAuthor,
+  readSessionGoal,
+} from '../protocol/transcript-context.ts';
+import { readSessionForkOperation } from '../models/session-tools.ts';
+import { readSubagentRunMetadata } from '../protocol/subagent-history.ts';
 import { billableTurnCount } from './billing';
 import { previewSummary } from './preview';
 
-export type SystemNoticeMeta = {
-  reason?: string;
-  code?: string;
-  message?: string;
-};
-
-export type ItemSummary =
-  | {
-      itemId: string;
-      rev: number;
-      type: 'system_notice';
-      name: string;
-      meta?: SystemNoticeMeta;
-    }
-  | { itemId: string; rev: number; type: 'text'; text: string }
-  | { itemId: string; rev: number; type: 'thought'; text: string }
-  | {
-      itemId: string;
-      rev: number;
-      type: 'proposed_plan';
-      turnId: string;
-      markdown: string;
-      status: 'delta' | 'completed' | 'cleared';
-      isLatest: boolean;
-    }
-  | {
-      itemId: string;
-      rev: number;
-      type: 'tool_call';
-      kind: string;
-      title: string;
-      status: string;
-      path?: string;
-      added?: number;
-      removed?: number;
-      hasDetail: boolean;
-      permission?: {
-        requestId: string;
-        pending: boolean;
-        options?: { optionId: string; name: string; kind?: string }[];
-        kind?: 'permission' | 'ask_user_question';
-        questionMeta?: QuestionMeta;
-      };
-    }
-  | {
-      itemId: string;
-      rev: number;
-      type: 'plan';
-      entries: { content: string; status: string; priority?: string }[];
-    }
-  | {
-      itemId: string;
-      rev: number;
-      type: 'subagent_task';
-      taskId: string;
-      status: string;
-      actor?: string;
-      description?: string;
-      lastToolName?: string;
-      summary?: string;
-      error?: string;
-      isBackgrounded?: boolean;
-      skipTranscript?: boolean;
-    }
-  | { itemId: string; rev: number; type: string };
-
-export type EntrySummary = TurnMetadata & {
-  id: string;
-  rev: number;
-  role: string;
-  status: string;
-  finished: boolean;
-  queueEditing?: boolean;
-  queueEditingStartedAt?: number;
-  userTurnId?: string;
-  executionId?: string;
-  executionFinished?: boolean;
-  steerCount?: number;
-  delivery?: string;
-  holdOpen?: boolean;
-  timestamp?: string;
-  startedAt?: number;
-  endedAt?: number;
-  permissionWaitMs?: number;
-  modelInfo?: { modelId?: string; name?: string; thoughtLevel?: string };
-  items: ItemSummary[];
-};
-
-export type Envelope = {
-  v: 1;
-  status: string;
-  reason?: string;
-  revision: number;
-  billableTurnCount: number;
-  awaitingUserSince?: number;
-  preview?: { label: string; active: boolean };
-  composer?: {
-    mcpServerIds?: string[];
-    agentRoleId?: string | null;
-    agentRoleRevision?: number;
-    modelId?: string;
-    modeId?: string;
-    effort?: string;
-    configOptionValues?: Record<string, string | boolean>;
-  };
-  entries: EntrySummary[];
-};
+export type {
+  SystemNoticeMeta,
+  ItemSummary,
+  EntrySummary,
+  Envelope,
+} from '../models/session.ts';
 
 let revision = 0;
 type Projection = {
@@ -149,6 +51,15 @@ export function itemRev(doc: LoroDoc, entryId: string, itemId: string) {
   return projectionFor(doc).revs.get(`${entryId}/${itemId}`)?.rev ?? 0;
 }
 
+export function projectSubagentItem(
+  doc: LoroDoc,
+  raw: unknown,
+  scope: string,
+  itemId: string,
+): ItemSummary {
+  return summarizeItem(projectionFor(doc), raw, scope, itemId);
+}
+
 export function identityAt(list: LoroList, index: number) {
   const id = list.getIdAt(index);
   return id ? `${id.peer}:${id.counter}` : `idx:${index}`;
@@ -172,6 +83,18 @@ function countDiff(content: unknown) {
   return path === undefined && added === 0 && removed === 0
     ? undefined
     : { path, added, removed };
+}
+
+function validSourcePath(value: string) {
+  const normalized = value.replaceAll('\\', '/');
+  return (
+    normalized.length > 0 &&
+    !normalized.includes('\0') &&
+    normalized !== '.' &&
+    !normalized.startsWith('/') &&
+    !/^[A-Za-z]:/.test(normalized) &&
+    !normalized.split('/').includes('..')
+  );
 }
 
 const validIdentifier = (value: unknown): value is string =>
@@ -201,6 +124,24 @@ function summarizeItem(
       code: typeof raw.meta?.code === 'string' ? raw.meta.code : undefined,
       message:
         typeof raw.meta?.message === 'string' ? raw.meta.message : undefined,
+      ...(typeof raw.meta?.source === 'string'
+        ? { source: raw.meta.source }
+        : {}),
+      ...(typeof raw.meta?.sourceSessionId === 'string'
+        ? { sourceSessionId: raw.meta.sourceSessionId }
+        : {}),
+      ...(typeof raw.meta?.sourceTitle === 'string'
+        ? { sourceTitle: raw.meta.sourceTitle }
+        : {}),
+      ...(typeof raw.meta?.truncated === 'boolean'
+        ? { truncated: raw.meta.truncated }
+        : {}),
+      ...(typeof raw.meta?.terminalOmitted === 'boolean'
+        ? { terminalOmitted: raw.meta.terminalOmitted }
+        : {}),
+      ...(typeof raw.meta?.thinkingOmitted === 'boolean'
+        ? { thinkingOmitted: raw.meta.thinkingOmitted }
+        : {}),
     };
     return {
       itemId,
@@ -209,6 +150,16 @@ function summarizeItem(
       name,
       meta,
     };
+  }
+
+  if (type === 'goal') {
+    const goal = readSessionGoal(raw);
+    return {
+      itemId,
+      rev: bump(projection, key, JSON.stringify(goal)),
+      type,
+      goal,
+    } as ItemSummary;
   }
 
   if (type === 'text' || type === 'thought') {
@@ -274,10 +225,25 @@ function summarizeItem(
     const file = {
       id: String(raw.fileId ?? ''),
       fileName: String(raw.fileName ?? '附件'),
-      transport: typeof raw.transport === 'string' ? raw.transport : undefined,
-      sizeBytes: Number.isSafeInteger(raw.sizeBytes)
-        ? raw.sizeBytes
+      transport: ['local', 'r2'].includes(raw.transport)
+        ? raw.transport
         : undefined,
+      sizeBytes:
+        Number.isSafeInteger(raw.sizeBytes) && raw.sizeBytes >= 0
+          ? raw.sizeBytes
+          : undefined,
+      ...(typeof raw.mimeType === 'string' ? { mimeType: raw.mimeType } : {}),
+      ...(typeof raw.textPreview === 'boolean'
+        ? { textPreview: raw.textPreview }
+        : {}),
+      ...(typeof raw.uploadedAt === 'number' &&
+      Number.isFinite(raw.uploadedAt) &&
+      raw.uploadedAt >= 0
+        ? { uploadedAt: raw.uploadedAt }
+        : {}),
+      ...(typeof raw.sourcePath === 'string' && validSourcePath(raw.sourcePath)
+        ? { sourcePath: raw.sourcePath }
+        : {}),
       storageSessionId:
         typeof raw.storageSessionId === 'string'
           ? raw.storageSessionId
@@ -343,11 +309,26 @@ function summarizeItem(
   }
 
   if (type === 'subagent_task') {
+    const run = readSubagentRunMetadata(raw.run);
     const summary = {
       itemId,
       rev: 0,
       type,
       taskId: String(raw.taskId ?? itemId),
+      toolUseId: typeof raw.toolUseId === 'string' ? raw.toolUseId : undefined,
+      parentTaskId:
+        typeof raw.parentTaskId === 'string' ? raw.parentTaskId : undefined,
+      startedAtEpochSeconds:
+        typeof raw.startedAtEpochSeconds === 'number' &&
+        Number.isFinite(raw.startedAtEpochSeconds)
+          ? raw.startedAtEpochSeconds
+          : undefined,
+      endedAtEpochSeconds:
+        typeof raw.endedAtEpochSeconds === 'number' &&
+        Number.isFinite(raw.endedAtEpochSeconds)
+          ? raw.endedAtEpochSeconds
+          : undefined,
+      run,
       status: String(raw.status ?? 'pending'),
       actor: raw.actor == null ? undefined : String(raw.actor),
       description:
@@ -438,6 +419,14 @@ function summarizeEntry(
         : undefined,
   };
   const metadata = readTurnMetadata(entry);
+  const author = readMessageAuthor(entry?.author);
+  const userId =
+    (entry?.author == null || author?.kind === 'human') &&
+    typeof entry?.userId === 'string'
+      ? entry.userId.trim()
+      : undefined;
+  const acpTurnId =
+    typeof entry?.acpTurnId === 'string' ? entry.acpTurnId : undefined;
   const value = {
     ...metadata,
     id,
@@ -445,7 +434,7 @@ function summarizeEntry(
       projection,
       `entry/${id}`,
       summarizedItems.map((i) => `${i.itemId}:${i.rev}`).join(',') +
-        `|${entry?.status}|${entry?.finished}|${JSON.stringify(fileDiffs)}|${JSON.stringify(modelInfo)}|${JSON.stringify(metadata)}`,
+        `|${entry?.status}|${entry?.finished}|${JSON.stringify(fileDiffs)}|${JSON.stringify(modelInfo)}|${JSON.stringify(metadata)}|${JSON.stringify(author)}|${userId}|${acpTurnId}`,
     ),
     role: String(entry?.role ?? 'assistant'),
     status: entry?.status ?? (entry?.read ? 'seen' : 'pending'),
@@ -456,6 +445,9 @@ function summarizeEntry(
     permissionWaitMs: entry?.permissionWaitMs,
     modelInfo: modelInfo.name || modelInfo.modelId ? modelInfo : undefined,
     userTurnId: entry?.userTurnId,
+    userId,
+    author,
+    acpTurnId,
     items: summarizedItems,
     ...(fileDiffs.length ? { fileDiffs } : {}),
   };
@@ -570,6 +562,11 @@ export function projectSession(
   );
   revision += 1;
   const session = doc.getMap('session').toJSON();
+  const goal = readSessionGoal(
+    raw
+      .flatMap((entry) => (Array.isArray(entry.items) ? entry.items : []))
+      .findLast((item) => item?.type === 'goal'),
+  );
   let composer: Envelope['composer'];
   if (input) {
     composer = {
@@ -597,6 +594,10 @@ export function projectSession(
         ? session.awaitingUserSince
         : undefined,
     preview: previewSummary(doc),
+    goal,
+    forkOperation: readSessionForkOperation(
+      doc.getMap('forkOperation').toJSON(),
+    ),
     ...(composer ? { composer } : {}),
     entries: [
       ...ordered.map((entry) => ({ ...entry, ...execution.get(entry.id) })),

@@ -33,6 +33,9 @@ import { PreviewClosePreviewScreen } from './PreviewClosePreviewScreen';
 import { ProjectManagementPreviewScreen } from './ProjectManagementPreviewScreen';
 import { TeamPreviewScreen } from './TeamPreviewScreen';
 import { ProviderPreviewScreen } from './ProviderPreviewScreen';
+import { SubagentHistoryPreviewScreen } from './SubagentHistoryPreviewScreen';
+import { TranscriptContextPreviewScreen } from './TranscriptContextPreviewScreen';
+import { SessionToolsPreviewScreen } from './SessionToolsPreviewScreen';
 import { RunOptionsPreviewScreen } from './RunOptionsPreviewScreen';
 import { openSendQueueToolsPreview } from './SendQueueToolsPreviewScreen';
 import { ChatPerformanceScreen } from './ChatPerformanceScreen';
@@ -257,6 +260,21 @@ function View() {
         openRow('team-preview', 'Team management', 'person.3'),
         openRow('providers-preview', 'Provider management', 'cpu'),
         openRow(
+          'subagent-history-preview',
+          'Subtask history',
+          'arrow.triangle.branch',
+        ),
+        openRow(
+          'transcript-context-preview',
+          'Transcript context',
+          'text.bubble',
+        ),
+        openRow(
+          'session-tools-preview',
+          'Session tools',
+          'slider.horizontal.3',
+        ),
+        openRow(
           'run-options-preview',
           'Creation options',
           'person.badge.gearshape',
@@ -456,6 +474,11 @@ function View() {
       void present(ProjectManagementPreviewScreen),
     'team-preview': () => void present(TeamPreviewScreen),
     'providers-preview': () => void present(ProviderPreviewScreen),
+    'subagent-history-preview': () =>
+      void present(SubagentHistoryPreviewScreen),
+    'transcript-context-preview': () =>
+      void present(TranscriptContextPreviewScreen),
+    'session-tools-preview': () => void present(SessionToolsPreviewScreen),
     'run-options-preview': () => void present(RunOptionsPreviewScreen),
     'chat-preview': () => void present(ChatPreviewScreen, {}),
     'chat-shine-preview': () => void present(ShinePreviewScreen, {}),

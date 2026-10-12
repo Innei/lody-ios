@@ -250,6 +250,9 @@ async function setup(initialChoice = {}) {
       },
     }),
   });
+  set('@/features/team/useTeamDirectory', {
+    useTeamDirectory: () => ({ senders: {}, showSenderIdentity: false }),
+  });
   set('@/features/sessions/useAgentErrorRetry', {
     useAgentErrorRetry: () => ({ pending: false, stateJSON: '{}' }),
   });
@@ -276,6 +279,12 @@ async function setup(initialChoice = {}) {
     useComposerMentions: () => ({}),
   });
   set('@/features/sessions/workspaceMenu', { workspaceMenuActions: () => [] });
+  set('@/cloud/session-tools', {
+    requestSessionTools: async () => ({
+      action: 'fork-options',
+      shared: false,
+    }),
+  });
   globalThis.__screenTestModules = bindings;
   globalThis.__screenTestJsx = {
     jsx: (type, props) => ({ type, props }),
@@ -455,6 +464,30 @@ test('queue and recovery use their owned controllers while prepared native histo
     JSON.parse(chat.entriesJSON).map((item) => item.id),
     ['turn', 'queue-ghost'],
   );
+});
+
+test('archiving preserves history pin and unpin actions while sending stays read-only', async () => {
+  const { world, calls, render } = await setup();
+  let chat = render();
+  chat.onPin({ nativeEvent: { entryId: 'turn' } });
+  world.catalog.sessions[0].pinnedHistoryId = 'turn';
+  world.catalog.sessions[0].archived = true;
+  chat = render();
+  assert.equal(chat.pinnedHistoryId, 'turn');
+  assert.equal(chat.pinEnabled, true);
+  assert.equal(JSON.parse(chat.composerJSON).editable, false);
+  chat.onPin({ nativeEvent: { entryId: '' } });
+  chat.onPin({ nativeEvent: { entryId: 'turn' } });
+  assert.deepEqual(calls.pins, [
+    ['workspace', 'session', 'turn'],
+    ['workspace', 'session', null],
+    ['workspace', 'session', 'turn'],
+  ]);
+  world.snapshot = { ...world.snapshot, status: 'offline' };
+  chat = render();
+  assert.equal(chat.pinEnabled, false);
+  chat.onPin({ nativeEvent: { entryId: '' } });
+  assert.equal(calls.pins.length, 3);
 });
 
 test('run-option lookup failure shows a product notice and retry without clearing chosen Role or MCP', async () => {

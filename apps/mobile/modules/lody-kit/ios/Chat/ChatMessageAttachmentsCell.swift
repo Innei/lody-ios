@@ -13,20 +13,50 @@ private final class ChatAttachmentAccessibilityElement: UIAccessibilityElement {
 final class ChatMessageAttachmentsCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   var canEdit: (() -> Bool)?
   var onEdit: (() -> Void)?
+  var canPin: (() -> Bool)?
+  var isPinned: (() -> Bool)?
+  var onPin: (() -> Void)?
   func updateEditAccessibility() {
     for tile in accessibleTiles {
-      tile.accessibilityCustomActions = canEdit?() == true ? [UIAccessibilityCustomAction(name: LodyStrings.text("native.chat.editAction")) { [weak self] _ in
-        guard self?.canEdit?() == true else { return false }
-        self?.onEdit?()
-        return true
-      }] : []
+      var actions: [UIAccessibilityCustomAction] = []
+      if canEdit?() == true {
+        actions.append(UIAccessibilityCustomAction(name: LodyStrings.text("native.chat.editAction")) { [weak self] _ in
+          guard self?.canEdit?() == true else { return false }
+          self?.onEdit?()
+          return true
+        })
+      }
+      if canPin?() == true {
+        let key = isPinned?() == true ? "native.chat.unpin" : "native.chat.pin"
+        actions.append(UIAccessibilityCustomAction(name: LodyStrings.text(key)) { [weak self] _ in
+          guard self?.canPin?() == true else { return false }
+          self?.onPin?()
+          return true
+        })
+      }
+      tile.accessibilityCustomActions = actions
     }
   }
   func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
-    guard canEdit?() == true else { return nil }
-    let edit = onEdit
-    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
-      UIMenu(children: [UIAction(title: LodyStrings.text("native.chat.editAction"), image: UIImage(systemName: "pencil")) { _ in edit?() }])
+    guard canEdit?() == true || canPin?() == true else { return nil }
+    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+      guard let self else { return nil }
+      var actions: [UIAction] = []
+      if self.canEdit?() == true {
+        actions.append(UIAction(title: LodyStrings.text("native.chat.editAction"), image: UIImage(systemName: "pencil")) { [weak self] _ in
+          guard self?.canEdit?() == true else { return }
+          self?.onEdit?()
+        })
+      }
+      if self.canPin?() == true {
+        let pinned = self.isPinned?() == true
+        let key = pinned ? "native.chat.unpin" : "native.chat.pin"
+        actions.append(UIAction(title: LodyStrings.text(key), image: UIImage(systemName: pinned ? "pin.slash" : "pin")) { [weak self] _ in
+          guard self?.canPin?() == true else { return }
+          self?.onPin?()
+        })
+      }
+      return UIMenu(children: actions)
     }
   }
   static let tileHeight: CGFloat = 76
