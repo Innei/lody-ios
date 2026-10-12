@@ -82,6 +82,7 @@ export {
 } from './runtime/LodyKit';
 
 export {
+  scheduleCommand,
   projectCommand,
   providerCommand,
   sessionTools,

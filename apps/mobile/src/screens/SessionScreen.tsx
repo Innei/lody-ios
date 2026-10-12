@@ -38,6 +38,8 @@ import { selectSessionQuotas } from '@lody/cloud-runtime/protocol/agent-usage';
 import { requestSessionTools } from '@/cloud/session-tools';
 import { requestOpenSessionFromPage } from '@/features/sessions/sessionNav';
 import { ForkSessionScreen } from '@/screens/ForkSessionScreen';
+import { ScheduleEditorScreen } from '@/screens/ScheduleEditorScreen';
+import { ScheduleDetailScreen } from '@/screens/ScheduleDetailScreen';
 import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
 import { useQuickReplies } from '@/features/settings/quick-replies';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
@@ -717,6 +719,25 @@ function SessionView() {
       return;
     }
     if (!entry || !item) return;
+    if (item.type === 'system_notice' && 'proposal' in item && item.proposal) {
+      if (item.proposal.outcome === 'created' && item.proposal.scheduleId) {
+        void present(ScheduleDetailScreen, {
+          scheduleId: item.proposal.scheduleId,
+        });
+      } else if (!item.proposal.outcome && selected && account) {
+        void present(ScheduleEditorScreen, {
+          workspaceId: selected.id,
+          userId: account.user.id,
+          proposal: {
+            sessionId: session.id,
+            entryId,
+            itemIndex: entry.items.indexOf(item),
+            proposalId: item.proposal.proposalId,
+          },
+        });
+      }
+      return;
+    }
     const target = firstPermissionTarget([{ ...entry, items: [item] }]);
     if (target) {
       void askPermission(target);
@@ -846,6 +867,7 @@ function SessionView() {
       catalog.agentUsage?.[currentSession.machineId],
       activeChoice.modelId,
     ),
+    scheduledTasks: snapshot.scheduledTasks,
     ...directory,
   });
   const openProjectFiles = useCallback(() => {
@@ -866,6 +888,15 @@ function SessionView() {
             title: t('session.action.projectFiles'),
             subtitle: projectName,
             symbol: 'folder',
+          },
+        ]
+      : []),
+    ...(currentSession.scheduleId
+      ? [
+          {
+            id: 'schedule',
+            title: t('schedules.openSource'),
+            symbol: 'calendar.badge.clock',
           },
         ]
       : []),
@@ -908,6 +939,10 @@ function SessionView() {
   ]);
   const onTitleMenu = (id: string) => {
     if (id === 'files') openProjectFiles();
+    if (id === 'schedule' && currentSession.scheduleId)
+      void present(ScheduleDetailScreen, {
+        scheduleId: currentSession.scheduleId,
+      });
     if (id === 'branch' && currentSession.branchName) {
       copyText(currentSession.branchName);
       showToast(t('session.title.branchCopied'), 'info');

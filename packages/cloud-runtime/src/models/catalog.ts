@@ -9,6 +9,7 @@ export type Session = {
   contextWindowUsage?: import('./transcript-context.ts').ContextWindowUsage;
   latestGoal?: import('./transcript-context.ts').SessionGoal;
   dismissedGoalThreadId?: string;
+  scheduleId?: string;
   userId?: string;
   pinnedHistoryId?: string;
   agentConfigId?: string;

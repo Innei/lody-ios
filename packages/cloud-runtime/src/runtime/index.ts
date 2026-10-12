@@ -59,6 +59,8 @@ import { createSubagentHistoryRuntime } from './subagent-history.ts';
 import type { SubagentHistoryRequest } from '../models/subagent-history.ts';
 import { workspaceRunOptions, resolveTurnRunOptions } from './run-options.ts';
 import type { RunOptionsRequest } from '../models/run-options.ts';
+import { scheduleCommand } from './schedules.ts';
+import type { ScheduleRequest } from '../models/schedules.ts';
 import { remoteSettings } from './settings';
 import type { SettingsRequest } from '../models/settings.ts';
 import {
@@ -780,6 +782,13 @@ Object.assign(globalThis, {
       if (args.action === 'close') sharingEditors.delete(args.editorId);
       else sharingEditors.set(args.editorId, args);
       return shareRuntime(args);
+    },
+    async scheduleCommand(args: ScheduleRequest & { userId: string }) {
+      const ctx = managementContext(args, undefined, 120000);
+      const { userId: _userId, ...request } = args;
+      const result = await scheduleCommand(request, { ...ctx, presence });
+      ctx.assertCurrent();
+      return result;
     },
     async projectCommand(args: {
       workspaceId: string;

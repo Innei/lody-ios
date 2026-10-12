@@ -435,7 +435,7 @@ extension LodyChatView {
   }
 
   func rowHeight(_ row: ChatRow, width: CGFloat, previousKind: String? = nil) -> CGFloat {
-    if ["goal", "context", "quota"].contains(row.kind) {
+    if ["goal", "context", "quota", "scheduled"].contains(row.kind) {
       return ChatContextCell.height(row, width: width, traits: traitCollection)
     }
     if row.kind == "proposed_plan" {

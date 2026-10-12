@@ -412,6 +412,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
     }.runOnQueue(.main)
     AsyncFunction("localProjects") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("localProjects", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("scheduleCommand") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("scheduleCommand", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("projectCommand") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("projectCommand", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("providerCommand") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("providerCommand", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("sessionTools") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("sessionTools", payload: payload, promise: promise) } }.runOnQueue(.main)

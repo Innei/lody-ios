@@ -104,4 +104,12 @@ for status, title in [('active', 'Active'), ('paused', 'Paused'), ('cleared', 'C
     assert 'Stale catalog fallback' not in row['AXLabel']
     ui.capture('goal-' + status)
 
-print('PASS: reported usage, missing telemetry, secondary warnings, artifact lifecycle/Quick Look, team isolation, authoritative goal')
+fixture('schedules')
+ui.element('session-scheduled:wakeup')
+assert 'Asia/Tokyo' in ui.element('session-scheduled:cron')['AXLabel']
+ui.capture('pending-agent-schedules')
+fixture('expired-schedule')
+absent('session-scheduled:wakeup')
+ui.element('session-scheduled:cron')
+ui.capture('fired-wakeup-cleared')
+print('PASS: reported usage, missing telemetry, secondary warnings, artifact lifecycle/Quick Look, team isolation, authoritative goal and read-only schedules')

@@ -20,7 +20,7 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 OSS_CASES = [
-    'preview-close', 'run-options', 'send-queue-tools', 'usage-context', 'subagent-history', 'session-tools', 'project-management', 'providers', 'team',
+    'preview-close', 'run-options', 'send-queue-tools', 'usage-context', 'subagent-history', 'session-tools', 'schedules', 'project-management', 'providers', 'team',
 ]
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker', 'branch-picker'],
@@ -58,6 +58,7 @@ PREVIEW = {
     'session-tools': 'session-tools-preview',
     'run-options': 'run-options-preview',
     'send-queue-tools': 'send-queue-tools',
+    'schedules': 'schedules',
     'mermaid': 'mermaid-preview',
     'workspace-changes': 'simulator-preview',
     'simulator-preview': 'simulator-preview',
@@ -158,6 +159,7 @@ READY = {
     'session-tools': 'tools-pin',
     'run-options': 'run-options-ready',
     'send-queue-tools': 'queue-tools-status',
+    'schedules': 'schedules-preview-ready',
     'preview-close': 'session-preview-close',
     'mermaid': 'mermaid-preview:text',
     'message-details': 'paper-reply:meta:details',

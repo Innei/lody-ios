@@ -285,6 +285,12 @@ async function setup(initialChoice = {}) {
       shared: false,
     }),
   });
+  set('@/screens/ScheduleEditorScreen', {
+    ScheduleEditorScreen: { id: 'schedule-editor' },
+  });
+  set('@/screens/ScheduleDetailScreen', {
+    ScheduleDetailScreen: { id: 'schedule-detail' },
+  });
   globalThis.__screenTestModules = bindings;
   globalThis.__screenTestJsx = {
     jsx: (type, props) => ({ type, props }),
@@ -522,4 +528,46 @@ test('run-option lookup failure shows a product notice and retry without clearin
       .menu.items.some((item) => item.title === 'runOptions.retry'),
     false,
   );
+});
+
+test('proposal tap opens a review editor with exact source context and account changes release the old transcript', async () => {
+  const { world, calls, render } = await setup();
+  world.snapshot.entries = [
+    {
+      ...entry,
+      items: [
+        { itemId: 'other', type: 'unknown' },
+        {
+          itemId: 'proposal',
+          type: 'system_notice',
+          proposal: { proposalId: 'schedule', title: 'Review', prompt: 'Text' },
+        },
+      ],
+    },
+  ];
+  let chat = render();
+  chat.onActivityPress({
+    nativeEvent: { entryId: 'turn', itemId: 'proposal' },
+  });
+  assert.deepEqual(calls.pages, [
+    {
+      page: 'schedule-editor',
+      params: {
+        workspaceId: 'workspace',
+        userId: 'viewer',
+        proposal: {
+          sessionId: 'session',
+          entryId: 'turn',
+          itemIndex: 1,
+          proposalId: 'schedule',
+        },
+      },
+    },
+  ]);
+  assert.deepEqual(calls.sends, []);
+  world.account = { user: { id: 'different-viewer' } };
+  chat = render();
+  assert.equal(chat, undefined);
+  assert.equal(calls.cancelled, 1);
+  assert.equal(calls.released, 1);
 });

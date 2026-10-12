@@ -38,6 +38,7 @@ import { TranscriptContextPreviewScreen } from './TranscriptContextPreviewScreen
 import { SessionToolsPreviewScreen } from './SessionToolsPreviewScreen';
 import { RunOptionsPreviewScreen } from './RunOptionsPreviewScreen';
 import { openSendQueueToolsPreview } from './SendQueueToolsPreviewScreen';
+import { SchedulePreviewScreen } from './SchedulePreviewScreen';
 import { ChatPerformanceScreen } from './ChatPerformanceScreen';
 import { ChatStreamPerformanceScreen } from './ChatStreamPerformanceScreen';
 import { BannerPreviewScreen } from './BannerPreviewScreen';
@@ -279,6 +280,7 @@ function View() {
           'Creation options',
           'person.badge.gearshape',
         ),
+        openRow('schedules', 'Scheduled tasks', 'calendar.badge.clock'),
         openRow('chat-preview', '原生聊天预览', 'bubble.left.and.bubble.right'),
         openRow('chat-shine-preview', '过程高光', 'sparkle'),
         openRow('banner-preview', '会话横幅', 'bell.badge'),
@@ -480,6 +482,7 @@ function View() {
       void present(TranscriptContextPreviewScreen),
     'session-tools-preview': () => void present(SessionToolsPreviewScreen),
     'run-options-preview': () => void present(RunOptionsPreviewScreen),
+    schedules: () => void present(SchedulePreviewScreen),
     'chat-preview': () => void present(ChatPreviewScreen, {}),
     'chat-shine-preview': () => void present(ShinePreviewScreen, {}),
     'banner-preview': () => void present(BannerPreviewScreen, {}),
