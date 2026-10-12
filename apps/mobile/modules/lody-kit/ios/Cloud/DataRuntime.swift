@@ -632,7 +632,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       args["userId"] = userId
     }
     if method == "remoteSettings" || method == "localProjects" || method == "mentionCatalog" { args["userId"] = userId }
-    if ["projectCommand", "providerCommand", "sessionTools", "runOptions", "subagentHistory"].contains(method) { args["userId"] = userId }
+    if ["scheduleCommand", "projectCommand", "providerCommand", "sessionTools", "runOptions", "subagentHistory"].contains(method) { args["userId"] = userId }
     if method == "editSession" || method == "sessionPreview" || method == "iosSimulatorControl" { args["userId"] = userId }
     let id = UUID(); commands[id] = sink
     if (method == "sendTurn" || (method == "editSession" && args["action"] as? String == "send")), args["backgroundTaskId"] == nil, !backgrounded {
@@ -642,7 +642,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     var timeout: Double = 45
     if ["providerCommand", "sessionTools", "runOptions", "subagentHistory", "queueMessage", "checkSend"].contains(method) { timeout = 90 }
     // Owned expansion/management reads expire at 120 seconds before any durable send.
-    if ["createSession", "sendTurn", "editSession", "sessionSharing", "projectCommand"].contains(method) { timeout = 130 }
+    if ["createSession", "sendTurn", "editSession", "sessionSharing", "scheduleCommand", "projectCommand"].contains(method) { timeout = 130 }
     if method == "sessionPreview" { timeout = 330 }
     if method == "iosSimulatorControl" { timeout = 100 }
     if method == "localProjects" && args["action"] as? String == "history" { timeout = 130 }

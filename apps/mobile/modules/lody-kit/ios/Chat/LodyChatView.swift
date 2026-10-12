@@ -338,7 +338,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     collection.register(ChatContextCell.self, forCellWithReuseIdentifier: "context")
     dataSource = UICollectionViewDiffableDataSource<String, String>(collectionView: collection) { [weak self] collection, index, id in
       guard let self, let row = self.rows[id] else { return nil }
-      if ["goal", "context", "quota"].contains(row.kind) {
+      if ["goal", "context", "quota", "scheduled"].contains(row.kind) {
         let cell = collection.dequeueReusableCell(withReuseIdentifier: "context", for: index) as! ChatContextCell
         cell.configure(row)
         return cell

@@ -4,6 +4,7 @@ import { ProjectHistoryScreen } from './ProjectHistoryScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
 import { QuickRepliesScreen } from './QuickRepliesScreen';
 import { AgentRolesScreen } from './AgentRolesScreen';
+import { SchedulesScreen } from './SchedulesScreen';
 import { ProjectManagementScreen } from './ProjectManagementScreen';
 import { AutoArchiveSettingsScreen } from './AutoArchiveSettingsScreen';
 import { useRouter } from 'expo-router';
@@ -271,6 +272,14 @@ function View() {
           navigates: true,
         },
         {
+          id: 'schedules',
+          title: t('schedules.title'),
+          image: 'clock',
+          action: true,
+          disclosure: true,
+          navigates: true,
+        },
+        {
           id: 'project-management',
           title: t('projectManagement.title'),
           image: 'folder',
@@ -369,6 +378,7 @@ function View() {
         if (nativeEvent.id === 'project-history')
           void push(ProjectHistoryScreen);
         if (nativeEvent.id === 'agent-roles') void push(AgentRolesScreen, {});
+        if (nativeEvent.id === 'schedules') void push(SchedulesScreen);
         if (nativeEvent.id === 'project-management')
           void push(ProjectManagementScreen);
         if (nativeEvent.id === 'auto-archive')

@@ -161,6 +161,7 @@ export function projectRows(
       latestGoal: readSessionGoal(value.latestGoal),
       dismissedGoalThreadId:
         text(value.dismissedGoalThreadId).trim() || undefined,
+      scheduleId: text(value.scheduleId).trim() || undefined,
       userId: text(value.userId).trim() || undefined,
       pinnedHistoryId: text(value.pinnedHistoryId).trim() || undefined,
       agentConfigId: text(value.agentConfigId).trim() || undefined,

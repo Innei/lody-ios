@@ -1,6 +1,11 @@
 import { type TurnMetadata } from '../protocol/turnMetadata.ts';
 import type { SubagentRunMetadata } from './subagent-history.ts';
-import type { MessageAuthor, SessionGoal } from './transcript-context.ts';
+import type {
+  MessageAuthor,
+  PendingScheduledTask,
+  SessionGoal,
+} from './transcript-context.ts';
+import type { ScheduleProposal } from './schedules.ts';
 import type { SessionForkOperation } from './session-tools.ts';
 export type SystemNoticeMeta = {
   reason?: string;
@@ -33,6 +38,7 @@ export type ItemSummary =
       type: 'system_notice';
       name: string;
       meta?: SystemNoticeMeta;
+      proposal?: ScheduleProposal;
     }
   | { itemId: string; rev: number; type: 'text'; text: string }
   | { itemId: string; rev: number; type: 'thought'; text: string }
@@ -128,6 +134,7 @@ export type Envelope = {
   billableTurnCount?: number;
   awaitingUserSince?: number;
   goal?: SessionGoal;
+  scheduledTasks?: PendingScheduledTask[];
   forkOperation?: SessionForkOperation;
   preview?: { label: string; active: boolean };
   composer?: {

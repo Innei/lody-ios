@@ -10,6 +10,11 @@ import {
   readMessageAuthor,
   readSessionGoal,
 } from '../protocol/transcript-context.ts';
+import {
+  collectPendingScheduledTasksFromHistory,
+  resolveFireMs,
+} from '../protocol/scheduled-tasks-from-history.ts';
+import { parseScheduleProposal } from '../protocol/schedules.ts';
 import { readSessionForkOperation } from '../models/session-tools.ts';
 import { readSubagentRunMetadata } from '../protocol/subagent-history.ts';
 import { billableTurnCount } from './billing';
@@ -143,12 +148,17 @@ function summarizeItem(
         ? { thinkingOmitted: raw.meta.thinkingOmitted }
         : {}),
     };
+    const proposal =
+      name === 'schedule_proposal'
+        ? parseScheduleProposal(raw.meta)
+        : undefined;
     return {
       itemId,
-      rev: bump(projection, key, JSON.stringify({ name, meta })),
+      rev: bump(projection, key, JSON.stringify({ name, meta, proposal })),
       type,
       name,
       meta,
+      proposal,
     };
   }
 
@@ -567,6 +577,9 @@ export function projectSession(
       .flatMap((entry) => (Array.isArray(entry.items) ? entry.items : []))
       .findLast((item) => item?.type === 'goal'),
   );
+  const scheduledTasks = collectPendingScheduledTasksFromHistory(raw).map(
+    (task) => ({ ...task, nextFireMs: resolveFireMs(task, Date.now()) }),
+  );
   let composer: Envelope['composer'];
   if (input) {
     composer = {
@@ -595,6 +608,7 @@ export function projectSession(
         : undefined,
     preview: previewSummary(doc),
     goal,
+    scheduledTasks,
     forkOperation: readSessionForkOperation(
       doc.getMap('forkOperation').toJSON(),
     ),

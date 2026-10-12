@@ -474,7 +474,7 @@ extension LodyChatView {
   }
 
   private func updateWorkDurationTimer(rows: [ChatRow]) {
-    let needsTimer = window != nil && ChatWorkDuration.needsTimer(rows)
+    let needsTimer = window != nil && (ChatWorkDuration.needsTimer(rows) || (processEntryID.isEmpty && sessionContext.needsTimer))
     guard needsTimer else {
       workDurationTimer?.invalidate()
       workDurationTimer = nil

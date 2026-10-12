@@ -53,6 +53,18 @@ precondition(!clearedGoals.contextRows(context).contains { $0.kind == "goal" })
 context.contextWindowUsage = ChatContextWindowUsage(size: 0, used: 0)
 precondition(!clearedGoals.contextRows(context).contains { $0.kind == "context" }, "Invalid context leaves no visible placeholder")
 
+let scheduleJSON = #"{"scheduledTasks":[{"id":"one","kind":"wakeup","createdAtMs":1000,"scheduledForMs":5000,"summary":"Check again"},{"id":"daily","kind":"cron","createdAtMs":1000,"humanSchedule":"0 9 * * 1-5","recurring":true,"timeZone":"Asia/Tokyo"}]}"#
+let schedules = try JSONDecoder().decode(ChatSessionContext.self, from: Data(scheduleJSON.utf8))
+precondition(ChatTranscript().contextRows(schedules, now: 4000).count == 2)
+precondition(ChatTranscript().contextRows(schedules, now: 8000).map(\.id) == ["session-scheduled:daily"], "Fired wakeups clear without inventing recurring execution")
+let legacyScheduleJSON = #"{"scheduledTasks":[{"id":"legacy","kind":"cron","createdAtMs":1000,"nextFireMs":5000,"humanSchedule":"0 9 * * *","recurring":false},{"id":"recurring","kind":"cron","createdAtMs":1000,"nextFireMs":2000,"humanSchedule":"0 9 * * *","recurring":true}]}"#
+let legacySchedules = try JSONDecoder().decode(ChatSessionContext.self, from: Data(legacyScheduleJSON.utf8))
+precondition(legacySchedules.needsTimer(now: 4000) && legacySchedules.needsTimer(now: 6999),
+  "Legacy one-shot cron resolution must start the same native timer as a committed fire time")
+precondition(!legacySchedules.needsTimer(now: 7000), "Fired one-shot summaries release the timer after the shared grace period")
+precondition(ChatTranscript().contextRows(legacySchedules, now: 4000).map(\.id) == ["session-scheduled:legacy", "session-scheduled:recurring"])
+precondition(ChatTranscript().contextRows(legacySchedules, now: 7000).map(\.id) == ["session-scheduled:recurring"],
+  "A legacy one-shot clears at its resolved fire time while recurring jobs remain visible")
 precondition(warning.readOnlyRows().contains { $0.itemID == "tool" } && !warning.readOnlyRows().contains { $0.kind == "summary" }, "Read-only subtask records keep the complete process visible")
 let unknownJSON = #"[{"id":"reply","role":"assistant","status":"completed","finished":true,"items":[{"itemId":"task","type":"subagent_task","status":"completed","run":{"snapshot":{"state":"unknown","name":"Reviewer","reason":{"message":"Observation was lost."}}}}]}]"#
 let unknown = try transcript(unknownJSON)
@@ -60,4 +72,4 @@ precondition(unknown.rows().first?.subagent?.status == "unknown", "A stale compl
 precondition(unknown.rows().first?.subagent?.detail == "Observation was lost.")
 precondition(unknown.liveSubagentItems().isEmpty)
 
-print("Transcript context: reported tokens, absent telemetry, warnings outside process, file lifecycle, sender isolation, goal precedence passed")
+print("Transcript context: reported tokens, absent telemetry, warnings outside process, file lifecycle, sender isolation, goal precedence and pending schedules passed")

@@ -55,6 +55,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   queueSessionMessage(payload: string): Promise<string>;
   checkSessionSend(payload: string): Promise<string>;
   cancelSessionSend(payload: string): Promise<string>;
+  scheduleCommand(payload: string): Promise<string>;
   projectCommand(payload: string): Promise<string>;
   providerCommand(payload: string): Promise<string>;
   sessionTools(payload: string): Promise<string>;
@@ -437,6 +438,8 @@ export const checkSessionSend = (payload: string) =>
   native.checkSessionSend(payload);
 export const cancelSessionSend = (payload: string) =>
   native.cancelSessionSend(payload);
+export const scheduleCommand = (payload: string) =>
+  native.scheduleCommand(payload);
 export const projectCommand = (payload: string) =>
   native.projectCommand(payload);
 export const providerCommand = (payload: string) =>

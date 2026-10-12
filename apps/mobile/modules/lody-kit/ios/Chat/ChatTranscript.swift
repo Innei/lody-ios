@@ -62,6 +62,30 @@ struct ChatQuota: Decodable {
   let windows: [Window]
 }
 
+struct ChatScheduledTask: Decodable {
+  let id: String
+  let kind: String
+  let createdAtMs: Double
+  let scheduledForMs: Double?
+  let nextFireMs: Double?
+  let humanSchedule: String?
+  let recurring: Bool?
+  let summary: String?
+  let timeZone: String?
+
+  var fireMs: Double? {
+    guard let fire = nextFireMs ?? scheduledForMs, fire.isFinite else { return nil }
+    return fire
+  }
+}
+
+struct ChatScheduleProposal: Decodable {
+  let proposalId: String
+  let title: String
+  let outcome: String?
+  let scheduleId: String?
+}
+
 struct ChatSubagentRun: Decodable {
   struct Snapshot: Decodable {
     struct Reason: Decodable { let message: String? }
@@ -81,8 +105,20 @@ struct ChatSessionContext: Decodable {
   var dismissedGoalThreadId: String? = nil
   var contextWindowUsage: ChatContextWindowUsage? = nil
   var quotas: [ChatQuota]? = nil
+  var scheduledTasks: [ChatScheduledTask]? = nil
   var senders: [String: String]? = nil
   var showSenderIdentity: Bool? = nil
+
+  var needsTimer: Bool {
+    needsTimer(now: Date().timeIntervalSince1970 * 1000)
+  }
+
+  func needsTimer(now: Double) -> Bool {
+    scheduledTasks?.contains { task in
+      guard task.recurring != true, let fire = task.fireMs else { return false }
+      return fire > now - 2000
+    } == true
+  }
 }
 
 enum ChatUsage {
@@ -206,6 +242,7 @@ struct ChatItem: Decodable {
   var taskId: String? = nil
   var run: ChatSubagentRun? = nil
   var goal: ChatGoal? = nil
+  var proposal: ChatScheduleProposal? = nil
   var processDurationMs: Int? = nil
   var isProcess: Bool { type != "text" && type != "proposed_plan" && type != "goal" && !isAttachment && !isStandalone }
   var hidesFromTranscript: Bool {
@@ -652,6 +689,12 @@ struct ChatTranscript {
         case "system_notice", "agent_warning":
           row.text = noticeText(item)
           row.symbol = item.name == "agent_warning" || item.type == "agent_warning" ? "exclamationmark.triangle" : "info.circle"
+          if item.name == "schedule_proposal", let proposal = item.proposal {
+            row.kind = "schedule_proposal"
+            row.text = LodyStrings.text("native.chat.notice.scheduleProposal", ["title": proposal.title])
+            row.symbol = "calendar.badge.clock"
+            row.actionable = proposal.outcome == nil || (proposal.outcome == "created" && !(proposal.scheduleId ?? "").isEmpty)
+          }
         case "file":
           guard let file = item.file else { continue }
           row.file = file
@@ -767,6 +810,21 @@ extension ChatTranscript {
       }
       guard !windows.isEmpty else { continue }
       rows.append(ChatRow(id: "session-quota:" + quota.id, entryID: "", kind: "quota", text: quota.name ?? quota.provider, symbol: "gauge.with.dots.needle.50percent", contextDetail: windows.joined(separator: "\n")))
+    }
+    for task in context.scheduledTasks ?? [] {
+      if task.recurring != true, let fire = task.fireMs, fire <= now - 2000 { continue }
+      let titleKey = task.kind == "wakeup" ? "native.chat.scheduled.wakeup" : "native.chat.scheduled.cron"
+      var detail: [String] = []
+      if let summary = task.summary, !summary.isEmpty { detail.append(summary) }
+      if let schedule = task.humanSchedule, !schedule.isEmpty {
+        var rule = schedule
+        if let zone = task.timeZone, !zone.isEmpty { rule += " · " + zone }
+        detail.append(rule)
+      }
+      if let fire = task.fireMs, fire > 0 {
+        detail.append(Date(timeIntervalSince1970: fire / 1000).formatted(date: .abbreviated, time: .shortened))
+      }
+      rows.append(ChatRow(id: "session-scheduled:" + task.id, entryID: "", kind: "scheduled", text: LodyStrings.text(titleKey), symbol: "calendar.badge.clock", contextDetail: detail.joined(separator: "\n")))
     }
     return rows
   }

@@ -15,6 +15,8 @@ const choices = [
   'goal-active',
   'goal-paused',
   'goal-cleared',
+  'schedules',
+  'expired-schedule',
 ];
 const usage = {
   inputTokens: 1234,
@@ -202,6 +204,35 @@ function fixture(name: string) {
       },
     ];
     context = { goal: { ...goal, objective: 'Stale catalog fallback' } };
+  }
+  if (name === 'schedules' || name === 'expired-schedule') {
+    entries = [
+      reply(
+        'scheduled-reply',
+        'Pending tasks come from the existing agent scheduling tool history.',
+      ),
+    ];
+    const future = Date.now() + 600000;
+    context = {
+      scheduledTasks: [
+        {
+          id: 'wakeup',
+          kind: 'wakeup',
+          createdAtMs: Date.now(),
+          scheduledForMs: name === 'schedules' ? future : Date.now() - 10000,
+          summary: 'Check the deployment again.',
+        },
+        {
+          id: 'cron',
+          kind: 'cron',
+          createdAtMs: Date.now(),
+          humanSchedule: '0 9 * * 1-5',
+          recurring: true,
+          timeZone: 'Asia/Tokyo',
+          summary: 'Review the daily changelog.',
+        },
+      ],
+    };
   }
   return {
     entriesJSON: JSON.stringify(entries),
