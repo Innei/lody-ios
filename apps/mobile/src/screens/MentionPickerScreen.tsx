@@ -4,6 +4,7 @@ import { SheetSearchContext } from '@/lib/presentation/SheetStack';
 import { t } from '@/lib/i18n';
 import { NativeGroupedList, NativeMentionPicker } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
+import { shortcutErrorMessage } from '@/cloud/prompt-shortcuts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { usePalette } from '@/lib/theme/palette';
 import type {
@@ -25,7 +26,7 @@ function View() {
   const [query, setQuery] = useState(params.query);
   const [catalog, setCatalog] = useState(params.initial);
   const [loading, setLoading] = useState(!!params.load && !params.initial);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
   const search = useRef<SearchBarCommands>(null);
   const setSearch = use(SheetSearchContext);
@@ -33,14 +34,19 @@ function View() {
     if (!params.load) return;
     let active = true;
     setLoading(!catalog || revision > 0);
-    setError(false);
+    setError('');
     params
       .load(revision > 0)
       .then((value) => {
         if (active) setCatalog(value);
       })
-      .catch(() => {
-        if (active) setError(true);
+      .catch((cause) => {
+        if (active)
+          setError(
+            params.category === 'shortcut'
+              ? shortcutErrorMessage(cause)
+              : t('mentions.error'),
+          );
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -72,7 +78,7 @@ function View() {
             ? [
                 {
                   id: 'error',
-                  footer: t('mentions.error'),
+                  footer: error,
                   rows: [
                     { id: 'retry', title: t('common.retry'), action: true },
                   ],
@@ -80,7 +86,7 @@ function View() {
               ]
             : []
         }
-        placeholder={loading ? t('common.reading') : t('mentions.error')}
+        placeholder={loading ? t('common.reading') : error}
         onRowPress={() => setRevision((value) => value + 1)}
       />
     );
@@ -105,7 +111,7 @@ function View() {
       }}
       onPick={({ nativeEvent }) => {
         const item = items.find((value) => value.path === nativeEvent.path);
-        if (item) finish(item);
+        if (item && !item.disabledReason) finish(item);
       }}
     />
   );

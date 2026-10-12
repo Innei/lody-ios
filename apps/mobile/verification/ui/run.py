@@ -20,7 +20,7 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 OSS_CASES = [
-    'preview-close', 'run-options', 'send-queue-tools', 'usage-context', 'subagent-history', 'session-tools', 'schedules', 'project-management', 'providers', 'team',
+    'preview-close', 'run-options', 'send-queue-tools', 'usage-context', 'subagent-history', 'session-tools', 'prompt-shortcuts', 'schedules', 'project-management', 'providers', 'team',
 ]
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker', 'branch-picker'],
@@ -56,6 +56,7 @@ PREVIEW = {
     'subagent-history': 'subagent-history-preview',
     'usage-context': 'transcript-context-preview',
     'session-tools': 'session-tools-preview',
+    'prompt-shortcuts': 'prompt-shortcuts-preview',
     'run-options': 'run-options-preview',
     'send-queue-tools': 'send-queue-tools',
     'schedules': 'schedules',
@@ -157,6 +158,7 @@ READY = {
     'subagent-history': 'subagent-history-preview-ready',
     'usage-context': 'usage-report:meta:details',
     'session-tools': 'tools-pin',
+    'prompt-shortcuts': 'shortcut-fixture-ready',
     'run-options': 'run-options-ready',
     'send-queue-tools': 'queue-tools-status',
     'schedules': 'schedules-preview-ready',
@@ -254,6 +256,9 @@ def enter_case(ui, case):
 
 def run_case_check(case, command, log, env, photo_access):
     check_timeout = 420 if case in OSS_CASES else 180
+    if case == 'prompt-shortcuts':
+        # The measured 230s management flow now also covers inline, Chat and Create picker interactions.
+        check_timeout = 600
     if case == 'proposed-plan':
         # Document, search and business dispatch outcomes share this case.
         check_timeout = 360

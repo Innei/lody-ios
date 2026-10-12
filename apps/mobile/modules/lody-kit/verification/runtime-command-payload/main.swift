@@ -3,7 +3,31 @@ import Foundation
 func json(_ object: [String: Any]) -> String {
   String(decoding: try! JSONSerialization.data(withJSONObject: object), as: UTF8.self)
 }
+func save(_ prompt: String) -> String {
+  json(["workspaceId": "workspace", "action": "save", "bodyDocId": "body", "base": NSNull(),
+    "value": ["v": 1, "id": "shortcut", "workspaceId": "workspace", "ownerUserId": "user",
+      "visibility": "private", "name": "Template", "slug": "template", "prompt": prompt,
+      "mentions": [], "scope": [:], "revision": "revision", "createdAt": 1, "updatedAt": 1]])
+}
+
+let large = save(String(repeating: "a", count: 130 * 1024))
+let accepted = RuntimeCommandPayload.decode(large, method: "shortcutCommand")
+let decoded = accepted?["value"] as? [String: Any]
+precondition((decoded?["prompt"] as? String)?.utf8.count == 130 * 1024, "A valid desktop template above the ordinary command limit reaches runtime unchanged")
+for method in ["checkSend", "sessionTools", "runOptions"] {
+  precondition(RuntimeCommandPayload.decode(large, method: method) == nil, "Larger templates must not relax another command's input ceiling")
+}
+let escaped = String(repeating: "\\", count: 256 * 1024 - 2048)
+precondition((RuntimeCommandPayload.decode(save(escaped), method: "shortcutCommand")?["value"] as? [String: Any])?["prompt"] as? String == escaped, "A near-limit JSON-escaped template keeps its contents")
 let small = "{}"
+let limit = 528 * 1024
+precondition(RuntimeCommandPayload.decode(small + String(repeating: " ", count: limit - small.utf8.count), method: "shortcutCommand") != nil)
+precondition(RuntimeCommandPayload.decode(small + String(repeating: " ", count: limit - small.utf8.count + 1), method: "shortcutCommand") == nil, "Oversized envelopes fail before JSON processing")
+let unicode = save(String(repeating: "界", count: 180 * 1024))
+precondition(unicode.count < limit && unicode.utf8.count > limit)
+precondition(RuntimeCommandPayload.decode(unicode, method: "shortcutCommand") == nil, "The ceiling counts UTF-8 bytes, not characters")
+precondition(RuntimeCommandPayload.decode("[1,2]", method: "shortcutCommand") == nil)
+precondition(RuntimeCommandPayload.decode("not json", method: "shortcutCommand") == nil)
 let providerValue = String(repeating: "界", count: 31_500)
 let providerConfig: [String: Any] = ["id": "config", "machineId": "machine", "name": "Provider",
   "cliType": "builtin", "agentType": "codex", "env": ["A": providerValue, "B": providerValue, "C": providerValue, "D": providerValue]]
@@ -77,3 +101,4 @@ for (method, bytes) in [("projectCommand", 1024 * 1024), ("scheduleCommand", 832
   precondition(RuntimeCommandPayload.decode(small + String(repeating: " ", count: bytes - small.utf8.count), method: method) != nil)
   precondition(RuntimeCommandPayload.decode(small + String(repeating: " ", count: bytes - small.utf8.count + 1), method: method) == nil, "Every method retains a finite input ceiling")
 }
+print("PASS: escaped scripts, Unicode schedules/Providers, complete frozen Roles, queue edits/receipts, Shortcut saves and finite per-command UTF-8 ceilings")

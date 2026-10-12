@@ -7,6 +7,7 @@ import { AgentRolesScreen } from './AgentRolesScreen';
 import { SchedulesScreen } from './SchedulesScreen';
 import { ProjectManagementScreen } from './ProjectManagementScreen';
 import { AutoArchiveSettingsScreen } from './AutoArchiveSettingsScreen';
+import { PromptShortcutsScreen } from './PromptShortcutsScreen';
 import { useRouter } from 'expo-router';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { AccountScreen } from './AccountScreen';
@@ -287,6 +288,14 @@ function View() {
           disclosure: true,
           navigates: true,
         },
+        {
+          id: 'prompt-shortcuts',
+          title: t('settings.promptShortcuts.title'),
+          image: 'text.quote',
+          action: true,
+          disclosure: true,
+          navigates: true,
+        },
       ],
     });
   if (auth.account)
@@ -381,6 +390,8 @@ function View() {
         if (nativeEvent.id === 'schedules') void push(SchedulesScreen);
         if (nativeEvent.id === 'project-management')
           void push(ProjectManagementScreen);
+        if (nativeEvent.id === 'prompt-shortcuts')
+          void push(PromptShortcutsScreen);
         if (nativeEvent.id === 'auto-archive')
           void push(AutoArchiveSettingsScreen);
         if (nativeEvent.id === 'archived') void push(ArchivedSessionsScreen);

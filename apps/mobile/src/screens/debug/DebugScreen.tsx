@@ -36,6 +36,7 @@ import { ProviderPreviewScreen } from './ProviderPreviewScreen';
 import { SubagentHistoryPreviewScreen } from './SubagentHistoryPreviewScreen';
 import { TranscriptContextPreviewScreen } from './TranscriptContextPreviewScreen';
 import { SessionToolsPreviewScreen } from './SessionToolsPreviewScreen';
+import { PromptShortcutsPreviewScreen } from './PromptShortcutsPreviewScreen';
 import { RunOptionsPreviewScreen } from './RunOptionsPreviewScreen';
 import { openSendQueueToolsPreview } from './SendQueueToolsPreviewScreen';
 import { SchedulePreviewScreen } from './SchedulePreviewScreen';
@@ -276,6 +277,11 @@ function View() {
           'slider.horizontal.3',
         ),
         openRow(
+          'prompt-shortcuts-preview',
+          'Prompt shortcuts',
+          'text.badge.plus',
+        ),
+        openRow(
           'run-options-preview',
           'Creation options',
           'person.badge.gearshape',
@@ -481,6 +487,8 @@ function View() {
     'transcript-context-preview': () =>
       void present(TranscriptContextPreviewScreen),
     'session-tools-preview': () => void present(SessionToolsPreviewScreen),
+    'prompt-shortcuts-preview': () =>
+      void present(PromptShortcutsPreviewScreen),
     'run-options-preview': () => void present(RunOptionsPreviewScreen),
     schedules: () => void present(SchedulePreviewScreen),
     'chat-preview': () => void present(ChatPreviewScreen, {}),

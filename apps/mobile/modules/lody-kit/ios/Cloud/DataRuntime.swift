@@ -237,6 +237,10 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         switch operation {
         case "projectApi":
           result = try? await ProjectManagementCloud.run(args: args, workspace: workspace, userId: user)
+        case "shortcutApi":
+          if let method = args["method"] as? String, let values = args["args"] as? [String: Any] {
+            result = await PromptShortcutsCloud.run(method, args: values, workspace: workspace, userId: user)
+          } else { result = nil }
         default:
           result = try? await SessionSharing.run(operation, args: args, workspace: workspace, userId: user)
         }
@@ -632,7 +636,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       args["userId"] = userId
     }
     if method == "remoteSettings" || method == "localProjects" || method == "mentionCatalog" { args["userId"] = userId }
-    if ["scheduleCommand", "projectCommand", "providerCommand", "sessionTools", "runOptions", "subagentHistory"].contains(method) { args["userId"] = userId }
+    if ["scheduleCommand", "projectCommand", "providerCommand", "shortcutCommand", "sessionTools", "runOptions", "subagentHistory"].contains(method) { args["userId"] = userId }
     if method == "editSession" || method == "sessionPreview" || method == "iosSimulatorControl" { args["userId"] = userId }
     let id = UUID(); commands[id] = sink
     if (method == "sendTurn" || (method == "editSession" && args["action"] as? String == "send")), args["backgroundTaskId"] == nil, !backgrounded {
@@ -642,7 +646,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     var timeout: Double = 45
     if ["providerCommand", "sessionTools", "runOptions", "subagentHistory", "queueMessage", "checkSend"].contains(method) { timeout = 90 }
     // Owned expansion/management reads expire at 120 seconds before any durable send.
-    if ["createSession", "sendTurn", "editSession", "sessionSharing", "scheduleCommand", "projectCommand"].contains(method) { timeout = 130 }
+    if ["createSession", "sendTurn", "editSession", "sessionSharing", "scheduleCommand", "projectCommand", "shortcutCommand"].contains(method) { timeout = 130 }
     if method == "sessionPreview" { timeout = 330 }
     if method == "iosSimulatorControl" { timeout = 100 }
     if method == "localProjects" && args["action"] as? String == "history" { timeout = 130 }

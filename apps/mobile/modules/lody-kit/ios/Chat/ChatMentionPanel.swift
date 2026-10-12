@@ -7,24 +7,35 @@ struct ChatMentionItem: Decodable, Equatable {
   let kind: String
   let subtitle: String
   var insertText: String?
+  var command: String?
+  var emoji: String?
+  var disabledReason: String?
 
   var category: String { kind == "directory" ? "file" : kind }
-  static let categories = ["file", "skill", "session", "role", "issue", "pr", "cmd"]
-  static let labels = ["file": "files", "skill": "skills", "session": "sessions", "role": "roles", "issue": "issues", "pr": "prs", "cmd": "commands"]
-  static let glyphs = ["file": "doc.text", "directory": "folder", "skill": "sparkles", "session": "bubble.left.and.bubble.right", "role": "person.crop.rectangle", "issue": "exclamationmark.circle", "pr": "arrow.triangle.branch", "cmd": "command"]
+  static let categories = ["file", "skill", "session", "role", "issue", "pr", "cmd", "shortcut"]
+  static let labels = ["file": "files", "skill": "skills", "session": "sessions", "role": "roles", "issue": "issues", "pr": "prs", "cmd": "commands", "shortcut": "shortcuts"]
+  static let glyphs = ["file": "doc.text", "directory": "folder", "skill": "sparkles", "session": "bubble.left.and.bubble.right", "role": "person.crop.rectangle", "issue": "exclamationmark.circle", "pr": "arrow.triangle.branch", "cmd": "command", "shortcut": "bolt"]
 
   func matches(_ query: String) -> Bool {
-    query.isEmpty || (name + " " + path + " " + subtitle).localizedStandardContains(query)
+    query.isEmpty || (name + " " + path + " " + subtitle + " " + (command ?? "")).localizedStandardContains(query)
   }
 
   var content: UIListContentConfiguration {
     var content = UIListContentConfiguration.subtitleCell()
     content.text = name
     content.secondaryText = subtitle
+    if kind == "shortcut" {
+      if let emoji, !emoji.isEmpty { content.text = emoji + " " + name }
+      if let command { content.secondaryText = subtitle.isEmpty ? command : command + " · " + subtitle }
+    }
+    if let disabledReason {
+      content.secondaryText = disabledReason
+      content.textProperties.color = .secondaryLabel
+    }
     content.textProperties.font = .dynamic(of: 16, weight: .medium)
     content.secondaryTextProperties.font = .dynamic(of: 13)
     content.secondaryTextProperties.color = .secondaryLabel
-    content.secondaryTextProperties.numberOfLines = 1
+    content.secondaryTextProperties.numberOfLines = disabledReason == nil ? 1 : 0
     let glyph = Self.glyphs[kind == "category" ? path : kind] ?? "doc.text"
     content.image = UIImage(systemName: glyph, withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .regular))
     content.imageProperties.tintColor = .secondaryLabel
@@ -139,13 +150,34 @@ final class ChatMentionPanel: CKGlassSurface, UICollectionViewDataSource, UIColl
         }
       }
     } else {
-      nextRows = items.filter { $0.kind != "category" && (scoped == nil || $0.category == scoped) && $0.matches(query) }
+      nextRows = items.filter { item in
+        guard item.kind != "category",
+              scoped == nil || item.category == scoped || (scoped == "cmd" && item.category == "shortcut"),
+              item.matches(query) else { return false }
+        if trigger == "/", item.kind == "shortcut", item.disabledReason != nil {
+          return item.command?.lowercased() == "/" + query.lowercased() || item.name.lowercased() == query.lowercased()
+        }
+        return true
+      }
     }
     guard !nextRows.isEmpty else {
       setVisible(false)
       return
     }
-    panelHeight = min(240, CGFloat(nextRows.count) * (nextRows.first?.kind == "category" ? 50 : 58) + 12)
+    var height: CGFloat = 12
+    for item in nextRows {
+      if item.kind == "category" { height += 50 }
+      else if item.disabledReason == nil { height += 58 }
+      else {
+        let content = UIListContentView(configuration: item.content)
+        let size = content.systemLayoutSizeFitting(
+          CGSize(width: max(240, bounds.width), height: UIView.layoutFittingCompressedSize.height),
+          withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel)
+        height += max(58, size.height)
+      }
+      if height >= 240 { break }
+    }
+    panelHeight = min(240, height)
     if rows != nextRows {
       rows = nextRows
       if showing && !isTransitioning {
@@ -177,7 +209,7 @@ final class ChatMentionPanel: CKGlassSurface, UICollectionViewDataSource, UIColl
     guard let input, let draft = browserDraft else { return }
     browserDraft = nil
     guard input.text == draft.text else { return }
-    if let path, let item = selectedItem ?? catalog.first(where: { $0.path == path }), item.path == path {
+    if let path, let item = selectedItem ?? catalog.first(where: { $0.path == path }), item.path == path, item.disabledReason == nil {
       insert(item, into: input, range: draft.range)
     } else {
       dismissedText = input.text
@@ -188,7 +220,8 @@ final class ChatMentionPanel: CKGlassSurface, UICollectionViewDataSource, UIColl
   private func insert(_ item: ChatMentionItem, into input: UITextView, range: NSRange) {
     let text = (item.insertText ?? ("@" + item.path)) + " "
     let currentLength = ((input.text ?? "") as NSString).length
-    guard NSMaxRange(range) <= currentLength, currentLength - range.length + (text as NSString).length <= 32000 else { return }
+    guard item.disabledReason == nil, NSMaxRange(range) <= currentLength,
+          currentLength - range.length + (text as NSString).length <= 32000 else { return }
     applyingEdit = true
     if let composer = input as? ChatComposerInput {
       composer.insertReference(String(text.dropLast()), replacing: range)
@@ -219,11 +252,12 @@ final class ChatMentionPanel: CKGlassSurface, UICollectionViewDataSource, UIColl
       content.imageToTextPadding = 12
       content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 15, leading: 16, bottom: 15, trailing: 16)
     } else {
-      content.text = item.name
       if item.kind == "file" || item.kind == "directory" { content.text = "@" + item.path }
       if item.kind == "skill" || item.kind == "cmd" { content.text = item.insertText ?? item.name }
     }
     cell.contentConfiguration = content
+    cell.isUserInteractionEnabled = item.disabledReason == nil
+    cell.accessibilityTraits = item.disabledReason == nil ? [.button] : [.button, .notEnabled]
     cell.backgroundConfiguration = .clear()
     cell.accessibilityIdentifier = "mention-item:" + item.path
     cell.accessories = []
@@ -236,9 +270,13 @@ final class ChatMentionPanel: CKGlassSurface, UICollectionViewDataSource, UIColl
     }
     return cell
   }
+  func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
+    rows.indices.contains(indexPath.item) && rows[indexPath.item].disabledReason == nil
+  }
   func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
     collectionView.deselectItem(at: indexPath, animated: true)
-    guard let input, let range else { return }
+    guard rows.indices.contains(indexPath.item), rows[indexPath.item].disabledReason == nil,
+          let input, let range else { return }
     let item = rows[indexPath.item]
     if item.kind == "category" {
       browserDraft = (input.text ?? "", range)
