@@ -84,7 +84,9 @@ export {
 export {
   projectCommand,
   providerCommand,
+  sessionTools,
   runOptions,
+  subagentHistory,
   teamRequest,
   watchSession,
   unwatchSession,

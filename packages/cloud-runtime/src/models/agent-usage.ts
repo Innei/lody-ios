@@ -7,6 +7,7 @@ export type UsageWindow = {
 export type AgentQuota = {
   id: string;
   provider: string;
+  agentConfigId?: string;
   name?: string;
   windows: UsageWindow[];
 };

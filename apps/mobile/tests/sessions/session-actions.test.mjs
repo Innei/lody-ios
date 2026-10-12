@@ -5,6 +5,7 @@ import { build } from 'esbuild';
 const writes = [];
 const shares = [];
 const alerts = [];
+const localValues = new Map();
 let deleteRequest;
 globalThis.__sessionAlerts = alerts;
 globalThis.__sessionActionKit = {
@@ -18,6 +19,18 @@ globalThis.__sessionActionKit = {
   renameSession: async (payload) => {
     writes.push(JSON.parse(payload));
     return '{}';
+  },
+  sessionTools: async (payload) => {
+    const request = JSON.parse(payload);
+    writes.push(request);
+    return JSON.stringify({ action: request.action, saved: true });
+  },
+  readLocalValue: async (key) => localValues.get(key) ?? null,
+  writeLocalValue: async (key, value) => {
+    localValues.set(key, value);
+  },
+  clearLocalValues: async () => {
+    localValues.clear();
   },
   showToast() {},
 };
@@ -55,7 +68,7 @@ const bundle = await build({
         b.onLoad({ filter: /.*/, namespace: 'mock' }, ({ path }) => ({
           contents:
             path === 'kit'
-              ? 'export const {archiveSession,deleteSession,pinSession,markSessionRead,renameSession,showToast}=globalThis.__sessionActionKit;'
+              ? 'export const {archiveSession,deleteSession,pinSession,markSessionRead,renameSession,sessionTools,readLocalValue,writeLocalValue,clearLocalValues,showToast}=globalThis.__sessionActionKit;'
               : path === 'rn'
                 ? 'export const Share={share:async(content)=>{globalThis.__sessionShares.push(content);}}; export const Alert={alert:(title,message,buttons)=>globalThis.__sessionAlerts.push({title,message,buttons}),prompt:(title,message,buttons,type,defaultValue)=>{globalThis.__sessionPrompts.push({title,message,type,defaultValue}); const confirm=buttons.find((button)=>button.style!=="cancel"); confirm?.onPress?.(globalThis.__sessionPromptValue??defaultValue);}};'
                 : 'export function openCatalogRow(){} export function requestNewSession(){} export async function requestShareSession(workspaceId,sessionId){globalThis.__sessionShares.push({workspaceId,sessionId})} export function isChatSession(){return false} export function projectIdOfRow(){}',
@@ -222,7 +235,7 @@ test('list rename prompts with the current title and writes the trimmed name', a
   assert.equal(writes[0].title, 'New title');
 });
 
-test('list rename ignores a blank title', async () => {
+test('list rename resolves a blank edit to a localized untitled title', async () => {
   writes.length = 0;
   globalThis.__sessionPromptValue = '   ';
   listRowAction(
@@ -232,5 +245,34 @@ test('list rename ignores a blank title', async () => {
     'rename',
   );
   await Promise.resolve();
-  assert.equal(writes.length, 0);
+  assert.equal(writes.length, 1);
+  assert.ok(writes[0].title.trim());
+  assert.notEqual(writes[0].title, session.title);
+});
+
+test('list unread clears only the current viewer watermark after the durable request', async () => {
+  writes.length = 0;
+  localValues.set(
+    'session-views:["viewer","workspace"]',
+    JSON.stringify({ s1: 1000, other: 500 }),
+  );
+  listRowAction(
+    { id: 'workspace', slug: 'work' },
+    {
+      projects: [],
+      sessions: [{ ...session, lastReadAt: 1000 }],
+      machineIds: [],
+    },
+    's1',
+    'unread',
+    undefined,
+    'viewer',
+  );
+  await new Promise(setImmediate);
+  assert.equal(writes[0].action, 'unread');
+  assert.equal(writes[0].sessionId, 's1');
+  assert.deepEqual(
+    JSON.parse(localValues.get('session-views:["viewer","workspace"]')),
+    { other: 500 },
+  );
 });

@@ -27,8 +27,8 @@ extension LodyChatView {
     processEntryID = id
     deferredRows.removeAll()
     backgroundColor = !id.isEmpty && traitCollection.userInterfaceIdiom == .phone ? .clear : .lodyBackground
-    composer.isHidden = !id.isEmpty || composerRetired
-    edgeFade.isHidden = !id.isEmpty
+    updateComposerVisibility()
+    refreshPinnedMessage()
     setNeedsLayout()
     applyRows()
   }
@@ -159,7 +159,7 @@ extension LodyChatView {
   }
 
   func applyOverlay() {
-    if !processEntryID.isEmpty {
+    if !processEntryID.isEmpty || readOnly {
       overlay.slot = .idle
       return
     }
@@ -172,7 +172,7 @@ extension LodyChatView {
   }
 
   func applyRows() {
-    if let pendingSend, LodyComposerView.relays[pendingSend.id] != nil { return }
+    if !readOnly, let pendingSend, LodyComposerView.relays[pendingSend.id] != nil { return }
     applyOverlay()
     guard !applying else { needsApply = true; return }
     applying = true
@@ -206,12 +206,17 @@ extension LodyChatView {
     }
     composer.setQueue(queue, enteringTranscript: Set(transcript.entries.filter { $0.role == "user" && !$0.isQueued }.map(\.id)))
     let now = Date().timeIntervalSince1970 * 1000
-    var projected = transcript.rows(
-      processEntryID: processEntryID,
-      processStartID: processStartID,
-      now: now,
-      turnStartedAt: turnStartedAt
-    )
+    var projected: [ChatRow]
+    if readOnly && processEntryID.isEmpty {
+      projected = transcript.readOnlyRows(now: now, turnStartedAt: turnStartedAt)
+    } else {
+      projected = transcript.rows(
+        processEntryID: processEntryID,
+        processStartID: processStartID,
+        now: now,
+        turnStartedAt: turnStartedAt
+      )
+    }
     deferredRows = deferredRows.filter { id, _ in transcript.entries.contains { $0.id == id } }
     if !deferredRows.isEmpty {
       let byEntry = Dictionary(grouping: projected, by: \.entryID)
@@ -232,7 +237,7 @@ extension LodyChatView {
         projected[index].errorRetry = state
       }
     }
-    if processEntryID.isEmpty, let pendingSend {
+    if processEntryID.isEmpty, !readOnly, let pendingSend {
       for row in pendingSend.rows(entries: transcript.entries) {
         if row.kind == "delivery", let index = projected.firstIndex(where: { $0.entryID == row.entryID }) {
           projected.insert(row, at: index)
@@ -261,6 +266,7 @@ extension LodyChatView {
       projected,
       inFlight: Set(projected.map(\.entryID).filter { ChatSendHandoff.isInFlight(id: $0) })
     )
+    if readOnly { projected = projected.map(readOnlyRow) }
     // Keep a confirmed status in the layout while its height and opacity shrink.
     // Remove it only after the adjacent bubble has reached its final position.
     let activeIDs = Set(projected.map(\.id))
@@ -294,6 +300,9 @@ extension LodyChatView {
     let retainedIDs = Set(projected.map(\.id))
     expandedPlans.formIntersection(retainedIDs)
     projected = prepareHistory(projected)
+    if processEntryID.isEmpty {
+      projected = transcript.contextRows(sessionContext, now: now) + projected
+    }
     let insertingHistory = previousHistoryStart != nil && previousHistoryStart != historyStartID
     // Starting/waiting for a page changes only the header, not the collection.
     if preparingHistory, projected.count == rows.count,
@@ -417,6 +426,8 @@ extension LodyChatView {
       self.streamPerformanceProbe?.commit(milliseconds: (CACurrentMediaTime() - commitStart) * 1000)
       self.applying = false
       self.scrollToEditedMessage()
+      self.refreshPinnedMessage()
+      self.scrollToPinnedMessage()
       self.catchingUpEntries.removeAll()
       self.store.nonAnimatedRows.removeAll()
       self.updateDeferredStreams()

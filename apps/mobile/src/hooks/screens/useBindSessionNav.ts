@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { cancelComposerRelay, prepareSheetZoom } from '@lody-ios/kit';
 import { present, type PagePresentationOptions } from '@/lib/presentation';
 import { showToast } from '@/ui/toast';
@@ -29,7 +29,9 @@ export function useBindSessionNav({
   openSession?: (params: SessionParams) => void;
 } = {}) {
   const { account } = useAuth();
-  const { selected } = useCatalog();
+  const { selected, catalog } = useCatalog();
+  const catalogRef = useRef(catalog);
+  catalogRef.current = catalog;
   useEffect(() => {
     if (!enabled) return;
     const open = async (params: SessionParams, preparing = false) => {
@@ -63,6 +65,25 @@ export function useBindSessionNav({
           return;
         }
         if (intent.workspaceId !== selected?.id) return;
+        if (intent.kind === 'open-from-page') {
+          if (intent.userId !== account?.user.id) return;
+          const session = catalogRef.current.sessions.find(
+            (item) => item.id === intent.session.id,
+          );
+          if (!session) return;
+          const initialHistory = await prepareSessionHistory(
+            intent.userId,
+            intent.workspaceId,
+            session.id,
+          );
+          if (signal.aborted) return;
+          await present(
+            SessionScreen,
+            { session, initialHistory },
+            { title: session.title },
+          );
+          return;
+        }
         if (intent.kind === 'share') {
           await present(SessionShareScreen, {
             workspaceId: intent.workspaceId,
@@ -101,7 +122,7 @@ export function useBindSessionNav({
         if (signal.aborted) return;
         showToast(
           t(
-            intent.kind === 'open'
+            intent.kind === 'open' || intent.kind === 'open-from-page'
               ? 'session.toast.openFailed'
               : 'session.toast.createFailed',
           ),

@@ -209,6 +209,15 @@ const readAction = () => ({
   title: t('session.action.read'),
   symbol: 'envelope.open',
 });
+const unreadAction = () => ({
+  id: 'unread',
+  title: t('session.action.unread'),
+  symbol: 'envelope.badge',
+});
+const receiptActions = (session: Session) => {
+  if (session.lastMessageAt === undefined) return [];
+  return [unreadOf(session) ? readAction() : unreadAction()];
+};
 const trailingActions = (session: Session) => {
   const archive = archiveAction(session.archived);
   if (unreadOf(session)) return [readAction(), archive];
@@ -246,6 +255,7 @@ const sessionMenu = (session: Session) => ({
     pinAction(session.pinned),
     archiveAction(session.archived),
     shareAction(),
+    ...receiptActions(session),
     {
       id: 'delete',
       title: t('session.action.delete'),

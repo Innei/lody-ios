@@ -4,6 +4,12 @@ export type SessionNavIntent =
   | { kind: 'share'; workspaceId: string; sessionId: string }
   | { kind: 'open'; session: Session; findQuery?: string }
   | {
+      kind: 'open-from-page';
+      workspaceId: string;
+      userId: string;
+      session: Session;
+    }
+  | {
       kind: 'create';
       workspaceId: string;
       catalog: Catalog;
@@ -63,6 +69,34 @@ async function flush() {
 export function requestOpenSession(session: Session, findQuery?: string) {
   return enqueue({ kind: 'open', session, findQuery });
 }
+
+export async function requestOpenSessionFromPage(
+  workspaceId: string,
+  userId: string,
+  session: Session,
+) {
+  // The source page owns the queued open until Back; a linked page pushes above it.
+  const handler = handlers.at(-1);
+  if (!handler) throw new Error('Navigation unavailable');
+  const { signal } = handler.controller;
+  let cancel = () => {};
+  const cancelled = new Promise<void>((resolve) => {
+    cancel = resolve;
+    signal.addEventListener('abort', cancel, { once: true });
+  });
+  try {
+    await Promise.race([
+      handler.handle(
+        { kind: 'open-from-page', workspaceId, userId, session },
+        signal,
+      ),
+      cancelled,
+    ]);
+  } finally {
+    signal.removeEventListener('abort', cancel);
+  }
+}
+
 export function requestShareSession(workspaceId: string, sessionId: string) {
   // A transient share can open while the navigation mailbox awaits an open page.
   const handler = handlers.at(-1);

@@ -63,14 +63,18 @@ extension LodyChatView {
 
   func layoutFind() {
     let height: CGFloat = findPresented ? findBar.preferredHeight : 0
-    findBar.frame = CGRect(x: safeAreaInsets.left, y: safeAreaInsets.top,
+    let pinnedHeight: CGFloat = pinnedMessage.isHidden ? 0 : ChatPinnedMessageView.height
+    pinnedMessage.frame = CGRect(x: safeAreaInsets.left, y: safeAreaInsets.top,
+      width: bounds.width - safeAreaInsets.left - safeAreaInsets.right, height: pinnedHeight)
+    findBar.frame = CGRect(x: safeAreaInsets.left, y: safeAreaInsets.top + pinnedHeight,
       width: bounds.width - safeAreaInsets.left - safeAreaInsets.right, height: height)
-    if collection.contentInset.top != height {
+    let top = height + pinnedHeight
+    if collection.contentInset.top != top {
       let offset = collection.contentOffset
-      collection.contentInset.top = height
+      collection.contentInset.top = top
       collection.contentOffset = offset
     }
-    collection.verticalScrollIndicatorInsets.top = height
+    collection.verticalScrollIndicatorInsets.top = top
     if let keyboard = findFocusRequest, let window {
       findFocusRequest = nil
       if keyboard { findBar.field.becomeFirstResponder() }
@@ -136,8 +140,8 @@ extension LodyChatView {
     CATransaction.setDisableActions(true)
     findClip.backgroundColor = UIColor.black.cgColor
     findClip.frame = collection.bounds.inset(by: UIEdgeInsets(
-      top: findPresented ? findBar.frame.maxY : 0, left: 0, bottom: 0, right: 0))
-    collection.layer.mask = findPresented ? findClip : nil
+      top: findPresented || !pinnedMessage.isHidden ? findBar.frame.maxY : 0, left: 0, bottom: 0, right: 0))
+    collection.layer.mask = findPresented || !pinnedMessage.isHidden ? findClip : nil
     CATransaction.commit()
     guard findPresented else { return }
     let query = (findBar.field.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)

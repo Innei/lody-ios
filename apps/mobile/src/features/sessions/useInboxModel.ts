@@ -214,7 +214,14 @@ export function useInboxModel() {
     },
     rowAction: (id: string, actionId: string) => {
       if (selected)
-        listRowAction(selected, catalog, id, actionId, deleteSessionRequest);
+        listRowAction(
+          selected,
+          catalog,
+          id,
+          actionId,
+          deleteSessionRequest,
+          userId,
+        );
     },
     selected,
     setExpanded,

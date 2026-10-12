@@ -1,6 +1,10 @@
 import { projectAgentUsage, legacyAgentQuotas } from './agent-usage.ts';
 import { pullRequestReferences } from './pull-request.ts';
 import type { Catalog, Project, Session } from '../models/catalog.ts';
+import {
+  readContextWindowUsage,
+  readSessionGoal,
+} from './transcript-context.ts';
 
 export type { Catalog, Project, Session } from '../models/catalog.ts';
 
@@ -153,6 +157,12 @@ export function projectRows(
           ? `github:${repo}`
           : `${machineId}:unassigned`;
     sessions.push({
+      contextWindowUsage: readContextWindowUsage(value.contextWindowUsage),
+      latestGoal: readSessionGoal(value.latestGoal),
+      dismissedGoalThreadId:
+        text(value.dismissedGoalThreadId).trim() || undefined,
+      userId: text(value.userId).trim() || undefined,
+      pinnedHistoryId: text(value.pinnedHistoryId).trim() || undefined,
       agentConfigId: text(value.agentConfigId).trim() || undefined,
       lastModel: modelOf(value.lastModel),
       cliType: text(value.cliType),

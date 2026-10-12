@@ -32,6 +32,8 @@ const NATIVE_PREFIXES = [
   'runOptions.',
   'queue.',
   'send.',
+  'message.details.',
+  'inbox.section.chat',
   'settings.history.selected',
   'accessibility.closeSheet',
 ];

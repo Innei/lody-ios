@@ -639,15 +639,23 @@ let assistantFiles = """
 """
 var fileTranscript = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(assistantFiles.utf8)))
 let liveFiles = fileTranscript.rows().filter { $0.file != nil }
-precondition(liveFiles.map(\.text) == ["clip.mp4", "report.pdf"] && liveFiles.allSatisfy(\.actionable))
+precondition(liveFiles.compactMap { $0.file?.fileName } == ["clip.mp4", "report.pdf"])
+precondition(liveFiles[0].actionable && liveFiles[0].text == "clip.mp4 · " + ByteCountFormatter.string(fromByteCount: 1024, countStyle: .file),
+  "Uploaded files offer a preview and display their reported size")
+precondition(!liveFiles[1].actionable && liveFiles[1].text == "report.pdf · " + LodyStrings.text("native.chat.file.uploading"),
+  "An unfinished local upload stays visible without offering a download")
 precondition(liveFiles.first?.file?.storageSessionId == "source" && liveFiles.first?.file?.sizeBytes == 1024)
 fileTranscript.entries[0].finished = true
 precondition(fileTranscript.rows().filter { $0.file != nil } == liveFiles)
 precondition(fileTranscript.rows(processEntryID: "files").map(\.kind) == ["tool_call"])
 precondition(ChatTranscript.previewRows(from: assistantFiles).filter { $0.file != nil } == liveFiles)
+let uploadedFiles = assistantFiles.replacingOccurrences(of: "\"transport\":\"local\"", with: "\"transport\":\"r2\"")
+let uploadedFilesRows = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(uploadedFiles.utf8))).rows().filter { $0.file != nil }
+precondition(uploadedFilesRows[1].id == liveFiles[1].id && uploadedFilesRows[1].actionable && uploadedFilesRows[1].text == "report.pdf",
+  "Upload completion enables the preview on the existing file row")
 fileTranscript.entries[0].items.removeAll { !$0.isAttachment }
 precondition(fileTranscript.rows().map(\.kind) == ["file", "file"])
-print("MCP files: inline preview actions, completion, standalone upload and cache restore passed")
+print("MCP files: reported sizes, upload lifecycle, stable preview actions, standalone upload and cache restore passed")
 
 // A moving tail must traverse intermediate positions, never overshoot, and
 // converge to the same place on different refresh-rate displays.

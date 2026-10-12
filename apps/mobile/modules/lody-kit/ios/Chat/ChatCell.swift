@@ -14,6 +14,69 @@ enum ChatRowPadding {
   }
 }
 
+final class ChatPinnedMessageView: UIView {
+  static let height: CGFloat = 56
+  private let open = UIButton(type: .system)
+  private let unpin = UIButton(type: .system)
+  var onOpen: (() -> Void)?
+  var onUnpin: (() -> Void)?
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    backgroundColor = .secondarySystemGroupedBackground
+    isHidden = true
+    open.contentHorizontalAlignment = .leading
+    open.accessibilityIdentifier = "chat-pinned-message"
+    open.addAction(UIAction { [weak self] _ in self?.onOpen?() }, for: .touchUpInside)
+    unpin.setImage(UIImage(systemName: "xmark"), for: .normal)
+    unpin.tintColor = .secondaryLabel
+    unpin.accessibilityIdentifier = "chat-pinned-message:unpin"
+    unpin.accessibilityLabel = LodyStrings.text("native.chat.unpin")
+    unpin.addAction(UIAction { [weak self] _ in self?.onUnpin?() }, for: .touchUpInside)
+    addSubview(open)
+    addSubview(unpin)
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  func configure(text: String?, loaded: Bool, available: Bool, canUnpin: Bool) {
+    var configuration = UIButton.Configuration.plain()
+    configuration.image = UIImage(systemName: "pin.fill")
+    configuration.imagePadding = 8
+    configuration.baseForegroundColor = .secondaryLabel
+    configuration.titleAlignment = .leading
+    configuration.title = LodyStrings.text("native.chat.pinnedMessage")
+    if available && !loaded { configuration.title = LodyStrings.text("native.chat.loadPinned") }
+    configuration.subtitle = text
+    configuration.titleLineBreakMode = .byTruncatingTail
+    configuration.subtitleLineBreakMode = .byTruncatingTail
+    configuration.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 8)
+    configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+      var next = attributes
+      next.font = .preferredFont(forTextStyle: .caption1)
+      return next
+    }
+    configuration.subtitleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+      var next = attributes
+      next.font = .preferredFont(forTextStyle: .footnote)
+      next.foregroundColor = .label
+      return next
+    }
+    open.configuration = configuration
+    open.isEnabled = available
+    open.accessibilityLabel = [configuration.title, text].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+    unpin.isHidden = !canUnpin
+    setNeedsLayout()
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    let trailing: CGFloat = unpin.isHidden ? 0 : 44
+    open.frame = CGRect(x: 0, y: 0, width: max(44, bounds.width - trailing), height: bounds.height)
+    unpin.frame = CGRect(x: bounds.width - 44, y: 0, width: 44, height: bounds.height)
+  }
+}
+
 final class ChatCollectionLayout: UICollectionViewFlowLayout {
   private var inserted: Set<IndexPath> = []
 
@@ -201,12 +264,23 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   var onInteraction: (() -> Void)?
   var canEdit: (() -> Bool)?
   var onEdit: (() -> Void)?
+  var canPin: (() -> Bool)?
+  var isPinned: (() -> Bool)?
+  var onPin: (() -> Void)?
   func updateEditAccessibility() {
     var actions = label.linkActions
     if canEdit?() == true {
       actions.append(UIAccessibilityCustomAction(name: LodyStrings.text("native.chat.editAction")) { [weak self] _ in
         guard self?.canEdit?() == true else { return false }
         self?.onEdit?()
+        return true
+      })
+    }
+    if canPin?() == true {
+      let key = isPinned?() == true ? "native.chat.unpin" : "native.chat.pin"
+      actions.append(UIAccessibilityCustomAction(name: LodyStrings.text(key)) { [weak self] _ in
+        guard self?.canPin?() == true else { return false }
+        self?.onPin?()
         return true
       })
     }
@@ -313,13 +387,24 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
     guard let row, row.kind == "user" || row.kind == "text", messageContent.frame.contains(location) else { return nil }
     onInteraction?()
-    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+      guard let self else { return nil }
       var actions = [UIAction(title: LodyStrings.text("native.chat.copy"), image: UIImage(systemName: "doc.on.doc")) { _ in
         UIPasteboard.general.setMessageMarkdown(row.text)
       }]
       if self.canEdit?() == true {
-        let edit = self.onEdit
-        actions.append(UIAction(title: LodyStrings.text("native.chat.editAction"), image: UIImage(systemName: "pencil")) { _ in edit?() })
+        actions.append(UIAction(title: LodyStrings.text("native.chat.editAction"), image: UIImage(systemName: "pencil")) { [weak self] _ in
+          guard self?.canEdit?() == true else { return }
+          self?.onEdit?()
+        })
+      }
+      if self.canPin?() == true {
+        let pinned = self.isPinned?() == true
+        let key = pinned ? "native.chat.unpin" : "native.chat.pin"
+        actions.append(UIAction(title: LodyStrings.text(key), image: UIImage(systemName: pinned ? "pin.slash" : "pin")) { [weak self] _ in
+          guard self?.canPin?() == true else { return }
+          self?.onPin?()
+        })
       }
       return UIMenu(children: actions)
     }

@@ -414,7 +414,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("localProjects") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("localProjects", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("projectCommand") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("projectCommand", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("providerCommand") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("providerCommand", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("sessionTools") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("sessionTools", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("runOptions") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("runOptions", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("subagentHistory") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("subagentHistory", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("queueSessionMessage") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("queueMessage", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("checkSessionSend") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("checkSend", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("cancelSessionSend") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.cancelSessionSend(payload, promise: promise) } }.runOnQueue(.main)
@@ -684,6 +686,11 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }
 
     View(LodyChatView.self) {
+      Prop("readOnly") { (view: LodyChatView, value: Bool) in view.setReadOnly(value) }
+      Prop("pinnedHistoryId") { (view: LodyChatView, value: String) in view.setPinnedHistoryId(value) }
+      Prop("pinEnabled") { (view: LodyChatView, value: Bool) in view.setPinEnabled(value) }
+      Prop("forkEnabled") { (view: LodyChatView, value: Bool) in view.setForkEnabled(value) }
+      Prop("sessionContextJSON") { (view: LodyChatView, value: String) in view.setSessionContext(value) }
       Prop("simulatorPreviewJSON") { (view: LodyChatView, value: String) in view.setSimulatorPreview(value) }
       Prop("imageSharingEnabled") { (view: LodyChatView, value: Bool) in view.imageSharingEnabled = value }
       Prop("findRequestJSON") { (view: LodyChatView, value: String) in view.setFindRequest(value) }
@@ -697,7 +704,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         view.performanceProbe?.stop()
         view.performanceProbe = ChatPerformanceProbe(view)
       }
-      Events("onStop", "onSteer", "onSend", "onEditMessage", "onShareImage", "onTurnInfoPress", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onPlanDecision", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse", "onPreview", "onTitleMenu", "onQueueAction", "onRecoverSend")
+      Events("onStop", "onSteer", "onSend", "onEditMessage", "onShareImage", "onTurnInfoPress", "onActivityPress", "onFilePress", "onTurnChangesPress", "onErrorRetry", "onPlanDecision", "onRetrySend", "onReconnect", "onTitlePress", "onComposerOptionChange", "onMentionBrowse", "onPreview", "onTitleMenu", "onPin", "onQueueAction", "onRecoverSend", "onFork")
       Prop("editableMessageId") { (view: LodyChatView, value: String) in view.editableMessageID = value }
       Prop("editedMessageId") { (view: LodyChatView, value: String) in view.editedMessageID = value }
       Prop("navigationTitle") { (view: LodyChatView, value: String) in view.setNavigationTitle(value) }

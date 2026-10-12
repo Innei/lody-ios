@@ -57,6 +57,17 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   let onQueueAction = EventDispatcher()
   let onRecoverSend = EventDispatcher()
   let onEditMessage = EventDispatcher()
+  let onPin = EventDispatcher()
+  let onFork = EventDispatcher()
+  private(set) var readOnly = false
+  private(set) var pinnedHistoryID = ""
+  private(set) var pinEnabled = false
+  private(set) var forkEnabled = false
+  let pinnedMessage = ChatPinnedMessageView(frame: .zero)
+  var pinnedJumpID: String?
+  var sessionContext = ChatSessionContext()
+  private var lastSessionContextJSON = ""
+  private var lastTitleMenuJSON = ""
   var editableMessageID = "" {
     didSet {
       for cell in collection.visibleCells {
@@ -123,6 +134,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   let findHighlightedViews = NSHashTable<UIView>.weakObjects()
   var composer = ChatComposerView(frame: .zero)
   var composerBottom: NSLayoutConstraint!
+  private var overlayComposerBottom: NSLayoutConstraint!
+  private var overlayReadingBottom: NSLayoutConstraint!
   var composerRetired = false
   let edgeFade = LodyEdgeFade()
   let overlay = ChatOverlay()
@@ -322,13 +335,22 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     collection.register(ChatMetaCell.self, forCellWithReuseIdentifier: "meta")
     collection.register(ChatPlanCell.self, forCellWithReuseIdentifier: "proposed-plan")
     collection.register(ChatMarkdownCell.self, forCellWithReuseIdentifier: "markdown")
+    collection.register(ChatContextCell.self, forCellWithReuseIdentifier: "context")
     dataSource = UICollectionViewDiffableDataSource<String, String>(collectionView: collection) { [weak self] collection, index, id in
       guard let self, let row = self.rows[id] else { return nil }
+      if ["goal", "context", "quota"].contains(row.kind) {
+        let cell = collection.dequeueReusableCell(withReuseIdentifier: "context", for: index) as! ChatContextCell
+        cell.configure(row)
+        return cell
+      }
       if row.kind == "chat_failed" {
         let cell = collection.dequeueReusableCell(withReuseIdentifier: "error", for: index) as! ChatErrorCell
         cell.configure(row)
         cell.onDetail = { [weak self] in self?.onActivityPress(["entryId": row.entryID, "itemId": row.itemID]) }
-        cell.onRetry = { [weak self] in self?.onErrorRetry(["entryId": row.entryID, "itemId": row.itemID, "id": UUID().uuidString.lowercased()]) }
+        cell.onRetry = { [weak self] in
+          guard let self, !self.readOnly else { return }
+          self.onErrorRetry(["entryId": row.entryID, "itemId": row.itemID, "id": UUID().uuidString.lowercased()])
+        }
         return cell
       }
       if row.subagent != nil {
@@ -342,7 +364,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
         cell.configure(row)
         cell.detailsButton.removeAction(identifiedBy: .init("turn-info"), for: .touchUpInside)
         cell.detailsButton.addAction(UIAction(identifier: .init("turn-info")) { [weak self] _ in
-          self?.onTurnInfoPress(["entryId": row.entryID])
+          guard let self, self.turnInfoEnabled else { return }
+          self.onTurnInfoPress(["entryId": row.entryID])
         }, for: .touchUpInside)
         cell.actionButton.menu = messageMenu(entryID: row.entryID, source: cell.actionButton)
         return cell
@@ -355,8 +378,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       }
       if row.kind == "attachments" {
         let cell = collection.dequeueReusableCell(withReuseIdentifier: "attachments", for: index) as! ChatMessageAttachmentsCell
-        cell.canEdit = { [weak self] in self?.editableMessageID == row.entryID }
-        cell.onEdit = { [weak self] in self?.onEditMessage(["entryId": row.entryID]) }
+        cell.canEdit = { [weak self] in self?.readOnly == false && self?.editableMessageID == row.entryID }
+        cell.onEdit = { [weak self] in self?.editMessage(row.entryID) }
+        cell.canPin = { [weak self] in self?.canPinMessage(row.entryID) == true }
+        cell.isPinned = { [weak self] in self?.pinnedHistoryID == row.entryID }
+        cell.onPin = { [weak self] in self?.pinMessage(row.entryID) }
         cell.configure(row, workspace: self.imageWorkspace, session: self.imageSession, expanded: self.expandedAttachments.contains(row.entryID))
         cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
         cell.onPreview = { [weak self] attachment, image in
@@ -381,8 +407,14 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
         markdown.onLink = { [weak self] in self?.openMessageLink($0) }
         cell.configure(row, markdown: markdown, expanded: self.expandedPlans.contains(id))
         cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
-        cell.onDecision = { [weak self] action in self?.onPlanDecision(["entryId": row.entryID, "itemId": row.itemID, "action": action, "id": UUID().uuidString.lowercased()]) }
-        cell.onReview = { [weak self] in self?.onActivityPress(["entryId": row.entryID, "itemId": row.planPermissionItemID]) }
+        cell.onDecision = { [weak self] action in
+          guard let self, !self.readOnly else { return }
+          self.onPlanDecision(["entryId": row.entryID, "itemId": row.itemID, "action": action, "id": UUID().uuidString.lowercased()])
+        }
+        cell.onReview = { [weak self] in
+          guard let self, !self.readOnly else { return }
+          self.onActivityPress(["entryId": row.entryID, "itemId": row.planPermissionItemID])
+        }
         return cell
       }
       if row.kind == "text" || row.kind == "thought" {
@@ -399,8 +431,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       }
       let cell = collection.dequeueReusableCell(withReuseIdentifier: "message", for: index) as! ChatCell
       cell.onInteraction = { [weak self] in self?.pauseTracking() }
-      cell.canEdit = { [weak self] in self?.editableMessageID == row.entryID && row.kind == "user" }
-      cell.onEdit = { [weak self] in self?.onEditMessage(["entryId": row.entryID]) }
+      cell.canEdit = { [weak self] in self?.readOnly == false && self?.editableMessageID == row.entryID && row.kind == "user" }
+      cell.onEdit = { [weak self] in self?.editMessage(row.entryID) }
+      cell.canPin = { [weak self] in row.kind == "user" && self?.canPinMessage(row.entryID) == true }
+      cell.isPinned = { [weak self] in self?.pinnedHistoryID == row.entryID }
+      cell.onPin = { [weak self] in self?.pinMessage(row.entryID) }
       cell.label.onLink = row.kind == "user" ? { [weak self] in self?.openMessageLink($0) } : nil
       cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
       cell.onActivate = { [weak self] in
@@ -422,7 +457,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       return header
     }
     composer.onSend = { [weak self] payload in
-      guard let self else { return }
+      guard let self, !self.readOnly else { return }
       if let data = try? JSONSerialization.data(withJSONObject: payload.merging(["status": LodyStrings.text("native.chat.status.sending")]) { _, new in new }),
          let pending = try? JSONDecoder().decode(ChatPendingSend.self, from: data) {
         self.setPendingSend(pending)
@@ -434,22 +469,40 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       }
       self.onSend(payload)
     }
-    composer.onStop = { [weak self] in self?.onStop() }
-    composer.onSteer = { [weak self] in self?.onSteer(["id": $0]) }
+    composer.onStop = { [weak self] in
+      guard let self, !self.readOnly else { return }
+      self.onStop()
+    }
+    composer.onSteer = { [weak self] id in
+      guard let self, !self.readOnly else { return }
+      self.onSteer(["id": id])
+    }
     composer.onQueueAction = { [weak self] payload in
-      guard let self else { return }
+      guard let self, !self.readOnly else { return }
       self.onQueueAction(payload)
     }
     composer.onRecoverSend = { [weak self] action in
-      guard let self else { return }
+      guard let self, !self.readOnly else { return }
       self.onRecoverSend(["action": action])
     }
     composer.onReconnect = { [weak self] in self?.onReconnect([:]) }
-    composer.onPreview = { [weak self] in self?.onPreview(["action": $0]) }
+    composer.onPreview = { [weak self] action in
+      guard let self, !self.readOnly else { return }
+      self.onPreview(["action": action])
+    }
     addSubview(simulatorPreview)
-    simulatorPreview.onAction = { [weak self] in self?.onPreview(["action": $0]) }
-    composer.onMentionBrowse = { [weak self] in self?.onMentionBrowse($0) }
-    composer.onComposerOptionChange = { [weak self] in self?.onComposerOptionChange($0) }
+    simulatorPreview.onAction = { [weak self] action in
+      guard let self, !self.readOnly else { return }
+      self.onPreview(["action": action])
+    }
+    composer.onMentionBrowse = { [weak self] payload in
+      guard let self, !self.readOnly else { return }
+      self.onMentionBrowse(payload)
+    }
+    composer.onComposerOptionChange = { [weak self] payload in
+      guard let self, !self.readOnly else { return }
+      self.onComposerOptionChange(payload)
+    }
     empty.numberOfLines = 0
     empty.textAlignment = .center
     empty.font = .dynamic(of: 16)
@@ -477,6 +530,12 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     }
     addSubview(overlay)
     addSubview(findBar)
+    addSubview(pinnedMessage)
+    pinnedMessage.onOpen = { [weak self] in self?.openPinnedMessage() }
+    pinnedMessage.onUnpin = { [weak self] in
+      guard let self, self.pinEnabled, !self.readOnly else { return }
+      self.onPin(["entryId": ""])
+    }
     overlay.translatesAutoresizingMaskIntoConstraints = false
     collection.translatesAutoresizingMaskIntoConstraints = false
     edgeFade.translatesAutoresizingMaskIntoConstraints = false
@@ -487,7 +546,6 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     NSLayoutConstraint.activate([
       overlay.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
       overlay.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16),
-      overlay.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
       overlay.heightAnchor.constraint(equalToConstant: ChatOverlay.controlSize),
       collection.topAnchor.constraint(equalTo: topAnchor),
       collection.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -503,6 +561,9 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     ])
     composerBottom = composer.bottomAnchor.constraint(equalTo: keyboardLayoutGuide.topAnchor)
     composerBottom.isActive = true
+    overlayComposerBottom = overlay.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8)
+    overlayReadingBottom = overlay.bottomAnchor.constraint(equalTo: keyboardLayoutGuide.topAnchor, constant: -8)
+    overlayComposerBottom.isActive = true
   }
 
   override func layoutSubviews() {
@@ -532,6 +593,12 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
 
   func setTitleMenu(_ json: String) {
+    lastTitleMenuJSON = json
+    guard !readOnly else {
+      titleButton.menu = nil
+      titleButton.showsMenuAsPrimaryAction = false
+      return
+    }
     struct Item: Decodable {
       let id: String
       let title: String
@@ -546,7 +613,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       UIMenu(options: .displayInline, children: groups[key]!.map { item in
         UIAction(title: item.title, subtitle: item.subtitle, image: UIImage(systemName: item.symbol),
                  attributes: item.destructive == true ? .destructive : []) { [weak self] _ in
-          self?.onTitleMenu(["id": item.id])
+          guard let self, !self.readOnly else { return }
+          self.onTitleMenu(["id": item.id])
         }
       })
     })
@@ -738,7 +806,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
   func setDraftKey(_ key: String) {
-    guard !key.isEmpty else { composer.onDraftChange = nil; return }
+    guard !key.isEmpty, !readOnly else { composer.onDraftChange = nil; return }
     let store = LocalStore.shared
     composer.onDraftChange = { text in
       LocalStore.queue.async { try? store.write(key, text) }
@@ -750,6 +818,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
 
   func setPendingSendJSON(_ json: String) {
+    guard !readOnly else { return }
     guard !json.isEmpty else {
       // A stale initial empty prop must not erase a send handled in this native frame.
       if let publishedPendingID, let pendingSend, pendingSend.id == publishedPendingID {
@@ -780,6 +849,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
 
   func setPendingSend(_ pending: ChatPendingSend) {
+    guard !readOnly else { return }
     var value = pending
     var start = turnStartedAt[value.id]
     if start == nil, let supplied = value.startedAt, supplied.isFinite {
@@ -845,9 +915,9 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
 
   func retireComposer(_ retired: Bool) {
-    composer.isUserInteractionEnabled = !retired && processEntryID.isEmpty
+    composer.isUserInteractionEnabled = !retired && processEntryID.isEmpty && !readOnly
     if retired { endEditing(true) }
-    if processEntryID.isEmpty { composer.isHidden = false }
+    if processEntryID.isEmpty && !readOnly { composer.isHidden = false }
     let distance = max(composer.bounds.height + 16, 88)
     composerBottom.constant = retired ? distance : 0
     let changes = {
@@ -856,7 +926,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     }
     let finish: (Bool) -> Void = { finished in
       guard finished, self.composerRetired == retired else { return }
-      self.composer.isHidden = retired || !self.processEntryID.isEmpty
+      self.updateComposerVisibility()
     }
     let duration = UIAccessibility.isReduceMotionEnabled ? 0.2 : 0.45
     UIView.animate(
@@ -872,11 +942,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     // Window-hosted glass must not sample the destination before adoption.
     collection.alpha = hidden ? 0 : 1
     overlay.alpha = hidden ? 0 : 1
-    composer.isHidden = hidden || composerRetired || !processEntryID.isEmpty
+    composer.isHidden = hidden || composerRetired || !processEntryID.isEmpty || readOnly
   }
 
   func adoptComposerIfNeeded() {
-    guard let pendingSend,
+    guard !readOnly, let pendingSend,
           let source = LodyComposerView.relays[pendingSend.id],
           let payload = source.relayPayload else { return }
     // The source remains visible above navigation until this page can adopt it.
@@ -900,6 +970,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       )
       replacement.priority = link.priority
       if link === composerBottom { composerBottom = replacement }
+      if link === overlayComposerBottom { overlayComposerBottom = replacement }
       return replacement
     }
     incoming.onSend = old.onSend
@@ -953,4 +1024,134 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
   func setComposerOptions(_ json: String) { composer.setComposerOptions(json) }
   func setEmptyText(_ text: String) { empty.text = text }
+
+  func setReadOnly(_ value: Bool) {
+    guard readOnly != value else { return }
+    readOnly = value
+    if value {
+      composer.endEditing(true)
+      composer.onDraftChange = nil
+      anchoredUserID = nil
+      awaitingUserAnchor = false
+    }
+    overlayComposerBottom.isActive = !value
+    overlayReadingBottom.isActive = value
+    updateComposerVisibility()
+    setTitleMenu(lastTitleMenuJSON)
+    refreshMessageActions()
+    refreshPinnedMessage()
+    applyRows()
+    setNeedsLayout()
+  }
+
+  func updateComposerVisibility() {
+    composer.isHidden = readOnly || composerRetired || !processEntryID.isEmpty
+    composer.isUserInteractionEnabled = !readOnly && !composerRetired && processEntryID.isEmpty
+    edgeFade.isHidden = readOnly || !processEntryID.isEmpty
+  }
+
+  func readOnlyRow(_ row: ChatRow) -> ChatRow {
+    guard readOnly else { return row }
+    var next = row
+    next.errorRetry = nil
+    next.planDecision = nil
+    next.planPermissionItemID = ""
+    if next.kind == "pending" || next.id == next.entryID + ":pending" { next.actionable = false }
+    return next
+  }
+
+  private func editMessage(_ entryID: String) {
+    guard !readOnly, editableMessageID == entryID else { return }
+    onEditMessage(["entryId": entryID])
+  }
+
+  func setSessionContext(_ json: String) {
+    guard lastSessionContextJSON != json else { return }
+    lastSessionContextJSON = json
+    sessionContext = (try? JSONDecoder().decode(ChatSessionContext.self, from: Data(json.utf8))) ?? ChatSessionContext()
+    transcript.senders = sessionContext.senders ?? [:]
+    transcript.showSenderIdentity = sessionContext.showSenderIdentity == true
+    applyRows()
+  }
+
+  func setPinEnabled(_ value: Bool) {
+    guard pinEnabled != value else { return }
+    pinEnabled = value
+    refreshMessageActions()
+    refreshPinnedMessage()
+  }
+
+  func setForkEnabled(_ value: Bool) { forkEnabled = value }
+
+  func canForkMessage(_ entryID: String) -> Bool {
+    forkEnabled && !readOnly && transcript.entries.contains {
+      $0.id == entryID && $0.role == "assistant" && $0.finished && !($0.acpTurnId ?? "").isEmpty
+    }
+  }
+
+  func setPinnedHistoryId(_ id: String) {
+    guard pinnedHistoryID != id else { return }
+    pinnedHistoryID = id
+    pinnedJumpID = nil
+    refreshMessageActions()
+    refreshPinnedMessage()
+  }
+
+  private func refreshMessageActions() {
+    for cell in collection.visibleCells {
+      (cell as? ChatCell)?.updateEditAccessibility()
+      (cell as? ChatMessageAttachmentsCell)?.updateEditAccessibility()
+    }
+  }
+
+  func canPinMessage(_ entryID: String) -> Bool {
+    pinEnabled && !readOnly && transcript.entries.contains { $0.id == entryID && $0.role == "user" && !$0.isQueued }
+  }
+
+  private func pinMessage(_ entryID: String) {
+    guard canPinMessage(entryID) else { return }
+    onPin(["entryId": pinnedHistoryID == entryID ? "" : entryID])
+  }
+
+  func refreshPinnedMessage() {
+    pinnedMessage.isHidden = pinnedHistoryID.isEmpty || !processEntryID.isEmpty
+    guard !pinnedMessage.isHidden else { setNeedsLayout(); return }
+    let entry = transcript.entries.first { $0.id == pinnedHistoryID && $0.role == "user" && !$0.isQueued }
+    let source = entry?.items.compactMap { item -> String? in
+      if item.type == "text" { return item.text }
+      return item.file?.fileName ?? item.image?.fileName
+    }.joined(separator: " ")
+    let text = source.map { SessionProse.text($0, role: "user") }
+    pinnedMessage.configure(
+      text: text,
+      loaded: rows.values.contains { $0.entryID == pinnedHistoryID },
+      available: entry != nil,
+      canUnpin: pinEnabled && !readOnly
+    )
+    setNeedsLayout()
+  }
+
+  private func openPinnedMessage() {
+    guard !pinnedHistoryID.isEmpty,
+      transcript.entries.contains(where: { $0.id == pinnedHistoryID && $0.role == "user" && !$0.isQueued }) else { return }
+    pauseTracking()
+    pinnedJumpID = pinnedHistoryID
+    if scrollToPinnedMessage() { return }
+    guard hasEarlierHistory else { return }
+    historyTargetID = pinnedHistoryID
+    preparingHistory = true
+    applyRows()
+  }
+
+  @discardableResult
+  func scrollToPinnedMessage() -> Bool {
+    guard !applying, let id = pinnedJumpID,
+      let row = dataSource.snapshot().itemIdentifiers.compactMap({ rows[$0] }).first(where: { $0.entryID == id }),
+      let index = dataSource.indexPath(for: row.id) else { return false }
+    pinnedJumpID = nil
+    layoutIfNeeded()
+    collection.layoutIfNeeded()
+    collection.scrollToItem(at: index, at: .top, animated: false)
+    return true
+  }
 }

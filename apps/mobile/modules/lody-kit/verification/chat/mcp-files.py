@@ -22,7 +22,6 @@ def close(video=False, content_state=None, ready_items=None):
     if content_state:
         key = {
             'unavailable': 'native.attachment.error.unavailable',
-            'pending': 'native.attachment.error.pending',
             'loading': 'native.attachment.preview.loading',
         }[content_state]
         marker = catalog.text(key)
@@ -75,8 +74,10 @@ def loaded():
 
 
 ui.axe('tap', '--label', 'MCP Attachments', '--post-delay', '.5')
-for file in ['text', 'pdf', 'video', 'retry', 'missing', 'pending', 'cancel']:
+for file in ['text', 'pdf', 'video', 'retry', 'missing', 'cancel']:
     assert ui.element('mcp-files:' + file)['type'] == 'Button'
+pending = ui.element('mcp-files:pending')
+assert pending['type'] != 'Button' and catalog.text('native.chat.file.uploading') in pending['AXLabel'], 'Pending artifact must explain upload without offering a download'
 ui.capture('files-inline')
 for file in ['text', 'pdf', 'video']:
     ui.axe('tap', '--id', 'mcp-files:' + file, '--post-delay', '.2')
@@ -100,12 +101,12 @@ ui.axe('tap', '--label', catalog.text('native.attachment.preview.retry'), '--pos
 loaded()
 ui.capture('retry-loaded')
 close()
-for file in ['missing', 'pending']:
+for file in ['missing']:
     ui.axe('tap', '--id', 'mcp-files:' + file, '--post-delay', '.2')
-    key = 'unavailable' if file == 'missing' else 'pending'
+    key = 'unavailable'
     ui.wait(lambda items: any(item.get('AXLabel') == catalog.text('native.attachment.error.' + key) for item in items), 'Missing file state: ' + file)
     ui.capture(file)
-    close(content_state=key)
+    close(content_state='unavailable')
 ui.axe('tap', '--id', 'user-file:attachment:text', '--post-delay', '.2')
 loaded()
 ui.capture('user-file-preview')

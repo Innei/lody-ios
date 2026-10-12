@@ -12,6 +12,8 @@ import { t } from '../../lib/i18n/index.ts';
 import { openCatalogRow } from '../../hooks/screens/openCatalogRow.ts';
 import { requestNewSession, requestShareSession } from './sessionNav.ts';
 import { isChatSession, projectIdOfRow } from './inbox.ts';
+import { requestSessionTools } from '../../cloud/session-tools.ts';
+import { getSessionViewStore } from './sessionViewStore.ts';
 import {
   sessionDeletionTargets,
   sessionDeletionBlocked,
@@ -134,8 +136,7 @@ export async function setTitle(
   session: Session,
   title: string,
 ) {
-  const next = title.trim().slice(0, 200);
-  if (!next) return;
+  const next = title.trim().slice(0, 200) || t('session.untitled');
   try {
     await renameSession(
       JSON.stringify({ workspaceId, sessionId: session.id, title: next }),
@@ -180,6 +181,42 @@ export async function setRead(workspaceId: string, session: Session) {
   }
 }
 
+export async function setUnread(
+  workspaceId: string,
+  session: Session,
+  userId: string,
+) {
+  if (!userId || session.lastMessageAt === undefined) return;
+  const store = getSessionViewStore(userId, workspaceId);
+  try {
+    await requestSessionTools({
+      action: 'unread',
+      workspaceId,
+      sessionId: session.id,
+    });
+    await store.clearViewed(session.id);
+  } catch {
+    showToast(t('session.toast.unreadFailed'));
+  }
+}
+
+export async function setContentPinned(
+  workspaceId: string,
+  sessionId: string,
+  historyId: string | null,
+) {
+  try {
+    await requestSessionTools({
+      action: 'pin',
+      workspaceId,
+      sessionId,
+      historyId,
+    });
+  } catch {
+    showToast(t('session.toast.contentPinFailed'));
+  }
+}
+
 export function shareSession(
   workspace: { id: string; slug: string | null },
   sessionId: string,
@@ -195,6 +232,7 @@ export function sessionRowAction(
   sessionId: string,
   actionId: string,
   deleteRequest = deleteSession,
+  userId = '',
 ) {
   const session = catalog.sessions.find((s) => s.id === sessionId);
   if (!session) return;
@@ -204,6 +242,7 @@ export function sessionRowAction(
     void setArchived(workspaceId, session, !session.archived);
   if (actionId === 'pin') void setPinned(workspaceId, session, !session.pinned);
   if (actionId === 'read') void setRead(workspaceId, session);
+  if (actionId === 'unread') void setUnread(workspaceId, session, userId);
   if (actionId === 'rename') promptRename(workspaceId, session);
 }
 
@@ -213,6 +252,7 @@ export function listRowAction(
   id: string,
   actionId: string,
   deleteRequest = deleteSession,
+  userId = '',
 ) {
   if (actionId === 'copyPath') return;
   if (actionId === 'open') {
@@ -242,5 +282,5 @@ export function listRowAction(
     shareSession(workspace, id);
     return;
   }
-  sessionRowAction(workspace.id, catalog, id, actionId, deleteRequest);
+  sessionRowAction(workspace.id, catalog, id, actionId, deleteRequest, userId);
 }

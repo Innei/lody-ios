@@ -5,6 +5,7 @@ import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen
 import { QuickRepliesScreen } from './QuickRepliesScreen';
 import { AgentRolesScreen } from './AgentRolesScreen';
 import { ProjectManagementScreen } from './ProjectManagementScreen';
+import { AutoArchiveSettingsScreen } from './AutoArchiveSettingsScreen';
 import { useRouter } from 'expo-router';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { AccountScreen } from './AccountScreen';
@@ -300,6 +301,14 @@ function View() {
           disclosure: true,
           navigates: true,
         },
+        {
+          id: 'auto-archive',
+          title: t('settings.autoArchive.title'),
+          image: 'archivebox.circle',
+          action: true,
+          disclosure: true,
+          navigates: true,
+        },
       ],
     });
 
@@ -362,6 +371,8 @@ function View() {
         if (nativeEvent.id === 'agent-roles') void push(AgentRolesScreen, {});
         if (nativeEvent.id === 'project-management')
           void push(ProjectManagementScreen);
+        if (nativeEvent.id === 'auto-archive')
+          void push(AutoArchiveSettingsScreen);
         if (nativeEvent.id === 'archived') void push(ArchivedSessionsScreen);
         if (nativeEvent.id === 'licenses') void push(LicensesScreen);
         if (nativeEvent.id === 'debug-open') {

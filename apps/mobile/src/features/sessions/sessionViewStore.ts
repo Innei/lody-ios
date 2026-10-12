@@ -40,6 +40,16 @@ export function createSessionViewStore(key: string) {
         listeners.delete(listener);
       };
     },
+    async clearViewed(sessionId: string) {
+      await ready;
+      if (!current()) return;
+      const next = { ...snapshot };
+      delete next[sessionId];
+      publish(next);
+      await writeLocal(key, next, generation);
+      if (!current()) return;
+      durable = next;
+    },
     async markViewed(sessionId: string, lastMessageAt?: number) {
       if (
         !current() ||

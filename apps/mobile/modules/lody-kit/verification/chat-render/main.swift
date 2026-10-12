@@ -874,3 +874,56 @@ var glyphAlpha: CGFloat = 1
 glyphFill.getRed(nil, green: nil, blue: nil, alpha: &glyphAlpha)
 precondition(glyphAlpha < 1, "The on-screen user bubble must stay translucent")
 print("Chat render: user bubbles tint the canvas instead of baking a mix")
+
+let pinCell = userBubbleCell("Keep the original request")
+var messageWritesAllowed = true
+var messagePinned = false
+var pinActions = 0
+pinCell.canEdit = { messageWritesAllowed }
+pinCell.canPin = { messageWritesAllowed }
+pinCell.isPinned = { messagePinned }
+pinCell.onPin = { pinActions += 1; messagePinned.toggle() }
+pinCell.updateEditAccessibility()
+let pinAction = pinCell.accessibilityCustomActions!.first { $0.name == LodyStrings.text("native.chat.pin") }!
+precondition(pinAction.actionHandler!(pinAction) && messagePinned && pinActions == 1,
+  "VoiceOver Pin must reach the actual user-message action")
+pinCell.updateEditAccessibility()
+let unpinAction = pinCell.accessibilityCustomActions!.first { $0.name == LodyStrings.text("native.chat.unpin") }!
+precondition(unpinAction.actionHandler!(unpinAction) && !messagePinned && pinActions == 2,
+  "Pinning must update the action to Unpin without replacing the message")
+messageWritesAllowed = false
+precondition(!pinAction.actionHandler!(pinAction) && pinActions == 2,
+  "An action retained before the host becomes read-only must not write")
+pinCell.updateEditAccessibility()
+precondition(pinCell.accessibilityCustomActions?.isEmpty == true,
+  "A read-only message removes editing and pin actions")
+let interaction = UIContextMenuInteraction(delegate: pinCell)
+precondition(pinCell.contextMenuInteraction(interaction, configurationForMenuAtLocation: pinCell.messageContent.center) != nil,
+  "A read-only message retains its native copy menu")
+precondition(pinCell.row?.text == "Keep the original request", "Pin actions never rewrite user history")
+
+let pinnedBanner = ChatPinnedMessageView(frame: CGRect(x: 0, y: 0, width: 350, height: ChatPinnedMessageView.height))
+window.addSubview(pinnedBanner)
+pinnedBanner.isHidden = false
+pinnedBanner.configure(text: "Keep the original request", loaded: false, available: true, canUnpin: true)
+pinnedBanner.layoutIfNeeded()
+let pinOpen = pinnedBanner.subviews.compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "chat-pinned-message" }!
+let pinClear = pinnedBanner.subviews.compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "chat-pinned-message:unpin" }!
+precondition(pinOpen.accessibilityLabel!.contains(LodyStrings.text("native.chat.loadPinned")),
+  "A resident source outside the display window must offer Load pinned message")
+precondition(pinOpen.bounds.width >= 44 && pinOpen.bounds.height >= 44 && pinClear.bounds.width >= 44 && pinClear.bounds.height >= 44,
+  "Both pinned-message controls retain a 44-point touch target")
+var pinOpened = false
+var pinCleared = false
+pinnedBanner.onOpen = { pinOpened = true }
+pinnedBanner.onUnpin = { pinCleared = true }
+pinOpen.sendActions(for: .touchUpInside)
+pinClear.sendActions(for: .touchUpInside)
+precondition(pinOpened && pinCleared, "Pinned-message controls reach their owning chat")
+pinnedBanner.configure(text: "Keep the original request", loaded: true, available: true, canUnpin: false)
+precondition(pinClear.isHidden && pinOpen.isEnabled,
+  "A read-only pinned message retains reading while hiding Unpin")
+pinnedBanner.configure(text: nil, loaded: false, available: false, canUnpin: true)
+precondition(!pinOpen.isEnabled && pinOpen.accessibilityLabel == LodyStrings.text("native.chat.pinnedMessage"),
+  "Missing pinned history must not pretend to be loaded or invent preview text")
+print("Chat pin: real message actions, stale read-only fencing, copy, history loading, 44-point banner controls and unavailable source passed")

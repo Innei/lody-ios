@@ -20,7 +20,7 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 OSS_CASES = [
-    'preview-close', 'run-options', 'send-queue-tools', 'project-management', 'providers', 'team',
+    'preview-close', 'run-options', 'send-queue-tools', 'usage-context', 'subagent-history', 'session-tools', 'project-management', 'providers', 'team',
 ]
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker', 'branch-picker'],
@@ -53,6 +53,9 @@ PREVIEW = {
     'project-management': 'project-management-preview',
     'team': 'team-preview',
     'providers': 'providers-preview',
+    'subagent-history': 'subagent-history-preview',
+    'usage-context': 'transcript-context-preview',
+    'session-tools': 'session-tools-preview',
     'run-options': 'run-options-preview',
     'send-queue-tools': 'send-queue-tools',
     'mermaid': 'mermaid-preview',
@@ -150,6 +153,9 @@ READY = {
     'project-management': 'managed-project:studio:local:demo',
     'team': 'team-fixture:owner',
     'providers': 'provider:m1:claude',
+    'subagent-history': 'subagent-history-preview-ready',
+    'usage-context': 'usage-report:meta:details',
+    'session-tools': 'tools-pin',
     'run-options': 'run-options-ready',
     'send-queue-tools': 'queue-tools-status',
     'preview-close': 'session-preview-close',
@@ -608,6 +614,8 @@ with metro_context:
                     script = Path(__file__).with_name(f'{case}.py') if case in ['workspace-changes', 'simulator-preview', 'message-details', 'message-share', 'pull-request', 'project-history-entry', 'project-history', 'project-picker', 'branch-picker', 'notifications', 'user-mentions', 'file-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'mermaid', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'context-menu', 'chat-chrome', 'title-rename', 'composer-rich', 'composer-fullscreen'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
                     if case in OSS_CASES:
                         script = Path(__file__).with_name(f'{case}.py')
+                    if case == 'usage-context':
+                        script = Path(__file__).with_name('transcript-context.py')
                     if case in {'devices', 'devices-pad'}:
                         script = Path(__file__).with_name('devices.py')
                     if case == 'file-selection':

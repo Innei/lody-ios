@@ -10,7 +10,9 @@ export function agentUsageRows(
   const config = usage?.configs.find((c) => c.id === item.id);
   if (!config?.eligible) return [];
   const rows = usage!.quotas
-    .filter((q) => q.provider === config.provider)
+    .filter(
+      (q) => q.provider === config.provider && q.agentConfigId === config.id,
+    )
     .flatMap((q) =>
       q.windows.map((w, i) => {
         let duration = t('settings.usage.window');

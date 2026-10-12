@@ -36,7 +36,7 @@ import {
   markSessionRead,
   renameSession,
 } from './archive-session';
-import { releaseDeletedSessions, sessionDoc } from './session';
+import { releaseDeletedSessions, sessionDoc, readySessionDoc } from './session';
 import {
   createPreview,
   iosSimulatorControl,
@@ -53,6 +53,10 @@ import {
   type ProviderContext,
 } from './providers.ts';
 import type { ProviderRequest } from '../models/providers.ts';
+import { sessionTools } from './session-tools.ts';
+import type { SessionToolsRequest } from '../models/session-tools.ts';
+import { createSubagentHistoryRuntime } from './subagent-history.ts';
+import type { SubagentHistoryRequest } from '../models/subagent-history.ts';
 import { workspaceRunOptions, resolveTurnRunOptions } from './run-options.ts';
 import type { RunOptionsRequest } from '../models/run-options.ts';
 import { remoteSettings } from './settings';
@@ -274,6 +278,10 @@ const shareRuntime = createSharingRuntime({
   broker,
 });
 const sharingEditors = new Map<string, ShareRequest>();
+const subagentRuntime = createSubagentHistoryRuntime({
+  doc: readySessionDoc,
+  emit: send,
+});
 const unhealthy = new Set<string>();
 const gitRepos = new Map<string, string>();
 const gitStateAsked = new Set<string>();
@@ -337,6 +345,7 @@ function stopRuntime() {
   else providerOperations.clear();
   providerCleanupContext = undefined;
   runtimeLifetime.abort();
+  subagentRuntime.stop();
   for (const args of sharingEditors.values())
     void shareRuntime({ ...args, action: 'close' }).catch(() => {});
   sharingEditors.clear();
@@ -841,6 +850,20 @@ Object.assign(globalThis, {
       ctx.assertCurrent();
       return result;
     },
+    async sessionTools(args: SessionToolsRequest & { userId: string }) {
+      const ctx = managementContext(args);
+      const result = await sessionTools(args, {
+        ...ctx,
+        meta: metaReplica!,
+        sessionDoc,
+      });
+      ctx.assertCurrent();
+      if (result.action === 'pin' || result.action === 'unread') {
+        catalogs.set('meta', projectRows(ctx.meta.scan(), 'meta'));
+        publish();
+      }
+      return result;
+    },
     async runOptions(args: RunOptionsRequest & { sessionId?: string }) {
       const ctx = managementContext(args);
       const session = args.sessionId
@@ -896,6 +919,28 @@ Object.assign(globalThis, {
       );
       ctx.assertCurrent();
       return result;
+    },
+    subagentHistory(
+      args: SubagentHistoryRequest & { workspaceId: string; userId: string },
+    ) {
+      if (args.action === 'unwatch') {
+        if (
+          args.workspaceId !== workspace ||
+          !args.userId ||
+          args.userId !== runtimeUserId
+        )
+          throw new Error('metadata_not_ready');
+        return subagentRuntime.execute(args);
+      }
+      const ctx = managementContext(args);
+      if (
+        !catalogs
+          .get('meta')
+          ?.sessions.some((item) => item.id === args.identity.sessionId)
+      )
+        throw new Error('session_unavailable');
+      ctx.assertCurrent();
+      return subagentRuntime.execute(args);
     },
     async sessionPreview(args: {
       sessionId: string;

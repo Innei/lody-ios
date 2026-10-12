@@ -103,6 +103,27 @@ async function appendJson(client: StreamsClient, update: unknown) {
   if (!result.ok) throw new Error(result.result.code);
 }
 
+export async function writeSessionMetadata(
+  sessionId: string,
+  fields: { [key: string]: Value },
+  meta: { flock: Flock; client: StreamsClient },
+  assertCurrent: () => void = () => {},
+) {
+  const room = `session-${sessionId}`;
+  if (!sessionPresent(meta.flock, room)) throw new Error('session_not_found');
+  const staged = new Flock(`lody-ios-session-meta-${crypto.randomUUID()}`);
+  staged.importFile(meta.flock.exportFile());
+  const version = staged.version();
+  for (const [key, value] of Object.entries(fields))
+    staged.set(['m', room, key], value);
+  staged.commit();
+  const update = staged.exportJson(version);
+  assertCurrent();
+  await appendJson(meta.client, update);
+  assertCurrent();
+  meta.flock.importJson(update);
+}
+
 export async function deleteSession(
   args: { sessionId: string; sessionIds: string[] },
   meta: { flock: Flock; client: StreamsClient },
@@ -146,13 +167,11 @@ export async function renameSession(
     throw new Error('invalid_session');
   const title = args.title.trim();
   if (!title || title.length > 200) throw new Error('invalid_session');
-  const room = `session-${args.sessionId}`;
-  if (!sessionPresent(meta.flock, room)) throw new Error('session_not_found');
-  const version = meta.flock.version();
-  meta.flock.set(['m', room, 'title'], title);
-  meta.flock.set(['m', room, 'titleSource'], 'user');
-  meta.flock.commit();
-  await appendJson(meta.client, meta.flock.exportJson(version));
+  await writeSessionMetadata(
+    args.sessionId,
+    { title, titleSource: 'user' },
+    meta,
+  );
 }
 
 export async function pinSession(
@@ -161,12 +180,7 @@ export async function pinSession(
 ) {
   if (typeof args.sessionId !== 'string' || typeof args.pinned !== 'boolean')
     throw new Error('invalid_session');
-  const room = `session-${args.sessionId}`;
-  if (!sessionPresent(meta.flock, room)) throw new Error('session_not_found');
-  const version = meta.flock.version();
-  meta.flock.set(['m', room, 'isPinned'], args.pinned);
-  meta.flock.commit();
-  await appendJson(meta.client, meta.flock.exportJson(version));
+  await writeSessionMetadata(args.sessionId, { isPinned: args.pinned }, meta);
 }
 
 export async function markSessionRead(
@@ -177,12 +191,13 @@ export async function markSessionRead(
     throw new Error('invalid_session');
   const room = `session-${args.sessionId}`;
   if (!sessionPresent(meta.flock, room)) throw new Error('session_not_found');
-  const current = meta.flock.get(['m', room, 'lastReadAt']);
+  const current = docFields(meta.flock, room).lastReadAt;
   if (typeof current === 'number' && current >= args.lastReadAt) return;
-  const version = meta.flock.version();
-  meta.flock.set(['m', room, 'lastReadAt'], args.lastReadAt);
-  meta.flock.commit();
-  await appendJson(meta.client, meta.flock.exportJson(version));
+  await writeSessionMetadata(
+    args.sessionId,
+    { lastReadAt: args.lastReadAt },
+    meta,
+  );
 }
 
 export async function archiveSession(

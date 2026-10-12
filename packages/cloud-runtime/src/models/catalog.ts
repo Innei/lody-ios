@@ -6,6 +6,11 @@ export type Project = {
   repoFullName?: string;
 };
 export type Session = {
+  contextWindowUsage?: import('./transcript-context.ts').ContextWindowUsage;
+  latestGoal?: import('./transcript-context.ts').SessionGoal;
+  dismissedGoalThreadId?: string;
+  userId?: string;
+  pinnedHistoryId?: string;
   agentConfigId?: string;
   lastModel?: { modelId?: string; name?: string } | null;
   cliType?: string;

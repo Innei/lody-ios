@@ -8,6 +8,98 @@ struct ChatFileDiff: Decodable, Equatable {
   let status: String?
 }
 
+struct ChatTokenUsage: Decodable {
+  let inputTokens: Int
+  let outputTokens: Int
+  let cacheReadInputTokens: Int
+  let cacheCreationInputTokens: Int
+  let reasoningOutputTokens: Int
+
+  var total: Int? {
+    var total = 0
+    for count in [inputTokens, outputTokens, cacheReadInputTokens, cacheCreationInputTokens, reasoningOutputTokens] {
+      guard count >= 0 else { return nil }
+      let sum = total.addingReportingOverflow(count)
+      guard !sum.overflow else { return nil }
+      total = sum.partialValue
+    }
+    return total
+  }
+}
+
+struct ChatMessageAuthor: Decodable {
+  struct Role: Decodable { let name: String; let emoji: String }
+  let kind: String
+  let userId: String?
+  let name: String?
+  let role: Role?
+}
+
+struct ChatGoal: Decodable, Equatable {
+  let threadId: String
+  let objective: String
+  let status: String
+  let tokenBudget: Double?
+  let tokensUsed: Double?
+  let timeUsedSeconds: Double?
+}
+
+struct ChatContextWindowUsage: Decodable {
+  let size: Double
+  let used: Double
+}
+
+struct ChatQuota: Decodable {
+  struct Window: Decodable {
+    let label: String?
+    let usedPercent: Double
+    let duration: Double?
+    let resetsAt: Double?
+  }
+  let id: String
+  let name: String?
+  let provider: String
+  let windows: [Window]
+}
+
+struct ChatSubagentRun: Decodable {
+  struct Snapshot: Decodable {
+    struct Reason: Decodable { let message: String? }
+    let state: String
+    let name: String?
+    let description: String?
+    let summary: String?
+    let reason: Reason?
+  }
+  struct Progress: Decodable { let summary: String?; let lastToolName: String? }
+  let snapshot: Snapshot
+  let progress: Progress?
+}
+
+struct ChatSessionContext: Decodable {
+  var goal: ChatGoal? = nil
+  var dismissedGoalThreadId: String? = nil
+  var contextWindowUsage: ChatContextWindowUsage? = nil
+  var quotas: [ChatQuota]? = nil
+  var senders: [String: String]? = nil
+  var showSenderIdentity: Bool? = nil
+}
+
+enum ChatUsage {
+  static func number(_ value: Double) -> String {
+    value.formatted(.number.precision(.fractionLength(0)))
+  }
+
+  static func summary(_ usage: ChatTokenUsage?) -> String {
+    guard let total = usage?.total else { return "" }
+    return summaryTokens(Double(total))
+  }
+
+  static func summaryTokens(_ total: Double) -> String {
+    LodyStrings.text("native.chat.usage.tokens", ["count": number(total)])
+  }
+}
+
 struct ChatEntry: Decodable {
   struct ModelInfo: Decodable {
     let modelId: String?
@@ -42,6 +134,10 @@ struct ChatEntry: Decodable {
   var canSteer: Bool? = nil
   var queueEditing: Bool? = nil
   var queueEditingStartedAt: Double? = nil
+  var userId: String? = nil
+  var author: ChatMessageAuthor? = nil
+  var acpTurnId: String? = nil
+  var tokenUsage: ChatTokenUsage? = nil
   var isRunning: Bool { role == "assistant" && !finished }
   var isQueued: Bool { role == "user" && status == "queued" }
 }
@@ -63,14 +159,30 @@ struct ChatMessageAttachment: Decodable, Equatable {
   var storageSessionId: String? = nil
   var transport: String? = nil
   var sizeBytes: Int? = nil
+  var mimeType: String? = nil
+  var textPreview: Bool? = nil
+  var uploadedAt: Double? = nil
+  var sourcePath: String? = nil
 }
 
 struct ChatItem: Decodable {
   struct Permission: Decodable { let requestId: String; let pending: Bool }
   struct Plan: Decodable { let content: String; let status: String }
-  struct NoticeMeta: Decodable, Equatable { let reason: String?; let code: String?; let message: String? }
+  struct NoticeMeta: Decodable, Equatable {
+    let reason: String?
+    let code: String?
+    let message: String?
+    var source: String? = nil
+    var sourceSessionId: String? = nil
+    var sourceTitle: String? = nil
+    var truncated: Bool? = nil
+    var terminalOmitted: Bool? = nil
+    var thinkingOmitted: Bool? = nil
+  }
   var meta: NoticeMeta? = nil
   var isChatFailure: Bool { type == "system_notice" && name == "chat_failed" }
+  var isNotice: Bool { type == "system_notice" || type == "agent_warning" }
+  var isStandalone: Bool { type == "system_notice" || type == "agent_warning" || type == "subagent_task" }
   let itemId: String
   let type: String
   let name: String?
@@ -91,16 +203,24 @@ struct ChatItem: Decodable {
   var error: String? = nil
   var isBackgrounded: Bool? = nil
   var skipTranscript: Bool? = nil
+  var taskId: String? = nil
+  var run: ChatSubagentRun? = nil
+  var goal: ChatGoal? = nil
   var processDurationMs: Int? = nil
-  var isProcess: Bool { type != "text" && type != "proposed_plan" && !isAttachment && !isChatFailure && type != "subagent_task" }
+  var isProcess: Bool { type != "text" && type != "proposed_plan" && type != "goal" && !isAttachment && !isStandalone }
   var hidesFromTranscript: Bool {
+    if type == "goal" { return true }
     if type == "proposed_plan" {
       return !["delta", "completed"].contains(status ?? "") || (markdown ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     return type == "subagent_task" && skipTranscript == true
   }
   var isLiveSubagent: Bool {
-    type == "subagent_task" && skipTranscript != true && (status == "in_progress" || status == "pending")
+    type == "subagent_task" && skipTranscript != true && (subagentStatus == "in_progress" || subagentStatus == "pending")
+  }
+  var subagentStatus: String {
+    let state = run?.snapshot.state ?? status ?? "pending"
+    return state == "running" ? "in_progress" : state
   }
   let image: ChatImage?
   var file: ChatMessageAttachment? = nil
@@ -135,6 +255,7 @@ struct ChatRow: Equatable {
   var workDurationMs: Int? = nil
   var imageAsset = ""
   var subagent: ChatSubagentCard? = nil
+  var contextDetail = ""
   var shines: Bool { running && kind != "duration" }
   /// `only` / `first` / `middle` / `last` for consecutive file rows in one group.
   var group = ""
@@ -256,6 +377,8 @@ enum ChatTranscriptPreviewMetrics {
 /// Stable identities belong to the protocol, never to the streamed text.
 struct ChatTranscript {
   var entries: [ChatEntry] = []
+  var senders: [String: String] = [:]
+  var showSenderIdentity = false
 
   func liveSubagentItems() -> [ChatItem] {
     entries.flatMap(\.items).filter(\.isLiveSubagent)
@@ -275,6 +398,10 @@ struct ChatTranscript {
       return ChatTranscript(entries: entries).rows().filter { $0.kind != "meta" }
     }
     return []
+  }
+
+  func readOnlyRows(now: Double = Date().timeIntervalSince1970 * 1000, turnStartedAt: [String: Double] = [:]) -> [ChatRow] {
+    entryRows(now: now, turnStartedAt: turnStartedAt, flatItems: true)
   }
 
   /// Provider-proven continuation groups retain original row identities. Only
@@ -310,7 +437,7 @@ struct ChatTranscript {
          tail.executionFinished == true, members.filter({ $0.role == "assistant" }).allSatisfy(\.finished), !executionResultIDs(tail).isEmpty {
         guard emitted.insert(groupID).inserted else { return [] }
         let users = members.filter { $0.role == "user" }.flatMap {
-          ChatTranscript(entries: [$0]).entryRows(now: now)
+          ChatTranscript(entries: [$0], senders: senders, showSenderIdentity: showSenderIdentity).entryRows(now: now)
         }
         let process = executionProcess(members)
         var result = users
@@ -329,7 +456,7 @@ struct ChatTranscript {
       }
       var visible = entry
       if entry.holdOpen == true || entry.executionId != nil { visible.finished = false }
-      var result = ChatTranscript(entries: [visible]).entryRows(now: now, turnStartedAt: turnStartedAt)
+      var result = ChatTranscript(entries: [visible], senders: senders, showSenderIdentity: showSenderIdentity).entryRows(now: now, turnStartedAt: turnStartedAt)
       if entry.finished && !visible.finished {
         result.removeAll { $0.kind == "duration" }
         for index in result.indices {
@@ -375,9 +502,8 @@ struct ChatTranscript {
   ) -> [ChatRow] {
     entries.enumerated().flatMap { entryIndex, source -> [ChatRow] in
       var entry = source
-      // Older cached projections omitted notice names. Neither these placeholders nor
-      // agent warnings belong in the conversation's execution process.
-      entry.items.removeAll { $0.hidesFromTranscript || ($0.type == "system_notice" && ($0.name == nil || $0.name == "agent_warning")) }
+      // Older cached projections omitted notice names and have no readable message.
+      entry.items.removeAll { $0.hidesFromTranscript || ($0.type == "system_notice" && $0.name == nil && $0.meta?.message == nil) }
       let processOnly = !processEntryID.isEmpty
       if processOnly && entry.id != processEntryID { return [] }
       if entry.role == "user" {
@@ -401,6 +527,7 @@ struct ChatTranscript {
           result.insert(ChatRow(id: entry.id + ":delivery", entryID: entry.id, kind: "delivery",
             text: LodyStrings.text(key), attention: delivery == "rejected" || delivery == "unknown"), at: 0)
         }
+        if let sender = senderRow(entry) { result.insert(sender, at: 0) }
         return result
       }
       let finalText = entry.items.lastIndex { $0.type == "text" && !($0.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -409,30 +536,29 @@ struct ChatTranscript {
       if entry.role != "assistant" {
         if processOnly { return [] }
         visible = Array(entry.items.indices)
-      } else if processOnly {
+      } else if processOnly || flatItems {
         if flatItems {
           visible = entry.items.indices.filter { !entry.items[$0].hidesFromTranscript }
         } else if !processStartID.isEmpty, let start = entry.items.firstIndex(where: { $0.itemId == processStartID }) {
-          let end = entry.items.indices.dropFirst(start + 1).first { entry.items[$0].type == "text" || entry.items[$0].type == "proposed_plan" || entry.items[$0].isAttachment } ?? entry.items.endIndex
-          visible = Array(start..<end).filter { entry.items[$0].type != "proposed_plan" && !entry.items[$0].isAttachment && !entry.items[$0].isChatFailure && !entry.items[$0].hidesFromTranscript }
+          let end = entry.items.indices.dropFirst(start + 1).first { entry.items[$0].type == "text" || entry.items[$0].type == "proposed_plan" || entry.items[$0].isAttachment || entry.items[$0].isStandalone } ?? entry.items.endIndex
+          visible = Array(start..<end).filter { entry.items[$0].type != "proposed_plan" && !entry.items[$0].isAttachment && !entry.items[$0].isStandalone && !entry.items[$0].hidesFromTranscript }
         } else {
-          visible = entry.items.indices.filter { $0 != finalText && entry.items[$0].type != "proposed_plan" && !entry.items[$0].isAttachment && !entry.items[$0].hidesFromTranscript }
+          visible = entry.items.indices.filter { $0 != finalText && entry.items[$0].type != "proposed_plan" && !entry.items[$0].isAttachment && !entry.items[$0].isNotice && !entry.items[$0].hidesFromTranscript }
         }
       } else if entry.finished {
         let process = entry.items.indices.filter {
-          $0 != finalText && entry.items[$0].type != "proposed_plan" && !entry.items[$0].isAttachment && !entry.items[$0].isChatFailure && entry.items[$0].type != "subagent_task"
+          $0 != finalText && entry.items[$0].type != "proposed_plan" && !entry.items[$0].isAttachment && !entry.items[$0].isStandalone
         }
         if let first = process.first { groups[first] = process }
         visible = process.first.map { [$0] } ?? []
         if let finalText { visible.append(finalText) }
         visible.append(contentsOf: entry.items.indices.filter {
-          entry.items[$0].type == "proposed_plan" || entry.items[$0].isAttachment || entry.items[$0].isChatFailure
-            || (entry.items[$0].type == "subagent_task" && !entry.items[$0].hidesFromTranscript)
+          entry.items[$0].type == "proposed_plan" || entry.items[$0].isAttachment || entry.items[$0].isStandalone
         })
         visible.sort()
       } else {
         for index in entry.items.indices {
-          if entry.items[index].type == "subagent_task" {
+          if entry.items[index].isStandalone {
             if !entry.items[index].hidesFromTranscript { visible.append(index) }
             continue
           }
@@ -523,12 +649,21 @@ struct ChatTranscript {
           row.attention = true
           row.errorMeta = item.meta
           row.actionable = false
+        case "system_notice", "agent_warning":
+          row.text = noticeText(item)
+          row.symbol = item.name == "agent_warning" || item.type == "agent_warning" ? "exclamationmark.triangle" : "info.circle"
         case "file":
           guard let file = item.file else { continue }
           row.file = file
           row.text = file.fileName
           row.symbol = "doc"
-          row.actionable = true
+          let expired = file.uploadedAt.map { now - $0 > 90 * 86_400_000 } ?? false
+          row.actionable = file.transport != "local" && !expired
+          if file.transport == "local" { row.text += " · " + LodyStrings.text("native.chat.file.uploading") }
+          if expired { row.text += " · " + LodyStrings.text("native.chat.file.expired") }
+          if let size = file.sizeBytes, size >= 0 {
+            row.text += " · " + ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
+          }
         case "proposed_plan":
           row.text = item.markdown ?? ""
           row.streaming = item.status == "delta"
@@ -560,7 +695,7 @@ struct ChatTranscript {
       if entry.role == "assistant", entry.finished, !processOnly {
         let model = entry.modelInfo?.title ?? ""
         let finishedAt = ChatMetaTime.label(entry.endedAt, now: now)
-        let meta = [model, finishedAt].filter { !$0.isEmpty }.joined(separator: " · ")
+        let meta = [model, finishedAt, ChatUsage.summary(entry.tokenUsage)].filter { !$0.isEmpty }.joined(separator: " · ")
         if !meta.isEmpty || entry.items.contains(where: { $0.type == "text" || $0.isImage }) {
           var row = ChatRow(id: entry.id + ":meta", entryID: entry.id, kind: "meta", text: meta)
           row.imageAsset = LodyAgentIcon.asset(
@@ -593,25 +728,97 @@ struct ChatTranscript {
 }
 
 extension ChatTranscript {
+  func contextRows(_ context: ChatSessionContext, now: Double = Date().timeIntervalSince1970 * 1000) -> [ChatRow] {
+    var rows: [ChatRow] = []
+    let historyGoal = entries.reversed().lazy.compactMap { entry in
+      entry.items.reversed().compactMap(\.goal).first
+    }.first
+    if let goal = historyGoal ?? context.goal, !goal.objective.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+       !(goal.status == "cleared" && goal.threadId == context.dismissedGoalThreadId) {
+      let key = "native.chat.goal." + goal.status
+      var detail = goal.objective
+      if let used = goal.tokensUsed, used.isFinite, used >= 0 {
+        var metrics = ChatUsage.summaryTokens(used)
+        if let budget = goal.tokenBudget, budget.isFinite, budget > 0 {
+          metrics = LodyStrings.text("native.chat.goal.tokenBudget", ["used": ChatUsage.number(used), "budget": ChatUsage.number(budget)])
+        }
+        detail += "\n" + metrics
+      }
+      rows.append(ChatRow(id: "session-goal", entryID: "", kind: "goal", text: LodyStrings.text(key), symbol: "target", contextDetail: detail))
+    }
+    if let usage = context.contextWindowUsage, usage.size.isFinite, usage.size > 0, usage.used.isFinite, usage.used >= 0 {
+      let percent = min(100, max(0, usage.used / usage.size * 100))
+      rows.append(ChatRow(id: "session-context-usage", entryID: "", kind: "context", text: LodyStrings.text("native.chat.usage.context", ["percent": ChatUsage.number(percent)]), symbol: "chart.pie", contextDetail: LodyStrings.text("native.chat.usage.contextValue", ["used": ChatUsage.number(usage.used), "size": ChatUsage.number(usage.size)])))
+    }
+    for quota in context.quotas ?? [] {
+      let windows = quota.windows.compactMap { window -> String? in
+        guard window.usedPercent.isFinite else { return nil }
+        let percent = ChatUsage.number(min(100, max(0, window.usedPercent)))
+        var label = window.label?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if label.isEmpty, let duration = window.duration, duration.isFinite, duration > 0, duration < Double(Int.max) / 1000 {
+          label = ChatWorkDuration.format(Int(duration * 1000), hour: LodyStrings.text("native.chat.duration.hour"), minute: LodyStrings.text("native.chat.duration.minute"), second: LodyStrings.text("native.chat.duration.second"))
+        }
+        if label.isEmpty { label = LodyStrings.text("native.chat.usage.quotaWindow") }
+        var detail = LodyStrings.text("native.chat.usage.quota", ["window": label, "percent": percent])
+        if let reset = window.resetsAt, reset.isFinite, reset > 0 {
+          detail += " · " + LodyStrings.text("native.chat.usage.reset", ["time": Date(timeIntervalSince1970: reset).formatted(date: .abbreviated, time: .shortened)])
+        }
+        return detail
+      }
+      guard !windows.isEmpty else { continue }
+      rows.append(ChatRow(id: "session-quota:" + quota.id, entryID: "", kind: "quota", text: quota.name ?? quota.provider, symbol: "gauge.with.dots.needle.50percent", contextDetail: windows.joined(separator: "\n")))
+    }
+    return rows
+  }
+
+  private func senderRow(_ entry: ChatEntry) -> ChatRow? {
+    var name = ""
+    if let author = entry.author, author.kind == "agent" {
+      if let role = author.role { name = [role.emoji, role.name].filter { !$0.isEmpty }.joined(separator: " ") }
+      else { name = author.name ?? "" }
+    } else if showSenderIdentity && (entry.author == nil || entry.author?.kind == "human") {
+      let id = entry.author?.userId ?? entry.userId ?? ""
+      name = senders[id] ?? ""
+    }
+    name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !name.isEmpty else { return nil }
+    return ChatRow(id: entry.id + ":sender", entryID: entry.id, kind: "sender", text: name, symbol: "person.crop.circle")
+  }
+
+  private func noticeText(_ item: ChatItem) -> String {
+    let message = item.meta?.message ?? item.text ?? ""
+    if !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return message }
+    if item.name == "resume_from_external_chat_history" {
+      var text = LodyStrings.text("native.chat.notice.imported")
+      if item.meta?.truncated == true { text += " · " + LodyStrings.text("native.chat.notice.truncated") }
+      return text
+    }
+    if item.name == "session_fork_origin", let title = item.meta?.sourceTitle {
+      return LodyStrings.text("native.chat.notice.fork", ["title": title])
+    }
+    return ""
+  }
+
   fileprivate static func subagentRow(entry: ChatEntry, item: ChatItem) -> ChatRow {
-    let actor = item.actor?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    let description = item.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    let tool = item.lastToolName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    let summary = item.summary?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    let error = item.error?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    let running = item.status == "in_progress" || item.status == "pending"
+    let status = item.subagentStatus
+    let actor = (item.actor ?? item.run?.snapshot.name)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let description = (item.description ?? item.run?.snapshot.description)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let tool = (item.run?.progress?.lastToolName ?? item.lastToolName)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let summary = (item.run?.snapshot.summary ?? item.run?.progress?.summary ?? item.summary)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let error = (item.run?.snapshot.reason?.message ?? item.error)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let running = status == "in_progress" || status == "pending"
     var detail = ""
-    if item.status == "in_progress", !tool.isEmpty {
+    if status == "in_progress", !tool.isEmpty {
       detail = LodyStrings.text("native.chat.subagent.runningTool", ["tool": tool])
-    } else if item.status == "completed" {
+    } else if status == "completed" {
       detail = summary
-    } else if item.status == "failed" {
+    } else if status == "failed" || status == "unknown" || status == "cancelled" {
       detail = error
     }
     let card = ChatSubagentCard(
       actor: actor.isEmpty ? LodyStrings.text("native.chat.transcript.subtask") : actor,
       description: description == actor ? "" : description,
-      status: item.status ?? "pending",
+      status: status,
       detail: detail,
       background: item.isBackgrounded == true
     )
@@ -622,7 +829,7 @@ extension ChatTranscript {
       text: [card.actor, card.description, detail].filter { !$0.isEmpty }.joined(separator: " · "),
       itemID: item.itemId,
       running: running,
-      attention: item.status == "failed"
+      attention: status == "failed"
     )
     row.symbol = "person.2"
     row.actionable = true
