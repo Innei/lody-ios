@@ -53,6 +53,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   queueSessionMessage(payload: string): Promise<string>;
   checkSessionSend(payload: string): Promise<string>;
   cancelSessionSend(payload: string): Promise<string>;
+  providerCommand(payload: string): Promise<string>;
   runOptions(payload: string): Promise<string>;
   sessionSharing(payload: string): Promise<string>;
   verifyPushSubscription(): Promise<void>;
@@ -430,6 +431,8 @@ export const checkSessionSend = (payload: string) =>
   native.checkSessionSend(payload);
 export const cancelSessionSend = (payload: string) =>
   native.cancelSessionSend(payload);
+export const providerCommand = (payload: string) =>
+  native.providerCommand(payload);
 export const runOptions = (payload: string) => native.runOptions(payload);
 
 export const initialInboxView = [0, 1, 2].includes(native.initialInboxView)

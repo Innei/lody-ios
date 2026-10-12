@@ -23,6 +23,7 @@ import {
 } from '@/features/settings/remote-settings';
 import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import { RemoteSettingEditorScreen } from './RemoteSettingEditorScreen';
+import { ProviderManagementView } from './ProviderManagementScreen';
 
 export type { SettingsService };
 type Params = { kind: RemoteSetting['kind'] };
@@ -194,6 +195,10 @@ function View() {
     if (!selected) cancel();
   }, [selected, cancel]);
   if (!selected) return null;
+  if (params.kind === 'agent')
+    return (
+      <ProviderManagementView key={selected.id} workspaceId={selected.id} />
+    );
   return (
     <RemoteSettingsView
       key={selected.id}

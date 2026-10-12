@@ -606,6 +606,7 @@ class CheckDeadlineTest(unittest.TestCase):
         for case, elapsed in (
             ('session-search', 590),
             ('session-search-pad', 590),
+            ('providers', 590),
             ('pull-request', 400),
         ):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
@@ -619,6 +620,7 @@ class CheckDeadlineTest(unittest.TestCase):
         for case, elapsed in (
             ('session-search', 601),
             ('session-search-pad', 601),
+            ('providers', 601),
             ('pull-request', 421),
             ('run-options', 421),
             ('title-rename', 181),

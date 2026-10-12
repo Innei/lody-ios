@@ -1,4 +1,5 @@
 import type { PropsWithChildren } from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { ScrollView, StyleSheet } from 'react-native';
 import { ScrollViewMarker } from 'react-native-screens/experimental';
 
@@ -6,12 +7,16 @@ import { navigationScrollEdgeEffects } from '@lody-ios/kit';
 
 export function Screen({
   children,
+  style,
   automaticallyAdjustKeyboardInsets = false,
-}: PropsWithChildren<{ automaticallyAdjustKeyboardInsets?: boolean }>) {
+}: PropsWithChildren<{
+  style?: StyleProp<ViewStyle>;
+  automaticallyAdjustKeyboardInsets?: boolean;
+}>) {
   return (
     <ScrollViewMarker
       scrollEdgeEffects={navigationScrollEdgeEffects}
-      style={styles.root}
+      style={[styles.root, style]}
     >
       <ScrollView
         automaticallyAdjustKeyboardInsets={automaticallyAdjustKeyboardInsets}

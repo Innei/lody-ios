@@ -4,6 +4,21 @@ func json(_ object: [String: Any]) -> String {
   String(decoding: try! JSONSerialization.data(withJSONObject: object), as: UTF8.self)
 }
 let small = "{}"
+let providerValue = String(repeating: "界", count: 31_500)
+let providerConfig: [String: Any] = ["id": "config", "machineId": "machine", "name": "Provider",
+  "cliType": "builtin", "agentType": "codex", "env": ["A": providerValue, "B": providerValue, "C": providerValue, "D": providerValue]]
+precondition(json(providerConfig).utf16.count <= 128 * 1024, "The Unicode config satisfies the runtime's serialized UTF-16 ceiling")
+let provider = json(["workspaceId": "workspace", "machineId": "machine", "userId": "user",
+  "action": "save", "config": providerConfig])
+precondition(provider.utf8.count > 128 * 1024 && provider.utf8.count < 400 * 1024)
+let providerArgs = RuntimeCommandPayload.decode(provider, method: "providerCommand")
+let providerEnv = (providerArgs?["config"] as? [String: Any])?["env"] as? [String: String]
+precondition(providerEnv?["A"] == providerValue && providerEnv?.count == 4, "A legal Unicode Provider envelope reaches runtime without changing its environment")
+precondition(RuntimeCommandPayload.decode(provider, method: "checkSend") == nil)
+let providerLimit = 400 * 1024
+precondition(RuntimeCommandPayload.decode(small + String(repeating: " ", count: providerLimit - small.utf8.count), method: "providerCommand") != nil)
+precondition(RuntimeCommandPayload.decode(small + String(repeating: " ", count: providerLimit - small.utf8.count + 1), method: "providerCommand") == nil)
+
 let roleValue = String(repeating: "界", count: 512)
 let roleOptions = Dictionary(uniqueKeysWithValues: (0..<64).map { (String(repeating: "界", count: 125) + String(format: "%03d", $0), roleValue) })
 let role: [String: Any] = ["modelId": String(repeating: "界", count: 4096), "modeId": String(repeating: "界", count: 4096),
