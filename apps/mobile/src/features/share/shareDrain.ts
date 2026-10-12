@@ -57,6 +57,27 @@ export function selectionAvailable(
       item.id === draft.agent.id && item.machineId === draft.agent.machineId,
   );
   if (!agent) return false;
+  if (draft.useWorktree && options.runOptions?.worktreeAvailable !== true)
+    return false;
+  if (draft.choice.agentRoleId) {
+    const role = options.runOptions?.roles.find(
+      (role) => role.id === draft.choice.agentRoleId,
+    );
+    if (
+      !role?.available ||
+      role.revision !== draft.choice.agentRoleRevision ||
+      role.machineId !== agent.machineId ||
+      role.agentConfigId !== agent.id
+    )
+      return false;
+  }
+  if (
+    draft.choice.mcpServerIds?.some(
+      (id) =>
+        !options.runOptions?.mcpServers.some((server) => server.id === id),
+    )
+  )
+    return false;
   const modelId = draft.choice.modelId;
   if (!modelId) return true;
   return options.capabilities.some(

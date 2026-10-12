@@ -8,6 +8,7 @@ enum AuthKeychain {
 
 final class GitHubProtocol: URLProtocol {
   static let urls = OSAllocatedUnfairLock(initialState: [String]())
+  static let switchAfterGrant = OSAllocatedUnfairLock(initialState: false)
   override class func canInit(with request: URLRequest) -> Bool { true }
   override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
   override func startLoading() {
@@ -19,6 +20,7 @@ final class GitHubProtocol: URLProtocol {
       assert(request.url?.path == "/api/auth/convex/token")
       assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer synthetic-app-token")
       body = ["token": "synthetic-convex-jwt"]
+      if Self.switchAfterGrant.withLock({ $0 }) { AuthKeychain.token.withLock { $0 = "new-account" } }
     } else if request.url?.host == "convex.lody.ai" {
       assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer synthetic-convex-jwt")
       var data = request.httpBody ?? Data()
@@ -142,6 +144,23 @@ final class GitHubProtocol: URLProtocol {
     do { _ = try await GitHubCloud.branches(workspace: "linked", repo: "owner/..", page: 1); fatalError("Invalid branch repo accepted") } catch {}
     do { _ = try await GitHubCloud.branches(workspace: "linked", repo: "LodyAI/Lody", page: 0); fatalError("Invalid page accepted") } catch {}
     assert(GitHubProtocol.urls.withLock { $0.count } == beforeInvalid)
+    GitHubProtocol.switchAfterGrant.withLock { $0 = true }
+    let beforeMutation = GitHubProtocol.urls.withLock { $0.count }
+    do {
+      _ = try await GitHubCloud.call("mutation", path: "localProjects:setLocalProjectSharedWithTeam", args: ["workspaceId": "linked"])
+      fatalError("A replaced credential must not reach a mutation")
+    } catch { assert(error.localizedDescription == "github_unavailable") }
+    assert(GitHubProtocol.urls.withLock { $0.count } == beforeMutation + 1, "Account changes during JWT acquisition must stop before the Convex mutation request")
+    GitHubProtocol.switchAfterGrant.withLock { $0 = false }
+    AuthKeychain.token.withLock { $0 = "synthetic-app-token" }
+    let beforeCancelled = GitHubProtocol.urls.withLock { $0.count }
+    let cancelled = Task { @MainActor in
+      _ = try await GitHubCloud.call("mutation", path: "localProjects:setLocalProjectSharedWithTeam", args: ["workspaceId": "linked"])
+    }
+    cancelled.cancel()
+    do { _ = try await cancelled.value; fatalError("Cancelled broker request accepted") }
+    catch { assert(error is CancellationError) }
+    assert(GitHubProtocol.urls.withLock { $0.count } == beforeCancelled, "Cancelled requests must never start the auth or mutation HTTP request")
     print("GitHub mentions: Issue/PR references, unconnected project, bounded listing, credential isolation and failure behavior passed")
   }
 }

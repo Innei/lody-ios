@@ -189,7 +189,9 @@ extension LodyChatView {
         id: entry.id,
         text: entry.items.compactMap { $0.type == "text" ? $0.text : nil }.joined(separator: "\n"),
         canSteer: entry.canSteer != false,
-        attachments: entry.items.compactMap { $0.image?.fileName ?? $0.file?.fileName }
+        attachments: entry.items.compactMap { $0.image?.fileName ?? $0.file?.fileName },
+        isEditing: entry.queueEditing == true,
+        editingStartedAt: entry.queueEditingStartedAt
       )
     }
     if let pendingSend, pendingSend.queue == true, pendingSend.failed != true,
@@ -198,10 +200,11 @@ extension LodyChatView {
         id: pendingSend.id,
         text: pendingSend.text,
         canSteer: false,
-        attachments: pendingSend.attachments.map(\.name)
+        attachments: pendingSend.attachments.map(\.name),
+        canCancel: pendingSend.phase == "waiting" || pendingSend.phase == "sending"
       ))
     }
-    composer.setQueue(queue)
+    composer.setQueue(queue, enteringTranscript: Set(transcript.entries.filter { $0.role == "user" && !$0.isQueued }.map(\.id)))
     let now = Date().timeIntervalSince1970 * 1000
     var projected = transcript.rows(
       processEntryID: processEntryID,

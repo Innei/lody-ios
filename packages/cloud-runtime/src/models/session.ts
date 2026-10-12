@@ -5,6 +5,18 @@ export type SystemNoticeMeta = {
   message?: string;
 };
 
+export type MessageAttachment = {
+  id: string;
+  fileName: string;
+  transport?: 'local' | 'r2';
+  sizeBytes?: number;
+  storageSessionId?: string;
+  mimeType?: string;
+  textPreview?: boolean;
+  uploadedAt?: number;
+  sourcePath?: string;
+};
+
 export type ItemSummary =
   | {
       itemId: string;
@@ -15,6 +27,7 @@ export type ItemSummary =
     }
   | { itemId: string; rev: number; type: 'text'; text: string }
   | { itemId: string; rev: number; type: 'thought'; text: string }
+  | { itemId: string; rev: number; type: 'file'; file: MessageAttachment }
   | {
       itemId: string;
       rev: number;
@@ -72,6 +85,8 @@ export type EntrySummary = TurnMetadata & {
   status: string;
   finished: boolean;
   canSteer?: boolean;
+  queueEditing?: boolean;
+  queueEditingStartedAt?: number;
   userTurnId?: string;
   executionId?: string;
   executionFinished?: boolean;
@@ -96,6 +111,9 @@ export type Envelope = {
   awaitingUserSince?: number;
   preview?: { label: string; active: boolean };
   composer?: {
+    mcpServerIds?: string[];
+    agentRoleId?: string | null;
+    agentRoleRevision?: number;
     modelId?: string;
     modeId?: string;
     effort?: string;

@@ -7,6 +7,22 @@ import type { SteerReceipt } from './execution';
 import { machineRpc, type RpcReply } from './machine-rpc';
 import { retrySessionRead } from './session-read';
 import {
+  checkQueueReceipt,
+  checkSendDocument,
+  mutateQueue,
+  queueServerNow,
+  readQueueSession,
+  validateQueueRequest,
+} from './queue.ts';
+import type {
+  QueueReceipt,
+  QueueRequest,
+  QueueResult,
+} from '../models/queue.ts';
+import { validateRunOptionsChoice } from './run-options.ts';
+import type { RunOptionsChoice } from '../models/run-options.ts';
+import { supportsRunConfigOptions } from '../protocol/run-options.ts';
+import {
   editableUserTurn,
   editAttachments,
   replacementInput,
@@ -36,6 +52,8 @@ type SessionState = {
   working?: boolean;
   sendingId?: string;
   steerReceipts?: Map<string, SteerReceipt>;
+  queueWrites?: Map<string, QueueReceipt>;
+  queueLeases?: Map<string, number>;
   backgroundWork?: { id: string; turnId: string };
   status: string;
   reason?: string;
@@ -504,8 +522,119 @@ export function checkTurnQuota(args: {
   return reason ? { state: 'not_sent', reason } : { state: 'allowed' };
 }
 
+export async function checkSend(args: { sessionId: string; id: string }) {
+  if (typeof args.id !== 'string' || !args.id.trim() || args.id.length > 256)
+    throw new Error('invalid_message_id');
+  const state = sessions.get(args.sessionId);
+  if (!state || state.sending) throw new Error('session_not_ready');
+  const signal = AbortSignal.any([
+    state.controller.signal,
+    AbortSignal.timeout(12000),
+  ]);
+  const { doc } = await readQueueSession(
+    state.workspace,
+    state.id,
+    state.getGrant,
+    signal,
+  );
+  try {
+    if (sessions.get(state.id) !== state) throw new Error('runtime_replaced');
+    const result = checkSendDocument(doc, args.id);
+    state.doc.import(doc.export({ mode: 'snapshot' }));
+    scheduleEmit(state, state.status);
+    return result;
+  } finally {
+    doc.free();
+  }
+}
+
+export async function queueMessage(
+  args: QueueRequest,
+  now: (signal: AbortSignal) => Promise<number> = queueServerNow,
+): Promise<QueueResult> {
+  validateQueueRequest(args);
+  const state = sessions.get(args.sessionId);
+  if (!state?.ready || state.status !== 'live' || state.sending)
+    throw new Error('session_not_ready');
+  state.queueWrites ??= new Map();
+  state.queueLeases ??= new Map();
+  const pending = state.queueWrites.get(args.id);
+  if (pending && args.action !== 'check')
+    return {
+      state: 'unknown',
+      reason: 'queue_write_unconfirmed',
+      receipt: pending,
+    };
+  state.sending = true;
+  const signal = AbortSignal.any([
+    state.controller.signal,
+    AbortSignal.timeout(15000),
+  ]);
+  let receipt = args.receipt ?? pending;
+  let fresh: Awaited<ReturnType<typeof readQueueSession>> | undefined;
+  try {
+    fresh = await readQueueSession(
+      state.workspace,
+      state.id,
+      state.getGrant,
+      signal,
+    );
+    if (sessions.get(state.id) !== state) throw new Error('runtime_replaced');
+    if (args.action !== 'check') {
+      if (
+        args.editingStartedAt !== undefined &&
+        state.queueLeases.get(args.id) !== args.editingStartedAt
+      )
+        throw new Error('queue_edit_conflict');
+      const before = fresh.doc.version();
+      const timestamp = await now(signal);
+      signal.throwIfAborted();
+      if (sessions.get(state.id) !== state) throw new Error('runtime_replaced');
+      receipt = mutateQueue(fresh.doc, args, timestamp);
+      // Save intent before append so an uncertain HTTP result cannot repeat it.
+      state.queueWrites.set(args.id, receipt);
+      const update = encodeFrame(
+        fresh.doc.export({ mode: 'update', from: before }),
+      );
+      const appended = await fresh.client.append({
+        part: { contentType: 'application/octet-stream', body: update },
+      });
+      if (!appended.ok) throw new Error('queue_write_unconfirmed');
+      if (sessions.get(state.id) !== state) throw new Error('runtime_replaced');
+      await state.markDispatch(state.id, args.id, true);
+      fresh.doc.free();
+      fresh = undefined;
+      fresh = await readQueueSession(
+        state.workspace,
+        state.id,
+        state.getGrant,
+        signal,
+      );
+    }
+    if (!receipt) throw new Error('invalid_queue_receipt');
+    const result = checkQueueReceipt(fresh.doc, receipt);
+    if (sessions.get(state.id) !== state) throw new Error('runtime_replaced');
+    state.doc.import(fresh.doc.export({ mode: 'snapshot' }));
+    if (result.state !== 'unknown') state.queueWrites.delete(args.id);
+    if (result.state === 'applied' && receipt.action === 'begin-edit')
+      state.queueLeases.set(args.id, receipt.editingStartedAt!);
+    else if (result.state !== 'unknown') state.queueLeases.delete(args.id);
+    scheduleEmit(state, state.status);
+    return result;
+  } catch (error) {
+    const reason =
+      error instanceof Error ? error.message : 'queue_write_unconfirmed';
+    if (receipt && state.queueWrites.has(args.id))
+      return { state: 'unknown', reason, receipt };
+    return { state: 'rejected', reason };
+  } finally {
+    fresh?.doc.free();
+    state.sending = false;
+  }
+}
+
 export async function sendTurn(
-  args: {
+  args: RunOptionsChoice & {
     id?: string;
     backgroundTaskId?: string;
     queue?: boolean;
@@ -526,6 +655,10 @@ export async function sendTurn(
     billingEntitlement?: BillingEntitlement | null;
   },
   expand: (text: string) => Promise<string> = async (text) => text,
+  configure: (
+    previous: Record<string, any>,
+    input: Record<string, any>,
+  ) => Promise<Record<string, any>> = async (_, input) => input,
 ) {
   const state = sessions.get(args.sessionId);
   if (!state || !state.ready)
@@ -549,6 +682,14 @@ export async function sendTurn(
     // The local entry may come from a lost append ACK. Never replay its write.
     return { id: args.id, state: 'unknown', reason: 'turn_already_exists' };
   if (state.sending) return { state: 'not_sent', reason: 'session_not_ready' };
+  try {
+    validateRunOptionsChoice(args);
+  } catch (error) {
+    return {
+      state: 'not_sent',
+      reason: error instanceof Error ? error.message : 'invalid_run_options',
+    };
+  }
   const quota = checkTurnQuota(args);
   if (quota.state === 'not_sent') return quota;
   if (typeof args.text !== 'string')
@@ -556,24 +697,7 @@ export async function sendTurn(
   let text = args.text.trim();
   if (
     args.configOptionValues !== undefined &&
-    (!args.configOptionValues ||
-      typeof args.configOptionValues !== 'object' ||
-      Array.isArray(args.configOptionValues) ||
-      Object.keys(args.configOptionValues).length > 64 ||
-      Object.entries(args.configOptionValues).some(
-        ([id, value]) =>
-          !id ||
-          id.length > 128 ||
-          /(?:api[_-]?key|auth|bearer|credential|password|passwd|secret|token)/i.test(
-            id,
-          ) ||
-          !(
-            typeof value === 'boolean' ||
-            (typeof value === 'string' &&
-              value.length > 0 &&
-              value.length <= 512)
-          ),
-      ))
+    !supportsRunConfigOptions(args.configOptionValues)
   )
     return { state: 'not_sent', reason: 'invalid_config_options' };
   const attachments = args.attachmentBlocks ?? [];
@@ -610,7 +734,7 @@ export async function sendTurn(
       args.reasoningEffort !== null &&
       (typeof args.reasoningEffort !== 'string' ||
         !args.reasoningEffort ||
-        args.reasoningEffort.length > 128)) ||
+        args.reasoningEffort.length > 512)) ||
     (args.reasoningEffortConfigId !== undefined &&
       (typeof args.reasoningEffortConfigId !== 'string' ||
         !args.reasoningEffortConfigId ||
@@ -628,7 +752,8 @@ export async function sendTurn(
     text = await expand(text);
     if (sessions.get(state.id) !== state || !state.ready)
       throw new Error('session_not_ready');
-    if (text.length > 32000) throw new Error('invalid_message');
+    if ((!text.trim() && !attachments.length) || text.length > 32000)
+      throw new Error('invalid_message');
     const previous =
       (state.doc.toJSON().history as any[] | undefined)?.findLast(
         (entry) => entry.role === 'user',
@@ -646,7 +771,7 @@ export async function sendTurn(
       if (args.reasoningEffort === null) delete configOptionValues[id];
       else configOptionValues[id] = args.reasoningEffort;
     }
-    const inputConfig = {
+    let inputConfig: Record<string, any> = {
       cliType: args.cliType,
       agentType: args.agentType,
       prompt: text,
@@ -659,7 +784,7 @@ export async function sendTurn(
       configOptionValues: Object.keys(configOptionValues).length
         ? configOptionValues
         : undefined,
-      mcpServerIds: previous.mcpServerIds ?? [],
+      mcpServerIds: args.mcpServerIds ?? previous.mcpServerIds ?? [],
       taskToolsEnabled: previous.taskToolsEnabled ?? false,
       agentRoleId: previous.agentRoleId,
       agentRoleRevision: previous.agentRoleRevision,
@@ -683,6 +808,11 @@ export async function sendTurn(
         inputConfig.agentRoleRevision = undefined;
       }
     }
+    inputConfig = await configure(previous, inputConfig);
+    if (sessions.get(state.id) !== state || !state.ready)
+      throw new Error('session_not_ready');
+    if (!supportsRunConfigOptions(inputConfig.configOptionValues))
+      throw new Error('invalid_config_options');
     const raw = state.doc.toJSON();
     const history = (raw.history ?? []) as any[];
     const lastUser = history.findLastIndex((entry) => entry.role === 'user');
@@ -724,6 +854,7 @@ export async function sendTurn(
         task: text,
         userId: args.userId,
         userTurnId: id,
+        operationId: `queue:${id}`,
         timestamp,
       }))
         item.set(key, value);
@@ -753,6 +884,8 @@ export async function sendTurn(
     });
     if (!result.ok) throw new Error(result.result.code);
     uploaded = true;
+    if (sessions.get(state.id) !== state || state.controller.signal.aborted)
+      throw new Error('runtime_replaced');
     if (queued) {
       // The queue is durable before its catalog wake-up watermark is published.
       await state.markDispatch(state.id, id, true);
@@ -810,6 +943,8 @@ export async function sendTurn(
       `${state.workspace}:rpc:req:${args.machineId}`,
       state.getGrant,
     );
+    if (sessions.get(state.id) !== state || state.controller.signal.aborted)
+      throw new Error('runtime_replaced');
     const dispatched = await requestClient.append({
       part: {
         contentType: 'application/json',

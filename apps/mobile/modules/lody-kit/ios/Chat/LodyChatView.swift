@@ -54,6 +54,8 @@ private final class ChatNavigationController: UIViewController {
 
 final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout, UIGestureRecognizerDelegate, ChatSendHandoffSettling {
   let onSend = EventDispatcher()
+  let onQueueAction = EventDispatcher()
+  let onRecoverSend = EventDispatcher()
   let onEditMessage = EventDispatcher()
   var editableMessageID = "" {
     didSet {
@@ -434,6 +436,14 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     }
     composer.onStop = { [weak self] in self?.onStop() }
     composer.onSteer = { [weak self] in self?.onSteer(["id": $0]) }
+    composer.onQueueAction = { [weak self] payload in
+      guard let self else { return }
+      self.onQueueAction(payload)
+    }
+    composer.onRecoverSend = { [weak self] action in
+      guard let self else { return }
+      self.onRecoverSend(["action": action])
+    }
     composer.onReconnect = { [weak self] in self?.onReconnect([:]) }
     composer.onPreview = { [weak self] in self?.onPreview(["action": $0]) }
     addSubview(simulatorPreview)
@@ -748,7 +758,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
           self.publishedPendingID = nil
           return
         }
-        composer.clearPendingSend(id: publishedPendingID)
+        composer.clearPendingSend(id: publishedPendingID, retainingDraft: true)
         composerHasAcknowledgedSend = true
         // entriesJSON is decoded off-main. Keep the local rows until the same
         // authoritative rows arrive, even if React retires its pending prop first.
@@ -889,11 +899,14 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
         attribute: link.secondAttribute, multiplier: link.multiplier, constant: link.constant
       )
       replacement.priority = link.priority
+      if link === composerBottom { composerBottom = replacement }
       return replacement
     }
     incoming.onSend = old.onSend
     incoming.onStop = old.onStop
     incoming.onSteer = old.onSteer
+    incoming.onQueueAction = old.onQueueAction
+    incoming.onRecoverSend = old.onRecoverSend
     incoming.onReconnect = old.onReconnect
     incoming.onPreview = old.onPreview
     incoming.onMentionBrowse = old.onMentionBrowse

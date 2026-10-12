@@ -511,6 +511,7 @@ test('send persists user before dispatch; duplicate incremental imports preserve
   });
   const projection = runtime.projectSession(server, 'live');
   assert.deepEqual(projection.composer, {
+    mcpServerIds: [],
     modelId: 'gpt-test',
     effort: 'high',
   });

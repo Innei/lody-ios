@@ -138,6 +138,37 @@ var height: CGFloat = 0
 composer.onHeightChange = { height = $0 }
 let ready = #"{"editable":true,"canSend":true,"sending":false,"notice":"","reconnect":false,"placeholder":"任务"}"#
 
+for propFirst in [true, false] {
+  let focusComposer = ChatComposerView(frame: CGRect(x: 0, y: 500, width: 390, height: 244))
+  let focusWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+  focusWindow.isHidden = false
+  focusComposer.setComposerState(ready)
+  focusComposer.setInitialDraft("Original prompt 🐈")
+  let focusInput = descendants(focusComposer).compactMap { $0 as? UITextView }.first!
+  focusInput.selectedRange = NSRange(location: 0, length: 0)
+  if propFirst {
+    focusComposer.autoFocus = true
+    precondition(!focusInput.isFirstResponder && focusComposer.autoFocus,
+      "Autofocus must remain pending while the composer has no window")
+    focusWindow.addSubview(focusComposer)
+  } else {
+    focusWindow.addSubview(focusComposer)
+    precondition(!focusInput.isFirstResponder, "Mounting without autofocus must not steal input focus")
+    focusComposer.autoFocus = true
+  }
+  let order = propFirst ? "before" : "after"
+  precondition(focusInput.isFirstResponder, "Autofocus arriving \(order) window attachment must focus the actual editor")
+  precondition(focusInput.selectedRange == NSRange(location: (focusInput.text as NSString).length, length: 0),
+    "Autofocus must place the editor cursor at the UTF16 end in either lifecycle order")
+  precondition(!focusComposer.autoFocus, "A mounted editor must consume the focus request once")
+  focusInput.resignFirstResponder()
+  focusComposer.removeFromSuperview()
+  focusWindow.addSubview(focusComposer)
+  precondition(!focusInput.isFirstResponder, "A consumed autofocus request must not focus again on remount")
+  focusWindow.isHidden = true
+}
+print("Composer autofocus: prop-first and window-first focus the actual editor at its end, consume once and preserve later blur")
+
 @MainActor func verifyCollapsedTypography(_ category: UIContentSizeCategory, expectedPointSize: CGFloat) {
   var scaledComposer: ChatComposerView!
   UITraitCollection(preferredContentSizeCategory: category).performAsCurrent {
@@ -511,6 +542,174 @@ let videoURL = URL(string: videoAttachments.first!["uri"]!)!
 precondition((try? Data(contentsOf: videoURL)) == Data("video-bytes".utf8), "A pasted video must keep the movie bytes, not a PNG poster")
 print("Composer paste: video with an image poster stays a file")
 
+// A recovered/outbox send owns its payload, not a new native composer draft.
+// React may deliver composer state and pendingSendJSON in either order.
+var externalDraftObservations: [[String: Any]] = []
+let externalSendingState = #"{"editable":true,"canSend":false,"sending":true,"notice":"","reconnect":false,"placeholder":"Independent draft","sendRecovery":"unknown"}"#
+let externalUnknownSend = try! JSONDecoder().decode(ChatPendingSend.self, from: Data(#"{"id":"11111111-1111-4111-8111-000000000001","text":"Uncertain message","attachments":[],"phase":"unknown","status":"Delivery unconfirmed"}"#.utf8))
+@MainActor func nativeStateMatches(_ input: ChatComposerInput, _ expected: NSDictionary) -> Bool {
+  guard let serialized = input.serializedState,
+        let value = try? JSONSerialization.jsonObject(with: Data(serialized.utf8)) as? NSDictionary else { return false }
+  return value.isEqual(expected)
+}
+for statusFirst in [true, false] {
+  let externalComposer = ChatComposerView(frame: CGRect(x: 0, y: 500, width: 390, height: 244))
+  let externalWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+  externalWindow.addSubview(externalComposer)
+  externalWindow.isHidden = false
+  externalComposer.setComposerState(ready)
+  externalComposer.setInitialDraft("Independent draft")
+  externalComposer.setInitialAttachments(#"[{"id":"independent-file","name":"independent.txt","uri":"file:///tmp/independent.txt","kind":"file"}]"#)
+  let externalInput = descendants(externalComposer).compactMap { $0 as? ChatComposerInput }.first!
+  precondition(externalInput.becomeFirstResponder(), "The independent draft must accept real native input")
+  externalInput.selectedRange = NSRange(location: externalInput.text.utf16.count, length: 0)
+  externalInput.insertText(" 🐈")
+  let expectedText = externalInput.text!
+  let expectedState = try! JSONSerialization.jsonObject(with: Data(externalInput.serializedState!.utf8)) as! NSDictionary
+  var externalNativePayload: [String: Any] = [:]
+  var externalSendCalls = 0
+  externalComposer.onSend = {
+    externalSendCalls += 1
+    externalNativePayload = $0
+  }
+  if statusFirst {
+    externalComposer.setComposerState(externalSendingState)
+    externalComposer.setPendingSend(externalUnknownSend)
+  } else {
+    externalComposer.setPendingSend(externalUnknownSend)
+    externalComposer.setComposerState(externalSendingState)
+  }
+  let whileUncertain = externalInput.text!
+  let stateRetainedWhileUncertain = nativeStateMatches(externalInput, expectedState)
+  let attachmentRetainedWhileUncertain = descendants(externalComposer).compactMap { ($0 as? UILabel)?.text }.contains("independent.txt")
+  externalComposer.clearDraft(token: 1)
+  externalComposer.clearPendingSend(id: externalUnknownSend.id)
+  externalComposer.setComposerState(ready)
+  let afterResume = externalInput.text!
+  let stateRetainedAfterResume = nativeStateMatches(externalInput, expectedState)
+  let callsBeforeNativeSend = externalSendCalls
+  externalComposer.perform(NSSelectorFromString("submit"))
+  let sentFiles = externalNativePayload["attachments"] as? [[String: String]] ?? []
+  let explicitSendPreserved = externalNativePayload["text"] as? String == expectedText && sentFiles.map { $0["id"] ?? "" } == ["independent-file"]
+  let observation: [String: Any] = [
+    "order": statusFirst ? "status-first" : "pending-first",
+    "before": expectedText, "whileUncertain": whileUncertain, "afterResume": afterResume,
+    "nativeStateRetainedWhileUncertain": stateRetainedWhileUncertain,
+    "nativeStateRetainedAfterResume": stateRetainedAfterResume,
+    "attachmentRetainedWhileUncertain": attachmentRetainedWhileUncertain,
+    "callsBeforeNativeSend": callsBeforeNativeSend,
+    "explicitSendPreserved": explicitSendPreserved,
+    "nativeSendCalls": externalSendCalls,
+    "preserved": whileUncertain == expectedText && afterResume == expectedText && stateRetainedWhileUncertain && stateRetainedAfterResume && attachmentRetainedWhileUncertain && callsBeforeNativeSend == 0 && explicitSendPreserved && externalSendCalls == 1,
+  ]
+  externalDraftObservations.append(observation)
+  let evidence = try! JSONSerialization.data(withJSONObject: observation, options: [.sortedKeys])
+  FileHandle.standardError.write(Data("Independent draft SDK observation: ".utf8) + evidence + Data("\n".utf8))
+  externalInput.resignFirstResponder()
+  externalWindow.isHidden = true
+}
+precondition(externalDraftObservations.allSatisfy { $0["preserved"] as? Bool == true },
+  "External pending/status props must preserve the independent native draft, state and attachments in either order until an actual Send")
+print("Composer ownership: both external prop orders preserve independent native text/state/attachments, recovery never sends, actual Send consumes once")
+
+// Retiring a pending prop must preserve cancellation recovery until an explicit ACK.
+let cancellationQueueState = #"{"editable":true,"canSend":true,"sending":false,"running":true,"canStop":true,"notice":"","reconnect":false,"placeholder":"Cancelled draft"}"#
+@MainActor final class QueueCancellationFixture {
+  let composer = ChatComposerView(frame: CGRect(x: 0, y: 500, width: 390, height: 244))
+  let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+  let input: ChatComposerInput
+  let nativeState: NSDictionary
+  var sends = 0
+  var payload: [String: Any] = [:]
+  var id: String { payload["id"] as! String }
+  var hasAttachment: Bool { descendants(composer).compactMap { ($0 as? UILabel)?.text }.contains("cancel.txt") }
+  init(_ text: String = "Independent draft 🐈") {
+    window.addSubview(composer)
+    window.isHidden = false
+    composer.setComposerState(cancellationQueueState)
+    composer.setInitialDraft(text)
+    composer.setInitialAttachments(#"[{"id":"cancel-file","name":"cancel.txt","uri":"file:///tmp/cancel.txt","kind":"file"}]"#)
+    input = descendants(composer).compactMap { $0 as? ChatComposerInput }.first!
+    precondition(input.becomeFirstResponder(), "Cancellation must exercise the real native input")
+    nativeState = try! JSONSerialization.jsonObject(with: Data(input.serializedState!.utf8)) as! NSDictionary
+    composer.onSend = { [weak self] in self?.sends += 1; self?.payload = $0 }
+    composer.perform(NSSelectorFromString("submit"))
+    precondition(sends == 1 && payload["text"] as? String == text && payload["queue"] as? Bool == true && input.text.isEmpty,
+      "Actual queued Send must consume exactly its submitted native draft")
+  }
+}
+for retirementFirst in [true, false] {
+  let fixture = QueueCancellationFixture()
+  let id = fixture.id
+  if retirementFirst {
+    fixture.composer.clearPendingSend(id: id, retainingDraft: true)
+    fixture.composer.restoreDraft(token: 1)
+  } else {
+    fixture.composer.restoreDraft(token: 1)
+    fixture.composer.clearPendingSend(id: id, retainingDraft: true)
+  }
+  let observation: [String: Any] = ["order": retirementFirst ? "retire-first" : "restore-first", "text": fixture.input.text!,
+    "nativeState": nativeStateMatches(fixture.input, fixture.nativeState), "attachment": fixture.hasAttachment, "extraSends": fixture.sends - 1]
+  FileHandle.standardError.write(Data("Cancellation direct SDK observation: ".utf8) + (try! JSONSerialization.data(withJSONObject: observation, options: [.sortedKeys])) + Data("\n".utf8))
+  precondition(fixture.input.text == "Independent draft 🐈" && nativeStateMatches(fixture.input, fixture.nativeState) && fixture.hasAttachment && fixture.sends == 1,
+    "Either retirement/restore prop order must restore actual native text/state/attachment without replay")
+  fixture.window.isHidden = true
+}
+let lateAckFixture = QueueCancellationFixture("Already acknowledged")
+lateAckFixture.composer.clearPendingSend(id: lateAckFixture.id, retainingDraft: true)
+lateAckFixture.composer.clearPendingSend(id: lateAckFixture.id)
+lateAckFixture.composer.restoreDraft(token: 1)
+let lateAckObservation: [String: Any] = ["text": lateAckFixture.input.text!, "attachment": lateAckFixture.hasAttachment, "extraSends": lateAckFixture.sends - 1]
+FileHandle.standardError.write(Data("Late default ACK SDK observation: ".utf8) + (try! JSONSerialization.data(withJSONObject: lateAckObservation, options: [.sortedKeys])) + Data("\n".utf8))
+precondition(lateAckFixture.input.text.isEmpty && !lateAckFixture.hasAttachment && lateAckFixture.sends == 1,
+  "A late default ACK after retirement must discard the same draft so restore cannot revive an acknowledged send")
+lateAckFixture.window.isHidden = true
+
+let ackTokenFixture = QueueCancellationFixture()
+ackTokenFixture.composer.clearPendingSend(id: ackTokenFixture.id, retainingDraft: true)
+ackTokenFixture.composer.clearDraft(token: 1)
+ackTokenFixture.composer.restoreDraft(token: 1)
+precondition(ackTokenFixture.input.text.isEmpty && !ackTokenFixture.hasAttachment && ackTokenFixture.sends == 1,
+  "An explicit ACK token must discard a retired draft")
+ackTokenFixture.window.isHidden = true
+
+let newerDraftFixture = QueueCancellationFixture()
+newerDraftFixture.input.insertText("Newer independent draft 🐈")
+let newerDraftState = try! JSONSerialization.jsonObject(with: Data(newerDraftFixture.input.serializedState!.utf8)) as! NSDictionary
+newerDraftFixture.composer.clearPendingSend(id: newerDraftFixture.id, retainingDraft: true)
+newerDraftFixture.composer.restoreDraft(token: 1)
+newerDraftFixture.composer.restoreDraft(token: 2)
+precondition(newerDraftFixture.input.text == "Newer independent draft 🐈" && nativeStateMatches(newerDraftFixture.input, newerDraftState) && newerDraftFixture.sends == 1,
+  "Cancellation and repeated restore must preserve newer independent input")
+newerDraftFixture.window.isHidden = true
+
+let nextCommitFixture = QueueCancellationFixture()
+let oldCommitID = nextCommitFixture.id
+nextCommitFixture.composer.clearPendingSend(id: oldCommitID, retainingDraft: true)
+nextCommitFixture.composer.restoreDraft(token: 1)
+nextCommitFixture.input.text = "Next actual send"
+let nextCommitState = try! JSONSerialization.jsonObject(with: Data(nextCommitFixture.input.serializedState!.utf8)) as! NSDictionary
+nextCommitFixture.composer.perform(NSSelectorFromString("submit"))
+precondition(nextCommitFixture.sends == 2 && nextCommitFixture.id != oldCommitID && nextCommitFixture.input.text.isEmpty)
+nextCommitFixture.composer.clearPendingSend(id: oldCommitID)
+nextCommitFixture.composer.restoreDraft(token: 2)
+precondition(nextCommitFixture.input.text == "Next actual send" && nativeStateMatches(nextCommitFixture.input, nextCommitState) && nextCommitFixture.hasAttachment && nextCommitFixture.sends == 2,
+  "A late old ACK must not clear a newer active native draft or its attachments")
+nextCommitFixture.window.isHidden = true
+
+let replacedFixture = QueueCancellationFixture("Retired original")
+replacedFixture.composer.clearPendingSend(id: replacedFixture.id, retainingDraft: true)
+replacedFixture.input.insertText("New owned send")
+replacedFixture.composer.perform(NSSelectorFromString("submit"))
+precondition(replacedFixture.sends == 2 && replacedFixture.payload["text"] as? String == "New owned send")
+let replacementFailed = try! JSONDecoder().decode(ChatPendingSend.self, from: JSONSerialization.data(withJSONObject: replacedFixture.payload.merging(["status": "Failed", "failed": true]) { _, new in new }))
+replacedFixture.composer.setPendingSend(replacementFailed)
+replacedFixture.composer.restoreDraft(token: 1)
+precondition(replacedFixture.input.text.isEmpty && !replacedFixture.hasAttachment && replacedFixture.sends == 2,
+  "A new native commit/pending identity must invalidate an older retired draft")
+replacedFixture.window.isHidden = true
+print("Composer cancellation: both retirement orders, native state/attachments, zero replay, explicit and late ACK, newer drafts and commits passed")
+
 let draftComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
 draftComposer.setComposerState(ready)
 let draftInput = descendants(draftComposer).compactMap { $0 as? UITextView }.first!
@@ -522,6 +721,7 @@ draftComposer.setStoredDraft("其他会话的草稿")
 precondition(draftInput.text == "上次没发出去的话", "A stored draft must never overwrite typed text")
 draftComposer.textViewDidEndEditing(draftInput)
 precondition(savedDrafts.count == 1 && savedDrafts[0].contains("\"lexical\""), "Ending editing must persist the draft as an editor state envelope")
+draftComposer.perform(NSSelectorFromString("submit"))
 draftComposer.setComposerState(#"{"editable":true,"canSend":true,"sending":true,"notice":"","reconnect":false,"placeholder":"任务"}"#)
 draftComposer.clearDraft(token: 1)
 precondition(savedDrafts.last == "" && draftInput.text.isEmpty, "Sending must clear the stored draft")
@@ -768,12 +968,25 @@ precondition(queueSend.accessibilityIdentifier == "session-stop" && queueSend.is
 queueComposer.setQueue((1...4).map { ChatQueuedDraft(id: "q\($0)", text: "Queued \($0)") })
 queueComposer.layoutIfNeeded()
 let queuePanel = descendants(queueComposer).first { $0.accessibilityIdentifier == "session-queue" }!
+@MainActor func checkQueueTouchTargets() {
+  let buttons = descendants(queuePanel).compactMap { $0 as? UIButton }.filter { button in
+    let id = button.accessibilityIdentifier ?? ""
+    return id.hasSuffix(":queued") || id.hasSuffix(":steer") || id.hasSuffix(":queue-actions")
+  }
+  precondition(!buttons.isEmpty, "The queue must expose native actions")
+  for button in buttons {
+    precondition(button.bounds.width >= 44 && button.bounds.height >= 44,
+      "Queue message, steer and menu actions must each retain 44 pt touch targets")
+  }
+}
 precondition(queuePanel.bounds.height == 132 && !queuePanel.isHidden, "Long plain queues stay compact at three 44 pt rows and scroll")
+checkQueueTouchTargets()
 queueComposer.setQueue([
   ChatQueuedDraft(id: "q1", text: "Queued 1"),
   ChatQueuedDraft(id: "q2", text: "Queued 2", attachments: ["shot.png"]),
 ])
 queueComposer.layoutIfNeeded()
+checkQueueTouchTargets()
 let queuedRows = descendants(queuePanel).compactMap { $0 as? UILabel }
 precondition(queuedRows.contains { $0.text == "shot.png" }, "Queued attachments must show their file names")
 precondition(queuePanel.bounds.height > 44 + 44, "An attachment row is taller than a plain row")
@@ -788,6 +1001,154 @@ precondition(queuePanel.isHidden, "Drained queue must leave no empty card")
 queueComposer.setInitialAttachments(#"[{"id":"queue-file","name":"next.txt","uri":"file:///tmp/next.txt","kind":"file"}]"#)
 precondition(queueSend.accessibilityIdentifier == "session-send" && queueSend.isEnabled, "An attachment switches Stop to Send even with empty text")
 print("Queue composer: Stop, whitespace, typing, queued submission, ACK, bounded queue and attachment-only input passed")
+
+// Queue lease metadata arrives independently from composer state. It must not
+// replace the focused editor or overwrite text the user has already typed.
+@MainActor func queueEditorState(_ value: [String: Any]) -> String {
+  let state: [String: Any] = [
+    "editable": true, "canSend": true, "sending": false, "running": true,
+    "canStop": true, "notice": "", "reconnect": false, "placeholder": "Message",
+    "queueState": value,
+  ]
+  return String(data: try! JSONSerialization.data(withJSONObject: state), encoding: .utf8)!
+}
+let editQueueWindow = HandoffWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+let editQueueComposer = ChatComposerView(frame: CGRect(x: 0, y: 500, width: 390, height: 344))
+editQueueWindow.addSubview(editQueueComposer)
+editQueueWindow.isHidden = false
+editQueueComposer.setComposerState(queueEditorState(["editable": true]))
+editQueueComposer.setInitialDraft("Independent draft 🐈")
+editQueueComposer.setInitialAttachments(#"[{"id":"independent-file","name":"independent.txt","uri":"file:///tmp/independent.txt","kind":"file"}]"#)
+let independentQueueInput = descendants(editQueueComposer).compactMap { $0 as? ChatComposerInput }.first!
+let independentNativeState = try! JSONSerialization.jsonObject(with: Data(independentQueueInput.serializedState!.utf8)) as! NSDictionary
+var editQueueDrafts = [
+  ChatQueuedDraft(id: "edit-alpha", text: "Alpha message", attachments: ["notes.txt"]),
+  ChatQueuedDraft(id: "edit-beta", text: "Beta message"),
+]
+editQueueComposer.setQueue(editQueueDrafts, enteringTranscript: [])
+editQueueComposer.layoutIfNeeded()
+var editQueueEvents: [[String: Any]] = []
+let editingAlphaState: [String: Any] = ["editable": true, "editingId": "edit-alpha", "editingText": "Alpha message"]
+editQueueComposer.onQueueAction = { event in
+  editQueueEvents.append(event)
+  if event["action"] as? String == "begin-edit" {
+    editQueueComposer.setComposerState(queueEditorState(editingAlphaState))
+  }
+}
+precondition(independentQueueInput.becomeFirstResponder(), "The independent chat draft must accept focus before editing a queued turn")
+let editAlphaBody = descendants(editQueueComposer).compactMap { $0 as? UIButton }.first {
+  $0.accessibilityIdentifier == "edit-alpha:queued"
+}!
+editAlphaBody.sendActions(for: .touchUpInside)
+RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+editQueueComposer.layoutIfNeeded()
+let alphaQueueEditor = descendants(editQueueComposer).compactMap { $0 as? UITextView }.first {
+  $0.accessibilityIdentifier == "edit-alpha:queue-editor"
+}!
+let alphaEditorRow = alphaQueueEditor.superview!
+precondition(alphaQueueEditor.isFirstResponder && editQueueEvents.last?["action"] as? String == "begin-edit",
+  "Opening a queue edit through its actual message action must focus the native editor")
+alphaQueueEditor.insertText(" revised 🐈")
+let liveQueueText = alphaQueueEditor.text!
+precondition(liveQueueText == "Alpha message revised 🐈", "Native typing must append to the queued turn")
+alphaQueueEditor.selectedRange = NSRange(location: 3, length: 2)
+let liveQueueSelection = alphaQueueEditor.selectedRange
+editQueueDrafts[0].isEditing = true
+editQueueDrafts[0].editingStartedAt = Date().timeIntervalSince1970 * 1000
+editQueueComposer.setQueue(editQueueDrafts, enteringTranscript: [])
+editQueueComposer.layoutIfNeeded()
+@MainActor func checkRetainedQueueEditor(_ focused: Bool = true) {
+  let current = descendants(editQueueComposer).compactMap { $0 as? UITextView }.first {
+    $0.accessibilityIdentifier == "edit-alpha:queue-editor"
+  }
+  precondition(current === alphaQueueEditor && alphaQueueEditor.superview === alphaEditorRow,
+    "Late queue metadata and order updates must retain the mounted editor and its row")
+  precondition(alphaQueueEditor.text == liveQueueText && alphaQueueEditor.selectedRange == liveQueueSelection,
+    "Queue refreshes must preserve live typed text and the native selection")
+  precondition(!focused || alphaQueueEditor.isFirstResponder,
+    "A queue refresh must preserve the actual first responder without another user tap")
+  let currentNativeState = try! JSONSerialization.jsonObject(with: Data(independentQueueInput.serializedState!.utf8)) as! NSDictionary
+  precondition(independentQueueInput.text == "Independent draft 🐈" && currentNativeState.isEqual(independentNativeState),
+    "Editing a queued turn must preserve the independent chat draft and its native editor state")
+  precondition(descendants(editQueueComposer).compactMap { ($0 as? UILabel)?.text }.contains("independent.txt"),
+    "Queue updates must preserve the independent draft's attachment")
+}
+checkRetainedQueueEditor()
+editQueueDrafts.reverse()
+editQueueDrafts.append(ChatQueuedDraft(id: "edit-gamma", text: "Gamma message", attachments: ["later.pdf"]))
+editQueueComposer.setQueue(editQueueDrafts, enteringTranscript: [])
+editQueueComposer.setComposerState(queueEditorState(editingAlphaState.merging(["editingText": "Late server prefill"]) { _, new in new }))
+editQueueComposer.layoutIfNeeded()
+checkRetainedQueueEditor()
+let editRows = alphaEditorRow.superview as! UIStackView
+precondition(editRows.arrangedSubviews[1] === alphaEditorRow,
+  "Reordering queued turns must move surrounding rows without replacing the editor")
+alphaQueueEditor.insertText("X")
+let submittedQueueText = alphaQueueEditor.text!
+let saveQueueEdit = descendants(editQueueComposer).compactMap { $0 as? UIButton }.first {
+  $0.accessibilityIdentifier == "edit-alpha:save-edit"
+}!
+saveQueueEdit.sendActions(for: .touchUpInside)
+precondition(editQueueEvents.last?["text"] as? String == submittedQueueText,
+  "Saving after metadata and order updates must emit the current native editor text")
+editQueueComposer.setComposerState(queueEditorState(editingAlphaState.merging(["busyId": "edit-alpha"]) { _, new in new }))
+precondition(!alphaQueueEditor.isEditable && !saveQueueEdit.isEnabled,
+  "A pending queue operation must lock the retained editor and save action")
+editQueueComposer.setComposerState(queueEditorState(editingAlphaState.merging(["unknownIds": ["edit-alpha"]]) { _, new in new }))
+let unknownQueueEditor = descendants(editQueueComposer).compactMap { $0 as? UITextView }.first {
+  $0.accessibilityIdentifier == "edit-alpha:queue-editor"
+}!
+precondition(unknownQueueEditor === alphaQueueEditor && alphaQueueEditor.text == submittedQueueText && !alphaQueueEditor.isEditable,
+  "An uncertain queue write must retain the actual draft editor while making it read-only")
+let queueCheck = descendants(editQueueComposer).compactMap { $0 as? UIButton }.first {
+  $0.accessibilityIdentifier == "edit-alpha:check"
+}!
+queueCheck.sendActions(for: .touchUpInside)
+precondition(editQueueEvents.last?["action"] as? String == "check",
+  "The retained unknown editor must expose its read-only receipt check")
+editQueueComposer.setComposerState(queueEditorState(editingAlphaState))
+precondition(alphaQueueEditor.isEditable && alphaQueueEditor.text == submittedQueueText,
+  "Resolving a receipt must unlock the same editor with the live draft retained")
+let queueCancel = descendants(editQueueComposer).compactMap { $0 as? UIButton }.first {
+  $0.accessibilityIdentifier == "edit-alpha:cancel-edit"
+}!
+queueCancel.sendActions(for: .touchUpInside)
+precondition(editQueueEvents.last?["action"] as? String == "cancel-edit",
+  "The restored editor must retain its real cancellation action")
+editQueueComposer.setComposerState(queueEditorState(["editable": true, "editingCompletedId": "edit-alpha"]))
+precondition(alphaQueueEditor.window == nil && !alphaQueueEditor.isFirstResponder,
+  "Ending a queue edit must detach the old editor and release its focus")
+editQueueComposer.setComposerState(queueEditorState(editingAlphaState))
+RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+let reopenedQueueEditor = descendants(editQueueComposer).compactMap { $0 as? UITextView }.first {
+  $0.accessibilityIdentifier == "edit-alpha:queue-editor"
+}!
+precondition(reopenedQueueEditor !== alphaQueueEditor && reopenedQueueEditor.text == "Alpha message" && reopenedQueueEditor.isFirstResponder,
+  "A completed edit must reopen from the authoritative prefill rather than the abandoned native draft")
+editQueueDrafts.removeAll { $0.id == "edit-alpha" }
+editQueueComposer.setQueue(editQueueDrafts, enteringTranscript: [])
+precondition(reopenedQueueEditor.window == nil && onMain { !ChatSendHandoff.isWaiting(id: "edit-alpha") },
+  "A queue claim or removal must retire its editor without a fake send animation")
+editQueueComposer.setQueue([], enteringTranscript: [])
+editQueueComposer.setComposerState(queueEditorState(["editable": true, "editingId": "edit-later", "editingText": "Later turn"]))
+precondition(independentQueueInput.becomeFirstResponder(), "The independent draft must remain available while the edited queue row loads")
+editQueueComposer.setQueue([ChatQueuedDraft(id: "edit-later", text: "Later turn")], enteringTranscript: [])
+RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+let laterQueueEditor = descendants(editQueueComposer).compactMap { $0 as? UITextView }.first {
+  $0.accessibilityIdentifier == "edit-later:queue-editor"
+}!
+precondition(laterQueueEditor.isFirstResponder,
+  "Composer edit state arriving before queue history must focus the editor once its row is created")
+editQueueComposer.setComposerState(queueEditorState(["editable": true, "editingCompletedId": "edit-later"]))
+precondition(independentQueueInput.becomeFirstResponder(), "A completed edit must leave the independent input focusable")
+editQueueComposer.setComposerState(queueEditorState(["editable": true, "editingId": "edit-later"]))
+editQueueComposer.setComposerState(queueEditorState(["editable": true, "editingId": "edit-later", "unknownIds": ["edit-later"]]))
+RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+precondition(independentQueueInput.isFirstResponder,
+  "A deferred queue autofocus must not steal focus after that editor becomes read-only")
+editQueueComposer.setComposerState(queueEditorState(["editable": true, "editingCompletedId": "edit-later"]))
+editQueueWindow.isHidden = true
+print("Queue editor: actual focus, live text/selection/native draft, metadata/order, busy, unknown, save/cancel and claim boundaries pass")
 
 let guideWindow = HandoffWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
 let guideComposer = ChatComposerView(frame: CGRect(x: 0, y: 600, width: 390, height: 244))
@@ -849,6 +1210,130 @@ precondition(
   "The model trigger chevron must use the compact 5-point symbol size"
 )
 print("Composer: model trigger chevron stays compact")
+
+@MainActor final class ComposerOptionsHost: UIViewController {
+  var captured: UIViewController?
+  override func present(_ viewControllerToPresent: UIViewController, animated flag: Bool, completion: (() -> Void)? = nil) {
+    captured = viewControllerToPresent
+    completion?()
+  }
+}
+let optionsHost = ComposerOptionsHost()
+optionsHost.view.addSubview(modelComposer)
+modelComposer.setComposerOptions(#"""
+{"modelId":"gpt","models":[{"id":"gpt","title":"GPT"}],"effort":"medium","efforts":[{"id":"medium","title":"Medium"}],"fast":true,
+ "permissionId":"read-only","permissions":[{"id":"read-only","title":"Read only"}],"mcpServerIds":["docs"],
+ "runOptions":{"roles":[{"id":"reviewer","name":"Reviewer","machineId":"machine","agentConfigId":"agent","agentName":"Agent","revision":3,"runConfig":{},"available":true}],
+ "mcpServers":[{"id":"docs","name":"Docs","transport":"http","enabledByDefault":false},{"id":"browser","name":"Browser","transport":"stdio","enabledByDefault":false}]}}
+"""#)
+var optionDeltas: [[String: Any]] = []
+modelComposer.onComposerOptionChange = { optionDeltas.append($0) }
+for action in modelButton.actions(forTarget: modelComposer, forControlEvent: .touchUpInside) ?? [] {
+  modelComposer.perform(NSSelectorFromString(action))
+}
+let optionsPanel = optionsHost.captured as! ChatComposerModelPanel
+@MainActor func optionsButton(_ id: String) -> UIButton {
+  descendants(optionsPanel.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == id }!
+}
+@MainActor func chooseOption(_ id: String, _ title: String) {
+  chooseOption(optionsPanel, id, title)
+}
+@MainActor func chooseOption(_ panel: ChatComposerModelPanel, _ id: String, _ title: String) {
+  let button = descendants(panel.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == id }!
+  let action = button.menu!.children.compactMap { $0 as? UIAction }.first { $0.title == title }!
+  precondition(!action.attributes.contains(.disabled), "The selected panel action must be available")
+  button.sendAction(action)
+}
+@MainActor func checkUnchangedRunValues() {
+  let model = optionsButton("composer-model-menu")
+  let effort = descendants(optionsPanel.view).first { $0.accessibilityIdentifier == "composer-effort-slider" }!
+  let permission = descendants(modelComposer).first { $0.accessibilityIdentifier == "session-permission" }!
+  precondition(model.configuration?.subtitle == "GPT" && effort.accessibilityValue == "Medium" && permission.accessibilityValue == "Read only",
+    "Role and MCP deltas must preserve the current model, effort and permission")
+  precondition(optionsButton("composer-fast").accessibilityTraits.contains(.selected), "Role and MCP deltas must preserve Fast")
+}
+chooseOption("composer-role-menu", "Reviewer")
+precondition(optionDeltas.count == 1 && optionDeltas.last?["agentRoleId"] as? String == "reviewer",
+  "Selecting a Role in the actual composer panel must emit its choice")
+precondition(optionDeltas.last?.count == 1 && optionsButton("composer-role-menu").accessibilityValue == "Reviewer",
+  "A Role delta must update the panel without emitting unrelated run fields")
+precondition(optionsButton("composer-mcp-menu").menu!.children.compactMap { $0 as? UIAction }.first { $0.title == "Docs" }?.state == .on,
+  "Selecting a Role must preserve existing MCP choices")
+checkUnchangedRunValues()
+chooseOption("composer-mcp-menu", "Browser")
+precondition(optionDeltas.last?["mcpServerIds"] as? [String] == ["docs", "browser"] && optionDeltas.last?.count == 1,
+  "MCP selection must emit only the explicit next server list")
+chooseOption("composer-mcp-menu", "Docs")
+precondition(optionDeltas.last?["mcpServerIds"] as? [String] == ["browser"], "Successive MCP actions must use the updated panel state")
+chooseOption("composer-mcp-menu", LodyStrings.text("runOptions.mcp.none"))
+precondition(optionDeltas.last?["mcpServerIds"] as? [String] == [] && optionsButton("composer-role-menu").accessibilityValue == "Reviewer",
+  "Clearing MCP must emit an empty list and retain the selected Role")
+checkUnchangedRunValues()
+chooseOption("composer-role-menu", LodyStrings.text("runOptions.roles.none"))
+precondition(optionDeltas.last?["agentRoleId"] is NSNull && optionDeltas.last?.count == 1,
+  "Clearing a Role must emit explicit null rather than omit the field")
+precondition(optionsButton("composer-role-menu").accessibilityValue == LodyStrings.text("runOptions.roles.none"),
+  "Clearing a Role must refresh the open panel")
+checkUnchangedRunValues()
+print("Composer: actual Role/MCP menu actions update native state and emit precise preserving deltas")
+
+let modelFreeComposer = ChatComposerView(frame: CGRect(x: 0, y: 500, width: 390, height: 244))
+let modelFreeHost = ComposerOptionsHost()
+let modelFreeWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+modelFreeWindow.rootViewController = modelFreeHost
+modelFreeHost.view.addSubview(modelFreeComposer)
+modelFreeWindow.isHidden = false
+modelFreeComposer.setComposerState(ready)
+modelFreeComposer.setComposerOptions(#"""
+{"modelId":"","models":[],"effort":"","efforts":[],
+ "runOptions":{"roles":[{"id":"reviewer","name":"Reviewer","machineId":"machine","agentConfigId":"agent","agentName":"Agent","revision":3,"runConfig":{},"available":true}],
+ "mcpServers":[{"id":"browser","name":"Browser","transport":"stdio","enabledByDefault":false}]}}
+"""#)
+let modelFreeInput = descendants(modelFreeComposer).compactMap { $0 as? UITextView }.first!
+let modelFreeButton = descendants(modelFreeComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-model" }!
+precondition(modelFreeInput.becomeFirstResponder(), "The model-free composer must accept actual input focus")
+modelFreeComposer.layoutIfNeeded()
+precondition(!modelFreeButton.isHidden && modelFreeButton.isEnabled,
+  "A focused composer with Role/MCP options must retain its only options entrance when models is empty")
+var modelFreeDeltas: [[String: Any]] = []
+modelFreeComposer.onComposerOptionChange = { modelFreeDeltas.append($0) }
+for action in modelFreeButton.actions(forTarget: modelFreeComposer, forControlEvent: .touchUpInside) ?? [] {
+  modelFreeComposer.perform(NSSelectorFromString(action))
+}
+let modelFreePanel = modelFreeHost.captured as! ChatComposerModelPanel
+let modelFreeMenu = descendants(modelFreePanel.view).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "composer-model-menu" }!
+precondition(modelFreeMenu.menu?.children.count == 1, "Opening Role/MCP controls must not manufacture model choices")
+chooseOption(modelFreePanel, "composer-role-menu", "Reviewer")
+precondition(modelFreeDeltas.last?["agentRoleId"] as? String == "reviewer")
+chooseOption(modelFreePanel, "composer-mcp-menu", "Browser")
+precondition(modelFreeDeltas.last?["mcpServerIds"] as? [String] == ["browser"])
+chooseOption(modelFreePanel, "composer-role-menu", LodyStrings.text("runOptions.roles.none"))
+precondition(modelFreeDeltas.last?["agentRoleId"] is NSNull)
+chooseOption(modelFreePanel, "composer-mcp-menu", LodyStrings.text("runOptions.mcp.none"))
+precondition(modelFreeDeltas.last?["mcpServerIds"] as? [String] == [] && !modelFreeButton.isHidden,
+  "Clearing explicit choices must keep the supported Role/MCP controls reachable")
+precondition(modelFreeDeltas.allSatisfy { $0.count == 1 && $0["modelId"] == nil && $0["effort"] == nil },
+  "Model-free Role/MCP selection must emit only the requested choices")
+modelFreeComposer.setComposerOptions(#"{"modelId":"","models":[],"effort":"","efforts":[],"agentRoleId":"removed-role","mcpServerIds":["removed-server"]}"#)
+precondition(!modelFreeButton.isHidden, "Retained Role/MCP choices must stay reachable after the catalog disappears")
+chooseOption(modelFreePanel, "composer-role-menu", LodyStrings.text("runOptions.roles.none"))
+precondition(modelFreeDeltas.last?["agentRoleId"] is NSNull && !modelFreeButton.isHidden,
+  "Clearing a stale Role must leave the retained MCP clear action reachable")
+chooseOption(modelFreePanel, "composer-mcp-menu", LodyStrings.text("runOptions.mcp.none"))
+precondition(modelFreeDeltas.last?["mcpServerIds"] as? [String] == [] && modelFreeButton.isHidden,
+  "With no catalogs or retained choices, the empty options entrance must disappear")
+modelFreeComposer.setComposerOptions(#"{"modelId":"","models":[],"effort":"","efforts":[],"fast":false}"#)
+precondition(!modelFreeButton.isHidden, "Supported Fast remains reachable without model choices")
+modelFreeComposer.setComposerOptions(#"{"modelId":"","models":[],"effort":"","efforts":[{"id":"low","title":"Low"}]}"#)
+precondition(!modelFreeButton.isHidden, "Supported effort remains reachable without model choices")
+modelFreeComposer.setComposerOptions(#"{"modelId":"legacy-model","models":[],"effort":"","efforts":[]}"#)
+precondition(!modelFreeButton.isHidden, "A retained model must remain reachable for explicit default clearing")
+chooseOption(modelFreePanel, "composer-model-menu", LodyStrings.text("native.chat.composer.defaultModel"))
+precondition(modelFreeDeltas.last?["modelId"] as? String == "" && modelFreeButton.isHidden,
+  "Clearing the last retained model must leave no meaningless options entrance")
+modelFreeInput.resignFirstResponder()
+modelFreeWindow.isHidden = true
+print("Composer: model-free and stale Role/MCP choices remain selectable and clearable; empty controls hide")
 
 let glassComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
 let glassWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
@@ -1267,13 +1752,17 @@ let replyFrame = shownReplies().first!.convert(shownReplies().first!.bounds, to:
 precondition(!quickStrip.isHidden && abs(contextFrame.minX - 16) < 0.5 && abs(contextFrame.height - quickChipHeight) < 0.5,
   "The context chip leads the row at chip height")
 precondition(replyFrame.minX - contextFrame.maxX > 12, "A separator divides the context zone from suggestions")
-precondition(quickStrip.hitTest(CGPoint(x: contextFrame.midX, y: contextFrame.midY), with: nil) === context,
-  "Hosted chip content must leave touches to the native button")
+var contextOpens: [String] = []
+quickComposer.onPreview = { contextOpens.append($0) }
+precondition(!context.isEnabled, "A connecting preview must disable opening")
+context.sendActions(for: .touchUpInside)
+precondition(contextOpens.isEmpty, "A connecting preview must ignore programmatic opening too")
 quickState(["quickReplies": contextReply, "preview": previewChip("localhost:5173")])
 precondition(contextButton() === context, "The context chip keeps its identity so state changes animate in place")
 precondition(context.bounds.width > connectingWidth + 8, "The context chip follows its label width")
-var contextOpens: [String] = []
-quickComposer.onPreview = { contextOpens.append($0) }
+let readyContextFrame = context.convert(context.bounds, to: quickStrip)
+precondition(context.isEnabled && quickStrip.hitTest(CGPoint(x: readyContextFrame.midX, y: readyContextFrame.midY), with: nil) === context,
+  "Ready hosted chip content must leave touches to the enabled native button")
 context.sendActions(for: .touchUpInside)
 precondition(contextOpens == ["open"])
 quickState(["quickReplies": contextReply, "preview": previewChip("localhost:5173"), "running": true])

@@ -61,7 +61,7 @@ enum CreateSessionSections {
     if page.loading { footer = text("create.machineConfig.loading") }
     else if agent != nil { footer = text("create.machineConfig.ready") }
     if unavailable != nil { footer = "" }
-    let agentRows: [LodyListRow] = [
+    var agentRows: [LodyListRow] = [
       .item(
         "agent", agent?.name ?? pickTitle(page.loading, text("create.row.selectAgent")),
         subtitle: (!page.chat && !page.github && page.failed ? unavailable : nil) ?? text("create.label.agent"), image: "sparkles",
@@ -69,6 +69,18 @@ enum CreateSessionSections {
         disclosure: !page.agents.isEmpty, navigates: !page.agents.isEmpty),
       modelRow,
     ]
+    if !page.roles.isEmpty || page.choice.agentRoleId != nil {
+      agentRows.append(.item("role", page.selectedRole?.name ?? page.choice.agentRoleId ?? text("runOptions.roles.none"),
+        subtitle: text("runOptions.roles.label"), image: "person.crop.rectangle.stack", disclosure: true, navigates: true))
+    }
+    if !page.mcpServers.isEmpty || !(page.choice.mcpServerIds?.isEmpty ?? true) {
+      agentRows.append(.item("mcp", text("runOptions.mcp.title"),
+        value: LodyStrings.text("runOptions.mcp.enabled", ["count": String(page.choice.mcpServerIds?.count ?? 0)]),
+        image: "network", disclosure: true, navigates: true))
+    }
+    if page.options?.runOptions?.unavailable == true {
+      agentRows.append(.item("run-options-retry", text("runOptions.unavailable"), image: "arrow.clockwise"))
+    }
     let agentSection = LodyListSection.group("agent", footer: footer, agentRows)
     if page.chat { return [.group("machine", [machineRow]), agentSection] }
 
@@ -93,6 +105,11 @@ enum CreateSessionSections {
         disclosure: true, navigates: true, accessibilityValue: branch)
       branchRow.wrapSubtitle = true
       projectRows.append(branchRow)
+    }
+    if page.worktreeAvailable || page.useWorktree {
+      projectRows.append(.item("worktree", text("runOptions.worktree.title"),
+        value: text(page.useWorktree ? "runOptions.worktree.new" : "runOptions.worktree.current"),
+        image: "arrow.triangle.branch", disclosure: true, navigates: true))
     }
     let branchHint = form.deferUnresolved ? "create.branch.cachedHint" : "create.branch.hint"
     var sections: [LodyListSection] = [.group("project", footer: page.github ? text(branchHint) : "", projectRows)]

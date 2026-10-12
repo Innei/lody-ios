@@ -18,6 +18,98 @@ let claudeCapability = Capability(
   reasoningEfforts: ["opus": ["low", "high"]])
 let options = CreationOptions(sessionId: "s", project: CreateProject(id: "p1", machineId: "m1", name: "P"), agents: [codex, claude], capabilities: [claudeCapability])
 
+// Roles and MCP stay attached to their project, while ordinary model memory remains reusable.
+do {
+  let capability = Capability(machineId: "m1", cliType: "builtin", agentType: "codex",
+    models: [CapabilityChoice(id: "a", name: "A"), CapabilityChoice(id: "b", name: "B")],
+    modes: [CapabilityChoice(id: "read-only", name: "Read Only"), CapabilityChoice(id: "agent-full-access", name: "Full Access")])
+  let role = AgentRoleOption(id: "reviewer", name: "Reviewer", machineId: "m1", agentConfigId: "c1", agentName: "Codex",
+    revision: 3, runConfig: RoleRunConfig(modelId: "a", modeId: "read-only"), available: true)
+  let catalog = RunOptionsCatalog(roles: [role], mcpServers: [
+    McpServerOption(id: "docs", name: "Docs", transport: "stdio", enabledByDefault: true),
+    McpServerOption(id: "browser", name: "Browser", transport: "http", enabledByDefault: false),
+  ], worktreeAvailable: true)
+  let choices = CreationOptions(sessionId: "s", agents: [codex], capabilities: [capability], runOptions: catalog)
+  var unavailable = choices
+  unavailable.runOptions = RunOptionsCatalog(roles: [], mcpServers: [], unavailable: true)
+  var retry = CreateSessionForm(userId: "u", workspaceId: "w", projects: [CreateProject(id: "p1", machineId: "m1", name: "P")])
+  retry.open(projectId: "p1", context: nil)
+  retry.applyOptions(unavailable, chat: false)
+  check(retry.canSend && retry.current.choice.mcpServerIds == nil, "optional catalog failure keeps ordinary creation and does not freeze unknown defaults")
+  retry.applyOptions(choices, chat: false)
+  check(retry.current.choice.mcpServerIds == ["docs"], "successful retry copies first known workspace defaults")
+  retry.selectMcp([])
+  retry.applyOptions(unavailable, chat: false)
+  retry.applyOptions(choices, chat: false)
+  check(retry.current.choice.mcpServerIds == [], "catalog retry never overrides explicit all off")
+  retry.selectRole("reviewer")
+  retry.selectMcp(["browser"])
+  retry.applyOptions(unavailable, chat: false)
+  check(!retry.canSend && retry.current.choice.agentRoleId == "reviewer" && retry.current.choice.mcpServerIds == ["browser"], "unavailable catalog keeps explicit selections but blocks unresolved creation")
+  retry.applyOptions(choices, chat: false)
+  check(retry.canSend && retry.current.choice.agentRoleRevision == 3 && retry.current.choice.mcpServerIds == ["browser"], "retry restores the same frozen Role and selected MCP ids")
+  var bulkRole = role
+  bulkRole.runConfig.configOptionValues = Dictionary(uniqueKeysWithValues: (0..<64).map { ("pin-\($0)", ConfigValue.string("value")) })
+  var bulkOptions = choices
+  bulkOptions.runOptions?.roles = [bulkRole]
+  var combined = CreateSessionForm(userId: "u", workspaceId: "w", projects: [CreateProject(id: "p1", machineId: "m1", name: "P")])
+  combined.open(projectId: "p1", context: nil)
+  combined.applyOptions(bulkOptions, chat: false)
+  var prior = combined.current.choice
+  prior.configOptionValues = Dictionary(uniqueKeysWithValues: (0..<64).map { ("prior-\($0)", ConfigValue.bool(false)) })
+  combined.updateChoice(prior)
+  check(combined.availableRoles.first?.available == true, "64 Role pins can combine with 64 remembered ordinary values")
+  combined.selectRole("reviewer")
+  check(combined.canSend && combined.current.choice.configOptionValues?.count == 128 && combined.current.choice.configOptionValues?["prior-0"] == .bool(false), "all combined options remain in the ready draft")
+  var overflow = combined.current.choice
+  overflow.configOptionValues?["extra"] = .bool(true)
+  combined.updateChoice(overflow)
+  check(!combined.canSend && combined.draft(sessionId: "overflow") == nil, "129 selected options cannot create a session")
+  check(combined.current.choice.configOptionValues?.count == 129, "unsupported complete choice remains intact for correction")
+  var blocked = prior
+  blocked.configOptionValues?["extra"] = .bool(true)
+  combined.updateChoice(blocked)
+  check(combined.availableRoles.first?.available == false, "prospective overflow Role stays visible but disabled")
+  combined.selectRole("reviewer")
+  check(combined.current.choice == blocked, "disabled Role does not overwrite prior options")
+  for invalid in [ ["empty": ConfigValue.string("")], ["token": .string("private")], [String(repeating: "x", count: 129): .bool(false)], ["long": .string(String(repeating: "x", count: 513))] ] {
+    check(!CreateLogic.supportsConfigOptionValues(invalid), "complete native choice follows the send field trust rules")
+  }
+  bulkRole.runConfig.configOptionValues?["pin-extra"] = .string("value")
+  bulkOptions.runOptions?.roles = [bulkRole]
+  combined.updateChoice(ModelChoice())
+  combined.applyOptions(bulkOptions, chat: false)
+  check(combined.availableRoles.first?.available == false, "cached 65-option Role cannot be selected")
+  var form = CreateSessionForm(userId: "u", workspaceId: "w", projects: [CreateProject(id: "p1", machineId: "m1", name: "P")])
+  form.open(projectId: "p1", context: nil)
+  form.applyOptions(choices, chat: false)
+  check(form.current.choice.mcpServerIds == ["docs"], "workspace MCP defaults copied once")
+  form.selectRole("reviewer")
+  form.selectMcp(["browser"])
+  form.selectWorktree(true)
+  let draft = form.draft(sessionId: "s")!
+  check(draft.choice.agentRoleId == "reviewer" && draft.choice.agentRoleRevision == 3 && draft.useWorktree == true, "Role and worktree reach first-turn draft")
+  check(draft.choice.frozenRole?.modelId == "a" && draft.choice.mcpServerIds == ["browser"], "draft freezes Role and exact MCP ids")
+  let other = CreateLogic.restoreSelection(roundTrip(form.prefs), target: "p2", options: choices)
+  check(other.choice.agentRoleId == nil && other.choice.mcpServerIds == ["docs"], "Role and custom MCP do not leak to another project")
+  check(form.prefs?.projects?["p2"]?.useWorktree == nil, "worktree preference is project-scoped")
+  form.selectRole(nil)
+  check(form.current.choice.modelId == "a" && form.current.choice.modeId == "read-only", "None preserves Role run values")
+  form.selectRole("reviewer")
+  form.selectModel("b")
+  check(form.current.choice.agentRoleId == nil && form.current.choice.mcpServerIds == ["browser"], "model edit detaches Role while preserving MCP")
+  form.selectRole("reviewer")
+  var changed = choices
+  changed.runOptions?.roles[0].revision = 4
+  form.applyOptions(changed, chat: false)
+  check(!form.canSend && form.current.choice.agentRoleRevision == 3, "catalog refresh cannot silently replace a frozen Role revision")
+  form.selectRole("reviewer")
+  check(form.canSend && form.current.choice.agentRoleRevision == 4, "explicit reselect accepts current revision")
+  form.switchPage(chat: true)
+  form.applyOptions(choices, chat: true)
+  check(!form.current.worktreeAvailable && !form.current.useWorktree && form.current.choice.agentRoleId == nil, "Chat owns separate Role/MCP choices and never a local worktree")
+}
+
 // Chat context is remembered without overwriting the last project.
 do {
   let project = CreateLogic.withSelection(nil, target: "p1", selection: ProjectPrefs(machineId: "m1", agentKey: "m1:c1"), chat: false)

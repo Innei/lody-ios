@@ -1,5 +1,6 @@
 import UIKit
 import MetalKit
+import LodyCore
 
 struct ChatComposerOption: Decodable {
   let id: String
@@ -15,6 +16,9 @@ struct ChatComposerOptions: Decodable {
   var fast: Bool?
   var models: [ChatComposerOption] = []
   var efforts: [ChatComposerOption] = []
+  var runOptions: RunOptionsCatalog?
+  var agentRoleId: String?
+  var mcpServerIds: [String]?
 }
 
 extension ChatComposerOptions {
@@ -304,10 +308,16 @@ final class ChatComposerModelPanel: UIViewController, UIPopoverPresentationContr
   var onModel: ((String) -> Void)?
   var onEffort: ((String) -> Void)?
   var onFast: ((Bool) -> Void)?
+  var onRole: ((String?) -> Void)?
+  var onMcp: (([String]) -> Void)?
   private var options = ChatComposerOptions()
   private let model = UIButton(type: .system)
   private let fast = UIButton(type: .system)
   private let slider = ChatEffortSlider()
+  private let role = UIButton(type: .system)
+  private let mcp = UIButton(type: .system)
+  private let runRows = UIStackView()
+  private lazy var runTop = runRows.topAnchor.constraint(equalTo: model.bottomAnchor, constant: 8)
   private lazy var modelLeading = model.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24)
   private lazy var modelTrailing = model.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24)
 
@@ -322,7 +332,15 @@ final class ChatComposerModelPanel: UIViewController, UIPopoverPresentationContr
     slider.accessibilityLabel = LodyStrings.text("native.chat.composer.effort")
     slider.accessibilityIdentifier = "composer-effort-slider"
     slider.addTarget(self, action: #selector(changeEffort), for: .valueChanged)
-    for child in [model, slider, fast] {
+    runRows.axis = .horizontal
+    runRows.distribution = .fillEqually
+    runRows.spacing = 8
+    for (button, id) in [(role, "composer-role-menu"), (mcp, "composer-mcp-menu")] {
+      button.showsMenuAsPrimaryAction = true
+      button.accessibilityIdentifier = id
+      runRows.addArrangedSubview(button)
+    }
+    for child in [model, slider, fast, runRows] as [UIView] {
       child.translatesAutoresizingMaskIntoConstraints = false
       view.addSubview(child)
     }
@@ -339,6 +357,10 @@ final class ChatComposerModelPanel: UIViewController, UIPopoverPresentationContr
       slider.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
       slider.topAnchor.constraint(equalTo: model.bottomAnchor, constant: 8),
       slider.heightAnchor.constraint(equalToConstant: 44),
+      runRows.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+      runRows.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+      runTop,
+      runRows.heightAnchor.constraint(equalToConstant: 44),
     ])
   }
 
@@ -359,7 +381,11 @@ final class ChatComposerModelPanel: UIViewController, UIPopoverPresentationContr
     fast.configuration = fastConfiguration
     fast.accessibilityTraits = enabled ? [.button, .selected] : [.button]
     fast.accessibilityValue = LodyStrings.text(enabled ? "native.chat.composer.fastOn" : "native.chat.composer.fastOff")
-    preferredContentSize = CGSize(width: 320, height: options.efforts.isEmpty ? 76 : 132)
+    role.isHidden = (options.runOptions?.roles.isEmpty ?? true) && options.agentRoleId == nil
+    mcp.isHidden = (options.runOptions?.mcpServers.isEmpty ?? true) && (options.mcpServerIds?.isEmpty ?? true)
+    runRows.isHidden = role.isHidden && mcp.isHidden
+    runTop.constant = options.efforts.isEmpty ? 8 : 60
+    preferredContentSize = CGSize(width: 320, height: (options.efforts.isEmpty ? 76 : 132) + (runRows.isHidden ? 0 : 52))
     var configuration = UIButton.Configuration.plain()
     configuration.baseForegroundColor = options.effort.lowercased() == "ultra" ? ChatEffortHeat.violet : .lodyAccent
     configuration.title = options.effortTitle + " ›"
@@ -395,6 +421,48 @@ final class ChatComposerModelPanel: UIViewController, UIPopoverPresentationContr
     slider.accessibilityValue = options.effortTitle
     slider.isFast = options.fast == true
     slider.isUltra = options.effort.lowercased() == "ultra" && !efforts.isEmpty
+    renderRunOptions()
+  }
+
+  private func renderRunOptions() {
+    let roles = options.runOptions?.roles ?? []
+    let current = roles.first { $0.id == options.agentRoleId }
+    var roleConfig = UIButton.Configuration.plain()
+    roleConfig.image = UIImage(systemName: "person.crop.rectangle.stack")
+    roleConfig.title = current?.name ?? options.agentRoleId ?? LodyStrings.text("runOptions.roles.none")
+    roleConfig.imagePadding = 6
+    roleConfig.baseForegroundColor = .lodyAccent
+    roleConfig.titleLineBreakMode = .byTruncatingTail
+    role.configuration = roleConfig
+    role.accessibilityLabel = LodyStrings.text("runOptions.roles.choose")
+    role.accessibilityValue = roleConfig.title
+    let none = UIAction(title: LodyStrings.text("runOptions.roles.none"), state: options.agentRoleId == nil ? .on : .off) { [weak self] _ in self?.onRole?(nil) }
+    role.menu = UIMenu(title: LodyStrings.text("runOptions.roles.title"), children: [none] + roles.map { item in
+      let action = UIAction(title: item.name, attributes: item.available ? [] : [.disabled], state: item.id == options.agentRoleId ? .on : .off) { [weak self] _ in self?.onRole?(item.id) }
+      action.subtitle = item.available ? item.summary : LodyStrings.text("runOptions.roles." + (item.unavailableReason ?? "unavailable"))
+      return action
+    })
+    let selected = options.mcpServerIds ?? []
+    var mcpConfig = UIButton.Configuration.plain()
+    mcpConfig.image = UIImage(systemName: "network")
+    mcpConfig.title = LodyStrings.text("runOptions.mcp.label")
+    mcpConfig.subtitle = LodyStrings.text("runOptions.mcp.enabled", ["count": String(selected.count)])
+    mcpConfig.imagePadding = 6
+    mcpConfig.baseForegroundColor = .lodyAccent
+    mcp.configuration = mcpConfig
+    mcp.accessibilityLabel = LodyStrings.text("runOptions.mcp.title")
+    mcp.accessibilityValue = mcpConfig.subtitle
+    let off = UIAction(title: LodyStrings.text("runOptions.mcp.none"), state: selected.isEmpty ? .on : .off) { [weak self] _ in self?.onMcp?([]) }
+    mcp.menu = UIMenu(title: LodyStrings.text("runOptions.mcp.title"), children: [off] + (options.runOptions?.mcpServers ?? []).map { server in
+      let action = UIAction(title: server.name, attributes: [.keepsMenuPresented], state: selected.contains(server.id) ? .on : .off) { [weak self] _ in
+        guard let self else { return }
+        var ids = self.options.mcpServerIds ?? []
+        if ids.contains(server.id) { ids.removeAll { $0 == server.id } } else { ids.append(server.id) }
+        self.onMcp?(ids)
+      }
+      action.subtitle = server.transport
+      return action
+    })
   }
 
   @objc private func toggleFast() {

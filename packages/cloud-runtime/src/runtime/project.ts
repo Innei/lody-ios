@@ -84,6 +84,8 @@ export type EntrySummary = TurnMetadata & {
   role: string;
   status: string;
   finished: boolean;
+  queueEditing?: boolean;
+  queueEditingStartedAt?: number;
   userTurnId?: string;
   executionId?: string;
   executionFinished?: boolean;
@@ -107,6 +109,9 @@ export type Envelope = {
   awaitingUserSince?: number;
   preview?: { label: string; active: boolean };
   composer?: {
+    mcpServerIds?: string[];
+    agentRoleId?: string | null;
+    agentRoleRevision?: number;
     modelId?: string;
     modeId?: string;
     effort?: string;
@@ -168,6 +173,12 @@ function countDiff(content: unknown) {
     ? undefined
     : { path, added, removed };
 }
+
+const validIdentifier = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.length > 0 &&
+  value.length <= 256 &&
+  !/[\s\u0000-\u001f\u007f]/.test(value);
 
 function summarizeItem(
   projection: Projection,
@@ -496,6 +507,20 @@ export function projectSession(
   const effort = [options.reasoning_effort, options.effort].find(
     (value) => typeof value === 'string',
   );
+  const mcpServerIds =
+    Array.isArray(input?.mcpServerIds) &&
+    input.mcpServerIds.every(validIdentifier)
+      ? input.mcpServerIds
+      : undefined;
+  const agentRoleId =
+    input?.agentRoleId === null || validIdentifier(input?.agentRoleId)
+      ? input.agentRoleId
+      : undefined;
+  const agentRoleRevision =
+    Number.isSafeInteger(input?.agentRoleRevision) &&
+    input.agentRoleRevision >= 1
+      ? input.agentRoleRevision
+      : undefined;
   const summarized = raw.map((entry, index) =>
     summarizeEntry(projectionFor(doc), history, entry, index, pendingOutcomes),
   );
@@ -545,6 +570,22 @@ export function projectSession(
   );
   revision += 1;
   const session = doc.getMap('session').toJSON();
+  let composer: Envelope['composer'];
+  if (input) {
+    composer = {
+      ...(mcpServerIds !== undefined ? { mcpServerIds } : {}),
+      ...(agentRoleId !== undefined ? { agentRoleId } : {}),
+      ...(agentRoleRevision !== undefined && typeof agentRoleId === 'string'
+        ? { agentRoleRevision }
+        : {}),
+      ...(typeof input.modelId === 'string' ? { modelId: input.modelId } : {}),
+      ...(typeof input.modeId === 'string' ? { modeId: input.modeId } : {}),
+      ...(typeof effort === 'string' ? { effort } : {}),
+      ...(Object.keys(composerValues).length
+        ? { configOptionValues: composerValues }
+        : {}),
+    };
+  }
   return {
     v: 1,
     status,
@@ -556,22 +597,7 @@ export function projectSession(
         ? session.awaitingUserSince
         : undefined,
     preview: previewSummary(doc),
-    ...(input
-      ? {
-          composer: {
-            ...(typeof input.modelId === 'string'
-              ? { modelId: input.modelId }
-              : {}),
-            ...(typeof input.modeId === 'string'
-              ? { modeId: input.modeId }
-              : {}),
-            ...(typeof effort === 'string' ? { effort } : {}),
-            ...(Object.keys(composerValues).length
-              ? { configOptionValues: composerValues }
-              : {}),
-          },
-        }
-      : {}),
+    ...(composer ? { composer } : {}),
     entries: [
       ...ordered.map((entry) => ({ ...entry, ...execution.get(entry.id) })),
       ...queued
@@ -591,6 +617,12 @@ export function projectSession(
           finished: false,
           rev: 0,
           timestamp: item.timestamp,
+          queueEditing: item.isEditing === true,
+          queueEditingStartedAt:
+            typeof item.editingStartedAt === 'number' &&
+            Number.isFinite(item.editingStartedAt)
+              ? item.editingStartedAt
+              : undefined,
           items: (
             item.acpSessionConfig?.inputBlocks ?? [
               { type: 'text', text: item.task },

@@ -100,11 +100,66 @@ public enum CreateLogic {
       ?? options.agents.first
     let capability = capabilityFor(options, agent)
     let modelId = capability?.models.contains { $0.id == saved.modelId } == true ? saved.modelId : nil
+    var choice = rememberedModelChoice(prefs, agentKey: agent?.key ?? "", capability: capability, modelId: modelId, legacy: saved)
+    var defaultMcpServerIds: [String]?
+    if let catalog = options.runOptions, catalog.unavailable != true {
+      defaultMcpServerIds = catalog.mcpServers.filter(\.enabledByDefault).map(\.id)
+    }
+    choice.mcpServerIds = saved.mcpServerIds ?? defaultMcpServerIds
+    if let roleId = saved.agentRoleId {
+      choice.agentRoleId = roleId
+      choice.agentRoleRevision = saved.agentRoleRevision
+      choice.frozenRole = saved.frozenRole
+      if let role = options.runOptions?.roles.first(where: { $0.id == roleId && $0.revision == saved.agentRoleRevision && $0.available }) {
+        choice = withRole(choice, role: role, capability: capability)
+      } else if let frozen = saved.frozenRole {
+        choice.modelId = frozen.modelId ?? choice.modelId
+        choice.modeId = frozen.modeId ?? choice.modeId
+        choice.configOptionValues = (choice.configOptionValues ?? [:]).merging(frozen.configOptionValues ?? [:]) { $1 }
+      }
+    }
     return (
       agent?.machineId ?? "",
       agent?.key ?? "",
-      rememberedModelChoice(prefs, agentKey: agent?.key ?? "", capability: capability, modelId: modelId, legacy: saved)
+      choice
     )
+  }
+
+  public static func supportsConfigOptionValues(_ values: [String: ConfigValue]?, maximum: Int = 128) -> Bool {
+    guard let values else { return true }
+    guard values.count <= maximum else { return false }
+    return values.allSatisfy { id, value in
+      guard !id.isEmpty, id.utf16.count <= 128,
+        id.range(of: "(?:api[_-]?key|auth|bearer|credential|password|passwd|secret|token)", options: [.regularExpression, .caseInsensitive]) == nil else { return false }
+      if case .string(let string) = value { return !string.isEmpty && string.utf16.count <= 512 }
+      return true
+    }
+  }
+
+  public static func withRole(_ choice: ModelChoice, role: AgentRoleOption?, capability: Capability?) -> ModelChoice {
+    var next = choice
+    next.agentRoleId = role?.id
+    next.agentRoleRevision = role?.revision
+    next.frozenRole = role?.runConfig
+    guard let role else { return next }
+    let config = role.runConfig
+    next.modelId = config.modelId ?? next.modelId
+    next.modeId = config.modeId ?? next.modeId
+    next.configOptionValues = (next.configOptionValues ?? [:]).merging(config.configOptionValues ?? [:]) { $1 }
+    if case .string(let effort)? = config.configOptionValues?[capability?.reasoningEffortConfigId ?? "reasoning_effort"] { next.effort = effort }
+    return next
+  }
+
+  public static func detachingChangedRole(_ choice: ModelChoice, capability: Capability?) -> ModelChoice {
+    guard choice.agentRoleId != nil, let config = choice.frozenRole else { return choice }
+    let effortId = capability?.reasoningEffortConfigId ?? "reasoning_effort"
+    let changed = (config.modelId != nil && config.modelId != choice.modelId) ||
+      (config.modeId != nil && config.modeId != choice.modeId) ||
+      (config.configOptionValues ?? [:]).contains { entry in
+        if entry.key == effortId, let effort = choice.effort { return entry.value != .string(effort) }
+        return entry.value != choice.configOptionValues?[entry.key]
+      }
+    return changed ? withRole(choice, role: nil, capability: capability) : choice
   }
 
   public static func rememberedModelChoice(
@@ -131,7 +186,10 @@ public enum CreateLogic {
     next.context = chat ? "chat" : "project"
     if !chat { next.projectId = target }
     var models = next.modelChoices ?? [:]
-    models[modelKey(selection.agentKey ?? "", selection.modelId)] = selection.choice
+    if selection.agentRoleId == nil {
+      models[modelKey(selection.agentKey ?? "", selection.modelId)] = ModelChoice(
+        modelId: selection.modelId, effort: selection.effort, modeId: selection.modeId, configOptionValues: selection.configOptionValues)
+    }
     next.modelChoices = models
     var projects = next.projects ?? [:]
     projects[target] = selection

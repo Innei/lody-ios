@@ -153,6 +153,7 @@ export function projectRows(
           ? `github:${repo}`
           : `${machineId}:unassigned`;
     sessions.push({
+      agentConfigId: text(value.agentConfigId).trim() || undefined,
       lastModel: modelOf(value.lastModel),
       cliType: text(value.cliType),
       agentType: text(value.agentType),

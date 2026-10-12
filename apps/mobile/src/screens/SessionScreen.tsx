@@ -22,6 +22,17 @@ import { useMachinePresence } from '@/cloud/catalog/machines';
 import { machineState } from '@lody/cloud-runtime/models/machines';
 import { useSessionControl } from '@/features/sessions/useSessionControl';
 import { useSessionSend } from '@/features/sessions/useSessionSend';
+import { useSessionQueue } from '@/features/sessions/useSessionQueue';
+import { useComposerRunOptions } from '@/hooks/screens/useComposerRunOptions';
+import {
+  detachChangedRole,
+  runOptionsForChoice,
+  selectedRoleChoice,
+} from '@/features/sessions/runOptions';
+import {
+  runOptionsFailureNotice,
+  runOptionsRecoveryAction,
+} from '@/features/sessions/runOptionsRecovery';
 import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
 import { useQuickReplies } from '@/features/settings/quick-replies';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
@@ -116,21 +127,31 @@ function connectionChrome({
   return '';
 }
 
-export type SessionParams = {
+export type SessionParams = ModelChoice & {
   session: Session;
   findQuery?: string;
   initialHistory?: PreparedSessionHistory;
   navigationTitleHidden?: boolean;
   projectName?: string;
   machineName?: string;
-  modelId?: string;
-  effort?: string;
-  modeId?: string;
 };
 
 const noPullRequests: NonNullable<Session['pullRequests']> = [];
 
 function View() {
+  const { cancel } = usePageRuntime<SessionParams>();
+  const { account } = useAuth();
+  const { selected } = useCatalog();
+  const scope = JSON.stringify([account?.user.id, selected?.id]);
+  const mountedScope = useRef(scope).current;
+  useEffect(() => {
+    if (scope !== mountedScope) cancel();
+  }, [scope, mountedScope, cancel]);
+  if (scope !== mountedScope) return null;
+  return <SessionView />;
+}
+
+function SessionView() {
   const runtime = usePageRuntime<SessionParams>();
   const {
     params: {
@@ -143,12 +164,24 @@ function View() {
       modelId,
       effort,
       modeId,
+      configOptionValues,
+      mcpServerIds,
+      agentRoleId,
+      agentRoleRevision,
+      frozenRole,
     },
   } = runtime;
   const { account } = useAuth(),
     colors = usePalette();
   const { catalog, selected, serverSessions, refresh, deleteSessionRequest } =
     useCatalog();
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   const [deleting, setDeleting] = useState(() =>
     isSessionDeleting(selected?.id ?? '', session.id),
   );
@@ -234,9 +267,19 @@ function View() {
     modelId,
     effort,
     modeId,
+    configOptionValues,
+    mcpServerIds,
+    agentRoleId,
+    agentRoleRevision,
+    frozenRole,
   });
   const choiceHydrated = useRef(
-    modelId !== undefined || effort !== undefined || modeId !== undefined,
+    modelId !== undefined ||
+      effort !== undefined ||
+      modeId !== undefined ||
+      configOptionValues !== undefined ||
+      mcpServerIds !== undefined ||
+      agentRoleId !== undefined,
   );
 
   const restoredChoice = useRef('');
@@ -250,6 +293,10 @@ function View() {
       effort: pending.send.choice.effort ?? undefined,
       modeId: pending.send.choice.modeId,
       configOptionValues: pending.send.choice.configOptionValues,
+      mcpServerIds: pending.send.choice.mcpServerIds,
+      agentRoleId: pending.send.choice.agentRoleId,
+      agentRoleRevision: pending.send.choice.agentRoleRevision,
+      frozenRole: pending.send.choice.frozenRole,
     });
   }, [outbox.ready, pending]);
 
@@ -354,9 +401,22 @@ function View() {
     choiceHydrated.current = true;
     setChoice(snapshot.composer);
   }, [snapshot.composer, outbox.ready, pending]);
-  const activeChoice = choiceHydrated.current
+  const activeChoice: ModelChoice = choiceHydrated.current
     ? choice
     : (snapshot.composer ?? choice);
+  const runOptions = useComposerRunOptions(
+    selected && account
+      ? {
+          workspaceId: selected.id,
+          userId: account.user.id,
+          sessionId: currentSession.id,
+        }
+      : undefined,
+  );
+  const choiceRunOptions = runOptionsForChoice(
+    runOptions.catalog,
+    activeChoice,
+  );
   const { queuedMessageBehavior } = useQueuedMessageBehavior();
   const { quickReplies } = useQuickReplies();
   const control = useSessionControl(
@@ -376,6 +436,17 @@ function View() {
     overflow,
     queuedMessageBehavior,
     steerable: capability?.steer === true,
+  });
+  const queue = useSessionQueue({
+    snapshot,
+    sessionId: session.id,
+    workspaceId: selected?.id ?? '',
+    userId: account?.user.id ?? '',
+    editable:
+      snapshot.status === 'live' &&
+      !currentSession.archived &&
+      !overflow &&
+      !deleting,
   });
   const editableMessageId = useEditableMessage(
     session.id,
@@ -419,9 +490,17 @@ function View() {
         : activeChoice.effort,
       reasoningEffortConfigId: capability?.reasoningEffortConfigId,
       configOptionValues: activeChoice.configOptionValues,
+      mcpServerIds: activeChoice.mcpServerIds,
+      agentRoleId: activeChoice.agentRoleId,
+      agentRoleRevision: activeChoice.agentRoleRevision,
+      frozenRole: activeChoice.frozenRole,
     },
   });
-  const executionChoice = planExecutionChoice(activeChoice, capability);
+  const executionChoice = detachChangedRole(
+    planExecutionChoice(activeChoice, capability),
+    capability,
+    activeChoice,
+  );
   const proposedPlan = useProposedPlan({
     sessionId: session.id,
     entries: snapshot.entries,
@@ -456,6 +535,10 @@ function View() {
       reasoningEffortConfigId: capability?.reasoningEffortConfigId,
       modeId: executionChoice.modeId,
       configOptionValues: executionChoice.configOptionValues,
+      mcpServerIds: executionChoice.mcpServerIds,
+      agentRoleId: executionChoice.agentRoleId,
+      agentRoleRevision: executionChoice.agentRoleRevision,
+      frozenRole: executionChoice.frozenRole,
     },
   });
   const gate = useRef(createPermissionGate()).current;
@@ -535,15 +618,15 @@ function View() {
   );
   const entriesJSON = useMemo(
     () =>
-      preparedHistory?.snapshot.entries === snapshot.entries
+      preparedHistory?.snapshot.entries === queue.entries
         ? preparedHistory.entriesJSON
-        : sessionEntriesJSON(snapshot),
-    [snapshot.entries, preparedHistory],
+        : sessionEntriesJSON({ ...snapshot, entries: queue.entries }),
+    [queue.entries, preparedHistory],
   );
   const openFile = useOpenFile(session.id);
   const openMessageDetails = useMessageDetailsSheet(entriesJSON);
   const openProcess = useProcessSheet(entriesJSON, onActivityPress, session.id);
-  let notice = '';
+  let notice = runOptionsFailureNotice(runOptions.error);
   if (overflow) notice = t('chat.notice.syncStopped');
   const mentions = useComposerMentions(
     selected && account
@@ -585,6 +668,9 @@ function View() {
       !deleting &&
       !quotaLocked,
     sending: send.sending,
+    sendRecovery: send.sendRecovery,
+    recovering: send.recovering,
+    queueState: queue.queueState,
     running: control.running || send.awaitingReply,
     canStop: control.canStop,
     stopping: control.stopping,
@@ -628,6 +714,10 @@ function View() {
       title: item.name,
     })),
     efforts: efforts.map((id) => ({ id, title: id })),
+    runOptions: choiceRunOptions,
+    agentRoleId: activeChoice.agentRoleId,
+    mcpServerIds:
+      activeChoice.mcpServerIds ?? snapshot.composer?.mcpServerIds ?? [],
   });
   const openProjectFiles = useCallback(() => {
     if (!browsable || !account || !selected) return;
@@ -717,6 +807,7 @@ function View() {
       { text: t('common.ok'), style: 'cancel' },
     ]);
   };
+  const retryRunOptions = runOptionsRecoveryAction(runOptions);
   const headerItems = useMemo<HeaderItems>(() => {
     const items: HeaderItems = [];
     if (pullRequests.length === 1) {
@@ -746,6 +837,7 @@ function View() {
     const actions: (
       HeaderBarButtonItemMenuAction | HeaderBarButtonItemSubmenu
     )[] = [
+      ...(retryRunOptions ? [retryRunOptions] : []),
       ...workspaceMenuActions({
         openChanges: reviewable
           ? () =>
@@ -842,6 +934,8 @@ function View() {
     session.id,
     reviewable,
     simulator,
+    snapshot.entries,
+    retryRunOptions,
   ]);
   return (
     <RNView style={{ flex: 1, backgroundColor: colors.reading }}>
@@ -861,7 +955,7 @@ function View() {
               sessionId: session.id,
               entryId: nativeEvent.entryId,
             }).then((result) => {
-              if (result.status === 'completed')
+              if (alive.current && result.status === 'completed')
                 setEditedMessageId(result.value);
             });
         }}
@@ -952,6 +1046,10 @@ function View() {
               modeId: activeChoice.modeId,
               configOptionValues: activeChoice.configOptionValues,
               reasoningEffortConfigId: capability?.reasoningEffortConfigId,
+              mcpServerIds: activeChoice.mcpServerIds,
+              agentRoleId: activeChoice.agentRoleId,
+              agentRoleRevision: activeChoice.agentRoleRevision,
+              frozenRole: activeChoice.frozenRole,
             },
           })
         }
@@ -967,28 +1065,80 @@ function View() {
           onTurnChangesPress(nativeEvent.entryId, nativeEvent.path)
         }
         onRetrySend={send.retry}
+        onRecoverSend={({ nativeEvent }) =>
+          void send.recover(nativeEvent.action)
+        }
+        onQueueAction={({ nativeEvent }) => void queue.act(nativeEvent)}
         onReconnect={pending?.send.creation ? refresh : reconnect}
         onComposerOptionChange={({ nativeEvent }) => {
+          if (nativeEvent.agentRoleId !== undefined) {
+            const role = choiceRunOptions.roles.find(
+              (item) => item.id === nativeEvent.agentRoleId,
+            );
+            if (nativeEvent.agentRoleId !== null && !role?.available) return;
+            choiceHydrated.current = true;
+            setChoice(
+              selectedRoleChoice(activeChoice, role ?? null, capability),
+            );
+            return;
+          }
+          if (nativeEvent.mcpServerIds !== undefined) {
+            choiceHydrated.current = true;
+            setChoice({
+              ...activeChoice,
+              mcpServerIds: nativeEvent.mcpServerIds,
+            });
+            return;
+          }
+          if (
+            nativeEvent.permissionId === undefined &&
+            typeof nativeEvent.fast !== 'boolean' &&
+            nativeEvent.modelId === undefined &&
+            nativeEvent.effort === undefined
+          )
+            return;
           choiceHydrated.current = true;
           if (nativeEvent.permissionId !== undefined) {
             setChoice(
-              withPermissionMode(
+              detachChangedRole(
+                withPermissionMode(
+                  capability,
+                  activeChoice,
+                  nativeEvent.permissionId,
+                ),
                 capability,
                 activeChoice,
-                nativeEvent.permissionId,
               ),
             );
             return;
           }
           if (typeof nativeEvent.fast === 'boolean') {
-            setChoice(withFastMode(capability, activeChoice, nativeEvent.fast));
+            setChoice(
+              detachChangedRole(
+                withFastMode(capability, activeChoice, nativeEvent.fast),
+                capability,
+                activeChoice,
+              ),
+            );
             return;
           }
-          setChoice((current) => ({
-            ...current,
-            modelId: nativeEvent.modelId || undefined,
-            effort: nativeEvent.effort || undefined,
-          }));
+          setChoice(
+            detachChangedRole(
+              {
+                ...activeChoice,
+                modelId:
+                  nativeEvent.modelId === undefined
+                    ? activeChoice.modelId
+                    : nativeEvent.modelId || undefined,
+                effort:
+                  nativeEvent.effort === undefined
+                    ? activeChoice.effort
+                    : nativeEvent.effort || undefined,
+              },
+              capability,
+              activeChoice,
+            ),
+          );
         }}
       />
     </RNView>

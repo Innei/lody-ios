@@ -29,6 +29,9 @@ import { EditMessagePreviewScreen } from './EditMessagePreviewScreen';
 import { ComposerHandoffPreviewScreen } from './ComposerHandoffPreviewScreen';
 import { ChatPreviewScreen } from './ChatPreviewScreen';
 import { SimulatorPreviewScreen } from './SimulatorPreviewScreen';
+import { PreviewClosePreviewScreen } from './PreviewClosePreviewScreen';
+import { RunOptionsPreviewScreen } from './RunOptionsPreviewScreen';
+import { openSendQueueToolsPreview } from './SendQueueToolsPreviewScreen';
 import { ChatPerformanceScreen } from './ChatPerformanceScreen';
 import { ChatStreamPerformanceScreen } from './ChatStreamPerformanceScreen';
 import { BannerPreviewScreen } from './BannerPreviewScreen';
@@ -242,6 +245,12 @@ function View() {
           'exclamationmark.circle',
         ),
         openRow('simulator-preview', 'Simulator floating preview', 'iphone'),
+        openRow('preview-close-preview', 'Preview Close', 'xmark.circle'),
+        openRow(
+          'run-options-preview',
+          'Creation options',
+          'person.badge.gearshape',
+        ),
         openRow('chat-preview', '原生聊天预览', 'bubble.left.and.bubble.right'),
         openRow('chat-shine-preview', '过程高光', 'sparkle'),
         openRow('banner-preview', '会话横幅', 'bell.badge'),
@@ -255,6 +264,11 @@ function View() {
         openRow('send-preview', '离线发送验收', 'paperplane'),
         openRow('free-turn-notice-preview', '免费轮次提醒', 'text.bubble'),
         openRow('send-queue', 'Queue 验收', 'list.bullet'),
+        openRow(
+          'send-queue-tools',
+          'Queue and delivery controls',
+          'list.bullet.rectangle',
+        ),
         openRow('message-share-preview', 'Message sharing', 'photo'),
         openRow('session-share-preview', 'Conversation sharing', 'link'),
         openRow('steer-preview', '连续引导验收', 'arrow.triangle.branch'),
@@ -427,6 +441,8 @@ function View() {
     'agent-error-preview': () => void present(AgentErrorPreviewScreen, {}),
     'edit-message-preview': () => void present(EditMessagePreviewScreen),
     'simulator-preview': () => void present(SimulatorPreviewScreen),
+    'preview-close-preview': () => void present(PreviewClosePreviewScreen, {}),
+    'run-options-preview': () => void present(RunOptionsPreviewScreen),
     'chat-preview': () => void present(ChatPreviewScreen, {}),
     'chat-shine-preview': () => void present(ShinePreviewScreen, {}),
     'banner-preview': () => void present(BannerPreviewScreen, {}),
@@ -434,6 +450,7 @@ function View() {
     'free-turn-notice-preview': () =>
       void present(FreeTurnNoticePreviewScreen, {}),
     'send-queue': () => void openSendPreview(false, true),
+    'send-queue-tools': () => void openSendQueueToolsPreview(),
     'message-share-preview': () => void present(MessageSharePreviewScreen, {}),
     'session-share-preview': () => void present(SessionSharePreviewScreen),
     'steer-preview': () => void present(SteerPreviewScreen, {}),

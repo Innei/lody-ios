@@ -13,6 +13,7 @@ struct ChatPreviewChip: Decodable, Equatable {
     let title: String
     let symbol: String
     var destructive: Bool?
+    var close: Bool?
   }
   let label: String
   let symbol: String
@@ -125,6 +126,8 @@ final class ChatQuickRepliesView: UIScrollView {
   private let separator = UIView()
   private lazy var separatorWidth = separator.widthAnchor.constraint(equalToConstant: 1)
   private var contextChip: ChatContextChipButton?
+  private var contextClose: UIButton?
+  private var closeAction: ChatPreviewChip.Action?
   private var rendered: [ChatQuickReply] = []
   private var renderedActions: [ChatPreviewChip.Action]?
   private var buttons: [UIButton] = []
@@ -199,9 +202,9 @@ final class ChatQuickRepliesView: UIScrollView {
     if items != rendered {
       rendered = items
       contentOffset = .zero
-      retiring = stack.arrangedSubviews.filter { $0 is UIButton && $0 !== contextChip }
+      retiring = stack.arrangedSubviews.filter { $0 is UIButton && $0 !== contextChip && $0 !== contextClose }
       retiring.forEach { $0.isUserInteractionEnabled = false }
-      buttons.removeAll { $0 !== contextChip }
+      buttons.removeAll { $0 !== contextChip && $0 !== contextClose }
       UIView.performWithoutAnimation {
         for item in items {
           let button = chip(item)
@@ -215,8 +218,9 @@ final class ChatQuickRepliesView: UIScrollView {
     if let context { updateContext(context, compact: compact, motion: motion) }
     let layout = {
       self.show(self.contextChip, context != nil)
+      self.show(self.contextClose, context != nil && self.closeAction != nil)
       self.show(self.separator, context != nil && repliesShown && !items.isEmpty)
-      for button in self.buttons where button !== self.contextChip { self.show(button, repliesShown) }
+      for button in self.buttons where button !== self.contextChip && button !== self.contextClose { self.show(button, repliesShown) }
       for view in retiring where view.superview != nil { self.show(view, false) }
       if contextAppears { self.contentOffset.x = 0 }
       self.layoutIfNeeded()
@@ -259,6 +263,12 @@ final class ChatQuickRepliesView: UIScrollView {
       compact: compact
     ), animation: motion && !chip.isHidden ? Self.motion : nil)
     chip.accessibilityLabel = context.accessibilityLabel
+    let busy = context.state == "connecting" || context.state == "stopping"
+    chip.isEnabled = !busy
+    closeAction = context.actions?.first { $0.close == true }
+    contextClose?.accessibilityLabel = closeAction?.title
+    contextClose?.isEnabled = !busy
+    contextClose?.configuration?.showsActivityIndicator = context.state == "stopping"
     guard context.actions != renderedActions else { return }
     renderedActions = context.actions
     chip.menu = context.actions.flatMap { actions in
@@ -276,12 +286,37 @@ final class ChatQuickRepliesView: UIScrollView {
     chip.isHidden = true
     chip.alpha = 0
     chip.setContentHuggingPriority(.required, for: .horizontal)
-    chip.addAction(UIAction { [weak self] _ in self?.onPreview?("open") }, for: .touchUpInside)
+    chip.addAction(UIAction { [weak self] _ in
+      guard let self, self.contextChip?.isEnabled == true else { return }
+      self.onPreview?("open")
+    }, for: .touchUpInside)
+    var configuration = UIButton.Configuration.glass()
+    configuration.cornerStyle = .capsule
+    configuration.contentInsets = .zero
+    configuration.image = UIImage(systemName: "xmark")
+    configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
+    configuration.baseForegroundColor = .secondaryLabel
+    let close = UIButton(configuration: configuration)
+    close.accessibilityIdentifier = "session-preview-close"
+    close.isHidden = true
+    close.alpha = 0
+    close.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      close.widthAnchor.constraint(equalToConstant: 44),
+      close.heightAnchor.constraint(equalToConstant: Self.chipHeight),
+    ])
+    close.addAction(UIAction { [weak self] _ in
+      guard let self, let action = self.closeAction, self.contextClose?.isEnabled == true else { return }
+      self.onPreview?(action.id)
+    }, for: .touchUpInside)
     stack.insertArrangedSubview(chip, at: 0)
-    stack.insertArrangedSubview(separator, at: 1)
+    stack.insertArrangedSubview(close, at: 1)
+    stack.insertArrangedSubview(separator, at: 2)
     separatorWidth.constant = 1 / max(1, traitCollection.displayScale)
     buttons.insert(chip, at: 0)
+    buttons.insert(close, at: 1)
     contextChip = chip
+    contextClose = close
     return chip
   }
 
@@ -289,12 +324,14 @@ final class ChatQuickRepliesView: UIScrollView {
     guard !isHidden, alpha > 0.01, isUserInteractionEnabled else { return nil }
     let hit = super.hitTest(point, with: event)
     if let hit, hit !== self { return hit }
-    for button in buttons where !button.isHidden {
+    for button in buttons where !button.isHidden && button.isEnabled {
       let frame = button.convert(button.bounds, to: self)
-      let target = frame.insetBy(
+      var target = frame.insetBy(
         dx: -max(0, 44 - frame.width) / 2,
         dy: -max(0, 44 - frame.height) / 2
       )
+      // The row starts at the composer's top edge; close extends into the gap below.
+      if button === contextClose { target.origin.y = frame.minY }
       if target.contains(point) { return button }
     }
     return hit === self ? nil : hit

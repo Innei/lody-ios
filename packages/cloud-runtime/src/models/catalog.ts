@@ -6,6 +6,7 @@ export type Project = {
   repoFullName?: string;
 };
 export type Session = {
+  agentConfigId?: string;
   lastModel?: { modelId?: string; name?: string } | null;
   cliType?: string;
   agentType?: string;

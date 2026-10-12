@@ -1,5 +1,7 @@
 import type { ChatDraftAttachment } from '@lody-ios/kit';
 import type { Session } from '@lody/cloud-runtime/models/catalog';
+import type { RunOptionsChoice } from '@lody/cloud-runtime/models/run-options';
+import type { ModelChoice } from '@lody/cloud-runtime/models/send';
 
 export type PendingSend = {
   id: string;
@@ -19,7 +21,7 @@ export type PendingSend = {
     | 'failed';
   reason?: string;
   creation?: string;
-  choice: {
+  choice: RunOptionsChoice & {
     modelId?: string | null;
     effort?: string | null;
     modeId?: string;
@@ -29,12 +31,9 @@ export type PendingSend = {
 };
 export type PendingSession = { session: Session; send: PendingSend };
 
-export type CreatedSession = {
+export type CreatedSession = ModelChoice & {
   composerRelayId?: string;
   session: Session;
   projectName: string;
   machineName: string;
-  modelId?: string;
-  effort?: string;
-  modeId?: string;
 };

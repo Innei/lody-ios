@@ -6,6 +6,7 @@ type Action = {
   title: string;
   symbol: string;
   destructive?: boolean;
+  close?: boolean;
 };
 type Chip = {
   label: string;
@@ -35,9 +36,10 @@ export function composerContext(sources: Source[]) {
     chip: {
       label,
       symbol: 'square.stack',
-      state: live.some((source) => source.chip.state === 'connecting')
-        ? 'connecting'
-        : 'ready',
+      state:
+        live.find((source) =>
+          ['connecting', 'stopping'].includes(source.chip.state),
+        )?.chip.state ?? 'ready',
       accessibilityLabel: label,
       actions: live.flatMap((source, index) =>
         source.chip.actions.map((action) => ({

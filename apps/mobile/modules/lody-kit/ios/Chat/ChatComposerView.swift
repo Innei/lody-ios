@@ -27,6 +27,9 @@ private struct ChatComposerState: Decodable {
   var steerID: String?
   var steerInterrupts: Bool?
   var queuedMessageBehavior: String?
+  var queueState: ChatQueueState?
+  var sendRecovery: String?
+  var recovering: Bool?
   var notice = ""
   var quotaNotice: String?
   var reconnect = false
@@ -34,11 +37,24 @@ private struct ChatComposerState: Decodable {
   var placeholder = LodyStrings.text("native.chat.composer.placeholder")
 }
 
+private struct ChatQueueState: Decodable, Equatable {
+  var editable: Bool?
+  var busyId: String?
+  var editingId: String?
+  var editingStartedAt: Double?
+  var editingText: String?
+  var editingCompletedId: String?
+  var unknownIds: [String]?
+}
+
 struct ChatQueuedDraft: Equatable {
   let id: String
   let text: String
   var canSteer = true
   var attachments: [String] = []
+  var isEditing = false
+  var editingStartedAt: Double?
+  var canCancel = false
 
   static func rowHeight(_ draft: ChatQueuedDraft) -> CGFloat {
     let caption = draft.attachments.isEmpty ? 0 : ceil(UIFont.dynamic(of: 12).lineHeight) + 2
@@ -50,13 +66,24 @@ struct ChatQueuedDraft: Equatable {
   }
 }
 
-private final class ChatQueueView: CKGlassSurface {
+private final class ChatQueueView: CKGlassSurface, UITextViewDelegate {
   private let scroll = UIScrollView()
   private let stack = UIStackView()
   private var rendered: [ChatQueuedDraft] = []
   private var buttons: [String: UIButton] = [:]
   private var rows: [String: UIView] = [:]
+  private var actionButtons: [String: UIButton] = [:]
+  private var bodyButtons: [String: UIButton] = [:]
+  private var managementEnabled = false
+  private var editor: UITextView?
+  private var editorActions: UIStackView?
+  private var editButtons: [UIButton] = []
+  private var editorValues: [String: String] = [:]
+  private var renderedEditingID = ""
+  private var renderedUnknownIDs: [String] = []
   var onSteer: ((String) -> Void)?
+  var onAction: (([String: Any]) -> Void)?
+  var onCancelSend: (() -> Void)?
   var onHeightChange: (() -> Void)?
   private(set) var panelHeight: CGFloat = 0
 
@@ -88,30 +115,96 @@ private final class ChatQueueView: CKGlassSurface {
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-  func render(_ drafts: [ChatQueuedDraft], enabled: Bool, steeringID: String, firstOnly: Bool) {
-    if rendered != drafts {
-      // A row that leaves the queue is on its way into the transcript: hand its
-      // frame to the send animation before the row disappears.
-      for draft in rendered where !drafts.contains(where: { $0.id == draft.id }) {
+  func render(_ drafts: [ChatQueuedDraft], enabled: Bool, steeringID: String, firstOnly: Bool,
+              state: ChatQueueState?, enteringTranscript: Set<String>) {
+    let editingID = state?.editingId ?? ""
+    let unknownIDs = state?.unknownIds ?? []
+    let busyID = state?.busyId ?? ""
+    let canManage = state?.editable == true && busyID.isEmpty
+    managementEnabled = canManage
+    if rendered != drafts || renderedEditingID != editingID || renderedUnknownIDs != unknownIDs {
+      // Only rows promoted into the transcript hand their frame to the send
+      // animation. Removing a queued draft must not suggest it was sent.
+      for draft in rendered where enteringTranscript.contains(draft.id) && !drafts.contains(where: { $0.id == draft.id }) {
         guard let row = rows[draft.id], !draft.text.isEmpty else { continue }
         ChatSendHandoff.begin(id: draft.id, source: row, straight: true)
       }
+      if let editor, !renderedEditingID.isEmpty { editorValues[renderedEditingID] = editor.text }
+      if let completed = state?.editingCompletedId { editorValues[completed] = nil }
+      let editorWasUnknown = renderedUnknownIDs.contains(editingID)
+      var retainedEditorRow: UIView?
+      if !editingID.isEmpty, renderedEditingID == editingID, editor != nil,
+         drafts.contains(where: { $0.id == editingID }) {
+        retainedEditorRow = rows[editingID]
+      }
       rendered = drafts
-      stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+      renderedEditingID = editingID
+      renderedUnknownIDs = unknownIDs
+      // Lease metadata and queue ordering arrive separately from composer state.
+      // Keep the live editor mounted so those updates retain its native focus,
+      // selection and typed text; insert the refreshed rows around it.
+      for row in stack.arrangedSubviews where row !== retainedEditorRow {
+        stack.removeArrangedSubview(row)
+        row.removeFromSuperview()
+      }
       buttons.removeAll()
+      actionButtons.removeAll()
+      bodyButtons.removeAll()
       rows.removeAll()
-      for draft in drafts {
-        let text = UILabel()
-        text.text = draft.text.isEmpty ? LodyStrings.text("native.chat.row.queuedAttachmentsOnly") : draft.text
-        text.font = .dynamic(of: 15)
-        text.textColor = draft.text.isEmpty ? .tertiaryLabel : .secondaryLabel
+      if retainedEditorRow == nil {
+        editor = nil
+        editorActions = nil
+        editButtons.removeAll()
+      }
+      for (index, draft) in drafts.enumerated() {
+        if draft.id == editingID {
+          if let retainedEditorRow {
+            rows[draft.id] = retainedEditorRow
+            if editorWasUnknown != unknownIDs.contains(draft.id) {
+              updateEditorActions(draft.id, unknown: unknownIDs.contains(draft.id))
+            }
+          } else {
+            let row = makeEditor(draft, text: state?.editingText, unknown: unknownIDs.contains(draft.id))
+            stack.insertArrangedSubview(row, at: index)
+            row.heightAnchor.constraint(equalToConstant: 152).isActive = true
+            rows[draft.id] = row
+            if let editor {
+              DispatchQueue.main.async { [weak self, weak editor] in
+                guard let self, let editor, self.editor === editor,
+                      self.renderedEditingID == draft.id, editor.isEditable else { return }
+                editor.becomeFirstResponder()
+              }
+            }
+          }
+          continue
+        }
+        let text = UIButton(type: .system)
+        text.configuration = .plain()
+        text.configuration?.title = draft.text.isEmpty ? LodyStrings.text("native.chat.row.queuedAttachmentsOnly") : draft.text
+        text.configuration?.contentInsets = .zero
+        text.configuration?.titleAlignment = .leading
+        text.configuration?.titleLineBreakMode = .byTruncatingTail
+        text.configuration?.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+          var next = attributes
+          next.font = UIFont.dynamic(of: 15)
+          return next
+        }
+        text.tintColor = draft.text.isEmpty ? .tertiaryLabel : .secondaryLabel
+        text.contentHorizontalAlignment = .leading
+        text.titleLabel?.lineBreakMode = .byTruncatingTail
         text.accessibilityIdentifier = draft.id + ":queued"
         text.accessibilityLabel = ([LodyStrings.text("native.chat.row.queued") + ": " + draft.text] + draft.attachments)
           .filter { !$0.isEmpty }.joined(separator: ", ")
-        let body = UIStackView(arrangedSubviews: [text])
-        body.axis = .vertical
-        body.spacing = 2
-        if !draft.attachments.isEmpty { body.addArrangedSubview(Self.caption(draft.attachments)) }
+        if !draft.attachments.isEmpty {
+          text.configuration?.subtitle = draft.attachments.joined(separator: " · ")
+          text.configuration?.subtitleLineBreakMode = .byTruncatingMiddle
+          text.configuration?.subtitleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+            var next = attributes
+            next.font = UIFont.dynamic(of: 12)
+            next.foregroundColor = .tertiaryLabel
+            return next
+          }
+        }
         let button = UIButton(type: .system)
         button.configuration = .plain()
         button.setImage(
@@ -122,12 +215,43 @@ private final class ChatQueueView: CKGlassSurface {
         button.accessibilityLabel = LodyStrings.text("native.chat.composer.steer") + ": " + draft.text
         button.addAction(UIAction { [weak self] _ in self?.onSteer?(draft.id) }, for: .touchUpInside)
         button.setContentCompressionResistancePriority(.required, for: .horizontal)
-        let row = UIStackView(arrangedSubviews: [body, button])
+        let more = UIButton(type: .system)
+        more.configuration = .plain()
+        more.setImage(UIImage(systemName: "ellipsis"), for: .normal)
+        more.accessibilityIdentifier = draft.id + ":queue-actions"
+        more.accessibilityLabel = LodyStrings.text("queue.actions") + ": " + draft.text
+        more.showsMenuAsPrimaryAction = true
+        let leased = draft.isEditing && Date().timeIntervalSince1970 * 1000 - (draft.editingStartedAt ?? 0) < 300_000
+        if unknownIDs.contains(draft.id) {
+          more.menu = UIMenu(children: [
+            action("check", "queue.check", "arrow.clockwise", draft.id),
+            action("dismiss", "queue.dismiss", "xmark", draft.id),
+          ])
+          more.setImage(UIImage(systemName: "questionmark.circle"), for: .normal)
+          text.accessibilityHint = LodyStrings.text("queue.error.executionUnknown")
+        } else if draft.canCancel {
+          let cancel = UIAction(title: LodyStrings.text("queue.cancelPreparation"), image: UIImage(systemName: "xmark")) { [weak self] _ in self?.onCancelSend?() }
+          more.menu = UIMenu(children: [cancel])
+        } else {
+          more.menu = UIMenu(children: [
+            action("begin-edit", "queue.edit", "pencil", draft.id, disabled: leased),
+            action("move-up", "queue.moveUp", "arrow.up", draft.id, disabled: leased || draft.id == drafts.first?.id),
+            action("move-down", "queue.moveDown", "arrow.down", draft.id, disabled: leased || draft.id == drafts.last?.id),
+            action("delete", "queue.delete", "trash", draft.id, disabled: leased, destructive: true),
+          ])
+          text.addAction(UIAction { [weak self] _ in
+            guard self?.managementEnabled == true, !leased else { return }
+            self?.onAction?(["action": "begin-edit", "id": draft.id])
+          }, for: .touchUpInside)
+        }
+        more.setContentCompressionResistancePriority(.required, for: .horizontal)
+        text.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        let row = UIStackView(arrangedSubviews: [text, button, more])
         row.alignment = .center
         row.spacing = 8
         row.isLayoutMarginsRelativeArrangement = true
-        row.directionalLayoutMargins = .init(top: 4, leading: 16, bottom: 4, trailing: 2)
-        if !stack.arrangedSubviews.isEmpty {
+        row.directionalLayoutMargins = .init(top: 0, leading: 16, bottom: 0, trailing: 2)
+        if index > 0 {
           let separator = UIView()
           separator.backgroundColor = .separator
           separator.translatesAutoresizingMaskIntoConstraints = false
@@ -139,38 +263,95 @@ private final class ChatQueueView: CKGlassSurface {
             separator.heightAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale),
           ])
         }
-        stack.addArrangedSubview(row)
+        stack.insertArrangedSubview(row, at: index)
         row.heightAnchor.constraint(equalToConstant: ChatQueuedDraft.rowHeight(draft)).isActive = true
         button.heightAnchor.constraint(equalToConstant: 44).isActive = true
         button.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        more.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        more.widthAnchor.constraint(equalToConstant: 44).isActive = true
         buttons[draft.id] = button
+        actionButtons[draft.id] = more
+        bodyButtons[draft.id] = text
         rows[draft.id] = row
       }
     }
     let first = drafts.first(where: \.canSteer)?.id
     for draft in drafts {
       let waiting = steeringID == draft.id || !draft.canSteer
-      buttons[draft.id]?.isEnabled = enabled && draft.canSteer && (!firstOnly || draft.id == first)
+      buttons[draft.id]?.isEnabled = enabled && draft.canSteer && !draft.isEditing && !unknownIDs.contains(draft.id) && (!firstOnly || draft.id == first)
       buttons[draft.id]?.accessibilityHint = waiting ? LodyStrings.text("native.chat.composer.steering") : nil
+      actionButtons[draft.id]?.isEnabled = canManage || ((draft.canCancel || unknownIDs.contains(draft.id)) && busyID.isEmpty)
+      bodyButtons[draft.id]?.isEnabled = canManage && !unknownIDs.contains(draft.id) && !draft.canCancel
+      actionButtons[draft.id]?.configuration?.showsActivityIndicator = busyID == draft.id
     }
-    if !drafts.isEmpty { panelHeight = ChatQueuedDraft.panelHeight(drafts) }
+    editor?.isEditable = canManage && !unknownIDs.contains(editingID)
+    editButtons.forEach { $0.isEnabled = canManage || (unknownIDs.contains(editingID) && busyID.isEmpty) }
+    if !drafts.isEmpty {
+      panelHeight = drafts.prefix(3).reduce(0) { $0 + ($1.id == editingID ? 152 : ChatQueuedDraft.rowHeight($1)) }
+    }
     setVisible(!drafts.isEmpty)
   }
 
-  private static func caption(_ attachments: [String]) -> UIView {
-    let clip = UIImageView(image: UIImage(systemName: "paperclip", withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .regular)))
-    clip.tintColor = .tertiaryLabel
-    clip.setContentHuggingPriority(.required, for: .horizontal)
-    let names = UILabel()
-    names.text = attachments.joined(separator: " · ")
-    names.font = .dynamic(of: 12)
-    names.textColor = .tertiaryLabel
-    names.lineBreakMode = .byTruncatingMiddle
-    let line = UIStackView(arrangedSubviews: [clip, names])
-    line.alignment = .center
-    line.spacing = 4
-    return line
+  private func action(_ value: String, _ key: String, _ symbol: String, _ id: String,
+                      disabled: Bool = false, destructive: Bool = false) -> UIAction {
+    var attributes: UIMenuElement.Attributes = []
+    if disabled { attributes.insert(.disabled) }
+    if destructive { attributes.insert(.destructive) }
+    return UIAction(title: LodyStrings.text(key), image: UIImage(systemName: symbol), attributes: attributes) { [weak self] _ in
+      self?.onAction?(["action": value, "id": id])
+    }
   }
+
+  private func makeEditor(_ draft: ChatQueuedDraft, text initialText: String?, unknown: Bool) -> UIView {
+    let text = UITextView()
+    text.font = .dynamic(of: 15)
+    text.backgroundColor = .secondarySystemBackground
+    text.layer.cornerRadius = 10
+    text.text = editorValues[draft.id] ?? initialText ?? draft.text
+    text.selectedRange = NSRange(location: (text.text ?? "").utf16.count, length: 0)
+    text.delegate = self
+    text.accessibilityIdentifier = draft.id + ":queue-editor"
+    text.accessibilityLabel = LodyStrings.text("queue.edit")
+    editor = text
+    let buttons = UIStackView()
+    buttons.axis = .horizontal
+    buttons.distribution = .fillEqually
+    editorActions = buttons
+    updateEditorActions(draft.id, unknown: unknown)
+    buttons.heightAnchor.constraint(equalToConstant: 44).isActive = true
+    let row = UIStackView(arrangedSubviews: [text, buttons])
+    row.axis = .vertical
+    row.spacing = 4
+    row.isLayoutMarginsRelativeArrangement = true
+    row.directionalLayoutMargins = .init(top: 8, leading: 12, bottom: 8, trailing: 12)
+    return row
+  }
+
+  private func updateEditorActions(_ id: String, unknown: Bool) {
+    guard let text = editor, let buttons = editorActions else { return }
+    for button in buttons.arrangedSubviews {
+      buttons.removeArrangedSubview(button)
+      button.removeFromSuperview()
+    }
+    editButtons.removeAll()
+    for (action, key) in unknown ? [("check", "queue.check"), ("dismiss", "queue.dismiss")] : [("cancel-edit", "common.cancel"), ("save-edit", "common.save")] {
+      let button = UIButton(type: .system)
+      button.setTitle(LodyStrings.text(key), for: .normal)
+      button.accessibilityIdentifier = id + ":" + action
+      button.addAction(UIAction { [weak self, weak text] _ in
+        var event: [String: Any] = ["action": action, "id": id]
+        if action == "save-edit" { event["text"] = text?.text ?? "" }
+        self?.onAction?(event)
+      }, for: .touchUpInside)
+      buttons.addArrangedSubview(button)
+      editButtons.append(button)
+    }
+  }
+
+  func textViewDidChange(_ textView: UITextView) {
+    editorValues[renderedEditingID] = textView.text
+  }
+
 }
 
 struct ComposerPaste {
@@ -560,6 +741,9 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private lazy var input = editorView.textView as! ChatComposerInput
   private let hint = UILabel()
   private let notice = UIButton(type: .system)
+  private let recoveryActions = UIStackView()
+  private var recoveryButtons: [UIButton] = []
+  private var recoveryKind: String?
   private let quotaNotice = UILabel()
   private let send = UIButton(type: .system)
   private let sendVisual = ChatComposerActionVisual()
@@ -583,6 +767,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private var hintLeading: NSLayoutConstraint!
   private var hintTop: NSLayoutConstraint!
   private var noticeHeight: NSLayoutConstraint!
+  private var recoveryHeight: NSLayoutConstraint!
   private var quotaNoticeHeight: NSLayoutConstraint!
   private var quotaGap: NSLayoutConstraint!
   private var attachmentHeight: NSLayoutConstraint!
@@ -608,6 +793,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private let quickRepliesView = ChatQuickRepliesView(frame: .zero)
   private var quickRepliesHeight: NSLayoutConstraint!
   private var queuedDrafts: [ChatQueuedDraft] = []
+  private var queueEnteringTranscript: Set<String> = []
   var retiringQueueHeight: CGFloat { queuedDrafts.isEmpty ? queueView.panelHeight + queueGap.constant : 0 }
   private var state = ChatComposerState()
   private var composerOptions = ChatComposerOptions()
@@ -618,10 +804,14 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   private lazy var formatBar = ChatComposerFormatBar(editor: input.editor)
   private var formatHeight: NSLayoutConstraint!
   private let fullScreenDim = UIView()
-  private var pendingDraft: (text: String, attachments: [ChatAttachment], state: String?)?
+  private typealias Draft = (text: String, attachments: [ChatAttachment], state: String?)
+  private var pendingDraft: Draft?
+  private var retiredDraft: (id: String, draft: Draft)?
   private var sentStates: [String: String] = [:]
   var sendHandoff = true
-  var autoFocus = false
+  var autoFocus = false {
+    didSet { if autoFocus { focusAfterMentionPicker() } }
+  }
   private var lastRestoreToken = 0
   private var hasInitialDraft = false
   private var hasInitialAttachments = false
@@ -632,6 +822,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   var previewBeforeSubmit: (() -> Bool)?
   var onStop: (() -> Void)?
   var onSteer: ((String) -> Void)?
+  var onQueueAction: (([String: Any]) -> Void)?
+  var onRecoverSend: ((String) -> Void)?
   var guidesSubmission: Bool {
     state.queuedMessageBehavior == "guide" && state.running == true && state.steerInterrupts != true
   }
@@ -817,6 +1009,8 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     composer.contentView.addSubview(mentionPanel)
     composer.contentView.addSubview(queueView)
     queueView.onSteer = { [weak self] in self?.onSteer?($0) }
+    queueView.onAction = { [weak self] in self?.onQueueAction?($0) }
+    queueView.onCancelSend = { [weak self] in self?.onRecoverSend?("cancel") }
     // Standalone buttons must not also contribute to the composer's merged glass.
     addSubview(quickRepliesView)
     quickRepliesView.onSelect = { [weak self] id in
@@ -831,6 +1025,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     }
     quickRepliesView.onPreview = { [weak self] in self?.onPreview?($0) }
     composer.contentView.addSubview(notice)
+    recoveryActions.axis = .horizontal
+    recoveryActions.distribution = .fillEqually
+    recoveryActions.spacing = 8
+    composer.contentView.addSubview(recoveryActions)
     composer.contentView.addSubview(attachmentBar)
     composer.contentView.addSubview(quotaNotice)
     composer.contentView.addSubview(attachSurface)
@@ -839,7 +1037,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     for view in [editorView, hint, formatBar, accessoryBar, modelButton, mentionButton, permissionButton, send, expandButton] {
       inputSurface.contentView.addSubview(view)
     }
-    for view in [composer, mentionPanel, mentionButton, permissionButton, queueView, quickRepliesView, inputSurface, attachSurface, notice, attachmentBar, quotaNotice, editorView, hint, formatBar, accessoryBar, send, attach, modelButton, expandButton] {
+    for view in [composer, mentionPanel, mentionButton, permissionButton, queueView, quickRepliesView, inputSurface, attachSurface, notice, recoveryActions, attachmentBar, quotaNotice, editorView, hint, formatBar, accessoryBar, send, attach, modelButton, expandButton] {
       view.translatesAutoresizingMaskIntoConstraints = false
     }
     inputHeight = editorView.heightAnchor.constraint(equalToConstant: 48)
@@ -848,6 +1046,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     hintLeading = hint.leadingAnchor.constraint(equalTo: editorView.leadingAnchor, constant: 21)
     hintTop = hint.topAnchor.constraint(equalTo: editorView.topAnchor, constant: 13)
     noticeHeight = notice.heightAnchor.constraint(equalToConstant: 0)
+    recoveryHeight = recoveryActions.heightAnchor.constraint(equalToConstant: 0)
     quotaNoticeHeight = quotaNotice.heightAnchor.constraint(equalToConstant: 0)
     quotaGap = inputSurface.topAnchor.constraint(equalTo: quotaNotice.bottomAnchor)
     attachmentHeight = attachmentBar.heightAnchor.constraint(equalToConstant: 0)
@@ -873,7 +1072,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       quickRepliesView.trailingAnchor.constraint(equalTo: composer.trailingAnchor), quickRepliesHeight,
       notice.topAnchor.constraint(equalTo: quickRepliesView.bottomAnchor), notice.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 20),
       notice.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -20), noticeHeight,
-      attachmentBar.topAnchor.constraint(equalTo: notice.bottomAnchor),
+      recoveryActions.topAnchor.constraint(equalTo: notice.bottomAnchor),
+      recoveryActions.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 20),
+      recoveryActions.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -20), recoveryHeight,
+      attachmentBar.topAnchor.constraint(equalTo: recoveryActions.bottomAnchor),
       attachmentBar.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
       attachmentBar.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -16), attachmentHeight,
       quotaNotice.topAnchor.constraint(equalTo: attachmentBar.bottomAnchor),
@@ -956,8 +1158,6 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       optionsPopover?.dismiss(animated: false)
     }
     else if mentionNeedsFocus || autoFocus {
-      if autoFocus { input.selectedRange = NSRange(location: (input.text as NSString).length, length: 0) }
-      autoFocus = false
       focusAfterMentionPicker()
     }
   }
@@ -979,6 +1179,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   func clearDraft(token: Int) {
     guard token > lastClearToken else { return }
     lastClearToken = token
+    retiredDraft = nil
     guard pendingDraft != nil else { return }
     acknowledgedSendID = pendingSendID
     pendingSendID.map { sentStates[$0] = nil }
@@ -987,8 +1188,15 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     updateComposer()
     saveDraft()
   }
-  func clearPendingSend(id: String) {
+  func clearPendingSend(id: String, retainingDraft: Bool = false) {
+    // An empty pending prop can precede restoration or a late ACK for this draft.
+    if !retainingDraft, retiredDraft?.id == id { retiredDraft = nil }
     guard pendingSendID == id else { return }
+    if retainingDraft {
+      retiredDraft = pendingDraft.map { (id: id, draft: $0) }
+    } else {
+      retiredDraft = nil
+    }
     acknowledgedSendID = id
     sentStates[id] = nil
     pendingDraft = nil
@@ -999,10 +1207,13 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   func restoreDraft(token: Int) {
     guard token > lastRestoreToken else { return }
     lastRestoreToken = token
-    let id = pendingSendID ?? UUID().uuidString.lowercased()
+    let id = pendingSendID ?? retiredDraft?.id ?? UUID().uuidString.lowercased()
+    let draft = pendingDraft ?? retiredDraft?.draft
+    retiredDraft = nil
     ChatSendHandoff.cancel(id: id)
     pendingSendID = nil
-    if let draft = pendingDraft {
+    if let draft {
+      restoredSendID = id
       if !sendHandoff || ((input.text ?? "").isEmpty && attachments.isEmpty) {
         if draft.state.map({ input.restore(state: $0) }) != true { input.text = draft.text }
         attachments = draft.attachments
@@ -1022,6 +1233,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
 
   func setPendingSend(_ pending: ChatPendingSend) {
     guard pending.id != restoredSendID, pending.id != acknowledgedSendID else { return }
+    retiredDraft = nil
     if pending.failed == true {
       pendingDraft = nil
       pendingSendID = nil
@@ -1291,7 +1503,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
 
   func setComposerState(_ json: String) {
     guard let value = try? JSONDecoder().decode(ChatComposerState.self, from: Data(json.utf8)) else { return }
-    if value.sending && !state.sending && !relaying { takeDraft() }
+    // Only an explicit native commit consumes a draft; status may belong to a recovered turn.
     state = value
     suppressesComposer = quotaLocked(json)
     updateComposer()
@@ -1308,9 +1520,15 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     composerOptions = value
     updateComposerOptions()
   }
-  func setQueue(_ drafts: [ChatQueuedDraft]) {
-    guard queuedDrafts != drafts else { return }
+  func setQueue(_ drafts: [ChatQueuedDraft], enteringTranscript: Set<String>? = nil) {
+    // Standalone hosts retain the original queue-to-transcript handoff. Chat
+    // supplies an explicit set so delete/cancel can remove a row without flight.
+    let entering = enteringTranscript ?? Set(queuedDrafts.filter { old in
+      !drafts.contains(where: { $0.id == old.id })
+    }.map(\.id))
+    guard queuedDrafts != drafts || queueEnteringTranscript != entering else { return }
     queuedDrafts = drafts
+    queueEnteringTranscript = entering
     updateComposer()
   }
   private var canShowQuickReplies: Bool {
@@ -1322,6 +1540,32 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       failedDraft == nil && displayError == nil && queuedDrafts.isEmpty && !relaying &&
       attachments.isEmpty && connection.isEmpty
   }
+  private func updateRecoveryActions() {
+    if recoveryKind != state.sendRecovery {
+      recoveryKind = state.sendRecovery
+      recoveryActions.arrangedSubviews.forEach { $0.removeFromSuperview() }
+      recoveryButtons.removeAll()
+      var actions: [(String, String)] = []
+      if state.sendRecovery == "unknown" {
+        actions = [("check", "send.recovery.check"), ("resume", "send.recovery.resume")]
+      } else if state.sendRecovery == "preparing" {
+        actions = [("cancel", "queue.cancelPreparation")]
+      }
+      for (action, key) in actions {
+        let button = UIButton(type: .system)
+        button.configuration = .plain()
+        button.configuration?.title = LodyStrings.text(key)
+        button.accessibilityIdentifier = "session-send-recovery-" + action
+        button.addAction(UIAction { [weak self] _ in self?.onRecoverSend?(action) }, for: .touchUpInside)
+        recoveryActions.addArrangedSubview(button)
+        recoveryButtons.append(button)
+      }
+    }
+    recoveryButtons.forEach { $0.isEnabled = state.recovering != true }
+    recoveryActions.isHidden = recoveryButtons.isEmpty
+    recoveryHeight.constant = recoveryButtons.isEmpty ? 0 : 44
+  }
+
   private func updateComposer() {
     mentionPanel.update(input: input, items: activeMentionItems ?? [], enabled: activeMentionItems != nil)
     mentionHeight.constant = mentionPanel.panelHeight
@@ -1364,7 +1608,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     sendVisual.render(actionMode)
     sendVisual.isHidden = false
     sendVisual.alpha = send.isEnabled || loading ? 1 : 0.35
-    queueView.render(queuedDrafts, enabled: state.canStop == true && !sending && state.controlling != true, steeringID: state.steerID ?? "", firstOnly: state.steerInterrupts == true)
+    queueView.render(queuedDrafts, enabled: state.canStop == true && !sending && state.controlling != true, steeringID: state.steerID ?? "", firstOnly: state.steerInterrupts == true, state: state.queueState, enteringTranscript: queueEnteringTranscript)
     queueHeight.constant = queueView.panelHeight
     let replies = quickRepliesAvailable ? (state.quickReplies ?? []) : []
     let context = connection.isEmpty ? state.preview : nil
@@ -1388,6 +1632,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     notice.accessibilityTraits = canReconnect ? .button : .staticText
     let noticeSize = notice.sizeThatFits(CGSize(width: max(1, bounds.width - 40), height: .greatestFiniteMagnitude))
     noticeHeight.constant = noticeText.isEmpty ? 0 : max(44, noticeSize.height + 12)
+    updateRecoveryActions()
     quotaNotice.text = state.quotaNotice
     quotaNotice.isHidden = state.quotaNotice?.isEmpty != false
     quotaNotice.isAccessibilityElement = !quotaNotice.isHidden
@@ -1409,7 +1654,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     hintTop.constant = verticalInset
     let height = input.sizeThatFits(CGSize(width: max(1, input.bounds.width), height: .greatestFiniteMagnitude)).height
     let overflows = height > ChatMessageContent.maximumCollapsedHeight
-    let chrome = mentionHeight.constant + queueHeight.constant + queueGap.constant + quickRepliesHeight.constant + noticeHeight.constant + attachmentHeight.constant + quotaNoticeHeight.constant + accessoryHeight.constant + formatHeight.constant + 16
+    let chrome = mentionHeight.constant + queueHeight.constant + queueGap.constant + quickRepliesHeight.constant + noticeHeight.constant + recoveryHeight.constant + attachmentHeight.constant + quotaNoticeHeight.constant + accessoryHeight.constant + formatHeight.constant + 16
     inputHeight.constant = fullScreen ? fullScreenInputHeight(chrome: chrome) : min(ChatMessageContent.maximumCollapsedHeight, max(expanded ? 68 : 48, height))
     input.isScrollEnabled = fullScreen || overflows
     expandButton.isHidden = !(fullScreen || (allowsFullScreen && expanded && overflows))
@@ -1454,8 +1699,13 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     } else {
       modelLeading?.constant = mentionButton.isHidden ? 2 : 96
     }
-    modelButton.isHidden = !composerExpanded || composerOptions.models.isEmpty
-    modelButton.isEnabled = state.editable && !state.sending && pendingDraft == nil
+    let hasOptions = !composerOptions.models.isEmpty || !composerOptions.modelId.isEmpty
+      || !composerOptions.efforts.isEmpty || composerOptions.fast != nil
+      || !(composerOptions.runOptions?.roles.isEmpty ?? true)
+      || !(composerOptions.runOptions?.mcpServers.isEmpty ?? true)
+      || composerOptions.agentRoleId != nil || !(composerOptions.mcpServerIds?.isEmpty ?? true)
+    modelButton.isHidden = !composerExpanded || !hasOptions
+    modelButton.isEnabled = hasOptions && state.editable && !state.sending && pendingDraft == nil
     let title = NSMutableAttributedString(string: composerOptions.modelTitle, attributes: [.foregroundColor: UIColor.label])
     if !composerOptions.efforts.isEmpty || !composerOptions.effort.isEmpty {
       title.append(NSAttributedString(string: " " + composerOptions.effortTitle, attributes: [.foregroundColor: UIColor.secondaryLabel]))
@@ -1497,6 +1747,18 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       self.updateComposerOptions()
       self.onComposerOptionChange?(["modelId": self.composerOptions.modelId, "effort": self.composerOptions.effort, "fast": enabled])
     }
+    panel.onRole = { [weak self] id in
+      guard let self else { return }
+      self.composerOptions.agentRoleId = id
+      self.updateComposerOptions()
+      self.onComposerOptionChange?(["agentRoleId": id as Any? ?? NSNull()])
+    }
+    panel.onMcp = { [weak self] ids in
+      guard let self else { return }
+      self.composerOptions.mcpServerIds = ids
+      self.updateComposerOptions()
+      self.onComposerOptionChange?(["mcpServerIds": ids])
+    }
     panel.loadViewIfNeeded()
     panel.render(composerOptions)
     panel.modalPresentationStyle = .popover
@@ -1532,9 +1794,14 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     focusAfterMentionPicker()
   }
   private func focusAfterMentionPicker() {
+    guard window != nil else { return }
     let focus = { [weak self] in
       guard let self, self.window != nil else { return }
       self.mentionNeedsFocus = false
+      if self.autoFocus {
+        self.input.selectedRange = NSRange(location: (self.input.text as NSString).length, length: 0)
+        self.autoFocus = false
+      }
       self.input.becomeFirstResponder()
       self.updateComposer()
     }
@@ -1596,6 +1863,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   /// The creation host publishes once; the adopted composer starts the visual send later.
   func commitSend(_ payload: [String: Any]) {
     guard let id = payload["id"] as? String else { return }
+    retiredDraft = nil
     let queued = payload["queue"] as? Bool == true
     let guiding = payload["guide"] as? Bool == true
     let body = input.text ?? ""

@@ -27,6 +27,7 @@ export async function machineRpc(
     `${workspaceId}:rpc:req:${machineId}`,
     getGrant,
   );
+  signal.throwIfAborted();
   const id = crypto.randomUUID(),
     now = Date.now();
   const sent = await client.append({

@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import { router } from 'expo-router';
 import {
   sessionCreationOptions,
+  runOptions,
   shareAdopt,
   sharePending,
   shareRemove,
@@ -36,6 +37,15 @@ async function draftAvailable(draft: NativeCreateDraft) {
         }),
       ),
     ) as CreationOptions;
+    options.runOptions = JSON.parse(
+      await runOptions(
+        JSON.stringify({
+          workspaceId: draft.workspaceId,
+          userId: draft.userId,
+          ...(draft.projectId ? { projectId: draft.projectId } : {}),
+        }),
+      ),
+    );
     return selectionAvailable(draft, options);
   } catch {
     // Offline: the outbox reports a failed creation and restores the draft.

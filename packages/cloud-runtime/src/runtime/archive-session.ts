@@ -16,7 +16,7 @@ function object(value: unknown): { [key: string]: Value } {
     : {};
 }
 
-function docFields(flock: Flock, room: string): Record<string, unknown> {
+export function docFields(flock: Flock, room: string): Record<string, unknown> {
   const fields = object(flock.get(['m', room]));
   for (const row of flock.scan({ prefix: ['m', room] })) {
     if (row.key.length !== 3 || typeof row.key[2] !== 'string') continue;

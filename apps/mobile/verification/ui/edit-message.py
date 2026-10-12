@@ -29,7 +29,8 @@ ui.capture('earlier-menu')
 ui.axe('tap', '-x', '20', '-y', '600', '--post-delay', '.8')
 ui.wait(lambda items: not any((item.get('AXLabel') or '').casefold() == catalog.system('copy').casefold() for item in items), 'Message menu did not dismiss')
 open_editor()
-assert ui.element('edit-message-input')['AXValue'] == 'Original prompt'
+original = 'Original prompt'
+assert ui.element('edit-message-input')['AXValue'] == original
 assert not any(item.get('AXUniqueId') == 'old-reply:text' for item in ui.state())
 ui.capture('editor')
 ui.axe('tap', '--label', catalog.text('common.cancel'), '--post-delay', '.6')
@@ -41,14 +42,30 @@ ui.axe('tap', '--label', catalog.text('native.chat.attachment.remove', name='ori
 assert not any(item.get('AXLabel') == catalog.text('native.chat.attachment.remove', name='original.txt') for item in ui.state())
 ui.paste_file('edit-message-input')
 ui.axe('tap', '--id', 'edit-message-input')
+input_log = ui.output / 'text-input.jsonl'
+input_offset = input_log.stat().st_size if input_log.exists() else 0
 ui.axe('type', ' revised')
-text = ui.element('edit-message-input')['AXValue']
+with input_log.open(encoding='utf-8') as log:
+    log.seek(input_offset)
+    records = [json.loads(line) for line in log if line.strip()]
+assert len(records) == 1, 'Editing must record exactly one suffix Paste'
+record = records[0]
+assert record.get('event') == 'system-paste' and record.get('status') == 'performed'
+assert record.get('text') == ' revised'
+before = record['before']
+assert before.get('id') == 'edit-message-input' and before.get('firstResponder') is True
+assert before.get('text') == original, 'Attachment editing changed the original text before Paste'
+start, end = before['selection']['start'], before['selection']['end']
+assert type(start) is int and type(end) is int and 0 <= start <= end <= len(original), 'Invalid pre-Paste UTF-16 selection'
+# The independently known ASCII fixture uses the same character and UTF-16 offsets.
+expected = original[:start] + ' revised' + original[end:]
+assert ui.element('edit-message-input')['AXValue'] == expected, 'Paste did not commit the complete edit at the observed selection'
 ui.capture('attachments-edited')
 ui.axe('tap', '--id', 'session-send', '--post-delay', '.2')
 ui.element('edit-message-busy')
 ui.capture('sending')
 ui.element('edit-message-error')
-assert ui.element('edit-message-input')['AXValue'] == text
+assert ui.element('edit-message-input')['AXValue'] == expected
 ui.capture('failed-kept')
 ui.axe('tap', '--id', 'session-send', '--post-delay', '2')
 ui.element('session-input')
@@ -57,7 +74,7 @@ payload = json.loads(ui.element('edit-fixture-payload')['AXLabel'])
 assert payload['expectedUserTurnId'] == 'editable'
 assert payload['retainedIds'] == ['original:1']
 assert len(payload['attachments']) == 1
-assert payload['text'] == text
+assert payload['text'] == expected
 assert ui.element('edit-fixture-count')['AXLabel'] == '2'
 assert not any(item.get('AXUniqueId') == 'old-reply:text' for item in ui.state())
 ui.capture('replaced')

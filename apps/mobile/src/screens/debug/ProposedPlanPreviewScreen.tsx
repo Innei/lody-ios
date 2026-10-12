@@ -228,7 +228,14 @@ function View() {
           )
         }
         initialDraft="Keep this draft"
-        composerJSON={JSON.stringify({ editable: true, canSend: false })}
+        composerJSON={JSON.stringify({
+          editable: true,
+          canSend: false,
+          sending: false,
+          notice: '',
+          reconnect: false,
+          placeholder: 'Message Lody…',
+        })}
         clearDraftToken={0}
         emptyText=""
         findRequestJSON={find}

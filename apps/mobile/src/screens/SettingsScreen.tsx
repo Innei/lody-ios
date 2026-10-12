@@ -3,6 +3,7 @@ import { AppIconScreen } from './AppIconScreen';
 import { ProjectHistoryScreen } from './ProjectHistoryScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
 import { QuickRepliesScreen } from './QuickRepliesScreen';
+import { AgentRolesScreen } from './AgentRolesScreen';
 import { useRouter } from 'expo-router';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { AccountScreen } from './AccountScreen';
@@ -246,18 +247,28 @@ function View() {
     sections.splice(1, 0, {
       id: 'remote',
       header: t('settings.section.workspace'),
-      rows: (['machine', 'agent', 'mcp'] as const).map((kind) => ({
-        id: `remote-${kind}`,
-        title: t(`settings.remote.${kind}`),
-        image: {
-          machine: 'desktopcomputer',
-          agent: 'sparkles',
-          mcp: 'puzzlepiece.extension',
-        }[kind],
-        action: true,
-        disclosure: true,
-        navigates: true,
-      })),
+      rows: [
+        ...(['machine', 'agent', 'mcp'] as const).map((kind) => ({
+          id: `remote-${kind}`,
+          title: t(`settings.remote.${kind}`),
+          image: {
+            machine: 'desktopcomputer',
+            agent: 'sparkles',
+            mcp: 'puzzlepiece.extension',
+          }[kind],
+          action: true,
+          disclosure: true,
+          navigates: true,
+        })),
+        {
+          id: 'agent-roles',
+          title: t('runOptions.roles.title'),
+          image: 'person.crop.square',
+          action: true,
+          disclosure: true,
+          navigates: true,
+        },
+      ],
     });
   if (auth.account)
     sections.splice(1, 0, {
@@ -339,6 +350,7 @@ function View() {
         if (nativeEvent.id === 'quick-replies') void push(QuickRepliesScreen);
         if (nativeEvent.id === 'project-history')
           void push(ProjectHistoryScreen);
+        if (nativeEvent.id === 'agent-roles') void push(AgentRolesScreen, {});
         if (nativeEvent.id === 'archived') void push(ArchivedSessionsScreen);
         if (nativeEvent.id === 'licenses') void push(LicensesScreen);
         if (nativeEvent.id === 'debug-open') {

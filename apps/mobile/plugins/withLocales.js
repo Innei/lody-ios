@@ -29,6 +29,9 @@ const NATIVE_PREFIXES = [
   'model.',
   'picker.',
   'projectPicker.',
+  'runOptions.',
+  'queue.',
+  'send.',
   'settings.history.selected',
   'accessibility.closeSheet',
 ];

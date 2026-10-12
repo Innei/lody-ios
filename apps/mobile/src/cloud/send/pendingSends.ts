@@ -24,42 +24,42 @@ function createStore(key: string, generation: number) {
     if (!key || generation !== localGeneration())
       throw new Error('pending_send_scope_expired');
   };
-  let writes = key
-    ? readLocal<PendingSession[]>(key).then((saved) => {
-        if (generation !== localGeneration()) return;
-        durable = (Array.isArray(saved) ? saved : [])
-          .filter(
-            (record) =>
-              record?.session?.id &&
-              record.send?.id &&
-              typeof record.send.text === 'string' &&
-              Array.isArray(record.send.attachments) &&
-              record.send.choice,
+  let writes = Promise.resolve();
+  if (key)
+    writes = readLocal<PendingSession[]>(key).then((saved) => {
+      if (generation !== localGeneration()) return;
+      durable = (Array.isArray(saved) ? saved : [])
+        .filter(
+          (record) =>
+            record?.session?.id &&
+            record.send?.id &&
+            typeof record.send.text === 'string' &&
+            Array.isArray(record.send.attachments) &&
+            record.send.choice,
+        )
+        .map((record) => {
+          if (
+            record.send.phase !== 'creating' &&
+            record.send.phase !== 'sending'
           )
-          .map((record) => {
-            if (
-              record.send.phase !== 'creating' &&
-              record.send.phase !== 'sending'
-            )
-              return record;
-            return {
-              ...record,
-              send: {
-                ...record.send,
-                phase: 'unknown' as const,
-                reason: t('send.reason.awaitingConfirmation'),
-              },
-            };
-          });
-        publish(
-          [
-            ...durable.filter((record) => !touched.has(record.session.id)),
-            ...snapshot.records,
-          ],
-          true,
-        );
-      })
-    : Promise.resolve();
+            return record;
+          return {
+            ...record,
+            send: {
+              ...record.send,
+              phase: 'unknown' as const,
+              reason: t('send.reason.awaitingConfirmation'),
+            },
+          };
+        });
+      publish(
+        [
+          ...durable.filter((record) => !touched.has(record.session.id)),
+          ...snapshot.records,
+        ],
+        true,
+      );
+    });
   function change(sessionId: string, record?: PendingSession) {
     try {
       current();
@@ -92,11 +92,28 @@ function createStore(key: string, generation: number) {
       };
     },
     put: (record: PendingSession) => {
+      let frozenRole = record.send.choice.frozenRole;
+      if (frozenRole) {
+        frozenRole = {
+          ...frozenRole,
+          configOptionValues: frozenRole.configOptionValues
+            ? { ...frozenRole.configOptionValues }
+            : undefined,
+          memory: frozenRole.memory ? { ...frozenRole.memory } : undefined,
+        };
+      }
       const copy: PendingSession = {
         session: { ...record.session },
         send: {
           ...record.send,
-          choice: { ...record.send.choice },
+          choice: {
+            ...record.send.choice,
+            mcpServerIds: record.send.choice.mcpServerIds?.slice(),
+            frozenRole,
+            configOptionValues: record.send.choice.configOptionValues
+              ? { ...record.send.choice.configOptionValues }
+              : undefined,
+          },
           attachments: record.send.attachments.map((attachment) => ({
             ...attachment,
           })),

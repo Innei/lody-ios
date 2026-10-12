@@ -1,4 +1,9 @@
+export { uuid } from 'expo-modules-core';
+
 export {
+  queueSessionMessage,
+  checkSessionSend,
+  cancelSessionSend,
   sessionSharingRaw,
   remoteSettingsRaw,
   runtimeInfo,
@@ -77,6 +82,7 @@ export {
 } from './runtime/LodyKit';
 
 export {
+  runOptions,
   watchSession,
   unwatchSession,
   ensureSession,

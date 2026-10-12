@@ -76,6 +76,25 @@ export const NativeChat: ComponentType<
     emptyText: string;
     onStop?: () => void;
     onSteer?: (event: NativeSyntheticEvent<{ id: string }>) => void;
+    onQueueAction?: (
+      event: NativeSyntheticEvent<{
+        action:
+          | 'begin-edit'
+          | 'save-edit'
+          | 'cancel-edit'
+          | 'move-up'
+          | 'move-down'
+          | 'delete'
+          | 'check'
+          | 'dismiss';
+        id: string;
+        text?: string;
+        editingStartedAt?: number;
+      }>,
+    ) => void;
+    onRecoverSend?: (
+      event: NativeSyntheticEvent<{ action: 'check' | 'resume' | 'cancel' }>,
+    ) => void;
     onSend: (
       event: NativeSyntheticEvent<{
         id: string;
@@ -103,10 +122,12 @@ export const NativeChat: ComponentType<
     onRetrySend?: () => void;
     onComposerOptionChange?: (
       event: NativeSyntheticEvent<{
-        modelId: string;
-        effort: string;
+        modelId?: string;
+        effort?: string;
         fast?: boolean;
         permissionId?: string;
+        agentRoleId?: string | null;
+        mcpServerIds?: string[];
       }>,
     ) => void;
   }

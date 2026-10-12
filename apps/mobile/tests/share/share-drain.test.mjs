@@ -39,6 +39,72 @@ const state = {
   loading: false,
 };
 
+test('Share cached run selections fall back to the retained form when Role revision, MCP ids or worktree support expires', () => {
+  const role = {
+    id: 'reviewer',
+    revision: 3,
+    available: true,
+    machineId: agent.machineId,
+    agentConfigId: agent.id,
+  };
+  const options = {
+    sessionId: 's',
+    agents: [agent],
+    capabilities: [],
+    runOptions: {
+      roles: [role],
+      mcpServers: [{ id: 'docs' }],
+      worktreeAvailable: true,
+    },
+  };
+  const draft = {
+    ...entry.draft,
+    useWorktree: true,
+    choice: {
+      agentRoleId: 'reviewer',
+      agentRoleRevision: 3,
+      mcpServerIds: ['docs'],
+    },
+  };
+  assert.equal(selectionAvailable(draft, options), true);
+  assert.equal(
+    selectionAvailable(draft, {
+      ...options,
+      runOptions: { ...options.runOptions, roles: [{ ...role, revision: 4 }] },
+    }),
+    false,
+  );
+  assert.equal(
+    selectionAvailable(draft, {
+      ...options,
+      runOptions: { ...options.runOptions, roles: [] },
+    }),
+    false,
+  );
+  assert.equal(
+    selectionAvailable(draft, {
+      ...options,
+      runOptions: { ...options.runOptions, mcpServers: [] },
+    }),
+    false,
+  );
+  assert.equal(
+    selectionAvailable(draft, {
+      ...options,
+      runOptions: { ...options.runOptions, worktreeAvailable: false },
+    }),
+    false,
+  );
+  assert.equal(
+    selectionAvailable(
+      { ...draft, useWorktree: false, choice: { mcpServerIds: [] } },
+      { ...options, runOptions: undefined },
+    ),
+    true,
+    'Explicit None/all-off never require a removed catalog',
+  );
+});
+
 test('the drain fences accounts, switches workspace and waits for its catalog', () => {
   assert.deepEqual(nextShareStep([], state), { kind: 'idle' });
   assert.deepEqual(nextShareStep([{ ...entry, userId: 'u2' }], state), {

@@ -1,4 +1,5 @@
 import type { Project } from './catalog.ts';
+import type { RunOptionsCatalog, RunOptionsChoice } from './run-options.ts';
 
 export type CapabilityChoice = {
   id: string;
@@ -43,9 +44,10 @@ export type CreationOptions = {
     agentType: string;
   }[];
   capabilities: Capability[];
+  runOptions?: RunOptionsCatalog;
 };
 
-export type ModelChoice = {
+export type ModelChoice = RunOptionsChoice & {
   modelId?: string;
   effort?: string;
   modeId?: string;
@@ -55,6 +57,7 @@ export type ModelChoice = {
 export type ProjectPrefs = ModelChoice & {
   machineId?: string;
   agentKey?: string;
+  useWorktree?: boolean;
 };
 
 export type CreatePrefs = {

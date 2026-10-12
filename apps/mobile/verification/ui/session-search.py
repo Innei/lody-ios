@@ -32,6 +32,9 @@ def replace(field, text):
         tap(clear)
         tap(field)
     ui.axe('type', text)
+    committed = ui.element(field['AXUniqueId']) if field.get('AXUniqueId') else inbox_field()
+    actual = committed.get('AXValue') or ''
+    assert actual.casefold() == text.casefold(), f'Search input did not commit: requested {text!r}, got {actual!r}'
     if catalog.LANGUAGE != 'en':
         ui.axe('key', '40')
 
@@ -53,7 +56,20 @@ def count(value):
 
 
 def keyboard(items):
-    return any((i.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar') for i in items)
+    screen = next((i.get('frame') for i in items if i.get('type') == 'Application'), None)
+    if not screen:
+        return False
+    for item in items:
+        if not (item.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar'):
+            continue
+        frame = item['frame']
+        if (frame['width'] > 0 and frame['height'] > 0
+                and frame['x'] < screen['x'] + screen['width']
+                and frame['x'] + frame['width'] > screen['x']
+                and frame['y'] < screen['y'] + screen['height']
+                and frame['y'] + frame['height'] > screen['y']):
+            return True
+    return False
 
 
 def find_layout():

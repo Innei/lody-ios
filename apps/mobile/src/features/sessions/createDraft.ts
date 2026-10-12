@@ -15,6 +15,7 @@ export type NativeCreateDraft = {
   projectId?: string;
   projectName: string;
   branch?: string;
+  useWorktree?: boolean;
   agent: CreationOptions['agents'][number];
   choice: ModelChoice;
   reasoningEffortConfigId?: string;
@@ -64,6 +65,17 @@ export function pendingSessionFromDraft(
       title: session.title,
       ...(draft.projectId ? { projectId: draft.projectId } : {}),
       ...(draft.branch ? { branch: draft.branch } : {}),
+      ...(draft.useWorktree ? { useWorktree: true } : {}),
+      ...(draft.choice.configOptionValues
+        ? { configOptionValues: draft.choice.configOptionValues }
+        : {}),
+      ...(draft.choice.agentRoleId
+        ? {
+            agentRoleId: draft.choice.agentRoleId,
+            agentRoleRevision: draft.choice.agentRoleRevision,
+            frozenRole: draft.choice.frozenRole,
+          }
+        : {}),
     }),
   };
   return {

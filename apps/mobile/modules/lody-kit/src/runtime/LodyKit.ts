@@ -50,6 +50,10 @@ type Events = {
   onDataRuntime: (event: DataRuntimeEvent) => void;
 };
 declare class LodyKitNativeModule extends NativeModule<Events> {
+  queueSessionMessage(payload: string): Promise<string>;
+  checkSessionSend(payload: string): Promise<string>;
+  cancelSessionSend(payload: string): Promise<string>;
+  runOptions(payload: string): Promise<string>;
   sessionSharing(payload: string): Promise<string>;
   verifyPushSubscription(): Promise<void>;
   setPushUser(userId: string | null): Promise<void>;
@@ -420,6 +424,13 @@ export const pinSession = (payload: string) => native.pinSession(payload);
 export const markSessionRead = (payload: string) =>
   native.markSessionRead(payload);
 export const renameSession = (payload: string) => native.renameSession(payload);
+export const queueSessionMessage = (payload: string) =>
+  native.queueSessionMessage(payload);
+export const checkSessionSend = (payload: string) =>
+  native.checkSessionSend(payload);
+export const cancelSessionSend = (payload: string) =>
+  native.cancelSessionSend(payload);
+export const runOptions = (payload: string) => native.runOptions(payload);
 
 export const initialInboxView = [0, 1, 2].includes(native.initialInboxView)
   ? native.initialInboxView

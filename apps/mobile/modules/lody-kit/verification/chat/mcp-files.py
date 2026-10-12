@@ -1,5 +1,6 @@
 """MCP files open native previews without credentials or an online machine."""
 from pathlib import Path
+import json
 import subprocess
 import sys
 import time
@@ -14,18 +15,56 @@ subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lav
                 'testsrc2=size=320x180:rate=15', '-t', '8', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', str(movie)], check=True)
 
 
-def close():
-    if any(item.get('AXLabel') == catalog.text('native.close') for item in ui.state()):
-        ui.axe('tap', '--label', catalog.text('native.close'), '--post-delay', '.5')
-        ui.element('mcp-files:text')
-        return
-    if not any(item.get('type') == 'Button' and (item.get('AXLabel') or '').lower() in ['done', 'close'] for item in ui.state()):
-        frame = ui.element('QLPreviewControllerView')['frame']
-        ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.2')
-    button = ui.wait(lambda items: next((item for item in items if item.get('type') == 'Button'
-                    and (item.get('AXLabel') or '').lower() in ['done', 'close']), None), 'Quick Look must offer Close')
-    ui.axe('tap', '--label', button['AXLabel'], '--post-delay', '.5')
-    ui.element('mcp-files:text')
+def close(video=False, content_state=None, ready_items=None):
+    overlay_close = 'QLOverlayDoneButtonAccessibilityIdentifier'
+    items = ui.state() if ready_items is None else ready_items
+    record = {'video': video, 'contentState': content_state, 'controlsRevealed': False}
+    if content_state:
+        key = {
+            'unavailable': 'native.attachment.error.unavailable',
+            'pending': 'native.attachment.error.pending',
+            'loading': 'native.attachment.preview.loading',
+        }[content_state]
+        marker = catalog.text(key)
+        assert any(item.get('AXLabel') == marker for item in items), 'Expected attachment status is not displayed'
+        # contentUnavailableConfiguration covers the retained Quick Look chrome.
+        # Its own central action is visible; the QL overlay can remain in AX.
+        matches = [item for item in items if item.get('type') == 'Button' and item.get('enabled')
+                   and item.get('AXLabel') == catalog.text('native.close')
+                   and item.get('AXUniqueId') != overlay_close]
+        assert len(matches) == 1, 'Attachment status must offer exactly one Close action'
+        button = matches[0]
+        frame = button['frame']
+        record.update({'marker': marker, 'label': button['AXLabel'], 'id': button.get('AXUniqueId'),
+                       'enabled': button['enabled'], 'frame': frame})
+        # A timed loading observation must not replay after its service completed.
+        ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.5', recover=ready_items is None)
+    elif video:
+        preview = max((item['frame'] for item in items if item.get('AXUniqueId') == 'QLPreviewControllerView'),
+                      key=lambda frame: frame['height'])
+        # Reveal playback chrome and press its real Close in one HID session.
+        # An enabled AX node alone does not establish that auto-hidden chrome
+        # remains visible through another process/connection round trip.
+        reveal = f"tap -x {preview['x'] + preview['width'] / 2} -y {preview['y'] + preview['height'] / 2}"
+        record.update({'controlsRevealed': True, 'id': overlay_close, 'previewFrame': preview,
+                       'gesture': 'reveal-video-chrome-then-close'})
+        record['gestureOutput'] = ui.axe('batch', '--tap-style', 'physical', '--ax-cache', 'perStep',
+                                        '--step', reveal, '--step', 'sleep .2',
+                                        '--step', f'tap --id {overlay_close} --post-delay .5')
+    else:
+        matches = [item for item in items if item.get('type') == 'Button' and item.get('enabled')
+                   and item.get('AXUniqueId') == overlay_close]
+        assert len(matches) == 1, 'Loaded Quick Look preview must offer exactly one Close action'
+        button = matches[0]
+        frame = button['frame']
+        record.update({'label': button['AXLabel'], 'id': overlay_close,
+                       'enabled': button['enabled'], 'frame': frame})
+        ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.5')
+    with (ui.output / 'quick-look-close-probes.jsonl').open('a') as log:
+        log.write(json.dumps(record) + '\n')
+    ui.wait(lambda current: any(item.get('AXUniqueId') == 'mcp-files:text' for item in current)
+            and not any(item.get('AXUniqueId') == 'QLPreviewControllerView' for item in current),
+            'Closing the preview did not return to MCP attachments')
 
 
 def loaded():
@@ -52,7 +91,7 @@ for file in ['text', 'pdf', 'video']:
             return subprocess.check_output(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', str(Path(sys.argv[2]) / name),
                 '-vf', 'crop=iw:ih/5:0:ih*0.45', '-f', 'framemd5', '-'], text=True).splitlines()[-1]
         assert frame_hash('video-preview.png') != frame_hash('video-playing.png'), 'Video frames did not advance'
-    close()
+    close(video=file == 'video')
 
 ui.axe('tap', '--id', 'mcp-files:retry', '--post-delay', '.2')
 ui.wait(lambda items: any(item.get('AXLabel') == catalog.text('native.attachment.error.download') for item in items), 'Download failure was swallowed')
@@ -66,15 +105,17 @@ for file in ['missing', 'pending']:
     key = 'unavailable' if file == 'missing' else 'pending'
     ui.wait(lambda items: any(item.get('AXLabel') == catalog.text('native.attachment.error.' + key) for item in items), 'Missing file state: ' + file)
     ui.capture(file)
-    close()
+    close(content_state=key)
 ui.axe('tap', '--id', 'user-file:attachment:text', '--post-delay', '.2')
 loaded()
 ui.capture('user-file-preview')
 close()
 ui.axe('tap', '--id', 'mcp-files:cancel', '--post-delay', '.2')
-ui.wait(lambda items: any(item.get('AXLabel') == catalog.text('native.attachment.preview.loading') for item in items), 'Loading state missing')
-ui.capture('loading')
-close()
+loading_items = ui.wait(lambda items: items if any(item.get('AXLabel') == catalog.text('native.attachment.preview.loading') for item in items) else None, 'Loading state missing')
+# Capture round trips can outlast the four-second service window; close from this readiness observation.
+close(content_state='loading', ready_items=loading_items)
+# This is an AX observation, not a screenshot of a later loaded preview.
+(ui.output / 'loading-readiness.json').write_text(json.dumps(loading_items))
 time.sleep(4.5)
 assert not any(item.get('AXUniqueId') == 'QLPreviewControllerView' for item in ui.state()), 'Cancelled download reopened the preview'
 ui.capture('cancelled')
