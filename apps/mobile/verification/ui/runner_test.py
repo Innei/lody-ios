@@ -604,10 +604,7 @@ class CheckDeadlineTest(unittest.TestCase):
 
     def test_long_checks_finish_after_the_previous_deadline(self):
         for case, elapsed in (
-            ('session-search', 590),
-            ('session-search-pad', 590),
-            ('providers', 590),
-            ('team', 590),
+            ('feedback', 590), ('session-search', 590), ('session-search-pad', 590), ('providers', 590), ('team', 590),
             ('pull-request', 400),
         ):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
@@ -619,13 +616,8 @@ class CheckDeadlineTest(unittest.TestCase):
 
     def test_deadlines_still_stop_long_checks_and_preserve_their_progress(self):
         for case, elapsed in (
-            ('session-search', 601),
-            ('session-search-pad', 601),
-            ('providers', 601),
-            ('team', 601),
-            ('pull-request', 421),
-            ('run-options', 421),
-            ('title-rename', 181),
+            ('feedback', 601), ('session-search', 601), ('session-search-pad', 601), ('providers', 601), ('team', 601),
+            ('pull-request', 421), ('run-options', 421), ('title-rename', 181),
         ):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
                 log_path = Path(directory) / 'check.log'
@@ -659,6 +651,13 @@ class CaseEntryTest(unittest.TestCase):
                 open_case.assert_called_once_with(self.namespace['PREVIEW']['preview-close'])
                 self.assertEqual(read_state.call_count, 2, 'A shared input must not establish readiness for the new scene')
 
+    def test_missing_feature_scene_fails_instead_of_accepting_the_old_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+            with patch.object(ui, 'open_case'), patch.object(ui, 'state', return_value=[{'AXUniqueId': 'session-input'}]), \
+                    patch('driver.time.monotonic', side_effect=[0, 0, 31]), patch('driver.time.sleep'):
+                with self.assertRaisesRegex(AssertionError, self.namespace['READY']['feedback']):
+                    self.enter_case(ui, 'feedback')
 
     def test_failed_deep_link_never_reads_or_accepts_another_scene(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -668,6 +667,15 @@ class CaseEntryTest(unittest.TestCase):
                     self.enter_case(ui, 'preview-close')
                 element.assert_not_called()
 
+    def test_incomplete_feature_registration_fails_before_opening_a_fallback(self):
+        self.namespace['READY'].pop('feedback')
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('UDID', directory)
+            with patch.object(ui, 'open_case') as open_case, patch.object(ui, 'element') as element:
+                with self.assertRaises(KeyError):
+                    self.enter_case(ui, 'feedback')
+                open_case.assert_not_called()
+                element.assert_not_called()
 
     def test_home_fixture_waits_for_launch_without_opening_debug(self):
         with tempfile.TemporaryDirectory() as directory:

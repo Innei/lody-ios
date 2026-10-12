@@ -30,6 +30,7 @@ import { ComposerHandoffPreviewScreen } from './ComposerHandoffPreviewScreen';
 import { ChatPreviewScreen } from './ChatPreviewScreen';
 import { SimulatorPreviewScreen } from './SimulatorPreviewScreen';
 import { PreviewClosePreviewScreen } from './PreviewClosePreviewScreen';
+import { FeedbackPreviewScreen } from './FeedbackPreviewScreen';
 import { ProjectManagementPreviewScreen } from './ProjectManagementPreviewScreen';
 import { TeamPreviewScreen } from './TeamPreviewScreen';
 import { ProviderPreviewScreen } from './ProviderPreviewScreen';
@@ -255,6 +256,11 @@ function View() {
         openRow('simulator-preview', 'Simulator floating preview', 'iphone'),
         openRow('preview-close-preview', 'Preview Close', 'xmark.circle'),
         openRow(
+          'feedback-preview',
+          'Feedback report',
+          'exclamationmark.bubble',
+        ),
+        openRow(
           'project-management-preview',
           'Project management',
           'folder.badge.gearshape',
@@ -478,6 +484,7 @@ function View() {
     'edit-message-preview': () => void present(EditMessagePreviewScreen),
     'simulator-preview': () => void present(SimulatorPreviewScreen),
     'preview-close-preview': () => void present(PreviewClosePreviewScreen, {}),
+    'feedback-preview': () => void present(FeedbackPreviewScreen),
     'project-management-preview': () =>
       void present(ProjectManagementPreviewScreen),
     'team-preview': () => void present(TeamPreviewScreen),

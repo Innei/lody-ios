@@ -55,6 +55,14 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   queueSessionMessage(payload: string): Promise<string>;
   checkSessionSend(payload: string): Promise<string>;
   cancelSessionSend(payload: string): Promise<string>;
+  feedbackEnvironment(): Promise<
+    import('../feedback/types').FeedbackEnvironment
+  >;
+  feedbackScreenshot(
+    command: 'pick' | 'preview' | 'remove' | 'fixture',
+    uri: string,
+  ): Promise<PickedWorkspaceIcon | null>;
+  shareFeedback(report: string, uris: string[]): Promise<boolean>;
   scheduleCommand(payload: string): Promise<string>;
   projectCommand(payload: string): Promise<string>;
   providerCommand(payload: string): Promise<string>;
@@ -439,6 +447,13 @@ export const checkSessionSend = (payload: string) =>
   native.checkSessionSend(payload);
 export const cancelSessionSend = (payload: string) =>
   native.cancelSessionSend(payload);
+export const feedbackEnvironment = () => native.feedbackEnvironment();
+export const feedbackScreenshot = (
+  command: 'pick' | 'preview' | 'remove' | 'fixture',
+  uri: string,
+) => native.feedbackScreenshot(command, uri);
+export const shareFeedback = (report: string, uris: string[]) =>
+  native.shareFeedback(report, uris);
 export const scheduleCommand = (payload: string) =>
   native.scheduleCommand(payload);
 export const projectCommand = (payload: string) =>

@@ -24,6 +24,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
   @MainActor private lazy var accentPicker = AccentColorPicker()
   @MainActor private lazy var workspaceIconPicker = WorkspaceIconPicker()
+  @MainActor private lazy var bugFeedback = BugFeedback()
 
   @MainActor private lazy var dataRuntime = DataRuntime(localStore: localStore,
     emit: { [weak self] event in self?.sendEvent("onDataRuntime", event) },
@@ -197,6 +198,13 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   public func definition() -> ModuleDefinition {
+    AsyncFunction("feedbackEnvironment") { MainActor.assumeIsolated { BugFeedback.environment() } }.runOnQueue(.main)
+    AsyncFunction("feedbackScreenshot") { (command: String, uri: String, promise: Promise) in
+      MainActor.assumeIsolated { self.bugFeedback.screenshot(command: command, uri: uri, from: self.appContext?.utilities?.currentViewController(), promise: promise) }
+    }.runOnQueue(.main)
+    AsyncFunction("shareFeedback") { (report: String, uris: [String], promise: Promise) in
+      MainActor.assumeIsolated { self.bugFeedback.share(report: report, uris: uris, from: self.appContext?.utilities?.currentViewController(), promise: promise) }
+    }.runOnQueue(.main)
     AsyncFunction("sessionSharing") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.command("sessionSharing", payload: payload, promise: promise) }
     }.runOnQueue(.main)
