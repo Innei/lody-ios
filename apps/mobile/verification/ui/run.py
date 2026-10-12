@@ -20,7 +20,9 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 OSS_CASES = [
-    'preview-close', 'run-options', 'send-queue-tools', 'usage-context', 'subagent-history', 'session-tools', 'prompt-shortcuts', 'schedules', 'project-management', 'providers', 'team',
+    'feedback', 'preview-close', 'run-options', 'send-queue-tools',
+    'usage-context', 'subagent-history', 'session-tools', 'prompt-shortcuts',
+    'schedules', 'project-management', 'providers', 'team',
 ]
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker', 'branch-picker'],
@@ -40,6 +42,13 @@ SUITES = {
     'core-home': ['onboarding', 'inbox', 'navigation'],
     'core-send': ['send', 'send-handoff', 'composer-success'],
     'send-reliability': ['send-guide', 'outbox', 'queued-message-behavior', 'send-queue', 'send-interrupt', 'send', 'send-handoff', 'send-transition', 'send-transition-handoff'],
+    'oss-features': OSS_CASES + ['title-rename', 'edit-message', 'session-search', 'pull-request', 'proposed-plan', 'message-details', 'mcp-files', 'create-parity'],
+    'oss-final-feedback': ['feedback', 'preview-close', 'session-search'],
+    'oss-final-run': ['run-options', 'prompt-shortcuts', 'create-parity', 'title-rename'],
+    'oss-final-conversation': ['send-queue-tools', 'subagent-history', 'usage-context', 'message-details'],
+    'oss-final-session': ['session-tools', 'edit-message', 'pull-request', 'proposed-plan', 'mcp-files'],
+    'oss-final-management': ['schedules', 'project-management'],
+    'oss-final-settings': ['providers', 'team'],
 }
 CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
@@ -50,6 +59,7 @@ CASES = PHONE_CASES + PAD_CASES + OSS_CASES + ['devices', 'camera-chat', 'camera
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'sheet-zoom-project', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome', 'ipad-sidebar'}
 HOME_CASES.update({'session-delete', 'session-delete-pad', 'devices', 'devices-pad'})
 PREVIEW = {
+    'feedback': 'feedback-preview',
     'project-management': 'project-management-preview',
     'team': 'team-preview',
     'providers': 'providers-preview',
@@ -152,6 +162,7 @@ PREVIEW = {
     'community-notice': 'community-notice',
 }
 READY = {
+    'feedback': 'feedback-fixture-ready',
     'project-management': 'managed-project:studio:local:demo',
     'team': 'team-fixture:owner',
     'providers': 'provider:m1:claude',
@@ -298,7 +309,8 @@ def run_case_check(case, command, log, env, photo_access):
         check_timeout = 480
     elif case in ('branch-picker', 'chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance'):
         check_timeout = 300
-    elif case in ('session-search', 'session-search-pad', 'providers', 'team'):
+    elif case in ('feedback', 'session-search', 'session-search-pad', 'providers', 'team'):
+        # Feedback reached QuickLook only after 263s under parallel device load;
         # iPad search exceeded 300s after completing five of its six queries.
         # Providers completed CRUD/auth/runtime and reset before its 420s cap.
         # Team stopped at next-page search after 346s, before its join/invite flows;

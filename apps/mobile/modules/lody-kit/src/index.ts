@@ -82,6 +82,9 @@ export {
 } from './runtime/LodyKit';
 
 export {
+  feedbackEnvironment,
+  feedbackScreenshot,
+  shareFeedback,
   scheduleCommand,
   projectCommand,
   providerCommand,
@@ -118,6 +121,8 @@ export {
   renameSession,
   localProjects,
 } from './runtime/LodyKit';
+
+export type { FeedbackEnvironment } from './feedback/types';
 
 export {
   NativeGroupedList,

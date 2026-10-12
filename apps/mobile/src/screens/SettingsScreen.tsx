@@ -3,6 +3,7 @@ import { AppIconScreen } from './AppIconScreen';
 import { ProjectHistoryScreen } from './ProjectHistoryScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
 import { QuickRepliesScreen } from './QuickRepliesScreen';
+import { BugFeedbackScreen } from './BugFeedbackScreen';
 import { AgentRolesScreen } from './AgentRolesScreen';
 import { SchedulesScreen } from './SchedulesScreen';
 import { ProjectManagementScreen } from './ProjectManagementScreen';
@@ -243,6 +244,14 @@ function View() {
           disclosure: true,
           navigates: true,
         },
+        {
+          id: 'bug-feedback',
+          title: t('feedback.title'),
+          image: 'bubble.left.and.exclamationmark.bubble.right',
+          action: true,
+          disclosure: true,
+          navigates: true,
+        },
       ],
     },
   ];
@@ -396,6 +405,7 @@ function View() {
           void push(AutoArchiveSettingsScreen);
         if (nativeEvent.id === 'archived') void push(ArchivedSessionsScreen);
         if (nativeEvent.id === 'licenses') void push(LicensesScreen);
+        if (nativeEvent.id === 'bug-feedback') void push(BugFeedbackScreen, {});
         if (nativeEvent.id === 'debug-open') {
           cancel();
           router.push('/debug');
