@@ -226,7 +226,13 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       shareTasks[id] = Task { [weak self, weak view] in
         guard !Task.isCancelled, let self, let view, self.webView === view,
           self.generation == generation, self.workspace == workspace, self.userId == user else { return }
-        let result = try? await SessionSharing.run(operation, args: args, workspace: workspace, userId: user)
+        let result: Any?
+        switch operation {
+        case "projectApi":
+          result = try? await ProjectManagementCloud.run(args: args, workspace: workspace, userId: user)
+        default:
+          result = try? await SessionSharing.run(operation, args: args, workspace: workspace, userId: user)
+        }
         guard !Task.isCancelled, self.webView === view,
           self.generation == generation, self.workspace == workspace, self.userId == user else { return }
         self.shareTasks.removeValue(forKey: id)
@@ -590,7 +596,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       args["userId"] = userId
     }
     if method == "remoteSettings" || method == "localProjects" || method == "mentionCatalog" { args["userId"] = userId }
-    if ["providerCommand", "runOptions"].contains(method) { args["userId"] = userId }
+    if ["projectCommand", "providerCommand", "runOptions"].contains(method) { args["userId"] = userId }
     if method == "editSession" || method == "sessionPreview" || method == "iosSimulatorControl" { args["userId"] = userId }
     let id = UUID(); commands[id] = sink
     if (method == "sendTurn" || (method == "editSession" && args["action"] as? String == "send")), args["backgroundTaskId"] == nil, !backgrounded {
@@ -600,7 +606,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     var timeout: Double = 45
     if ["providerCommand", "runOptions", "queueMessage", "checkSend"].contains(method) { timeout = 90 }
     // Owned expansion/management reads expire at 120 seconds before any durable send.
-    if ["createSession", "sendTurn", "editSession", "sessionSharing"].contains(method) { timeout = 130 }
+    if ["createSession", "sendTurn", "editSession", "sessionSharing", "projectCommand"].contains(method) { timeout = 130 }
     if method == "sessionPreview" { timeout = 330 }
     if method == "iosSimulatorControl" { timeout = 100 }
     if method == "localProjects" && args["action"] as? String == "history" { timeout = 130 }

@@ -8,7 +8,7 @@ import type {
 
 // Public Lody local-project/list-skills scan roots. Keep this wire data local:
 // @lody/shared's root also imports Node-only modules that cannot run in the WebView.
-const skillDirs: string[] = [
+export const skillDirs: string[] = [
   '.adal/skills',
   '.agent/skills',
   '.agents/skills',
@@ -222,6 +222,19 @@ export function skillMentions(
           ? skill.description
           : String(group.dir ?? ''),
         insertText: `$${token}`,
+        ...(['project', 'global', 'system'].includes(String(group.scope))
+          ? { scope: group.scope as 'project' | 'global' | 'system' }
+          : {}),
+        ...(safeText(group.dir) ? { dir: group.dir } : {}),
+        ...(safeText(skill.description)
+          ? { description: skill.description }
+          : {}),
+        ...(safeText(skill.version, 256) ? { version: skill.version } : {}),
+        ...(safeText(skill.author, 256) ? { author: skill.author } : {}),
+        ...(typeof skill.content === 'string' &&
+        skill.content.length <= 256 * 1024
+          ? { content: skill.content }
+          : {}),
       });
     }
   }
