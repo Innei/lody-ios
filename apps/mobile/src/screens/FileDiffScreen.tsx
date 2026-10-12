@@ -21,7 +21,7 @@ import {
 } from '@lody-ios/kit';
 import { DiffView } from '@/features/diff/DiffView';
 import { unifiedPatch } from '@/features/diff/unifiedPatch';
-import { definePage } from '@/lib/presentation';
+import { definePage, present } from '@/lib/presentation';
 import { basename } from '@/features/sessions/path';
 import { usePalette } from '@/lib/theme/palette';
 import { AppText } from '@/ui/AppText';
@@ -29,11 +29,14 @@ import { Button } from '@/ui/Button';
 import { showToast } from '@/ui/toast';
 import { t, type TranslationKey } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
+import { isHTML } from '@/features/files/htmlPreview';
+import type { PreviewFeedbackResult } from '@/features/files/previewFeedback';
 
 export type FileDiffParams = {
   sessionId: string;
   entryId?: string;
   path: string;
+  feedback?: (report: string) => Promise<PreviewFeedbackResult>;
 };
 
 type DiffStyle = 'unified' | 'split';
@@ -122,6 +125,16 @@ function View() {
 
   const preview = async () => {
     try {
+      if (isHTML(params.path)) {
+        const { FileContentScreen } = await import('./FileContentScreen');
+        await present(FileContentScreen, {
+          sessionId: params.sessionId,
+          path: params.path,
+          preview: true,
+          feedback: params.feedback,
+        });
+        return;
+      }
       const file = await readFile({
         sessionId: params.sessionId,
         path: params.path,
@@ -221,6 +234,13 @@ function View() {
   return (
     <>
       <Stack.Toolbar placement="right">
+        {isHTML(params.path) ? (
+          <Stack.Toolbar.Button
+            icon="eye"
+            accessibilityLabel={t('file.preview')}
+            onPress={() => void preview()}
+          />
+        ) : null}
         <Stack.Toolbar.Menu
           icon="ellipsis"
           accessibilityLabel={t('common.more')}
@@ -255,9 +275,11 @@ function View() {
           >
             {t('diff.action.copyPatch')}
           </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction icon="eye" onPress={() => void preview()}>
-            {t('diff.action.previewFile')}
-          </Stack.Toolbar.MenuAction>
+          {!isHTML(params.path) ? (
+            <Stack.Toolbar.MenuAction icon="eye" onPress={() => void preview()}>
+              {t('diff.action.previewFile')}
+            </Stack.Toolbar.MenuAction>
+          ) : null}
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
       <NativeDiffSurface

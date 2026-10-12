@@ -176,13 +176,25 @@ enum FilePreviewFixture {
     guard LodyUIVerify.enabled,
       let data = payload.data(using: .utf8),
       let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-      args["sessionId"] as? String == "ui-verify-files",
+      ["ui-verify-files", "ui-verify-diff"].contains(args["sessionId"] as? String ?? ""),
       let path = (args["path"] ?? args["relativePath"]) as? String else { return nil }
     if listing { return #"{"entries":[{"name":"report.md","type":"file"},{"name":"sample.swift","type":"file"}],"truncated":false}"# }
     let name = (path as NSString).lastPathComponent
     var kind = "text"
     let body: Data
     switch name {
+    case "interactive.html", "broken.html":
+      let broken = name == "broken.html" ? #"<img src="./assets/missing.svg" alt="Missing relative image"><img src="/assets/root.svg" alt="Website root"><img src="file:///Users/example/private.png" alt="Computer file"><img src="http://localhost:5173/status?token=private" alt="Local service">"# : ""
+      body = Data("""
+        <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="./assets/preview.css"><script defer src="./assets/preview.js"></script></head>
+        <body><h1 id="page">First page</h1><button id="next">Next page</button>
+        <button id="dynamic">Load missing resource</button><p id="style">Relative stylesheet loaded</p>\(broken)</body></html>
+        """.utf8)
+    case "preview.css":
+      body = Data("body{font:18px -apple-system;padding:20px;color-scheme:light dark}button{font:inherit;min-height:44px;display:block;margin:16px 0}#style{border:2px solid #007aff;padding:12px}".utf8)
+    case "preview.js":
+      body = Data("document.getElementById('next').onclick=()=>{document.getElementById('page').textContent='Second page'};document.getElementById('dynamic').onclick=()=>{const img=document.createElement('img');img.src='./assets/dynamic-missing.svg';img.alt='Dynamic missing resource';document.body.appendChild(img)};".utf8)
     case "mermaid.md":
       body = Data("# Mermaid document\n\nBefore the diagram.\n\n```mermaid\ngraph TD\n    A[Start] --> B{Ready?}\n    B -->|Yes| C[Done]\n    B -->|No| A\n```\n\nAfter the diagram.\n".utf8)
     case "report.md":

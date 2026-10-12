@@ -104,6 +104,27 @@ const draft = {
   phase: 'waiting',
 };
 
+test('preview feedback delivery and its reply leave the user composer draft intact', async () => {
+  const { hooks, outbox } = await setup(
+    { ...draft, attachments: [], preserveDraft: true },
+    { sendSessionTurn: async () => JSON.stringify({ state: 'accepted' }) },
+  );
+  await tick();
+  assert.equal(outbox.records[0].send.phase, 'accepted');
+  assert.equal(hooks.result.clearDraftToken, 0);
+  hooks.update({
+    snapshot: {
+      status: 'live',
+      entries: [{ id: 'reply', role: 'assistant', userTurnId: draft.id }],
+    },
+  });
+  await tick();
+  assert.equal(outbox.records.length, 0);
+  assert.equal(hooks.result.clearDraftToken, 0);
+  assert.equal(hooks.result.restoreDraftToken, 0);
+  hooks.unmount();
+});
+
 test('attachment progress stays local, targets the current send, and unsubscribes on failure and unmount', async () => {
   let listener;
   let removals = 0;

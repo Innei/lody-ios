@@ -12,7 +12,7 @@ export function Button({
   variant = 'plain',
   disabled = false,
   destructive = false,
-  radius = 14,
+  radius,
   testID,
   style,
 }: {
@@ -44,7 +44,7 @@ export function Button({
         {
           minHeight: 44,
           paddingHorizontal: surface ? 20 : 0,
-          borderRadius: filled ? 12 : 0,
+          borderRadius: filled ? (radius ?? 12) : 0,
           borderCurve: 'continuous',
           alignItems: 'center',
           justifyContent: 'center',
@@ -55,7 +55,7 @@ export function Button({
       ]}
     >
       {glass ? (
-        <NativeGlassSurface radius={radius} tint={colors.accent} />
+        <NativeGlassSurface radius={radius ?? 14} tint={colors.accent} />
       ) : null}
       <AppText
         variant="body"

@@ -12,7 +12,8 @@ enum FilePreview {
       throw failure
     }
     if let response = FilePreviewFixture.response(payload) {
-      let delay = payload.contains("document.pdf") ? 0.0 : 5.0
+      let fast = ["document.pdf", "interactive.html", "broken.html", "preview.css", "preview.js"].contains { payload.contains($0) }
+      let delay = fast ? 0.0 : 5.0
       if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
       try Task.checkCancellation()
       return response

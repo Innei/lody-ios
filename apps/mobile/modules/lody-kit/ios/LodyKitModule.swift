@@ -460,7 +460,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
           let data = payload.data(using: .utf8),
           let params = try? JSONSerialization.jsonObject(with: data) as? [String: String],
           params["sessionId"] == "ui-verify-diff", params["entryId"] == "diff-preview",
-          let path = params["path"], ["docs/superpowers/.diff-check.md", "src/very-long-directory-name/nested/components/another-long-file-name.ts"].contains(path) {
+          let path = params["path"], ["docs/superpowers/.diff-check.md", "src/very-long-directory-name/nested/components/another-long-file-name.ts", "docs/interactive.html"].contains(path) {
           let added = path.hasSuffix(".ts")
             ? """
               import { readFileSync } from 'node:fs';
@@ -735,6 +735,12 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("del") { (view: LodyDiffToolbar, value: Int?) in view.pendingDel = value ?? 0; view.applyStats() }
       Prop("base") { (view: LodyDiffToolbar, value: String?) in view.pendingBase = value ?? ""; view.applyStats() }
       Prop("diffStyle") { (view: LodyDiffToolbar, value: String?) in view.setStyle(value ?? "unified") }
+    }
+
+    View(LodyHTMLPreviewView.self) {
+      Events("onResourceRequest", "onIssues", "onLoad", "onFail")
+      Prop("handle") { (view: LodyHTMLPreviewView, value: String) in view.setHandle(value) }
+      Prop("responsesJSON") { (view: LodyHTMLPreviewView, value: String) in view.setResponses(value) }
     }
 
     View(LodyMarkdownDocumentView.self) {

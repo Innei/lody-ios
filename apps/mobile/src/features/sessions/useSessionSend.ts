@@ -151,7 +151,7 @@ export function useSessionSend({
     // A cached user row can come from a write whose ACK was lost. Only an
     // actual reply or the send receipt confirms delivery; never replay the row.
     if (!send.creation && hasReply) {
-      if (cleared.current !== send.id) {
+      if (!send.preserveDraft && cleared.current !== send.id) {
         cleared.current = send.id;
         setClearDraftToken((token) => token + 1);
       }
@@ -169,6 +169,7 @@ export function useSessionSend({
     }
     if (
       ['accepted', 'queued'].includes(send.phase) &&
+      !send.preserveDraft &&
       cleared.current !== send.id
     ) {
       cleared.current = send.id;
@@ -271,7 +272,11 @@ export function useSessionSend({
             ...record,
             send: { ...send, guide: guiding, phase },
           });
-          if (phase !== 'unknown' && cleared.current !== send.id) {
+          if (
+            !send.preserveDraft &&
+            phase !== 'unknown' &&
+            cleared.current !== send.id
+          ) {
             cleared.current = send.id;
             setClearDraftToken((token) => token + 1);
           }

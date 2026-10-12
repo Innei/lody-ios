@@ -1,5 +1,7 @@
 import { NativeModule, requireNativeModule } from 'expo';
 
+export const createSendId = () => expo.uuidv4();
+
 export interface RuntimeInfo {
   offlineProbe?: boolean;
   uiVerifyHome: boolean;

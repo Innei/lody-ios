@@ -1,24 +1,39 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, useColorScheme, View } from 'react-native';
 import {
   NativeMarkdownDocumentView,
   NativeNavigationHeader,
+  NativeHTMLPreviewView,
+  NativePressable,
+  NativeSymbol,
   readContentText,
   readFile,
   type FileContent,
+  type HTMLPreviewIssue,
 } from '@lody-ios/kit';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DiffView } from '@/features/diff/DiffView';
 import { basename } from '@/features/sessions/path';
 import { useOpenFile } from '@/hooks/screens/useOpenFile';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
-import { definePage } from '@/lib/presentation';
-import { t, type TranslationKey } from '@/lib/i18n';
+import { usePreviewFeedback } from '@/hooks/screens/usePreviewFeedback';
+import { htmlReadError, isHTML } from '@/features/files/htmlPreview';
+import type { PreviewFeedbackResult } from '@/features/files/previewFeedback';
+import { HTMLPreviewIssuesScreen } from './HTMLPreviewIssuesScreen';
+import { definePage, present } from '@/lib/presentation';
+import { t, tp, type TranslationKey } from '@/lib/i18n';
 import { usePalette } from '@/lib/theme/palette';
 import { uiVerify } from '@/lib/uiVerify';
 import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
 
-type Params = { sessionId: string; path: string; line?: number };
+type Params = {
+  sessionId: string;
+  path: string;
+  line?: number;
+  preview?: boolean;
+  feedback?: (report: string) => Promise<PreviewFeedbackResult>;
+};
 const errors: Record<string, TranslationKey> = {
   too_large: 'native.file.error.tooLarge',
   file_not_found: 'native.file.error.notFound',
@@ -32,13 +47,36 @@ function Content() {
   const colors = usePalette();
   const theme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const openFile = useOpenFile(params.sessionId);
+  const feedback = usePreviewFeedback(params.sessionId);
+  const insets = useSafeAreaInsets();
+  const html = isHTML(params.path);
   const [file, setFile] = useState<Extract<FileContent, { status: 'ok' }>>();
   const [text, setText] = useState<string>();
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
-  const [source, setSource] = useState((params.line ?? 0) > 0);
+  const [source, setSource] = useState(
+    (params.line ?? 0) > 0 || (html && !params.preview),
+  );
   const [ready, setReady] = useState(false);
+  const [issues, setIssues] = useState<HTMLPreviewIssue[]>([]);
+  const [responses, setResponses] = useState<
+    { id: string; handle?: string; code?: string }[]
+  >([]);
+  const activeHandle = useRef<string | undefined>(undefined);
+  activeHandle.current = source ? undefined : file?.handle;
   const markdown = /\.(md|markdown|mdx)$/i.test(params.path);
+
+  const showIssues = async () => {
+    const result = await present(HTMLPreviewIssuesScreen, {
+      path: params.path,
+      issues,
+      send: uiVerify && params.feedback ? params.feedback : feedback.send,
+    });
+    if (result.status === 'completed' && result.value === 'open-session') {
+      cancel();
+      feedback.openSession();
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -46,10 +84,21 @@ function Content() {
     setText(undefined);
     setError('');
     setReady(false);
+    setIssues([]);
+    setResponses([]);
     void readFile(params)
       .then(async (value) => {
         if (!active) return;
         if (value.status !== 'ok') {
+          if (html)
+            setIssues([
+              {
+                reference: params.path,
+                path: params.path,
+                kind: 'document',
+                code: value.code,
+              },
+            ]);
           setError(t(errors[value.code] ?? 'native.file.error.read'));
           return;
         }
@@ -62,11 +111,23 @@ function Content() {
         setFile(value);
         setText(contents);
       })
-      .catch(() => {
-        if (active) setError(t('native.file.error.read'));
+      .catch((cause) => {
+        if (active) {
+          setError(t('native.file.error.read'));
+          if (html)
+            setIssues([
+              {
+                reference: params.path,
+                path: params.path,
+                kind: 'document',
+                code: htmlReadError(cause),
+              },
+            ]);
+        }
       });
     return () => {
       active = false;
+      activeHandle.current = undefined;
     };
   }, [params.sessionId, params.path, revision]);
 
@@ -87,6 +148,12 @@ function Content() {
           label={t('common.retry')}
           onPress={() => setRevision((value) => value + 1)}
         />
+        {html && issues.length > 0 ? (
+          <Button
+            label={t('html.issues.title')}
+            onPress={() => void showIssues()}
+          />
+        ) : null}
       </View>
     );
   } else if (!file || text === undefined) {
@@ -95,6 +162,51 @@ function Content() {
         testID="file-loading"
         style={{ flex: 1 }}
         color={colors.secondaryLabel}
+      />
+    );
+  } else if (html && !source) {
+    body = (
+      <NativeHTMLPreviewView
+        handle={file.handle}
+        responsesJSON={JSON.stringify(responses)}
+        style={{ flex: 1 }}
+        onLoad={() => setReady(true)}
+        onFail={({ nativeEvent }) => {
+          setIssues((old) =>
+            old.length > 0
+              ? old
+              : [
+                  {
+                    reference: params.path,
+                    path: params.path,
+                    kind: 'document',
+                    code: nativeEvent.code,
+                  },
+                ],
+          );
+          setError(t('html.error.resource'));
+        }}
+        onIssues={({ nativeEvent }) => setIssues(nativeEvent.issues)}
+        onResourceRequest={({ nativeEvent }) => {
+          const handle = file.handle;
+          const { id, path } = nativeEvent;
+          void readFile({ sessionId: params.sessionId, path })
+            .then((value) => {
+              if (activeHandle.current !== handle) return;
+              const response =
+                value.status === 'ok'
+                  ? { id, handle: value.handle }
+                  : { id, code: value.code };
+              setResponses((old) => [...old, response]);
+            })
+            .catch((cause) => {
+              if (activeHandle.current === handle)
+                setResponses((old) => [
+                  ...old,
+                  { id, code: htmlReadError(cause) },
+                ]);
+            });
+        }}
       />
     );
   } else if (markdown && !source) {
@@ -165,13 +277,23 @@ function Content() {
           },
         ]}
         items={
-          file && markdown
+          file && (markdown || html)
             ? [
                 {
                   type: 'button',
-                  title: t(source ? 'file.preview' : 'file.source'),
+                  title: html
+                    ? undefined
+                    : t(source ? 'file.preview' : 'file.source'),
+                  icon: html
+                    ? { type: 'sfSymbol', name: source ? 'eye' : 'doc.text' }
+                    : undefined,
+                  identifier: 'file-preview-toggle',
+                  accessibilityLabel: t(
+                    source ? 'file.preview' : 'file.source',
+                  ),
                   onPress: () => {
                     setReady(false);
+                    if (html && source) setRevision((value) => value + 1);
                     setSource((value) => !value);
                   },
                 },
@@ -180,6 +302,41 @@ function Content() {
         }
       />
       {body}
+      {html && !source && !error && issues.length > 0 ? (
+        <NativePressable
+          testID="html-issues-summary"
+          accessibilityLabel={tp('html.issues.count', issues.length, {
+            count: issues.length,
+          })}
+          onPress={() => void showIssues()}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            minHeight: 56,
+            padding: 16,
+            paddingBottom: Math.max(16, insets.bottom),
+            backgroundColor: colors.card,
+          }}
+        >
+          <NativeSymbol
+            symbol="exclamationmark.triangle"
+            tint="warning"
+            style={{ width: 24, height: 24 }}
+          />
+          <View style={{ flex: 1, gap: 4 }}>
+            <AppText>
+              {tp('html.issues.count', issues.length, { count: issues.length })}
+            </AppText>
+            <AppText variant="meta">{t('html.issues.incomplete')}</AppText>
+          </View>
+          <NativeSymbol
+            symbol="chevron.right"
+            tint="secondary"
+            style={{ width: 16, height: 20 }}
+          />
+        </NativePressable>
+      ) : null}
     </View>
   );
 }

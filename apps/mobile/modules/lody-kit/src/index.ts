@@ -209,6 +209,11 @@ export {
   type DirectoryListing,
 } from './diff/files';
 export { readContentText, previewContent, openFile } from './runtime/LodyKit';
+export { createSendId } from './runtime/LodyKit';
+export {
+  NativeHTMLPreviewView,
+  type HTMLPreviewIssue,
+} from './html-preview/NativeHTMLPreviewView';
 export {
   NativeInlineDiff,
   type NativeInlineDiffProps,

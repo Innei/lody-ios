@@ -5,7 +5,9 @@ import { useState } from 'react';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { FilesScreen } from '@/screens/FilesScreen';
 import { NativeChat } from '@lody-ios/kit';
-import { definePage } from '@/lib/presentation';
+import { View as RNView } from 'react-native';
+import { FileContentScreen } from '../FileContentScreen';
+import { definePage, present } from '@/lib/presentation';
 import { useOpenFile } from '@/hooks/screens/useOpenFile';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
 
@@ -92,6 +94,11 @@ const attachmentsJSON = JSON.stringify([
 function View() {
   const [userMentions, setUserMentions] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [feedbackReport, setFeedbackReport] = useState('');
+  const feedback = async (report: string) => {
+    setFeedbackReport(report);
+    return 'sent' as const;
+  };
   const { push } = usePageRuntime();
   const openFile = useOpenFile('ui-verify-files');
   const openProcess = useProcessSheet(entriesJSON, () => {}, 'ui-verify-files');
@@ -102,6 +109,73 @@ function View() {
     <>
       <DiffWebViewWarmer />
       <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Menu icon="globe" accessibilityLabel="HTML Fixtures">
+          <Stack.Toolbar.MenuAction
+            onPress={() =>
+              void present(FileContentScreen, {
+                sessionId: 'ui-verify-files',
+                path: 'docs/interactive.html',
+                feedback,
+              })
+            }
+          >
+            HTML source
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            onPress={() =>
+              void present(FileContentScreen, {
+                sessionId: 'ui-verify-files',
+                path: 'docs/broken.html',
+                preview: true,
+                feedback,
+              })
+            }
+          >
+            HTML resource failures
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            onPress={() =>
+              void push(FileDiffScreen, {
+                sessionId: 'ui-verify-diff',
+                entryId: 'diff-preview',
+                path: 'docs/interactive.html',
+                feedback,
+              })
+            }
+          >
+            HTML diff
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            onPress={() =>
+              void present(FileContentScreen, {
+                sessionId: 'ui-verify-files',
+                path: 'docs/broken.html',
+                preview: true,
+                feedback: async (report) => {
+                  setFeedbackReport(report);
+                  throw new Error('send_failed');
+                },
+              })
+            }
+          >
+            HTML feedback failure
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            onPress={() =>
+              void present(FileContentScreen, {
+                sessionId: 'ui-verify-files',
+                path: 'docs/broken.html',
+                preview: true,
+                feedback: async (report) => {
+                  setFeedbackReport(report);
+                  return 'queued';
+                },
+              })
+            }
+          >
+            HTML queued feedback
+          </Stack.Toolbar.MenuAction>
+        </Stack.Toolbar.Menu>
         <Stack.Toolbar.Button
           icon="plus.forwardslash.minus"
           accessibilityLabel="Diff Viewer"
@@ -153,6 +227,15 @@ function View() {
           void openFile(nativeEvent.path, nativeEvent.line)
         }
       />
+      {feedbackReport ? (
+        <RNView
+          testID="html-feedback-report"
+          accessible
+          accessibilityLabel={feedbackReport}
+          pointerEvents="none"
+          style={{ position: 'absolute', width: 44, height: 44 }}
+        />
+      ) : null}
     </>
   );
 }

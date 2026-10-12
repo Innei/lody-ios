@@ -255,6 +255,13 @@ task's locked Simulator or Metro.
 
 ## Baseline inventory
 
+`--suite html-files` checks HTML previews and existing file previews in English,
+light and dark. `html-preview` exercises the native source/preview icon in file
+and Diff hosts, real page-button taps with relative CSS/JS, dynamic resource errors,
+and feedback payloads and sent/failed/queued states. Missing relative files,
+unmapped root paths, computer filesystem URLs and localhost are distinct failures.
+Feedback uses an offline service boundary; no real agent turn is sent.
+
 `quick-replies` exercises the production composer and Settings editor: idle-only
 visibility, draft preservation, full-message sending and explicit failure retry,
 stable transcript/input geometry across repeated first-character and last-delete transitions,
