@@ -61,6 +61,16 @@ import { workspaceRunOptions, resolveTurnRunOptions } from './run-options.ts';
 import type { RunOptionsRequest } from '../models/run-options.ts';
 import { scheduleCommand } from './schedules.ts';
 import type { ScheduleRequest } from '../models/schedules.ts';
+import {
+  promptShortcuts,
+  shortcutMentionCatalog,
+  expandShortcut,
+  type PromptShortcutContext,
+} from './prompt-shortcuts.ts';
+import {
+  shortcutComposerScope,
+  type PromptShortcutRequest,
+} from '../models/prompt-shortcuts.ts';
 import { remoteSettings } from './settings';
 import type { SettingsRequest } from '../models/settings.ts';
 import {
@@ -329,6 +339,22 @@ function managementContext(
       const value = await getGrant();
       assertCurrent();
       return value;
+    },
+  };
+}
+function shortcutContext(
+  ctx: ReturnType<typeof managementContext>,
+): PromptShortcutContext {
+  return {
+    workspaceId: ctx.workspaceId,
+    userId: ctx.userId,
+    signal: ctx.signal,
+    check: ctx.assertCurrent,
+    cloud: async (method, args) => {
+      ctx.assertCurrent();
+      const result = await broker('shortcutApi', { method, args }, ctx.signal);
+      ctx.assertCurrent();
+      return result;
     },
   };
 }
@@ -712,6 +738,36 @@ async function getMentions(
       ?.get(['cmd', 'deleteLocalProject', localProjectId]) !== undefined
   )
     throw new Error('project_unavailable');
+  if (args.category === 'shortcut') {
+    const fields = session
+      ? docFields(ctx.meta, `session-${session.id}`)
+      : undefined;
+    const configId = session
+      ? (ctx.meta.get(['m', `session-${session.id}`, 'agentConfigId']) ??
+        fields?.agentConfigId)
+      : args.agentConfigId;
+    const selected = creationAgentCatalog(
+      ctx.meta,
+      machineReplicas,
+    ).agents.find(
+      (agent) =>
+        agent.id === configId && (!machineId || agent.machineId === machineId),
+    );
+    if (configId && !selected) throw new Error('agent_unavailable');
+    const source = {
+      ...args,
+      projectId,
+      machineId: selected?.machineId ?? machineId,
+      cliType: selected?.cliType ?? session?.cliType,
+      agentType: selected?.agentType ?? session?.agentType,
+    };
+    return shortcutMentionCatalog(
+      shortcutContext(ctx),
+      shortcutComposerScope(source),
+      (category) => getMentions({ ...source, category }),
+      presence.state === 'live' ? presence.onlineMachineIds : undefined,
+    );
+  }
   if (args.category === 'issue' || args.category === 'pr') {
     if (!projectId?.startsWith('github:'))
       return { items: [], truncated: false, incomplete: false };
@@ -787,6 +843,12 @@ Object.assign(globalThis, {
       const ctx = managementContext(args, undefined, 120000);
       const { userId: _userId, ...request } = args;
       const result = await scheduleCommand(request, { ...ctx, presence });
+      ctx.assertCurrent();
+      return result;
+    },
+    async shortcutCommand(args: PromptShortcutRequest & { userId: string }) {
+      const ctx = managementContext(args, undefined, 120000);
+      const result = await promptShortcuts(args, shortcutContext(ctx));
       ctx.assertCurrent();
       return result;
     },
@@ -1498,8 +1560,16 @@ Object.assign(globalThis, {
         args,
         async (text) => {
           ctx.assertCurrent();
-          const result = await expandMentions(text, (category) =>
-            getMentions({ ...source, category }),
+          const result = await expandMentions(
+            text,
+            (category) => getMentions({ ...source, category }),
+            (id) =>
+              expandShortcut(
+                id,
+                shortcutContext(ctx),
+                shortcutComposerScope(source),
+                (category) => getMentions({ ...source, category }),
+              ),
           );
           ctx.assertCurrent();
           return result;

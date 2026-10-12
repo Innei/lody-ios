@@ -135,12 +135,18 @@ final class LodyMentionPickerView: ExpoView, UICollectionViewDataSource, UIColle
     let item = rows[indexPath.item]
     let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "item", for: indexPath) as! UICollectionViewListCell
     cell.contentConfiguration = item.content
+    cell.isUserInteractionEnabled = item.disabledReason == nil
+    cell.accessibilityTraits = item.disabledReason == nil ? [.button] : [.button, .notEnabled]
     cell.accessibilityIdentifier = "mention-picker-item:" + item.path
     cell.accessories = item.kind == "directory" ? [.disclosureIndicator()] : []
     return cell
   }
+  func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
+    rows.indices.contains(indexPath.item) && rows[indexPath.item].disabledReason == nil
+  }
   func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
     collectionView.deselectItem(at: indexPath, animated: true)
+    guard rows.indices.contains(indexPath.item), rows[indexPath.item].disabledReason == nil else { return }
     let item = rows[indexPath.item]
     if item.kind == "directory" {
       path = item.path

@@ -25,6 +25,7 @@ sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-
 checks = {
     'send-preparation': ['Cloud/SendPreparation.swift'],
     'runtime-command-payload': ['Cloud/RuntimeCommandPayload.swift'],
+    'prompt-shortcuts': ['Cloud/PromptShortcutsCloud.swift'],
     'project-management': ['Cloud/ProjectManagementCloud.swift'],
     'team': ['Cloud/TeamManagement.swift'],
     'transcript-context': ['LodyStrings.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift'],
@@ -179,7 +180,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
                 '-o', str(Path(output) / 'libExpoModulesCore.a'),
             ], check=True, timeout=120)
             command += ['-I', output, '-L', output, '-lAnchoredOverlayKit', '-lExpoModulesCore']
-        if name in ['send-preparation', 'project-management', 'team', 'attachments', 'github-mentions', 'github-pr', 'session-sharing']:
+        if name in ['send-preparation', 'prompt-shortcuts', 'project-management', 'team', 'attachments', 'github-mentions', 'github-pr', 'session-sharing']:
             command += ['-parse-as-library']
         if name == 'inline-diff':
             command += ['-framework', 'UIKit']

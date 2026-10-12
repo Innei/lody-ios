@@ -415,6 +415,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("scheduleCommand") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("scheduleCommand", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("projectCommand") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("projectCommand", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("providerCommand") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("providerCommand", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("shortcutCommand") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("shortcutCommand", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("sessionTools") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("sessionTools", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("runOptions") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("runOptions", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("subagentHistory") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("subagentHistory", payload: payload, promise: promise) } }.runOnQueue(.main)

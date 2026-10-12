@@ -2053,3 +2053,108 @@ bigComposer.onSend = { bigAttachments = $0["attachments"] as! [[String: String]]
 tapSend(on: bigComposer)
 precondition(bigAttachments.first?["name"] == "Text.txt", "Undo that cannot insert must keep the file, got \(bigAttachments)")
 print("Rich composer: huge logs become Text.txt and a refused undo keeps the file")
+
+@MainActor func verifyPromptShortcutMentionAvailability() throws {
+  let reason = "This shortcut requires a different provider. Choose its provider before using this saved template."
+  let raw: [[String: Any]] = [
+    ["path": "compact", "name": "compact", "kind": "cmd", "subtitle": "Agent command", "insertText": "/compact"],
+    ["path": "review/auth", "name": "Check Alpha", "kind": "shortcut", "subtitle": "Review authentication", "command": "/review-auth", "emoji": "🔍", "insertText": "@shortcut:review%2Fauth"],
+    ["path": "other/provider", "name": "Claude only", "kind": "shortcut", "subtitle": "Provider-specific template", "command": "/claude-only", "insertText": "@shortcut:other%2Fprovider", "disabledReason": reason],
+  ]
+  let data = try JSONSerialization.data(withJSONObject: raw)
+  let items = try JSONDecoder().decode([ChatMentionItem].self, from: data)
+  let available = items[1], disabled = items[2]
+  let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 402, height: 874))
+  let controller = UIViewController()
+  window.rootViewController = controller
+  window.makeKeyAndVisible()
+  defer { window.isHidden = true }
+  let input = UITextView(frame: CGRect(x: 16, y: 680, width: 370, height: 60))
+  let panel = ChatMentionPanel(frame: CGRect(x: 16, y: 140, width: 370, height: 240))
+  controller.view.addSubview(input)
+  controller.view.addSubview(panel)
+  precondition(input.becomeFirstResponder())
+  let list = descendants(panel).compactMap { $0 as? UICollectionView }.first!
+  var changes = 0
+  panel.onChange = { changes += 1 }
+  func render(_ text: String, values: [ChatMentionItem]? = nil) {
+    input.text = text
+    input.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+    panel.update(input: input, items: values ?? items)
+    panel.frame.size.height = panel.panelHeight
+    window.layoutIfNeeded()
+    RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+    changes = 0
+  }
+  func cell(_ collection: UICollectionView, _ id: String) -> (UICollectionViewListCell, IndexPath) {
+    collection.layoutIfNeeded()
+    let value = collection.visibleCells.first { $0.accessibilityIdentifier == id } as! UICollectionViewListCell
+    return (value, collection.indexPath(for: value)!)
+  }
+  render("/")
+  let (_, commandIndex) = cell(list, "mention-item:compact")
+  let (_, shortcutIndex) = cell(list, "mention-item:" + available.path)
+  precondition(panel.collectionView(list, numberOfItemsInSection: 0) == 2,
+    "The slash menu must preserve Agent commands alongside available Shortcuts")
+  precondition(panel.collectionView(list, shouldSelectItemAt: shortcutIndex))
+  panel.collectionView(list, didSelectItemAt: commandIndex)
+  precondition(input.text == "/compact " && changes == 1, "Agent commands must still insert once")
+  render("/review-au")
+  let (_, slugIndex) = cell(list, "mention-item:" + available.path)
+  panel.collectionView(list, didSelectItemAt: slugIndex)
+  precondition(input.text == available.insertText! + " " && changes == 1,
+    "Slug discovery must insert the unchanged escaped stable ID, without expanding the template")
+  render("/claude-only")
+  let (disabledCell, disabledIndex) = cell(list, "mention-item:" + disabled.path)
+  precondition((disabledCell.contentConfiguration as? UIListContentConfiguration)?.secondaryText == reason,
+    "The full decoded availability reason must reach the UIKit row")
+  precondition(disabledCell.accessibilityTraits.contains(.notEnabled) && !disabledCell.isUserInteractionEnabled)
+  precondition(!panel.collectionView(list, shouldSelectItemAt: disabledIndex))
+  let retainedSelection = input.selectedRange
+  panel.collectionView(list, didSelectItemAt: disabledIndex)
+  precondition(input.text == "/claude-only" && input.selectedRange == retainedSelection && changes == 0,
+    "A direct delegate callback must not insert or notify a disabled Shortcut")
+  let category = ChatMentionItem(path: "shortcut", name: "Prompt Shortcuts", kind: "category", subtitle: "")
+  render("@", values: [category] + items)
+  let (_, categoryIndex) = cell(list, "mention-item:shortcut")
+  panel.collectionView(list, didSelectItemAt: categoryIndex)
+  panel.finishBrowse(path: disabled.path, selectedItem: disabled)
+  precondition(input.text == "@", "A disabled remote browse result must retain the original draft")
+  input.resignFirstResponder()
+  panel.removeFromSuperview()
+  input.removeFromSuperview()
+
+  let picker = LodyMentionPickerView(appContext: nil)
+  picker.frame = controller.view.bounds
+  controller.view.addSubview(picker)
+  var picked: [String] = []
+  picker.onPick.onEventSent = { if let path = $0["path"] as? String { picked.append(path) } }
+  let pickerData = try JSONSerialization.data(withJSONObject: ["category": "shortcut", "items": raw])
+  picker.configure(String(decoding: pickerData, as: UTF8.self))
+  window.layoutIfNeeded()
+  RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+  let pickerList = descendants(picker).compactMap { $0 as? UICollectionView }.first!
+  let (unavailableRow, unavailableIndex) = cell(pickerList, "mention-picker-item:" + disabled.path)
+  precondition((unavailableRow.contentConfiguration as? UIListContentConfiguration)?.secondaryText == reason)
+  precondition(unavailableRow.accessibilityTraits.contains(.notEnabled) && !unavailableRow.isUserInteractionEnabled)
+  precondition(!picker.collectionView(pickerList, shouldSelectItemAt: unavailableIndex))
+  picker.collectionView(pickerList, didSelectItemAt: unavailableIndex)
+  precondition(picked.isEmpty, "A disabled picker row must never dispatch onPick")
+  let (_, enabledIndex) = cell(pickerList, "mention-picker-item:" + available.path)
+  precondition(picker.collectionView(pickerList, shouldSelectItemAt: enabledIndex))
+  picker.collectionView(pickerList, didSelectItemAt: enabledIndex)
+  precondition(picked == [available.path], "An available picker row must dispatch its stable ID once")
+  var unlocked = raw[2]
+  unlocked.removeValue(forKey: "disabledReason")
+  let unlockedData = try JSONSerialization.data(withJSONObject: ["category": "shortcut", "items": [unlocked]])
+  picker.configure(String(decoding: unlockedData, as: UTF8.self))
+  window.layoutIfNeeded()
+  let (unlockedRow, unlockedIndex) = cell(pickerList, "mention-picker-item:" + disabled.path)
+  precondition(!unlockedRow.accessibilityTraits.contains(.notEnabled) && unlockedRow.isUserInteractionEnabled)
+  precondition(picker.collectionView(pickerList, shouldSelectItemAt: unlockedIndex))
+  picker.collectionView(pickerList, didSelectItemAt: unlockedIndex)
+  precondition(picked == [available.path, disabled.path], "A newly available row must clear reused disabled state")
+  print("Shortcut availability: decoded reasons, semantic disabled state, callback guards, stable IDs and legacy slash commands passed")
+}
+
+try verifyPromptShortcutMentionAvailability()

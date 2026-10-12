@@ -85,6 +85,7 @@ export {
   scheduleCommand,
   projectCommand,
   providerCommand,
+  shortcutCommand,
   sessionTools,
   runOptions,
   subagentHistory,

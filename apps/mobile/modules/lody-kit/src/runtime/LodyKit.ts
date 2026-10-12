@@ -58,6 +58,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   scheduleCommand(payload: string): Promise<string>;
   projectCommand(payload: string): Promise<string>;
   providerCommand(payload: string): Promise<string>;
+  shortcutCommand(payload: string): Promise<string>;
   sessionTools(payload: string): Promise<string>;
   runOptions(payload: string): Promise<string>;
   subagentHistory(payload: string): Promise<string>;
@@ -444,6 +445,8 @@ export const projectCommand = (payload: string) =>
   native.projectCommand(payload);
 export const providerCommand = (payload: string) =>
   native.providerCommand(payload);
+export const shortcutCommand = (payload: string) =>
+  native.shortcutCommand(payload);
 export const sessionTools = (payload: string) => native.sessionTools(payload);
 export const runOptions = (payload: string) => native.runOptions(payload);
 export const subagentHistory = (payload: string) =>

@@ -9,6 +9,7 @@ import type {
   MentionSource,
 } from '@lody/cloud-runtime/models/mentions';
 import { t } from '@/lib/i18n';
+import { localizeShortcutCatalog } from '@/cloud/prompt-shortcuts';
 
 const labels = {
   file: 'files',
@@ -18,12 +19,14 @@ const labels = {
   issue: 'issues',
   pr: 'prs',
   cmd: 'commands',
+  shortcut: 'shortcuts',
 } as const;
 const categories = Object.keys(labels) as MentionCategory[];
 
 export function useComposerMentions(
   source: MentionSource | undefined,
   present: PageRuntime['present'],
+  service = getMentionCatalog,
 ) {
   const context = useMemo(
     () => ({
@@ -41,6 +44,7 @@ export function useComposerMentions(
       source?.agentConfigId,
       source?.cliType,
       source?.agentType,
+      service,
     ],
   );
   const current = useRef(context);
@@ -53,8 +57,10 @@ export function useComposerMentions(
       return Promise.reject(new Error('machine_unavailable'));
     if (!refresh && context.pending.has(category))
       return context.pending.get(category)!;
-    const pending = getMentionCatalog(context.source, category)
-      .then((result) => {
+    const pending = service(context.source, category)
+      .then((raw) => {
+        const result =
+          category === 'shortcut' ? localizeShortcutCatalog(raw) : raw;
         if (
           current.current === context &&
           context.active &&
@@ -95,7 +101,9 @@ export function useComposerMentions(
               ...categories
                 .filter(
                   (category) =>
-                    ['file', 'skill', 'session'].includes(category) ||
+                    ['file', 'skill', 'session', 'shortcut'].includes(
+                      category,
+                    ) ||
                     context.failed.has(category) ||
                     !!context.catalogs.get(category)?.items.length,
                 )

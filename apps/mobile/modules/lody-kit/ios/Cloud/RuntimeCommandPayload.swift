@@ -2,6 +2,7 @@ import Foundation
 
 enum RuntimeCommandPayload {
   private static let limits = [
+    "shortcutCommand": 528 * 1024,
     "providerCommand": 400 * 1024,
     "projectCommand": 1024 * 1024,
     "scheduleCommand": 832 * 1024,
