@@ -14,6 +14,7 @@ struct AgentGlyph: View {
   let kind: String
   let text: String
   let size: CGFloat
+  var reducedLuminance = false
 
   static let kinds: Set<String> = [
     "claude", "codex", "kimi", "grok", "deepseek", "minimax", "glm", "mimo", "opencode", "gemini", "openai",
@@ -22,9 +23,13 @@ struct AgentGlyph: View {
 
   var body: some View {
     RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-      .fill(image == nil ? Color.secondary.opacity(0.2) : Color.white)
+      .fill(image == nil ? Color.secondary.opacity(0.2) : glyphBackground)
       .frame(width: size, height: size)
       .overlay(mark)
+  }
+
+  private var glyphBackground: Color {
+    reducedLuminance ? Color.gray : Color.white
   }
 
   private var image: String? {

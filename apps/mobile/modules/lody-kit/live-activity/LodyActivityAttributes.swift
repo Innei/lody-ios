@@ -1,5 +1,5 @@
 import Foundation
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && os(iOS)
 import ActivityKit
 #endif
 
@@ -98,6 +98,11 @@ struct LodyConversationLiveActivityAttributes: Codable, Hashable, Sendable {
       var elapsed: String?
       var waiting: String?
       var took: String?
+      var smallAttention: String?
+      var smallWaiting: String?
+      var smallDone: String?
+      var smallFailed: String?
+      var smallStale: String?
 
       init(stale: String, empty: String, others: String, lastSync: String, openHint: String) {
         self.stale = stale
@@ -122,6 +127,11 @@ struct LodyConversationLiveActivityAttributes: Codable, Hashable, Sendable {
         elapsed = try container.decodeIfPresent(String.self, forKey: .elapsed)
         waiting = try container.decodeIfPresent(String.self, forKey: .waiting)
         took = try container.decodeIfPresent(String.self, forKey: .took)
+        smallAttention = try container.decodeIfPresent(String.self, forKey: .smallAttention)
+        smallWaiting = try container.decodeIfPresent(String.self, forKey: .smallWaiting)
+        smallDone = try container.decodeIfPresent(String.self, forKey: .smallDone)
+        smallFailed = try container.decodeIfPresent(String.self, forKey: .smallFailed)
+        smallStale = try container.decodeIfPresent(String.self, forKey: .smallStale)
       }
     }
 
@@ -135,6 +145,12 @@ struct LodyConversationLiveActivityAttributes: Codable, Hashable, Sendable {
     var appIcon: String?
     // Server summary timestamp for diagnostics. Older/local content omits it.
     var updatedAt: Double?
+
+    var smallAttention: String { copy?.smallAttention ?? "Waiting for you" }
+    var smallWaiting: String { copy?.smallWaiting ?? "Waiting" }
+    var smallDone: String { copy?.smallDone ?? "Done" }
+    var smallFailed: String { copy?.smallFailed ?? "Failed" }
+    var smallStale: String { copy?.smallStale ?? "Outdated" }
 
     var staleLabel: String { copy?.stale ?? "Disconnected" }
 
@@ -303,6 +319,6 @@ struct LodyConversationLiveActivityAttributes: Codable, Hashable, Sendable {
   }
 }
 
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && os(iOS)
 extension LodyActivityAttributes: ActivityAttributes {}
 #endif

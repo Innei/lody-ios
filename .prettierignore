@@ -18,6 +18,9 @@ packages/lexical-swift/Fixtures/html/
 packages/lexical-swift/Fixtures/markdown/
 packages/lexical-swift/Sources/Lexical/Documentation.docc/
 
+# User-provided conversation attachments are not project source.
+.lody/
+
 packages/lody-core/.build/
 packages/lody-core/.swiftpm/
 apps/macos/Resources/Generated/

@@ -433,7 +433,12 @@ final class LiveActivities {
       failedSummary: LodyStrings.text("native.liveActivity.failedSummary"),
       elapsed: LodyStrings.text("native.liveActivity.caption.elapsed"),
       waiting: LodyStrings.text("native.liveActivity.caption.waiting"),
-      took: LodyStrings.text("native.liveActivity.caption.took")
+      took: LodyStrings.text("native.liveActivity.caption.took"),
+      smallAttention: LodyStrings.text("native.liveActivity.small.attention"),
+      smallWaiting: LodyStrings.text("native.liveActivity.small.waiting"),
+      smallDone: LodyStrings.text("native.liveActivity.small.done"),
+      smallFailed: LodyStrings.text("native.liveActivity.small.failed"),
+      smallStale: LodyStrings.text("native.liveActivity.small.stale")
     )
   }
 
@@ -536,6 +541,11 @@ final class LiveActivities {
     copy.elapsed = labels.elapsed
     copy.waiting = labels.waiting
     copy.took = labels.took
+    copy.smallAttention = labels.smallAttention
+    copy.smallWaiting = labels.smallWaiting
+    copy.smallDone = labels.smallDone
+    copy.smallFailed = labels.smallFailed
+    copy.smallStale = labels.smallStale
     return copy
   }
 }

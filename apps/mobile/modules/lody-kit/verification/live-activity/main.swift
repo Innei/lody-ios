@@ -299,3 +299,19 @@ precondition(!allFinished.isActive && allFinished.focus == nil && allFinished.di
 precondition(pushToStart.route(for: twoRunning).path == "/activity")
 precondition(pushToStart.route(for: oneRemaining).path == "/ws1/sessions/b")
 print("PASS: multiple turns, stable links, partial completion, stale awaiting cleanup, all-finished dismissal and overview routing")
+
+// New compact copy remains optional for server payloads from before Watch support.
+var compactCopy = LodyActivityAttributes.ContentState.Copy(stale: "Disconnected", empty: "Empty", others: "{count} more", lastSync: "Last synced", openHint: "Open")
+compactCopy.smallAttention = "等待你处理"
+compactCopy.smallWaiting = "等待中"
+compactCopy.smallDone = "已完成"
+compactCopy.smallFailed = "失败"
+compactCopy.smallStale = "已过期"
+let compactRoundTrip = try JSONDecoder().decode(LodyActivityAttributes.ContentState.Copy.self, from: JSONEncoder().encode(compactCopy))
+precondition(compactRoundTrip.smallAttention == "等待你处理")
+precondition(compactRoundTrip.smallWaiting == "等待中")
+precondition(compactRoundTrip.smallDone == "已完成")
+precondition(compactRoundTrip.smallFailed == "失败")
+precondition(compactRoundTrip.smallStale == "已过期")
+let legacyCopy = try JSONDecoder().decode(LodyActivityAttributes.ContentState.Copy.self, from: Data("{}".utf8))
+precondition(legacyCopy.smallAttention == nil && legacyCopy.smallDone == nil && legacyCopy.smallStale == nil)

@@ -241,3 +241,21 @@ different project). Confirm the running app’s environment before reading logs.
 
 Offline checks prove local behavior and build wiring, not provider delivery. Real
 push delivery and backend activation require the configured OneSignal/APNs account.
+
+### Apple Watch / small activity family
+
+The existing Widget opts into `.supplementalActivityFamilies([.small])` and selects
+`LodySmallActivityView` using `activityFamily`; the Lock Screen and Dynamic Island
+retain their existing layouts. Small content fits its container using three type
+sizes, keeps up to two overview rows, and shortens status labels with
+`ViewThatFits`. Agent marks retain a status dot; waiting, completed and failed
+states use orange, blue and red. The 84 pt glow is omitted at reduced luminance.
+The system continues to own the platter, navigation and forwarding to the Watch.
+There is no production watchOS app, separate push token or network connection.
+
+Compact labels travel as optional `copy.smallAttention`, `smallWaiting`,
+`smallDone`, `smallFailed` and `smallStale`; older payloads fall back to English.
+Small-family stale content says “Outdated” rather than inferring disconnection and
+hides running timers, while reduced luminance uses system-updated abbreviated
+minute text. See `verification/ui/activity-host/README.md` for offline native
+layout capture and the separate paired-device forwarding check.

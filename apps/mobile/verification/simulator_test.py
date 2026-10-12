@@ -96,6 +96,15 @@ class FakeSimctl:
 
 
 class ReusableDeviceTests(unittest.TestCase):
+    def test_watch_runtime_is_separate_from_iphone_pool(self):
+        simulator = load_simulator_module()
+        runtime = 'com.apple.CoreSimulator.SimRuntime.watchOS-27-0'
+        watch = {'udid': 'WATCH', 'name': 'Lody Watch Verify', 'isAvailable': True,
+                 'deviceTypeIdentifier': simulator.DEVICE_TYPES['watch']}
+        inventory = {'devices': {runtime: [watch]}}
+        self.assertEqual(simulator.reusable_devices(inventory), [])
+        self.assertEqual(simulator.reusable_devices(inventory, simulator.DEVICE_TYPES['watch'], runtime), [watch])
+
     def test_only_lody_verify_devices_enter_the_reuse_pool(self):
         simulator = load_simulator_module()
         self.assertIsNotNone(simulator, 'simulator allocator module is missing')

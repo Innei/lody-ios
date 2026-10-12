@@ -13,14 +13,16 @@ import sys
 
 DEVICE_TYPES = {
     'iphone': 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro',
+    'watch': 'com.apple.CoreSimulator.SimDeviceType.Apple-Watch-Series-9-45mm',
+    'watch-small': 'com.apple.CoreSimulator.SimDeviceType.Apple-Watch-SE-3-40mm',
     'ipad': 'com.apple.CoreSimulator.SimDeviceType.iPad-Air-11-inch-M2',
 }
 RUNTIME = os.environ.get('LODY_VERIFY_RUNTIME', 'com.apple.CoreSimulator.SimRuntime.iOS-27-0')
 MANAGED_NAME = re.compile(r'^Lody .+ Verify$')
 
 
-def reusable_devices(inventory, device_type=DEVICE_TYPES['iphone']):
-    devices = inventory.get('devices', {}).get(RUNTIME, [])
+def reusable_devices(inventory, device_type=DEVICE_TYPES['iphone'], runtime=RUNTIME):
+    devices = inventory.get('devices', {}).get(runtime, [])
     return [
         device
         for device in devices
@@ -48,7 +50,8 @@ def run_simctl(*command, check=True, timeout=120):
 
 
 class SimulatorPool:
-    def __init__(self, simctl=run_simctl, lock_directory=None, device_type=DEVICE_TYPES['iphone']):
+    def __init__(self, simctl=run_simctl, lock_directory=None, device_type=DEVICE_TYPES['iphone'], runtime=RUNTIME):
+        self.runtime = runtime
         self.simctl = simctl
         self.device_type = device_type
         self.lock_directory = lock_directory or (
@@ -77,7 +80,7 @@ class SimulatorPool:
             inventory = json.loads(self.simctl('list', 'devices', '--json').stdout)
             device = None
             candidates = sorted(
-                reusable_devices(inventory, self.device_type),
+                reusable_devices(inventory, self.device_type, self.runtime),
                 key=lambda candidate: candidate.get('state') != 'Shutdown',
             )
             for candidate in candidates:
@@ -92,7 +95,7 @@ class SimulatorPool:
                     device_lock = candidate_lock
                     break
             if device is None:
-                created = self.simctl('create', name, self.device_type, RUNTIME)
+                created = self.simctl('create', name, self.device_type, self.runtime)
                 udid = created.stdout.strip()
                 device = {'udid': udid, 'name': name, 'state': 'Shutdown'}
                 device_lock = self.acquire_lock(f'{udid}.lock', blocking=True)
@@ -175,7 +178,10 @@ def main(argv=None):
     except ValueError as error:
         parser.error(str(error))
     return run_with_simulator(
-        SimulatorPool(device_type=DEVICE_TYPES[args.device]), args.name, command
+        SimulatorPool(
+            device_type=DEVICE_TYPES[args.device],
+            runtime='com.apple.CoreSimulator.SimRuntime.watchOS-27-0' if args.device.startswith('watch') else RUNTIME,
+        ), args.name, command
     )
 
 
