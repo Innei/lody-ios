@@ -31,6 +31,7 @@ import { ChatPreviewScreen } from './ChatPreviewScreen';
 import { SimulatorPreviewScreen } from './SimulatorPreviewScreen';
 import { PreviewClosePreviewScreen } from './PreviewClosePreviewScreen';
 import { ProjectManagementPreviewScreen } from './ProjectManagementPreviewScreen';
+import { TeamPreviewScreen } from './TeamPreviewScreen';
 import { ProviderPreviewScreen } from './ProviderPreviewScreen';
 import { RunOptionsPreviewScreen } from './RunOptionsPreviewScreen';
 import { openSendQueueToolsPreview } from './SendQueueToolsPreviewScreen';
@@ -253,6 +254,7 @@ function View() {
           'Project management',
           'folder.badge.gearshape',
         ),
+        openRow('team-preview', 'Team management', 'person.3'),
         openRow('providers-preview', 'Provider management', 'cpu'),
         openRow(
           'run-options-preview',
@@ -452,6 +454,7 @@ function View() {
     'preview-close-preview': () => void present(PreviewClosePreviewScreen, {}),
     'project-management-preview': () =>
       void present(ProjectManagementPreviewScreen),
+    'team-preview': () => void present(TeamPreviewScreen),
     'providers-preview': () => void present(ProviderPreviewScreen),
     'run-options-preview': () => void present(RunOptionsPreviewScreen),
     'chat-preview': () => void present(ChatPreviewScreen, {}),

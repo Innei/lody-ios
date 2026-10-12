@@ -37,6 +37,7 @@ import type { SavedAccount } from '../../models/auth.ts';
 import type { SavedCatalog } from '@lody/cloud-runtime/models/catalog';
 import { t } from '../../lib/i18n/index.ts';
 import { uiVerify } from '@/lib/uiVerify';
+import { removeAccountWorkspace, removeWorkspaceState } from './workspaces';
 
 type Account = { token: string; user: User; workspaces: Workspace[] };
 type AuthState = {
@@ -54,6 +55,10 @@ type AuthContextValue = AuthState & {
   restore: () => Promise<void>;
   logout: () => Promise<void>;
   reopen: () => Promise<void>;
+  removeWorkspace: (
+    workspaceId: string,
+    expectedUserId: string,
+  ) => Promise<void>;
   updateWorkspace: (workspaceId: string, name: string) => Promise<void>;
   updateWorkspaceIcon: (
     workspaceId: string,
@@ -72,6 +77,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     error: null,
   });
   const pending = useRef<AbortController | null>(null);
+  const currentState = useRef(state);
+  currentState.current = state;
   const alive = useRef(true);
   const begin = () => {
     pending.current?.abort();
@@ -222,6 +229,24 @@ export function AuthProvider({ children }: PropsWithChildren) {
         : current,
     );
   }
+  async function removeWorkspace(workspaceId: string, expectedUserId: string) {
+    const account = currentState.current.account;
+    const next = removeAccountWorkspace(account, workspaceId, expectedUserId);
+    if (!next || next === account) return;
+    pending.current?.abort();
+    setState((current) => {
+      if (
+        current.account?.token !== account?.token ||
+        current.account?.user.id !== expectedUserId
+      )
+        return current;
+      return removeWorkspaceState(current, workspaceId, expectedUserId);
+    });
+    await writeLocal(accountKey, {
+      user: next.user,
+      workspaces: next.workspaces,
+    }).catch(() => showToast(t('auth.toast.accountSaveFailed')));
+  }
   async function updateWorkspace(workspaceId: string, name: string) {
     const account = state.account;
     if (!account) throw new Error(t('workspace.edit.signedOut'));
@@ -265,6 +290,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         restore,
         logout,
         reopen,
+        removeWorkspace,
         updateWorkspace,
         updateWorkspaceIcon,
       }}

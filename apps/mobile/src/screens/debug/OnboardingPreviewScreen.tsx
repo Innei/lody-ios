@@ -46,6 +46,7 @@ function View() {
         restore: noop,
         logout: noop,
         reopen: noop,
+        removeWorkspace: noop,
         updateWorkspace: noop,
         updateWorkspaceIcon: async () => '',
       }}

@@ -20,7 +20,7 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 OSS_CASES = [
-    'preview-close', 'run-options', 'send-queue-tools', 'project-management', 'providers',
+    'preview-close', 'run-options', 'send-queue-tools', 'project-management', 'providers', 'team',
 ]
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker', 'branch-picker'],
@@ -51,6 +51,7 @@ HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'sheet-zoom-proje
 HOME_CASES.update({'session-delete', 'session-delete-pad', 'devices', 'devices-pad'})
 PREVIEW = {
     'project-management': 'project-management-preview',
+    'team': 'team-preview',
     'providers': 'providers-preview',
     'run-options': 'run-options-preview',
     'send-queue-tools': 'send-queue-tools',
@@ -147,6 +148,7 @@ PREVIEW = {
 }
 READY = {
     'project-management': 'managed-project:studio:local:demo',
+    'team': 'team-fixture:owner',
     'providers': 'provider:m1:claude',
     'run-options': 'run-options-ready',
     'send-queue-tools': 'queue-tools-status',
@@ -283,9 +285,11 @@ def run_case_check(case, command, log, env, photo_access):
         check_timeout = 480
     elif case in ('branch-picker', 'chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance'):
         check_timeout = 300
-    elif case in ('session-search', 'session-search-pad', 'providers'):
+    elif case in ('session-search', 'session-search-pad', 'providers', 'team'):
         # iPad search exceeded 300s after completing five of its six queries.
         # Providers completed CRUD/auth/runtime and reset before its 420s cap.
+        # Team stopped at next-page search after 346s, before its join/invite flows;
+        # its remaining fields now also use the observed system Paste menu.
         check_timeout = 600
     if case == 'mcp-files':
         # The 133s discovery prefix omitted the later attachment and cancellation checks.

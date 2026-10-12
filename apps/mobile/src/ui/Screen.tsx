@@ -9,9 +9,11 @@ export function Screen({
   children,
   style,
   automaticallyAdjustKeyboardInsets = false,
+  scrollToOverflowEnabled = false,
 }: PropsWithChildren<{
   style?: StyleProp<ViewStyle>;
   automaticallyAdjustKeyboardInsets?: boolean;
+  scrollToOverflowEnabled?: boolean;
 }>) {
   return (
     <ScrollViewMarker
@@ -20,6 +22,7 @@ export function Screen({
     >
       <ScrollView
         automaticallyAdjustKeyboardInsets={automaticallyAdjustKeyboardInsets}
+        scrollToOverflowEnabled={scrollToOverflowEnabled}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         contentInsetAdjustmentBehavior="automatic"

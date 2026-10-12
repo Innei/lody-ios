@@ -3,16 +3,21 @@ import { Alert } from 'react-native';
 import { NativeGroupedList } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { useAuth } from '@/cloud/auth/AuthProvider';
+import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { usePalette } from '@/lib/theme/palette';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { t } from '../lib/i18n/index.ts';
+import { TeamScreen } from './TeamScreen';
+import { TeamJoinScreen } from './TeamJoinScreen';
 function View() {
   const auth = useAuth();
+  const { selected } = useCatalog();
   const colors = usePalette();
-  const { cancel } = usePageRuntime();
+  const { cancel, push } = usePageRuntime();
   useEffect(() => {
     if (!auth.account) cancel();
   }, [auth.account, cancel]);
+  const signOutTitle = t(auth.busy ? 'account.signingOut' : 'account.signOut');
   return (
     <>
       <NativeGroupedList
@@ -34,14 +39,34 @@ function View() {
                   ],
                 },
                 {
+                  id: 'team',
+                  rows: [
+                    {
+                      id: 'team',
+                      title: t('team.title'),
+                      subtitle: selected?.name,
+                      image: 'person.2',
+                      action: !!selected,
+                      disclosure: !!selected,
+                      navigates: !!selected,
+                    },
+                    {
+                      id: 'team-join',
+                      title: t('team.joinWorkspace'),
+                      image: 'person.badge.plus',
+                      action: true,
+                      disclosure: true,
+                      navigates: true,
+                    },
+                  ],
+                },
+                {
                   id: 'logout',
                   footer: auth.error ?? undefined,
                   rows: [
                     {
                       id: 'logout',
-                      title: t(
-                        auth.busy ? 'account.signingOut' : 'account.signOut',
-                      ),
+                      title: signOutTitle,
                       destructive: true,
                       action: !auth.busy,
                     },
@@ -50,7 +75,20 @@ function View() {
               ]
             : []
         }
-        onRowPress={() =>
+        onRowPress={({ nativeEvent: { id } }) => {
+          if (id === 'team' && auth.account && selected) {
+            void push(TeamScreen, {
+              userId: auth.account.user.id,
+              workspaceId: selected.id,
+              workspaceName: selected.name,
+            });
+            return;
+          }
+          if (id === 'team-join' && auth.account) {
+            void push(TeamJoinScreen, { userId: auth.account.user.id });
+            return;
+          }
+          if (id !== 'logout') return;
           Alert.alert(
             t('account.signOutConfirm.title'),
             t('account.signOutConfirm.message'),
@@ -64,8 +102,8 @@ function View() {
                 },
               },
             ],
-          )
-        }
+          );
+        }}
       />
     </>
   );
