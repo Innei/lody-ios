@@ -157,8 +157,8 @@ final class ChatQuickRepliesView: UIScrollView {
     stack.translatesAutoresizingMaskIntoConstraints = false
     addSubview(stack)
     NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: contentLayoutGuide.leadingAnchor, constant: 16),
-      stack.trailingAnchor.constraint(equalTo: contentLayoutGuide.trailingAnchor, constant: -16),
+      stack.leadingAnchor.constraint(equalTo: contentLayoutGuide.leadingAnchor, constant: 20),
+      stack.trailingAnchor.constraint(equalTo: contentLayoutGuide.trailingAnchor, constant: -20),
       stack.topAnchor.constraint(equalTo: contentLayoutGuide.topAnchor),
       stack.bottomAnchor.constraint(equalTo: contentLayoutGuide.bottomAnchor),
       stack.heightAnchor.constraint(equalTo: frameLayoutGuide.heightAnchor),

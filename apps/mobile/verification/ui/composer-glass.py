@@ -46,8 +46,8 @@ def assert_capsule(label):
 screen = ui.state()[0]['frame']
 rest = assert_capsule('rest')
 if input_id == 'session-input':
-    assert abs(rest['x'] - 16) <= 1 and abs(screen['width'] - rest['x'] - rest['width'] - 16) <= 1, \
-        f'Capsule does not keep 16-point side insets: {rest}'
+    assert abs(rest['x'] - 20) <= 1 and abs(screen['width'] - rest['x'] - rest['width'] - 20) <= 1, \
+        f'Capsule does not keep 20-point side insets: {rest}'
 ui.capture('rest')
 
 ui.axe('tap', '--id', input_id, '--tap-style', 'physical', '--post-delay', '.8')
@@ -62,9 +62,9 @@ attach = ui.element('session-attach')['frame']
 send = ui.element('session-send')['frame']
 model = ui.element('session-model')['frame']
 sheet_scale = attach['width'] / 44
-rest_inset = 16 * scale
+rest_inset = 20 * scale
 assert field['x'] <= rest['x'] - rest_inset + 1 and field['x'] + field['width'] >= rest['x'] + rest['width'] + rest_inset - 1, \
-    f'Focused sheet did not grow past both 16-point capsule insets: {field} from {rest}'
+    f'Focused sheet did not grow past both 20-point capsule insets: {field} from {rest}'
 if input_id == 'session-input':
     assert field['x'] <= 1 and field['x'] + field['width'] >= screen['width'] - 1, f'Focused sheet is not edge to edge: {field}'
 assert field['height'] >= 120 * sheet_scale, f'Focused text area is shorter than five lines: {field}'
@@ -89,9 +89,9 @@ if input_id == 'session-input':
     ui.axe('tap', '-x', '200', '-y', str(field['y'] - 90), '--post-delay', '.6')
 else:
     first = ui.element('option-0')['frame']
-    gap_y = first['y'] - 12
-    ui.axe('swipe', '--start-x', '200', '--start-y', str(gap_y),
-           '--end-x', '200', '--end-y', str(gap_y + 120), '--duration', '.5', '--post-delay', '1')
+    row_y = first['y'] + first['height'] / 2
+    ui.axe('swipe', '--start-x', '200', '--start-y', str(row_y),
+           '--end-x', '200', '--end-y', str(row_y + 200), '--duration', '.5', '--post-delay', '1')
 ui.wait(lambda items: abs(ui.element(input_id)['frame']['height'] - 48 * scale) <= 1.5, 'Dismissing did not return to the capsule')
 assert_capsule('collapsed')
 ui.capture('collapsed-again')

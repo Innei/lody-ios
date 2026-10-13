@@ -1,5 +1,13 @@
 # Offline UI verification
 
+`composer-motion` records two empty-composer keyboard round trips with the context
+chip and quick replies in English light/dark. It checks the expanded input,
+restored capsule aligned to both message-text edges, the context chip's leading
+edge, and 44 pt Add target. Screenshot rim detection also verifies visible glass
+alignment independently of accessibility frames; `motion-events.json` marks actions for
+frame-by-frame video review. Reuse `composer-rest-draft` and `composer-glass`
+for attachment/text retention and the standalone sheet host.
+
 `branch-picker` exercises the native new-session branch selector without an account:
 repository defaults, pagination during case-insensitive search, selection and back
 cancellation, long names, failed-load retry, and empty repositories. It captures

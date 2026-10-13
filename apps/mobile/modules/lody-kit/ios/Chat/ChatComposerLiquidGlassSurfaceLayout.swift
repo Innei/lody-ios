@@ -19,8 +19,8 @@ final class ChatComposerLiquidGlassSurfaceLayout: ChatComposerSurfaceLayout {
     inputSurface.effect = glass
     let host = container.contentView
     pill = [
-      inputSurface.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: 16),
-      inputSurface.trailingAnchor.constraint(equalTo: host.trailingAnchor, constant: -16),
+      inputSurface.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: 20),
+      inputSurface.trailingAnchor.constraint(equalTo: host.trailingAnchor, constant: -20),
       inputSurface.bottomAnchor.constraint(equalTo: host.bottomAnchor, constant: -8),
     ]
     sheet = [

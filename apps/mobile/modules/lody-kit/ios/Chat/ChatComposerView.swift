@@ -747,7 +747,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     send.accessibilityIdentifier = "session-send"
     send.addTarget(self, action: #selector(submit), for: .touchUpInside)
     NotificationCenter.default.addObserver(self, selector: #selector(appDidEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
-    attach.setImage(UIImage(systemName: "plus", withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .medium)), for: .normal)
+    attach.setImage(UIImage(systemName: "plus", withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .regular)), for: .normal)
     attach.configuration = .plain()
     attach.configuration?.cornerStyle = .capsule
     attach.tintColor = .label
@@ -1405,9 +1405,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     if !state.editable && input.isFirstResponder { input.resignFirstResponder() }
     let expanded = input.isFirstResponder
     let expansionChanged = composerExpanded != expanded
-    if expansionChanged && window != nil { layoutIfNeeded() }
+    // The bottom anchor belongs to the host; animate its layout with the contents.
+    let layoutRoot = window ?? superview ?? self
+    if expansionChanged && window != nil { layoutRoot.layoutIfNeeded() }
     composerExpanded = expanded
-    surfaceLayout.update(isFocused: expanded)
     input.isEditable = state.editable && (sendHandoff || !sending)
     attach.isEnabled = state.editable && !sending
     #if !LODY_SHARE_EXTENSION
@@ -1522,12 +1523,14 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     if expansionChanged {
       if window != nil && !UIAccessibility.isReduceMotionEnabled {
         UIView.animate(withDuration: 0.24, delay: 0, options: [.beginFromCurrentState, .curveEaseOut]) {
-          self.layoutIfNeeded()
+          self.surfaceLayout.update(isFocused: expanded)
+          layoutRoot.layoutIfNeeded()
         } completion: { finished in
           if finished && self.composerExpanded == expanded { self.surfaceLayout.completeTransition() }
         }
       } else {
-        layoutIfNeeded()
+        surfaceLayout.update(isFocused: expanded)
+        layoutRoot.layoutIfNeeded()
         surfaceLayout.completeTransition()
       }
     }
