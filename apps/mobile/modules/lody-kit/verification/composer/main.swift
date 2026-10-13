@@ -109,9 +109,10 @@ handoffBar.render(handoffFiles + [handoffItem])
 handoffBar.layoutIfNeeded()
 let handoffTarget = handoffBar.handoffDestination(id: handoffItem.id)!
 let handoffPill = handoffBar.attachmentFrame(id: handoffItem.id)!
-precondition(handoffPill.contains(handoffTarget.convert(handoffTarget.bounds, to: handoffBar))
-  && handoffTarget.bounds.width < handoffPill.width / 2,
-  "The photo must land in the pill's thumbnail, not cover its name")
+let handoffTargetFrame = handoffTarget.convert(handoffTarget.bounds, to: handoffBar)
+precondition(abs(handoffTargetFrame.width - handoffPill.width) < 0.5 && abs(handoffTargetFrame.height - handoffPill.height) < 0.5
+  && abs(handoffTargetFrame.midX - handoffPill.midX) < 0.5,
+  "The photo must land in its tile's full-bleed thumbnail; got \(handoffTargetFrame) in \(handoffPill)")
 precondition(handoffBar.handoffDestination(id: handoffFiles[0].id) == nil, "File pills have no thumbnail to land in")
 precondition(handoffBar.handoffDestination(id: "missing") == nil)
 try? FileManager.default.removeItem(at: handoffURL)
@@ -186,7 +187,7 @@ composer.clearDraft(token: 1)
 precondition(input.text.isEmpty && !send.isEnabled, "Accepted draft must stay cleared")
 input.text = String(repeating: "多行输入\n", count: 50)
 composer.textViewDidChange(input)
-precondition(input.isScrollEnabled && height == 156, "Long drafts must stop growing and scroll")
+precondition(!input.isScrollEnabled && height == 64, "A resting long draft must stay one capsule; got \(height)")
 composer.setComposerState(#"{"editable":false,"canSend":true,"sending":false,"notice":"结果待确认","reconnect":false,"placeholder":"任务"}"#)
 precondition(!input.isEditable && !send.isEnabled, "Uncertain creation must prevent retry")
 print("Composer: empty input, double send, restore, accept, multiline and uncertain state passed")
@@ -302,6 +303,48 @@ sentAttachments = []
 sendAttachment()
 precondition(sentAttachments.first?["uri"] == "file:///tmp/lody-composer-test.txt", "Retry must preserve the original attachment URI")
 print("Composer: plus menu and attachment-only send/restore/retry passed")
+
+let restingComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 200))
+let restingWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+restingWindow.addSubview(restingComposer)
+restingWindow.isHidden = false
+restingComposer.onHeightChange = { restingComposer.frame.size.height = $0 }
+restingComposer.setComposerState(ready)
+restingComposer.setInitialAttachments(#"[{"id":"resting-file","name":"notes.txt","uri":"file:///tmp/lody-composer-resting.txt","kind":"file"}]"#)
+restingComposer.setInitialDraft("first line of the draft\nsecond line\nthird line")
+restingComposer.layoutIfNeeded()
+let restingInput = descendants(restingComposer).compactMap { $0 as? UITextView }.first!
+let restingSurface = sequence(first: restingInput.superview, next: { $0?.superview }).lazy.compactMap { $0 as? UIVisualEffectView }.first!
+precondition(abs(restingSurface.bounds.height - 48) < 0.5, "A resting multi-line draft must stay a 48-point capsule; got \(restingSurface.bounds.height)")
+let restingStack = descendants(restingComposer).first { $0.accessibilityIdentifier == "session-attachment-stack" }
+precondition(restingStack.map { !$0.isHidden && $0.isDescendant(of: restingSurface) } == true, "Resting attachments must stack inside the capsule")
+let restingStackFrame = restingStack!.convert(restingStack!.bounds, to: restingInput)
+precondition(restingInput.textContainerInset.left >= restingStackFrame.maxX + 4, "Resting draft text must start after the attachment stack")
+let restingSend = descendants(restingComposer).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-send" }!
+precondition(!restingSend.isHidden && restingSend.isEnabled, "A resting draft must offer Send")
+precondition(restingInput.becomeFirstResponder())
+RunLoop.current.run(until: Date().addingTimeInterval(0.35))
+restingComposer.layoutIfNeeded()
+precondition(restingStack!.isHidden && restingInput.bounds.height >= 132, "Opening the sheet must replace the stack with the full draft")
+let restingBar = descendants(restingComposer).compactMap { $0 as? ChatAttachmentBar }.first!
+precondition(restingBar.isDescendant(of: restingSurface) && !restingBar.isHidden, "The open sheet must host the attachment row")
+precondition(restingBar.convert(restingBar.bounds, to: restingSurface).maxY <= restingInput.convert(restingInput.bounds, to: restingSurface).minY + 0.5,
+  "The attachment row must sit above the text")
+let restingTile = restingBar.attachmentFrame(id: "resting-file")!
+precondition(abs(restingTile.height - 48) < 0.5, "Sheet attachments must be 48-point tiles; got \(restingTile)")
+let restingRemove = descendants(restingBar).compactMap { $0 as? UIButton }.first {
+  $0.accessibilityLabel == LodyStrings.text("native.chat.attachment.remove", ["name": "notes.txt"])
+}!
+let restingRemoveFrame = restingRemove.convert(restingRemove.bounds, to: restingBar)
+precondition(restingTile.contains(restingRemoveFrame) && restingRemoveFrame.midX > restingTile.midX && restingRemoveFrame.midY < restingTile.midY,
+  "The remove badge must sit inside the tile's top-right corner; got \(restingRemoveFrame) in \(restingTile)")
+restingInput.text = String(repeating: "多行输入\n", count: 50)
+restingComposer.textViewDidChange(restingInput)
+restingComposer.layoutIfNeeded()
+precondition(restingInput.isScrollEnabled && abs(restingInput.bounds.height - 140) < 0.5, "A focused long draft must stop growing at the inline cap and scroll; got \(restingInput.isScrollEnabled) \(restingInput.bounds.height) responder \(restingInput.isFirstResponder)")
+restingInput.resignFirstResponder()
+RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+print("Composer: resting draft keeps one capsule with stacked attachments and Send")
 
 let pasteComposer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))
 pasteComposer.setComposerState(ready)
@@ -874,131 +917,120 @@ let glassModel = descendants(glassComposer).compactMap { $0 as? UIButton }.first
   $0.accessibilityIdentifier == "session-model"
 }!
 let glassInputSurface = sequence(first: glassInput.superview, next: { $0?.superview }).lazy.compactMap { $0 as? UIVisualEffectView }.first!
-let glassAttachSurface = glassAttach.superview!.superview as! UIVisualEffectView
+glassComposer.layoutIfNeeded()
 
-precondition(
-  abs(glassInputSurface.frame.minX - glassAttachSurface.frame.maxX - 8) < 0.5,
-  "An unfocused iOS 26 composer must keep the current separate 8-point glass gap"
-)
-let glassAttachGlyph = descendants(glassAttach).compactMap { $0 as? UIImageView }.first {
-  $0.accessibilityIdentifier == "session-attach-glyph"
+@MainActor func assertGlassCapsule(_ label: String) {
+  let surface = glassInputSurface.convert(glassInputSurface.bounds, to: glassComposer)
+  let attach = glassAttach.convert(glassAttach.bounds, to: glassInputSurface)
+  precondition(abs(surface.minX - 16) < 0.5 && abs(glassComposer.bounds.maxX - surface.maxX - 16) < 0.5 && abs(surface.height - 48) < 0.5,
+    "\(label): the resting composer must be one 48-point capsule with 16-point side insets; got \(surface)")
+  precondition(glassAttach.isDescendant(of: glassInputSurface) && abs(attach.minX - 2) < 0.5 && abs(attach.midY - surface.height / 2) < 0.5,
+    "\(label): Add must sit at the capsule's leading end; got \(attach)")
+  precondition(glassSend.isHidden, "\(label): an empty resting capsule must not show Send")
 }
-precondition(
-  glassAttachGlyph != nil && glassAttach.image(for: .normal) == nil
-    && glassAttach.configuration?.image == nil,
-  "Liquid Glass must own a stable Add glyph view so UIButton relayout cannot reset its scale"
-)
+
+assertGlassCapsule("rest")
 glassComposer.setMentionItems("[]")
-let restingAttachGlyphSize = glassAttachGlyph!.bounds.size
-precondition(
-  abs(restingAttachGlyphSize.width - (glassAttachGlyph!.image?.size.width ?? 0)) < 0.5,
-  "Resting Add plus must keep its symbol size"
-)
 precondition(glassInput.becomeFirstResponder(), "The glass composer input must accept focus")
-precondition(glassAttachSurface.effect is UIGlassEffect
-  && !glassAttachSurface.isDescendant(of: glassInputSurface),
-  "The opening transition must retain both glass surfaces until their native merge completes")
-precondition(
-  glassAttachGlyph!.alpha == 1 && glassAttach.isDescendant(of: glassAttachSurface),
-  "Opening must keep the Add plus visible on its attach glass"
-)
 RunLoop.current.run(until: Date().addingTimeInterval(0.35))
 glassComposer.layoutIfNeeded()
 
 let mentionEntry = descendants(glassComposer).first { $0.accessibilityIdentifier == "session-mention" }!
 glassComposer.setComposerState(ready)
 precondition(!mentionEntry.isHidden, "Ordinary composer state updates must not erase the separately loaded reference catalog")
-let focusedInputFrame = glassInputSurface.convert(glassInputSurface.bounds, to: glassComposer)
+let focusedSheetFrame = glassInputSurface.convert(glassInputSurface.bounds, to: glassComposer)
+precondition(abs(focusedSheetFrame.minX) < 0.5 && abs(focusedSheetFrame.maxX - glassComposer.bounds.maxX) < 0.5
+  && focusedSheetFrame.maxY >= glassComposer.bounds.maxY + 30,
+  "Focus must turn the capsule into an edge-to-edge sheet whose material continues behind the keyboard's rounded corners; got \(focusedSheetFrame)")
+precondition(glassSend.convert(glassSend.bounds, to: glassComposer).maxY <= glassComposer.bounds.maxY + 0.5,
+  "Sheet controls must stay above the keyboard edge")
+precondition(glassInput.bounds.height >= 132, "The focused text area must start at five lines; got \(glassInput.bounds.height)")
 let focusedAttachFrame = glassAttach.convert(glassAttach.bounds, to: glassComposer)
-precondition(glassAttach.isDescendant(of: glassInputSurface) && !glassAttachSurface.isUserInteractionEnabled,
-  "Merged Add must use the input's interaction surface, with one 44-point action")
 glassInputSurface.transform = CGAffineTransform(scaleX: 1.05, y: 1.05)
 let pressedAttachFrame = glassAttach.convert(glassAttach.bounds, to: glassComposer)
 precondition(abs(pressedAttachFrame.width - focusedAttachFrame.width * 1.05) < 0.5,
-  "Pressing the input glass must scale the merged Add along with its content")
+  "Pressing the sheet glass must scale the toolbar Add along with its content")
 glassInputSurface.transform = .identity
-precondition(
-  abs(focusedInputFrame.minX + 6 - focusedAttachFrame.minX) < 0.5
-    && focusedInputFrame.contains(focusedAttachFrame),
-  "A focused iOS 26 composer must merge the optically inset add glass into one full-width input surface"
-)
 
-let attachCenter = glassAttach.convert(
-  CGPoint(x: glassAttach.bounds.midX, y: glassAttach.bounds.midY),
-  to: glassInputSurface
-)
-let sendCenter = glassSend.convert(
-  CGPoint(x: glassSend.bounds.midX, y: glassSend.bounds.midY),
-  to: glassInputSurface
-)
+let attachCenter = glassAttach.convert(CGPoint(x: glassAttach.bounds.midX, y: glassAttach.bounds.midY), to: glassInputSurface)
+let sendCenter = glassSend.convert(CGPoint(x: glassSend.bounds.midX, y: glassSend.bounds.midY), to: glassInputSurface)
 let modelFrame = glassModel.convert(glassModel.bounds, to: glassInputSurface)
 let sendFrame = glassSend.convert(glassSend.bounds, to: glassInputSurface)
 let attachInset = attachCenter.x
 let sendInset = glassInputSurface.bounds.maxX - sendCenter.x
 let baselineDelta = attachCenter.y - sendCenter.y
-print(
-  "Composer glass metrics: add \(attachInset), send \(sendInset), baseline \(baselineDelta)"
-)
-precondition(
-  abs(attachInset - 28) < 0.5
-    && abs(sendInset - 24) < 0.5
-    && abs(baselineDelta) < 0.5,
-  "Focused Add must have a 28-point inset and Send a 24-point inset on the same baseline; "
-    + "got add \(attachInset), send \(sendInset), baseline \(baselineDelta)"
-)
-let sendVisualView = descendants(glassSend).first {
-  $0.accessibilityIdentifier == "session-action-visual"
-}!
-let sendGlyph = descendants(sendVisualView).compactMap { $0 as? UIImageView }.first {
-  !$0.isHidden && $0.image != nil
-}!
-let focusedGlyph = descendants(glassAttach).compactMap { $0 as? UIImageView }.first {
-  $0.accessibilityIdentifier == "session-attach-focused-glyph"
-}!
-let mergedImage = focusedGlyph.image!
-let focusedAttachGlyphSize = focusedGlyph.bounds.size
-precondition(
-  abs(focusedAttachGlyphSize.width - mergedImage.size.width) < 0.5
-    && abs(focusedAttachGlyphSize.height - mergedImage.size.height) < 0.5
-    && focusedGlyph.alpha == 1,
-  "Focus must render the regular glyph at its intended size"
-)
-let attachGlyphCenter = glassAttachGlyph!.convert(
-  CGPoint(x: glassAttachGlyph!.bounds.midX, y: glassAttachGlyph!.bounds.midY),
-  to: glassInputSurface
-)
-let sendGlyphCenter = sendGlyph.convert(
-  CGPoint(x: sendGlyph.bounds.midX, y: sendGlyph.bounds.midY),
-  to: glassInputSurface
-)
-precondition(
-  abs(attachGlyphCenter.y - sendGlyphCenter.y) < 0.5,
-  "The focused Add and Send icons must share one baseline; "
-    + "got \(attachGlyphCenter.y) and \(sendGlyphCenter.y)"
-)
-precondition(
-  !glassModel.isHidden
-    && modelFrame.midX > glassInputSurface.bounds.midX
-    && modelFrame.maxX <= sendFrame.minX + 0.5,
-  "The focused model selector must remain on the trailing side before Send"
-)
-print("Composer glass: focus merges Add into one balanced surface while Model stays trailing")
+print("Composer sheet metrics: add \(attachInset), send \(sendInset), baseline \(baselineDelta)")
+precondition(abs(attachInset - 30) < 0.5 && abs(sendInset - 24) < 0.5 && abs(baselineDelta) < 0.5 && !glassSend.isHidden,
+  "Toolbar Add must center 30 points in and Send 24 points in on one baseline; got add \(attachInset), send \(sendInset), baseline \(baselineDelta)")
+precondition(attachCenter.y > glassInput.convert(glassInput.bounds, to: glassInputSurface).maxY,
+  "The toolbar must sit below the text")
+precondition(!glassModel.isHidden && modelFrame.midX > glassInputSurface.bounds.midX && modelFrame.maxX <= sendFrame.minX + 0.5,
+  "The focused model selector must remain on the trailing side before Send")
+print("Composer glass: focus turns the capsule into an edge-to-edge sheet with a balanced toolbar")
+glassInput.text = "@"
+glassInput.selectedRange = NSRange(location: 1, length: 0)
+glassComposer.textViewDidChange(glassInput)
+RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+glassComposer.layoutIfNeeded()
+let sheetMentions = descendants(glassComposer).compactMap { $0 as? ChatMentionPanel }.first!
+precondition(!sheetMentions.isHidden && sheetMentions.isDescendant(of: glassInputSurface) && sheetMentions.effect == nil,
+  "Mention results must open inside the sheet, on the sheet's own material")
+precondition(sheetMentions.convert(sheetMentions.bounds, to: glassInputSurface).maxY <= glassInput.convert(glassInput.bounds, to: glassInputSurface).minY + 0.5,
+  "Mention results must sit above the text")
+precondition(abs(sheetMentions.convert(sheetMentions.bounds, to: glassInputSurface).width - glassInputSurface.bounds.width) < 0.5,
+  "Mention results must span the sheet")
+glassInput.text = ""
+glassComposer.textViewDidChange(glassInput)
+RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+print("Composer mentions: results open inside the sheet above the text")
+glassComposer.allowsFullScreen = true
+glassComposer.layoutIfNeeded()
+let grabber = descendants(glassComposer).first { $0.accessibilityIdentifier == "session-grabber" }
+precondition(grabber.map { !$0.isHidden && $0.isDescendant(of: glassInputSurface) } == true, "A full-screen-capable sheet must show its grabber")
+let grabberFrame = grabber!.convert(grabber!.bounds, to: glassInputSurface)
+precondition(grabberFrame.minY < 1 && grabberFrame.maxY <= glassInput.convert(glassInput.bounds, to: glassInputSurface).minY + 0.5,
+  "The grabber must lead the sheet; got \(grabberFrame)")
+let firstLine = glassInputSurface.convert(CGPoint(x: glassInputSurface.bounds.midX, y: grabberFrame.maxY + 4), to: glassComposer)
+precondition(glassComposer.hitTest(firstLine, with: nil)?.isDescendant(of: glassInput) == true,
+  "A touch on the first text line must reach the text, not the grabber")
+precondition(ChatComposerView.grabberRelease(fromFullScreen: false, progress: 0, translation: 40, velocity: 1500) == .close,
+  "A fast downward flick from the default sheet must close it")
+precondition(ChatComposerView.grabberRelease(fromFullScreen: false, progress: 0, translation: 70, velocity: 0) == .close,
+  "A long downward drag from the default sheet must close it")
+precondition(ChatComposerView.grabberRelease(fromFullScreen: true, progress: 0.8, translation: 40, velocity: 1500) == .sheet,
+  "A fast downward flick from full screen returns to the default sheet")
+precondition(ChatComposerView.grabberRelease(fromFullScreen: false, progress: 0.2, translation: -30, velocity: -900) == .fullScreen,
+  "A fast upward flick opens full screen")
+precondition(ChatComposerView.grabberRelease(fromFullScreen: false, progress: 0.6, translation: -100, velocity: 0) == .fullScreen,
+  "Releasing past halfway opens full screen")
+precondition(!descendants(glassComposer).contains { $0.accessibilityIdentifier == "session-expand" }, "The grabber replaces the expand button")
+let glassFormat = descendants(glassComposer).compactMap { $0 as? ChatComposerFormatBar }.first!
+precondition(glassFormat.bounds.height < 0.5, "The default sheet has no format bar")
+_ = grabber!.accessibilityActivate()
+RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+glassComposer.layoutIfNeeded()
+precondition(abs(glassFormat.bounds.height - 44) < 0.5 && !glassFormat.isHidden
+  && grabber!.accessibilityLabel == LodyStrings.text("native.chat.composer.collapse"),
+  "Activating the grabber must open full screen with the format bar")
+_ = grabber!.accessibilityActivate()
+RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+glassComposer.layoutIfNeeded()
+precondition(glassFormat.bounds.height < 0.5 && grabber!.accessibilityLabel == LodyStrings.text("native.chat.composer.expand"),
+  "Activating the grabber again must return to the default sheet")
+glassComposer.allowsFullScreen = false
+glassComposer.layoutIfNeeded()
+precondition(grabber!.isHidden, "Hosts without full screen have no grabber")
+print("Composer grabber: toggles full screen with the format bar and replaces the expand button")
 glassInput.resignFirstResponder()
 RunLoop.current.run(until: Date().addingTimeInterval(0.3))
 glassComposer.layoutIfNeeded()
-precondition(glassAttachSurface.effect is UIGlassEffect
-  && !glassAttachSurface.isDescendant(of: glassInputSurface),
-  "Leaving focus must restore Add's separate interactive glass")
-precondition(glassAttachGlyph!.alpha == 1 && glassAttach.isDescendant(of: glassAttachSurface)
-  && abs(glassAttachGlyph!.bounds.width - restingAttachGlyphSize.width) < 0.5,
-  "Leaving focus must restore the separate medium glyph and its original action host")
+assertGlassCapsule("dismissed")
 glassInput.becomeFirstResponder()
 RunLoop.current.run(until: Date().addingTimeInterval(0.05))
 glassInput.resignFirstResponder()
 RunLoop.current.run(until: Date().addingTimeInterval(0.3))
-precondition(glassAttachSurface.effect is UIGlassEffect
-  && !glassAttachSurface.isDescendant(of: glassInputSurface),
-  "Cancelling an opening must not later move the separate Add into the input")
+glassComposer.layoutIfNeeded()
+assertGlassCapsule("cancelled opening")
 
 // A trigger belongs to the active caret token, never email or selected prose.
 assert(ChatMentionPanel.activeRange(text: "😀 @auth", selection: NSRange(location: 8, length: 0)) == NSRange(location: 3, length: 5))
@@ -1112,6 +1144,9 @@ RunLoop.main.run(until: Date().addingTimeInterval(0.4))
 precondition(materialQueue.isHidden && materialHeight == withQueue - 44 && materialComposer.retiringQueueHeight == 0)
 ChatSendHandoff.cancel(id: "material-queue")
 
+let materialInput = descendants(materialComposer).compactMap { $0 as? UITextView }.first!
+precondition(materialInput.becomeFirstResponder(), "The attachment row lives in the open sheet")
+RunLoop.main.run(until: Date().addingTimeInterval(0.35))
 materialComposer.setInitialAttachments(#"[{"id":"remove-a","name":"a.txt","uri":"file:///tmp/a.txt","kind":"file"},{"id":"keep-b","name":"b.txt","uri":"file:///tmp/b.txt","kind":"file"}]"#)
 materialComposer.layoutIfNeeded()
 RunLoop.main.run(until: Date().addingTimeInterval(0.4))
@@ -1135,7 +1170,8 @@ removeMaterialAttachment("b.txt")
 precondition(materialBar.hasVisiblePills && materialHeight == withAttachment,
   "The final attachment reserves its height through dematerialization")
 RunLoop.main.run(until: Date().addingTimeInterval(0.4))
-precondition(!materialBar.hasVisiblePills && materialHeight == withAttachment - 42)
+precondition(!materialBar.hasVisiblePills && materialHeight == withAttachment - 60, "The emptied attachment row releases its 12-point inset and 48-point tile height; got \(withAttachment - materialHeight)")
+materialInput.resignFirstResponder()
 print("Glass hosts: queue and final attachment retain their space through exit; unrelated pills retain identity")
 
 let quickComposer = ChatComposerView(frame: CGRect(x: 0, y: 600, width: 390, height: 108))
@@ -1294,8 +1330,11 @@ precondition(abs(quickComposer.systemLayoutSizeFitting(UIView.layoutFittingCompr
 quickInput.text = ""
 quickComposer.textViewDidChange(quickInput)
 quickComposer.layoutIfNeeded()
-precondition(context.bounds.width > quickChipHeight + 40 && shownReplies().count == 1,
-  "Clearing the draft restores the labelled chip and suggestions")
+precondition(context.bounds.width > quickChipHeight + 40 && shownReplies().isEmpty,
+  "Clearing a focused draft restores the labelled chip while the sheet keeps suggestions away")
+quickInput.resignFirstResponder()
+quickComposer.layoutIfNeeded()
+precondition(shownReplies().count == 1, "Closing the sheet restores suggestions")
 quickState(["quickReplies": contextReply, "preview": previewChip("localhost:5173"), "connection": "paused"])
 precondition(quickStrip.isHidden, "A disconnected session hides the context chip")
 quickState(["quickReplies": contextReply])
@@ -1323,6 +1362,34 @@ quickComposer.layoutIfNeeded()
 precondition(context.convert(context.bounds, to: quickStrip).minX - quickStrip.contentOffset.x >= 0,
   "Collapsing suggestions must bring a scrolled-away context chip back into view")
 print("Context chip: persistent identity, label-driven width, compact while typing, survives running, native touch ownership passed")
+
+let orderComposer = ChatComposerView(frame: CGRect(x: 0, y: 300, width: 390, height: 300))
+materialWindow.addSubview(orderComposer)
+orderComposer.onHeightChange = { orderComposer.frame.size.height = $0 }
+let orderState: [String: Any] = [
+  "editable": true, "canSend": true, "sending": false, "running": true, "canStop": true,
+  "notice": "Machine disconnected. Tap to reconnect.", "reconnect": true, "placeholder": "Task",
+  "preview": previewChip("localhost:5173"),
+]
+orderComposer.setComposerState(String(decoding: try! JSONSerialization.data(withJSONObject: orderState), as: UTF8.self))
+orderComposer.setQueue([ChatQueuedDraft(id: "order-queue", text: "Then run pnpm check")])
+orderComposer.layoutIfNeeded()
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+orderComposer.layoutIfNeeded()
+@MainActor func orderFrame(_ view: UIView) -> CGRect { view.convert(view.bounds, to: orderComposer) }
+let orderNotice = descendants(orderComposer).compactMap { $0 as? UIButton }.first { $0.title(for: .normal) == "Machine disconnected. Tap to reconnect." }!
+let orderChips = descendants(orderComposer).compactMap { $0 as? ChatQuickRepliesView }.first!
+let orderQueue = descendants(orderComposer).first { $0.accessibilityIdentifier == "session-queue" }!
+let orderInput = descendants(orderComposer).compactMap { $0 as? UITextView }.first!
+let orderSurface = sequence(first: orderInput.superview, next: { $0?.superview }).lazy.compactMap { $0 as? UIVisualEffectView }.first!
+precondition(!orderChips.isHidden && !orderQueue.isHidden && !orderNotice.isHidden, "The order fixture must show notice, chips and queue")
+precondition(orderFrame(orderNotice).maxY <= orderFrame(orderChips).minY + 0.5, "The notice must sit above the chip row")
+precondition(orderFrame(orderChips).maxY <= orderFrame(orderQueue).minY + 0.5, "The queue must sit below the chip row")
+precondition(orderFrame(orderQueue).maxY <= orderFrame(orderSurface).minY + 0.5, "The queue must sit directly above the capsule")
+precondition(abs(orderFrame(orderQueue).minX - 16) < 0.5 && abs(orderComposer.bounds.maxX - orderFrame(orderQueue).maxX - 16) < 0.5,
+  "The queue card keeps 16-point side insets")
+orderComposer.removeFromSuperview()
+print("Composer order: notice, chips, queue, then the capsule")
 
 @MainActor func makeRichComposer() -> (ChatComposerView, ChatComposerInput) {
   let composer = ChatComposerView(frame: CGRect(x: 0, y: 0, width: 390, height: 64))

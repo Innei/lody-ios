@@ -265,7 +265,9 @@ ui.capture('continued-editing')
 print('PASS: authorization restores keyboard coverage, retained photo selection, real attachment import and draft editing')
 # A keyboard-hidden presentation uses the same viewport as the multiline draft.
 if 'chat' in str(ui.output):
-    ui.axe('tap', '-x', '200', '-y', '300', '--tap-style', 'physical', '--post-delay', '.6')
+    sheet_top = min([ui.element(field)['frame']['y']] + [i['frame']['y'] for i in ui.state()
+                     if i.get('AXUniqueId') == 'session-grabber' and i['frame']['height'] > 0])
+    ui.axe('tap', '-x', '200', '-y', str(min(300, sheet_top - 40)), '--tap-style', 'physical', '--post-delay', '.6')
     ui.wait(lambda items: not any((item.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar') for item in items), 'Keyboard did not dismiss')
     settled_draft = ui.element(field).get('AXValue')  # Blur commits keyboard autocorrection.
     tap('session-attach')

@@ -266,15 +266,21 @@ final class ChatAttachmentPreview: QLPreviewController, QLPreviewControllerDataS
 final class ChatAttachmentBar: CKAttachmentStrip {
   private var projected: [String: (source: ChatAttachment, item: CKAttachmentItem)] = [:]
 
-  static let thumbnailRadius: CGFloat = 6
+  static let thumbnailRadius: CGFloat = 10
 
-  private static func rounded(_ image: UIImage) -> UIImage {
-    let format = UIGraphicsImageRendererFormat.preferred()
-    format.scale = image.scale
-    return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in
-      UIBezierPath(roundedRect: CGRect(origin: .zero, size: image.size), cornerRadius: thumbnailRadius).addClip()
-      image.draw(at: .zero)
-    }
+  init() {
+    var style = CKAttachmentStyle()
+    style.tiles = true
+    style.spacing = 6
+    style.maximumWidth = 180
+    super.init(style: style)
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  private static func detail(_ url: URL) -> String? {
+    guard let size = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? NSNumber else { return nil }
+    return ByteCountFormatter.string(fromByteCount: size.int64Value, countStyle: .file)
   }
 
   func handoffDestination(id: String) -> UIView? {
@@ -292,8 +298,9 @@ final class ChatAttachmentBar: CKAttachmentStrip {
       if attachment.isImage { symbol = "photo" }
       else if type?.conforms(to: .movie) == true { symbol = "video" }
       else { symbol = "doc" }
-      let thumbnail = attachment.isImage ? ChatAttachment.thumbnail(attachment.url)?.preparingThumbnail(of: CGSize(width: 28, height: 28)).map(Self.rounded) : nil
+      let thumbnail = attachment.isImage ? ChatAttachment.thumbnail(attachment.url)?.preparingThumbnail(of: CGSize(width: 96, height: 96)) : nil
       let item = CKAttachmentItem(id: attachment.id, name: attachment.name, symbol: symbol, thumbnail: thumbnail,
+        detail: attachment.isImage ? nil : Self.detail(attachment.url),
         previewAccessibilityLabel: LodyStrings.text("native.chat.attachment.preview", ["name": attachment.name]),
         removeAccessibilityLabel: LodyStrings.text("native.chat.attachment.remove", ["name": attachment.name]))
       projected[attachment.id] = (attachment, item)

@@ -56,9 +56,8 @@ final class ChatMentionPanel: CKGlassSurface, UICollectionViewDataSource, UIColl
     config.backgroundColor = .clear
     config.showsSeparators = false
     list = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewCompositionalLayout.list(using: config))
-    super.init()
+    super.init(material: false)
     self.frame = frame
-    cornerConfiguration = .capsule(maximumRadius: 18)
     onHidden = { [weak self] in
       guard let self else { return }
       self.panelHeight = 0
