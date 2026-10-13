@@ -83,6 +83,41 @@ test('account changes and membership removal never open a stale notification', (
     'wait',
   );
 });
+test('diagnostics distinguish a pending catalog from a rejected notification without exposing its route', () => {
+  assert.equal(
+    resolveNotificationClick(click, { ...context, ready: false }).code,
+    'not_ready',
+  );
+  assert.equal(
+    resolveNotificationClick(click, {
+      ...context,
+      sessions: [],
+      connected: false,
+    }).code,
+    'catalog_sync',
+  );
+  const rejected = resolveNotificationClick(click, {
+    ...context,
+    userId: 'other',
+  });
+  assert.equal(rejected.code, 'wrong_account');
+  assert.ok(!rejected.reason.includes(click.route));
+  assert.equal(
+    resolveNotificationClick(click, { ...context, workspaces: [] }).code,
+    'no_workspace',
+  );
+  assert.equal(
+    resolveNotificationClick(click, { ...context, sessions: [] }).code,
+    'session_missing',
+  );
+  assert.equal(
+    resolveNotificationClick(
+      { ...click, route: 'https://example.com/private' },
+      context,
+    ).code,
+    'unknown_route',
+  );
+});
 test('a workspace without a slug still resolves from its id in the link', () => {
   const context2 = {
     ...context,

@@ -14,7 +14,7 @@ end
 Pod::Project.prepend(LodyUniquePodUUIDs) if defined?(Pod::Project)
 
 # All output lives in generated ios/. Safe to repeat after Expo prebuild.
-def lody_extension(bundle_id, name:, suffix:, source_dir:, point_identifier:, display_name:, swift_version:, principal_class: nil, extra_plist: {})
+def lody_extension(bundle_id, name:, suffix:, source_dir:, point_identifier:, display_name:, swift_version:, principal_class: nil, extra_plist: {}, extra_sources: [])
   root = __dir__ + '/../ios'
   project_path = Dir[File.join(root, '*.xcodeproj')].first
   project = Xcodeproj::Project.open(project_path)
@@ -26,7 +26,7 @@ def lody_extension(bundle_id, name:, suffix:, source_dir:, point_identifier:, di
   group = project.main_group.find_subpath(name, true)
   group.set_source_tree('<group>')
   group.set_path(name)
-  Dir[File.join(__dir__, '..', source_dir, '*.swift')].sort.each do |path|
+  (Dir[File.join(__dir__, '..', source_dir, '*.swift')] + extra_sources).sort.each do |path|
     basename = File.basename(path)
     FileUtils.cp(path, folder)
     file = group.files.find { |f| f.path == basename } || group.new_file(basename)
@@ -93,7 +93,8 @@ def lody_push_extension(bundle_id)
     principal_class: '$(PRODUCT_MODULE_NAME).NotificationService',
     display_name: 'Lody Notifications',
     swift_version: '5.0',
-    extra_plist: { 'OneSignal_app_groups_key' => "group.#{bundle_id}" }
+    extra_plist: { 'OneSignal_app_groups_key' => "group.#{bundle_id}" },
+    extra_sources: [File.join(__dir__, '../modules/lody-kit/ios/Diagnostics/DiagnosticsStore.swift')]
   )
 end
 

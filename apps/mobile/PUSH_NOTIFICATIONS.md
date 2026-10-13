@@ -167,6 +167,36 @@ References: [OneSignal manual Live Activity registration](https://documentation.
 
 ### Investigating Live Activities that stop updating
 
+Settings → Diagnostics is available without signing in in normal builds. It
+exports the last 15 minutes, hour (default), 24 hours or 7 days through the system
+share sheet. Records remain on this device; nothing uploads automatically.
+App and notification-service events use separate rolling JSONL files in the App
+Group, coordinated by a shared file lock, and are merged chronologically for
+export. Retention is at most 7 days and 5 MiB total (half per process); capacity
+pressure can remove older records earlier. Files are excluded from backups and
+remain accessible while locked after the first unlock. Clear removes both
+processes' saved records; new events may subsequently be recorded. Share-sheet
+dismissal removes its temporary export, and already shared copies are unaffected.
+
+The export includes app/system versions, lifecycle and activity observations,
+notification permission/subscription state, foreground suppression reasons,
+click buffering and routing decisions, extension completion/expiry, numeric
+errors and validated reference numbers. It excludes bodies, titles, URLs,
+credentials, APNs tokens and token hashes. SDK verbose logging remains disabled.
+`session_open_requested` records a navigation request, not a confirmed visible
+screen. Content observations and extension callbacks are not universal APNs
+receipts; correlate with backend logs and the OneSignal report for delivery.
+An interrupted final record is discarded without hiding valid history, and the
+export reports known capture gaps in the app process. Storage failures do not
+change push behavior; read/export/clear failures are shown in the diagnostics UI.
+
+`verify:native --case diagnostics` covers persistence, time boundaries, merging,
+redaction, interrupted writes, concurrent writers, expiry and capacity eviction.
+`verify:ui --case diagnostics` seeds an isolated offline store and exercises the
+production page in English/light/dark, real file export and system sharing,
+failure recovery, clear cancellation and the signed-out Settings entry. The
+fixture never initializes OneSignal or uses user/cloud credentials.
+
 LodyKit writes persistent `notice` events to Apple's unified log under subsystem
 `app.innei.lody`, category `live-activity`. In macOS Console, select the attached
 iPhone, start streaming, and filter by that subsystem/category before reproducing.

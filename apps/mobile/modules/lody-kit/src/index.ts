@@ -229,6 +229,7 @@ export {
 } from './diff/NativeDiffToolbar';
 
 export * from './notifications/notifications';
+export * from './diagnostics/diagnostics';
 
 export { NativeMentionPicker } from './chat/NativeMentionPicker';
 

@@ -31,8 +31,13 @@ export function routeFromDeepLink(url: string): string | null {
 }
 
 export type PushDestination =
-  | { kind: 'wait' }
-  | { kind: 'discard'; reason: string }
+  | { kind: 'wait'; code: 'not_ready' | 'catalog_sync' }
+  | {
+      kind: 'discard';
+      reason: string;
+      code:
+        'wrong_account' | 'unknown_route' | 'no_workspace' | 'session_missing';
+    }
   | { kind: 'workspace'; id: string }
   | { kind: 'session'; session: Session };
 
@@ -49,21 +54,38 @@ export function resolveNotificationClick(
     sessions: Session[];
   },
 ): PushDestination {
-  if (!context.ready) return { kind: 'wait' };
+  if (!context.ready) return { kind: 'wait', code: 'not_ready' };
   if (!context.userId || click.userId !== context.userId)
-    return { kind: 'discard', reason: t('notifications.route.wrongAccount') };
+    return {
+      kind: 'discard',
+      reason: t('notifications.route.wrongAccount'),
+      code: 'wrong_account',
+    };
   const route = parseNotificationRoute(click.route);
   if (!route)
-    return { kind: 'discard', reason: t('notifications.route.unknown') };
+    return {
+      kind: 'discard',
+      reason: t('notifications.route.unknown'),
+      code: 'unknown_route',
+    };
   const workspace = context.workspaces.find(
     (w) => w.slug === route.workspaceSlug || w.id === route.workspaceSlug,
   );
   if (!workspace)
-    return { kind: 'discard', reason: t('notifications.route.noWorkspace') };
+    return {
+      kind: 'discard',
+      reason: t('notifications.route.noWorkspace'),
+      code: 'no_workspace',
+    };
   if (workspace.id !== context.selectedId)
     return { kind: 'workspace', id: workspace.id };
   const session = context.sessions.find((s) => s.id === route.sessionId);
   if (session) return { kind: 'session', session };
-  if (context.loading || !context.connected) return { kind: 'wait' };
-  return { kind: 'discard', reason: t('notifications.route.gone') };
+  if (context.loading || !context.connected)
+    return { kind: 'wait', code: 'catalog_sync' };
+  return {
+    kind: 'discard',
+    reason: t('notifications.route.gone'),
+    code: 'session_missing',
+  };
 }

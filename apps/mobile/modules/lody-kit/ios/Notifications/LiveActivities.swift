@@ -1,5 +1,4 @@
 import ActivityKit
-import CryptoKit
 import Foundation
 import os
 import OneSignalFramework
@@ -187,6 +186,7 @@ final class LiveActivities {
       await activity.end(nil, dismissalPolicy: .immediate)
     }
     guard !Task.isCancelled else { return }
+    diagnostic("create_requested", id: id, fields: ["active": String(state.activeCount)])
     do {
       let activity = try Activity.request(attributes: attributes, content: content, pushType: isDebug(attributes) ? nil : .token)
       diagnostic("created", id: id, fields: ["native": correlation(activity.id), "active": String(state.activeCount)])
@@ -228,13 +228,14 @@ final class LiveActivities {
 
   // Correlates with Convex's SHA-256 prefix; never hash or log an APNs token.
   private nonisolated static func correlation(_ value: String) -> String {
-    SHA256.hash(data: Data(value.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
+    DiagnosticsStore.correlation(value)
   }
 
-  private nonisolated static func diagnostic(_ event: String, id: String? = nil, fields: [String: String] = [:]) {
+  private nonisolated static func diagnostic(_ event: StaticString, id: String? = nil, fields: [String: String] = [:]) {
     var record = fields
-    record["event"] = event
     if let id { record["activity"] = correlation(id) }
+    DiagnosticsStore.shared.record("live-activity", event, fields: record)
+    record["event"] = event.description
     guard let data = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]),
           let line = String(data: data, encoding: .utf8) else { return }
     // Notice persists across suspension; SDK verbose logs can contain tokens.

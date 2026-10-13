@@ -381,6 +381,49 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }.runOnQueue(.main)
     AsyncFunction("setPushVisibleRoute") { (route: String) in MainActor.assumeIsolated { PushNotifications.shared.visibleRoute = route } }.runOnQueue(.main)
 
+    AsyncFunction("diagnosticCount") { (window: Double) in try DiagnosticsStore.shared.count(since: window) }
+    AsyncFunction("clearDiagnostics") { try DiagnosticsStore.shared.clear() }
+    AsyncFunction("recordPushNavigation") { (id: String, source: String, outcome: String, reason: String) in
+      DiagnosticsStore.shared.navigation(id: id, source: source, outcome: outcome, reason: reason)
+    }
+    AsyncFunction("shareDiagnostics") { (window: Double, promise: Promise) in
+      do {
+        let file = try DiagnosticsStore.shared.export(since: window)
+        DispatchQueue.main.async {
+          MainActor.assumeIsolated {
+            guard let controller = self.appContext?.utilities?.currentViewController(), controller.viewIfLoaded?.window != nil,
+                  controller.presentedViewController == nil else {
+              try? FileManager.default.removeItem(at: file.deletingLastPathComponent())
+              promise.reject("DIAGNOSTICS_SHARE_UNAVAILABLE", "Could not open diagnostic sharing")
+              return
+            }
+            DiagnosticsSharing.present(file, from: controller) { error in
+              if let error { promise.reject(error) }
+              else { promise.resolve(nil) }
+            }
+          }
+        }
+      } catch { promise.reject(error) }
+    }
+    AsyncFunction("debugSeedDiagnostics") {
+      guard LodyUIVerify.enabled else { throw NSError(domain: "Lody.Diagnostics.Fixture", code: 1) }
+      try DiagnosticsStore.shared.clear()
+      let root = DiagnosticsStore.shared.directory
+      let date = Date()
+      let message = "3327c0d1-727b-4af6-8e0f-3f27098d15df"
+      let app = DiagnosticsStore(directory: root, process: .app, now: { date.addingTimeInterval(-60) })
+      app.record("live-activity", "snapshot", fields: ["active": "1", "activity": DiagnosticsStore.correlation("fixture-activity")])
+      app.flush()
+      let extensionStore = DiagnosticsStore(directory: root, process: .notificationService, now: { date.addingTimeInterval(-120) })
+      extensionStore.record("notification", "extension_received", fields: ["message": message])
+      extensionStore.flush()
+      for (seconds, source) in [(1800.0, DiagnosticsStore.Process.app), (7200.0, .app), (172800.0, .notificationService), (691200.0, .app)] {
+        let store = DiagnosticsStore(directory: root, process: source, now: { date.addingTimeInterval(-seconds) })
+        store.record("notification", "status", fields: ["permission": "denied"])
+        store.flush()
+      }
+    }
+
     AsyncFunction("githubPullRequest") { (payload: String) async throws -> String in
       try await GitHubPullRequests.run(payload)
     }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppIconScreen } from './AppIconScreen';
 import { ProjectHistoryScreen } from './ProjectHistoryScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
+import { DiagnosticsScreen } from './DiagnosticsScreen';
 import { QuickRepliesScreen } from './QuickRepliesScreen';
 import { useRouter } from 'expo-router';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
@@ -231,6 +232,14 @@ function View() {
           image: 'info.circle',
         },
         {
+          id: 'diagnostics',
+          title: t('diagnostics.title'),
+          image: 'waveform.path.ecg',
+          action: true,
+          disclosure: true,
+          navigates: true,
+        },
+        {
           id: 'licenses',
           title: t('settings.licenses.title'),
           image: 'doc.text',
@@ -341,6 +350,7 @@ function View() {
           void push(ProjectHistoryScreen);
         if (nativeEvent.id === 'archived') void push(ArchivedSessionsScreen);
         if (nativeEvent.id === 'licenses') void push(LicensesScreen);
+        if (nativeEvent.id === 'diagnostics') void push(DiagnosticsScreen);
         if (nativeEvent.id === 'debug-open') {
           cancel();
           router.push('/debug');

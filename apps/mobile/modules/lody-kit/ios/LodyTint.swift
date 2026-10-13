@@ -110,6 +110,7 @@ func lodyTint(_ value: String) -> UIColor? {
   switch value {
   case "": return nil
   case "blue": return UIColor.lodyAccent
+  case "systemBlue": return .systemBlue
   case "green": return .systemGreen
   case "purple": return .systemPurple
   case "warning": return .systemOrange

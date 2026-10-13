@@ -25,8 +25,11 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
     configured = true
     OneSignal.Debug.setLogLevel(.LL_NONE)
     OneSignal.initialize(appId, withLaunchOptions: options)
+    DiagnosticsStore.shared.record("notification", "sdk_initialized", fields: ["configured": "true", "oneSignalApp": appId])
     PushPermissionLaunchRequest.perform {
-      OneSignal.Notifications.requestPermission({ _ in }, fallbackToSettings: false)
+      OneSignal.Notifications.requestPermission({ accepted in
+        DiagnosticsStore.shared.record("notification", "permission_result", fields: ["accepted": String(accepted)])
+      }, fallbackToSettings: false)
     }
     OneSignal.User.pushSubscription.addObserver(self)
     OneSignal.User.addObserver(self)
@@ -47,6 +50,7 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
 
   private func evaluateSubscription(_ id: String?) {
     registered = PushClickBuffer.isRegistered(id)
+    DiagnosticsStore.shared.record("notification", "subscription_observed", fields: ["registered": String(registered)])
     #if DEBUG
     if registered { onRegistered?() }
     #endif
@@ -68,6 +72,7 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
     guard configured else { return }
     let previous = userId ?? OneSignal.User.externalId
     userId = id
+    DiagnosticsStore.shared.record("notification", "identity_observed", fields: ["identified": String(id != nil), "current": String(previous == id)])
     clicks.identify(id)
     LiveActivities.shared.identify(id)
     if let id, !id.isEmpty {
@@ -97,14 +102,17 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
       if self.configured, self.userId != nil, permission == "authorized" {
         OneSignal.User.pushSubscription.optIn()
       }
+      DiagnosticsStore.shared.record("notification", "status", fields: ["configured": String(self.configured), "permission": permission, "registered": String(self.registered)])
       completion(["configured": self.configured, "permission": permission, "registered": self.registered])
     }
   }
 
   func request(_ completion: @escaping @MainActor (Bool) -> Void) {
     guard configured, let requestedUser = userId else { completion(false); return }
+    DiagnosticsStore.shared.record("notification", "permission_requested")
     OneSignal.Notifications.requestPermission({ accepted in
       Task { @MainActor in
+        DiagnosticsStore.shared.record("notification", "permission_result", fields: ["accepted": String(accepted), "current": String(self.userId == requestedUser)])
         if accepted, self.userId == requestedUser { OneSignal.User.pushSubscription.optIn() }
         completion(accepted)
       }
@@ -112,16 +120,28 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
   }
 
   func readPending() -> [String: String]? { clicks.pending }
-  func acknowledge(_ id: String) { clicks.acknowledge(id) }
+  func acknowledge(_ id: String) {
+    DiagnosticsStore.shared.record("notification", "click_acknowledged", fields: ["message": id, "current": String(clicks.pending?["id"] == id)])
+    clicks.acknowledge(id)
+  }
 
   nonisolated func onClick(event: OSNotificationClickEvent) {
     let id = event.notification.notificationId
     let route = event.notification.additionalData?["route"] as? String
     let recipient = event.notification.additionalData?["recipientUserId"] as? String
     Task { @MainActor in
+      DiagnosticsStore.shared.record("notification", "click_received", fields: ["message": id ?? "", "appState": String(UIApplication.shared.applicationState.rawValue)])
       guard let id, let route, route.utf8.count <= 2048,
-            let owner = recipient ?? self.userId ?? OneSignal.User.externalId, !owner.isEmpty else { return }
+            let owner = recipient ?? self.userId ?? OneSignal.User.externalId, !owner.isEmpty else {
+        DiagnosticsStore.shared.record("notification", "click_rejected", fields: ["message": id ?? "", "reason": "invalid_payload"])
+        return
+      }
       self.clicks.receive(id: id, route: route, userId: owner)
+      if self.clicks.pending?["id"] == id {
+        DiagnosticsStore.shared.record("notification", "click_buffered", fields: ["message": id])
+      } else {
+        DiagnosticsStore.shared.record("notification", "click_rejected", fields: ["message": id, "reason": "invalid_payload"])
+      }
       self.onClickAvailable?()
     }
   }
@@ -130,11 +150,20 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
     event.preventDefault()
     let route = event.notification.additionalData?["route"] as? String
     let recipient = event.notification.additionalData?["recipientUserId"] as? String
+    let id = event.notification.notificationId ?? ""
     nonisolated(unsafe) let event = event
     Task { @MainActor in
-      guard self.userId != nil,
-            recipient == nil || recipient == self.userId,
-            self.visibleRoute.isEmpty || route != self.visibleRoute else { return }
+      DiagnosticsStore.shared.record("notification", "foreground_received", fields: ["message": id])
+      let reason: String?
+      if self.userId == nil { reason = "signed_out" }
+      else if recipient != nil && recipient != self.userId { reason = "wrong_account" }
+      else if !self.visibleRoute.isEmpty && route == self.visibleRoute { reason = "visible_session" }
+      else { reason = nil }
+      if let reason {
+        DiagnosticsStore.shared.record("notification", "foreground_suppressed", fields: ["message": id, "reason": reason])
+        return
+      }
+      DiagnosticsStore.shared.record("notification", "foreground_display_requested", fields: ["message": id])
       event.notification.display()
     }
   }
@@ -147,15 +176,20 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
 
 public final class PushAppDelegateSubscriber: ExpoAppDelegateSubscriber {
   public func applicationDidEnterBackground(_ application: UIApplication) {
+    DiagnosticsStore.shared.record("app", "background", fields: ["appState": String(application.applicationState.rawValue)])
     LiveActivities.shared.diagnosticSnapshot("background")
+    DiagnosticsStore.shared.flush()
   }
 
   public func applicationDidBecomeActive(_ application: UIApplication) {
+    DiagnosticsStore.shared.record("app", "foreground", fields: ["appState": String(application.applicationState.rawValue)])
+    LiveActivities.shared.diagnosticSnapshot("foreground")
     PushNotifications.shared.status { _ in }
     LiveActivities.shared.start()
   }
 
   public func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+    DiagnosticsStore.shared.record("app", "launch", fields: ["appState": String(application.applicationState.rawValue), "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""])
     PushNotifications.shared.start(launchOptions)
     LiveActivities.shared.start()
     return true

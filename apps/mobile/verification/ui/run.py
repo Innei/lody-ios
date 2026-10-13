@@ -20,7 +20,7 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
-    'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker', 'branch-picker'],
+    'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'diagnostics', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker', 'branch-picker'],
     'send': ['quick-replies', 'context-chip', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'permission-mode-chat', 'permission-mode-sheet', 'permission-mode-create', 'paste-plain-chat', 'paste-plain-sheet', 'rich-paste-chat', 'rich-paste-sheet', 'attachment-overlay-chat', 'attachment-overlay-sheet', 'attachment-overlay-create', 'attachment-camera-chat', 'attachment-camera-sheet', 'attachment-motion-chat', 'attachment-motion-sheet', 'attachment-motion-create', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'composer-fullscreen', 'composer-rest-draft', 'model-memory'],
     'chat': ['workspace-changes', 'message-share', 'user-mentions', 'file-preview', 'html-preview', 'file-selection', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'mermaid', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'chat-chrome', 'title-rename', 'simulator-preview'],
 }
@@ -78,6 +78,7 @@ PREVIEW = {
     'send-transition': 'send-preview',
     'send-transition-handoff': 'send-handoff',
     'notifications': 'notification-preview',
+    'diagnostics': 'diagnostics-preview',
     'live-activity': 'live-activity-preview',
     'permission': 'permission-preview',
     'send-queue': 'send-queue',
@@ -168,6 +169,7 @@ READY = {
     'send-transition': 'send-status',
     'send-transition-handoff': 'create-session-input',
     'notifications': 'notification-preview-ready',
+    'diagnostics': 'diagnostics-count',
     'live-activity': 'live-activity-preview-ready',
     'send-queue': 'send-status',
     'steer': 'steer-next',
@@ -507,6 +509,8 @@ with metro_context:
                     script = Path(__file__).with_name(f'{case}.py') if case in ['workspace-changes', 'simulator-preview', 'message-details', 'message-share', 'pull-request', 'project-history-entry', 'project-history', 'project-picker', 'branch-picker', 'notifications', 'user-mentions', 'file-preview', 'html-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'mermaid', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'context-menu', 'chat-chrome', 'title-rename', 'composer-rich', 'composer-fullscreen'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
                     if case in {'devices', 'devices-pad'}:
                         script = Path(__file__).with_name('devices.py')
+                    if case == 'diagnostics':
+                        script = Path(__file__).with_name('diagnostics.py')
                     if case == 'file-selection':
                         script = Path(__file__).with_name('file-selection.py')
                     if case in {'quick-replies', 'context-chip', 'morph', 'sheet-zoom-project', 'native-shell', 'native-collection', 'ipad-chrome', 'ipad-sidebar', 'composer-relay', 'outbox', 'navigation-toolbar', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'free-turn-notice', 'create-parity'}:

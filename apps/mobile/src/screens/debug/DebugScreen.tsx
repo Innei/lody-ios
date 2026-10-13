@@ -16,6 +16,7 @@ import { openOutboxPreview } from './OutboxPreviewScreen';
 import { BackgroundPreviewScreen } from './BackgroundPreviewScreen';
 import { pushStatus, verifyPushSubscription } from '@lody-ios/kit';
 import { NotificationPreviewScreen } from './NotificationPreviewScreen';
+import { DiagnosticsPreviewScreen } from './DiagnosticsPreviewScreen';
 import { LiveActivityPreviewScreen } from './LiveActivityPreviewScreen';
 import { ReplyHapticsPreviewScreen } from './ReplyHapticsPreviewScreen';
 import { uiVerify } from './uiVerify';
@@ -192,6 +193,7 @@ function View() {
           'arrow.triangle.2.circlepath',
         ),
         openRow('settings-preview', '远程设置验收', 'gear'),
+        openRow('diagnostics-preview', 'Diagnostics', 'waveform.path.ecg'),
         openRow('app-icon-failure-preview', 'Icon failure', 'app.dashed'),
         openRow('appearance-preview', '外观验收', 'circle.lefthalf.filled'),
         openRow(
@@ -346,6 +348,8 @@ function View() {
     'notification-preview': () => {
       void present(NotificationPreviewScreen, {});
     },
+    'diagnostics-preview': () => void present(DiagnosticsPreviewScreen, {}),
+    'diagnostics-settings-preview': () => void present(SettingsScreen, {}),
     'live-activity-preview': () => void present(LiveActivityPreviewScreen, {}),
     'push-subscription-verify': () => {
       void pushStatus().then(async (status) => {

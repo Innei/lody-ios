@@ -33,6 +33,7 @@ checks = {
     'github-pr': ['Cloud/GitHubPullRequests.swift'],
     'session-sharing': ['Cloud/SessionSharing.swift'],
     'notifications': ['Notifications/PushPermissionLaunchRequest.swift', 'Notifications/PushClickBuffer.swift'],
+    'diagnostics': ['Diagnostics/DiagnosticsStore.swift'],
     'file-link': ['Chat/ChatFileLink.swift'],
     'strings': ['LodyStrings.swift'],
     'chat': ['LodyStrings.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatMessageShare.swift', 'Chat/ChatStream.swift', 'Chat/ChatHaptics.swift', 'Chat/ChatImagePreviewGeometry.swift', 'Chat/ChatImageGallery.swift'],

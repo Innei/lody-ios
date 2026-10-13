@@ -5,6 +5,7 @@ import {
   acknowledgePushClick,
   addPushClickListener,
   pendingPushClick,
+  recordPushNavigation,
   setPushUser,
   type PushClick,
 } from '@lody-ios/kit';
@@ -28,6 +29,7 @@ export function PushCoordinator() {
   const [click, setClick] = useState<PushClick | null>(null);
   const link = useSyncExternalStore(subscribeDeepLinks, pendingDeepLink);
   const handled = useRef('');
+  const lastDiagnostic = useRef('');
   useEffect(() => {
     if (uiVerify) return;
     let active = true;
@@ -66,11 +68,24 @@ export function PushCoordinator() {
       connected: catalog.connected,
       sessions: catalog.catalog.sessions,
     });
-    if (destination.kind === 'wait' || !navigation) return;
-    if (
+    const source = link ? 'deep-link' : 'notification';
+    const reason = 'code' in destination ? destination.code : '';
+    const needsReset =
+      destination.kind !== 'wait' &&
       destination.kind !== 'discard' &&
-      (navigation.routes.length !== 1 || navigation.routes[0]?.name !== 'index')
-    ) {
+      !!navigation &&
+      (navigation.routes.length !== 1 ||
+        navigation.routes[0]?.name !== 'index');
+    const outcome = needsReset ? 'reset' : destination.kind;
+    const diagnostic = `${source}:${pending.id}:${outcome}:${reason}`;
+    if (lastDiagnostic.current !== diagnostic) {
+      lastDiagnostic.current = diagnostic;
+      void recordPushNavigation(pending.id, source, outcome, reason).catch(
+        () => {},
+      );
+    }
+    if (destination.kind === 'wait' || !navigation) return;
+    if (needsReset) {
       router.dismissTo('/');
       return;
     }
