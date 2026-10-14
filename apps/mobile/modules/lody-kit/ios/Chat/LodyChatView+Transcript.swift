@@ -161,14 +161,11 @@ extension LodyChatView {
   func applyOverlay() {
     if !processEntryID.isEmpty {
       overlay.slot = .idle
+      composer.taskCount = 0
       return
     }
-    overlay.slot = ChatOverlay.slot(
-      connection: composer.connection,
-      tasks: transcript.liveSubagentItems().map {
-        ChatOverlay.Task(id: $0.itemId, actor: $0.actor, lastToolName: $0.lastToolName)
-      }
-    )
+    overlay.slot = ChatOverlay.slot(connection: composer.connection)
+    composer.taskCount = transcript.liveSubagentItems().count
   }
 
   func applyRows() {

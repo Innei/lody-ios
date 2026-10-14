@@ -125,6 +125,7 @@ final class ChatQuickRepliesView: UIScrollView {
   private let separator = UIView()
   private lazy var separatorWidth = separator.widthAnchor.constraint(equalToConstant: 1)
   private var contextChip: ChatContextChipButton?
+  private var tasksChip: ChatContextChipButton?
   private var rendered: [ChatQuickReply] = []
   private var renderedActions: [ChatPreviewChip.Action]?
   private var buttons: [UIButton] = []
@@ -134,10 +135,12 @@ final class ChatQuickRepliesView: UIScrollView {
     let showsReplies: Bool
     let compact: Bool
     let visible: Bool
+    let taskCount: Int
   }
   private var content: Content?
   var onSelect: ((String) -> Void)?
   var onPreview: ((String) -> Void)?
+  var onTasksPress: (() -> Void)?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -167,14 +170,14 @@ final class ChatQuickRepliesView: UIScrollView {
 
   required init?(coder: NSCoder) { fatalError() }
 
-  func render(_ items: [ChatQuickReply], context: ChatPreviewChip?, showsReplies: Bool, compact: Bool, visible: Bool, animated: Bool = false) {
-    let next = Content(items: items, context: context, showsReplies: showsReplies, compact: compact, visible: visible)
+  func render(_ items: [ChatQuickReply], context: ChatPreviewChip?, showsReplies: Bool, compact: Bool, visible: Bool, animated: Bool = false, taskCount: Int = 0) {
+    let next = Content(items: items, context: context, showsReplies: showsReplies, compact: compact, visible: visible, taskCount: taskCount)
     guard next != content else { return }
     // Mount at the final geometry during navigation. Only a row that already
     // has content on screen can morph; unrelated composer echoes are no-ops.
-    let hadContent = !rendered.isEmpty || contextChip != nil
+    let hadContent = !rendered.isEmpty || contextChip != nil || tasksChip != nil
     content = next
-    let showsRow = visible && (context != nil || (showsReplies && !items.isEmpty))
+    let showsRow = visible && (context != nil || taskCount > 0 || (showsReplies && !items.isEmpty))
     let visibilityChanged = isUserInteractionEnabled != showsRow
     let motion = animated && hadContent && window != nil && bounds.height > 0 && !isTransitioning && !UIAccessibility.isReduceMotionEnabled
     if motion { layoutIfNeeded() }
@@ -199,9 +202,9 @@ final class ChatQuickRepliesView: UIScrollView {
     if items != rendered {
       rendered = items
       contentOffset = .zero
-      retiring = stack.arrangedSubviews.filter { $0 is UIButton && $0 !== contextChip }
+      retiring = stack.arrangedSubviews.filter { $0 is UIButton && $0 !== contextChip && $0 !== tasksChip }
       retiring.forEach { $0.isUserInteractionEnabled = false }
-      buttons.removeAll { $0 !== contextChip }
+      buttons.removeAll { $0 !== contextChip && $0 !== tasksChip }
       UIView.performWithoutAnimation {
         for item in items {
           let button = chip(item)
@@ -213,15 +216,23 @@ final class ChatQuickRepliesView: UIScrollView {
       if !swaps { retiring.forEach { $0.removeFromSuperview() } }
     }
     if let context { updateContext(context, compact: compact, motion: motion) }
+    if taskCount > 0 {
+      let chip = tasksChip ?? makeTasksChip()
+      let label = LodyStrings.plural("native.chat.overlay.tasks", taskCount)
+      chip.apply(ChatContextChipContent(label: label, symbol: "point.3.connected.trianglepath.dotted"),
+                 animation: motion && !chip.isHidden ? Self.motion : nil)
+      chip.accessibilityLabel = label
+    }
     let layout = {
       self.show(self.contextChip, context != nil)
-      self.show(self.separator, context != nil && repliesShown && !items.isEmpty)
-      for button in self.buttons where button !== self.contextChip { self.show(button, repliesShown) }
+      self.show(self.tasksChip, taskCount > 0)
+      self.show(self.separator, context != nil && (taskCount > 0 || (repliesShown && !items.isEmpty)))
+      for button in self.buttons where button !== self.contextChip && button !== self.tasksChip { self.show(button, repliesShown) }
       for view in retiring where view.superview != nil { self.show(view, false) }
       if contextAppears { self.contentOffset.x = 0 }
       self.layoutIfNeeded()
     }
-    if motion && contextChip?.window != nil {
+    if motion && (contextChip?.window != nil || tasksChip?.window != nil) {
       UIView.animate(Self.motion, changes: layout) { retiring.forEach { $0.removeFromSuperview() } }
     } else {
       UIView.performWithoutAnimation(layout)
@@ -282,6 +293,18 @@ final class ChatQuickRepliesView: UIScrollView {
     separatorWidth.constant = 1 / max(1, traitCollection.displayScale)
     buttons.insert(chip, at: 0)
     contextChip = chip
+    return chip
+  }
+
+  private func makeTasksChip() -> ChatContextChipButton {
+    let chip = ChatContextChipButton()
+    chip.accessibilityIdentifier = "session-subtasks"
+    chip.isHidden = true
+    chip.alpha = 0
+    chip.addAction(UIAction { [weak self] _ in self?.onTasksPress?() }, for: .touchUpInside)
+    stack.insertArrangedSubview(chip, at: contextChip == nil ? 0 : 2)
+    buttons.append(chip)
+    tasksChip = chip
     return chip
   }
 

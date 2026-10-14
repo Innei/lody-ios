@@ -893,6 +893,13 @@ transcript.entries[0].finished = true
 assert(transcript.rows().filter { $0.kind == "subagent_task" }.map(\.itemID) == ["explore", "done"])
 print("Chat: subagent task cards stay in the main list around the process and skip housekeeping")
 
+transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(#"[{"id":"child","role":"assistant","status":"completed","finished":true,"items":[{"itemId":"header","type":"text","text":"Explore"},{"itemId":"thought","type":"thought","text":"Check callers"},{"itemId":"read","type":"tool_call","kind":"read","title":"Read composer","hasDetail":true},{"itemId":"answer","type":"text","text":"Found the chip row"}]}]"#.utf8))
+let childRows = transcript.rows(processEntryID: "child", processStartID: "__subagent__")
+assert(childRows.map(\.itemID) == ["header", "thought", "read", "answer"])
+assert(childRows.first { $0.itemID == "read" }?.actionable == true)
+assert(childRows.last?.text == "Found the chip row")
+print("Chat: subtask process retains the task header, thinking, tool navigation and final reply")
+
 let screen = ChatImagePreviewGeometry.Size(width: 400, height: 800)
 assert(
   ChatImagePreviewGeometry.fitContain(ChatImagePreviewGeometry.Size(width: 1600, height: 900), in: screen)

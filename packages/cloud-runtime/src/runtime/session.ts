@@ -1265,6 +1265,30 @@ function locateItem(entryId: string, itemId: string) {
   return undefined;
 }
 const DETAIL_LIMIT = 512 * 1024;
+function locateRunItem(entryId: string, itemId: string) {
+  let path: unknown;
+  try {
+    path = JSON.parse(itemId);
+  } catch {
+    return;
+  }
+  if (
+    !Array.isArray(path) ||
+    path.length !== 2 ||
+    !path.every((id) => typeof id === 'string')
+  )
+    return;
+  const parent: any = locateItem(entryId, path[0])?.toJSON();
+  if (parent?.type !== 'subagent_task' || !Array.isArray(parent.run?.items))
+    return;
+  return parent.run.items.find((item: any, index: number) => {
+    const id =
+      item?.type === 'tool_call' && typeof item.toolCallId === 'string'
+        ? item.toolCallId
+        : `run:${index}`;
+    return id === path[1];
+  });
+}
 export async function itemDetail(args: {
   sessionId: string;
   entryId: string;
@@ -1273,9 +1297,10 @@ export async function itemDetail(args: {
 }) {
   if (!active || active.id !== args.sessionId || !active.ready)
     throw new Error('session_not_ready');
-  const item = locateItem(args.entryId, args.itemId);
-  if (!item) throw new Error('item_not_found');
-  const raw: any = item.toJSON();
+  const raw: any =
+    locateItem(args.entryId, args.itemId)?.toJSON() ??
+    locateRunItem(args.entryId, args.itemId);
+  if (!raw) throw new Error('item_not_found');
   const content: unknown[] = Array.isArray(raw.content) ? raw.content : [];
   const start = Math.max(0, Number(args.cursor ?? 0) || 0);
   const blocks: unknown[] = [];

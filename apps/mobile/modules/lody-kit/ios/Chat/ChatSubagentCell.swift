@@ -68,7 +68,7 @@ final class ChatSubagentCell: UICollectionViewCell {
     guard let card = row.subagent else { return }
     let failed = card.status == "failed"
     icon.image = UIImage(
-      systemName: failed ? "exclamationmark.triangle.fill" : "person.2.fill",
+      systemName: "point.3.connected.trianglepath.dotted",
       withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
     )
     icon.tintColor = failed ? .systemRed : .systemBlue

@@ -748,6 +748,99 @@ test('projection keeps subagent task identity and live fields', async () => {
   assert.equal(item.skipTranscript, false);
 });
 
+test('subtask run projection and tool details survive live updates and cache restoration', async () => {
+  const fixture = await openTestSession();
+  try {
+    const run = {
+      sessionId: 'child',
+      snapshot: { state: 'running' },
+      items: [
+        { type: 'thought', text: 'Trace the composer' },
+        {
+          type: 'tool_call',
+          toolCallId: 'read',
+          kind: 'read',
+          title: 'Read composer',
+          status: 'completed',
+          content: [{ type: 'output', output: 'first' }],
+        },
+        {
+          type: 'plan',
+          entries: [{ content: 'Move task chip', status: 'in_progress' }],
+        },
+        { type: 'text', text: 'Found the chip row' },
+        { type: 'subagent_task', taskId: 'ignored' },
+      ],
+    };
+    const entry = fixture.server
+      .getList('history')
+      .pushContainer(new LoroMap());
+    entry.set('id', 'reply');
+    entry.set('role', 'assistant');
+    const task = entry
+      .setContainer('items', new LoroList())
+      .pushContainer(new LoroMap());
+    task.set('type', 'subagent_task');
+    task.set('taskId', 'task');
+    task.set('status', 'in_progress');
+    task.set('run', run);
+    fixture.server.commit();
+    await fixture.pushUpdate();
+    const before = fixture.runtime.projectSession(fixture.server, 'live')
+      .entries[0].items[0];
+    assert.deepEqual(
+      before.run.items.map((item) => item.type),
+      ['thought', 'tool_call', 'plan', 'text'],
+    );
+    assert.equal(before.run.items[0].text, 'Trace the composer');
+    const tool = before.run.items[1];
+    assert.equal(tool.hasDetail, true);
+    const detail = await fixture.runtime.itemDetail({
+      sessionId: 's1',
+      entryId: 'reply',
+      itemId: tool.itemId,
+    });
+    assert.equal(detail.blocks[0].output, 'first');
+    run.items[1].content[0].output = 'updated';
+    run.snapshot.state = 'completed';
+    task.set('run', run);
+    fixture.server.commit();
+    await fixture.pushUpdate();
+    const after = fixture.runtime.projectSession(fixture.server, 'live')
+      .entries[0].items[0];
+    assert.equal(after.run.items[1].itemId, tool.itemId);
+    assert.ok(after.run.items[1].rev > tool.rev);
+    assert.ok(after.rev > before.rev);
+    assert.equal(
+      (
+        await fixture.runtime.itemDetail({
+          sessionId: 's1',
+          entryId: 'reply',
+          itemId: tool.itemId,
+        })
+      ).blocks[0].output,
+      'updated',
+    );
+    const restored = new LoroDoc();
+    restored.import(fixture.server.export({ mode: 'snapshot' }));
+    assert.equal(
+      fixture.runtime.projectSession(restored, 'live').entries[0].items[0].run
+        .state,
+      'completed',
+    );
+    await assert.rejects(
+      fixture.runtime.itemDetail({
+        sessionId: 's1',
+        entryId: 'reply',
+        itemId: JSON.stringify(['missing', 'read']),
+      }),
+      /item_not_found/,
+    );
+  } finally {
+    fixture.close();
+  }
+});
+
 test('MCP image groups survive projection, cache updates and history bootstrap', async () => {
   const { projectSession } = await loadProject();
   const doc = new LoroDoc();

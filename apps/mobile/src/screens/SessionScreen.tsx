@@ -6,7 +6,7 @@ import { useProposedPlan } from '@/features/sessions/useProposedPlan';
 import { planExecutionChoice } from '@/features/sessions/proposedPlan';
 import { useAgentErrorRetry } from '@/features/sessions/useAgentErrorRetry';
 import { openAgentError } from '@/hooks/screens/openAgentError';
-import { openSubagentTask } from '@/hooks/screens/openSubagentTask';
+import { findSessionItem } from '@/features/sessions/subagentHistory';
 import {
   fastModeFor,
   withFastMode,
@@ -507,8 +507,8 @@ function View() {
 
   const onActivityPress = (entryId: string, itemId: string) => {
     const entry = snapshot.entries.find((e) => e.id === entryId);
-    const item = entry?.items.find((i) => i.itemId === itemId);
-    if (openAgentError(item) || openSubagentTask(item)) return;
+    const item = findSessionItem(snapshot.entries, entryId, itemId);
+    if (openAgentError(item) || openTask(entryId, itemId)) return;
     if (snapshot.status !== 'live') {
       Alert.alert(
         t('session.alert.syncing.title'),
@@ -542,7 +542,11 @@ function View() {
   );
   const openFile = useOpenFile(session.id);
   const openMessageDetails = useMessageDetailsSheet(entriesJSON);
-  const openProcess = useProcessSheet(entriesJSON, onActivityPress, session.id);
+  const { openProcess, openTask } = useProcessSheet(
+    entriesJSON,
+    onActivityPress,
+    session.id,
+  );
   let notice = '';
   if (overflow) notice = t('chat.notice.syncStopped');
   const mentions = useComposerMentions(

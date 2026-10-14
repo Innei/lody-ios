@@ -165,7 +165,7 @@ export function remoteSettingsSections({
     title: item.name || item.id,
     subtitle: [
       item.detail,
-      item.machineName,
+      kind === 'agent' ? undefined : item.machineName,
       item.readOnly ? t('settings.remote.readOnly') : undefined,
     ]
       .filter(Boolean)
@@ -176,6 +176,7 @@ export function remoteSettingsSections({
   }));
   const content: NativeListSection[] = [];
   if (kind === 'agent') {
+    const groups = new Map<string, NativeListSection>();
     for (const [index, item] of items.entries()) {
       const usageRows = agentUsageRows(
         item,
@@ -186,15 +187,23 @@ export function remoteSettingsSections({
         if (connected) usage = t('settings.usage.shared');
         else usage = t('settings.usage.offline');
       }
-      content.push({
-        id: remoteSettingId(item),
-        rows: [settingRows[index]!, ...usageRows],
-        footer: joinFooter(
-          usage,
-          index === items.length - 1 ? synced : undefined,
-        ),
-      });
+      const machine = item.machineId ?? item.machineName ?? '';
+      let group = groups.get(machine);
+      if (!group) {
+        group = {
+          id: `machine:${machine}`,
+          header:
+            item.machineName || item.machineId || t('settings.remote.machine'),
+          rows: [],
+        };
+        groups.set(machine, group);
+        content.push(group);
+      }
+      group.rows.push(settingRows[index]!, ...usageRows);
+      if (usage) group.footer = usage;
     }
+    const last = content.at(-1);
+    if (last) last.footer = joinFooter(last.footer, synced);
   } else if (items.length || synced || !error) {
     content.push({
       id: 'settings',

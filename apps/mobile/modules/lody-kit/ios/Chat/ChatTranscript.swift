@@ -298,7 +298,8 @@ struct ChatTranscript {
       return executionProcess(members)
     }
     if !processEntryID.isEmpty {
-      return entryRows(processEntryID: processEntryID, processStartID: processStartID, now: now, turnStartedAt: turnStartedAt)
+      return entryRows(processEntryID: processEntryID, processStartID: processStartID, now: now, turnStartedAt: turnStartedAt,
+        flatItems: processStartID == "__subagent__")
     }
     let ordinary = Dictionary(grouping: entryRows(now: now, turnStartedAt: turnStartedAt), by: \.entryID)
     var emitted = Set<String>()
@@ -622,7 +623,7 @@ extension ChatTranscript {
       running: running,
       attention: item.status == "failed"
     )
-    row.symbol = "person.2"
+    row.symbol = "point.3.connected.trianglepath.dotted"
     row.actionable = true
     row.subagent = card
     return row

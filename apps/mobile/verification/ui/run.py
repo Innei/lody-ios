@@ -567,6 +567,9 @@ with metro_context:
                     else:
                         command += [str(output)]
                     check_timeout = 180
+                    if case == 'settings':
+                        # Machine edits, multi-machine Agent identity and MCP forms share this flow.
+                        check_timeout = 300
                     if case == 'proposed-plan':
                         # Document, search and business dispatch outcomes share this case.
                         check_timeout = 360

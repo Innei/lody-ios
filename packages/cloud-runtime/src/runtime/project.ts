@@ -75,6 +75,7 @@ export type ItemSummary =
       error?: string;
       isBackgrounded?: boolean;
       skipTranscript?: boolean;
+      run?: { sessionId: string; state: string; items: ItemSummary[] };
     }
   | { itemId: string; rev: number; type: string };
 
@@ -174,12 +175,16 @@ function summarizeItem(
   raw: any,
   entryId: string,
   identity: string,
+  parentItemId?: string,
 ) {
   const type = String(raw?.type ?? 'unknown');
-  const itemId =
+  const localId =
     type === 'tool_call' && typeof raw.toolCallId === 'string'
       ? raw.toolCallId
       : identity;
+  const itemId = parentItemId
+    ? JSON.stringify([parentItemId, localId])
+    : localId;
   const key = `${entryId}/${itemId}`;
 
   if (type === 'system_notice') {
@@ -287,17 +292,18 @@ function summarizeItem(
       !!questionMeta ||
       raw.permissionRequest?.kind === 'ask_user_question' ||
       raw.kind === 'ask_user_question';
-    const permission = raw.permissionRequest
-      ? {
-          requestId: String(raw.permissionRequest.requestId ?? ''),
-          pending: raw.permissionRequest.outcome == null,
-          options: raw.permissionRequest.options,
-          kind: isQuestion
-            ? ('ask_user_question' as const)
-            : ('permission' as const),
-          questionMeta,
-        }
-      : undefined;
+    const permission =
+      !parentItemId && raw.permissionRequest
+        ? {
+            requestId: String(raw.permissionRequest.requestId ?? ''),
+            pending: raw.permissionRequest.outcome == null,
+            options: raw.permissionRequest.options,
+            kind: isQuestion
+              ? ('ask_user_question' as const)
+              : ('permission' as const),
+            questionMeta,
+          }
+        : undefined;
     const summary = {
       itemId,
       rev: 0,
@@ -308,10 +314,22 @@ function summarizeItem(
       path: diff?.path,
       added: diff?.added,
       removed: diff?.removed,
-      hasDetail: Array.isArray(raw.content) ? raw.content.length > 0 : false,
+      hasDetail:
+        (Array.isArray(raw.content) && raw.content.length > 0) ||
+        raw.rawInput != null ||
+        raw.rawOutput != null,
       permission,
     };
-    summary.rev = bump(projection, key, JSON.stringify(summary));
+    summary.rev = bump(
+      projection,
+      key,
+      JSON.stringify({
+        ...summary,
+        content: raw.content,
+        rawInput: raw.rawInput,
+        rawOutput: raw.rawOutput,
+      }),
+    );
     return summary as ItemSummary;
   }
 
@@ -349,6 +367,27 @@ function summarizeItem(
         raw.isBackgrounded == null ? undefined : Boolean(raw.isBackgrounded),
       skipTranscript:
         raw.skipTranscript == null ? undefined : Boolean(raw.skipTranscript),
+      run: Array.isArray(raw.run?.items)
+        ? {
+            sessionId: String(raw.run.sessionId ?? raw.taskId ?? itemId),
+            state: String(raw.run.snapshot?.state ?? raw.status ?? 'pending'),
+            items: raw.run.items.flatMap((item: any, index: number) => {
+              if (
+                !['text', 'thought', 'tool_call', 'plan'].includes(item?.type)
+              )
+                return [];
+              return [
+                summarizeItem(
+                  projection,
+                  item,
+                  entryId,
+                  `run:${index}`,
+                  itemId,
+                ),
+              ];
+            }),
+          }
+        : undefined,
     };
     summary.rev = bump(projection, key, JSON.stringify(summary));
     return summary as ItemSummary;

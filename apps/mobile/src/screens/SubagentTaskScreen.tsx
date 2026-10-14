@@ -1,17 +1,30 @@
-import { useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { StyleSheet, View as RNView } from 'react-native';
-import { copyText } from '@lody-ios/kit';
+import { copyText, NativeChat } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { t } from '@/lib/i18n/index.ts';
 import { usePalette } from '@/lib/theme/palette';
-import type { ItemSummary } from '@lody/cloud-runtime/models/session';
+import {
+  findSessionItem,
+  subagentEntries,
+  type SubagentTask,
+} from '@/features/sessions/subagentHistory';
+import type { createProcessSource } from './ProcessScreen';
+import { useOpenFile } from '@/hooks/screens/useOpenFile';
 import { Screen } from '@/ui/Screen';
 import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
 import { FormGroup } from '@/ui/FormGroup';
 
-export type SubagentTask = Extract<ItemSummary, { type: 'subagent_task' }>;
+export type { SubagentTask };
+export type SubagentTaskParams = {
+  task: SubagentTask;
+  entryId: string;
+  sessionId?: string;
+  source: ReturnType<typeof createProcessSource>;
+  onActivityPress: (entryId: string, itemId: string) => void;
+};
 
 const statusKeys = {
   pending: 'native.chat.subagent.pending',
@@ -21,7 +34,23 @@ const statusKeys = {
 } as const;
 
 function View() {
-  const { params: task } = usePageRuntime<SubagentTask>();
+  const { params } = usePageRuntime<SubagentTaskParams>();
+  const entriesJSON = useSyncExternalStore(
+    params.source.subscribe,
+    params.source.getSnapshot,
+  );
+  const item = useMemo(
+    () =>
+      findSessionItem(
+        JSON.parse(entriesJSON),
+        params.entryId,
+        params.task.itemId,
+      ),
+    [entriesJSON, params],
+  );
+  const task =
+    item?.type === 'subagent_task' ? (item as SubagentTask) : params.task;
+  const openFile = useOpenFile(params.sessionId ?? '');
   const colors = usePalette();
   const [copied, setCopied] = useState(false);
   const failed = task.status === 'failed';
@@ -34,6 +63,34 @@ function View() {
   ]
     .filter(Boolean)
     .join(' · ');
+  if (task.run) {
+    const history = subagentEntries(params.entryId, task);
+    history[0]!.items.unshift({
+      itemId: `${task.itemId}:header`,
+      rev: task.rev,
+      type: 'text',
+      text: `${[actor, status].filter(Boolean).join(' · ')}\n\n${task.description?.trim() || actor}`,
+    });
+    return (
+      <NativeChat
+        style={{ flex: 1 }}
+        entriesJSON={JSON.stringify(history)}
+        processEntryId={params.entryId}
+        processStartId="__subagent__"
+        composerJSON="{}"
+        clearDraftToken={0}
+        emptyText={t('process.empty')}
+        onSend={() => {}}
+        onReconnect={() => {}}
+        onActivityPress={({ nativeEvent }) =>
+          params.onActivityPress(nativeEvent.entryId, nativeEvent.itemId)
+        }
+        onFilePress={({ nativeEvent }) =>
+          void openFile(nativeEvent.path, nativeEvent.line)
+        }
+      />
+    );
+  }
   return (
     <Screen>
       <FormGroup>
@@ -98,7 +155,7 @@ const styles = StyleSheet.create({
   },
 });
 
-export const SubagentTaskScreen = definePage<SubagentTask>({
+export const SubagentTaskScreen = definePage<SubagentTaskParams>({
   id: 'subagent-task',
   title: t('native.chat.transcript.subtask'),
   Component: View,

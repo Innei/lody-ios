@@ -62,6 +62,7 @@ export type ItemSummary =
       error?: string;
       isBackgrounded?: boolean;
       skipTranscript?: boolean;
+      run?: { sessionId: string; state: string; items: ItemSummary[] };
     }
   | { itemId: string; rev: number; type: string };
 

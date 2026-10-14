@@ -55,18 +55,9 @@ host.layoutIfNeeded()
   }
 }
 
-let explore = ChatOverlay.Task(id: "t1", actor: "Explore", lastToolName: "Read")
-precondition(ChatOverlay.slot(connection: "connecting", tasks: [explore]) == .connecting)
-precondition(ChatOverlay.slot(connection: "paused", tasks: [explore]) == .paused)
-precondition(ChatOverlay.slot(connection: "", tasks: []) == .idle)
-precondition(
-  ChatOverlay.slot(connection: "", tasks: [explore]) == .tasks(ChatOverlay.Tasks(items: [explore]))
-)
-precondition(ChatOverlay.Tasks(items: [explore]).title == "Explore · Read")
-precondition(
-  ChatOverlay.Tasks(items: [explore, ChatOverlay.Task(id: "t2", actor: "Plan")]).title
-    == LodyStrings.plural("native.chat.overlay.tasks", 2)
-)
+precondition(ChatOverlay.slot(connection: "connecting") == .connecting)
+precondition(ChatOverlay.slot(connection: "paused") == .paused)
+precondition(ChatOverlay.slot(connection: "") == .idle)
 
 show(.connecting, scroll: false)
 precondition(!overlay.isHidden, "Connecting overlay must be visible")
@@ -159,19 +150,6 @@ precondition(!overlay.isHidden)
 precondition(!shown(statusControl()))
 precondition(frame(scrollControl()) == scrollBoth, "Hiding status must not move the scroll action")
 
-show(.tasks(ChatOverlay.Tasks(items: [explore])), scroll: false)
-let tasks = statusControl()
-precondition(tasks.accessibilityLabel == "Explore · Read")
-precondition(tasks.accessibilityTraits.contains(.button), "Live tasks are tappable")
-precondition(abs(frame(tasks).midX - 195) < 1, "A task capsule sits on the composer center")
-var openedTasks = false
-overlay.onTasksPress = { openedTasks = true }
-tasks.sendActions(for: .touchUpInside)
-precondition(openedTasks, "Task capsule opens the task list")
-let taskEdge = overlay.convert(CGPoint(x: frame(tasks).midX, y: frame(tasks).midY + 21), from: host)
-precondition(overlay.hitTest(taskEdge, with: nil) === tasks,
-  "Compact task glass retains a 44-point touch target")
-
 show(.idle, scroll: true)
 host.frame.size = CGSize(width: 760, height: 520)
 host.layoutIfNeeded()
@@ -179,4 +157,4 @@ let resized = frame(scrollControl())
 precondition(abs(resized.midX - (composer.frame.maxX - 18 - ChatOverlay.controlSize / 2)) < 0.5)
 precondition(abs(resized.maxY + 8 - composer.frame.minY) < 0.5,
   "Resizing the host preserves the composer baseline")
-print("Chat overlay: 30-point scroll visual aligned with send, 44-point target, independent status, tasks capsule, touch passthrough and resize passed")
+print("Chat overlay: 30-point scroll visual aligned with send, 44-point target, independent status, touch passthrough and resize passed")

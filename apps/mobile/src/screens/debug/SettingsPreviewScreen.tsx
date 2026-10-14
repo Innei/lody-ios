@@ -2,7 +2,10 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { NativeGroupedList } from '@lody-ios/kit';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { definePage } from '@/lib/presentation';
-import { memoryRemoteSettingsCache } from '@/features/settings/remote-settings';
+import {
+  memoryRemoteSettingsCache,
+  remoteSettingId,
+} from '@/features/settings/remote-settings';
 import {
   RemoteSettingsView,
   settingsTitle,
@@ -58,6 +61,15 @@ function View() {
       detail: 'http',
       enabledByDefault: false,
     },
+    {
+      kind: 'agent',
+      id: 'a1',
+      machineId: 'm2',
+      name: 'Codex',
+      prompt: 'Laptop instructions.',
+      detail: 'codex',
+      machineName: 'Travel Mac',
+    },
   ]);
   const failLoad = useRef(true),
     failSave = useRef(true);
@@ -73,7 +85,7 @@ function View() {
       }
       const edit = request.edit;
       rows.current = rows.current.map((row) =>
-        row.id === edit.item.id
+        remoteSettingId(row) === remoteSettingId(edit.item)
           ? {
               ...row,
               name: edit.name.trim(),

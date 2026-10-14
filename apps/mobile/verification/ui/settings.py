@@ -16,6 +16,10 @@ def tap(identifier):
     ui.element(identifier)
     ui.axe('tap', '--id', identifier, '--post-delay', '.5')
 
+def back():
+    frame = next(item['frame'] for item in reversed(ui.state()) if item.get('AXUniqueId') == 'BackButton')
+    ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.6')
+
 def toolbar(key):
     return ui.wait(lambda items: next((item for item in items if item.get('AXLabel') == catalog.text(key) and item.get('type') == 'Button'), None), f'Missing toolbar action {key}')
 
@@ -45,9 +49,11 @@ save()
 ui.wait(lambda items: any(item.get('AXUniqueId') == 'setting:machine::m1' and machine_name in (item.get('AXLabel') or '') for item in items), 'Machine rename did not reach list')
 ui.capture('machine-saved')
 
-ui.axe('swipe', '--start-x', '2', '--start-y', '400', '--end-x', '370', '--end-y', '400', '--duration', '.5', '--post-delay', '.6')
+back()
 tap('settings-agent')
 ui.wait(lambda items: any(item.get('AXUniqueId') == 'setting:agent:m1:a1' and 'Codex' in (item.get('AXLabel') or '') for item in items), 'Agent section did not open')
+assert any(item.get('AXLabel') == 'Studio Mac' for item in ui.state()), 'Missing machine group header'
+assert 'Studio Mac' not in label('setting:agent:m1:a1'), 'Machine name should live in its group header'
 synced = catalog.text('settings.remote.syncedAt', time='').strip()
 assert catalog.text('settings.usage.used', percent=32) in label('usage:m1:a1:codex:0')
 assert catalog.text('settings.usage.used', percent=61) in label('usage:m1:a1:codex:1')
@@ -69,9 +75,16 @@ assert catalog.text('settings.usage.used', percent=100) in label('usage:m1:a2:cl
 assert catalog.text('settings.remote.readOnly') in label('setting:agent:m1:a2')
 assert catalog.text('settings.usage.empty') in label('usage:m1:a3:empty')
 ui.element('setting:agent:m1:a4')
-assert any(synced in spoken(item) for item in ui.state()), 'Confirmed settings must show a refresh time in the final section footer'
 assert not any((item.get('AXUniqueId') or '').startswith('usage:m1:a4:') for item in ui.state()), 'Custom API incorrectly displays subscription quota'
 ui.capture('agent-usage-readonly-empty-api')
+ui.axe('swipe', '--start-x', '180', '--start-y', '720', '--end-x', '180', '--end-y', '250', '--duration', '.6', '--post-delay', '.5')
+ui.element('setting:agent:m2:a1')
+assert any(item.get('AXLabel') == 'Travel Mac' for item in ui.state()), 'Missing second machine group'
+assert any(synced in spoken(item) for item in ui.state()), 'Confirmed settings must show a refresh time in the final group footer'
+ui.capture('agent-machine-groups')
+tap('setting:agent:m2:a1')
+assert ui.element('setting-prompt')['AXValue'] == 'Laptop instructions.'
+ui.axe('tap', '--label', catalog.text('common.cancel'), '--post-delay', '.5')
 ui.axe('swipe', '--start-x', '180', '--start-y', '300', '--end-x', '180', '--end-y', '730', '--duration', '.6', '--post-delay', '.5')
 tap('setting:agent:m1:a1')
 ui.capture('agent-editor')
@@ -89,14 +102,21 @@ tap('setting:agent:m1:a1')
 assert ui.element('setting-prompt')['AXValue'] == prompt
 ui.capture('agent-reopened')
 ui.axe('tap', '--label', catalog.text('common.cancel'), '--post-delay', '.5')
+ui.axe('swipe', '--start-x', '180', '--start-y', '720', '--end-x', '180', '--end-y', '250', '--duration', '.6', '--post-delay', '.5')
+tap('setting:agent:m2:a1')
+assert ui.element('setting-prompt')['AXValue'] == 'Laptop instructions.', 'Editing an agent changed an identically named config on another machine'
+ui.capture('agent-machine-identity')
+ui.axe('tap', '--label', catalog.text('common.cancel'), '--post-delay', '.5')
 
-ui.axe('swipe', '--start-x', '2', '--start-y', '400', '--end-x', '370', '--end-y', '400', '--duration', '.5', '--post-delay', '.6')
+back()
 tap('settings-mcp')
 ui.wait(lambda items: any(item.get('AXUniqueId') == 'setting:mcp::c1' and 'Documentation' in (item.get('AXLabel') or '') for item in items), 'MCP section did not open')
 assert catalog.text('settings.remote.disabled') in label('setting:mcp::c1')
 tap('setting:mcp::c1')
 ui.capture('mcp-editor')
-tap('setting-enabled')
+toggle = ui.element('setting-enabled')['frame']
+ui.axe('swipe', '--start-x', str(toggle['x'] + 10), '--start-y', str(toggle['y'] + toggle['height'] / 2), '--end-x', str(toggle['x'] + toggle['width'] - 10), '--end-y', str(toggle['y'] + toggle['height'] / 2), '--duration', '.3', '--post-delay', '.5')
+ui.wait(lambda items: any(item.get('AXUniqueId') == 'setting-enabled' and item.get('AXValue') == '1' for item in items), 'MCP toggle did not turn on')
 save()
 ui.wait(lambda items: any(item.get('AXUniqueId') == 'setting:mcp::c1' and catalog.text('settings.remote.enabled') in spoken(item) for item in items), 'MCP default did not persist')
 ui.capture('mcp-saved')

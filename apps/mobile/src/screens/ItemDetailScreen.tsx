@@ -12,6 +12,7 @@ import type {
 } from '@lody/cloud-runtime/models/session';
 import { Blocks, RawBlock } from '@/ui/DetailBlocks';
 import { fetchDetail } from '@/features/sessions/itemDetail';
+import { findSessionItem } from '@/features/sessions/subagentHistory';
 import { t } from '../lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 
@@ -20,12 +21,15 @@ export type ItemDetailParams = {
   entryId: string;
   itemIds: string[];
   generation: number;
+  service?: typeof fetchDetail;
 };
 
 function View() {
   const { params } = usePageRuntime<ItemDetailParams>();
   const colors = usePalette();
   const [details, setDetails] = useState<Record<string, DetailResponse>>({});
+  const detailsRef = useRef(details);
+  detailsRef.current = details;
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const generation = useRef(params.generation);
@@ -34,7 +38,7 @@ function View() {
   const load = async (itemId: string, cursor?: string) => {
     const at = generation.current;
     try {
-      const page = await fetchDetail({
+      const page = await (params.service ?? fetchDetail)({
         sessionId: params.sessionId,
         entryId: params.entryId,
         itemId,
@@ -86,14 +90,15 @@ function View() {
         loadAll();
         return;
       }
-      const entry = data.entries.find((e) => e.id === params.entryId);
-      for (const item of entry?.items ?? [])
+      for (const itemId of params.itemIds) {
+        const item = findSessionItem(data.entries, params.entryId, itemId);
         if (
-          params.itemIds.includes(item.itemId) &&
-          details[item.itemId] &&
-          details[item.itemId].rev !== item.rev
+          item &&
+          detailsRef.current[item.itemId] &&
+          detailsRef.current[item.itemId].rev !== item.rev
         )
           void load(item.itemId);
+      }
     });
     return () => subscription.remove();
   }, [params.sessionId, params.entryId]);

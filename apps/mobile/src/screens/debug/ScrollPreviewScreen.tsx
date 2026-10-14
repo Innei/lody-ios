@@ -133,7 +133,7 @@ function View() {
       },
     ];
   const entriesJSON = JSON.stringify(entries);
-  const openProcess = useProcessSheet(entriesJSON, () => {});
+  const { openProcess } = useProcessSheet(entriesJSON, () => {});
   return (
     <>
       <Stack.Toolbar placement="left">

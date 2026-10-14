@@ -647,6 +647,10 @@ final class ChatComposerView: UIView, UITextViewDelegate {
   }
   var onReconnect: (() -> Void)?
   var onPreview: ((String) -> Void)?
+  var onTasksPress: (() -> Void)?
+  var taskCount = 0 {
+    didSet { if oldValue != taskCount { updateComposer() } }
+  }
   var onMentionBrowse: (([String: String]) -> Void)?
   private var mentionResultID = ""
   private var mentionNeedsFocus = false
@@ -835,6 +839,7 @@ final class ChatComposerView: UIView, UITextViewDelegate {
       self.submit()
     }
     quickRepliesView.onPreview = { [weak self] in self?.onPreview?($0) }
+    quickRepliesView.onTasksPress = { [weak self] in self?.onTasksPress?() }
     composer.contentView.addSubview(notice)
     composer.contentView.addSubview(quotaNotice)
     composer.contentView.addSubview(inputSurface)
@@ -1451,9 +1456,9 @@ final class ChatComposerView: UIView, UITextViewDelegate {
     let context = connection.isEmpty ? state.preview : nil
     let typing = !input.text.isEmpty
     let showsReplies = !typing && !expanded
-    let showsRow = context != nil || (!replies.isEmpty && showsReplies)
+    let showsRow = context != nil || taskCount > 0 || (!replies.isEmpty && showsReplies)
     let reservesQuickReplies = showsRow
-    quickRepliesView.render(replies, context: context, showsReplies: showsReplies, compact: typing, visible: showsRow, animated: reservesQuickReplies)
+    quickRepliesView.render(replies, context: context, showsReplies: showsReplies, compact: typing, visible: showsRow, animated: reservesQuickReplies, taskCount: taskCount)
     quickRepliesHeight.constant = reservesQuickReplies ? ChatQuickRepliesView.chipHeight : 0
     let queueFloats = reservesQuickReplies && queueHeight.constant > 0
     queueGap.constant = queueFloats ? 8 : 0

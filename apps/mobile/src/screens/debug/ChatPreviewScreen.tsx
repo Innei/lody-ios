@@ -10,7 +10,6 @@ import { t } from '@/lib/i18n/index.ts';
 import { definePage, present } from '@/lib/presentation';
 import { FileDiffScreen } from '@/screens/FileDiffScreen';
 import { ItemDetailScreen } from '@/screens/ItemDetailScreen';
-import { openSubagentTask } from '@/hooks/screens/openSubagentTask';
 import type { ItemSummary } from '@lody/cloud-runtime/models/session';
 import { basename } from '@/features/sessions/path';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
@@ -123,7 +122,7 @@ function imageFixture(assistant: boolean) {
   };
 }
 
-function overlayTaskEntries() {
+function overlayTaskEntries(advanced = false) {
   return [
     {
       id: 'task-user',
@@ -142,11 +141,49 @@ function overlayTaskEntries() {
           itemId: 'explore',
           type: 'subagent_task',
           taskId: 't1',
-          status: 'in_progress',
+          status: advanced ? 'completed' : 'in_progress',
           actor: 'Explore',
           description: 'Find overlay chrome',
           lastToolName: 'Read',
           isBackgrounded: true,
+          run: {
+            sessionId: 'explore-run',
+            state: advanced ? 'completed' : 'running',
+            items: [
+              {
+                itemId: 'explore-thought',
+                type: 'thought',
+                text: 'Trace the shared composer before changing the task chip.',
+              },
+              {
+                itemId: 'explore-read',
+                type: 'tool_call',
+                kind: 'read',
+                title: 'Read ChatComposerView.swift',
+                status: 'completed',
+                hasDetail: true,
+              },
+              {
+                itemId: 'explore-plan',
+                type: 'plan',
+                entries: [
+                  {
+                    content: 'Move tasks into the composer chip row',
+                    status: advanced ? 'completed' : 'in_progress',
+                  },
+                ],
+              },
+              ...(advanced
+                ? [
+                    {
+                      itemId: 'explore-answer',
+                      type: 'text',
+                      text: 'The composer chip row owns task navigation.',
+                    },
+                  ]
+                : []),
+            ],
+          },
         },
         {
           itemId: 'house',
@@ -428,6 +465,13 @@ function View() {
     '',
   );
   const [overlayTasks, setOverlayTasks] = useState(false);
+  const [taskOpened, setTaskOpened] = useState(false);
+  const [taskAdvanced, setTaskAdvanced] = useState(false);
+  useEffect(() => {
+    if (!taskOpened) return;
+    const timer = setTimeout(() => setTaskAdvanced(true), 8000);
+    return () => clearTimeout(timer);
+  }, [taskOpened]);
   const [clearDraftToken, setClearDraftToken] = useState(0);
   useEffect(() => {
     if (processCounts == null || processCounts.count >= 9) return;
@@ -750,23 +794,41 @@ function View() {
   } else if (showImage) {
     displayedEntriesJSON = JSON.stringify(JSON.parse(entriesJSON).slice(0, 1));
   } else if (overlayTasks) {
-    displayedEntriesJSON = JSON.stringify(overlayTaskEntries());
+    displayedEntriesJSON = JSON.stringify(overlayTaskEntries(taskAdvanced));
   }
   const openMessageDetails = useMessageDetailsSheet(displayedEntriesJSON);
-  const openItem = (entryId: string, itemId: string) => {
-    const entries = JSON.parse(displayedEntriesJSON) as {
-      id: string;
-      items: ItemSummary[];
-    }[];
-    const entry = entries.find((candidate) => candidate.id === entryId);
-    return openSubagentTask(
-      entry?.items.find((candidate) => candidate.itemId === itemId),
-    );
-  };
-  const openProcess = useProcessSheet(
+  const { openProcess, openTask } = useProcessSheet(
     displayedEntriesJSON,
     (entryId, itemId) => {
-      if (!openItem(entryId, itemId)) setMode('attention');
+      if (openTask(entryId, itemId)) {
+        if (itemId === 'explore') setTaskOpened(true);
+        return;
+      }
+      if (itemId === 'explore-read') {
+        void present(ItemDetailScreen, {
+          sessionId: 'ui-verify-subtask',
+          entryId,
+          itemIds: [itemId],
+          generation: 0,
+          service: async () => ({
+            itemId,
+            rev: 1,
+            blocks: [
+              {
+                type: 'terminal_command',
+                command: 'cat ChatComposerView.swift',
+              },
+              {
+                type: 'terminal_output',
+                output: 'The shared chip row is ChatQuickRepliesView.',
+              },
+            ],
+            truncated: false,
+          }),
+        });
+        return;
+      }
+      setMode('attention');
     },
   );
   return (
@@ -814,6 +876,8 @@ function View() {
                 setShowImage(false);
                 setConnection('');
                 setOverlayTasks(true);
+                setTaskOpened(false);
+                setTaskAdvanced(false);
               }}
             />
             <Stack.Toolbar.MenuAction
@@ -1111,8 +1175,9 @@ function View() {
           setLength(0);
         }}
         onActivityPress={({ nativeEvent }) => {
-          if (!openItem(nativeEvent.entryId, nativeEvent.itemId))
-            openProcess(nativeEvent.entryId, nativeEvent.processStartId);
+          if (openTask(nativeEvent.entryId, nativeEvent.itemId)) {
+            if (nativeEvent.itemId === 'explore') setTaskOpened(true);
+          } else openProcess(nativeEvent.entryId, nativeEvent.processStartId);
         }}
         onReconnect={() => {}}
         onTurnChangesPress={({ nativeEvent }) => {

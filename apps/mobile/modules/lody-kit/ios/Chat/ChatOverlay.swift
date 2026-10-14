@@ -2,42 +2,20 @@ import ChatKit
 import UIKit
 
 final class ChatOverlay: UIView {
-  struct Task: Equatable {
-    var id: String
-    var actor: String?
-    var lastToolName: String?
-  }
-
-  struct Tasks: Equatable {
-    var items: [Task]
-    var title: String {
-      if items.count == 1, let item = items.first {
-        let actor = item.actor?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let name = actor.isEmpty ? LodyStrings.text("native.chat.transcript.subtask") : actor
-        let tool = item.lastToolName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if tool.isEmpty { return name }
-        return "\(name) · \(tool)"
-      }
-      return LodyStrings.plural("native.chat.overlay.tasks", items.count)
-    }
-  }
-
   enum Slot: Equatable {
     case idle
     case connecting
     case paused
-    case tasks(Tasks)
   }
 
   static let controlSize: CGFloat = 44
   static let visualSize: CGFloat = 30
   static let tasksProcessStartID = "__tasks__"
 
-  static func slot(connection: String, tasks: [Task]) -> Slot {
+  static func slot(connection: String) -> Slot {
     if connection == "paused" { return .paused }
     if connection == "connecting" { return .connecting }
-    if tasks.isEmpty { return .idle }
-    return .tasks(Tasks(items: tasks))
+    return .idle
   }
 
   var slot = Slot.idle {
@@ -54,7 +32,6 @@ final class ChatOverlay: UIView {
   }
   var onReconnect: (() -> Void)?
   var onScrollToBottom: (() -> Void)?
-  var onTasksPress: (() -> Void)?
 
   private let statusSurface = CKGlassSurface(interactive: true)
   private let scrollHost = UIView()
@@ -100,7 +77,6 @@ final class ChatOverlay: UIView {
       guard let self else { return }
       switch self.slot {
       case .paused: self.onReconnect?()
-      case .tasks: self.onTasksPress?()
       default: break
       }
     }, for: .touchUpInside)
@@ -181,7 +157,7 @@ final class ChatOverlay: UIView {
 private extension ChatOverlay.Slot {
   var isActionable: Bool {
     switch self {
-    case .paused, .tasks: true
+    case .paused: true
     default: false
     }
   }
@@ -190,7 +166,6 @@ private extension ChatOverlay.Slot {
     switch self {
     case .paused: LodyStrings.text("native.chat.connection.paused")
     case .connecting: LodyStrings.text("native.chat.connection.connecting")
-    case .tasks(let tasks): tasks.title
     case .idle: ""
     }
   }

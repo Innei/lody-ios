@@ -450,7 +450,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     addSubview(edgeFade)
     addSubview(composer)
     overlay.onReconnect = { [weak self] in self?.onReconnect([:]) }
-    overlay.onTasksPress = { [weak self] in
+    composer.onTasksPress = { [weak self] in
       guard let self else { return }
       self.onActivityPress([
         "entryId": self.transcript.entries.last(where: { $0.role == "assistant" })?.id ?? "",
@@ -896,6 +896,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     incoming.onSteer = old.onSteer
     incoming.onReconnect = old.onReconnect
     incoming.onPreview = old.onPreview
+    incoming.onTasksPress = old.onTasksPress
+    incoming.taskCount = old.taskCount
     incoming.onMentionBrowse = old.onMentionBrowse
     incoming.onComposerOptionChange = old.onComposerOptionChange
     incoming.onDraftChange = old.onDraftChange

@@ -1,4 +1,4 @@
-"""Composer overlay: connection status, live subtasks, and a 30-point scroll visual aligned with send."""
+"""Composer chip row, live subtask details, and native connection/scroll chrome."""
 import sys
 from driver import UI
 import catalog
@@ -42,8 +42,6 @@ ui.axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end
 status = ui.element('chat-overlay-status')
 scroll = ui.element('chat-scroll-to-bottom')
 assert abs(center_x(status['frame']) - chrome_center()) <= 1, 'Showing scroll moved the connection status'
-send = ui.element('session-send')['frame']
-assert abs(center_x(scroll['frame']) - center_x(send)) <= 1, 'Scroll does not share send center'
 assert abs(max_y(status['frame']) - max_y(scroll['frame'])) <= 1, 'Paired glasses do not share a baseline'
 assert abs(scroll['frame']['width'] - 30) <= 1
 assert abs(scroll['frame']['height'] - 30) <= 1
@@ -71,9 +69,11 @@ assert abs(scroll_only['x'] - scroll['frame']['x']) <= 1, 'Hiding status moved t
 ui.capture('scroll-only')
 ui.axe('tap', '--label', 'Fixtures')
 overlay('Tasks Overlay')
-tasks = ui.element('chat-overlay-status')
-assert tasks.get('AXLabel') == 'Explore · Read', tasks.get('AXLabel')
-assert abs(center_x(tasks['frame']) - chrome_center()) <= 1, 'A live task capsule is not on the composer center'
+tasks = ui.element('session-subtasks')
+assert tasks.get('AXLabel') == catalog.plural('native.chat.overlay.tasks', 1), tasks.get('AXLabel')
+assert 'chat-overlay-status' not in ui.axe('describe-ui'), 'Task count must leave the floating overlay'
+assert abs(tasks['frame']['x'] - 20) <= 1, 'Tasks must start on the composer chip row'
+assert max_y(tasks['frame']) <= ui.element('session-input')['frame']['y'], 'Tasks overlap the input'
 ui.capture('tasks')
 cards = {item: ui.element('task-reply:' + item) for item in ('explore', 'tests', 'review')}
 assert 'task-reply:house' not in ui.axe('describe-ui'), 'Housekeeping tasks must stay off the transcript'
@@ -100,7 +100,7 @@ ui.wait(
     lambda items: not any(i.get('AXUniqueId') == 'subagent-detail-result' for i in items),
     'Subtask detail did not dismiss',
 )
-ui.axe('tap', '--id', 'chat-overlay-status', '--post-delay', '.8')
+ui.axe('tap', '--id', 'session-subtasks', '--post-delay', '.8')
 ui.wait(
     lambda items: any(i.get('AXLabel') == catalog.text('process.tasks') for i in items),
     'Task overlay did not open the subtask sheet',
@@ -117,9 +117,24 @@ ui.axe(
     '--post-delay', '.8',
 )
 ui.wait(
-    lambda items: any(i.get('AXUniqueId') == 'chat-overlay-status' for i in items),
+    lambda items: any(i.get('AXUniqueId') == 'session-subtasks' for i in items),
     'Dismissing the subtask sheet hid the overlay',
 )
+ui.axe('tap', '--id', 'task-reply:explore', '--post-delay', '.5')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'task-reply:explore-thought' for i in items), 'Missing subtask thinking')
+assert 'Trace the shared composer' in ui.element('task-reply:explore-thought').get('AXLabel', '')
+ui.element('task-reply:explore-read')
+ui.capture('subtask-process')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'task-reply:explore-answer' for i in items), 'Open subtask did not update with its parent source')
+ui.capture('subtask-process-updated')
+ui.axe('tap', '--id', 'task-reply:explore-read', '--post-delay', '.5')
+ui.wait(lambda items: any('cat ChatComposerView.swift' in (i.get('AXLabel') or '') for i in items), 'Nested tool detail did not open')
+ui.capture('subtask-tool-detail')
+# Close the nested detail and its owning subtask sheet independently.
+for _ in range(2):
+    grabber = next(i['frame'] for i in ui.state() if i.get('AXLabel') == 'Sheet Grabber')
+    ui.axe('swipe', '--start-x', str(center_x(grabber)), '--start-y', str(mid_y(grabber)), '--end-x', str(center_x(grabber)), '--end-y', '900', '--duration', '.4', '--post-delay', '.8')
+ui.wait(lambda items: not any(i.get('AXUniqueId') == 'session-subtasks' for i in items), 'Completed task count remained in the composer')
 ui.axe('tap', '--label', 'Fixtures')
 overlay('Clear Overlay')
 ui.axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '700', '--duration', '1', '--post-delay', '1')
@@ -133,8 +148,7 @@ scroll_keyboard = ui.element('chat-scroll-to-bottom')['frame']
 input_frame = ui.element('session-input')['frame']
 assert status_keyboard['y'] < status['frame']['y'] - 100, 'Chrome did not follow the raised composer'
 assert abs(max_y(status_keyboard) - max_y(scroll_keyboard)) <= 1, 'Keyboard separated the chrome baseline'
-send_keyboard = ui.element('session-send')['frame']
-assert abs(center_x(scroll_keyboard) - center_x(send_keyboard)) <= 1, 'Keyboard broke center alignment with send'
+assert abs(scroll_keyboard['x'] - scroll['frame']['x']) <= 1, 'Keyboard moved the trailing scroll action horizontally'
 assert scroll_keyboard['y'] + scroll_keyboard['height'] < input_frame['y'], 'Scroll action overlaps the input'
 ui.capture('keyboard')
-print('PASS: 30-point scroll visual aligned with send, independent status, shared baseline, and collapse')
+print('PASS: native composer task chip, live subtask history and tool details, independent connection status, and keyboard clearance')

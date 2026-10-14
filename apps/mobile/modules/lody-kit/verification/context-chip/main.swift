@@ -59,3 +59,27 @@ for _ in 0..<25 {
 }
 navigationWindow.isHidden = true
 print("Context chip: delayed replies during a navigation push move with the page")
+
+precondition(UIImage(systemName: "point.3.connected.trianglepath.dotted") != nil)
+let tasksStrip = ChatQuickRepliesView(frame: CGRect(x: 0, y: 500, width: 390, height: ChatQuickRepliesView.chipHeight))
+window.addSubview(tasksStrip)
+tasksStrip.render(openingReplies, context: openingContext, showsReplies: true, compact: false, visible: true, taskCount: 2)
+tasksStrip.layoutIfNeeded()
+let taskButton = descendants(tasksStrip).compactMap { $0 as? UIButton }.first { $0.accessibilityIdentifier == "session-subtasks" }!
+let previewButton = descendants(tasksStrip).first { $0.accessibilityIdentifier == "session-preview" }!
+precondition(taskButton.accessibilityLabel == LodyStrings.plural("native.chat.overlay.tasks", 2))
+precondition(!taskButton.isHidden && !previewButton.isHidden)
+precondition(taskButton.frame.minX > previewButton.frame.maxX, "Tasks share the context chip row")
+var openedTasks = false
+tasksStrip.onTasksPress = { openedTasks = true }
+taskButton.sendActions(for: .touchUpInside)
+precondition(openedTasks)
+tasksStrip.render([], context: openingContext, showsReplies: false, compact: true, visible: true, taskCount: 1)
+tasksStrip.layoutIfNeeded()
+precondition(taskButton.accessibilityLabel == LodyStrings.plural("native.chat.overlay.tasks", 1))
+precondition(!taskButton.isHidden, "Typing must retain the task count and action")
+let edge = tasksStrip.convert(CGPoint(x: taskButton.bounds.midX, y: taskButton.bounds.midY + 21), from: taskButton)
+precondition(tasksStrip.hitTest(edge, with: nil) === taskButton, "Task chip has a 44-point target")
+tasksStrip.render([], context: openingContext, showsReplies: false, compact: true, visible: true)
+precondition(taskButton.isHidden && !previewButton.isHidden, "Completing tasks preserves the preview chip")
+print("Context chip: live task counts coexist with preview/replies, retain their action while typing, and disappear on completion")

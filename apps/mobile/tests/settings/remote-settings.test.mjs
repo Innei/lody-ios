@@ -69,7 +69,11 @@ test('confirmed cache keeps its order and shows the refresh time', () => {
     now: Date.parse('2026-09-12T12:03:00+08:00'),
   });
   assert.deepEqual(
-    sections.map((section) => section.id),
+    sections.flatMap((section) =>
+      section.rows
+        .filter((row) => row.id.startsWith('setting:'))
+        .map((row) => row.id),
+    ),
     ['setting:agent:m1:grok', 'setting:agent:m1:claude'],
   );
   assert.match(sections.at(-1).footer, /更新于/);
@@ -81,6 +85,41 @@ test('confirmed cache keeps its order and shows the refresh time', () => {
     }),
     '',
   );
+});
+
+test('agents on interleaved machines group together without merging identical names or ids', () => {
+  const sections = remoteSettingsSections({
+    kind: 'agent',
+    items: [
+      grok,
+      { ...grok, machineId: 'm2', readOnly: true },
+      claude,
+      { ...grok, machineId: undefined, machineName: undefined },
+    ],
+    error: '',
+    connected: true,
+    agentUsage: usage,
+    syncedAt: 1,
+    now: 1000,
+  });
+  assert.deepEqual(
+    sections.map((group) =>
+      group.rows
+        .filter((row) => row.id.startsWith('setting:'))
+        .map((row) => row.id),
+    ),
+    [
+      ['setting:agent:m1:grok', 'setting:agent:m1:claude'],
+      ['setting:agent:m2:grok'],
+      ['setting:agent::grok'],
+    ],
+  );
+  assert.equal(sections[0].header, 'Studio');
+  assert.equal(sections[1].header, 'Studio');
+  assert.notEqual(sections[0].id, sections[1].id);
+  assert.equal(sections[1].rows[0].action, false);
+  assert.ok(sections[2].header);
+  assert.match(sections.at(-1).footer, /更新于/);
 });
 
 test('live fetch replaces cache and writes the confirmed snapshot', async () => {

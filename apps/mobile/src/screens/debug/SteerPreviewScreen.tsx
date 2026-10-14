@@ -56,7 +56,7 @@ function View() {
   const entriesJSON = JSON.stringify(
     raw.map((entry) => ({ ...entry, ...projection.get(entry.id) })),
   );
-  const openProcess = useProcessSheet(entriesJSON, () => {});
+  const { openProcess } = useProcessSheet(entriesJSON, () => {});
   return (
     <Container style={{ flex: 1 }}>
       <Container style={{ flexDirection: 'row', paddingTop: 110 }}>

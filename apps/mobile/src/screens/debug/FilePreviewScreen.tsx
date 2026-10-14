@@ -101,7 +101,11 @@ function View() {
   };
   const { push } = usePageRuntime();
   const openFile = useOpenFile('ui-verify-files');
-  const openProcess = useProcessSheet(entriesJSON, () => {}, 'ui-verify-files');
+  const { openProcess } = useProcessSheet(
+    entriesJSON,
+    () => {},
+    'ui-verify-files',
+  );
   let displayed = entriesJSON;
   if (userMentions) displayed = userMentionsJSON;
   if (showAttachments) displayed = attachmentsJSON;
