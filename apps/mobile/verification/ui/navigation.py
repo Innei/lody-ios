@@ -21,8 +21,9 @@ def stack(expected):
 
 
 def swipe_back():
-    ui.axe('swipe', '--start-x', '1', '--start-y', '650', '--end-x', '350',
-           '--end-y', '650', '--duration', '.5', '--post-delay', '1')
+    # Explicit touch moves reach UIKit's interactive pop on iOS 27.
+    ui.axe('drag', '--start-x', '2', '--start-y', '450', '--end-x', '365',
+           '--end-y', '450', '--duration', '.5', '--post-delay', '1')
 
 
 _scheme_allowed = False
@@ -88,7 +89,8 @@ for index in range(2 if embedded else 3):
     home(f'cold-home-{index}')
 # Exercise the production row push, then cancel an edge pop before completing
 # it. The recording also covers toolbar retirement during the push itself.
-ui.axe('tap', '--id', 'ui-design', '--post-delay', '.6')
+# Separate HID down/up events can become a long press on a busy CI Simulator.
+ui.axe('tap', '--id', 'ui-design', '--tap-style', 'simulator', '--post-delay', '.6')
 session('首页交互设计')
 search_label = catalog.text('search.field.placeholder')
 
@@ -99,8 +101,8 @@ def no_home_search():
 
 no_home_search()
 ui.capture('toolbar-pushed')
-ui.axe('swipe', '--start-x', '1', '--start-y', '650', '--end-x', '65',
-       '--end-y', '650', '--duration', '1', '--post-delay', '.6')
+ui.axe('drag', '--start-x', '2', '--start-y', '450', '--end-x', '65',
+       '--end-y', '450', '--duration', '1', '--post-delay', '.6')
 session('首页交互设计')
 no_home_search()
 ui.capture('toolbar-pop-cancelled')

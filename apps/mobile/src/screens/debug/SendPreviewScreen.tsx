@@ -468,7 +468,7 @@ function SendPreview() {
           paddingTop: Math.max(insets.top + 72, 140),
           paddingHorizontal: 16,
           flexDirection: 'row',
-          gap: 8,
+          gap: 6,
         }}
       >
         <Button
@@ -541,29 +541,30 @@ function SendPreview() {
             残留
           </Button>
         )}
-      </View>
-      <Button
-        testID="send-upload-progress"
-        onPress={() => {
-          if (record?.send.phase !== 'sending') return;
-          const step = uploadStep.current++ % 4;
-          const phase = ['uploading', 'uploading', 'verifying', 'complete'][
-            step
-          ] as AttachmentUploadProgress['phase'];
-          record.send.attachments.forEach((attachment, index) => {
-            const percent = step < 2 ? 25 + step * 40 + index : 100;
-            uploadListener.current?.({
-              sessionId: session.id,
-              sendId: record.send.id,
-              attachmentId: attachment.id,
-              phase: step === 2 && index === 0 ? 'complete' : phase,
-              percent,
+        <Button
+          testID="send-upload-progress"
+          style={fixtureControl}
+          onPress={() => {
+            if (record?.send.phase !== 'sending') return;
+            const step = uploadStep.current++ % 4;
+            const phase = ['uploading', 'uploading', 'verifying', 'complete'][
+              step
+            ] as AttachmentUploadProgress['phase'];
+            record.send.attachments.forEach((attachment, index) => {
+              const percent = step < 2 ? 25 + step * 40 + index : 100;
+              uploadListener.current?.({
+                sessionId: session.id,
+                sendId: record.send.id,
+                attachmentId: attachment.id,
+                phase: step === 2 && index === 0 ? 'complete' : phase,
+                percent,
+              });
             });
-          });
-        }}
-      >
-        上传进度
-      </Button>
+          }}
+        >
+          上传
+        </Button>
+      </View>
       {params?.queuedMessageBehavior === 'guide' && (
         <Button
           testID="send-reset-guide"

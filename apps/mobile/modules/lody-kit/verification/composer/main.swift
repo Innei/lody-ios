@@ -922,8 +922,8 @@ glassComposer.layoutIfNeeded()
 @MainActor func assertGlassCapsule(_ label: String) {
   let surface = glassInputSurface.convert(glassInputSurface.bounds, to: glassComposer)
   let attach = glassAttach.convert(glassAttach.bounds, to: glassInputSurface)
-  precondition(abs(surface.minX - 16) < 0.5 && abs(glassComposer.bounds.maxX - surface.maxX - 16) < 0.5 && abs(surface.height - 48) < 0.5,
-    "\(label): the resting composer must be one 48-point capsule with 16-point side insets; got \(surface)")
+  precondition(abs(surface.minX - 20) < 0.5 && abs(glassComposer.bounds.maxX - surface.maxX - 20) < 0.5 && abs(surface.height - 48) < 0.5,
+    "\(label): the resting composer must be one 48-point capsule aligned with the transcript's 20-point side insets; got \(surface)")
   precondition(glassAttach.isDescendant(of: glassInputSurface) && abs(attach.minX - 2) < 0.5 && abs(attach.midY - surface.height / 2) < 0.5,
     "\(label): Add must sit at the capsule's leading end; got \(attach)")
   precondition(glassSend.isHidden, "\(label): an empty resting capsule must not show Send")
@@ -1300,8 +1300,8 @@ let context = contextButton()!
 let connectingWidth = context.bounds.width
 let contextFrame = context.convert(context.bounds, to: quickStrip)
 let replyFrame = shownReplies().first!.convert(shownReplies().first!.bounds, to: quickStrip)
-precondition(!quickStrip.isHidden && abs(contextFrame.minX - 16) < 0.5 && abs(contextFrame.height - quickChipHeight) < 0.5,
-  "The context chip leads the row at chip height")
+precondition(!quickStrip.isHidden && abs(contextFrame.minX - 20) < 0.5 && abs(contextFrame.height - quickChipHeight) < 0.5,
+  "The context chip aligns with the transcript's leading edge at chip height")
 precondition(replyFrame.minX - contextFrame.maxX > 12, "A separator divides the context zone from suggestions")
 precondition(quickStrip.hitTest(CGPoint(x: contextFrame.midX, y: contextFrame.midY), with: nil) === context,
   "Hosted chip content must leave touches to the native button")

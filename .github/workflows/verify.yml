@@ -34,7 +34,8 @@ jobs:
   native:
     name: Native behavior
     runs-on: xcode-27
-    timeout-minutes: 20
+    # Cold Lexical builds and the remaining Swift checks exceed 20 minutes on Xcode 27.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
         with:

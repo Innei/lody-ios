@@ -11,9 +11,9 @@ ui = UI(*sys.argv[1:])
 throw_trace = ThrowTrace(ui)
 ui.axe('tap', '--id', 'create-session-input', '--tap-style', 'physical', '--post-delay', '.5')
 # The runner establishes the English software keyboard once for this batch.
+ui.wait(lambda items: next((i for i in items if i.get('AXUniqueId') == 'inputView' and i['frame']['height'] > 200), None),
+        'The handoff must begin with the software keyboard visible')
 ui.type_into('create-session-input', 'hi')
-keyboard = ui.element('inputView')
-assert keyboard['frame']['height'] > 200, 'The handoff must begin with the software keyboard visible'
 draft = ui.element('create-session-input')['AXValue']
 ui.capture('source')
 ui.axe('tap', '--id', 'session-send', '--tap-style', 'physical')
@@ -33,7 +33,12 @@ assert relay['destinationContentRestored'], 'Adoption did not restore destinatio
 assert relay['placeholderHidden'], 'The destination exposed a second composer while awaiting adoption'
 assert relay['inputBefore'] == relay['inputAfter'], 'Adoption changed focus, selection, or appearance'
 assert relay['inputBefore']['focused'], 'The source lost keyboard focus before adoption'
-assert all(abs(a - b) < 1.5 for a, b in zip(relay['source'], relay['adopted'])), relay
+source, adopted = relay['source'], relay['adopted']
+assert abs(source[0] - adopted[0]) < 1.5 and abs(source[2] - adopted[2]) < 1.5, relay
+assert abs(source[1] + source[3] - adopted[1] - adopted[3]) < 1.5, 'Adoption moved the keyboard edge'
+# Chat adds its fullscreen grabber above the form's input, keeping the bottom fixed.
+grabber = ui.element('session-grabber')['frame']
+assert abs(adopted[3] - source[3] - grabber['height']) < 1.5, relay
 assert ui.element('inputView')['frame']['height'] > 200, 'Adoption dismissed the keyboard'
 (ui.output / 'composer-relay.json').write_text(json.dumps(relay, indent=2))
 delivery_frame = ui.element(turn + ':delivery')['frame']
