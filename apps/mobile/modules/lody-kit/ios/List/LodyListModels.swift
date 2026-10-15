@@ -69,6 +69,23 @@ struct LodyListSection: Record {
 
 // Both native list hosts share hierarchy, while keeping their own layout and selection.
 extension LodyListSection {
+  @MainActor
+  static func prepareForFlatSnapshot<Item: Hashable & Sendable>(
+    in dataSource: UICollectionViewDiffableDataSource<String, Item>
+  ) {
+    // The main snapshot omits collapsed children, but UIKit still owns them in
+    // its section snapshots. Replace that hierarchy explicitly before returning
+    // to flat updates; rebasing a flat snapshot can insert those children twice.
+    let visible = dataSource.snapshot()
+    for id in visible.sectionIdentifiers {
+      let snapshot = dataSource.snapshot(for: id)
+      guard snapshot.items.count != snapshot.rootItems.count else { continue }
+      var flat = NSDiffableDataSourceSectionSnapshot<Item>()
+      flat.append(visible.itemIdentifiers(inSection: id))
+      dataSource.apply(flat, to: id, animatingDifferences: false)
+    }
+  }
+
   func outlineSnapshot<Item: Hashable & Sendable>(
     collapsed: Set<String>, itemID: (String) -> Item
   ) -> NSDiffableDataSourceSectionSnapshot<Item> {

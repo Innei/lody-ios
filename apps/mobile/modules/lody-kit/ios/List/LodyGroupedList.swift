@@ -675,6 +675,9 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   func setSections(_ value: [LodyListSection], animated: Bool = true) {
     let previous = dataSource.snapshot()
     let previousRows = rowsByID
+    let hasHierarchy = value.contains(where: { $0.rows.contains { $0.parent || !$0.collapsedValue.isEmpty } })
+    // Providers must still resolve the old visible rows while removing hierarchy.
+    if !hasHierarchy { LodyListSection.prepareForFlatSnapshot(in: dataSource) }
     sections = value
     rowsByID = Dictionary(value.flatMap { section in
       section.rows.map { (ListItemID(section: section.id, row: $0.id), $0) }
@@ -682,7 +685,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     let live = Set(rowsByID.keys.map(\.row))
     toggles = toggles.filter { live.contains($0.key) }
     // Hierarchy belongs to the data, even when sections arrives before contentStyle.
-    if value.contains(where: { $0.rows.contains { $0.parent || !$0.collapsedValue.isEmpty } }) {
+    if hasHierarchy {
       applyOutline(value, previous: previous)
       updatePlaceholder()
       return
