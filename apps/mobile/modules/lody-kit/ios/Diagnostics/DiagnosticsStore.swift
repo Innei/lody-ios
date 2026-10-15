@@ -53,6 +53,15 @@ final class DiagnosticsStore: @unchecked Sendable {
     SHA256.hash(data: Data(value.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
   }
 
+  static func attachmentServerCode(_ value: String?) -> String? {
+    guard let value, value.utf8.count <= 64 else { return nil }
+    let code = value.lowercased().replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: "-", with: "_")
+    let allowed = ["unauthorized", "forbidden", "not_found", "quota_exceeded", "storage_quota_exceeded",
+                   "payload_too_large", "file_too_large", "unsupported_media_type", "invalid_request", "bad_request",
+                   "rate_limited", "rate_limit_exceeded", "internal_server_error", "service_unavailable"]
+    return allowed.contains(code) ? code : nil
+  }
+
   func navigation(id: String, source: String, outcome: String, reason: String) {
     var fields = ["source": source, "reason": reason]
     if source == "notification", UUID(uuidString: id) != nil { fields["message"] = id }
@@ -229,6 +238,11 @@ final class DiagnosticsStore: @unchecked Sendable {
       case "activity", "native":
         return value.count == 16 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
       case "message", "attempt", "oneSignalApp": return UUID(uuidString: value) != nil
+      case "stage":
+        return ["image_upload", "file_upload", "multipart_create", "multipart_part", "multipart_complete", "multipart_abort"].contains(value)
+      case "httpStatus": return Int(value).map { (100...599).contains($0) } ?? false
+      case "networkCode": return Int(value) != nil
+      case "serverCode": return Self.attachmentServerCode(value) == value
       case "hasToken", "enabled", "identified", "authorized", "current", "configured", "registered", "accepted":
         return value == "true" || value == "false"
       case "active", "unread", "serverUpdatedAt", "staleDate", "appState", "observed", "activities", "code", "count", "sessions", "link":

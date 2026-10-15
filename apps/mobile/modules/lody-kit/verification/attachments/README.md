@@ -1,15 +1,9 @@
 # Attachment transport check
 
-With a booted iOS Simulator, from the repository root:
+From the repository root (automatically leases a Lody Verify Simulator):
 
 ```sh
-xcrun --sdk iphonesimulator swiftc -swift-version 6 -parse-as-library \
-  -target arm64-apple-ios18.0-simulator \
-  -sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
-  apps/mobile/modules/lody-kit/ios/Cloud/SessionAttachments.swift \
-  apps/mobile/modules/lody-kit/verification/attachments/main.swift \
-  -o /tmp/lody-attachments-test
-xcrun simctl spawn booted /tmp/lody-attachments-test
+pnpm verify:native --case attachments
 ```
 
 Runs the production uploader against URLProtocol responses with synthetic auth.
@@ -24,6 +18,16 @@ Cloud limits: eight images (5 MiB each after conversion) and eight files
 as an image is coerced onto the file route instead of extracting a still.
 Upload failure retains the draft; no message dispatch is retried
 automatically. History displays image thumbnails above their text bubbles; files retain their names.
+
+Settings → Diagnostics → Export diagnostic file includes upload request start,
+success and failure events for images, files and multipart create/part/complete/abort.
+A random per-attachment attempt ID joins multipart requests without recording any
+workspace, session, filename, URL, attachment content or credentials. Failures
+include HTTP status, allowlisted server error categories (including authorization
+and storage quota), or native URL loading error codes. Unknown server error text
+and codes are omitted. Invalid JSON and incomplete upload responses are recorded
+separately. The native check exports the real on-disk diagnostics and verifies
+failure stages, multipart cleanup correlation and private-data exclusion.
 
 Attachment routes are hosted on `https://api.lody.ai`, separately from the
 `backend.lody.ai` auth/Streams token service. An unauthenticated POST to

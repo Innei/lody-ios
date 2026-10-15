@@ -48,10 +48,12 @@ do {
   try expect((records.last?["fields"] as? [String: String])?["reason"] == "wrong_account", "Rejection reason is useful without route content")
 
   app.record("notification", "privacy", fields: ["body": "private conversation", "token": "private-token",
-    "message": "private-id", "reason": "private-account", "code": "credential", "active": "2", "activity": DiagnosticsStore.correlation("private-activity")])
+    "message": "private-id", "reason": "private-account", "code": "credential", "active": "2", "activity": DiagnosticsStore.correlation("private-activity"),
+    "stage": "private-stage", "serverCode": "private-server-code", "httpStatus": "999", "networkCode": "private-network-code"])
   app.flush()
-  let (text, _) = try exported(app)
-  for secret in ["private conversation", "private-token", "private-id", "private-account", "private-activity", "credential"] {
+  let (text, privacyRecords) = try exported(app)
+  try expect((privacyRecords.last?["fields"] as? [String: String])?["httpStatus"] == nil, "Export excludes invalid HTTP status values")
+  for secret in ["private conversation", "private-token", "private-id", "private-account", "private-activity", "credential", "private-stage", "private-server-code", "private-network-code"] {
     try expect(!text.contains(secret), "Export excludes unapproved or unvalidated metadata")
   }
   try expect(DiagnosticsStore.correlation("abc") == "ba7816bf8f01cfea", "Activity correlation matches the server SHA-256 prefix")

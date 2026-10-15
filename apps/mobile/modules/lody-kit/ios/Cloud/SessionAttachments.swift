@@ -77,6 +77,7 @@ enum SessionAttachments {
         throw error(LodyStrings.text("native.attachment.error.invalid"))
       }
       let attachmentID = attachment["id"] as? String ?? ""
+      let attempt = UUID()
       onProgress(attachmentID, "preparing", nil)
       let report: @Sendable (Int64, Int64) -> Void = { sent, total in
         guard total > 0 else { return }
@@ -91,6 +92,7 @@ enum SessionAttachments {
         throw error(LodyStrings.text("native.attachment.error.empty"))
       }
       let base = "https://api.lody.ai/api/workspaces/\(segment(workspace))/session-\(kind == "image" ? "images" : "files")"
+      var responseStage: StaticString = kind == "image" ? "image_upload" : "file_upload"
       var result: [String: Any]
       if kind == "image" {
         let mime = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? ""
@@ -116,7 +118,7 @@ enum SessionAttachments {
         let safeName = fileName.replacingOccurrences(of: "\"", with: "_").replacingOccurrences(of: "\r", with: "_").replacingOccurrences(of: "\n", with: "_")
         var body = Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"sessionId\"\r\n\r\n\(session)\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\(safeName)\"\r\nContent-Type: \(contentType)\r\n\r\n".utf8)
         body.append(bytes); body.append(Data("\r\n--\(boundary)--\r\n".utf8))
-        result = try await request(base + "/upload", token: token, headers: ["Content-Type": "multipart/form-data; boundary=\(boundary)"], body: body, onProgress: report)
+        result = try await request(base + "/upload", token: token, stage: responseStage, attempt: attempt, headers: ["Content-Type": "multipart/form-data; boundary=\(boundary)"], body: body, onProgress: report)
       } else {
         let file = try FileHandle(forReadingFrom: url)
         defer { try? file.close() }
@@ -133,11 +135,11 @@ enum SessionAttachments {
           "x-file-size-bytes": String(count), "x-file-text-preview": String(!prefix.contains(0) && String(data: prefix, encoding: .utf8) != nil)]
         let partSize = 16 * 1024 * 1024
         if count <= partSize {
-          result = try await request(base + "/upload", token: token, headers: headers, body: try file.readToEnd(), onProgress: report)
+          result = try await request(base + "/upload", token: token, stage: responseStage, attempt: attempt, headers: headers, body: try file.readToEnd(), onProgress: report)
         } else {
-          let created = try await request(base + "/multipart/create", token: token, headers: headers)
+          let created = try await request(base + "/multipart/create", token: token, stage: "multipart_create", attempt: attempt, headers: headers)
           guard let uploadId = created["uploadId"] as? String, !uploadId.isEmpty,
-                let fileId = created["fileId"] as? String, !fileId.isEmpty else { throw error(LodyStrings.text("native.attachment.error.uploadResponse")) }
+                let fileId = created["fileId"] as? String, !fileId.isEmpty else { throw invalidResponse(stage: "multipart_create", attempt: attempt) }
           let path = base + "/multipart/" + segment(uploadId)
           let identity = ["x-session-id": session, "x-file-id": fileId]
           do {
@@ -145,16 +147,17 @@ enum SessionAttachments {
             while let data = try file.read(upToCount: partSize), !data.isEmpty {
               let number = parts.count + 1
               let offset = Int64(parts.count * partSize)
-              let part = try await request(path + "/part/\(number)", token: token, method: "PUT", headers: identity.merging(["x-file-part-size-bytes": String(data.count)], uniquingKeysWith: { _, new in new }), body: data,
+              let part = try await request(path + "/part/\(number)", token: token, stage: "multipart_part", attempt: attempt, method: "PUT", headers: identity.merging(["x-file-part-size-bytes": String(data.count)], uniquingKeysWith: { _, new in new }), body: data,
                 onProgress: { sent, _ in report(offset + sent, Int64(count)) })
-              guard let etag = part["etag"] as? String, !etag.isEmpty else { throw error(LodyStrings.text("native.attachment.error.uploadResponse")) }
+              guard let etag = part["etag"] as? String, !etag.isEmpty else { throw invalidResponse(stage: "multipart_part", attempt: attempt) }
               parts.append(["partNumber": number, "etag": etag])
               report(offset + Int64(data.count), Int64(count))
             }
-            result = try await request(path + "/complete", token: token, headers: identity.merging(["Content-Type": "application/json"], uniquingKeysWith: { _, new in new }), body: JSONSerialization.data(withJSONObject: ["parts": parts]))
+            responseStage = "multipart_complete"
+            result = try await request(path + "/complete", token: token, stage: responseStage, attempt: attempt, headers: identity.merging(["Content-Type": "application/json"], uniquingKeysWith: { _, new in new }), body: JSONSerialization.data(withJSONObject: ["parts": parts]))
           } catch {
             // Cleanup also runs after cancellation; never retry message dispatch.
-            await Task.detached { _ = try? await request(path + "/abort", token: token, method: "DELETE", headers: identity) }.value
+            await Task.detached { _ = try? await request(path + "/abort", token: token, stage: "multipart_abort", attempt: attempt, method: "DELETE", headers: identity) }.value
             throw error
           }
         }
@@ -162,7 +165,7 @@ enum SessionAttachments {
       guard let block = result[kind] as? [String: Any], block["type"] as? String == kind,
             let id = block[kind == "image" ? "imageId" : "fileId"] as? String, !id.isEmpty,
             block["mimeType"] is String, let bytes = block["sizeBytes"] as? Int, bytes > 0 else {
-        throw error(LodyStrings.text("native.attachment.error.uploadResponse"))
+        throw invalidResponse(stage: responseStage, attempt: attempt)
       }
       blocks.append(block)
       onProgress(attachmentID, "complete", 100)
@@ -209,29 +212,68 @@ enum SessionAttachments {
     return destination
   }
 
-  static func request(_ url: String, token: String, method: String = "POST", headers: [String: String], body: Data? = nil,
+  private static func invalidResponse(stage: StaticString, attempt: UUID) -> NSError {
+    DiagnosticsStore.shared.record("attachment", "invalid_response", fields: ["stage": stage.description, "attempt": attempt.uuidString])
+    return error(LodyStrings.text("native.attachment.error.uploadResponse"))
+  }
+
+  static func request(_ url: String, token: String, stage: StaticString, attempt: UUID, method: String = "POST", headers: [String: String], body: Data? = nil,
     onProgress: (@Sendable (Int64, Int64) -> Void)? = nil) async throws -> [String: Any] {
     try Task.checkCancellation()
     var request = URLRequest(url: URL(string: url)!, timeoutInterval: 120)
     request.httpMethod = method; request.httpBody = body
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
+    var fields = ["stage": stage.description, "attempt": attempt.uuidString]
+    DiagnosticsStore.shared.record("attachment", "request_started", fields: fields)
     let data: Data
     let response: URLResponse
-    if let body, let onProgress {
-      request.httpBody = nil
-      onProgress(0, Int64(body.count))
-      (data, response) = try await URLSession.shared.upload(for: request, from: body,
-        delegate: AttachmentUploadDelegate(onProgress: onProgress))
-      onProgress(Int64(body.count), Int64(body.count))
-    } else {
-      (data, response) = try await URLSession.shared.data(for: request)
+    do {
+      if let body, let onProgress {
+        request.httpBody = nil
+        onProgress(0, Int64(body.count))
+        (data, response) = try await URLSession.shared.upload(for: request, from: body,
+          delegate: AttachmentUploadDelegate(onProgress: onProgress))
+        onProgress(Int64(body.count), Int64(body.count))
+      } else {
+        (data, response) = try await URLSession.shared.data(for: request)
+      }
+    } catch {
+      let failure = error as NSError
+      if failure.domain == NSURLErrorDomain { fields["networkCode"] = String(failure.code) }
+      DiagnosticsStore.shared.record("attachment", "transport_failed", fields: fields)
+      throw error
     }
-    guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
+    guard let response = response as? HTTPURLResponse else {
+      throw invalidResponse(stage: stage, attempt: attempt)
+    }
+    fields["httpStatus"] = String(response.statusCode)
+    guard (200..<300).contains(response.statusCode) else {
+      // Only allowlisted error categories survive metadata filtering; never persist response text.
+      if data.count <= 64 * 1024,
+         let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+        let detail = value["error"] as? [String: Any]
+        let code = value["code"] as? String ?? detail?["code"] as? String ?? value["error"] as? String
+        fields["serverCode"] = DiagnosticsStore.attachmentServerCode(code)
+      }
+      DiagnosticsStore.shared.record("attachment", "http_failed", fields: fields)
       throw error(LodyStrings.text("native.attachment.error.upload"))
     }
-    if data.isEmpty { return [:] }
-    guard let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw error(LodyStrings.text("native.attachment.error.uploadResponse")) }
+    if data.isEmpty {
+      DiagnosticsStore.shared.record("attachment", "request_succeeded", fields: fields)
+      return [:]
+    }
+    let value: [String: Any]
+    do {
+      guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        throw error(LodyStrings.text("native.attachment.error.uploadResponse"))
+      }
+      value = object
+    } catch {
+      DiagnosticsStore.shared.record("attachment", "invalid_response", fields: fields)
+      throw error
+    }
+    DiagnosticsStore.shared.record("attachment", "request_succeeded", fields: fields)
     return value
   }
 }

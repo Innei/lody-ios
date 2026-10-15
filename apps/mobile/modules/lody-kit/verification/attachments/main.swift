@@ -46,6 +46,34 @@ final class UploadProtocol: URLProtocol {
   override func startLoading() {
     Self.requests.append(request)
     assert(request.value(forHTTPHeaderField: "Authorization") == "Bearer synthetic-test-token")
+    if request.url!.path.hasPrefix("/diagnostics/") {
+      let status: Int
+      let body: String
+      switch request.url!.lastPathComponent {
+      case "unauthorized":
+        status = 401; body = #"{"error":"Unauthorized","message":"private-server-message"}"#
+      case "quota":
+        status = 403; body = #"{"error":{"code":"STORAGE_QUOTA_EXCEEDED","message":"private-server-message"}}"#
+      case "rate":
+        status = 429; body = #"{"code":"rate_limited","error":"private-server-message"}"#
+      case "private":
+        status = 403; body = #"{"code":"private-token","error":"private-server-message"}"#
+      case "html":
+        status = 502; body = "<html>private-server-message</html>"
+      case "malformed":
+        status = 200; body = "private-server-message"
+      case "timeout", "cancelled":
+        let code = request.url!.lastPathComponent == "timeout" ? NSURLErrorTimedOut : NSURLErrorCancelled
+        client?.urlProtocol(self, didFailWithError: NSError(domain: NSURLErrorDomain, code: code,
+          userInfo: [NSLocalizedDescriptionKey: "private-network-description", NSURLErrorFailingURLErrorKey: URL(string: "https://private-url/?token=private-token")!]))
+        return
+      default: fatalError("Unknown diagnostic fixture")
+      }
+      client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+      client?.urlProtocol(self, didLoad: Data(body.utf8))
+      client?.urlProtocolDidFinishLoading(self)
+      return
+    }
     if request.httpMethod == "GET" {
       let status: Int
       switch request.url!.lastPathComponent {
@@ -178,6 +206,63 @@ final class UploadProtocol: URLProtocol {
       fatalError("Failed upload must not produce an attachment")
     } catch { assert(UploadProtocol.requests.last!.url!.lastPathComponent == "abort") }
     assert(!failedProgress.progress.contains { $0.1 == "complete" }, "A failed upload must never report completion")
+    func diagnostics() throws -> (String, [[String: Any]]) {
+      // Reopen the real on-disk store, then use the same export as Settings.
+      DiagnosticsStore.shared.flush()
+      let restored = DiagnosticsStore(directory: DiagnosticsStore.shared.directory, process: .app)
+      let file = try restored.export(since: 900)
+      defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+      let text = try String(contentsOf: file, encoding: .utf8)
+      let records = try text.split(separator: "\n").filter { $0.hasPrefix("{") }.map {
+        try JSONSerialization.jsonObject(with: Data($0.utf8)) as! [String: Any]
+      }
+      return (text, records)
+    }
+    let (_, multipartEvents) = try diagnostics()
+    let failedPart = multipartEvents.last { $0["event"] as? String == "http_failed" }!
+    let failedPartFields = failedPart["fields"] as! [String: String]
+    assert(failedPartFields["stage"] == "multipart_part" && failedPartFields["httpStatus"] == "503")
+    assert(multipartEvents.contains {
+      let fields = $0["fields"] as? [String: String]
+      return $0["event"] as? String == "request_succeeded" && fields?["stage"] == "multipart_abort" && fields?["attempt"] == failedPartFields["attempt"]
+    }, "Cleanup must not hide the failed part, and must share its attempt identifier")
+    let httpFailures: [(String, Int, String?)] = [("unauthorized", 401, "unauthorized"), ("quota", 403, "storage_quota_exceeded"),
+                                               ("rate", 429, "rate_limited"), ("private", 403, nil), ("html", 502, nil), ("malformed", 200, nil)]
+    for (fixture, status, serverCode) in httpFailures {
+      let attempt = UUID()
+      do {
+        _ = try await SessionAttachments.request("https://api.lody.ai/diagnostics/\(fixture)", token: "synthetic-test-token",
+          stage: "image_upload", attempt: attempt, headers: ["x-file-name": "private-filename"])
+        fatalError("Failed requests must still reject the upload")
+      } catch {}
+      let (_, records) = try diagnostics()
+      let events = records.filter { ($0["fields"] as? [String: String])?["attempt"] == attempt.uuidString }
+      assert(events.count == 2 && events.first?["event"] as? String == "request_started")
+      assert(events.last?["event"] as? String == (fixture == "malformed" ? "invalid_response" : "http_failed"))
+      let fields = events.last!["fields"] as! [String: String]
+      assert(fields["stage"] == "image_upload" && fields["httpStatus"] == String(status))
+      assert(fields["serverCode"] == serverCode && fields["networkCode"] == nil)
+    }
+    for (fixture, code) in [("timeout", NSURLErrorTimedOut), ("cancelled", NSURLErrorCancelled)] {
+      let attempt = UUID()
+      do {
+        _ = try await SessionAttachments.request("https://api.lody.ai/diagnostics/\(fixture)", token: "synthetic-test-token",
+          stage: "file_upload", attempt: attempt, headers: [:], body: Data("private-file-contents".utf8), onProgress: { _, _ in })
+        fatalError("Network failures must still reject the upload")
+      } catch let error as NSError {
+        assert(error.domain == NSURLErrorDomain && error.code == code, "Preserve the original transport error")
+      }
+      let (_, records) = try diagnostics()
+      let event = records.last { ($0["fields"] as? [String: String])?["attempt"] == attempt.uuidString }!
+      let fields = event["fields"] as! [String: String]
+      assert(event["event"] as? String == "transport_failed" && fields["networkCode"] == String(code))
+      assert(fields["stage"] == "file_upload" && fields["httpStatus"] == nil)
+    }
+    let (diagnosticText, _) = try diagnostics()
+    for secret in ["synthetic-test-token", "private-token", "private-server-message", "private-filename", "private-url", "private-network-description", "private-file-contents", "api.lody.ai", "upload1", "test.txt"] {
+      assert(!diagnosticText.contains(secret), "Export must exclude credentials, raw errors, URLs, upload IDs, filenames and attachment contents")
+    }
+    print("PASS: exported upload diagnostics distinguish HTTP, quota, transport and invalid-response failures without private data")
     let before = UploadProtocol.requests.count
     do {
       _ = try await SessionAttachments.upload([attachment(URL(fileURLWithPath: "/etc/passwd"))], workspace: "w1", session: "s1")
@@ -209,7 +294,7 @@ final class UploadProtocol: URLProtocol {
     }
     let transportProgress = UploadRecorder()
     let body = Data(repeating: 65, count: 8 * 1024 * 1024)
-    _ = try await SessionAttachments.request(endpoint, token: "synthetic-test-token", headers: [:], body: body) { sent, total in
+    _ = try await SessionAttachments.request(endpoint, token: "synthetic-test-token", stage: "file_upload", attempt: UUID(), headers: [:], body: body) { sent, total in
       assert(total == body.count)
       transportProgress.recordBytes(sent)
     }
