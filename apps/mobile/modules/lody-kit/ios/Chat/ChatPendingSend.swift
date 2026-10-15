@@ -21,6 +21,7 @@ struct ChatPendingSend: Decodable {
   var failed: Bool? = nil
   var reconnect: Bool? = nil
   var queue: Bool? = nil
+  var guide: Bool? = nil
   var phase: String? = nil
   var uploadProgress: [String: ChatAttachmentUploadProgress]? = nil
 }

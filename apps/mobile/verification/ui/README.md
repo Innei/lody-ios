@@ -832,6 +832,19 @@ fixtures activate under `--ui-verify` in Debug and Release fixture builds.
 
 ### Continuous steer
 
+`--suite guidance-scroll` compares ordinary sends, direct guidance and queued
+Steer against the same three completed conversation rounds plus a long current
+reply. Each case scrolls into the older context, returns to the tail, dismisses
+the keyboard before sending, and records the visible message position before
+and after delivery. It checks that the transcript exceeds two full viewports,
+guidance lands beside the composer with no reserved space, and an ordinary
+send lands at the top with reply space below it. Debug exposes the three
+independently resettable `长上下文` scenes for manual comparison.
+
+`send-guide` and `send-queue` check that direct and queued guidance keep the
+current reply visible without reserving a new turn's empty viewport. `send-rounds`
+checks that ordinary sends still reserve space for their reply.
+
 `--case steer` opens an offline scene backed by the execution projector and NativeChat.
 It covers three accepted guidance messages, the completed user-message sequence above
 one AI process summary, both final text blocks, and opening the earlier AI process.

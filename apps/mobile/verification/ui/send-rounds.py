@@ -18,16 +18,22 @@ for index, message in enumerate(messages, 1):
     ui.type_into('session-input', message)
     assert ui.element('session-input')['AXValue'] == message
     ui.capture(f'round-{index}-draft')
+    # Keep delivery above long messages visible and leave measurable reply space.
+    ui.axe('tap', '-x', '5', '-y', str(ui.element('chat-transcript')['frame']['y'] + 10), '--post-delay', '.6')
     ui.axe('tap', '--id', 'session-send')
     ui.wait(lambda items: any(i.get('AXLabel') == f'Calls: {index} · sending' for i in items), 'Turn did not dispatch')
     pending = ui.wait(lambda items: next((i for i in items
-        if (i.get('AXUniqueId') or '').endswith(':duration')
-        and i['AXUniqueId'].removesuffix(':duration') not in turns), None), 'New turn duration row missing')
-    turn = pending['AXUniqueId'].removesuffix(':duration')
-    assert pending['AXLabel'] == catalog.text('native.chat.transcript.status.confirming'), 'Unacked send must confirm delivery on the duration row'
+        if (i.get('AXUniqueId') or '').endswith(':delivery')
+        and i['AXUniqueId'].removesuffix(':delivery') not in turns), None), 'New turn delivery row missing')
+    turn = pending['AXUniqueId'].removesuffix(':delivery')
+    status = 'send.status.uploading' if index == 1 else 'send.status.sending'
+    assert pending['AXLabel'] == catalog.text(status), 'Unacked send must show its current delivery phase'
     turns.append(turn)
     assert ui.element(turn + (':user-text' if index == 1 else ':user')).get('AXLabel') == message, 'New turn text changed'
     ui.capture(f'round-{index}-sent')
+    if index == 1:
+        ui.wait(lambda _: trace.reserved_space() is not None, 'Send landing geometry missing')
+        assert trace.reserved_space() > 20, 'An ordinary send must still reserve room for its reply'
     ui.axe('tap', '--id', 'send-complete')
     ui.wait(lambda items: any(i.get('AXLabel') == f'Calls: {index} · accepted' for i in items), 'Receipt missing')
     ui.axe('tap', '--id', 'send-reply')

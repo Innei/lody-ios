@@ -33,6 +33,13 @@ class ThrowTrace:
         self.folder = Path(container) / 'tmp'
         self.existing = set(self.folder.glob('lody-throw-*.json'))
 
+    def reserved_space(self):
+        paths = set(self.folder.glob('lody-throw-*.json')) - self.existing
+        if not paths:
+            return None
+        trace = json.loads(max(paths, key=lambda path: path.stat().st_mtime).read_text())
+        return trace['samples'][-1].get('reservedSpace')
+
     def verify(self, minimum):
         paths = sorted(set(self.folder.glob('lody-throw-*.json')) - self.existing)
         assert len(paths) >= minimum, 'Missing native throw traces; rebuild Debug with the opt-in probe'

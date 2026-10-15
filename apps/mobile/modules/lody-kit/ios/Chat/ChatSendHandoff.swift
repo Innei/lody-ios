@@ -467,6 +467,7 @@ private final class ChatThrowProbe: NSObject {
           sample["contentOffsetY"] = Double(list.contentOffset.y)
           sample["contentHeight"] = Double(list.contentSize.height)
           sample["bottomInset"] = Double(list.adjustedContentInset.bottom)
+          sample["reservedSpace"] = Double(list.contentInset.bottom - list.verticalScrollIndicatorInsets.bottom)
           break
         }
         ancestor = view.superview

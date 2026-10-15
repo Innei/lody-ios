@@ -426,7 +426,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
         self.setPendingSend(pending)
       }
       if payload["queue"] as? Bool != true {
-        self.awaitingUserAnchor = true
+        self.awaitingUserAnchor = payload["guide"] as? Bool != true
         self.trackingPausedByGesture = false
         self.followsBottom = true
       }
@@ -785,7 +785,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     if changed { composerHasAcknowledgedSend = false }
     if changed && value.queue != true {
       handoffID = value.id
-      anchoredUserID = value.id + ":user"
+      anchoredUserID = value.guide == true ? nil : value.id + ":user"
       followsBottom = true
       trackingPausedByGesture = false
       replyHaptics.arm()

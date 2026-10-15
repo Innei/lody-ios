@@ -36,6 +36,39 @@ const attachment = {
   uri: 'file:///tmp/lody-ui-fixture.txt',
   kind: 'file' as const,
 };
+const scrollContext: Snapshot['entries'] = [
+  [
+    'Help me redesign the project browser. Start with the navigation and explain the tradeoffs.',
+    'The project browser should keep the current workspace visible while the project list changes. A project row opens its session list with the native back gesture, so returning restores the same scroll position. Search belongs above the list and should keep its query when a session is opened.\n\nEach project needs a readable name, a short repository path, and a clear connection state. The row should remain useful when the computer is offline: cached sessions can still open, while actions that require the computer explain what is missing. Avoid replacing the entire page with a connection error.\n\nFor the first pass, keep the hierarchy shallow. Workspace selection changes the catalog; opening a project changes only the native stack. This makes the ownership of selection and navigation easier to follow.',
+  ],
+  [
+    'What should happen when the catalog refreshes while I am reading the middle of the list?',
+    'Keep the visible project anchored by identity rather than by its numeric index. New projects may appear before it, but they should not move the text the user is reading. A refresh indicator can appear in the navigation area without inserting a large row above the content.\n\nSelection should survive a snapshot update. If the selected project is removed, finish the current navigation transition before changing the selection. An interactive back gesture that is cancelled must restore the row highlight, because the destination still owns the screen.\n\nA failed refresh should leave the cached rows in place and offer an explicit retry. Show when those rows were last updated. An empty response is different from a failed request: only a confirmed successful response should replace the list with the empty state.',
+  ],
+  [
+    'Now cover message drafts, attachments, and what the user sees during a failed send.',
+    'Treat the draft text and its attachments as one unit. The local message should appear immediately with a stable identity, and the authoritative history should take over that same message after delivery. Clearing the input must not delete the only copy of a draft that is still being prepared.\n\nBefore a durable write, a definite failure can offer an explicit retry with the original text and files. After an uncertain acknowledgement, keep the message visible and explain that delivery is unconfirmed. Do not replay the write automatically, because the computer may already have accepted it.\n\nThe conversation should remain readable through each transition. An ordinary new turn can reserve room for its reply. Guidance added to the reply already in progress should stay beside that context, without opening a new empty viewport beneath it.',
+  ],
+].flatMap(([user, reply], index) => [
+  {
+    id: `send-context-${index}-user`,
+    rev: 0,
+    role: 'user',
+    status: 'handled',
+    finished: true,
+    items: [{ itemId: 'text', rev: 0, type: 'text', text: user }],
+  },
+  {
+    id: `send-context-${index}-reply`,
+    rev: 0,
+    role: 'assistant',
+    status: 'completed',
+    finished: true,
+    items: [{ itemId: 'text', rev: 0, type: 'text', text: reply }],
+  },
+]);
+const scrollReply =
+  'I am checking the message list against the project-browser plan. The earlier decisions still apply: preserve the reading position, retain the local message identity, and make delivery failures visible without discarding the draft.\n\nThe first check is an ordinary new turn. Its message moves to the top of the transcript, leaving room for the answer. With several screens of history above it, that movement should be easy to distinguish from simply appending a row at the bottom.\n\nThe second check is guidance during this reply. The existing paragraphs should remain directly above the new message. The list may advance enough to reveal the message, but it should not push that message to the top or reserve another screen of empty space.\n\nCurrent checkpoint: keep this paragraph visible immediately above the next message. I am still reviewing the remaining interaction details.';
 
 function advanceQueue(old: Snapshot, messageId?: string): Snapshot {
   const next = old.entries.find((entry) =>
@@ -133,11 +166,16 @@ function SendPreview() {
         queue?: boolean;
         steer?: boolean;
         queuedMessageBehavior?: 'queue' | 'guide';
+        longContext?: boolean;
       }
     | undefined,
     void
   >();
   const queue = params?.queue === true;
+  const longContext = params?.longContext === true;
+  const replyText = longContext
+    ? scrollReply
+    : 'The current reply is still running';
   const previewSession = {
     ...session,
     status: queue ? 'running' : session.status,
@@ -149,33 +187,55 @@ function SendPreview() {
     (entry) => entry.session.id === session.id,
   );
   const [initialAttachmentsJSON] = useState(() =>
-    record || queue ? undefined : JSON.stringify([attachment]),
+    record || queue || longContext ? undefined : JSON.stringify([attachment]),
   );
   const [connected, setConnected] = useState(false);
   const [calls, setCalls] = useState(0);
-  const [snapshot, setSnapshot] = useState<Snapshot>({
+  const [snapshot, setSnapshot] = useState<Snapshot>(() => ({
     status: 'offline',
     revision: 0,
-    entries: queue
-      ? [
-          {
-            id: 'running-reply',
-            role: 'assistant',
-            status: 'processing',
-            finished: false,
-            rev: 0,
-            items: [
-              {
-                itemId: 'text',
-                type: 'text',
-                text: 'The current reply is still running',
-                rev: 0,
-              },
-            ],
-          },
-        ]
-      : [],
-  });
+    entries: [
+      ...(longContext ? scrollContext : []),
+      ...(longContext
+        ? [
+            {
+              id: 'send-context-current-user',
+              rev: 0,
+              role: 'user',
+              status: 'handled',
+              finished: true,
+              items: [
+                {
+                  itemId: 'text',
+                  type: 'text',
+                  text: 'Review the remaining send interactions before we implement the plan.',
+                  rev: 0,
+                },
+              ],
+            },
+          ]
+        : []),
+      ...(queue || longContext
+        ? [
+            {
+              id: 'running-reply',
+              role: 'assistant',
+              status: 'processing',
+              finished: !queue,
+              rev: 0,
+              items: [
+                {
+                  itemId: 'text',
+                  type: 'text',
+                  text: replyText,
+                  rev: 0,
+                },
+              ],
+            },
+          ]
+        : []),
+    ],
+  }));
   const completion = useRef<((result: string) => void) | null>(null);
   const submitted = useRef<{ id: string; guide?: boolean } | null>(null);
   const guideReceipts = useRef<string[]>([]);
@@ -667,6 +727,7 @@ const targetPage = definePage<
       queue?: boolean;
       steer?: boolean;
       queuedMessageBehavior?: 'queue' | 'guide';
+      longContext?: boolean;
     }
   | undefined,
   void
@@ -683,6 +744,7 @@ export async function openSendPreview(
   queue = false,
   steer = true,
   queuedMessageBehavior: 'queue' | 'guide' = 'queue',
+  longContext = false,
 ) {
   const { getPendingSendStore } = await import('@/cloud/send/pendingSends');
   await getPendingSendStore('ui-send-preview', 'fixture').remove(session.id);
@@ -695,7 +757,7 @@ export async function openSendPreview(
             await new Promise((resolve) => setTimeout(resolve, 1200));
           return present(
             targetPage,
-            { queue, steer, queuedMessageBehavior },
+            { queue, steer, queuedMessageBehavior, longContext },
             { animationType: 'none' },
           );
         })();
@@ -705,5 +767,10 @@ export async function openSendPreview(
     await destination;
     return;
   }
-  await present(targetPage, { queue, steer, queuedMessageBehavior });
+  await present(targetPage, {
+    queue,
+    steer,
+    queuedMessageBehavior,
+    longContext,
+  });
 }

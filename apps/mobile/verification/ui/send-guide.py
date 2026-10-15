@@ -9,7 +9,12 @@ ui = UI(*sys.argv[1:])
 trace = ThrowTrace(ui)
 
 
+def dismiss_keyboard():
+    ui.axe('tap', '-x', '5', '-y', str(ui.element('chat-transcript')['frame']['y'] + 10), '--post-delay', '.6')
+
+
 def user_text(identifier):
+    dismiss_keyboard()
     return ui.wait(lambda items: next((i.get('AXLabel') for i in items if i.get('AXUniqueId') in [identifier + ':user', identifier + ':user-text']), None), 'Retained guide text missing')
 
 
@@ -50,12 +55,15 @@ assert request['turnId'] == 'running-reply', request
 turn = request['messageId']
 assert turn
 assert ui.element('send-status')['AXLabel'] == 'Calls: 1 · uploaded', 'A durable guide write is not an acknowledgement'
-ui.axe('tap', '--id', turn + ':user', '--post-delay', '.6')
+dismiss_keyboard()
 delivery = ui.element(turn + ':delivery')['frame']
 assert ui.element(turn + ':delivery')['AXLabel'] == catalog.text('native.chat.message.guide.confirming')
 bubble = ui.element(turn + ':user')['frame']
 assert delivery['y'] + delivery['height'] <= bubble['y'] + 1, 'Guidance belongs above its own bubble'
 ui.capture('guide-pending')
+ui.wait(lambda _: trace.reserved_space() is not None, 'Guide landing geometry missing')
+assert abs(trace.reserved_space()) < 1, 'Guidance must not reserve empty space below the transcript'
+ui.element('running-reply:text')
 ui.axe('tap', '--id', 'send-complete')
 ui.wait(
     lambda items: any(
@@ -127,7 +135,7 @@ ui.axe('tap', '--id', 'session-send', '--post-delay', '1')
 ui.axe('tap', '--id', 'send-complete')
 next_turn = json.loads(ui.element('control-request')['AXLabel'])['messageId']
 assert next_turn != unknown, 'A new guide must have its own identity'
-ui.axe('tap', '--id', next_turn + ':user', '--post-delay', '.6')
+dismiss_keyboard()
 ui.axe('swipe', '--start-x', '150', '--start-y', '440', '--end-x', '150', '--end-y', '700', '--duration', '.4', '--post-delay', '.6')
 ui.element(unknown + ':delivery')
 ui.element(next_turn + ':delivery')
@@ -139,7 +147,7 @@ ui.axe('tap', '--id', 'session-send', '--post-delay', '1')
 ui.axe('tap', '--id', 'send-complete')
 third_turn = json.loads(ui.element('control-request')['AXLabel'])['messageId']
 assert third_turn not in [unknown, next_turn]
-ui.axe('tap', '--id', third_turn + ':user', '--post-delay', '.6')
+dismiss_keyboard()
 ui.axe('swipe', '--start-x', '150', '--start-y', '440', '--end-x', '150', '--end-y', '730', '--duration', '.4', '--post-delay', '.6')
 ui.element(next_turn + ':delivery')
 ui.element(third_turn + ':delivery')

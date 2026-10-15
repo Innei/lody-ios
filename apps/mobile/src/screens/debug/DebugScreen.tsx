@@ -261,6 +261,13 @@ function View() {
         openRow('session-share-preview', 'Conversation sharing', 'link'),
         openRow('steer-preview', '连续引导验收', 'arrow.triangle.branch'),
         openRow('send-guide', '引导发送验收', 'arrow.uturn.forward'),
+        openRow(
+          'send-scroll-guide',
+          '长上下文 · 直接插话',
+          'arrow.uturn.forward',
+        ),
+        openRow('send-scroll-queue', '长上下文 · 队列插话', 'list.bullet'),
+        openRow('send-scroll-normal', '长上下文 · 普通发送', 'paperplane'),
         openRow('outbox-preview', '后台发件箱验收', 'tray.and.arrow.up'),
         openRow('send-interrupt', 'Queue 中断验收', 'stop.circle'),
         openRow('send-handoff', '新建发送交接', 'arrow.triangle.swap'),
@@ -442,6 +449,12 @@ function View() {
     'session-share-preview': () => void present(SessionSharePreviewScreen),
     'steer-preview': () => void present(SteerPreviewScreen, {}),
     'send-guide': () => void openSendPreview(false, true, true, 'guide'),
+    'send-scroll-guide': () =>
+      void openSendPreview(false, true, true, 'guide', true),
+    'send-scroll-queue': () =>
+      void openSendPreview(false, true, true, 'queue', true),
+    'send-scroll-normal': () =>
+      void openSendPreview(false, false, true, 'queue', true),
     'outbox-preview': () => void openOutboxPreview(),
     'send-interrupt': () => void openSendPreview(false, true, false),
     'send-handoff': () => void openSendPreview(true),

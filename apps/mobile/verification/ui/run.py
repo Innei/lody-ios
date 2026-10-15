@@ -21,10 +21,11 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
     'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'notifications', 'diagnostics', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker', 'branch-picker'],
-    'send': ['quick-replies', 'context-chip', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'permission-mode-chat', 'permission-mode-sheet', 'permission-mode-create', 'paste-plain-chat', 'paste-plain-sheet', 'rich-paste-chat', 'rich-paste-sheet', 'attachment-overlay-chat', 'attachment-overlay-sheet', 'attachment-overlay-create', 'attachment-camera-chat', 'attachment-camera-sheet', 'attachment-motion-chat', 'attachment-motion-sheet', 'attachment-motion-create', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'composer-fullscreen', 'composer-rest-draft', 'composer-motion', 'model-memory'],
+    'send': ['send-scroll-guide', 'send-scroll-queue', 'send-scroll-normal', 'quick-replies', 'context-chip', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'permission-mode-chat', 'permission-mode-sheet', 'permission-mode-create', 'paste-plain-chat', 'paste-plain-sheet', 'rich-paste-chat', 'rich-paste-sheet', 'attachment-overlay-chat', 'attachment-overlay-sheet', 'attachment-overlay-create', 'attachment-camera-chat', 'attachment-camera-sheet', 'attachment-motion-chat', 'attachment-motion-sheet', 'attachment-motion-create', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'composer-fullscreen', 'composer-rest-draft', 'composer-motion', 'model-memory'],
     'chat': ['workspace-changes', 'message-share', 'user-mentions', 'file-preview', 'html-preview', 'file-selection', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'mermaid', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'chat-chrome', 'title-rename', 'simulator-preview'],
 }
 SUITES = {
+    'guidance-scroll': ['send-scroll-normal', 'send-scroll-guide', 'send-scroll-queue'],
     'html-files': ['html-preview', 'file-preview'],
     'markdown-files': ['markdown', 'file-preview'],
     'permission-composer': ['permission-mode-chat', 'permission-mode-sheet', 'permission-mode-create'],
@@ -84,6 +85,9 @@ PREVIEW = {
     'send-queue': 'send-queue',
     'steer': 'steer-preview',
     'send-guide': 'send-guide',
+    'send-scroll-normal': 'send-scroll-normal',
+    'send-scroll-guide': 'send-scroll-guide',
+    'send-scroll-queue': 'send-scroll-queue',
     'send-interrupt': 'send-interrupt',
     'send-rounds': 'send-preview',
     'user-mentions': 'file-preview',
@@ -175,6 +179,9 @@ READY = {
     'send-queue': 'send-status',
     'steer': 'steer-next',
     'send-guide': 'send-status',
+    'send-scroll-normal': 'send-status',
+    'send-scroll-guide': 'send-status',
+    'send-scroll-queue': 'send-status',
     'send-interrupt': 'send-status',
     'send-rounds': 'send-status',
     'user-mentions': 'file-links:answer',
@@ -378,7 +385,7 @@ with metro_context:
         cases = sorted(HOME_CASES.intersection(selected)) + [case for case in selected if case not in HOME_CASES]
         launch_mode = None
         app_pid = None
-        trace_throw = bool(set(selected).intersection({'send-transition', 'send-transition-handoff', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'ipad-chrome'}))
+        trace_throw = any(case.startswith('send-scroll-') for case in selected) or bool(set(selected).intersection({'send-transition', 'send-transition-handoff', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'ipad-chrome'}))
         for appearance in appearances:
             sim('ui', args.udid, 'appearance', appearance)
             for case in cases:
@@ -509,6 +516,8 @@ with metro_context:
                         ui.element('preview-image:attachment:ui-verify-image')
                     ui.capture('before')
                     script = Path(__file__).with_name(f'{case}.py') if case in ['workspace-changes', 'simulator-preview', 'message-details', 'message-share', 'pull-request', 'project-history-entry', 'project-history', 'project-picker', 'branch-picker', 'notifications', 'user-mentions', 'file-preview', 'html-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'mermaid', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'context-menu', 'chat-chrome', 'title-rename', 'composer-rich', 'composer-fullscreen'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                    if case.startswith('send-scroll-'):
+                        script = Path(__file__).with_name('send-scroll.py')
                     if case in {'devices', 'devices-pad'}:
                         script = Path(__file__).with_name('devices.py')
                     if case == 'diagnostics':
@@ -566,6 +575,8 @@ with metro_context:
                         command += ['--send']
                     else:
                         command += [str(output)]
+                    if case.startswith('send-scroll-'):
+                        command.append(case.removeprefix('send-scroll-'))
                     check_timeout = 180
                     if case == 'settings':
                         # Machine edits, multi-machine Agent identity and MCP forms share this flow.
