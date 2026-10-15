@@ -214,11 +214,11 @@ function usePresentedPageSession(expectedPage?: PageDefinitionBase) {
     } else dismissPresentedPage();
   }, [navigation, session]);
   const close = useCallback(
-    async (settle: () => boolean) => {
+    async (settle: () => boolean, transition?: () => Promise<void>) => {
       if (!session || closing.current) return;
       closing.current = true;
       try {
-        if (session.presentation.zoomSourceLabel) await dismissSheetZoom();
+        if (transition) await transition();
       } finally {
         if (settle()) dismiss();
       }
@@ -226,11 +226,18 @@ function usePresentedPageSession(expectedPage?: PageDefinitionBase) {
     [dismiss, session],
   );
   const cancel = useCallback(() => {
+    // Cancellation goes through the Router immediately. Awaiting a separate
+    // UIKit dismissal can leave this session and the creation button pending.
     if (session) void close(() => cancelPresentation(session.id));
   }, [close, session]);
   const finish = useCallback(
     (value?: unknown) => {
-      if (session) void close(() => completePresentation(session.id, value));
+      if (!session) return;
+      // Sending retains its window-hosted composer until UIKit has settled.
+      void close(
+        () => completePresentation(session.id, value),
+        session.presentation.zoomSourceLabel ? dismissSheetZoom : undefined,
+      );
     },
     [close, session],
   ) as PageFinish<unknown>;
