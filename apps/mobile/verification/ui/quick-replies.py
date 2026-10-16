@@ -36,7 +36,7 @@ def settings():
 def close_settings():
     back = [i for i in ui.state() if i.get('AXUniqueId') == 'BackButton'][-1]['frame']
     ui.axe('tap', '-x', str(back['x'] + back['width'] / 2), '-y', str(back['y'] + back['height'] / 2), '--post-delay', '.5')
-    ui.axe('tap', '--label', catalog.text('accessibility.closeSheet', title=catalog.text('tabs.settings')), '--post-delay', '.7')
+    ui.axe('tap', '--label', catalog.text('accessibility.closeSheet', title=catalog.text('settings.preferences.title')), '--post-delay', '.7')
 
 
 ui.axe('tap', '--id', 'quick-reset', '--post-delay', '.8')

@@ -21,6 +21,8 @@ import { navigationScrollEdgeEffects } from '@lody-ios/kit';
 import { useBindSessionNav } from '@/hooks/screens/useBindSessionNav';
 import { useOnboardingGate } from '@/hooks/screens/useOnboardingGate';
 import { assertVendoredDomWebView } from '@/lib/assert-vendored-dom-webview';
+import { SettingsBaselineProviders } from '@/screens/debug/settingsBaseline';
+import { uiVerify } from '@/lib/uiVerify';
 
 export const unstable_settings = { initialRouteName: 'index' };
 
@@ -101,7 +103,13 @@ function Providers({ children }: PropsWithChildren) {
     return <HomePreviewProviders>{children}</HomePreviewProviders>;
   return (
     <AuthProvider>
-      <CatalogProvider>{children}</CatalogProvider>
+      <CatalogProvider>
+        {uiVerify ? (
+          <SettingsBaselineProviders>{children}</SettingsBaselineProviders>
+        ) : (
+          children
+        )}
+      </CatalogProvider>
     </AuthProvider>
   );
 }

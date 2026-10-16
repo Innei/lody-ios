@@ -25,11 +25,12 @@ ui.capture('inbox')
 settings_label = catalog.text('tabs.settings')
 ui.axe('tap', '--label', settings_label, '--post-delay', '1')
 
-# The About section sits below the connection rows; offscreen rows are not in the tree.
+# About is a child page of Settings; offscreen rows are not in the tree.
 for _ in range(6):
-    if any(i.get('AXUniqueId') == 'licenses' for i in ui.state()):
+    if any(i.get('AXUniqueId') == 'about' for i in ui.state()):
         break
     ui.axe('swipe', '--start-x', '200', '--start-y', '600', '--end-x', '200', '--end-y', '400', '--duration', '.5', '--post-delay', '.5')
+ui.axe('tap', '--id', 'about', '--post-delay', '.5')
 row = ui.element('licenses')
 assert catalog.text('settings.licenses.title') in (row.get('AXLabel') or ''), row
 assert row['frame']['height'] >= 44, row
@@ -65,9 +66,12 @@ ui.axe('tap', '--id', 'BackButton', '--post-delay', '1')
 ui.element('abort-controller')
 ui.capture('back')
 
-# The list itself is pushed over the settings sheet; one more back reaches the sheet root.
+# Return through About before reaching the Settings sheet root.
 ui.axe('tap', '--id', 'BackButton', '--post-delay', '1')
 ui.element('licenses')
+ui.capture('about-returned')
+ui.axe('tap', '--id', 'BackButton', '--post-delay', '.5')
+ui.element('about')
 ui.capture('sheet-root')
 
 ui.axe('tap', '--label', catalog.text('accessibility.closeSheet', title=settings_label), '--post-delay', '1')

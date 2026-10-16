@@ -1,90 +1,34 @@
-import { useEffect, useState } from 'react';
-import { AppIconScreen } from './AppIconScreen';
-import { ProjectHistoryScreen } from './ProjectHistoryScreen';
-import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
-import { DiagnosticsScreen } from './DiagnosticsScreen';
-import { QuickRepliesScreen } from './QuickRepliesScreen';
 import { useRouter } from 'expo-router';
-import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
-import { AccountScreen } from './AccountScreen';
-import { ArchivedSessionsScreen } from './ArchivedSessionsScreen';
-import { LicensesScreen } from './LicensesScreen';
-import { RemoteSettingsScreen, settingsTitle } from './RemoteSettingsScreen';
-import { Linking } from 'react-native';
-import Constants from 'expo-constants';
-import {
-  NativeGroupedList,
-  getAppIcon,
-  showAccentColorPicker,
-  addAppActiveListener,
-  type NativeListSection,
-} from '@lody-ios/kit';
+import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { useConnection } from '@/cloud/catalog/connection';
-import { usePalette } from '@/lib/theme/palette';
-import {
-  useAppearance,
-  accentChoices,
-  isAccentColor,
-} from '@/lib/theme/appearance';
-import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
-import { relativeTime } from '@/ui/time';
-import { showToast } from '@/ui/toast';
+import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
+import { t, tp } from '@/lib/i18n';
 import { definePage } from '@/lib/presentation';
-import type { RemoteSetting } from '@lody/cloud-runtime/models/settings';
-import { t, tp } from '../lib/i18n/index.ts';
+import { usePalette } from '@/lib/theme/palette';
 import { uiVerify } from '@/lib/uiVerify';
-
-const connectionRow = {
-  live: { symbol: 'circle.fill', label: 'settings.connection.live' },
-  syncing: { symbol: 'circle', label: 'settings.connection.syncing' },
-  offline: {
-    symbol: 'xmark.octagon.fill',
-    label: 'settings.connection.offline',
-  },
-} as const;
+import { relativeTime } from '@/ui/time';
+import { AboutScreen } from './AboutScreen';
+import { AccountScreen } from './AccountScreen';
+import { AppearanceScreen } from './AppearanceScreen';
+import { ArchivedSessionsScreen } from './ArchivedSessionsScreen';
+import { DiagnosticsScreen } from './DiagnosticsScreen';
+import { PreferencesScreen } from './PreferencesScreen';
+import { ProjectHistoryScreen } from './ProjectHistoryScreen';
+import { RemoteSettingsScreen, settingsTitle } from './RemoteSettingsScreen';
 
 function View() {
   const auth = useAuth();
   const router = useRouter();
   const { push, cancel } = usePageRuntime();
   const colors = usePalette();
-  const { darkBackground, setDarkBackground, accentColor, setAccentColor } =
-    useAppearance();
-  const [appIcon, setCurrentAppIcon] = useState<string | null>(null);
-  useEffect(() => {
-    let active = true;
-    const refreshIcon = () => {
-      void getAppIcon()
-        .then((name) => {
-          if (active) setCurrentAppIcon(name);
-        })
-        .catch(() => {
-          if (active) showToast(t('settings.appearance.iconFailed'));
-        });
-    };
-    refreshIcon();
-    const subscription = addAppActiveListener(refreshIcon);
-    return () => {
-      active = false;
-      subscription.remove();
-    };
-  }, []);
-  const { queuedMessageBehavior, setQueuedMessageBehavior } =
-    useQueuedMessageBehavior();
   const connection = useConnection();
-  const { refresh } = useCatalog();
-  const shape = connectionRow[connection.state];
-  const synced = connection.syncedAt
-    ? relativeTime(new Date(connection.syncedAt).toISOString())
-    : '';
-
-  const presetAccent = accentChoices.find((value) => value === accentColor);
+  const { selected, refresh } = useCatalog();
+  const workspace = auth.account ? selected : undefined;
   const sections: NativeListSection[] = [
     {
       id: 'account',
-      header: t('settings.section.account'),
       rows: [
         {
           id: 'account',
@@ -99,150 +43,23 @@ function View() {
       ],
     },
     {
-      id: 'connection',
-      header: t('settings.section.connection'),
+      id: 'personal',
+      header: t('settings.section.personal'),
       rows: [
         {
-          id: 'connection',
-          title: tp('settings.machineCount', connection.machines, {
-            count: connection.machines,
-          }),
-          subtitle: [
-            t(shape.label),
-            connection.state === 'offline'
-              ? t('settings.connection.tapToResync')
-              : synced && t('settings.connection.syncedAt', { time: synced }),
-          ]
-            .filter(Boolean)
-            .join(' · '),
-          image: shape.symbol,
-          action: connection.state === 'offline',
-          imageTint: {
-            live: colors.accent,
-            offline: 'danger',
-            syncing: 'secondary',
-          }[connection.state],
+          id: 'preferences',
+          title: t('settings.preferences.title'),
+          subtitle: t('settings.preferences.subtitle'),
+          image: 'slider.horizontal.3',
+          action: true,
+          disclosure: true,
+          navigates: true,
         },
-      ],
-    },
-    {
-      id: 'appearance-section',
-      header: t('settings.appearance.title'),
-      rows: [
         {
           id: 'appearance',
-          title: t('settings.appearance.darkBackground'),
-          value: t(`settings.appearance.${darkBackground}`),
-          image: 'circle.lefthalf.filled',
-          action: true,
-          options: (['soft', 'black'] as const).map((value) => ({
-            id: value,
-            title: t(`settings.appearance.${value}`),
-            selected: value === darkBackground,
-          })),
-        },
-        {
-          id: 'accent-color',
-          title: t('settings.appearance.accent'),
-          value: presetAccent
-            ? t(`settings.appearance.${presetAccent}`)
-            : t('settings.appearance.custom'),
-          image: 'circle.fill',
-          imageTint: colors.accent,
-          action: true,
-          options: [
-            ...accentChoices.map((value) => ({
-              id: value,
-              title: t(`settings.appearance.${value}`),
-              selected: value === accentColor,
-            })),
-            {
-              id: 'custom',
-              title: t('settings.appearance.customPicker'),
-              selected: accentColor.startsWith('#'),
-            },
-          ],
-        },
-        {
-          id: 'app-icon',
-          title: t('settings.appearance.appIcon'),
-          value:
-            appIcon === 'Aqua' ? 'Aqua' : t('settings.appearance.defaultIcon'),
-          accessibilityValue:
-            appIcon === 'Aqua' ? 'Aqua' : t('settings.appearance.defaultIcon'),
-          imageAsset: `AppIconPreview-${appIcon ?? 'default'}`,
-          imageOriginal: true,
-          action: true,
-          disclosure: true,
-          navigates: true,
-        },
-      ],
-    },
-    {
-      id: 'notifications-section',
-      header: t('settings.notifications.title'),
-      rows: [
-        {
-          id: 'notifications',
-          title: t('settings.notifications.title'),
-          image: 'bell',
-          action: true,
-          disclosure: true,
-          navigates: true,
-        },
-      ],
-    },
-    {
-      id: 'chat',
-      header: t('settings.section.chat'),
-      footer: t('settings.queuedMessageBehavior.hint'),
-      rows: [
-        {
-          id: 'queued-message-behavior',
-          title: t('settings.queuedMessageBehavior.title'),
-          value: t(`settings.queuedMessageBehavior.${queuedMessageBehavior}`),
-          image: 'arrow.uturn.forward',
-          action: true,
-          options: (['queue', 'guide'] as const).map((value) => ({
-            id: value,
-            title: t(`settings.queuedMessageBehavior.${value}`),
-            selected: value === queuedMessageBehavior,
-          })),
-        },
-        {
-          id: 'quick-replies',
-          title: t('settings.quickReplies.title'),
-          image: 'text.bubble',
-          action: true,
-          disclosure: true,
-          navigates: true,
-        },
-      ],
-    },
-    {
-      id: 'about',
-      header: t('settings.section.about'),
-      rows: [
-        {
-          id: 'about',
-          title: 'Lody for iOS',
-          subtitle: `${Constants.expoConfig?.version ?? '0.0.0'} (${
-            Constants.expoConfig?.ios?.buildNumber ?? '1'
-          })`,
-          image: 'info.circle',
-        },
-        {
-          id: 'diagnostics',
-          title: t('diagnostics.title'),
-          image: 'waveform.path.ecg',
-          action: true,
-          disclosure: true,
-          navigates: true,
-        },
-        {
-          id: 'licenses',
-          title: t('settings.licenses.title'),
-          image: 'doc.text',
+          title: t('settings.appearance.title'),
+          subtitle: t('settings.appearance.subtitle'),
+          image: 'paintpalette',
           action: true,
           disclosure: true,
           navigates: true,
@@ -251,25 +68,68 @@ function View() {
     },
   ];
 
-  if (auth.account)
-    sections.splice(1, 0, {
+  if (auth.account) {
+    const rows: NativeListSection['rows'] = [];
+    let footer: string | undefined;
+    if (workspace) {
+      for (const kind of ['machine', 'agent', 'mcp'] as const) {
+        rows.push({
+          id: `remote-${kind}`,
+          title: t(`settings.remote.${kind}`),
+          image: {
+            machine: 'desktopcomputer',
+            agent: 'sparkles',
+            mcp: 'puzzlepiece.extension',
+          }[kind],
+          action: true,
+          disclosure: true,
+          navigates: true,
+        });
+      }
+      footer = [
+        t(`settings.connection.${connection.state}`),
+        tp('settings.machineCount', connection.machines, {
+          count: connection.machines,
+        }),
+        connection.syncedAt
+          ? t('settings.connection.syncedAt', {
+              time: relativeTime(new Date(connection.syncedAt).toISOString()),
+            })
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      if (connection.state === 'offline') {
+        rows.push({
+          id: 'connection',
+          title: t('settings.connection.resync'),
+          image: 'arrow.clockwise',
+          action: true,
+        });
+        if (connection.syncedAt)
+          footer += `\n${t('settings.connection.cached')}`;
+      }
+    } else {
+      rows.push({
+        id: 'workspace-unavailable',
+        title: t('settings.workspace.unavailable'),
+        subtitle: t('settings.workspace.unavailableHint'),
+        wrapSubtitle: true,
+        image: 'building.2',
+      });
+    }
+    sections.push({
       id: 'remote',
-      header: t('settings.section.workspace'),
-      rows: (['machine', 'agent', 'mcp'] as const).map((kind) => ({
-        id: `remote-${kind}`,
-        title: t(`settings.remote.${kind}`),
-        image: {
-          machine: 'desktopcomputer',
-          agent: 'sparkles',
-          mcp: 'puzzlepiece.extension',
-        }[kind],
-        action: true,
-        disclosure: true,
-        navigates: true,
-      })),
+      header: workspace
+        ? t('settings.section.workspaceNamed', { name: workspace.name })
+        : t('settings.section.workspace'),
+      footer,
+      rows,
     });
-  if (auth.account)
-    sections.splice(1, 0, {
+  }
+
+  if (workspace) {
+    sections.push({
       id: 'sessions',
       header: t('settings.section.sessions'),
       rows: [
@@ -291,8 +151,33 @@ function View() {
         },
       ],
     });
+  }
 
-  if (__DEV__ || uiVerify)
+  sections.push({
+    id: 'other',
+    header: t('settings.section.additional'),
+    rows: [
+      {
+        id: 'about',
+        title: t('settings.section.about'),
+        subtitle: t('settings.about.subtitle'),
+        image: 'info.circle',
+        action: true,
+        disclosure: true,
+        navigates: true,
+      },
+      {
+        id: 'diagnostics',
+        title: t('diagnostics.title'),
+        image: 'waveform.path.ecg',
+        action: true,
+        disclosure: true,
+        navigates: true,
+      },
+    ],
+  });
+
+  if (__DEV__ || uiVerify) {
     sections.push({
       id: 'developer',
       header: t('settings.section.developer'),
@@ -308,6 +193,7 @@ function View() {
         },
       ],
     });
+  }
 
   return (
     <NativeGroupedList
@@ -315,53 +201,29 @@ function View() {
       accent={colors.accent}
       sections={sections}
       placeholder=""
-      onRowAction={({ nativeEvent: { id, actionId } }) => {
-        if (id === 'accent-color' && isAccentColor(actionId))
-          setAccentColor(actionId);
-        if (id === 'accent-color' && actionId === 'custom')
-          void showAccentColorPicker(t('settings.appearance.accent')).catch(
-            () => showToast(t('settings.appearance.colorFailed')),
-          );
-        if (
-          id === 'appearance' &&
-          (actionId === 'soft' || actionId === 'black')
-        )
-          setDarkBackground(actionId);
-        if (
-          id === 'queued-message-behavior' &&
-          (actionId === 'queue' || actionId === 'guide')
-        )
-          setQueuedMessageBehavior(actionId);
-      }}
-      onRowPress={({ nativeEvent }) => {
-        if (nativeEvent.id.startsWith('remote-')) {
-          const kind = nativeEvent.id.slice(7) as RemoteSetting['kind'];
-          void push(
-            RemoteSettingsScreen,
-            { kind },
-            { title: settingsTitle(kind) },
-          );
+      onRowPress={({ nativeEvent: { id } }) => {
+        for (const kind of ['machine', 'agent', 'mcp'] as const) {
+          if (id === `remote-${kind}` && workspace)
+            void push(
+              RemoteSettingsScreen,
+              { kind },
+              { title: settingsTitle(kind) },
+            );
         }
-        if (nativeEvent.id === 'app-icon') void push(AppIconScreen);
-        if (nativeEvent.id === 'notifications')
-          void push(NotificationSettingsScreen, {});
-        if (nativeEvent.id === 'quick-replies') void push(QuickRepliesScreen);
-        if (nativeEvent.id === 'project-history')
+        if (id === 'preferences') void push(PreferencesScreen);
+        if (id === 'appearance') void push(AppearanceScreen);
+        if (id === 'about') void push(AboutScreen);
+        if (id === 'project-history' && workspace)
           void push(ProjectHistoryScreen);
-        if (nativeEvent.id === 'archived') void push(ArchivedSessionsScreen);
-        if (nativeEvent.id === 'licenses') void push(LicensesScreen);
-        if (nativeEvent.id === 'diagnostics') void push(DiagnosticsScreen);
-        if (nativeEvent.id === 'debug-open') {
+        if (id === 'archived' && workspace) void push(ArchivedSessionsScreen);
+        if (id === 'diagnostics') void push(DiagnosticsScreen);
+        if (id === 'account' && auth.account) void push(AccountScreen);
+        if (id === 'connection' && workspace && connection.state === 'offline')
+          refresh();
+        if (id === 'debug-open') {
           cancel();
           router.push('/debug');
         }
-        if (nativeEvent.id === 'account' && auth.account)
-          void push(AccountScreen);
-        if (nativeEvent.id === 'connection') refresh();
-        if (nativeEvent.id === 'credit-flowdown')
-          void Linking.openURL('https://github.com/Lakr233/FlowDown').catch(
-            () => showToast(t('settings.toast.openProjectLinkFailed')),
-          );
       }}
     />
   );

@@ -44,11 +44,12 @@ CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 # These lease an iPad. `--case` still accepts them; the default phone run must not.
 PAD_CASES = ['devices-pad', 'session-delete-pad', 'session-tree-pad', 'ipad', 'ipad-chrome', 'ipad-sidebar', 'native-shell', 'native-collection', 'session-search-pad']
-CASES = PHONE_CASES + PAD_CASES + ['devices', 'camera-chat', 'camera-sheet', 'message-details', 'edit-message', 'session-share', 'session-delete', 'session-search', 'morph', 'sheet-zoom-project', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'create-parity']
+CASES = PHONE_CASES + PAD_CASES + ['devices', 'camera-chat', 'camera-sheet', 'message-details', 'edit-message', 'session-share', 'session-delete', 'session-search', 'morph', 'sheet-zoom-project', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'create-parity', 'settings-baseline']
 # These select HomePreviewProviders at app launch, using the same shared bundle.
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'sheet-zoom-project', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome', 'ipad-sidebar'}
 HOME_CASES.update({'session-delete', 'session-delete-pad', 'devices', 'devices-pad'})
 PREVIEW = {
+    'settings-baseline': 'settings-baseline-live',
     'mermaid': 'mermaid-preview',
     'workspace-changes': 'simulator-preview',
     'simulator-preview': 'simulator-preview',
@@ -147,6 +148,7 @@ PREVIEW = {
     'community-notice': 'community-notice',
 }
 READY = {
+    'settings-baseline': 'settings-baseline-ready',
     'mermaid': 'mermaid-preview:text',
     'message-details': 'paper-reply:meta:details',
     'free-turn-notice': 'free-turn-24',
@@ -520,8 +522,8 @@ with metro_context:
                         script = Path(__file__).with_name('send-scroll.py')
                     if case in {'devices', 'devices-pad'}:
                         script = Path(__file__).with_name('devices.py')
-                    if case == 'diagnostics':
-                        script = Path(__file__).with_name('diagnostics.py')
+                    if case in ('diagnostics', 'settings-baseline'):
+                        script = Path(__file__).with_name(f'{case}.py')
                     if case == 'file-selection':
                         script = Path(__file__).with_name('file-selection.py')
                     if case in {'quick-replies', 'context-chip', 'morph', 'sheet-zoom-project', 'native-shell', 'native-collection', 'ipad-chrome', 'ipad-sidebar', 'composer-relay', 'outbox', 'navigation-toolbar', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'free-turn-notice', 'create-parity'}:
@@ -578,8 +580,8 @@ with metro_context:
                     if case.startswith('send-scroll-'):
                         command.append(case.removeprefix('send-scroll-'))
                     check_timeout = 180
-                    if case == 'settings':
-                        # Machine edits, multi-machine Agent identity and MCP forms share this flow.
+                    if case in ('settings', 'settings-baseline'):
+                        # These cases visit several Settings contexts or editors.
                         check_timeout = 300
                     if case == 'proposed-plan':
                         # Document, search and business dispatch outcomes share this case.
@@ -628,6 +630,9 @@ with metro_context:
                     result['checkSeconds'] = round(time.monotonic() - check_started, 2)
                     ui.capture('after')
                     result['status'] = 'passed'
+                    if case in ('appearance', 'quick-replies', 'queued-message-behavior'):
+                        # These checks cold-launch the App; the next case needs a fresh process baseline.
+                        launch_mode = None
                 except Exception as error:
                     # A failed case may have crashed or left a system modal; recover explicitly.
                     launch_mode = None

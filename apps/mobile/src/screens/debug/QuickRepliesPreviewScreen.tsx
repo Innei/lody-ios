@@ -13,7 +13,7 @@ import { usePalette } from '@/lib/theme/palette';
 import type { Session } from '@lody/cloud-runtime/models/catalog';
 import type { Snapshot } from '@lody/cloud-runtime/models/session';
 import { Button } from '@/ui/Button';
-import { SettingsScreen } from '../SettingsScreen';
+import { PreferencesScreen } from '../PreferencesScreen';
 
 const session: Session = {
   id: 'quick-reply-preview',
@@ -177,7 +177,12 @@ function ViewContent() {
       >
         <Button
           testID="quick-settings"
-          onPress={() => void present(SettingsScreen)}
+          onPress={() =>
+            void present(PreferencesScreen, undefined, {
+              style: 'formSheet',
+              sheetAllowedDetents: [1],
+            })
+          }
         >
           Settings
         </Button>

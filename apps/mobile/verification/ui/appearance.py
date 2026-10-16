@@ -10,6 +10,7 @@ from driver import UI
 import catalog
 
 ui = UI(sys.argv[1], sys.argv[2])
+ui.axe('tap', '--id', 'appearance', '--post-delay', '.5')
 for value in ["soft","black","soft"]:
     row = ui.element('appearance')
     assert row['frame']['height'] >= 44
@@ -18,7 +19,7 @@ for value in ["soft","black","soft"]:
     ui.axe('tap', '--wait-timeout', '5', '--label', catalog.text(f'settings.appearance.{value}'), '--post-delay', '.7')
     ui.wait(lambda _: ui.element('appearance').get('AXValue') == catalog.text(f'settings.appearance.{value}'), 'Selected value did not update')
     ui.element('appearance')
-    ui.element('notifications')
+    ui.element('app-icon')
     ui.capture(f'{value}-selected')
 for value in ['purple', 'pink', 'indigo', 'blue']:
     assert ui.element('accent-color')['frame']['height'] >= 44
@@ -61,6 +62,8 @@ subprocess.run(launch, check=True)
 ui.invalidate_axe()
 ui.element('ui-verify-ready', timeout=120)
 ui.open_case('appearance-preview')
+ui.element('appearance')
+ui.axe('tap', '--id', 'appearance', '--post-delay', '.5')
 ui.wait(lambda _: ui.element('accent-color').get('AXValue') == catalog.text('settings.appearance.custom'), 'Cold launch lost custom color')
 assert saved_color() == custom
 open_color_picker()
@@ -96,6 +99,7 @@ for value in ['default', 'Aqua', 'default']:
 ui.axe('tap', '--wait-timeout', '5', '--id', 'BackButton', '--post-delay', '.6')
 ui.wait(lambda _: ui.element('app-icon').get('AXValue') == catalog.text('settings.appearance.defaultIcon'), 'Settings did not retain the current icon')
 ui.capture('settings-restored')
+ui.axe('tap', '--id', 'BackButton', '--post-delay', '.5')
 ui.axe('tap', '--wait-timeout', '5', '--label', 'Close Settings', '--post-delay', '.6')
 ui.open_case('app-icon-failure-preview')
 ui.element('app-icon-default')

@@ -21,6 +21,10 @@ import { LiveActivityPreviewScreen } from './LiveActivityPreviewScreen';
 import { ReplyHapticsPreviewScreen } from './ReplyHapticsPreviewScreen';
 import { uiVerify } from './uiVerify';
 import {
+  openSettingsBaseline,
+  settingsBaselineScenarios,
+} from './settingsBaseline';
+import {
   openCreateParity,
   openCreateRecovery,
   openModelMemory,
@@ -43,6 +47,7 @@ import { SessionTreePreviewScreen } from './SessionTreePreviewScreen';
 import { InboxPreviewScreen } from './InboxPreviewScreen';
 import { SettingsPreviewScreen } from './SettingsPreviewScreen';
 import { SettingsScreen } from '../SettingsScreen';
+import { PreferencesScreen } from '../PreferencesScreen';
 import { QuickRepliesPreviewScreen } from './QuickRepliesPreviewScreen';
 import { OnboardingPreviewScreen } from './OnboardingPreviewScreen';
 import {
@@ -193,6 +198,7 @@ function View() {
           'arrow.triangle.2.circlepath',
         ),
         openRow('settings-preview', '远程设置验收', 'gear'),
+        openRow('preferences-preview', '偏好设置验收', 'slider.horizontal.3'),
         openRow('diagnostics-preview', 'Diagnostics', 'waveform.path.ecg'),
         openRow('app-icon-failure-preview', 'Icon failure', 'app.dashed'),
         openRow('appearance-preview', '外观验收', 'circle.lefthalf.filled'),
@@ -350,6 +356,12 @@ function View() {
       .catch((error) => setRuntime({ title: String(error) }));
   };
   const actions: Record<string, () => void> = {
+    ...Object.fromEntries(
+      settingsBaselineScenarios.map((scenario) => [
+        `settings-baseline-${scenario}`,
+        () => void openSettingsBaseline(scenario),
+      ]),
+    ),
     'mermaid-preview': () => void present(MermaidPreviewScreen, {}),
     'reply-haptics-preview': () => void present(ReplyHapticsPreviewScreen, {}),
     'notification-preview': () => {
@@ -381,7 +393,16 @@ function View() {
     'app-icon-failure-preview': () =>
       void present(AppIconFailurePreviewScreen, {}),
     'appearance-preview': () => void present(SettingsScreen, {}),
-    'queued-message-behavior-preview': () => void present(SettingsScreen, {}),
+    'preferences-preview': () =>
+      void present(PreferencesScreen, undefined, {
+        style: 'formSheet',
+        sheetAllowedDetents: [1],
+      }),
+    'queued-message-behavior-preview': () =>
+      void present(PreferencesScreen, undefined, {
+        style: 'formSheet',
+        sheetAllowedDetents: [1],
+      }),
     'quick-replies-preview': () =>
       void present(QuickRepliesPreviewScreen, undefined),
     'session-tree-preview': () => void present(SessionTreePreviewScreen),
