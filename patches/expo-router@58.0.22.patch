@@ -1,5 +1,5 @@
 diff --git a/ios/Toolbar/RouterToolbarHostView.swift b/ios/Toolbar/RouterToolbarHostView.swift
-index 3b2a9ad76dc98966a508553a36606477c99a9bd8..c12372f955254a3221c433b2c89b21f564a9d898 100644
+index b10810d..56cc52a 100644
 --- a/ios/Toolbar/RouterToolbarHostView.swift
 +++ b/ios/Toolbar/RouterToolbarHostView.swift
 @@ -13,6 +13,7 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
@@ -30,13 +30,15 @@ index 3b2a9ad76dc98966a508553a36606477c99a9bd8..c12372f955254a3221c433b2c89b21f5
        if #available(iOS 18.0, *) {
          let items = toolbarItemsArray.compactMap { identifier -> UIBarButtonItem? in
            if let item = toolbarItemsMap[identifier] {
-@@ -112,9 +126,14 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
+@@ -112,11 +126,14 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
            return nil
          }
  
 -        controller.setToolbarItems(items, animated: true)
 -        controller.navigationController?.setToolbarHidden(
--          false, animated: true)
+-          false,
+-          animated: true
+-        )
 +        controller.setToolbarItems(items, animated: false)
 +        // The native stack owns visibility during navigation. Offscreen React
 +        // updates must not bring its shared toolbar over the current screen.
@@ -48,7 +50,7 @@ index 3b2a9ad76dc98966a508553a36606477c99a9bd8..c12372f955254a3221c433b2c89b21f5
          return
        }
      }
-@@ -166,19 +185,27 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
+@@ -169,19 +186,27 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
  
    override func didMoveToWindow() {
      super.didMoveToWindow()
@@ -58,7 +60,7 @@ index 3b2a9ad76dc98966a508553a36606477c99a9bd8..c12372f955254a3221c433b2c89b21f5
 -      if let controller = cachedController {
 -        controller.setToolbarItems(nil, animated: true)
 -      }
--      cachedController = nil  // Clear cache when removed from window
+-      cachedController = nil // Clear cache when removed from window
 -    } else {
 +    // A pushed screen retains its items for an interactive return.
 +    if window != nil {
@@ -85,10 +87,10 @@ index 3b2a9ad76dc98966a508553a36606477c99a9bd8..c12372f955254a3221c433b2c89b21f5
      updateToolbarItems()
    }
 diff --git a/ios/Toolbar/RouterToolbarModule.swift b/ios/Toolbar/RouterToolbarModule.swift
-index 1bee03ce614c6169c56ff74cdf89128923c500f5..e41e4621039767f3d0a0a1e3266ebca625507228 100644
+index 1bee03c..e41e462 100644
 --- a/ios/Toolbar/RouterToolbarModule.swift
 +++ b/ios/Toolbar/RouterToolbarModule.swift
-@@ -71,10 +71,10 @@
+@@ -71,10 +71,10 @@ public class RouterToolbarModule: Module {
          view.titleStyle = style?.toTitleStyle()
        }
        Prop("accessibilityLabel") { (view: RouterToolbarItemView, accessibilityLabel: String?) in

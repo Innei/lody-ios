@@ -38,7 +38,7 @@ const bundle = await build({
           { filter: /^(react-native|\.\/DiffView)$/, namespace: 'test' },
           () => ({
             contents:
-              'export const InteractionManager = {}; export const StyleSheet = { create: (value) => value }; export const useColorScheme = () => "light"; export const useWindowDimensions = () => ({ height: 0, width: 0 }); export const View = () => null; export const DiffView = () => null;',
+              'export const StyleSheet = { create: (value) => value }; export const useColorScheme = () => "light"; export const useWindowDimensions = () => ({ height: 0, width: 0 }); export const View = () => null; export const DiffView = () => null;',
           }),
         );
       },

@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@babel/core": "7.29.7",
-    "babel-preset-expo": "57.0.10",
+    "babel-preset-expo": "58.0.17",
     "esbuild": "0.25.12",
     "prettier": "3.9.6"
   }

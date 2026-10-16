@@ -172,14 +172,10 @@ function usePresentedPageSession(expectedPage?: PageDefinitionBase) {
       return;
     }
 
-    const unsubscribe = navigation.addListener('beforeRemove', () => {
-      cancelPresentation(session.id);
-    });
     return () => {
-      unsubscribe();
       cancelPresentation(session.id);
     };
-  }, [navigation, session]);
+  }, [session]);
 
   if (session && expectedPage && session.page.id !== expectedPage.id) {
     throw new Error(

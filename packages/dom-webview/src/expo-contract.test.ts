@@ -12,9 +12,13 @@ const packageDir = path.resolve(
 );
 const appDir = path.resolve(packageDir, '../../apps/mobile');
 
-const wrapperPath = createRequire(import.meta.url).resolve(
-  'expo/src/dom/webview-wrapper.tsx',
-  { paths: [appDir] },
+const wrapperPath = path.join(
+  path.dirname(
+    createRequire(import.meta.url).resolve('expo/package.json', {
+      paths: [appDir],
+    }),
+  ),
+  'src/dom/webview-wrapper.tsx',
 );
 
 const INHERITED_PROPS = new Set(['onLayout', 'ref', 'style']);

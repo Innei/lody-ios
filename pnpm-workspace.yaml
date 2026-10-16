@@ -7,8 +7,22 @@ allowBuilds:
   esbuild: true
 nodeLinker: hoisted
 patchedDependencies:
-  expo-dev-menu@57.0.18: patches/expo-dev-menu@57.0.18.patch
-  expo-router@57.0.19: patches/expo-router@57.0.19.patch
-  react-native-screens@4.26.2: patches/react-native-screens@4.26.2.patch
+  expo-dev-menu@58.0.11: patches/expo-dev-menu@58.0.11.patch
+  expo-router@58.0.22: patches/expo-router@58.0.22.patch
+  react-native-screens@4.30.0: patches/react-native-screens@4.30.0.patch
 minimumReleaseAgeExclude:
   - '@rien7/anchored-overlay-kit@0.3.0'
+  - '@expo/cli@58.1.10'
+  - '@expo/metro-config@58.0.14'
+  - '@expo/package-manager@1.14.2'
+  - '@expo/prebuild-config@58.0.14'
+  - '@expo/router-server@58.0.14'
+  - babel-preset-expo@58.0.17
+  - expo-asset@58.0.16
+  - expo-glass-effect@58.0.4
+  - expo-modules-core@58.0.21
+  - expo-modules-jsi@58.0.14
+  - expo-router@58.0.22
+  - expo-system-ui@58.0.6
+  - expo-updates@58.0.17
+  - expo@58.0.13

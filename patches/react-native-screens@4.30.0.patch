@@ -1,8 +1,8 @@
 diff --git a/ios/RNSScreen.mm b/ios/RNSScreen.mm
-index 9b66012dc8db1e3af0cb5457f8dad86e7f2fe5e3..0a7041ea357b11fdef427e32e63d3e56fff94227 100644
+index 049fd22..e404d50 100644
 --- a/ios/RNSScreen.mm
 +++ b/ios/RNSScreen.mm
-@@ -456,6 +456,12 @@ - (BOOL)registerContentWrapper:(RNSScreenContentWrapper *)contentWrapper content
+@@ -499,6 +499,12 @@ RNS_IGNORE_SUPER_CALL_END
  /// This is RNSScreenContentWrapperDelegate method, where we do get notified when React did update frame of our child.
  - (void)contentWrapper:(RNSScreenContentWrapper *)contentWrapper receivedReactFrame:(CGRect)reactFrame
  {
@@ -15,17 +15,17 @@ index 9b66012dc8db1e3af0cb5457f8dad86e7f2fe5e3..0a7041ea357b11fdef427e32e63d3e56
    // We want to update and animate allowedDetents for FormSheet only if there was a change
    // in frame's height but sometimes we receive a frame with the same dimensions mutliple times.
    // In order to prevent visual glitches, we compare new value to the old one and update
-@@ -1429,10 +1435,19 @@ - (instancetype)initWithView:(UIView *)view
+@@ -1477,10 +1483,19 @@ Class<RCTComponentViewProtocol> RNSScreenCls(void)
      _shouldNotify = YES;
      _isRemovedFromParent = NO;
-     _initialView = (RNSScreenView *)view;
+     _hasNotifiedDismissed = NO;
 +    // Declare the destination's bottom-bar policy before UIKit builds its
 +    // navigation animator; willShow is too late for the Search glass fade.
 +    self.hidesBottomBarWhenPushed = YES;
    }
    return self;
  }
-
+ 
 +- (void)setToolbarItems:(NSArray<UIBarButtonItem *> *)toolbarItems animated:(BOOL)animated
 +{
 +  self.hidesBottomBarWhenPushed = toolbarItems.count == 0;
@@ -36,13 +36,13 @@ index 9b66012dc8db1e3af0cb5457f8dad86e7f2fe5e3..0a7041ea357b11fdef427e32e63d3e56
  - (void)viewWillAppear:(BOOL)animated
  {
 diff --git a/ios/RNSScreenStack.mm b/ios/RNSScreenStack.mm
-index 192f5d2c77192f323844b0d11ee179081891e7a4..df37f8f64053412ea78d452149b35b909cec44f2 100644
+index 5da1196..428f41c 100644
 --- a/ios/RNSScreenStack.mm
 +++ b/ios/RNSScreenStack.mm
-@@ -481,6 +481,11 @@ - (void)setModalViewControllers:(NSArray<UIViewController *> *)controllers
+@@ -569,6 +569,11 @@ RNS_IGNORE_SUPER_CALL_END
          return;
        }
-
+ 
 +      // Native clients must configure preferredTransition before UIKit creates
 +      // its presentation animator, rather than in viewWillAppear.
 +      [[NSNotificationCenter defaultCenter] postNotificationName:@"RNSScreenWillPresent"
@@ -51,16 +51,16 @@ index 192f5d2c77192f323844b0d11ee179081891e7a4..df37f8f64053412ea78d452149b35b90
        [previous presentViewController:next
                               animated:shouldAnimate
                             completion:^{
-@@ -660,6 +665,8 @@ - (void)setPushViewControllers:(NSArray<UIViewController *> *)controllers
+@@ -748,6 +753,8 @@ RNS_IGNORE_SUPER_CALL_END
        [newControllers removeLastObject];
-
+ 
        [_controller setViewControllers:newControllers animated:NO];
 +      // Let native content select its transition before UIKit starts the push.
 +      [[NSNotificationCenter defaultCenter] postNotificationName:@"RNSScreenWillPush" object:top];
        [_controller pushViewController:top animated:YES];
      } else {
        // don't really know what this case could be, but may need to handle it
-@@ -726,7 +733,11 @@ - (void)updateContainer
+@@ -814,7 +821,11 @@ RNS_IGNORE_SUPER_CALL_END
  - (void)layoutSubviews
  {
    [super layoutSubviews];
@@ -70,10 +70,10 @@ index 192f5d2c77192f323844b0d11ee179081891e7a4..df37f8f64053412ea78d452149b35b90
 +  if (_controller.view.superview == self || _controller.parentViewController == nil) {
 +    _controller.view.frame = self.bounds;
 +  }
-
+ 
    // We need to update the bounds of the modal views here, since
    // for contained modals they are not updated by modals themselves.
-@@ -986,6 +997,8 @@ - (void)navigationController:(UINavigationController *)navigationController
+@@ -1074,6 +1085,8 @@ RNS_IGNORE_SUPER_CALL_END
         didShowViewController:(UIViewController *)viewController
                      animated:(BOOL)animated
  {
@@ -82,10 +82,10 @@ index 192f5d2c77192f323844b0d11ee179081891e7a4..df37f8f64053412ea78d452149b35b90
    [self emitOnFinishTransitioningEvent];
    [RNSScreenWindowTraits updateWindowTraits];
    // Because of the bug that caused view to have incorrect dimensions while changing the orientation,
-@@ -1096,7 +1109,15 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceive
+@@ -1184,6 +1197,14 @@ RNS_IGNORE_SUPER_CALL_END
      return NO;
    }
-
+ 
 +  if (@available(iOS 18.0, *)) {
 +    // A preferred native transition owns its interaction recognizers. Do not
 +    // also admit the normal stack-pop gestures for the same touch sequence.
@@ -96,5 +96,4 @@ index 192f5d2c77192f323844b0d11ee179081891e7a4..df37f8f64053412ea78d452149b35b90
 +
    BOOL customAnimationOnSwipePropSetAndSelectedAnimationIsCustom =
        topScreen.customAnimationOnSwipe && [RNSScreenStackAnimator isCustomAnimation:topScreen.stackAnimation];
-
- #if RNS_IPHONE_OS_VERSION_AVAILABLE(26_0)
+ 

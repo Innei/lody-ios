@@ -1,6 +1,6 @@
 # Vendored from `@expo/dom-webview`
 
-Source: `@expo/dom-webview@57.0.1` from the `expo@57` line (upstream
+Source: `@expo/dom-webview@58.0.2` from the `expo@58` line (upstream
 [`expo/expo`](https://github.com/expo/expo), `packages/@expo/dom-webview`).
 
 `pnpm-workspace.yaml` resolves `@expo/dom-webview` to
@@ -9,7 +9,7 @@ as a regular dependency, so without that override Metro would silently use
 Expo's nested copy. `DomWebViewModule`'s `vendor` constant and
 `assertVendoredDomWebView()` catch a resolution regression.
 
-## Changes vs. upstream 57.0.1
+## Changes vs. upstream 58.0.2
 
 - Android removed (`android/`, `local-maven-repo/`, the `android` block in
   `expo-module.config.json`).
