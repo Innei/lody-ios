@@ -1169,5 +1169,14 @@
   "settings.shortcuts.visibilityHint": "Choose visibility when creating. Existing visibility is preserved on iOS.",
   "settings.shortcuts.uncertain": "This save is held unchanged for a safe manual retry. Cancel and reopen to start another edit.",
   "settings.shortcuts.add": "Add Shortcut",
-  "send.error.shortcut": "This shortcut could not be verified. Refresh Prompt Shortcuts or remove its command and try again."
+  "send.error.shortcut": "This shortcut could not be verified. Refresh Prompt Shortcuts or remove its command and try again.",
+  "settings.projects.title": "Projects",
+  "settings.projects.shared": "Shared with workspace",
+  "settings.projects.private": "Private",
+  "settings.projects.readonly": "Managed by its owner",
+  "settings.projects.unknown": "State unknown",
+  "settings.projects.hint": "Choose who can discover your registered local projects. This does not delete files or session history. Project History is a separate setting.",
+  "settings.projects.failed": "The latest state could not be confirmed. Shown values are the last confirmed state. Refresh before making another change; no write is retried automatically.",
+  "settings.projects.empty": "No registered local projects in this workspace.",
+  "settings.projects.sharedValue": "Shared"
 }

@@ -1,3 +1,4 @@
+import { ProjectVisibilityScreen } from './ProjectVisibilityScreen';
 import { PromptShortcutsScreen } from './PromptShortcutsScreen';
 import { useRouter } from 'expo-router';
 import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
@@ -100,6 +101,14 @@ function View() {
         id: 'prompt-shortcuts',
         title: t('settings.shortcuts.title'),
         image: 'doc.text',
+        action: true,
+        disclosure: true,
+        navigates: true,
+      });
+      rows.push({
+        id: 'project-visibility',
+        title: t('settings.projects.title'),
+        image: 'folder',
         action: true,
         disclosure: true,
         navigates: true,
@@ -239,6 +248,8 @@ function View() {
               { title: settingsTitle(kind) },
             );
         }
+        if (id === 'project-visibility' && workspace)
+          void push(ProjectVisibilityScreen);
         if (id === 'prompt-shortcuts' && workspace)
           void push(PromptShortcutsScreen);
         if (id === 'preferences') void push(PreferencesScreen);

@@ -455,6 +455,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
     }.runOnQueue(.main)
     AsyncFunction("localProjects") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("localProjects", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("workspaceSettings") { (payload: String) async throws -> String in
+      try await WorkspaceSettingsCloud.run(payload)
+    }
     AsyncFunction("promptShortcuts") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("promptShortcuts", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("remoteSettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("remoteSettings", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.createSession(payload, promise: promise) } }.runOnQueue(.main)

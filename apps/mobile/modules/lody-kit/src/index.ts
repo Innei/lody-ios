@@ -254,3 +254,5 @@ export { NativeAppIconGrid } from './appearance/NativeAppIconGrid';
 export { NativeSessionShare } from './session-share/NativeSessionShare';
 
 export { SimulatorView, type SimulatorSource } from './simulator/SimulatorView';
+
+export { workspaceSettingsRaw } from './settings/WorkspaceSettings';

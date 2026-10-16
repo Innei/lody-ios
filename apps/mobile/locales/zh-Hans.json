@@ -1169,5 +1169,14 @@
   "settings.shortcuts.visibilityHint": "创建时选择可见性。iOS 保留已有模板的可见性。",
   "settings.shortcuts.uncertain": "已固定本次保存内容以便安全重试。取消并重新打开后可再次编辑。",
   "settings.shortcuts.add": "添加模板",
-  "send.error.shortcut": "暂时无法验证此模板。请刷新 Prompt Shortcuts，或移除命令后重试。"
+  "send.error.shortcut": "暂时无法验证此模板。请刷新 Prompt Shortcuts，或移除命令后重试。",
+  "settings.projects.title": "项目",
+  "settings.projects.shared": "工作区可见",
+  "settings.projects.private": "仅自己可见",
+  "settings.projects.readonly": "由项目所有者管理",
+  "settings.projects.unknown": "状态未知",
+  "settings.projects.hint": "设置已注册本地项目对哪些成员可见。此操作不会删除磁盘文件或会话历史。项目历史仍是独立入口。",
+  "settings.projects.failed": "暂时无法确认最新状态。当前显示上次确认的值，请刷新后再操作；不会自动重试写入。",
+  "settings.projects.empty": "当前工作区暂无已注册的本地项目。",
+  "settings.projects.sharedValue": "共享"
 }
