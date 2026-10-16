@@ -44,10 +44,10 @@ CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 # These lease an iPad. `--case` still accepts them; the default phone run must not.
 PAD_CASES = ['devices-pad', 'session-delete-pad', 'session-tree-pad', 'ipad', 'ipad-chrome', 'ipad-sidebar', 'native-shell', 'native-collection', 'session-search-pad']
-CASES = PHONE_CASES + PAD_CASES + ['devices', 'camera-chat', 'camera-sheet', 'message-details', 'edit-message', 'session-share', 'session-delete', 'session-search', 'morph', 'sheet-zoom-project', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'create-parity', 'settings-baseline']
+CASES = PHONE_CASES + PAD_CASES + ['devices', 'camera-chat', 'camera-sheet', 'message-details', 'edit-message', 'session-share', 'session-delete', 'session-search', 'morph', 'sheet-zoom-project', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'create-parity', 'settings-baseline', 'workspace-general']
 # These select HomePreviewProviders at app launch, using the same shared bundle.
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'sheet-zoom-project', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome', 'ipad-sidebar'}
-HOME_CASES.update({'session-delete', 'session-delete-pad', 'devices', 'devices-pad'})
+HOME_CASES.update({'session-delete', 'session-delete-pad', 'devices', 'devices-pad', 'workspace-general'})
 PREVIEW = {
     'settings-baseline': 'settings-baseline-live',
     'mermaid': 'mermaid-preview',
@@ -365,7 +365,7 @@ with metro_context:
         subprocess.run(['xcrun', 'clang', '-fobjc-arc', '-framework', 'Foundation', str(Path(__file__).with_name('software-keyboard.m')), '-o', str(keyboard)], check=True, timeout=60)
         subprocess.run([str(keyboard), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), args.udid], check=True, timeout=30)
         sim('install', args.udid, str(args.app.resolve()))
-        if any(case.startswith('attachment-motion-') for case in selected) or (args.photo_access in ['full', 'limited', 'granted'] and any(case.startswith('attachment-overlay-') for case in selected)):
+        if 'workspace-general' in selected or any(case.startswith('attachment-motion-') for case in selected) or (args.photo_access in ['full', 'limited', 'granted'] and any(case.startswith('attachment-overlay-') for case in selected)):
             # Photos outlives app launches. Seed once per app container so repeats
             # don't fill the grid with duplicates or reinitialize the photo service.
             container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
@@ -522,7 +522,7 @@ with metro_context:
                         script = Path(__file__).with_name('send-scroll.py')
                     if case in {'devices', 'devices-pad'}:
                         script = Path(__file__).with_name('devices.py')
-                    if case in ('diagnostics', 'settings-baseline'):
+                    if case in ('diagnostics', 'settings-baseline', 'workspace-general'):
                         script = Path(__file__).with_name(f'{case}.py')
                     if case == 'file-selection':
                         script = Path(__file__).with_name('file-selection.py')

@@ -1142,5 +1142,7 @@
   "settings.workspace.unavailable": "暂无可用工作区",
   "settings.workspace.unavailableHint": "在 Lody 中加入或创建工作区后，即可管理工作区设置。",
   "settings.connection.resync": "重新同步",
-  "settings.connection.cached": "正在显示已保存的工作区数据。"
+  "settings.connection.cached": "正在显示已保存的工作区数据。",
+  "settings.workspace.general": "通用",
+  "settings.workspace.generalSubtitle": "名称与图标"
 }

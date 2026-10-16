@@ -1,7 +1,7 @@
 # Settings 整理与功能补齐任务计划
 
 - 日期：2026-10-16
-- 状态：SET-01 至 SET-05 已完成；SET-06 集成收口及后续功能任务待按需推进。
+- 状态：SET-01 至 SET-05 已完成；SET-06 的 iPad 检查按用户要求搁置，SET-07 已接入名称与图标编辑。
 - 关联方式：总计划与任务文件在仓库内互链，一个 SET 任务对应一个独立 Markdown 文件。
 
 ## 目标与推进方式
@@ -108,8 +108,8 @@
 | [SET-03 建立外观页并迁移现有外观选项](2026-10-16-settings/03-appearance-page.md)                  | 第一阶段／P0       | 已完成                         | [SET-01](2026-10-16-settings/01-section-contract-and-baseline.md)                                                                                                                                                            |
 | [SET-04 建立关于页并整理版本与许可入口](2026-10-16-settings/04-about-page.md)                     | 第一阶段／P0       | 已完成                         | [SET-01](2026-10-16-settings/01-section-contract-and-baseline.md)                                                                                                                                                            |
 | [SET-05 重排 Settings 首页并归位连接状态](2026-10-16-settings/05-home-sections-and-connection.md) | 第一阶段／P0       | 已完成                         | [SET-01](2026-10-16-settings/01-section-contract-and-baseline.md)、[SET-02](2026-10-16-settings/02-preferences-page.md)、[SET-03](2026-10-16-settings/03-appearance-page.md)、[SET-04](2026-10-16-settings/04-about-page.md) |
-| [SET-06 完成首轮分组整理的集成验收](2026-10-16-settings/06-phase-one-acceptance.md)               | 第一阶段／P0       | 待实施                         | [SET-02](2026-10-16-settings/02-preferences-page.md)、[SET-03](2026-10-16-settings/03-appearance-page.md)、[SET-04](2026-10-16-settings/04-about-page.md)、[SET-05](2026-10-16-settings/05-home-sections-and-connection.md)  |
-| [SET-07 接入工作区通用设置](2026-10-16-settings/07-workspace-general.md)                          | 第二阶段／P1       | 待排期                         | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
+| [SET-06 完成首轮分组整理的集成验收](2026-10-16-settings/06-phase-one-acceptance.md)               | 第一阶段／P0       | iPad 暂缓                      | [SET-02](2026-10-16-settings/02-preferences-page.md)、[SET-03](2026-10-16-settings/03-appearance-page.md)、[SET-04](2026-10-16-settings/04-about-page.md)、[SET-05](2026-10-16-settings/05-home-sections-and-connection.md)  |
+| [SET-07 接入工作区通用设置](2026-10-16-settings/07-workspace-general.md)                          | 第二阶段／P1       | 已完成（名称／图标）           | [SET-05](2026-10-16-settings/05-home-sections-and-connection.md)                                                                                                                                                             |
 | [SET-08 完善机器设置的展示与管理边界](2026-10-16-settings/08-machine-management.md)               | 第二阶段／P1       | 待排期                         | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-09 完善 Agents 设置与现有额度展示](2026-10-16-settings/09-agent-management.md)               | 第二阶段／P1       | 待排期                         | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-10 完善 MCP 管理并核对使用效果](2026-10-16-settings/10-mcp-management.md)                    | 第二阶段／P1       | 待排期                         | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
@@ -206,3 +206,7 @@
 - 2026-10-17：按用户授权开始实际首页重排，一并接入偏好、外观、关于；验证仅覆盖设置分组、迁移选项和入口返回，不扩展聊天、模型或 Share Extension 回归。
 
 - 2026-10-17：完成 SET-02 至 SET-05。正式首页已接入偏好、外观、关于；pnpm check、pnpm bundle 与设置范围的英文浅深色检查通过。复用原签名 Debug app，未新增原生改动；未运行 iPad 或业务全流程，SET-06 保留集成收口。证据：`.artifacts/settings-reorder/`。
+
+- 2026-10-17：用户要求先搁置 iPad，直接接入 SET-07。SET-06 的剩余 iPad 检查不阻塞本项；只接入已有工作区名称与图标编辑，不扩展生命周期或其他业务回归。
+
+- 2026-10-17：SET-07 已接入工作区“通用”，复用原编辑表单与写入服务。pnpm check、pnpm bundle、9 个 cloud 行为检查及独立 workspace-general 英文浅深色检查通过；生命周期操作保持暂缓，未运行 iPad 或其他业务全流程。

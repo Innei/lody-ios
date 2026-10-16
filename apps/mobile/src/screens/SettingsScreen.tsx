@@ -17,11 +17,12 @@ import { DiagnosticsScreen } from './DiagnosticsScreen';
 import { PreferencesScreen } from './PreferencesScreen';
 import { ProjectHistoryScreen } from './ProjectHistoryScreen';
 import { RemoteSettingsScreen, settingsTitle } from './RemoteSettingsScreen';
+import { WorkspaceEditorScreen } from './WorkspaceEditorScreen';
 
 function View() {
   const auth = useAuth();
   const router = useRouter();
-  const { push, cancel } = usePageRuntime();
+  const { push, present, cancel } = usePageRuntime();
   const colors = usePalette();
   const connection = useConnection();
   const { selected, refresh } = useCatalog();
@@ -72,6 +73,14 @@ function View() {
     const rows: NativeListSection['rows'] = [];
     let footer: string | undefined;
     if (workspace) {
+      rows.push({
+        id: 'workspace-general',
+        title: t('settings.workspace.general'),
+        subtitle: t('settings.workspace.generalSubtitle'),
+        image: 'building.2',
+        action: true,
+        disclosure: true,
+      });
       for (const kind of ['machine', 'agent', 'mcp'] as const) {
         rows.push({
           id: `remote-${kind}`,
@@ -202,6 +211,17 @@ function View() {
       sections={sections}
       placeholder=""
       onRowPress={({ nativeEvent: { id } }) => {
+        if (id === 'workspace-general' && workspace)
+          void present(
+            WorkspaceEditorScreen,
+            {
+              workspaceId: workspace.id,
+              name: workspace.name,
+              image: workspace.image,
+              color: colors.accent,
+            },
+            { title: t('settings.workspace.general') },
+          );
         for (const kind of ['machine', 'agent', 'mcp'] as const) {
           if (id === `remote-${kind}` && workspace)
             void push(

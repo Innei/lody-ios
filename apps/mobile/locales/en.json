@@ -1142,5 +1142,7 @@
   "settings.workspace.unavailable": "No workspace available",
   "settings.workspace.unavailableHint": "Join or create a workspace in Lody to access workspace settings.",
   "settings.connection.resync": "Resync",
-  "settings.connection.cached": "Showing saved workspace data."
+  "settings.connection.cached": "Showing saved workspace data.",
+  "settings.workspace.general": "General",
+  "settings.workspace.generalSubtitle": "Name and icon"
 }

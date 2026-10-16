@@ -294,6 +294,11 @@ navigation and cancelled/completed edge-pop, then cold-launches to prove the sav
 Steer choice restores. `preferences-preview` is the direct Debug entry; product
 Settings reaches it through the Personal group and no longer repeats its options.
 
+`workspace-general` uses the existing offline Home providers to exercise only
+Settings → Workspace → General: the shared editor, seeded system icon picker,
+name save/readback, cancellation, home-name projection and the target after a
+workspace switch. No cloud workspace is changed; no iPad or full Home flow runs.
+
 `settings-baseline` checks the reorganized production Settings layout in six
 resettable contexts: signed out, signed in without a workspace, live, syncing,
 offline, and an offline cached projection. It captures each list's top/bottom,

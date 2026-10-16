@@ -290,6 +290,29 @@ test('workspace icon upload stores the returned public avatar URL', async (t) =>
   );
 });
 
+test('workspace edits keep the explicit target and reject permission errors', async (t) => {
+  const requests = [];
+  t.mock.method(globalThis, 'fetch', async (_, options) => {
+    requests.push(JSON.parse(options.body));
+    return Response.json({ code: 'FORBIDDEN' }, { status: 403 });
+  });
+  await assert.rejects(
+    updateWorkspace('token', 'original', 'Draft name'),
+    /403/,
+  );
+  await assert.rejects(
+    updateWorkspaceIcon('token', 'original', 'https://cdn.lody.ai/icon.png'),
+    /403/,
+  );
+  assert.deepEqual(requests, [
+    { organizationId: 'original', data: { name: 'Draft name' } },
+    {
+      organizationId: 'original',
+      data: { logo: 'https://cdn.lody.ai/icon.png' },
+    },
+  ]);
+});
+
 test('workspace grant accepts the device session bearer directly', async (t) => {
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     assert.equal(new URL(url).pathname, '/api/loro-streams/token');
