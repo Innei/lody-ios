@@ -1,3 +1,4 @@
+import { PromptShortcutsPreviewScreen } from './PromptShortcutsPreviewScreen';
 import { ProposedPlanPreviewScreen } from './ProposedPlanPreviewScreen';
 import { MermaidPreviewScreen } from './MermaidPreviewScreen';
 import { AppIconFailurePreviewScreen } from './AppIconFailurePreviewScreen';
@@ -387,6 +388,8 @@ function View() {
       void present(ProjectHistoryPreviewScreen, {}),
     'pull-request-preview': () => void present(PullRequestPreviewScreen, {}),
     'project-picker-preview': () => void openCreateParity(),
+    'prompt-shortcuts-preview': () =>
+      void present(PromptShortcutsPreviewScreen, {}),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
     'machine-settings-preview': () =>
       void present(MachineSettingsPreviewScreen, {}),

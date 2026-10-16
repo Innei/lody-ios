@@ -1,6 +1,7 @@
 export {
   sessionSharingRaw,
   remoteSettingsRaw,
+  promptShortcutsRaw,
   runtimeInfo,
   initialAccentColor,
   showAccentColorPicker,

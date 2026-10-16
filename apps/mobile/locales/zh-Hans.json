@@ -1152,5 +1152,22 @@
   "settings.connection.resync": "重新同步",
   "settings.connection.cached": "正在显示已保存的工作区数据。",
   "settings.workspace.general": "通用",
-  "settings.workspace.generalSubtitle": "名称与图标"
+  "settings.workspace.generalSubtitle": "名称与图标",
+  "settings.shortcuts.title": "Prompt Shortcuts",
+  "settings.shortcuts.private": "仅自己",
+  "settings.shortcuts.workspace": "工作区共享",
+  "settings.shortcuts.hint": "工作区模板与本机快捷回复独立同步。在聊天或新会话的命令选择器中选择 /shortcut:名称。",
+  "settings.shortcuts.ready": "纯文本 · 发送前重新校验",
+  "settings.shortcuts.limited": "包含上下文或提及 · iOS 仅查看",
+  "settings.shortcuts.empty": "暂无可访问的模板，可以创建私有或工作区模板。",
+  "settings.shortcuts.loadFailed": "暂时无法确认模板访问权限，请刷新重试。",
+  "settings.shortcuts.changed": "模板已变更或访问权限已撤销，请刷新后重新打开。",
+  "settings.shortcuts.saveFailed": "暂时无法确认保存结果。草稿已保留，请重试本次保存，或取消并刷新。",
+  "settings.shortcuts.readonly": "仅所有者可编辑。带上下文或结构化提及的模板在 iOS 上仅供查看。",
+  "settings.shortcuts.slug": "命令名称",
+  "settings.shortcuts.slugHint": "使用 1–40 个小写字母、数字或连字符。",
+  "settings.shortcuts.visibilityHint": "创建时选择可见性。iOS 保留已有模板的可见性。",
+  "settings.shortcuts.uncertain": "已固定本次保存内容以便安全重试。取消并重新打开后可再次编辑。",
+  "settings.shortcuts.add": "添加模板",
+  "send.error.shortcut": "暂时无法验证此模板。请刷新 Prompt Shortcuts，或移除命令后重试。"
 }

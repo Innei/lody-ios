@@ -1152,5 +1152,22 @@
   "settings.connection.resync": "Resync",
   "settings.connection.cached": "Showing saved workspace data.",
   "settings.workspace.general": "General",
-  "settings.workspace.generalSubtitle": "Name and icon"
+  "settings.workspace.generalSubtitle": "Name and icon",
+  "settings.shortcuts.title": "Prompt Shortcuts",
+  "settings.shortcuts.private": "Private",
+  "settings.shortcuts.workspace": "Shared with workspace",
+  "settings.shortcuts.hint": "Workspace shortcuts sync independently of local Quick Replies. Choose /shortcut:slug in the command picker in chat or a new session.",
+  "settings.shortcuts.ready": "Plain text · checked again before sending",
+  "settings.shortcuts.limited": "Requires context or references · view only on iOS",
+  "settings.shortcuts.empty": "No accessible shortcuts. Add a private or workspace shortcut.",
+  "settings.shortcuts.loadFailed": "Could not verify shortcut access. Refresh to try again.",
+  "settings.shortcuts.changed": "Shortcut changed or access was revoked. Refresh and reopen.",
+  "settings.shortcuts.saveFailed": "Save could not be confirmed. Your draft is retained; retry this same save or cancel and refresh.",
+  "settings.shortcuts.readonly": "Only the owner can edit. Templates with context or structured references are view only on iOS.",
+  "settings.shortcuts.slug": "Command name",
+  "settings.shortcuts.slugHint": "Use 1–40 lowercase letters, digits or hyphens.",
+  "settings.shortcuts.visibilityHint": "Choose visibility when creating. Existing visibility is preserved on iOS.",
+  "settings.shortcuts.uncertain": "This save is held unchanged for a safe manual retry. Cancel and reopen to start another edit.",
+  "settings.shortcuts.add": "Add Shortcut",
+  "send.error.shortcut": "This shortcut could not be verified. Refresh Prompt Shortcuts or remove its command and try again."
 }

@@ -1,3 +1,4 @@
+import { PromptShortcutsScreen } from './PromptShortcutsScreen';
 import { useRouter } from 'expo-router';
 import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
@@ -95,6 +96,14 @@ function View() {
           navigates: true,
         });
       }
+      rows.push({
+        id: 'prompt-shortcuts',
+        title: t('settings.shortcuts.title'),
+        image: 'doc.text',
+        action: true,
+        disclosure: true,
+        navigates: true,
+      });
       footer = [
         t(`settings.connection.${connection.state}`),
         tp('settings.machineCount', connection.machines, {
@@ -230,6 +239,8 @@ function View() {
               { title: settingsTitle(kind) },
             );
         }
+        if (id === 'prompt-shortcuts' && workspace)
+          void push(PromptShortcutsScreen);
         if (id === 'preferences') void push(PreferencesScreen);
         if (id === 'appearance') void push(AppearanceScreen);
         if (id === 'about') void push(AboutScreen);

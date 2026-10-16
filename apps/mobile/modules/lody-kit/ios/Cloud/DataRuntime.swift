@@ -230,6 +230,19 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         self.shareTasks.removeValue(forKey: id)
         view.callAsyncJavaScript("globalThis.dataRuntime.shareResult(id, value, failed)", arguments: ["id": id, "value": result ?? NSNull(), "failed": result == nil], in: nil, in: .page, completionHandler: nil)
       }
+    case "shortcutCloud":
+      guard let workspace, body["workspaceId"] as? String == workspace,
+            let id = body["id"] as? String, UUID(uuidString: id) != nil,
+            let operation = body["operation"] as? String, let args = body["args"] as? [String: Any],
+            githubTasks[id] == nil, githubTasks.count < 8 else { return }
+      let user = userId
+      githubTasks[id] = Task { [weak self, weak view] in
+        let result = try? await PromptShortcutCloud.call(operation: operation, workspace: workspace, args: args)
+        guard !Task.isCancelled, let self, let view, self.webView === view,
+              self.workspace == workspace, self.userId == user else { return }
+        self.githubTasks.removeValue(forKey: id)
+        view.callAsyncJavaScript("globalThis.dataRuntime.shortcutCloudResult(id, value, failed)", arguments: ["id": id, "value": result ?? NSNull(), "failed": result == nil], in: nil, in: .page, completionHandler: nil)
+      }
     case "githubMentions":
       guard let workspace, body["workspaceId"] as? String == workspace,
             let id = body["id"] as? String, UUID(uuidString: id) != nil,
@@ -567,7 +580,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     if method == "createSession" || method == "sendTurn" || method == "editSession" || method == "checkTurnQuota" {
       args["billingEntitlement"] = billing ?? NSNull()
     }
-    if method == "remoteSettings" || method == "localProjects" || method == "mentionCatalog" { args["userId"] = userId }
+    if method == "promptShortcuts" || method == "remoteSettings" || method == "localProjects" || method == "mentionCatalog" { args["userId"] = userId }
     if method == "editSession" || method == "sessionPreview" || method == "iosSimulatorControl" { args["userId"] = userId }
     let id = UUID(); commands[id] = sink
     if (method == "sendTurn" || (method == "editSession" && args["action"] as? String == "send")), args["backgroundTaskId"] == nil, !backgrounded {
@@ -576,7 +589,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     let backgroundTaskId = args["backgroundTaskId"] as? String
     var timeout: Double = 45
     if method == "editSession" { timeout = 130 }
-    if method == "sessionSharing" { timeout = 130 }
+    if method == "sessionSharing" || method == "promptShortcuts" { timeout = 130 }
     if method == "sessionPreview" { timeout = 330 }
     if method == "iosSimulatorControl" { timeout = 100 }
     if method == "localProjects" && args["action"] as? String == "history" { timeout = 130 }

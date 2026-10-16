@@ -21,7 +21,8 @@
     "@loro-dev/streams-client": "0.7.0",
     "@loro-dev/streams-crdt": "0.16.1",
     "fzstd": "0.1.1",
-    "loro-crdt": "1.15.1"
+    "loro-crdt": "1.15.1",
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "typescript": "~6.0.3"

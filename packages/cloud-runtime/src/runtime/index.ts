@@ -1,3 +1,12 @@
+import {
+  promptShortcuts,
+  shortcutAccess,
+  expandShortcuts,
+} from './prompt-shortcuts';
+import {
+  simpleShortcut,
+  type ShortcutRequest,
+} from '../models/prompt-shortcuts.ts';
 import { mentionCatalog, sessionMentions, commandMentions } from './mentions';
 import { createSharingRuntime } from './sharing/runtime.ts';
 import { readShareHistory } from './sharing/history.ts';
@@ -86,6 +95,43 @@ let grantReject: ((error: Error) => void) | undefined;
 let grant: Grant | undefined,
   expiresAt = 0;
 let grantPending: Promise<Grant> | undefined;
+const shortcutReplies = new Map<
+  string,
+  (value: unknown, failed: boolean) => void
+>();
+function shortcutCloud(
+  operation: string,
+  args: Record<string, unknown>,
+  workspaceId: string,
+): Promise<unknown> {
+  if (workspaceId !== workspace)
+    return Promise.reject(new Error('workspace_changed'));
+  const id = crypto.randomUUID();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      shortcutReplies.delete(id);
+      reject(new Error('shortcut_unavailable'));
+    }, 20000);
+    shortcutReplies.set(id, (value, failed) => {
+      clearTimeout(timer);
+      if (failed) reject(new Error('shortcut_unavailable'));
+      else resolve(value);
+    });
+    send({ type: 'shortcutCloud', id, workspaceId, operation, args });
+  });
+}
+function scopedShortcutCloud(workspaceId: string, userId: string) {
+  return async (operation: string, args: Record<string, unknown>) => {
+    const check = () => {
+      if (workspace !== workspaceId || runtimeUserId !== userId)
+        throw new Error('workspace_changed');
+    };
+    check();
+    const value = await shortcutCloud(operation, args, workspaceId);
+    check();
+    return value;
+  };
+}
 const githubReplies = new Map<string, (value: MentionCatalog | null) => void>();
 const githubPending = new Map<string, Promise<MentionCatalog>>();
 function githubMentions(repoFullName: string): Promise<MentionCatalog> {
@@ -539,28 +585,59 @@ async function getMentions(
     };
   }
   if (args.category === 'cmd') {
-    const metadata = session
-      ? (metaReplica.flock.get(['m', `session-${session.id}`]) as
-          Record<string, unknown> | undefined)
-      : undefined;
-    const configId = session
-      ? (metaReplica.flock.get([
-          'm',
-          `session-${session.id}`,
-          'agentConfigId',
-        ]) ?? metadata?.agentConfigId)
-      : args.agentConfigId;
-    if (typeof configId !== 'string') return commandMentions([]);
-    const capability = machineReplicas
-      .get(machineId)
-      ?.get(['acpCapability', configId]) as Record<string, unknown> | undefined;
-    if (
-      !capability ||
-      capability.cliType !== (args.cliType ?? session?.cliType) ||
-      capability.agentType !== (args.agentType ?? session?.agentType)
-    )
-      return commandMentions([]);
-    return commandMentions(capability.availableCommands);
+    const sourceWorkspace = workspace;
+    const access = shortcutAccess(
+      workspace,
+      runtimeUserId,
+      scopedShortcutCloud(sourceWorkspace, runtimeUserId),
+      AbortSignal.timeout(30000),
+    );
+    const shortcuts = (await access.list().catch(() => []))
+      .filter(simpleShortcut)
+      .map((entry) => ({
+        path: entry.id,
+        name: `/shortcut:${entry.slug}`,
+        kind: 'cmd' as const,
+        subtitle: entry.name,
+        insertText: `/shortcut:${entry.slug}`,
+      }));
+    const currentMeta = metaReplica;
+    if (!currentMeta || workspace !== sourceWorkspace || unhealthy.size)
+      throw new Error('metadata_not_ready');
+    const commands = () => {
+      const metadata = session
+        ? (currentMeta.flock.get(['m', `session-${session.id}`]) as
+            Record<string, unknown> | undefined)
+        : undefined;
+      const configId = session
+        ? (currentMeta.flock.get([
+            'm',
+            `session-${session.id}`,
+            'agentConfigId',
+          ]) ?? metadata?.agentConfigId)
+        : args.agentConfigId;
+      if (typeof configId !== 'string') return commandMentions([]);
+      const capability = machineReplicas
+        .get(machineId)
+        ?.get(['acpCapability', configId]) as
+        Record<string, unknown> | undefined;
+      if (
+        !capability ||
+        capability.cliType !== (args.cliType ?? session?.cliType) ||
+        capability.agentType !== (args.agentType ?? session?.agentType)
+      )
+        return commandMentions([]);
+      return commandMentions(capability.availableCommands);
+    };
+    const result = commands();
+    const names = new Set(result.items.map((item) => item.insertText));
+    return {
+      ...result,
+      items: [
+        ...result.items,
+        ...shortcuts.filter((item) => !names.has(item.insertText)),
+      ],
+    };
   }
   if (args.category === 'role') {
     const pinned =
@@ -637,6 +714,20 @@ Object.assign(globalThis, {
       reply?.(value, failed);
     },
     ping: () => true,
+    shortcutCloudResult(id: string, value: unknown, failed: boolean) {
+      shortcutReplies.get(id)?.(value, failed);
+      shortcutReplies.delete(id);
+    },
+    async promptShortcuts(args: ShortcutRequest & { userId: string }) {
+      if (args.workspaceId !== workspace || args.userId !== runtimeUserId)
+        throw new Error('workspace_changed');
+      return promptShortcuts(
+        args,
+        args.userId,
+        scopedShortcutCloud(args.workspaceId, args.userId),
+        AbortSignal.timeout(120000),
+      );
+    },
     githubMentionsResult(id: string, value: MentionCatalog | null) {
       const reply = githubReplies.get(id);
       githubReplies.delete(id);
@@ -1067,9 +1158,18 @@ Object.assign(globalThis, {
         cliType: args.cliType,
         agentType: args.agentType,
       };
+      const sourceWorkspace = workspace;
+      const access = shortcutAccess(
+        workspace,
+        runtimeUserId,
+        scopedShortcutCloud(sourceWorkspace, runtimeUserId),
+        AbortSignal.timeout(30000),
+      );
       return sendSessionTurn(args, (text) =>
-        expandMentions(text, (category) =>
-          getMentions({ ...source, category }),
+        expandShortcuts(text, access.list, access.read, (part) =>
+          expandMentions(part, (category) =>
+            getMentions({ ...source, category }),
+          ),
         ),
       );
     },
