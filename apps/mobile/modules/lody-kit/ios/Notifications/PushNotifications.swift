@@ -40,7 +40,10 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
 
   nonisolated func onPushSubscriptionDidChange(state: OSPushSubscriptionChangedState) {
     let id = state.current.id
-    Task { @MainActor in self.evaluateSubscription(id) }
+    Task { @MainActor in
+      self.evaluateSubscription(id)
+      if self.registered { LiveActivities.shared.recoverRegistrations() }
+    }
   }
 
   nonisolated func onUserStateDidChange(state: OSUserChangedState) {
@@ -185,7 +188,7 @@ public final class PushAppDelegateSubscriber: ExpoAppDelegateSubscriber {
     DiagnosticsStore.shared.record("app", "foreground", fields: ["appState": String(application.applicationState.rawValue)])
     LiveActivities.shared.diagnosticSnapshot("foreground")
     PushNotifications.shared.status { _ in }
-    LiveActivities.shared.start()
+    LiveActivities.shared.recoverRegistrations()
   }
 
   public func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {

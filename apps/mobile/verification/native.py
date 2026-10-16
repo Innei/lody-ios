@@ -64,6 +64,7 @@ checks = {
         'Toast/LodySessionBannerView.swift',
     ],
     'chat-title': ['LodyStrings.swift', 'LodyUIVerify.swift', 'Chrome/LodyNavigationHeader.swift', 'Chat/ChatNavigationTitle.swift'],
+    'live-activity-registration': ['Notifications/LiveActivityRegistration.swift'],
     'live-activity': ['../live-activity/LodyActivityAttributes.swift', '../live-activity/LiveActivityCatalog.swift'],
     'page-progress': ['List/LodyPageProgress.swift'],
     'create-session': ['LodyStrings.swift', 'CreateSession/CreateSessionForm.swift'],
