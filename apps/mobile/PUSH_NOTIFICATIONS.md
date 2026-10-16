@@ -77,8 +77,25 @@ OneSignal. The native owner uses OneSignal's manual registration API, not automa
 `setup`: it observes both current and future activity tokens and push-to-start
 tokens. Registration requires an initialized SDK, an identified user, the app toggle
 and system authorization. Turning the toggle off removes the push-to-start token;
-account changes detach registrations and end the old activities before OneSignal
+account changes end old activities and queue registration cleanup before OneSignal
 changes identity. Offline Debug scenes never register tokens.
+
+OneSignal 5.5.1's enter/exit success callbacks acknowledge SDK enqueueing, not
+HTTP success; the failure callbacks are not wired to its network executor. Logs
+therefore say `enter_submitted` / `exit_submitted`. Foreground and push-subscription
+readiness re-submit current tokens and call the SDK's public
+`OneSignalLiveActivitiesManagerImpl.start()` hook to schedule a pending-cache poll.
+Identical tokens alone are ignored by the SDK cache, including cached unsuccessful
+requests. Recovery polls are throttled to one request per 30 seconds, matching the
+SDK's delayed poll; they do not keep the app alive in the background.
+
+A replacement native instance under the same v5 ID updates the token without an
+intermediate exit, avoiding an unnecessary DELETE racing the replacement POST.
+Ended activities invalidate their observers and still submit exit. Registration
+recovery does not establish device delivery. Recheck these assumptions when
+upgrading the pinned SDK:
+[enqueue callbacks](https://github.com/OneSignal/OneSignal-iOS-SDK/blob/5.5.1/iOS_SDK/OneSignalSDK/OneSignalLiveActivities/Source/OneSignalLiveActivitiesManagerImpl.swift),
+[request cache and retry poll](https://github.com/OneSignal/OneSignal-iOS-SDK/blob/5.5.1/iOS_SDK/OneSignalSDK/OneSignalLiveActivities/Source/Executors/OSLiveActivitiesExecutor.swift).
 
 Convex `notifications.syncLiveActivitySummary` updates the v5 activity ID
 `lody-conversations:v5:<workspaceId>:<userId>`. When `permissionAlert` is present,
@@ -218,10 +235,10 @@ logs, not public reports.
 
 Trace one `activity` key in this order:
 
-1. `created` / `observe`, then `enter_requested` → `enter_succeeded` or
-   `enter_failed`. A local token is not proof of successful OneSignal registration.
-   `current=false` means the callback arrived after the observer was replaced or
-   removed; it does not restore registration. No callback means outcome unknown.
+1. `created` / `observe`, then `enter_submitted`: the token was handed to the SDK,
+   not acknowledged by OneSignal's server. `registration_recovery_requested`
+   schedules the SDK pending-cache poll. Older builds' `enter_succeeded` callback
+   also only acknowledged enqueueing; never use it as a network receipt.
 2. Convex `request` / `response`: distinguish HTTP acceptance from delivery. Use
    `messageId` to open the OneSignal report and check recipients/failures/delivery.
    The same hash may be sent to several app aliases; compare `oneSignalApp` from
@@ -233,9 +250,10 @@ Trace one `activity` key in this order:
    suspended app may not observe them until foreground. Foreground/background
    snapshots provide the current state. Counts-changing observations are logged
    immediately; repeated local content is sampled at most once per minute.
-4. `exit_requested` gives the initiating reason (`catalog_inactive`,
-   `workspace_changed`, `identity_changed`, `toggle_off`,
-   `native_activity_replaced`, or a system lifecycle transition). `lifecycle`
+4. `unregister` gives the initiating reason (`catalog_inactive`,
+   `workspace_changed`, `identity_changed`, `toggle_off`, `recovery_not_active`,
+   or a system lifecycle transition); `exit_submitted` only acknowledges SDK
+   submission. Same-ID native replacement no longer submits exit. `lifecycle`
    reports `stale`, `ended`, or `dismissed` independently. A system `ended` event
    alone does not identify whether APNs or iOS ended the activity.
 
@@ -248,7 +266,8 @@ Neither fix makes ordinary updates recreate an already ended activity.
 There is no three-minute end timer; the failure required a subsequent summary
 trigger. The separate 30-minute content freshness deadline only marks content
 stale. Device logs are still needed to attribute a particular incident.
-This native diagnostic change does not alter start/end policy or add retries.
+The original diagnostic change did not alter start/end policy or add retries.
+The registration recovery described above is separate from that producer fix.
 
 The diagnostic code needs a new native build and the backend logging changes need
 deployment to the app's actual Convex environment before a device timeline can be

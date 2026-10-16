@@ -17,6 +17,23 @@ final class LiveActivities {
   private var workStarts: [String: Double] = [:]
   private var userId: String?
   private var identityResolved = false
+  private lazy var registrations = LiveActivityRegistration(
+    enter: { id, token in
+      OneSignal.LiveActivities.enter(id, withToken: Self.hex(token))
+      Self.diagnostic("enter_submitted", id: id)
+    },
+    exit: { id in
+      OneSignal.LiveActivities.exit(id)
+      Self.diagnostic("exit_submitted", id: id)
+    },
+    restart: {
+      // 5.5.1 retains retryable failures in its cache but needs another start
+      // to poll them. Re-entering an identical cached token alone is a no-op.
+      OneSignalLiveActivitiesManagerImpl.start()
+      Self.diagnostic("registration_recovery_requested")
+    },
+    now: { ProcessInfo.processInfo.systemUptime }
+  )
 
   func syncAppIcon() {
     let name = UIApplication.shared.alternateIconName ?? "default"
@@ -67,7 +84,22 @@ final class LiveActivities {
     }
   }
 
-  // Called before OneSignal switches identity so old bindings are detached first.
+  func recoverRegistrations() {
+    start()
+    guard PushNotifications.shared.configured else { return }
+    // Lifecycle streams may resume after this foreground callback. Fence ended
+    // or dismissed native instances before re-submitting their cached tokens.
+    let live = Set(Activity<LodyActivityAttributes>.activities.filter {
+      enabled && ActivityAuthorizationInfo().areActivitiesEnabled &&
+        $0.attributes.userId == userId && ($0.activityState == .active || $0.activityState == .stale)
+    }.map(\.id))
+    for (id, observation) in tokenTasks where !live.contains(observation.nativeId) {
+      unregister(id, reason: "recovery_not_active")
+    }
+    registrations.recover()
+  }
+
+  // Called before OneSignal switches identity to invalidate old observers and queue cleanup.
   func identify(_ id: String?) {
     // On a push-to-start cold launch, SDK identity restoration can trail ActivityKit.
     // Preserve a matching server-started activity until app auth resolves its owner.
@@ -262,18 +294,18 @@ final class LiveActivities {
   }
 
   private func unregister(_ id: String, reason: String) {
-    Self.diagnostic("exit_requested", id: id, fields: ["reason": reason])
+    Self.diagnostic("unregister", id: id, fields: ["reason": reason])
+    stopObserving(id)
+    registrations.exit(id)
+  }
+
+  private func stopObserving(_ id: String) {
     if let observation = tokenTasks.removeValue(forKey: id) {
       observation.task.cancel()
       observation.lifecycle.cancel()
       observation.content.cancel()
     }
     lastContentLog.removeValue(forKey: id)
-    OneSignal.LiveActivities.exit(id, withSuccess: { _ in
-      Self.diagnostic("exit_succeeded", id: id, fields: ["reason": reason])
-    }, withFailure: { error in
-      Self.diagnostic("exit_failed", id: id, fields: ["reason": reason, "code": String((error as NSError?)?.code ?? 0)])
-    })
   }
 
   func endAll(reason: String = "explicit_end_all") {
@@ -345,18 +377,19 @@ final class LiveActivities {
           activity.activityState == .active || activity.activityState == .stale else { return }
     if let current = tokenTasks[id] {
       guard current.nativeId != activity.id else { return }
-      unregister(id, reason: "native_activity_replaced")
+      stopObserving(id)
     }
     let stamp = UUID()
+    registrations.observe(id, stamp: stamp)
     Self.diagnostic("observe", id: id, fields: ["native": Self.correlation(activity.id), "hasToken": String(activity.pushToken != nil)])
     let tokens = Task { @MainActor in
       guard !Task.isCancelled, enabled, userId == owner else { return }
       if let token = activity.pushToken {
-        register(id, token: token, stamp: stamp, source: "current")
+        register(id, token: token, stamp: stamp)
       }
       for await token in activity.pushTokenUpdates {
         guard !Task.isCancelled, enabled, userId == owner else { return }
-        register(id, token: token, stamp: stamp, source: "stream")
+        register(id, token: token, stamp: stamp)
       }
     }
     let lifecycle = Task { @MainActor in
@@ -391,19 +424,9 @@ final class LiveActivities {
     tokenTasks[id] = (stamp, activity.id, tokens, lifecycle, content)
   }
 
-  private func register(_ id: String, token: Data, stamp: UUID, source: String) {
-    let attempt = UUID().uuidString
-    Self.diagnostic("enter_requested", id: id, fields: ["attempt": attempt, "source": source])
-    OneSignal.LiveActivities.enter(id, withToken: Self.hex(token), withSuccess: { _ in
-      Task { @MainActor in
-        Self.diagnostic("enter_succeeded", id: id, fields: ["attempt": attempt, "current": String(self.tokenTasks[id]?.stamp == stamp)])
-      }
-    }, withFailure: { error in
-      let code = (error as NSError?)?.code ?? 0
-      Task { @MainActor in
-        Self.diagnostic("enter_failed", id: id, fields: ["attempt": attempt, "code": String(code), "current": String(self.tokenTasks[id]?.stamp == stamp)])
-      }
-    })
+  private func register(_ id: String, token: Data, stamp: UUID) {
+    guard tokenTasks[id]?.stamp == stamp else { return }
+    registrations.enter(id, token: token, stamp: stamp)
   }
 
   private func observeCurrentActivities() {
