@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { setLocale } from '../../src/lib/i18n/index.ts';
+import { setLocale, t } from '../../src/lib/i18n/index.ts';
 import {
   loadRemoteSettings,
   memoryRemoteSettingsCache,
@@ -188,5 +188,63 @@ test('saved snapshots reject catalog-shaped or cross-kind payloads', () => {
   assert.equal(
     parseSavedRemoteSettings({ configs: usage.m1.configs }, 'agent'),
     null,
+  );
+});
+
+const machines = [
+  { kind: 'machine', id: 'owner-mac', name: 'Studio Mac', detail: 'macOS' },
+  { kind: 'machine', id: 'team-mac', name: 'Studio Mac', readOnly: true },
+];
+const machineList = {
+  kind: 'machine',
+  items: machines,
+  error: '',
+  connected: true,
+  syncedAt: 1,
+  now: 1000,
+  machinePresence: { state: 'live', onlineMachineIds: ['owner-mac'] },
+};
+
+test('same-name machines expose distinct identities, presence and edit permissions', () => {
+  const [section] = remoteSettingsSections(machineList);
+  const [owner, teammate] = section.rows;
+  assert.equal(owner.title, teammate.title);
+  assert.notEqual(owner.id, teammate.id);
+  assert.match(owner.subtitle, /owner-mac/);
+  assert.match(teammate.subtitle, /team-mac/);
+  assert.ok(owner.subtitle.includes(t('devices.online')));
+  assert.ok(teammate.subtitle.includes(t('devices.offline')));
+  assert.equal(owner.action, true);
+  assert.equal(teammate.action, false);
+  assert.equal(teammate.disclosure, false);
+  assert.ok(teammate.subtitle.includes(t('settings.remote.readOnly')));
+});
+
+test('disconnected or failed machine refresh never presents stale presence as online', () => {
+  for (const state of [{ connected: false }, { error: 'refresh failed' }]) {
+    const [section] = remoteSettingsSections({ ...machineList, ...state });
+    assert.ok(
+      section.rows.every((row) => row.subtitle.includes(t('devices.unknown'))),
+    );
+    assert.ok(
+      section.rows.every((row) => !row.subtitle.includes(t('devices.online'))),
+    );
+    assert.deepEqual(
+      section.rows.map((row) => row.title),
+      ['Studio Mac', 'Studio Mac'],
+    );
+    assert.ok(section.footer.includes(t('settings.remote.machineCached')));
+    assert.ok(
+      section.footer.includes(
+        t('settings.remote.syncedAt', { time: t('time.justNow') }),
+      ),
+    );
+  }
+  const [section] = remoteSettingsSections({
+    ...machineList,
+    machinePresence: { state: 'unknown', onlineMachineIds: [] },
+  });
+  assert.ok(
+    section.rows.every((row) => row.subtitle.includes(t('devices.unknown'))),
   );
 });

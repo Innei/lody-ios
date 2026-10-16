@@ -685,6 +685,8 @@
   "settings.remote.agent": "Agent",
   "settings.remote.mcp": "MCP 服务器",
   "settings.remote.machineHint": "机器名称会同步到此工作区的其他客户端。",
+  "settings.remote.machineOwnerHint": "你只能修改自己拥有的机器名称。",
+  "settings.remote.machineCached": "正在显示已保存的机器设置，刷新后才能确认状态。",
   "settings.remote.agentHint": "修改应用于所属机器上的此 Agent。提示词用于新建会话。",
   "settings.usage.window": "用量",
   "settings.usage.days.one": "{count} 天",

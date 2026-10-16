@@ -60,7 +60,10 @@ function View() {
   );
   useSheetHeader(actions, dismiss);
   return (
-    <Screen automaticallyAdjustKeyboardInsets>
+    <Screen
+      automaticallyAdjustKeyboardInsets
+      style={{ backgroundColor: colors.background }}
+    >
       <FormGroup header={t('settings.quickReplies.label')}>
         <TextInput
           testID="quick-reply-label"

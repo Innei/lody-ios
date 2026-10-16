@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { NativeGroupedList, NativeSymbolButton } from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
+import { useMachinePresence } from '@/cloud/catalog/machines';
 import { requestSettings } from '@/cloud/settings';
 import { readLocal, writeLocal } from '@/cloud/kv';
 import { definePage } from '@/lib/presentation';
@@ -22,6 +23,7 @@ import {
   type SettingsService,
 } from '@/features/settings/remote-settings';
 import type { Catalog } from '@lody/cloud-runtime/models/catalog';
+import type { MachinePresence } from '@lody/cloud-runtime/models/machines';
 import { RemoteSettingEditorScreen } from './RemoteSettingEditorScreen';
 
 export type { SettingsService };
@@ -50,6 +52,7 @@ export function RemoteSettingsView({
   workspaceId,
   service = requestSettings,
   agentUsage,
+  machinePresence,
   connected = true,
   refreshUsage,
   cache,
@@ -57,6 +60,7 @@ export function RemoteSettingsView({
   workspaceId: string;
   service?: SettingsService;
   agentUsage?: Catalog['agentUsage'];
+  machinePresence?: MachinePresence;
   connected?: boolean;
   refreshUsage?: () => void;
   cache?: SettingsListCache;
@@ -152,6 +156,7 @@ export function RemoteSettingsView({
         error,
         connected,
         agentUsage,
+        machinePresence,
         syncedAt,
       })}
       onRowPress={({ nativeEvent: { id } }) => {
@@ -185,6 +190,7 @@ function View() {
   const { params, cancel } = usePageRuntime<Params>();
   const { account } = useAuth();
   const { selected, catalog, connected, refresh } = useCatalog();
+  const machinePresence = useMachinePresence(selected?.id);
   const userId = account?.user.id;
   const cache = useMemo(
     () => (userId ? localRemoteSettingsCache(userId) : undefined),
@@ -200,6 +206,7 @@ function View() {
       kind={params.kind}
       workspaceId={selected.id}
       agentUsage={catalog.agentUsage}
+      machinePresence={machinePresence}
       connected={connected}
       refreshUsage={refresh}
       cache={cache}

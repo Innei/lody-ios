@@ -1,5 +1,10 @@
 import type { NativeListSection } from '@lody-ios/kit';
 import type { Catalog } from '@lody/cloud-runtime/models/catalog';
+import {
+  machineState,
+  unknownPresence,
+  type MachinePresence,
+} from '@lody/cloud-runtime/models/machines';
 import type {
   RemoteSetting,
   SettingsRequest,
@@ -144,6 +149,7 @@ export function remoteSettingsSections({
   error,
   connected,
   agentUsage,
+  machinePresence = unknownPresence,
   syncedAt,
   now,
 }: {
@@ -153,6 +159,7 @@ export function remoteSettingsSections({
   error: string;
   connected: boolean;
   agentUsage?: Catalog['agentUsage'];
+  machinePresence?: MachinePresence;
   syncedAt?: number;
   now?: number;
 }): NativeListSection[] {
@@ -160,16 +167,23 @@ export function remoteSettingsSections({
     syncedAt === undefined
       ? undefined
       : t('settings.remote.syncedAt', { time: relativeTime(syncedAt, now) });
+  const presence = connected && !error ? machinePresence : unknownPresence;
   const settingRows = items.map((item) => ({
     id: remoteSettingId(item),
     title: item.name || item.id,
     subtitle: [
-      item.detail,
+      kind === 'machine'
+        ? [item.detail, t(`devices.${machineState(presence, item.id)}`)]
+            .filter(Boolean)
+            .join(' · ')
+        : item.detail,
+      kind === 'machine' ? item.id : undefined,
       kind === 'agent' ? undefined : item.machineName,
       item.readOnly ? t('settings.remote.readOnly') : undefined,
     ]
       .filter(Boolean)
-      .join(' · '),
+      .join(kind === 'machine' ? '\n' : ' · '),
+    wrapSubtitle: kind === 'machine',
     value: settingValue(item),
     disclosure: !item.readOnly,
     action: !item.readOnly,
@@ -209,6 +223,10 @@ export function remoteSettingsSections({
       id: 'settings',
       footer: joinFooter(
         error ? undefined : t(`settings.remote.${kind}Hint`),
+        kind === 'machine' ? t('settings.remote.machineOwnerHint') : undefined,
+        kind === 'machine' && items.length && (!connected || error)
+          ? t('settings.remote.machineCached')
+          : undefined,
         synced,
       ),
       rows: settingRows,

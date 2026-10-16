@@ -46,6 +46,8 @@ import { ShinePreviewScreen } from './ShinePreviewScreen';
 import { SessionTreePreviewScreen } from './SessionTreePreviewScreen';
 import { InboxPreviewScreen } from './InboxPreviewScreen';
 import { SettingsPreviewScreen } from './SettingsPreviewScreen';
+import { MachineSettingsPreviewScreen } from './MachineSettingsPreviewScreen';
+import { SettingsFormsPreviewScreen } from './SettingsFormsPreviewScreen';
 import { SettingsScreen } from '../SettingsScreen';
 import { PreferencesScreen } from '../PreferencesScreen';
 import { QuickRepliesPreviewScreen } from './QuickRepliesPreviewScreen';
@@ -198,6 +200,12 @@ function View() {
           'arrow.triangle.2.circlepath',
         ),
         openRow('settings-preview', '远程设置验收', 'gear'),
+        openRow('machine-settings-preview', '机器设置验收', 'desktopcomputer'),
+        openRow(
+          'settings-forms-preview',
+          '设置表单背景验收',
+          'rectangle.inset.filled',
+        ),
         openRow('preferences-preview', '偏好设置验收', 'slider.horizontal.3'),
         openRow('diagnostics-preview', 'Diagnostics', 'waveform.path.ecg'),
         openRow('app-icon-failure-preview', 'Icon failure', 'app.dashed'),
@@ -390,6 +398,10 @@ function View() {
     'pull-request-preview': () => void present(PullRequestPreviewScreen, {}),
     'project-picker-preview': () => void openCreateParity(),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
+    'machine-settings-preview': () =>
+      void present(MachineSettingsPreviewScreen, {}),
+    'settings-forms-preview': () =>
+      void present(SettingsFormsPreviewScreen, {}),
     'app-icon-failure-preview': () =>
       void present(AppIconFailurePreviewScreen, {}),
     'appearance-preview': () => void present(SettingsScreen, {}),

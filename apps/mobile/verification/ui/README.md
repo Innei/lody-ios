@@ -299,6 +299,17 @@ Settings → Workspace → General: the shared editor, seeded system icon picker
 name save/readback, cancellation, home-name projection and the target after a
 workspace switch. No cloud workspace is changed; no iPad or full Home flow runs.
 
+`machine-settings` opens a resettable machine-only fixture using the production
+remote list and editor. It checks same-name machine IDs, unknown status after a
+failed cached read, presence recovery, read-only behavior, conflict draft retention,
+cancel/reopen and rename readback. Run it explicitly in English light/dark with
+video; it does not run the Agent/MCP flows from `settings` or touch real machines.
+
+`settings-form-backgrounds` checks the five Settings form variants (machine,
+Agent, MCP, workspace and quick reply). It samples rendered card/background
+contrast in English light/dark before and after keyboard expansion, then cancels.
+It does not save, pick an icon or exercise notification/chat/service workflows.
+
 `settings-baseline` checks the reorganized production Settings layout in six
 resettable contexts: signed out, signed in without a workspace, live, syncing,
 offline, and an offline cached projection. It captures each list's top/bottom,

@@ -685,6 +685,8 @@
   "settings.remote.agent": "Agents",
   "settings.remote.mcp": "MCP servers",
   "settings.remote.machineHint": "Machine names are shared across clients in this workspace.",
+  "settings.remote.machineOwnerHint": "You can rename only machines you own.",
+  "settings.remote.machineCached": "Showing saved machine settings. Status is unavailable until refreshed.",
   "settings.remote.agentHint": "Changes apply to this agent on its machine. The prompt is used when starting new sessions.",
   "settings.usage.window": "Usage",
   "settings.usage.days.one": "{count} day",

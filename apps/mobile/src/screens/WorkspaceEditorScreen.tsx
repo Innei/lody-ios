@@ -116,7 +116,10 @@ function ViewScreen() {
   );
   useSheetHeader(right, left);
   return (
-    <Screen automaticallyAdjustKeyboardInsets>
+    <Screen
+      automaticallyAdjustKeyboardInsets
+      style={{ backgroundColor: colors.background }}
+    >
       <View style={styles.avatarRow}>
         <NativePressable
           accessibilityLabel={t('workspace.edit.changeIcon')}

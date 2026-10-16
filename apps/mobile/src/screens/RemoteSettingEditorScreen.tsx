@@ -86,7 +86,10 @@ function View() {
   );
   useSheetHeader(actions, dismiss);
   return (
-    <Screen automaticallyAdjustKeyboardInsets>
+    <Screen
+      automaticallyAdjustKeyboardInsets
+      style={{ backgroundColor: colors.background }}
+    >
       <FormGroup
         header={t('settings.remote.name')}
         footer={
