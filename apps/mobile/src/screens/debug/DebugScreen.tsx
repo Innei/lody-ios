@@ -52,12 +52,7 @@ import { SettingsScreen } from '../SettingsScreen';
 import { PreferencesScreen } from '../PreferencesScreen';
 import { QuickRepliesPreviewScreen } from './QuickRepliesPreviewScreen';
 import { OnboardingPreviewScreen } from './OnboardingPreviewScreen';
-import {
-  useLocalSearchParams,
-  useNavigation,
-  useRouter,
-  useTheme,
-} from 'expo-router';
+import { useLocalSearchParams, useRouter, useTheme } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Text, View as RNView } from 'react-native';
 import {
@@ -90,7 +85,6 @@ function openRow(id: string, title: string, image: string): NativeListRow {
 
 function View() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { verifyCase, request } = useLocalSearchParams<{
     verifyCase?: string;
     request?: string;
@@ -98,15 +92,11 @@ function View() {
   const openedRequest = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!uiVerify) return;
-    globalThis.__lodyUiVerifyReset = () =>
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'debug' as never, key: `verify-${Date.now()}` }],
-      });
+    globalThis.__lodyUiVerifyReset = () => router.dismissTo('/debug');
     return () => {
       delete globalThis.__lodyUiVerifyReset;
     };
-  }, [navigation]);
+  }, [router]);
   const colors = usePalette();
   const { catalog, selected } = useCatalog();
   const [runtime, setRuntime] = useState<{

@@ -55,6 +55,14 @@ function View() {
       machineName: 'Studio Mac',
     },
     {
+      kind: 'agent',
+      id: 'a5',
+      machineId: 'm1',
+      name: 'Codex Work',
+      detail: 'codex',
+      machineName: 'Studio Mac',
+    },
+    {
       kind: 'mcp',
       id: 'c1',
       name: 'Documentation',
@@ -68,7 +76,7 @@ function View() {
       name: 'Codex',
       prompt: 'Laptop instructions.',
       detail: 'codex',
-      machineName: 'Travel Mac',
+      machineName: 'Studio Mac',
     },
   ]);
   const failLoad = useRef(true),
@@ -155,6 +163,7 @@ const SettingsListPreviewScreen = definePage<{
         service={service}
         workspaceId="offline-settings"
         agentUsage={agentUsage}
+        machinePresence={{ state: 'live', onlineMachineIds: ['m1', 'm2'] }}
         connected={!offline}
         cache={cache}
         refreshUsage={() => {
@@ -176,6 +185,7 @@ function previewUsage(percent: number): Catalog['agentUsage'] {
     ['a2', 'Claude', 'claude'],
     ['a3', 'Kimi', 'kimi'],
     ['a4', 'Custom API', 'codex'],
+    ['a5', 'Codex Work', 'codex'],
   ].map(([id, name, provider]) => ({
     key: ['agentConfig', id],
     value: {
@@ -187,7 +197,7 @@ function previewUsage(percent: number): Catalog['agentUsage'] {
       env: id === 'a4' ? { API_KEY: 'offline-fixture' } : {},
     },
   }));
-  return projectRows(
+  const first = projectRows(
     [
       ...configs,
       ...[
@@ -240,6 +250,19 @@ function previewUsage(percent: number): Catalog['agentUsage'] {
     ],
     'm1',
   ).agentUsage;
+  return {
+    ...first,
+    m2: {
+      configs: [{ id: 'a1', name: 'Codex', provider: 'codex', eligible: true }],
+      quotas: [
+        {
+          id: 'codex',
+          provider: 'codex',
+          windows: [{ usedPercent: 44, duration: 18000, resetsAt: null }],
+        },
+      ],
+    },
+  };
 }
 
 export const SettingsPreviewScreen = definePage({

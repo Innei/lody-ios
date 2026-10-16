@@ -6,9 +6,9 @@
 | -------- | -------------------------------------- |
 | 阶段     | 第三阶段                               |
 | 优先级   | P2                                     |
-| 状态     | 待排期（协议待核实）                   |
+| 状态     | 已排队（已做协议预查）                 |
 | 依赖     | [SET-06](./06-phase-one-acceptance.md) |
-| 当前授权 | 编写计划；实现尚未开始                 |
+| 当前授权 | 已授权按 09 → 13 → 14 → 15 → 16 推进   |
 
 ## 目标
 
@@ -48,6 +48,12 @@
 ## 关联任务
 
 [SET-02](./02-preferences-page.md) · [SET-11](./11-agent-roles.md) · [SET-20](./20-roadmap-closeout.md)
+
+## 2026-10-17 协议预查
+
+已找到[官方公开客户端契约](https://github.com/LodyAI/Lody/blob/main/packages/cloud-api/src/index.ts)：`promptShortcuts` 提供目录发现、分资源授权、staging、activate、settle 和撤销。正文并不在普通工作区目录中；索引按所有者与 private／workspace 分域，正文使用独立文档授权。不能用现有工作区 grant 读取私有正文。
+
+本地参考源码还确认正文是 Loro 文档，包含 revision ancestry 和原子保存的 prompt／mentions；索引是 Flock。现有纯文本 mention 展开不能直接代替这套语义。下一步先接入原生认证与 scoped grant，再做目录／正文读写、冲突与撤销边界，最后接设置页和聊天消费。首版不迁移本机快捷回复。尚未调用真实云端，也未实现本仓适配。
 
 ## 实施记录
 

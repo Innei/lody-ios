@@ -299,6 +299,12 @@ Settings → Workspace → General: the shared editor, seeded system icon picker
 name save/readback, cancellation, home-name projection and the target after a
 workspace switch. No cloud workspace is changed; no iPad or full Home flow runs.
 
+`agents-settings` exercises only the production Agents list and editor: separate
+configuration/subscription groups, per-provider quota display, cached refresh,
+read-only ownership, failed-save draft retention and machine-scoped prompt readback.
+It uses the resettable offline Settings scene in English light/dark with video,
+and checks the Agent form's grouped background.
+
 `machine-settings` opens a resettable machine-only fixture using the production
 remote list and editor. It checks same-name machine IDs, unknown status after a
 failed cached read, presence recovery, read-only behavior, conflict draft retention,

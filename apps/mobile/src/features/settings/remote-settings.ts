@@ -183,41 +183,86 @@ export function remoteSettingsSections({
     ]
       .filter(Boolean)
       .join(kind === 'machine' ? '\n' : ' · '),
-    wrapSubtitle: kind === 'machine',
+    wrapSubtitle: kind !== 'mcp',
     value: settingValue(item),
     disclosure: !item.readOnly,
     action: !item.readOnly,
   }));
   const content: NativeListSection[] = [];
   if (kind === 'agent') {
-    const groups = new Map<string, NativeListSection>();
-    for (const [index, item] of items.entries()) {
-      const usageRows = agentUsageRows(
-        item,
-        agentUsage?.[item.machineId ?? ''],
-      );
-      let usage: string | undefined;
-      if (usageRows.length) {
-        if (connected) usage = t('settings.usage.shared');
-        else usage = t('settings.usage.offline');
+    const groups = new Map<
+      string,
+      {
+        settings: NativeListSection;
+        usage: NativeListSection;
+        providers: Set<string>;
       }
+    >();
+    for (const [index, item] of items.entries()) {
       const machine = item.machineId ?? item.machineName ?? '';
       let group = groups.get(machine);
       if (!group) {
+        const name =
+          item.machineName || item.machineId || t('settings.remote.machine');
+        const identity = item.machineId
+          ? t('settings.remote.machineIdentity', { id: item.machineId })
+          : undefined;
+        let usageFooter = t('settings.usage.cached');
+        if (!connected) usageFooter = t('settings.usage.offline');
+        else if (machineState(presence, machine) === 'online')
+          usageFooter = t('settings.usage.shared');
         group = {
-          id: `machine:${machine}`,
-          header:
-            item.machineName || item.machineId || t('settings.remote.machine'),
-          rows: [],
+          settings: {
+            id: `machine:${machine}`,
+            header: name,
+            footer: joinFooter(
+              identity,
+              t('settings.remote.agentSource'),
+              !connected || error
+                ? t('settings.remote.agentCached')
+                : undefined,
+              synced,
+            ),
+            rows: [],
+          },
+          usage: {
+            id: `machine:${machine}:usage`,
+            header: t('settings.usage.machineTitle', { name }),
+            footer: joinFooter(identity, usageFooter),
+            rows: [],
+          },
+          providers: new Set(),
         };
         groups.set(machine, group);
-        content.push(group);
       }
-      group.rows.push(settingRows[index]!, ...usageRows);
-      if (usage) group.footer = usage;
+      group.settings.rows.push(settingRows[index]!);
+      const reported = agentUsage?.[item.machineId ?? ''];
+      const config = reported?.configs.find((config) => config.id === item.id);
+      if (!config?.eligible || group.providers.has(config.provider)) continue;
+      const rows = agentUsageRows(item, reported);
+      if (!rows.length) continue;
+      group.providers.add(config.provider);
+      group.usage.rows.push(...rows);
     }
-    const last = content.at(-1);
-    if (last) last.footer = joinFooter(last.footer, synced);
+    for (const [machine, group] of groups) {
+      if (!group.usage.rows.length)
+        group.usage.rows.push({
+          id: `usage:${machine}:unavailable`,
+          title: t('settings.usage.empty'),
+          subtitle: t('settings.usage.supported'),
+          wrapSubtitle: true,
+        });
+      content.push(group.settings, group.usage);
+    }
+    if (!groups.size && synced)
+      content.push({
+        id: 'settings',
+        footer: joinFooter(
+          !connected || error ? t('settings.remote.agentCached') : undefined,
+          synced,
+        ),
+        rows: [],
+      });
   } else if (items.length || synced || !error) {
     content.push({
       id: 'settings',

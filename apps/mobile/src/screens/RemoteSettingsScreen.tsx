@@ -202,7 +202,7 @@ function View() {
   if (!selected) return null;
   return (
     <RemoteSettingsView
-      key={selected.id}
+      key={`${userId ?? ''}:${selected.id}`}
       kind={params.kind}
       workspaceId={selected.id}
       agentUsage={catalog.agentUsage}

@@ -2,13 +2,15 @@ import type { NativeListRow } from '@lody-ios/kit';
 import type { AgentUsage } from '@lody/cloud-runtime/models/agent-usage';
 import type { RemoteSetting } from '@lody/cloud-runtime/models/settings';
 import { t, tp, currentLocale } from '../../lib/i18n/index.ts';
+import { agentName } from '../sessions/status.ts';
 
 export function agentUsageRows(
   item: RemoteSetting,
   usage: AgentUsage | undefined,
 ): NativeListRow[] {
   const config = usage?.configs.find((c) => c.id === item.id);
-  if (!config?.eligible) return [];
+  if (!config?.eligible || (item.detail && item.detail !== config.provider))
+    return [];
   const rows = usage!.quotas
     .filter((q) => q.provider === config.provider)
     .flatMap((q) =>
@@ -44,8 +46,10 @@ export function agentUsageRows(
           });
         }
         return {
-          id: `usage:${item.machineId}:${item.id}:${q.id}:${i}`,
-          title: [q.name, duration, w.label].filter(Boolean).join(' · '),
+          id: `usage:${item.machineId}:${config.provider}:${q.id}:${i}`,
+          title: [q.name || agentName(config.provider), duration, w.label]
+            .filter(Boolean)
+            .join(' · '),
           value: t('settings.usage.used', {
             percent: Math.round(w.usedPercent),
           }),
@@ -58,8 +62,8 @@ export function agentUsageRows(
     ? rows
     : [
         {
-          id: `usage:${item.machineId}:${item.id}:empty`,
-          title: t('settings.usage.empty'),
+          id: `usage:${item.machineId}:${config.provider}:empty`,
+          title: `${agentName(config.provider)} · ${t('settings.usage.empty')}`,
         },
       ];
 }

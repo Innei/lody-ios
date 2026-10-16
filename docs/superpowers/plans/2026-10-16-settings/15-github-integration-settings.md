@@ -6,9 +6,9 @@
 | -------- | -------------------------------------- |
 | 阶段     | 第三阶段                               |
 | 优先级   | P2                                     |
-| 状态     | 待排期（集成协议待核实）               |
+| 状态     | 已排队（已做协议预查）                 |
 | 依赖     | [SET-06](./06-phase-one-acceptance.md) |
-| 当前授权 | 编写计划；实现尚未开始                 |
+| 当前授权 | 已授权按 09 → 13 → 14 → 15 → 16 推进   |
 
 ## 目标
 
@@ -47,6 +47,12 @@
 ## 关联任务
 
 [SET-14](./14-project-visibility-management.md) · [SET-20](./20-roadmap-closeout.md)
+
+## 2026-10-17 协议预查
+
+已在[官方公开客户端契约](https://github.com/LodyAI/Lody/blob/main/packages/cloud-api/src/index.ts)找到工作区仓库状态查询、仓库启用设置和 GitHub App 安装 state；个人操作授权另有 `missing`／`authorized`／`expired` 状态与偏好设置。App 仓库范围与个人身份必须分别显示。
+
+现有 LodyKit 的 GitHubCloud 已有 Keychain → 官方 JWT → Convex 调用边界，可复用认证过程，不向 RN 投影凭据。安装返回目标目前公开为 web／desktop，iOS 回跳尚未确认；未确认前不伪造已授权或添加不工作的回调。下一步先实现真实状态与仓库列表，再按已确认能力接操作和返回刷新。尚未调用真实授权或改动仓库权限。
 
 ## 实施记录
 

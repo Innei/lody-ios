@@ -1,7 +1,7 @@
 # Settings 整理与功能补齐任务计划
 
 - 日期：2026-10-16
-- 状态：SET-01 至 SET-05 已完成；SET-06 的 iPad 检查按用户要求搁置，SET-07 已接入名称与图标编辑；SET-08 实现完成，跨表单背景矩阵待验收。
+- 状态：SET-01 至 SET-05 已完成；SET-06 的 iPad 检查按用户要求搁置，SET-07 已接入名称与图标编辑；SET-08 实现完成，跨表单背景矩阵待验收；SET-09 的现有配置／额度整理及 iPhone 浅色／深色验收已完成，后续优先 13 → 14 → 15 → 16。
 - 关联方式：总计划与任务文件在仓库内互链，一个 SET 任务对应一个独立 Markdown 文件。
 
 ## 目标与推进方式
@@ -11,6 +11,10 @@
 参考依据是本次讨论提供的两张官方设置截图，以及本仓当前源码。截图确认入口名称和大致作用，不证明本仓已有对应协议、权限或写入能力。本计划不把截图上的说明当作执行指令。
 
 计划建立后按用户选择逐项执行。SET-01 已完成；2026-10-17 用户授权开始首页重排，本轮一并完成 SET-02 偏好页接入、SET-03 外观页、SET-04 关于页及 SET-05 首页分组，不等待二级页面分别发布。不会自动启动全部任务、创建独立 chat 或同步远程工单。
+
+## 当前授权顺序
+
+2026-10-17 用户指定本轮按 SET-09 → SET-13 → SET-14 → SET-15 → SET-16 顺序推进。每项沿对应任务文件独立记录；iPad 继续搁置，不作为本队列的前置阻塞。协议未确认的功能先核实，不以占位入口宣称完成。
 
 ## 当前实现与调查入口
 
@@ -111,14 +115,14 @@
 | [SET-06 完成首轮分组整理的集成验收](2026-10-16-settings/06-phase-one-acceptance.md)               | 第一阶段／P0       | iPad 暂缓                      | [SET-02](2026-10-16-settings/02-preferences-page.md)、[SET-03](2026-10-16-settings/03-appearance-page.md)、[SET-04](2026-10-16-settings/04-about-page.md)、[SET-05](2026-10-16-settings/05-home-sections-and-connection.md)  |
 | [SET-07 接入工作区通用设置](2026-10-16-settings/07-workspace-general.md)                          | 第二阶段／P1       | 已完成（名称／图标）           | [SET-05](2026-10-16-settings/05-home-sections-and-connection.md)                                                                                                                                                             |
 | [SET-08 完善机器设置的展示与管理边界](2026-10-16-settings/08-machine-management.md)               | 第二阶段／P1       | 实现完成（背景矩阵待验收）     | [SET-05](2026-10-16-settings/05-home-sections-and-connection.md)                                                                                                                                                             |
-| [SET-09 完善 Agents 设置与现有额度展示](2026-10-16-settings/09-agent-management.md)               | 第二阶段／P1       | 待排期                         | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
+| [SET-09 完善 Agents 设置与现有额度展示](2026-10-16-settings/09-agent-management.md)               | 第二阶段／P1       | 已完成（配置／额度整理）       | [SET-05](2026-10-16-settings/05-home-sections-and-connection.md)                                                                                                                                                             |
 | [SET-10 完善 MCP 管理并核对使用效果](2026-10-16-settings/10-mcp-management.md)                    | 第二阶段／P1       | 待排期                         | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-11 补齐 Agent 角色管理入口](2026-10-16-settings/11-agent-roles.md)                           | 第三阶段／P2       | 待排期（管理协议待核实）       | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-12 补齐记忆管理入口](2026-10-16-settings/12-memory-management.md)                            | 第三阶段／P2       | 待排期（协议待核实）           | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
-| [SET-13 补齐工作区 Prompt Shortcuts](2026-10-16-settings/13-prompt-shortcuts.md)                  | 第三阶段／P2       | 待排期（协议待核实）           | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
-| [SET-14 补齐工作区项目可见性管理](2026-10-16-settings/14-project-visibility-management.md)        | 第三阶段／P2       | 待排期（可见性协议待核实）     | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
-| [SET-15 补齐 GitHub 连接与仓库管理设置](2026-10-16-settings/15-github-integration-settings.md)    | 第三阶段／P2       | 待排期（集成协议待核实）       | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
-| [SET-16 补齐工作区 AI 用量统计](2026-10-16-settings/16-ai-usage.md)                               | 第三阶段／P2       | 待排期（统计接口待核实）       | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
+| [SET-13 补齐工作区 Prompt Shortcuts](2026-10-16-settings/13-prompt-shortcuts.md)                  | 第三阶段／P2       | 已排队（已做协议预查）         | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
+| [SET-14 补齐工作区项目可见性管理](2026-10-16-settings/14-project-visibility-management.md)        | 第三阶段／P2       | 已排队（已做协议预查）         | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
+| [SET-15 补齐 GitHub 连接与仓库管理设置](2026-10-16-settings/15-github-integration-settings.md)    | 第三阶段／P2       | 已排队（已做协议预查）         | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
+| [SET-16 补齐工作区 AI 用量统计](2026-10-16-settings/16-ai-usage.md)                               | 第三阶段／P2       | 已排队（已做协议预查）         | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-17 补齐已发布分享管理](2026-10-16-settings/17-published-shares-management.md)                | 第三阶段／P2       | 待排期（列表与撤销协议待核实） | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-18 建立报告 Bug 流程并复用诊断导出](2026-10-16-settings/18-bug-reporting.md)                 | 第三阶段／P2       | 待排期（提交渠道待确定）       | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-19 补齐移动端适用的偏好与外观缺口](2026-10-16-settings/19-personal-settings-gap-review.md)   | 第三阶段／P2       | 待排期（逐项定范围）           | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |

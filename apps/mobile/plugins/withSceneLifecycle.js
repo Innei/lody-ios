@@ -9,49 +9,9 @@ const fs = require('fs');
 const path = require('path');
 
 const SCENE_DELEGATE = `internal import Expo
-import React
 
 @objc(SceneDelegate)
-class SceneDelegate: UIResponder, UIWindowSceneDelegate {
-  var window: UIWindow?
-
-  func scene(
-    _ scene: UIScene,
-    willConnectTo session: UISceneSession,
-    options connectionOptions: UIScene.ConnectionOptions
-  ) {
-    guard let windowScene = scene as? UIWindowScene else {
-      return
-    }
-    guard let appDelegate = UIApplication.shared.delegate as? AppDelegate,
-      let factory = appDelegate.reactNativeFactory
-    else {
-      return
-    }
-
-    let window = UIWindow(windowScene: windowScene)
-    self.window = window
-    appDelegate.window = window
-    // With scenes, UIKit delivers a cold-start URL here, not in AppDelegate.
-    var launchOptions: [UIApplication.LaunchOptionsKey: Any] = [:]
-    if let context = connectionOptions.urlContexts.first {
-      launchOptions[.url] = context.url
-      launchOptions[.sourceApplication] = context.options.sourceApplication
-    }
-    factory.startReactNative(withModuleName: "main", in: window, launchOptions: launchOptions.isEmpty ? nil : launchOptions)
-  }
-
-  func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-    guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else { return }
-    for context in URLContexts {
-      var options: [UIApplication.OpenURLOptionsKey: Any] = [.openInPlace: context.options.openInPlace]
-      options[.sourceApplication] = context.options.sourceApplication
-      options[.annotation] = context.options.annotation
-      // Preserve Expo's subscribers and its existing React Native linking bridge.
-      _ = appDelegate.application(UIApplication.shared, open: context.url, options: options)
-    }
-  }
-}
+class SceneDelegate: ExpoAppSceneDelegate {}
 `;
 
 const WINDOW_BLOCK =

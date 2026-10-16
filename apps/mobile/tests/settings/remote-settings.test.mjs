@@ -76,7 +76,10 @@ test('confirmed cache keeps its order and shows the refresh time', () => {
     ),
     ['setting:agent:m1:grok', 'setting:agent:m1:claude'],
   );
-  assert.match(sections.at(-1).footer, /更新于/);
+  assert.match(
+    sections.find((section) => section.id === 'machine:m1').footer,
+    /更新于/,
+  );
   assert.equal(
     remoteSettingsPlaceholder({
       items: [grok],
@@ -103,11 +106,13 @@ test('agents on interleaved machines group together without merging identical na
     now: 1000,
   });
   assert.deepEqual(
-    sections.map((group) =>
-      group.rows
-        .filter((row) => row.id.startsWith('setting:'))
-        .map((row) => row.id),
-    ),
+    sections
+      .filter((group) => !group.id.endsWith(':usage'))
+      .map((group) =>
+        group.rows
+          .filter((row) => row.id.startsWith('setting:'))
+          .map((row) => row.id),
+      ),
     [
       ['setting:agent:m1:grok', 'setting:agent:m1:claude'],
       ['setting:agent:m2:grok'],
@@ -115,11 +120,13 @@ test('agents on interleaved machines group together without merging identical na
     ],
   );
   assert.equal(sections[0].header, 'Studio');
-  assert.equal(sections[1].header, 'Studio');
-  assert.notEqual(sections[0].id, sections[1].id);
-  assert.equal(sections[1].rows[0].action, false);
-  assert.ok(sections[2].header);
-  assert.match(sections.at(-1).footer, /更新于/);
+  const second = sections.find((section) => section.id === 'machine:m2');
+  assert.equal(second.header, 'Studio');
+  assert.notEqual(sections[0].id, second.id);
+  assert.equal(second.rows[0].action, false);
+  assert.ok(sections.find((section) => section.id === 'machine:').header);
+  assert.match(second.footer, /m2/);
+  assert.match(second.footer, /更新于/);
 });
 
 test('live fetch replaces cache and writes the confirmed snapshot', async () => {
@@ -247,4 +254,111 @@ test('disconnected or failed machine refresh never presents stale presence as on
   assert.ok(
     section.rows.every((row) => row.subtitle.includes(t('devices.unknown'))),
   );
+});
+
+const codexAgent = {
+  kind: 'agent',
+  id: 'codex-one',
+  name: 'Codex',
+  detail: 'codex',
+  machineId: 'm1',
+  machineName: 'Studio',
+};
+const subscription = {
+  configs: [
+    { id: 'codex-one', provider: 'codex', eligible: true },
+    { id: 'codex-two', provider: 'codex', eligible: true },
+    { id: 'custom-api', provider: 'codex', eligible: false },
+  ],
+  quotas: [
+    {
+      id: 'codex',
+      provider: 'codex',
+      windows: [{ usedPercent: 0, duration: 18000, resetsAt: null }],
+    },
+  ],
+};
+const agentList = {
+  kind: 'agent',
+  connected: true,
+  error: '',
+  machinePresence: { state: 'live', onlineMachineIds: ['m1', 'm2'] },
+  agentUsage: { m1: subscription, m2: subscription },
+};
+
+test('configuration groups stay separate while provider allowances appear once per machine', () => {
+  const sections = remoteSettingsSections({
+    ...agentList,
+    items: [
+      codexAgent,
+      { ...codexAgent, machineId: 'm2', readOnly: true },
+      { ...codexAgent, id: 'codex-two' },
+      { ...codexAgent, id: 'custom-api', name: 'Custom API' },
+    ],
+  });
+  const first = sections.find((section) => section.id === 'machine:m1');
+  assert.equal(first.rows.length, 3);
+  assert.ok(first.rows.every((row) => row.id.startsWith('setting:')));
+  const allowances = sections.filter((section) =>
+    section.id.endsWith(':usage'),
+  );
+  assert.equal(allowances.length, 2);
+  assert.ok(allowances.every((section) => section.rows.length === 1));
+  assert.notEqual(allowances[0].rows[0].id, allowances[1].rows[0].id);
+  assert.equal(allowances[0].rows[0].progress, 0);
+  assert.ok(
+    allowances[0].rows[0].subtitle.includes(t('settings.usage.resetUnknown')),
+  );
+  assert.ok(allowances[0].footer.includes(t('settings.usage.shared')));
+  const second = sections.find((section) => section.id === 'machine:m2');
+  assert.equal(second.rows[0].action, false);
+  assert.notEqual(first.footer, second.footer);
+});
+
+test('unknown presence and failed settings reads label retained Agent data as cached', () => {
+  for (const change of [
+    { error: 'read failed' },
+    { machinePresence: { state: 'unknown', onlineMachineIds: [] } },
+    { machinePresence: { state: 'live', onlineMachineIds: [] } },
+  ]) {
+    const sections = remoteSettingsSections({
+      ...agentList,
+      ...change,
+      items: [codexAgent],
+      syncedAt: 1,
+      now: 1000,
+    });
+    const quota = sections.find((section) => section.id.endsWith(':usage'));
+    assert.ok(quota.footer.includes(t('settings.usage.cached')));
+    assert.ok(!quota.footer.includes(t('settings.usage.shared')));
+    assert.equal(quota.rows[0].progress, 0);
+    assert.ok(
+      !quota.footer.includes(
+        t('settings.remote.syncedAt', { time: t('time.justNow') }),
+      ),
+    );
+    if (change.error)
+      assert.ok(sections[0].footer.includes(t('settings.remote.agentCached')));
+  }
+});
+
+test('missing, ineligible and mismatched usage configs never become zero usage', () => {
+  for (const config of [
+    undefined,
+    { ...codexAgent, id: 'custom-api' },
+    { ...codexAgent, detail: 'claude' },
+  ]) {
+    const items = [config ?? codexAgent];
+    const agentUsage = config ? agentList.agentUsage : undefined;
+    const sections = remoteSettingsSections({
+      ...agentList,
+      items,
+      agentUsage,
+    });
+    const quota = sections.find((section) => section.id.endsWith(':usage'));
+    assert.equal(quota.rows.length, 1);
+    assert.equal(quota.rows[0].title, t('settings.usage.empty'));
+    assert.equal(quota.rows[0].value, undefined);
+    assert.equal(quota.rows[0].progress, undefined);
+  }
 });

@@ -6,9 +6,9 @@
 | -------- | -------------------------------------- |
 | 阶段     | 第三阶段                               |
 | 优先级   | P2                                     |
-| 状态     | 待排期（统计接口待核实）               |
+| 状态     | 已排队（已做协议预查）                 |
 | 依赖     | [SET-06](./06-phase-one-acceptance.md) |
-| 当前授权 | 编写计划；实现尚未开始                 |
+| 当前授权 | 已授权按 09 → 13 → 14 → 15 → 16 推进   |
 
 ## 目标
 
@@ -49,6 +49,12 @@ Agent 页已有额度窗口；消息详情也展示单条 Token 信息。两者�
 ## 关联任务
 
 [SET-09](./09-agent-management.md) · [SET-20](./20-roadmap-closeout.md)
+
+## 2026-10-17 协议预查
+
+已在[官方公开客户端契约](https://github.com/LodyAI/Lody/blob/main/packages/cloud-api/src/index.ts)找到工作区 summary、timeline、calendar 与 day 查询。范围为 day／week／month／total；timeline 返回服务端的起止时间、bucket 大小、Token／USD 汇总及成员／模型维度，部分部署另有 Token 类别明细。
+
+下一步首版使用 summary／timeline，保留服务端时间边界和费用来源；缺字段、权限失败或部分数据不可转成 0。管理员范围、时区及估算费用来源仍需按实际响应核实；不扫描本机会话补齐。尚未调用真实统计，也未实现本仓适配。
 
 ## 实施记录
 

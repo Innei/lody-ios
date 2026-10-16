@@ -6,9 +6,9 @@
 | -------- | -------------------------------------- |
 | 阶段     | 第三阶段                               |
 | 优先级   | P2                                     |
-| 状态     | 待排期（可见性协议待核实）             |
+| 状态     | 已排队（已做协议预查）                 |
 | 依赖     | [SET-06](./06-phase-one-acceptance.md) |
-| 当前授权 | 编写计划；实现尚未开始                 |
+| 当前授权 | 已授权按 09 → 13 → 14 → 15 → 16 推进   |
 
 ## 目标
 
@@ -49,6 +49,12 @@
 ## 关联任务
 
 [SET-08](./08-machine-management.md) · [SET-20](./20-roadmap-closeout.md)
+
+## 2026-10-17 协议预查
+
+已在[官方公开客户端契约](https://github.com/LodyAI/Lody/blob/main/packages/cloud-api/src/index.ts)确认 `localProjects:listVisibleLocalProjects` 与 `localProjects:setLocalProjectSharedWithTeam`。可见性属于云端注册记录，使用工作区、机器和本地项目 ID 定位，不是 `local-project/control` 的删除或目录操作。
+
+下一步将注册记录与当前目录按机器／项目 ID 关联；缺少注册记录时不能推断为“私有”。写入后重新读取真实状态；未完成读回不显示成功，未知写入不自动重放。所有权需在实际云端边界验证，不能只禁用 UI。尚未调用真实云端，也未实现本仓适配。
 
 ## 实施记录
 

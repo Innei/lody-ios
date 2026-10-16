@@ -285,3 +285,90 @@ test('remote machine and agent writes require the authenticated machine owner', 
   );
   assert.equal(writes, 1);
 });
+
+test('same-id Agent edits reach only the selected machine and read back without exposing secrets', async () => {
+  const meta = new Flock('agent-machines');
+  const replicas = new Map([['w1:meta', meta]]);
+  for (const id of ['m1', 'm2']) {
+    meta.set(['e', `machine-${id}`], true);
+    meta.set(['m', `machine-${id}`], {
+      name: 'Studio Mac',
+      ownerUserId: 'owner',
+    });
+    const flock = new Flock(`agent-${id}`);
+    flock.set(['agentConfig', 'a1'], {
+      id: 'a1',
+      machineId: id,
+      name: 'Codex',
+      prompt: `${id} instructions`,
+      env: { SECRET: 'fixture-only' },
+      futureField: id,
+    });
+    replicas.set(`w1:mf:${id}`, flock);
+  }
+  const writes = [];
+  globalThis.__settingsClient = class {
+    constructor({ url }) {
+      this.stream = decodeURIComponent(url).split('/ds/lody/')[1];
+      this.remote = replicas.get(this.stream);
+      assert.ok(this.remote, `Unexpected stream ${this.stream}`);
+    }
+    async bootstrap() {
+      return {
+        ok: true,
+        result: {
+          snapshotOffset: '1',
+          snapshot: { body: this.remote.exportFile() },
+          updates: [],
+          nextOffset: '1',
+          upToDate: true,
+        },
+      };
+    }
+    async append({ part }) {
+      writes.push(this.stream);
+      assert.equal(
+        new DataView(part.body.buffer, part.body.byteOffset).getUint32(0),
+        part.body.length - 4,
+      );
+      this.remote.importJson(
+        JSON.parse(new TextDecoder().decode(part.body.subarray(4))),
+      );
+      return { ok: true, result: {} };
+    }
+  };
+  const grant = async () => ({
+    token: 'fixture',
+    gatewayBaseUrl: 'https://example.com',
+  });
+  const request = { workspaceId: 'w1', kind: 'agent' };
+  const read = () =>
+    remoteSettings(request, 'owner', grant, AbortSignal.timeout(5000));
+  const items = await read();
+  assert.equal(items.length, 2);
+  assert.equal(JSON.stringify(items).includes('fixture-only'), false);
+  const item = items.find((item) => item.machineId === 'm2');
+  await remoteSettings(
+    { ...request, edit: { item, name: 'Work Codex', prompt: 'Updated' } },
+    'owner',
+    grant,
+    AbortSignal.timeout(5000),
+  );
+  assert.deepEqual(writes, ['w1:mf:m2']);
+  const saved = await read();
+  assert.equal(
+    saved.find((row) => row.machineId === 'm1').prompt,
+    'm1 instructions',
+  );
+  assert.equal(saved.find((row) => row.machineId === 'm1').name, 'Codex');
+  assert.equal(saved.find((row) => row.machineId === 'm2').prompt, 'Updated');
+  assert.equal(saved.find((row) => row.machineId === 'm2').name, 'Work Codex');
+  assert.deepEqual(replicas.get('w1:mf:m2').get(['agentConfig', 'a1']).env, {
+    SECRET: 'fixture-only',
+  });
+  assert.equal(
+    replicas.get('w1:mf:m2').get(['agentConfig', 'a1']).futureField,
+    'm2',
+  );
+  assert.equal(JSON.stringify(saved).includes('fixture-only'), false);
+});

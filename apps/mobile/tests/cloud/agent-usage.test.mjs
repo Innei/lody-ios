@@ -57,7 +57,7 @@ test('machine replica changes reach usage rows, preserve zero/expired limits and
   const updated = read();
   setLocale('en');
   assert.equal(agentUsageRows(item, updated)[0].value, '72% used');
-  assert.equal(agentUsageRows(item, updated)[0].title, '5 hours');
+  assert.equal(agentUsageRows(item, updated)[0].title, 'Codex · 5 hours');
   assert.ok(
     !agentUsageRows(item, updated)
       .map((row) => `${row.title} ${row.value} ${row.subtitle}`)
@@ -74,7 +74,7 @@ test('machine replica changes reach usage rows, preserve zero/expired limits and
   machine.delete(['rateLimit', 'codex', 'codex_bengalfox']);
   machine.commit();
   setLocale('zh-Hans');
-  assert.equal(agentUsageRows(item, read())[0].title, '暂无用量数据');
+  assert.equal(agentUsageRows(item, read())[0].title, 'Codex · 暂无用量数据');
   assert.equal(agentUsageRows(item, read())[0].progress, undefined);
 });
 
