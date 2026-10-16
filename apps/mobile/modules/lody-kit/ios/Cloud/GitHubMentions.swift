@@ -109,6 +109,7 @@ import Foundation
   }
   static func request(_ address: String, token: String? = nil, body: [String: Any]? = nil) async throws -> Any {
     var request = URLRequest(url: URL(string: address)!, timeoutInterval: 15)
+    request.cachePolicy = .reloadIgnoringLocalCacheData
     request.setValue("application/json", forHTTPHeaderField: "Accept")
     if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
     if let body {

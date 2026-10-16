@@ -1,3 +1,4 @@
+import { GitHubSettingsScreen } from './GitHubSettingsScreen';
 import { ProjectVisibilityScreen } from './ProjectVisibilityScreen';
 import { PromptShortcutsScreen } from './PromptShortcutsScreen';
 import { useRouter } from 'expo-router';
@@ -109,6 +110,14 @@ function View() {
         id: 'project-visibility',
         title: t('settings.projects.title'),
         image: 'folder',
+        action: true,
+        disclosure: true,
+        navigates: true,
+      });
+      rows.push({
+        id: 'github-settings',
+        title: t('settings.github.title'),
+        image: 'chevron.left.forwardslash.chevron.right',
         action: true,
         disclosure: true,
         navigates: true,
@@ -248,6 +257,8 @@ function View() {
               { title: settingsTitle(kind) },
             );
         }
+        if (id === 'github-settings' && workspace)
+          void push(GitHubSettingsScreen);
         if (id === 'project-visibility' && workspace)
           void push(ProjectVisibilityScreen);
         if (id === 'prompt-shortcuts' && workspace)

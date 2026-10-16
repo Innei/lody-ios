@@ -1,3 +1,4 @@
+import { GitHubSettingsPreviewScreen } from './GitHubSettingsPreviewScreen';
 import { ProjectVisibilityPreviewScreen } from './ProjectVisibilityPreviewScreen';
 import { PromptShortcutsPreviewScreen } from './PromptShortcutsPreviewScreen';
 import { ProposedPlanPreviewScreen } from './ProposedPlanPreviewScreen';
@@ -391,6 +392,8 @@ function View() {
     'project-picker-preview': () => void openCreateParity(),
     'project-visibility-preview': () =>
       void present(ProjectVisibilityPreviewScreen, {}),
+    'github-settings-preview': () =>
+      void present(GitHubSettingsPreviewScreen, {}),
     'prompt-shortcuts-preview': () =>
       void present(PromptShortcutsPreviewScreen, {}),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
