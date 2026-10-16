@@ -70,6 +70,32 @@ enum AuthKeychain { static func read() throws -> String? { "fixture" } }
     let url=URLComponents(string:installation["url"] as! String)!
     precondition(url.host=="github.com" && url.queryItems?.first?.value=="fixture&injection=no")
     print("GitHub role fences, independent identity state and bounded installation URL passed")
+
+    let total:[String:Any] = ["tokens":20,"costUSD":NSNull()]
+    let bucket:[String:Any] = ["bucketStartMs":0,"tokens":20,"costUSD":NSNull(),"byUser":[["userId":"private","tokens":20]]]
+    let usage:[String:Any] = ["workspaceId":"w","range":"day","totals":total,"startMs":0,"endMs":1000,"bucketSizeMs":1000,"buckets":[bucket],"users":["private":["email":"never@project.example"]],"byUser":[["userId":"private","tokens":20]]]
+    let projected=try WorkspaceUsage.projection(usage,workspace:"w",range:"day",timeline:true)
+    precondition(projected["users"]==nil && projected["byUser"]==nil)
+    precondition((projected["buckets"] as? [[String:Any]])?[0]["byUser"]==nil)
+    precondition((projected["totals"] as? [String:Any])?["costUSD"] is NSNull)
+    precondition(WorkspaceUsage.cost(0) as? Double==0)
+    precondition(WorkspaceUsage.cost(-1) is NSNull)
+    var duplicate=usage;duplicate["buckets"]=[bucket,bucket]
+    do {_=try WorkspaceUsage.projection(duplicate,workspace:"w",range:"day",timeline:true);fatalError("duplicate bucket accepted")} catch {}
+    do {_=try WorkspaceUsage.projection(usage,workspace:"another",range:"day",timeline:true);fatalError("foreign workspace accepted")} catch {}
+    var endBucket=bucket;endBucket["bucketStartMs"]=1001
+    var boundary=usage;boundary["buckets"]=[endBucket]
+    do {_=try WorkspaceUsage.projection(boundary,workspace:"w",range:"day",timeline:true);fatalError("out-of-range bucket accepted")} catch {}
+    let partial=try await WorkspaceUsage.run(["action":"list","range":"day"],workspace:"w") { _,path,_ in
+      if path=="usage:getWorkspaceUsageSummary" {throw GitHubCloud.failure()}
+      return usage
+    }
+    precondition(partial["errors"] as? [String]==["summary"] && partial["summary"] is NSNull && partial["timeline"] is [String:Any])
+    let encoded=try JSONSerialization.data(withJSONObject:partial)
+    let decoded=try JSONSerialization.jsonObject(with:encoded) as! [String:Any]
+    let retrieved=(decoded["retrievedAt"] as! NSNumber).doubleValue
+    precondition(retrieved.rounded()==retrieved,"Native timestamps must match the app wire schema")
+    print("Usage boundaries, unknown costs, partial failure and member privacy passed")
     print("Owner fencing, machine identity, readback and uncertain-write behavior passed")
   }
 }

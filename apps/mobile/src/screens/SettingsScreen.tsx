@@ -1,3 +1,4 @@
+import { AIUsageScreen } from './AIUsageScreen';
 import { GitHubSettingsScreen } from './GitHubSettingsScreen';
 import { ProjectVisibilityScreen } from './ProjectVisibilityScreen';
 import { PromptShortcutsScreen } from './PromptShortcutsScreen';
@@ -118,6 +119,14 @@ function View() {
         id: 'github-settings',
         title: t('settings.github.title'),
         image: 'chevron.left.forwardslash.chevron.right',
+        action: true,
+        disclosure: true,
+        navigates: true,
+      });
+      rows.push({
+        id: 'ai-usage',
+        title: t('settings.aiUsage.title'),
+        image: 'chart.bar.xaxis',
         action: true,
         disclosure: true,
         navigates: true,
@@ -257,6 +266,7 @@ function View() {
               { title: settingsTitle(kind) },
             );
         }
+        if (id === 'ai-usage' && workspace) void push(AIUsageScreen);
         if (id === 'github-settings' && workspace)
           void push(GitHubSettingsScreen);
         if (id === 'project-visibility' && workspace)

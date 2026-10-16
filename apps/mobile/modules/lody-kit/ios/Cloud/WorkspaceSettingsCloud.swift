@@ -46,6 +46,7 @@ import Foundation
   }
 
   static func execute(_ request: [String: Any], workspace: String, user: String, role: String? = nil, call: Call) async throws -> [String: Any] {
+    if request["page"] as? String == "usage" { return try await WorkspaceUsage.run(request, workspace: workspace, call: call) }
     if request["page"] as? String == "github" { return try await github(request, workspace: workspace, role: role, call: call) }
     guard request["page"] as? String == "projects" else { throw GitHubCloud.failure() }
     let scope: [String: Any] = ["workspaceId": workspace]

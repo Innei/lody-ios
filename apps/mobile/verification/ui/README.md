@@ -305,6 +305,15 @@ read-only ownership, failed-save draft retention and machine-scoped prompt readb
 It uses the resettable offline Settings scene in English light/dark with video,
 and checks the Agent form's grouped background.
 
+`--suite settings-workspace` runs `prompt-shortcuts`, `project-visibility`,
+`github-settings` and `ai-usage` in English light/dark with `--require-video`.
+The resettable offline scenes use production screens and services injected at
+request boundaries: shortcut validation/readback, owner-only project visibility,
+independent GitHub identity/repository state, and server-range usage with unknown
+costs, retained refresh data and late-response fencing. They do not authorize
+GitHub, mutate a real workspace or cover iPad. Use a signed Release app with
+`--embedded` when another task is editing the shared Metro sources.
+
 `machine-settings` opens a resettable machine-only fixture using the production
 remote list and editor. It checks same-name machine IDs, unknown status after a
 failed cached read, presence recovery, read-only behavior, conflict draft retention,

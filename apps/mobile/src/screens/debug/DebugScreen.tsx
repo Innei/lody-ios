@@ -1,3 +1,4 @@
+import { AIUsagePreviewScreen } from './AIUsagePreviewScreen';
 import { GitHubSettingsPreviewScreen } from './GitHubSettingsPreviewScreen';
 import { ProjectVisibilityPreviewScreen } from './ProjectVisibilityPreviewScreen';
 import { PromptShortcutsPreviewScreen } from './PromptShortcutsPreviewScreen';
@@ -390,10 +391,11 @@ function View() {
       void present(ProjectHistoryPreviewScreen, {}),
     'pull-request-preview': () => void present(PullRequestPreviewScreen, {}),
     'project-picker-preview': () => void openCreateParity(),
-    'project-visibility-preview': () =>
-      void present(ProjectVisibilityPreviewScreen, {}),
+    'ai-usage-preview': () => void present(AIUsagePreviewScreen, {}),
     'github-settings-preview': () =>
       void present(GitHubSettingsPreviewScreen, {}),
+    'project-visibility-preview': () =>
+      void present(ProjectVisibilityPreviewScreen, {}),
     'prompt-shortcuts-preview': () =>
       void present(PromptShortcutsPreviewScreen, {}),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),

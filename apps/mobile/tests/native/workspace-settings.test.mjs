@@ -13,6 +13,7 @@ test('native settings enforce authenticated ownership and confirm visibility by 
         'swiftc',
         '-parse-as-library',
         root + 'ios/Cloud/WorkspaceSettingsCloud.swift',
+        root + 'ios/Cloud/WorkspaceUsage.swift',
         root + 'verification/settings/WorkspaceSettingsCheck.swift',
         '-o',
         join(directory, 'check'),

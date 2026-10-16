@@ -1,7 +1,7 @@
 # Settings 整理与功能补齐任务计划
 
 - 日期：2026-10-16
-- 状态：SET-01 至 SET-05 已完成；SET-06 的 iPad 检查按用户要求搁置，SET-07 已接入名称与图标编辑；SET-08 实现完成，跨表单背景矩阵待验收；SET-09 的现有配置／额度整理及 iPhone 浅色／深色验收已完成，SET-13 首版已完成；SET-14、15、16 实现就绪，定向验收中。
+- 状态：SET-01 至 SET-05 已完成；SET-06 的 iPad 检查按用户要求搁置，SET-07 已接入名称与图标编辑；SET-08 实现完成，跨表单背景矩阵待验收；SET-09 的现有配置／额度整理及 iPhone 浅色／深色验收已完成，SET-13 首版已完成；SET-14 项目可见性、SET-15 GitHub 和 SET-16 AI 用量首版均已完成，iPhone 英文浅色／深色定向验收通过。
 - 关联方式：总计划与任务文件在仓库内互链，一个 SET 任务对应一个独立 Markdown 文件。
 
 ## 目标与推进方式
@@ -124,7 +124,7 @@
 | [SET-13 补齐工作区 Prompt Shortcuts](2026-10-16-settings/13-prompt-shortcuts.md)                  | 第三阶段／P2       | 已完成（首版）                 | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-14 补齐工作区项目可见性管理](2026-10-16-settings/14-project-visibility-management.md)        | 第三阶段／P2       | 已完成（首版）                 | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-15 补齐 GitHub 连接与仓库管理设置](2026-10-16-settings/15-github-integration-settings.md)    | 第三阶段／P2       | 已完成（首版）                 | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
-| [SET-16 补齐工作区 AI 用量统计](2026-10-16-settings/16-ai-usage.md)                               | 第三阶段／P2       | 已排队（已做协议预查）         | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
+| [SET-16 补齐工作区 AI 用量统计](2026-10-16-settings/16-ai-usage.md)                               | 第三阶段／P2       | 已完成（首版）                 | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-17 补齐已发布分享管理](2026-10-16-settings/17-published-shares-management.md)                | 第三阶段／P2       | 待排期（列表与撤销协议待核实） | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-18 建立报告 Bug 流程并复用诊断导出](2026-10-16-settings/18-bug-reporting.md)                 | 第三阶段／P2       | 待排期（提交渠道待确定）       | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-19 补齐移动端适用的偏好与外观缺口](2026-10-16-settings/19-personal-settings-gap-review.md)   | 第三阶段／P2       | 待排期（逐项定范围）           | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
@@ -218,3 +218,8 @@
 - 2026-10-17：SET-07 已接入工作区“通用”，复用原编辑表单与写入服务。pnpm check、pnpm bundle、9 个 cloud 行为检查及独立 workspace-general 英文浅深色检查通过；生命周期操作保持暂缓，未运行 iPad 或其他业务全流程。
 
 - 2026-10-17：SET-08 补机器 ID、真实 presence、只读和缓存说明，沿用改名及权限／冲突边界。13 项设置行为检查和机器页英文浅深色检查通过。按用户追加要求沿设置子页排查背景，修复远程设置、工作区通用和快捷回复三个表单宿主；五类表单的完整视觉矩阵受并行 Expo 58／RN 0.88 升级和原生生成过程阻塞，保留待验收，不扩展业务全流程。
+
+- 2026-10-17：SET-13 Prompt Shortcuts、SET-14 项目可见性、SET-15 GitHub 和 SET-16 AI 用量首版完成，按任务单独 commit。工作区入口顺序为通用 → 机器 → Agents → MCP → Prompt Shortcuts → 项目 → GitHub → AI 用量。
+- 本轮[设置验收证据](https://app.lobehub.com/acceptance/49fe2ad2-5420-4cb5-a9a1-abb2e3f8203c)：4/4 项、iPhone 英文浅色／深色共 8/8 场景通过，148 份证据上传完成，截图与录像无缺失。覆盖只读、失败原稿／确认值保留、刷新与读回，以及用量旧范围迟到隔离。
+- 程序化检查：8 项定向行为检查、31 项 UI runner 检查、TypeScript、i18n、原生源登记、许可证、bundle 与带签名 Release 模拟器构建通过。全仓 `pnpm check` 仅在并行任务的 `wide-layout-design.md` 格式处失败；本轮保留该任务文件及其他在途改动。
+- 首版边界：复杂快捷模板只读；GitHub 个人授权在官方网页完成；AI 用量只展示工作区汇总与趋势，费用标为预估。未执行真实云端修改、GitHub 授权或统计对账，iPad 按用户要求搁置。
