@@ -1,17 +1,18 @@
-import type { NativeListSection } from '@lody-ios/kit';
+import type { NativeListRow, NativeListSection } from '@lody-ios/kit';
 import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import {
   machineState,
   unknownPresence,
   type MachinePresence,
+  type MachineState,
 } from '@lody/cloud-runtime/models/machines';
 import type {
   RemoteSetting,
   SettingsRequest,
 } from '@lody/cloud-runtime/models/settings';
-import { relativeTime } from '../../ui/time.ts';
 import { t } from '../../lib/i18n/index.ts';
-import { agentUsageRows } from './agent-usage.ts';
+import { agentIcon } from '../sessions/status.ts';
+import { agentUsageRings, type UsageRing } from './agent-usage.ts';
 
 export type SettingsService = (
   request: SettingsRequest,
@@ -115,21 +116,6 @@ export async function loadRemoteSettings({
   }
 }
 
-export function remoteSettingsPlaceholder({
-  items,
-  loading,
-  error,
-}: {
-  items: RemoteSetting[];
-  loading: boolean;
-  error: string;
-}) {
-  if (items.length) return '';
-  if (error) return '';
-  if (loading) return t('settings.remote.loading');
-  return t('settings.remote.empty');
-}
-
 function settingValue(item: RemoteSetting) {
   if (item.kind !== 'mcp') return undefined;
   return t(
@@ -139,8 +125,148 @@ function settingValue(item: RemoteSetting) {
   );
 }
 
-function joinFooter(...parts: (string | undefined)[]) {
-  return parts.filter(Boolean).join('\n') || undefined;
+export function statusHeader(name: string, state: MachineState) {
+  if (state === 'unknown') return { header: name };
+  return {
+    header: `${name} · ${t(`devices.${state}`)}`,
+    headerStatus: state,
+  };
+}
+
+const lock = {
+  trailingSymbol: 'lock',
+  trailingSymbolLabel: t('settings.remote.ownerOnly'),
+};
+
+function machineRows(
+  items: RemoteSetting[],
+  presence: MachinePresence,
+): NativeListRow[] {
+  const names = new Map<string, number>();
+  for (const item of items)
+    names.set(item.name, (names.get(item.name) ?? 0) + 1);
+  return items.map((item) => {
+    const state = machineState(presence, item.id);
+    const duplicate = (names.get(item.name) ?? 0) > 1;
+    return {
+      id: remoteSettingId(item),
+      title: item.name || item.id,
+      subtitle: [t(`devices.${state}`), item.detail, duplicate ? item.id : '']
+        .filter(Boolean)
+        .join(' · '),
+      status: state,
+      image: 'desktopcomputer',
+      disclosure: !item.readOnly,
+      action: !item.readOnly,
+      ...(item.readOnly ? lock : {}),
+    };
+  });
+}
+
+function mcpRows(items: RemoteSetting[]): NativeListRow[] {
+  return items.map((item) => ({
+    id: remoteSettingId(item),
+    title: item.name || item.id,
+    subtitle: [
+      item.detail,
+      item.machineName,
+      item.configured === false ? t('settings.mcp.notConfigured') : undefined,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    wrapSubtitle: true,
+    value: settingValue(item),
+    disclosure: !item.readOnly,
+    action: !item.readOnly,
+    ...(item.readOnly ? lock : {}),
+  }));
+}
+
+function agentFooter(state: MachineState, rings: boolean) {
+  if (!rings)
+    return state === 'offline' ? t('settings.usage.noneOffline') : undefined;
+  if (state === 'online')
+    return `${t('settings.usage.paceFooter')}\n${t('settings.usage.sharedShort')}`;
+  if (state === 'offline') return t('settings.usage.lastOffline');
+  return t('settings.usage.lastUnknown');
+}
+
+function agentSections(
+  items: RemoteSetting[],
+  presence: MachinePresence,
+  agentUsage: Catalog['agentUsage'],
+): NativeListSection[] {
+  const groups = new Map<
+    string,
+    {
+      section: NativeListSection;
+      state: MachineState;
+      rings: UsageRing[];
+      providers: Set<string>;
+    }
+  >();
+  for (const item of items) {
+    const machine = item.machineId ?? item.machineName ?? '';
+    let group = groups.get(machine);
+    if (!group) {
+      const state = machineState(presence, machine);
+      group = {
+        section: {
+          id: `machine:${machine}`,
+          ...statusHeader(
+            item.machineName || item.machineId || t('settings.remote.machine'),
+            state,
+          ),
+          rows: [],
+        },
+        state,
+        rings: [],
+        providers: new Set(),
+      };
+      groups.set(machine, group);
+    }
+    group.section.rows.push({
+      id: remoteSettingId(item),
+      title: item.name || item.id,
+      image: 'sparkles',
+      imageAsset: agentIcon(item.detail),
+      disclosure: !item.readOnly,
+      action: !item.readOnly,
+      ...(item.readOnly ? lock : {}),
+    });
+    const reported = agentUsage?.[item.machineId ?? ''];
+    const config = reported?.configs.find((config) => config.id === item.id);
+    if (!config?.eligible || group.providers.has(config.provider)) continue;
+    const rings = agentUsageRings(item, reported);
+    if (!rings.length) continue;
+    group.providers.add(config.provider);
+    group.rings.push(...rings);
+  }
+  return [...groups.values()].map(({ section, state, rings }) => {
+    return {
+      ...section,
+      footer: agentFooter(state, rings.length > 0),
+      ...(rings.length
+        ? {
+            visual: {
+              type: 'quotas' as const,
+              dimmed: state !== 'online',
+              items:
+                state === 'online'
+                  ? rings
+                  : rings.map(
+                      ({
+                        pace: _pace,
+                        detail: _detail,
+                        tone: _tone,
+                        ...ring
+                      }) => ring,
+                    ),
+            },
+          }
+        : {}),
+    };
+  });
 }
 
 export function remoteSettingsSections({
@@ -150,155 +276,30 @@ export function remoteSettingsSections({
   connected,
   agentUsage,
   machinePresence = unknownPresence,
-  syncedAt,
-  now,
 }: {
   kind: RemoteSetting['kind'];
   items: RemoteSetting[];
-  loading?: boolean;
   error: string;
   connected: boolean;
   agentUsage?: Catalog['agentUsage'];
   machinePresence?: MachinePresence;
-  syncedAt?: number;
-  now?: number;
 }): NativeListSection[] {
-  const synced =
-    syncedAt === undefined
-      ? undefined
-      : t('settings.remote.syncedAt', { time: relativeTime(syncedAt, now) });
   const presence = connected && !error ? machinePresence : unknownPresence;
-  const readOnlyKey =
-    kind === 'mcp' ? 'settings.mcp.readOnly' : 'settings.remote.readOnly';
-  const settingRows = items.map((item) => ({
-    id: remoteSettingId(item),
-    title: item.name || item.id,
-    subtitle: [
-      kind === 'machine'
-        ? [item.detail, t(`devices.${machineState(presence, item.id)}`)]
-            .filter(Boolean)
-            .join(' · ')
-        : item.detail,
-      kind === 'machine' ? item.id : undefined,
-      kind === 'agent' ? undefined : item.machineName,
-      item.readOnly ? t(readOnlyKey) : undefined,
-      kind === 'mcp' && item.configured === false
-        ? t('settings.mcp.notConfigured')
-        : undefined,
-    ]
-      .filter(Boolean)
-      .join(kind === 'machine' ? '\n' : ' · '),
-    wrapSubtitle: true,
-    value: settingValue(item),
-    disclosure: !item.readOnly,
-    action: !item.readOnly,
-  }));
-  const content: NativeListSection[] = [];
-  if (kind === 'agent') {
-    const groups = new Map<
-      string,
+  if (kind === 'agent') return agentSections(items, presence, agentUsage);
+  if (!items.length) return [];
+  if (kind === 'machine')
+    return [
       {
-        settings: NativeListSection;
-        usage: NativeListSection;
-        providers: Set<string>;
-      }
-    >();
-    for (const [index, item] of items.entries()) {
-      const machine = item.machineId ?? item.machineName ?? '';
-      let group = groups.get(machine);
-      if (!group) {
-        const name =
-          item.machineName || item.machineId || t('settings.remote.machine');
-        const identity = item.machineId
-          ? t('settings.remote.machineIdentity', { id: item.machineId })
-          : undefined;
-        let usageFooter = t('settings.usage.cached');
-        if (!connected) usageFooter = t('settings.usage.offline');
-        else if (machineState(presence, machine) === 'online')
-          usageFooter = t('settings.usage.shared');
-        group = {
-          settings: {
-            id: `machine:${machine}`,
-            header: name,
-            footer: joinFooter(
-              identity,
-              t('settings.remote.agentSource'),
-              !connected || error
-                ? t('settings.remote.agentCached')
-                : undefined,
-              synced,
-            ),
-            rows: [],
-          },
-          usage: {
-            id: `machine:${machine}:usage`,
-            header: t('settings.usage.machineTitle', { name }),
-            footer: joinFooter(identity, usageFooter),
-            rows: [],
-          },
-          providers: new Set(),
-        };
-        groups.set(machine, group);
-      }
-      group.settings.rows.push(settingRows[index]!);
-      const reported = agentUsage?.[item.machineId ?? ''];
-      const config = reported?.configs.find((config) => config.id === item.id);
-      if (!config?.eligible || group.providers.has(config.provider)) continue;
-      const rows = agentUsageRows(item, reported);
-      if (!rows.length) continue;
-      group.providers.add(config.provider);
-      group.usage.rows.push(...rows);
-    }
-    for (const [machine, group] of groups) {
-      if (!group.usage.rows.length)
-        group.usage.rows.push({
-          id: `usage:${machine}:unavailable`,
-          title: t('settings.usage.empty'),
-          subtitle: t('settings.usage.supported'),
-          wrapSubtitle: true,
-        });
-      content.push(group.settings, group.usage);
-    }
-    if (!groups.size && synced)
-      content.push({
         id: 'settings',
-        footer: joinFooter(
-          !connected || error ? t('settings.remote.agentCached') : undefined,
-          synced,
-        ),
-        rows: [],
-      });
-  } else if (items.length || synced || !error) {
-    content.push({
-      id: 'settings',
-      footer: joinFooter(
-        error ? undefined : t(`settings.remote.${kind}Hint`),
-        kind === 'machine' ? t('settings.remote.machineOwnerHint') : undefined,
-        kind === 'machine' && items.length && (!connected || error)
-          ? t('settings.remote.machineCached')
-          : undefined,
-        kind === 'mcp' && (!connected || error)
-          ? t('settings.mcp.cached')
-          : undefined,
-        synced,
-      ),
-      rows: settingRows,
-    });
-  }
-  if (!error) return content;
+        footer: t('settings.remote.machineFooter'),
+        rows: machineRows(items, presence),
+      },
+    ];
   return [
-    ...content,
     {
-      id: 'error',
-      footer: error,
-      rows: [
-        {
-          id: 'retry',
-          title: t('settings.remote.retry'),
-          action: true,
-          image: 'arrow.clockwise',
-        },
-      ],
+      id: 'settings',
+      footer: t('settings.remote.mcpHint'),
+      rows: mcpRows(items),
     },
   ];
 }

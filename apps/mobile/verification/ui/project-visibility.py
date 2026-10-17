@@ -2,6 +2,7 @@
 import json,sys
 from driver import UI
 import catalog
+from settings_states import no_header_refresh, no_notice, notice
 ui=UI(sys.argv[1],sys.argv[2])
 def spoken(item):return str(item.get('AXLabel',''))+' '+str(item.get('AXValue',''))
 def tap(identifier):ui.element(identifier);ui.axe('tap','--id',identifier,'--post-delay','.4')
@@ -18,13 +19,15 @@ def choose(identifier,key):
     ui.axe('tap','--label',label,'--post-delay','.5')
 owner='visibility:m1:same';foreign='visibility:m2:same'
 assert catalog.text('settings.projects.private') in spoken(ui.element(owner))
-assert catalog.text('settings.projects.readonly') in spoken(ui.element(foreign))
+assert catalog.text('settings.projects.othersOwner') in spoken(ui.element(foreign))
+no_header_refresh(ui)
 assert catalog.text('settings.projects.unknown') in spoken(ui.element('unknown:m1:local:unregistered'))
 ui.capture('project-visibility-list')
 choose(owner,'settings.projects.shared')
-ui.element('retry');assert catalog.text('settings.projects.private') in spoken(ui.element(owner))
+notice(ui,'settings.state.unconfirmed');assert catalog.text('settings.projects.private') in spoken(ui.element(owner))
+assert not ui.element(owner).get('enabled',True),'Project stayed editable after an unconfirmed write'
 ui.capture('visibility-unconfirmed')
-tap('retry');choose(owner,'settings.projects.shared')
+tap('list-notice-action');no_notice(ui);choose(owner,'settings.projects.shared')
 ui.wait(lambda items:any(item.get('AXUniqueId')==owner and catalog.text('settings.projects.sharedValue') in spoken(item) for item in items),'Visibility readback missing')
 assert catalog.text('settings.projects.sharedValue') in spoken(ui.element(foreign))
 ui.capture('visibility-shared')

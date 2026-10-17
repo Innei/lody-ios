@@ -180,6 +180,7 @@ const SettingsListPreviewScreen = definePage<{
 });
 
 function previewUsage(percent: number): Catalog['agentUsage'] {
+  const now = Math.floor(Date.now() / 1000);
   const configs = [
     ['a1', 'Codex', 'codex'],
     ['a2', 'Claude', 'claude'],
@@ -208,12 +209,12 @@ function previewUsage(percent: number): Catalog['agentUsage'] {
             {
               usedPercent: percent,
               windowDurationSeconds: 18000,
-              resetsAtEpochSeconds: 1900000000,
+              resetsAtEpochSeconds: now + 2 * 3600 + 14 * 60,
             },
             {
               usedPercent: 61,
               windowDurationSeconds: 604800,
-              resetsAtEpochSeconds: 1900400000,
+              resetsAtEpochSeconds: now + 6 * 86400 + 6 * 3600,
             },
           ],
         },
@@ -235,7 +236,7 @@ function previewUsage(percent: number): Catalog['agentUsage'] {
             {
               usedPercent: 100,
               windowDurationSeconds: 18000,
-              resetsAtEpochSeconds: 1,
+              resetsAtEpochSeconds: now + 65 * 60,
             },
           ],
         },

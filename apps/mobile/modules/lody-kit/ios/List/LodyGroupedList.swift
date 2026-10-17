@@ -1,6 +1,7 @@
 #if !LODY_SHARE_EXTENSION
 import ExpoModulesCore
 #endif
+import SwiftUI
 import UIKit
 
 private final class ListAppearanceController: UIViewController {
@@ -75,6 +76,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   let onRefresh = EventDispatcher()
   let onSegmentChange = EventDispatcher()
   let onSearchChange = EventDispatcher()
+  let onNoticeAction = EventDispatcher()
+  let onUnavailableAction = EventDispatcher()
   var forwarded: ((String, [String: Any]) -> Void)?
 
   func emitRowPress(_ body: [String: Any]) {
@@ -103,6 +106,13 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private let appearance = ListAppearanceController()
   private weak var scrollOwner: UIViewController?
   private var sections: [LodyListSection] = []
+  private var inputSections: [LodyListSection] = []
+  private var notice: LodyListNotice?
+  private var loading = false
+  private var unavailableView: UIContentUnavailableView?
+  private static let visualRowID = "__visual"
+  private static let noticeSectionID = "__notice"
+  private static let skeletonSectionID = "__skeleton"
   private let collection: UICollectionView
   var contentScrollView: UIScrollView { collection }
   private let refreshControl = UIRefreshControl()
@@ -154,6 +164,99 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       cell.accessories.append(.customView(configuration: .init(customView: indicator, placement: .trailing(at: { $0.count }))))
       cell.bringSubviewToFront(button)
     }
+  }
+
+  private lazy var visualRegistration = UICollectionView.CellRegistration<UICollectionViewListCell, ListItemID> { [weak self] cell, _, id in
+    self?.configureVisual(cell, id)
+  }
+
+  private func configureVisual(_ cell: UICollectionViewListCell, _ id: ListItemID) {
+    cell.accessories = []
+    cell.accessibilityIdentifier = nil
+    if id.section == Self.noticeSectionID, let notice {
+      let tint = lodyTint(notice.tint) ?? .secondaryLabel
+      cell.contentConfiguration = UIHostingConfiguration {
+        LodyListNoticeView(notice: notice, tint: Color(uiColor: tint)) { [weak self] in
+          self?.onNoticeAction([:])
+        }
+      }
+      .margins(.vertical, 2)
+      return
+    }
+    guard let visual = sections.first(where: { $0.id == id.section })?.visual else {
+      cell.contentConfiguration = nil
+      return
+    }
+    cell.contentConfiguration = UIHostingConfiguration {
+      LodyListVisualView(visual: visual, accent: Color(uiColor: Self.accent))
+    }
+    .margins(.all, 16)
+  }
+
+  private func composedSections() -> [LodyListSection] {
+    var result: [LodyListSection] = []
+    if let notice, !notice.text.isEmpty {
+      result.append(.synthetic(id: Self.noticeSectionID, rowID: Self.visualRowID))
+    }
+    var visualRow = LodyListRow()
+    visualRow.id = Self.visualRowID
+    result += inputSections.map { $0.visual == nil ? $0 : $0.prepending(visualRow) }
+    if loading, inputSections.allSatisfy({ $0.rows.isEmpty && $0.visual == nil }) {
+      var skeleton = LodyListVisual()
+      skeleton.type = "skeleton"
+      result.append(.synthetic(id: Self.skeletonSectionID, rowID: Self.visualRowID, visual: skeleton))
+    }
+    return result
+  }
+
+  func setNotice(_ value: LodyListNotice?) {
+    notice = value
+    applySections(composedSections(), animated: true)
+  }
+
+  func setLoading(_ value: Bool) {
+    guard loading != value else { return }
+    loading = value
+    applySections(composedSections(), animated: false)
+  }
+
+  func setUnavailable(_ value: LodyListUnavailable?) {
+    guard let value, !value.title.isEmpty else {
+      unavailableView?.removeFromSuperview()
+      unavailableView = nil
+      updatePlaceholder()
+      return
+    }
+    var configuration = UIContentUnavailableConfiguration.empty()
+    configuration.image = UIImage(systemName: value.symbol)
+    configuration.text = value.title
+    configuration.secondaryText = value.message.isEmpty ? nil : value.message
+    if !value.actionTitle.isEmpty {
+      var button = UIButton.Configuration.prominentGlass()
+      button.title = value.actionTitle
+      configuration.button = button
+      configuration.buttonProperties.primaryAction = UIAction { [weak self] _ in
+        self?.onUnavailableAction([:])
+      }
+    }
+    let view = unavailableView ?? UIContentUnavailableView(configuration: configuration)
+    view.configuration = configuration
+    view.accessibilityIdentifier = "list-unavailable"
+    if view.superview == nil { insertSubview(view, aboveSubview: collection) }
+    view.layoutIfNeeded()
+    Self.firstButton(in: view)?.accessibilityIdentifier = "list-unavailable-action"
+    unavailableView = view
+    updatePlaceholder()
+    setNeedsLayout()
+  }
+
+  // UIContentUnavailableConfiguration exposes no identifier for its button.
+  private static func firstButton(in view: UIView) -> UIButton? {
+    for subview in view.subviews {
+      if let button = subview as? UIButton { return button }
+      if let button = firstButton(in: subview) { return button }
+    }
+    return nil
   }
 
   private lazy var sessionRegistration = UICollectionView.CellRegistration<LodyIndentedCell, LodyListRow> { [weak self] cell, _, row in
@@ -256,6 +359,14 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       content.imageProperties.tintColor =
         lodyTint(row.imageTint) ?? (row.destructive ? .systemRed : accent)
     }
+    if !row.status.isEmpty {
+      content.image = LodyListStatus.badged(
+        content.image,
+        tint: content.imageProperties.tintColor ?? accent,
+        status: row.status,
+        traits: cell.traitCollection
+      )
+    }
     cell.contentConfiguration = content
     var accessories: [UICellAccessory] = []
     cell.accessibilityValue = nil
@@ -274,10 +385,17 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       label.sizeToFit()
       cell.accessibilityValue = value.string
       accessories.append(.customView(configuration: .init(customView: label, placement: .trailing())))
+    } else if !row.value.isEmpty && !row.valueSymbol.isEmpty {
+      let label = LodyListStatus.symbolLabel(row.valueSymbol, text: row.value, color: .secondaryLabel)
+      accessories.append(.customView(configuration: .init(customView: label, placement: .trailing())))
     } else if !row.value.isEmpty {
       var options = UICellAccessory.LabelOptions()
       options.tintColor = .secondaryLabel
       accessories.append(.label(text: row.value, options: options))
+    }
+    if !row.trailingSymbol.isEmpty {
+      let glyph = LodyListStatus.trailingGlyph(row.trailingSymbol)
+      accessories.append(.customView(configuration: .init(customView: glyph, placement: .trailing())))
     }
     if let toggle {
       accessories.append(
@@ -290,7 +408,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     var traits: UIAccessibilityTraits = row.action ? .button : .staticText
     if row.selected { traits.insert(.selected) }
     cell.accessibilityTraits = traits
-    cell.accessibilityValue = row.accessibilityValue.isEmpty ? nil : row.accessibilityValue
+    let spoken = [row.accessibilityValue, row.trailingSymbolLabel].filter { !$0.isEmpty }.joined(separator: ", ")
+    cell.accessibilityValue = spoken.isEmpty ? nil : spoken
     cell.accessibilityLabel = row.selected && !row.accessibilityValue.isEmpty
       ? "\(row.title), \(row.accessibilityValue)"
       : nil
@@ -319,6 +438,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     _ = sessionRegistration
     _ = projectRegistration
     _ = registration
+    _ = visualRegistration
     _ = searchRegistration
     collection.backgroundColor = .lodyGroupedBackground
     collection.tintColor = .lodyAccent
@@ -383,6 +503,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     collection.setCollectionViewLayout(layout, animated: false)
     LodyScrollEdges.grouped(collection)
     refreshControl.addTarget(self, action: #selector(refreshPulled), for: .valueChanged)
+    registerForTraitChanges([UITraitUserInterfaceStyle.self], action: #selector(appearanceChanged))
     placeholder.textAlignment = .center
     placeholder.numberOfLines = 0
     placeholder.textColor = .secondaryLabel
@@ -444,6 +565,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       steps.frame = segments.frame
     }
     placeholder.frame = bounds.inset(by: UIEdgeInsets(top: insets.top + 24, left: 32, bottom: insets.bottom + 24, right: 32))
+    unavailableView?.frame = bounds.inset(by: UIEdgeInsets(top: insets.top, left: 0, bottom: insets.bottom, right: 0))
     attachScrollOwner()
     updateEdgeFades()
   }
@@ -673,6 +795,11 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   func setSections(_ value: [LodyListSection], animated: Bool = true) {
+    inputSections = value
+    applySections(composedSections(), animated: animated)
+  }
+
+  private func applySections(_ value: [LodyListSection], animated: Bool) {
     let previous = dataSource.snapshot()
     let previousRows = rowsByID
     let hasHierarchy = value.contains(where: { $0.rows.contains { $0.parent || !$0.collapsedValue.isEmpty } })
@@ -839,6 +966,15 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     collection.reloadData()
   }
 
+  // Status badges are bitmaps resolved against the cell's appearance.
+  @objc private func appearanceChanged() {
+    let ids = collection.indexPathsForVisibleItems.compactMap { dataSource.itemIdentifier(for: $0) }
+    guard !ids.isEmpty else { return }
+    var snapshot = dataSource.snapshot()
+    snapshot.reconfigureItems(ids)
+    dataSource.apply(snapshot, animatingDifferences: false)
+  }
+
   func setRefreshing(_ value: Bool) {
     if value, !refreshControl.isRefreshing {
       refreshControl.beginRefreshing()
@@ -866,8 +1002,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   private func updatePlaceholder() {
-    let empty = sections.isEmpty || sections.allSatisfy { $0.rows.isEmpty && $0.headerActionId.isEmpty }
-    let hide = !empty || placeholderText.isEmpty
+    let empty = inputSections.allSatisfy { $0.rows.isEmpty && $0.visual == nil && $0.headerActionId.isEmpty }
+    let hide = !empty || placeholderText.isEmpty || loading || unavailableView != nil
     let visibilityChanged = placeholder.isHidden != hide
     placeholder.text = placeholderText
     placeholder.isHidden = hide
@@ -880,9 +1016,10 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     onRefresh([:])
   }
 
-  private enum RowKind { case system, session, project }
+  private enum RowKind { case system, session, project, visual }
 
   private func kind(of row: LodyListRow) -> RowKind {
+    if row.id == Self.visualRowID { return .visual }
     guard contentStyle else { return .system }
     if row.parent { return .project }
     return row.value.isEmpty && row.badge.isEmpty ? .system : .session
@@ -894,8 +1031,17 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     case .system: cell = collectionView.dequeueConfiguredReusableCell(using: registration, for: indexPath, item: row)
     case .session: cell = collectionView.dequeueConfiguredReusableCell(using: sessionRegistration, for: indexPath, item: row)
     case .project: cell = collectionView.dequeueConfiguredReusableCell(using: projectRegistration, for: indexPath, item: row)
+    case .visual:
+      let id = ListItemID(section: dataSource.sectionIdentifier(for: indexPath.section) ?? "", row: row.id)
+      cell = collectionView.dequeueConfiguredReusableCell(using: visualRegistration, for: indexPath, item: id)
     }
     decorate(cell, row: row)
+    if let notice, dataSource.sectionIdentifier(for: indexPath.section) == Self.noticeSectionID {
+      var background = UIBackgroundConfiguration.listGroupedCell()
+      background.backgroundColor = (lodyTint(notice.tint) ?? .secondaryLabel).withAlphaComponent(0.12)
+      cell.configurationUpdateHandler = nil
+      cell.backgroundConfiguration = background
+    }
     return cell
   }
 
@@ -904,6 +1050,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     case .system: if let cell = cell as? SettingsListCell { configureSettingsCell(cell, row) }
     case .session: if let cell = cell as? LodyIndentedCell { configureSession(cell, row) }
     case .project: configureProject(cell, row)
+    case .visual: break
     }
     decorate(cell, row: row)
   }
@@ -1048,6 +1195,18 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     }
     content.text = text
     content.textProperties.numberOfLines = 0
+    if header, !section.headerStatus.isEmpty,
+       let title = LodyListStatus.header(
+         text,
+         status: section.headerStatus,
+         font: content.textProperties.font,
+         color: content.textProperties.resolvedColor()
+       ) {
+      content.attributedText = title
+      view.accessibilityLabel = text
+    } else {
+      view.accessibilityLabel = nil
+    }
     if contentStyle {
       content.directionalLayoutMargins = .init(top: 10, leading: 22, bottom: 10, trailing: 22)
       if header {

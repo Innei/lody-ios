@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking } from 'react-native';
-import { NativeGroupedList, NativeSymbolButton } from '@lody-ios/kit';
+import { NativeGroupedList } from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { requestGitHubSettings } from '@/cloud/workspace-settings';
@@ -10,8 +10,8 @@ import {
   type GitHubSettingsRequest,
   type GitHubSettingsService,
 } from '@/features/settings/github-settings';
+import { listState } from '@/features/settings/list-state';
 import { definePage } from '@/lib/presentation';
-import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
 import { usePalette } from '@/lib/theme/palette';
 import { t } from '@/lib/i18n';
 export function GitHubSettingsView({
@@ -28,6 +28,9 @@ export function GitHubSettingsView({
   const [value, setValue] = useState<GitHubSettings>();
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(false);
+  const [unconfirmed, setUnconfirmed] = useState(false);
+  const [pulled, setPulled] = useState(false);
+  const [loadedAt, setLoadedAt] = useState<number>();
   const version = useRef(0),
     writing = useRef(false),
     opening = useRef(false);
@@ -44,14 +47,18 @@ export function GitHubSettingsView({
         action: 'list',
       });
       if ('url' in next) throw new Error('invalid');
-      if (version.current === id) setValue(next);
-    } catch {
       if (version.current === id) {
-        setValue(undefined);
-        setError(true);
+        setValue(next);
+        setUnconfirmed(false);
+        setLoadedAt(Date.now());
       }
+    } catch {
+      if (version.current === id) setError(true);
     } finally {
-      if (version.current === id) setBusy(false);
+      if (version.current === id) {
+        setBusy(false);
+        setPulled(false);
+      }
     }
   }, [workspaceId, service]);
   useEffect(() => {
@@ -87,53 +94,40 @@ export function GitHubSettingsView({
         onChanged?.();
       }
     } catch {
-      if (version.current === id) {
-        setValue(undefined);
-        setError(true);
-      }
+      if (version.current === id) setUnconfirmed(true);
     } finally {
       writing.current = false;
       if (version.current === id) setBusy(false);
     }
   };
-  const refresh = useMemo(
-    () => (
-      <NativeSymbolButton
-        accessibilityName={t('settings.remote.refresh')}
-        symbol="arrow.clockwise"
-        tint="blue"
-        loading={busy}
-        style={{ width: 44, height: 44 }}
-        onPress={() => void read()}
-      />
-    ),
-    [read, busy],
-  );
-  useSheetHeader(undefined, undefined, refresh);
-  const failed = error || !!value?.errors.length;
+  const partial = !!value?.errors.length;
+  const failed = error || partial || unconfirmed;
+  const state = listState({
+    title: t('settings.unavailable.github'),
+    hasData: !!value,
+    loading: busy,
+    failed: error,
+    unconfirmed,
+    partial: partial ? t('settings.github.partial') : undefined,
+    syncedAt: loadedAt,
+  });
+  const reload = () => void read();
   return (
     <NativeGroupedList
       style={{ flex: 1 }}
       accent={colors.accent}
-      refreshing={busy}
-      onRefresh={() => void read()}
-      placeholder={busy && !value ? t('settings.remote.loading') : ''}
-      sections={[
-        ...(failed
-          ? [
-              {
-                id: 'error',
-                footer: t('settings.github.failed'),
-                rows: [
-                  { id: 'retry', title: t('common.retry'), action: !busy },
-                ],
-              },
-            ]
-          : []),
-        ...githubSettingsSections(value, !busy && !failed),
-      ]}
+      refreshing={pulled && busy}
+      onRefresh={() => {
+        setPulled(true);
+        reload();
+      }}
+      loading={state.loading}
+      notice={state.notice}
+      unavailable={state.unavailable}
+      onNoticeAction={reload}
+      onUnavailableAction={reload}
+      sections={value ? githubSettingsSections(value, !busy && !failed) : []}
       onRowPress={({ nativeEvent: { id } }) => {
-        if (id === 'retry') void read();
         if (id === 'install' && value?.canManage)
           void perform({ page: 'github', workspaceId, action: 'install' });
       }}

@@ -4,6 +4,7 @@ import sys
 from driver import UI
 from sheet_background import capture_card
 import catalog
+import settings_states
 
 ui = UI(sys.argv[1], sys.argv[2])
 agents_only = '--agents-only' in sys.argv[3:]
@@ -50,12 +51,12 @@ def save():
 ui.capture('categories')
 if not agents_only:
     ui.axe('tap', '--id', 'settings-machine', '--pre-delay', '.8', '--post-delay', '.8', '--tap-style', 'physical')
-    ui.wait(lambda items: any(catalog.text('settings.remote.loadFailed') in (item.get('AXLabel') or '') for item in items), 'Missing load failure')
-    toolbar('settings.remote.refresh')
+    settings_states.unavailable(ui, 'settings.unavailable.machine')
+    settings_states.no_header_refresh(ui)
     ui.capture('load-failure')
-    tap('retry')
+    settings_states.try_again(ui)
     assert 'Studio Mac' in label('setting:machine::m1')
-    toolbar('settings.remote.refresh')
+    assert catalog.text('devices.online') in label('setting:machine::m1')
     ui.capture('machines')
     tap('setting:machine::m1')
     assert toolbar('common.cancel')['frame']['x'] < toolbar('settings.remote.save')['frame']['x']
@@ -71,51 +72,54 @@ if not agents_only:
     back()
 tap('settings-agent')
 if agents_only:
-    ui.element('retry')
+    settings_states.unavailable(ui, 'settings.unavailable.agent')
     ui.capture('agent-load-failure')
-    tap('retry')
+    settings_states.try_again(ui)
 ui.wait(lambda items: any(item.get('AXUniqueId') == 'setting:agent:m1:a1' and 'Codex' in (item.get('AXLabel') or '') for item in items), 'Agent section did not open')
-assert any(item.get('AXLabel') == 'Studio Mac' for item in ui.state()), 'Missing machine group header'
+assert any((item.get('AXLabel') or '').startswith('Studio Mac') and catalog.text('devices.online') in (item.get('AXLabel') or '') for item in ui.state()), 'Missing machine group header with status'
 assert 'Studio Mac' not in label('setting:agent:m1:a1'), 'Machine name should live in its group header'
 ui.capture('agent-configurations')
-synced = catalog.text('settings.remote.syncedAt', time='').strip()
 reveal('usage:m1:codex:codex:0')
 assert catalog.text('settings.usage.used', percent=32) in label('usage:m1:codex:codex:0')
+assert catalog.text('settings.usage.onPace') in label('usage:m1:codex:codex:0')
 reveal('usage:m1:codex:codex:1')
 assert catalog.text('settings.usage.used', percent=61) in label('usage:m1:codex:codex:1')
+ahead = catalog.text('settings.usage.ahead', percent=50, time='\0').split('\0')[0]
+assert ahead in label('usage:m1:codex:codex:1'), 'Usage ahead of the window was not forecast'
 reveal('usage:m1:codex:codex_bengalfox:0')
 assert 'Spark' in label('usage:m1:codex:codex_bengalfox:0')
-assert catalog.text('settings.usage.resetUnknown') in label('usage:m1:codex:codex_bengalfox:0')
-toolbar('settings.remote.refresh')
+assert catalog.text('settings.usage.resetsUnknown') in label('usage:m1:codex:codex_bengalfox:0')
+settings_states.no_header_refresh(ui)
 ui.capture('agent-usage')
 # A failed fetch on reconnect uses the persisted catalog-shaped projection.
-ui.axe('tap', '--label', catalog.text('settings.remote.refresh'), '--post-delay', '1')
+reveal('usage:m1:codex:codex:0', up=True)
+settings_states.pull(ui, 'usage:m1:codex:codex:0', settings_states.has_notice)
 reveal('usage:m1:codex:codex:0', up=True)
 assert catalog.text('settings.usage.used', percent=32) in label('usage:m1:codex:codex:0')
-show_text(catalog.text('settings.usage.offline'))
-toolbar('settings.remote.refresh')
+settings_states.notice(ui)
+show_text(catalog.text('settings.usage.lastUnknown'))
 ui.capture('agent-usage-offline')
-ui.axe('tap', '--label', catalog.text('settings.remote.refresh'), '--post-delay', '1')
+reveal('usage:m1:codex:codex:0', up=True)
+settings_states.pull(ui, 'usage:m1:codex:codex:0', lambda items: not settings_states.has_notice(items))
 reveal('usage:m1:codex:codex:0', up=True)
 ui.wait(lambda items: any(item.get('AXUniqueId') == 'usage:m1:codex:codex:0' and catalog.text('settings.usage.used', percent=72) in spoken(item) for item in items), 'Usage did not update after reconnect')
 ui.capture('agent-usage-updated')
 reveal('usage:m1:claude:claude:0')
 assert catalog.text('settings.usage.used', percent=100) in label('usage:m1:claude:claude:0')
-reveal('usage:m1:kimi:empty')
-assert catalog.text('settings.usage.empty') in label('usage:m1:kimi:empty')
-reveal('setting:agent:m1:a4', up=True)
+assert catalog.text('settings.usage.exhausted') in label('usage:m1:claude:claude:0')
+assert not any((item.get('AXUniqueId') or '').startswith('usage:m1:kimi') for item in ui.state()), 'An eligible agent without quota data was drawn as a quota'
+reveal('setting:agent:m1:a4')
 assert 'Custom API' in label('setting:agent:m1:a4')
 assert catalog.text('settings.usage.used', percent=0) not in label('setting:agent:m1:a4')
 ui.capture('agent-usage-readonly-empty-api')
 reveal('setting:agent:m2:a1')
-show_text(catalog.text('settings.remote.machineIdentity', id='m2'))
-assert any(synced in spoken(item) for item in ui.state()), 'Configuration footer must show its refresh time'
+assert not any('m2' == (item.get('AXLabel') or '').split(' ')[-1] for item in ui.state()), 'Raw machine ID is still shown'
 ui.capture('agent-machine-groups')
 tap('setting:agent:m2:a1', up=True)
 assert ui.element('setting-prompt')['AXValue'] == 'Laptop instructions.'
 ui.axe('tap', '--label', catalog.text('common.cancel'), '--post-delay', '.5')
 tap('setting:agent:m1:a2', up=True)
-assert catalog.text('settings.remote.readOnly') in label('setting:agent:m1:a2')
+assert catalog.text('settings.remote.ownerOnly') in label('setting:agent:m1:a2')
 assert not any(item.get('AXUniqueId') == 'setting-name' for item in ui.state()), 'Read-only Agent opened an editor'
 tap('setting:agent:m1:a1', up=True)
 capture_card(ui, 'agent-editor', 'setting-prompt')

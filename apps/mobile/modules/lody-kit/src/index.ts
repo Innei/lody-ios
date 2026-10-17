@@ -109,9 +109,12 @@ export {
 
 export {
   NativeGroupedList,
+  type NativeGroupedListProps,
   type NativeListAction,
   type NativeListRow,
   type NativeListSection,
+  type NativeListStatus,
+  type NativeListVisual,
 } from './list/NativeGroupedList';
 export {
   NativePagedList,

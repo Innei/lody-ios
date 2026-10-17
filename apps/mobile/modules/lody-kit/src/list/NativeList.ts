@@ -63,7 +63,62 @@ export type NativeListRow = {
   options?: NativeListAction[];
   /** Session rows may peek a cached transcript. */
   preview?: 'session';
+  status?: NativeListStatus;
+  trailingSymbol?: string;
+  trailingSymbolLabel?: string;
+  /** Leads `value`, including the current choice of an `options` pop-up. */
+  valueSymbol?: string;
 };
+
+export type NativeListStatus = 'online' | 'offline' | 'unknown';
+
+export type NativeListVisual =
+  | {
+      type: 'stats';
+      items: { label: string; value: string; accessibilityValue: string }[];
+    }
+  | {
+      type: 'bars';
+      title: string;
+      summary: string;
+      metrics?: string[];
+      costTitle?: string;
+      costSummary?: string;
+      items: {
+        id: string;
+        amount: number;
+        cost?: number;
+        axisLabel?: string;
+        detail: string;
+        accessibilityLabel: string;
+      }[];
+    }
+  | {
+      type: 'mix';
+      items: {
+        label: string;
+        value: string;
+        percent: string;
+        fraction: number;
+        accessibilityValue: string;
+      }[];
+    }
+  | {
+      type: 'quotas';
+      dimmed?: boolean;
+      items: {
+        id: string;
+        label: string;
+        value: string;
+        caption: string;
+        fraction: number;
+        /** Elapsed share of the window; omitted when the reset time is unknown. */
+        pace?: number;
+        detail?: string;
+        tone?: 'warning';
+        accessibilityLabel: string;
+      }[];
+    };
 
 export type NativeListSection = {
   id: string;
@@ -72,6 +127,9 @@ export type NativeListSection = {
   headerActionId?: string;
   headerExpanded?: boolean;
   headerProminent?: boolean;
+  headerStatus?: NativeListStatus;
   footer?: string;
+  /** Rendered as one cell above `rows`. */
+  visual?: NativeListVisual;
   rows: NativeListRow[];
 };

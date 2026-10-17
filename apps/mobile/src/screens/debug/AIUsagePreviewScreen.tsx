@@ -26,6 +26,7 @@ function Preview() {
       if (request.range === 'total') cost = 0;
       const startMs = Date.UTC(2026, 9, 16),
         endMs = startMs + 86400000;
+      const hourly = [2000, 500, 6000, 1000, 2500, 500];
       const result: UsageSnapshot = {
         workspaceId: request.workspaceId,
         range: request.range,
@@ -38,8 +39,15 @@ function Preview() {
           totals: { tokens, costUSD: cost },
           startMs,
           endMs,
-          bucketSizeMs: 86400000,
-          buckets: [{ bucketStartMs: startMs, tokens, costUSD: cost }],
+          bucketSizeMs: request.range === 'day' ? 3600000 : 86400000,
+          buckets:
+            request.range === 'day'
+              ? hourly.map((value, index) => ({
+                  bucketStartMs: startMs + index * 3600000,
+                  tokens: value,
+                  costUSD: null,
+                }))
+              : [{ bucketStartMs: startMs, tokens, costUSD: cost }],
         },
         errors: request.range === 'day' ? ['summary'] : [],
       };

@@ -6,6 +6,8 @@ export type {
   NativeListAction,
   NativeListRow,
   NativeListSection,
+  NativeListStatus,
+  NativeListVisual,
 } from './NativeList';
 import type { NativeListSection } from './NativeList';
 
@@ -30,6 +32,23 @@ export type NativeGroupedListProps = ViewProps & {
   /** Project sections with tappable headings and compact session details. */
   contentStyle?: boolean;
   placeholder?: string;
+  /** Skeleton rows while `sections` hold no rows. */
+  loading?: boolean;
+  unavailable?: {
+    symbol: string;
+    title: string;
+    message?: string;
+    actionTitle?: string;
+  };
+  onUnavailableAction?: () => void;
+  notice?: {
+    symbol: string;
+    text: string;
+    tint?: string;
+    actionSymbol?: string;
+    actionLabel?: string;
+  };
+  onNoticeAction?: () => void;
   refreshing?: boolean;
   onRefresh?: () => void;
   /** `expanded` accompanies a parent row when UIKit toggles its outline. */

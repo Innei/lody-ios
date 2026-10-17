@@ -6,7 +6,6 @@ import {
   memoryRemoteSettingsCache,
   parseSavedRemoteSettings,
   remoteSettingsKey,
-  remoteSettingsPlaceholder,
   remoteSettingsSections,
 } from '../../src/features/settings/remote-settings.ts';
 
@@ -42,7 +41,6 @@ test('catalog agent configs never become the list when nothing is confirmed', ()
   const sections = remoteSettingsSections({
     kind: 'agent',
     items: [],
-    loading: true,
     error: '',
     connected: true,
     agentUsage: usage,
@@ -50,43 +48,6 @@ test('catalog agent configs never become the list when nothing is confirmed', ()
   assert.deepEqual(
     sections.flatMap((section) => section.rows.map((row) => row.id)),
     [],
-  );
-  assert.equal(
-    remoteSettingsPlaceholder({ items: [], loading: true, error: '' }),
-    '正在读取远程设置…',
-  );
-});
-
-test('confirmed cache keeps its order and shows the refresh time', () => {
-  const sections = remoteSettingsSections({
-    kind: 'agent',
-    items: [grok, claude],
-    loading: true,
-    error: '',
-    connected: true,
-    agentUsage: usage,
-    syncedAt: Date.parse('2026-09-12T12:00:00+08:00'),
-    now: Date.parse('2026-09-12T12:03:00+08:00'),
-  });
-  assert.deepEqual(
-    sections.flatMap((section) =>
-      section.rows
-        .filter((row) => row.id.startsWith('setting:'))
-        .map((row) => row.id),
-    ),
-    ['setting:agent:m1:grok', 'setting:agent:m1:claude'],
-  );
-  assert.match(
-    sections.find((section) => section.id === 'machine:m1').footer,
-    /更新于/,
-  );
-  assert.equal(
-    remoteSettingsPlaceholder({
-      items: [grok],
-      loading: true,
-      error: '',
-    }),
-    '',
   );
 });
 
@@ -102,17 +63,9 @@ test('agents on interleaved machines group together without merging identical na
     error: '',
     connected: true,
     agentUsage: usage,
-    syncedAt: 1,
-    now: 1000,
   });
   assert.deepEqual(
-    sections
-      .filter((group) => !group.id.endsWith(':usage'))
-      .map((group) =>
-        group.rows
-          .filter((row) => row.id.startsWith('setting:'))
-          .map((row) => row.id),
-      ),
+    sections.map((group) => group.rows.map((row) => row.id)),
     [
       ['setting:agent:m1:grok', 'setting:agent:m1:claude'],
       ['setting:agent:m2:grok'],
@@ -124,9 +77,22 @@ test('agents on interleaved machines group together without merging identical na
   assert.equal(second.header, 'Studio');
   assert.notEqual(sections[0].id, second.id);
   assert.equal(second.rows[0].action, false);
+  assert.equal(second.rows[0].trailingSymbol, 'lock');
   assert.ok(sections.find((section) => section.id === 'machine:').header);
-  assert.match(second.footer, /m2/);
-  assert.match(second.footer, /更新于/);
+});
+
+test('agent rows show the name once, with the provider icon instead of a provider subtitle', () => {
+  const [section] = remoteSettingsSections({
+    kind: 'agent',
+    items: [claude],
+    error: '',
+    connected: true,
+  });
+  const [row] = section.rows;
+  assert.equal(row.title, 'Claude Code');
+  assert.equal(row.subtitle, undefined);
+  assert.equal(row.imageAsset, 'lody-agent-claude');
+  assert.ok(!(section.footer ?? '').includes('m1'));
 });
 
 test('live fetch replaces cache and writes the confirmed snapshot', async () => {
@@ -201,59 +167,54 @@ test('saved snapshots reject catalog-shaped or cross-kind payloads', () => {
 const machines = [
   { kind: 'machine', id: 'owner-mac', name: 'Studio Mac', detail: 'macOS' },
   { kind: 'machine', id: 'team-mac', name: 'Studio Mac', readOnly: true },
+  { kind: 'machine', id: 'build', name: 'Builder', detail: 'Linux' },
 ];
 const machineList = {
   kind: 'machine',
   items: machines,
   error: '',
   connected: true,
-  syncedAt: 1,
-  now: 1000,
   machinePresence: { state: 'live', onlineMachineIds: ['owner-mac'] },
 };
 
-test('same-name machines expose distinct identities, presence and edit permissions', () => {
+test('machine rows carry presence as status and text, never the raw id unless names collide', () => {
   const [section] = remoteSettingsSections(machineList);
-  const [owner, teammate] = section.rows;
-  assert.equal(owner.title, teammate.title);
+  const [owner, teammate, builder] = section.rows;
+  assert.equal(owner.status, 'online');
+  assert.equal(teammate.status, 'offline');
+  assert.equal(owner.subtitle, `${t('devices.online')} · macOS · owner-mac`);
+  assert.ok(!builder.subtitle.includes('build'));
+  assert.equal(builder.subtitle, `${t('devices.offline')} · Linux`);
   assert.notEqual(owner.id, teammate.id);
-  assert.match(owner.subtitle, /owner-mac/);
   assert.match(teammate.subtitle, /team-mac/);
-  assert.ok(owner.subtitle.includes(t('devices.online')));
-  assert.ok(teammate.subtitle.includes(t('devices.offline')));
-  assert.equal(owner.action, true);
+});
+
+test('read-only machines keep their status text and show a lock instead of a sentence', () => {
+  const [section] = remoteSettingsSections(machineList);
+  const teammate = section.rows[1];
   assert.equal(teammate.action, false);
   assert.equal(teammate.disclosure, false);
-  assert.ok(teammate.subtitle.includes(t('settings.remote.readOnly')));
+  assert.equal(teammate.trailingSymbol, 'lock');
+  assert.ok(teammate.subtitle.includes(t('devices.offline')));
+  assert.ok(!teammate.subtitle.includes(t('settings.remote.readOnly')));
+  assert.equal(section.footer, t('settings.remote.machineFooter'));
 });
 
 test('disconnected or failed machine refresh never presents stale presence as online', () => {
-  for (const state of [{ connected: false }, { error: 'refresh failed' }]) {
+  for (const state of [
+    { connected: false },
+    { error: 'refresh failed' },
+    { machinePresence: { state: 'unknown', onlineMachineIds: [] } },
+  ]) {
     const [section] = remoteSettingsSections({ ...machineList, ...state });
+    assert.ok(section.rows.every((row) => row.status === 'unknown'));
     assert.ok(
       section.rows.every((row) => row.subtitle.includes(t('devices.unknown'))),
     );
     assert.ok(
       section.rows.every((row) => !row.subtitle.includes(t('devices.online'))),
     );
-    assert.deepEqual(
-      section.rows.map((row) => row.title),
-      ['Studio Mac', 'Studio Mac'],
-    );
-    assert.ok(section.footer.includes(t('settings.remote.machineCached')));
-    assert.ok(
-      section.footer.includes(
-        t('settings.remote.syncedAt', { time: t('time.justNow') }),
-      ),
-    );
   }
-  const [section] = remoteSettingsSections({
-    ...machineList,
-    machinePresence: { state: 'unknown', onlineMachineIds: [] },
-  });
-  assert.ok(
-    section.rows.every((row) => row.subtitle.includes(t('devices.unknown'))),
-  );
 });
 
 const codexAgent = {
@@ -286,7 +247,7 @@ const agentList = {
   agentUsage: { m1: subscription, m2: subscription },
 };
 
-test('configuration groups stay separate while provider allowances appear once per machine', () => {
+test('each machine is one section whose quota rings appear once per provider above its configurations', () => {
   const sections = remoteSettingsSections({
     ...agentList,
     items: [
@@ -296,49 +257,49 @@ test('configuration groups stay separate while provider allowances appear once p
       { ...codexAgent, id: 'custom-api', name: 'Custom API' },
     ],
   });
+  assert.equal(sections.length, 2);
   const first = sections.find((section) => section.id === 'machine:m1');
   assert.equal(first.rows.length, 3);
-  assert.ok(first.rows.every((row) => row.id.startsWith('setting:')));
-  const allowances = sections.filter((section) =>
-    section.id.endsWith(':usage'),
+  assert.equal(first.headerStatus, 'online');
+  assert.equal(first.header, `Studio · ${t('devices.online')}`);
+  assert.equal(first.visual.type, 'quotas');
+  assert.equal(first.visual.items.length, 1);
+  assert.equal(first.visual.items[0].fraction, 0);
+  assert.equal(first.visual.dimmed, false);
+  assert.equal(
+    first.footer,
+    `${t('settings.usage.paceFooter')}\n${t('settings.usage.sharedShort')}`,
   );
-  assert.equal(allowances.length, 2);
-  assert.ok(allowances.every((section) => section.rows.length === 1));
-  assert.notEqual(allowances[0].rows[0].id, allowances[1].rows[0].id);
-  assert.equal(allowances[0].rows[0].progress, 0);
-  assert.ok(
-    allowances[0].rows[0].subtitle.includes(t('settings.usage.resetUnknown')),
-  );
-  assert.ok(allowances[0].footer.includes(t('settings.usage.shared')));
   const second = sections.find((section) => section.id === 'machine:m2');
+  assert.notEqual(first.visual.items[0].id, second.visual.items[0].id);
   assert.equal(second.rows[0].action, false);
-  assert.notEqual(first.footer, second.footer);
 });
 
-test('unknown presence and failed settings reads label retained Agent data as cached', () => {
-  for (const change of [
-    { error: 'read failed' },
-    { machinePresence: { state: 'unknown', onlineMachineIds: [] } },
-    { machinePresence: { state: 'live', onlineMachineIds: [] } },
+test('offline, unknown or failed reads keep cached rings but dim them and say why', () => {
+  for (const [change, footer] of [
+    [
+      { machinePresence: { state: 'live', onlineMachineIds: [] } },
+      'settings.usage.lastOffline',
+    ],
+    [
+      { machinePresence: { state: 'unknown', onlineMachineIds: [] } },
+      'settings.usage.lastUnknown',
+    ],
+    [{ error: 'read failed' }, 'settings.usage.lastUnknown'],
+    [{ connected: false }, 'settings.usage.lastUnknown'],
   ]) {
-    const sections = remoteSettingsSections({
+    const [section] = remoteSettingsSections({
       ...agentList,
       ...change,
       items: [codexAgent],
-      syncedAt: 1,
-      now: 1000,
     });
-    const quota = sections.find((section) => section.id.endsWith(':usage'));
-    assert.ok(quota.footer.includes(t('settings.usage.cached')));
-    assert.ok(!quota.footer.includes(t('settings.usage.shared')));
-    assert.equal(quota.rows[0].progress, 0);
-    assert.ok(
-      !quota.footer.includes(
-        t('settings.remote.syncedAt', { time: t('time.justNow') }),
-      ),
-    );
-    if (change.error)
-      assert.ok(sections[0].footer.includes(t('settings.remote.agentCached')));
+    assert.equal(section.visual.dimmed, true);
+    assert.equal(section.visual.items[0].fraction, 0);
+    assert.equal(section.visual.items[0].pace, undefined);
+    assert.equal(section.visual.items[0].detail, undefined);
+    assert.equal(section.visual.items[0].tone, undefined);
+    assert.equal(section.footer, t(footer));
+    assert.notEqual(section.headerStatus, 'online');
   }
 });
 
@@ -350,15 +311,46 @@ test('missing, ineligible and mismatched usage configs never become zero usage',
   ]) {
     const items = [config ?? codexAgent];
     const agentUsage = config ? agentList.agentUsage : undefined;
-    const sections = remoteSettingsSections({
+    const [section] = remoteSettingsSections({
       ...agentList,
       items,
       agentUsage,
     });
-    const quota = sections.find((section) => section.id.endsWith(':usage'));
-    assert.equal(quota.rows.length, 1);
-    assert.equal(quota.rows[0].title, t('settings.usage.empty'));
-    assert.equal(quota.rows[0].value, undefined);
-    assert.equal(quota.rows[0].progress, undefined);
+    assert.equal(section.visual, undefined);
   }
+  const [offline] = remoteSettingsSections({
+    ...agentList,
+    machinePresence: { state: 'live', onlineMachineIds: [] },
+    items: [codexAgent],
+    agentUsage: undefined,
+  });
+  assert.equal(offline.footer, t('settings.usage.noneOffline'));
+});
+
+test('read-only MCP servers show a lock and no read-only sentence', () => {
+  const [section] = remoteSettingsSections({
+    kind: 'mcp',
+    connected: true,
+    error: '',
+    items: [
+      {
+        kind: 'mcp',
+        id: 'a',
+        name: 'github',
+        machineName: 'Studio',
+        enabledByDefault: true,
+      },
+      {
+        kind: 'mcp',
+        id: 'b',
+        name: 'sentry',
+        machineName: 'Studio',
+        readOnly: true,
+      },
+    ],
+  });
+  assert.equal(section.rows[0].value, t('settings.mcp.defaultOn'));
+  assert.equal(section.rows[1].trailingSymbol, 'lock');
+  assert.ok(!section.rows[1].subtitle.includes(t('settings.mcp.readOnly')));
+  assert.equal(section.footer, t('settings.remote.mcpHint'));
 });

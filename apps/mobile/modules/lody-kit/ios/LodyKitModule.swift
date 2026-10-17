@@ -841,8 +841,11 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("contentStyle") { (view: LodyGroupedList, value: Bool) in
         view.setContentStyle(value)
       }
-      Events("onRowPress", "onRowToggle", "onRowAction", "onReorder", "onRefresh", "onSegmentChange", "onSearchChange")
+      Events("onRowPress", "onRowToggle", "onRowAction", "onReorder", "onRefresh", "onSegmentChange", "onSearchChange", "onNoticeAction", "onUnavailableAction")
       Prop("reordering") { (view: LodyGroupedList, value: Bool) in view.setReordering(value) }
+      Prop("loading") { (view: LodyGroupedList, value: Bool) in view.setLoading(value) }
+      Prop("notice") { (view: LodyGroupedList, value: LodyListNotice?) in view.setNotice(value) }
+      Prop("unavailable") { (view: LodyGroupedList, value: LodyListUnavailable?) in view.setUnavailable(value) }
       Prop("segments") { (view: LodyGroupedList, labels: [String]) in view.setSegments(labels) }
       Prop("selectedSegment") { (view: LodyGroupedList, index: Int) in view.setSelectedSegment(index) }
       Prop("segmentsStyle") { (view: LodyGroupedList, value: String) in view.setSegmentsStyle(value) }

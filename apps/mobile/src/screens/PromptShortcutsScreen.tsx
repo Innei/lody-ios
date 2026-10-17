@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  NativeGroupedList,
-  NativeSymbolButton,
-  showToast,
-} from '@lody-ios/kit';
+import { NativeGroupedList, showToast } from '@lody-ios/kit';
 import type {
   PromptShortcutIndexEntry,
   PromptShortcut,
 } from '@lody/cloud-runtime/models/prompt-shortcuts';
-import { simpleShortcut } from '@lody/cloud-runtime/models/prompt-shortcuts';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import {
@@ -20,6 +15,8 @@ import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
 import { usePalette } from '@/lib/theme/palette';
 import { t } from '@/lib/i18n';
+import { listState } from '@/features/settings/list-state';
+import { shortcutSections } from '@/features/settings/prompt-shortcuts';
 import { PromptShortcutEditorScreen } from './PromptShortcutEditorScreen';
 
 export function PromptShortcutsView({
@@ -34,6 +31,9 @@ export function PromptShortcutsView({
   const [items, setItems] = useState<PromptShortcutIndexEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [pulled, setPulled] = useState(false);
+  const [loadedAt, setLoadedAt] = useState<number>();
+  const [loaded, setLoaded] = useState(false);
   const generation = useRef(0);
   const { present } = usePageRuntime();
   const colors = usePalette();
@@ -44,14 +44,18 @@ export function PromptShortcutsView({
     try {
       const result = await service({ workspaceId, action: 'list' });
       if (!Array.isArray(result)) throw new Error('invalid_shortcuts');
-      if (generation.current === id) setItems(result);
-    } catch {
       if (generation.current === id) {
-        setError(true);
-        setItems([]);
+        setItems(result);
+        setLoaded(true);
+        setLoadedAt(Date.now());
       }
+    } catch {
+      if (generation.current === id) setError(true);
     } finally {
-      if (generation.current === id) setLoading(false);
+      if (generation.current === id) {
+        setLoading(false);
+        setPulled(false);
+      }
     }
   }, [workspaceId, service]);
   useEffect(() => {
@@ -91,60 +95,42 @@ export function PromptShortcutsView({
     () => [
       {
         type: 'button' as const,
-        title: t('settings.shortcuts.add'),
-        systemImage: 'plus',
+        icon: { type: 'sfSymbol' as const, name: 'plus' },
+        accessibilityLabel: t('settings.shortcuts.add'),
         onPress: () => void edit(null),
-        disabled: loading || error,
+        disabled: !loaded || loading || error,
       },
     ],
-    [edit, loading, error],
+    [edit, loading, loaded, error],
   );
   useSheetHeader(actions);
+  const state = listState({
+    title: t('settings.unavailable.shortcuts'),
+    hasData: loaded,
+    loading,
+    failed: error,
+    syncedAt: loadedAt,
+  });
+  const reload = () => void refresh();
   return (
     <NativeGroupedList
       style={{ flex: 1 }}
       accent={colors.accent}
-      refreshing={loading}
-      onRefresh={() => void refresh()}
-      placeholder={loading ? t('settings.remote.loading') : ''}
-      sections={[
-        ...(error
-          ? [
-              {
-                id: 'error',
-                footer: t('settings.shortcuts.loadFailed'),
-                rows: [{ id: 'retry', title: t('common.retry'), action: true }],
-              },
-            ]
-          : []),
-        ...(['private', 'workspace'] as const).map((visibility) => ({
-          id: visibility,
-          header: t(`settings.shortcuts.${visibility}`),
-          footer:
-            visibility === 'workspace'
-              ? t('settings.shortcuts.hint')
-              : undefined,
-          rows: items
-            .filter((item) => item.visibility === visibility)
-            .map((item) => ({
-              id: item.id,
-              title: item.name,
-              subtitle: `/shortcut:${item.slug} · ${t(simpleShortcut(item) ? 'settings.shortcuts.ready' : 'settings.shortcuts.limited')}`,
-              wrapSubtitle: true,
-              action: true,
-              disclosure: true,
-            })),
-        })),
-        ...(!loading && !error && !items.length
-          ? [{ id: 'empty', footer: t('settings.shortcuts.empty'), rows: [] }]
-          : []),
-      ]}
+      refreshing={pulled && loading}
+      onRefresh={() => {
+        setPulled(true);
+        reload();
+      }}
+      loading={state.loading}
+      notice={state.notice}
+      unavailable={state.unavailable}
+      onNoticeAction={reload}
+      onUnavailableAction={reload}
+      placeholder={loaded && !items.length ? t('settings.shortcuts.empty') : ''}
+      sections={shortcutSections(items, userId)}
       onRowPress={({ nativeEvent: { id } }) => {
-        if (id === 'retry') void refresh();
-        else {
-          const entry = items.find((item) => item.id === id);
-          if (entry) void edit(entry);
-        }
+        const entry = items.find((item) => item.id === id);
+        if (entry) void edit(entry);
       }}
     />
   );

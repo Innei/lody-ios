@@ -3,11 +3,16 @@ import json,sys
 from driver import UI
 from sheet_background import capture_card
 import catalog
+from settings_states import try_again, unavailable
 ui=UI(sys.argv[1],sys.argv[2])
 def tap(identifier):ui.element(identifier);ui.axe('tap','--id',identifier,'--post-delay','.4')
 def toolbar(key):ui.axe('tap','--label',catalog.text(key),'--post-delay','.5')
 def spoken(item):return str(item.get('AXLabel',''))+' '+str(item.get('AXValue',''))
-ui.element('retry');ui.capture('access-failed');tap('retry');ui.element('review');ui.capture('shortcuts-list')
+unavailable(ui,'settings.unavailable.shortcuts');ui.capture('access-failed');try_again(ui);ui.element('review')
+assert '/review' in spoken(ui.element('review')),'Command name missing'
+assert catalog.text('settings.shortcuts.viewOnly') in spoken(ui.element('scoped')),'View-only template is not marked'
+assert catalog.text('settings.shortcuts.viewOnly') not in spoken(ui.element('review'))
+ui.capture('shortcuts-list')
 toolbar('settings.shortcuts.add')
 assert not ui.element('shortcut-name').get('AXValue')
 assert not next(item for item in ui.state() if item.get('AXLabel')==catalog.text('common.save'))['enabled']

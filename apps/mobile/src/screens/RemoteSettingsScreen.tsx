@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { NativeGroupedList, NativeSymbolButton } from '@lody-ios/kit';
+import { NativeGroupedList } from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { useMachinePresence } from '@/cloud/catalog/machines';
@@ -7,7 +7,6 @@ import { requestSettings } from '@/cloud/settings';
 import { readLocal, writeLocal } from '@/cloud/kv';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
-import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
 import { usePalette } from '@/lib/theme/palette';
 import type { RemoteSetting } from '@lody/cloud-runtime/models/settings';
 import { t } from '../lib/i18n/index.ts';
@@ -16,12 +15,12 @@ import {
   parseSavedRemoteSettings,
   remoteSettingId,
   remoteSettingsKey,
-  remoteSettingsPlaceholder,
   remoteSettingsSections,
   type SavedRemoteSettings,
   type SettingsListCache,
   type SettingsService,
 } from '@/features/settings/remote-settings';
+import { listState } from '@/features/settings/list-state';
 import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import type { MachinePresence } from '@lody/cloud-runtime/models/machines';
 import { RemoteSettingEditorScreen } from './RemoteSettingEditorScreen';
@@ -71,6 +70,7 @@ export function RemoteSettingsView({
   const [syncedAt, setSyncedAt] = useState<number>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pulled, setPulled] = useState(false);
   const requestId = useRef(0);
   const scope = `${workspaceId}:${kind}`;
   const scopeRef = useRef(scope);
@@ -102,6 +102,7 @@ export function RemoteSettingsView({
       if (result.live) apply(result.live);
       setError(result.error ?? '');
       setLoading(false);
+      setPulled(false);
     });
   }
 
@@ -119,51 +120,45 @@ export function RemoteSettingsView({
     };
   }, [scope, service, cache]);
 
-  const headerRefresh = useMemo(
-    () => (
-      <NativeSymbolButton
-        accessibilityName={
-          loading ? t('settings.remote.loading') : t('settings.remote.refresh')
-        }
-        symbol="arrow.clockwise"
-        tint="blue"
-        loading={loading}
-        style={{ width: 44, height: 44 }}
-        onPress={() => {
-          refreshUsage?.();
-          refresh(snapshotRef.current);
-        }}
-      />
-    ),
-    [loading, refreshUsage],
-  );
-  useSheetHeader(undefined, undefined, headerRefresh);
+  const reload = () => {
+    refreshUsage?.();
+    refresh(snapshotRef.current);
+  };
+  const state = listState({
+    title: t(`settings.unavailable.${kind}`),
+    hasData: items.length > 0,
+    loading,
+    failed: !!error,
+    offline: !connected,
+    syncedAt,
+  });
 
   return (
     <NativeGroupedList
       style={{ flex: 1 }}
       accent={colors.accent}
-      refreshing={loading}
+      refreshing={pulled && loading}
       onRefresh={() => {
-        refreshUsage?.();
-        refresh(snapshotRef.current);
+        setPulled(true);
+        reload();
       }}
-      placeholder={remoteSettingsPlaceholder({ items, loading, error })}
+      loading={state.loading}
+      placeholder={
+        !loading && !error && !items.length ? t('settings.remote.empty') : ''
+      }
+      notice={state.notice}
+      unavailable={state.unavailable}
+      onNoticeAction={() => refresh(snapshotRef.current)}
+      onUnavailableAction={() => refresh(snapshotRef.current)}
       sections={remoteSettingsSections({
         kind,
         items,
-        loading,
         error,
         connected,
         agentUsage,
         machinePresence,
-        syncedAt,
       })}
       onRowPress={({ nativeEvent: { id } }) => {
-        if (id === 'retry') {
-          refresh(snapshotRef.current);
-          return;
-        }
         const item = items.find((item) => remoteSettingId(item) === id);
         if (!item || item.readOnly) return;
         void present(

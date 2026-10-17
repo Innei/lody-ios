@@ -54,6 +54,53 @@ struct LodyListRow: Record {
   @Field var menuActions: [LodyListAction] = []
   @Field var options: [LodyListAction] = []
   @Field var preview: String = ""
+  @Field var status: String = ""
+  @Field var trailingSymbol: String = ""
+  @Field var trailingSymbolLabel: String = ""
+  @Field var valueSymbol: String = ""
+}
+
+struct LodyListVisualItem: Record {
+  @Field var id: String = ""
+  @Field var label: String = ""
+  @Field var value: String = ""
+  @Field var amount: Double = 0
+  @Field var detail: String = ""
+  @Field var percent: String = ""
+  @Field var fraction: Double = 0
+  @Field var caption: String = ""
+  @Field var accessibilityLabel: String = ""
+  @Field var accessibilityValue: String = ""
+  @Field var pace: Double? = nil
+  @Field var tone: String = ""
+  @Field var cost: Double? = nil
+  @Field var axisLabel: String = ""
+}
+
+struct LodyListVisual: Record {
+  @Field var type: String = ""
+  @Field var title: String = ""
+  @Field var summary: String = ""
+  @Field var dimmed: Bool = false
+  @Field var metrics: [String] = []
+  @Field var costTitle: String = ""
+  @Field var costSummary: String = ""
+  @Field var items: [LodyListVisualItem] = []
+}
+
+struct LodyListNotice: Record {
+  @Field var symbol: String = ""
+  @Field var text: String = ""
+  @Field var tint: String = ""
+  @Field var actionSymbol: String = ""
+  @Field var actionLabel: String = ""
+}
+
+struct LodyListUnavailable: Record {
+  @Field var symbol: String = ""
+  @Field var title: String = ""
+  @Field var message: String = ""
+  @Field var actionTitle: String = ""
 }
 
 struct LodyListSection: Record {
@@ -63,8 +110,10 @@ struct LodyListSection: Record {
   @Field var headerActionId: String = ""
   @Field var headerExpanded: Bool? = nil
   @Field var headerProminent: Bool = false
+  @Field var headerStatus: String = ""
   @Field var footer: String = ""
   @Field var rows: [LodyListRow] = []
+  @Field var visual: LodyListVisual? = nil
 }
 
 // Both native list hosts share hierarchy, while keeping their own layout and selection.
@@ -105,6 +154,35 @@ extension LodyListSection {
       }
     }
     return snapshot
+  }
+}
+
+extension LodyListSection {
+  // Record fields are reference boxes; a copy made by assignment would share
+  // them, so the synthetic row goes into a freshly built section.
+  func prepending(_ row: LodyListRow) -> LodyListSection {
+    var copy = LodyListSection()
+    copy.id = id
+    copy.header = header
+    copy.headerValue = headerValue
+    copy.headerActionId = headerActionId
+    copy.headerExpanded = headerExpanded
+    copy.headerProminent = headerProminent
+    copy.headerStatus = headerStatus
+    copy.footer = footer
+    copy.visual = visual
+    copy.rows = [row] + rows
+    return copy
+  }
+
+  static func synthetic(id: String, rowID: String, visual: LodyListVisual? = nil) -> LodyListSection {
+    var row = LodyListRow()
+    row.id = rowID
+    var section = LodyListSection()
+    section.id = id
+    section.visual = visual
+    section.rows = [row]
+    return section
   }
 }
 

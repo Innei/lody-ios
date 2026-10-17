@@ -4,6 +4,7 @@ import sys
 from driver import UI
 from sheet_background import capture_card
 import catalog
+from settings_states import no_header_refresh, pull
 
 ui = UI(sys.argv[1], sys.argv[2])
 
@@ -42,6 +43,8 @@ def enable_switch():
 docs = 'setting:mcp::docs'
 assert catalog.text('settings.mcp.defaultOff') in spoken(ui.element(docs))
 assert catalog.text('settings.mcp.notConfigured') in spoken(ui.element('setting:mcp::missing'))
+assert catalog.text('settings.remote.ownerOnly') in spoken(ui.element('setting:mcp::readonly')), 'Read-only lock is not spoken'
+no_header_refresh(ui)
 ui.capture('mcp-list')
 tap('setting:mcp::readonly')
 assert not any(item.get('AXUniqueId') == 'setting-name' for item in ui.state()), 'Read-only row opened editor'
@@ -89,7 +92,7 @@ tap(docs)
 tap('setting-delete')
 toolbar('common.delete')
 ui.wait(lambda items: any(item.get('AXUniqueId') == 'setting:mcp::search' for item in items) and not any(item.get('AXUniqueId') == docs for item in items), 'Deleted server remains in list')
-toolbar('settings.remote.refresh')
+pull(ui, 'setting:mcp::search', lambda items: not any(item.get('AXUniqueId') == docs for item in items))
 ui.wait(lambda items: not any(item.get('AXUniqueId') == docs for item in items), 'Refresh restored deleted server')
 ui.capture('mcp-deleted-readback')
 print(json.dumps({'readonlyBlocked': True, 'missingConnectionCannotEnable': True, 'duplicateRejected': True, 'failedSaveRetainedDraft': True, 'defaultReadback': True, 'deleteConfirmationAndConflict': True, 'deletedReadback': True}))

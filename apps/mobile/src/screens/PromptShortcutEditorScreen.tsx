@@ -88,7 +88,8 @@ function View() {
     return [
       {
         type: 'button' as const,
-        title: t(attempt ? 'common.retry' : 'common.save'),
+        icon: { type: 'sfSymbol' as const, name: 'checkmark' },
+        accessibilityLabel: t(attempt ? 'common.retry' : 'common.save'),
         variant: 'prominent' as const,
         tintColor: colors.accent,
         disabled: busy || !valid,
@@ -110,7 +111,8 @@ function View() {
     () => [
       {
         type: 'button' as const,
-        title: t('common.cancel'),
+        icon: { type: 'sfSymbol' as const, name: 'xmark' },
+        accessibilityLabel: t('common.cancel'),
         disabled: busy,
         onPress: cancel,
       },

@@ -6,6 +6,7 @@ import {
   TextInput,
   View as RNView,
 } from 'react-native';
+import { copyText, NativeSymbolButton } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { usePalette } from '@/lib/theme/palette';
@@ -101,7 +102,7 @@ function View() {
     () => [
       {
         type: 'button' as const,
-        title: t('settings.remote.save'),
+        icon: { type: 'sfSymbol' as const, name: 'checkmark' },
         accessibilityLabel: t('settings.remote.save'),
         variant: 'prominent' as const,
         tintColor: colors.accent,
@@ -115,7 +116,7 @@ function View() {
     () => [
       {
         type: 'button' as const,
-        title: t('common.cancel'),
+        icon: { type: 'sfSymbol' as const, name: 'xmark' },
         accessibilityLabel: t('common.cancel'),
         disabled: busy,
         onPress: cancel,
@@ -148,6 +149,30 @@ function View() {
           clearButtonMode="while-editing"
         />
       </FormGroup>
+      {item.kind === 'machine' ? (
+        <FormGroup header={t('settings.remote.machineId')}>
+          <RNView style={styles.idRow}>
+            <AppText
+              selectable
+              numberOfLines={1}
+              ellipsizeMode="middle"
+              style={[styles.id, { color: colors.secondaryLabel }]}
+            >
+              {item.id}
+            </AppText>
+            <NativeSymbolButton
+              accessibilityName={t('settings.remote.copyId')}
+              symbol="doc.on.doc"
+              tint="blue"
+              style={styles.copy}
+              onPress={() => {
+                copyText(item.id);
+                showToast(t('settings.remote.idCopied'), 'info');
+              }}
+            />
+          </RNView>
+        </FormGroup>
+      ) : null}
       {item.kind === 'mcp' && failure ? (
         <AppText
           testID="setting-error"
@@ -256,4 +281,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   toggleLabel: { flex: 1 },
+  idRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 44,
+    paddingLeft: 16,
+    paddingRight: 4,
+  },
+  id: { flex: 1, fontSize: 15, fontFamily: 'Menlo' },
+  copy: { width: 44, height: 44 },
 });

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { NativeGroupedList, NativeSymbolButton } from '@lody-ios/kit';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { NativeGroupedList } from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { requestUsage } from '@/cloud/workspace-settings';
@@ -10,8 +10,8 @@ import {
   type UsageSnapshot,
   type UsageService,
 } from '@/features/settings/ai-usage';
+import { listState } from '@/features/settings/list-state';
 import { definePage } from '@/lib/presentation';
-import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
 import { usePalette } from '@/lib/theme/palette';
 import { t } from '@/lib/i18n';
 export function AIUsageView({
@@ -25,6 +25,7 @@ export function AIUsageView({
   const [data, setData] = useState<UsageSnapshot>();
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(false);
+  const [pulled, setPulled] = useState(false);
   const version = useRef(0);
   const colors = usePalette();
   const read = useCallback(async () => {
@@ -45,7 +46,10 @@ export function AIUsageView({
     } catch {
       if (version.current === id) setError(true);
     } finally {
-      if (version.current === id) setBusy(false);
+      if (version.current === id) {
+        setBusy(false);
+        setPulled(false);
+      }
     }
   }, [workspaceId, range, service]);
   useEffect(() => {
@@ -54,58 +58,43 @@ export function AIUsageView({
       version.current++;
     };
   }, [read]);
-  const refresh = useMemo(
-    () => (
-      <NativeSymbolButton
-        accessibilityName={t('settings.remote.refresh')}
-        symbol="arrow.clockwise"
-        tint="blue"
-        loading={busy}
-        style={{ width: 44, height: 44 }}
-        onPress={() => void read()}
-      />
-    ),
-    [read, busy],
-  );
-  useSheetHeader(undefined, undefined, refresh);
   const value =
     data?.range === range && data.workspaceId === workspaceId
       ? data
       : undefined;
-  const failed = error || !!value?.errors.length;
-  const failureMessage = t(
-    error ? 'settings.aiUsage.failed' : 'settings.aiUsage.partial',
-  );
+  const state = listState({
+    title: t('settings.unavailable.usage'),
+    hasData: !!value,
+    loading: busy,
+    failed: error,
+    partial: value?.errors.length
+      ? t('settings.aiUsage.partialShort')
+      : undefined,
+    syncedAt: value?.retrievedAt,
+  });
+  const reload = () => void read();
   return (
     <NativeGroupedList
       style={{ flex: 1 }}
       accent={colors.accent}
-      refreshing={busy}
-      onRefresh={() => void read()}
+      refreshing={pulled && busy}
+      onRefresh={() => {
+        setPulled(true);
+        reload();
+      }}
+      loading={state.loading}
+      notice={state.notice}
+      unavailable={state.unavailable}
+      onNoticeAction={reload}
+      onUnavailableAction={reload}
       segments={usageRanges.map((item) => t(`settings.aiUsage.${item}`))}
       selectedSegment={usageRanges.indexOf(range)}
       onSegmentChange={({ nativeEvent: { index } }) => {
         const next = usageRanges[index];
         if (next) setRange(next);
       }}
-      placeholder={busy && !value ? t('settings.remote.loading') : ''}
-      sections={[
-        ...(failed
-          ? [
-              {
-                id: 'error',
-                footer: failureMessage,
-                rows: [
-                  { id: 'retry', title: t('common.retry'), action: !busy },
-                ],
-              },
-            ]
-          : []),
-        ...usageSections(value),
-      ]}
-      onRowPress={({ nativeEvent: { id } }) => {
-        if (id === 'retry') void read();
-      }}
+      sections={usageSections(value)}
+      onRowPress={() => {}}
     />
   );
 }

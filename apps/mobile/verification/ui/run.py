@@ -158,13 +158,13 @@ PREVIEW = {
 }
 READY = {
     'mcp-settings': 'setting:mcp::docs',
-    'ai-usage': 'retry',
-    'github-settings': 'retry',
+    'ai-usage': 'list-unavailable-action',
+    'github-settings': 'list-unavailable-action',
     'project-visibility': 'visibility:m1:same',
-    'prompt-shortcuts': 'retry',
+    'prompt-shortcuts': 'list-unavailable-action',
     'agents-settings': 'settings-agent',
     'settings-form-backgrounds': 'form-machine',
-    'machine-settings': 'retry',
+    'machine-settings': 'list-notice-action',
     'settings-baseline': 'settings-baseline-ready',
     'mermaid': 'mermaid-preview:text',
     'message-details': 'paper-reply:meta:details',

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import { projectRows } from '../../src/cloud/catalog/model.ts';
 import { mergeAgentQuotas } from '../../src/cloud/catalog/agent-usage.ts';
-import { agentUsageRows } from '../../src/features/settings/agent-usage.ts';
+import { agentUsageRings } from '../../src/features/settings/agent-usage.ts';
 import { setLocale } from '../../src/lib/i18n/index.ts';
 
 test('machine replica changes reach usage rows, preserve zero/expired limits and never expose API credentials', () => {
@@ -49,33 +49,32 @@ test('machine replica changes reach usage rows, preserve zero/expired limits and
   const initial = read();
   assert.equal(initial.configs.length, 2);
   assert.ok(!JSON.stringify(initial).includes('synthetic-secret'));
-  assert.equal(agentUsageRows({ ...item, id: 'api' }, initial).length, 0);
-  assert.equal(agentUsageRows(item, initial)[0].progress, 0);
-  assert.match(agentUsageRows(item, initial)[1].title, /Spark/);
+  assert.equal(agentUsageRings({ ...item, id: 'api' }, initial).length, 0);
+  assert.equal(agentUsageRings(item, initial)[0].fraction, 0);
+  assert.match(agentUsageRings(item, initial)[1].label, /Spark/);
   machine.set(['rateLimit', 'codex', 'codex'], snapshot(72));
   machine.commit();
   const updated = read();
   setLocale('en');
-  assert.equal(agentUsageRows(item, updated)[0].value, '72% used');
-  assert.equal(agentUsageRows(item, updated)[0].title, 'Codex · 5 hours');
+  const [ring] = agentUsageRings(item, updated);
+  assert.equal(ring.label, 'Codex · 5 hours');
+  assert.match(ring.accessibilityLabel, /72% used/);
   assert.ok(
-    !agentUsageRows(item, updated)
-      .map((row) => `${row.title} ${row.value} ${row.subtitle}`)
+    !agentUsageRings(item, updated)
+      .map((r) => `${r.label} ${r.caption} ${r.accessibilityLabel}`)
       .join(' ')
       .includes('{'),
   );
-  assert.equal(agentUsageRows(item, updated)[0].progress, 0.72);
+  assert.equal(ring.fraction, 0.72);
   // JSON is also the durable catalog boundary; offline must not recompute usage from a past reset time.
   assert.equal(
-    agentUsageRows(item, JSON.parse(JSON.stringify(updated)))[0].progress,
+    agentUsageRings(item, JSON.parse(JSON.stringify(updated)))[0].fraction,
     0.72,
   );
   machine.delete(['rateLimit', 'codex', 'codex']);
   machine.delete(['rateLimit', 'codex', 'codex_bengalfox']);
   machine.commit();
-  setLocale('zh-Hans');
-  assert.equal(agentUsageRows(item, read())[0].title, 'Codex · 暂无用量数据');
-  assert.equal(agentUsageRows(item, read())[0].progress, undefined);
+  assert.deepEqual(agentUsageRings(item, read()), []);
 });
 
 test('legacy Claude ratios and timestamps migrate while current windows and independent tiers win', () => {

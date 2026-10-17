@@ -118,7 +118,7 @@ function View() {
       rows.push({
         id: 'github-settings',
         title: t('settings.github.title'),
-        image: 'chevron.left.forwardslash.chevron.right',
+        imageAsset: 'lody-mark-github',
         action: true,
         disclosure: true,
         navigates: true,
