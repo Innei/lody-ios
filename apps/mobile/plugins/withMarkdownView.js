@@ -79,6 +79,20 @@ module LodySPMFileLists
   end
 end
 Pod::SPM::UpdateScript::Mixin.prepend(LodySPMFileLists)
+# cocoapods-spm rewrites every pod xcconfig after integration from in-memory
+# settings, dropping the macro plugin flag Expo writes only to disk. Source-built
+# ExpoModulesCore then cannot expand its macros, so reapply Expo's flags last.
+module LodyExpoMacroFlags
+  private
+
+  def run_spm_post_integrate_hooks
+    super
+    aggregate_targets.group_by(&:user_project).each_value do |targets|
+      Expo::ProjectIntegrator.integrate_core_macro_plugins(targets)
+    end
+  end
+end
+Pod::Installer.prepend(LodyExpoMacroFlags)
 `;
 
 const spmPkg = (pkg) => {

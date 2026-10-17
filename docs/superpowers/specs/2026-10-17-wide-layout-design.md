@@ -52,11 +52,11 @@ the open session or the open panel content.
 
 ## Layout modes (decided)
 
-| Mode | When (by available space) | Layout | Panel |
-|---|---|---|---|
-| **Wide** | regular width, wider than tall (iPad landscape, Duo unfolded landscape) | list \| chat | Opening panel content hides the list: **chat \| panel** (canvas option B). Closing the panel returns to list \| chat. |
-| **Tall** | regular width, taller than wide (iPad portrait, Duo unfolded rotated) | chat full width; the list slides over the chat (canvas P0) | Panel opens as a **sheet over the chat** (canvas P1) |
-| **Compact** | compact width (Duo closed, iPad narrow Split View / Stage Manager windows) | today's iPhone stack | Panel content is pushed, as today |
+| Mode        | When (by available space)                                                  | Layout                                                     | Panel                                                                                                                 |
+| ----------- | -------------------------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **Wide**    | regular width, wider than tall (iPad landscape, Duo unfolded landscape)    | list \| chat                                               | Opening panel content hides the list: **chat \| panel** (canvas option B). Closing the panel returns to list \| chat. |
+| **Tall**    | regular width, taller than wide (iPad portrait, Duo unfolded rotated)      | chat full width; the list slides over the chat (canvas P0) | Panel opens as a **sheet over the chat** (canvas P1)                                                                  |
+| **Compact** | compact width (Duo closed, iPad narrow Split View / Stage Manager windows) | today's iPhone stack                                       | Panel content is pushed, as today                                                                                     |
 
 Duo unfolded in Wide: list | chat and chat | panel both meet at the fold (each pane ≈ one
 half). On iPad the list keeps a sidebar width; chat | panel uses a panel of roughly
@@ -81,7 +81,7 @@ The panel has its own back stack: e.g. Files → file → diff pushes inside the
 back button steps out one level; closing the panel discards the stack.
 
 **(builder's call) Extending the rule to the rest of the chat-launched pages:** pages
-that *view* something go to the panel; pages that *ask for an action* stay sheets.
+that _view_ something go to the panel; pages that _ask for an action_ stay sheets.
 
 - To the panel as well: `FileContentScreen` (from chat file links, `useOpenFile`, and
   from panel pages), `ProcessScreen`, `SubagentTaskScreen`, `MessageDetailsScreen`.
@@ -90,7 +90,7 @@ that *view* something go to the panel; pages that *ask for an action* stay sheet
 - A page opened from inside a sheet that stays a sheet keeps today's behavior within that
   sheet, so nothing lands in a panel hidden behind the sheet.
 
-**(builder's call) Routing:** a tap in the chat *replaces* the panel's stack with the new
+**(builder's call) Routing:** a tap in the chat _replaces_ the panel's stack with the new
 page as its root; tapping the item already shown is a no-op. Taps inside the panel push
 onto its stack.
 
