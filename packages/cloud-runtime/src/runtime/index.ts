@@ -10,7 +10,10 @@ import {
 import { mentionCatalog, sessionMentions, commandMentions } from './mentions';
 import { createSharingRuntime } from './sharing/runtime.ts';
 import { readShareHistory } from './sharing/history.ts';
-import type { ShareRequest } from '../models/session-sharing.ts';
+import type {
+  ShareRequest,
+  PublishedSharesRequest,
+} from '../models/session-sharing.ts';
 import { expandMentions } from './mention-expansion';
 import { workspaceRoleMentions } from './agent-roles';
 import { roleSettings } from './role-settings';
@@ -685,6 +688,23 @@ async function getMentions(
 }
 Object.assign(globalThis, {
   dataRuntime: {
+    async publishedShares(args: PublishedSharesRequest & { userId: string }) {
+      const current = workspace,
+        user = runtimeUserId;
+      const check = () => {
+        if (
+          current !== workspace ||
+          args.workspaceId !== workspace ||
+          user !== runtimeUserId ||
+          args.userId !== user
+        )
+          throw new Error('shares_scope_changed');
+      };
+      check();
+      const result = await broker('management', args);
+      check();
+      return result;
+    },
     sessionSharing(args: ShareRequest) {
       if (args.workspaceId !== workspace)
         throw new Error('share_workspace_changed');

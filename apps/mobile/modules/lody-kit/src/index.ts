@@ -3,6 +3,7 @@ export {
   remoteSettingsRaw,
   agentRolesRaw,
   memorySettingsRaw,
+  publishedSharesRaw,
   promptShortcutsRaw,
   runtimeInfo,
   initialAccentColor,

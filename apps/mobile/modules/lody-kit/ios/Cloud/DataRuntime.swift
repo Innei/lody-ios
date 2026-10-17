@@ -225,7 +225,13 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       }
       let user = userId
       shareTasks[id] = Task { [weak self, weak view] in
-        let result = try? await SessionSharing.run(operation, args: args, workspace: workspace, userId: user)
+        let result = try? await SessionSharing.run(operation, args: args, workspace: workspace, userId: user, useLink: { action, url in
+          if action == "copy" {
+            UIPasteboard.general.setItems([[UIPasteboard.typeAutomatic: url.absoluteString]], options: [.localOnly: true])
+          } else if action == "open" {
+            guard await UIApplication.shared.open(url) else { throw SessionSharing.ManagementFailure(code: "shares_link_failed") }
+          }
+        })
         guard !Task.isCancelled, let self, let view, self.webView === view, self.workspace == workspace, self.userId == user else { return }
         self.shareTasks.removeValue(forKey: id)
         view.callAsyncJavaScript("globalThis.dataRuntime.shareResult(id, value, failed)", arguments: ["id": id, "value": result ?? NSNull(), "failed": result == nil], in: nil, in: .page, completionHandler: nil)
@@ -580,7 +586,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     if method == "createSession" || method == "sendTurn" || method == "editSession" || method == "checkTurnQuota" {
       args["billingEntitlement"] = billing ?? NSNull()
     }
-    if method == "memorySettings" || method == "agentRoles" || method == "promptShortcuts" || method == "remoteSettings" || method == "localProjects" || method == "mentionCatalog" { args["userId"] = userId }
+    if method == "publishedShares" || method == "memorySettings" || method == "agentRoles" || method == "promptShortcuts" || method == "remoteSettings" || method == "localProjects" || method == "mentionCatalog" { args["userId"] = userId }
     if method == "editSession" || method == "sessionPreview" || method == "iosSimulatorControl" { args["userId"] = userId }
     let id = UUID(); commands[id] = sink
     if (method == "sendTurn" || (method == "editSession" && args["action"] as? String == "send")), args["backgroundTaskId"] == nil, !backgrounded {
@@ -590,6 +596,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     var timeout: Double = 45
     if method == "editSession" { timeout = 130 }
     if method == "sessionSharing" || method == "promptShortcuts" { timeout = 130 }
+    if method == "publishedShares" { timeout = 70 }
     if method == "sessionPreview" { timeout = 330 }
     if method == "iosSimulatorControl" { timeout = 100 }
     if method == "localProjects" && args["action"] as? String == "history" { timeout = 130 }

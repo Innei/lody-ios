@@ -31,8 +31,10 @@ assert ui.element('share-publish')['frame']['height'] >= 44
 assert ui.element('share-include-children').get('AXValue') == '0'
 assert not any(i.get('AXUniqueId') == 'share-copy' for i in ui.state())
 ui.capture('scope-before-publication')
-tap('share-include-children')
-assert ui.element('share-include-children').get('AXValue') == '1'
+scope = ui.element('share-include-children')
+switch = next(child for child in scope['children'] if child.get('subrole') == 'AXSwitch')
+ui.tap_switch(switch)
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'share-include-children' and i.get('AXValue') == '1' for i in items), 'Include children switch did not enable')
 tap('share-publish')
 wait('share-progress')
 assert any(i.get('AXLabel') == 'Done' and not i.get('enabled', True) for i in ui.state()), 'Publishing must disable Done'
@@ -59,7 +61,11 @@ frame = ui.element('ActivityListView')['frame']
 ui.axe('tap', '-x', '20', '-y', str(max(50, frame['y'] - 40)), '--post-delay', '.6')
 ui.wait(lambda items: not any(i.get('AXUniqueId') == 'ActivityListView' for i in items), 'System share did not dismiss')
 # Bring the bottom management group above the home indicator with a real scroll.
-ui.axe('swipe', '--start-x', '200', '--start-y', '730', '--end-x', '200', '--end-y', '450', '--duration', '.4', '--post-delay', '.4')
+for _ in range(3):
+    revoke = ui.element('share-revoke')['frame']
+    if revoke['y'] + revoke['height'] < 840:
+        break
+    ui.axe('swipe', '--start-x', '65', '--start-y', '650', '--end-x', '65', '--end-y', '300', '--duration', '.5', '--post-delay', '.7')
 revoke = ui.element('share-revoke')['frame']
 assert revoke['y'] + revoke['height'] < 840, 'Management actions must scroll clear of the safe area'
 ui.capture('management-scrolled')

@@ -1,4 +1,5 @@
 import { MemorySettingsScreen } from './MemorySettingsScreen';
+import { PublishedSharesScreen } from './PublishedSharesScreen';
 import { AIUsageScreen } from './AIUsageScreen';
 import { AgentRolesScreen } from './AgentRolesScreen';
 import { GitHubSettingsScreen } from './GitHubSettingsScreen';
@@ -150,6 +151,14 @@ function View() {
         disclosure: true,
         navigates: true,
       });
+      rows.push({
+        id: 'published-shares',
+        title: t('settings.shares.title'),
+        image: 'link',
+        action: true,
+        disclosure: true,
+        navigates: true,
+      });
       footer = [
         t(`settings.connection.${connection.state}`),
         tp('settings.machineCount', connection.machines, {
@@ -287,6 +296,8 @@ function View() {
         }
         if (id === 'memory-settings' && workspace)
           void push(MemorySettingsScreen);
+        if (id === 'published-shares' && workspace)
+          void push(PublishedSharesScreen);
         if (id === 'ai-usage' && workspace) void push(AIUsageScreen);
         if (id === 'agent-roles' && workspace) void push(AgentRolesScreen);
         if (id === 'github-settings' && workspace)

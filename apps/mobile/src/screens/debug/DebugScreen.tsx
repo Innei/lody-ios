@@ -1,4 +1,8 @@
 import { AIUsagePreviewScreen } from './AIUsagePreviewScreen';
+import {
+  PublishedSharesPreviewScreen,
+  publishedShareStatePages,
+} from './PublishedSharesPreviewScreen';
 import { GitHubSettingsPreviewScreen } from './GitHubSettingsPreviewScreen';
 import { ProjectVisibilityPreviewScreen } from './ProjectVisibilityPreviewScreen';
 import { PromptShortcutsPreviewScreen } from './PromptShortcutsPreviewScreen';
@@ -27,6 +31,7 @@ import { uiVerify } from './uiVerify';
 import {
   openSettingsBaseline,
   settingsBaselineScenarios,
+  switchSettingsBaselineAccount,
 } from './settingsBaseline';
 import {
   openCreateParity,
@@ -203,6 +208,11 @@ function View() {
         openRow('settings-preview', '远程设置验收', 'gear'),
         openRow('mcp-settings-preview', 'MCP 设置验收', 'server.rack'),
         openRow('memory-preview', 'Memory acceptance', 'brain'),
+        openRow(
+          'published-shares-preview',
+          'Published shares acceptance',
+          'link',
+        ),
         openRow('memory-states-preview', 'Memory states', 'brain'),
         openRow('agent-roles-preview', 'Agent 角色验收', 'person.crop.square'),
         openRow('machine-settings-preview', '机器设置验收', 'desktopcomputer'),
@@ -415,6 +425,14 @@ function View() {
       memoryStatePages.map((page) => [page.id, () => void present(page, {})]),
     ),
     'memory-preview': () => void present(MemoryPreviewScreen, {}),
+    'published-shares-preview': () =>
+      void openPublishedShares(PublishedSharesPreviewScreen),
+    ...Object.fromEntries(
+      publishedShareStatePages.map((page) => [
+        page.id,
+        () => void openPublishedShares(page),
+      ]),
+    ),
     'memory-states-preview': () => void present(MemoryStatesPreviewScreen, {}),
     'agent-roles-preview': () => void present(AgentRolesPreviewScreen, {}),
     'machine-settings-preview': () =>
@@ -619,3 +637,12 @@ export const DebugScreen = definePage({
   Component: View,
   presentation: { style: 'push', headerVariant: 'transparent' },
 });
+
+async function openPublishedShares(page: typeof PublishedSharesPreviewScreen) {
+  const restore = switchSettingsBaselineAccount('published-shares-user');
+  try {
+    await present(page, {});
+  } finally {
+    restore();
+  }
+}

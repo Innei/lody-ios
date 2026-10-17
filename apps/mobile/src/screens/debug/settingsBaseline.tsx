@@ -16,7 +16,12 @@ export const settingsBaselineScenarios = [
   'cached',
 ] as const;
 type Scenario = (typeof settingsBaselineScenarios)[number];
-type Fixture = { scenario: Scenario; refreshes: number; startedAt: number };
+type Fixture = {
+  scenario: Scenario;
+  refreshes: number;
+  startedAt: number;
+  userId?: string;
+};
 let fixture: Fixture | null = null;
 const listeners = new Set<() => void>();
 const workspace = {
@@ -32,11 +37,14 @@ function update(next: Fixture | null) {
   for (const listener of listeners) listener();
 }
 
-export function switchSettingsBaselineAccount() {
+export function switchSettingsBaselineAccount(
+  userId = 'settings-baseline-user',
+) {
   if (!uiVerify) return () => {};
   const previous = fixture;
   const current: Fixture = {
     scenario: 'live',
+    userId,
     refreshes: 0,
     startedAt: Date.now(),
   };
@@ -92,7 +100,7 @@ export function SettingsBaselineProviders({ children }: PropsWithChildren) {
       account = {
         token: '',
         user: {
-          id: 'settings-baseline-user',
+          id: current.userId ?? 'settings-baseline-user',
           name: 'Settings Preview',
           email: 'baseline@example.test',
         },
