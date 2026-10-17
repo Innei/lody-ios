@@ -1,3 +1,4 @@
+import { MemorySettingsScreen } from './MemorySettingsScreen';
 import { AIUsageScreen } from './AIUsageScreen';
 import { AgentRolesScreen } from './AgentRolesScreen';
 import { GitHubSettingsScreen } from './GitHubSettingsScreen';
@@ -109,6 +110,14 @@ function View() {
             navigates: true,
           });
       }
+      rows.push({
+        id: 'memory-settings',
+        title: t('settings.memory.title'),
+        image: 'brain',
+        action: true,
+        disclosure: true,
+        navigates: true,
+      });
       rows.push({
         id: 'prompt-shortcuts',
         title: t('settings.shortcuts.title'),
@@ -276,6 +285,8 @@ function View() {
               { title: settingsTitle(kind) },
             );
         }
+        if (id === 'memory-settings' && workspace)
+          void push(MemorySettingsScreen);
         if (id === 'ai-usage' && workspace) void push(AIUsageScreen);
         if (id === 'agent-roles' && workspace) void push(AgentRolesScreen);
         if (id === 'github-settings' && workspace)

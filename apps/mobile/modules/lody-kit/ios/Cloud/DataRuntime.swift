@@ -580,7 +580,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     if method == "createSession" || method == "sendTurn" || method == "editSession" || method == "checkTurnQuota" {
       args["billingEntitlement"] = billing ?? NSNull()
     }
-    if method == "agentRoles" || method == "promptShortcuts" || method == "remoteSettings" || method == "localProjects" || method == "mentionCatalog" { args["userId"] = userId }
+    if method == "memorySettings" || method == "agentRoles" || method == "promptShortcuts" || method == "remoteSettings" || method == "localProjects" || method == "mentionCatalog" { args["userId"] = userId }
     if method == "editSession" || method == "sessionPreview" || method == "iosSimulatorControl" { args["userId"] = userId }
     let id = UUID(); commands[id] = sink
     if (method == "sendTurn" || (method == "editSession" && args["action"] as? String == "send")), args["backgroundTaskId"] == nil, !backgrounded {

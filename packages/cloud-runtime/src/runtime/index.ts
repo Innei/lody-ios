@@ -14,6 +14,8 @@ import type { ShareRequest } from '../models/session-sharing.ts';
 import { expandMentions } from './mention-expansion';
 import { workspaceRoleMentions } from './agent-roles';
 import { roleSettings } from './role-settings';
+import { memorySettings } from './memory-settings';
+import type { MemoryRequest } from '../models/memory';
 import type { AgentRoleRequest } from '../models/agent-roles';
 import type {
   MentionCatalog,
@@ -765,6 +767,35 @@ Object.assign(globalThis, {
         args.userId,
         scopedGrant,
         AbortSignal.timeout(35000),
+      );
+    },
+    async memorySettings(args: MemoryRequest & { userId: string }) {
+      const replica = metaReplica;
+      const check = () => {
+        if (
+          args.workspaceId !== workspace ||
+          args.userId !== runtimeUserId ||
+          !replica ||
+          metaReplica !== replica ||
+          unhealthy.size
+        )
+          throw new Error('workspace_changed');
+      };
+      check();
+      return memorySettings(
+        args,
+        args.userId,
+        replica!.flock,
+        machineReplicas,
+        () => presence,
+        async () => {
+          check();
+          const value = await getGrant();
+          check();
+          return value;
+        },
+        AbortSignal.timeout(35000),
+        check,
       );
     },
     async agentRoles(args: AgentRoleRequest & { userId: string }) {

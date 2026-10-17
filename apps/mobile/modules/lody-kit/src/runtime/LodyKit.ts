@@ -129,6 +129,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   localProjects(payload: string): Promise<string>;
   remoteSettings(payload: string): Promise<string>;
   agentRoles(payload: string): Promise<string>;
+  memorySettings(payload: string): Promise<string>;
   promptShortcuts(payload: string): Promise<string>;
   createSession(payload: string): Promise<string>;
   archiveSession(payload: string): Promise<string>;
@@ -476,3 +477,6 @@ export const debugBackgroundDataRuntime = (action: string) =>
 
 export const promptShortcutsRaw = (payload: string) =>
   native.promptShortcuts(payload);
+
+export const memorySettingsRaw = (payload: string): Promise<string> =>
+  native.memorySettings(payload);

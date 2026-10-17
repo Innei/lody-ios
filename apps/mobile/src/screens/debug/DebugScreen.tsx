@@ -51,6 +51,11 @@ import { SessionTreePreviewScreen } from './SessionTreePreviewScreen';
 import { InboxPreviewScreen } from './InboxPreviewScreen';
 import { SettingsPreviewScreen } from './SettingsPreviewScreen';
 import { McpSettingsPreviewScreen } from './McpSettingsPreviewScreen';
+import {
+  MemoryPreviewScreen,
+  memoryStatePages,
+  MemoryStatesPreviewScreen,
+} from './MemoryPreviewScreen';
 import { AgentRolesPreviewScreen } from './AgentRolesPreviewScreen';
 import { MachineSettingsPreviewScreen } from './MachineSettingsPreviewScreen';
 import { SettingsFormsPreviewScreen } from './SettingsFormsPreviewScreen';
@@ -197,6 +202,8 @@ function View() {
         ),
         openRow('settings-preview', '远程设置验收', 'gear'),
         openRow('mcp-settings-preview', 'MCP 设置验收', 'server.rack'),
+        openRow('memory-preview', 'Memory acceptance', 'brain'),
+        openRow('memory-states-preview', 'Memory states', 'brain'),
         openRow('agent-roles-preview', 'Agent 角色验收', 'person.crop.square'),
         openRow('machine-settings-preview', '机器设置验收', 'desktopcomputer'),
         openRow(
@@ -404,6 +411,11 @@ function View() {
       void present(PromptShortcutsPreviewScreen, {}),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
     'mcp-settings-preview': () => void present(McpSettingsPreviewScreen, {}),
+    ...Object.fromEntries(
+      memoryStatePages.map((page) => [page.id, () => void present(page, {})]),
+    ),
+    'memory-preview': () => void present(MemoryPreviewScreen, {}),
+    'memory-states-preview': () => void present(MemoryStatesPreviewScreen, {}),
     'agent-roles-preview': () => void present(AgentRolesPreviewScreen, {}),
     'machine-settings-preview': () =>
       void present(MachineSettingsPreviewScreen, {}),

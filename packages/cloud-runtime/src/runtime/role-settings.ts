@@ -213,7 +213,7 @@ export async function roleSettings(
       revision: (current?.revision ?? 0) + 1,
       updatedAt: Date.now(),
     });
-    flock.set(key, value);
+    flock.set(key, value as Parameters<Flock['set']>[1]);
   }
   flock.commit();
   signal.throwIfAborted();

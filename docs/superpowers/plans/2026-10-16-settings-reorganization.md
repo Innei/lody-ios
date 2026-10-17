@@ -1,7 +1,7 @@
 # Settings 整理与功能补齐任务计划
 
 - 日期：2026-10-16
-- 状态：SET-01 至 SET-05 已完成；SET-06 的 iPad 检查按用户要求搁置，SET-07 已接入名称与图标编辑；SET-08 实现完成，跨表单背景矩阵待验收；SET-09 的现有配置／额度整理及 iPhone 浅色／深色验收已完成；SET-10 默认生效与安全删除首版已完成；SET-11 角色管理与多机器引用首版已完成；SET-13 至 SET-16 首版均已完成，iPhone 英文浅色／深色定向验收通过。
+- 状态：SET-01 至 SET-05 已完成；SET-06 的 iPad 检查按用户要求搁置，SET-07 已接入名称与图标编辑；SET-08 实现完成，跨表单背景矩阵待验收；SET-09 的现有配置／额度整理及 iPhone 浅色／深色验收已完成；SET-10 默认生效与安全删除首版已完成；SET-11 角色管理与多机器引用首版已完成；SET-12 自有机器记忆关联首版已完成；SET-13 至 SET-16 首版均已完成，iPhone 英文浅色／深色定向验收通过。
 - 关联方式：总计划与任务文件在仓库内互链，一个 SET 任务对应一个独立 Markdown 文件。
 
 ## 目标与推进方式
@@ -95,7 +95,7 @@
 | 机器             | 列表、改名、所有权校验                     | 核对状态、管理边界和可支持操作   | [SET-08](2026-10-16-settings/08-machine-management.md)                                                                 |
 | Agents           | 机器分组、名称／prompt 编辑、额度窗口      | 整理并补有正式协议的操作         | [SET-09](2026-10-16-settings/09-agent-management.md)                                                                   |
 | Agent 角色       | 已接角色管理与 v2 多机器引用               | 首版完成；完整配置编辑在电脑端   | [SET-11](2026-10-16-settings/11-agent-roles.md)                                                                        |
-| 记忆             | 未确认专用管理协议                         | 先调查来源、权限与管理能力       | [SET-12](2026-10-16-settings/12-memory-management.md)                                                                  |
+| 记忆             | 已核实设备级身份／关联协议                 | 自有机器首版已完成               | [SET-12](2026-10-16-settings/12-memory-management.md)                                                                  |
 | MCP              | 默认值接入发送，名称／默认编辑与安全删除   | 首版完成；完整连接编辑在电脑端   | [SET-10](2026-10-16-settings/10-mcp-management.md)                                                                     |
 | Prompt Shortcuts | 本机快捷回复已有；不是同一能力             | 接工作区模型与提及消费路径       | [SET-13](2026-10-16-settings/13-prompt-shortcuts.md)                                                                   |
 | 项目             | 目录、注册、历史导入已有                   | 核实并补团队可见性管理           | [SET-14](2026-10-16-settings/14-project-visibility-management.md)                                                      |
@@ -124,7 +124,7 @@
 | [SET-09 完善 Agents 设置与现有额度展示](2026-10-16-settings/09-agent-management.md)               | 第二阶段／P1       | 已完成（配置／额度整理）       | [SET-05](2026-10-16-settings/05-home-sections-and-connection.md)                                                                                                                                                             |
 | [SET-10 完善 MCP 管理并核对使用效果](2026-10-16-settings/10-mcp-management.md)                    | 第二阶段／P1       | 已完成（默认生效／安全删除）   | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-11 补齐 Agent 角色管理入口](2026-10-16-settings/11-agent-roles.md)                           | 第三阶段／P2       | 已完成（首版）                 | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
-| [SET-12 补齐记忆管理入口](2026-10-16-settings/12-memory-management.md)                            | 第三阶段／P2       | 待排期（协议待核实）           | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
+| [SET-12 补齐记忆管理入口](2026-10-16-settings/12-memory-management.md)                            | 第三阶段／P2       | 已完成（首版）                 | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-13 补齐工作区 Prompt Shortcuts](2026-10-16-settings/13-prompt-shortcuts.md)                  | 第三阶段／P2       | 已完成（首版）                 | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-14 补齐工作区项目可见性管理](2026-10-16-settings/14-project-visibility-management.md)        | 第三阶段／P2       | 已完成（首版）                 | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-15 补齐 GitHub 连接与仓库管理设置](2026-10-16-settings/15-github-integration-settings.md)    | 第三阶段／P2       | 已完成（首版）                 | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
@@ -201,7 +201,7 @@
 
 - 已决定：先分组、后功能；保留原生列表；个人在工作区前；具体选项迁入二级页；已有功能保持可达。
 - 已在 SET-01 确认：会话与记录单独一组；连接正常放 footer，离线有恢复行；无工作区只显示说明，具体规则和既有行映射见任务文件。
-- 待核实：生命周期、完整机器／Agent／MCP 管理、记忆、Prompt Shortcuts、项目可见性、GitHub 授权管理、聚合用量和分享管理协议。
+- 待核实：生命周期、完整机器／Agent／MCP 管理、记忆的团队授权与创建／编辑、Prompt Shortcuts、项目可见性、GitHub 授权管理、聚合用量和分享管理协议。
 - 待按需决定：个人资料编辑、App 内语言／文字设置的必要性、报告 Bug 渠道；不自动扩大为本计划全部必做能力。
 - 不做：桌面 Terminal 设置、Android、额外 live replica、通用 JSON 配置编辑器、未完成入口占位。
 - 不估算未经调查的工期；每个协议任务查明后再给出实际工作量和顺序调整。
@@ -237,3 +237,7 @@
 - SET-11 边界：完整目标／运行配置编辑仍在电脑端；private 仅控制可信客户端发现，不提供工作区存储机密性。未做真实 Cloud 角色修改、远程角色会话／MCP 工具、iPad 或物理设备验证。详见[任务记录](2026-10-16-settings/11-agent-roles.md)。
 
 - [SET-11 验收](https://app.lobehub.com/acceptance/772f0d2a-3989-4cd4-b6fd-6bd8c1baed74?r=1)：角色管理、原生引用和权限／消息载荷；验证范围及边界见任务记录。
+
+- 2026-10-18 用户授权 SET-12 调查、实现、验收后独立 commit 并 push；iPad 继续搁置。记忆首版限自有机器的身份列表／来源／状态／详情、确认导入与解除关联，正文由 provider 持有；角色绑定和 provider 创建／更新仍在电脑端。权限链、实际 ACP 环境注入与边界见[任务记录](2026-10-16-settings/12-memory-management.md)。
+
+- [SET-12 验收](https://app.lobehub.com/acceptance/cbe06440-b213-48f0-b311-2d7e64c59055?r=1)：身份管理、可用性与权限／数据边界 3/3 项，130 份证据上传完成；iPhone 英文浅色／深色 4/4 流程通过。29 项运行时行为检查、31 项 UI runner 检查、全仓 check、完整 runtime 类型检查、bundle 与正常签名 Release 构建通过。首版边界和真实 Cloud／nmem／插件未验范围见任务记录。
