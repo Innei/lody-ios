@@ -8,6 +8,12 @@ from driver import UI
 import catalog
 
 ui = UI(sys.argv[1], sys.argv[2])
+ui.axe('tap', '--label', catalog.text('accessibility.closeSheet', title=catalog.text('settings.preferences.title')), '--post-delay', '.4')
+ui.open_case('appearance-preview')
+entry = ui.element('preferences')
+assert catalog.text('settings.preferences.subtitle') in entry['AXLabel']
+ui.capture('settings-language-entry')
+ui.axe('tap', '--id', 'preferences', '--post-delay', '.4')
 
 def choose(value):
     row = ui.element('queued-message-behavior')
@@ -22,6 +28,8 @@ def choose(value):
 
 
 ui.capture('preferences')
+assert ui.element('language')['frame']['height'] >= 44
+assert ui.element('language')['AXValue'] == 'English'
 assert ui.element('notifications')['frame']['height'] >= 44
 assert ui.element('quick-replies')['frame']['height'] >= 44
 choose('queue')
@@ -60,7 +68,43 @@ ui.open_case('preferences-preview')
 assert ui.element('queued-message-behavior')['AXValue'] == catalog.text('settings.queuedMessageBehavior.guide')
 assert saved() == 'guide'
 ui.capture('steer-restored-after-restart')
+# The public URL may preserve Settings' current page on Simulator.
+ui.axe('tap', '--id', 'language', '--post-delay', '.6')
+ui.invalidate_axe()
+ui.wait(lambda items: any(i.get('AXLabel') == 'Settings' and i.get('type') == 'Application' for i in items),
+        'Language row did not open iOS Settings')
+ui.capture('language-opened-settings')
+if not any(i.get('AXUniqueId') == 'PREFERRED_LANGUAGE' for i in ui.state()):
+    # Follow the product's displayed path if the OS left Settings elsewhere.
+    for _ in range(5):
+        if not any(i.get('AXUniqueId') == 'BackButton' for i in ui.state()):
+            break
+        ui.axe('tap', '--id', 'BackButton', '--post-delay', '.3')
+    for _ in range(4):
+        if any(i.get('AXUniqueId') == 'com.apple.settings.apps' for i in ui.state()):
+            break
+        ui.axe('swipe', '--start-x', '200', '--start-y', '740', '--end-x', '200', '--end-y', '380',
+               '--duration', '.4', '--post-delay', '.4')
+    ui.axe('tap', '--id', 'com.apple.settings.apps', '--post-delay', '.4')
+    ui.element('app.innei.lody')
+    ui.axe('tap', '--id', 'app.innei.lody', '--post-delay', '.4')
+language = ui.element('PREFERRED_LANGUAGE')
+assert 'English' in language['AXLabel']
+ui.capture('language-system-settings')
+ui.axe('tap', '--id', 'PREFERRED_LANGUAGE', '--post-delay', '.4')
+ui.element('English')
+ui.element('简体中文')
+ui.capture('language-system-choices')
+ui.axe('tap', '--id', 'BackButton', '--post-delay', '.4')
+assert 'English' in ui.element('PREFERRED_LANGUAGE')['AXLabel']
+ui.capture('language-selection-cancelled')
+subprocess.run(['xcrun', 'simctl', 'launch', ui.udid, 'app.innei.lody'], check=True, timeout=30)
+ui.invalidate_axe()
+assert ui.element('language')['AXValue'] == 'English'
+assert ui.element('queued-message-behavior')['AXValue'] == catalog.text('settings.queuedMessageBehavior.guide')
+assert saved() == 'guide'
+ui.capture('language-return-preserves-preferences')
 choose('queue')
 ui.wait(lambda _: saved() == 'queue', 'Queue preference was not persisted')
 ui.axe('tap', '--label', catalog.text('accessibility.closeSheet', title=catalog.text('settings.preferences.title')), '--post-delay', '.5')
-print('PASS: local preference persists through cold launch; native notification push, cancelled pop and return preserve it.')
+print('PASS: language opens iOS Settings; system language choices, cancelled selection, return, cold launch and native navigation preserve local preferences.')

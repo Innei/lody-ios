@@ -1,9 +1,11 @@
 import { NativeGroupedList } from '@lody-ios/kit';
+import { Linking } from 'react-native';
 import { useQueuedMessageBehavior } from '@/features/settings/queued-message-behavior';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { t } from '@/lib/i18n';
 import { definePage } from '@/lib/presentation';
 import { usePalette } from '@/lib/theme/palette';
+import { showToast } from '@/ui/toast';
 import { NotificationSettingsScreen } from './NotificationSettingsScreen';
 import { QuickRepliesScreen } from './QuickRepliesScreen';
 
@@ -17,6 +19,21 @@ function View() {
       style={{ flex: 1 }}
       accent={colors.accent}
       sections={[
+        {
+          id: 'language-section',
+          footer: t('settings.preferences.languageHint'),
+          rows: [
+            {
+              id: 'language',
+              title: t('settings.preferences.language'),
+              value: t('settings.preferences.languageName'),
+              accessibilityValue: t('settings.preferences.languageName'),
+              image: 'globe',
+              action: true,
+              disclosure: true,
+            },
+          ],
+        },
         {
           id: 'notifications-section',
           header: t('settings.preferences.notifications'),
@@ -69,6 +86,10 @@ function View() {
           setQueuedMessageBehavior(actionId);
       }}
       onRowPress={({ nativeEvent: { id } }) => {
+        if (id === 'language')
+          void Linking.openSettings().catch(() =>
+            showToast(t('settings.preferences.languageFailed')),
+          );
         if (id === 'notifications') void push(NotificationSettingsScreen, {});
         if (id === 'quick-replies') void push(QuickRepliesScreen);
       }}

@@ -98,6 +98,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   getAppIcon(): Promise<string>;
   setAppIcon(name: string): Promise<string>;
   readonly initialDarkBackground: string;
+  readonly initialLocale: string;
   saveDarkBackground(value: string): void;
   readonly initialQueuedMessageBehavior: string;
   saveQueuedMessageBehavior(value: string): void;
@@ -221,6 +222,7 @@ export const addAccentColorListener = (
 export const getAppIcon = () => native.getAppIcon();
 export const setAppIcon = (name: string) => native.setAppIcon(name);
 export const initialDarkBackground = native.initialDarkBackground;
+export const initialLocale = native.initialLocale;
 export const saveDarkBackground = (value: string) =>
   native.saveDarkBackground(value);
 export const initialQueuedMessageBehavior = native.initialQueuedMessageBehavior;

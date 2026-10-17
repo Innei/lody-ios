@@ -1149,7 +1149,7 @@
   "settings.section.personal": "Personal",
   "settings.section.additional": "Other",
   "settings.section.workspaceNamed": "Workspace · {name}",
-  "settings.preferences.subtitle": "Notifications and chat behavior",
+  "settings.preferences.subtitle": "Language, notifications, and chat behavior",
   "settings.appearance.subtitle": "Theme, accent color, and app icon",
   "settings.about.subtitle": "Version, build, and open source licenses",
   "settings.workspace.unavailable": "No workspace available",
@@ -1343,5 +1343,9 @@
   "settings.shares.error.unavailable": "Shares could not be loaded. Check your connection and try again.",
   "settings.shares.lastConfirmed": "Last confirmed status. Refresh to check for changes.",
   "settings.shares.untitled": "Untitled Conversation",
-  "settings.shares.pageFailed": "This page could not be loaded. The previous page is still shown. Try again."
+  "settings.shares.pageFailed": "This page could not be loaded. The previous page is still shown. Try again.",
+  "settings.preferences.language": "Language",
+  "settings.preferences.languageHint": "In iOS Settings, open Apps → Lody → Language. iOS restarts Lody to apply language changes.",
+  "settings.preferences.languageFailed": "Couldn’t open iOS Settings.",
+  "settings.preferences.languageName": "English"
 }

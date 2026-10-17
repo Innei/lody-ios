@@ -15,6 +15,7 @@ export {
   getAppIcon,
   setAppIcon,
   initialDarkBackground,
+  initialLocale,
   saveDarkBackground,
   initialQueuedMessageBehavior,
   saveQueuedMessageBehavior,

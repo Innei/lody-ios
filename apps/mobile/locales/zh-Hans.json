@@ -1149,7 +1149,7 @@
   "settings.section.personal": "个人",
   "settings.section.additional": "其他",
   "settings.section.workspaceNamed": "工作区 · {name}",
-  "settings.preferences.subtitle": "通知与会话行为",
+  "settings.preferences.subtitle": "语言、通知与会话行为",
   "settings.appearance.subtitle": "主题、强调色与应用图标",
   "settings.about.subtitle": "版本、构建信息与开源许可",
   "settings.workspace.unavailable": "暂无可用工作区",
@@ -1343,5 +1343,9 @@
   "settings.shares.error.unavailable": "无法载入分享。请检查连接后重试。",
   "settings.shares.lastConfirmed": "上次确认的状态，请刷新检查变化。",
   "settings.shares.untitled": "未命名会话",
-  "settings.shares.pageFailed": "无法载入此页，仍显示上一页的内容。请重试。"
+  "settings.shares.pageFailed": "无法载入此页，仍显示上一页的内容。请重试。",
+  "settings.preferences.language": "语言",
+  "settings.preferences.languageHint": "在 iOS 设置中打开“App → Lody → 语言”。更改语言后，iOS 会重新启动 Lody。",
+  "settings.preferences.languageFailed": "无法打开 iOS 设置。",
+  "settings.preferences.languageName": "简体中文"
 }

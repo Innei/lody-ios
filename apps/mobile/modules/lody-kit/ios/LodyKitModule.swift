@@ -62,6 +62,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   var initialDarkBackground: String { LodyDarkBackground.current.rawValue }
 
   @JS
+  var initialLocale: String { Bundle.main.preferredLocalizations.first ?? "en" }
+
+  @JS
   var initialQueuedMessageBehavior: String {
     UserDefaults.standard.string(forKey: "queuedMessageBehavior") == "guide" ? "guide" : "queue"
   }

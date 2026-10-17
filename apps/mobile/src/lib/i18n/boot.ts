@@ -1,6 +1,7 @@
-import { getLocales } from 'expo-localization';
+import { initialLocale } from '@lody-ios/kit';
 
 import { matchLocale } from './format.ts';
 import { setLocale } from './index.ts';
 
-setLocale(matchLocale(getLocales()[0]?.languageTag));
+// Use the same supported localization as native strings, including fallbacks.
+setLocale(matchLocale(initialLocale));
