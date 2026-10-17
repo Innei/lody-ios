@@ -606,6 +606,9 @@ with metro_context:
                     if case in ('settings', 'settings-baseline', 'agents-settings'):
                         # These cases visit several Settings contexts or editors.
                         check_timeout = 300
+                    if case == 'pull-request':
+                        # Authorization, comment and investigation round trips share this case.
+                        check_timeout = 300
                     if case == 'proposed-plan':
                         # Document, search and business dispatch outcomes share this case.
                         check_timeout = 360

@@ -11,7 +11,7 @@ def tap(identifier):
     ui.axe('tap', '--id', identifier, '--post-delay', '.6')
 
 def back():
-    ui.axe('swipe', '--start-x', '2', '--start-y', '450', '--end-x', '365', '--end-y', '450', '--duration', '.5', '--post-delay', '1')
+    ui.axe('drag', '--start-x', '2', '--start-y', '450', '--end-x', '365', '--end-y', '450', '--duration', '.5', '--post-delay', '1')
 
 ui.capture('session-entry')
 ui.axe('tap', '--label', 'PR #31，1 项检查失败', '--post-delay', '1')
