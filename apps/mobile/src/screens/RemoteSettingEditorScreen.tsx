@@ -1,11 +1,18 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Switch, TextInput, View as RNView } from 'react-native';
+import {
+  Alert,
+  StyleSheet,
+  Switch,
+  TextInput,
+  View as RNView,
+} from 'react-native';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { usePalette } from '@/lib/theme/palette';
 import { Screen } from '@/ui/Screen';
 import { AppText } from '@/ui/AppText';
 import { FormGroup, formInputStyle } from '@/ui/FormGroup';
+import { Button } from '@/ui/Button';
 import { useSheetHeader } from '@/hooks/screens/useSheetHeader';
 import { showToast } from '@/ui/toast';
 import type { RemoteSetting } from '@lody/cloud-runtime/models/settings';
@@ -28,12 +35,25 @@ function View() {
     item.enabledByDefault === true,
   );
   const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState('');
   const saving = useRef(false);
   const inputStyle = [formInputStyle, { color: colors.label }];
+  const reportError = useCallback(
+    (cause: unknown) => {
+      const message =
+        cause instanceof Error
+          ? cause.message
+          : t('settings.remote.saveFailed');
+      setFailure(message);
+      if (item.kind !== 'mcp') showToast(message, 'error');
+    },
+    [item.kind],
+  );
   const save = useCallback(async () => {
-    if (saving.current || !name.trim()) return;
+    if (saving.current || item.readOnly || !name.trim()) return;
     saving.current = true;
     setBusy(true);
+    setFailure('');
     try {
       await service({
         workspaceId,
@@ -47,17 +67,36 @@ function View() {
       });
       finish();
     } catch (cause) {
-      showToast(
-        cause instanceof Error
-          ? cause.message
-          : t('settings.remote.saveFailed'),
-        'error',
-      );
+      reportError(cause);
     } finally {
       saving.current = false;
       setBusy(false);
     }
-  }, [name, prompt, enabledByDefault, workspaceId, item, service, finish]);
+  }, [
+    name,
+    prompt,
+    enabledByDefault,
+    workspaceId,
+    item,
+    service,
+    finish,
+    reportError,
+  ]);
+  const remove = async () => {
+    if (saving.current || item.readOnly) return;
+    saving.current = true;
+    setBusy(true);
+    setFailure('');
+    try {
+      await service({ workspaceId, kind: 'mcp', remove: item });
+      finish();
+    } catch (cause) {
+      reportError(cause);
+    } finally {
+      saving.current = false;
+      setBusy(false);
+    }
+  };
   const actions = useMemo(
     () => [
       {
@@ -109,6 +148,19 @@ function View() {
           clearButtonMode="while-editing"
         />
       </FormGroup>
+      {item.kind === 'mcp' && failure ? (
+        <AppText
+          testID="setting-error"
+          accessibilityRole="alert"
+          style={{
+            color: colors.danger,
+            marginHorizontal: 16,
+            marginBottom: 12,
+          }}
+        >
+          {failure}
+        </AppText>
+      ) : null}
       {item.kind === 'agent' && (
         <FormGroup
           header={t('settings.remote.prompt')}
@@ -128,7 +180,13 @@ function View() {
         </FormGroup>
       )}
       {item.kind === 'mcp' && (
-        <FormGroup footer={t('settings.remote.mcpHint')}>
+        <FormGroup
+          footer={
+            item.configured === false
+              ? t('settings.mcp.missingConnection')
+              : t('settings.remote.mcpHint')
+          }
+        >
           <RNView style={styles.toggleRow}>
             <AppText style={styles.toggleLabel}>
               {t('settings.remote.default')}
@@ -139,9 +197,35 @@ function View() {
               trackColor={{ true: colors.accent }}
               value={enabledByDefault}
               onValueChange={setEnabled}
-              disabled={busy}
+              disabled={
+                busy || (item.configured === false && !enabledByDefault)
+              }
             />
           </RNView>
+        </FormGroup>
+      )}
+      {item.kind === 'mcp' && !item.readOnly && (
+        <FormGroup footer={t('settings.mcp.connectionEditing')}>
+          <Button
+            testID="setting-delete"
+            label={t('settings.mcp.delete')}
+            destructive
+            disabled={busy}
+            onPress={() =>
+              Alert.alert(
+                t('settings.mcp.delete'),
+                t('settings.mcp.deleteHint', { name: item.name }),
+                [
+                  { text: t('common.cancel'), style: 'cancel' },
+                  {
+                    text: t('common.delete'),
+                    style: 'destructive',
+                    onPress: () => void remove(),
+                  },
+                ],
+              )
+            }
+          />
         </FormGroup>
       )}
     </Screen>

@@ -175,8 +175,8 @@ export function RemoteSettingsView({
           },
           {
             title: t(`settings.remote.edit${kind}`),
-            sheetAllowedDetents: kind === 'agent' ? [1] : [0.5, 1],
-            sheetGrabberVisible: kind !== 'agent',
+            sheetAllowedDetents: kind === 'machine' ? [0.5, 1] : [1],
+            sheetGrabberVisible: kind === 'machine',
           },
         ).then((result) => {
           if (result.status === 'completed') refresh(snapshotRef.current);

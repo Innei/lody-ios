@@ -707,7 +707,7 @@
   "settings.usage.empty": "No usage data yet",
   "settings.usage.shared": "Reported by this machine and shown once per provider. Configurations may share an allowance; this is not workspace token usage or billing.",
   "settings.usage.offline": "Offline · Showing the last synced subscription usage.",
-  "settings.remote.mcpHint": "Syncs the default MCP selection for new sessions in other clients. iOS sessions do not use MCP yet.",
+  "settings.remote.mcpHint": "Defaults apply when a session has no saved MCP selection. Later turns and queued messages keep that session’s selection. The selected agent must support the connection type.",
   "settings.remote.loading": "Loading remote settings…",
   "settings.remote.refresh": "Refresh",
   "settings.remote.syncedAt": "Updated {time}",
@@ -1223,5 +1223,17 @@
   "settings.aiUsage.failed": "Refresh failed. Any displayed figures are the last verified result for this workspace and range.",
   "settings.aiUsage.partial": "Some usage sources are unavailable. Available cloud results are shown; missing values are not treated as zero.",
   "send.error.shortcut": "This shortcut could not be verified. Refresh Prompt Shortcuts or remove its command and try again.",
-  "settings.projects.sharedValue": "Shared"
+  "settings.projects.sharedValue": "Shared",
+  "settings.mcp.delete": "Delete MCP Server",
+  "settings.mcp.deleteHint": "Delete “{name}” from this workspace? Future turns will stop selecting it. This does not stop an agent that is already running.",
+  "settings.mcp.notConfigured": "Connection not configured",
+  "settings.mcp.missingConnection": "Configure this connection in Lody on your computer before enabling it.",
+  "settings.mcp.connectionEditing": "Add servers and edit connections in Lody on your computer.",
+  "settings.mcp.cached": "Showing saved MCP settings. Reconnect and refresh before editing.",
+  "settings.mcp.writeUnknown": "The change could not be confirmed. Close this form and refresh to check its status before trying again.",
+  "send.error.mcpCatalog": "Could not load MCP settings. Refresh the connection and try sending again.",
+  "send.error.mcpConnection": "A selected MCP server has no valid connection. Configure it in Lody on your computer, or delete that server in Settings.",
+  "settings.mcp.defaultOn": "Default on",
+  "settings.mcp.defaultOff": "Default off",
+  "settings.mcp.readOnly": "Read only in this workspace"
 }

@@ -1,7 +1,7 @@
 # Settings 整理与功能补齐任务计划
 
 - 日期：2026-10-16
-- 状态：SET-01 至 SET-05 已完成；SET-06 的 iPad 检查按用户要求搁置，SET-07 已接入名称与图标编辑；SET-08 实现完成，跨表单背景矩阵待验收；SET-09 的现有配置／额度整理及 iPhone 浅色／深色验收已完成，SET-13 首版已完成；SET-14 项目可见性、SET-15 GitHub 和 SET-16 AI 用量首版均已完成，iPhone 英文浅色／深色定向验收通过。
+- 状态：SET-01 至 SET-05 已完成；SET-06 的 iPad 检查按用户要求搁置，SET-07 已接入名称与图标编辑；SET-08 实现完成，跨表单背景矩阵待验收；SET-09 的现有配置／额度整理及 iPhone 浅色／深色验收已完成；SET-10 默认生效与安全删除首版已完成；SET-13 至 SET-16 首版均已完成，iPhone 英文浅色／深色定向验收通过。
 - 关联方式：总计划与任务文件在仓库内互链，一个 SET 任务对应一个独立 Markdown 文件。
 
 ## 目标与推进方式
@@ -17,6 +17,8 @@
 2026-10-17 用户指定本轮按 SET-09 → SET-13 → SET-14 → SET-15 → SET-16 顺序推进。每项沿对应任务文件独立记录；iPad 继续搁置，不作为本队列的前置阻塞。协议未确认的功能先核实，不以占位入口宣称完成。
 
 本轮按用户要求每项完成后单独 commit，队列完成后统一 push，次日早晨验收。
+
+2026-10-17 用户追加授权开始 SET-10：先核实 MCP 实际生效链路和官方协议，再实现、验收、单独 commit 并 push。此前队列已交付；本轮仅推进 SET-10，iPad 继续搁置。
 
 ## 当前实现与调查入口
 
@@ -92,7 +94,7 @@
 | Agents           | 机器分组、名称／prompt 编辑、额度窗口      | 整理并补有正式协议的操作         | [SET-09](2026-10-16-settings/09-agent-management.md)                                                                   |
 | Agent 角色       | 已有 Role 读取及可见性校验                 | 补管理与实际使用链路             | [SET-11](2026-10-16-settings/11-agent-roles.md)                                                                        |
 | 记忆             | 未确认专用管理协议                         | 先调查来源、权限与管理能力       | [SET-12](2026-10-16-settings/12-memory-management.md)                                                                  |
-| MCP              | 名称与默认启用编辑，连接秘密不投影到 RN    | 核对使用效果及完整配置边界       | [SET-10](2026-10-16-settings/10-mcp-management.md)                                                                     |
+| MCP              | 默认值接入发送，名称／默认编辑与安全删除   | 首版完成；完整连接编辑在电脑端   | [SET-10](2026-10-16-settings/10-mcp-management.md)                                                                     |
 | Prompt Shortcuts | 本机快捷回复已有；不是同一能力             | 接工作区模型与提及消费路径       | [SET-13](2026-10-16-settings/13-prompt-shortcuts.md)                                                                   |
 | 项目             | 目录、注册、历史导入已有                   | 核实并补团队可见性管理           | [SET-14](2026-10-16-settings/14-project-visibility-management.md)                                                      |
 | GitHub           | PR 读取与评论已有                          | 核实连接与仓库授权管理           | [SET-15](2026-10-16-settings/15-github-integration-settings.md)                                                        |
@@ -118,7 +120,7 @@
 | [SET-07 接入工作区通用设置](2026-10-16-settings/07-workspace-general.md)                          | 第二阶段／P1       | 已完成（名称／图标）           | [SET-05](2026-10-16-settings/05-home-sections-and-connection.md)                                                                                                                                                             |
 | [SET-08 完善机器设置的展示与管理边界](2026-10-16-settings/08-machine-management.md)               | 第二阶段／P1       | 实现完成（背景矩阵待验收）     | [SET-05](2026-10-16-settings/05-home-sections-and-connection.md)                                                                                                                                                             |
 | [SET-09 完善 Agents 设置与现有额度展示](2026-10-16-settings/09-agent-management.md)               | 第二阶段／P1       | 已完成（配置／额度整理）       | [SET-05](2026-10-16-settings/05-home-sections-and-connection.md)                                                                                                                                                             |
-| [SET-10 完善 MCP 管理并核对使用效果](2026-10-16-settings/10-mcp-management.md)                    | 第二阶段／P1       | 待排期                         | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
+| [SET-10 完善 MCP 管理并核对使用效果](2026-10-16-settings/10-mcp-management.md)                    | 第二阶段／P1       | 已完成（默认生效／安全删除）   | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-11 补齐 Agent 角色管理入口](2026-10-16-settings/11-agent-roles.md)                           | 第三阶段／P2       | 待排期（管理协议待核实）       | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-12 补齐记忆管理入口](2026-10-16-settings/12-memory-management.md)                            | 第三阶段／P2       | 待排期（协议待核实）           | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-13 补齐工作区 Prompt Shortcuts](2026-10-16-settings/13-prompt-shortcuts.md)                  | 第三阶段／P2       | 已完成（首版）                 | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
@@ -223,3 +225,7 @@
 - 本轮[设置验收证据](https://app.lobehub.com/acceptance/49fe2ad2-5420-4cb5-a9a1-abb2e3f8203c)：4/4 项、iPhone 英文浅色／深色共 8/8 场景通过，148 份证据上传完成，截图与录像无缺失。覆盖只读、失败原稿／确认值保留、刷新与读回，以及用量旧范围迟到隔离。
 - 程序化检查：8 项定向行为检查、31 项 UI runner 检查、TypeScript、i18n、原生源登记、许可证、bundle 与带签名 Release 模拟器构建通过。全仓 `pnpm check` 仅在并行任务的 `wide-layout-design.md` 格式处失败；本轮保留该任务文件及其他在途改动。
 - 首版边界：复杂快捷模板只读；GitHub 个人授权在官方网页完成；AI 用量只展示工作区汇总与趋势，费用标为预估。未执行真实云端修改、GitHub 授权或统计对账，iPad 按用户要求搁置。
+
+- 2026-10-17：SET-10 完成官方协议核对与默认生效／安全删除首版。首次发送采用工作区默认值，续聊和队列保留既有选择，删除的 ID 在后续发送前过滤；连接缺失、冲突、权限拒绝与未知写入有恢复边界，连接秘密不进入 RN。
+- 本轮 [MCP 验收](https://app.lobehub.com/acceptance/5eccf834-f0a1-40f2-8265-f01da5fa0df9?r=1)：2/2 项、66 份证据上传完成。MCP 与五类共享表单的英文浅色／深色共 4/4 场景通过，55 项相关行为检查、31 项 UI runner 检查、bundle 及带签名 Release 模拟器构建通过；全仓 check 仍仅受另一任务的宽屏设计文档格式影响。
+- SET-10 边界：新增服务器及完整连接编辑由电脑端完成，工具发现正式接口限本机 RPC；未做真实 Cloud 修改、MCP 连接／工具、iPad 或物理设备验证。详见[任务记录](2026-10-16-settings/10-mcp-management.md)。

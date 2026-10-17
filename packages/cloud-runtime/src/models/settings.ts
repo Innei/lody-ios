@@ -14,6 +14,8 @@ export type RemoteSetting = {
   detail?: string;
   prompt?: string;
   enabledByDefault?: boolean;
+  configured?: boolean;
+  updatedAt?: number;
 };
 
 export type SettingsRequest = {
@@ -25,4 +27,5 @@ export type SettingsRequest = {
     prompt?: string;
     enabledByDefault?: boolean;
   };
+  remove?: RemoteSetting;
 };

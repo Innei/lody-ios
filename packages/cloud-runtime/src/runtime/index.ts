@@ -46,6 +46,7 @@ import {
 } from './preview';
 import { machineRpc } from './machine-rpc';
 import { remoteSettings } from './settings';
+import { sessionMcpSelection } from './mcp';
 import type { SettingsRequest } from '../models/settings.ts';
 import {
   fileDiff,
@@ -736,10 +737,20 @@ Object.assign(globalThis, {
     async remoteSettings(args: SettingsRequest & { userId: string }) {
       if (args.workspaceId !== workspace || !metaReplica || unhealthy.size)
         throw new Error('metadata_not_ready');
+      const scopedGrant = async () => {
+        const check = () => {
+          if (args.workspaceId !== workspace || args.userId !== runtimeUserId)
+            throw new Error('workspace_changed');
+        };
+        check();
+        const value = await getGrant();
+        check();
+        return value;
+      };
       return remoteSettings(
         args,
         args.userId,
-        getGrant,
+        scopedGrant,
         AbortSignal.timeout(35000),
       );
     },
@@ -1165,12 +1176,27 @@ Object.assign(globalThis, {
         scopedShortcutCloud(sourceWorkspace, runtimeUserId),
         AbortSignal.timeout(30000),
       );
-      return sendSessionTurn(args, (text) =>
-        expandShortcuts(text, access.list, access.read, (part) =>
-          expandMentions(part, (category) =>
-            getMentions({ ...source, category }),
+      return sendSessionTurn(
+        args,
+        (text) =>
+          expandShortcuts(text, access.list, access.read, (part) =>
+            expandMentions(part, (category) =>
+              getMentions({ ...source, category }),
+            ),
           ),
-        ),
+        async (persisted) => {
+          if (workspace !== sourceWorkspace || runtimeUserId !== args.userId)
+            throw new Error('workspace_changed');
+          const ids = await sessionMcpSelection(
+            sourceWorkspace,
+            getGrant,
+            persisted,
+            AbortSignal.timeout(30000),
+          );
+          if (workspace !== sourceWorkspace || runtimeUserId !== args.userId)
+            throw new Error('workspace_changed');
+          return ids;
+        },
       );
     },
     start(id: string, userId?: string, active = true) {

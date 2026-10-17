@@ -707,7 +707,7 @@
   "settings.usage.empty": "暂无用量数据",
   "settings.usage.shared": "此机器上报的订阅额度，按供应商显示一次。多个配置可能共用额度；这不是工作区 Token 用量或费用统计。",
   "settings.usage.offline": "离线 · 显示最近同步的订阅用量。",
-  "settings.remote.mcpHint": "同步其他客户端新建会话时的默认 MCP 选择。当前 iOS 会话暂未接入 MCP。",
+  "settings.remote.mcpHint": "会话尚无 MCP 选择时采用工作区默认值；后续消息和队列沿用该会话的选择。所选 Agent 须支持相应连接类型。",
   "settings.remote.loading": "正在读取远程设置…",
   "settings.remote.refresh": "刷新",
   "settings.remote.syncedAt": "更新于 {time}",
@@ -1223,5 +1223,17 @@
   "settings.aiUsage.failed": "刷新失败。当前数值为此工作区与时间范围上次确认的结果。",
   "settings.aiUsage.partial": "部分用量来源暂不可用。仅显示已获得的云端结果，缺失数据不会按 0 处理。",
   "send.error.shortcut": "暂时无法验证此模板。请刷新 Prompt Shortcuts，或移除命令后重试。",
-  "settings.projects.sharedValue": "共享"
+  "settings.projects.sharedValue": "共享",
+  "settings.mcp.delete": "删除 MCP 服务器",
+  "settings.mcp.deleteHint": "从工作区删除“{name}”？后续消息将不再选择它，已运行的 Agent 不会因此停止。",
+  "settings.mcp.notConfigured": "尚未配置连接",
+  "settings.mcp.missingConnection": "请先在电脑上的 Lody 中配置连接，再启用此服务器。",
+  "settings.mcp.connectionEditing": "添加服务器和编辑连接请在电脑上的 Lody 中完成。",
+  "settings.mcp.cached": "当前显示已保存的 MCP 设置，请重新连接并刷新后再编辑。",
+  "settings.mcp.writeUnknown": "无法确认修改结果。请关闭表单并刷新，核对状态后再尝试。",
+  "send.error.mcpCatalog": "无法读取 MCP 设置，请恢复连接后重新发送。",
+  "send.error.mcpConnection": "所选 MCP 服务器尚无有效连接，请在电脑上的 Lody 中补充连接，或在设置中删除该服务器。",
+  "settings.mcp.defaultOn": "默认开启",
+  "settings.mcp.defaultOff": "默认关闭",
+  "settings.mcp.readOnly": "当前工作区仅可查看"
 }

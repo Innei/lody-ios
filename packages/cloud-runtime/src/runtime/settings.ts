@@ -114,6 +114,13 @@ export function settingsRows(
         name: text(value.name),
         detail: text(value.transport),
         enabledByDefault: value.enabledByDefault === true,
+        configured:
+          object(value.connection).transport === value.transport &&
+          (value.transport === 'http'
+            ? !!text(object(value.connection).url).trim()
+            : !!text(object(value.connection).command).trim()),
+        updatedAt:
+          typeof value.updatedAt === 'number' ? value.updatedAt : undefined,
       });
     }
   }
@@ -121,6 +128,31 @@ export function settingsRows(
 }
 
 export function editSetting(flock: Flock, request: SettingsRequest) {
+  if (request.remove) {
+    const item = request.remove;
+    if (
+      request.edit ||
+      request.kind !== 'mcp' ||
+      item.kind !== 'mcp' ||
+      !item.id
+    )
+      throw new Error('invalid_setting');
+    const current = settingsRows('mcp', flock).find(
+      (row) => row.id === item.id,
+    );
+    if (!current) throw new Error('setting_not_found');
+    if (
+      ['name', 'enabledByDefault', 'detail', 'configured', 'updatedAt'].some(
+        (field) =>
+          current[field as keyof RemoteSetting] !==
+          item[field as keyof RemoteSetting],
+      )
+    )
+      throw new Error('setting_conflict');
+    flock.delete(['mcpServer', item.id]);
+    flock.commit();
+    return;
+  }
   const edit = request.edit;
   if (
     !edit ||
@@ -136,6 +168,12 @@ export function editSetting(flock: Flock, request: SettingsRequest) {
     (row) => row.id === edit.item.id,
   );
   if (!current) throw new Error('setting_not_found');
+  if (
+    request.kind === 'mcp' &&
+    edit.enabledByDefault &&
+    current.configured === false
+  )
+    throw new Error('mcp_connection_missing');
   const fields = ['name', 'prompt', 'enabledByDefault'] as const;
   for (const field of fields)
     if (edit[field] !== undefined && current[field] !== edit.item[field])
@@ -187,7 +225,9 @@ export async function remoteSettings(
 ) {
   if (!['machine', 'agent', 'mcp'].includes(request.kind))
     throw new Error('invalid_setting');
-  const { workspaceId, kind, edit } = request;
+  const { workspaceId, kind, edit, remove } = request;
+  const writing = !!(edit || remove);
+  if (remove && (kind !== 'mcp' || edit)) throw new Error('invalid_setting');
   const meta =
     kind === 'mcp'
       ? undefined
@@ -234,7 +274,7 @@ export async function remoteSettings(
           : await openSettings(stream, grant, signal);
     } catch (error) {
       if (
-        !edit &&
+        !writing &&
         kind !== 'machine' &&
         error instanceof Error &&
         error.message === 'not_found'
@@ -243,7 +283,7 @@ export async function remoteSettings(
       throw error;
     }
     const { flock, client } = replica;
-    if (edit) {
+    if (writing) {
       const version = flock.version();
       editSetting(flock, request);
       signal.throwIfAborted();
@@ -255,7 +295,11 @@ export async function remoteSettings(
           ),
         },
       });
-      if (!saved.ok) throw new Error('setting_write_unknown');
+      if (!saved.ok) {
+        if (saved.result.code === 'forbidden')
+          throw new Error('setting_read_only');
+        throw new Error('setting_write_unknown');
+      }
     }
     result.push(
       ...settingsRows(kind, flock, machineId).map((item) => ({

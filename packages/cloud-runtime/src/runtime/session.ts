@@ -526,6 +526,8 @@ export async function sendTurn(
     billingEntitlement?: BillingEntitlement | null;
   },
   expand: (text: string) => Promise<string> = async (text) => text,
+  selectMcp: (persisted: unknown) => Promise<string[]> = async (ids) =>
+    Array.isArray(ids) ? ids : [],
 ) {
   const state = sessions.get(args.sessionId);
   if (!state || !state.ready)
@@ -646,6 +648,14 @@ export async function sendTurn(
       if (args.reasoningEffort === null) delete configOptionValues[id];
       else configOptionValues[id] = args.reasoningEffort;
     }
+    const pendingQueue = (state.doc.toJSON().mq ?? []) as any[];
+    const mcpServerIds = await selectMcp(
+      pendingQueue.findLast((item) =>
+        Array.isArray(item.acpSessionConfig?.mcpServerIds),
+      )?.acpSessionConfig.mcpServerIds ?? previous.mcpServerIds,
+    );
+    if (sessions.get(state.id) !== state || !state.ready)
+      throw new Error('session_not_ready');
     const inputConfig = {
       cliType: args.cliType,
       agentType: args.agentType,
@@ -659,7 +669,7 @@ export async function sendTurn(
       configOptionValues: Object.keys(configOptionValues).length
         ? configOptionValues
         : undefined,
-      mcpServerIds: previous.mcpServerIds ?? [],
+      mcpServerIds,
       taskToolsEnabled: previous.taskToolsEnabled ?? false,
       agentRoleId: previous.agentRoleId,
       agentRoleRevision: previous.agentRoleRevision,
@@ -672,6 +682,8 @@ export async function sendTurn(
           (key) =>
             inputConfig[key as keyof typeof inputConfig] !== previous[key],
         ) ||
+        JSON.stringify(inputConfig.mcpServerIds) !==
+          JSON.stringify(previous.mcpServerIds ?? []) ||
         Object.keys(configOptionValues).length !==
           Object.keys(previousOptions).length ||
         Object.entries(configOptionValues).some(

@@ -299,6 +299,13 @@ Settings → Workspace → General: the shared editor, seeded system icon picker
 name save/readback, cancellation, home-name projection and the target after a
 workspace switch. No cloud workspace is changed; no iPad or full Home flow runs.
 
+`mcp-settings` uses production MCP settings and editor components in a resettable
+offline scene. English light/dark screenshots and video cover explicit default
+labels, incomplete connections, read-only rows, duplicate names, failed-save draft
+retention, exact readback, delete confirmation/cancellation, conflict recovery and
+deleted-row readback. Runtime checks additionally inspect the actual persisted
+history/queue and machine dispatch payload, without a real MCP connection.
+
 `agents-settings` exercises only the production Agents list and editor: separate
 configuration/subscription groups, per-provider quota display, cached refresh,
 read-only ownership, failed-save draft retention and machine-scoped prompt readback.

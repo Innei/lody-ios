@@ -27,14 +27,24 @@ export async function requestSettings(
   } catch (error) {
     const message = String(error);
     if (message.includes('setting_read_only'))
-      throw new Error(t('settings.remote.readOnly'));
+      throw new Error(
+        t(
+          request.kind === 'mcp'
+            ? 'settings.mcp.readOnly'
+            : 'settings.remote.readOnly',
+        ),
+      );
     if (message.includes('setting_conflict'))
       throw new Error(t('settings.remote.conflict'));
     if (message.includes('setting_duplicate'))
       throw new Error(t('settings.remote.duplicate'));
+    if (message.includes('mcp_connection_missing'))
+      throw new Error(t('settings.mcp.missingConnection'));
+    if (message.includes('setting_write_unknown'))
+      throw new Error(t('settings.mcp.writeUnknown'));
     throw new Error(
       t(
-        request.edit
+        request.edit || request.remove
           ? 'settings.remote.saveFailed'
           : 'settings.remote.loadFailed',
       ),

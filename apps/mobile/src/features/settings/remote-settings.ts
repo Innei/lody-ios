@@ -134,8 +134,8 @@ function settingValue(item: RemoteSetting) {
   if (item.kind !== 'mcp') return undefined;
   return t(
     item.enabledByDefault
-      ? 'settings.remote.enabled'
-      : 'settings.remote.disabled',
+      ? 'settings.mcp.defaultOn'
+      : 'settings.mcp.defaultOff',
   );
 }
 
@@ -168,6 +168,8 @@ export function remoteSettingsSections({
       ? undefined
       : t('settings.remote.syncedAt', { time: relativeTime(syncedAt, now) });
   const presence = connected && !error ? machinePresence : unknownPresence;
+  const readOnlyKey =
+    kind === 'mcp' ? 'settings.mcp.readOnly' : 'settings.remote.readOnly';
   const settingRows = items.map((item) => ({
     id: remoteSettingId(item),
     title: item.name || item.id,
@@ -179,11 +181,14 @@ export function remoteSettingsSections({
         : item.detail,
       kind === 'machine' ? item.id : undefined,
       kind === 'agent' ? undefined : item.machineName,
-      item.readOnly ? t('settings.remote.readOnly') : undefined,
+      item.readOnly ? t(readOnlyKey) : undefined,
+      kind === 'mcp' && item.configured === false
+        ? t('settings.mcp.notConfigured')
+        : undefined,
     ]
       .filter(Boolean)
       .join(kind === 'machine' ? '\n' : ' · '),
-    wrapSubtitle: kind !== 'mcp',
+    wrapSubtitle: true,
     value: settingValue(item),
     disclosure: !item.readOnly,
     action: !item.readOnly,
@@ -271,6 +276,9 @@ export function remoteSettingsSections({
         kind === 'machine' ? t('settings.remote.machineOwnerHint') : undefined,
         kind === 'machine' && items.length && (!connected || error)
           ? t('settings.remote.machineCached')
+          : undefined,
+        kind === 'mcp' && (!connected || error)
+          ? t('settings.mcp.cached')
           : undefined,
         synced,
       ),

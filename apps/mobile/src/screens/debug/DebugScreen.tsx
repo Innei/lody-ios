@@ -50,6 +50,7 @@ import { ShinePreviewScreen } from './ShinePreviewScreen';
 import { SessionTreePreviewScreen } from './SessionTreePreviewScreen';
 import { InboxPreviewScreen } from './InboxPreviewScreen';
 import { SettingsPreviewScreen } from './SettingsPreviewScreen';
+import { McpSettingsPreviewScreen } from './McpSettingsPreviewScreen';
 import { MachineSettingsPreviewScreen } from './MachineSettingsPreviewScreen';
 import { SettingsFormsPreviewScreen } from './SettingsFormsPreviewScreen';
 import { SettingsScreen } from '../SettingsScreen';
@@ -194,6 +195,7 @@ function View() {
           'arrow.triangle.2.circlepath',
         ),
         openRow('settings-preview', '远程设置验收', 'gear'),
+        openRow('mcp-settings-preview', 'MCP 设置验收', 'server.rack'),
         openRow('machine-settings-preview', '机器设置验收', 'desktopcomputer'),
         openRow(
           'settings-forms-preview',
@@ -399,6 +401,7 @@ function View() {
     'prompt-shortcuts-preview': () =>
       void present(PromptShortcutsPreviewScreen, {}),
     'settings-preview': () => void present(SettingsPreviewScreen, {}),
+    'mcp-settings-preview': () => void present(McpSettingsPreviewScreen, {}),
     'machine-settings-preview': () =>
       void present(MachineSettingsPreviewScreen, {}),
     'settings-forms-preview': () =>
