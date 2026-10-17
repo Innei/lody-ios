@@ -299,6 +299,16 @@ Settings → Workspace → General: the shared editor, seeded system icon picker
 name save/readback, cancellation, home-name projection and the target after a
 workspace switch. No cloud workspace is changed; no iPad or full Home flow runs.
 
+`agent-roles` uses the production role list, target picker and editor with resettable
+service outcomes. English light/dark screenshots and video cover ownership,
+unavailable bindings, v2 target display, conflicts, retained drafts, private
+creation, sharing, readback, uncertain deletion followed by refresh, and closing a pending
+editor after an account switch. It also
+opens the actual Settings entry without cloud credentials. `role-mention-chat`
+and `role-mention-sheet` prove that an explicit role/machine token survives both
+native input hosts and expands into the sent transcript. Runtime checks observe
+the durable history/queue and machine payload without executing a real MCP tool.
+
 `mcp-settings` uses production MCP settings and editor components in a resettable
 offline scene. English light/dark screenshots and video cover explicit default
 labels, incomplete connections, read-only rows, duplicate names, failed-save draft

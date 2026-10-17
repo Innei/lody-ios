@@ -1,4 +1,5 @@
 import { AIUsageScreen } from './AIUsageScreen';
+import { AgentRolesScreen } from './AgentRolesScreen';
 import { GitHubSettingsScreen } from './GitHubSettingsScreen';
 import { ProjectVisibilityScreen } from './ProjectVisibilityScreen';
 import { PromptShortcutsScreen } from './PromptShortcutsScreen';
@@ -98,6 +99,15 @@ function View() {
           disclosure: true,
           navigates: true,
         });
+        if (kind === 'agent')
+          rows.push({
+            id: 'agent-roles',
+            title: t('settings.roles.title'),
+            image: 'person.crop.square',
+            action: true,
+            disclosure: true,
+            navigates: true,
+          });
       }
       rows.push({
         id: 'prompt-shortcuts',
@@ -267,6 +277,7 @@ function View() {
             );
         }
         if (id === 'ai-usage' && workspace) void push(AIUsageScreen);
+        if (id === 'agent-roles' && workspace) void push(AgentRolesScreen);
         if (id === 'github-settings' && workspace)
           void push(GitHubSettingsScreen);
         if (id === 'project-visibility' && workspace)

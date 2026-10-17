@@ -201,6 +201,8 @@ test('Role references filter private rows and invalid machine bindings before ex
       machineId: 'm',
       agentConfigId: 'a',
       revision: 1,
+      createdAt: 1,
+      updatedAt: 1,
       ...patch,
     },
   });
@@ -211,13 +213,19 @@ test('Role references filter private rows and invalid machine bindings before ex
     row('deleted-agent', { agentConfigId: 'missing' }),
     row('other-machine', { machineId: 'other' }),
   ];
-  const result = mentions.roleMentions(rows, 'me', agents, 'm');
+  const result = mentions.roleMentions(rows, 'me', agents, {
+    state: 'live',
+    onlineMachineIds: ['m'],
+  });
   assert.deepEqual(
     result.items.map((item) => item.path),
     ['own', 'shared'],
   );
   assert.equal(
-    mentions.roleMentions(rows, 'me', agents, 'other').items.length,
+    mentions.roleMentions(rows, 'me', agents, {
+      state: 'live',
+      onlineMachineIds: ['other'],
+    }).items.length,
     0,
   );
   assert.equal(

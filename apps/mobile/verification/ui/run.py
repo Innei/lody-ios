@@ -25,7 +25,7 @@ BATCHES = {
     'chat': ['workspace-changes', 'message-share', 'user-mentions', 'file-preview', 'html-preview', 'file-selection', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'mermaid', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'chat-chrome', 'title-rename', 'simulator-preview'],
 }
 SUITES = {
-    'settings-workspace': ['prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings'],
+    'settings-workspace': ['prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'agent-roles', 'role-mention-chat', 'role-mention-sheet'],
     'guidance-scroll': ['send-scroll-normal', 'send-scroll-guide', 'send-scroll-queue'],
     'html-files': ['html-preview', 'file-preview'],
     'markdown-files': ['markdown', 'file-preview'],
@@ -45,11 +45,14 @@ CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 # These lease an iPad. `--case` still accepts them; the default phone run must not.
 PAD_CASES = ['devices-pad', 'session-delete-pad', 'session-tree-pad', 'ipad', 'ipad-chrome', 'ipad-sidebar', 'native-shell', 'native-collection', 'session-search-pad', 'wide-panel']
-CASES = PHONE_CASES + PAD_CASES + ['devices', 'camera-chat', 'camera-sheet', 'message-details', 'edit-message', 'session-share', 'session-delete', 'session-search', 'morph', 'sheet-zoom-project', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'create-parity', 'settings-baseline', 'workspace-general', 'machine-settings', 'settings-form-backgrounds', 'agents-settings', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings']
+CASES = PHONE_CASES + PAD_CASES + ['devices', 'camera-chat', 'camera-sheet', 'message-details', 'edit-message', 'session-share', 'session-delete', 'session-search', 'morph', 'sheet-zoom-project', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'create-parity', 'settings-baseline', 'workspace-general', 'machine-settings', 'settings-form-backgrounds', 'agents-settings', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'agent-roles', 'role-mention-chat', 'role-mention-sheet']
 # These select HomePreviewProviders at app launch, using the same shared bundle.
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'sheet-zoom-project', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome', 'ipad-sidebar', 'wide-panel'}
 HOME_CASES.update({'session-delete', 'session-delete-pad', 'devices', 'devices-pad', 'workspace-general'})
 PREVIEW = {
+    'role-mention-chat': 'mention-chat',
+    'role-mention-sheet': 'mention-sheet',
+    'agent-roles': 'agent-roles-preview',
     'mcp-settings': 'mcp-settings-preview',
     'ai-usage': 'ai-usage-preview',
     'github-settings': 'github-settings-preview',
@@ -157,6 +160,8 @@ PREVIEW = {
     'community-notice': 'community-notice',
 }
 READY = {
+    'role-mention-sheet': 'create-session-input',
+    'agent-roles': 'list-unavailable-action',
     'mcp-settings': 'setting:mcp::docs',
     'ai-usage': 'list-unavailable-action',
     'github-settings': 'list-unavailable-action',
@@ -539,7 +544,7 @@ with metro_context:
                         script = Path(__file__).with_name('send-scroll.py')
                     if case in {'devices', 'devices-pad'}:
                         script = Path(__file__).with_name('devices.py')
-                    if case in ('diagnostics', 'settings-baseline', 'workspace-general', 'machine-settings', 'settings-form-backgrounds', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings'):
+                    if case in ('diagnostics', 'settings-baseline', 'workspace-general', 'machine-settings', 'settings-form-backgrounds', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'agent-roles'):
                         script = Path(__file__).with_name(f'{case}.py')
                     if case == 'file-selection':
                         script = Path(__file__).with_name('file-selection.py')
@@ -581,6 +586,8 @@ with metro_context:
                         script = Path(__file__).with_name('mentions-production.py')
                     if case == 'root-reuse':
                         script = Path(__file__).with_name('root-reuse.py')
+                    if case in ['role-mention-chat', 'role-mention-sheet']:
+                        script = Path(__file__).with_name('role-mentions.py')
                     if case in ['mention-chat', 'mention-sheet']:
                         script = Path(__file__).with_name('mentions.py')
                     if case in ['camera-chat', 'camera-sheet']:
@@ -603,6 +610,8 @@ with metro_context:
                     check_timeout = 180
                     if case == 'mcp-settings':
                         check_timeout = 300
+                    if case == 'agent-roles':
+                        check_timeout = 420
                     if case in ('settings', 'settings-baseline', 'agents-settings'):
                         # These cases visit several Settings contexts or editors.
                         check_timeout = 300

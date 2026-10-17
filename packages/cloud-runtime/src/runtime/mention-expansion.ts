@@ -7,7 +7,7 @@ import type {
 // Explicit session/Role IDs survive native text-only draft restoration and
 // renames. Quoted file references own their text, including any dollar signs.
 const referencePattern =
-  /@"(?:\\.|[^"\\])*"|(^|\s)(\$[^\s$@]+|@(?:session|role):[^\s@]+)(?=\s|$)/g;
+  /@"(?:\\.|[^"\\])*"|(^|\s)(\$[^\s$@]+|@session:[^\s@]+|@role:[^\s@]+(?:@[^\s@]+)?)(?=\s|$)/g;
 
 function categoryOf(token: string): MentionCategory {
   if (token.startsWith('$')) return 'skill';
@@ -28,10 +28,14 @@ export async function expandMentions(
     // A partial skill scan can hide the project override of a global token.
     if (catalogs.some((catalog) => catalog.incomplete || catalog.truncated))
       throw new Error('mention_catalog_incomplete');
-    return expandMentionText(
-      text,
-      catalogs.flatMap((catalog) => catalog.items),
-    );
+    const items = catalogs.flatMap((catalog) => catalog.items);
+    for (const match of text.matchAll(referencePattern))
+      if (
+        match[2]?.startsWith('@role:') &&
+        !items.some((item) => item.insertText === match[2])
+      )
+        throw new Error('role_unavailable');
+    return expandMentionText(text, items);
   } catch {
     throw new Error('mention_expansion_failed');
   }
@@ -69,8 +73,13 @@ export function expandMentionText(
 export function mentionPrompt(item: MentionItem): string {
   if (item.kind === 'session')
     return `use lody mcp to query session[id: ${item.path}] history`;
-  if (item.kind === 'role')
-    return `use lody mcp to create a session with agent role[id: ${item.path}, name: ${item.name}]`;
+  if (item.kind === 'role') {
+    const [id, machineId] = item.path.split('@');
+    const name = item.roleName ?? item.name;
+    if (machineId)
+      return `use lody mcp to create a session with agent role[id: ${id}, agentRoleMachineId: ${machineId}, name: ${name}]`;
+    return `use lody mcp to create a session with agent role[id: ${id}, name: ${name}]`;
+  }
   if (item.kind === 'skill') {
     const destination = item.path.replace(/\\/g, '\\\\').replace(/\)/g, '\\)');
     const token =

@@ -460,6 +460,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }
     AsyncFunction("promptShortcuts") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("promptShortcuts", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("remoteSettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("remoteSettings", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("agentRoles") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("agentRoles", payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.createSession(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("workspaceBillingEntitlement") { (workspace: String, user: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.workspaceBillingEntitlement(workspace: workspace, user: user, promise: promise) }

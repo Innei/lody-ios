@@ -6,6 +6,8 @@ export type MentionItem = {
   kind: MentionCategory | 'directory';
   subtitle: string;
   insertText?: string;
+  /** Role target labels may differ from the catalog Role name. */
+  roleName?: string;
 };
 export type MentionSource = {
   workspaceId: string;

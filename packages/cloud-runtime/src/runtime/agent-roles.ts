@@ -1,6 +1,8 @@
 import type { Flock } from '@loro-dev/flock-wasm/base64';
 import type { MentionCatalog, MentionItem } from '../models/mentions';
 import { openSettings } from './settings';
+import { readRole, readableRole } from '../protocol/agent-roles';
+import type { MachinePresence } from '../models/machines';
 
 // Shared workspace catalog owner for Role consumers. Authorization is checked
 // from the fresh row on every read; the UI never supplies Role instructions.
@@ -8,23 +10,25 @@ export async function workspaceRoleMentions(
   workspaceId: string,
   userId: string,
   machines: Map<string, Flock>,
-  machineId: string | undefined,
   getGrant: Parameters<typeof openSettings>[1],
+  getPresence: () => MachinePresence,
 ): Promise<MentionCatalog> {
   const { flock } = await openSettings(
     `${workspaceId}:wf:workspace`,
     getGrant,
     AbortSignal.timeout(30000),
   );
-  return roleMentions(flock.scan(), userId, machines, machineId);
+  return roleMentions(flock.scan(), userId, machines, getPresence());
 }
 
 export function roleMentions(
   rows: { key: unknown[]; value?: unknown }[],
   userId: string,
   machines: Map<string, Pick<Flock, 'get'>>,
-  machineId?: string,
+  presence: MachinePresence,
 ): MentionCatalog {
+  if (presence.state !== 'live')
+    return { items: [], truncated: false, incomplete: true };
   const items: MentionItem[] = [];
   for (const row of rows) {
     if (
@@ -34,49 +38,33 @@ export function roleMentions(
       typeof row.value !== 'object'
     )
       continue;
-    const role = row.value as Record<string, unknown>;
-    const validText = (value: unknown): value is string =>
-      typeof value === 'string' &&
-      value.length > 0 &&
-      value.length <= 4096 &&
-      !/[\x00-\x1f\x7f]/.test(value);
-    if (
-      role.v !== 1 ||
-      role.id !== row.key[1] ||
-      !validText(role.id) ||
-      /\s/.test(role.id) ||
-      !validText(role.name) ||
-      !validText(role.ownerUserId) ||
-      !validText(role.machineId) ||
-      !validText(role.agentConfigId) ||
-      !['private', 'workspace'].includes(String(role.visibility)) ||
-      (role.visibility !== 'workspace' && role.ownerUserId !== userId) ||
-      typeof role.revision !== 'number' ||
-      !Number.isFinite(role.revision) ||
-      (machineId !== undefined && role.machineId !== machineId)
-    )
-      continue;
-    const agent = machines
-      .get(role.machineId)
-      ?.get(['agentConfig', role.agentConfigId]) as
-      Record<string, unknown> | undefined;
-    if (
-      !agent ||
-      agent.id !== role.agentConfigId ||
-      agent.machineId !== role.machineId
-    )
-      continue;
-    const summary =
-      typeof role.promptPrefix === 'string'
-        ? role.promptPrefix.slice(0, 512)
-        : '';
-    items.push({
-      path: role.id,
-      name: role.name,
-      kind: 'role',
-      subtitle: summary || String(agent.name ?? ''),
-      insertText: `@role:${role.id}`,
-    });
+    const role = readRole(row.value, row.key[1]);
+    if (!role || !readableRole(role, userId)) continue;
+    for (const target of role.targets) {
+      if (!presence.onlineMachineIds.includes(target.machineId)) continue;
+      const agent = machines
+        .get(target.machineId)
+        ?.get(['agentConfig', target.agentConfigId]) as
+        Record<string, unknown> | undefined;
+      if (
+        !agent ||
+        agent.id !== target.agentConfigId ||
+        agent.machineId !== target.machineId
+      )
+        continue;
+      const multi = role.targets.length > 1;
+      const path = multi ? `${role.id}@${target.machineId}` : role.id;
+      let name = role.name;
+      if (multi) name = target.alias || `${role.name} · ${target.machineId}`;
+      items.push({
+        path,
+        name,
+        roleName: role.name,
+        kind: 'role',
+        subtitle: role.description?.slice(0, 140) || String(agent.name ?? ''),
+        insertText: `@role:${path}`,
+      });
+    }
   }
   items.sort(
     (a, b) => a.name.localeCompare(b.name) || a.path.localeCompare(b.path),

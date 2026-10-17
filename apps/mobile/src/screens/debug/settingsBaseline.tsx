@@ -32,6 +32,20 @@ function update(next: Fixture | null) {
   for (const listener of listeners) listener();
 }
 
+export function switchSettingsBaselineAccount() {
+  if (!uiVerify) return () => {};
+  const previous = fixture;
+  const current: Fixture = {
+    scenario: 'live',
+    refreshes: 0,
+    startedAt: Date.now(),
+  };
+  update(current);
+  return () => {
+    if (fixture === current) update(previous);
+  };
+}
+
 export async function openSettingsBaseline(scenario: Scenario) {
   if (!uiVerify) return;
   const previous = getConnection();

@@ -83,6 +83,14 @@ const mentionItems: MentionItem[] = [
     insertText: '@role:role-reviewer',
   },
   {
+    path: 'role-multi@m2',
+    name: 'Multi reviewer · Laptop',
+    roleName: 'Multi reviewer',
+    kind: 'role',
+    subtitle: 'Review on Laptop',
+    insertText: '@role:role-multi@m2',
+  },
+  {
     path: 'issue:11',
     name: 'Mentions alignment',
     kind: 'issue',

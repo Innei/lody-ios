@@ -1,6 +1,7 @@
 export {
   sessionSharingRaw,
   remoteSettingsRaw,
+  agentRolesRaw,
   promptShortcutsRaw,
   runtimeInfo,
   initialAccentColor,

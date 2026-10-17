@@ -13,6 +13,8 @@ import { readShareHistory } from './sharing/history.ts';
 import type { ShareRequest } from '../models/session-sharing.ts';
 import { expandMentions } from './mention-expansion';
 import { workspaceRoleMentions } from './agent-roles';
+import { roleSettings } from './role-settings';
+import type { AgentRoleRequest } from '../models/agent-roles';
 import type {
   MentionCatalog,
   MentionSource,
@@ -544,6 +546,29 @@ async function getMentions(
 ) {
   if (args.workspaceId !== workspace || !metaReplica || unhealthy.size)
     throw new Error('metadata_not_ready');
+  if (args.category === 'role') {
+    const sourceWorkspace = workspace,
+      sourceUserId = runtimeUserId;
+    if (args.userId !== sourceUserId) throw new Error('workspace_changed');
+    const check = () => {
+      if (workspace !== sourceWorkspace || runtimeUserId !== sourceUserId)
+        throw new Error('workspace_changed');
+    };
+    const result = await workspaceRoleMentions(
+      sourceWorkspace,
+      args.userId,
+      machineReplicas,
+      async () => {
+        check();
+        const value = await getGrant();
+        check();
+        return value;
+      },
+      () => presence,
+    );
+    check();
+    return result;
+  }
   if (args.category === 'session')
     return sessionMentions(
       catalogs.get('meta')?.sessions ?? [],
@@ -639,18 +664,6 @@ async function getMentions(
         ...shortcuts.filter((item) => !names.has(item.insertText)),
       ],
     };
-  }
-  if (args.category === 'role') {
-    const pinned =
-      projectId?.startsWith(`${machineId}:local:`) ||
-      (session && projectId?.startsWith('github:'));
-    return workspaceRoleMentions(
-      workspace,
-      args.userId,
-      machineReplicas,
-      pinned ? machineId : undefined,
-      getGrant,
-    );
   }
   return mentionCatalog(
     {
@@ -752,6 +765,34 @@ Object.assign(globalThis, {
         args.userId,
         scopedGrant,
         AbortSignal.timeout(35000),
+      );
+    },
+    async agentRoles(args: AgentRoleRequest & { userId: string }) {
+      const replica = metaReplica;
+      const check = () => {
+        if (
+          args.workspaceId !== workspace ||
+          args.userId !== runtimeUserId ||
+          !replica ||
+          metaReplica !== replica ||
+          unhealthy.size
+        )
+          throw new Error('workspace_changed');
+      };
+      check();
+      return roleSettings(
+        args,
+        args.userId,
+        replica!.flock,
+        machineReplicas,
+        async () => {
+          check();
+          const value = await getGrant();
+          check();
+          return value;
+        },
+        AbortSignal.timeout(35000),
+        check,
       );
     },
     /**
