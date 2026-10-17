@@ -13,7 +13,7 @@ import {
   useState,
 } from 'react';
 
-import { Platform, type ColorValue } from 'react-native';
+import type { ColorValue } from 'react-native';
 import { dismissSheetZoom, navigationScrollEdgeEffects } from '@lody-ios/kit';
 
 import {
@@ -23,6 +23,7 @@ import {
   type PageRuntime,
   PageRuntimeProvider,
 } from './page';
+import { getLayoutMode } from './layoutMode';
 import { sheetContentBackground } from './sheetContentBackground';
 import { SheetStack } from './SheetStack';
 import {
@@ -128,7 +129,7 @@ export function nativePresentationOptions(
       backgroundColor: sheetContentBackground(
         style,
         backgroundColor,
-        Platform.OS === 'ios' && Platform.isPad,
+        getLayoutMode() !== 'compact',
       ),
     },
     gestureEnabled: dismissible,

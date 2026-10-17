@@ -11,8 +11,9 @@ export type NativeSplitFrame = {
 };
 
 export type NativeSplitLayout = {
-  primary: NativeSplitFrame;
-  secondary: NativeSplitFrame;
+  primary?: NativeSplitFrame;
+  secondary?: NativeSplitFrame;
+  inspector?: NativeSplitFrame;
 };
 
 export const NativeSplit = requireNativeView(
@@ -21,8 +22,9 @@ export const NativeSplit = requireNativeView(
 ) as ComponentType<
   ViewProps & {
     children: ReactNode;
-    hasDetail: boolean;
     detailRequest: number;
+    layoutMode: 'tall' | 'wide';
+    panelOpen: boolean;
     onColumnLayout: (event: NativeSyntheticEvent<NativeSplitLayout>) => void;
   }
 >;

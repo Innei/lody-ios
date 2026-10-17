@@ -45,7 +45,7 @@ export function firstPermissionTarget(entries: readonly EntrySummary[]) {
 }
 
 /**
- * One gate per chat mount. Closing the sheet by hand stops automatic reopening
+ * One gate per chat visit. Closing the sheet by hand stops automatic reopening
  * until the user leaves and returns; the transcript row stays a manual way in.
  */
 export function createPermissionGate() {
@@ -56,6 +56,9 @@ export function createPermissionGate() {
     shouldOpen(target: Pick<PermissionTarget, 'requestId'>) {
       return !open && !dismissed && !answered.has(target.requestId);
     },
+    canPrompt() {
+      return !open && !dismissed;
+    },
     opened() {
       open = true;
     },
@@ -65,4 +68,50 @@ export function createPermissionGate() {
       else if (result.value) answered.add(result.value.requestId);
     },
   };
+}
+
+export type PermissionChannel = {
+  gate: ReturnType<typeof createPermissionGate>;
+  source: PermissionTargetSource;
+  publish: (state: PermissionTargetState) => void;
+  retain: () => () => void;
+};
+
+const channels = new Map<string, PermissionChannel>();
+
+// A layout change remounts the chat while its permission sheet stays open; the
+// sheet and the new mount must share one gate and one target source.
+export function permissionChannel(sessionId: string): PermissionChannel {
+  const existing = channels.get(sessionId);
+  if (existing) return existing;
+  const listeners = new Set<(state: PermissionTargetState) => void>();
+  let state: PermissionTargetState = { ready: false };
+  let holders = 0;
+  const channel: PermissionChannel = {
+    gate: createPermissionGate(),
+    source(onState) {
+      listeners.add(onState);
+      onState(state);
+      return () => {
+        listeners.delete(onState);
+      };
+    },
+    publish(next) {
+      state = next;
+      for (const notify of listeners) notify(state);
+    },
+    retain() {
+      holders++;
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        holders--;
+        if (!holders && channels.get(sessionId) === channel)
+          channels.delete(sessionId);
+      };
+    },
+  };
+  channels.set(sessionId, channel);
+  return channel;
 }

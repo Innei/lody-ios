@@ -142,6 +142,7 @@ function View() {
 
 export const ItemDetailScreen = definePage<ItemDetailParams>({
   id: 'session-item-detail',
+  panel: true,
   title: t('detail.title'),
   Component: View,
   parseRouteParams: () => {

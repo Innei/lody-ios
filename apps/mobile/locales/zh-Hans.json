@@ -539,6 +539,7 @@
   "process.tasks": "子任务",
   "process.empty": "暂无执行过程",
   "accessibility.closeSheet": "关闭{title}",
+  "accessibility.closePanel": "关闭面板",
   "native.chat.composer.placeholder": "给 Lody 发消息…",
   "native.chat.composer.defaultModel": "默认模型",
   "native.chat.composer.defaultEffort": "默认",

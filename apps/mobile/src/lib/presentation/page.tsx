@@ -46,6 +46,7 @@ export interface PageRuntime<TParams = undefined, TResult = void> {
 export interface PageDefinitionBase {
   Component: ComponentType;
   id: string;
+  panel?: boolean;
   presentation: PagePresentationOptions;
   presentationPath?: string;
   title: string;
@@ -69,6 +70,7 @@ type RouteParams = Record<string, string | string[] | undefined>;
 type DefinePageOptions<TParams> = {
   Component: ComponentType;
   id: string;
+  panel?: boolean;
   presentation?: Partial<PagePresentationOptions>;
   presentationPath?: string;
   title: string;
@@ -92,7 +94,8 @@ export const PageRuntimeContext = createContext<PageRuntime<
 export function definePage<TParams = undefined, TResult = void>(
   options: DefinePageOptions<TParams>,
 ): PageDefinition<TParams, TResult> {
-  const { Component, id, parseRouteParams, presentationPath, title } = options;
+  const { Component, id, panel, parseRouteParams, presentationPath, title } =
+    options;
   const presentation = { ...defaultPresentation, ...options.presentation };
 
   function PageRoute() {
@@ -138,6 +141,7 @@ export function definePage<TParams = undefined, TResult = void>(
   return {
     Component,
     id,
+    panel,
     presentation,
     presentationPath,
     Route: PageRoute,

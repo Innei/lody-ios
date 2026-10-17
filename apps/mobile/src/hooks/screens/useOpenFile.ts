@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { openFile as nativeOpenFile } from '@lody-ios/kit';
-import { present } from '@/lib/presentation';
+import { usePageRuntime } from './usePageRuntime';
 
 export function useOpenFile(sessionId: string) {
+  const { present } = usePageRuntime();
   const busy = useRef(false);
   const active = useRef(true);
   useEffect(() => {

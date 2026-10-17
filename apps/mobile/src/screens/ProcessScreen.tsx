@@ -64,6 +64,7 @@ function View() {
 
 export const ProcessScreen = definePage<ProcessParams>({
   id: 'session-process',
+  panel: true,
   title: t('process.title'),
   Component: View,
   parseRouteParams: () => {

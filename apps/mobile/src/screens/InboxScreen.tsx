@@ -55,7 +55,7 @@ function RouterChrome({ model }: { model: InboxModel }) {
   const workspaceName = selected?.name ?? t('common.workspace');
   return (
     <>
-      <Stack.Screen options={{ title: '' }} />
+      <Stack.Screen options={{ headerShown: true, title: '' }} />
       <Stack.Toolbar placement="left">
         <Stack.Toolbar.View>
           <NativeMenuButton

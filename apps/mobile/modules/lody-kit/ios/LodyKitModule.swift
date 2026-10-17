@@ -948,13 +948,20 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
     }
 
+    View(LodyLayoutProbe.self) {
+      Events("onTraits")
+    }
+
     View(LodySplitView.self) {
       Events("onColumnLayout")
-      Prop("hasDetail") { (view: LodySplitView, value: Bool) in
-        view.setHasDetail(value)
-      }
       Prop("detailRequest") { (view: LodySplitView, value: Int) in
         view.setDetailRequest(value)
+      }
+      Prop("layoutMode") { (view: LodySplitView, value: String) in
+        view.setLayoutMode(value)
+      }
+      Prop("panelOpen") { (view: LodySplitView, value: Bool) in
+        view.setPanelOpen(value)
       }
     }
 

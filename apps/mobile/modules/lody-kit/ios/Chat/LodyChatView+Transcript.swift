@@ -26,7 +26,7 @@ extension LodyChatView {
     guard processEntryID != id else { return }
     processEntryID = id
     deferredRows.removeAll()
-    backgroundColor = !id.isEmpty && traitCollection.userInterfaceIdiom == .phone ? .clear : .lodyBackground
+    backgroundColor = processBackground
     composer.isHidden = !id.isEmpty || composerRetired
     edgeFade.isHidden = !id.isEmpty
     setNeedsLayout()

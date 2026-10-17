@@ -4,6 +4,7 @@ import {
   NativeGroupedList,
   NativeSymbolButton,
   type NativeListSection,
+  NativeNavigationHeader,
 } from '@lody-ios/kit';
 import { definePage, present } from '@/lib/presentation';
 import { PullRequestCommentScreen } from './PullRequestCommentScreen';
@@ -143,25 +144,32 @@ function View() {
   }
   return (
     <>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button
-          icon="arrow.clockwise"
-          accessibilityLabel={t('pr.refresh')}
-          disabled={loading}
-          onPress={() => void source.refresh()}
-        />
-        <Stack.Toolbar.Menu
-          icon="ellipsis"
-          accessibilityLabel={t('common.more')}
-        >
-          <Stack.Toolbar.MenuAction
-            icon="square.and.arrow.up"
-            onPress={actions.share}
-          >
-            {t('pr.share')}
-          </Stack.Toolbar.MenuAction>
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
+      <NativeNavigationHeader
+        items={[
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'arrow.clockwise' },
+            accessibilityLabel: t('pr.refresh'),
+            disabled: loading,
+            onPress: () => void source.refresh(),
+          },
+          {
+            type: 'menu',
+            icon: { type: 'sfSymbol', name: 'ellipsis' },
+            accessibilityLabel: t('common.more'),
+            menu: {
+              items: [
+                {
+                  type: 'action',
+                  title: t('pr.share'),
+                  icon: { type: 'sfSymbol', name: 'square.and.arrow.up' },
+                  onPress: actions.share,
+                },
+              ],
+            },
+          },
+        ]}
+      />
       <NativeGroupedList
         style={{ flex: 1 }}
         sections={sections}
@@ -203,6 +211,7 @@ function View() {
 
 export const PullRequestScreen = definePage<PullRequestParams>({
   id: 'pull-request',
+  panel: true,
   title: 'PR',
   Component: View,
   parseRouteParams: () => {

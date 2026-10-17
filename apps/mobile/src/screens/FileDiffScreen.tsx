@@ -5,9 +5,9 @@ import {
   useColorScheme,
   View as RNView,
 } from 'react-native';
-import { Stack } from 'expo-router';
 import {
   NativeDiffToolbar,
+  NativeNavigationHeader,
   NativeDiffSurface,
   copyText,
   fileDiff,
@@ -21,7 +21,7 @@ import {
 } from '@lody-ios/kit';
 import { DiffView } from '@/features/diff/DiffView';
 import { unifiedPatch } from '@/features/diff/unifiedPatch';
-import { definePage, present } from '@/lib/presentation';
+import { definePage } from '@/lib/presentation';
 import { basename } from '@/features/sessions/path';
 import { usePalette } from '@/lib/theme/palette';
 import { AppText } from '@/ui/AppText';
@@ -55,7 +55,8 @@ function reasonText(reason: string, message?: string) {
 }
 
 function View() {
-  const { params } = usePageRuntime<FileDiffParams>();
+  const runtime = usePageRuntime<FileDiffParams>();
+  const { params } = runtime;
   const colors = usePalette();
   const [diff, setDiff] = useState<DiffContent>();
   const [sides, setSides] = useState<{ old: string; new: string }>();
@@ -127,7 +128,7 @@ function View() {
     try {
       if (isHTML(params.path)) {
         const { FileContentScreen } = await import('./FileContentScreen');
-        await present(FileContentScreen, {
+        await runtime.present(FileContentScreen, {
           sessionId: params.sessionId,
           path: params.path,
           preview: true,
@@ -233,55 +234,70 @@ function View() {
 
   return (
     <>
-      <Stack.Toolbar placement="right">
-        {isHTML(params.path) ? (
-          <Stack.Toolbar.Button
-            icon="eye"
-            accessibilityLabel={t('file.preview')}
-            onPress={() => void preview()}
-          />
-        ) : null}
-        <Stack.Toolbar.Menu
-          icon="ellipsis"
-          accessibilityLabel={t('common.more')}
-        >
-          <Stack.Toolbar.MenuAction
-            icon="doc.on.doc"
-            onPress={() => copy(basename(params.path))}
-          >
-            {t('diff.action.copyFileName')}
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            icon="folder"
-            onPress={() => copy(params.path)}
-          >
-            {t('diff.action.copyPath')}
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            icon="doc.text"
-            disabled={sides == null}
-            onPress={() => {
-              if (sides) copy(sides.new);
-            }}
-          >
-            {t('diff.action.copyContents')}
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            icon="plus.forwardslash.minus"
-            disabled={sides == null}
-            onPress={() => {
-              if (sides) copy(unifiedPatch(params.path, sides.old, sides.new));
-            }}
-          >
-            {t('diff.action.copyPatch')}
-          </Stack.Toolbar.MenuAction>
-          {!isHTML(params.path) ? (
-            <Stack.Toolbar.MenuAction icon="eye" onPress={() => void preview()}>
-              {t('diff.action.previewFile')}
-            </Stack.Toolbar.MenuAction>
-          ) : null}
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
+      <NativeNavigationHeader
+        items={[
+          ...(isHTML(params.path)
+            ? [
+                {
+                  type: 'button' as const,
+                  icon: { type: 'sfSymbol' as const, name: 'eye' },
+                  accessibilityLabel: t('file.preview'),
+                  onPress: () => void preview(),
+                },
+              ]
+            : []),
+          {
+            type: 'menu',
+            icon: { type: 'sfSymbol', name: 'ellipsis' },
+            accessibilityLabel: t('common.more'),
+            menu: {
+              items: [
+                {
+                  type: 'action',
+                  title: t('diff.action.copyFileName'),
+                  icon: { type: 'sfSymbol', name: 'doc.on.doc' },
+                  onPress: () => copy(basename(params.path)),
+                },
+                {
+                  type: 'action',
+                  title: t('diff.action.copyPath'),
+                  icon: { type: 'sfSymbol', name: 'folder' },
+                  onPress: () => copy(params.path),
+                },
+                {
+                  type: 'action',
+                  title: t('diff.action.copyContents'),
+                  icon: { type: 'sfSymbol', name: 'doc.text' },
+                  disabled: sides == null,
+                  onPress: () => {
+                    if (sides) copy(sides.new);
+                  },
+                },
+                {
+                  type: 'action',
+                  title: t('diff.action.copyPatch'),
+                  icon: { type: 'sfSymbol', name: 'plus.forwardslash.minus' },
+                  disabled: sides == null,
+                  onPress: () => {
+                    if (sides)
+                      copy(unifiedPatch(params.path, sides.old, sides.new));
+                  },
+                },
+                ...(isHTML(params.path)
+                  ? []
+                  : [
+                      {
+                        type: 'action' as const,
+                        title: t('diff.action.previewFile'),
+                        icon: { type: 'sfSymbol' as const, name: 'eye' },
+                        onPress: () => void preview(),
+                      },
+                    ]),
+              ],
+            },
+          },
+        ]}
+      />
       <NativeDiffSurface
         contentRevision={renderMs}
         style={{ flex: 1, backgroundColor: colors.reading }}
@@ -331,6 +347,7 @@ function Notice({ text, children }: { text: string; children?: ReactNode }) {
 
 export const FileDiffScreen = definePage<FileDiffParams>({
   id: 'file-diff',
+  panel: true,
   title: t('diff.title'),
   Component: View,
   parseRouteParams: () => {

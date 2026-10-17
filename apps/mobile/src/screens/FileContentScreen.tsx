@@ -343,6 +343,7 @@ function Content() {
 
 export const FileContentScreen = definePage<Params>({
   id: 'file-content',
+  panel: true,
   title: '',
   Component: Content,
   parseRouteParams: () => {

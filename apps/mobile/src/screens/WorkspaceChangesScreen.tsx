@@ -144,6 +144,7 @@ function View() {
 
 export const WorkspaceChangesScreen = definePage<WorkspaceChangesParams>({
   id: 'workspace-changes',
+  panel: true,
   title: t('workspaceChanges.title'),
   Component: View,
   parseRouteParams: () => {

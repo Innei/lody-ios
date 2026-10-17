@@ -294,6 +294,9 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       }
     }
     backgroundColor = .lodyBackground
+    registerForTraitChanges([UITraitHorizontalSizeClass.self]) { (view: LodyChatView, _: UITraitCollection) in
+      view.backgroundColor = view.processBackground
+    }
     collection.backgroundColor = .clear
     collection.accessibilityIdentifier = "chat-transcript"
     collection.alwaysBounceVertical = true
@@ -472,7 +475,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     edgeFade.translatesAutoresizingMaskIntoConstraints = false
     composer.translatesAutoresizingMaskIntoConstraints = false
     composer.allowsFullScreen = true
-    let composerWidth = composer.widthAnchor.constraint(equalTo: widthAnchor)
+    let composerWidth = composer.widthAnchor.constraint(equalTo: safeAreaLayoutGuide.widthAnchor)
     composerWidth.priority = .defaultHigh
     NSLayoutConstraint.activate([
       overlay.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 16),
@@ -480,14 +483,14 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       overlay.bottomAnchor.constraint(equalTo: composer.topAnchor, constant: -8),
       overlay.heightAnchor.constraint(equalToConstant: ChatOverlay.controlSize),
       collection.topAnchor.constraint(equalTo: topAnchor),
-      collection.leadingAnchor.constraint(equalTo: leadingAnchor),
-      collection.trailingAnchor.constraint(equalTo: trailingAnchor),
+      collection.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor),
+      collection.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor),
       collection.bottomAnchor.constraint(equalTo: bottomAnchor),
       edgeFade.topAnchor.constraint(equalTo: composer.topAnchor, constant: -LodyEdgeFade.overlap),
       edgeFade.leadingAnchor.constraint(equalTo: leadingAnchor),
       edgeFade.trailingAnchor.constraint(equalTo: trailingAnchor),
       edgeFade.bottomAnchor.constraint(equalTo: bottomAnchor),
-      composer.centerXAnchor.constraint(equalTo: centerXAnchor),
+      composer.centerXAnchor.constraint(equalTo: safeAreaLayoutGuide.centerXAnchor),
       composer.widthAnchor.constraint(lessThanOrEqualToConstant: ChatReadingColumn.maximumWidth),
       composerWidth,
     ])
@@ -651,8 +654,19 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     refreshTextRendering()
   }
 
+  // Off-window views have no size class yet; fall back to the idiom until the
+  // window reports one.
+  var processBackground: UIColor {
+    guard !processEntryID.isEmpty else { return .lodyBackground }
+    switch window?.traitCollection.horizontalSizeClass ?? .unspecified {
+    case .compact: return .clear
+    case .regular: return .lodyBackground
+    default: return traitCollection.userInterfaceIdiom == .phone ? .clear : .lodyBackground
+    }
+  }
+
   override func lodyAppearanceDidChange() {
-    backgroundColor = !processEntryID.isEmpty && traitCollection.userInterfaceIdiom == .phone ? .clear : .lodyBackground
+    backgroundColor = processBackground
     edgeFade.color = .lodyBackground
     refreshTextRendering()
   }
@@ -675,6 +689,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
+    backgroundColor = processBackground
     if window == nil {
       for group in markdownSelections.values { group.labels = [] }
       markdownSelections.removeAll()

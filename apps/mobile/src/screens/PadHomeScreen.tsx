@@ -5,10 +5,9 @@ import {
   type NativeSplitLayout,
   type NativeSplitFrame,
   NativeMenuButton,
-  NativeSymbolButton,
 } from '@lody-ios/kit';
 import { Stack } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PlatformColor, StyleSheet, Text, View } from 'react-native';
 import {
   ScreenStack,
@@ -33,10 +32,17 @@ import {
   workspaceEditActionId,
 } from '@/screens/WorkspaceEditorScreen';
 import { requestOpenSession } from '@/features/sessions/sessionNav';
-import { useBindSessionNav } from '@/hooks/screens/useBindSessionNav';
 import { isChatProjectId } from '@/features/sessions/inbox';
 import { PageRuntimeProvider, type PageRuntime } from '@/lib/presentation/page';
-import { definePage, present } from '@/lib/presentation';
+import { present } from '@/lib/presentation';
+import {
+  homeScope,
+  setHomeDetail,
+  useHomeDetail,
+} from '@/lib/presentation/homeDetail';
+import type { LayoutMode } from '@/lib/presentation/layoutMode';
+import { closePanel, panelPresent } from '@/lib/presentation/panelStore';
+import { PanelLevels, usePanelEntries } from '@/lib/presentation/PanelStack';
 import {
   SheetHeaderContext,
   type SheetHeaderItems,
@@ -48,37 +54,51 @@ import { t } from '@/lib/i18n';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 
-function PadHome() {
+const chatPresent = panelPresent('replace');
+
+export function PadHome({ mode }: { mode: Exclude<LayoutMode, 'compact'> }) {
   const { account } = useAuth();
   const { selected } = useCatalog();
+  const scope = homeScope(account?.user.id, selected?.id);
+  const lastScope = useRef(scope);
+  useEffect(() => {
+    if (lastScope.current === scope) return;
+    lastScope.current = scope;
+    setHomeDetail(undefined);
+    closePanel();
+  }, [scope]);
   // Replace both columns together: a workspace must never inherit the old
   // conversation, project stack, search, or an in-flight creation callback.
-  return (
-    <PadWorkspace key={JSON.stringify([account?.user.id, selected?.id])} />
-  );
+  return <PadWorkspace key={scope} mode={mode} scope={scope} />;
 }
 
-function PadWorkspace() {
+function PadWorkspace({
+  mode,
+  scope,
+}: {
+  mode: Exclude<LayoutMode, 'compact'>;
+  scope: string;
+}) {
   const colors = usePalette();
   const [columns, setColumns] = useState<NativeSplitLayout>();
-  const [detailRequest, setDetailRequest] = useState(0);
-  const [detail, setDetail] = useState<SessionParams>();
+  const current = useHomeDetail<SessionParams>(scope);
+  const detail = current?.value;
+  const entries = usePanelEntries();
+  const panelEntries = detail ? entries : [];
   const [detailHeaderItems, setDetailHeaderItems] =
     useState<SheetHeaderItems>();
-  const closeDetail = useCallback(() => setDetail(undefined), []);
-  const openDetail = useCallback((value: SessionParams) => {
-    setDetail(value);
-    setDetailRequest((request) => request + 1);
+  const closeDetail = useCallback(() => {
+    setHomeDetail(undefined);
+    closePanel();
   }, []);
-  useBindSessionNav({ openSession: openDetail });
   const runtime = useMemo<PageRuntime<SessionParams> | null>(() => {
     if (!detail) return null;
     return {
       cancel: closeDetail,
       finish: closeDetail,
       params: detail,
-      present,
-      push: present,
+      present: chatPresent,
+      push: chatPresent,
       source: 'route',
     };
   }, [closeDetail, detail]);
@@ -91,9 +111,12 @@ function PadWorkspace() {
       <Stack.Screen options={{ headerShown: false, title: '' }} />
       <NativeSplit
         style={styles.stack}
-        hasDetail={!!detail}
-        detailRequest={detailRequest}
-        onColumnLayout={({ nativeEvent }) => setColumns(nativeEvent)}
+        detailRequest={current?.request ?? 0}
+        layoutMode={mode}
+        panelOpen={mode === 'wide' && panelEntries.length > 0}
+        onColumnLayout={({ nativeEvent }) =>
+          setColumns((previous) => ({ ...previous, ...nativeEvent }))
+        }
       >
         <PanelStack
           frame={columns?.primary}
@@ -104,6 +127,7 @@ function PadWorkspace() {
             <ScreenStackItem
               key="session-detail"
               screenId={`ipad-session-${detail.session.id}`}
+              replaceAnimation="push"
               style={StyleSheet.absoluteFill}
               contentStyle={{ backgroundColor: colors.reading }}
               scrollEdgeEffects={panelScrollEdgeEffects}
@@ -160,6 +184,23 @@ function PadWorkspace() {
                   </Text>
                 </View>
               </NativeSplitContent>
+            </ScreenStackItem>
+          )}
+        </ScreenStack>
+        <ScreenStack style={[StyleSheet.absoluteFill, columns?.inspector]}>
+          {mode === 'wide' && panelEntries.length > 0 ? (
+            <PanelLevels
+              entries={panelEntries}
+              backgroundColor={colors.reading}
+            />
+          ) : (
+            <ScreenStackItem
+              key="inspector-empty"
+              screenId="ipad-inspector-empty"
+              style={StyleSheet.absoluteFill}
+              headerConfig={{ hidden: true }}
+            >
+              <View />
             </ScreenStackItem>
           )}
         </ScreenStack>
@@ -355,15 +396,13 @@ function InboxPanelItem({
           onPress={() => void present(SettingsScreen)}
         />
         <Stack.Toolbar.Spacer />
-        <Stack.Toolbar.View separateBackground>
-          <NativeSymbolButton
-            accessibilityName={t('tabs.newSession')}
-            symbol="plus"
-            tint={model.colors.accent}
-            style={styles.addButton}
-            onPress={() => void model.newSession()}
-          />
-        </Stack.Toolbar.View>
+        <Stack.Toolbar.Button
+          icon="plus"
+          separateBackground
+          tintColor={model.colors.accent}
+          accessibilityLabel={t('tabs.newSession')}
+          onPress={() => void model.newSession()}
+        />
       </Stack.Toolbar>
     </ScreenStackItem>
   );
@@ -430,7 +469,6 @@ function ProjectPanelItem({
 const styles = StyleSheet.create({
   root: { flex: 1 },
   stack: { flex: 1 },
-  addButton: { width: 44, height: 44 },
   placeholder: {
     flex: 1,
     alignItems: 'center',
@@ -445,11 +483,4 @@ const styles = StyleSheet.create({
     maxWidth: 360,
     textAlign: 'center',
   },
-});
-
-export const PadHomeScreen = definePage({
-  id: 'pad-home',
-  title: t('tabs.sessions'),
-  Component: PadHome,
-  presentation: { style: 'push', headerShown: false },
 });

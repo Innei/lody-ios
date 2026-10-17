@@ -1,6 +1,6 @@
 import { usePalette } from '@/lib/theme/palette';
 import { Stack } from 'expo-router';
-import { NativeGroupedList } from '@lody-ios/kit';
+import { NativeGroupedList, NativeNavigationHeader } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import {
@@ -67,14 +67,17 @@ function View() {
   }
   return (
     <>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button
-          icon="arrow.clockwise"
-          accessibilityLabel={t('pr.refresh')}
-          disabled={loading}
-          onPress={() => void source.refresh()}
-        />
-      </Stack.Toolbar>
+      <NativeNavigationHeader
+        items={[
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'arrow.clockwise' },
+            accessibilityLabel: t('pr.refresh'),
+            disabled: loading,
+            onPress: () => void source.refresh(),
+          },
+        ]}
+      />
       <NativeGroupedList
         style={{ flex: 1 }}
         sections={[
@@ -137,6 +140,7 @@ export const PullRequestChecksScreen = definePage<{
   actions: PullRequestActions;
 }>({
   id: 'pull-request-checks',
+  panel: true,
   title: t('pr.checks'),
   Component: View,
   parseRouteParams: () => {

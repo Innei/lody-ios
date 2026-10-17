@@ -40,6 +40,7 @@ function View() {
 }
 export const MessageDetailsScreen = definePage<Params>({
   id: 'message-details',
+  panel: true,
   title: t('message.details.title'),
   Component: View,
   parseRouteParams: () => {

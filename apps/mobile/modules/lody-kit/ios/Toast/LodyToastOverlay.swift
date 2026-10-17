@@ -167,15 +167,37 @@ enum LodyToastOverlay {
       return !pills.isEmpty
     }
 
+    // On an open iPhone Duo fold, toasts center on the trailing pane instead
+    // of straddling the hinge.
+    private var toastBand: CGRect {
+      var band = bounds.inset(by: safeAreaInsets)
+      #if compiler(>=6.4.2)
+      if #available(iOS 27.1, *) {
+        let folds = reservedRegions(kind: .division, options: .includeInactive)
+        if let fold = folds.first(where: { $0.frame.height >= bounds.height - 1 }) {
+          if effectiveUserInterfaceLayoutDirection == .rightToLeft {
+            band.size.width = min(band.maxX, fold.frame.minX) - band.minX
+          } else {
+            let minX = max(band.minX, fold.frame.maxX)
+            band.size.width = band.maxX - minX
+            band.origin.x = minX
+          }
+        }
+      }
+      #endif
+      return band.width > 0 ? band : bounds
+    }
+
     private func layoutPills(entering: LodyToastPillView? = nil) {
       guard let front = pills.last else { return }
       let reduced = UIAccessibility.isReduceMotionEnabled
-      let size = front.fittedSize(maxWidth: min(bounds.width - 32, 360))
+      let band = toastBand
+      let size = front.fittedSize(maxWidth: min(band.width - 32, 360))
       for (index, pill) in pills.reversed().enumerated() {
         let depth = CGFloat(index)
         let scale = 1 - depth * 0.05
         let center = CGPoint(
-          x: bounds.midX,
+          x: band.midX,
           y: safeAreaInsets.top + 8 + size.height / 2 + depth * 6 + dragOffset
         )
         pill.isUserInteractionEnabled = index == 0
@@ -254,9 +276,10 @@ enum LodyToastOverlay {
     private func layoutBanner(entering: LodySessionBannerView? = nil) {
       guard let banner else { return }
       let reduced = UIAccessibility.isReduceMotionEnabled
-      let size = banner.fittedSize(maxWidth: min(bounds.width - 20, 400))
+      let band = toastBand
+      let size = banner.fittedSize(maxWidth: min(band.width - 20, 400))
       let center = CGPoint(
-        x: bounds.midX,
+        x: band.midX,
         y: safeAreaInsets.top + 8 + size.height / 2
       )
       if banner === entering {
@@ -343,9 +366,14 @@ extension LodyToastOverlay.Host {
     win.backgroundColor = .clear
     let root = UIViewController()
     root.view.backgroundColor = .clear
-    canvas.frame = win.bounds
-    canvas.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    canvas.translatesAutoresizingMaskIntoConstraints = false
     root.view.addSubview(canvas)
+    NSLayoutConstraint.activate([
+      canvas.topAnchor.constraint(equalTo: root.view.topAnchor),
+      canvas.bottomAnchor.constraint(equalTo: root.view.bottomAnchor),
+      canvas.leadingAnchor.constraint(equalTo: root.view.leadingAnchor),
+      canvas.trailingAnchor.constraint(equalTo: root.view.trailingAnchor),
+    ])
     win.rootViewController = root
     win.isHidden = false
     window = win

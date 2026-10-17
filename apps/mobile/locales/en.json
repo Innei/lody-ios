@@ -539,6 +539,7 @@
   "process.tasks": "Subtasks",
   "process.empty": "No activity yet",
   "accessibility.closeSheet": "Close {title}",
+  "accessibility.closePanel": "Close panel",
   "native.chat.composer.placeholder": "Message Lody…",
   "native.chat.composer.defaultModel": "Default model",
   "native.chat.composer.defaultEffort": "Default",

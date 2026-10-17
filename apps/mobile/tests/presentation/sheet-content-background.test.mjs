@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { sheetContentBackground } from '../../src/lib/presentation/sheetContentBackground.ts';
 
-test('iPhone form and page sheets keep a transparent content background for glass', () => {
+test('compact-width form and page sheets keep a transparent content background for glass', () => {
   assert.equal(
     sheetContentBackground('formSheet', '#111113', false),
     'transparent',
@@ -17,7 +17,7 @@ test('iPhone form and page sheets keep a transparent content background for glas
   );
 });
 
-test('iPad form and page sheets stay opaque so centered cards do not show through', () => {
+test('regular-width form and page sheets stay opaque so centered cards do not show through', () => {
   assert.equal(sheetContentBackground('formSheet', '#111113', true), '#111113');
   assert.equal(sheetContentBackground('pageSheet', '#111113', true), '#111113');
   assert.equal(
@@ -26,7 +26,7 @@ test('iPad form and page sheets stay opaque so centered cards do not show throug
   );
 });
 
-test('pushed and full-screen pages keep the supplied background on both idioms', () => {
+test('pushed and full-screen pages keep the supplied background at both widths', () => {
   assert.equal(sheetContentBackground('push', '#111113', false), '#111113');
   assert.equal(
     sheetContentBackground('fullScreen', '#111113', false),

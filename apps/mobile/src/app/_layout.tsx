@@ -10,21 +10,28 @@ import { Stack, ThemeProvider } from 'expo-router';
 import { CatalogProvider } from '@/cloud/catalog/CatalogProvider';
 import { AuthProvider } from '@/cloud/auth/AuthProvider';
 import { StatusBar } from 'expo-status-bar';
-import { Platform, useColorScheme } from 'react-native';
+import { Dimensions, StyleSheet, useColorScheme } from 'react-native';
 import { nativePresentationOptions } from '@/lib/presentation';
 import { navigationThemes, usePalette } from '@/lib/theme/palette';
 import { AppearanceProvider, useAppearance } from '@/lib/theme/appearance';
 import { QueuedMessageBehaviorProvider } from '@/features/settings/queued-message-behavior';
 import { QuickRepliesProvider } from '@/features/settings/quick-replies';
 import { softDarkBackground } from '@/lib/theme/tokens';
-import { navigationScrollEdgeEffects } from '@lody-ios/kit';
+import { NativeLayoutProbe, navigationScrollEdgeEffects } from '@lody-ios/kit';
 import { useBindSessionNav } from '@/hooks/screens/useBindSessionNav';
 import { useOnboardingGate } from '@/hooks/screens/useOnboardingGate';
 import { assertVendoredDomWebView } from '@/lib/assert-vendored-dom-webview';
 import { SettingsBaselineProviders } from '@/screens/debug/settingsBaseline';
 import { uiVerify } from '@/lib/uiVerify';
+import {
+  guessLayoutTraits,
+  setLayoutTraits,
+} from '@/lib/presentation/layoutMode';
 
 export const unstable_settings = { initialRouteName: 'index' };
+
+const initialWindow = Dimensions.get('window');
+setLayoutTraits(guessLayoutTraits(initialWindow.width, initialWindow.height));
 
 export default function RootLayout() {
   return (
@@ -60,6 +67,11 @@ function Root() {
   return (
     <ThemeProvider value={theme}>
       <Providers>
+        <NativeLayoutProbe
+          pointerEvents="none"
+          style={StyleSheet.absoluteFill}
+          onTraits={({ nativeEvent }) => setLayoutTraits(nativeEvent)}
+        />
         <Bindings />
         <PushCoordinator />
         <ShareSnapshot />
@@ -90,7 +102,7 @@ function Root() {
 }
 
 function Bindings() {
-  useBindSessionNav({ enabled: !(Platform.OS === 'ios' && Platform.isPad) });
+  useBindSessionNav();
   useOnboardingGate();
   useEffect(() => {
     if (__DEV__) assertVendoredDomWebView();

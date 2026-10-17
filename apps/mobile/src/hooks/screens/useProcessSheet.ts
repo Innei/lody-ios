@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
-import { present } from '@/lib/presentation';
+import { usePageRuntime } from './usePageRuntime';
 import { t } from '@/lib/i18n/index.ts';
 import { createProcessSource, ProcessScreen } from '@/screens/ProcessScreen';
 import { openSubagentTask } from './openSubagentTask';
@@ -10,6 +10,7 @@ export function useProcessSheet(
   onActivityPress: (entryId: string, itemId: string) => void,
   sessionId?: string,
 ) {
+  const { present } = usePageRuntime();
   const source = useMemo(() => createProcessSource(entriesJSON), []);
   const activity = useRef(onActivityPress);
   useLayoutEffect(() => {
@@ -34,6 +35,7 @@ export function useProcessSheet(
     openSubagentTask(
       findSessionItem(JSON.parse(source.getSnapshot()), entryId, itemId),
       { source, entryId, sessionId, onActivityPress: onPress },
+      present,
     );
   return { openProcess, openTask };
 }

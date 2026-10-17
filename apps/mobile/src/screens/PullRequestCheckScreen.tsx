@@ -101,6 +101,7 @@ function View() {
 }
 export const PullRequestCheckScreen = definePage<Params>({
   id: 'pull-request-check',
+  panel: true,
   title: t('pr.details'),
   Component: View,
   parseRouteParams: () => {

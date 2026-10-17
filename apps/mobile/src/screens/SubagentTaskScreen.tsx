@@ -157,6 +157,7 @@ const styles = StyleSheet.create({
 
 export const SubagentTaskScreen = definePage<SubagentTaskParams>({
   id: 'subagent-task',
+  panel: true,
   title: t('native.chat.transcript.subtask'),
   Component: View,
   parseRouteParams: () => {

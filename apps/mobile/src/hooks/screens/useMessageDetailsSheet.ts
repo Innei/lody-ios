@@ -1,9 +1,10 @@
 import { useLayoutEffect, useMemo } from 'react';
-import { present } from '@/lib/presentation';
+import { usePageRuntime } from './usePageRuntime';
 import { createProcessSource } from '@/screens/ProcessScreen';
 import { MessageDetailsScreen } from '@/screens/MessageDetailsScreen';
 
 export function useMessageDetailsSheet(entriesJSON: string) {
+  const { present } = usePageRuntime();
   const source = useMemo(() => createProcessSource(entriesJSON), []);
   useLayoutEffect(() => source.update(entriesJSON), [source, entriesJSON]);
   return (entryId: string) =>

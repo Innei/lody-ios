@@ -78,11 +78,9 @@ import { FilesScreen } from '@/screens/FilesScreen';
 import { DiffWebViewWarmer } from '@/features/diff/DiffWebViewWarmer';
 import { PermissionScreen } from '@/screens/PermissionScreen';
 import {
-  createPermissionGate,
   firstPermissionTarget,
+  permissionChannel,
   type PermissionTarget,
-  type PermissionTargetSource,
-  type PermissionTargetState,
 } from '@/features/sessions/permissionTarget';
 import { useOpenFile } from '@/hooks/screens/useOpenFile';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
@@ -301,7 +299,7 @@ function View() {
       session.projectId.startsWith('github:'));
   const onTurnChangesPress = (entryId: string, path: string) => {
     // Displayed native rows can lag the current JS replica; turnDiff validates the target.
-    void present(
+    void runtime.present(
       FileDiffScreen,
       { sessionId: session.id, entryId, path },
       { title: basename(path) },
@@ -458,18 +456,12 @@ function View() {
       configOptionValues: executionChoice.configOptionValues,
     },
   });
-  const gate = useRef(createPermissionGate()).current;
-  const listeners = useRef(new Set<(state: PermissionTargetState) => void>());
-  const targetState = useRef<PermissionTargetState>({ ready: false });
-  const permissionSource = useCallback<PermissionTargetSource>((onState) => {
-    listeners.current.add(onState);
-    onState(targetState.current);
-    return () => {
-      listeners.current.delete(onState);
-    };
-  }, []);
+  const permissions = permissionChannel(session.id);
+  const { gate } = permissions;
+  useEffect(() => permissions.retain(), [permissions]);
 
   const askPermission = async (target?: PermissionTarget) => {
+    const release = permissions.retain();
     gate.opened();
     try {
       gate.settled(
@@ -479,7 +471,7 @@ function View() {
             sessionId: session.id,
             generation: cursor.current.generation,
             target,
-            source: permissionSource,
+            source: permissions.source,
           },
           target?.kind === 'ask_user_question'
             ? { title: t('question.title') }
@@ -488,20 +480,22 @@ function View() {
       );
     } catch {
       gate.settled({ status: 'cancelled' });
+    } finally {
+      release();
     }
   };
 
   // Opening on entry beats waiting for the replica: the sheet resolves its own
-  // target through `permissionSource` once the transcript arrives.
+  // target through the channel source once the transcript arrives.
   useEffect(() => {
-    if (session.awaitingUserSince != null) void askPermission();
+    if (session.awaitingUserSince != null && gate.canPrompt())
+      void askPermission();
   }, []);
 
   useEffect(() => {
     const ready = snapshot.status === 'live';
     const target = ready ? firstPermissionTarget(snapshot.entries) : undefined;
-    targetState.current = { ready, target };
-    for (const notify of listeners.current) notify(targetState.current);
+    permissions.publish({ ready, target });
     if (target && gate.shouldOpen(target)) void askPermission(target);
   }, [snapshot]);
 
@@ -522,7 +516,7 @@ function View() {
       void askPermission(target);
       return;
     }
-    void present(ItemDetailScreen, {
+    void runtime.present(ItemDetailScreen, {
       sessionId: session.id,
       entryId,
       itemIds: [itemId],
@@ -635,14 +629,14 @@ function View() {
   });
   const openProjectFiles = useCallback(() => {
     if (!browsable || !account || !selected) return;
-    void present(FilesScreen, {
+    void runtime.present(FilesScreen, {
       workspaceId: selected.id,
       sessionId: session.id,
       userId: account.user.id,
       path: '',
       title: project?.name ?? t('session.action.projectFiles'),
     });
-  }, [account, browsable, project?.name, selected, session.id]);
+  }, [account, browsable, project?.name, runtime, selected, session.id]);
   const titleMenuJSON = JSON.stringify([
     ...(browsable && account
       ? [
@@ -753,7 +747,9 @@ function View() {
       ...workspaceMenuActions({
         openChanges: reviewable
           ? () =>
-              void present(WorkspaceChangesScreen, { sessionId: session.id })
+              void runtime.present(WorkspaceChangesScreen, {
+                sessionId: session.id,
+              })
           : undefined,
         simulator,
       }),

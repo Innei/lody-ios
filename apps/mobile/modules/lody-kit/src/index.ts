@@ -135,6 +135,10 @@ export {
   type NativeSplitFrame,
 } from './chrome/NativeSplit';
 export {
+  NativeLayoutProbe,
+  type NativeLayoutTraits,
+} from './chrome/NativeLayoutProbe';
+export {
   NativeEmbeddedSheet,
   type NativeEmbeddedSheetProps,
 } from './chrome/NativeFloatingPanel';

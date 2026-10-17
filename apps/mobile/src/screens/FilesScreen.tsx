@@ -113,6 +113,7 @@ function View() {
 
 export const FilesScreen = definePage<FilesParams>({
   id: 'files',
+  panel: true,
   title: t('files.title'),
   Component: View,
   parseRouteParams: () => {

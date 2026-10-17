@@ -57,6 +57,7 @@ function View() {
 
 export const TurnChangesScreen = definePage<TurnChangesParams>({
   id: 'turn-changes',
+  panel: true,
   title: t('changes.title'),
   Component: View,
   parseRouteParams: () => {

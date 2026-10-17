@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { cancelComposerRelay, prepareSheetZoom } from '@lody-ios/kit';
 import { present, type PagePresentationOptions } from '@/lib/presentation';
+import { homeScope, showHomeSession } from '@/lib/presentation/homeDetail';
+import { getLayoutMode } from '@/lib/presentation/layoutMode';
 import { showToast } from '@/ui/toast';
 import { subscribeSessionNav } from '@/features/sessions/sessionNav';
 import { SessionScreen, type SessionParams } from '@/screens/SessionScreen';
@@ -21,28 +23,21 @@ function sheetOptions(
   return { animationType: 'slide', zoomSourceLabel };
 }
 
-export function useBindSessionNav({
-  enabled = true,
-  openSession,
-}: {
-  enabled?: boolean;
-  openSession?: (params: SessionParams) => void;
-} = {}) {
+export function useBindSessionNav() {
   const { account } = useAuth();
   const { selected } = useCatalog();
   useEffect(() => {
-    if (!enabled) return;
-    const open = async (params: SessionParams, preparing = false) => {
-      if (openSession) openSession(params);
-      else
-        await present(SessionScreen, params, {
-          title: params.session.title,
+    const scope = homeScope(account?.user.id, selected?.id);
+    const open = (params: SessionParams, preparing = false) =>
+      showHomeSession(params, scope, (value) =>
+        present(SessionScreen, value, {
+          title: value.session.title,
           animationType: preparing ? 'none' : 'slide',
-        });
-    };
+        }),
+      );
     return subscribeSessionNav(async (intent, signal) => {
       let relayId: string | undefined;
-      let opening: Promise<void> | undefined;
+      let opening: Promise<unknown> | undefined;
       const cancelRelay = () => {
         if (relayId) void cancelComposerRelay(relayId);
       };
@@ -89,7 +84,7 @@ export function useBindSessionNav({
               return opening;
             },
           },
-          sheetOptions(intent.zoomSourceLabel, !!openSession),
+          sheetOptions(intent.zoomSourceLabel, getLayoutMode() !== 'compact'),
         );
         if (result.status === 'completed') {
           relayId = result.value.composerRelayId;
@@ -110,5 +105,5 @@ export function useBindSessionNav({
         signal.removeEventListener('abort', cancelRelay);
       }
     });
-  }, [enabled, openSession, account?.user.id, selected?.id]);
+  }, [account?.user.id, selected?.id]);
 }
