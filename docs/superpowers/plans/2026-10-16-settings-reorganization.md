@@ -1,7 +1,7 @@
 # Settings 整理与功能补齐任务计划
 
 - 日期：2026-10-16
-- 状态：SET-01 至 SET-05 已完成；SET-06 的 iPad 检查按用户要求搁置，SET-07 已接入名称与图标编辑；SET-08 实现完成，跨表单背景矩阵待验收；SET-09 的现有配置／额度整理及 iPhone 浅色／深色验收已完成；SET-10 默认生效与安全删除首版已完成；SET-11 角色管理与多机器引用首版已完成；SET-12 自有机器记忆关联首版已完成；SET-13 至 SET-16 首版均已完成，iPhone 英文浅色／深色定向验收通过。
+- 状态：已交付 SET-01 至 SET-05、SET-07 至 SET-17 和 SET-19 的约定范围；SET-06 的 iPad 检查暂缓，SET-18 按用户选择跳过。SET-20 已完成所选批次的覆盖核对与交付记录；“首版完成”不代表官方全部操作或真实云端验证完成。逐项边界和恢复条件见 [SET-20 交付记录](2026-10-16-settings/20-roadmap-closeout.md)。
 - 关联方式：总计划与任务文件在仓库内互链，一个 SET 任务对应一个独立 Markdown 文件。
 
 ## 目标与推进方式
@@ -22,6 +22,8 @@
 
 2026-10-18 用户追加授权 SET-11：先核实官方角色协议、权限与实际消费链路，再实现、验收、单独 commit 并 push。本轮仅推进 SET-11，iPad 继续搁置。
 
+2026-10-18 用户授权 SET-20：核对设置功能覆盖和遗留项，整理交付记录，验收后单独 commit 并直接 push。本次不扩大功能实现；SET-18 继续跳过，主题跟随系统，语言由 iOS 每 App 首选语言拥有。
+
 ## 当前实现与调查入口
 
 - [SettingsScreen](../../../apps/mobile/src/screens/SettingsScreen.tsx)：账户、远程设置、连接、外观、通知、聊天行为、关于、历史与归档入口。
@@ -30,7 +32,7 @@
 - [WorkspaceEditorScreen](../../../apps/mobile/src/screens/WorkspaceEditorScreen.tsx)：已有工作区名称和图标编辑；不是完整生命周期管理。
 - [UI Verify](../../../apps/mobile/verification/ui/README.md)：已有离线页面场景、模拟器池、英文浅色／深色验证和证据规则。
 
-本轮核实到的首页登录态顺序是：账户 → 会话 → 工作区 → 连接 → 外观 → 通知 → 聊天 → 关于 → 开发。主要问题是入口、具体选项和状态混用一个层级，并非缺少原生分组能力。
+2026-10-16 改动前的首页登录态顺序为：账户 → 会话 → 工作区 → 连接 → 外观 → 通知 → 聊天 → 关于 → 开发。2026-10-18 源码核对的当前顺序为：账户 → 个人 → 工作区 → 会话与记录 → 其他 → 开发。工作区依次为通用、机器、Agents、Agent 角色、MCP、记忆、Prompt Shortcuts、项目、GitHub、AI 用量、已发布分享；无工作区时隐藏这些操作，离线恢复行仍归工作区。报告 Bug 没有占位入口。
 
 历史 [OSS 对齐文档](../../oss-alignment.md) 可作调查线索，但不能直接复用其中旧日期的完成状态。每个任务开工前按当前源码和正式公开协议重新核对。
 
@@ -84,26 +86,26 @@
 
 ## 官方入口覆盖与缺口
 
-“已有”表示源码中存在能力，不代表本轮重新做过运行验收；“待核实”表示需要先查明正式协议，不能据此推断服务端不支持。
+“已支持”只指下表约定范围；“部分支持”列出仍需电脑端或后续接入的操作。各项来源、权限、验收与未验证范围见 [SET-20 交付记录](2026-10-16-settings/20-roadmap-closeout.md)，不据此宣称全部官方设置已补齐。
 
-| 官方入口         | 本仓当前依据                             | 计划处理                         | 任务                                                                                                                   |
-| ---------------- | ---------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| 账户             | 信息展示与退出登录                       | 首轮归位；不顺带增加资料编辑     | [SET-05](2026-10-16-settings/05-home-sections-and-connection.md)                                                       |
-| 偏好设置         | 系统语言入口与既有本机偏好               | 系统语言与现有本机偏好已盘点     | [SET-02](2026-10-16-settings/02-preferences-page.md)、[SET-19](2026-10-16-settings/19-personal-settings-gap-review.md) |
-| 外观             | 深色背景、强调色、App 图标；语言文案已有 | 跟随系统；不增手动主题／字号     | [SET-03](2026-10-16-settings/03-appearance-page.md)、[SET-19](2026-10-16-settings/19-personal-settings-gap-review.md)  |
-| 工作区通用       | 菜单已有改名、图标编辑                   | 接设置入口；生命周期另核实       | [SET-07](2026-10-16-settings/07-workspace-general.md)                                                                  |
-| 机器             | 列表、改名、所有权校验                   | 核对状态、管理边界和可支持操作   | [SET-08](2026-10-16-settings/08-machine-management.md)                                                                 |
-| Agents           | 机器分组、名称／prompt 编辑、额度窗口    | 整理并补有正式协议的操作         | [SET-09](2026-10-16-settings/09-agent-management.md)                                                                   |
-| Agent 角色       | 已接角色管理与 v2 多机器引用             | 首版完成；完整配置编辑在电脑端   | [SET-11](2026-10-16-settings/11-agent-roles.md)                                                                        |
-| 记忆             | 已核实设备级身份／关联协议               | 自有机器首版已完成               | [SET-12](2026-10-16-settings/12-memory-management.md)                                                                  |
-| MCP              | 默认值接入发送，名称／默认编辑与安全删除 | 首版完成；完整连接编辑在电脑端   | [SET-10](2026-10-16-settings/10-mcp-management.md)                                                                     |
-| Prompt Shortcuts | 本机快捷回复已有；不是同一能力           | 接工作区模型与提及消费路径       | [SET-13](2026-10-16-settings/13-prompt-shortcuts.md)                                                                   |
-| 项目             | 目录、注册、历史导入已有                 | 核实并补团队可见性管理           | [SET-14](2026-10-16-settings/14-project-visibility-management.md)                                                      |
-| GitHub           | PR 读取与评论已有                        | 核实连接与仓库授权管理           | [SET-15](2026-10-16-settings/15-github-integration-settings.md)                                                        |
-| AI 用量          | 单条消息 Token、供应商额度已有           | 核实聚合统计、费用与团队趋势     | [SET-16](2026-10-16-settings/16-ai-usage.md)                                                                           |
-| 分享             | 静态副本发布与 Keychain 凭据已有         | 核实我的／团队分享列表与撤销     | [SET-17](2026-10-16-settings/17-published-shares-management.md)                                                        |
-| 关于             | 版本与许可已有                           | 收到二级页面                     | [SET-04](2026-10-16-settings/04-about-page.md)                                                                         |
-| 报告 Bug         | 本机诊断导出已有                         | 建立真实反馈渠道，日志由用户选择 | [SET-18](2026-10-16-settings/18-bug-reporting.md)                                                                      |
+| 官方入口         | 覆盖结论与当前范围                                               | 遗留／范围决定                                          | 任务                                                                                                                   |
+| ---------------- | ---------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 账户             | 部分支持：信息、退出登录                                         | 资料编辑未接入                                          | [SET-05](2026-10-16-settings/05-home-sections-and-connection.md)                                                       |
+| 偏好设置         | 已支持约定范围：语言入口、通知／实时活动、发送行为、本机快捷回复 | 语言由 iOS 首选语言拥有；无账户同步                     | [SET-02](2026-10-16-settings/02-preferences-page.md)、[SET-19](2026-10-16-settings/19-personal-settings-gap-review.md) |
+| 外观             | 已支持约定范围：深色背景、强调色、图标                           | 主题跟随系统；不加手动主题／字号                        | [SET-03](2026-10-16-settings/03-appearance-page.md)、[SET-19](2026-10-16-settings/19-personal-settings-gap-review.md)  |
+| 工作区通用       | 部分支持：名称、图标                                             | 生命周期和成员管理未接入                                | [SET-07](2026-10-16-settings/07-workspace-general.md)                                                                  |
+| 机器             | 部分支持：ID、presence、改名、只读与缓存说明                     | 不含移除、重连或远程命令                                | [SET-08](2026-10-16-settings/08-machine-management.md)                                                                 |
+| Agents           | 部分支持：名称／prompt、按机器配置与供应商额度                   | 创建／删除、认证和完整运行配置仍在电脑端                | [SET-09](2026-10-16-settings/09-agent-management.md)                                                                   |
+| Agent 角色       | 部分支持：创建、公共字段、分享／删除、v2 多机器引用              | 完整目标配置与会话内重新选择未接入                      | [SET-11](2026-10-16-settings/11-agent-roles.md)                                                                        |
+| 记忆             | 部分支持：自有机器身份、状态、导入／解除关联                     | 团队授权、provider 创建／编辑和角色绑定未接入；不读正文 | [SET-12](2026-10-16-settings/12-memory-management.md)                                                                  |
+| MCP              | 部分支持：名称、默认值生效、安全删除                             | 完整连接编辑在电脑端；无逐项选择或远程工具发现          | [SET-10](2026-10-16-settings/10-mcp-management.md)                                                                     |
+| Prompt Shortcuts | 部分支持：分域目录、纯文本创建／编辑与发送展开                   | 复杂上下文、迁移可见性、删除未接入                      | [SET-13](2026-10-16-settings/13-prompt-shortcuts.md)                                                                   |
+| 项目             | 已支持约定范围：自有注册项目团队可见性                           | 不包含机器目录删除；未验团队在线消费                    | [SET-14](2026-10-16-settings/14-project-visibility-management.md)                                                      |
+| GitHub           | 部分支持：身份、仓库启停、安装网页和返回刷新                     | 个人授权在官方网页完成，无 iOS OAuth 回调               | [SET-15](2026-10-16-settings/15-github-integration-settings.md)                                                        |
+| AI 用量          | 部分支持：工作区汇总／趋势、四种时间范围                         | USD 为预估；无成员明细或真实账单对账                    | [SET-16](2026-10-16-settings/16-ai-usage.md)                                                                           |
+| 分享             | 已支持约定范围：已发布列表／详情、原生打开／复制、确认撤销       | 不含设置内发布／更新／重置；沿用会话分享表单            | [SET-17](2026-10-16-settings/17-published-shares-management.md)                                                        |
+| 关于             | 已支持约定范围：版本、构建、许可                                 | 未新增远程更新服务                                      | [SET-04](2026-10-16-settings/04-about-page.md)                                                                         |
+| 报告 Bug         | 未实施，用户跳过                                                 | 诊断导出保留，不等于报告已提交                          | [SET-18](2026-10-16-settings/18-bug-reporting.md)                                                                      |
 
 保留本仓特有的项目历史、归档、诊断和开发入口。工作区 Prompt Shortcuts 与本机快捷回复、工作区用量与订阅额度、静态分享管理与 Share Extension 收件箱各自独立，不以改名替代缺失功能。
 
@@ -120,7 +122,7 @@
 | [SET-05 重排 Settings 首页并归位连接状态](2026-10-16-settings/05-home-sections-and-connection.md) | 第一阶段／P0       | 已完成                       | [SET-01](2026-10-16-settings/01-section-contract-and-baseline.md)、[SET-02](2026-10-16-settings/02-preferences-page.md)、[SET-03](2026-10-16-settings/03-appearance-page.md)、[SET-04](2026-10-16-settings/04-about-page.md) |
 | [SET-06 完成首轮分组整理的集成验收](2026-10-16-settings/06-phase-one-acceptance.md)               | 第一阶段／P0       | iPad 暂缓                    | [SET-02](2026-10-16-settings/02-preferences-page.md)、[SET-03](2026-10-16-settings/03-appearance-page.md)、[SET-04](2026-10-16-settings/04-about-page.md)、[SET-05](2026-10-16-settings/05-home-sections-and-connection.md)  |
 | [SET-07 接入工作区通用设置](2026-10-16-settings/07-workspace-general.md)                          | 第二阶段／P1       | 已完成（名称／图标）         | [SET-05](2026-10-16-settings/05-home-sections-and-connection.md)                                                                                                                                                             |
-| [SET-08 完善机器设置的展示与管理边界](2026-10-16-settings/08-machine-management.md)               | 第二阶段／P1       | 实现完成（背景矩阵待验收）   | [SET-05](2026-10-16-settings/05-home-sections-and-connection.md)                                                                                                                                                             |
+| [SET-08 完善机器设置的展示与管理边界](2026-10-16-settings/08-machine-management.md)               | 第二阶段／P1       | 已完成（背景矩阵已补验）     | [SET-05](2026-10-16-settings/05-home-sections-and-connection.md)                                                                                                                                                             |
 | [SET-09 完善 Agents 设置与现有额度展示](2026-10-16-settings/09-agent-management.md)               | 第二阶段／P1       | 已完成（配置／额度整理）     | [SET-05](2026-10-16-settings/05-home-sections-and-connection.md)                                                                                                                                                             |
 | [SET-10 完善 MCP 管理并核对使用效果](2026-10-16-settings/10-mcp-management.md)                    | 第二阶段／P1       | 已完成（默认生效／安全删除） | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-11 补齐 Agent 角色管理入口](2026-10-16-settings/11-agent-roles.md)                           | 第三阶段／P2       | 已完成（首版）               | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
@@ -132,7 +134,7 @@
 | [SET-17 补齐已发布分享管理](2026-10-16-settings/17-published-shares-management.md)                | 第三阶段／P2       | 已完成（首版）               | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-18 建立报告 Bug 流程并复用诊断导出](2026-10-16-settings/18-bug-reporting.md)                 | 第三阶段／P2       | 已跳过（用户选择）           | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 | [SET-19 补齐移动端适用的偏好与外观缺口](2026-10-16-settings/19-personal-settings-gap-review.md)   | 第三阶段／P2       | 已完成                       | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
-| [SET-20 核对设置功能覆盖并整理交付记录](2026-10-16-settings/20-roadmap-closeout.md)               | 收口／按里程碑执行 | 待收口                       | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
+| [SET-20 核对设置功能覆盖并整理交付记录](2026-10-16-settings/20-roadmap-closeout.md)               | 收口／按里程碑执行 | 已完成                       | [SET-06](2026-10-16-settings/06-phase-one-acceptance.md)                                                                                                                                                                     |
 
 ## 执行顺序与依赖
 
@@ -201,8 +203,9 @@
 
 - 已决定：先分组、后功能；保留原生列表；个人在工作区前；具体选项迁入二级页；已有功能保持可达。
 - 已在 SET-01 确认：会话与记录单独一组；连接正常放 footer，离线有恢复行；无工作区只显示说明，具体规则和既有行映射见任务文件。
-- 待核实：生命周期、完整机器／Agent／MCP 管理、记忆的团队授权与创建／编辑、Prompt Shortcuts、项目可见性、GitHub 授权管理、聚合用量和分享管理协议。
-- 待按需决定：个人资料编辑、App 内语言／文字设置的必要性、报告 Bug 渠道；不自动扩大为本计划全部必做能力。
+- 已核实并交付首版：MCP 默认消费／删除、角色 v1／v2、记忆自有机器关联、Prompt Shortcuts、项目可见性、GitHub、聚合用量、已发布分享；协议和权限差异见各任务及 SET-20，不能继续笼统标为“协议待核实”。
+- 尚未接入：工作区生命周期、完整机器／Agent／MCP 配置、会话内角色／MCP 选择、团队记忆授权和 provider 编辑、复杂模板编辑／删除、成员用量明细等；恢复条件见 SET-20。已确认协议不等于全部操作已实现。
+- 用户范围决定：iPad 暂缓，报告 Bug 跳过；主题跟随系统，语言使用 iOS 每 App 首选语言；不新增手动主题或字号设置。个人资料编辑未纳入本批次。
 - 不做：桌面 Terminal 设置、Android、额外 live replica、通用 JSON 配置编辑器、未完成入口占位。
 - 不估算未经调查的工期；每个协议任务查明后再给出实际工作量和顺序调整。
 
@@ -243,3 +246,7 @@
 - [SET-12 验收](https://app.lobehub.com/acceptance/cbe06440-b213-48f0-b311-2d7e64c59055?r=1)：身份管理、可用性与权限／数据边界 3/3 项，130 份证据上传完成；iPhone 英文浅色／深色 4/4 流程通过。29 项运行时行为检查、31 项 UI runner 检查、全仓 check、完整 runtime 类型检查、bundle 与正常签名 Release 构建通过。首版边界和真实 Cloud／nmem／插件未验范围见任务记录。
 
 - 2026-10-18：用户授权开始 SET-17。核对官方静态分享 DTO、分页、服务端范围和撤销版本号，接入摘要列表／详情、原生打开／复制及确认撤销；客户端首版验收完成，原有工作树改动保留。[SET-17 验收](https://app.lobehub.com/acceptance/77c60b8a-ca15-4fe2-aadd-38b5470b4ca9?r=1)：管理、可用性与权限、原生凭据／写入边界 3/3 项，105 份证据上传完整；新增 4/4 流程和原分享 2/2 回归通过。真实 Cloud 与真机范围见任务记录。
+
+- 2026-10-18：SET-20 收口选定批次。核对 16 类官方入口、20 个任务主文件及七组已发布验收；补验五类设置表单英文浅深色背景矩阵，关闭 SET-08 的旧构建阻塞。iPad 暂缓、SET-18 跳过、早期本地媒体缺失和真实云端未验范围均明确保留；协议、权限、提交、媒体出处与恢复条件集中于 [SET-20](2026-10-16-settings/20-roadmap-closeout.md)。
+
+- [SET-20 验收](https://app.lobehub.com/acceptance/29a93192-3c71-4b20-bf7b-b516f4f5710e?r=1)：覆盖／交付追溯／五类表单背景 3/3，61 份证据完整；本轮 pnpm check、文档链接与任务图、签名复验通过，只提交五份文档。
