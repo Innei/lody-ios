@@ -20,9 +20,12 @@ export function registerLifecycle(ctx: RuntimeContext) {
     await result;
     return {};
   });
-  channel.handle('start', ({ workspaceId, userId, active }) => {
+  channel.handle('start', ({ workspaceId, userId, active, knownRepos }) => {
     state.workspace = workspaceId;
     state.userId = userId;
+    state.knownProjects = Object.entries(knownRepos ?? {}).map(
+      ([id, repoFullName]) => ({ id, repoFullName }),
+    );
     ctx.watch('meta');
     if (active) ctx.startPresence();
     return {};

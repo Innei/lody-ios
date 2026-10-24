@@ -1,6 +1,6 @@
 import type { Flock } from '@loro-dev/flock-wasm/base64';
 import type { StreamsClient } from '@loro-dev/streams-client';
-import type { Catalog } from '../../models/catalog.ts';
+import type { Catalog, Project } from '../../models/catalog.ts';
 import type { MachinePresence } from '../../models/machines.ts';
 import type {
   Grant,
@@ -18,6 +18,7 @@ export type RuntimeState = {
   userId: string;
   metaReplica: MetaReplica | undefined;
   presence: MachinePresence;
+  knownProjects: Pick<Project, 'id' | 'repoFullName'>[];
   readonly machineReplicas: Map<string, Flock>;
   readonly catalogs: Map<string, Catalog>;
   readonly unhealthy: Set<string>;

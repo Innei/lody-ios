@@ -1,254 +1,138 @@
 import {
   createContext,
-  useContext,
-  useEffect,
-  useState,
+  use,
+  useMemo,
   useSyncExternalStore,
   type PropsWithChildren,
 } from 'react';
-import { showToast } from '@/ui/toast';
+import { deleteSession, refreshCatalog, selectWorkspace } from '@lody-ios/kit';
+import type { Catalog, Session } from '@lody/cloud-runtime/models/catalog';
 import { useAuth } from '@/cloud/auth/AuthProvider';
-import { subscribeCatalog } from './runtime';
-import { keepRepos } from './model';
+import type { Workspace } from '../../models/auth.ts';
 import { usePendingSends } from '../send/pendingSends';
 import { useOutboxDispatcher } from '../send/outboxDispatcher';
 import {
   getForegroundSession,
   subscribeForegroundSession,
 } from '../send/foregroundSession';
-import { publishConnection } from './connection';
-import { publishMachinePresence } from './machines';
-import { localGeneration, readLocal, writeLocal } from '../kv';
-import { catalogKey, selectionKey } from './persist';
-import type { Catalog, SavedCatalog } from '@lody/cloud-runtime/models/catalog';
-import { t } from '../../lib/i18n/index.ts';
-import { deleteSession } from '@lody-ios/kit';
+import {
+  emptyCatalog,
+  getCatalogStore,
+  subscribeCatalogStore,
+} from './store.ts';
 
-const empty: Catalog = { projects: [], sessions: [], machineIds: [] };
-function valid(saved: SavedCatalog | null): saved is SavedCatalog {
-  return (
-    !!saved &&
-    Array.isArray(saved.catalog?.projects) &&
-    Array.isArray(saved.catalog?.sessions) &&
-    Array.isArray(saved.catalog?.machineIds)
+type CatalogView = {
+  catalog: Catalog;
+  loading: boolean;
+  connected: boolean;
+  syncedAt?: number;
+  key?: string;
+};
+type CatalogState = CatalogView & {
+  serverSessions: Session[];
+  selected: Workspace | undefined;
+  setWorkspaceId: (id: string) => void;
+  refresh: () => void;
+  deleteSessionRequest?: typeof deleteSession;
+};
+
+const setWorkspaceId = (id: string) => void selectWorkspace(id);
+const refresh = () => void refreshCatalog();
+
+function useNativeCatalog(enabled: boolean): CatalogState {
+  const state = useSyncExternalStore(
+    subscribeCatalogStore,
+    getCatalogStore,
+    getCatalogStore,
   );
-}
-function useCatalogState() {
-  const { account, localReady, initialWorkspace, initialCatalog } = useAuth();
-  const [choice, setChoice] = useState({ user: '', workspace: '' });
-  const workspaceId =
-    choice.user === account?.user.id ? choice.workspace : initialWorkspace;
+  const { account, initialWorkspace } = useAuth();
+  const userId = account?.user.id ?? '';
+  const scoped = !!account && state.userId === userId;
+  const workspaceId = scoped ? state.workspaceId : initialWorkspace;
   const selected =
     account?.workspaces.find((w) => w.id === workspaceId) ??
     account?.workspaces[0];
-  const pending = usePendingSends(account?.user.id ?? '', selected?.id ?? '');
+  const pending = usePendingSends(
+    enabled ? userId : '',
+    enabled ? (selected?.id ?? '') : '',
+  );
+  const { records, getSnapshot } = pending;
+  return useMemo(() => {
+    let view: CatalogView = {
+      catalog: state.catalog,
+      loading: state.loading,
+      connected: state.connected,
+      syncedAt: state.syncedAt,
+      key: state.key,
+    };
+    if (!scoped)
+      view = {
+        catalog: emptyCatalog,
+        loading: !!account,
+        connected: !!account,
+        key: '',
+      };
+    const sessions = view.catalog.sessions;
+    const extra = records
+      .filter((record) => !sessions.some((s) => s.id === record.session.id))
+      .map((record) => record.session);
+    return {
+      ...view,
+      serverSessions: sessions,
+      catalog: extra.length
+        ? { ...view.catalog, sessions: [...sessions, ...extra] }
+        : view.catalog,
+      selected,
+      setWorkspaceId,
+      refresh,
+      deleteSessionRequest: async (payload: string) => {
+        const args = JSON.parse(payload) as {
+          workspaceId: string;
+          sessionIds: string[];
+        };
+        const currentPending = getSnapshot();
+        if (
+          args.workspaceId !== selected?.id ||
+          !currentPending.ready ||
+          currentPending.records.some((record) =>
+            args.sessionIds.includes(record.session.id),
+          )
+        )
+          throw new Error('session_has_pending_send');
+        return deleteSession(payload);
+      },
+    };
+  }, [state, scoped, account, selected, records, getSnapshot]);
+}
+
+const Context = createContext<CatalogState | null>(null);
+
+export function CatalogProvider({ children }: PropsWithChildren) {
+  const { account } = useAuth();
+  const catalog = useNativeCatalog(true);
+  const outbox = usePendingSends(
+    account?.user.id ?? '',
+    catalog.selected?.id ?? '',
+  );
   const foregroundSessionId = useSyncExternalStore(
     subscribeForegroundSession,
     getForegroundSession,
     getForegroundSession,
   );
-  const key =
-    account && selected ? catalogKey(account.user.id, selected.id) : '';
-  const [snapshot, setSnapshot] = useState({
-    key: '',
-    catalog: empty,
-    loading: true,
-    connected: true,
-    syncedAt: undefined as number | undefined,
-  });
-  const [revision, setRevision] = useState(0);
-  useEffect(() => {
-    publishMachinePresence(selected?.id ?? '');
-    if (!key || !account || !selected) {
-      setSnapshot({
-        key: '',
-        catalog: empty,
-        loading: false,
-        connected: false,
-        syncedAt: undefined,
-      });
-      if (localReady) publishConnection({ state: 'offline', machines: 0 });
-      return;
-    }
-    const localVersion = localGeneration();
-    let active = true;
-    let received = false;
-    let saveErrorShown = false;
-    let syncedAt: number | undefined;
-    let machines = 0;
-    let state: 'syncing' | 'live' | 'offline' = 'syncing';
-    const seed =
-      selected.id === initialWorkspace && valid(initialCatalog)
-        ? initialCatalog
-        : null;
-    syncedAt = seed?.syncedAt;
-    let known = seed?.catalog ?? empty;
-    machines = seed?.catalog.machineIds.length ?? 0;
-    setSnapshot((old) => ({
-      key,
-      catalog: old.key === key ? old.catalog : (seed?.catalog ?? empty),
-      syncedAt: old.key === key ? old.syncedAt : syncedAt,
-      connected: true,
-      loading: true,
-    }));
-    publishConnection({ state, machines, syncedAt });
-    void readLocal<SavedCatalog>(key).then((saved) => {
-      if (!active || received || !valid(saved)) return;
-      known = saved.catalog;
-      syncedAt = saved.syncedAt;
-      machines = saved.catalog.machineIds.length;
-      setSnapshot((old) =>
-        old.key === key && (old.syncedAt ?? 0) > saved.syncedAt
-          ? old
-          : {
-              key,
-              ...saved,
-              loading: state === 'syncing',
-              connected: state !== 'offline',
-            },
-      );
-      publishConnection({ state, machines, syncedAt });
-    });
-    const stop = subscribeCatalog(
-      selected.id,
-      selected.slug ?? selected.id,
-      selected.name,
-      account.user.id,
-      (event, fresh) => {
-        if (event.machinePresence) {
-          try {
-            const presence = JSON.parse(event.machinePresence);
-            if (
-              ['live', 'unknown'].includes(presence.state) &&
-              Array.isArray(presence.onlineMachineIds)
-            )
-              publishMachinePresence(selected.id, presence);
-          } catch {
-            publishMachinePresence(selected.id);
-          }
-          return;
-        }
-        if (
-          ['starting', 'failed', 'stopped', 'background'].includes(event.state)
-        )
-          publishMachinePresence(selected.id);
-        const data = fresh && keepRepos(fresh, known);
-        if (data) {
-          known = data;
-          received = true;
-          syncedAt = Date.now();
-          machines = data.machineIds.length;
-          void writeLocal(key, { catalog: data, syncedAt }, localVersion).catch(
-            () => {
-              if (active && !saveErrorShown) {
-                saveErrorShown = true;
-                showToast(t('catalog.toast.localSaveFailed'));
-              }
-            },
-          );
-        }
-        const loading = ['starting', 'syncing', 'background'].includes(
-          event.state,
-        );
-        const connected = !['offline', 'failed', 'stopped'].includes(
-          event.state,
-        );
-        if (!connected) state = 'offline';
-        else if (loading) state = 'syncing';
-        else state = 'live';
-        setSnapshot((old) => ({
-          key,
-          catalog: data ?? (old.key === key ? old.catalog : empty),
-          loading,
-          connected,
-          syncedAt: syncedAt ?? old.syncedAt,
-        }));
-        publishConnection({ state, machines, syncedAt });
-      },
-    );
-    return () => {
-      active = false;
-      publishMachinePresence('');
-      stop();
-    };
-  }, [key, revision, localReady]);
-  const cached =
-    selected?.id === initialWorkspace && valid(initialCatalog)
-      ? initialCatalog.catalog
-      : empty;
-  const current =
-    snapshot.key === key
-      ? snapshot
-      : { catalog: cached, loading: true, connected: true };
-  function setWorkspaceId(id: string) {
-    if (!account) return;
-    setChoice({ user: account.user.id, workspace: id });
-    void writeLocal(selectionKey(account.user.id), id).catch(() =>
-      showToast(t('catalog.toast.workspaceSaveFailed')),
-    );
-  }
   useOutboxDispatcher({
-    outbox: pending,
+    outbox,
     userId: account?.user.id ?? '',
-    connected: current.connected && !current.loading,
-    serverSessions: current.catalog.sessions,
+    connected: catalog.connected && !catalog.loading,
+    serverSessions: catalog.serverSessions,
     foregroundSessionId,
   });
-  return {
-    ...current,
-    serverSessions: current.catalog.sessions,
-    catalog: {
-      ...current.catalog,
-      sessions: [
-        ...current.catalog.sessions,
-        ...pending.records
-          .filter(
-            (record) =>
-              !current.catalog.sessions.some(
-                (session) => session.id === record.session.id,
-              ),
-          )
-          .map((record) => record.session),
-      ],
-    },
-    selected,
-    setWorkspaceId,
-    refresh: () => setRevision((n) => n + 1),
-    deleteSessionRequest: async (payload: string) => {
-      const args = JSON.parse(payload) as {
-        workspaceId: string;
-        sessionIds: string[];
-      };
-      const currentPending = pending.getSnapshot();
-      if (
-        args.workspaceId !== selected?.id ||
-        !currentPending.ready ||
-        currentPending.records.some((record) =>
-          args.sessionIds.includes(record.session.id),
-        )
-      )
-        throw new Error('session_has_pending_send');
-      return deleteSession(payload);
-    },
-  };
+  return children;
 }
-type CatalogState = Omit<
-  ReturnType<typeof useCatalogState>,
-  'deleteSessionRequest'
-> & {
-  syncedAt?: number;
-  key?: string;
-  deleteSessionRequest?: typeof deleteSession;
-};
-const Context = createContext<CatalogState | null>(null);
-export function CatalogProvider({ children }: PropsWithChildren) {
-  const value = useCatalogState();
-  return <Context value={value}>{children}</Context>;
-}
+
 export function useCatalog() {
-  const value = useContext(Context);
-  if (!value) throw new Error('Missing CatalogProvider');
-  return value;
+  const override = use(Context);
+  const native = useNativeCatalog(!override);
+  return override ?? native;
 }
 
 export { Context as CatalogContext };

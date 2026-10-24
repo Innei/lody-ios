@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'esbuild';
-import { catalogKey } from '../../src/cloud/catalog/persist.ts';
 
 test('writes carry the generation they were issued under so native drops old-account writes', async () => {
   const db = new Map();
@@ -46,6 +45,5 @@ test('writes carry the generation they were issued under so native drops old-acc
   assert.equal(await store.readLocal('account'), 'new');
   db.set('corrupt', '{');
   assert.equal(await store.readLocal('corrupt'), null);
-  assert.notEqual(catalogKey('a', 'workspace'), catalogKey('b', 'workspace'));
   delete globalThis.__localTestKit;
 });

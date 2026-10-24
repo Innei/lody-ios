@@ -21,7 +21,10 @@ export function githubProject(repo: string): Project | undefined {
   };
 }
 
-export function keepRepos(next: Catalog, previous: Catalog): Catalog {
+export function keepRepos(
+  next: Catalog,
+  previous: { projects: readonly Pick<Project, 'id' | 'repoFullName'>[] },
+): Catalog {
   const known = new Map(
     previous.projects.flatMap((p) =>
       p.repoFullName ? [[p.id, p.repoFullName] as const] : [],

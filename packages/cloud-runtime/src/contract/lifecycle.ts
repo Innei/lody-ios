@@ -5,6 +5,7 @@ export const StartParams = z
     workspaceId: z.string().min(1),
     userId: z.string(),
     active: z.boolean(),
+    knownRepos: z.record(z.string(), z.string()).optional(),
   })
   .meta({ id: 'StartParams' });
 

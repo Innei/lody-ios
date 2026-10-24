@@ -28,16 +28,13 @@ struct AuthSnapshot: Encodable, Sendable {
 final class AuthPublished: @unchecked Sendable {
   private let lock = NSLock()
   private var state = AuthSnapshot().json
-  private var catalog = "null"
 
   var json: String { lock.withLock { state } }
-  var initialCatalog: String { lock.withLock { catalog } }
 
-  fileprivate func set(_ json: String, catalog: String) -> Bool {
+  fileprivate func set(_ json: String) -> Bool {
     lock.withLock {
       let changed = state != json
       state = json
-      self.catalog = catalog
       return changed
     }
   }
@@ -65,6 +62,10 @@ final class AuthSession {
   private var attempt = 0
   private var started = false
   private var browser: SFSafariViewController?
+
+  var catalogScope: AuthCatalogScope {
+    AuthCatalogScope(account: account, localReady: localReady, initialWorkspace: initialWorkspace, initialCatalog: initialCatalog)
+  }
 
   func start() {
     guard !started else { return }
@@ -302,7 +303,7 @@ final class AuthSession {
       },
       error: error
     )
-    guard Self.published.set(snapshot.json, catalog: initialCatalog ?? "null") else { return }
+    guard Self.published.set(snapshot.json) else { return }
     NotificationCenter.default.post(name: .lodyAuthDidChange, object: nil)
   }
 

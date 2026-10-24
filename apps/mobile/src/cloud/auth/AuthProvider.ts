@@ -4,7 +4,6 @@ import {
   cancelAuth,
   loginAuth,
   logoutAuth,
-  readAuthInitialCatalogRaw,
   readAuthStateRaw,
   reopenAuthBrowser,
   restoreAuth,
@@ -13,7 +12,6 @@ import {
   type PickedWorkspaceIcon,
 } from '@lody-ios/kit';
 import type { DeviceCode, SavedAccount } from '../../models/auth.ts';
-import type { SavedCatalog } from '@lody/cloud-runtime/models/catalog';
 import { parseLocal } from '../kv';
 import { uiVerify } from '@/lib/uiVerify';
 
@@ -22,12 +20,8 @@ type AuthState = {
   busy: boolean;
   localReady: boolean;
   initialWorkspace: string;
-  initialCatalog: SavedCatalog | null;
   code: DeviceCode | null;
   error: string | null;
-};
-type NativeAuthState = Omit<AuthState, 'initialCatalog'> & {
-  catalogRevision: number;
 };
 type AuthContextValue = AuthState & {
   login: () => Promise<void>;
@@ -42,12 +36,11 @@ type AuthContextValue = AuthState & {
   ) => Promise<string>;
 };
 
-const fallback: NativeAuthState = {
+const fallback: AuthState = {
   account: null,
   busy: true,
   localReady: false,
   initialWorkspace: '',
-  catalogRevision: -1,
   code: null,
   error: null,
 };
@@ -66,8 +59,6 @@ const actions = {
   updateWorkspaceIcon: updateAuthWorkspaceIcon,
 };
 
-let catalogRevision = -1;
-let initialCatalog: SavedCatalog | null = null;
 let current = read(readAuthStateRaw(), null);
 const listeners = new Set<() => void>();
 let subscription: { remove(): void } | null = null;
@@ -76,18 +67,13 @@ function read(
   json: string,
   previous: AuthContextValue | null,
 ): AuthContextValue {
-  const parsed = parseLocal<Partial<NativeAuthState>>(json);
-  const { catalogRevision: revision, ...state } = { ...fallback, ...parsed };
-  if (revision !== catalogRevision) {
-    catalogRevision = revision;
-    initialCatalog = parseLocal<SavedCatalog>(readAuthInitialCatalogRaw());
-  }
+  const state = { ...fallback, ...parseLocal<Partial<AuthState>>(json) };
   const account =
     previous &&
     JSON.stringify(previous.account) === JSON.stringify(state.account)
       ? previous.account
       : state.account;
-  return { ...state, account, initialCatalog, ...actions };
+  return { ...state, account, ...actions };
 }
 
 function publish(json: string) {

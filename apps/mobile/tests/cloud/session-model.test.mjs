@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Flock } from '@loro-dev/flock-wasm/base64';
-import { keepRepos, projectRows } from '../../src/cloud/catalog/model.ts';
+import { projectRows } from '../../src/cloud/catalog/model.ts';
+import { keepRepos } from '@lody/cloud-runtime/protocol/catalog';
 import {
   inboxSections,
   projectSections,

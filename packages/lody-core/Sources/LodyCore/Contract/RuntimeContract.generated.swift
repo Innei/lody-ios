@@ -6377,22 +6377,26 @@ extension RuntimeContract {
     public var workspaceId: String
     public var userId: String
     public var active: Bool
-    public init(workspaceId: String, userId: String, active: Bool) {
+    public var knownRepos: [String: String]?
+    public init(workspaceId: String, userId: String, active: Bool, knownRepos: [String: String]? = nil) {
       self.workspaceId = workspaceId
       self.userId = userId
       self.active = active
+      self.knownRepos = knownRepos
     }
     public init(from decoder: any Decoder) throws {
       let c = try decoder.container(keyedBy: Key.self)
       self.workspaceId = try c.decode(String.self, forKey: Key("workspaceId"))
       self.userId = try c.decode(String.self, forKey: Key("userId"))
       self.active = try c.decode(Bool.self, forKey: Key("active"))
+      self.knownRepos = try c.decodeIfPresent([String: String].self, forKey: Key("knownRepos"))
     }
     public func encode(to encoder: any Encoder) throws {
       var c = encoder.container(keyedBy: Key.self)
       try c.encode(self.workspaceId, forKey: Key("workspaceId"))
       try c.encode(self.userId, forKey: Key("userId"))
       try c.encode(self.active, forKey: Key("active"))
+      try c.encodeIfPresent(self.knownRepos, forKey: Key("knownRepos"))
     }
   }
 

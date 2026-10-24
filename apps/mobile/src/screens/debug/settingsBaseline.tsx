@@ -2,7 +2,11 @@ import { useSyncExternalStore, type PropsWithChildren } from 'react';
 import { View } from 'react-native';
 import { AuthContext, useAuth } from '@/cloud/auth/AuthProvider';
 import { CatalogContext, useCatalog } from '@/cloud/catalog/CatalogProvider';
-import { getConnection, publishConnection } from '@/cloud/catalog/connection';
+import {
+  ConnectionContext,
+  getConnection,
+  type Connection,
+} from '@/cloud/catalog/connection';
 import { present } from '@/lib/presentation';
 import { SettingsScreen } from '../SettingsScreen';
 import { uiVerify } from './uiVerify';
@@ -20,6 +24,7 @@ type Fixture = {
   scenario: Scenario;
   refreshes: number;
   startedAt: number;
+  connection?: Connection;
   userId?: string;
 };
 let fixture: Fixture | null = null;
@@ -56,25 +61,25 @@ export function switchSettingsBaselineAccount(
 
 export async function openSettingsBaseline(scenario: Scenario) {
   if (!uiVerify) return;
-  const previous = getConnection();
-  const current = { scenario, refreshes: 0, startedAt: Date.now() };
-  update(current);
+  const startedAt = Date.now();
   const hasCatalog = scenario === 'cached' || scenario === 'live';
-  let state: 'live' | 'syncing' | 'offline' = 'offline';
+  let state: Connection['state'] = 'offline';
   if (scenario === 'live') state = 'live';
   if (scenario === 'syncing') state = 'syncing';
-  publishConnection({
-    state,
-    machines: hasCatalog ? cached.machineIds.length : 0,
-    syncedAt: hasCatalog ? current.startedAt - 60_000 : undefined,
+  update({
+    scenario,
+    refreshes: 0,
+    startedAt,
+    connection: {
+      state,
+      machines: hasCatalog ? cached.machineIds.length : 0,
+      syncedAt: hasCatalog ? startedAt - 60_000 : undefined,
+    },
   });
   try {
     await present(SettingsScreen, {});
   } finally {
-    if (fixture?.startedAt === current.startedAt) {
-      update(null);
-      publishConnection(previous);
-    }
+    if (fixture?.startedAt === startedAt) update(null);
   }
 }
 
@@ -110,8 +115,11 @@ export function SettingsBaselineProviders({ children }: PropsWithChildren) {
       ...auth,
       account,
       logout: async () => {
-        update({ ...current, scenario: 'signed-out' });
-        publishConnection({ state: 'offline', machines: 0 });
+        update({
+          ...current,
+          scenario: 'signed-out',
+          connection: { state: 'offline', machines: 0 },
+        });
       },
     };
     catalogValue = {
@@ -121,30 +129,35 @@ export function SettingsBaselineProviders({ children }: PropsWithChildren) {
       selected: hasWorkspace ? workspace : undefined,
       loading: scenario === 'syncing',
       connected: scenario === 'live' || scenario === 'syncing',
-      syncedAt: getConnection().syncedAt,
+      syncedAt: (current.connection ?? getConnection()).syncedAt,
       key: hasWorkspace ? workspace.id : '',
       refresh: () => {
         update({
           ...current,
           scenario: 'syncing',
           refreshes: current.refreshes + 1,
+          connection: {
+            ...(current.connection ?? getConnection()),
+            state: 'syncing',
+          },
         });
-        publishConnection({ ...getConnection(), state: 'syncing' });
       },
     };
   }
   return (
     <AuthContext value={authValue}>
       <CatalogContext value={catalogValue}>
-        {children}
-        {current && (
-          <View
-            accessible
-            testID="settings-baseline-ready"
-            accessibilityLabel={`${scenario}:refreshes=${current.refreshes}`}
-            style={{ position: 'absolute', width: 1, height: 1 }}
-          />
-        )}
+        <ConnectionContext value={current?.connection ?? null}>
+          {children}
+          {current && (
+            <View
+              accessible
+              testID="settings-baseline-ready"
+              accessibilityLabel={`${scenario}:refreshes=${current.refreshes}`}
+              style={{ position: 'absolute', width: 1, height: 1 }}
+            />
+          )}
+        </ConnectionContext>
       </CatalogContext>
     </AuthContext>
   );

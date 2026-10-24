@@ -15,8 +15,8 @@ test('LodyKit keeps asynchronous native calls on the queued module DSL', () => {
   assert.deepEqual(unsafeBindings, []);
 
   for (const name of [
-    'watchCatalog',
-    'unwatchCatalog',
+    'selectWorkspace',
+    'refreshCatalog',
     'watchSession',
     'unwatchSession',
     'ensureSession',
@@ -39,6 +39,12 @@ test('LodyKit keeps asynchronous native calls on the queued module DSL', () => {
   ]) {
     assert.match(moduleSource, new RegExp(`AsyncFunction\\("${name}"\\)`));
   }
-  for (const name of ['readAuthToken', 'saveAuthToken', 'clearAuthToken'])
+  for (const name of [
+    'readAuthToken',
+    'saveAuthToken',
+    'clearAuthToken',
+    'watchCatalog',
+    'unwatchCatalog',
+  ])
     assert.doesNotMatch(moduleSource, new RegExp(`"${name}"`));
 });

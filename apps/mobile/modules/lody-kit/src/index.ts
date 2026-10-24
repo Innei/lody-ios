@@ -50,7 +50,6 @@ export {
 
 export {
   readAuthStateRaw,
-  readAuthInitialCatalogRaw,
   addAuthListener,
   restoreAuth,
   loginAuth,
@@ -71,8 +70,11 @@ export {
 } from './runtime/LodyKit';
 
 export {
-  watchCatalog,
-  unwatchCatalog,
+  readCatalogStateRaw,
+  readCatalogRaw,
+  addCatalogListener,
+  selectWorkspace,
+  refreshCatalog,
   addDataRuntimeListener,
   addAttachmentUploadProgressListener,
   type AttachmentUploadProgress,

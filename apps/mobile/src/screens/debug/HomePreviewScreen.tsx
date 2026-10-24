@@ -3,7 +3,8 @@ import { View } from 'react-native';
 import { useAppNavigationState } from '@/lib/presentation/useAppNavigationState';
 import type { PropsWithChildren } from 'react';
 import { runtimeInfo, readLocalValue, writeLocalValue } from '@lody-ios/kit';
-import { publishMachinePresence } from '@/cloud/catalog/machines';
+import { MachinePresenceContext } from '@/cloud/catalog/machines';
+import type { WorkspacePresence } from '@/cloud/catalog/store';
 import { AuthContext } from '@/cloud/auth/AuthProvider';
 import { CatalogContext } from '@/cloud/catalog/CatalogProvider';
 import type { Catalog } from '@lody/cloud-runtime/models/catalog';
@@ -184,6 +185,7 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
   const [previewWorkspaces, setPreviewWorkspaces] = useState(workspaces);
   const [selected, setSelected] =
     useState<(typeof workspaces)[number]>(workspace);
+  const [presence, setPresence] = useState<WorkspacePresence | null>(null);
   const selectedCatalog =
     selected.id === workspace.id ? previewCatalog : emptyCatalog;
   useEffect(() => {
@@ -191,17 +193,22 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
     const update = async () => {
       const raw = await readLocalValue('ui-device-presence');
       if (!active) return;
-      const value = raw
-        ? JSON.parse(raw)
-        : { state: 'unknown', onlineMachineIds: [] };
-      publishMachinePresence(selected.id, value);
+      const next = {
+        workspaceId: selected.id,
+        presence: raw
+          ? JSON.parse(raw)
+          : { state: 'unknown', onlineMachineIds: [] },
+      };
+      setPresence((old) =>
+        JSON.stringify(old) === JSON.stringify(next) ? old : next,
+      );
     };
     void update();
     const timer = setInterval(() => void update(), 500);
     return () => {
       active = false;
       clearInterval(timer);
-      publishMachinePresence('');
+      setPresence(null);
     };
   }, [selected.id]);
   useEffect(() => {
@@ -240,7 +247,6 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
         busy: false,
         localReady: true,
         initialWorkspace: workspace.id,
-        initialCatalog: null,
         code: null,
         error: null,
         login: noop,
@@ -303,13 +309,15 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
           },
         }}
       >
-        <View
-          testID={cacheReady ? 'ui-verify-ready' : undefined}
-          style={{ flex: 1 }}
-        >
-          {children}
-          <NavigationProbe />
-        </View>
+        <MachinePresenceContext value={presence}>
+          <View
+            testID={cacheReady ? 'ui-verify-ready' : undefined}
+            style={{ flex: 1 }}
+          >
+            {children}
+            <NavigationProbe />
+          </View>
+        </MachinePresenceContext>
       </CatalogContext>
     </AuthContext>
   );

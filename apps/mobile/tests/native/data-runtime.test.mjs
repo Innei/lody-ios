@@ -7,7 +7,14 @@ test('persistent runtime applies live increments to the existing replica and adv
   const flock = new Flock('synthetic');
   flock.set(['e', 'session-s1'], true, 1);
   flock.set(['e', 'machine-m1'], true, 1);
-  flock.set(['m', 'machine-m1'], { name: 'Synthetic Mac' }, 1);
+  flock.set(
+    ['m', 'machine-m1'],
+    {
+      name: 'Synthetic Mac',
+      localProjects: { p1: { name: 'app', rootPath: '/a' } },
+    },
+    1,
+  );
   flock.set(['m', 'session-s1'], { title: 'Before', machineId: 'm1' }, 2);
   const snapshot = flock.exportFile(),
     version = flock.version();
@@ -242,9 +249,15 @@ test('persistent runtime applies live increments to the existing replica and adv
     workspaceId: 'synthetic-workspace',
     userId: '',
     active: true,
+    knownRepos: { 'm1:local:p1': 'Afilmory/afilmory' },
   });
   assert.equal(started.kind, 'result');
-  assert.equal(JSON.parse((await first).catalog).sessions[0].title, 'Before');
+  const initial = JSON.parse((await first).catalog);
+  assert.equal(initial.sessions[0].title, 'Before');
+  assert.equal(
+    initial.projects.find((p) => p.id === 'm1:local:p1').repoFullName,
+    'Afilmory/afilmory',
+  );
   const runtimeEvents = envelopes.filter((m) => m.kind === 'event');
   assert.deepEqual(
     runtimeEvents
@@ -290,6 +303,11 @@ test('persistent runtime applies live increments to the existing replica and adv
   });
   const changed = await second;
   assert.equal(JSON.parse(changed.catalog).sessions[0].title, 'After');
+  assert.equal(
+    JSON.parse(changed.catalog).projects.find((p) => p.id === 'm1:local:p1')
+      .repoFullName,
+    'Afilmory/afilmory',
+  );
   assert.equal(changed.revision, 2);
   assert.equal(
     JSON.parse(changed.catalog).sessions[0].parentSessionId,
@@ -328,7 +346,7 @@ test('persistent runtime applies live increments to the existing replica and adv
     workspaceId: 'synthetic-workspace',
   });
   assert.deepEqual(probe.payload, {
-    creationOptionsTrial: {},
+    creationOptionsTrial: { 'm1:local:p1': 'ok agents=0 capabilities=0' },
     machines: { m1: { otherKeys: ['e', 'm'], capabilities: [] } },
   });
   const writes = {

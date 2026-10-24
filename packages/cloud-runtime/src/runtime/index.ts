@@ -2,7 +2,7 @@ import { Flock } from '@loro-dev/flock-wasm/base64';
 import { StreamsClient } from '@loro-dev/streams-client';
 import { decompress } from 'fzstd';
 import type { Project } from '../models/catalog.ts';
-import { projectRows } from '../protocol/catalog.ts';
+import { keepRepos, projectRows } from '../protocol/catalog.ts';
 import { mergeAgentQuotas } from '../protocol/agent-usage.ts';
 import { reservedSessionIds, retainedSessionIds } from './session';
 import { machineRpc } from './machine-rpc';
@@ -91,6 +91,7 @@ const state: RuntimeState = {
   userId: '',
   metaReplica: undefined,
   presence: unknownPresence,
+  knownProjects: [],
   machineReplicas: new Map(),
   catalogs: new Map(),
   unhealthy: new Set(),
@@ -224,30 +225,35 @@ function publish() {
     if (repo && !p.repoFullName) projects.set(id, { ...p, repoFullName: repo });
     else askGitState(p);
   }
-  const catalog = JSON.stringify({
-    ...meta,
-    agentUsage: Object.fromEntries(
-      meta.machineIds.map((id) => {
-        const usage = catalogs.get(id)?.agentUsage?.[id];
-        return [
-          id,
-          {
-            configs: usage?.configs ?? [],
-            quotas: mergeAgentQuotas(
-              meta.agentUsage?.[id]?.quotas ?? [],
-              usage?.quotas ?? [],
-            ),
-          },
-        ];
-      }),
-    ),
-    projects: [...projects.values()].sort((a, b) =>
-      a.name.localeCompare(b.name),
-    ),
-    sessions: [...meta.sessions].sort((a, b) =>
-      b.createdAt.localeCompare(a.createdAt),
-    ),
-  });
+  const merged = keepRepos(
+    {
+      ...meta,
+      agentUsage: Object.fromEntries(
+        meta.machineIds.map((id) => {
+          const usage = catalogs.get(id)?.agentUsage?.[id];
+          return [
+            id,
+            {
+              configs: usage?.configs ?? [],
+              quotas: mergeAgentQuotas(
+                meta.agentUsage?.[id]?.quotas ?? [],
+                usage?.quotas ?? [],
+              ),
+            },
+          ];
+        }),
+      ),
+      projects: [...projects.values()].sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
+      sessions: [...meta.sessions].sort((a, b) =>
+        b.createdAt.localeCompare(a.createdAt),
+      ),
+    },
+    { projects: state.knownProjects },
+  );
+  state.knownProjects = merged.projects;
+  const catalog = JSON.stringify(merged);
   if (catalog !== lastPublished) {
     lastPublished = catalog;
     channel.emit('catalog', { catalog, revision: ++revision });

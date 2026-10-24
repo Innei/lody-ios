@@ -3150,7 +3150,12 @@
       "properties": {
         "workspaceId": { "type": "string", "minLength": 1 },
         "userId": { "type": "string" },
-        "active": { "type": "boolean" }
+        "active": { "type": "boolean" },
+        "knownRepos": {
+          "type": "object",
+          "propertyNames": { "type": "string" },
+          "additionalProperties": { "type": "string" }
+        }
       },
       "required": ["workspaceId", "userId", "active"]
     },

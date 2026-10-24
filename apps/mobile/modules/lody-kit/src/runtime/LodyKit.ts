@@ -14,7 +14,6 @@ export type InboxSearchHits = {
   sessions: { id: string; snippet: string | null }[];
 };
 export type DataRuntimeEvent = {
-  machinePresence?: string;
   shareProgress?: import('@lody/cloud-runtime/models/session-sharing').ShareProgress;
   sessionId?: string;
   session?: string;
@@ -28,8 +27,6 @@ export type DataRuntimeEvent = {
   probeBackgroundUpdates?: number;
   backgroundTaskState?: string;
   backgroundTaskCount?: number;
-  catalog?: string;
-  revision?: number;
 };
 export type AttachmentUploadProgress = {
   sessionId: string;
@@ -47,6 +44,7 @@ export type PickedWorkspaceIcon = {
 type Events = {
   onPreferencesChange: (event: { json: string }) => void;
   onAuthChange: (event: { json: string }) => void;
+  onCatalogChange: (event: { json: string }) => void;
   onAttachmentUploadProgress: (event: AttachmentUploadProgress) => void;
   onPushClick: () => void;
   onAppActive: () => void;
@@ -156,19 +154,11 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   mentionCatalog(payload: string): Promise<string>;
   readContentText(handle: string): Promise<string | null>;
   previewContent(handle: string): Promise<void>;
-  watchCatalog(
-    workspace: string,
-    slug: string,
-    name: string,
-    owner: string,
-    userId: string,
-  ): Promise<void>;
   liveActivityStatus(): Promise<
     import('../notifications/notifications').LiveActivityStatus
   >;
   setLiveActivitiesEnabled(enabled: boolean): Promise<void>;
   debugLiveActivity(action: string): Promise<void>;
-  unwatchCatalog(owner: string): Promise<void>;
   dataRuntimeStatus(): Promise<DataRuntimeEvent>;
   debugBackgroundDataRuntime(action: string): Promise<string>;
   debugHangDataRuntime(): Promise<void>;
@@ -188,7 +178,10 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   showSessionBanner(title: string, kind: string): void;
   dismissSessionBanner(): void;
   readAuthState(): string;
-  readAuthInitialCatalog(): string;
+  readCatalogState(): string;
+  readCatalog(): string;
+  selectWorkspace(workspaceId: string): Promise<void>;
+  refreshCatalog(): Promise<void>;
   restoreAuth(): Promise<void>;
   login(): Promise<void>;
   cancelLogin(): Promise<void>;
@@ -300,7 +293,6 @@ export function addAppActiveListener(listener: () => void) {
 }
 
 export const readAuthStateRaw = () => native.readAuthState();
-export const readAuthInitialCatalogRaw = () => native.readAuthInitialCatalog();
 export const addAuthListener = (listener: (event: { json: string }) => void) =>
   native.addListener('onAuthChange', listener);
 export const restoreAuth = () => native.restoreAuth();
@@ -384,14 +376,14 @@ export const decodeFlock = (
   mode: string,
 ) => native.decodeFlock(snapshot, updates, mode);
 
-export const watchCatalog = (
-  workspace: string,
-  slug: string,
-  name: string,
-  owner: string,
-  userId: string,
-) => native.watchCatalog(workspace, slug, name, owner, userId);
-export const unwatchCatalog = (owner: string) => native.unwatchCatalog(owner);
+export const readCatalogStateRaw = () => native.readCatalogState();
+export const readCatalogRaw = () => native.readCatalog();
+export const addCatalogListener = (
+  listener: (event: { json: string }) => void,
+) => native.addListener('onCatalogChange', listener);
+export const selectWorkspace = (workspaceId: string) =>
+  native.selectWorkspace(workspaceId);
+export const refreshCatalog = () => native.refreshCatalog();
 export const addDataRuntimeListener = (
   listener: (event: DataRuntimeEvent) => void,
 ) => native.addListener('onDataRuntime', listener);

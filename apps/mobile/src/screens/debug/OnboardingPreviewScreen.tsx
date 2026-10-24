@@ -28,7 +28,6 @@ function View() {
         busy: phase === 'waiting',
         localReady: true,
         initialWorkspace: '',
-        initialCatalog: null,
         code:
           phase === 'waiting'
             ? {

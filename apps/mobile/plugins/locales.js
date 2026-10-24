@@ -14,6 +14,7 @@ const NATIVE_PREFIXES = [
   'native.',
   'auth.error.',
   'auth.toast.',
+  'catalog.toast.',
   'common.',
   'create.',
   'devices.',

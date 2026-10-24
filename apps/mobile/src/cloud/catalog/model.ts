@@ -1,6 +1,6 @@
 import { t } from '../../lib/i18n/index.ts';
 import { projectRows as rows } from '@lody/cloud-runtime/protocol/catalog';
-export { githubProject, keepRepos } from '@lody/cloud-runtime/protocol/catalog';
+export { githubProject } from '@lody/cloud-runtime/protocol/catalog';
 export type {
   Catalog,
   Project,

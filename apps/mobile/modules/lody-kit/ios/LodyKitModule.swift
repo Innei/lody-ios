@@ -17,6 +17,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   private let localStore = LocalStore.shared
   private let preferenceObservers = NotificationObservers()
   private let authObservers = NotificationObservers()
+  private let catalogObservers = NotificationObservers()
 
   private static func previewURL(_ address: String) -> URL? {
     guard let url = URL(string: address), url.scheme == "https", url.user == nil, url.password == nil,
@@ -72,10 +73,13 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   func readAuthState() -> String { AuthSession.published.json }
 
   @JS
-  func readAuthInitialCatalog() -> String { AuthSession.published.initialCatalog }
+  func localStoreGeneration() -> Int { localStore.generation }
 
   @JS
-  func localStoreGeneration() -> Int { localStore.generation }
+  func readCatalogState() -> String { CatalogSession.published.json }
+
+  @JS
+  func readCatalog() -> String { CatalogSession.published.raw }
 
   @JS
   var runtimeInfo: LodyRuntimeInfo {
@@ -102,10 +106,14 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       let auth = AuthSession.shared
       auth.presenter = { self?.appContext?.utilities?.currentViewController() }
       auth.stopRuntime = { self?.dataRuntime.stop() }
+      if let runtime = self?.dataRuntime { CatalogSession.shared.attach(runtime) }
       auth.start()
     }
     authObservers.add(NotificationCenter.default.addObserver(forName: .lodyAuthDidChange, object: nil, queue: .main) { [weak self] _ in
       self?.sendEvent("onAuthChange", ["json": AuthSession.published.json])
+    })
+    catalogObservers.add(NotificationCenter.default.addObserver(forName: .lodyCatalogDidChange, object: nil, queue: .main) { [weak self] _ in
+      self?.sendEvent("onCatalogChange", ["json": CatalogSession.published.json])
     })
     for name in [Notification.Name.lodyAppearanceDidChange, .lodyPreferencesDidChange] {
       preferenceObservers.add(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
@@ -213,17 +221,12 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("sessionSharing") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.sessionSharing(payload, promise: promise) }
     }.runOnQueue(.main)
-    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onPreferencesChange", "onAuthChange")
-    AsyncFunction("watchCatalog") { (workspace: String, slug: String, name: String, owner: String, userId: String) in
-      try MainActor.assumeIsolated {
-        guard !workspace.isEmpty, !owner.isEmpty, !userId.isEmpty else {
-          throw NSError(domain: "InvalidSubscription", code: 1)
-        }
-        self.dataRuntime.start(workspace: workspace, slug: slug, name: name, owner: owner, userId: userId)
-      }
+    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onPreferencesChange", "onAuthChange", "onCatalogChange")
+    AsyncFunction("selectWorkspace") { (workspaceId: String) in
+      MainActor.assumeIsolated { CatalogSession.shared.selectWorkspace(workspaceId) }
     }.runOnQueue(.main)
-    AsyncFunction("unwatchCatalog") { (owner: String) in
-      MainActor.assumeIsolated { self.dataRuntime.stop(owner: owner) }
+    AsyncFunction("refreshCatalog") {
+      MainActor.assumeIsolated { CatalogSession.shared.refresh() }
     }.runOnQueue(.main)
     AsyncFunction("watchSession") { (id: String) in
       MainActor.assumeIsolated { self.dataRuntime.openSession(id) }

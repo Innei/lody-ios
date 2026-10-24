@@ -1,35 +1,29 @@
-import { useSyncExternalStore } from 'react';
+import { createContext, use, useSyncExternalStore } from 'react';
 import {
   unknownPresence,
   type MachinePresence,
 } from '@lody/cloud-runtime/models/machines';
+import {
+  getCatalogStore,
+  subscribeCatalogStore,
+  type WorkspacePresence,
+} from './store.ts';
 
-let current = { workspaceId: '', presence: unknownPresence };
-const listeners = new Set<() => void>();
+const Context = createContext<WorkspacePresence | null>(null);
+const snapshot = () => getCatalogStore().presence;
 
-export function publishMachinePresence(
-  workspaceId: string,
-  presence: MachinePresence = unknownPresence,
-) {
-  if (
-    workspaceId === current.workspaceId &&
-    JSON.stringify(presence) === JSON.stringify(current.presence)
-  )
-    return;
-  current = { workspaceId, presence };
-  for (const listener of listeners) listener();
-}
-
-export function useMachinePresence(workspaceId: string | undefined) {
-  return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    () =>
-      current.workspaceId === workspaceId ? current.presence : unknownPresence,
-    () => unknownPresence,
+export function useMachinePresence(
+  workspaceId: string | undefined,
+): MachinePresence {
+  const native = useSyncExternalStore(
+    subscribeCatalogStore,
+    snapshot,
+    snapshot,
   );
+  const current = use(Context) ?? native;
+  return current.workspaceId === workspaceId
+    ? current.presence
+    : unknownPresence;
 }
+
+export { Context as MachinePresenceContext };

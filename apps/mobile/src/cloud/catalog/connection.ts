@@ -1,33 +1,27 @@
-import { useSyncExternalStore } from 'react';
+import { createContext, use, useSyncExternalStore } from 'react';
 import type { Connection } from '@lody/cloud-runtime/models/catalog';
+import {
+  getCatalogStore,
+  readCatalogStore,
+  subscribeCatalogStore,
+} from './store.ts';
 
 export type { Connection } from '@lody/cloud-runtime/models/catalog';
 
-const listeners = new Set<() => void>();
-let connection: Connection = { state: 'syncing', machines: 0 };
-
-export function publishConnection(next: Connection) {
-  if (
-    next.state === connection.state &&
-    next.machines === connection.machines &&
-    next.syncedAt === connection.syncedAt
-  )
-    return;
-  connection = next;
-  for (const listener of listeners) listener();
-}
+const Context = createContext<Connection | null>(null);
+const snapshot = () => getCatalogStore().connection;
 
 export function getConnection() {
-  return connection;
+  return readCatalogStore().connection;
 }
 
 export function useConnection() {
-  return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    getConnection,
-    getConnection,
+  const native = useSyncExternalStore(
+    subscribeCatalogStore,
+    snapshot,
+    snapshot,
   );
+  return use(Context) ?? native;
 }
+
+export { Context as ConnectionContext };

@@ -42,6 +42,9 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   var probeBackgroundUpdates = 0
   private let observers = NotificationObservers()
   private let emit: ([String: Any]) -> Void
+  var onCatalogUpdate: ((_ owner: String, _ state: String, _ catalog: String?) -> Void)?
+  var onMachinePresence: ((_ owner: String, _ presence: RuntimeContract.MachinePresence?) -> Void)?
+  var knownRepos: [String: String] = [:]
   let emitUploadProgress: ([String: Any]) -> Void
   private var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
 
@@ -106,15 +109,17 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     }
     return value
   }
-  private func publish(_ state: String, reason: String, extra: [String: Any] = [:]) {
+  private func publish(_ state: String, reason: String, catalog: String? = nil) {
     self.phase = state; self.reason = reason
-    emitStatus(extra)
+    emitStatus()
+    onCatalogUpdate?(owner, state, catalog)
   }
   private func emitStatus(_ extra: [String: Any] = [:]) {
     emit((status() as [String: Any]).merging(extra, uniquingKeysWith: { _, new in new }))
   }
   private func publishPresenceUnknown() {
-    emitStatus(["machinePresence": #"{"state":"unknown","onlineMachineIds":[]}"#])
+    emitStatus()
+    onMachinePresence?(owner, nil)
   }
   private func build(reason: String) {
     guard workspace != nil else { return }
@@ -266,7 +271,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   }
   private func startRuntime(_ view: WKWebView) {
     guard let workspace, let channel else { return }
-    let params = RuntimeContract.StartParams(workspaceId: workspace, userId: userId, active: !backgrounded)
+    let params = RuntimeContract.StartParams(workspaceId: workspace, userId: userId, active: !backgrounded, knownRepos: knownRepos)
     Task { @MainActor [weak self, weak view] in
       let started = (try? await channel.call(RuntimeContract.Calls.Start.self, params)) != nil
       guard let self, let view, self.webView === view, self.channel === channel else { return }
@@ -280,7 +285,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     switch event {
     case .catalog(let value):
       guard value.catalog.utf8.count <= 12 * 1024 * 1024 else { return }
-      publish("live", reason: "catalog", extra: ["catalog": value.catalog, "revision": value.revision])
+      publish("live", reason: "catalog", catalog: value.catalog)
       LiveActivities.shared.sync(
         catalogJSON: value.catalog,
         workspaceId: workspace ?? "",
@@ -293,9 +298,10 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       if let percent = value.percent { progress["percent"] = percent }
       emitStatus(["shareProgress": progress])
     case .machinePresence(let value):
-      guard !backgrounded, let data = try? JSONEncoder().encode(value), data.count <= 1024 * 1024,
-            let presence = String(data: data, encoding: .utf8) else { return }
-      publish(phase, reason: "machine_presence", extra: ["machinePresence": presence])
+      guard !backgrounded, value.onlineMachineIds.reduce(0, { $0 + $1.utf8.count }) <= 1024 * 1024 else { return }
+      reason = "machine_presence"
+      emitStatus()
+      onMachinePresence?(owner, value)
     case .synced:
       if phase != "live" { publish("live", reason: "synced") }
     case .syncError(let value):
