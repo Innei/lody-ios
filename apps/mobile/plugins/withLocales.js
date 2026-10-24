@@ -6,7 +6,7 @@ const {
   withInfoPlist,
   withXcodeProject,
 } = require('expo/config-plugins');
-const { LOCALES, INFO_KEYS, readCatalogs } = require('./locales');
+const { LOCALES, INFO_KEYS, isNativeKey, readCatalogs } = require('./locales');
 
 const RESOURCES = ['Localizable.xcstrings', 'InfoPlist.xcstrings'];
 
@@ -20,24 +20,9 @@ function load(projectRoot) {
   return catalogs;
 }
 
-// The native creation form reuses these keys instead of native.* copies.
-const NATIVE_PREFIXES = [
-  'native.',
-  'common.',
-  'create.',
-  'devices.',
-  'model.',
-  'picker.',
-  'projectPicker.',
-  'settings.history.selected',
-  'accessibility.closeSheet',
-];
-
 /** Foundation selects the plural variation, so `{count}` becomes its substitution. */
 function nativeStrings(catalogs) {
-  const keys = Object.keys(catalogs.en).filter((key) =>
-    NATIVE_PREFIXES.some((prefix) => key.startsWith(prefix)),
-  );
+  const keys = Object.keys(catalogs.en).filter(isNativeKey);
   const strings = {};
   for (const key of keys) {
     if (key.endsWith('.other')) continue;

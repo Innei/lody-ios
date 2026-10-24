@@ -4,12 +4,26 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const root = path.join(import.meta.dirname, '..');
-const { readCatalogs } = require(path.join(root, 'plugins/locales.js'));
+const { isNativeKey, readCatalogs } = require(
+  path.join(root, 'plugins/locales.js'),
+);
 
 const problems = [];
 const fail = (message) => problems.push(message);
 
-readCatalogs(root, fail);
+const catalogs = readCatalogs(root, fail);
+
+const NATIVE_LOOKUP = /LodyStrings\.(text|plural)\("([^"]+)"/g;
+const nativeBase = path.join(root, 'modules/lody-kit/ios');
+for (const file of fs.globSync('**/*.swift', { cwd: nativeBase }))
+  for (const [, kind, key] of fs
+    .readFileSync(path.join(nativeBase, file), 'utf8')
+    .matchAll(NATIVE_LOOKUP)) {
+    if (key.includes('\\(') || key.endsWith('.')) continue;
+    const entry = kind === 'plural' ? `${key}.one` : key;
+    if (!isNativeKey(key) || !(entry in (catalogs.en ?? {})))
+      fail(`modules/lody-kit/ios/${file}: ${key} is not in the native catalog`);
+  }
 
 const CJK = /[㐀-鿿豈-﫿！-｠]/;
 // Debug scenes are development-only surfaces and keep their own copy inline.

@@ -9,6 +9,23 @@ const INFO_KEYS = {
   'ios.info.localNetworkUsage': 'NSLocalNetworkUsageDescription',
   'ios.info.photoLibraryUsage': 'NSPhotoLibraryUsageDescription',
 };
+// The native creation form reuses these keys instead of native.* copies.
+const NATIVE_PREFIXES = [
+  'native.',
+  'common.',
+  'create.',
+  'devices.',
+  'model.',
+  'picker.',
+  'projectPicker.',
+  'settings.history.selected',
+  'accessibility.closeSheet',
+  'inbox.section.chat',
+  'message.details.title',
+  'send.status.awaitingConnection',
+];
+const isNativeKey = (key) =>
+  NATIVE_PREFIXES.some((prefix) => key.startsWith(prefix));
 
 function localesDir(projectRoot) {
   return path.join(projectRoot, 'locales');
@@ -73,4 +90,11 @@ function readCatalogs(projectRoot, fail) {
   return catalogs;
 }
 
-module.exports = { LOCALES, INFO_KEYS, PLACEHOLDER, readCatalogs, localesDir };
+module.exports = {
+  LOCALES,
+  INFO_KEYS,
+  PLACEHOLDER,
+  isNativeKey,
+  readCatalogs,
+  localesDir,
+};
