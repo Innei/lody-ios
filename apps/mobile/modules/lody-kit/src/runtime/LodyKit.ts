@@ -46,6 +46,7 @@ export type PickedWorkspaceIcon = {
 };
 type Events = {
   onPreferencesChange: (event: { json: string }) => void;
+  onAuthChange: (event: { json: string }) => void;
   onAttachmentUploadProgress: (event: AttachmentUploadProgress) => void;
   onPushClick: () => void;
   onAppActive: () => void;
@@ -72,19 +73,18 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
     outcome: string,
     reason: string,
   ): Promise<void>;
-  readLocalStartup(): Promise<{
-    account?: string;
-    workspace?: string;
-    catalog?: string;
-  }>;
   readLocalValue(key: string): Promise<string | null>;
   searchInbox(
     userId: string,
     workspaceId: string,
     query: string,
   ): Promise<InboxSearchHits>;
-  writeLocalValue(key: string, value: string): Promise<void>;
-  clearLocalValues(): Promise<void>;
+  writeLocalValue(
+    key: string,
+    value: string,
+    generation?: number,
+  ): Promise<void>;
+  localStoreGeneration(): number;
   readonly runtimeInfo: RuntimeInfo;
   readonly initialInboxView: number;
   saveInboxView(index: number): void;
@@ -187,11 +187,21 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   copyText(text: string): void;
   showSessionBanner(title: string, kind: string): void;
   dismissSessionBanner(): void;
-  readAuthToken(): Promise<string | null>;
-  saveAuthToken(token: string): Promise<void>;
-  clearAuthToken(): Promise<void>;
-  openAuthBrowser(url: string): Promise<void>;
-  closeAuthBrowser(): Promise<void>;
+  readAuthState(): string;
+  readAuthInitialCatalog(): string;
+  restoreAuth(): Promise<void>;
+  login(): Promise<void>;
+  cancelLogin(): Promise<void>;
+  logout(): Promise<void>;
+  reopenAuthBrowser(): Promise<void>;
+  updateWorkspace(workspaceId: string, name: string): Promise<void>;
+  updateWorkspaceIcon(
+    workspaceId: string,
+    uri: string,
+    name: string,
+    type: string,
+    size: number,
+  ): Promise<string>;
   decodeFlock(
     snapshot: string,
     updates: string[],
@@ -289,11 +299,28 @@ export function addAppActiveListener(listener: () => void) {
   return native.addListener('onAppActive', listener);
 }
 
-export const readAuthToken = () => native.readAuthToken();
-export const saveAuthToken = (token: string) => native.saveAuthToken(token);
-export const clearAuthToken = () => native.clearAuthToken();
-export const openAuthBrowser = (url: string) => native.openAuthBrowser(url);
-export const closeAuthBrowser = () => native.closeAuthBrowser();
+export const readAuthStateRaw = () => native.readAuthState();
+export const readAuthInitialCatalogRaw = () => native.readAuthInitialCatalog();
+export const addAuthListener = (listener: (event: { json: string }) => void) =>
+  native.addListener('onAuthChange', listener);
+export const restoreAuth = () => native.restoreAuth();
+export const loginAuth = () => native.login();
+export const cancelAuth = () => native.cancelLogin();
+export const logoutAuth = () => native.logout();
+export const reopenAuthBrowser = () => native.reopenAuthBrowser();
+export const updateAuthWorkspace = (workspaceId: string, name: string) =>
+  native.updateWorkspace(workspaceId, name);
+export const updateAuthWorkspaceIcon = (
+  workspaceId: string,
+  file: PickedWorkspaceIcon,
+) =>
+  native.updateWorkspaceIcon(
+    workspaceId,
+    file.uri,
+    file.name,
+    file.type,
+    file.size,
+  );
 export type SessionPreviewReply = {
   url?: string;
   error?: string;
@@ -463,11 +490,15 @@ export const searchInbox = (
   workspaceId: string,
   query: string,
 ) => native.searchInbox(userId, workspaceId, query);
-export const writeLocalValue = (key: string, value: string) =>
-  native.writeLocalValue(key, value);
-export const clearLocalValues = () => native.clearLocalValues();
-
-export const readLocalStartup = () => native.readLocalStartup();
+export const writeLocalValue = (
+  key: string,
+  value: string,
+  generation?: number,
+) =>
+  generation === undefined
+    ? native.writeLocalValue(key, value)
+    : native.writeLocalValue(key, value, generation);
+export const localStoreGeneration = () => native.localStoreGeneration();
 
 export const localProjects = (payload: string) => native.localProjects(payload);
 

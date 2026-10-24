@@ -15,8 +15,8 @@ struct LodyRuntimeInfo {
 @ExpoModule("LodyKit")
 public final class LodyKitModule: Module, @unchecked Sendable {
   private let localStore = LocalStore.shared
-  private var authBrowser: SFSafariViewController?
   private let preferenceObservers = NotificationObservers()
+  private let authObservers = NotificationObservers()
 
   private static func previewURL(_ address: String) -> URL? {
     guard let url = URL(string: address), url.scheme == "https", url.user == nil, url.password == nil,
@@ -69,6 +69,15 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   func resetQuickReplies() { LodyPreferences.resetQuickReplies() }
 
   @JS
+  func readAuthState() -> String { AuthSession.published.json }
+
+  @JS
+  func readAuthInitialCatalog() -> String { AuthSession.published.initialCatalog }
+
+  @JS
+  func localStoreGeneration() -> Int { localStore.generation }
+
+  @JS
   var runtimeInfo: LodyRuntimeInfo {
     let offlineProbe = LodyUIVerify.offline
     let uiVerifyHome = LodyUIVerify.home
@@ -89,6 +98,15 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       LiveActivities.shared.syncAppIcon()
       PushNotifications.shared.onClickAvailable = { [weak self] in self?.sendEvent("onPushClick", [:]) }
     }
+    Task { @MainActor [weak self] in
+      let auth = AuthSession.shared
+      auth.presenter = { self?.appContext?.utilities?.currentViewController() }
+      auth.stopRuntime = { self?.dataRuntime.stop() }
+      auth.start()
+    }
+    authObservers.add(NotificationCenter.default.addObserver(forName: .lodyAuthDidChange, object: nil, queue: .main) { [weak self] _ in
+      self?.sendEvent("onAuthChange", ["json": AuthSession.published.json])
+    })
     for name in [Notification.Name.lodyAppearanceDidChange, .lodyPreferencesDidChange] {
       preferenceObservers.add(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
         self?.sendEvent("onPreferencesChange", ["json": LodyPreferences.json])
@@ -195,7 +213,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("sessionSharing") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.sessionSharing(payload, promise: promise) }
     }.runOnQueue(.main)
-    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onPreferencesChange")
+    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onPreferencesChange", "onAuthChange")
     AsyncFunction("watchCatalog") { (workspace: String, slug: String, name: String, owner: String, userId: String) in
       try MainActor.assumeIsolated {
         guard !workspace.isEmpty, !owner.isEmpty, !userId.isEmpty else {
@@ -238,34 +256,52 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("debugRestartDataRuntime") {
       MainActor.assumeIsolated { self.dataRuntime.debugRestart() }
     }.runOnQueue(.main)
-    AsyncFunction("readLocalStartup") { try self.localStore.startup() }.runOnQueue(LocalStore.queue)
     AsyncFunction("readLocalValue") { (key: String) in try self.localStore.read(key) }.runOnQueue(LocalStore.queue)
     AsyncFunction("searchInbox") { (userId: String, workspaceId: String, query: String) in
       try self.localStore.searchInbox(userID: userId, workspaceID: workspaceId, query: query)
     }.runOnQueue(LocalStore.queue)
-    AsyncFunction("writeLocalValue") { (key: String, value: String) in try self.localStore.write(key, value) }.runOnQueue(LocalStore.queue)
-    AsyncFunction("readAuthToken") { try AuthKeychain.read() }.runOnQueue(.main)
-    AsyncFunction("saveAuthToken") { (token: String) in try AuthKeychain.save(token) }.runOnQueue(.main)
-    AsyncFunction("clearAuthToken") {
-      try MainActor.assumeIsolated {
-        self.dataRuntime.stop()
-        PushNotifications.shared.identify(nil)
-        LiveActivities.shared.endAll()
-        try AuthKeychain.clear()
+    AsyncFunction("writeLocalValue") { (key: String, value: String, generation: Int?) in
+      try self.localStore.write(key, value, generation: generation)
+    }.runOnQueue(LocalStore.queue)
+    AsyncFunction("restoreAuth") { (promise: Promise) in
+      Task { @MainActor in
+        await AuthSession.shared.restore()
+        promise.resolve(nil)
       }
-    }.runOnQueue(.main)
-    AsyncFunction("openAuthBrowser") { (address: String) in
-      try MainActor.assumeIsolated {
-        guard let url = URL(string: address), url.scheme == "https", url.host == "lody.ai",
-              url.user == nil, url.password == nil,
-              let controller = self.appContext?.utilities?.currentViewController() else {
-          throw NSError(domain: "LodyKit.AuthBrowser", code: 1)
-        }
-        let browser = SFSafariViewController(url: url)
-        self.authBrowser = browser
-        controller.present(browser, animated: true)
+    }
+    AsyncFunction("login") { (promise: Promise) in
+      Task { @MainActor in
+        do { try await AuthSession.shared.login(); promise.resolve(nil) }
+        catch { promise.reject("ERR_AUTH", error.localizedDescription) }
       }
+    }
+    AsyncFunction("cancelLogin") {
+      MainActor.assumeIsolated { AuthSession.shared.cancel() }
     }.runOnQueue(.main)
+    AsyncFunction("logout") { (promise: Promise) in
+      Task { @MainActor in
+        await AuthSession.shared.logout()
+        promise.resolve(nil)
+      }
+    }
+    AsyncFunction("reopenAuthBrowser") {
+      MainActor.assumeIsolated { AuthSession.shared.reopen() }
+    }.runOnQueue(.main)
+    AsyncFunction("updateWorkspace") { (workspaceId: String, name: String, promise: Promise) in
+      Task { @MainActor in
+        do { try await AuthSession.shared.updateWorkspace(id: workspaceId, name: name); promise.resolve(nil) }
+        catch { promise.reject("ERR_WORKSPACE", error.localizedDescription) }
+      }
+    }
+    AsyncFunction("updateWorkspaceIcon") { (workspaceId: String, uri: String, name: String, type: String, size: Int, promise: Promise) in
+      Task { @MainActor in
+        do {
+          guard let url = URL(string: uri) else { throw AuthFailure.text("workspace.edit.iconUploadFailed") }
+          let file = WorkspaceIconFile(url: url, name: name, type: type, size: size)
+          promise.resolve(try await AuthSession.shared.updateWorkspaceIcon(id: workspaceId, file: file))
+        } catch { promise.reject("ERR_WORKSPACE", error.localizedDescription) }
+      }
+    }
     AsyncFunction("sessionPreview") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.sessionPreview(payload, promise: promise) }
     }.runOnQueue(.main)
@@ -279,12 +315,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
           throw NSError(domain: "LodyKit.PreviewBrowser", code: 1)
         }
         controller.present(SFSafariViewController(url: url), animated: true)
-      }
-    }.runOnQueue(.main)
-    AsyncFunction("closeAuthBrowser") {
-      MainActor.assumeIsolated {
-        self.authBrowser?.dismiss(animated: true)
-        self.authBrowser = nil
       }
     }.runOnQueue(.main)
     AsyncFunction("showAccentColorPicker") { (title: String, promise: Promise) in
@@ -614,17 +644,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     Function("sharePending") { () -> String in CreateJSON.encode(ShareStore.pending()) }
     Function("shareAdopt") { (id: String) throws -> String in CreateJSON.encode(try ShareStore.adopt(id)) }
     Function("shareRemove") { (id: String) in ShareStore.remove(id) }
-    AsyncFunction("clearLocalValues") { (promise: Promise) in
-      MainActor.assumeIsolated {
-        // Stop producers before clearing their queued writes, including background Sessions.
-        self.dataRuntime.stop()
-        ShareStore.clear()
-        LocalStore.queue.async {
-          do { try self.localStore.clear(); promise.resolve(nil) }
-          catch { promise.reject(error) }
-        }
-      }
-    }.runOnQueue(.main)
     AsyncFunction("decodeFlock") { (snapshot: String, updates: [String], mode: String, promise: Promise) in
       MainActor.assumeIsolated {
         guard snapshot.utf8.count + updates.reduce(0, { $0 + $1.utf8.count }) <= 12 * 1024 * 1024 else {

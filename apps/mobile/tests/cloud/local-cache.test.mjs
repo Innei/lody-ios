@@ -3,19 +3,15 @@ import test from 'node:test';
 import { build } from 'esbuild';
 import { catalogKey } from '../../src/cloud/catalog/persist.ts';
 
-test('logout drains in-flight persistence and cancels queued old-account writes', async () => {
+test('writes carry the generation they were issued under so native drops old-account writes', async () => {
   const db = new Map();
-  let release;
+  let generation = 0;
   globalThis.__localTestKit = {
     readLocalValue: async (key) => db.get(key) ?? null,
-    writeLocalValue: async (key, value) => {
-      if (key === 'in-flight')
-        await new Promise((resolve) => {
-          release = resolve;
-        });
-      db.set(key, value);
+    writeLocalValue: async (key, value, expected) => {
+      if (expected === generation) db.set(key, value);
     },
-    clearLocalValues: async () => db.clear(),
+    localStoreGeneration: () => generation,
   };
   const bundle = await build({
     entryPoints: ['apps/mobile/src/cloud/kv.ts'],
@@ -32,7 +28,7 @@ test('logout drains in-flight persistence and cancels queued old-account writes'
           }));
           build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
             contents:
-              'export const {readLocalValue, writeLocalValue, clearLocalValues} = globalThis.__localTestKit;',
+              'export const {readLocalValue, writeLocalValue, localStoreGeneration} = globalThis.__localTestKit;',
           }));
         },
       },
@@ -42,13 +38,9 @@ test('logout drains in-flight persistence and cancels queued old-account writes'
     `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
   );
   const oldGeneration = store.localGeneration();
-  const first = store.writeLocal('in-flight', 'old');
-  await Promise.resolve();
-  const queued = store.writeLocal('queued', 'old');
-  const clear = store.clearLocal();
-  const nextAccount = store.writeLocal('account', 'new');
-  release();
-  await Promise.all([first, queued, clear, nextAccount]);
+  db.clear();
+  generation++;
+  await store.writeLocal('account', 'new');
   await store.writeLocal('late-event', 'old', oldGeneration);
   assert.deepEqual([...db.keys()], ['account']);
   assert.equal(await store.readLocal('account'), 'new');

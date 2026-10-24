@@ -8,7 +8,6 @@ type Phase = 'idle' | 'waiting' | 'error' | 'signedIn';
 
 const noop = async () => {};
 const account = {
-  token: '',
   user: { id: 'ui-onboarding', name: 'UI Preview', email: '' },
   workspaces: [],
 };
@@ -33,7 +32,6 @@ function View() {
         code:
           phase === 'waiting'
             ? {
-                device_code: 'ui',
                 user_code: 'WXYZ-1234',
                 verification_uri_complete: '',
                 expires_in: 600,

@@ -13,7 +13,7 @@ test('offline fixtures opt in from EXPO_PUBLIC_UI_VERIFY without __DEV__', () =>
   );
 
   for (const file of [
-    '../../src/cloud/auth/AuthProvider.tsx',
+    '../../src/cloud/auth/AuthProvider.ts',
     '../../src/features/community/notice.ts',
     '../../src/features/notifications/PushCoordinator.tsx',
     '../../src/screens/debug/HomePreviewScreen.tsx',

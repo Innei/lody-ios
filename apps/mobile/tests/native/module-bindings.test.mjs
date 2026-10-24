@@ -26,16 +26,19 @@ test('LodyKit keeps asynchronous native calls on the queued module DSL', () => {
     'openFile',
     'debugHangDataRuntime',
     'debugRestartDataRuntime',
-    'readLocalStartup',
     'readLocalValue',
     'writeLocalValue',
-    'readAuthToken',
-    'saveAuthToken',
-    'clearAuthToken',
-    'openAuthBrowser',
-    'closeAuthBrowser',
+    'restoreAuth',
+    'login',
+    'cancelLogin',
+    'logout',
+    'reopenAuthBrowser',
+    'updateWorkspace',
+    'updateWorkspaceIcon',
     'selectionFeedback',
   ]) {
     assert.match(moduleSource, new RegExp(`AsyncFunction\\("${name}"\\)`));
   }
+  for (const name of ['readAuthToken', 'saveAuthToken', 'clearAuthToken'])
+    assert.doesNotMatch(moduleSource, new RegExp(`"${name}"`));
 });

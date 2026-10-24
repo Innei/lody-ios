@@ -6,7 +6,6 @@ export type Workspace = {
   image?: string;
 };
 export type DeviceCode = {
-  device_code: string;
   user_code: string;
   verification_uri_complete: string;
   expires_in: number;

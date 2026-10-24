@@ -5,6 +5,7 @@ import { build } from 'esbuild';
 test('session history restores before network, survives reconnect, and yields to fresh history', async () => {
   const db = new Map();
   let listener, cleanup, restore, states, finishPreparation;
+  let localVersion = 0;
   globalThis.__sessionCacheTest = {
     useState(value) {
       if (typeof value === 'function') value = value();
@@ -38,14 +39,13 @@ test('session history restores before network, survives reconnect, and yields to
     writeLocalValue: async () => {
       assert.fail('page must not persist runtime snapshots');
     },
-    clearLocalValues: async () => db.clear(),
+    localStoreGeneration: () => localVersion,
     showToast() {},
   };
   const bundle = await build({
     stdin: {
       contents: `export { useSessionRuntime } from './apps/mobile/src/features/sessions/useSessionRuntime.ts';
-        export { prepareSessionHistory } from './apps/mobile/src/features/sessions/prepareSessionHistory.ts';
-        export { clearLocal } from './apps/mobile/src/cloud/kv.ts';`,
+        export { prepareSessionHistory } from './apps/mobile/src/features/sessions/prepareSessionHistory.ts';`,
       resolveDir: process.cwd(),
     },
     bundle: true,
@@ -61,13 +61,13 @@ test('session history restores before network, survives reconnect, and yields to
           }));
           build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
             contents:
-              'export const {useState,useRef,useEffect,addDataRuntimeListener,watchSession,unwatchSession,prepareChatEntries,readLocalValue,writeLocalValue,clearLocalValues,showToast} = globalThis.__sessionCacheTest;',
+              'export const {useState,useRef,useEffect,addDataRuntimeListener,watchSession,unwatchSession,prepareChatEntries,readLocalValue,writeLocalValue,localStoreGeneration,showToast} = globalThis.__sessionCacheTest;',
           }));
         },
       },
     ],
   });
-  const { useSessionRuntime, prepareSessionHistory, clearLocal } = await import(
+  const { useSessionRuntime, prepareSessionHistory } = await import(
     `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
   );
   const mount = (user = 'a', workspace = 'w', initial) => {
@@ -218,7 +218,8 @@ test('session history restores before network, survives reconnect, and yields to
   const clearing = prepareSessionHistory('a', 'w', 's');
   restore();
   await tick();
-  await clearLocal();
+  db.clear();
+  localVersion++;
   finishPreparation();
   assert.equal(
     await clearing,

@@ -49,11 +49,16 @@ export {
 } from './chrome/scrollEdges';
 
 export {
-  readAuthToken,
-  saveAuthToken,
-  clearAuthToken,
-  openAuthBrowser,
-  closeAuthBrowser,
+  readAuthStateRaw,
+  readAuthInitialCatalogRaw,
+  addAuthListener,
+  restoreAuth,
+  loginAuth,
+  cancelAuth,
+  logoutAuth,
+  reopenAuthBrowser,
+  updateAuthWorkspace,
+  updateAuthWorkspaceIcon,
   sessionPreview,
   iosSimulatorControl,
   openPreviewBrowser,
@@ -175,10 +180,8 @@ export {
   searchInbox,
   type InboxSearchHits,
   writeLocalValue,
-  clearLocalValues,
+  localStoreGeneration,
 } from './runtime/LodyKit';
-
-export { readLocalStartup } from './runtime/LodyKit';
 
 export {
   NativeMenuButton,

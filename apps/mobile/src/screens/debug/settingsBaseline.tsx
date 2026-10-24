@@ -98,7 +98,6 @@ export function SettingsBaselineProviders({ children }: PropsWithChildren) {
     let account: typeof auth.account = null;
     if (signedIn) {
       account = {
-        token: '',
         user: {
           id: current.userId ?? 'settings-baseline-user',
           name: 'Settings Preview',

@@ -7,6 +7,10 @@ final class LocalStore: @unchecked Sendable {
   static let shared = LocalStore()
   private var db: OpaquePointer?
   private let url: URL
+  private let generationLock = NSLock()
+  private var currentGeneration = 0
+
+  var generation: Int { generationLock.withLock { currentGeneration } }
 
   init(url: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Lody/catalog.sqlite")) {
     self.url = url
@@ -61,6 +65,11 @@ final class LocalStore: @unchecked Sendable {
       try execute("INSERT INTO cache VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [key, value])
       try indexSession(key, value)
     }
+  }
+
+  func write(_ key: String, _ value: String, generation expected: Int?) throws {
+    guard expected.map({ $0 == generation }) ?? true else { return }
+    try write(key, value)
   }
 
   private func transaction(_ body: () throws -> Void) throws {
@@ -157,6 +166,7 @@ final class LocalStore: @unchecked Sendable {
     return ["account": account, "workspace": workspace, "catalog": try read("catalog:\(id):\(workspace)") ?? "null"]
   }
   func clear() throws {
+    generationLock.withLock { currentGeneration += 1 }
     try open()
     try transaction {
       try execute("DELETE FROM cache")

@@ -79,7 +79,19 @@ let cleared = try reopened.startup()
 assert(cleared.isEmpty)
 let clearedSession = try reopened.read(#"session:["a","second","会话/1"]"#)
 assert(clearedSession == nil)
-print("PASS: durable reopen, selected workspace, account isolation, removed selection and logout")
+let issued = reopened.generation
+try reopened.write("fenced", "current", generation: issued)
+try reopened.clear()
+try reopened.write("fenced", "old account", generation: issued)
+try reopened.write("unfenced", "next account", generation: nil)
+let droppedWrite = try reopened.read("fenced")
+let unfencedWrite = try reopened.read("unfenced")
+assert(droppedWrite == nil && unfencedWrite == "next account")
+try reopened.write("fenced", "next account", generation: reopened.generation)
+let currentWrite = try reopened.read("fenced")
+assert(currentWrite == "next account")
+try reopened.clear()
+print("PASS: durable reopen, selected workspace, account isolation, removed selection, logout and generation fence")
 
 func envelope(_ text: String) -> String {
   let object: [String: Any] = ["v": 1, "entries": [["id": "entry", "role": "assistant", "items": [

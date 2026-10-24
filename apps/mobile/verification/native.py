@@ -37,6 +37,7 @@ checks = {
     'diagnostics': ['Diagnostics/DiagnosticsStore.swift'],
     'file-link': ['Chat/ChatFileLink.swift'],
     'strings': ['LodyStrings.swift'],
+    'auth': ['LodyStrings.swift', 'Auth/AuthAPI.swift'],
     'chat': ['LodyStrings.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatMessageShare.swift', 'Chat/ChatStream.swift', 'Chat/ChatHaptics.swift', 'Chat/ChatImagePreviewGeometry.swift', 'Chat/ChatImageGallery.swift'],
     'markdown-repair': ['Chat/ChatMarkdownRepair.swift'],
     'watchdog': [],
@@ -172,7 +173,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
                 *map(str, sources), '-o', str(Path(output) / 'libAnchoredOverlayKit.a'),
             ], check=True, timeout=120)
             command += ['-I', output, '-L', output, '-lAnchoredOverlayKit']
-        if name in ['attachments', 'github-mentions', 'github-pr', 'session-sharing', 'settings']:
+        if name in ['attachments', 'auth', 'github-mentions', 'github-pr', 'session-sharing', 'settings']:
             command += ['-parse-as-library']
         if name == 'inline-diff':
             command += ['-framework', 'UIKit']

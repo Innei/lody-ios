@@ -12,6 +12,8 @@ const INFO_KEYS = {
 // The native creation form reuses these keys instead of native.* copies.
 const NATIVE_PREFIXES = [
   'native.',
+  'auth.error.',
+  'auth.toast.',
   'common.',
   'create.',
   'devices.',
@@ -24,6 +26,9 @@ const NATIVE_PREFIXES = [
   'message.details.title',
   'send.status.awaitingConnection',
   'settings.quickReplies.defaults.',
+  'workspace.edit.signedOut',
+  'workspace.edit.invalidIcon',
+  'workspace.edit.iconUploadFailed',
 ];
 const isNativeKey = (key) =>
   NATIVE_PREFIXES.some((prefix) => key.startsWith(prefix));

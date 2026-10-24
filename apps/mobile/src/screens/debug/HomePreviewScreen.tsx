@@ -229,7 +229,6 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
     <AuthContext
       value={{
         account: {
-          token: '',
           user: {
             id: 'ui-home',
             name: 'UI Preview',
