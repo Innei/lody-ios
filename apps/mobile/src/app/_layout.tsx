@@ -13,9 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Dimensions, StyleSheet, useColorScheme } from 'react-native';
 import { nativePresentationOptions } from '@/lib/presentation';
 import { navigationThemes, usePalette } from '@/lib/theme/palette';
-import { AppearanceProvider, useAppearance } from '@/lib/theme/appearance';
-import { QueuedMessageBehaviorProvider } from '@/features/settings/queued-message-behavior';
-import { QuickRepliesProvider } from '@/features/settings/quick-replies';
+import { useAppearance } from '@/lib/theme/appearance';
 import { softDarkBackground } from '@/lib/theme/tokens';
 import { NativeLayoutProbe, navigationScrollEdgeEffects } from '@lody-ios/kit';
 import { useBindSessionNav } from '@/hooks/screens/useBindSessionNav';
@@ -34,18 +32,6 @@ const initialWindow = Dimensions.get('window');
 setLayoutTraits(guessLayoutTraits(initialWindow.width, initialWindow.height));
 
 export default function RootLayout() {
-  return (
-    <AppearanceProvider>
-      <QueuedMessageBehaviorProvider>
-        <QuickRepliesProvider>
-          <Root />
-        </QuickRepliesProvider>
-      </QueuedMessageBehaviorProvider>
-    </AppearanceProvider>
-  );
-}
-
-function Root() {
   const colorScheme = useColorScheme();
   const { darkBackground } = useAppearance();
   const colors = usePalette();

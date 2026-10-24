@@ -16,6 +16,7 @@ struct LodyRuntimeInfo {
 public final class LodyKitModule: Module, @unchecked Sendable {
   private let localStore = LocalStore.shared
   private var authBrowser: SFSafariViewController?
+  private let preferenceObservers = NotificationObservers()
 
   private static func previewURL(_ address: String) -> URL? {
     guard let url = URL(string: address), url.scheme == "https", url.user == nil, url.password == nil,
@@ -45,9 +46,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   @JS
-  var initialAccentColor: String { LodyAccentChoice.current.rawValue }
-
-  @JS
   func saveAccentColor(value: String) { LodyAccentChoice.save(value) }
 
   @JS
@@ -59,25 +57,16 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   @JS
-  var initialDarkBackground: String { LodyDarkBackground.current.rawValue }
-
-  @JS
   var initialLocale: String { Bundle.main.preferredLocalizations.first ?? "en" }
 
   @JS
-  var initialQueuedMessageBehavior: String {
-    UserDefaults.standard.string(forKey: "queuedMessageBehavior") == "guide" ? "guide" : "queue"
-  }
+  func readPreferences() -> String { LodyPreferences.json }
 
   @JS
-  var initialQuickRepliesJSON: String {
-    UserDefaults.standard.string(forKey: "quickReplies") ?? ""
-  }
+  func saveQuickReplies(json: String) -> Bool { LodyPreferences.saveQuickReplies(json: json) }
 
   @JS
-  func saveQuickReplies(json: String) {
-    UserDefaults.standard.set(json, forKey: "quickReplies")
-  }
+  func resetQuickReplies() { LodyPreferences.resetQuickReplies() }
 
   @JS
   var runtimeInfo: LodyRuntimeInfo {
@@ -99,6 +88,11 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       lodyApplyWindowAccent()
       LiveActivities.shared.syncAppIcon()
       PushNotifications.shared.onClickAvailable = { [weak self] in self?.sendEvent("onPushClick", [:]) }
+    }
+    for name in [Notification.Name.lodyAppearanceDidChange, .lodyPreferencesDidChange] {
+      preferenceObservers.add(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+        self?.sendEvent("onPreferencesChange", ["json": LodyPreferences.json])
+      })
     }
     ContentPreview.clearAll()
     if LodyUIVerify.offline {
@@ -167,9 +161,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   @JS
-  func saveQueuedMessageBehavior(value: String) {
-    UserDefaults.standard.set(value == "guide" ? "guide" : "queue", forKey: "queuedMessageBehavior")
-  }
+  func saveQueuedMessageBehavior(value: String) { LodyPreferences.saveQueuedMessageBehavior(value) }
 
   @JS
   func readInboxExpansion() -> [String: Bool] {
@@ -203,7 +195,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("sessionSharing") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.sessionSharing(payload, promise: promise) }
     }.runOnQueue(.main)
-    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onAccentColorChange")
+    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onPreferencesChange")
     AsyncFunction("watchCatalog") { (workspace: String, slug: String, name: String, owner: String, userId: String) in
       try MainActor.assumeIsolated {
         guard !workspace.isEmpty, !owner.isEmpty, !userId.isEmpty else {
@@ -300,9 +292,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         guard let controller = self.appContext?.utilities?.currentViewController() else {
           promise.reject("ERR_COLOR_PICKER", "No presenting controller")
           return
-        }
-        self.accentPicker.onChange = { [weak self] value in
-          self?.sendEvent("onAccentColorChange", ["value": value])
         }
         self.accentPicker.present(from: controller, title: title)
         promise.resolve(nil)

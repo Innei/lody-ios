@@ -45,7 +45,7 @@ export type PickedWorkspaceIcon = {
   size: number;
 };
 type Events = {
-  onAccentColorChange: (event: { value: string }) => void;
+  onPreferencesChange: (event: { json: string }) => void;
   onAttachmentUploadProgress: (event: AttachmentUploadProgress) => void;
   onPushClick: () => void;
   onAppActive: () => void;
@@ -90,20 +90,18 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   saveInboxView(index: number): void;
   readonly initialInboxProjectSort: number;
   saveInboxProjectSort(index: number): void;
-  readonly initialAccentColor: string;
   saveAccentColor(value: string): void;
   accentHex(value: string, dark: boolean): string;
   accentForegroundHex(value: string): string;
   showAccentColorPicker(title: string): Promise<void>;
   getAppIcon(): Promise<string>;
   setAppIcon(name: string): Promise<string>;
-  readonly initialDarkBackground: string;
   readonly initialLocale: string;
   saveDarkBackground(value: string): void;
-  readonly initialQueuedMessageBehavior: string;
+  readPreferences(): string;
   saveQueuedMessageBehavior(value: string): void;
-  readonly initialQuickRepliesJSON: string;
-  saveQuickReplies(json: string): void;
+  saveQuickReplies(json: string): boolean;
+  resetQuickReplies(): void;
   readInboxExpansion(): Record<string, boolean>;
   saveInboxExpansion(projectId: string, expanded: boolean): void;
   readInboxPinOrder(userId: string, workspaceId: string): string[];
@@ -208,7 +206,6 @@ export const agentRolesRaw = (payload: string): Promise<string> =>
 export const sessionSharingRaw = (payload: string): Promise<string> =>
   native.sessionSharing(payload);
 export const runtimeInfo = native.runtimeInfo;
-export const initialAccentColor = native.initialAccentColor;
 export const saveAccentColor = (value: string) => native.saveAccentColor(value);
 export const accentForegroundHex = (value: string) =>
   native.accentForegroundHex(value);
@@ -216,20 +213,19 @@ export const accentHex = (value: string, dark: boolean) =>
   native.accentHex(value, dark);
 export const showAccentColorPicker = (title: string) =>
   native.showAccentColorPicker(title);
-export const addAccentColorListener = (
-  listener: (event: { value: string }) => void,
-) => native.addListener('onAccentColorChange', listener);
+export const readPreferencesRaw = () => native.readPreferences();
+export const addPreferencesListener = (
+  listener: (event: { json: string }) => void,
+) => native.addListener('onPreferencesChange', listener);
 export const getAppIcon = () => native.getAppIcon();
 export const setAppIcon = (name: string) => native.setAppIcon(name);
-export const initialDarkBackground = native.initialDarkBackground;
 export const initialLocale = native.initialLocale;
 export const saveDarkBackground = (value: string) =>
   native.saveDarkBackground(value);
-export const initialQueuedMessageBehavior = native.initialQueuedMessageBehavior;
 export const saveQueuedMessageBehavior = (value: string) =>
   native.saveQueuedMessageBehavior(value);
-export const initialQuickRepliesJSON = native.initialQuickRepliesJSON;
 export const saveQuickReplies = (json: string) => native.saveQuickReplies(json);
+export const resetQuickReplies = () => native.resetQuickReplies();
 export function selectionFeedback(): Promise<void> {
   return native.selectionFeedback();
 }

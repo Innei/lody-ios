@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
-import { NativeChat } from '@lody-ios/kit';
+import { NativeChat, resetQuickReplies } from '@lody-ios/kit';
 import { usePendingSends } from '@/cloud/send/pendingSends';
 import { useSessionSend } from '@/features/sessions/useSessionSend';
-import {
-  defaultQuickReplies,
-  useQuickReplies,
-} from '@/features/settings/quick-replies';
+import { useQuickReplies } from '@/features/settings/quick-replies';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { usePalette } from '@/lib/theme/palette';
@@ -87,7 +84,7 @@ type Params = { simulator: boolean } | undefined;
 function ViewContent() {
   const colors = usePalette();
   const { present, params } = usePageRuntime<Params>();
-  const { quickReplies, setQuickReplies } = useQuickReplies();
+  const { quickReplies } = useQuickReplies();
   const outbox = usePendingSends('quick-reply-preview', 'fixture');
   const record = outbox.records.find((item) => item.session.id === session.id);
   const [snapshot, setSnapshot] = useState(history);
@@ -224,7 +221,7 @@ function ViewContent() {
             completion.current?.(JSON.stringify({ state: 'unknown' }));
             completion.current = null;
             await outbox.remove(session.id);
-            setQuickReplies(defaultQuickReplies());
+            resetQuickReplies();
             setSnapshot(history);
             setRunning(false);
             setPreview(0);

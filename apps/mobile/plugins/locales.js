@@ -23,6 +23,7 @@ const NATIVE_PREFIXES = [
   'inbox.section.chat',
   'message.details.title',
   'send.status.awaitingConnection',
+  'settings.quickReplies.defaults.',
 ];
 const isNativeKey = (key) =>
   NATIVE_PREFIXES.some((prefix) => key.startsWith(prefix));
