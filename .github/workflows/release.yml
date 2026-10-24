@@ -7,10 +7,6 @@ on:
         required: false
         type: string
         default: ''
-      runtime_fingerprint:
-        required: false
-        type: string
-        default: ''
   workflow_dispatch:
     inputs:
       notes:
@@ -24,7 +20,6 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write
 
 env:
   MOBILE_DIR: apps/mobile
@@ -43,7 +38,6 @@ jobs:
     outputs:
       build_number: ${{ steps.build.outputs.build_number }}
       marketing_version: ${{ steps.build.outputs.marketing_version }}
-      fingerprint: ${{ steps.fp.outputs.hash }}
       source_short: ${{ steps.meta.outputs.source_short }}
     steps:
       - uses: actions/checkout@v6
@@ -82,26 +76,6 @@ jobs:
       - name: Generate native runtime assets
         working-directory: ${{ env.MOBILE_DIR }}
         run: pnpm native:assets
-
-      - name: Compute and verify fingerprint
-        id: fp
-        working-directory: ${{ env.MOBILE_DIR }}
-        env:
-          EXPECTED: ${{ inputs.runtime_fingerprint }}
-        run: |
-          set -euo pipefail
-          hash="$(../../node_modules/.bin/fingerprint fingerprint:generate --platform ios | jq -r .hash)"
-          if [[ ! "$hash" =~ ^[a-zA-Z0-9]{16,}$ ]]; then
-            echo "::error::Could not compute iOS fingerprint."
-            exit 1
-          fi
-          if [ -n "$EXPECTED" ] && [ "$hash" != "$EXPECTED" ]; then
-            echo "::error::Ship fingerprint $EXPECTED does not match archive fingerprint $hash."
-            exit 1
-          fi
-          echo "hash=$hash" >> "$GITHUB_OUTPUT"
-          echo "EXPO_UPDATES_FINGERPRINT_OVERRIDE=$hash" >> "$GITHUB_ENV"
-          echo "iOS runtime fingerprint $hash"
 
       - name: Prepare App Store Connect authentication
         env:
@@ -303,18 +277,7 @@ jobs:
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = "$LODY_BUNDLE_ID"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = "$BUILD_NUMBER"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")" = "$MARKETING_VERSION"
-
-          runtime_config="$(/usr/libexec/PlistBuddy -c 'Print :EXUpdatesRuntimeVersion' "$APP/Expo.plist")"
-          if [ "$runtime_config" = 'file:fingerprint' ]; then
-            runtime_version="$(tr -d '\r\n' < "$APP/EXUpdates.bundle/fingerprint")"
-          else
-            runtime_version="$runtime_config"
-          fi
-          if [ "$runtime_version" != "$EXPO_UPDATES_FINGERPRINT_OVERRIDE" ]; then
-            echo "::error::Archive runtime $runtime_version does not match fingerprint $EXPO_UPDATES_FINGERPRINT_OVERRIDE."
-            exit 1
-          fi
-          echo "Archived $LODY_BUNDLE_ID $MARKETING_VERSION ($BUILD_NUMBER) runtime $runtime_version"
+          echo "Archived $LODY_BUNDLE_ID $MARKETING_VERSION ($BUILD_NUMBER)"
 
       - name: Export IPA
         run: |
@@ -388,16 +351,6 @@ jobs:
             --app "$LODY_BUNDLE_ID" \
             --latest \
             --group "${{ vars.TESTFLIGHT_GROUP }}"
-
-      - name: Record fingerprint baseline
-        run: |
-          printf '%s' "$EXPO_UPDATES_FINGERPRINT_OVERRIDE" > "$RUNNER_TEMP/fingerprint"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ios-fingerprint
-          path: ${{ runner.temp }}/fingerprint
-          retention-days: 90
 
       - name: Clean up signing assets
         if: always()

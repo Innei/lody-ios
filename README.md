@@ -262,7 +262,7 @@ The runner captures screenshots for visual states and video for temporal behavio
 
 ### Releases
 
-Pushing to `main` runs `.github/workflows/ship.yml`. A push always archives a TestFlight build through `.github/workflows/release.yml`; a manual dispatch publishes an OTA update to the configured `expo-updates` server when the Expo fingerprint matches the published baseline, and falls back to TestFlight when it changes. Native runtime assets are regenerated before either route. Join the beta at <https://testflight.apple.com/join/1rR6Ku8f>.
+Pushing to `main` or dispatching `.github/workflows/ship.yml` archives a TestFlight build through `.github/workflows/release.yml`, after regenerating native runtime assets. The app has no OTA updates. Join the beta at <https://testflight.apple.com/join/1rR6Ku8f>.
 
 ---
 

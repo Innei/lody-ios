@@ -457,7 +457,7 @@ as well; the color check alone does not establish visual correctness.
 
 `.github/workflows/verify.yml` runs Checks, Native behavior, one signed
 Release Simulator build of the fixture app (`EXPO_PUBLIC_UI_VERIFY=1`, Hermes
-embedded, expo-updates off), and two parallel Offline iOS UI jobs on PRs and
+embedded), and two parallel Offline iOS UI jobs on PRs and
 pushes to main. Those jobs install the same `.app` and run `--embedded` with
 `--suite core-home` (`onboarding`, `inbox`, `navigation`) or `--suite core-send`
 (`send`, `send-handoff`, `composer-success`). Light appearance only, first
