@@ -97,7 +97,9 @@ export function editableUserTurn(
   return turn;
 }
 
-export function editAttachments(turn: RecordValue): RecordValue[] {
+export function editAttachments(
+  turn: RecordValue,
+): (RecordValue & { type: 'image' | 'file'; editId: string })[] {
   return (turn.items ?? [])
     .flatMap((item: RecordValue) => {
       if (item.type === 'image_group') return item.images ?? [];

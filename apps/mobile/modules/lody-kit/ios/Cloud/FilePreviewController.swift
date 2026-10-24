@@ -18,7 +18,7 @@ enum FilePreview {
       try Task.checkCancellation()
       return response
     }
-    return try await runtime.command("readFile", payload: payload)
+    return try await runtime.readFile(payload)
   }
 
   static func presentsQuickLook(_ path: String) -> Bool {

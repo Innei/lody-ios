@@ -24,6 +24,10 @@ public enum RuntimeDocument {
     view.loadHTMLString(try String(contentsOf: url, encoding: .utf8), baseURL: URL(string: "https://lody.ai"))
   }
 
+  public static func deliver(_ envelope: String, to view: WKWebView) {
+    view.callAsyncJavaScript("globalThis.dataRuntime.receive(envelope)", arguments: ["envelope": envelope], in: nil, in: .page, completionHandler: nil)
+  }
+
   public static func allows(_ action: WKNavigationAction) -> Bool {
     let url = action.request.url?.absoluteString
     return action.navigationType == .other && (url == "about:blank" || url == "https://lody.ai/")

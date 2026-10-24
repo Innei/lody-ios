@@ -31,9 +31,8 @@ final class SessionBackgroundTasks {
     return id
   }
 
-  func update(_ value: [String: Any], owner: String) {
-    guard let id = value["id"] as? String, work[id]?.owner == owner,
-          let state = value["state"] as? String else { return }
+  func update(id: String, state: String, owner: String) {
+    guard work[id]?.owner == owner else { return }
     switch state {
     case "completed", "waiting": finish(id, success: true)
     case "failed": finish(id, success: false)

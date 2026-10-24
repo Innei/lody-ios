@@ -6,6 +6,13 @@ import { identityAt, itemRev, projectSession } from './project';
 import type { SteerReceipt } from './execution';
 import { machineRpc, type RpcReply } from './machine-rpc';
 import { retrySessionRead } from './session-read';
+import type {
+  CheckTurnQuotaResult,
+  ControlTurnResult,
+  EditSessionResult,
+  SendTurnResult,
+  SessionRuntimeEvent,
+} from '../contract/methods.ts';
 import {
   editableUserTurn,
   editAttachments,
@@ -55,7 +62,7 @@ type SessionState = {
     turnId: string,
     queued?: boolean,
   ) => Promise<void>;
-  emit: (event: object) => void;
+  emit: (event: SessionRuntimeEvent) => void;
   liveWaiters?: Array<(error?: Error) => void>;
 };
 let active: SessionState | undefined;
@@ -97,7 +104,7 @@ function backgroundProgress(state: SessionState) {
   const status = backgroundStatus(state, reply);
   if (['completed', 'waiting', 'failed'].includes(status))
     state.backgroundWork = undefined;
-  return { id: work.id, state: status };
+  return { id: work.id, state: status } as const;
 }
 function flush(state: SessionState) {
   clearTimeout(state.pending);
@@ -271,7 +278,7 @@ export async function ensureSession(
   id: string,
   workspace: string,
   getGrant: () => Promise<Grant>,
-  emit: (event: object) => void,
+  emit: (event: SessionRuntimeEvent) => void,
   markDispatch: (
     sessionId: string,
     turnId: string,
@@ -315,7 +322,7 @@ export async function openSession(
   id: string,
   workspace: string,
   getGrant: () => Promise<Grant>,
-  emit: (event: object) => void,
+  emit: (event: SessionRuntimeEvent) => void,
   markDispatch: (
     sessionId: string,
     turnId: string,
@@ -493,7 +500,7 @@ export function appendUserTurn(
 export function checkTurnQuota(args: {
   sessionId: string;
   billingEntitlement?: BillingEntitlement | null;
-}) {
+}): CheckTurnQuotaResult {
   const state = sessions.get(args.sessionId);
   if (!state?.ready) return { state: 'allowed' };
   const reason = quotaReason(
@@ -512,23 +519,23 @@ export async function sendTurn(
     guide?: boolean;
     sessionId: string;
     machineId: string;
-    userId: string;
+    userId?: string;
     text: string;
     attachmentBlocks?: Record<string, any>[];
-    cliType: string;
-    agentType: string;
+    cliType?: string;
+    agentType?: string;
     resume?: string;
     modelId?: string | null;
     modeId?: string;
     reasoningEffort?: string | null;
     reasoningEffortConfigId?: string;
-    configOptionValues?: Record<string, string | boolean>;
+    configOptionValues?: Record<string, unknown>;
     billingEntitlement?: BillingEntitlement | null;
   },
   expand: (text: string) => Promise<string> = async (text) => text,
   selectMcp: (persisted: unknown) => Promise<string[]> = async (ids) =>
     Array.isArray(ids) ? ids : [],
-) {
+): Promise<SendTurnResult> {
   const state = sessions.get(args.sessionId);
   if (!state || !state.ready)
     return { state: 'not_sent', reason: 'session_not_ready' };
@@ -878,7 +885,7 @@ export async function sendTurn(
     throw new Error('ack_timeout');
   } catch (error) {
     // No automatic write replay: a lost HTTP ACK may still mean a durable write.
-    let delivery = 'not_sent';
+    let delivery: 'not_sent' | 'unknown' | 'uploaded' = 'not_sent';
     if (writeStarted) delivery = 'unknown';
     if (uploaded) delivery = 'uploaded';
     return {
@@ -899,7 +906,7 @@ export async function controlTurn(args: {
   turnId: string;
   messageId?: string;
   interrupt?: boolean;
-}) {
+}): Promise<ControlTurnResult> {
   const state = active;
   if (!state || state.id !== args.sessionId || !state.ready || state.sending)
     throw new Error('session_not_ready');
@@ -1088,7 +1095,7 @@ async function steerTurn(
   state: SessionState,
   machineId: string,
   params: Record<string, unknown>,
-) {
+): Promise<ControlTurnResult> {
   state.steerReceipts ??= new Map();
   const record = (delivery: SteerReceipt['state']) => {
     state.steerReceipts!.set(String(params.userTurnId), {
@@ -1167,7 +1174,7 @@ export async function editSession(
   },
   meta: Record<string, any>,
   capability?: Record<string, any>,
-) {
+): Promise<EditSessionResult> {
   const state = sessions.get(args.sessionId);
   if (!state?.ready || state.sending)
     return { state: 'not_sent', reason: 'session_not_ready' };
@@ -1346,7 +1353,7 @@ export async function respondPermission(args: {
   itemId: string;
   requestId: string;
   optionId: string;
-  answers?: import('../models/session.ts').QuestionAnswers;
+  answers?: unknown;
 }) {
   const state = active;
   if (!state || state.id !== args.sessionId || !state.ready)

@@ -1,0 +1,193 @@
+import { z } from 'zod/v4';
+
+export const Project = z
+  .object({
+    id: z.string().min(1),
+    machineId: z.string(),
+    name: z.string(),
+    rootPath: z.string(),
+    repoFullName: z.string().optional(),
+  })
+  .meta({ id: 'Project' });
+
+export const CapabilityChoice = z
+  .object({
+    id: z.string().min(1),
+    name: z.string(),
+    description: z.string().optional(),
+  })
+  .meta({ id: 'CapabilityChoice' });
+
+const configOption = {
+  id: z.string().min(1),
+  name: z.string(),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  options: z.array(CapabilityChoice),
+};
+
+export const ConfigOption = z
+  .discriminatedUnion('type', [
+    z.object({
+      ...configOption,
+      type: z.literal('select'),
+      currentValue: z.string().optional(),
+    }),
+    z.object({
+      ...configOption,
+      type: z.literal('boolean'),
+      currentValue: z.boolean().optional(),
+    }),
+  ])
+  .meta({ id: 'ConfigOption' });
+
+export const Capability = z
+  .object({
+    machineId: z.string(),
+    cliType: z.string(),
+    agentType: z.string(),
+    models: z.array(CapabilityChoice),
+    modes: z.array(CapabilityChoice),
+    legacyModes: z.array(CapabilityChoice).optional(),
+    reasoningEfforts: z.record(z.string(), z.array(z.string())),
+    reasoningEffortConfigId: z.string().optional(),
+    configOptions: z.array(ConfigOption).optional(),
+    steer: z.boolean(),
+  })
+  .meta({ id: 'Capability' });
+
+export const CreationOptionsParams = z
+  .object({
+    workspaceId: z.string().min(1),
+    projectId: z.string().optional(),
+  })
+  .meta({ id: 'CreationOptionsParams' });
+
+export const CreationOptions = z
+  .object({
+    availability: z.enum(['online', 'offline', 'unknown']).optional(),
+    sessionId: z.string().min(1),
+    project: Project.optional(),
+    agents: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        machineId: z.string(),
+        machineName: z.string(),
+        cliType: z.string(),
+        agentType: z.string(),
+      }),
+    ),
+    capabilities: z.array(Capability),
+  })
+  .meta({ id: 'CreationOptions' });
+export type CreationOptions = z.input<typeof CreationOptions>;
+
+export const HistoryTarget = z
+  .object({
+    machineId: z.string().min(1),
+    machineName: z.string(),
+    localProjectId: z.string().min(1),
+    projectName: z.string(),
+    rootPath: z.string(),
+    provider: z.object({
+      cliType: z.enum(['builtin', 'registry', 'custom']),
+      agentType: z.string(),
+    }),
+  })
+  .meta({ id: 'HistoryTarget' });
+
+export const HistoryRequest = z
+  .discriminatedUnion('kind', [
+    z.object({ kind: z.literal('targets') }),
+    z.object({ kind: z.literal('sync'), target: HistoryTarget }),
+    z.object({
+      kind: z.literal('import'),
+      target: HistoryTarget,
+      acpSessionIds: z.array(z.string().min(1)),
+    }),
+    z.object({
+      kind: z.literal('resolve'),
+      target: HistoryTarget,
+      sessionId: z.string().min(1),
+      acpSessionId: z.string().min(1),
+    }),
+  ])
+  .meta({ id: 'HistoryRequest' });
+
+const browser = {
+  workspaceId: z.string().min(1),
+  browserId: z.string().min(1),
+  userId: z.string(),
+};
+
+export const LocalProjectsParams = z
+  .discriminatedUnion('action', [
+    z.object({ ...browser, action: z.literal('cancel') }),
+    z.object({ ...browser, action: z.literal('machines') }),
+    z.object({
+      ...browser,
+      action: z.literal('history'),
+      history: HistoryRequest,
+    }),
+    z.object({
+      ...browser,
+      action: z.literal('browse'),
+      machineId: z.string().optional(),
+      path: z.string().optional(),
+      cursor: z.string().optional(),
+    }),
+    z.object({
+      ...browser,
+      action: z.literal('add'),
+      machineId: z.string().optional(),
+      path: z.string().optional(),
+    }),
+  ])
+  .meta({ id: 'LocalProjectsParams' });
+
+export const LocalProjectsResult = z
+  .discriminatedUnion('outcome', [
+    z.object({ outcome: z.literal('cancelled') }),
+    z.object({
+      outcome: z.literal('machines'),
+      machines: z.array(z.object({ id: z.string(), name: z.string() })),
+    }),
+    z.object({
+      outcome: z.literal('targets'),
+      targets: z.array(HistoryTarget),
+    }),
+    z.object({
+      outcome: z.literal('history'),
+      sessions: z.array(
+        z.object({
+          acpSessionId: z.string().min(1),
+          title: z.string(),
+          updatedAt: z.string().optional(),
+          importedSessionId: z.string().min(1).optional(),
+          status: z.enum(['available', 'imported', 'sync_conflict']).optional(),
+        }),
+      ),
+      failures: z
+        .array(
+          z.object({ acpSessionId: z.string().min(1), message: z.string() }),
+        )
+        .optional(),
+    }),
+    z.object({
+      outcome: z.literal('directory'),
+      path: z.string().min(1),
+      parentPath: z.string().nullable(),
+      entries: z.array(
+        z.object({
+          name: z.string(),
+          absolutePath: z.string(),
+          error: z.string().optional(),
+        }),
+      ),
+      truncated: z.boolean(),
+      nextCursor: z.string().optional(),
+    }),
+    z.object({ outcome: z.literal('project'), project: Project }),
+  ])
+  .meta({ id: 'LocalProjectsResult' });

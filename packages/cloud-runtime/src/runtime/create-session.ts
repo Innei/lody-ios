@@ -10,6 +10,7 @@ import type {
 import { githubProject, projectRows } from '../protocol/catalog.ts';
 import { isThoughtLevel, validConfigValue } from '../protocol/capability';
 import { encodeFrame } from '../frames';
+import type { CreateSessionResult } from '../contract/methods.ts';
 import { clientFor } from './session';
 import {
   quotaReason,
@@ -223,7 +224,7 @@ export async function createSession(
   options: CreationOptions,
   replica: { flock: Flock; client: StreamsClient },
   getGrant: () => Promise<{ token: string; gatewayBaseUrl: string }>,
-) {
+): Promise<CreateSessionResult> {
   const agent = options.agents.find(
     (a) => a.id === args.agentConfigId && a.machineId === args.machineId,
   );

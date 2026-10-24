@@ -16,13 +16,14 @@ test('persistent runtime applies live increments to the existing replica and adv
   const update = new TextEncoder().encode(
     JSON.stringify(flock.exportJson(version)),
   );
-  const events = [];
   let nextEvent;
   const catalogEvent = () =>
     new Promise((resolve) => {
       nextEvent = resolve;
     });
   const requests = [];
+  const envelopes = [];
+  const replies = new Map();
   let respond;
   globalThis.__runtimeTestClient = class {
     constructor({ url }) {
@@ -52,16 +53,29 @@ test('persistent runtime applies live increments to the existing replica and adv
     messageHandlers: {
       dataRuntime: {
         postMessage(event) {
-          events.push(event);
-          if (event.type === 'grant')
+          if (event.type !== 'envelope') return;
+          const message = JSON.parse(event.envelope);
+          envelopes.push(message);
+          replies.get(message.id)?.(message);
+          if (message.kind === 'request' && message.method === 'grant')
             queueMicrotask(() =>
-              globalThis.dataRuntime.grant({
-                token: 'synthetic',
-                gatewayBaseUrl: 'https://example.invalid',
-                expiresIn: 3600,
-              }),
+              globalThis.dataRuntime.receive(
+                JSON.stringify({
+                  v: 1,
+                  gen: message.gen,
+                  kind: 'result',
+                  id: message.id,
+                  method: 'grant',
+                  payload: {
+                    token: 'synthetic',
+                    gatewayBaseUrl: 'https://example.invalid',
+                    expiresIn: 3600,
+                  },
+                }),
+              ),
             );
-          if (event.type === 'catalog') nextEvent?.(event);
+          if (message.kind === 'event' && message.method === 'catalog')
+            nextEvent?.(message.payload);
         },
       },
     },
@@ -93,17 +107,26 @@ test('persistent runtime applies live increments to the existing replica and adv
               }
             `,
           }));
-          build.onResolve({ filter: /^\.\/files$/ }, () => ({
+          build.onResolve({ filter: /^\.\.?\/files$/ }, () => ({
             path: 'files',
             namespace: 'file-test',
           }));
           build.onLoad({ filter: /.*/, namespace: 'file-test' }, () => ({
             contents: `
-              export const readFile = (ctx, args) => ({ ctx, args });
-              export const fileDiff = readFile;
-              export const workspaceChanges = readFile;
-              export const turnDiff = readFile;
-              export const listDir = readFile;
+              export const readFile = (ctx, args) => ({
+                status: 'error', path: args.path,
+                code: ctx.ownerSessionId, message: args.sessionId,
+              });
+              export const fileDiff = (ctx, args) => ({
+                status: 'unavailable', base: 'current', path: args.path,
+                reason: ctx.ownerSessionId, message: args.sessionId,
+              });
+              export const turnDiff = fileDiff;
+              export const workspaceChanges = (ctx, args) => ({
+                status: 'unavailable',
+                reason: ctx.ownerSessionId, message: args.sessionId,
+              });
+              export const listDir = () => ({ entries: [], truncated: false });
             `,
           }));
           build.onResolve({ filter: /^@loro-dev\/streams-client$/ }, () => ({
@@ -118,28 +141,143 @@ test('persistent runtime applies live increments to the existing replica and adv
       },
     ],
   });
+  let nextCall = 0;
+  const call = (method, payload = {}) => {
+    const id = `call-${++nextCall}`;
+    const reply = new Promise((resolve) => replies.set(id, resolve));
+    globalThis.dataRuntime.receive(
+      JSON.stringify({ v: 1, gen: 1, kind: 'request', id, method, payload }),
+    );
+    return reply;
+  };
   await import(
     `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
   );
+  globalThis.dataRuntime.receive(
+    JSON.stringify({
+      v: 1,
+      gen: 1,
+      kind: 'request',
+      id: 'hello',
+      method: 'hello',
+      payload: { protocol: 1, gen: 1 },
+    }),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(envelopes.shift(), {
+    v: 1,
+    gen: 1,
+    kind: 'result',
+    id: 'hello',
+    method: 'hello',
+    payload: {
+      protocol: 1,
+      methods: [
+        'hello',
+        'ensureSession',
+        'start',
+        'setActive',
+        'ping',
+        'openSession',
+        'closeSession',
+        'releaseReserve',
+        'restoreSessions',
+        'publishedShares',
+        'promptShortcuts',
+        'remoteSettings',
+        'memorySettings',
+        'agentRoles',
+        'mentionCatalog',
+        'creationOptions',
+        'localProjects',
+        'sessionSharing',
+        'sessionPreview',
+        'iosSimulatorControl',
+        'itemDetail',
+        'turnDiff',
+        'workspaceChanges',
+        'fileDiff',
+        'readFile',
+        'listDir',
+        'createSession',
+        'deleteSession',
+        'archiveSession',
+        'pinSession',
+        'markSessionRead',
+        'renameSession',
+        'respondPermission',
+        'controlTurn',
+        'checkTurnQuota',
+        'editSession',
+        'sendTurn',
+        'probeSchema',
+      ],
+    },
+  });
+  const turn = {
+    sessionId: 's1',
+    machineId: 'm1',
+    userId: 'u1',
+    text: 'hello',
+    billingEntitlement: null,
+  };
+  assert.deepEqual((await call('sendTurn', turn)).payload, {
+    state: 'not_sent',
+    reason: 'metadata_not_ready',
+  });
   assert.deepEqual(
-    await globalThis.dataRuntime.sendTurn({ sessionId: 's1', text: 'hello' }),
+    (
+      await call('editSession', {
+        action: 'read',
+        sessionId: 's1',
+        expectedUserTurnId: 't1',
+        userId: 'u1',
+        billingEntitlement: null,
+      })
+    ).payload,
     { state: 'not_sent', reason: 'metadata_not_ready' },
   );
   const first = catalogEvent();
-  globalThis.dataRuntime.start('synthetic-workspace');
+  const started = await call('start', {
+    workspaceId: 'synthetic-workspace',
+    userId: '',
+    active: true,
+  });
+  assert.equal(started.kind, 'result');
   assert.equal(JSON.parse((await first).catalog).sessions[0].title, 'Before');
+  const runtimeEvents = envelopes.filter((m) => m.kind === 'event');
+  assert.deepEqual(
+    runtimeEvents
+      .filter((m) => m.method === 'catalog' || m.method === 'synced')
+      .map((m) => m.method),
+    ['catalog', 'synced'],
+  );
+  assert.deepEqual(
+    runtimeEvents.find(
+      (m) => m.method === 'diagnostic' && m.payload.stage === 'bootstrap_ok',
+    ).payload,
+    { stage: 'bootstrap_ok', stream: 'meta' },
+  );
   assert.equal(requests[0].live, 'long-poll');
-  const fileArgs = { sessionId: 's1', path: 'README.md', entryId: 'turn' };
-  for (const method of [
-    'readFile',
-    'fileDiff',
-    'turnDiff',
-    'workspaceChanges',
-  ]) {
-    const request = globalThis.dataRuntime[method](fileArgs);
-    assert.equal(request.ctx.ownerSessionId, 's1');
-    assert.equal(request.args.sessionId, 's1');
-  }
+  const fileCalls = {
+    readFile: { sessionId: 's1', path: 'README.md' },
+    fileDiff: { sessionId: 's1', path: 'README.md' },
+    turnDiff: { sessionId: 's1', path: 'README.md', entryId: 'turn' },
+    workspaceChanges: { sessionId: 's1' },
+  };
+  const owners = async () => {
+    const found = {};
+    for (const [method, payload] of Object.entries(fileCalls)) {
+      const reply = await call(method, payload);
+      assert.equal(reply.kind, 'result', method);
+      assert.equal(reply.payload.message, 's1');
+      found[method] = reply.payload.reason ?? reply.payload.code;
+    }
+    return found;
+  };
+  const ownedBy = (owner) =>
+    Object.fromEntries(Object.keys(fileCalls).map((method) => [method, owner]));
+  assert.deepEqual(await owners(), ownedBy('s1'));
   const second = catalogEvent();
   respond({
     ok: true,
@@ -158,19 +296,114 @@ test('persistent runtime applies live increments to the existing replica and adv
     'parent',
   );
   // No session document was opened: ownership must come from live Meta Flock.
-  for (const method of [
-    'readFile',
-    'fileDiff',
-    'turnDiff',
-    'workspaceChanges',
-  ]) {
-    const request = globalThis.dataRuntime[method](fileArgs);
-    assert.equal(request.ctx.ownerSessionId, 'parent');
-    assert.equal(request.args.sessionId, 's1');
-  }
+  assert.deepEqual(await owners(), ownedBy('parent'));
+  const listing = await call('listDir', {
+    workspaceId: 'synthetic-workspace',
+    sessionId: 's1',
+    relativePath: '',
+    userId: '',
+  });
+  assert.deepEqual(listing.error, {
+    code: 'project_unavailable',
+    retryable: false,
+  });
+  const detail = await call('itemDetail', {
+    sessionId: 's1',
+    entryId: 'e1',
+    itemId: 'i1',
+  });
+  assert.deepEqual(detail.error, {
+    code: 'session_not_ready',
+    retryable: false,
+  });
   assert.equal(requests[1].offset, '2');
-  assert.equal(events.filter((e) => e.type === 'grant').length, 1);
-  assert.equal(globalThis.dataRuntime.ping(), true);
+  assert.equal(
+    envelopes.filter((m) => m.kind === 'request' && m.method === 'grant')
+      .length,
+    1,
+  );
+  assert.ok(envelopes.every((m) => m.gen === 1));
+  assert.deepEqual((await call('ping')).payload, {});
+  const probe = await call('probeSchema', {
+    workspaceId: 'synthetic-workspace',
+  });
+  assert.deepEqual(probe.payload, {
+    creationOptionsTrial: {},
+    machines: { m1: { otherKeys: ['e', 'm'], capabilities: [] } },
+  });
+  const writes = {
+    createSession: {
+      workspaceId: 'other-workspace',
+      sessionId: 's2',
+      machineId: 'm1',
+      agentConfigId: 'a1',
+      userId: 'u1',
+      title: 'New',
+      billingEntitlement: null,
+    },
+    deleteSession: {
+      workspaceId: 'other-workspace',
+      sessionId: 's1',
+      sessionIds: ['s1'],
+    },
+    pinSession: {
+      workspaceId: 'other-workspace',
+      sessionId: 's1',
+      pinned: true,
+    },
+    checkTurnQuota: { sessionId: 's1', billingEntitlement: null },
+    sendTurn: { ...turn, modelId: { value: null } },
+    controlTurn: {
+      action: 'stop',
+      sessionId: 's1',
+      machineId: 'm1',
+      turnId: 't1',
+    },
+    respondPermission: {
+      sessionId: 's1',
+      entryId: 'e1',
+      itemId: 'i1',
+      requestId: 'r1',
+      optionId: 'o1',
+    },
+  };
+  const outcomes = {};
+  for (const [method, payload] of Object.entries(writes)) {
+    const reply = await call(method, payload);
+    outcomes[method] = reply.payload ?? reply.error;
+  }
+  assert.deepEqual(outcomes, {
+    createSession: { state: 'rejected' },
+    deleteSession: { code: 'metadata_not_ready', retryable: false },
+    pinSession: { code: 'metadata_not_ready', retryable: false },
+    checkTurnQuota: { state: 'allowed' },
+    sendTurn: { state: 'not_sent', reason: 'session_not_ready' },
+    controlTurn: { code: 'session_not_ready', retryable: false },
+    respondPermission: { code: 'session_not_ready', retryable: false },
+  });
+  const mentions = await call('mentionCatalog', {
+    workspaceId: 'synthetic-workspace',
+    userId: '',
+    category: 'session',
+  });
+  assert.equal(mentions.kind, 'result');
+  assert.ok(
+    mentions.payload.items.some(
+      (item) =>
+        item.kind === 'session' &&
+        item.name === 'After' &&
+        item.insertText === `@session:${item.path}`,
+    ),
+  );
+  const moved = await call('promptShortcuts', {
+    workspaceId: 'other-workspace',
+    userId: '',
+    action: 'list',
+  });
+  assert.deepEqual(moved.error, {
+    code: 'workspace_changed',
+    retryable: false,
+  });
   globalThis.__runtimePresence.store.set('machine:m1', {
     kind: 'machine',
     machineId: 'm1',
@@ -178,22 +411,21 @@ test('persistent runtime applies live increments to the existing replica and adv
     updatedAt: Date.now(),
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.deepEqual(
-    JSON.parse(
-      events.filter((e) => e.type === 'machinePresence').at(-1).presence,
-    ),
-    {
-      state: 'live',
-      onlineMachineIds: ['m1'],
-    },
-  );
-  globalThis.dataRuntime.setActive(false);
+  const presence = () =>
+    envelopes
+      .filter((m) => m.kind === 'event' && m.method === 'machinePresence')
+      .at(-1).payload;
+  assert.deepEqual(presence(), { state: 'live', onlineMachineIds: ['m1'] });
+  assert.equal((await call('setActive', { active: false })).kind, 'result');
   assert.equal(globalThis.__runtimePresence.closed, true);
-  assert.equal(
-    JSON.parse(
-      events.filter((e) => e.type === 'machinePresence').at(-1).presence,
-    ).state,
-    'unknown',
+  assert.equal(presence().state, 'unknown');
+  assert.deepEqual(
+    envelopes.filter(
+      (m) =>
+        m.method === 'diagnostic' &&
+        m.payload.stage.startsWith('contract_dropped'),
+    ),
+    [],
   );
   delete globalThis.__runtimePresence;
   delete globalThis.webkit;

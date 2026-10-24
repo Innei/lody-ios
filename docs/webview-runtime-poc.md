@@ -27,7 +27,7 @@ Debug 构建在 iOS 16.4+ 对每次创建的运行时 WebView 设置 `isInspecta
 pnpm check
 pnpm test
 pnpm bundle
-swiftc apps/mobile/modules/lody-kit/ios/Cloud/RuntimeHealth.swift apps/mobile/modules/lody-kit/verification/watchdog/main.swift -o /tmp/lody-watchdog-check
+swiftc -module-name LodyCore packages/lody-core/Sources/LodyCore/RuntimeHealth.swift apps/mobile/modules/lody-kit/verification/watchdog/main.swift -o /tmp/lody-watchdog-check
 /tmp/lody-watchdog-check
 ```
 

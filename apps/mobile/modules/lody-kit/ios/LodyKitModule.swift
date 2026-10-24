@@ -201,7 +201,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
 
   public func definition() -> ModuleDefinition {
     AsyncFunction("sessionSharing") { (payload: String, promise: Promise) in
-      MainActor.assumeIsolated { self.dataRuntime.command("sessionSharing", payload: payload, promise: promise) }
+      MainActor.assumeIsolated { self.dataRuntime.sessionSharing(payload, promise: promise) }
     }.runOnQueue(.main)
     Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onAccentColorChange")
     AsyncFunction("watchCatalog") { (workspace: String, slug: String, name: String, owner: String, userId: String) in
@@ -275,10 +275,10 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
     }.runOnQueue(.main)
     AsyncFunction("sessionPreview") { (payload: String, promise: Promise) in
-      MainActor.assumeIsolated { self.dataRuntime.command("sessionPreview", payload: payload, promise: promise) }
+      MainActor.assumeIsolated { self.dataRuntime.sessionPreview(payload, promise: promise) }
     }.runOnQueue(.main)
     AsyncFunction("iosSimulatorControl") { (payload: String, promise: Promise) in
-      MainActor.assumeIsolated { self.dataRuntime.command("iosSimulatorControl", payload: payload, promise: promise) }
+      MainActor.assumeIsolated { self.dataRuntime.iosSimulatorControl(payload, promise: promise) }
     }.runOnQueue(.main)
     AsyncFunction("openPreviewBrowser") { (address: String) in
       try MainActor.assumeIsolated {
@@ -454,32 +454,32 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("sessionCreationOptions") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
         if let response = MentionFixture.response(payload, options: true) { promise.resolve(response); return }
-        self.dataRuntime.command("creationOptions", payload: payload, promise: promise)
+        self.dataRuntime.creationOptions(payload, promise: promise)
       }
     }.runOnQueue(.main)
-    AsyncFunction("localProjects") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("localProjects", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("localProjects") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.localProjects(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("workspaceSettings") { (payload: String) async throws -> String in
       try await WorkspaceSettingsCloud.run(payload)
     }
-    AsyncFunction("promptShortcuts") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("promptShortcuts", payload: payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("remoteSettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("remoteSettings", payload: payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("memorySettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("memorySettings", payload: payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("publishedShares") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("publishedShares", payload: payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("agentRoles") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("agentRoles", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("promptShortcuts") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.promptShortcuts(payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("remoteSettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.remoteSettings(payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("memorySettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.memorySettings(payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("publishedShares") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.publishedShares(payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("agentRoles") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.agentRoles(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.createSession(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("workspaceBillingEntitlement") { (workspace: String, user: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.workspaceBillingEntitlement(workspace: workspace, user: user, promise: promise) }
     }.runOnQueue(.main)
-    AsyncFunction("archiveSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("archiveSession", payload: payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("deleteSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("deleteSession", payload: payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("pinSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("pinSession", payload: payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("markSessionRead") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("markSessionRead", payload: payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("renameSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("renameSession", payload: payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("controlSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("controlTurn", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("archiveSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.workspaceWrite(RuntimeContract.Calls.ArchiveSession.self, payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("deleteSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.workspaceWrite(RuntimeContract.Calls.DeleteSession.self, payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("pinSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.workspaceWrite(RuntimeContract.Calls.PinSession.self, payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("markSessionRead") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.workspaceWrite(RuntimeContract.Calls.MarkSessionRead.self, payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("renameSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.workspaceWrite(RuntimeContract.Calls.RenameSession.self, payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("controlSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sessionWrite(RuntimeContract.Calls.ControlTurn.self, payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("sendSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("readSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("editSession", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("readSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.readSessionEdit(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("prepareSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.prepareSessionEdit(payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("sendSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, promise: promise, method: "editSession") } }.runOnQueue(.main)
+    AsyncFunction("sendSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, promise: promise, edit: true) } }.runOnQueue(.main)
     AsyncFunction("sessionItemDetail") { (payload: String, promise: Promise) in
       try MainActor.assumeIsolated {
         if LodyUIVerify.enabled,
@@ -503,10 +503,10 @@ public final class LodyKitModule: Module, @unchecked Sendable {
           promise.resolve(String(decoding: result, as: UTF8.self))
           return
         }
-        self.dataRuntime.command("itemDetail", payload: payload, promise: promise)
+        self.dataRuntime.itemDetail(payload, promise: promise)
       }
     }.runOnQueue(.main)
-    AsyncFunction("respondSessionPermission") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("respondPermission", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("respondSessionPermission") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sessionWrite(RuntimeContract.Calls.RespondPermission.self, payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("turnDiff") { (payload: String, promise: Promise) in
       try MainActor.assumeIsolated {
         if LodyUIVerify.enabled,
@@ -541,10 +541,10 @@ public final class LodyKitModule: Module, @unchecked Sendable {
           promise.resolve(String(decoding: result, as: UTF8.self))
           return
         }
-        self.dataRuntime.command("turnDiff", payload: payload, promise: promise)
+        self.dataRuntime.turnDiff(payload, promise: promise)
       }
     }.runOnQueue(.main)
-    AsyncFunction("workspaceChanges") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.command("workspaceChanges", payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("workspaceChanges") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.workspaceChanges(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("fileDiff") { (payload: String, promise: Promise) in
       try MainActor.assumeIsolated {
         if LodyUIVerify.enabled,
@@ -556,7 +556,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
           promise.resolve(String(decoding: result, as: UTF8.self))
           return
         }
-        self.dataRuntime.command("fileDiff", payload: payload, promise: promise)
+        self.dataRuntime.fileDiff(payload, promise: promise)
       }
     }.runOnQueue(.main)
     AsyncFunction("readFile") { (payload: String, promise: Promise) in
@@ -595,13 +595,13 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("mentionCatalog") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
         if let response = MentionFixture.response(payload) { promise.resolve(response); return }
-        self.dataRuntime.command("mentionCatalog", payload: payload, promise: promise)
+        self.dataRuntime.mentionCatalog(payload, promise: promise)
       }
     }.runOnQueue(.main)
     AsyncFunction("listDir") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
         if let response = FilePreviewFixture.response(payload, listing: true) { promise.resolve(response); return }
-        self.dataRuntime.command("listDir", payload: payload, promise: promise)
+        self.dataRuntime.listDir(payload, promise: promise)
       }
     }.runOnQueue(.main)
     AsyncFunction("dataRuntimeStatus") { (promise: Promise) in
