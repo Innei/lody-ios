@@ -1,10 +1,8 @@
 export {
   sessionSharingRaw,
   remoteSettingsRaw,
-  agentRolesRaw,
   memorySettingsRaw,
   publishedSharesRaw,
-  promptShortcutsRaw,
   runtimeInfo,
   showAccentColorPicker,
   readPreferencesRaw,

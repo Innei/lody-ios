@@ -46,6 +46,11 @@ const NATIVE_PREFIXES = [
   'settings.github.',
   'settings.remote.enabled',
   'settings.remote.disabled',
+  'settings.shortcuts.',
+  'settings.roles.',
+  'settings.remote.name',
+  'settings.remote.prompt',
+  'settings.remote.conflict',
   'time.',
 ];
 const isNativeKey = (key) =>
