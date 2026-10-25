@@ -46,6 +46,8 @@ const NATIVE_PREFIXES = [
   'settings.github.',
   'settings.remote.enabled',
   'settings.remote.disabled',
+  'settings.memory.',
+  'settings.shares.',
   'settings.shortcuts.',
   'settings.roles.',
   'settings.remote.name',

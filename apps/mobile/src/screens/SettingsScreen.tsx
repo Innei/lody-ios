@@ -293,10 +293,14 @@ function View() {
               { title: settingsTitle(kind) },
             );
         }
-        if (id === 'memory-settings' && workspace)
-          void push(MemorySettingsScreen);
-        if (id === 'published-shares' && workspace)
-          void push(PublishedSharesScreen);
+        const scope =
+          auth.account && workspace
+            ? { userId: auth.account.user.id, workspaceId: workspace.id }
+            : undefined;
+        if (id === 'memory-settings' && scope)
+          void push(MemorySettingsScreen, scope);
+        if (id === 'published-shares' && scope)
+          void push(PublishedSharesScreen, scope);
         if (id === 'ai-usage' && workspace) void push(AIUsageScreen);
         if (id === 'agent-roles' && workspace) void push(AgentRolesScreen);
         if (id === 'github-settings' && workspace)
