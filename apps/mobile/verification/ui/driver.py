@@ -1,5 +1,6 @@
 """Small shared AXe helpers; every command is bounded and uses an explicit device."""
 import json
+import os
 import select
 import shlex
 import subprocess
@@ -30,6 +31,10 @@ def restart_accessibility(udid):
         )
     except (subprocess.TimeoutExpired, OSError):
         return
+
+
+def app_flags():
+    return ['--uikit-shell'] if os.environ.get('LODY_UI_SHELL') == '1' else []
 
 
 def launch_covered(items, app_pid):

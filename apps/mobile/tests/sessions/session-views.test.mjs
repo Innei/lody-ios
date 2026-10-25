@@ -41,7 +41,7 @@ const AppState = {
 };
 mock.module('react-native', { namedExports: { AppState } });
 mock.module('react', { namedExports: { useCallback: (callback) => callback } });
-mock.module('expo-router', {
+mock.module('../../src/lib/presentation/focus.ts', {
   namedExports: {
     useFocusEffect: (effect) => {
       focusEffect = effect;

@@ -4,7 +4,7 @@ import plistlib
 import subprocess
 import sys
 from pathlib import Path
-from driver import UI
+from driver import UI, app_flags
 import catalog
 
 ui = UI(sys.argv[1], sys.argv[2])
@@ -58,7 +58,7 @@ ui.capture('notification-returned')
 
 subprocess.run(['xcrun', 'simctl', 'terminate', ui.udid, 'app.innei.lody'], check=True, timeout=30)
 ui.invalidate_axe()
-launch = ['xcrun', 'simctl', 'launch', ui.udid, 'app.innei.lody', '--ui-verify', '-AppleLanguages', '(en)', '-AppleLocale', 'en_US']
+launch = ['xcrun', 'simctl', 'launch', ui.udid, 'app.innei.lody', '--ui-verify', *app_flags(), '-AppleLanguages', '(en)', '-AppleLocale', 'en_US']
 port = os.environ.get('LODY_UI_METRO_PORT')
 if port:
     launch += ['--initialUrl', f'http://127.0.0.1:{port}?disableOnboarding=1']

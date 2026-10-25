@@ -1,5 +1,4 @@
 import { usePalette } from '@/lib/theme/palette';
-import { Stack } from 'expo-router';
 import { NativeGroupedList, NativeNavigationHeader } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
@@ -68,6 +67,21 @@ function View() {
   return (
     <>
       <NativeNavigationHeader
+        toolbarItems={[
+          {
+            type: 'button',
+            title: t('pr.github'),
+            tintColor: colors.accent,
+            onPress: () => actions.openGitHub(),
+          },
+          { type: 'flexibleSpacing' },
+          {
+            type: 'button',
+            title: t('pr.investigate'),
+            tintColor: colors.accent,
+            onPress: () => actions.investigate(),
+          },
+        ]}
         items={[
           {
             type: 'button',
@@ -117,21 +131,6 @@ function View() {
             );
         }}
       />
-      <Stack.Toolbar placement="bottom">
-        <Stack.Toolbar.Button
-          onPress={() => actions.openGitHub()}
-          tintColor={colors.accent}
-        >
-          {t('pr.github')}
-        </Stack.Toolbar.Button>
-        <Stack.Toolbar.Spacer />
-        <Stack.Toolbar.Button
-          onPress={() => actions.investigate()}
-          tintColor={colors.accent}
-        >
-          {t('pr.investigate')}
-        </Stack.Toolbar.Button>
-      </Stack.Toolbar>
     </>
   );
 }

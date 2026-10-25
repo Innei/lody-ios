@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useNavigation } from 'expo-router';
+import { shellEnabled } from '@lody-ios/kit';
 import { definePage, present } from '@/lib/presentation';
 import {
   getHomeDetail,
@@ -88,9 +89,12 @@ function useHomeTransitions(mode: LayoutMode) {
   }, [mode, navigation, scope]);
 }
 
+// The shell is compact-only for now; its pages are not Router routes to move.
+const useTransitions = shellEnabled ? () => {} : useHomeTransitions;
+
 function Home() {
   const mode = useLayoutMode();
-  useHomeTransitions(mode);
+  useTransitions(mode);
   usePanelSheet(mode);
   return (
     <View testID="home" style={styles.root}>

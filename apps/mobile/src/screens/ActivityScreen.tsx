@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
-import { NativeGroupedList } from '@lody-ios/kit';
+import { NativeGroupedList, NativeNavigationHeader } from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { activeSessionSections } from '@/features/sessions/inbox';
@@ -36,12 +35,7 @@ function Activity() {
   else if (!connected) placeholder = t('project.offline');
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: t('inbox.settings.view.activity'),
-          headerLargeTitle: false,
-        }}
-      />
+      <NativeNavigationHeader title={t('inbox.settings.view.activity')} />
       <NativeGroupedList
         style={{ flex: 1 }}
         contentStyle

@@ -10,12 +10,18 @@ import unittest
 from urllib.parse import parse_qs, urlparse
 from unittest.mock import call, patch
 
-from driver import UI, launch_covered, restart_accessibility
+from driver import UI, app_flags, launch_covered, restart_accessibility
 import catalog
 from orchestrator import managed_metro, prewarm_bundle, run_batches
 
 
 class RunnerTest(unittest.TestCase):
+    def test_shell_mode_reaches_every_app_launch(self):
+        with patch.dict('os.environ', {'LODY_UI_SHELL': '1'}):
+            self.assertEqual(app_flags(), ['--uikit-shell'])
+        with patch.dict('os.environ', {}, clear=True):
+            self.assertEqual(app_flags(), [])
+
     def test_case_links_encode_the_action_and_allow_repeated_entry(self):
         with tempfile.TemporaryDirectory() as directory, patch('driver.subprocess.run') as run:
             ui = UI('owned-simulator', directory)

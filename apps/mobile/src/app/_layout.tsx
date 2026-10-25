@@ -1,24 +1,17 @@
-import {
-  homeVerify,
-  HomePreviewProviders,
-} from '@/screens/debug/HomePreviewScreen';
-import { type PropsWithChildren, useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { PushCoordinator } from '@/features/notifications/PushCoordinator';
 import { ShareSnapshot } from '@/features/share/ShareSnapshot';
 import { ShareCoordinator } from '@/features/share/ShareCoordinator';
 import { Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Dimensions, StyleSheet, useColorScheme } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 import { nativePresentationOptions } from '@/lib/presentation';
-import { navigationThemes, usePalette } from '@/lib/theme/palette';
-import { useAppearance } from '@/lib/theme/appearance';
-import { softDarkBackground } from '@/lib/theme/tokens';
+import { useNavigationTheme } from '@/lib/theme/navigationTheme';
 import { NativeLayoutProbe, navigationScrollEdgeEffects } from '@lody-ios/kit';
 import { useBindSessionNav } from '@/hooks/screens/useBindSessionNav';
 import { useOnboardingGate } from '@/hooks/screens/useOnboardingGate';
 import { assertVendoredDomWebView } from '@/lib/assert-vendored-dom-webview';
-import { SettingsBaselineProviders } from '@/screens/debug/settingsBaseline';
-import { uiVerify } from '@/lib/uiVerify';
+import { VerifyProviders } from '@/screens/debug/verifyProviders';
 import {
   guessLayoutTraits,
   setLayoutTraits,
@@ -30,27 +23,10 @@ const initialWindow = Dimensions.get('window');
 setLayoutTraits(guessLayoutTraits(initialWindow.width, initialWindow.height));
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const { darkBackground } = useAppearance();
-  const colors = usePalette();
-  const theme = useMemo(() => {
-    const base =
-      colorScheme === 'dark' ? navigationThemes.dark : navigationThemes.light;
-    return {
-      ...base,
-      colors: {
-        ...base.colors,
-        primary: colors.accent,
-        background:
-          colorScheme === 'dark' && darkBackground === 'soft'
-            ? softDarkBackground
-            : base.colors.background,
-      },
-    };
-  }, [colorScheme, darkBackground, colors.accent]);
+  const theme = useNavigationTheme();
   return (
     <ThemeProvider value={theme}>
-      <Providers>
+      <VerifyProviders>
         <NativeLayoutProbe
           pointerEvents="none"
           style={StyleSheet.absoluteFill}
@@ -80,7 +56,7 @@ export default function RootLayout() {
             }
           />
         </Stack>
-      </Providers>
+      </VerifyProviders>
     </ThemeProvider>
   );
 }
@@ -92,12 +68,4 @@ function Bindings() {
     if (__DEV__) assertVendoredDomWebView();
   }, []);
   return null;
-}
-
-function Providers({ children }: PropsWithChildren) {
-  if (homeVerify)
-    return <HomePreviewProviders>{children}</HomePreviewProviders>;
-  if (uiVerify)
-    return <SettingsBaselineProviders>{children}</SettingsBaselineProviders>;
-  return children;
 }

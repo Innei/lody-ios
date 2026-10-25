@@ -14,11 +14,27 @@ import {
   setNavigator,
 } from './presentationStore';
 
+export type ShellRoute = { key: string; name: string };
+export type ShellNavigationState = { key: string; routes: ShellRoute[] };
+
+const routeNames: Record<string, string> = {
+  activity: 'activity',
+  debug: 'debug',
+  environment: 'environment',
+  project: 'project/[projectId]',
+};
 const sheetPages = new Set<number>();
 const openPages = new Set<number>();
 const focusedPages = new Set<number>();
+let routes: (ShellRoute & { id: number })[] = [];
+let navigationState: ShellNavigationState | undefined;
 const listeners = new Set<() => void>();
-const notify = () => listeners.forEach((listener) => listener());
+const notify = () => {
+  navigationState = routes.length
+    ? { key: 'shell', routes: routes.map(({ key, name }) => ({ key, name })) }
+    : undefined;
+  listeners.forEach((listener) => listener());
+};
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => {
@@ -57,6 +73,7 @@ function onNav(event: NavEvent) {
     sheetPages.delete(event.id);
     openPages.delete(event.id);
     focusedPages.delete(event.id);
+    routes = routes.filter((route) => route.id !== event.id);
     cancelPresentation(event.id);
   } else if (event.type === 'focus') focusedPages.add(event.id);
   else focusedPages.delete(event.id);
@@ -71,6 +88,16 @@ export function installShellNavigation() {
         : sheetPages.has(target.container);
     if (inSheet) sheetPages.add(session.id);
     openPages.add(session.id);
+    const route = {
+      id: session.id,
+      key: `shell-${session.id}`,
+      name: target.root
+        ? 'index'
+        : (routeNames[session.page.id] ?? 'presented/[presentationId]'),
+    };
+    if (target.root) routes = [route];
+    else if (target.container === undefined) routes = [...routes, route];
+    notify();
     void navPresent(describeShellPage(session, target));
   });
   return addNavListener(onNav);
@@ -79,6 +106,12 @@ export function installShellNavigation() {
 export const isShellSheetPage = (id: number) => sheetPages.has(id);
 export const shellAtRoot = () => openPages.size <= 1;
 export const shellPopToRoot = () => navPopToRoot();
+
+export const shellNavigationState = () => navigationState;
+
+export function useShellNavigationState() {
+  return useSyncExternalStore(subscribe, shellNavigationState);
+}
 
 export function useShellIsFocused() {
   const id = use(ShellPageContext);

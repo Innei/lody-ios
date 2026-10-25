@@ -1,10 +1,9 @@
 import { useMessageDetailsSheet } from '@/hooks/screens/useMessageDetailsSheet';
 import { openMessageShare } from '@/screens/MessageShareScreen';
 import { uiVerify } from './uiVerify';
-import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
-import { NativeChat, copyText } from '@lody-ios/kit';
+import { NativeChat, NativeNavigationHeader, copyText } from '@lody-ios/kit';
 import { sessionDebugText } from '@/features/sessions/sessionDebug';
 import { t } from '@/lib/i18n/index.ts';
 import { definePage, present } from '@/lib/presentation';
@@ -833,274 +832,347 @@ function View() {
   );
   return (
     <>
-      <Stack.Screen options={{ title: navigationTitle }} />
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu icon="wrench" accessibilityLabel="Fixtures">
-          <Stack.Toolbar.Menu title="Requests" icon="lock.open">
-            <Stack.Toolbar.MenuAction
-              children="Permission Fixture"
-              icon="lock.open"
-              onPress={() =>
-                void present(PermissionScreen, {
-                  sessionId: 'ui-verify-permission',
-                  generation: 0,
-                  source: permissionSource,
-                  service: permissionService,
-                })
-              }
-            />
-            <Stack.Toolbar.MenuAction
-              children="Question Fixture"
-              icon="questionmark.bubble"
-              onPress={openQuestionFixture}
-            />
-          </Stack.Toolbar.Menu>
-          <Stack.Toolbar.Menu title="Overlays" icon="wifi">
-            <Stack.Toolbar.MenuAction
-              children="Connecting Overlay"
-              icon="wifi"
-              onPress={() => setConnection('connecting')}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Paused Overlay"
-              icon="wifi.slash"
-              onPress={() => setConnection('paused')}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Tasks Overlay"
-              icon="person.2"
-              onPress={() => {
-                setDurationFixture(null);
-                setProcessCounts(null);
-                setShowChanges(false);
-                setShowImage(false);
-                setConnection('');
-                setOverlayTasks(true);
-                setTaskOpened(false);
-                setTaskAdvanced(false);
-              }}
-            />
-            <Stack.Toolbar.MenuAction
-              children="Clear Overlay"
-              icon="xmark"
-              onPress={() => {
-                setConnection('');
-                setOverlayTasks(false);
-              }}
-            />
-          </Stack.Toolbar.Menu>
-          <Stack.Toolbar.MenuAction
-            children="Selection Fixture"
-            icon="text.cursor"
-            onPress={() => setSelectionFixture(true)}
-          />
-          <Stack.Toolbar.MenuAction
-            children="Failed Tool Fixture"
-            icon="exclamationmark.triangle"
-            onPress={() => {
-              setShowImage(false);
-              setShowChanges(false);
-              setDurationFixture(null);
-              setProcessCounts(null);
-              setFailedToolAt(Date.now());
-            }}
-          />
-          <Stack.Toolbar.MenuAction
-            children="Session Created"
-            icon="checkmark"
-            onPress={() => setSessionActionsReady(true)}
-          />
-          <Stack.Toolbar.MenuAction
-            children="Rename Session"
-            icon="pencil"
-            onPress={() => setNavigationTitle('Updated session title')}
-          />
-          <Stack.Toolbar.MenuAction
-            children="Diff Fixture"
-            icon="doc.text"
-            onPress={() => {
-              setDurationFixture(null);
-              setProcessCounts(null);
-              setShowImage(false);
-              setShowChanges(true);
-            }}
-          />
-          <Stack.Toolbar.MenuAction
-            children="Image Fixture"
-            icon="photo"
-            onPress={() => {
-              setDurationFixture(null);
-              setProcessCounts(null);
-              setShowChanges(false);
-              setShowImage(true);
-              setAssistantImages(false);
-            }}
-          />
-          <Stack.Toolbar.MenuAction
-            children="MCP Image Fixture"
-            icon="photo.on.rectangle"
-            onPress={() => {
-              setDurationFixture(null);
-              setProcessCounts(null);
-              setShowChanges(false);
-              setShowImage(true);
-              setAssistantImages(true);
-            }}
-          />
-          <Stack.Toolbar.MenuAction
-            children="Duration Fixture"
-            icon="timer"
-            onPress={() => {
-              setShowImage(false);
-              setShowChanges(false);
-              setProcessCounts(null);
-              setFailedToolAt(null);
-              setDurationFixture({
-                startedAt: Date.now(),
-                finished: false,
-              });
-            }}
-          />
-          <Stack.Toolbar.MenuAction
-            children="Causal Reply Fixture"
-            icon="arrow.triangle.swap"
-            onPress={() => {
-              setDurationFixture(null);
-              setCausalFixture(0);
-            }}
-          />
-          <Stack.Toolbar.MenuAction
-            children="Process Counts Fixture"
-            icon="number"
-            onPress={() => {
-              setShowImage(false);
-              setShowChanges(false);
-              setDurationFixture(null);
-              setFailedToolAt(null);
-              setProcessCounts({
-                count: 1,
-                startedAt: Date.now(),
-              });
-            }}
-          />
-          <Stack.Toolbar.MenuAction
-            children="Inline Diff Fixture"
-            icon="plusminus"
-            onPress={() =>
-              void present(ItemDetailScreen, {
-                sessionId: 'ui-verify-diff',
-                entryId: 'diff-preview',
-                itemIds: ['edit'],
-                generation: 0,
-              })
-            }
-          />
-        </Stack.Toolbar.Menu>
-        {causalFixture !== null && causalFixture < 2 && (
-          <Stack.Toolbar.Button
-            accessibilityLabel={
-              causalFixture === 0 ? 'Receive Late Input' : 'Order Causal Input'
-            }
-            icon="arrow.right.circle"
-            onPress={() => setCausalFixture((current) => (current ?? 0) + 1)}
-          />
-        )}
-        {durationFixture &&
+      <NativeNavigationHeader
+        title={navigationTitle}
+        items={[
+          {
+            type: 'menu',
+            icon: { type: 'sfSymbol', name: 'wrench' },
+            accessibilityLabel: 'Fixtures',
+            menu: {
+              items: [
+                {
+                  type: 'submenu',
+                  title: 'Requests',
+                  icon: { type: 'sfSymbol', name: 'lock.open' },
+                  items: [
+                    {
+                      type: 'action',
+                      title: 'Permission Fixture',
+                      icon: { type: 'sfSymbol', name: 'lock.open' },
+                      onPress: () =>
+                        void present(PermissionScreen, {
+                          sessionId: 'ui-verify-permission',
+                          generation: 0,
+                          source: permissionSource,
+                          service: permissionService,
+                        }),
+                    },
+                    {
+                      type: 'action',
+                      title: 'Question Fixture',
+                      icon: { type: 'sfSymbol', name: 'questionmark.bubble' },
+                      onPress: openQuestionFixture,
+                    },
+                  ],
+                },
+                {
+                  type: 'submenu',
+                  title: 'Overlays',
+                  icon: { type: 'sfSymbol', name: 'wifi' },
+                  items: [
+                    {
+                      type: 'action',
+                      title: 'Connecting Overlay',
+                      icon: { type: 'sfSymbol', name: 'wifi' },
+                      onPress: () => setConnection('connecting'),
+                    },
+                    {
+                      type: 'action',
+                      title: 'Paused Overlay',
+                      icon: { type: 'sfSymbol', name: 'wifi.slash' },
+                      onPress: () => setConnection('paused'),
+                    },
+                    {
+                      type: 'action',
+                      title: 'Tasks Overlay',
+                      icon: { type: 'sfSymbol', name: 'person.2' },
+                      onPress: () => {
+                        setDurationFixture(null);
+                        setProcessCounts(null);
+                        setShowChanges(false);
+                        setShowImage(false);
+                        setConnection('');
+                        setOverlayTasks(true);
+                        setTaskOpened(false);
+                        setTaskAdvanced(false);
+                      },
+                    },
+                    {
+                      type: 'action',
+                      title: 'Clear Overlay',
+                      icon: { type: 'sfSymbol', name: 'xmark' },
+                      onPress: () => {
+                        setConnection('');
+                        setOverlayTasks(false);
+                      },
+                    },
+                  ],
+                },
+                {
+                  type: 'action',
+                  title: 'Selection Fixture',
+                  icon: { type: 'sfSymbol', name: 'text.cursor' },
+                  onPress: () => setSelectionFixture(true),
+                },
+                {
+                  type: 'action',
+                  title: 'Failed Tool Fixture',
+                  icon: { type: 'sfSymbol', name: 'exclamationmark.triangle' },
+                  onPress: () => {
+                    setShowImage(false);
+                    setShowChanges(false);
+                    setDurationFixture(null);
+                    setProcessCounts(null);
+                    setFailedToolAt(Date.now());
+                  },
+                },
+                {
+                  type: 'action',
+                  title: 'Session Created',
+                  icon: { type: 'sfSymbol', name: 'checkmark' },
+                  onPress: () => setSessionActionsReady(true),
+                },
+                {
+                  type: 'action',
+                  title: 'Rename Session',
+                  icon: { type: 'sfSymbol', name: 'pencil' },
+                  onPress: () => setNavigationTitle('Updated session title'),
+                },
+                {
+                  type: 'action',
+                  title: 'Diff Fixture',
+                  icon: { type: 'sfSymbol', name: 'doc.text' },
+                  onPress: () => {
+                    setDurationFixture(null);
+                    setProcessCounts(null);
+                    setShowImage(false);
+                    setShowChanges(true);
+                  },
+                },
+                {
+                  type: 'action',
+                  title: 'Image Fixture',
+                  icon: { type: 'sfSymbol', name: 'photo' },
+                  onPress: () => {
+                    setDurationFixture(null);
+                    setProcessCounts(null);
+                    setShowChanges(false);
+                    setShowImage(true);
+                    setAssistantImages(false);
+                  },
+                },
+                {
+                  type: 'action',
+                  title: 'MCP Image Fixture',
+                  icon: { type: 'sfSymbol', name: 'photo.on.rectangle' },
+                  onPress: () => {
+                    setDurationFixture(null);
+                    setProcessCounts(null);
+                    setShowChanges(false);
+                    setShowImage(true);
+                    setAssistantImages(true);
+                  },
+                },
+                {
+                  type: 'action',
+                  title: 'Duration Fixture',
+                  icon: { type: 'sfSymbol', name: 'timer' },
+                  onPress: () => {
+                    setShowImage(false);
+                    setShowChanges(false);
+                    setProcessCounts(null);
+                    setFailedToolAt(null);
+                    setDurationFixture({
+                      startedAt: Date.now(),
+                      finished: false,
+                    });
+                  },
+                },
+                {
+                  type: 'action',
+                  title: 'Causal Reply Fixture',
+                  icon: { type: 'sfSymbol', name: 'arrow.triangle.swap' },
+                  onPress: () => {
+                    setDurationFixture(null);
+                    setCausalFixture(0);
+                  },
+                },
+                {
+                  type: 'action',
+                  title: 'Process Counts Fixture',
+                  icon: { type: 'sfSymbol', name: 'number' },
+                  onPress: () => {
+                    setShowImage(false);
+                    setShowChanges(false);
+                    setDurationFixture(null);
+                    setFailedToolAt(null);
+                    setProcessCounts({
+                      count: 1,
+                      startedAt: Date.now(),
+                    });
+                  },
+                },
+                {
+                  type: 'action',
+                  title: 'Inline Diff Fixture',
+                  icon: { type: 'sfSymbol', name: 'plusminus' },
+                  onPress: () =>
+                    void present(ItemDetailScreen, {
+                      sessionId: 'ui-verify-diff',
+                      entryId: 'diff-preview',
+                      itemIds: ['edit'],
+                      generation: 0,
+                    }),
+                },
+              ],
+            },
+          },
+          ...(causalFixture !== null && causalFixture < 2
+            ? [
+                {
+                  type: 'button' as const,
+                  icon: {
+                    type: 'sfSymbol' as const,
+                    name: 'arrow.right.circle',
+                  },
+                  accessibilityLabel:
+                    causalFixture === 0
+                      ? 'Receive Late Input'
+                      : 'Order Causal Input',
+                  onPress: () =>
+                    setCausalFixture((current) => (current ?? 0) + 1),
+                },
+              ]
+            : []),
+          ...(durationFixture &&
           !durationFixture.finished &&
-          !durationFixture.continued && (
-            <Stack.Toolbar.Button
-              accessibilityLabel="Continue Duration Fixture"
-              icon="arrow.right.circle"
-              onPress={() =>
-                setDurationFixture((current) =>
-                  current ? { ...current, continued: true } : current,
-                )
-              }
-            />
-          )}
-        {durationFixture && !durationFixture.finished && (
-          <Stack.Toolbar.Button
-            accessibilityLabel="Finish Duration Fixture"
-            icon="stop.circle"
-            onPress={() =>
-              setDurationFixture((current) =>
-                current ? { ...current, finished: true } : current,
-              )
-            }
-          />
-        )}
-        {durationFixture?.finished && !durationFixture.permissionWaitMs && (
-          <Stack.Toolbar.Button
-            accessibilityLabel="Wait Duration Fixture"
-            icon="hourglass"
-            onPress={() =>
-              setDurationFixture((current) =>
-                current ? { ...current, permissionWaitMs: 5_000 } : current,
-              )
-            }
-          />
-        )}
-        <Stack.Toolbar.Button
-          accessibilityLabel="Fast Replay"
-          icon="forward.end"
-          onPress={() => {
-            setDurationFixture(null);
-            setProcessCounts(null);
-            setShowImage(false);
-            setShowChanges(false);
-            setSelectionFixture(false);
-            setStep(240);
-            setMode('normal');
-            setLength(0);
-          }}
-        />
-        <Stack.Toolbar.Button
-          accessibilityLabel="Retry"
-          icon="arrow.trianglehead.clockwise.rotate.90"
-          onPress={() => {
-            setDurationFixture(null);
-            setProcessCounts(null);
-            setShowImage(false);
-            setShowChanges(false);
-            setStep(48);
-            setMode('normal');
-            setLength(0);
-          }}
-        ></Stack.Toolbar.Button>
-        <Stack.Toolbar.Menu
-          icon="ellipsis"
-          accessibilityLabel={t('common.more')}
-        >
-          <Stack.Toolbar.MenuAction icon="square.and.pencil" onPress={() => {}}>
-            {t('session.action.newSession')}
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            icon="pin"
-            disabled={uiVerify && !sessionActionsReady}
-            onPress={() => {}}
-          >
-            {t('session.action.pin')}
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            icon="archivebox"
-            disabled={uiVerify && !sessionActionsReady}
-            onPress={() => {}}
-          >
-            {t('session.action.archive')}
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            icon="square.and.arrow.up"
-            onPress={() => {}}
-          >
-            {t('session.action.share')}
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.Menu inline>
-            <Stack.Toolbar.MenuAction icon="folder" onPress={() => {}}>
-              {t('session.action.projectFiles')}
-            </Stack.Toolbar.MenuAction>
-          </Stack.Toolbar.Menu>
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
+          !durationFixture.continued
+            ? [
+                {
+                  type: 'button' as const,
+                  icon: {
+                    type: 'sfSymbol' as const,
+                    name: 'arrow.right.circle',
+                  },
+                  accessibilityLabel: 'Continue Duration Fixture',
+                  onPress: () =>
+                    setDurationFixture((current) =>
+                      current ? { ...current, continued: true } : current,
+                    ),
+                },
+              ]
+            : []),
+          ...(durationFixture && !durationFixture.finished
+            ? [
+                {
+                  type: 'button' as const,
+                  icon: { type: 'sfSymbol' as const, name: 'stop.circle' },
+                  accessibilityLabel: 'Finish Duration Fixture',
+                  onPress: () =>
+                    setDurationFixture((current) =>
+                      current ? { ...current, finished: true } : current,
+                    ),
+                },
+              ]
+            : []),
+          ...(durationFixture?.finished && !durationFixture.permissionWaitMs
+            ? [
+                {
+                  type: 'button' as const,
+                  icon: { type: 'sfSymbol' as const, name: 'hourglass' },
+                  accessibilityLabel: 'Wait Duration Fixture',
+                  onPress: () =>
+                    setDurationFixture((current) =>
+                      current
+                        ? { ...current, permissionWaitMs: 5_000 }
+                        : current,
+                    ),
+                },
+              ]
+            : []),
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'forward.end' },
+            accessibilityLabel: 'Fast Replay',
+            onPress: () => {
+              setDurationFixture(null);
+              setProcessCounts(null);
+              setShowImage(false);
+              setShowChanges(false);
+              setSelectionFixture(false);
+              setStep(240);
+              setMode('normal');
+              setLength(0);
+            },
+          },
+          {
+            type: 'button',
+            icon: {
+              type: 'sfSymbol',
+              name: 'arrow.trianglehead.clockwise.rotate.90',
+            },
+            accessibilityLabel: 'Retry',
+            onPress: () => {
+              setDurationFixture(null);
+              setProcessCounts(null);
+              setShowImage(false);
+              setShowChanges(false);
+              setStep(48);
+              setMode('normal');
+              setLength(0);
+            },
+          },
+          {
+            type: 'menu',
+            icon: { type: 'sfSymbol', name: 'ellipsis' },
+            accessibilityLabel: t('common.more'),
+            menu: {
+              items: [
+                {
+                  type: 'action',
+                  title: t('session.action.newSession'),
+                  icon: { type: 'sfSymbol', name: 'square.and.pencil' },
+                  onPress: () => {},
+                },
+                {
+                  type: 'action',
+                  title: t('session.action.pin'),
+                  icon: { type: 'sfSymbol', name: 'pin' },
+                  disabled: uiVerify && !sessionActionsReady,
+                  onPress: () => {},
+                },
+                {
+                  type: 'action',
+                  title: t('session.action.archive'),
+                  icon: { type: 'sfSymbol', name: 'archivebox' },
+                  disabled: uiVerify && !sessionActionsReady,
+                  onPress: () => {},
+                },
+                {
+                  type: 'action',
+                  title: t('session.action.share'),
+                  icon: { type: 'sfSymbol', name: 'square.and.arrow.up' },
+                  onPress: () => {},
+                },
+                {
+                  type: 'submenu',
+                  title: '',
+                  displayInline: true,
+                  items: [
+                    {
+                      type: 'action',
+                      title: t('session.action.projectFiles'),
+                      icon: { type: 'sfSymbol', name: 'folder' },
+                      onPress: () => {},
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ]}
+      />
       <NativeChat
         turnInfoEnabled
         onTurnInfoPress={({ nativeEvent }) =>

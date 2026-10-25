@@ -1,5 +1,4 @@
-import { Stack } from 'expo-router';
-import { NativeGroupedList } from '@lody-ios/kit';
+import { NativeGroupedList, NativeNavigationHeader } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import {
   useProjectModel,
@@ -37,21 +36,21 @@ function View() {
   const model = useProjectModel(projectId);
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: model.project?.name ?? t('project.title'),
-          headerLargeTitle: false,
-        }}
+      <NativeNavigationHeader
+        title={model.project?.name ?? t('project.title')}
+        items={
+          model.project && !isChatProjectId(model.project.id)
+            ? [
+                {
+                  type: 'button',
+                  icon: { type: 'sfSymbol', name: 'plus' },
+                  accessibilityLabel: t('project.newSession.accessibility'),
+                  onPress: model.newSession,
+                },
+              ]
+            : undefined
+        }
       />
-      {model.project && !isChatProjectId(model.project.id) ? (
-        <Stack.Toolbar placement="right">
-          <Stack.Toolbar.Button
-            icon="plus"
-            accessibilityLabel={t('project.newSession.accessibility')}
-            onPress={model.newSession}
-          />
-        </Stack.Toolbar>
-      ) : null}
       <ProjectList model={model} />
     </>
   );

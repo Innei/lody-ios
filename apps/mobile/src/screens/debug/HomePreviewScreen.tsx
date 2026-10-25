@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { View } from 'react-native';
 import { useAppNavigationState } from '@/lib/presentation/useAppNavigationState';
 import type { PropsWithChildren } from 'react';
@@ -178,39 +178,82 @@ const olderSearchCache = JSON.stringify({
   })),
 });
 
-export function HomePreviewProviders({ children }: PropsWithChildren) {
-  const [previewCatalog, setPreviewCatalog] = useState(catalog);
-  const archivedDeleteFailed = useRef(false);
-  const [cacheReady, setCacheReady] = useState(false);
-  const [previewWorkspaces, setPreviewWorkspaces] = useState(workspaces);
-  const [selected, setSelected] =
-    useState<(typeof workspaces)[number]>(workspace);
-  const [presence, setPresence] = useState<WorkspacePresence | null>(null);
-  const selectedCatalog =
-    selected.id === workspace.id ? previewCatalog : emptyCatalog;
+type PreviewWorkspace = {
+  id: string;
+  name: string;
+  slug: string | null;
+  image?: string;
+};
+type PreviewState = {
+  catalog: Catalog;
+  cacheReady: boolean;
+  workspaces: PreviewWorkspace[];
+  selected: PreviewWorkspace;
+  presence: WorkspacePresence | null;
+};
+
+// Every shell page is its own React root; one store keeps the fixture shared.
+let preview: PreviewState = {
+  catalog,
+  cacheReady: false,
+  workspaces,
+  selected: workspace,
+  presence: null,
+};
+let archivedDeleteFailed = false;
+const previewListeners = new Set<() => void>();
+
+function updatePreview(next: Partial<PreviewState>) {
+  preview = { ...preview, ...next };
+  for (const listener of previewListeners) listener();
+}
+
+function subscribePreview(listener: () => void) {
+  previewListeners.add(listener);
+  return () => {
+    previewListeners.delete(listener);
+  };
+}
+
+function renameWorkspace(id: string, change: Partial<PreviewWorkspace>) {
+  updatePreview({
+    workspaces: preview.workspaces.map((item) =>
+      item.id === id ? { ...item, ...change } : item,
+    ),
+    selected:
+      preview.selected.id === id
+        ? { ...preview.selected, ...change }
+        : preview.selected,
+  });
+}
+
+function usePreviewOwner() {
+  const selectedId = useSyncExternalStore(
+    subscribePreview,
+    () => preview.selected.id,
+  );
   useEffect(() => {
     let active = true;
     const update = async () => {
       const raw = await readLocalValue('ui-device-presence');
       if (!active) return;
       const next = {
-        workspaceId: selected.id,
+        workspaceId: selectedId,
         presence: raw
           ? JSON.parse(raw)
           : { state: 'unknown', onlineMachineIds: [] },
       };
-      setPresence((old) =>
-        JSON.stringify(old) === JSON.stringify(next) ? old : next,
-      );
+      if (JSON.stringify(preview.presence) !== JSON.stringify(next))
+        updatePreview({ presence: next });
     };
     void update();
     const timer = setInterval(() => void update(), 500);
     return () => {
       active = false;
       clearInterval(timer);
-      setPresence(null);
+      updatePreview({ presence: null });
     };
-  }, [selected.id]);
+  }, [selectedId]);
   useEffect(() => {
     void Promise.all([
       writeLocalValue(
@@ -230,8 +273,23 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
         `session:${JSON.stringify(['ui-home', 'ui-home', 'ui-search'])}`,
         runtimeInfo.uiVerifySessionSearch ? olderSearchCache : 'null',
       ),
-    ]).then(() => setCacheReady(true));
+    ]).then(() => updatePreview({ cacheReady: true }));
   }, []);
+}
+
+function PreviewOwner() {
+  usePreviewOwner();
+  return null;
+}
+
+export function HomePreviewProviders({
+  children,
+  owner = true,
+}: PropsWithChildren<{ owner?: boolean }>) {
+  const state = useSyncExternalStore(subscribePreview, () => preview);
+  const { selected } = state;
+  const selectedCatalog =
+    selected.id === workspace.id ? state.catalog : emptyCatalog;
   return (
     <AuthContext
       value={{
@@ -242,7 +300,7 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
             email: '',
             image: previewPhoto,
           },
-          workspaces: previewWorkspaces,
+          workspaces: state.workspaces,
         },
         busy: false,
         localReady: true,
@@ -254,21 +312,9 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
         restore: noop,
         logout: noop,
         reopen: noop,
-        updateWorkspace: async (id, name) => {
-          setPreviewWorkspaces((items) =>
-            items.map((item) => (item.id === id ? { ...item, name } : item)),
-          );
-          setSelected((item) => (item.id === id ? { ...item, name } : item));
-        },
+        updateWorkspace: async (id, name) => renameWorkspace(id, { name }),
         updateWorkspaceIcon: async (id, file) => {
-          setPreviewWorkspaces((items) =>
-            items.map((item) =>
-              item.id === id ? { ...item, image: file.uri } : item,
-            ),
-          );
-          setSelected((item) =>
-            item.id === id ? { ...item, image: file.uri } : item,
-          );
+          renameWorkspace(id, { image: file.uri });
           return file.uri;
         },
       }}
@@ -283,7 +329,9 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
           syncedAt: undefined,
           key: selected.id,
           setWorkspaceId: (id) =>
-            setSelected(workspaces.find((item) => item.id === id) ?? workspace),
+            updatePreview({
+              selected: workspaces.find((item) => item.id === id) ?? workspace,
+            }),
           refresh: noop,
           deleteSessionRequest: async (payload) => {
             const args = JSON.parse(payload) as {
@@ -292,31 +340,35 @@ export function HomePreviewProviders({ children }: PropsWithChildren) {
             };
             await new Promise((resolve) => setTimeout(resolve, 900));
             // Deterministic service failure on the archived fixture; retry succeeds.
-            if (
-              args.sessionId === 'ui-search' &&
-              !archivedDeleteFailed.current
-            ) {
-              archivedDeleteFailed.current = true;
+            if (args.sessionId === 'ui-search' && !archivedDeleteFailed) {
+              archivedDeleteFailed = true;
               throw new Error('offline_fixture');
             }
-            setPreviewCatalog((current) => ({
-              ...current,
-              sessions: current.sessions.filter(
-                (session) => !args.sessionIds.includes(session.id),
-              ),
-            }));
+            updatePreview({
+              catalog: {
+                ...preview.catalog,
+                sessions: preview.catalog.sessions.filter(
+                  (session) => !args.sessionIds.includes(session.id),
+                ),
+              },
+            });
             return JSON.stringify({ sessionIds: args.sessionIds });
           },
         }}
       >
-        <MachinePresenceContext value={presence}>
-          <View
-            testID={cacheReady ? 'ui-verify-ready' : undefined}
-            style={{ flex: 1 }}
-          >
-            {children}
-            <NavigationProbe />
-          </View>
+        <MachinePresenceContext value={state.presence}>
+          {owner ? (
+            <View
+              testID={state.cacheReady ? 'ui-verify-ready' : undefined}
+              style={{ flex: 1 }}
+            >
+              <PreviewOwner />
+              {children}
+              <NavigationProbe />
+            </View>
+          ) : (
+            children
+          )}
         </MachinePresenceContext>
       </CatalogContext>
     </AuthContext>

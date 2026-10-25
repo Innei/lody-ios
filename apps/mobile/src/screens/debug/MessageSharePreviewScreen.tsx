@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useMessageDetailsSheet } from '@/hooks/screens/useMessageDetailsSheet';
-import { Stack } from 'expo-router';
-import { NativeChat } from '@lody-ios/kit';
+import { NativeChat, NativeNavigationHeader } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { openMessageShare } from '@/screens/MessageShareScreen';
 
@@ -87,33 +86,34 @@ function View() {
   const openDetails = useMessageDetailsSheet(entriesJSON);
   return (
     <>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu
-          icon="slider.horizontal.3"
-          accessibilityLabel="Paper fixtures"
-        >
-          {[
-            'short',
-            'long',
-            'no-meta',
-            'late-usage',
-            'image',
-            'large',
-            'error',
-            'streaming',
-          ].map((value) => (
-            <Stack.Toolbar.MenuAction
-              key={value}
-              onPress={() => {
-                setLateUsage(false);
-                setFixture(value);
-              }}
-            >
-              {value}
-            </Stack.Toolbar.MenuAction>
-          ))}
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
+      <NativeNavigationHeader
+        items={[
+          {
+            type: 'menu',
+            icon: { type: 'sfSymbol', name: 'slider.horizontal.3' },
+            accessibilityLabel: 'Paper fixtures',
+            menu: {
+              items: [
+                'short',
+                'long',
+                'no-meta',
+                'late-usage',
+                'image',
+                'large',
+                'error',
+                'streaming',
+              ].map((value) => ({
+                type: 'action' as const,
+                title: value,
+                onPress: () => {
+                  setLateUsage(false);
+                  setFixture(value);
+                },
+              })),
+            },
+          },
+        ]}
+      />
       <NativeChat
         style={{ flex: 1 }}
         entriesJSON={entriesJSON}

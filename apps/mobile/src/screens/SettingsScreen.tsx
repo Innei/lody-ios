@@ -5,7 +5,7 @@ import { AgentRolesScreen } from './AgentRolesScreen';
 import { GitHubSettingsScreen } from './GitHubSettingsScreen';
 import { ProjectVisibilityScreen } from './ProjectVisibilityScreen';
 import { PromptShortcutsScreen } from './PromptShortcutsScreen';
-import { useRouter } from 'expo-router';
+import { openRoute } from '@/lib/presentation/appNavigation';
 import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
@@ -28,7 +28,6 @@ import { WorkspaceEditorScreen } from './WorkspaceEditorScreen';
 
 function View() {
   const auth = useAuth();
-  const router = useRouter();
   const { push, present, cancel } = usePageRuntime();
   const colors = usePalette();
   const connection = useConnection();
@@ -318,7 +317,7 @@ function View() {
           refresh();
         if (id === 'debug-open') {
           cancel();
-          router.push('/debug');
+          openRoute('/debug');
         }
       }}
     />

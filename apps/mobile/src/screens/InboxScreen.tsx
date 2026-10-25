@@ -1,10 +1,12 @@
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   NativeGroupedList,
   NativeMenuButton,
+  NativeNavigationHeader,
   NativeSymbolButton,
+  shellEnabled,
 } from '@lody-ios/kit';
 import { Screen } from '@/ui/Screen';
 import {
@@ -15,6 +17,7 @@ import {
 } from '@/features/sessions/useInboxModel';
 import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
 import { definePage, present } from '@/lib/presentation';
+import { openRoute } from '@/lib/presentation/appNavigation';
 import { t } from '@/lib/i18n';
 import { useDevices } from '@/hooks/screens/useDevices';
 import { SettingsScreen } from './SettingsScreen';
@@ -45,9 +48,133 @@ function InboxList({ model }: { model: InboxModel }) {
   );
 }
 
+function openDebug() {
+  openRoute('/debug');
+}
+
+function ShellChrome({ model }: { model: InboxModel }) {
+  const devices = useDevices();
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const { account, colors, mode, selected, sort } = model;
+  if (!model.ready || !account) return null;
+  const workspaceName = selected?.name ?? t('common.workspace');
+  const workspaceMenu = (
+    <NativeMenuButton
+      testID="workspace-menu"
+      style={{
+        // Leave room for both trailing actions and UIKit's glass group margins.
+        maxWidth: Math.max(44, width - insets.left - insets.right - 192),
+      }}
+      accessibilityName={`${t('inbox.workspaceSwitch.accessibility', {
+        name: workspaceName,
+      })}, ${devices.summary}`}
+      avatar={{
+        text: workspaceName.slice(0, 1),
+        color: colors.accent,
+        image: selected?.image,
+      }}
+      label={workspaceName}
+      status={devices.status}
+      items={[
+        devices.menuItem,
+        ...account.workspaces.map((workspace) => ({
+          id: workspace.id,
+          title: workspace.name,
+          selected: workspace.id === selected?.id,
+        })),
+        ...(selected
+          ? [{ id: workspaceEditActionId, title: t('workspace.edit.action') }]
+          : []),
+      ]}
+      onSelect={(id) => {
+        if (id === workspaceEditActionId && selected) {
+          void present(WorkspaceEditorScreen, {
+            workspaceId: selected.id,
+            name: selected.name,
+            image: selected.image,
+            color: colors.accent,
+          });
+          return;
+        }
+        model.setWorkspaceId(id);
+      }}
+    />
+  );
+  return (
+    <>
+      <NativeNavigationHeader
+        leftItems={[{ type: 'view', element: workspaceMenu }]}
+        items={[
+          {
+            type: 'menu',
+            icon: { type: 'sfSymbol', name: 'line.3.horizontal.decrease' },
+            tintColor: colors.label,
+            accessibilityLabel: t('inbox.settings.section.view'),
+            menu: {
+              items: [
+                ...inboxViews.map((view) => ({
+                  type: 'action' as const,
+                  title: t(view.key),
+                  icon: { type: 'sfSymbol' as const, name: view.icon },
+                  state:
+                    mode === view.mode ? ('on' as const) : ('off' as const),
+                  onPress: () => model.setView(view.mode),
+                })),
+                {
+                  type: 'submenu',
+                  displayInline: true,
+                  items: inboxSorts.map((item) => ({
+                    type: 'action' as const,
+                    title: t(item.key),
+                    icon: { type: 'sfSymbol' as const, name: item.icon },
+                    state:
+                      sort === item.id ? ('on' as const) : ('off' as const),
+                    onPress: () => model.setProjectSort(item.id),
+                  })),
+                },
+              ],
+            },
+          },
+          {
+            type: 'view',
+            element: (
+              <NativeSymbolButton
+                accessibilityName={t('tabs.settings')}
+                symbol="gearshape"
+                style={{ width: 44, height: 44 }}
+                onPress={() => void present(SettingsScreen)}
+                onLongPress={openDebug}
+              />
+            ),
+          },
+        ]}
+        search={{
+          placement: 'integrated',
+          placeholder: t('search.field.placeholder'),
+          hideWhenScrolling: false,
+          onChangeText: model.setQuery,
+          onCancel: () => model.setQuery(''),
+        }}
+        toolbarItems={[
+          { type: 'searchSlot' },
+          { type: 'spacing', spacing: 6 },
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'plus' },
+            sharesBackground: false,
+            tintColor: colors.accent,
+            accessibilityLabel: t('tabs.newSession'),
+            onPress: () => void model.newSession(),
+          },
+        ]}
+      />
+    </>
+  );
+}
+
 function RouterChrome({ model }: { model: InboxModel }) {
   const devices = useDevices();
-  const router = useRouter();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { account, colors, mode, selected, sort } = model;
@@ -140,7 +267,7 @@ function RouterChrome({ model }: { model: InboxModel }) {
             symbol="gearshape"
             style={{ width: 44, height: 44 }}
             onPress={() => void present(SettingsScreen)}
-            onLongPress={() => router.push('/debug')}
+            onLongPress={openDebug}
           />
         </Stack.Toolbar.View>
       </Stack.Toolbar>
@@ -166,11 +293,13 @@ function RouterChrome({ model }: { model: InboxModel }) {
   );
 }
 
+const InboxChrome = shellEnabled ? ShellChrome : RouterChrome;
+
 function View() {
   const model = useInboxModel();
   return (
     <>
-      <RouterChrome model={model} />
+      <InboxChrome model={model} />
       <InboxList model={model} />
     </>
   );

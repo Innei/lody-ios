@@ -113,7 +113,9 @@ builds a Release Simulator app with that flag and an embedded Hermes bundle;
 uses a Debug app plus one owned Metro. Both paths require the `ui-verify-ready`
 marker before any interaction. Native image fixtures additionally require the
 `--ui-verify` launch argument. No production credentials are used. The managed
-verification Simulator is reused without erasing between leases.
+verification Simulator is reused without erasing between leases. `--shell` adds
+`--uikit-shell` to every launch, including the cold relaunches inside checks
+(`driver.app_flags()`), so the same cases exercise the UIKit navigation shell.
 
 The `pull-request` case also exercises authorization retry, empty checks, a rejected
 comment retaining its draft followed by successful publication to the local fixture,

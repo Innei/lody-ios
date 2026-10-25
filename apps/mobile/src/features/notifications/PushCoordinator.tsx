@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { router } from 'expo-router';
+import { popToRoot } from '@/lib/presentation/appNavigation';
 import { useAppNavigationState } from '@/lib/presentation/useAppNavigationState';
 import {
   acknowledgePushClick,
@@ -86,7 +86,7 @@ export function PushCoordinator() {
     }
     if (destination.kind === 'wait' || !navigation) return;
     if (needsReset) {
-      router.dismissTo('/');
+      popToRoot();
       return;
     }
     if (destination.kind === 'workspace') {

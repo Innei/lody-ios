@@ -83,7 +83,10 @@ export async function openSettingsBaseline(scenario: Scenario) {
   }
 }
 
-export function SettingsBaselineProviders({ children }: PropsWithChildren) {
+export function SettingsBaselineProviders({
+  children,
+  owner = true,
+}: PropsWithChildren<{ owner?: boolean }>) {
   const auth = useAuth();
   const catalog = useCatalog();
   const current = useSyncExternalStore(
@@ -149,7 +152,7 @@ export function SettingsBaselineProviders({ children }: PropsWithChildren) {
       <CatalogContext value={catalogValue}>
         <ConnectionContext value={current?.connection ?? null}>
           {children}
-          {current && (
+          {owner && current && (
             <View
               accessible
               testID="settings-baseline-ready"
