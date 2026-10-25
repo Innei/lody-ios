@@ -17,6 +17,7 @@ struct ShellPageSpec: Decodable {
   var initialDetent: Int?
   var container: Int?
   var root: Bool?
+  var insertAt: Int?
 }
 
 final class LodyPageController: UIViewController {
@@ -24,6 +25,7 @@ final class LodyPageController: UIViewController {
   let inSheet: Bool
   var onEvent: ((String, Int) -> Void)?
   private(set) var closed = false
+  private var headerHidden: Bool?
 
   init(spec: ShellPageSpec, inSheet: Bool) {
     self.spec = spec
@@ -62,7 +64,7 @@ final class LodyPageController: UIViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-    navigationController?.setNavigationBarHidden(!spec.headerShown, animated: animated)
+    navigationController?.setNavigationBarHidden(headerHidden ?? !spec.headerShown, animated: animated)
     updateBackground()
   }
 
@@ -90,6 +92,13 @@ final class LodyPageController: UIViewController {
     }
   }
 
+  func setHeaderHidden(_ value: Bool?) {
+    guard value != headerHidden else { return }
+    headerHidden = value
+    guard let navigationController, navigationController.topViewController === self else { return }
+    navigationController.setNavigationBarHidden(value ?? !spec.headerShown, animated: false)
+  }
+
   func markClosed() {
     guard !closed else { return }
     closed = true
@@ -107,6 +116,6 @@ final class LodyPageController: UIViewController {
     let regular = (view.window?.traitCollection ?? traitCollection).horizontalSizeClass == .regular
     let overlay = spec.style == "overFullScreen" || container == .overFullScreen
     let compactSheet = inSheet && !regular && (container == .formSheet || container == .pageSheet)
-    view.backgroundColor = overlay || compactSheet ? .clear : .lodyBackground
+    view.backgroundColor = overlay || compactSheet ? .clear : .lodyGroupedBackground
   }
 }

@@ -8,6 +8,7 @@ import time
 
 import catalog
 from driver import UI
+import pad
 
 ui = UI(*sys.argv[1:])
 container = Path(subprocess.check_output(['xcrun', 'simctl', 'get_app_container', ui.udid, 'app.innei.lody', 'data'], text=True).strip())
@@ -69,6 +70,8 @@ def capture_creation(name):
     ui.capture(name)
 
 
+if 'devices-pad' in str(ui.output):
+    pad.show_list(ui)
 ui.element('ui-design')
 label(catalog.text('devices.summary', count=2, total=3))
 ui.capture('home-mixed')

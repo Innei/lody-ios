@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useNavigation } from 'expo-router';
 import { shellEnabled } from '@lody-ios/kit';
@@ -16,6 +16,10 @@ import {
 import { type LayoutMode, useLayoutMode } from '@/lib/presentation/layoutMode';
 import { openPanel } from '@/lib/presentation/panelStore';
 import { getPresentationSession } from '@/lib/presentation/presentationStore';
+import {
+  shellSetStack,
+  shellStackRoutes,
+} from '@/lib/presentation/shellNavigation';
 import { t } from '@/lib/i18n';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
@@ -29,68 +33,104 @@ function presentedRoute(route: StackRoute) {
   return getPresentationSession(Number(route.params.presentationId));
 }
 
-function useHomeTransitions(mode: LayoutMode) {
-  const navigation = useNavigation();
+function moveToWide(routes: StackRoute[], scope: string) {
+  const stack = extractCompactStack(routes, presentedRoute, SessionScreen.id);
+  if (stack.session !== undefined) setHomeDetail(stack.session, scope);
+  stack.panel.forEach(
+    (entry, index) =>
+      void openPanel(
+        entry.page,
+        entry.params,
+        index === 0 ? 'replace' : 'push',
+        entry.presentation,
+      ),
+  );
+  return stack.routes;
+}
+
+function useHomeScope() {
   const { account } = useAuth();
   const { selected } = useCatalog();
-  const scope = homeScope(account?.user.id, selected?.id);
+  return homeScope(account?.user.id, selected?.id);
+}
+
+function useModeChange(mode: LayoutMode, onChange: (to: LayoutMode) => void) {
   const previous = useRef(mode);
   useLayoutEffect(() => {
     const from = previous.current;
     previous.current = mode;
     if (from === mode || (from !== 'compact' && mode !== 'compact')) return;
-    const state = navigation.getState();
-    if (!state) return;
-    const routes = state.routes as StackRoute[];
-    if (from === 'compact') {
-      const stack = extractCompactStack(
-        routes,
-        presentedRoute,
-        SessionScreen.id,
-      );
-      if (stack.session !== undefined) setHomeDetail(stack.session, scope);
-      stack.panel.forEach(
-        (entry, index) =>
-          void openPanel(
-            entry.page,
-            entry.params,
-            index === 0 ? 'replace' : 'push',
-            entry.presentation,
-          ),
-      );
-      if (stack.routes === routes) return;
-      navigation.dispatch({
-        type: 'RESET',
-        payload: {
-          ...state,
-          routes: stack.routes,
-          index: stack.routes.length - 1,
-        },
-      });
-      return;
-    }
-    const detail = getHomeDetail<SessionParams>(scope);
-    if (!detail) return;
-    let presentationId: number | undefined;
-    void present(SessionScreen, detail.value, {
-      title: detail.value.session.title,
-      animationType: 'none',
-      host: (session) => {
-        presentationId = session.id;
-      },
-    });
-    setHomeDetail(undefined);
-    if (presentationId === undefined) return;
-    const next = insertSessionRoute(routes, presentationId);
-    navigation.dispatch({
-      type: 'RESET',
-      payload: { ...state, routes: next, index: next.length - 1 },
-    });
-  }, [mode, navigation, scope]);
+    onChange(mode);
+  }, [mode, onChange]);
 }
 
-// The shell is compact-only for now; its pages are not Router routes to move.
-const useTransitions = shellEnabled ? () => {} : useHomeTransitions;
+function useRouterHomeTransitions(mode: LayoutMode) {
+  const navigation = useNavigation();
+  const scope = useHomeScope();
+  const onChange = useCallback(
+    (to: LayoutMode) => {
+      const state = navigation.getState();
+      if (!state) return;
+      const routes = state.routes as StackRoute[];
+      if (to !== 'compact') {
+        const kept = moveToWide(routes, scope);
+        if (kept === routes) return;
+        navigation.dispatch({
+          type: 'RESET',
+          payload: { ...state, routes: kept, index: kept.length - 1 },
+        });
+        return;
+      }
+      const detail = getHomeDetail<SessionParams>(scope);
+      if (!detail) return;
+      let presentationId: number | undefined;
+      void present(SessionScreen, detail.value, {
+        title: detail.value.session.title,
+        animationType: 'none',
+        host: (session) => {
+          presentationId = session.id;
+        },
+      });
+      setHomeDetail(undefined);
+      if (presentationId === undefined) return;
+      const next = insertSessionRoute(routes, presentationId);
+      navigation.dispatch({
+        type: 'RESET',
+        payload: { ...state, routes: next, index: next.length - 1 },
+      });
+    },
+    [navigation, scope],
+  );
+  useModeChange(mode, onChange);
+}
+
+function useShellHomeTransitions(mode: LayoutMode) {
+  const scope = useHomeScope();
+  const onChange = useCallback(
+    (to: LayoutMode) => {
+      if (to !== 'compact') {
+        const routes = shellStackRoutes();
+        const kept = moveToWide(routes, scope);
+        if (kept !== routes) void shellSetStack(kept);
+        return;
+      }
+      const detail = getHomeDetail<SessionParams>(scope);
+      if (!detail) return;
+      void present(SessionScreen, detail.value, {
+        title: detail.value.session.title,
+        animationType: 'none',
+        insertAt: 1,
+      });
+      setHomeDetail(undefined);
+    },
+    [scope],
+  );
+  useModeChange(mode, onChange);
+}
+
+const useTransitions = shellEnabled
+  ? useShellHomeTransitions
+  : useRouterHomeTransitions;
 
 function Home() {
   const mode = useLayoutMode();

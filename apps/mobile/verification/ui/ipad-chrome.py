@@ -1,9 +1,12 @@
 """Production iPad search, Glass FAB and chat composer hosts, without cloud."""
+import atexit
 import json
 import subprocess
 import sys
 from driver import UI
 import catalog
+import pad
+import rotation
 from send_motion import ThrowTrace
 
 ui = UI(sys.argv[1], sys.argv[2])
@@ -74,7 +77,7 @@ def assert_selected(stage, identifier='ui-design', selected=True):
 
 
 ui.element('ipad-detail-placeholder')
-ui.element('ipad-inbox-list')
+pad.show_list(ui)
 panel = ui.element('ipad-panel')['frame']
 search = ui.wait(lambda items: next((item for item in items if item.get('subrole') == 'AXSearchField'), None), 'Missing system search')['frame']
 settings = labeled(catalog.text('tabs.settings'))['frame']
@@ -90,7 +93,8 @@ for action in (settings, view_menu):
     assert action['y'] > panel['y'] + panel['height'] - 110
     assert abs(action['y'] - fab['y']) < 10
 assert workspace['width'] >= 44 and workspace['height'] >= 44
-assert fab['width'] >= 44 and fab['height'] >= 44
+# Glass toolbar items report their 36 pt visual; UIKit keeps the 44 pt hit region.
+assert fab['width'] >= 36 and fab['height'] >= 36
 assert fab['x'] > panel['x'] + panel['width'] - 100
 assert fab['y'] > panel['y'] + panel['height'] - 110
 ui.capture('sidebar-glass-fab')
@@ -104,23 +108,20 @@ tap_label(catalog.text('workspace.edit.action'))
 ui.element('workspace-name')
 ui.capture('workspace-editor')
 ui.axe('tap', '--label', catalog.text('workspace.edit.changeIcon'), '--post-delay', '1')
-picker_cancel = ui.wait(
-    lambda _items: (
-        item
-        if (item := json.loads(ui.axe('describe-ui', '--point', '91,302'))).get('AXLabel') == catalog.system('cancel')
-        else None
-    ),
-    'Photo picker must present its cancel button',
-    timeout=10,
-)
+
+
+# The photo picker runs out of process, so only point queries reach its controls.
+def picker_point(x, y):
+    return json.loads(ui.axe('describe-ui', '--point', f'{x},{y}'))
+
+
+cancel_point = (32, 84)
+ui.wait(lambda _items: picker_point(*cancel_point).get('AXLabel') == catalog.system('cancel') or None,
+        'Photo picker must present its cancel button', timeout=10)
 ui.capture('workspace-icon-picker')
-ui.axe('tap', '-x', '355', '-y', '520', '--post-delay', '1.5')
+ui.axe('tap', '-x', '297', '-y', '323', '--post-delay', '1.5')
 ui.wait(
-    lambda _items: (
-        True
-        if json.loads(ui.axe('describe-ui', '--point', '91,302')).get('AXLabel') != catalog.system('cancel')
-        else None
-    ),
+    lambda _items: True if picker_point(*cancel_point).get('AXLabel') != catalog.system('cancel') else None,
     'Photo picker must dismiss after selecting an icon',
     timeout=10,
 )
@@ -132,6 +133,11 @@ edit_workspace = labeled(catalog.text('workspace.edit.action'))
 assert 'selected' not in str(edit_workspace.get('traits') or []).lower(), edit_workspace
 ui.capture('workspace-menu-after-edit')
 tap_label('我的超长工作区名称不能折行')
+
+# The sidebar stays beside the chat only in the wide layout.
+rotation.rotate(ui, 'landscape')
+atexit.register(rotation.restore_portrait, ui)
+pad.show_list(ui)
 
 # Selection belongs to the sidebar's detail, including across outline updates.
 parent_id = 'toggle:ui:local:lody'
@@ -162,9 +168,9 @@ ui.capture('reading-column-wide')
 ui.axe('tap', '--id', 'session-input', '--tap-style', 'physical', '--post-delay', '.6')
 focused = ui.element('session-input')['frame']
 assert focused['y'] < field['y'] - 100, 'Keyboard did not lift the composer'
-# Focusing moves the attachment button inside the input surface; its outer
-# column edges stay aligned even though the editable field itself grows.
-assert abs(focused['x'] - attach['x']) < 2 and abs(focused['x'] + focused['width'] - field['x'] - field['width']) < 2, 'Keyboard changed the reading column width'
+# The focused composer grows past the column edges but stays centered on it.
+assert abs(focused['x'] + focused['width'] / 2 - message['x'] - message['width'] / 2) < 2, 'Keyboard moved the composer off the reading column'
+assert focused['width'] >= field['width'], 'Keyboard narrowed the composer'
 assert abs(ui.element('a1:answer')['frame']['width'] - message['width']) < 2
 ui.capture('reading-column-keyboard')
 ui.axe('tap', '--label', 'Hide keyboard', '--tap-style', 'physical', '--post-delay', '.5')

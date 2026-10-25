@@ -2,6 +2,7 @@
 import sys
 from driver import UI
 import catalog
+import pad as pad_layout
 
 ui = UI(sys.argv[1], sys.argv[2])
 pad = any(i.get('AXUniqueId') == 'ipad-home' for i in ui.state())
@@ -21,7 +22,23 @@ def menu(identifier):
     ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('session.delete.title') for i in items), 'Missing confirmation')
 
 
+def reveal(identifier):
+    for _ in range(5):
+        items = ui.state()
+        screen = items[0]['frame']
+        match = next((i for i in items if i.get('AXUniqueId') == identifier), None)
+        if match and match['frame']['y'] + match['frame']['height'] < screen['height'] - 16:
+            return match
+        x = str(int(screen['width'] / 2))
+        ui.axe('swipe', '--start-x', x, '--start-y', str(int(screen['height'] * .7)),
+               '--end-x', x, '--end-y', str(int(screen['height'] * .4)), '--duration', '.4', '--post-delay', '.5')
+    raise AssertionError(f'Could not reach {identifier}')
+
+
+if pad:
+    pad_layout.show_list(ui)
 tap_label(catalog.text('tabs.settings'))
+reveal('archived')
 ui.axe('tap', '--id', 'archived', '--post-delay', '.6')
 menu('ui-search')
 ui.capture('archived-confirmation')
@@ -57,8 +74,10 @@ ui.wait(lambda items: not any(i.get('AXUniqueId') == 'ui-design' for i in items)
 ui.capture('returned-after-delete')
 
 if pad:
+    pad_layout.show_list(ui)
     ui.axe('tap', '--id', 'ui-pinned', '--post-delay', '.7')
     ui.element('session-input')
+    pad_layout.show_list(ui)
 menu('ui-pinned')
 ui.capture('list-confirmation')
 tap_label(delete)

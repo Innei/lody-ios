@@ -23,8 +23,8 @@ def scroll_under_header(identifier, screenshot):
 
 
 scroll_under_header('poc-native-collection', 'collection')
-ui.axe('tap', '--id', 'poc-collection-search')
-ui.axe('type', '30')
+ui.axe('tap', '--id', 'poc-collection-search', '--tap-style', 'physical', '--post-delay', '.5')
+ui.type_into('poc-collection-search', '30')
 ui.element('poc-collection-row-30')
 rows = [item for item in ui.state() if (item.get('AXUniqueId') or '').startswith('poc-collection-row-')]
 assert len(rows) == 1, rows
