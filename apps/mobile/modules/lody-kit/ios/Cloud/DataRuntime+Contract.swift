@@ -39,13 +39,11 @@ extension DataRuntime {
   // Expo's `reject(code:description:)` drops the description in this version,
   // so every failure reads "undefined reason". Carry the text in an NSError.
   func fail(_ sink: ReplySink, _ code: String, _ message: String) {
-    sink.reject(
-      NSError(
-        domain: "LodyKit.DataRuntime",
-        code: 1,
-        userInfo: [NSLocalizedDescriptionKey: "\(code): \(message)"]
-      )
-    )
+    sink.reject(Self.failure(code, message))
+  }
+
+  static func failure(_ code: String, _ message: String) -> NSError {
+    NSError(domain: "LodyKit.DataRuntime", code: 1, userInfo: [NSLocalizedDescriptionKey: "\(code): \(message)"])
   }
 
   static func scope(_ payload: String) -> [String: Any]? {
@@ -94,25 +92,42 @@ extension DataRuntime {
   }
   func call<C: RuntimeCall>(_ call: C.Type, _ params: C.Params, sink: ReplySink, timeout: Double? = nil,
     failed: @escaping @MainActor () -> Void = {}, resolve: @escaping @MainActor (C.Result) -> Any?) {
-    guard health.ready, contractReady, let channel else {
+    guard health.ready, contractReady, channel != nil else {
       failed()
       fail(sink, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
       return
     }
     Task { @MainActor in
       do {
-        sink.resolve(resolve(try await channel.call(C.self, params, timeout: timeout)))
-      } catch let failure as RuntimeFailure {
-        failed()
-        switch failure.code {
-        case "timeout": self.fail(sink, "send_timeout", LodyStrings.text("native.runtime.sendTimeout"))
-        case "runtime_replaced": self.fail(sink, "runtime_replaced", LodyStrings.text("native.runtime.replaced"))
-        default: self.fail(sink, "command_failed", failure.detail ?? failure.code)
-        }
+        sink.resolve(resolve(try await self.perform(C.self, params, timeout: timeout)))
       } catch {
         failed()
-        self.fail(sink, "command_failed", error.localizedDescription)
+        sink.reject(error)
       }
     }
+  }
+
+  func perform<C: RuntimeCall>(_ call: C.Type, _ params: C.Params, timeout: Double? = nil) async throws -> C.Result {
+    guard health.ready, contractReady, let channel else {
+      throw Self.failure("not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
+    }
+    do {
+      return try await channel.call(C.self, params, timeout: timeout)
+    } catch let failure as RuntimeFailure {
+      switch failure.code {
+      case "timeout": throw Self.failure("send_timeout", LodyStrings.text("native.runtime.sendTimeout"))
+      case "runtime_replaced": throw Self.failure("runtime_replaced", LodyStrings.text("native.runtime.replaced"))
+      default: throw Self.failure("command_failed", failure.detail ?? failure.code)
+      }
+    } catch {
+      throw Self.failure("command_failed", error.localizedDescription)
+    }
+  }
+
+  func workspaceCall<C: RuntimeCall>(
+    _ call: C.Type, timeout: Double? = nil, _ params: (_ workspaceId: String, _ userId: String) -> C.Params
+  ) async throws -> C.Result {
+    guard let workspace else { throw Self.failure("not_ready", LodyStrings.text("native.runtime.sessionNotSynced")) }
+    return try await perform(C.self, params(workspace, userId), timeout: timeout)
   }
 }
