@@ -1,6 +1,5 @@
-import { Stack } from 'expo-router';
 import { useState } from 'react';
-import { NativeChat } from '@lody-ios/kit';
+import { NativeChat, NativeNavigationHeader } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 
 function View() {
@@ -28,13 +27,16 @@ function View() {
   );
   return (
     <>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button
-          accessibilityLabel="Run Chat Benchmark"
-          icon="play"
-          onPress={() => setRun((value) => value + 1)}
-        />
-      </Stack.Toolbar>
+      <NativeNavigationHeader
+        items={[
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'play' },
+            accessibilityLabel: 'Run Chat Benchmark',
+            onPress: () => setRun((value) => value + 1),
+          },
+        ]}
+      />
       <NativeChat
         style={{ flex: 1 }}
         navigationTitle="10,000 Messages"

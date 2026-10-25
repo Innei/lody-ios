@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { openRoute } from '@/lib/presentation/appNavigation';
 import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import { requestOpenSession } from '@/features/sessions/sessionNav';
 
@@ -8,10 +8,11 @@ export function openCatalogRow(
   findQuery?: string,
 ) {
   if (id.startsWith('project:')) {
-    router.push({
-      pathname: '/project/[projectId]',
-      params: { projectId: id.slice(8) },
-    });
+    const projectId = id.slice(8);
+    openRoute(
+      { pathname: '/project/[projectId]', params: { projectId } },
+      { projectId },
+    );
     return;
   }
   const session = catalog.sessions.find((s) => s.id === id);

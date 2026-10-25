@@ -1,6 +1,5 @@
-import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { NativeChat } from '@lody-ios/kit';
+import { NativeChat, NativeNavigationHeader } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
@@ -136,55 +135,63 @@ function View() {
   const { openProcess } = useProcessSheet(entriesJSON, () => {});
   return (
     <>
-      <Stack.Toolbar placement="left">
-        <Stack.Toolbar.Button
-          accessibilityLabel="Cached History"
-          icon="arrow.counterclockwise"
-          onPress={() => {
-            setMode('cache');
-            setRun((old) => old + 1);
-          }}
-        />
-        <Stack.Toolbar.Button
-          accessibilityLabel="Sync History"
-          icon="arrow.down.circle"
-          onPress={() => setMode('live')}
-        />
-      </Stack.Toolbar>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button
-          accessibilityLabel="Stream Anchored Turn"
-          icon="pin"
-          onPress={() => {
-            setLength(0);
-            setMode('anchor');
-            setRun((old) => old + 1);
-          }}
-        />
-        <Stack.Toolbar.Button
-          accessibilityLabel="Stream Lines"
-          icon="play"
-          onPress={() => {
-            setLength(0);
-            setMode('stream');
-            setRun((old) => old + 1);
-          }}
-        />
-        <Stack.Toolbar.Button
-          accessibilityLabel="Stream Process"
-          icon="list.bullet"
-          onPress={() => {
-            setLength(0);
-            setMode('stream');
-            void openProcess('scroll-stream');
-          }}
-        />
-        <Stack.Toolbar.Button
-          accessibilityLabel="Finish Trace"
-          icon="checkmark"
-          onPress={cancel}
-        />
-      </Stack.Toolbar>
+      <NativeNavigationHeader
+        leftItems={[
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'arrow.counterclockwise' },
+            accessibilityLabel: 'Cached History',
+            onPress: () => {
+              setMode('cache');
+              setRun((old) => old + 1);
+            },
+          },
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'arrow.down.circle' },
+            accessibilityLabel: 'Sync History',
+            onPress: () => setMode('live'),
+          },
+        ]}
+        items={[
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'pin' },
+            accessibilityLabel: 'Stream Anchored Turn',
+            onPress: () => {
+              setLength(0);
+              setMode('anchor');
+              setRun((old) => old + 1);
+            },
+          },
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'play' },
+            accessibilityLabel: 'Stream Lines',
+            onPress: () => {
+              setLength(0);
+              setMode('stream');
+              setRun((old) => old + 1);
+            },
+          },
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'list.bullet' },
+            accessibilityLabel: 'Stream Process',
+            onPress: () => {
+              setLength(0);
+              setMode('stream');
+              void openProcess('scroll-stream');
+            },
+          },
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'checkmark' },
+            accessibilityLabel: 'Finish Trace',
+            onPress: cancel,
+          },
+        ]}
+      />
       <NativeChat
         key={run}
         style={{ flex: 1 }}

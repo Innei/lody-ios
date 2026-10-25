@@ -1,7 +1,7 @@
-import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import {
   NativeChat,
+  NativeNavigationHeader,
   dismissSessionBanner,
   showSessionBanner,
 } from '@lody-ios/kit';
@@ -60,23 +60,28 @@ function View() {
   useEffect(() => () => dismissSessionBanner(), []);
   return (
     <>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button
-          accessibilityLabel="Completed banner"
-          icon="checkmark"
-          onPress={() => showSessionBanner(title, 'completed')}
-        />
-        <Stack.Toolbar.Button
-          accessibilityLabel="Approval banner"
-          icon="exclamationmark.circle"
-          onPress={() => showSessionBanner(title, 'attention')}
-        />
-        <Stack.Toolbar.Button
-          accessibilityLabel="Dismiss banner"
-          icon="xmark"
-          onPress={() => dismissSessionBanner()}
-        />
-      </Stack.Toolbar>
+      <NativeNavigationHeader
+        items={[
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'checkmark' },
+            accessibilityLabel: 'Completed banner',
+            onPress: () => showSessionBanner(title, 'completed'),
+          },
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'exclamationmark.circle' },
+            accessibilityLabel: 'Approval banner',
+            onPress: () => showSessionBanner(title, 'attention'),
+          },
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'xmark' },
+            accessibilityLabel: 'Dismiss banner',
+            onPress: () => dismissSessionBanner(),
+          },
+        ]}
+      />
       <NativeChat
         style={{ flex: 1 }}
         navigationTitle="会话横幅"

@@ -40,8 +40,13 @@ export {
   type NativeCloseButtonProps,
 } from './chrome/NativeCloseButton';
 export {
+  type NativeBarItem,
+  type NativeHeaderSearch,
+  type NativeHeaderSearchCommands,
   NativeNavigationHeader,
   type NativeNavigationHeaderProps,
+  type NativeToolbarItem,
+  type NativeViewBarItem,
 } from './chrome/NativeNavigationHeader';
 export {
   navigationScrollEdgeEffects,

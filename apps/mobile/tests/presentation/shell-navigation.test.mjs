@@ -60,6 +60,7 @@ const {
   installShellNavigation,
   isShellSheetPage,
   shellAtRoot,
+  shellNavigationState,
   shellPopToRoot,
 } = await import(
   `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
@@ -141,4 +142,22 @@ test('a native close cancels the session once and releases the page', async () =
 
   await shellPopToRoot();
   assert.equal(popped, 1);
+});
+
+test('the shell reports Router-shaped route names for root, pushed and presented pages', () => {
+  const names = () => shellNavigationState().routes.map((route) => route.name);
+  void present(page('push'), undefined, { root: true });
+  assert.deepEqual(names(), ['index']);
+  void present({ ...page('push'), id: 'project' });
+  const sheet = present(page('formSheet'));
+  const sheetId = last().id;
+  void present(page('push'), undefined, { container: sheetId });
+  assert.deepEqual(names(), [
+    'index',
+    'project/[projectId]',
+    'presented/[presentationId]',
+  ]);
+  listener({ type: 'closed', id: sheetId });
+  assert.deepEqual(names(), ['index', 'project/[projectId]']);
+  return sheet;
 });

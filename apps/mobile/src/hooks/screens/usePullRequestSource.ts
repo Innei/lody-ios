@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect } from '@/lib/presentation/focus';
 import type { PullRequestSource } from '@/features/pull-request/source';
 
 export function usePullRequestSource(source: PullRequestSource) {

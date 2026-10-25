@@ -22,12 +22,17 @@ import { openSendPreview } from './SendPreviewScreen';
 import { FreeTurnNoticePreviewScreen } from './FreeTurnNoticePreviewScreen';
 import { openOutboxPreview } from './OutboxPreviewScreen';
 import { BackgroundPreviewScreen } from './BackgroundPreviewScreen';
-import { pushStatus, verifyPushSubscription } from '@lody-ios/kit';
+import {
+  pushStatus,
+  shellEnabled,
+  verifyPushSubscription,
+} from '@lody-ios/kit';
 import { NotificationPreviewScreen } from './NotificationPreviewScreen';
 import { DiagnosticsPreviewScreen } from './DiagnosticsPreviewScreen';
 import { LiveActivityPreviewScreen } from './LiveActivityPreviewScreen';
 import { ReplyHapticsPreviewScreen } from './ReplyHapticsPreviewScreen';
 import { uiVerify } from './uiVerify';
+import { useVerifyRequest } from './verifyRequest';
 import {
   openSettingsBaseline,
   settingsBaselineScenarios,
@@ -68,7 +73,7 @@ import { SettingsScreen } from '../SettingsScreen';
 import { PreferencesScreen } from '../PreferencesScreen';
 import { QuickRepliesPreviewScreen } from './QuickRepliesPreviewScreen';
 import { OnboardingPreviewScreen } from './OnboardingPreviewScreen';
-import { useLocalSearchParams, useRouter, useTheme } from 'expo-router';
+import { router, useTheme } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Text, View as RNView } from 'react-native';
 import {
@@ -91,28 +96,29 @@ import {
   present,
   type PagePresentationOptions,
 } from '@/lib/presentation';
+import { openRoute, popToRoot } from '@/lib/presentation/appNavigation';
 import { Button } from '@/ui/Button';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { usePalette } from '@/lib/theme/palette';
+
+const resetToDebug = shellEnabled
+  ? popToRoot
+  : () => router.dismissTo('/debug');
 
 function openRow(id: string, title: string, image: string): NativeListRow {
   return { id, title, image, action: true, disclosure: true, navigates: true };
 }
 
 function View() {
-  const router = useRouter();
-  const { verifyCase, request } = useLocalSearchParams<{
-    verifyCase?: string;
-    request?: string;
-  }>();
+  const { verifyCase, request } = useVerifyRequest();
   const openedRequest = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!uiVerify) return;
-    globalThis.__lodyUiVerifyReset = () => router.dismissTo('/debug');
+    globalThis.__lodyUiVerifyReset = resetToDebug;
     return () => {
       delete globalThis.__lodyUiVerifyReset;
     };
-  }, [router]);
+  }, []);
   const colors = usePalette();
   const { catalog, selected } = useCatalog();
   const [runtime, setRuntime] = useState<{
@@ -543,7 +549,8 @@ function View() {
     'simulator-backend-probe': () => runSimulatorProbe(probeSimulatorList),
     'runtime-hang': () => void debugHangDataRuntime(),
     'runtime-restart': () => void debugRestartDataRuntime(),
-    'router-environment': () => router.push('/environment'),
+    'router-environment': () =>
+      openRoute('/environment', { message: '直接路由入口' }),
     'present-pageSheet': () => void open('pageSheet'),
     'present-formSheet': () => void open('formSheet'),
     'present-fullScreen': () => void open('fullScreen'),

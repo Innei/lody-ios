@@ -1,6 +1,5 @@
 import { usePalette } from '@/lib/theme/palette';
-import { Stack } from 'expo-router';
-import { NativeGroupedList } from '@lody-ios/kit';
+import { NativeGroupedList, NativeNavigationHeader } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { checkState, checkSymbols } from '@/features/pull-request/checks';
@@ -80,22 +79,24 @@ function View() {
         ]}
         onRowPress={() => {}}
       />
-      <Stack.Toolbar placement="bottom">
-        <Stack.Toolbar.Button
-          onPress={() => actions.openGitHub(check.htmlUrl ?? undefined)}
-          tintColor={colors.accent}
-        >
-          {t('pr.github')}
-        </Stack.Toolbar.Button>
-        <Stack.Toolbar.Spacer />
-        <Stack.Toolbar.Button
-          disabled={!data}
-          onPress={() => actions.investigate(check, sha)}
-          tintColor={colors.accent}
-        >
-          {t('pr.investigate')}
-        </Stack.Toolbar.Button>
-      </Stack.Toolbar>
+      <NativeNavigationHeader
+        toolbarItems={[
+          {
+            type: 'button',
+            title: t('pr.github'),
+            tintColor: colors.accent,
+            onPress: () => actions.openGitHub(check.htmlUrl ?? undefined),
+          },
+          { type: 'flexibleSpacing' },
+          {
+            type: 'button',
+            title: t('pr.investigate'),
+            tintColor: colors.accent,
+            disabled: !data,
+            onPress: () => actions.investigate(check, sha),
+          },
+        ]}
+      />
     </>
   );
 }

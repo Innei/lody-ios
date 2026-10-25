@@ -1,4 +1,4 @@
-import { useIsFocused } from 'expo-router';
+import { useIsFocused } from '@/lib/presentation/focus';
 import { useEffect } from 'react';
 import { definePage, present } from '@/lib/presentation';
 import type { LayoutMode } from '@/lib/presentation/layoutMode';

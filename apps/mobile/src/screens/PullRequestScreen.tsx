@@ -1,5 +1,4 @@
 import { usePalette } from '@/lib/theme/palette';
-import { Stack } from 'expo-router';
 import {
   NativeGroupedList,
   NativeSymbolButton,
@@ -145,6 +144,34 @@ function View() {
   return (
     <>
       <NativeNavigationHeader
+        toolbarItems={[
+          {
+            type: 'view',
+            element: (
+              <NativeSymbolButton
+                accessibilityName={t('pr.github')}
+                imageAsset="lody-mark-github"
+                tint="blue"
+                style={{ width: 44, height: 44 }}
+                onPress={() => actions.openGitHub()}
+              />
+            ),
+          },
+          { type: 'flexibleSpacing' },
+          {
+            type: 'button',
+            title: t('pr.comment'),
+            tintColor: colors.accent,
+            disabled: !data || !!error,
+            onPress: () =>
+              data &&
+              void present(PullRequestCommentScreen, {
+                repository: data.repository,
+                number: data.number,
+                onSubmit: actions.comment,
+              }),
+          },
+        ]}
         items={[
           {
             type: 'button',
@@ -179,32 +206,6 @@ function View() {
             void push(PullRequestChecksScreen, { source, actions });
         }}
       />
-      <Stack.Toolbar placement="bottom">
-        <Stack.Toolbar.View>
-          <NativeSymbolButton
-            accessibilityName={t('pr.github')}
-            imageAsset="lody-mark-github"
-            tint="blue"
-            style={{ width: 44, height: 44 }}
-            onPress={() => actions.openGitHub()}
-          />
-        </Stack.Toolbar.View>
-        <Stack.Toolbar.Spacer />
-        <Stack.Toolbar.Button
-          tintColor={colors.accent}
-          disabled={!data || !!error}
-          onPress={() =>
-            data &&
-            void present(PullRequestCommentScreen, {
-              repository: data.repository,
-              number: data.number,
-              onSubmit: actions.comment,
-            })
-          }
-        >
-          {t('pr.comment')}
-        </Stack.Toolbar.Button>
-      </Stack.Toolbar>
     </>
   );
 }

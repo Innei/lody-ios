@@ -1,10 +1,13 @@
 import { usePalette } from '@/lib/theme/palette';
-import { Stack } from 'expo-router';
 import { agentIcon, agentName } from '@/features/sessions/status';
 import { relativeTime } from '@/ui/time';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert } from 'react-native';
-import { NativeGroupedList, type NativeListSection } from '@lody-ios/kit';
+import {
+  NativeGroupedList,
+  type NativeListSection,
+  NativeNavigationHeader,
+} from '@lody-ios/kit';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import {
   cancelProjectHistory,
@@ -343,35 +346,37 @@ export function ProjectHistoryView({
   return (
     <>
       {target ? (
-        <Stack.Toolbar placement="bottom">
-          <Stack.Toolbar.Button
-            tintColor={colors.accent}
-            disabled={busy || available.length === 0}
-            onPress={() => {
-              if (locked.current) return;
-              setSelected(
+        <NativeNavigationHeader
+          toolbarItems={[
+            {
+              type: 'button',
+              title: t(
                 allSelected
-                  ? new Set()
-                  : new Set(available.map((item) => item.acpSessionId)),
-              );
-            }}
-          >
-            {t(
-              allSelected
-                ? 'settings.history.deselectAll'
-                : 'settings.history.selectAll',
-            )}
-          </Stack.Toolbar.Button>
-          <Stack.Toolbar.Spacer />
-          <Stack.Toolbar.Button
-            variant="prominent"
-            tintColor={colors.accent}
-            disabled={busy || selected.size === 0}
-            onPress={() => void importSelected()}
-          >
-            {t('settings.history.import', { count: selected.size })}
-          </Stack.Toolbar.Button>
-        </Stack.Toolbar>
+                  ? 'settings.history.deselectAll'
+                  : 'settings.history.selectAll',
+              ),
+              tintColor: colors.accent,
+              disabled: busy || available.length === 0,
+              onPress: () => {
+                if (locked.current) return;
+                setSelected(
+                  allSelected
+                    ? new Set()
+                    : new Set(available.map((item) => item.acpSessionId)),
+                );
+              },
+            },
+            { type: 'flexibleSpacing' },
+            {
+              type: 'button',
+              title: t('settings.history.import', { count: selected.size }),
+              variant: 'prominent',
+              tintColor: colors.accent,
+              disabled: busy || selected.size === 0,
+              onPress: () => void importSelected(),
+            },
+          ]}
+        />
       ) : null}
       <NativeGroupedList
         style={{ flex: 1 }}

@@ -1,7 +1,10 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import { useNavigationContainerRef } from 'expo-router';
+import { shellEnabled } from '@lody-ios/kit';
 
-export function useAppNavigationState() {
+import { useShellNavigationState } from './shellNavigation';
+
+function useRouterNavigationState() {
   const navigation = useNavigationContainerRef();
   const subscribe = useCallback(
     (notify: () => void) => navigation.addListener('state', notify),
@@ -16,3 +19,9 @@ export function useAppNavigationState() {
   );
   return useSyncExternalStore(subscribe, snapshot);
 }
+
+export const useAppNavigationState: () =>
+  | { key?: string; routes: readonly { key?: string; name: string }[] }
+  | undefined = shellEnabled
+  ? useShellNavigationState
+  : useRouterNavigationState;

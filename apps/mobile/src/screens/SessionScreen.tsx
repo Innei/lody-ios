@@ -15,7 +15,7 @@ import {
 } from '@/cloud/send/capability';
 import { useComposerMentions } from '@/hooks/screens/useComposerMentions';
 import { NativeNavigationHeader, setPushVisibleRoute } from '@lody-ios/kit';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect } from '@/lib/presentation/focus';
 import { usePendingSends } from '@/cloud/send/pendingSends';
 import { useConnection } from '@/cloud/catalog/connection';
 import { useMachinePresence } from '@/cloud/catalog/machines';

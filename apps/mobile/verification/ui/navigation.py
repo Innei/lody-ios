@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 import time
-from driver import UI, allow_custom_scheme
+from driver import UI, allow_custom_scheme, app_flags
 import catalog
 from inspector import inspector
 
@@ -78,7 +78,7 @@ home('initial-home')
 for index in range(2 if embedded else 3):
     subprocess.run(['xcrun', 'simctl', 'terminate', udid, 'app.innei.lody'], check=True, timeout=30)
     ui.invalidate_axe()
-    launch = ['xcrun', 'simctl', 'launch', udid, 'app.innei.lody', '--ui-verify', '--ui-verify-home',
+    launch = ['xcrun', 'simctl', 'launch', udid, 'app.innei.lody', '--ui-verify', '--ui-verify-home', *app_flags(),
               '-AppleLanguages', f'({catalog.LANGUAGE})',
               '-AppleLocale', 'en_US' if catalog.LANGUAGE == 'en' else 'zh_CN']
     port = os.environ.get('LODY_UI_METRO_PORT')

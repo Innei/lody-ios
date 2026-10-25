@@ -1,7 +1,10 @@
 import { useState, type ComponentProps } from 'react';
-import { Stack } from 'expo-router';
 import { useWindowDimensions, View as RNView, Text } from 'react-native';
-import { NativeGroupedList, NativeSidebar } from '@lody-ios/kit';
+import {
+  NativeGroupedList,
+  NativeNavigationHeader,
+  NativeSidebar,
+} from '@lody-ios/kit';
 import { definePage, present } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { usePalette } from '@/lib/theme/palette';
@@ -130,35 +133,36 @@ function Preview() {
   };
   return (
     <>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button
-          accessibilityLabel="Update tree"
-          onPress={() =>
-            setCatalog((old) => ({
-              ...old,
-              sessions: old.sessions.map((s) =>
-                s.id === 'tree-root'
-                  ? { ...s, title: 'Implement sign-in updated' }
-                  : s,
-              ),
-            }))
-          }
-        >
-          Update
-        </Stack.Toolbar.Button>
-        <Stack.Toolbar.Button
-          accessibilityLabel="Toggle flat list"
-          onPress={() => setFlat((old) => !old)}
-        >
-          List
-        </Stack.Toolbar.Button>
-        <Stack.Toolbar.Button
-          accessibilityLabel="Filter tree"
-          onPress={() => setFiltered((old) => !old)}
-        >
-          Filter
-        </Stack.Toolbar.Button>
-      </Stack.Toolbar>
+      <NativeNavigationHeader
+        items={[
+          {
+            type: 'button',
+            title: 'Update',
+            accessibilityLabel: 'Update tree',
+            onPress: () =>
+              setCatalog((old) => ({
+                ...old,
+                sessions: old.sessions.map((s) =>
+                  s.id === 'tree-root'
+                    ? { ...s, title: 'Implement sign-in updated' }
+                    : s,
+                ),
+              })),
+          },
+          {
+            type: 'button',
+            title: 'List',
+            accessibilityLabel: 'Toggle flat list',
+            onPress: () => setFlat((old) => !old),
+          },
+          {
+            type: 'button',
+            title: 'Filter',
+            accessibilityLabel: 'Filter tree',
+            onPress: () => setFiltered((old) => !old),
+          },
+        ]}
+      />
       {width >= 768 ? (
         <NativeSidebar
           style={{ flex: 1, width: 320 }}

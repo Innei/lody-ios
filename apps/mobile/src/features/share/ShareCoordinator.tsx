@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import { router } from 'expo-router';
+import { popToRoot } from '@/lib/presentation/appNavigation';
 import {
   sessionCreationOptions,
   shareAdopt,
@@ -122,7 +122,7 @@ export function ShareCoordinator() {
       return;
     }
     if (!atRoot) {
-      router.dismissTo('/');
+      popToRoot();
       return;
     }
     if (step.kind === 'workspace') {

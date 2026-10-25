@@ -1,6 +1,9 @@
-import { NativeGroupedList, NativeChat } from '@lody-ios/kit';
+import {
+  NativeChat,
+  NativeGroupedList,
+  NativeNavigationHeader,
+} from '@lody-ios/kit';
 import { useState } from 'react';
-import { Stack } from 'expo-router';
 import { View as RNView } from 'react-native';
 import { definePage, present } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
@@ -90,20 +93,23 @@ function View() {
   const viewed = useSessionListCatalog(source, scope, scope);
   return (
     <RNView testID="inbox-preview-ready" style={{ flex: 1 }}>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button
-          onPress={() =>
-            setSource((old) => ({
-              ...old,
-              sessions: old.sessions.map((s) =>
-                s.id === 'inbox-unread' ? { ...s, lastMessageAt: NOW + 1 } : s,
-              ),
-            }))
-          }
-        >
-          新消息
-        </Stack.Toolbar.Button>
-      </Stack.Toolbar>
+      <NativeNavigationHeader
+        items={[
+          {
+            type: 'button',
+            title: '新消息',
+            onPress: () =>
+              setSource((old) => ({
+                ...old,
+                sessions: old.sessions.map((s) =>
+                  s.id === 'inbox-unread'
+                    ? { ...s, lastMessageAt: NOW + 1 }
+                    : s,
+                ),
+              })),
+          },
+        ]}
+      />
       <NativeGroupedList
         style={{ flex: 1 }}
         accent={colors.accent}

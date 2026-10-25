@@ -11,7 +11,7 @@ import sys
 import time
 from contextlib import nullcontext
 from orchestrator import diagnose_metro, managed_metro, run_batches
-from driver import UI, allow_custom_scheme, launch_covered
+from driver import UI, allow_custom_scheme, app_flags, launch_covered
 from inspector import inspector
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -285,6 +285,7 @@ parser.add_argument('--language', choices=['en'], default='en', help='UI verific
 parser.add_argument('--appearance', choices=['light', 'dark'], help='One appearance; omit to run light and dark, or light only for --suite core')
 parser.add_argument('--fail-fast', action='store_true', help='Stop after the first failed case')
 parser.add_argument(
+parser.add_argument('--shell', action='store_true', help='Launch the App under the UIKit navigation shell (--uikit-shell)')
     '--embedded',
     action='store_true',
     help='Use a Release app with an embedded bundle; do not start Metro',
@@ -302,6 +303,8 @@ if args.embedded and args.shared_metro:
     parser.error('--embedded does not start Metro')
 os.environ['LODY_UI_PHOTO_ACCESS'] = args.photo_access
 os.environ['LODY_UI_CAMERA_ACCESS'] = args.camera_access
+if args.shell:
+    os.environ['LODY_UI_SHELL'] = '1'
 args.output = args.output.resolve()
 # Stale evidence is replaced in place; only a run needing A/B comparison picks a different --output.
 if not args.shared_metro and any((args.output / marker).exists() for marker in ['results.json', 'batches.json', 'environment.json', 'metro.log']):
@@ -311,7 +314,8 @@ if args.parallel:
     commands = {
         batch: [sys.executable, __file__, '--app', str(args.app.resolve()), '--batch', batch,
                 '--output', str(args.output / batch), '--port', str(args.port),
-                '--language', args.language, '--camera-access', args.camera_access, '--photo-access', args.photo_access, '--shared-metro']
+                '--language', args.language, '--camera-access', args.camera_access, '--photo-access', args.photo_access, '--shared-metro',
+                *(['--shell'] if args.shell else [])]
         for batch in BATCHES
     }
     with managed_metro(ROOT, args.port, args.output):
@@ -381,7 +385,7 @@ with metro_context:
             'failFast': fail_fast, 'requireVideo': require_video, 'embedded': args.embedded,
             'metroPort': None if args.embedded else args.port, 'sharedMetro': args.shared_metro,
             'udid': args.udid, 'app': str(args.app.resolve()), 'language': args.language,
-            'photoAccess': args.photo_access, 'cameraAccess': args.camera_access,
+            'photoAccess': args.photo_access, 'cameraAccess': args.camera_access, 'shell': args.shell,
             'baseCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
             'worktreeDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True).strip()),
             'xcode': subprocess.check_output(['xcodebuild', '-version'], text=True).strip(),
@@ -445,7 +449,7 @@ with metro_context:
                     if restart:
                         result['appLifecycle'] = 'launch'
                         terminate_app()
-                        launch = ['launch', args.udid, 'app.innei.lody', '--ui-verify']
+                        launch = ['launch', args.udid, 'app.innei.lody', '--ui-verify', *app_flags()]
                         if case in HOME_CASES:
                             launch.append('--ui-verify-home')
                         if case in {'session-search', 'session-search-pad'}:

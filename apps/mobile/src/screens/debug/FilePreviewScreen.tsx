@@ -1,10 +1,9 @@
 import { FileDiffScreen } from '../FileDiffScreen';
 import { DiffWebViewWarmer } from '@/features/diff/DiffWebViewWarmer';
-import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { FilesScreen } from '@/screens/FilesScreen';
-import { NativeChat } from '@lody-ios/kit';
+import { NativeChat, NativeNavigationHeader } from '@lody-ios/kit';
 import { View as RNView } from 'react-native';
 import { FileContentScreen } from '../FileContentScreen';
 import { definePage, present } from '@/lib/presentation';
@@ -112,109 +111,115 @@ function View() {
   return (
     <>
       <DiffWebViewWarmer />
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu icon="globe" accessibilityLabel="HTML Fixtures">
-          <Stack.Toolbar.MenuAction
-            onPress={() =>
-              void present(FileContentScreen, {
-                sessionId: 'ui-verify-files',
-                path: 'docs/interactive.html',
-                feedback,
-              })
-            }
-          >
-            HTML source
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            onPress={() =>
-              void present(FileContentScreen, {
-                sessionId: 'ui-verify-files',
-                path: 'docs/broken.html',
-                preview: true,
-                feedback,
-              })
-            }
-          >
-            HTML resource failures
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            onPress={() =>
+      <NativeNavigationHeader
+        items={[
+          {
+            type: 'menu',
+            icon: { type: 'sfSymbol', name: 'globe' },
+            accessibilityLabel: 'HTML Fixtures',
+            menu: {
+              items: [
+                {
+                  type: 'action',
+                  title: 'HTML source',
+                  onPress: () =>
+                    void present(FileContentScreen, {
+                      sessionId: 'ui-verify-files',
+                      path: 'docs/interactive.html',
+                      feedback,
+                    }),
+                },
+                {
+                  type: 'action',
+                  title: 'HTML resource failures',
+                  onPress: () =>
+                    void present(FileContentScreen, {
+                      sessionId: 'ui-verify-files',
+                      path: 'docs/broken.html',
+                      preview: true,
+                      feedback,
+                    }),
+                },
+                {
+                  type: 'action',
+                  title: 'HTML diff',
+                  onPress: () =>
+                    void push(FileDiffScreen, {
+                      sessionId: 'ui-verify-diff',
+                      entryId: 'diff-preview',
+                      path: 'docs/interactive.html',
+                      feedback,
+                    }),
+                },
+                {
+                  type: 'action',
+                  title: 'HTML feedback failure',
+                  onPress: () =>
+                    void present(FileContentScreen, {
+                      sessionId: 'ui-verify-files',
+                      path: 'docs/broken.html',
+                      preview: true,
+                      feedback: async (report) => {
+                        setFeedbackReport(report);
+                        throw new Error('send_failed');
+                      },
+                    }),
+                },
+                {
+                  type: 'action',
+                  title: 'HTML queued feedback',
+                  onPress: () =>
+                    void present(FileContentScreen, {
+                      sessionId: 'ui-verify-files',
+                      path: 'docs/broken.html',
+                      preview: true,
+                      feedback: async (report) => {
+                        setFeedbackReport(report);
+                        return 'queued';
+                      },
+                    }),
+                },
+              ],
+            },
+          },
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'plus.forwardslash.minus' },
+            accessibilityLabel: 'Diff Viewer',
+            onPress: () =>
               void push(FileDiffScreen, {
                 sessionId: 'ui-verify-diff',
                 entryId: 'diff-preview',
-                path: 'docs/interactive.html',
-                feedback,
-              })
-            }
-          >
-            HTML diff
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            onPress={() =>
-              void present(FileContentScreen, {
+                path: 'docs/superpowers/.diff-check.md',
+              }),
+          },
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'paperclip' },
+            accessibilityLabel: 'MCP Attachments',
+            onPress: () => setShowAttachments((value) => !value),
+          },
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'at' },
+            accessibilityLabel: 'User Mentions',
+            onPress: () => setUserMentions((value) => !value),
+          },
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'folder' },
+            accessibilityLabel: 'File Browser',
+            onPress: () =>
+              void push(FilesScreen, {
+                workspaceId: 'fixture',
                 sessionId: 'ui-verify-files',
-                path: 'docs/broken.html',
-                preview: true,
-                feedback: async (report) => {
-                  setFeedbackReport(report);
-                  throw new Error('send_failed');
-                },
-              })
-            }
-          >
-            HTML feedback failure
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            onPress={() =>
-              void present(FileContentScreen, {
-                sessionId: 'ui-verify-files',
-                path: 'docs/broken.html',
-                preview: true,
-                feedback: async (report) => {
-                  setFeedbackReport(report);
-                  return 'queued';
-                },
-              })
-            }
-          >
-            HTML queued feedback
-          </Stack.Toolbar.MenuAction>
-        </Stack.Toolbar.Menu>
-        <Stack.Toolbar.Button
-          icon="plus.forwardslash.minus"
-          accessibilityLabel="Diff Viewer"
-          onPress={() =>
-            void push(FileDiffScreen, {
-              sessionId: 'ui-verify-diff',
-              entryId: 'diff-preview',
-              path: 'docs/superpowers/.diff-check.md',
-            })
-          }
-        />
-        <Stack.Toolbar.Button
-          icon="paperclip"
-          accessibilityLabel="MCP Attachments"
-          onPress={() => setShowAttachments((value) => !value)}
-        />
-        <Stack.Toolbar.Button
-          icon="at"
-          accessibilityLabel="User Mentions"
-          onPress={() => setUserMentions((value) => !value)}
-        />
-        <Stack.Toolbar.Button
-          icon="folder"
-          accessibilityLabel="File Browser"
-          onPress={() =>
-            void push(FilesScreen, {
-              workspaceId: 'fixture',
-              sessionId: 'ui-verify-files',
-              userId: 'fixture',
-              path: 'docs',
-              title: 'docs',
-            })
-          }
-        />
-      </Stack.Toolbar>
+                userId: 'fixture',
+                path: 'docs',
+                title: 'docs',
+              }),
+          },
+        ]}
+      />
       <NativeChat
         style={{ flex: 1 }}
         entriesJSON={displayed}

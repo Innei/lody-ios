@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { ActionSheetIOS, AppState } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect } from '@/lib/presentation/focus';
 import { NativeGroupedList, debugReplyHaptics } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePalette } from '@/lib/theme/palette';

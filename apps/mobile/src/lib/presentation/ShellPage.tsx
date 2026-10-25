@@ -5,10 +5,12 @@ import {
   NativeNavigationHeader,
 } from '@lody-ios/kit';
 
+import type { SearchBarProps } from 'react-native-screens';
 import {
   type HeaderItems,
   SheetHeaderContext,
   type SheetHeaderItems,
+  SheetSearchContext,
 } from './headerContext';
 import {
   type PageFinish,
@@ -23,6 +25,7 @@ import {
   present,
 } from './presentationStore';
 import { isShellSheetPage, ShellPageContext } from './shellNavigation';
+import { useShellSearch } from './shellSearch';
 import { t } from '../i18n/index.ts';
 
 export function ShellPage({ presentationId }: { presentationId: number }) {
@@ -30,6 +33,8 @@ export function ShellPage({ presentationId }: { presentationId: number }) {
     () => getPresentationSession(presentationId) ?? null,
   );
   const [header, setHeader] = useState<SheetHeaderItems>();
+  const [searchBar, setSearchBar] = useState<SearchBarProps>();
+  const search = useShellSearch(searchBar);
   const closing = useRef(false);
   const close = useCallback(
     async (settle: () => boolean, transition?: () => Promise<void>) => {
@@ -91,11 +96,15 @@ export function ShellPage({ presentationId }: { presentationId: number }) {
         items={header?.right ?? closeItems}
         leftItems={header?.left}
         title={header?.title}
+        search={search.search}
+        searchRef={search.ref}
       />
       <SheetHeaderContext value={setHeader}>
-        <PageRuntimeProvider value={runtime}>
-          <session.page.Component />
-        </PageRuntimeProvider>
+        <SheetSearchContext value={setSearchBar}>
+          <PageRuntimeProvider value={runtime}>
+            <session.page.Component />
+          </PageRuntimeProvider>
+        </SheetSearchContext>
       </SheetHeaderContext>
     </ShellPageContext>
   );

@@ -737,9 +737,12 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }
 
     View(LodyNavigationHeaderView.self) {
-      Events("onAction")
+      Events("onAction", "onSearch")
       Prop("itemsJSON") { (view: LodyNavigationHeaderView, value: String) in view.setItems(value) }
       Prop("leftItemsJSON") { (view: LodyNavigationHeaderView, value: String) in view.setLeftItems(value) }
+      Prop("toolbarItemsJSON") { (view: LodyNavigationHeaderView, value: String) in view.setToolbarItems(value) }
+      Prop("searchJSON") { (view: LodyNavigationHeaderView, value: String) in view.setSearch(value) }
+      Prop("searchCommandJSON") { (view: LodyNavigationHeaderView, value: String) in view.setSearchCommand(value) }
       Prop("title") { (view: LodyNavigationHeaderView, value: String) in view.setTitle(value) }
     }
 

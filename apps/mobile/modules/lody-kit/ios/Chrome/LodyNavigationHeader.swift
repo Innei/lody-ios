@@ -22,9 +22,17 @@ final class LodyNavigationHeader: NSObject {
   var titleView: UIView? { didSet { apply() } }
   var rightItems: [UIBarButtonItem]? { didSet { apply() } }
   var leftItems: [UIBarButtonItem]? { didSet { apply() } }
+  var search: LodyNavigationSearch? {
+    didSet {
+      if search == nil, let item, item.searchController === oldValue?.controller { item.searchController = nil }
+      apply()
+    }
+  }
   var suspended = false {
     didSet { if !suspended { apply() } }
   }
+
+  func refresh() { apply() }
 
   private init(item: UINavigationItem) {
     self.item = item
@@ -37,6 +45,7 @@ final class LodyNavigationHeader: NSObject {
       item.observe(\.titleView) { [weak self] _, _ in self?.restore() },
       item.observe(\.rightBarButtonItems) { [weak self] _, _ in self?.restore() },
       item.observe(\.leftBarButtonItems) { [weak self] _, _ in self?.restore() },
+      item.observe(\.searchController) { [weak self] _, _ in self?.restore() },
     ]
   }
 
@@ -55,6 +64,16 @@ final class LodyNavigationHeader: NSObject {
     if let titleView, item.titleView !== titleView { item.titleView = titleView }
     if let rightItems, item.rightBarButtonItems ?? [] != rightItems { item.rightBarButtonItems = rightItems }
     if let leftItems, item.leftBarButtonItems ?? [] != leftItems { item.leftBarButtonItems = leftItems }
+    if let search {
+      if item.preferredSearchBarPlacement != search.placement { item.preferredSearchBarPlacement = search.placement }
+      if item.hidesSearchBarWhenScrolling != search.hidesWhenScrolling {
+        item.hidesSearchBarWhenScrolling = search.hidesWhenScrolling
+      }
+      if item.searchBarPlacementAllowsToolbarIntegration != search.allowsToolbarIntegration {
+        item.searchBarPlacementAllowsToolbarIntegration = search.allowsToolbarIntegration
+      }
+      if item.searchController !== search.controller { item.searchController = search.controller }
+    }
   }
 }
 
@@ -62,23 +81,35 @@ final class LodyNavigationHeader: NSObject {
 enum LodyNavigationHeaderItems {
   typealias Action = @MainActor (String) -> Void
 
-  static func decode(_ json: String, action: @escaping Action) -> [UIBarButtonItem] {
+  struct Slots {
+    var view: (Int, CGSize) -> UIView? = { _, _ in nil }
+    var search: () -> UIBarButtonItem? = { nil }
+  }
+
+  static func decode(_ json: String, slots: Slots = Slots(), action: @escaping Action) -> [UIBarButtonItem] {
     guard let data = json.data(using: .utf8),
           let raw = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
     else { return [] }
-    return raw.compactMap { barItem($0, action: action) }
+    return raw.compactMap { barItem($0, slots: slots, action: action) }
   }
 
-  private static func barItem(_ spec: [String: Any], action: @escaping Action) -> UIBarButtonItem? {
+  private static func barItem(_ spec: [String: Any], slots: Slots, action: @escaping Action) -> UIBarButtonItem? {
     let type = spec["type"] as? String ?? "button"
-    if type == "spacing" {
-      return .fixedSpace(CGFloat(spec["spacing"] as? Double ?? 0))
+    switch type {
+    case "spacing": return .fixedSpace(CGFloat(spec["spacing"] as? Double ?? 0))
+    case "flexibleSpacing": return .flexibleSpace()
+    case "searchSlot": return slots.search()
+    default: break
     }
     let id = spec["id"] as? String ?? ""
     let title = spec["title"] as? String
     let image = symbol(spec["icon"])
     let item: UIBarButtonItem
-    if type == "menu", let entries = (spec["menu"] as? [String: Any])?["items"] as? [[String: Any]] {
+    if type == "view" {
+      let size = CGSize(width: spec["width"] as? Double ?? 0, height: spec["height"] as? Double ?? 0)
+      guard let view = slots.view(spec["slot"] as? Int ?? -1, size) else { return nil }
+      item = UIBarButtonItem(customView: view)
+    } else if type == "menu", let entries = (spec["menu"] as? [String: Any])?["items"] as? [[String: Any]] {
       item = UIBarButtonItem(
         title: title,
         image: image,
@@ -97,6 +128,12 @@ enum LodyNavigationHeaderItems {
     if let badge = spec["badge"] as? String, !badge.isEmpty {
       item.badge = .string(badge)
     }
+    if let tint = (spec["tintColor"] as? String).flatMap(lodyTint) { item.tintColor = tint }
+    if let hides = spec["hidesSharedBackground"] as? Bool { item.hidesSharedBackground = hides }
+    if let shares = spec["sharesBackground"] as? Bool { item.sharesBackground = shares }
+    if type != "view", let width = spec["width"] as? Double { item.width = CGFloat(width) }
+    let styles: [String: UIBarButtonItem.Style] = ["done": .prominent, "prominent": .prominent]
+    if let style = styles[spec["variant"] as? String ?? ""] { item.style = style }
     return item
   }
 

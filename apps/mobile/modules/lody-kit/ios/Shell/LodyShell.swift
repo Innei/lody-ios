@@ -8,20 +8,40 @@ final class LodyShell {
   var emit: ((String, Int) -> Void)?
   private var navigation: UINavigationController?
   private var pages: [Int: WeakPage] = [:]
+  private let delegate = ShellNavigationDelegate()
 
   func present(_ json: String) {
     guard let spec = try? JSONDecoder().decode(ShellPageSpec.self, from: Data(json.utf8)) else { return }
-    let page = LodyPageController(spec: spec)
-    page.onEvent = { [weak self] type, id in self?.event(type, id) }
-    pages[spec.id] = WeakPage(value: page)
+    let container = spec.container.flatMap { pages[$0]?.value?.navigationController }
+    let page = LodyPageController(spec: spec, inSheet: spec.root != true && (spec.style != "push" || container != nil))
+    page.onEvent = { [weak self, weak page] type, id in
+      guard let self, let page, self.pages[id]?.value === page else { return }
+      self.event(type, id)
+    }
     if spec.root == true {
+      // A reloaded JS runtime restarts presentation ids; earlier pages must not report into it.
+      pages = [spec.id: WeakPage(value: page)]
       setRoot(page)
     } else if spec.style == "push" {
-      let target = spec.container.flatMap { pages[$0]?.value?.navigationController } ?? navigation
-      target?.pushViewController(page, animated: spec.animation != "none")
+      pages[spec.id] = WeakPage(value: page)
+      push(page, on: container ?? navigation)
     } else {
+      pages[spec.id] = WeakPage(value: page)
       presentModal(page)
     }
+  }
+
+  private func push(_ page: LodyPageController, on target: UINavigationController?) {
+    guard let target else { return }
+    if let transition = target.transitionCoordinator {
+      transition.animate(alongsideTransition: nil) { [weak self, weak target] _ in
+        guard !page.closed else { return }
+        self?.push(page, on: target)
+      }
+      return
+    }
+    NotificationCenter.default.post(name: Notification.Name("RNSScreenWillPush"), object: page)
+    target.pushViewController(page, animated: page.spec.animation != "none")
   }
 
   func close(_ id: Int) {
@@ -51,14 +71,18 @@ final class LodyShell {
 
   private func setRoot(_ page: LodyPageController) {
     if let navigation {
-      navigation.setViewControllers([page], animated: false)
-      scheduleSweep()
-      return
+      // A new root comes from a reloaded runtime: retire the old stack so its surfaces stop with it.
+      if navigation.presentedViewController != nil { navigation.dismiss(animated: false) }
+      navigation.willMove(toParent: nil)
+      navigation.view.removeFromSuperview()
+      navigation.removeFromParent()
+      self.navigation = nil
     }
     guard let host = UIApplication.shared.connectedScenes
       .compactMap({ ($0 as? UIWindowScene)?.keyWindow?.rootViewController }).first
     else { return }
     let navigation = UINavigationController(rootViewController: page)
+    navigation.delegate = delegate
     host.addChild(navigation)
     navigation.view.frame = host.view.bounds
     navigation.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -68,8 +92,19 @@ final class LodyShell {
   }
 
   private func presentModal(_ page: LodyPageController) {
+    let top = topController()
+    let settling = top?.presentedViewController ?? (top?.isBeingPresented == true ? top : nil)
+    if let transition = settling?.transitionCoordinator {
+      transition.animate(alongsideTransition: nil) { [weak self] _ in
+        guard !page.closed else { return }
+        self?.presentModal(page)
+      }
+      return
+    }
+    guard let presenter = top else { return }
     let spec = page.spec
     let container = UINavigationController(rootViewController: page)
+    container.delegate = delegate
     container.setNavigationBarHidden(!spec.headerShown, animated: false)
     container.modalPresentationStyle = Self.modalStyle(spec.style)
     if spec.style == "overFullScreen" { container.view.backgroundColor = .clear }
@@ -78,7 +113,10 @@ final class LodyShell {
     if let sheet = container.sheetPresentationController, spec.style == "formSheet" || spec.style == "pageSheet" {
       Self.configure(sheet, spec)
     }
-    topController()?.present(container, animated: spec.animation != "none")
+    NotificationCenter.default.post(
+      name: Notification.Name("RNSScreenWillPresent"), object: container, userInfo: ["presenter": presenter]
+    )
+    presenter.present(container, animated: spec.animation != "none")
   }
 
   private func topController() -> UIViewController? {
@@ -140,4 +178,15 @@ final class LodyShell {
 
 private struct WeakPage {
   weak var value: LodyPageController?
+}
+
+private final class ShellNavigationDelegate: NSObject, UINavigationControllerDelegate {
+  func navigationController(
+    _ navigationController: UINavigationController,
+    didShow viewController: UIViewController,
+    animated: Bool
+  ) {
+    // Reconcile only after UIKit settles, including a cancelled interactive pop.
+    navigationController.setToolbarHidden(viewController.toolbarItems?.isEmpty ?? true, animated: false)
+  }
 }

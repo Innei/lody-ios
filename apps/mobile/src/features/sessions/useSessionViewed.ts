@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect } from '../../lib/presentation/focus.ts';
 import { AppState } from 'react-native';
 import { showToast } from '../../ui/toast.ts';
 import { t } from '../../lib/i18n/index.ts';

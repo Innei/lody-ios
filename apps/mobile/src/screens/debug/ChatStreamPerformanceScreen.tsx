@@ -1,6 +1,5 @@
-import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { NativeChat } from '@lody-ios/kit';
+import { NativeChat, NativeNavigationHeader } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 
 // A deterministic synthetic token is four UTF-16 units (not a model tokenizer).
@@ -88,33 +87,36 @@ function View() {
   ]);
   return (
     <>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button
-          accessibilityLabel="Next syntax"
-          icon="textformat"
-          onPress={() => {
-            setSyntaxStep((value) => ((value ?? -1) + 1) % (syntax.length + 1));
-          }}
-        >
-          Syntax
-        </Stack.Toolbar.Button>
-        {(['paragraphs', 'text', 'code', 'offscreen'] as const).map((name) => (
-          <Stack.Toolbar.Button
-            key={name}
-            accessibilityLabel={`Stream ${name}`}
-            icon={sampleIcons[name]}
-            onPress={() => {
-              setSyntaxStep(null);
-              setSample(name);
-              setLength(0);
-              setStartedAt(Date.now() + 1_000);
-              setRun((value) => value + 1);
-            }}
-          >
-            {name}
-          </Stack.Toolbar.Button>
-        ))}
-      </Stack.Toolbar>
+      <NativeNavigationHeader
+        items={[
+          {
+            type: 'button',
+            icon: { type: 'sfSymbol', name: 'textformat' },
+            title: 'Syntax',
+            accessibilityLabel: 'Next syntax',
+            onPress: () => {
+              setSyntaxStep(
+                (value) => ((value ?? -1) + 1) % (syntax.length + 1),
+              );
+            },
+          },
+          ...(['paragraphs', 'text', 'code', 'offscreen'] as const).map(
+            (name) => ({
+              type: 'button' as const,
+              icon: { type: 'sfSymbol' as const, name: sampleIcons[name] },
+              title: name,
+              accessibilityLabel: `Stream ${name}`,
+              onPress: () => {
+                setSyntaxStep(null);
+                setSample(name);
+                setLength(0);
+                setStartedAt(Date.now() + 1_000);
+                setRun((value) => value + 1);
+              },
+            }),
+          ),
+        ]}
+      />
       <NativeChat
         key={run}
         style={{ flex: 1 }}
