@@ -56,6 +56,7 @@ export type ShellPage = {
   container?: number;
   root?: boolean;
   insertAt?: number;
+  native?: string;
 };
 type Events = {
   onPreferencesChange: (event: { json: string }) => void;

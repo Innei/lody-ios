@@ -59,6 +59,7 @@ private final class AppIconCell: UICollectionViewCell {
 
 final class LodyAppIconGrid: LodyAppearanceView, UICollectionViewDataSource, UICollectionViewDelegate {
   let onSelect = EventDispatcher()
+  var selectHandler: ((String) -> Void)?
   private let collection: UICollectionView
   private weak var scrollOwner: UIViewController?
   private var items: [LodyAppIconItem] = []
@@ -128,6 +129,8 @@ final class LodyAppIconGrid: LodyAppearanceView, UICollectionViewDataSource, UIC
   func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
     collectionView.deselectItem(at: indexPath, animated: false)
     guard enabled, pending.isEmpty else { return }
-    onSelect(["id": items[indexPath.item].id])
+    let id = items[indexPath.item].id
+    onSelect(["id": id])
+    selectHandler?(id)
   }
 }

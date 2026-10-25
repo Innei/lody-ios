@@ -68,6 +68,7 @@ export function describeShellPage(
     container: target.container,
     root: target.root,
     insertAt: target.insertAt,
+    native: session.page.native,
   };
 }
 

@@ -18,6 +18,7 @@ struct ShellPageSpec: Decodable {
   var container: Int?
   var root: Bool?
   var insertAt: Int?
+  var native: String?
 }
 
 final class LodyPageController: UIViewController {
@@ -53,8 +54,31 @@ final class LodyPageController: UIViewController {
   isolated deinit { NotificationCenter.default.removeObserver(self) }
 
   override func loadView() {
-    view = LodyShellHost.surface?("LodyPage", ["presentationId": spec.id]) ?? UIView()
+    if let native = spec.native.flatMap(LodyNativePages.make) {
+      view = UIView()
+      embed(native)
+    } else {
+      view = LodyShellHost.surface?("LodyPage", ["presentationId": spec.id]) ?? UIView()
+    }
     updateBackground()
+  }
+
+  private func embed(_ child: UIViewController) {
+    addChild(child)
+    child.view.frame = view.bounds
+    child.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    view.addSubview(child.view)
+    child.didMove(toParent: self)
+    // Native lists bind scroll edges to their own controller; the navigation bar reads this one.
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(childScrollOwnerChanged), name: LodyScrollEdges.ownerChanged, object: child
+    )
+  }
+
+  @objc private func childScrollOwnerChanged(_ notification: Notification) {
+    guard let child = notification.object as? UIViewController else { return }
+    setContentScrollView(child.contentScrollView(for: .top), for: .top)
+    setContentScrollView(child.contentScrollView(for: .bottom), for: .bottom)
   }
 
   override func setToolbarItems(_ toolbarItems: [UIBarButtonItem]?, animated: Bool) {
