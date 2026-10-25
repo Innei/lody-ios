@@ -31,6 +31,7 @@ struct CatalogSnapshot: Encodable, Sendable {
   var catalogRevision = 0
   var connection = CatalogConnection()
   var presence = CatalogPresence()
+  var pendingSessions: [RuntimeContract.JSONValue] = []
 
   var json: String {
     let encoder = JSONEncoder()
@@ -45,13 +46,31 @@ struct CatalogDigest: Decodable, Sendable {
     let repoFullName: String?
   }
 
+  struct Session: Decodable, Sendable {
+    let id: String?
+    let latestUserMsgId: String?
+
+    private enum CodingKeys: String, CodingKey { case id, latestUserMsgId }
+
+    init(from decoder: any Decoder) throws {
+      let container = try? decoder.container(keyedBy: CodingKeys.self)
+      id = (try? container?.decodeIfPresent(String.self, forKey: .id)) ?? nil
+      latestUserMsgId = (try? container?.decodeIfPresent(String.self, forKey: .latestUserMsgId)) ?? nil
+    }
+  }
+
   struct Opaque: Decodable, Sendable {
     init(from decoder: any Decoder) throws {}
   }
 
   let projects: [Project]
-  let sessions: [Opaque]
+  let sessions: [Session]
   let machineIds: [Opaque]
+
+  var latestUserMessages: [String: String] {
+    Dictionary(sessions.compactMap { session in session.id.map { ($0, session.latestUserMsgId ?? "") } },
+               uniquingKeysWith: { first, _ in first })
+  }
 
   var repos: [String: String] {
     Dictionary(projects.compactMap { project in

@@ -38,6 +38,7 @@ checks = {
     'file-link': ['Chat/ChatFileLink.swift'],
     'strings': ['LodyStrings.swift'],
     'auth': ['LodyStrings.swift', 'Auth/AuthAPI.swift'],
+    'outbox': ['Outbox/OutboxRecord.swift', 'Outbox/OutboxStore.swift', 'Outbox/OutboxDispatcher.swift'],
     'chat': ['LodyStrings.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatMessageShare.swift', 'Chat/ChatStream.swift', 'Chat/ChatHaptics.swift', 'Chat/ChatImagePreviewGeometry.swift', 'Chat/ChatImageGallery.swift'],
     'markdown-repair': ['Chat/ChatMarkdownRepair.swift'],
     'watchdog': [],
@@ -173,7 +174,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
                 *map(str, sources), '-o', str(Path(output) / 'libAnchoredOverlayKit.a'),
             ], check=True, timeout=120)
             command += ['-I', output, '-L', output, '-lAnchoredOverlayKit']
-        if name in ['attachments', 'auth', 'github-mentions', 'github-pr', 'session-sharing', 'settings']:
+        if name in ['attachments', 'auth', 'outbox', 'github-mentions', 'github-pr', 'session-sharing', 'settings']:
             command += ['-parse-as-library']
         if name == 'inline-diff':
             command += ['-framework', 'UIKit']
@@ -185,7 +186,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             directory = Path(output) / ('lody-core-ios' if simulator else 'lody-core-host')
             if not directory.exists():
                 directory.mkdir()
-                sources = sorted((root / 'packages/lody-core/Sources/LodyCore').glob('*.swift'))
+                sources = sorted((root / 'packages/lody-core/Sources/LodyCore').rglob('*.swift'))
                 compile_core = ['xcrun', 'swiftc', '-swift-version', '6']
                 if simulator:
                     compile_core += ['-sdk', sdk, '-target', f'{arch}-apple-ios26.0-simulator']

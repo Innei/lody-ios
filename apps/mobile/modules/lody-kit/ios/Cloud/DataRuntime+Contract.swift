@@ -67,8 +67,12 @@ extension DataRuntime {
   }
   func callForRN<C: RuntimeCall>(_ call: C.Type, payload: String, inject: [String: Any] = [:], promise: Promise, timeout: Double? = nil,
     project: @escaping @MainActor (C.Result) -> any Encodable = { $0 }) where C.Params: Decodable, C.Result: Encodable {
-    guard let params = rnParams(C.self, payload: payload, inject: inject, sink: .promise(promise)) else { return }
-    self.call(C.self, params, promise: promise, timeout: timeout) { result in
+    callForRN(C.self, payload: payload, inject: inject, sink: .promise(promise), timeout: timeout, project: project)
+  }
+  func callForRN<C: RuntimeCall>(_ call: C.Type, payload: String, inject: [String: Any] = [:], sink: ReplySink, timeout: Double? = nil,
+    project: @escaping @MainActor (C.Result) -> any Encodable = { $0 }) where C.Params: Decodable, C.Result: Encodable {
+    guard let params = rnParams(C.self, payload: payload, inject: inject, sink: sink) else { return }
+    self.call(C.self, params, sink: sink, timeout: timeout) { result in
       (try? JSONEncoder().encode(project(result))).map { String(decoding: $0, as: UTF8.self) }
     }
   }

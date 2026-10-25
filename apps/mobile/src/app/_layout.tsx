@@ -7,7 +7,6 @@ import { PushCoordinator } from '@/features/notifications/PushCoordinator';
 import { ShareSnapshot } from '@/features/share/ShareSnapshot';
 import { ShareCoordinator } from '@/features/share/ShareCoordinator';
 import { Stack, ThemeProvider } from 'expo-router';
-import { CatalogProvider } from '@/cloud/catalog/CatalogProvider';
 import { StatusBar } from 'expo-status-bar';
 import { Dimensions, StyleSheet, useColorScheme } from 'react-native';
 import { nativePresentationOptions } from '@/lib/presentation';
@@ -98,13 +97,7 @@ function Bindings() {
 function Providers({ children }: PropsWithChildren) {
   if (homeVerify)
     return <HomePreviewProviders>{children}</HomePreviewProviders>;
-  return (
-    <CatalogProvider>
-      {uiVerify ? (
-        <SettingsBaselineProviders>{children}</SettingsBaselineProviders>
-      ) : (
-        children
-      )}
-    </CatalogProvider>
-  );
+  if (uiVerify)
+    return <SettingsBaselineProviders>{children}</SettingsBaselineProviders>;
+  return children;
 }

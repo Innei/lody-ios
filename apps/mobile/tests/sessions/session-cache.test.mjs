@@ -41,6 +41,7 @@ test('session history restores before network, survives reconnect, and yields to
     },
     localStoreGeneration: () => localVersion,
     showToast() {},
+    async setForegroundSession() {},
   };
   const bundle = await build({
     stdin: {
@@ -61,7 +62,7 @@ test('session history restores before network, survives reconnect, and yields to
           }));
           build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
             contents:
-              'export const {useState,useRef,useEffect,addDataRuntimeListener,watchSession,unwatchSession,prepareChatEntries,readLocalValue,writeLocalValue,localStoreGeneration,showToast} = globalThis.__sessionCacheTest;',
+              'export const {useState,useRef,useEffect,addDataRuntimeListener,watchSession,unwatchSession,prepareChatEntries,readLocalValue,writeLocalValue,localStoreGeneration,showToast,setForegroundSession} = globalThis.__sessionCacheTest;',
           }));
         },
       },

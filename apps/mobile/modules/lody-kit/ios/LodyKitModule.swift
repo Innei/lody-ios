@@ -82,6 +82,15 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   func readCatalog() -> String { CatalogSession.published.raw }
 
   @JS
+  func readOutbox(userId: String, workspaceId: String) -> String { OutboxSession.read(user: userId, workspace: workspaceId) }
+
+  @JS
+  func outboxInflight(sessionId: String) -> Bool { OutboxSession.published.inflight.contains(sessionId) }
+
+  @JS
+  func setOutboxInflight(sessionId: String, active: Bool) { OutboxSession.published.inflight.set(sessionId, active) }
+
+  @JS
   var runtimeInfo: LodyRuntimeInfo {
     let offlineProbe = LodyUIVerify.offline
     let uiVerifyHome = LodyUIVerify.home
@@ -106,7 +115,13 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       let auth = AuthSession.shared
       auth.presenter = { self?.appContext?.utilities?.currentViewController() }
       auth.stopRuntime = { self?.dataRuntime.stop() }
-      if let runtime = self?.dataRuntime { CatalogSession.shared.attach(runtime) }
+      let outbox = OutboxSession.shared
+      outbox.presenter = { self?.appContext?.utilities?.currentViewController() }
+      outbox.emit = { key in self?.sendEvent("onOutboxChange", ["key": key]) }
+      if let runtime = self?.dataRuntime {
+        outbox.attach(runtime)
+        CatalogSession.shared.attach(runtime)
+      }
       auth.start()
     }
     authObservers.add(NotificationCenter.default.addObserver(forName: .lodyAuthDidChange, object: nil, queue: .main) { [weak self] _ in
@@ -217,11 +232,34 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     UserDefaults.standard.set(ids, forKey: pinOrderKey(userId: userId, workspaceId: workspaceId))
   }
 
+  @MainActor private static func settle(_ task: Task<Void, Error>, _ promise: Promise) {
+    Task { @MainActor in
+      switch await task.result {
+      case .success: promise.resolve(nil)
+      case .failure(let error):
+        let code = error as? OutboxError == .scopeExpired ? "pending_send_scope_expired" : "pending_send_write_failed"
+        promise.reject(NSError(domain: "LodyKit.Outbox", code: 1, userInfo: [NSLocalizedDescriptionKey: code]))
+      }
+    }
+  }
+
   public func definition() -> ModuleDefinition {
     AsyncFunction("sessionSharing") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.sessionSharing(payload, promise: promise) }
     }.runOnQueue(.main)
-    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onPreferencesChange", "onAuthChange", "onCatalogChange")
+    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onPreferencesChange", "onAuthChange", "onCatalogChange", "onOutboxChange")
+    AsyncFunction("outboxPut") { (userId: String, workspaceId: String, json: String, promise: Promise) in
+      MainActor.assumeIsolated { Self.settle(OutboxSession.shared.put(user: userId, workspace: workspaceId, json: json), promise) }
+    }.runOnQueue(.main)
+    AsyncFunction("outboxRemove") { (userId: String, workspaceId: String, sessionId: String, promise: Promise) in
+      MainActor.assumeIsolated { Self.settle(OutboxSession.shared.remove(user: userId, workspace: workspaceId, sessionId: sessionId), promise) }
+    }.runOnQueue(.main)
+    AsyncFunction("setForegroundSession") { (sessionId: String) in
+      MainActor.assumeIsolated { OutboxSession.shared.setForeground(sessionId) }
+    }.runOnQueue(.main)
+    AsyncFunction("debugOutboxFixture") { (action: String) -> String in
+      MainActor.assumeIsolated { OutboxSession.shared.debugFixture(action) }
+    }.runOnQueue(.main)
     AsyncFunction("selectWorkspace") { (workspaceId: String) in
       MainActor.assumeIsolated { CatalogSession.shared.selectWorkspace(workspaceId) }
     }.runOnQueue(.main)
@@ -235,7 +273,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       MainActor.assumeIsolated { self.dataRuntime.closeSession(id) }
     }.runOnQueue(.main)
     AsyncFunction("ensureSession") { (id: String, promise: Promise) in
-      MainActor.assumeIsolated { self.dataRuntime.ensureSession(id, promise: promise) }
+      MainActor.assumeIsolated { self.dataRuntime.ensureSession(id, sink: .promise(promise)) }
     }.runOnQueue(.main)
     AsyncFunction("releaseReserve") { (id: String) in
       MainActor.assumeIsolated { self.dataRuntime.releaseReserve(id) }
@@ -488,20 +526,28 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("memorySettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.memorySettings(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("publishedShares") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.publishedShares(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("agentRoles") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.agentRoles(payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.createSession(payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.createSession(payload, sink: .promise(promise)) } }.runOnQueue(.main)
     AsyncFunction("workspaceBillingEntitlement") { (workspace: String, user: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.workspaceBillingEntitlement(workspace: workspace, user: user, promise: promise) }
     }.runOnQueue(.main)
     AsyncFunction("archiveSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.workspaceWrite(RuntimeContract.Calls.ArchiveSession.self, payload: payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("deleteSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.workspaceWrite(RuntimeContract.Calls.DeleteSession.self, payload: payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("deleteSession") { (payload: String, promise: Promise) in
+      MainActor.assumeIsolated {
+        guard OutboxSession.shared.allowsDeletion(payload) else {
+          promise.reject(NSError(domain: "LodyKit.Outbox", code: 1, userInfo: [NSLocalizedDescriptionKey: "session_has_pending_send"]))
+          return
+        }
+        self.dataRuntime.workspaceWrite(RuntimeContract.Calls.DeleteSession.self, payload: payload, promise: promise)
+      }
+    }.runOnQueue(.main)
     AsyncFunction("pinSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.workspaceWrite(RuntimeContract.Calls.PinSession.self, payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("markSessionRead") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.workspaceWrite(RuntimeContract.Calls.MarkSessionRead.self, payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("renameSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.workspaceWrite(RuntimeContract.Calls.RenameSession.self, payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("controlSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sessionWrite(RuntimeContract.Calls.ControlTurn.self, payload: payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("sendSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, promise: promise) } }.runOnQueue(.main)
+    AsyncFunction("sendSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, sink: .promise(promise)) } }.runOnQueue(.main)
     AsyncFunction("readSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.readSessionEdit(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("prepareSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.prepareSessionEdit(payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("sendSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, promise: promise, edit: true) } }.runOnQueue(.main)
+    AsyncFunction("sendSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, sink: .promise(promise), edit: true) } }.runOnQueue(.main)
     AsyncFunction("sessionItemDetail") { (payload: String, promise: Promise) in
       try MainActor.assumeIsolated {
         if LodyUIVerify.enabled,

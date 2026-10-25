@@ -7,6 +7,7 @@ import type {
   Catalog,
   Connection,
   SavedCatalog,
+  Session,
 } from '@lody/cloud-runtime/models/catalog';
 import {
   unknownPresence,
@@ -28,6 +29,7 @@ type NativeCatalogState = {
   catalogRevision: number;
   connection: Connection;
   presence: WorkspacePresence;
+  pendingSessions: Session[];
 };
 export type CatalogStoreState = Omit<NativeCatalogState, 'catalogRevision'> & {
   catalog: Catalog;
@@ -47,6 +49,7 @@ const fallback: NativeCatalogState = {
   catalogRevision: -1,
   connection: { state: 'syncing', machines: 0 },
   presence: { workspaceId: '', presence: unknownPresence },
+  pendingSessions: [],
 };
 
 let catalogRevision = -1;
@@ -73,6 +76,7 @@ function read(
     catalogRevision: revision,
     presence,
     connection,
+    pendingSessions,
     ...state
   } = { ...fallback, ...parsed };
   if (revision !== catalogRevision) {
@@ -93,6 +97,10 @@ function read(
       previous && same(previous.presence, presence)
         ? previous.presence
         : presence,
+    pendingSessions:
+      previous && same(previous.pendingSessions, pendingSessions)
+        ? previous.pendingSessions
+        : pendingSessions,
   };
 }
 

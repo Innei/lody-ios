@@ -232,12 +232,12 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     sessionId = nil
     dispatch(RuntimeContract.Calls.CloseSession.self, .init())
   }
-  func ensureSession(_ id: String, promise: Promise) {
+  func ensureSession(_ id: String, sink: ReplySink) {
     guard workspace != nil, !id.isEmpty else {
-      fail(promise, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
+      fail(sink, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
       return
     }
-    call(RuntimeContract.Calls.EnsureSession.self, .init(sessionId: id), promise: promise) { _ in nil }
+    call(RuntimeContract.Calls.EnsureSession.self, .init(sessionId: id), sink: sink) { _ in nil }
   }
   private func handshake(_ view: WKWebView) {
     self.channel?.close("runtime_replaced")

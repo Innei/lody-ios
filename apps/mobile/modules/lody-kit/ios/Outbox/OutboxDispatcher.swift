@@ -1,0 +1,218 @@
+import Foundation
+
+struct OutboxServices {
+  var createSession: @MainActor (String) async throws -> String
+  var ensureSession: @MainActor (String) async throws -> Void
+  var sendSessionTurn: @MainActor (String) async throws -> String
+  var releaseReserve: @MainActor (String) -> Void
+  var alert: @MainActor (_ title: String, _ message: String) -> Void
+}
+
+final class OutboxInflight: @unchecked Sendable {
+  private let lock = NSLock()
+  private var ids = Set<String>()
+
+  func contains(_ id: String) -> Bool { lock.withLock { ids.contains(id) } }
+  func set(_ id: String, _ active: Bool) {
+    lock.withLock {
+      if active { ids.insert(id) } else { ids.remove(id) }
+    }
+  }
+}
+
+@MainActor
+final class OutboxDispatcher {
+  struct Inputs: Equatable {
+    var userId = ""
+    var connected = false
+    var foregroundSessionId = ""
+    var latestUserMessages: [String: String] = [:]
+    var catalogRevision = 0
+  }
+
+  private struct Trigger: Equatable {
+    let store: ObjectIdentifier?
+    let revision: Int
+    let inputs: Inputs
+  }
+
+  static let maxSessionReserves = 8
+  private static let occupying: Set<String> = ["creating", "sending", "unknown", "uploaded"]
+  private static let settled: Set<String> = ["accepted", "queued", "failed"]
+  private static let busy: Set<String> = ["running", "initializing", "processing", "in_progress", "queued", "requestPermission", "waiting"]
+
+  let inflight: OutboxInflight
+  private let services: OutboxServices
+  private let text: (String) -> String
+  private var store: OutboxStore?
+  private var inputs = Inputs()
+  private var released: [String: String] = [:]
+  private var trigger: Trigger?
+  private var scheduled = false
+
+  init(services: OutboxServices, inflight: OutboxInflight, text: @escaping (String) -> String) {
+    self.services = services
+    self.inflight = inflight
+    self.text = text
+  }
+
+  func update(store: OutboxStore?, inputs: Inputs) {
+    self.store = store
+    self.inputs = inputs
+    schedule()
+  }
+
+  func schedule() {
+    guard !scheduled else { return }
+    scheduled = true
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      self.scheduled = false
+      self.run()
+    }
+  }
+
+  private func run() {
+    let next = Trigger(store: store.map(ObjectIdentifier.init), revision: store?.revision ?? 0, inputs: inputs)
+    guard next != trigger else { return }
+    trigger = next
+    guard let store, store.snapshot.ready, !inputs.userId.isEmpty else { return }
+    let records = store.snapshot.records
+    var slots = records.filter { $0.sessionId != inputs.foregroundSessionId && Self.occupying.contains($0.phase) }.count
+    for record in records { consider(record, store: store, slots: &slots) }
+  }
+
+  private func consider(_ record: OutboxRecord, store: OutboxStore, slots: inout Int) {
+    let id = record.sessionId, phase = record.phase
+    if Self.settled.contains(phase) {
+      let key = "\(id):\(record.sendId):\(phase)"
+      guard released[id] != key else { return }
+      released[id] = key
+      services.releaseReserve(id)
+      return
+    }
+    released[id] = nil
+    let latest = inputs.latestUserMessages[id]
+    if phase == "unknown" || phase == "uploaded", latest == record.sendId {
+      let removal = store.remove(id)
+      let services = services
+      Task { @MainActor in
+        _ = await removal.result
+        services.releaseReserve(id)
+      }
+      return
+    }
+    if record.creation != nil, latest != nil, phase == "unknown" {
+      store.put(record.with(phase: "waiting", dropCreation: true))
+      return
+    }
+    guard id != inputs.foregroundSessionId, phase == "waiting", !inflight.contains(id),
+          inputs.connected, slots < Self.maxSessionReserves else { return }
+    slots += 1
+    inflight.set(id, true)
+    let marked = record.with(phase: record.creation == nil ? "sending" : "creating")
+    let marking = store.put(marked)
+    let userId = inputs.userId
+    Task { @MainActor in
+      await self.dispatch(record, marked: marked, marking: marking, store: store, userId: userId)
+      self.inflight.set(id, false)
+    }
+  }
+
+  private func dispatch(_ record: OutboxRecord, marked: OutboxRecord, marking: Task<Void, Error>,
+                        store: OutboxStore, userId: String) async {
+    let id = record.sessionId
+    var started = false
+    do {
+      try await marking.value
+      let latest = store.snapshot.records.first { $0.sessionId == id }
+      guard latest?.sendId == record.sendId, latest?.phase == marked.phase else { return }
+      if let creation = record.creation {
+        started = true
+        let result = try Self.parse(await services.createSession(creation))
+        switch result["state"]?.string {
+        case "created":
+          guard let session = result["session"]?.object else { throw OutboxError.invalidRecord }
+          inflight.set(id, false)
+          var created = record.with(phase: "waiting", dropCreation: true)
+          created.session = session
+          try await store.put(created).value
+        case "rejected":
+          await fail(record, store: store, reason: quotaError(result["reason"]?.string, fallback: "send.error.sessionNotCreated"))
+        default:
+          try await store.put(record.with(phase: "unknown")).value
+        }
+        return
+      }
+      do { try await services.ensureSession(id) } catch {
+        await fail(record, store: store, reason: text("native.runtime.sessionNotSyncedRetry"))
+        return
+      }
+      started = true
+      let result = try Self.parse(await services.sendSessionTurn(Self.turn(record, userId: userId)))
+      let state = result["state"]?.string ?? ""
+      if state == "not_sent" {
+        if result["reason"]?.string == "session_not_ready" {
+          try await store.put(record.with(phase: "waiting")).value
+          return
+        }
+        await fail(record, store: store, reason: quotaError(result["reason"]?.string, fallback: "send.error.notSent"))
+        return
+      }
+      let next = ["accepted", "uploaded", "queued"].contains(state) ? state : "unknown"
+      try await store.put(record.with(phase: next)).value
+    } catch {
+      if started { _ = await store.put(record.with(phase: "unknown")).result }
+      else { await fail(record, store: store, reason: text("send.error.draftSaveFailed")) }
+    }
+  }
+
+  private func fail(_ record: OutboxRecord, store: OutboxStore, reason: String) async {
+    let reason = reason == "mention_expansion_failed" ? text("send.error.mentions") : reason
+    _ = await store.put(record.with(phase: "failed", reason: reason)).result
+    services.alert(text("send.alert.title"), reason)
+  }
+
+  func quotaError(_ reason: String?, fallback: String) -> String {
+    let keys = [
+      "shortcut_unavailable": "send.error.shortcut",
+      "mcp_catalog_unavailable": "send.error.mcpCatalog",
+      "mcp_connection_missing": "send.error.mcpConnection",
+      "workspace_payment_required": "send.error.workspacePaymentRequired",
+      "free_session_limit_reached": "send.error.freeSessionLimit",
+      "free_session_turn_limit_reached": "send.error.freeTurnLimit",
+    ]
+    if let reason, let key = keys[reason] { return text(key) }
+    if let reason, !reason.isEmpty { return reason }
+    return text(fallback)
+  }
+
+  private static func parse(_ json: String) throws -> [String: OutboxValue] {
+    guard let value = try JSONDecoder().decode(OutboxValue.self, from: Data(json.utf8)).object else {
+      throw OutboxError.invalidRecord
+    }
+    return value
+  }
+
+  static func turn(_ record: OutboxRecord, userId: String) -> String {
+    let session = record.session, send = record.send
+    let guide = send["guide"] == .bool(true)
+    let busy = send["queue"] == .bool(true) || Self.busy.contains(session["status"]?.string ?? "")
+    var payload: [String: OutboxValue] = [
+      "userId": .string(userId),
+      "guide": .bool(guide),
+      "queue": .bool(send["guide"]?.truthy != true && busy),
+    ]
+    payload["sessionId"] = session["id"]
+    for key in ["machineId", "cliType", "agentType", "resume"] { payload[key] = session[key] }
+    for key in ["id", "text", "attachments"] { payload[key] = send[key] }
+    let choice = send["choice"]?.object ?? [:]
+    for (from, to) in [("modelId", "modelId"), ("modeId", "modeId"), ("effort", "reasoningEffort"),
+                       ("reasoningEffortConfigId", "reasoningEffortConfigId"), ("configOptionValues", "configOptionValues")] {
+      payload[to] = choice[from]
+    }
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .withoutEscapingSlashes
+    return (try? encoder.encode(OutboxValue.object(payload))).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+  }
+}

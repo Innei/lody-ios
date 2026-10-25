@@ -45,6 +45,7 @@ type Events = {
   onPreferencesChange: (event: { json: string }) => void;
   onAuthChange: (event: { json: string }) => void;
   onCatalogChange: (event: { json: string }) => void;
+  onOutboxChange: (event: { key: string }) => void;
   onAttachmentUploadProgress: (event: AttachmentUploadProgress) => void;
   onPushClick: () => void;
   onAppActive: () => void;
@@ -180,6 +181,17 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   readAuthState(): string;
   readCatalogState(): string;
   readCatalog(): string;
+  readOutbox(userId: string, workspaceId: string): string;
+  outboxInflight(sessionId: string): boolean;
+  setOutboxInflight(sessionId: string, active: boolean): void;
+  outboxPut(userId: string, workspaceId: string, json: string): Promise<void>;
+  outboxRemove(
+    userId: string,
+    workspaceId: string,
+    sessionId: string,
+  ): Promise<void>;
+  setForegroundSession(sessionId: string): Promise<void>;
+  debugOutboxFixture(action: string): Promise<string>;
   selectWorkspace(workspaceId: string): Promise<void>;
   refreshCatalog(): Promise<void>;
   restoreAuth(): Promise<void>;
@@ -378,6 +390,25 @@ export const decodeFlock = (
 
 export const readCatalogStateRaw = () => native.readCatalogState();
 export const readCatalogRaw = () => native.readCatalog();
+export const readOutboxRaw = (userId: string, workspaceId: string) =>
+  native.readOutbox(userId, workspaceId);
+export const addOutboxListener = (listener: (event: { key: string }) => void) =>
+  native.addListener('onOutboxChange', listener);
+export const outboxPut = (userId: string, workspaceId: string, json: string) =>
+  native.outboxPut(userId, workspaceId, json);
+export const outboxRemove = (
+  userId: string,
+  workspaceId: string,
+  sessionId: string,
+) => native.outboxRemove(userId, workspaceId, sessionId);
+export const outboxInflight = (sessionId: string) =>
+  native.outboxInflight(sessionId);
+export const setOutboxInflight = (sessionId: string, active: boolean) =>
+  native.setOutboxInflight(sessionId, active);
+export const setForegroundSession = (sessionId: string) =>
+  native.setForegroundSession(sessionId);
+export const debugOutboxFixture = (action: string) =>
+  native.debugOutboxFixture(action);
 export const addCatalogListener = (
   listener: (event: { json: string }) => void,
 ) => native.addListener('onCatalogChange', listener);

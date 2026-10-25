@@ -201,8 +201,14 @@ test('attachment progress stays local, targets the current send, and unsubscribe
 });
 
 async function load(hooks, native) {
+  const inflight = new Set();
   globalThis.__sendHooks = hooks;
-  globalThis.__sendNative = native;
+  globalThis.__sendNative = {
+    outboxInflight: (id) => inflight.has(id),
+    setOutboxInflight: (id, active) =>
+      active ? inflight.add(id) : inflight.delete(id),
+    ...native,
+  };
   const bundle = await build({
     entryPoints: [
       new URL('../../src/features/sessions/useSessionSend.ts', import.meta.url)
@@ -225,7 +231,7 @@ async function load(hooks, native) {
                 'export const {useEffect,useRef,useState}=globalThis.__sendHooks;',
               'react-native': 'export const Alert={alert(){}};',
               '@lody-ios/kit':
-                'export const {createSession,sendSessionTurn,ensureSession,addAttachmentUploadProgressListener}=globalThis.__sendNative;',
+                'export const {createSession,sendSessionTurn,ensureSession,addAttachmentUploadProgressListener,outboxInflight,setOutboxInflight}=globalThis.__sendNative;',
             }[path],
           }));
         },

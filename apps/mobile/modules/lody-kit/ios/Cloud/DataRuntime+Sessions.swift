@@ -7,17 +7,17 @@ extension DataRuntime {
     reservedSessions.removeAll { $0 == id }
     dispatch(RuntimeContract.Calls.ReleaseReserve.self, .init(sessionId: id))
   }
-  func createSession(_ payload: String, promise: Promise) {
-    guard let workspace else { fail(promise, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced")); return }
+  func createSession(_ payload: String, sink: ReplySink) {
+    guard let workspace else { fail(sink, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced")); return }
     let user = userId, generation = self.generation
     Task { @MainActor in
       let entitlement = await billing.entitlement(workspace: workspace, user: user)
       guard self.generation == generation, self.workspace == workspace, self.userId == user else {
-        promise.resolve(#"{"state":"rejected"}"#); return
+        sink.resolve(#"{"state":"rejected"}"#); return
       }
-      guard self.inWorkspace(payload, sink: .promise(promise)) else { return }
+      guard self.inWorkspace(payload, sink: sink) else { return }
       self.callForRN(RuntimeContract.Calls.CreateSession.self, payload: payload,
-        inject: ["billingEntitlement": entitlement ?? NSNull()], promise: promise)
+        inject: ["billingEntitlement": entitlement ?? NSNull()], sink: sink)
     }
   }
   func workspaceWrite<C: RuntimeCall>(_ call: C.Type, payload: String, promise: Promise) where C.Params: Decodable, C.Result: Encodable {
@@ -78,22 +78,22 @@ extension DataRuntime {
   func readSessionEdit(_ payload: String, promise: Promise) {
     dispatchTurn(payload, sink: .promise(promise), billing: nil, edit: true)
   }
-  func sendTurn(_ payload: String, promise: Promise, edit: Bool = false) {
-    guard let workspace else { dispatchTurn(payload, sink: .promise(promise), billing: nil, edit: edit); return }
+  func sendTurn(_ payload: String, sink: ReplySink, edit: Bool = false) {
+    guard let workspace else { dispatchTurn(payload, sink: sink, billing: nil, edit: edit); return }
     let user = userId, generation = self.generation
     Task { @MainActor in
       let entitlement = await billing.entitlement(workspace: workspace, user: user)
       guard self.generation == generation, self.workspace == workspace, self.userId == user else {
-        promise.resolve(notSentJSON("native.runtime.connectionSwitched")); return
+        sink.resolve(notSentJSON("native.runtime.connectionSwitched")); return
       }
       let hasAttachments = payload.data(using: .utf8)
         .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
         .flatMap { $0["attachments"] as? [[String: Any]] }
         .map { !$0.isEmpty } ?? false
       if hasAttachments, let quota = await turnQuota(payload, billing: entitlement) {
-        promise.resolve(quota); return
+        sink.resolve(quota); return
       }
-      sendTurnWithBilling(payload, promise: promise, billing: entitlement, edit: edit)
+      sendTurnWithBilling(payload, sink: sink, billing: entitlement, edit: edit)
     }
   }
   private func turnQuota(_ payload: String, billing: [String: Any]?) async -> String? {
@@ -107,16 +107,16 @@ extension DataRuntime {
           let data = try? JSONEncoder().encode(RuntimeContract.CheckTurnQuotaResult.notSent(value)) else { return nil }
     return String(decoding: data, as: UTF8.self)
   }
-  private func sendTurnWithBilling(_ payload: String, promise: Promise, billing: [String: Any]?, edit: Bool) {
+  private func sendTurnWithBilling(_ payload: String, sink: ReplySink, billing: [String: Any]?, edit: Bool) {
     guard let data = payload.data(using: .utf8), data.count <= 128 * 1024,
           var args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let attachments = args.removeValue(forKey: "attachments") as? [[String: Any]], !attachments.isEmpty else {
-      dispatchTurn(payload, sink: .promise(promise), billing: billing, edit: edit); return
+      dispatchTurn(payload, sink: sink, billing: billing, edit: edit); return
     }
     guard health.ready, let workspace,
           let target = args["sessionId"] as? String, !target.isEmpty,
           attachmentTasks[target] == nil else {
-      promise.resolve(notSentJSON("native.runtime.sessionNotReady")); return
+      sink.resolve(notSentJSON("native.runtime.sessionNotReady")); return
     }
     if !backgrounded {
       args["backgroundTaskId"] = SessionBackgroundTasks.shared.begin(owner: owner)
@@ -145,7 +145,7 @@ extension DataRuntime {
         await MainActor.run { [weak self] in
           guard let self, self.generation == generation, !Task.isCancelled else {
             if let backgroundTaskId { SessionBackgroundTasks.shared.finish(backgroundTaskId, success: false) }
-            promise.resolve(notSentJSON("native.runtime.connectionSwitched")); return
+            sink.resolve(notSentJSON("native.runtime.connectionSwitched")); return
           }
           self.attachmentTasks[target] = nil
           self.attachmentAttempts[target] = nil
@@ -153,7 +153,7 @@ extension DataRuntime {
           if let billingTier, let checkoutPending {
             projection = ["effectivePlanTier": billingTier, "checkoutPending": checkoutPending]
           }
-          self.dispatchTurn(prepared, sink: .promise(promise), billing: projection, edit: edit)
+          self.dispatchTurn(prepared, sink: sink, billing: projection, edit: edit)
         }
       } catch {
         let result = (try? JSONSerialization.data(withJSONObject: ["state": "not_sent", "reason": error.localizedDescription])) ?? Data()
@@ -163,7 +163,7 @@ extension DataRuntime {
             self.attachmentAttempts[target] = nil
           }
           if let backgroundTaskId { SessionBackgroundTasks.shared.finish(backgroundTaskId, success: false) }
-          promise.resolve(String(data: result, encoding: .utf8)!)
+          sink.resolve(String(data: result, encoding: .utf8)!)
         }
       }
     }

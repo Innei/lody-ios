@@ -12,34 +12,37 @@ const deferred = () => {
 };
 const record = (id, phase = 'waiting') => ({
   session: { id, title: 'Draft' },
-  send: {
-    id: `turn-${id}`,
-    text: 'hello',
-    startedAt: 1_780_000_000_000,
-    attachments: [
-      { id: 'file', uri: 'file:///draft', name: 'draft.txt', kind: 'file' },
-    ],
-    phase,
-    choice: {},
-  },
+  send: { id: `turn-${id}`, text: 'hello', attachments: [], phase, choice: {} },
 });
 
-test('pending sends publish before durable writes, merge hydration, isolate scopes and never restore dispatch in flight', async () => {
-  const disk = new Map();
-  const hydration = deferred();
-  let generation = 0;
-  let blockWrite;
-  const writes = [];
-  globalThis.__pendingLocal = {
-    localGeneration: () => generation,
-    readLocal: (key) =>
-      key === 'pending-sends:u:w'
-        ? hydration.promise
-        : Promise.resolve(disk.get(key)),
-    writeLocal: async (key, records, version) => {
-      writes.push({ key, records });
-      if (blockWrite) await blockWrite.promise;
-      if (version === generation) disk.set(key, records);
+test('the RN outbox mirrors the native owner, publishes before its ack and expires with the local generation', async () => {
+  const native = { generation: 0, ready: false, records: [], calls: [] };
+  const listeners = new Set();
+  const pending = [];
+  const emit = () =>
+    listeners.forEach((listener) => listener({ key: 'pending-sends:u:w' }));
+  globalThis.__outboxNative = {
+    localStoreGeneration: () => native.generation,
+    readOutboxRaw: (user, workspace) =>
+      JSON.stringify(
+        user === 'u' && workspace === 'w'
+          ? { ready: native.ready, records: native.records }
+          : { ready: false, records: [] },
+      ),
+    addOutboxListener(listener) {
+      listeners.add(listener);
+      return { remove: () => listeners.delete(listener) };
+    },
+    outboxPut(user, workspace, json) {
+      native.calls.push(['put', user, workspace, JSON.parse(json)]);
+      const ack = deferred();
+      pending.push(ack);
+      return ack.promise;
+    },
+    outboxRemove(user, workspace, id) {
+      native.calls.push(['remove', user, workspace, id]);
+      native.records = native.records.filter((item) => item.session.id !== id);
+      return Promise.resolve();
     },
   };
   const bundle = await build({
@@ -51,9 +54,9 @@ test('pending sends publish before durable writes, merge hydration, isolate scop
     write: false,
     plugins: [
       {
-        name: 'local',
+        name: 'native',
         setup(b) {
-          b.onResolve({ filter: /^(react|.*\/kv\.ts)$/ }, ({ path }) => ({
+          b.onResolve({ filter: /^(react|@lody-ios\/kit)$/ }, ({ path }) => ({
             path,
             namespace: 'mock',
           }));
@@ -61,7 +64,7 @@ test('pending sends publish before durable writes, merge hydration, isolate scop
             contents:
               path === 'react'
                 ? 'export function useSyncExternalStore() {}'
-                : 'export const {localGeneration,readLocal,writeLocal}=globalThis.__pendingLocal;',
+                : 'export const {readOutboxRaw,addOutboxListener,outboxPut,outboxRemove,localStoreGeneration,readLocalValue,writeLocalValue}=globalThis.__outboxNative;',
           }));
         },
       },
@@ -71,56 +74,70 @@ test('pending sends publish before durable writes, merge hydration, isolate scop
     `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
   );
   const store = getPendingSendStore('u', 'w');
+  let notified = 0;
+  const unsubscribe = store.subscribe(() => notified++);
+  assert.deepEqual(store.getSnapshot(), { records: [], ready: false });
+
   const draft = record('new');
-  blockWrite = deferred();
   const put = store.put(draft);
   draft.send.text = 'mutated outside store';
   assert.equal(store.getSnapshot().records[0].send.text, 'hello');
-  assert.equal(writes.length, 0);
-  hydration.resolve([
-    record('old', 'sending'),
-    record('creating', 'creating'),
-    record('failed', 'failed'),
-  ]);
-  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(native.calls[0][3].send.text, 'hello');
+  assert.equal(notified, 1);
+
+  native.ready = true;
+  native.records = [record('old', 'unknown')];
+  emit();
+  assert.deepEqual(
+    store.getSnapshot().records.map((item) => item.session.id),
+    ['old', 'new'],
+    'an unacknowledged put stays visible over a native snapshot that predates it',
+  );
   assert.equal(store.getSnapshot().ready, true);
+  native.records = [record('old', 'unknown'), record('new', 'sending')];
+  pending.shift().resolve();
+  await put;
   assert.deepEqual(
     store.getSnapshot().records.map((item) => item.send.phase),
-    ['unknown', 'unknown', 'failed', 'waiting'],
+    ['unknown', 'sending'],
+    'the native owner wins once it acknowledges the write',
   );
-  assert.equal(writes.length, 1);
-  assert.equal(disk.size, 0);
-  blockWrite.resolve();
-  await put;
-  blockWrite = undefined;
-  assert.equal(disk.get('pending-sends:u:w').length, 4);
+
+  const failed = store.put(record('failed-write'));
+  pending.shift().reject(new Error('disk full'));
+  await assert.rejects(failed, /disk full/);
   assert.equal(
-    disk.get('pending-sends:u:w')[2].send.attachments[0].uri,
-    'file:///draft',
-  );
-  const first = store.put(record('new', 'sending'));
-  const second = store.put(record('new', 'uploaded'));
-  await Promise.all([first, second]);
-  assert.deepEqual(
-    writes.slice(-2).map((write) => write.records.at(-1).send.phase),
-    ['sending', 'uploaded'],
-  );
-  assert.notEqual(getPendingSendStore('other', 'w'), store);
-  const failure = deferred();
-  blockWrite = failure;
-  const failedWrite = store.put(record('failed-write'));
-  failure.reject(new Error('disk full'));
-  await assert.rejects(failedWrite, /disk full/);
-  blockWrite = undefined;
-  await store.remove('failed-write');
-  assert.equal(
-    disk
-      .get('pending-sends:u:w')
-      .some((item) => item.session.id === 'failed-write'),
+    store
+      .getSnapshot()
+      .records.some((item) => item.session.id === 'failed-write'),
     false,
   );
-  generation++;
+  await store.remove('old');
+  assert.deepEqual(native.calls.at(-1), ['remove', 'u', 'w', 'old']);
+  assert.deepEqual(
+    store.getSnapshot().records.map((item) => item.session.id),
+    ['new'],
+  );
+
+  assert.deepEqual(getPendingSendStore('', 'w').getSnapshot(), {
+    records: [],
+    ready: true,
+  });
+  await assert.rejects(
+    getPendingSendStore('', 'w').put(record('x')),
+    /scope_expired/,
+  );
+  assert.notEqual(getPendingSendStore('other', 'w'), store);
+  native.generation++;
+  const calls = native.calls.length;
   await assert.rejects(store.put(record('stale')), /scope_expired/);
+  assert.equal(
+    native.calls.length,
+    calls,
+    'an expired scope never reaches native',
+  );
   assert.notEqual(getPendingSendStore('u', 'w'), store);
-  delete globalThis.__pendingLocal;
+  unsubscribe();
+  assert.equal(listeners.size, 0);
+  delete globalThis.__outboxNative;
 });

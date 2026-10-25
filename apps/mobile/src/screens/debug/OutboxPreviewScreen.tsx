@@ -1,13 +1,17 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
-import { NativeComposer, NativeGroupedList } from '@lody-ios/kit';
+import {
+  addOutboxListener,
+  debugOutboxFixture,
+  NativeComposer,
+  NativeGroupedList,
+} from '@lody-ios/kit';
 import { definePage, present } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import {
   getPendingSendStore,
   usePendingSends,
 } from '@/cloud/send/pendingSends';
-import { useOutboxDispatcher } from '@/cloud/send/outboxDispatcher';
 import { pendingSendStatus } from '@/features/sessions/useSessionSend';
 import type { PendingSend } from '@/models/send';
 import type { Session } from '@lody/cloud-runtime/models/catalog';
@@ -66,51 +70,21 @@ function ViewContent() {
   const colors = usePalette();
   const outbox = usePendingSends(user, workspace);
   const sequence = useRef(0);
-  const failNext = useRef(false);
-  const quotaNext = useRef(false);
-  const reserves = useRef(new Set<string>());
-  const requests = useRef(new Map<string, (result: string) => void>());
-  const [calls, setCalls] = useState(0);
-  const [, refresh] = useState(0);
-  const services = useRef({
-    async createSession(payload: string) {
-      if (quotaNext.current) {
-        quotaNext.current = false;
-        return JSON.stringify({
-          state: 'rejected',
-          reason: 'free_session_limit_reached',
-        });
-      }
-      return JSON.stringify({ state: 'created', session: JSON.parse(payload) });
-    },
-    async ensureSession(id: string) {
-      reserves.current.add(id);
-      refresh((n) => n + 1);
-      if (failNext.current) {
-        failNext.current = false;
-        throw new Error('runtime_replaced');
-      }
-    },
-    async releaseReserve(id: string) {
-      reserves.current.delete(id);
-      refresh((n) => n + 1);
-    },
-    sendSessionTurn(payload: string) {
-      const args = JSON.parse(payload);
-      setCalls((n) => n + 1);
-      return new Promise<string>((resolve) =>
-        requests.current.set(args.sessionId, resolve),
-      );
-    },
-  }).current;
-  useOutboxDispatcher({
-    outbox,
-    userId: user,
-    connected: true,
-    serverSessions: [],
-    foregroundSessionId: '',
-    services,
-  });
+  const [{ calls, reserves }, setFixture] = useState({ calls: 0, reserves: 0 });
+  useEffect(() => {
+    let active = true;
+    const read = (action: string) =>
+      void debugOutboxFixture(action).then((json) => {
+        if (active) setFixture(JSON.parse(json));
+      });
+    const subscription = addOutboxListener(() => read('state'));
+    read('start');
+    return () => {
+      active = false;
+      subscription.remove();
+      void debugOutboxFixture('stop');
+    };
+  }, []);
 
   async function add(send: PendingSend, create = false) {
     const n = ++sequence.current;
@@ -119,13 +93,6 @@ function ViewContent() {
       session: target,
       send: { ...send, creation: create ? JSON.stringify(target) : undefined },
     });
-  }
-  function confirm(all: boolean) {
-    for (const [id, resolve] of requests.current) {
-      requests.current.delete(id);
-      resolve(JSON.stringify({ state: 'accepted' }));
-      if (!all) break;
-    }
   }
   return (
     <View
@@ -150,24 +117,26 @@ function ViewContent() {
         </Button>
         <Button
           testID="outbox-fail-next"
-          onPress={() => {
-            failNext.current = true;
-          }}
+          onPress={() => void debugOutboxFixture('failNext')}
         >
           下次同步失败
         </Button>
         <Button
           testID="outbox-quota-next"
-          onPress={() => {
-            quotaNext.current = true;
-          }}
+          onPress={() => void debugOutboxFixture('quotaNext')}
         >
           下次达到会话上限
         </Button>
-        <Button testID="outbox-confirm" onPress={() => confirm(false)}>
+        <Button
+          testID="outbox-confirm"
+          onPress={() => void debugOutboxFixture('confirm')}
+        >
           确认一条
         </Button>
-        <Button testID="outbox-confirm-all" onPress={() => confirm(true)}>
+        <Button
+          testID="outbox-confirm-all"
+          onPress={() => void debugOutboxFixture('confirmAll')}
+        >
           确认全部
         </Button>
         <Button
@@ -190,7 +159,7 @@ function ViewContent() {
       <Text testID="outbox-state" style={{ color: colors.label, padding: 16 }}>
         {JSON.stringify({
           calls,
-          reserves: reserves.current.size,
+          reserves,
           waiting: outbox.records.filter(
             (record) => record.send.phase === 'waiting',
           ).length,

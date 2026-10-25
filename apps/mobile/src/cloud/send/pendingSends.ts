@@ -1,110 +1,105 @@
 import { useSyncExternalStore } from 'react';
-import type { PendingSend, PendingSession } from '../../models/send.ts';
-import { localGeneration, readLocal, writeLocal } from '../kv.ts';
-import { t } from '../../lib/i18n/index.ts';
+import {
+  addOutboxListener,
+  outboxPut,
+  outboxRemove,
+  readOutboxRaw,
+} from '@lody-ios/kit';
+import type { PendingSession } from '../../models/send.ts';
+import { localGeneration, parseLocal } from '../kv.ts';
 
 export type { PendingSend, PendingSession } from '../../models/send.ts';
 type Snapshot = { records: readonly PendingSession[]; ready: boolean };
 const stores = new Map<string, ReturnType<typeof createStore>>();
 let storeGeneration = localGeneration();
+const expired = () => Promise.reject(new Error('pending_send_scope_expired'));
 
-function createStore(key: string, generation: number) {
-  let snapshot: Snapshot = { records: [], ready: !key };
-  let durable: readonly PendingSession[] = [];
-  const touched = new Set<string>();
+function createStore(userId: string, workspaceId: string, generation: number) {
+  const key =
+    userId && workspaceId ? `pending-sends:${userId}:${workspaceId}` : '';
+  let raw = '';
+  let native: Snapshot = { records: [], ready: !key };
+  let snapshot = native;
+  let tokens = 0;
+  const overlay = new Map<string, { record?: PendingSession; token: number }>();
   const listeners = new Set<() => void>();
-  const publish = (
-    records: readonly PendingSession[],
-    ready = snapshot.ready,
-  ) => {
-    snapshot = { records, ready };
+  let subscription: { remove(): void } | null = null;
+  const refresh = () => {
+    if (!key) return false;
+    const next = readOutboxRaw(userId, workspaceId);
+    if (next === raw) return false;
+    raw = next;
+    const parsed = parseLocal<Snapshot>(next);
+    native = {
+      records: Array.isArray(parsed?.records) ? parsed.records : [],
+      ready: parsed?.ready === true,
+    };
+    return true;
+  };
+  const compose = () => {
+    let records = native.records;
+    for (const [sessionId, { record }] of overlay) {
+      records = records.filter((item) => item.session.id !== sessionId);
+      if (record) records = [...records, record];
+    }
+    snapshot = overlay.size ? { records, ready: native.ready } : native;
+  };
+  const notify = () => {
+    compose();
     listeners.forEach((listener) => listener());
   };
-  const current = () => {
-    if (!key || generation !== localGeneration())
-      throw new Error('pending_send_scope_expired');
-  };
-  let writes = key
-    ? readLocal<PendingSession[]>(key).then((saved) => {
-        if (generation !== localGeneration()) return;
-        durable = (Array.isArray(saved) ? saved : [])
-          .filter(
-            (record) =>
-              record?.session?.id &&
-              record.send?.id &&
-              typeof record.send.text === 'string' &&
-              Array.isArray(record.send.attachments) &&
-              record.send.choice,
-          )
-          .map((record) => {
-            if (
-              record.send.phase !== 'creating' &&
-              record.send.phase !== 'sending'
-            )
-              return record;
-            return {
-              ...record,
-              send: {
-                ...record.send,
-                phase: 'unknown' as const,
-                reason: t('send.reason.awaitingConfirmation'),
-              },
-            };
-          });
-        publish(
-          [
-            ...durable.filter((record) => !touched.has(record.session.id)),
-            ...snapshot.records,
-          ],
-          true,
-        );
-      })
-    : Promise.resolve();
-  function change(sessionId: string, record?: PendingSession) {
-    try {
-      current();
-    } catch (error) {
-      return Promise.reject(error);
-    }
-    const replace = (records: readonly PendingSession[]) => {
-      const next = records.filter((item) => item.session.id !== sessionId);
-      if (record) next.push(record);
-      return next;
+  refresh();
+  compose();
+  function change(
+    sessionId: string,
+    record: PendingSession | undefined,
+    request: () => Promise<void>,
+  ) {
+    if (!key || generation !== localGeneration()) return expired();
+    const token = ++tokens;
+    overlay.delete(sessionId);
+    overlay.set(sessionId, { record, token });
+    notify();
+    const settle = () => {
+      if (overlay.get(sessionId)?.token === token) overlay.delete(sessionId);
+      refresh();
+      notify();
     };
-    touched.add(sessionId);
-    publish(replace(snapshot.records));
-    const write = writes.then(async () => {
-      current();
-      const next = replace(durable);
-      await writeLocal(key, next, generation);
-      current();
-      durable = next;
+    return request().then(settle, (error: unknown) => {
+      settle();
+      throw error;
     });
-    writes = write.catch(() => {});
-    return write;
   }
   return {
-    getSnapshot: () => snapshot,
+    getSnapshot: () => {
+      if (!subscription && refresh()) compose();
+      return snapshot;
+    },
     subscribe: (listener: () => void) => {
       listeners.add(listener);
+      if (key && !subscription) {
+        subscription = addOutboxListener((event) => {
+          if (event.key === key && refresh()) notify();
+        });
+        if (refresh()) compose();
+      }
       return () => {
         listeners.delete(listener);
+        if (listeners.size || !subscription) return;
+        subscription.remove();
+        subscription = null;
       };
     },
     put: (record: PendingSession) => {
-      const copy: PendingSession = {
-        session: { ...record.session },
-        send: {
-          ...record.send,
-          choice: { ...record.send.choice },
-          attachments: record.send.attachments.map((attachment) => ({
-            ...attachment,
-          })),
-        },
-      };
-      return change(copy.session.id, copy);
+      const json = JSON.stringify(record);
+      return change(record.session.id, JSON.parse(json) as PendingSession, () =>
+        outboxPut(userId, workspaceId, json),
+      );
     },
-    remove: (sessionId: string) => change(sessionId),
+    remove: (sessionId: string) =>
+      change(sessionId, undefined, () =>
+        outboxRemove(userId, workspaceId, sessionId),
+      ),
   };
 }
 
@@ -114,11 +109,10 @@ export function getPendingSendStore(userId: string, workspaceId: string) {
     stores.clear();
     storeGeneration = generation;
   }
-  const key =
-    userId && workspaceId ? `pending-sends:${userId}:${workspaceId}` : '';
+  const key = userId && workspaceId ? `${userId}:${workspaceId}` : '';
   let store = stores.get(key);
   if (!store) {
-    store = createStore(key, generation);
+    store = createStore(userId, workspaceId, generation);
     stores.set(key, store);
   }
   return store;

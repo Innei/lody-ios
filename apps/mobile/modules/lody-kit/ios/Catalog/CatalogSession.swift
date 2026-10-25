@@ -41,6 +41,7 @@ final class CatalogSession {
   private var watch: Watch?
   private var snapshot = CatalogSnapshot()
   private var raw = "null"
+  private var latestUserMessages: [String: String] = [:]
 
   func attach(_ runtime: DataRuntime) {
     if self.runtime !== runtime {
@@ -103,7 +104,7 @@ final class CatalogSession {
     snapshot.workspaceId = selected?.id ?? ""
     snapshot.presence = CatalogPresence(workspaceId: selected?.id ?? "")
     guard let account, let selected else {
-      setCatalog("null")
+      setCatalog("null", sessions: [:])
       snapshot.key = ""
       snapshot.loading = false
       snapshot.connected = false
@@ -120,7 +121,7 @@ final class CatalogSession {
     watch.machines = seed?.catalog.machineIds.count ?? 0
     runtime.knownRepos = seed?.catalog.repos ?? [:]
     if snapshot.key != key {
-      setCatalog(seed == nil ? "null" : scope.initialCatalog ?? "null")
+      setCatalog(seed == nil ? "null" : scope.initialCatalog ?? "null", sessions: seed?.catalog.latestUserMessages ?? [:])
       snapshot.syncedAt = watch.syncedAt
     }
     snapshot.key = key
@@ -150,7 +151,7 @@ final class CatalogSession {
     watch.machines = saved.catalog.machineIds.count
     let newer = saved.syncedAt.map { (snapshot.syncedAt ?? 0) > $0 } ?? false
     if snapshot.key != watch.key || !newer {
-      setCatalog(raw)
+      setCatalog(raw, sessions: saved.catalog.latestUserMessages)
       snapshot.syncedAt = saved.syncedAt
       snapshot.loading = watch.state == "syncing"
       snapshot.connected = watch.state != "offline"
@@ -170,7 +171,7 @@ final class CatalogSession {
         watch.syncedAt = syncedAt
         watch.machines = digest.machineIds.count
         let saved = #"{"catalog":"# + catalog + #","syncedAt":\#(syncedAt)}"#
-        setCatalog(saved)
+        setCatalog(saved, sessions: digest.latestUserMessages)
         persist(saved, watch: watch)
       } else {
         phase = "failed"
@@ -218,14 +219,22 @@ final class CatalogSession {
     LodyToastOverlay.shared.show(message: LodyStrings.text(key), kind: "error")
   }
 
-  private func setCatalog(_ value: String) {
+  private func setCatalog(_ value: String, sessions: [String: String]) {
     raw = value
+    latestUserMessages = sessions
     snapshot.catalogRevision += 1
   }
 
+  func outboxChanged() {
+    publish()
+  }
+
   private func publish() {
+    let outbox = OutboxSession.shared
+    snapshot.pendingSessions = outbox.pendingSessions(user: snapshot.userId, workspace: snapshot.workspaceId, excluding: latestUserMessages)
     guard Self.published.set(snapshot.json, catalog: raw) else { return }
     NotificationCenter.default.post(name: .lodyCatalogDidChange, object: nil)
+    outbox.catalogChanged(snapshot, latestUserMessages: latestUserMessages)
   }
 }
 

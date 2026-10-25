@@ -1,20 +1,8 @@
-import {
-  createContext,
-  use,
-  useMemo,
-  useSyncExternalStore,
-  type PropsWithChildren,
-} from 'react';
+import { createContext, use, useMemo, useSyncExternalStore } from 'react';
 import { deleteSession, refreshCatalog, selectWorkspace } from '@lody-ios/kit';
 import type { Catalog, Session } from '@lody/cloud-runtime/models/catalog';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import type { Workspace } from '../../models/auth.ts';
-import { usePendingSends } from '../send/pendingSends';
-import { useOutboxDispatcher } from '../send/outboxDispatcher';
-import {
-  getForegroundSession,
-  subscribeForegroundSession,
-} from '../send/foregroundSession';
 import {
   emptyCatalog,
   getCatalogStore,
@@ -39,7 +27,7 @@ type CatalogState = CatalogView & {
 const setWorkspaceId = (id: string) => void selectWorkspace(id);
 const refresh = () => void refreshCatalog();
 
-function useNativeCatalog(enabled: boolean): CatalogState {
+function useNativeCatalog(): CatalogState {
   const state = useSyncExternalStore(
     subscribeCatalogStore,
     getCatalogStore,
@@ -52,11 +40,6 @@ function useNativeCatalog(enabled: boolean): CatalogState {
   const selected =
     account?.workspaces.find((w) => w.id === workspaceId) ??
     account?.workspaces[0];
-  const pending = usePendingSends(
-    enabled ? userId : '',
-    enabled ? (selected?.id ?? '') : '',
-  );
-  const { records, getSnapshot } = pending;
   return useMemo(() => {
     let view: CatalogView = {
       catalog: state.catalog,
@@ -73,9 +56,7 @@ function useNativeCatalog(enabled: boolean): CatalogState {
         key: '',
       };
     const sessions = view.catalog.sessions;
-    const extra = records
-      .filter((record) => !sessions.some((s) => s.id === record.session.id))
-      .map((record) => record.session);
+    const extra = scoped ? state.pendingSessions : [];
     return {
       ...view,
       serverSessions: sessions,
@@ -85,53 +66,16 @@ function useNativeCatalog(enabled: boolean): CatalogState {
       selected,
       setWorkspaceId,
       refresh,
-      deleteSessionRequest: async (payload: string) => {
-        const args = JSON.parse(payload) as {
-          workspaceId: string;
-          sessionIds: string[];
-        };
-        const currentPending = getSnapshot();
-        if (
-          args.workspaceId !== selected?.id ||
-          !currentPending.ready ||
-          currentPending.records.some((record) =>
-            args.sessionIds.includes(record.session.id),
-          )
-        )
-          throw new Error('session_has_pending_send');
-        return deleteSession(payload);
-      },
+      deleteSessionRequest: deleteSession,
     };
-  }, [state, scoped, account, selected, records, getSnapshot]);
+  }, [state, scoped, account, selected]);
 }
 
 const Context = createContext<CatalogState | null>(null);
 
-export function CatalogProvider({ children }: PropsWithChildren) {
-  const { account } = useAuth();
-  const catalog = useNativeCatalog(true);
-  const outbox = usePendingSends(
-    account?.user.id ?? '',
-    catalog.selected?.id ?? '',
-  );
-  const foregroundSessionId = useSyncExternalStore(
-    subscribeForegroundSession,
-    getForegroundSession,
-    getForegroundSession,
-  );
-  useOutboxDispatcher({
-    outbox,
-    userId: account?.user.id ?? '',
-    connected: catalog.connected && !catalog.loading,
-    serverSessions: catalog.serverSessions,
-    foregroundSessionId,
-  });
-  return children;
-}
-
 export function useCatalog() {
   const override = use(Context);
-  const native = useNativeCatalog(!override);
+  const native = useNativeCatalog();
   return override ?? native;
 }
 
