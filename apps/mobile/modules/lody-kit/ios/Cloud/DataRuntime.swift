@@ -7,6 +7,7 @@ import UIKit
 // The owner lives in Swift, so a wedged JS event loop cannot disable its watchdog.
 @MainActor
 final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+  static weak var current: DataRuntime?
   var webView: WKWebView?
   var sessionId: String?
   private var retainedSessions: [String] = []

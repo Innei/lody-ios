@@ -120,6 +120,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       outbox.emit = { key in self?.sendEvent("onOutboxChange", ["key": key]) }
       LodyShell.shared.emit = { type, id in self?.sendEvent("onNav", ["type": type, "id": id]) }
       if let runtime = self?.dataRuntime {
+        DataRuntime.current = runtime
         outbox.attach(runtime)
         CatalogSession.shared.attach(runtime)
       }
