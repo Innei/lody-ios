@@ -145,10 +145,8 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   shareRemove(id: string): void;
   localProjects(payload: string): Promise<string>;
   remoteSettings(payload: string): Promise<string>;
-  agentRoles(payload: string): Promise<string>;
   memorySettings(payload: string): Promise<string>;
   publishedShares(payload: string): Promise<string>;
-  promptShortcuts(payload: string): Promise<string>;
   createSession(payload: string): Promise<string>;
   archiveSession(payload: string): Promise<string>;
   deleteSession(payload: string): Promise<string>;
@@ -239,8 +237,6 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
 export const native = requireNativeModule<LodyKitNativeModule>('LodyKit');
 export const remoteSettingsRaw = (payload: string): Promise<string> =>
   native.remoteSettings(payload);
-export const agentRolesRaw = (payload: string): Promise<string> =>
-  native.agentRoles(payload);
 export const sessionSharingRaw = (payload: string): Promise<string> =>
   native.sessionSharing(payload);
 export const runtimeInfo = native.runtimeInfo;
@@ -554,9 +550,6 @@ export const localProjects = (payload: string) => native.localProjects(payload);
 
 export const debugBackgroundDataRuntime = (action: string) =>
   native.debugBackgroundDataRuntime(action);
-
-export const promptShortcutsRaw = (payload: string) =>
-  native.promptShortcuts(payload);
 
 export const memorySettingsRaw = (payload: string): Promise<string> =>
   native.memorySettings(payload);

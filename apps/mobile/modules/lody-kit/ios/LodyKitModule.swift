@@ -516,11 +516,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("workspaceSettings") { (payload: String) async throws -> String in
       try await WorkspaceSettingsCloud.run(payload)
     }
-    AsyncFunction("promptShortcuts") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.promptShortcuts(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("remoteSettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.remoteSettings(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("memorySettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.memorySettings(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("publishedShares") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.publishedShares(payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("agentRoles") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.agentRoles(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.createSession(payload, sink: .promise(promise)) } }.runOnQueue(.main)
     AsyncFunction("workspaceBillingEntitlement") { (workspace: String, user: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.workspaceBillingEntitlement(workspace: workspace, user: user, promise: promise) }

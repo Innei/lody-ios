@@ -11,23 +11,11 @@ extension DataRuntime {
     }
     callForRN(C.self, payload: payload, inject: ["userId": userId], promise: promise, timeout: timeout, project: project)
   }
-  func promptShortcuts(_ payload: String, promise: Promise) {
-    workspaceCallForRN(RuntimeContract.Calls.PromptShortcuts.self, payload: payload, promise: promise) { result -> any Encodable in
-      switch result {
-      case .list(let value): return value.entries
-      case .read(let value): return value.shortcut
-      case .save(let value): return value.entry
-      }
-    }
-  }
   func remoteSettings(_ payload: String, promise: Promise) {
     workspaceCallForRN(RuntimeContract.Calls.RemoteSettings.self, payload: payload, promise: promise) { $0.settings }
   }
   func memorySettings(_ payload: String, promise: Promise) {
     workspaceCallForRN(RuntimeContract.Calls.MemorySettings.self, payload: payload, promise: promise)
-  }
-  func agentRoles(_ payload: String, promise: Promise) {
-    workspaceCallForRN(RuntimeContract.Calls.AgentRoles.self, payload: payload, promise: promise)
   }
   func publishedShares(_ payload: String, promise: Promise) {
     workspaceCallForRN(RuntimeContract.Calls.PublishedShares.self, payload: payload, promise: promise) { result -> any Encodable in

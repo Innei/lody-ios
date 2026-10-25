@@ -14,6 +14,10 @@ enum LodyNativePages {
     "project-visibility-preview": { _ in ProjectVisibilityPreviewController() },
     "github-settings": { _ in GitHubSettingsController() },
     "github-settings-preview": { _ in GitHubSettingsPreviewController() },
+    "prompt-shortcuts": { _ in PromptShortcutsController() },
+    "prompt-shortcuts-preview": { _ in PromptShortcutsPreviewController() },
+    "agent-roles": { _ in AgentRolesController() },
+    "agent-roles-preview": { _ in AgentRolesPreviewController() },
   ]
 
   static func make(_ id: String, params: String?) -> UIViewController? {
