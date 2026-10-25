@@ -6,9 +6,3 @@ export {
   type PageRuntime,
 } from './page';
 export { present, type PresentationResult } from './presentationStore';
-export {
-  nativePresentationOptions,
-  presentationHeaderHeight,
-  PresentedPageProvider,
-  PresentedPageRoute,
-} from './PresentedPage';

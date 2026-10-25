@@ -38,9 +38,6 @@ export const AgentErrorScreen = definePage<SystemNoticeMeta>({
   id: 'agent-error',
   title: t('native.chat.error.detail'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open this page from a chat error');
-  },
   presentation: {
     style: 'formSheet',
     sheetAllowedDetents: [0.6, 1],

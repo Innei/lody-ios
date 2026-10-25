@@ -1,6 +1,5 @@
 import { accentHex, accentForegroundHex } from '@lody-ios/kit';
 import { PlatformColor, useColorScheme } from 'react-native';
-import { DarkTheme, DefaultTheme } from 'expo-router';
 import { useAppearance } from './appearance';
 import {
   accent,
@@ -60,9 +59,8 @@ export type Palette = ReturnType<typeof usePalette>;
 /** Navigation needs plain string colors; native surfaces use adaptive UIKit colors. */
 export const navigationThemes = {
   light: {
-    ...DefaultTheme,
+    dark: false,
     colors: {
-      ...DefaultTheme.colors,
       primary: accent.light,
       background: systemGroupedBackground.light,
       card: opaqueCard.light,
@@ -72,9 +70,8 @@ export const navigationThemes = {
     },
   },
   dark: {
-    ...DarkTheme,
+    dark: true,
     colors: {
-      ...DarkTheme.colors,
       primary: accent.dark,
       background: systemGroupedBackground.dark,
       card: opaqueCard.dark,

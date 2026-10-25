@@ -113,7 +113,6 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   getAppIcon(): Promise<string>;
   setAppIcon(name: string): Promise<string>;
   readonly initialLocale: string;
-  readonly shellEnabled: boolean;
   saveDarkBackground(value: string): void;
   readPreferences(): string;
   saveQueuedMessageBehavior(value: string): void;
@@ -429,7 +428,6 @@ export const setOutboxInflight = (sessionId: string, active: boolean) =>
   native.setOutboxInflight(sessionId, active);
 export const setForegroundSession = (sessionId: string) =>
   native.setForegroundSession(sessionId);
-export const shellEnabled = native.shellEnabled;
 export const navPresent = (page: ShellPage) =>
   native.navPresent(JSON.stringify(page));
 export const navClose = (id: number) => native.navClose(id);

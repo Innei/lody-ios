@@ -127,9 +127,6 @@ export const HTMLPreviewIssuesScreen = definePage<Params, 'open-session'>({
   id: 'html-preview-issues',
   title: '',
   Component: Content,
-  parseRouteParams: () => {
-    throw new Error('Open issues through the HTML preview');
-  },
   presentation: {
     style: 'formSheet',
     sheetAllowedDetents: [1],

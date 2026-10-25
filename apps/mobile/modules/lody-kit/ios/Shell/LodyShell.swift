@@ -3,7 +3,6 @@ import UIKit
 @MainActor
 final class LodyShell {
   static let shared = LodyShell()
-  nonisolated static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("--uikit-shell") }
 
   var emit: ((String, Int) -> Void)?
   private var navigation: UINavigationController?

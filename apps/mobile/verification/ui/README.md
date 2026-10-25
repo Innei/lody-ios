@@ -113,9 +113,7 @@ builds a Release Simulator app with that flag and an embedded Hermes bundle;
 uses a Debug app plus one owned Metro. Both paths require the `ui-verify-ready`
 marker before any interaction. Native image fixtures additionally require the
 `--ui-verify` launch argument. No production credentials are used. The managed
-verification Simulator is reused without erasing between leases. `--shell` adds
-`--uikit-shell` to every launch, including the cold relaunches inside checks
-(`driver.app_flags()`), so the same cases exercise the UIKit navigation shell.
+verification Simulator is reused without erasing between leases.
 
 The `pull-request` case also exercises authorization retry, empty checks, a rejected
 comment retaining its draft followed by successful publication to the local fixture,
@@ -567,8 +565,8 @@ the navigation transition, updating it when the controller receives toolbar item
 This preserves UIKit's early Search glass fade instead of starting a second,
 late hide animation in `willShow`. `didShow` reconciles the winning controller after
 return or cancellation; it must not be the first point that reveals the bar.
-`expo-router` retains items on detach, defers item updates until navigation ends,
-and prevents offscreen updates from showing the shared toolbar. Do not hide the
+`LodyNavigationHeaderView` defers item updates until navigation ends and prevents
+offscreen updates from showing the shared toolbar. Do not hide the
 toolbar synchronously before push/pop: that removes the system Search fade.
 Settings is the reference: Search text and glass blur/fade out during push and
 become visible near the end of return. Brief overlap during that native fade is

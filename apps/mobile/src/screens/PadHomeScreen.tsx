@@ -4,9 +4,7 @@ import {
   type NativeSplitLayout,
   NativeNavigationHeader,
   panelScrollEdgeEffects,
-  shellEnabled,
 } from '@lody-ios/kit';
-import { Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ScreenStack, ScreenStackItem } from 'react-native-screens';
@@ -23,7 +21,7 @@ import { PanelLevels, usePanelEntries } from '@/lib/presentation/PanelStack';
 import {
   SheetHeaderContext,
   type SheetHeaderItems,
-} from '@/lib/presentation/SheetStack';
+} from '@/lib/presentation/headerContext';
 import { usePalette } from '@/lib/theme/palette';
 import { t } from '@/lib/i18n';
 import { useAuth } from '@/cloud/auth/AuthProvider';
@@ -84,7 +82,7 @@ function PadWorkspace({
       testID="ipad-home"
       style={[styles.root, { backgroundColor: colors.reading }]}
     >
-      <PadChrome />
+      <NativeNavigationHeader barHidden />
       <NativeSplit
         style={styles.stack}
         detailRequest={current?.request ?? 0}
@@ -184,16 +182,6 @@ function PadWorkspace({
     </View>
   );
 }
-
-function RouterPadChrome() {
-  return <Stack.Screen options={{ headerShown: false, title: '' }} />;
-}
-
-function ShellPadChrome() {
-  return <NativeNavigationHeader barHidden />;
-}
-
-const PadChrome = shellEnabled ? ShellPadChrome : RouterPadChrome;
 
 const styles = StyleSheet.create({
   root: { flex: 1 },

@@ -252,13 +252,9 @@ export const PermissionScreen = definePage<PermissionParams, PermissionResult>({
   id: 'session-permission',
   title: t('permission.title'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open this page from the session screen');
-  },
   presentation: {
     style: 'formSheet',
-    // `fitToContents` cannot measure through SheetStack's absolutely filled
-    // inner stack, which leaves the sheet blank and full height.
+    // The shell's sheets take fixed detents; `fitToContents` would open full height.
     sheetAllowedDetents: [0.6, 1],
     sheetInitialDetentIndex: 0,
     sheetGrabberVisible: false,

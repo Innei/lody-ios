@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { Dimensions, StyleSheet } from 'react-native';
-import { ThemeProvider } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NativeLayoutProbe } from '@lody-ios/kit';
 import { PushCoordinator } from '@/features/notifications/PushCoordinator';
@@ -14,7 +13,6 @@ import {
   guessLayoutTraits,
   setLayoutTraits,
 } from '@/lib/presentation/layoutMode';
-import { useNavigationTheme } from '@/lib/theme/navigationTheme';
 import { uiVerify } from '@/lib/uiVerify';
 import { DebugScreen } from '@/screens/debug/DebugScreen';
 import { homeVerify } from '@/screens/debug/HomePreviewScreen';
@@ -38,30 +36,27 @@ function Bindings() {
     if (started) return;
     started = true;
     if (debugIsRoot) void present(DebugScreen, undefined, { root: true });
-    // Router's index route shows no title over Home's own header items.
+    // Home draws its own header items, so the root page has no title.
     else void present(HomeScreen, undefined, { root: true, title: '' });
   }, []);
   return null;
 }
 
 export function ShellRoot() {
-  const theme = useNavigationTheme();
   return (
     <SafeAreaProvider>
-      <ThemeProvider value={theme}>
-        <VerifyProviders>
-          <NativeLayoutProbe
-            pointerEvents="none"
-            style={StyleSheet.absoluteFill}
-            onTraits={({ nativeEvent }) => setLayoutTraits(nativeEvent)}
-          />
-          <PublishSafeArea />
-          <Bindings />
-          <PushCoordinator />
-          <ShareSnapshot />
-          <ShareCoordinator />
-        </VerifyProviders>
-      </ThemeProvider>
+      <VerifyProviders>
+        <NativeLayoutProbe
+          pointerEvents="none"
+          style={StyleSheet.absoluteFill}
+          onTraits={({ nativeEvent }) => setLayoutTraits(nativeEvent)}
+        />
+        <PublishSafeArea />
+        <Bindings />
+        <PushCoordinator />
+        <ShareSnapshot />
+        <ShareCoordinator />
+      </VerifyProviders>
     </SafeAreaProvider>
   );
 }

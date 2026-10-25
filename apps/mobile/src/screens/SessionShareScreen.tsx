@@ -242,8 +242,5 @@ export const SessionShareScreen = definePage<SessionShareParams>({
   id: 'session-share',
   title: t('share.title'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open from a session');
-  },
   presentation: { style: 'pageSheet', headerVariant: 'transparent' },
 });

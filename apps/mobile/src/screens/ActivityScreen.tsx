@@ -54,10 +54,5 @@ export const ActivityScreen = definePage<Params>({
   id: 'activity',
   title: t('inbox.settings.view.activity'),
   Component: Activity,
-  parseRouteParams: ({ workspaceId, userId }) => ({
-    workspaceId:
-      (Array.isArray(workspaceId) ? workspaceId[0] : workspaceId) ?? '',
-    userId: (Array.isArray(userId) ? userId[0] : userId) ?? '',
-  }),
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

@@ -346,9 +346,6 @@ export const FileContentScreen = definePage<Params>({
   panel: true,
   title: '',
   Component: Content,
-  parseRouteParams: () => {
-    throw new Error('Open files through useOpenFile');
-  },
   presentation: {
     style: 'formSheet',
     sheetAllowedDetents: [1],

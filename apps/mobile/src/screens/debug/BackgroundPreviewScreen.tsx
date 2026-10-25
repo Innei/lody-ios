@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Text } from 'react-native';
-import { useTheme } from 'expo-router';
+import { useNavigationTheme } from '@/lib/theme/navigationTheme';
 import {
   dataRuntimeStatus,
   debugBackgroundDataRuntime,
@@ -11,7 +11,7 @@ import { Screen } from '@/ui/Screen';
 import { Button } from '@/ui/Button';
 
 function View() {
-  const { colors } = useTheme();
+  const { colors } = useNavigationTheme();
   const [status, setStatus] = useState<DataRuntimeEvent>();
   const [error, setError] = useState('');
   useEffect(() => {

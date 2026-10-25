@@ -357,9 +357,6 @@ export const ComposerPreviewScreen = definePage<Params>({
   id: 'composer-preview',
   title: '输入框验收',
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open from Debug');
-  },
   presentation: {
     style: 'formSheet',
     headerVariant: 'transparent',

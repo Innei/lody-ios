@@ -213,9 +213,6 @@ export const CreateSessionScreen = definePage<Params, CreatedSession>({
   id: 'create-session',
   title: t('create.title'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open this page from the session list');
-  },
   presentation: {
     style: 'formSheet',
     headerVariant: 'transparent',

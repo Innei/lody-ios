@@ -147,8 +147,5 @@ export const WorkspaceChangesScreen = definePage<WorkspaceChangesParams>({
   panel: true,
   title: t('workspaceChanges.title'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open this page from a session');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

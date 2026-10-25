@@ -350,8 +350,5 @@ export const FileDiffScreen = definePage<FileDiffParams>({
   panel: true,
   title: t('diff.title'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open this page from the turn changes');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

@@ -109,6 +109,5 @@ export const LiveActivityPreviewScreen = definePage<Record<string, never>>({
   id: 'live-activity-preview',
   title: 'Live Activity 演示',
   Component: LiveActivityPreview,
-  parseRouteParams: () => ({}),
   presentation: { style: 'push' },
 });

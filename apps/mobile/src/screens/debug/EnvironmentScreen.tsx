@@ -5,7 +5,7 @@ import {
   selectionFeedback,
   type RuntimeInfo,
 } from '@lody-ios/kit';
-import { useTheme } from 'expo-router';
+import { useNavigationTheme } from '@/lib/theme/navigationTheme';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { definePage } from '@/lib/presentation';
@@ -16,7 +16,7 @@ import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 type EnvironmentParams = { message: string };
 
 function View() {
-  const { colors } = useTheme();
+  const { colors } = useNavigationTheme();
   const { params, source, finish, cancel, present } = usePageRuntime<
     EnvironmentParams,
     RuntimeInfo
@@ -90,9 +90,6 @@ export const EnvironmentScreen = definePage<EnvironmentParams, RuntimeInfo>({
   id: 'environment',
   title: '运行环境',
   Component: View,
-  parseRouteParams: ({ message }) => ({
-    message: (Array.isArray(message) ? message[0] : message) ?? '直接路由入口',
-  }),
   presentation: { style: 'pageSheet', headerVariant: 'transparent' },
 });
 const styles = StyleSheet.create({

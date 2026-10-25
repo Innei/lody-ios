@@ -22,11 +22,7 @@ import { openSendPreview } from './SendPreviewScreen';
 import { FreeTurnNoticePreviewScreen } from './FreeTurnNoticePreviewScreen';
 import { openOutboxPreview } from './OutboxPreviewScreen';
 import { BackgroundPreviewScreen } from './BackgroundPreviewScreen';
-import {
-  pushStatus,
-  shellEnabled,
-  verifyPushSubscription,
-} from '@lody-ios/kit';
+import { pushStatus, verifyPushSubscription } from '@lody-ios/kit';
 import { NotificationPreviewScreen } from './NotificationPreviewScreen';
 import { DiagnosticsPreviewScreen } from './DiagnosticsPreviewScreen';
 import { LiveActivityPreviewScreen } from './LiveActivityPreviewScreen';
@@ -73,7 +69,6 @@ import { SettingsScreen } from '../SettingsScreen';
 import { PreferencesScreen } from '../PreferencesScreen';
 import { QuickRepliesPreviewScreen } from './QuickRepliesPreviewScreen';
 import { OnboardingPreviewScreen } from './OnboardingPreviewScreen';
-import { router, useTheme } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Text, View as RNView } from 'react-native';
 import {
@@ -99,11 +94,8 @@ import {
 import { openRoute, popToRoot } from '@/lib/presentation/appNavigation';
 import { Button } from '@/ui/Button';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
+import { useNavigationTheme } from '@/lib/theme/navigationTheme';
 import { usePalette } from '@/lib/theme/palette';
-
-const resetToDebug = shellEnabled
-  ? popToRoot
-  : () => router.dismissTo('/debug');
 
 function openRow(id: string, title: string, image: string): NativeListRow {
   return { id, title, image, action: true, disclosure: true, navigates: true };
@@ -114,7 +106,7 @@ function View() {
   const openedRequest = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!uiVerify) return;
-    globalThis.__lodyUiVerifyReset = resetToDebug;
+    globalThis.__lodyUiVerifyReset = popToRoot;
     return () => {
       delete globalThis.__lodyUiVerifyReset;
     };
@@ -352,10 +344,10 @@ function View() {
     },
     {
       id: 'router',
-      header: 'Router 与原生模块',
+      header: '路由与原生模块',
       footer: result,
       rows: [
-        openRow('router-environment', '通过 Router 打开', 'link'),
+        openRow('router-environment', '通过路由打开', 'link'),
         openRow('present-pageSheet', '打开 Page Sheet', 'rectangle.portrait'),
         openRow(
           'present-formSheet',
@@ -594,7 +586,7 @@ function View() {
 }
 
 function OverlayScreen() {
-  const { colors } = useTheme();
+  const { colors } = useNavigationTheme();
   const { cancel, finish } = usePageRuntime();
   return (
     <RNView

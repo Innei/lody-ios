@@ -33,7 +33,7 @@ const config: ExpoConfig = {
     },
   },
   plugins: [
-    'expo-router',
+    './plugins/withScreensGamma',
     './plugins/withAnchoredOverlay',
     ['expo-dev-client', { toolsButton: false }],
     './plugins/withSceneLifecycle',
@@ -51,7 +51,7 @@ const config: ExpoConfig = {
     ],
     './plugins/withShareExtension',
   ],
-  experiments: { typedRoutes: true, reactCompiler: true },
+  experiments: { reactCompiler: true },
 };
 
 export default config;

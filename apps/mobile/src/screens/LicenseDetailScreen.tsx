@@ -40,8 +40,5 @@ export const LicenseDetailScreen = definePage<LicenseDetailParams>({
   id: 'license-detail',
   title: t('settings.licenses.title'),
   Component: View,
-  parseRouteParams: ({ name }) => ({
-    name: (Array.isArray(name) ? name[0] : name) ?? '',
-  }),
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

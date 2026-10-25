@@ -107,9 +107,6 @@ export const PullRequestCommentScreen = definePage<Params>({
   id: 'pull-request-comment',
   title: t('pr.comment'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open from a pull request');
-  },
   presentation: {
     style: 'formSheet',
     headerVariant: 'transparent',

@@ -1,16 +1,10 @@
 import assert from 'node:assert/strict';
-import { mock, test } from 'node:test';
+import { test } from 'node:test';
 
 const routed = [];
-mock.module('expo-router', {
-  namedExports: {
-    router: {
-      push(value) {
-        routed.push(value);
-      },
-    },
-  },
-});
+const { setNavigator } =
+  await import('../../src/lib/presentation/presentationStore.ts');
+setNavigator((session) => routed.push(session));
 const {
   closePanel,
   getPanelEntries,
@@ -90,7 +84,7 @@ test('subscribers hear every stack change', () => {
   assert.equal(heard, 3);
 });
 
-test('a panel-aware present sends view pages to the panel and everything else through the router', async () => {
+test('a panel-aware present sends view pages to the panel and everything else to the navigator', async () => {
   const before = routed.length;
   const replace = panelPresent('replace');
   void replace(diff, { path: 'e.ts' });

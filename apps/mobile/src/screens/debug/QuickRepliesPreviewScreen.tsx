@@ -270,6 +270,5 @@ export const QuickRepliesPreviewScreen = definePage<Params>({
   id: 'quick-replies-preview',
   title: 'Quick Replies',
   Component: ViewContent,
-  parseRouteParams: () => undefined,
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

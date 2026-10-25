@@ -8,7 +8,6 @@ allowBuilds:
 nodeLinker: hoisted
 patchedDependencies:
   expo-dev-menu@58.0.11: patches/expo-dev-menu@58.0.11.patch
-  expo-router@58.0.22: patches/expo-router@58.0.22.patch
   react-native-screens@4.30.0: patches/react-native-screens@4.30.0.patch
 minimumReleaseAgeExclude:
   - '@rien7/anchored-overlay-kit@0.3.0'

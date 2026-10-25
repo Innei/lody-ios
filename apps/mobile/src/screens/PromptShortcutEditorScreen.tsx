@@ -207,9 +207,6 @@ export const PromptShortcutEditorScreen = definePage<Params>({
   id: 'prompt-shortcut-editor',
   title: t('settings.shortcuts.title'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open from shortcuts');
-  },
   presentation: {
     style: 'formSheet',
     headerVariant: 'transparent',

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { redirectSystemPath } from '../../src/app/+native-intent.ts';
+import { redirectSystemPath } from '../../src/features/notifications/deepLinks.ts';
 import {
   acknowledgeDeepLink,
   pendingDeepLink,

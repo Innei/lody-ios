@@ -91,7 +91,7 @@ import type {
   HeaderBarButtonItemMenuAction,
   HeaderBarButtonItemSubmenu,
 } from 'react-native-screens';
-import type { HeaderItems } from '@/lib/presentation/SheetStack';
+import type { HeaderItems } from '@/lib/presentation/headerContext';
 
 function composerPlaceholder(archived: boolean, quotaLocked: boolean) {
   if (archived) return t('chat.composer.archived');
@@ -998,8 +998,5 @@ export const SessionScreen = definePage<SessionParams>({
   id: 'session',
   title: t('session.title'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open this page from the session list');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

@@ -116,8 +116,5 @@ export const FilesScreen = definePage<FilesParams>({
   panel: true,
   title: t('files.title'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open this page from a session');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

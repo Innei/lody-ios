@@ -60,8 +60,5 @@ export const TurnChangesScreen = definePage<TurnChangesParams>({
   panel: true,
   title: t('changes.title'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open this page from a session');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

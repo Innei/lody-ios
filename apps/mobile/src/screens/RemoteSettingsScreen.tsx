@@ -213,10 +213,5 @@ export const RemoteSettingsScreen = definePage<Params>({
   id: 'remote-settings',
   title: t('settings.remote.title'),
   Component: View,
-  parseRouteParams: ({ kind }) => {
-    if (kind !== 'machine' && kind !== 'agent' && kind !== 'mcp')
-      throw new Error('Invalid settings page');
-    return { kind };
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

@@ -184,9 +184,6 @@ export const MessageShareScreen = definePage<Params>({
   id: 'message-share',
   title: t('native.chat.message.preview'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open from a message');
-  },
   presentation: { style: 'pageSheet', headerVariant: 'transparent' },
 });
 

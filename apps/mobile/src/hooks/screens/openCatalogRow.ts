@@ -9,10 +9,7 @@ export function openCatalogRow(
 ) {
   if (id.startsWith('project:')) {
     const projectId = id.slice(8);
-    openRoute(
-      { pathname: '/project/[projectId]', params: { projectId } },
-      { projectId },
-    );
+    openRoute('/project/[projectId]', { projectId });
     return;
   }
   const session = catalog.sessions.find((s) => s.id === id);

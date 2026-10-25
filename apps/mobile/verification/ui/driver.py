@@ -33,10 +33,6 @@ def restart_accessibility(udid):
         return
 
 
-def app_flags():
-    return ['--uikit-shell'] if os.environ.get('LODY_UI_SHELL') == '1' else []
-
-
 def launch_covered(items, app_pid):
     """describe-ui of another process means SpringBoard covered the launched app."""
     if not app_pid or not items:

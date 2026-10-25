@@ -69,9 +69,6 @@ const TargetScreen = definePage<
   id: 'role-target',
   title: t('settings.roles.target'),
   Component: TargetPicker,
-  parseRouteParams: () => {
-    throw new Error('Open from role editor');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });
 type Params = {
@@ -309,9 +306,6 @@ export const AgentRoleEditorScreen = definePage<Params>({
   id: 'agent-role-editor',
   title: t('settings.roles.edit'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open from Agent Roles');
-  },
   presentation: {
     style: 'formSheet',
     headerVariant: 'transparent',

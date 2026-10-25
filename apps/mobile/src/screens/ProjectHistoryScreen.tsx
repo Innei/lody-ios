@@ -443,9 +443,6 @@ const ProjectHistoryDetailScreen = definePage<Params>({
     if (!valid) return null;
     return <ProjectHistoryView key={params.workspaceId} {...params} />;
   },
-  parseRouteParams: () => {
-    throw new Error('Open from project history');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });
 export const ProjectHistoryScreen = definePage({
