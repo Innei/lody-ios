@@ -4,9 +4,7 @@ import {
   NativeSidebar,
   type NativeSplitFrame,
   panelScrollEdgeEffects,
-  shellEnabled,
 } from '@lody-ios/kit';
-import { Stack } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { PlatformColor, StyleSheet } from 'react-native';
 import {
@@ -21,8 +19,6 @@ import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import { useDevices } from '@/hooks/screens/useDevices';
 import {
   useInboxModel,
-  inboxViews,
-  inboxSorts,
   type InboxModel,
 } from '@/features/sessions/useInboxModel';
 import { inboxFilterMenu } from '@/features/sessions/inboxFilterMenu';
@@ -252,55 +248,7 @@ function ProjectPanelItem({
   );
 }
 
-function RouterPanelToolbar({ model }: { model: InboxModel }) {
-  return (
-    <Stack.Toolbar>
-      <Stack.Toolbar.Menu
-        icon="line.3.horizontal.decrease"
-        tintColor={model.colors.label}
-        accessibilityLabel={t('inbox.settings.section.view')}
-      >
-        {inboxViews.map((view) => (
-          <Stack.Toolbar.MenuAction
-            key={view.mode}
-            icon={view.icon}
-            isOn={model.mode === view.mode}
-            onPress={() => model.setView(view.mode)}
-          >
-            {t(view.key)}
-          </Stack.Toolbar.MenuAction>
-        ))}
-        <Stack.Toolbar.Menu inline>
-          {inboxSorts.map((item) => (
-            <Stack.Toolbar.MenuAction
-              key={item.id}
-              icon={item.icon}
-              isOn={model.sort === item.id}
-              onPress={() => model.setProjectSort(item.id)}
-            >
-              {t(item.key)}
-            </Stack.Toolbar.MenuAction>
-          ))}
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar.Menu>
-      <Stack.Toolbar.Button
-        icon="gearshape"
-        accessibilityLabel={t('tabs.settings')}
-        onPress={() => void present(SettingsScreen)}
-      />
-      <Stack.Toolbar.Spacer />
-      <Stack.Toolbar.Button
-        icon="plus"
-        separateBackground
-        tintColor={model.colors.accent}
-        accessibilityLabel={t('tabs.newSession')}
-        onPress={() => void model.newSession()}
-      />
-    </Stack.Toolbar>
-  );
-}
-
-function ShellPanelToolbar({ model }: { model: InboxModel }) {
+function PanelToolbar({ model }: { model: InboxModel }) {
   return (
     <NativeNavigationHeader
       toolbarItems={[
@@ -324,7 +272,5 @@ function ShellPanelToolbar({ model }: { model: InboxModel }) {
     />
   );
 }
-
-const PanelToolbar = shellEnabled ? ShellPanelToolbar : RouterPanelToolbar;
 
 const styles = StyleSheet.create({ stack: { flex: 1 } });

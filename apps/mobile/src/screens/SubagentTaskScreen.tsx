@@ -160,9 +160,6 @@ export const SubagentTaskScreen = definePage<SubagentTaskParams>({
   panel: true,
   title: t('native.chat.transcript.subtask'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open this page from a subtask card');
-  },
   presentation: {
     style: 'formSheet',
     sheetAllowedDetents: [0.6, 1],

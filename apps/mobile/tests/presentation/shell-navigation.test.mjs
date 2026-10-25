@@ -24,7 +24,6 @@ globalThis.__shellNative = {
 const mocks = {
   react:
     'export const createContext = () => ({}); export const use = () => null; export const useEffect = () => {}; export const useSyncExternalStore = () => false;',
-  'expo-router': 'export const router = { push() {} };',
   '@lody-ios/kit':
     'export const { navPresent, navPopToRoot, navSetStack, addNavListener } = globalThis.__shellNative;',
 };
@@ -44,13 +43,10 @@ const bundle = await build({
     {
       name: 'mocks',
       setup(b) {
-        b.onResolve(
-          { filter: /^(react|expo-router|@lody-ios\/kit)$/ },
-          ({ path }) => ({
-            path,
-            namespace: 'mock',
-          }),
-        );
+        b.onResolve({ filter: /^(react|@lody-ios\/kit)$/ }, ({ path }) => ({
+          path,
+          namespace: 'mock',
+        }));
         b.onLoad({ filter: /.*/, namespace: 'mock' }, ({ path }) => ({
           contents: mocks[path],
         }));

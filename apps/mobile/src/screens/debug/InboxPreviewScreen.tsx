@@ -167,9 +167,6 @@ const InboxViewedPreviewScreen = definePage<{
   id: 'inbox-viewed-preview',
   title: '查看会话',
   Component: ViewedPreview,
-  parseRouteParams: () => {
-    throw new Error('Open this page from the inbox preview');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });
 

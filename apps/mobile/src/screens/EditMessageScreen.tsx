@@ -210,9 +210,6 @@ export const EditMessageScreen = definePage<EditMessageParams, string>({
   id: 'edit-message',
   title: t('chat.edit.title'),
   Component: Editor,
-  parseRouteParams: () => {
-    throw new Error('Open from a user message');
-  },
   presentation: {
     style: 'fullScreen',
     headerVariant: 'transparent',

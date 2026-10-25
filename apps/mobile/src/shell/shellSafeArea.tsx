@@ -11,8 +11,8 @@ import {
 
 type Metrics = { insets: EdgeInsets; frame: Rect };
 
-// Router screens read the window's insets, not their own controller's, which
-// include the navigation bar; every shell page reuses the root surface's values.
+// Pages read the window's insets, not their own controller's, which include the
+// navigation bar; every page reuses the root surface's values.
 let metrics: Metrics = initialWindowMetrics ?? {
   insets: { top: 0, right: 0, bottom: 0, left: 0 },
   frame: { x: 0, y: 0, width: 0, height: 0 },

@@ -43,9 +43,6 @@ export const MessageDetailsScreen = definePage<Params>({
   panel: true,
   title: t('message.details.title'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open from a message');
-  },
   presentation: {
     style: 'formSheet',
     sheetAllowedDetents: [0.75, 1],

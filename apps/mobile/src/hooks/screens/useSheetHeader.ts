@@ -2,7 +2,7 @@ import { use, useEffect, type ReactNode } from 'react';
 import {
   SheetHeaderContext,
   type HeaderItems,
-} from '@/lib/presentation/SheetStack';
+} from '@/lib/presentation/headerContext';
 
 export function useSheetHeader(
   items: HeaderItems,

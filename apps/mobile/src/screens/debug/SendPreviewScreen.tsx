@@ -713,9 +713,6 @@ const sourcePage = definePage<{ prepare: () => void }, void>({
   id: 'send-source',
   title: '新建会话交接',
   Component: SendSource,
-  parseRouteParams: () => {
-    throw new Error('Open from Debug');
-  },
   presentation: {
     style: 'formSheet',
     headerVariant: 'transparent',
@@ -733,7 +730,6 @@ const targetPage = definePage<
   void
 >({
   id: 'send-preview',
-  parseRouteParams: () => undefined,
   title: '发送交接验收',
   Component: SendPreview,
   presentation: { style: 'push', headerVariant: 'transparent' },

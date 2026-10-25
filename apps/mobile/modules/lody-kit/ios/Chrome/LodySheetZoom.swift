@@ -2,7 +2,7 @@ import UIKit
 
 /// Supplies the source item before screens asks UIKit to present the sheet.
 /// UIKit owns the animation, backdrop and interactive dismissal; screens keeps
-/// its presentation delegate so a swipe still settles the Router session.
+/// its presentation delegate so a swipe still settles the presentation session.
 @MainActor
 enum LodySheetZoom {
   private static var token: NSObjectProtocol?

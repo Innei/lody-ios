@@ -173,6 +173,5 @@ export const NotificationSettingsScreen = definePage<Record<string, never>>({
   id: 'notification-settings',
   title: t('settings.notifications.title'),
   Component: NotificationSettings,
-  parseRouteParams: () => ({}),
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

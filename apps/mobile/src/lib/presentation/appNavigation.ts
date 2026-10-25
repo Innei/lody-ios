@@ -1,6 +1,3 @@
-import { type Href, router } from 'expo-router';
-import { shellEnabled } from '@lody-ios/kit';
-
 import type { PageDefinitionBase, PagePresentationOptions } from './page';
 import { present } from './presentationStore';
 import { shellPopToRoot } from './shellNavigation';
@@ -17,15 +14,10 @@ export function registerShellRoutes(
 }
 
 export function openRoute(
-  href: Href,
+  pathname: string,
   params?: object,
   options?: Partial<PagePresentationOptions>,
 ) {
-  if (!shellEnabled) {
-    router.push(href);
-    return;
-  }
-  const pathname = typeof href === 'string' ? href : href.pathname;
   const page = shellRoutes.get(pathname);
   if (!page) throw new Error(`No shell page for route ${pathname}`);
   void (present as (...args: unknown[]) => Promise<unknown>)(page, params, {
@@ -35,6 +27,5 @@ export function openRoute(
 }
 
 export function popToRoot() {
-  if (shellEnabled) void shellPopToRoot();
-  else router.dismissTo('/');
+  void shellPopToRoot();
 }

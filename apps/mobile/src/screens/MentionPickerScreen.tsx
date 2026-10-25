@@ -1,6 +1,6 @@
 import { use, useEffect, useRef, useState } from 'react';
 import type { SearchBarCommands } from 'react-native-screens';
-import { SheetSearchContext } from '@/lib/presentation/SheetStack';
+import { SheetSearchContext } from '@/lib/presentation/headerContext';
 import { t } from '@/lib/i18n';
 import { NativeGroupedList, NativeMentionPicker } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
@@ -115,8 +115,5 @@ export const MentionPickerScreen = definePage<Params, MentionItem>({
   id: 'mention-picker',
   title: t('native.chat.mention.open'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open from a composer');
-  },
   presentation: { style: 'fullScreen', headerVariant: 'transparent' },
 });

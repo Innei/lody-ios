@@ -23,7 +23,7 @@ import {
   SheetHeaderContext,
   type SheetHeaderItems,
   SheetSearchContext,
-} from './SheetStack';
+} from './headerContext';
 import { t } from '../i18n/index.ts';
 
 export function usePanelEntries(): readonly PanelEntry[] {

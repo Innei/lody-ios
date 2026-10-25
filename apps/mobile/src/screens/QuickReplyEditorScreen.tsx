@@ -102,9 +102,6 @@ export const QuickReplyEditorScreen = definePage<Params>({
   id: 'quick-reply-editor',
   title: t('settings.quickReplies.edit'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open from quick replies');
-  },
   presentation: {
     style: 'formSheet',
     headerVariant: 'transparent',

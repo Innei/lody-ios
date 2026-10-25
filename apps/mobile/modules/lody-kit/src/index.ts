@@ -84,7 +84,6 @@ export {
   outboxInflight,
   setOutboxInflight,
   setForegroundSession,
-  shellEnabled,
   navPresent,
   navClose,
   navPopToRoot,

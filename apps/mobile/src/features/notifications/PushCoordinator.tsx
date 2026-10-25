@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { popToRoot } from '@/lib/presentation/appNavigation';
-import { useAppNavigationState } from '@/lib/presentation/useAppNavigationState';
+import { useShellNavigationState } from '@/lib/presentation/shellNavigation';
 import {
   acknowledgePushClick,
   addPushClickListener,
@@ -25,7 +25,7 @@ import {
 export function PushCoordinator() {
   const auth = useAuth();
   const catalog = useCatalog();
-  const navigation = useAppNavigationState();
+  const navigation = useShellNavigationState();
   const [click, setClick] = useState<PushClick | null>(null);
   const link = useSyncExternalStore(subscribeDeepLinks, pendingDeepLink);
   const handled = useRef('');

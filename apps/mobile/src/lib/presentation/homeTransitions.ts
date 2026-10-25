@@ -19,7 +19,6 @@ export type CompactStack = {
   routes: StackRoute[];
 };
 
-const presentedRouteName = 'presented/[presentationId]';
 const projectRouteName = 'project/[projectId]';
 
 export function extractCompactStack(
@@ -55,19 +54,4 @@ export function extractCompactStack(
     kept.push(route);
   }
   return { session, panel, routes: removed ? kept : routes };
-}
-
-export function insertSessionRoute(
-  routes: StackRoute[],
-  presentationId: number,
-): StackRoute[] {
-  return [
-    routes[0],
-    {
-      key: `presented-${presentationId}`,
-      name: presentedRouteName,
-      params: { presentationId: String(presentationId) },
-    },
-    ...routes.slice(1),
-  ];
 }

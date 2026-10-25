@@ -13,7 +13,7 @@ import {
 import { AppText } from '@/ui/AppText';
 import { Button } from '@/ui/Button';
 import { ComposerSheet } from '@/ui/ComposerSheet';
-import { SheetHeaderContext } from '@/lib/presentation/SheetStack';
+import { SheetHeaderContext } from '@/lib/presentation/headerContext';
 import { usePalette } from '@/lib/theme/palette';
 import { t } from '@/lib/i18n';
 

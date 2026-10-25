@@ -11,7 +11,7 @@ final class LodySplitView: ExpoView {
   private let compactPlaceholder = UIViewController()
   // Holds the column the fold arrangement does not show. A navigation
   // controller without a parent is re-adopted by its RN stack into the outer
-  // Router controller, which would draw it over the arrangement.
+  // page controller, which would draw it over the arrangement.
   private let parking = UIViewController()
   private lazy var foldHost = LodyFoldHost.make { [weak self] in self?.projectColumns() }
   private var folded = false
@@ -51,7 +51,7 @@ final class LodySplitView: ExpoView {
     columns = stacks.compactMap { $0.reactViewController() as? UINavigationController }
     precondition(columns.count == Self.placements.count, "LodySplitView requires three native ScreenStacks")
     // Establish ownership before the RN stack enters the window, so it does
-    // not attach its navigation controller to the outer Router stack.
+    // not attach its navigation controller to the outer page controller.
     for (column, placement) in zip(columns, Self.placements) {
       split.setViewController(column, for: placement)
     }

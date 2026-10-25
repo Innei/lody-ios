@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { View } from 'react-native';
-import { useAppNavigationState } from '@/lib/presentation/useAppNavigationState';
+import { useShellNavigationState } from '@/lib/presentation/shellNavigation';
 import type { PropsWithChildren } from 'react';
 import { runtimeInfo, readLocalValue, writeLocalValue } from '@lody-ios/kit';
 import { MachinePresenceContext } from '@/cloud/catalog/machines';
@@ -376,7 +376,7 @@ export function HomePreviewProviders({
 }
 
 function NavigationProbe() {
-  const navigation = useAppNavigationState();
+  const navigation = useShellNavigationState();
   return (
     <View
       accessible

@@ -8,6 +8,7 @@ import {
 } from '@/lib/presentation/appNavigation';
 import { ActivityScreen } from '@/screens/ActivityScreen';
 import { DebugScreen } from '@/screens/debug/DebugScreen';
+import { DiagnosticsScreen } from '@/screens/DiagnosticsScreen';
 import { EnvironmentScreen } from '@/screens/debug/EnvironmentScreen';
 import { setVerifyRequest } from '@/screens/debug/verifyRequest';
 import { ProjectScreen } from '@/screens/ProjectScreen';
@@ -39,6 +40,10 @@ function open(url: string, debugIsRoot: boolean) {
     );
     return;
   }
+  if (path === '/diagnostics') {
+    void present(DiagnosticsScreen, undefined, push);
+    return;
+  }
   if (path === '/environment') {
     void present(EnvironmentScreen, { message: query.message ?? url }, push);
     return;
@@ -52,7 +57,7 @@ function open(url: string, debugIsRoot: boolean) {
     );
     return;
   }
-  // Router's not-found route returns to the existing root.
+  // Unknown links return to the existing root.
   popToRoot();
 }
 
@@ -64,7 +69,7 @@ export function useShellLinks(debugIsRoot: boolean) {
       if (redirected === null || redirected === '/') return;
       open(url, debugIsRoot);
     };
-    // Expo Linking keeps the last native URL across JS reloads, as Expo Router reads it.
+    // Expo Linking keeps the last native URL across JS reloads.
     handle(Linking.getLinkingURL(), true);
     const subscription = Linking.addEventListener('url', ({ url }) =>
       handle(url, false),

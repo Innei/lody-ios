@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
-  extractCompactStack,
-  insertSessionRoute,
-} from '../../src/lib/presentation/homeTransitions.ts';
+import { extractCompactStack } from '../../src/lib/presentation/homeTransitions.ts';
 
 const session = { id: 'session', panel: false };
 const diff = { id: 'file-diff', panel: true };
@@ -40,7 +37,7 @@ const lookup = (value) =>
     ? presented[value.params.presentationId]
     : undefined;
 
-test('unfolding moves the pushed session and the panel pages pushed after it out of the router', () => {
+test('unfolding moves the pushed session and the panel pages pushed after it out of the stack', () => {
   const result = extractCompactStack(
     [index, route(1), route(2), route(4)],
     lookup,
@@ -109,16 +106,6 @@ test('nothing changes without a pushed session', () => {
   const result = extractCompactStack(routes, lookup, 'session');
   assert.equal(result.session, undefined);
   assert.equal(result.routes, routes);
-});
-
-test('folding pushes the session directly above the list, beneath open sheets', () => {
-  const routes = insertSessionRoute([index, route(4)], 9);
-  assert.deepEqual(
-    routes.map((value) => value.key),
-    ['index-1', 'presented-9', 'presented-4'],
-  );
-  assert.deepEqual(routes[1].params, { presentationId: '9' });
-  assert.equal(routes[1].name, 'presented/[presentationId]');
 });
 
 test('a project list without an open session also returns to the list root', () => {

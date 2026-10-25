@@ -1,6 +1,4 @@
 import { useSyncExternalStore } from 'react';
-import { useLocalSearchParams } from 'expo-router';
-import { shellEnabled } from '@lody-ios/kit';
 
 export type VerifyRequest = { verifyCase?: string; request?: string };
 
@@ -19,14 +17,6 @@ function subscribe(listener: () => void) {
   };
 }
 
-function useShellVerifyRequest() {
+export function useVerifyRequest() {
   return useSyncExternalStore(subscribe, () => current);
 }
-
-function useRouterVerifyRequest() {
-  return useLocalSearchParams<VerifyRequest>();
-}
-
-export const useVerifyRequest = shellEnabled
-  ? useShellVerifyRequest
-  : useRouterVerifyRequest;

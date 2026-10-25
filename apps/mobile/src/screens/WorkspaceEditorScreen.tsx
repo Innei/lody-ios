@@ -172,9 +172,6 @@ export const WorkspaceEditorScreen = definePage<Params>({
   id: 'workspace-editor',
   title: t('workspace.edit.title'),
   Component: ViewScreen,
-  parseRouteParams: () => {
-    throw new Error('Open from the workspace menu');
-  },
   presentation: {
     style: 'formSheet',
     headerVariant: 'transparent',

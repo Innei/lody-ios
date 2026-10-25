@@ -244,9 +244,6 @@ const PublishedShareDetailScreen = definePage<DetailParams>({
   id: 'published-share-detail',
   title: t('settings.shares.details'),
   Component: Detail,
-  parseRouteParams: () => {
-    throw new Error('Open from published shares');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });
 

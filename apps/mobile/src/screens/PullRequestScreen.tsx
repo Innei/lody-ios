@@ -215,8 +215,5 @@ export const PullRequestScreen = definePage<PullRequestParams>({
   panel: true,
   title: 'PR',
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open from a session');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

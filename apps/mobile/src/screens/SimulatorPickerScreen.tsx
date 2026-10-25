@@ -91,9 +91,6 @@ export const SimulatorPickerScreen = definePage<
   id: 'simulator-picker',
   title: t('simulator.choose'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open this page from a session');
-  },
   presentation: {
     style: 'formSheet',
     headerVariant: 'transparent',

@@ -41,9 +41,6 @@ export const PanelSheetScreen = definePage<PanelSheetParams>({
   id: 'panel-sheet',
   title: '',
   Component: PanelSheet,
-  parseRouteParams: () => {
-    throw new Error('The panel sheet opens from the chat');
-  },
   presentation: {
     style: 'formSheet',
     headerShown: false,

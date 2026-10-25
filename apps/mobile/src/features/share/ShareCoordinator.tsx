@@ -10,7 +10,7 @@ import {
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
 import { getPendingSendStore } from '@/cloud/send/pendingSends';
-import { useAppNavigationState } from '@/lib/presentation/useAppNavigationState';
+import { useShellNavigationState } from '@/lib/presentation/shellNavigation';
 import { uiVerify } from '@/lib/uiVerify';
 import { t } from '@/lib/i18n';
 import type { Catalog } from '@lody/cloud-runtime/models/catalog';
@@ -71,7 +71,7 @@ function deliver(entry: ShareEntry, catalog: Catalog) {
 export function ShareCoordinator() {
   const auth = useAuth();
   const catalog = useCatalog();
-  const navigation = useAppNavigationState();
+  const navigation = useShellNavigationState();
   const [wake, setWake] = useState(0);
   const busy = useRef(false);
   const failed = useRef(new Set<string>());

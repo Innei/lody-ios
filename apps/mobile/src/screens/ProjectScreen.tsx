@@ -59,8 +59,5 @@ export const ProjectScreen = definePage<{ projectId: string }>({
   id: 'project',
   title: t('project.title'),
   Component: View,
-  parseRouteParams: ({ projectId }) => ({
-    projectId: (Array.isArray(projectId) ? projectId[0] : projectId) ?? '',
-  }),
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

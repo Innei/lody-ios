@@ -61,9 +61,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   var initialLocale: String { Bundle.main.preferredLocalizations.first ?? "en" }
 
   @JS
-  var shellEnabled: Bool { LodyShell.enabled }
-
-  @JS
   func readPreferences() -> String { LodyPreferences.json }
 
   @JS
@@ -160,7 +157,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
 
   @JS
   func prepareSheetZoom(sourceLabel: String) {
-    // Must be armed before the router's presentation lands on the main queue,
+    // Must be armed before the shell's presentation lands on the main queue,
     // so this blocks JS until the main thread has run it.
     if Thread.isMainThread {
       MainActor.assumeIsolated { LodySheetZoom.prepare(sourceLabel: sourceLabel) }

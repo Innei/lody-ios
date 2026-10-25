@@ -85,9 +85,6 @@ function Detail() {
   );
 }
 const SessionTreeDetail = definePage<{ id: string; title: string }>({
-  parseRouteParams: () => {
-    throw new Error('Open from the tree preview');
-  },
   id: 'session-tree-detail',
   title: 'Session',
   Component: Detail,

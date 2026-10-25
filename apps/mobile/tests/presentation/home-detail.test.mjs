@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { mock, test } from 'node:test';
+import { test } from 'node:test';
 
-mock.module('expo-router', {
-  namedExports: { router: { push() {} } },
-});
+const { setNavigator } =
+  await import('../../src/lib/presentation/presentationStore.ts');
+setNavigator(() => {});
 const { getHomeDetail, setHomeDetail, showHomeSession } =
   await import('../../src/lib/presentation/homeDetail.ts');
 const { setLayoutTraits } =

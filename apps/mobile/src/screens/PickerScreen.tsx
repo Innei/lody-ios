@@ -56,8 +56,5 @@ export const PickerScreen = definePage<Params, string>({
   id: 'picker',
   title: t('picker.title'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open this page from the form');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

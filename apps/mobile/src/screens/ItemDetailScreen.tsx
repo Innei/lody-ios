@@ -145,9 +145,6 @@ export const ItemDetailScreen = definePage<ItemDetailParams>({
   panel: true,
   title: t('detail.title'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open this page from the session screen');
-  },
   presentation: {
     style: 'formSheet',
     sheetAllowedDetents: [0.6, 1],

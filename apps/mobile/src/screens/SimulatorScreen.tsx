@@ -10,7 +10,7 @@ import {
   useSimulatorOperation,
 } from '@/features/simulator/operations';
 import { definePage } from '@/lib/presentation';
-import type { HeaderItems } from '@/lib/presentation/SheetStack';
+import type { HeaderItems } from '@/lib/presentation/headerContext';
 import { usePalette } from '@/lib/theme/palette';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { t, type TranslationKey } from '../lib/i18n/index.ts';
@@ -185,8 +185,5 @@ export const SimulatorScreen = definePage<SimulatorParams>({
   id: 'simulator',
   title: t('simulator.title'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open this page from a session preview');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

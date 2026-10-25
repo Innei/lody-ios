@@ -173,9 +173,6 @@ const SettingsListPreviewScreen = definePage<{
       />
     );
   },
-  parseRouteParams: () => {
-    throw new Error('Open from settings preview');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });
 

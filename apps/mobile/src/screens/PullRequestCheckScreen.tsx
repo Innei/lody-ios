@@ -105,8 +105,5 @@ export const PullRequestCheckScreen = definePage<Params>({
   panel: true,
   title: t('pr.details'),
   Component: View,
-  parseRouteParams: () => {
-    throw new Error('Open from checks');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

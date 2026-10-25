@@ -1,5 +1,3 @@
-import { type Href, router } from 'expo-router';
-
 import type {
   PageDefinition,
   PageDefinitionBase,
@@ -10,8 +8,6 @@ export type PresentationResult<TResult> =
   { status: 'cancelled' } | { status: 'completed'; value: TResult };
 
 type PresentOptions = Partial<PagePresentationOptions> & {
-  /** A native local host can render the same session without a Router modal. */
-  host?: (session: PresentationSession) => void;
   container?: number;
   root?: boolean;
   insertAt?: number;
@@ -24,11 +20,8 @@ export type PresentTarget = {
 };
 type Navigate = (session: PresentationSession, target: PresentTarget) => void;
 
-let navigate: Navigate = (session) => {
-  router.push({
-    pathname: session.page.presentationPath ?? '/presented/[presentationId]',
-    params: { presentationId: String(session.id) },
-  } as Href);
+let navigate: Navigate = () => {
+  throw new Error('The UIKit shell navigator is not installed');
 };
 
 export function setNavigator(next: Navigate) {
@@ -67,7 +60,7 @@ export function present<TParams, TResult>(
   ...args: PresentArgs<TParams>
 ): Promise<PresentationResult<TResult>> {
   const [params, options] = args;
-  const { host, container, root, insertAt, ...presentation } = options ?? {};
+  const { container, root, insertAt, ...presentation } = options ?? {};
   const id = nextId++;
 
   return new Promise<PresentationResult<TResult>>((resolve) => {
@@ -83,10 +76,6 @@ export function present<TParams, TResult>(
     ];
 
     try {
-      if (host) {
-        host(getPresentationSession(id)!);
-        return;
-      }
       navigate(getPresentationSession(id)!, { container, root, insertAt });
     } catch (error) {
       sessions = sessions.filter((candidate) => candidate.id !== id);

@@ -173,9 +173,6 @@ const MemoryDetailScreen = definePage<DetailParams>({
   id: 'memory-detail',
   title: t('settings.memory.details'),
   Component: Detail,
-  parseRouteParams: () => {
-    throw new Error('Open memory details from settings');
-  },
   presentation: { style: 'push', headerVariant: 'transparent' },
 });
 
