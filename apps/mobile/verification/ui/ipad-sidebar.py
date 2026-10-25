@@ -2,6 +2,7 @@
 import sys
 import catalog
 from driver import UI
+import pad
 
 ui = UI(sys.argv[1], sys.argv[2])
 
@@ -16,7 +17,7 @@ def tap_label(label):
 
 
 ui.element('ipad-detail-placeholder')
-ui.element('ipad-inbox-list')
+pad.show_list(ui)
 panel = ui.element('ipad-panel')['frame']
 search = ui.wait(lambda items: next((item for item in items if item.get('subrole') == 'AXSearchField'), None), 'Missing system search')['frame']
 settings = labeled(catalog.text('tabs.settings'))['frame']
@@ -32,7 +33,8 @@ for action in (settings, view_menu):
     assert action['y'] > panel['y'] + panel['height'] - 110
     assert abs(action['y'] - fab['y']) < 10
 assert workspace['width'] >= 44 and workspace['height'] >= 44
-assert fab['width'] >= 44 and fab['height'] >= 44
+# Glass toolbar items report their 36 pt visual; UIKit keeps the 44 pt hit region.
+assert fab['width'] >= 36 and fab['height'] >= 36
 assert fab['x'] > panel['x'] + panel['width'] - 100
 assert fab['y'] > panel['y'] + panel['height'] - 110
 ui.capture('sidebar-glass-fab')
@@ -60,6 +62,7 @@ tap_label('另一个工作区')
 ui.element('ipad-detail-placeholder')
 ui.wait(lambda items: not any(item.get('AXUniqueId') == 'ui-design' for item in items), 'Old workspace content survived switching')
 ui.capture('workspace-switched')
+pad.show_list(ui)
 tap_label(catalog.workspace_switch('另一个工作区', count=0, total=0))
 tap_label('我的超长工作区名称不能折行')
 ui.element('ui-design')

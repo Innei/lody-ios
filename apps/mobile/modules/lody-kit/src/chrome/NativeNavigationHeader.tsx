@@ -61,6 +61,7 @@ export interface NativeNavigationHeaderProps {
   leftItems?: NativeBarItem[];
   toolbarItems?: NativeToolbarItem[];
   title?: string;
+  barHidden?: boolean;
   search?: NativeHeaderSearch;
   searchRef?: Ref<NativeHeaderSearchCommands>;
 }
@@ -78,6 +79,7 @@ const NativeView: ComponentType<
     searchJSON: string;
     searchCommandJSON: string;
     title: string;
+    barHidden: boolean;
     onAction: (event: NativeSyntheticEvent<{ id: string }>) => void;
     onSearch: (event: NativeSyntheticEvent<SearchEvent>) => void;
   }
@@ -92,6 +94,7 @@ export function NativeNavigationHeader({
   leftItems,
   toolbarItems,
   title,
+  barHidden = false,
   search,
   searchRef,
 }: NativeNavigationHeaderProps) {
@@ -176,6 +179,7 @@ export function NativeNavigationHeader({
       searchJSON={searchJSON}
       searchCommandJSON={command.token ? JSON.stringify(command) : ''}
       title={title ?? ''}
+      barHidden={barHidden}
       onAction={onAction}
       onSearch={onSearch}
       style={{ position: 'absolute', width: 0, height: 0 }}

@@ -1,8 +1,7 @@
 """Real React events and state inside UIKit-owned navigation controllers."""
-import json
-import subprocess
 import sys
 from driver import UI
+import rotation
 
 ui = UI(sys.argv[1], sys.argv[2])
 
@@ -60,34 +59,7 @@ tap_label('Project')
 label('project count: 0')
 assert ui.element('poc-project-draft').get('AXValue') != 'retained react draft'
 ui.capture('native-shell-project-reset')
-inventory = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', '--json'], text=True))
-name = next(d['name'] for group in inventory['devices'].values() for d in group if d['udid'] == ui.udid)
-subprocess.run(['open', '-a', 'Simulator', '--args', '-CurrentDeviceUDID', ui.udid], check=True)
-
-
-def rotate(turns):
-    return subprocess.check_output(['osascript', '-e', f'''
-tell application "Simulator" to activate
-tell application "System Events" to tell process "Simulator"
-  set targetWindow to first window whose name starts with "{name}"
-  perform action "AXRaise" of targetWindow
-  click menu bar item "Device" of menu bar 1
-  set rotationItem to menu item "Rotate Device Automatically" of menu 1 of menu bar item "Device" of menu bar 1
-  set wasAutomatic to value of attribute "AXMenuItemMarkChar" of rotationItem is not missing value
-  if wasAutomatic then
-    click rotationItem
-  else
-    key code 53
-  end if
-  repeat {turns} times
-    perform action "AXPress" of (first button of toolbar 1 of targetWindow whose description is "Rotate")
-    delay 0.6
-  end repeat
-  return wasAutomatic
-end tell'''], text=True, timeout=25).strip() == 'true'
-
-
-automatic = rotate(1)
+rotation.rotate(ui, 'landscape')
 try:
     ui.wait(lambda items: any(i.get('frame', {}).get('width', 0) > 1000 for i in items), 'Landscape did not arrive')
     ui.axe('tap', '--id', 'poc-detail-counter')
@@ -95,12 +67,7 @@ try:
     label('project count: 0')
     ui.capture('native-shell-landscape')
 finally:
-    rotate(3)
-    if automatic:
-        subprocess.run(['osascript', '-e', '''tell application "System Events" to tell process "Simulator"
-click menu bar item "Device" of menu bar 1
-click menu item "Rotate Device Automatically" of menu 1 of menu bar item "Device" of menu bar 1
-end tell'''], check=True, timeout=10)
+    rotation.restore_portrait(ui)
 tap_label('Native Sidebar')
 tap_label('close')
 ui.element('native-shell-poc')

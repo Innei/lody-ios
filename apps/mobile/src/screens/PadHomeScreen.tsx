@@ -1,40 +1,17 @@
 import {
   NativeSplit,
-  NativeSidebar,
   NativeSplitContent,
   type NativeSplitLayout,
-  type NativeSplitFrame,
-  NativeMenuButton,
+  NativeNavigationHeader,
+  panelScrollEdgeEffects,
+  shellEnabled,
 } from '@lody-ios/kit';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PlatformColor, StyleSheet, Text, View } from 'react-native';
-import {
-  ScreenStack,
-  ScreenStackHeaderSearchBarView,
-  ScreenStackHeaderLeftView,
-  ScreenStackItem,
-  SearchBar,
-} from 'react-native-screens';
-import type { HeaderBarButtonItem } from 'react-native-screens';
-import { useDevices } from '@/hooks/screens/useDevices';
-
-import {
-  useInboxModel,
-  inboxViews,
-  inboxSorts,
-} from '@/features/sessions/useInboxModel';
-import { useProjectModel } from '@/features/sessions/useProjectModel';
-import { SettingsScreen } from '@/screens/SettingsScreen';
+import { StyleSheet, Text, View } from 'react-native';
+import { ScreenStack, ScreenStackItem } from 'react-native-screens';
 import { SessionScreen, type SessionParams } from '@/screens/SessionScreen';
-import {
-  WorkspaceEditorScreen,
-  workspaceEditActionId,
-} from '@/screens/WorkspaceEditorScreen';
-import { requestOpenSession } from '@/features/sessions/sessionNav';
-import { isChatProjectId } from '@/features/sessions/inbox';
 import { PageRuntimeProvider, type PageRuntime } from '@/lib/presentation/page';
-import { present } from '@/lib/presentation';
 import {
   homeScope,
   setHomeDetail,
@@ -48,11 +25,10 @@ import {
   type SheetHeaderItems,
 } from '@/lib/presentation/SheetStack';
 import { usePalette } from '@/lib/theme/palette';
-import { panelScrollEdgeEffects } from '@lody-ios/kit';
-import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import { t } from '@/lib/i18n';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
+import { PadSidebar } from './pad/PadSidebar';
 
 const chatPresent = panelPresent('replace');
 
@@ -108,7 +84,7 @@ function PadWorkspace({
       testID="ipad-home"
       style={[styles.root, { backgroundColor: colors.reading }]}
     >
-      <Stack.Screen options={{ headerShown: false, title: '' }} />
+      <PadChrome />
       <NativeSplit
         style={styles.stack}
         detailRequest={current?.request ?? 0}
@@ -118,7 +94,7 @@ function PadWorkspace({
           setColumns((previous) => ({ ...previous, ...nativeEvent }))
         }
       >
-        <PanelStack
+        <PadSidebar
           frame={columns?.primary}
           selectedSessionId={detail?.session.id}
         />
@@ -209,262 +185,15 @@ function PadWorkspace({
   );
 }
 
-function PanelStack({
-  frame,
-  selectedSessionId,
-}: {
-  frame?: NativeSplitFrame;
-  selectedSessionId?: string;
-}) {
-  const [projectId, setProjectId] = useState<string>();
-  const openRow = useCallback(
-    (id: string, catalog: Catalog, findQuery?: string) => {
-      if (id.startsWith('project:')) {
-        setProjectId(id.slice(8));
-        return;
-      }
-      const session = catalog.sessions.find((entry) => entry.id === id);
-      if (session) void requestOpenSession(session, findQuery);
-    },
-    [],
-  );
-  return (
-    <ScreenStack style={[StyleSheet.absoluteFill, frame]}>
-      <InboxPanelItem
-        width={frame?.width}
-        selectedSessionId={selectedSessionId}
-        onOpenRow={openRow}
-      />
-      {projectId ? (
-        <ProjectPanelItem
-          selectedSessionId={selectedSessionId}
-          projectId={projectId}
-          onDismiss={() => setProjectId(undefined)}
-          onOpenRow={openRow}
-        />
-      ) : null}
-    </ScreenStack>
-  );
+function RouterPadChrome() {
+  return <Stack.Screen options={{ headerShown: false, title: '' }} />;
 }
 
-function InboxPanelItem({
-  width,
-  selectedSessionId,
-  onOpenRow,
-}: {
-  width?: number;
-  selectedSessionId?: string;
-  onOpenRow: (id: string, catalog: Catalog, findQuery?: string) => void;
-}) {
-  const devices = useDevices();
-  const model = useInboxModel();
-  const account = model.account;
-  const selected = model.selected;
-  const workspaceName = selected?.name ?? t('common.workspace');
-  return (
-    <ScreenStackItem
-      screenId="ipad-inbox"
-      style={StyleSheet.absoluteFill}
-      contentStyle={{
-        backgroundColor: PlatformColor('secondarySystemBackground'),
-      }}
-      scrollEdgeEffects={panelScrollEdgeEffects}
-      headerConfig={{
-        backButtonDisplayMode: 'minimal',
-        backgroundColor: 'transparent',
-        hideShadow: true,
-        title: '',
-        translucent: true,
-        children: (
-          <>
-            {account ? (
-              <ScreenStackHeaderLeftView>
-                <NativeMenuButton
-                  testID="workspace-menu"
-                  // Reserve space for UIKit’s sidebar toggle and bar margins.
-                  style={{ maxWidth: Math.max(44, (width ?? 320) - 112) }}
-                  label={workspaceName}
-                  status={devices.status}
-                  accessibilityName={`${t(
-                    'inbox.workspaceSwitch.accessibility',
-                    {
-                      name: workspaceName,
-                    },
-                  )}, ${devices.summary}`}
-                  avatar={{
-                    text: workspaceName.slice(0, 1),
-                    color: model.colors.accent,
-                    image: selected?.image,
-                  }}
-                  items={[
-                    devices.menuItem,
-                    ...account.workspaces.map((workspace) => ({
-                      id: workspace.id,
-                      title: workspace.name,
-                      selected: workspace.id === selected?.id,
-                    })),
-                    ...(selected
-                      ? [
-                          {
-                            id: workspaceEditActionId,
-                            title: t('workspace.edit.action'),
-                          },
-                        ]
-                      : []),
-                  ]}
-                  onSelect={(id) => {
-                    if (id === workspaceEditActionId && selected) {
-                      void present(WorkspaceEditorScreen, {
-                        workspaceId: selected.id,
-                        name: selected.name,
-                        image: selected.image,
-                        color: model.colors.accent,
-                      });
-                      return;
-                    }
-                    model.setWorkspaceId(id);
-                  }}
-                />
-              </ScreenStackHeaderLeftView>
-            ) : null}
-            <ScreenStackHeaderSearchBarView>
-              <SearchBar
-                placement="stacked"
-                placeholder={t('search.field.placeholder')}
-                hideWhenScrolling={false}
-                hideNavigationBar={false}
-                obscureBackground={false}
-                onChangeText={({ nativeEvent }) =>
-                  model.setQuery(nativeEvent.text)
-                }
-                onCancelButtonPress={() => model.setQuery('')}
-              />
-            </ScreenStackHeaderSearchBarView>
-          </>
-        ),
-      }}
-    >
-      <NativeSidebar
-        testID="ipad-inbox-list"
-        style={styles.stack}
-        sections={model.ready ? model.sections : []}
-        placeholder={model.placeholder}
-        selectedRowId={selectedSessionId}
-        accent={model.colors.accent}
-        previewUserId={account?.user.id}
-        previewWorkspaceId={selected?.id}
-        onRowPress={({ nativeEvent: { id, expanded } }) => {
-          if (!model.consumeRowPress(id, expanded))
-            onOpenRow(id, model.catalog, model.query.trim() || undefined);
-        }}
-        onRowAction={({ nativeEvent: { id, actionId } }) =>
-          model.rowAction(id, actionId)
-        }
-      />
-      <Stack.Toolbar>
-        <Stack.Toolbar.Menu
-          icon="line.3.horizontal.decrease"
-          tintColor={model.colors.label}
-          accessibilityLabel={t('inbox.settings.section.view')}
-        >
-          {inboxViews.map((view) => (
-            <Stack.Toolbar.MenuAction
-              key={view.mode}
-              icon={view.icon}
-              isOn={model.mode === view.mode}
-              onPress={() => model.setView(view.mode)}
-            >
-              {t(view.key)}
-            </Stack.Toolbar.MenuAction>
-          ))}
-          <Stack.Toolbar.Menu inline>
-            {inboxSorts.map((item) => (
-              <Stack.Toolbar.MenuAction
-                key={item.id}
-                icon={item.icon}
-                isOn={model.sort === item.id}
-                onPress={() => model.setProjectSort(item.id)}
-              >
-                {t(item.key)}
-              </Stack.Toolbar.MenuAction>
-            ))}
-          </Stack.Toolbar.Menu>
-        </Stack.Toolbar.Menu>
-        <Stack.Toolbar.Button
-          icon="gearshape"
-          accessibilityLabel={t('tabs.settings')}
-          onPress={() => void present(SettingsScreen)}
-        />
-        <Stack.Toolbar.Spacer />
-        <Stack.Toolbar.Button
-          icon="plus"
-          separateBackground
-          tintColor={model.colors.accent}
-          accessibilityLabel={t('tabs.newSession')}
-          onPress={() => void model.newSession()}
-        />
-      </Stack.Toolbar>
-    </ScreenStackItem>
-  );
+function ShellPadChrome() {
+  return <NativeNavigationHeader barHidden />;
 }
 
-function ProjectPanelItem({
-  selectedSessionId,
-  projectId,
-  onDismiss,
-  onOpenRow,
-}: {
-  selectedSessionId?: string;
-  projectId: string;
-  onDismiss: () => void;
-  onOpenRow: (id: string, catalog: Catalog) => void;
-}) {
-  const model = useProjectModel(projectId);
-  const rightItems: HeaderBarButtonItem[] = [];
-  if (model.project && !isChatProjectId(model.project.id)) {
-    rightItems.unshift({
-      type: 'button',
-      accessibilityLabel: t('project.newSession.accessibility'),
-      icon: { type: 'sfSymbol', name: 'plus' },
-      onPress: model.newSession,
-    });
-  }
-  return (
-    <ScreenStackItem
-      screenId={`ipad-project-${projectId}`}
-      stackPresentation="push"
-      style={StyleSheet.absoluteFill}
-      contentStyle={{
-        backgroundColor: PlatformColor('secondarySystemBackground'),
-      }}
-      scrollEdgeEffects={panelScrollEdgeEffects}
-      headerConfig={{
-        backButtonDisplayMode: 'minimal',
-        backgroundColor: 'transparent',
-        headerRightBarButtonItems: rightItems,
-        hideShadow: true,
-        title: model.project?.name ?? t('project.title'),
-        translucent: true,
-      }}
-      onDismissed={onDismiss}
-    >
-      <NativeSidebar
-        testID="ipad-project-list"
-        style={styles.stack}
-        sections={model.sections}
-        placeholder={model.placeholder}
-        selectedRowId={selectedSessionId}
-        accent={model.colors.accent}
-        previewUserId={model.account?.user.id}
-        previewWorkspaceId={model.selected?.id}
-        onRowPress={({ nativeEvent: { id } }) => onOpenRow(id, model.catalog)}
-        onRowAction={({ nativeEvent: { id, actionId } }) =>
-          model.rowAction(id, actionId)
-        }
-      />
-    </ScreenStackItem>
-  );
-}
+const PadChrome = shellEnabled ? ShellPadChrome : RouterPadChrome;
 
 const styles = StyleSheet.create({
   root: { flex: 1 },

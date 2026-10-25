@@ -15,6 +15,7 @@ import {
   inboxSorts,
   type InboxModel,
 } from '@/features/sessions/useInboxModel';
+import { inboxFilterMenu } from '@/features/sessions/inboxFilterMenu';
 import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
 import { definePage, present } from '@/lib/presentation';
 import { openRoute } from '@/lib/presentation/appNavigation';
@@ -56,7 +57,7 @@ function ShellChrome({ model }: { model: InboxModel }) {
   const devices = useDevices();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { account, colors, mode, selected, sort } = model;
+  const { account, colors, selected } = model;
   if (!model.ready || !account) return null;
   const workspaceName = selected?.name ?? t('common.workspace');
   const workspaceMenu = (
@@ -106,36 +107,7 @@ function ShellChrome({ model }: { model: InboxModel }) {
       <NativeNavigationHeader
         leftItems={[{ type: 'view', element: workspaceMenu }]}
         items={[
-          {
-            type: 'menu',
-            icon: { type: 'sfSymbol', name: 'line.3.horizontal.decrease' },
-            tintColor: colors.label,
-            accessibilityLabel: t('inbox.settings.section.view'),
-            menu: {
-              items: [
-                ...inboxViews.map((view) => ({
-                  type: 'action' as const,
-                  title: t(view.key),
-                  icon: { type: 'sfSymbol' as const, name: view.icon },
-                  state:
-                    mode === view.mode ? ('on' as const) : ('off' as const),
-                  onPress: () => model.setView(view.mode),
-                })),
-                {
-                  type: 'submenu',
-                  displayInline: true,
-                  items: inboxSorts.map((item) => ({
-                    type: 'action' as const,
-                    title: t(item.key),
-                    icon: { type: 'sfSymbol' as const, name: item.icon },
-                    state:
-                      sort === item.id ? ('on' as const) : ('off' as const),
-                    onPress: () => model.setProjectSort(item.id),
-                  })),
-                },
-              ],
-            },
-          },
+          inboxFilterMenu(model),
           {
             type: 'view',
             element: (

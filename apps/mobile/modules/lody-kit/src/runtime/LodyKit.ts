@@ -55,6 +55,7 @@ export type ShellPage = {
   initialDetent?: number;
   container?: number;
   root?: boolean;
+  insertAt?: number;
 };
 type Events = {
   onPreferencesChange: (event: { json: string }) => void;
@@ -211,6 +212,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   navPresent(json: string): Promise<void>;
   navClose(id: number): Promise<void>;
   navPopToRoot(): Promise<void>;
+  navSetStack(ids: number[]): Promise<void>;
   debugOutboxFixture(action: string): Promise<string>;
   selectWorkspace(workspaceId: string): Promise<void>;
   refreshCatalog(): Promise<void>;
@@ -432,6 +434,7 @@ export const navPresent = (page: ShellPage) =>
   native.navPresent(JSON.stringify(page));
 export const navClose = (id: number) => native.navClose(id);
 export const navPopToRoot = () => native.navPopToRoot();
+export const navSetStack = (ids: number[]) => native.navSetStack(ids);
 export const addNavListener = (listener: (event: NavEvent) => void) =>
   native.addListener('onNav', listener);
 export const debugOutboxFixture = (action: string) =>

@@ -267,6 +267,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("navPopToRoot") {
       MainActor.assumeIsolated { LodyShell.shared.popToRoot() }
     }.runOnQueue(.main)
+    AsyncFunction("navSetStack") { (ids: [Int]) in
+      MainActor.assumeIsolated { LodyShell.shared.setStack(ids) }
+    }.runOnQueue(.main)
     AsyncFunction("setForegroundSession") { (sessionId: String) in
       MainActor.assumeIsolated { OutboxSession.shared.setForeground(sessionId) }
     }.runOnQueue(.main)
@@ -744,6 +747,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("searchJSON") { (view: LodyNavigationHeaderView, value: String) in view.setSearch(value) }
       Prop("searchCommandJSON") { (view: LodyNavigationHeaderView, value: String) in view.setSearchCommand(value) }
       Prop("title") { (view: LodyNavigationHeaderView, value: String) in view.setTitle(value) }
+      Prop("barHidden") { (view: LodyNavigationHeaderView, value: Bool) in view.setBarHidden(value) }
     }
 
     View(LodyMentionPickerView.self) {

@@ -4,9 +4,11 @@ import {
   type NavEvent,
   navPopToRoot,
   navPresent,
+  navSetStack,
   type ShellPage as ShellPageSpec,
 } from '@lody-ios/kit';
 
+import type { StackRoute } from './homeTransitions';
 import {
   cancelPresentation,
   type PresentationSession,
@@ -65,6 +67,7 @@ export function describeShellPage(
     initialDetent: initial === 'last' ? -1 : initial,
     container: target.container,
     root: target.root,
+    insertAt: target.insertAt,
   };
 }
 
@@ -96,7 +99,11 @@ export function installShellNavigation() {
         : (routeNames[session.page.id] ?? 'presented/[presentationId]'),
     };
     if (target.root) routes = [route];
-    else if (target.container === undefined) routes = [...routes, route];
+    else if (target.container === undefined) {
+      const next = [...routes];
+      next.splice(Math.max(1, target.insertAt ?? routes.length), 0, route);
+      routes = next;
+    }
     notify();
     void navPresent(describeShellPage(session, target));
   });
@@ -108,6 +115,22 @@ export const shellAtRoot = () => openPages.size <= 1;
 export const shellPopToRoot = () => navPopToRoot();
 
 export const shellNavigationState = () => navigationState;
+
+export const shellStackRoutes = (): StackRoute[] =>
+  routes.map(({ id, key, name }) => ({
+    key,
+    name,
+    params: { presentationId: String(id) },
+  }));
+
+export const shellSetStack = (keep: StackRoute[]) =>
+  navSetStack(
+    keep.flatMap((route) =>
+      route.params && 'presentationId' in route.params
+        ? [Number(route.params.presentationId)]
+        : [],
+    ),
+  );
 
 export function useShellNavigationState() {
   return useSyncExternalStore(subscribe, shellNavigationState);

@@ -4,6 +4,7 @@ import subprocess
 import sys
 from driver import UI
 import catalog
+import pad as pad_layout
 
 ui = UI(sys.argv[1], sys.argv[2])
 pad = any(i.get('AXUniqueId') == 'ipad-home' for i in ui.state())
@@ -37,6 +38,8 @@ def replace(field, text):
 
 
 def search(text):
+    if pad:
+        pad_layout.show_list(ui)
     if not pad and not any(i.get('subrole') == 'AXSearchField' for i in ui.state()):
         ui.axe('tap', '--id', 'magnifyingglass', '--post-delay', '.6')
     replace(inbox_field(), text)
@@ -72,7 +75,9 @@ def find_layout():
 
 
 def back_to_inbox():
-    if not pad:
+    if pad:
+        pad_layout.show_list(ui)
+    else:
         ui.axe('tap', '--id', 'BackButton', '--post-delay', '.7')
     inbox_field()
 

@@ -11,6 +11,7 @@ final class LodyNavigationHeaderView: ExpoView {
   private var toolbarJSON = ""
   private var searchJSON = ""
   private var title = ""
+  private var barHidden = false
   private var rightItems: [UIBarButtonItem] = []
   private var leftItems: [UIBarButtonItem] = []
   private var toolbarItems: [UIBarButtonItem] = []
@@ -50,6 +51,12 @@ final class LodyNavigationHeaderView: ExpoView {
     guard value != title else { return }
     title = value
     push()
+  }
+
+  func setBarHidden(_ value: Bool) {
+    guard value != barHidden else { return }
+    barHidden = value
+    applyBarHidden()
   }
 
   func setToolbarItems(_ json: String) {
@@ -108,6 +115,7 @@ final class LodyNavigationHeaderView: ExpoView {
     }
     push()
     pushToolbar()
+    applyBarHidden()
   }
 
   override func willMove(toSuperview newSuperview: UIView?) {
@@ -201,7 +209,12 @@ final class LodyNavigationHeaderView: ExpoView {
     }
   }
 
+  private func applyBarHidden() {
+    (owner as? LodyPageController)?.setHeaderHidden(barHidden ? true : nil)
+  }
+
   private func release() {
+    if barHidden { (owner as? LodyPageController)?.setHeaderHidden(nil) }
     claim(\.rightItems, nil, &pushedRight)
     claim(\.leftItems, nil, &pushedLeft)
     claim(\.title, nil, &pushedTitle)

@@ -88,6 +88,7 @@ export {
   navPresent,
   navClose,
   navPopToRoot,
+  navSetStack,
   addNavListener,
   type NavEvent,
   type ShellPage,

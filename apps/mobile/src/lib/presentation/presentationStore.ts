@@ -14,9 +14,14 @@ type PresentOptions = Partial<PagePresentationOptions> & {
   host?: (session: PresentationSession) => void;
   container?: number;
   root?: boolean;
+  insertAt?: number;
 };
 
-export type PresentTarget = { container?: number; root?: boolean };
+export type PresentTarget = {
+  container?: number;
+  root?: boolean;
+  insertAt?: number;
+};
 type Navigate = (session: PresentationSession, target: PresentTarget) => void;
 
 let navigate: Navigate = (session) => {
@@ -62,7 +67,7 @@ export function present<TParams, TResult>(
   ...args: PresentArgs<TParams>
 ): Promise<PresentationResult<TResult>> {
   const [params, options] = args;
-  const { host, container, root, ...presentation } = options ?? {};
+  const { host, container, root, insertAt, ...presentation } = options ?? {};
   const id = nextId++;
 
   return new Promise<PresentationResult<TResult>>((resolve) => {
@@ -82,7 +87,7 @@ export function present<TParams, TResult>(
         host(getPresentationSession(id)!);
         return;
       }
-      navigate(getPresentationSession(id)!, { container, root });
+      navigate(getPresentationSession(id)!, { container, root, insertAt });
     } catch (error) {
       sessions = sessions.filter((candidate) => candidate.id !== id);
       throw error;

@@ -5,7 +5,11 @@ import { build } from 'esbuild';
 const shown = [];
 let listener;
 let popped = 0;
+const stacks = [];
 globalThis.__shellNative = {
+  navSetStack: async (ids) => {
+    stacks.push(ids);
+  },
   navPresent: async (page) => {
     shown.push(page);
   },
@@ -22,7 +26,7 @@ const mocks = {
     'export const createContext = () => ({}); export const use = () => null; export const useEffect = () => {}; export const useSyncExternalStore = () => false;',
   'expo-router': 'export const router = { push() {} };',
   '@lody-ios/kit':
-    'export const { navPresent, navPopToRoot, addNavListener } = globalThis.__shellNative;',
+    'export const { navPresent, navPopToRoot, navSetStack, addNavListener } = globalThis.__shellNative;',
 };
 const root = new URL('../../src/lib/presentation/', import.meta.url).pathname;
 const bundle = await build({
@@ -62,6 +66,8 @@ const {
   shellAtRoot,
   shellNavigationState,
   shellPopToRoot,
+  shellSetStack,
+  shellStackRoutes,
 } = await import(
   `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
 );
@@ -160,4 +166,21 @@ test('the shell reports Router-shaped route names for root, pushed and presented
   listener({ type: 'closed', id: sheetId });
   assert.deepEqual(names(), ['index', 'project/[projectId]']);
   return sheet;
+});
+
+test('a page inserted under the top keeps the route order native uses', async () => {
+  void present(page('push'), undefined, { root: true });
+  const root = last().id;
+  void present(page('formSheet'));
+  const sheet = last().id;
+  void present({ ...page('push'), id: 'session' }, undefined, { insertAt: 1 });
+  const session = last();
+  assert.equal(session.insertAt, 1);
+  const routes = shellStackRoutes();
+  assert.deepEqual(
+    routes.map((route) => route.params.presentationId),
+    [root, session.id, sheet].map(String),
+  );
+  await shellSetStack([routes[0], routes[2]]);
+  assert.deepEqual(stacks.at(-1), [root, sheet]);
 });

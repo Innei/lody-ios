@@ -40,8 +40,27 @@ final class LodyShell {
       }
       return
     }
+    if let index = page.spec.insertAt, index < target.viewControllers.count {
+      var stack = target.viewControllers
+      stack.insert(page, at: max(1, index))
+      target.setViewControllers(stack, animated: false)
+      return
+    }
     NotificationCenter.default.post(name: Notification.Name("RNSScreenWillPush"), object: page)
     target.pushViewController(page, animated: page.spec.animation != "none")
+  }
+
+  func setStack(_ ids: [Int]) {
+    guard let navigation else { return }
+    if let transition = navigation.transitionCoordinator {
+      transition.animate(alongsideTransition: nil) { [weak self] _ in self?.setStack(ids) }
+      return
+    }
+    let stack: [UIViewController] = ids.compactMap { pages[$0]?.value }
+      .filter { $0.navigationController === navigation && !$0.closed }
+    guard stack.first === navigation.viewControllers.first, stack != navigation.viewControllers else { return }
+    navigation.setViewControllers(stack, animated: false)
+    scheduleSweep()
   }
 
   func close(_ id: Int) {

@@ -8,6 +8,7 @@ public final class LodyAccentSubscriber: ExpoAppDelegateSubscriber {
   ) -> Bool {
     lodyApplyWindowAccent()
     LodyAccentChoice.mirror()
+    LodyVerifyWidth.install()
     return true
   }
 
