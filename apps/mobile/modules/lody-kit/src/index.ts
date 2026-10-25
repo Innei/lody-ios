@@ -16,8 +16,6 @@ export {
   setAppIcon,
   initialLocale,
   saveDarkBackground,
-  saveQueuedMessageBehavior,
-  saveQuickReplies,
   resetQuickReplies,
   selectionFeedback,
   debugReplyHaptics,

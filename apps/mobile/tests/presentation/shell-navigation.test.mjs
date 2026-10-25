@@ -59,6 +59,7 @@ const {
   getPresentationSession,
   installShellNavigation,
   isShellSheetPage,
+  registerShellPages,
   shellAtRoot,
   shellNavigationState,
   shellPopToRoot,
@@ -179,4 +180,45 @@ test('a page inserted under the top keeps the route order native uses', async ()
   );
   await shellSetStack([routes[0], routes[2]]);
   assert.deepEqual(stacks.at(-1), [root, sheet]);
+});
+
+test('native pages receive their params, and open registered pages in their sheet', () => {
+  void present(
+    { ...page('formSheet'), native: 'editor' },
+    { item: { id: 'a' } },
+  );
+  const editor = last();
+  assert.equal(editor.native, 'editor');
+  assert.deepEqual(JSON.parse(editor.nativeParams), { item: { id: 'a' } });
+  void present(page('pageSheet'));
+  assert.equal(last().nativeParams, undefined);
+
+  registerShellPages([{ ...page('push'), id: 'notification-settings' }]);
+  listener({
+    type: 'open',
+    page: 'notification-settings',
+    params: '{"from":"native"}',
+    container: editor.id,
+  });
+  const opened = last();
+  assert.equal(opened.container, editor.id);
+  assert.equal(opened.style, 'push');
+  assert.deepEqual(getPresentationSession(opened.id).params, {
+    from: 'native',
+  });
+
+  void present(page('push'), undefined, { root: true });
+  const root = last().id;
+  listener({
+    type: 'open',
+    page: 'notification-settings',
+    params: '{}',
+    container: root,
+  });
+  assert.equal(last().container, undefined);
+  assert.equal(last().style, 'push');
+
+  const count = shown.length;
+  listener({ type: 'open', page: 'missing', params: '{}', container: root });
+  assert.equal(shown.length, count);
 });

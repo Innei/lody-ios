@@ -9,8 +9,10 @@ import {
 } from '@lody-ios/kit';
 
 import type { StackRoute } from './homeTransitions';
+import type { PageDefinitionBase } from './page';
 import {
   cancelPresentation,
+  present,
   type PresentationSession,
   type PresentTarget,
   setNavigator,
@@ -25,6 +27,7 @@ const routeNames: Record<string, string> = {
   environment: 'environment',
   project: 'project/[projectId]',
 };
+const shellPages = new Map<string, PageDefinitionBase>();
 const sheetPages = new Set<number>();
 const openPages = new Set<number>();
 const focusedPages = new Set<number>();
@@ -69,10 +72,31 @@ export function describeShellPage(
     root: target.root,
     insertAt: target.insertAt,
     native: session.page.native,
+    nativeParams: session.page.native
+      ? JSON.stringify(session.params ?? {})
+      : undefined,
   };
 }
 
+export function registerShellPages(pages: PageDefinitionBase[]) {
+  for (const page of pages) shellPages.set(page.id, page);
+}
+
+function openShellPage(id: string, params: string, container: number) {
+  const page = shellPages.get(id);
+  if (!page) return;
+  void (present as (...args: unknown[]) => Promise<unknown>)(
+    page,
+    JSON.parse(params),
+    sheetPages.has(container) ? { container } : { style: 'push' },
+  );
+}
+
 function onNav(event: NavEvent) {
+  if (event.type === 'open') {
+    openShellPage(event.page, event.params, event.container);
+    return;
+  }
   if (event.type === 'closed') {
     sheetPages.delete(event.id);
     openPages.delete(event.id);

@@ -64,9 +64,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   func readPreferences() -> String { LodyPreferences.json }
 
   @JS
-  func saveQuickReplies(json: String) -> Bool { LodyPreferences.saveQuickReplies(json: json) }
-
-  @JS
   func resetQuickReplies() { LodyPreferences.resetQuickReplies() }
 
   @JS
@@ -119,6 +116,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       outbox.presenter = { self?.appContext?.utilities?.currentViewController() }
       outbox.emit = { key in self?.sendEvent("onOutboxChange", ["key": key]) }
       LodyShell.shared.emit = { type, id in self?.sendEvent("onNav", ["type": type, "id": id]) }
+      LodyShell.shared.emitOpen = { page, params, container in
+        self?.sendEvent("onNav", ["type": "open", "page": page, "params": params, "container": container])
+      }
       if let runtime = self?.dataRuntime {
         DataRuntime.current = runtime
         outbox.attach(runtime)
@@ -202,9 +202,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   func saveDarkBackground(value: String) {
     LodyDarkBackground.save(value)
   }
-
-  @JS
-  func saveQueuedMessageBehavior(value: String) { LodyPreferences.saveQueuedMessageBehavior(value) }
 
   @JS
   func readInboxExpansion() -> [String: Bool] {

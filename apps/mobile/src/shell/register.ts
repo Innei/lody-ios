@@ -4,6 +4,7 @@ import { installShellNavigation } from '@/lib/presentation/shellNavigation';
 
 import { ShellPageSurface } from './ShellPageSurface';
 import { ShellRoot } from './ShellRoot';
+import './shellPages';
 
 installShellNavigation();
 registerRootComponent(ShellRoot);

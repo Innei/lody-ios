@@ -57,6 +57,10 @@ await writeFile(output + '/Flock-LICENSE.txt', license);
 console.log('Built isolated Flock decoder');
 
 await buildDataRuntime(output);
+await copyFile(
+  root + 'modules/lody-kit/licenses/LodyLicenses.json',
+  output + '/LodyLicenses.json',
+);
 for (const name of [
   'MarkdownView',
   'Litext',
