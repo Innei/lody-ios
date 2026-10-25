@@ -61,6 +61,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   var initialLocale: String { Bundle.main.preferredLocalizations.first ?? "en" }
 
   @JS
+  var shellEnabled: Bool { LodyShell.enabled }
+
+  @JS
   func readPreferences() -> String { LodyPreferences.json }
 
   @JS
@@ -118,6 +121,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       let outbox = OutboxSession.shared
       outbox.presenter = { self?.appContext?.utilities?.currentViewController() }
       outbox.emit = { key in self?.sendEvent("onOutboxChange", ["key": key]) }
+      LodyShell.shared.emit = { type, id in self?.sendEvent("onNav", ["type": type, "id": id]) }
       if let runtime = self?.dataRuntime {
         outbox.attach(runtime)
         CatalogSession.shared.attach(runtime)
@@ -247,12 +251,21 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("sessionSharing") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.sessionSharing(payload, promise: promise) }
     }.runOnQueue(.main)
-    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onPreferencesChange", "onAuthChange", "onCatalogChange", "onOutboxChange")
+    Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onPreferencesChange", "onAuthChange", "onCatalogChange", "onOutboxChange", "onNav")
     AsyncFunction("outboxPut") { (userId: String, workspaceId: String, json: String, promise: Promise) in
       MainActor.assumeIsolated { Self.settle(OutboxSession.shared.put(user: userId, workspace: workspaceId, json: json), promise) }
     }.runOnQueue(.main)
     AsyncFunction("outboxRemove") { (userId: String, workspaceId: String, sessionId: String, promise: Promise) in
       MainActor.assumeIsolated { Self.settle(OutboxSession.shared.remove(user: userId, workspace: workspaceId, sessionId: sessionId), promise) }
+    }.runOnQueue(.main)
+    AsyncFunction("navPresent") { (json: String) in
+      MainActor.assumeIsolated { LodyShell.shared.present(json) }
+    }.runOnQueue(.main)
+    AsyncFunction("navClose") { (id: Int) in
+      MainActor.assumeIsolated { LodyShell.shared.close(id) }
+    }.runOnQueue(.main)
+    AsyncFunction("navPopToRoot") {
+      MainActor.assumeIsolated { LodyShell.shared.popToRoot() }
     }.runOnQueue(.main)
     AsyncFunction("setForegroundSession") { (sessionId: String) in
       MainActor.assumeIsolated { OutboxSession.shared.setForeground(sessionId) }
