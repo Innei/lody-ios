@@ -42,6 +42,10 @@ const NATIVE_PREFIXES = [
   'settings.aiUsage.',
   'settings.state.',
   'settings.unavailable.',
+  'settings.projects.',
+  'settings.github.',
+  'settings.remote.enabled',
+  'settings.remote.disabled',
   'time.',
 ];
 const isNativeKey = (key) =>

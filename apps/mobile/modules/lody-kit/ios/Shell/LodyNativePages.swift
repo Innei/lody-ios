@@ -10,6 +10,10 @@ enum LodyNativePages {
     "quick-reply-editor": { params in QuickReplyEditorController(item: QuickReply(params["item"])) },
     "ai-usage": { _ in AIUsageController() },
     "ai-usage-preview": { _ in AIUsagePreviewController() },
+    "project-visibility": { _ in ProjectVisibilityController() },
+    "project-visibility-preview": { _ in ProjectVisibilityPreviewController() },
+    "github-settings": { _ in GitHubSettingsController() },
+    "github-settings-preview": { _ in GitHubSettingsPreviewController() },
   ]
 
   static func make(_ id: String, params: String?) -> UIViewController? {
