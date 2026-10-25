@@ -6,6 +6,14 @@ struct QuickReply: Codable, Equatable, Sendable {
   let message: String
 }
 
+extension QuickReply {
+  init?(_ value: Any?) {
+    guard let value = value as? [String: Any], let id = value["id"] as? String,
+          let label = value["label"] as? String, let message = value["message"] as? String else { return nil }
+    self.init(id: id, label: label, message: message)
+  }
+}
+
 struct PreferencesSnapshot: Codable, Equatable, Sendable {
   let accentColor: String
   let darkBackground: String
@@ -48,9 +56,8 @@ enum LodyPreferences {
     return valid(items)
   }
 
-  static func saveQuickReplies(json: String) -> Bool {
-    guard let items = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [Any],
-          let data = try? JSONEncoder().encode(valid(items)) else { return false }
+  static func saveQuickReplies(_ items: [QuickReply]) -> Bool {
+    guard let data = try? JSONEncoder().encode(valid(items)) else { return false }
     UserDefaults.standard.set(String(decoding: data, as: UTF8.self), forKey: quickRepliesKey)
     changed()
     return true
@@ -71,18 +78,19 @@ enum LodyPreferences {
     }
   }
 
-  // Limits count UTF-16 units to match the editor's maxLength.
   private static func valid(_ items: [Any]) -> [QuickReply] {
+    valid(items.compactMap { QuickReply($0) })
+  }
+
+  // Limits count UTF-16 units to match the editor's maxLength.
+  private static func valid(_ items: [QuickReply]) -> [QuickReply] {
     var ids = Set<String>()
-    return items.compactMap { item in
-      guard let item = item as? [String: Any],
-            let id = item["id"] as? String, !id.isEmpty, !ids.contains(id),
-            let label = item["label"] as? String, !label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            label.utf16.count <= 40,
-            let message = item["message"] as? String, !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            message.utf16.count <= 32000 else { return nil }
-      ids.insert(id)
-      return QuickReply(id: id, label: label, message: message)
+    return items.filter { item in
+      let blank = { (value: String) in value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+      guard !item.id.isEmpty, !ids.contains(item.id), !blank(item.label), item.label.utf16.count <= 40,
+            !blank(item.message), item.message.utf16.count <= 32000 else { return false }
+      ids.insert(item.id)
+      return true
     }
   }
 

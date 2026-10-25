@@ -19,6 +19,7 @@ struct ShellPageSpec: Decodable {
   var root: Bool?
   var insertAt: Int?
   var native: String?
+  var nativeParams: String?
 }
 
 final class LodyPageController: UIViewController {
@@ -27,10 +28,12 @@ final class LodyPageController: UIViewController {
   var onEvent: ((String, Int) -> Void)?
   private(set) var closed = false
   private var headerHidden: Bool?
+  private var content: UIViewController?
 
-  init(spec: ShellPageSpec, inSheet: Bool) {
+  init(spec: ShellPageSpec, inSheet: Bool, content: UIViewController? = nil) {
     self.spec = spec
     self.inSheet = inSheet
+    self.content = content
     super.init(nibName: nil, bundle: nil)
     title = spec.title
     // Declare the bottom-bar policy before UIKit builds its push animator.
@@ -54,7 +57,8 @@ final class LodyPageController: UIViewController {
   isolated deinit { NotificationCenter.default.removeObserver(self) }
 
   override func loadView() {
-    if let native = spec.native.flatMap(LodyNativePages.make) {
+    if let native = content ?? spec.native.flatMap({ LodyNativePages.make($0, params: spec.nativeParams) }) {
+      content = nil
       view = UIView()
       embed(native)
     } else {

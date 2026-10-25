@@ -29,11 +29,20 @@ const NATIVE_PREFIXES = [
   'send.alert.',
   'send.error.',
   'send.reason.',
-  'settings.quickReplies.defaults.',
   'settings.appearance.',
+  'settings.licenses.',
+  'settings.notifications.title',
+  'settings.preferences.',
+  'settings.queuedMessageBehavior.',
+  'settings.quickReplies.',
+  'settings.section.about',
   'workspace.edit.signedOut',
   'workspace.edit.invalidIcon',
   'workspace.edit.iconUploadFailed',
+  'settings.aiUsage.',
+  'settings.state.',
+  'settings.unavailable.',
+  'time.',
 ];
 const isNativeKey = (key) =>
   NATIVE_PREFIXES.some((prefix) => key.startsWith(prefix));

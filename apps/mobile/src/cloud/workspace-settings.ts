@@ -31,16 +31,3 @@ export const requestGitHubSettings: GitHubSettingsService = async (request) => {
   }
   return githubSettingsSchema.parse(result);
 };
-
-import { usageSchema, type UsageService } from '@/models/ai-usage';
-export const requestUsage: UsageService = async (request) => {
-  const result = usageSchema.parse(
-    JSON.parse(await workspaceSettingsRaw(JSON.stringify(request))),
-  );
-  if (
-    result.workspaceId !== request.workspaceId ||
-    result.range !== request.range
-  )
-    throw new Error('usage_scope_changed');
-  return result;
-};

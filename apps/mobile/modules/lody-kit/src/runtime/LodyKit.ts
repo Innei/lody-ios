@@ -41,7 +41,9 @@ export type PickedWorkspaceIcon = {
   type: string;
   size: number;
 };
-export type NavEvent = { type: 'closed' | 'focus' | 'blur'; id: number };
+export type NavEvent =
+  | { type: 'closed' | 'focus' | 'blur'; id: number }
+  | { type: 'open'; page: string; params: string; container: number };
 export type ShellPage = {
   id: number;
   title: string;
@@ -57,6 +59,7 @@ export type ShellPage = {
   root?: boolean;
   insertAt?: number;
   native?: string;
+  nativeParams?: string;
 };
 type Events = {
   onPreferencesChange: (event: { json: string }) => void;
@@ -116,8 +119,6 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   readonly initialLocale: string;
   saveDarkBackground(value: string): void;
   readPreferences(): string;
-  saveQueuedMessageBehavior(value: string): void;
-  saveQuickReplies(json: string): boolean;
   resetQuickReplies(): void;
   readInboxExpansion(): Record<string, boolean>;
   saveInboxExpansion(projectId: string, expanded: boolean): void;
@@ -259,9 +260,6 @@ export const setAppIcon = (name: string) => native.setAppIcon(name);
 export const initialLocale = native.initialLocale;
 export const saveDarkBackground = (value: string) =>
   native.saveDarkBackground(value);
-export const saveQueuedMessageBehavior = (value: string) =>
-  native.saveQueuedMessageBehavior(value);
-export const saveQuickReplies = (json: string) => native.saveQuickReplies(json);
 export const resetQuickReplies = () => native.resetQuickReplies();
 export function selectionFeedback(): Promise<void> {
   return native.selectionFeedback();

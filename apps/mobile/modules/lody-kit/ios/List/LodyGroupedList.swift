@@ -183,6 +183,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       cell.contentConfiguration = UIHostingConfiguration {
         LodyListNoticeView(notice: notice, tint: Color(uiColor: tint)) { [weak self] in
           self?.onNoticeAction([:])
+          self?.forwarded?("noticeAction", [:])
         }
       }
       .margins(.vertical, 2)
@@ -242,6 +243,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       configuration.button = button
       configuration.buttonProperties.primaryAction = UIAction { [weak self] _ in
         self?.onUnavailableAction([:])
+        self?.forwarded?("unavailableAction", [:])
       }
     }
     let view = unavailableView ?? UIContentUnavailableView(configuration: configuration)
@@ -466,6 +468,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       let ids = transaction.finalSnapshot.itemIdentifiers
       self.sections[0].rows = ids.compactMap { self.rowsByID[$0] }
       self.onReorder(["ids": ids.map(\.row)])
+      self.forwarded?("reorder", ["ids": ids.map(\.row)])
     }
     dataSource.sectionSnapshotHandlers.willExpandItem = { [weak self] item in
       self?.outlineChanged(item, expanded: true)
@@ -1019,6 +1022,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   @objc private func refreshPulled() {
     onRefresh([:])
+    forwarded?("refresh", [:])
   }
 
   private enum RowKind { case system, session, project, visual }
