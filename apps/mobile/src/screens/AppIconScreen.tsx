@@ -83,6 +83,6 @@ export function AppIconView({
 export const AppIconScreen = definePage({
   id: 'app-icon',
   title: t('settings.appearance.appIcon'),
-  Component: AppIconView,
+  native: true,
   presentation: { style: 'push', headerVariant: 'transparent' },
 });

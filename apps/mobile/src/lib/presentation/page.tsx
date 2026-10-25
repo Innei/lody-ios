@@ -39,6 +39,7 @@ export interface PageRuntime<TParams = undefined, TResult = void> {
 export interface PageDefinitionBase {
   Component: ComponentType;
   id: string;
+  native?: string;
   panel?: boolean;
   presentation: PagePresentationOptions;
   title: string;
@@ -57,13 +58,14 @@ export interface PageDefinition<
 }
 
 type DefinePageOptions = {
-  Component: ComponentType;
   id: string;
   panel?: boolean;
   presentation?: Partial<PagePresentationOptions>;
   title: string;
   parseRouteParams?: unknown;
-};
+} & ({ Component: ComponentType } | { native: true });
+
+const NativePage = () => null;
 
 const defaultPresentation: PagePresentationOptions = {
   animationType: 'slide',
@@ -81,10 +83,11 @@ export const PageRuntimeContext = createContext<PageRuntime<
 export function definePage<TParams = undefined, TResult = void>(
   options: DefinePageOptions,
 ): PageDefinition<TParams, TResult> {
-  const { Component, id, panel, title } = options;
+  const { id, panel, title } = options;
   return {
-    Component,
+    Component: 'Component' in options ? options.Component : NativePage,
     id,
+    native: 'native' in options ? id : undefined,
     panel,
     presentation: { ...defaultPresentation, ...options.presentation },
     title,

@@ -30,6 +30,7 @@ const NATIVE_PREFIXES = [
   'send.error.',
   'send.reason.',
   'settings.quickReplies.defaults.',
+  'settings.appearance.',
   'workspace.edit.signedOut',
   'workspace.edit.invalidIcon',
   'workspace.edit.iconUploadFailed',

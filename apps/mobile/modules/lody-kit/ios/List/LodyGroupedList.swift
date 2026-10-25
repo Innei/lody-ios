@@ -93,6 +93,11 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     onRowPress(body)
     forwarded?("rowPress", body)
   }
+
+  func emitRowAction(_ body: [String: Any]) {
+    onRowAction(body)
+    forwarded?("rowAction", body)
+  }
   private let segments = UISegmentedControl(items: [])
   private let steps = LodyStepStrip()
   private let searchField = UISearchTextField()
@@ -151,7 +156,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     button.accessibilityValue = row.value
     button.menu = row.options.isEmpty ? nil : UIMenu(options: .singleSelection, children: row.options.map { option in
       UIAction(title: option.title, state: option.selected ? .on : .off) { [weak self] _ in
-        self?.onRowAction(["id": row.id, "actionId": option.id])
+        self?.emitRowAction(["id": row.id, "actionId": option.id])
       }
     })
     cell.isAccessibilityElement = row.options.isEmpty
@@ -1259,7 +1264,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private func swipeActions(at indexPath: IndexPath, leading: Bool) -> UISwipeActionsConfiguration? {
     guard let row = row(at: indexPath) else { return nil }
     return LodyListRowInteractions.swipes(row: row, leading: leading) { [weak self] id, actionId in
-      self?.onRowAction(["id": id, "actionId": actionId])
+      self?.emitRowAction(["id": id, "actionId": actionId])
     }
   }
 
@@ -1320,7 +1325,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private func menuConfiguration(at indexPath: IndexPath) -> UIContextMenuConfiguration? {
     guard let row = row(at: indexPath) else { return nil }
     return LodyListRowInteractions.menu(row: row, userId: previewUserId, workspaceId: previewWorkspaceId) { [weak self] id, actionId in
-      self?.onRowAction(["id": id, "actionId": actionId])
+      self?.emitRowAction(["id": id, "actionId": actionId])
     }
   }
 

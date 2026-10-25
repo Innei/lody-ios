@@ -30,6 +30,15 @@ final class LodyShell {
     }
   }
 
+  func pushNative(_ id: String, title: String, from source: UIViewController) {
+    guard let target = source.navigationController else { return }
+    let spec = ShellPageSpec(
+      id: 0, title: title, style: "push", animation: "slide", dismissible: true, headerShown: true,
+      headerVariant: "transparent", native: id
+    )
+    push(LodyPageController(spec: spec, inSheet: target !== navigation), on: target)
+  }
+
   private func push(_ page: LodyPageController, on target: UINavigationController?) {
     guard let target else { return }
     if let transition = target.transitionCoordinator {

@@ -381,29 +381,13 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         promise.resolve(nil)
       }
     }.runOnQueue(.main)
-    AsyncFunction("getAppIcon") { UIApplication.shared.alternateIconName ?? "default" }.runOnQueue(.main)
+    AsyncFunction("getAppIcon") { MainActor.assumeIsolated { LodyAppIcon.current } }.runOnQueue(.main)
     AsyncFunction("setAppIcon") { (name: String, promise: Promise) in
-      guard name == "default" || name == "Aqua" else {
-        promise.reject("ERR_APP_ICON", "Unknown app icon")
-        return
-      }
-      let app = UIApplication.shared
-      let alternate = name == "default" ? nil : name
-      guard app.alternateIconName != alternate else {
-        MainActor.assumeIsolated { LiveActivities.shared.syncAppIcon() }
-        promise.resolve(name)
-        return
-      }
-      guard app.supportsAlternateIcons else {
-        promise.reject("ERR_APP_ICON", "Alternate icons are unavailable")
-        return
-      }
-      app.setAlternateIconName(alternate) { error in
-        DispatchQueue.main.async {
-          if let error { promise.reject("ERR_APP_ICON", error.localizedDescription) }
-          else {
-            LiveActivities.shared.syncAppIcon()
-            promise.resolve(app.alternateIconName ?? "default")
+      MainActor.assumeIsolated {
+        LodyAppIcon.set(name) { result in
+          switch result {
+          case .success(let value): promise.resolve(value)
+          case .failure(let error): promise.reject("ERR_APP_ICON", "\(error)")
           }
         }
       }
