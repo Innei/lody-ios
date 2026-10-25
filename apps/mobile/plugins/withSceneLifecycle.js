@@ -17,6 +17,18 @@ class SceneDelegate: ExpoAppSceneDelegate {}
 const WINDOW_BLOCK =
   /#if os\(iOS\) \|\| os\(tvOS\)\n\s*window = UIWindow\(frame: UIScreen\.main\.bounds\)\n\s*factory\.startReactNative\(\n\s*withModuleName: "main",\n\s*in: window,\n\s*launchOptions: launchOptions\)\n#endif\n\n/;
 
+const SHELL_SURFACE = `    LodyShellHost.surface = { [weak factory] module, props in
+      guard let views = factory?.rootViewFactory as? ExpoReactRootViewFactory else { return UIView() }
+      return views.superView(
+        withModuleName: module,
+        initialProperties: props,
+        launchOptions: nil,
+        bundleConfiguration: RCTBundleConfiguration.default(),
+        devMenuConfiguration: nil
+      )
+    }
+`;
+
 const CONNECTING_METHOD = `
   public func application(
     _ application: UIApplication,
@@ -80,6 +92,17 @@ module.exports = function withSceneLifecycle(config) {
     if (config.modResults.language !== 'swift') return config;
     let contents = config.modResults.contents;
     contents = contents.replace(WINDOW_BLOCK, '');
+    if (!contents.includes('LodyShellHost.surface')) {
+      contents = contents
+        .replace(
+          'import ReactAppDependencyProvider\n',
+          'import ReactAppDependencyProvider\ninternal import LodyKit\n',
+        )
+        .replace(
+          '    reactNativeFactory = factory\n',
+          `    reactNativeFactory = factory\n${SHELL_SURFACE}`,
+        );
+    }
     if (!contents.includes('configurationForConnecting')) {
       contents = contents.replace(
         '    return super.application(application, didFinishLaunchingWithOptions: launchOptions)\n  }\n',

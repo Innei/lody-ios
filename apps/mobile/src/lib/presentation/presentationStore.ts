@@ -12,7 +12,23 @@ export type PresentationResult<TResult> =
 type PresentOptions = Partial<PagePresentationOptions> & {
   /** A native local host can render the same session without a Router modal. */
   host?: (session: PresentationSession) => void;
+  container?: number;
+  root?: boolean;
 };
+
+export type PresentTarget = { container?: number; root?: boolean };
+type Navigate = (session: PresentationSession, target: PresentTarget) => void;
+
+let navigate: Navigate = (session) => {
+  router.push({
+    pathname: session.page.presentationPath ?? '/presented/[presentationId]',
+    params: { presentationId: String(session.id) },
+  } as Href);
+};
+
+export function setNavigator(next: Navigate) {
+  navigate = next;
+}
 
 type PresentArgs<TParams> = [TParams] extends [undefined]
   ? [params?: TParams, options?: PresentOptions]
@@ -46,7 +62,7 @@ export function present<TParams, TResult>(
   ...args: PresentArgs<TParams>
 ): Promise<PresentationResult<TResult>> {
   const [params, options] = args;
-  const { host, ...presentation } = options ?? {};
+  const { host, container, root, ...presentation } = options ?? {};
   const id = nextId++;
 
   return new Promise<PresentationResult<TResult>>((resolve) => {
@@ -66,10 +82,7 @@ export function present<TParams, TResult>(
         host(getPresentationSession(id)!);
         return;
       }
-      router.push({
-        pathname: page.presentationPath ?? '/presented/[presentationId]',
-        params: { presentationId: String(id) },
-      } as Href);
+      navigate(getPresentationSession(id)!, { container, root });
     } catch (error) {
       sessions = sessions.filter((candidate) => candidate.id !== id);
       throw error;

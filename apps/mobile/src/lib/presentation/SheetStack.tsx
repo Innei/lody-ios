@@ -1,12 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import type {
   ScreenStackHeaderConfigProps,
@@ -33,21 +25,19 @@ import type { PresentationResult } from './presentationStore';
 import { present, type PresentationSession } from './presentationStore';
 import { t } from '../i18n/index.ts';
 
-export type HeaderItems =
-  ScreenStackHeaderConfigProps['headerRightBarButtonItems'];
-export type SheetHeaderItems = {
-  right: HeaderItems;
-  left?: HeaderItems;
-  rightView?: ReactNode;
-  title?: string;
-};
-export const SheetHeaderContext = createContext<
-  ((items: SheetHeaderItems | undefined) => void) | null
->(null);
+import {
+  type HeaderItems,
+  SheetHeaderContext,
+  type SheetHeaderItems,
+  SheetSearchContext,
+} from './headerContext';
 
-export const SheetSearchContext = createContext<
-  ((search: SearchBarProps | undefined) => void) | null
->(null);
+export {
+  type HeaderItems,
+  SheetHeaderContext,
+  type SheetHeaderItems,
+  SheetSearchContext,
+};
 
 type Level = {
   key: number;

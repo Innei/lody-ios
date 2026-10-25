@@ -41,11 +41,27 @@ export type PickedWorkspaceIcon = {
   type: string;
   size: number;
 };
+export type NavEvent = { type: 'closed' | 'focus' | 'blur'; id: number };
+export type ShellPage = {
+  id: number;
+  title: string;
+  style: 'push' | 'formSheet' | 'fullScreen' | 'overFullScreen' | 'pageSheet';
+  animation: 'fade' | 'none' | 'slide';
+  dismissible: boolean;
+  headerShown: boolean;
+  headerVariant: 'glass' | 'transparent';
+  detents?: number[];
+  grabber?: boolean;
+  initialDetent?: number;
+  container?: number;
+  root?: boolean;
+};
 type Events = {
   onPreferencesChange: (event: { json: string }) => void;
   onAuthChange: (event: { json: string }) => void;
   onCatalogChange: (event: { json: string }) => void;
   onOutboxChange: (event: { key: string }) => void;
+  onNav: (event: NavEvent) => void;
   onAttachmentUploadProgress: (event: AttachmentUploadProgress) => void;
   onPushClick: () => void;
   onAppActive: () => void;
@@ -96,6 +112,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   getAppIcon(): Promise<string>;
   setAppIcon(name: string): Promise<string>;
   readonly initialLocale: string;
+  readonly shellEnabled: boolean;
   saveDarkBackground(value: string): void;
   readPreferences(): string;
   saveQueuedMessageBehavior(value: string): void;
@@ -191,6 +208,9 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
     sessionId: string,
   ): Promise<void>;
   setForegroundSession(sessionId: string): Promise<void>;
+  navPresent(json: string): Promise<void>;
+  navClose(id: number): Promise<void>;
+  navPopToRoot(): Promise<void>;
   debugOutboxFixture(action: string): Promise<string>;
   selectWorkspace(workspaceId: string): Promise<void>;
   refreshCatalog(): Promise<void>;
@@ -407,6 +427,13 @@ export const setOutboxInflight = (sessionId: string, active: boolean) =>
   native.setOutboxInflight(sessionId, active);
 export const setForegroundSession = (sessionId: string) =>
   native.setForegroundSession(sessionId);
+export const shellEnabled = native.shellEnabled;
+export const navPresent = (page: ShellPage) =>
+  native.navPresent(JSON.stringify(page));
+export const navClose = (id: number) => native.navClose(id);
+export const navPopToRoot = () => native.navPopToRoot();
+export const addNavListener = (listener: (event: NavEvent) => void) =>
+  native.addListener('onNav', listener);
 export const debugOutboxFixture = (action: string) =>
   native.debugOutboxFixture(action);
 export const addCatalogListener = (
