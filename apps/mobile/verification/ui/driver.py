@@ -82,6 +82,14 @@ class UI:
         # AXe's automatic style sends a simulator tapAt, which a focused Lexical input's keyboard session can swallow; fingers are down/up.
         if args and args[0] == 'tap' and '--tap-style' not in args:
             args = (*args, '--tap-style', 'physical')
+        # Each AXe process registers fresh virtual HID services that backboardd opens ~30 ms later;
+        # events still pending when the process exits are dropped, so keep it alive past the open.
+        if args and args[0] == 'key':
+            args = ('batch', '--step', shlex.join(args))
+        if args and args[0] == 'batch' and not str(args[-1]).startswith('sleep'):
+            args = (*args, '--step', 'sleep .2')
+        if args and args[0] == 'tap' and '--post-delay' not in args:
+            args = (*args, '--post-delay', '.2')
         deadline = time.monotonic() + (90 if recover else timeout)
         last = None
         while True:
