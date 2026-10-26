@@ -88,28 +88,28 @@ def change_icon(value):
 
 # A fixture activity outlives a failed run, and starting is a no-op while one exists,
 # so the scene resets itself before it asserts anything.
-if status() != '0 个活动':
+if status() != '0 active':
     ui.axe('tap', '--id', 'live-activity-end', '--tap-style', 'physical')
-    ui.wait(lambda items: status() == '0 个活动', 'Could not end a leftover fixture activity')
+    ui.wait(lambda items: status() == '0 active', 'Could not end a leftover fixture activity')
 
 change_icon('default')
 ui.axe('tap', '--id', 'live-activity-start', '--tap-style', 'physical')
 allow(8)
-ui.wait(lambda items: status() != '0 个活动', 'Fixture activity did not start')
+ui.wait(lambda items: status() != '0 active', 'Fixture activity did not start')
 
 assert toggle_value() == '1', 'Dynamic Island switch did not start on'
 ui.axe('tap', '--id', 'live-activity:toggle', '--tap-style', 'physical')
 ui.wait(lambda items: toggle_value() == '0', 'Dynamic Island switch did not turn off')
 ui.axe('tap', '--id', 'live-activity:toggle', '--tap-style', 'physical')
 ui.wait(lambda items: toggle_value() == '1', 'Dynamic Island switch did not turn back on')
-assert status() != '0 个活动', 'Toggling the injected switch ended the fixture activity'
+assert status() != '0 active', 'Toggling the injected switch ended the fixture activity'
 
 ui.axe('button', 'home')
 time.sleep(2)
 ui.capture('island-default-icon')
 foreground()
 change_icon('Aqua')
-assert status() != '0 个活动', 'Changing the icon ended the running activity'
+assert status() != '0 active', 'Changing the icon ended the running activity'
 
 ui.axe('button', 'home')
 time.sleep(2)
@@ -188,7 +188,7 @@ ui.capture('one-remaining')
 ui.axe('button', 'home')
 foreground()
 ui.axe('tap', '--id', 'live-activity-complete-all', '--tap-style', 'physical')
-ui.wait(lambda items: status() == '0 个活动', 'Completing all tasks did not end the activity')
+ui.wait(lambda items: status() == '0 active', 'Completing all tasks did not end the activity')
 # An ended activity keeps its completed rows on the Lock Screen for 60 s so the
 # finished titles and frozen durations are readable; the island drops it at once.
 ui.axe('button', 'lock')
@@ -202,7 +202,7 @@ foreground()
 ui.capture('ended')
 # A new activity must also use the persisted choice, without another icon switch.
 ui.axe('tap', '--id', 'live-activity-start', '--tap-style', 'physical')
-ui.wait(lambda items: status() != '0 个活动', 'New work did not restart the activity')
+ui.wait(lambda items: status() != '0 active', 'New work did not restart the activity')
 ui.axe('button', 'home')
 time.sleep(2)
 ui.capture('island-new-aqua')
@@ -226,7 +226,7 @@ assert difference('island-running', 'island-new-aqua') < 5, 'New activity lost t
 assert difference('island-default-icon', 'island-restored-default') < 5, 'Island did not restore the default icon'
 foreground()
 ui.axe('tap', '--id', 'live-activity-fail-all', '--tap-style', 'physical')
-ui.wait(lambda items: status() == '0 个活动', 'Failing every task did not end the activity')
+ui.wait(lambda items: status() == '0 active', 'Failing every task did not end the activity')
 ui.axe('button', 'lock')
 time.sleep(1)
 ui.capture('lockscreen-failed')

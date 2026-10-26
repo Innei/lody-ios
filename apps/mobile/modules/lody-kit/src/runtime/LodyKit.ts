@@ -94,7 +94,6 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   verifyPushSubscription(): Promise<void>;
   setPushUser(userId: string | null): Promise<void>;
   pushStatus(): Promise<import('../notifications/notifications').PushStatus>;
-  requestPushPermission(): Promise<boolean>;
   pendingPushClick(): Promise<
     import('../notifications/notifications').PushClick | null
   >;
@@ -183,11 +182,6 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   mentionCatalog(payload: string): Promise<string>;
   readContentText(handle: string): Promise<string | null>;
   previewContent(handle: string): Promise<void>;
-  liveActivityStatus(): Promise<
-    import('../notifications/notifications').LiveActivityStatus
-  >;
-  setLiveActivitiesEnabled(enabled: boolean): Promise<void>;
-  debugLiveActivity(action: string): Promise<void>;
   dataRuntimeStatus(): Promise<DataRuntimeEvent>;
   debugBackgroundDataRuntime(action: string): Promise<string>;
   debugHangDataRuntime(): Promise<void>;

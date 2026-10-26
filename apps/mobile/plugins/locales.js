@@ -99,7 +99,8 @@ const NATIVE_PREFIXES = [
   'account.',
   'diagnostics.title',
   'share.',
-  'notifications.route.wrongAccount',
+  'notifications.',
+  'settings.liveActivity.',
 ];
 const isNativeKey = (key) =>
   NATIVE_PREFIXES.some((prefix) => key.startsWith(prefix));
