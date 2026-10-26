@@ -48,6 +48,9 @@ enum LodyNativePages {
     "diagnostics": { _ in DiagnosticsController() },
     "diagnostics-preview": { _ in DiagnosticsPreviewController() },
     "picker": { params in LodyNativePages.picker(params) },
+    "project-history": { params in ProjectHistoryController(scope: .live(params)) },
+    "project-history-preview": { _ in ProjectHistoryPreview.make() },
+    "directory-preview": { _ in DirectoryPreviewController() },
   ]
 
   private static func picker(_ params: [String: Any]) -> UIViewController {

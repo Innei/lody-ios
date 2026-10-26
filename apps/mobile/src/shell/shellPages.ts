@@ -11,14 +11,12 @@ import {
 } from '@/lib/presentation/shellNavigation';
 import { DebugScreen } from '@/screens/debug/DebugScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
-import { ProjectHistoryScreen } from '@/screens/ProjectHistoryScreen';
 import { ProjectScreen } from '@/screens/ProjectScreen';
 import { WorkspaceEditorScreen } from '@/screens/WorkspaceEditorScreen';
 
 registerShellPages([
   DebugScreen,
   NotificationSettingsScreen,
-  ProjectHistoryScreen,
   ProjectScreen,
   WorkspaceEditorScreen,
 ]);
