@@ -7,7 +7,7 @@ type Event<T> = (event: NativeSyntheticEvent<T>) => void;
 
 export type CreateSessionRequest = {
   id: string;
-  kind: 'options' | 'repositories' | 'browse';
+  kind: 'options' | 'repositories';
   projectId?: string;
 };
 

@@ -123,7 +123,6 @@ export {
   pinSession,
   markSessionRead,
   renameSession,
-  localProjects,
 } from './runtime/LodyKit';
 
 export {

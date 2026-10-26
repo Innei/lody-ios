@@ -156,7 +156,6 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   sharePending(): string;
   shareAdopt(id: string): string;
   shareRemove(id: string): void;
-  localProjects(payload: string): Promise<string>;
   createSession(payload: string): Promise<string>;
   archiveSession(payload: string): Promise<string>;
   deleteSession(payload: string): Promise<string>;
@@ -529,8 +528,6 @@ export const writeLocalValue = (
     ? native.writeLocalValue(key, value)
     : native.writeLocalValue(key, value, generation);
 export const localStoreGeneration = () => native.localStoreGeneration();
-
-export const localProjects = (payload: string) => native.localProjects(payload);
 
 export const debugBackgroundDataRuntime = (action: string) =>
   native.debugBackgroundDataRuntime(action);
