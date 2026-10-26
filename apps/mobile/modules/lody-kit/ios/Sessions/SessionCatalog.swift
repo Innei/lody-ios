@@ -1,0 +1,139 @@
+import Foundation
+
+struct SessionItem: Equatable, Sendable {
+  var id: String
+  var title = ""
+  var status = "idle"
+  var archived = false
+  var pinned = false
+  var projectId = ""
+  var createdAt = ""
+  var openedBySessionId: String?
+  var openedByRootSessionId: String?
+  var parentSessionId: String?
+  var lastMessageAt: Double?
+  var lastReadAt: Double?
+  var awaitingUserSince: Double?
+  var branchName: String?
+  var modelName: String?
+  var modelNeverRan = false
+  var diff: [String: Int] = [:]
+  var lastViewedMessageAt: Double?
+
+  var activityAt: Double { lastMessageAt ?? SessionItem.parse(createdAt) }
+
+  private static func parse(_ value: String) -> Double {
+    let precise = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+    guard let date = (try? precise.parse(value)) ?? (try? Date.ISO8601FormatStyle().parse(value)) else { return .nan }
+    return date.timeIntervalSince1970 * 1000
+  }
+}
+
+extension SessionItem: Decodable {
+  private enum CodingKeys: String, CodingKey {
+    case id, title, status, archived, pinned, projectId, createdAt, openedBySessionId, openedByRootSessionId
+    case parentSessionId, lastMessageAt, lastReadAt, awaitingUserSince, branchName, lastModel, diff
+  }
+
+  private struct Model: Decodable {
+    var modelId: String?
+    var name: String?
+  }
+
+  private struct Diff: Decodable {
+    var add: Int?
+    var del: Int?
+  }
+
+  init(from decoder: any Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    func present(_ text: String?) -> String? { text?.isEmpty == false ? text : nil }
+    func value<T: Decodable>(_ key: CodingKeys) -> T? { (try? values.decodeIfPresent(T.self, forKey: key)) ?? nil }
+    id = try values.decode(String.self, forKey: .id)
+    title = value(.title) ?? ""
+    status = value(.status) ?? "idle"
+    archived = value(.archived) ?? false
+    pinned = value(.pinned) ?? false
+    projectId = value(.projectId) ?? ""
+    createdAt = value(.createdAt) ?? ""
+    openedBySessionId = present(value(.openedBySessionId))
+    openedByRootSessionId = present(value(.openedByRootSessionId))
+    parentSessionId = present(value(.parentSessionId))
+    lastMessageAt = value(.lastMessageAt)
+    lastReadAt = value(.lastReadAt)
+    awaitingUserSince = value(.awaitingUserSince)
+    branchName = present(value(.branchName))
+    modelNeverRan = values.contains(.lastModel) && ((try? values.decodeNil(forKey: .lastModel)) ?? false)
+    if let model: Model = value(.lastModel) {
+      modelName = [model.name, model.modelId].compactMap { $0 }.first { !$0.isEmpty } ?? ""
+    }
+    if let diff: Diff = value(.diff), let add = diff.add, let del = diff.del { self.diff = ["add": add, "del": del] }
+  }
+}
+
+struct SessionProject: Decodable, Equatable, Sendable {
+  var id: String
+  var name = ""
+  var rootPath = ""
+  var repoFullName: String?
+
+  private enum CodingKeys: String, CodingKey { case id, name, rootPath, repoFullName }
+
+  init(id: String, name: String = "", rootPath: String = "", repoFullName: String? = nil) {
+    self.id = id
+    self.name = name
+    self.rootPath = rootPath
+    self.repoFullName = repoFullName
+  }
+
+  init(from decoder: any Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    id = try values.decode(String.self, forKey: .id)
+    name = (try? values.decodeIfPresent(String.self, forKey: .name)) ?? ""
+    rootPath = (try? values.decodeIfPresent(String.self, forKey: .rootPath)) ?? ""
+    repoFullName = (try? values.decodeIfPresent(String.self, forKey: .repoFullName)) ?? nil
+  }
+}
+
+struct SessionCatalog: Equatable, Sendable {
+  var projects: [SessionProject] = []
+  var sessions: [SessionItem] = []
+
+  func session(_ id: String) -> SessionItem? { sessions.first { $0.id == id } }
+
+  func viewed(_ views: [String: Double]) -> SessionCatalog {
+    guard !views.isEmpty else { return self }
+    var next = self
+    next.sessions = sessions.map { session in
+      var session = session
+      session.lastViewedMessageAt = views[session.id]
+      return session
+    }
+    return next
+  }
+
+  static func decode(saved: Data, pending: [SessionItem] = []) -> SessionCatalog? {
+    struct Opaque: Decodable {
+      init(from decoder: any Decoder) throws {}
+    }
+    struct Shape: Decodable {
+      var projects: [Lossy<SessionProject>]
+      var sessions: [Lossy<SessionItem>]
+      var machineIds: [Opaque]
+    }
+    struct Saved: Decodable { var catalog: Shape }
+    guard let shape = try? JSONDecoder().decode(Saved.self, from: saved).catalog else { return nil }
+    return SessionCatalog(
+      projects: shape.projects.compactMap(\.value), sessions: shape.sessions.compactMap(\.value) + pending
+    )
+  }
+}
+
+// A malformed entry is dropped rather than discarding the whole catalog.
+struct Lossy<T: Decodable>: Decodable {
+  var value: T?
+
+  init(from decoder: any Decoder) throws {
+    value = try? T(from: decoder)
+  }
+}

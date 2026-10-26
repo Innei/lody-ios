@@ -119,6 +119,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       LodyShell.shared.emitOpen = { page, params, options, container in
         self?.sendEvent("onNav", ["type": "open", "page": page, "params": params, "options": options, "container": container])
       }
+      LodyShell.shared.emitSession = { fields in
+        self?.sendEvent("onNav", fields.merging(["type": "session"]) { _, new in new })
+      }
       if let runtime = self?.dataRuntime {
         DataRuntime.current = runtime
         outbox.attach(runtime)
@@ -153,7 +156,10 @@ public final class LodyKitModule: Module, @unchecked Sendable {
 
   @JS
   func setSettingsPreview(json: String) {
-    Task { @MainActor in SettingsPreview.set(json) }
+    Task { @MainActor in
+      SettingsPreview.set(json)
+      SessionCatalogPreview.set(json)
+    }
   }
 
   @JS

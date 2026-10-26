@@ -60,6 +60,7 @@ const {
   installShellNavigation,
   isShellSheetPage,
   registerShellPages,
+  registerShellSessionHandler,
   shellAtRoot,
   shellNavigationState,
   shellPopToRoot,
@@ -255,4 +256,19 @@ test('native pages open registered pages with a title, or as their own sheet', (
   assert.deepEqual(getPresentationSession(last().id).params, {
     workspaceId: 'w',
   });
+});
+
+test('native session intents reach the registered handler without opening pages', () => {
+  const intents = [];
+  registerShellSessionHandler((intent) => intents.push(intent));
+  const count = shown.length;
+  const intent = {
+    type: 'session',
+    action: 'open',
+    workspaceId: 'w',
+    session: '{"id":"s"}',
+  };
+  listener(intent);
+  assert.deepEqual(intents, [intent]);
+  assert.equal(shown.length, count);
 });

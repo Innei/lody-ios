@@ -300,18 +300,20 @@ export function HomePreviewProviders({
 }: PropsWithChildren<{ owner?: boolean }>) {
   const state = useSyncExternalStore(subscribePreview, () => preview);
   const { selected } = state;
+  const selectedCatalog =
+    selected.id === workspace.id ? state.catalog : emptyCatalog;
   useEffect(() => {
     if (!owner) return;
     setSettingsPreview(
       JSON.stringify({
         account: { user: previewUser, workspaces: state.workspaces },
         workspaceId: selected.id,
+        catalog: selectedCatalog,
+        deleteFailures: ['ui-search'],
       }),
     );
     return () => setSettingsPreview('');
-  }, [owner, state.workspaces, selected.id]);
-  const selectedCatalog =
-    selected.id === workspace.id ? state.catalog : emptyCatalog;
+  }, [owner, state.workspaces, selected.id, selectedCatalog]);
   return (
     <AuthContext
       value={{
