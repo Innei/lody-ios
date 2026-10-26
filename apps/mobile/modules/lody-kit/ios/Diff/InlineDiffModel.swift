@@ -23,11 +23,13 @@ struct InlineDiffDocument: Equatable {
 
 enum InlineDiffModel {
   static func build(old: String, new: String, context: Int = 3) -> InlineDiffDocument {
-    let oldLines = splitLines(old)
-    let newLines = splitLines(new)
-    var rows = alignedLines(oldLines, newLines)
+    InlineDiffDocument(hunks: hunks(from: rows(old: old, new: new), context: context))
+  }
+
+  static func rows(old: String, new: String) -> [InlineDiffLine] {
+    var rows = alignedLines(splitLines(old), splitLines(new))
     emphasizeAdjacentReplacements(&rows)
-    return InlineDiffDocument(hunks: hunks(from: rows, context: context))
+    return rows
   }
 
   static func splitLines(_ text: String) -> [String] {
