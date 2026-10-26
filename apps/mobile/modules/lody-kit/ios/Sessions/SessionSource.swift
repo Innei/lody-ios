@@ -46,7 +46,7 @@ final class SessionSource {
   func raw(_ sessionId: String) -> String? { rawSession(sessionId) }
 
   static let live = SessionSource(
-    changes: [.lodyAuthDidChange, .lodyCatalogDidChange, .lodySessionCatalogPreviewDidChange],
+    changes: [.lodyAuthDidChange, .lodyCatalogDidChange, .lodySessionCatalogPreviewDidChange, .lodySessionViewsDidChange],
     read: { SessionCatalogPreview.state ?? SessionPublished.state() },
     raw: { id in SessionCatalogPreview.state == nil ? SessionPublished.raw(id) : SessionCatalogPreview.raw(id) },
     write: { workspaceId, sessionId, write in
@@ -69,6 +69,36 @@ final class SessionSource {
     }
     guard let raw, let object = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any] else { return [:] }
     return object.compactMapValues { ($0 as? NSNumber)?.doubleValue }.filter { $0.value.isFinite }
+  }
+
+  // The watermark is the message time, not the device clock, so later messages regain emphasis.
+  static func markViewed(userId: String, workspaceId: String, sessionId: String, at lastMessageAt: Double?) {
+    guard let lastMessageAt, lastMessageAt.isFinite, !userId.isEmpty, !workspaceId.isEmpty,
+      let data = try? JSONSerialization.data(withJSONObject: [userId, workspaceId], options: .withoutEscapingSlashes)
+    else { return }
+    let key = "session-views:\(String(decoding: data, as: UTF8.self))"
+    let generation = LocalStore.shared.generation
+    LocalStore.queue.async {
+      let raw = (try? LocalStore.shared.read(key)) ?? nil
+      var views = raw.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] } ?? [:]
+      guard ((views[sessionId] as? NSNumber)?.doubleValue ?? -.infinity) < lastMessageAt else { return }
+      views[sessionId] = lastMessageAt
+      let saved: Bool
+      if let json = try? JSONSerialization.data(withJSONObject: views) {
+        saved = (try? LocalStore.shared.write(key, String(decoding: json, as: UTF8.self), generation: generation)) != nil
+      } else {
+        saved = false
+      }
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated {
+          if saved {
+            NotificationCenter.default.post(name: .lodySessionViewsDidChange, object: nil)
+          } else {
+            LodyToastOverlay.shared.show(message: LodyStrings.text("catalog.toast.localSaveFailed"), kind: "error")
+          }
+        }
+      }
+    }
   }
 
   static func rawSession(in catalog: Any?, _ id: String) -> String? {
@@ -188,4 +218,5 @@ enum SessionCatalogPreview {
 
 extension Notification.Name {
   static let lodySessionCatalogPreviewDidChange = Notification.Name("LodySessionCatalogPreviewDidChange")
+  static let lodySessionViewsDidChange = Notification.Name("LodySessionViewsDidChange")
 }

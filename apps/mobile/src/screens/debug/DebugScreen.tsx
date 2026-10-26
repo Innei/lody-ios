@@ -1,5 +1,6 @@
 import { AIUsagePreviewScreen } from './AIUsagePreviewScreen';
 import { ArchivedSessionsPreviewScreen } from './ArchivedSessionsPreviewScreen';
+import { SessionPreviewScreen } from './SessionPreviewScreen';
 import {
   PublishedSharesPreviewScreen,
   publishedShareStatePages,
@@ -221,6 +222,7 @@ function View() {
         openRow('memory-states-preview', 'Memory states', 'brain'),
         openRow('agent-roles-preview', 'Agent 角色验收', 'person.crop.square'),
         openRow('archived-sessions-preview', 'Archived sessions', 'archivebox'),
+        openRow('session-preview-live', 'Native session', 'bubble.left'),
         openRow('machine-settings-preview', '机器设置验收', 'desktopcomputer'),
         openRow(
           'settings-forms-preview',
@@ -457,6 +459,12 @@ function View() {
     'agent-roles-preview': () => void present(AgentRolesPreviewScreen, {}),
     'archived-sessions-preview': () =>
       void present(ArchivedSessionsPreviewScreen, {}),
+    ...Object.fromEntries(
+      ['live', 'offline', 'find'].map((scenario) => [
+        `session-preview-${scenario}`,
+        () => void present(SessionPreviewScreen, { scenario }),
+      ]),
+    ),
     'machine-settings-preview': () =>
       void present(MachineSettingsPreviewScreen, {}),
     'settings-forms-preview': () =>

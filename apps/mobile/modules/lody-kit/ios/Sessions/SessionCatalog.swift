@@ -19,6 +19,7 @@ struct SessionItem: Equatable, Sendable {
   var modelNeverRan = false
   var diff: [String: Int] = [:]
   var lastViewedMessageAt: Double?
+  var machineId = ""
 
   var activityAt: Double { lastMessageAt ?? SessionItem.parse(createdAt) }
 
@@ -32,7 +33,7 @@ struct SessionItem: Equatable, Sendable {
 extension SessionItem: Decodable {
   private enum CodingKeys: String, CodingKey {
     case id, title, status, archived, pinned, projectId, createdAt, openedBySessionId, openedByRootSessionId
-    case parentSessionId, lastMessageAt, lastReadAt, awaitingUserSince, branchName, lastModel, diff
+    case parentSessionId, lastMessageAt, lastReadAt, awaitingUserSince, branchName, lastModel, diff, machineId
   }
 
   private struct Model: Decodable {
@@ -63,6 +64,7 @@ extension SessionItem: Decodable {
     lastReadAt = value(.lastReadAt)
     awaitingUserSince = value(.awaitingUserSince)
     branchName = present(value(.branchName))
+    machineId = value(.machineId) ?? ""
     modelNeverRan = values.contains(.lastModel) && ((try? values.decodeNil(forKey: .lastModel)) ?? false)
     if let model: Model = value(.lastModel) {
       modelName = [model.name, model.modelId].compactMap { $0 }.first { !$0.isEmpty } ?? ""

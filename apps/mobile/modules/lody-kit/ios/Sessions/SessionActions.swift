@@ -10,6 +10,10 @@ final class SessionActions {
     self.source = source
   }
 
+  static func isDeleting(_ workspaceId: String, _ sessionId: String) -> Bool {
+    deleting.contains("\(workspaceId):\(sessionId)")
+  }
+
   func open(_ rowId: String, findQuery: String? = nil, from controller: UIViewController) {
     if rowId.hasPrefix("project:") {
       let params = Self.json(["projectId": String(rowId.dropFirst(8))])
