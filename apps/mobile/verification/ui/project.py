@@ -11,8 +11,12 @@ def spoken(item):
     return ' '.join(str(item.get(key) or '') for key in ('AXLabel', 'AXValue')) + ' ' + ' '.join(spoken(child) for child in item.get('children') or [])
 
 
+SESSIONS = ('project-live', 'project-child', 'project-unread', 'project-archived', 'project-chat')
+
+
 def ids():
-    return [item.get('AXUniqueId') for item in ui.state() if str(item.get('AXUniqueId', '')).startswith('project-') and item.get('AXUniqueId') != 'project-preview-writes']
+    rows = sorted((item['frame']['y'], item['AXUniqueId']) for item in ui.state() if item.get('AXUniqueId') in SESSIONS)
+    return list(dict.fromkeys(identifier for _, identifier in rows))
 
 
 ui.element('project-live')
