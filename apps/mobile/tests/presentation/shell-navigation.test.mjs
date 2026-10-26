@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { build } from 'esbuild';
 
 const shown = [];
+const replies = [];
 let listener;
 let popped = 0;
 const stacks = [];
@@ -20,12 +21,15 @@ globalThis.__shellNative = {
     listener = next;
     return { remove() {} };
   },
+  previewReply: (id, error = '') => {
+    replies.push([id, error]);
+  },
 };
 const mocks = {
   react:
     'export const createContext = () => ({}); export const use = () => null; export const useEffect = () => {}; export const useSyncExternalStore = () => false;',
   '@lody-ios/kit':
-    'export const { navPresent, navPopToRoot, navSetStack, addNavListener } = globalThis.__shellNative;',
+    'export const { navPresent, navPopToRoot, navSetStack, addNavListener, previewReply } = globalThis.__shellNative;',
 };
 const root = new URL('../../src/lib/presentation/', import.meta.url).pathname;
 const bundle = await build({
@@ -60,6 +64,7 @@ const {
   installShellNavigation,
   isShellSheetPage,
   registerShellPages,
+  registerShellPreviewHandler,
   registerShellSessionHandler,
   shellAtRoot,
   shellNavigationState,
@@ -271,4 +276,42 @@ test('native session intents reach the registered handler without opening pages'
   listener(intent);
   assert.deepEqual(intents, [intent]);
   assert.equal(shown.length, count);
+});
+
+test('a native picker result completes its presentation before the page closes', async () => {
+  registerShellPages([{ ...page('push'), id: 'picker' }]);
+  const result = present({ ...page('push'), id: 'picker' }, { options: [] });
+  const id = last().id;
+  listener({ type: 'result', id, value: '"sheet-choice-2"' });
+  listener({ type: 'closed', id });
+  assert.deepEqual(await result, {
+    status: 'completed',
+    value: 'sheet-choice-2',
+  });
+});
+
+test('preview requests reply after the fixture applies them, and fail without one', async () => {
+  listener({ type: 'preview', id: 'r1', action: 'noop', fields: {} });
+  assert.deepEqual(replies.at(-1), ['r1', 'preview_unavailable']);
+  const applied = [];
+  const unregister = registerShellPreviewHandler(async (action, fields) => {
+    if (action === 'fail') throw new Error('offline_fixture');
+    applied.push([action, fields]);
+  });
+  listener({
+    type: 'preview',
+    id: 'r2',
+    action: 'deleteSessions',
+    fields: { sessionIds: ['s'] },
+  });
+  listener({ type: 'preview', id: 'r3', action: 'fail', fields: {} });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(applied, [['deleteSessions', { sessionIds: ['s'] }]]);
+  assert.deepEqual(replies.slice(-2), [
+    ['r2', ''],
+    ['r3', 'offline_fixture'],
+  ]);
+  unregister();
+  listener({ type: 'preview', id: 'r4', action: 'noop', fields: {} });
+  assert.deepEqual(replies.at(-1), ['r4', 'preview_unavailable']);
 });

@@ -6,7 +6,7 @@ final class LodyShell {
 
   var emit: ((String, Int) -> Void)?
   var emitOpen: ((String, String, [String: Any], Int) -> Void)?
-  var emitSession: (([String: Any]) -> Void)?
+  var emitNav: (([String: Any]) -> Void)?
   private var navigation: UINavigationController?
   private var pages: [Int: WeakPage] = [:]
   private let delegate = ShellNavigationDelegate()
@@ -62,7 +62,16 @@ final class LodyShell {
 
   // Sessions open through the React sessionNav mailbox until Home is native.
   func sessionIntent(_ action: String, _ fields: [String: Any]) {
-    emitSession?(fields.merging(["action": action]) { _, new in new })
+    emitNav?(fields.merging(["type": "session", "action": action]) { _, new in new })
+  }
+
+  // Settles the React presentation that hosts this native page; pages pushed natively have none.
+  func finish(from controller: UIViewController?, value: Any?) {
+    var current = controller
+    while let candidate = current, !(candidate is LodyPageController) { current = candidate.parent }
+    guard let page = current as? LodyPageController, page.spec.id != 0, !page.closed else { return }
+    let data = try? JSONSerialization.data(withJSONObject: value ?? NSNull(), options: .fragmentsAllowed)
+    emitNav?(["type": "result", "id": page.spec.id, "value": data.map { String(decoding: $0, as: UTF8.self) } ?? "null"])
   }
 
   private func push(_ page: LodyPageController, on target: UINavigationController?) {

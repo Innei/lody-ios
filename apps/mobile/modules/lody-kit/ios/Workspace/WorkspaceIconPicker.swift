@@ -3,15 +3,43 @@ import PhotosUI
 import UIKit
 import UniformTypeIdentifiers
 
+struct WorkspaceIconPickerError: LocalizedError {
+  let code: String
+  let message: String
+  var errorDescription: String? { message }
+}
+
 final class WorkspaceIconPicker: NSObject, PHPickerViewControllerDelegate {
-  private var promise: Promise?
+  private var completion: ((Result<WorkspaceIconFile?, Error>) -> Void)?
 
   func present(from controller: UIViewController, promise: Promise) {
-    guard self.promise == nil else {
-      promise.reject("PICKER_BUSY", "The workspace icon picker is already open")
+    present(from: controller) { result in
+      switch result {
+      case .success(let file?):
+        promise.resolve(["uri": file.url.absoluteString, "name": file.name, "type": file.type, "size": file.size])
+      case .success(nil):
+        promise.resolve(nil)
+      case .failure(let error as WorkspaceIconPickerError):
+        promise.reject(error.code, error.message)
+      case .failure(let error):
+        promise.reject(error)
+      }
+    }
+  }
+
+  @MainActor
+  func pick(from controller: UIViewController) async throws -> WorkspaceIconFile? {
+    try await withCheckedThrowingContinuation { continuation in
+      present(from: controller) { continuation.resume(with: $0) }
+    }
+  }
+
+  func present(from controller: UIViewController, completion: @escaping (Result<WorkspaceIconFile?, Error>) -> Void) {
+    guard self.completion == nil else {
+      completion(.failure(WorkspaceIconPickerError(code: "PICKER_BUSY", message: "The workspace icon picker is already open")))
       return
     }
-    self.promise = promise
+    self.completion = completion
     var configuration = PHPickerConfiguration(photoLibrary: .shared())
     configuration.filter = .images
     configuration.selectionLimit = 1
@@ -35,12 +63,7 @@ final class WorkspaceIconPicker: NSObject, PHPickerViewControllerDelegate {
           return
         }
         picker.dismiss(animated: true) {
-          self.finish([
-            "uri": url.absoluteString,
-            "name": "workspace-icon.jpg",
-            "type": "image/jpeg",
-            "size": data.count,
-          ])
+          self.finish(WorkspaceIconFile(url: url, name: "workspace-icon.jpg", type: "image/jpeg", size: data.count))
         }
       }
     }
@@ -63,13 +86,15 @@ final class WorkspaceIconPicker: NSObject, PHPickerViewControllerDelegate {
     return nil
   }
 
-  private func finish(_ value: Any?) {
-    promise?.resolve(value)
-    promise = nil
+  private func finish(_ file: WorkspaceIconFile?) {
+    let completion = completion
+    self.completion = nil
+    completion?(.success(file))
   }
 
   private func fail(_ message: String) {
-    promise?.reject("PICKER_FAILED", message)
-    promise = nil
+    let completion = completion
+    self.completion = nil
+    completion?(.failure(WorkspaceIconPickerError(code: "PICKER_FAILED", message: message)))
   }
 }

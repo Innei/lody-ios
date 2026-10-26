@@ -1,6 +1,9 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { View } from 'react-native';
-import { useShellNavigationState } from '@/lib/presentation/shellNavigation';
+import {
+  registerShellPreviewHandler,
+  useShellNavigationState,
+} from '@/lib/presentation/shellNavigation';
 import type { PropsWithChildren } from 'react';
 import {
   runtimeInfo,
@@ -287,6 +290,46 @@ function PreviewOwner() {
   return null;
 }
 
+type DeleteArgs = { sessionId: string; sessionIds: string[] };
+
+function selectWorkspace(id: string) {
+  updatePreview({
+    selected: workspaces.find((item) => item.id === id) ?? workspace,
+  });
+}
+
+async function deleteSessions(args: DeleteArgs) {
+  await new Promise((resolve) => setTimeout(resolve, 900));
+  // Deterministic service failure on the archived fixture; retry succeeds.
+  if (args.sessionId === 'ui-search' && !archivedDeleteFailed) {
+    archivedDeleteFailed = true;
+    throw new Error('offline_fixture');
+  }
+  updatePreview({
+    catalog: {
+      ...preview.catalog,
+      sessions: preview.catalog.sessions.filter(
+        (session) => !args.sessionIds.includes(session.id),
+      ),
+    },
+  });
+}
+
+async function applyNativeChange(
+  action: string,
+  fields: Record<string, unknown>,
+) {
+  const workspaceId = String(fields.workspaceId ?? '');
+  if (action === 'deleteSessions')
+    return deleteSessions(fields as unknown as DeleteArgs);
+  if (action === 'selectWorkspace') return selectWorkspace(workspaceId);
+  if (action === 'updateWorkspace')
+    return renameWorkspace(workspaceId, { name: String(fields.name ?? '') });
+  if (action === 'updateWorkspaceIcon')
+    return renameWorkspace(workspaceId, { image: String(fields.uri ?? '') });
+  throw new Error(`unsupported_preview_action:${action}`);
+}
+
 const previewUser = {
   id: 'ui-home',
   name: 'UI Preview',
@@ -309,11 +352,17 @@ export function HomePreviewProviders({
         account: { user: previewUser, workspaces: state.workspaces },
         workspaceId: selected.id,
         catalog: selectedCatalog,
-        deleteFailures: ['ui-search'],
       }),
     );
-    return () => setSettingsPreview('');
   }, [owner, state.workspaces, selected.id, selectedCatalog]);
+  useEffect(() => {
+    if (!owner) return;
+    const unregister = registerShellPreviewHandler(applyNativeChange);
+    return () => {
+      unregister();
+      setSettingsPreview('');
+    };
+  }, [owner]);
   return (
     <AuthContext
       value={{
@@ -347,30 +396,11 @@ export function HomePreviewProviders({
           connected: true,
           syncedAt: undefined,
           key: selected.id,
-          setWorkspaceId: (id) =>
-            updatePreview({
-              selected: workspaces.find((item) => item.id === id) ?? workspace,
-            }),
+          setWorkspaceId: selectWorkspace,
           refresh: noop,
           deleteSessionRequest: async (payload) => {
-            const args = JSON.parse(payload) as {
-              sessionId: string;
-              sessionIds: string[];
-            };
-            await new Promise((resolve) => setTimeout(resolve, 900));
-            // Deterministic service failure on the archived fixture; retry succeeds.
-            if (args.sessionId === 'ui-search' && !archivedDeleteFailed) {
-              archivedDeleteFailed = true;
-              throw new Error('offline_fixture');
-            }
-            updatePreview({
-              catalog: {
-                ...preview.catalog,
-                sessions: preview.catalog.sessions.filter(
-                  (session) => !args.sessionIds.includes(session.id),
-                ),
-              },
-            });
+            const args = JSON.parse(payload) as DeleteArgs;
+            await deleteSessions(args);
             return JSON.stringify({ sessionIds: args.sessionIds });
           },
         }}

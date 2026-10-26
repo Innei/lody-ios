@@ -12,14 +12,8 @@ import {
 import { DebugScreen } from '@/screens/debug/DebugScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
 import { ProjectScreen } from '@/screens/ProjectScreen';
-import { WorkspaceEditorScreen } from '@/screens/WorkspaceEditorScreen';
 
-registerShellPages([
-  DebugScreen,
-  NotificationSettingsScreen,
-  ProjectScreen,
-  WorkspaceEditorScreen,
-]);
+registerShellPages([DebugScreen, NotificationSettingsScreen, ProjectScreen]);
 
 registerShellSessionHandler((intent) => {
   if (intent.action === 'open') {
@@ -38,5 +32,6 @@ registerShellSessionHandler((intent) => {
     { ...catalog, sessions: [...catalog.sessions, ...pendingSessions] },
     intent.projectId,
     intent.context,
+    intent.zoomSourceLabel,
   );
 });

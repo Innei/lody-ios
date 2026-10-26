@@ -23,6 +23,7 @@ export {
   dismissSheetZoom,
   showToast,
   setSettingsPreview,
+  previewReply,
   copyText,
   showSessionBanner,
   dismissSessionBanner,
