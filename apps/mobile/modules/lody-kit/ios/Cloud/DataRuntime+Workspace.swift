@@ -11,20 +11,6 @@ extension DataRuntime {
     }
     callForRN(C.self, payload: payload, inject: ["userId": userId], promise: promise, timeout: timeout, project: project)
   }
-  func remoteSettings(_ payload: String, promise: Promise) {
-    workspaceCallForRN(RuntimeContract.Calls.RemoteSettings.self, payload: payload, promise: promise) { $0.settings }
-  }
-  func memorySettings(_ payload: String, promise: Promise) {
-    workspaceCallForRN(RuntimeContract.Calls.MemorySettings.self, payload: payload, promise: promise)
-  }
-  func publishedShares(_ payload: String, promise: Promise) {
-    workspaceCallForRN(RuntimeContract.Calls.PublishedShares.self, payload: payload, promise: promise) { result -> any Encodable in
-      switch result {
-      case .page(let value): return value
-      case .failed(let value): return value
-      }
-    }
-  }
   func mentionCatalog(_ payload: String, promise: Promise) {
     workspaceCallForRN(RuntimeContract.Calls.MentionCatalog.self, payload: payload, promise: promise)
   }
@@ -42,14 +28,6 @@ extension DataRuntime {
       case .history(let value): return value
       case .directory(let value): return value
       case .project(let value): return value.project
-      }
-    }
-  }
-  func sessionSharing(_ payload: String, promise: Promise) {
-    workspaceCallForRN(RuntimeContract.Calls.SessionSharing.self, payload: payload, promise: promise) { result -> any Encodable in
-      switch result {
-      case .closed: return RuntimeContract.JSONValue.null
-      case .state(let value): return value
       }
     }
   }

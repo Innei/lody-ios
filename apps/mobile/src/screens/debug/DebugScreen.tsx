@@ -17,6 +17,7 @@ import { SteerPreviewScreen } from './SteerPreviewScreen';
 import { AgentErrorPreviewScreen } from './AgentErrorPreviewScreen';
 import { DirectoryPreviewScreen } from './DirectoryPreviewScreen';
 import { ProjectPreviewScreen } from './ProjectPreviewScreen';
+import { ActivityPreviewScreen } from './ActivityPreviewScreen';
 import { ProjectHistoryPreviewScreen } from './ProjectHistoryPreviewScreen';
 import { PullRequestPreviewScreen } from './PullRequestPreviewScreen';
 import { FilePreviewScreen } from './FilePreviewScreen';
@@ -208,6 +209,7 @@ function View() {
         ),
         openRow('directory-preview', 'Folder browser', 'folder'),
         openRow('project-preview', 'Project page', 'folder.badge.gearshape'),
+        openRow('activity-preview', 'Activity page', 'bolt.horizontal'),
         openRow('settings-preview', '远程设置验收', 'gear'),
         openRow('mcp-settings-preview', 'MCP 设置验收', 'server.rack'),
         openRow('memory-preview', 'Memory acceptance', 'brain'),
@@ -423,6 +425,11 @@ function View() {
         projectId: 'preview-empty',
         offline: true,
       }),
+    'activity-preview': () => void present(ActivityPreviewScreen, {}),
+    'activity-preview-wrong-account': () =>
+      void present(ActivityPreviewScreen, { scenario: 'wrong-account' }),
+    'activity-preview-offline': () =>
+      void present(ActivityPreviewScreen, { scenario: 'offline' }),
     'pull-request-preview': () => void present(PullRequestPreviewScreen, {}),
     'project-picker-preview': () => void openCreateParity(),
     'ai-usage-preview': () => void present(AIUsagePreviewScreen, {}),

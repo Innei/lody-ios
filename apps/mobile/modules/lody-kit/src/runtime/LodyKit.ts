@@ -14,7 +14,6 @@ export type InboxSearchHits = {
   sessions: { id: string; snippet: string | null }[];
 };
 export type DataRuntimeEvent = {
-  shareProgress?: import('@lody/cloud-runtime/models/session-sharing').ShareProgress;
   sessionId?: string;
   session?: string;
   owner: string;
@@ -92,7 +91,6 @@ type Events = {
   onDataRuntime: (event: DataRuntimeEvent) => void;
 };
 declare class LodyKitNativeModule extends NativeModule<Events> {
-  sessionSharing(payload: string): Promise<string>;
   verifyPushSubscription(): Promise<void>;
   setPushUser(userId: string | null): Promise<void>;
   pushStatus(): Promise<import('../notifications/notifications').PushStatus>;
@@ -160,9 +158,6 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   shareAdopt(id: string): string;
   shareRemove(id: string): void;
   localProjects(payload: string): Promise<string>;
-  remoteSettings(payload: string): Promise<string>;
-  memorySettings(payload: string): Promise<string>;
-  publishedShares(payload: string): Promise<string>;
   createSession(payload: string): Promise<string>;
   archiveSession(payload: string): Promise<string>;
   deleteSession(payload: string): Promise<string>;
@@ -244,10 +239,6 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   ): Promise<string>;
 }
 export const native = requireNativeModule<LodyKitNativeModule>('LodyKit');
-export const remoteSettingsRaw = (payload: string): Promise<string> =>
-  native.remoteSettings(payload);
-export const sessionSharingRaw = (payload: string): Promise<string> =>
-  native.sessionSharing(payload);
 export const runtimeInfo = native.runtimeInfo;
 export const saveAccentColor = (value: string) => native.saveAccentColor(value);
 export const accentForegroundHex = (value: string) =>
@@ -549,9 +540,3 @@ export const localProjects = (payload: string) => native.localProjects(payload);
 
 export const debugBackgroundDataRuntime = (action: string) =>
   native.debugBackgroundDataRuntime(action);
-
-export const memorySettingsRaw = (payload: string): Promise<string> =>
-  native.memorySettings(payload);
-
-export const publishedSharesRaw = (payload: string): Promise<string> =>
-  native.publishedShares(payload);

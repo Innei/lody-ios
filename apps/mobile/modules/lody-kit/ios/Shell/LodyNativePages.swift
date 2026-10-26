@@ -56,6 +56,16 @@ enum LodyNativePages {
     "project-preview": { params in
       ProjectPreviewController(projectId: params["projectId"] as? String ?? "preview-lody", connected: params["offline"] == nil)
     },
+    "activity": { params in
+      ActivityController(workspaceId: params["workspaceId"] as? String ?? "", userId: params["userId"] as? String ?? "")
+    },
+    "activity-preview": { params in ActivityPreviewController(scenario: params["scenario"] as? String ?? "live") },
+    "session-share": { params in
+      SessionShareController(workspaceId: params["workspaceId"] as? String ?? "", sessionId: params["sessionId"] as? String ?? "")
+    },
+    "session-share-preview": { _ in SessionSharePreviewController() },
+    "agent-error": { params in AgentErrorController(params: params) },
+    "message-share": { params in MessageShareController(contentJSON: params["contentJSON"] as? String ?? "") },
   ]
 
   private static func picker(_ params: [String: Any]) -> UIViewController {

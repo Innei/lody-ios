@@ -93,6 +93,8 @@ const NATIVE_PREFIXES = [
   'settings.developer.',
   'account.',
   'diagnostics.title',
+  'share.',
+  'notifications.route.wrongAccount',
 ];
 const isNativeKey = (key) =>
   NATIVE_PREFIXES.some((prefix) => key.startsWith(prefix));
