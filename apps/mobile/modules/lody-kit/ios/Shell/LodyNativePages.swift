@@ -18,6 +18,8 @@ enum LodyNativePages {
     "prompt-shortcuts-preview": { _ in PromptShortcutsPreviewController() },
     "agent-roles": { _ in AgentRolesController() },
     "agent-roles-preview": { _ in AgentRolesPreviewController() },
+    "settings": { _ in SettingsController() },
+    "settings-baseline": { params in SettingsBaselineController(scenario: params["scenario"] as? String ?? "live") },
     "memory-settings": { params in MemorySettingsController(scope: .live(params)) },
     "memory-preview": { _ in MemoryPreviewController() },
     "memory-states-preview": { _ in MemoryPreviewController(state: "not_installed") },

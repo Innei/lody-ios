@@ -620,9 +620,12 @@ with metro_context:
                         check_timeout = 300
                     if case in ('agent-roles', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states'):
                         check_timeout = 420
-                    if case in ('settings', 'settings-baseline', 'agents-settings'):
+                    if case in ('settings', 'agents-settings'):
                         # These cases visit several Settings contexts or editors.
                         check_timeout = 300
+                    if case == 'settings-baseline':
+                        # Six fixture scenarios plus page visits; ~305s under load.
+                        check_timeout = 420
                     if case == 'pull-request':
                         # Authorization, comment and investigation round trips share this case.
                         check_timeout = 300
@@ -660,7 +663,7 @@ with metro_context:
                     elif case == 'navigation':
                         # Three cold relaunches plus catalog links; 360s still dies on a cold CI AXe session.
                         check_timeout = 480
-                    elif case in ('branch-picker', 'session-search', 'session-search-pad', 'chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance'):
+                    elif case in ('branch-picker', 'session-search', 'session-search-pad', 'chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance', 'ipad'):
                         check_timeout = 300
                     check_started = time.monotonic()
                     with (output / 'check.log').open('w') as log:

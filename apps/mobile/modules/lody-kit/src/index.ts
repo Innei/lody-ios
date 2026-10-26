@@ -22,6 +22,7 @@ export {
   prepareSheetZoom,
   dismissSheetZoom,
   showToast,
+  setSettingsPreview,
   copyText,
   showSessionBanner,
   dismissSessionBanner,

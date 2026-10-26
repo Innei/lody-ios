@@ -43,7 +43,13 @@ export type PickedWorkspaceIcon = {
 };
 export type NavEvent =
   | { type: 'closed' | 'focus' | 'blur'; id: number }
-  | { type: 'open'; page: string; params: string; container: number };
+  | {
+      type: 'open';
+      page: string;
+      params: string;
+      options?: { title?: string; present?: boolean };
+      container: number;
+    };
 export type ShellPage = {
   id: number;
   title: string;
@@ -190,6 +196,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   pickWorkspaceIcon(): Promise<PickedWorkspaceIcon | null>;
   cancelComposerRelay(id: string): Promise<void>;
   showToast(message: string, kind: string): void;
+  setSettingsPreview(json: string): void;
   prepareSheetZoom(sourceLabel: string): void;
   dismissSheetZoom(): Promise<void>;
   copyText(text: string): void;
@@ -295,6 +302,9 @@ export function dismissSheetZoom(): Promise<void> {
 
 export type ToastKind = 'info' | 'warning' | 'error';
 export type SessionBannerKind = 'completed' | 'attention';
+
+export const setSettingsPreview = (json: string) =>
+  native.setSettingsPreview(json);
 
 /** Rendered by a dedicated UIWindow above sheets, so it is never occluded. */
 export function showToast(message: string, kind: ToastKind = 'error'): void {

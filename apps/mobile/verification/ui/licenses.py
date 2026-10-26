@@ -50,20 +50,20 @@ ui.capture('app-license')
 ui.axe('tap', '--id', 'BackButton', '--post-delay', '1')
 ui.element('Lody for iOS')
 
-first = ui.element('abort-controller')
+first = ui.element('anser')
 assert 'MIT' in (first.get('AXLabel') or ''), first
 ui.capture('list')
 
-ui.axe('tap', '--id', 'abort-controller', '--post-delay', '1')
+ui.axe('tap', '--id', 'anser', '--post-delay', '1')
 ui.wait(
     lambda items: any('Permission is hereby granted' in (i.get('AXLabel') or '') for i in items),
     'Detail page must show the full license text',
 )
-ui.wait(lambda items: any(i.get('AXLabel') == 'abort-controller' for i in items), 'Detail page must name the library')
+ui.wait(lambda items: any(i.get('AXLabel') == 'anser' for i in items), 'Detail page must name the library')
 ui.capture('detail')
 
 ui.axe('tap', '--id', 'BackButton', '--post-delay', '1')
-ui.element('abort-controller')
+ui.element('anser')
 ui.capture('back')
 
 # Return through About before reaching the Settings sheet root.

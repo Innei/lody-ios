@@ -2,7 +2,12 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { View } from 'react-native';
 import { useShellNavigationState } from '@/lib/presentation/shellNavigation';
 import type { PropsWithChildren } from 'react';
-import { runtimeInfo, readLocalValue, writeLocalValue } from '@lody-ios/kit';
+import {
+  runtimeInfo,
+  readLocalValue,
+  setSettingsPreview,
+  writeLocalValue,
+} from '@lody-ios/kit';
 import { MachinePresenceContext } from '@/cloud/catalog/machines';
 import type { WorkspacePresence } from '@/cloud/catalog/store';
 import { AuthContext } from '@/cloud/auth/AuthProvider';
@@ -282,24 +287,36 @@ function PreviewOwner() {
   return null;
 }
 
+const previewUser = {
+  id: 'ui-home',
+  name: 'UI Preview',
+  email: '',
+  image: previewPhoto,
+};
+
 export function HomePreviewProviders({
   children,
   owner = true,
 }: PropsWithChildren<{ owner?: boolean }>) {
   const state = useSyncExternalStore(subscribePreview, () => preview);
   const { selected } = state;
+  useEffect(() => {
+    if (!owner) return;
+    setSettingsPreview(
+      JSON.stringify({
+        account: { user: previewUser, workspaces: state.workspaces },
+        workspaceId: selected.id,
+      }),
+    );
+    return () => setSettingsPreview('');
+  }, [owner, state.workspaces, selected.id]);
   const selectedCatalog =
     selected.id === workspace.id ? state.catalog : emptyCatalog;
   return (
     <AuthContext
       value={{
         account: {
-          user: {
-            id: 'ui-home',
-            name: 'UI Preview',
-            email: '',
-            image: previewPhoto,
-          },
+          user: previewUser,
           workspaces: state.workspaces,
         },
         busy: false,

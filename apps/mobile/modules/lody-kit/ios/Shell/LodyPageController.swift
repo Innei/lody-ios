@@ -61,10 +61,22 @@ final class LodyPageController: UIViewController {
       content = nil
       view = UIView()
       embed(native)
+      addCloseItem()
     } else {
       view = LodyShellHost.surface?("LodyPage", ["presentationId": spec.id]) ?? UIView()
     }
     updateBackground()
+  }
+
+  // React pages add this from ShellPage; native sheet roots without their own items get the same control.
+  private func addCloseItem() {
+    guard inSheet, spec.style != "push", spec.headerShown,
+          navigationItem.rightBarButtonItems?.isEmpty ?? true, navigationItem.leftBarButtonItems?.isEmpty ?? true else { return }
+    let close = UIBarButtonItem(primaryAction: UIAction(image: UIImage(systemName: "xmark")) { [weak self] _ in
+      self?.dismiss(animated: true)
+    })
+    close.accessibilityLabel = LodyStrings.text("accessibility.closeSheet", ["title": spec.title])
+    navigationItem.rightBarButtonItems = [close]
   }
 
   private func embed(_ child: UIViewController) {
