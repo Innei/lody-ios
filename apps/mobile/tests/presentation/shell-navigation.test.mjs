@@ -222,3 +222,37 @@ test('native pages receive their params, and open registered pages in their shee
   listener({ type: 'open', page: 'missing', params: '{}', container: root });
   assert.equal(shown.length, count);
 });
+
+test('native pages open registered pages with a title, or as their own sheet', () => {
+  registerShellPages([
+    { ...page('push'), id: 'remote-settings' },
+    { ...page('formSheet'), id: 'workspace-editor' },
+  ]);
+  void present(page('formSheet'));
+  const sheet = last().id;
+  listener({
+    type: 'open',
+    page: 'remote-settings',
+    params: '{"kind":"agent"}',
+    options: { title: 'Agents' },
+    container: sheet,
+  });
+  assert.deepEqual(
+    { title: last().title, style: last().style, container: last().container },
+    { title: 'Agents', style: 'push', container: sheet },
+  );
+  listener({
+    type: 'open',
+    page: 'workspace-editor',
+    params: '{"workspaceId":"w"}',
+    options: { title: 'General', present: true },
+    container: sheet,
+  });
+  assert.deepEqual(
+    { title: last().title, style: last().style, container: last().container },
+    { title: 'General', style: 'formSheet', container: undefined },
+  );
+  assert.deepEqual(getPresentationSession(last().id).params, {
+    workspaceId: 'w',
+  });
+});

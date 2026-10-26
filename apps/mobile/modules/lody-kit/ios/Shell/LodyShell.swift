@@ -5,7 +5,7 @@ final class LodyShell {
   static let shared = LodyShell()
 
   var emit: ((String, Int) -> Void)?
-  var emitOpen: ((String, String, Int) -> Void)?
+  var emitOpen: ((String, String, [String: Any], Int) -> Void)?
   private var navigation: UINavigationController?
   private var pages: [Int: WeakPage] = [:]
   private let delegate = ShellNavigationDelegate()
@@ -31,8 +31,9 @@ final class LodyShell {
     }
   }
 
-  func pushNative(_ id: String, title: String, from source: UIViewController) {
-    guard let content = LodyNativePages.make(id, params: nil) else { return }
+  func pushNative(_ id: String, title: String, params: [String: Any] = [:], from source: UIViewController) {
+    let json = (try? JSONSerialization.data(withJSONObject: params)).map { String(decoding: $0, as: UTF8.self) }
+    guard let content = LodyNativePages.make(id, params: json) else { return }
     pushNative(content, title: title, from: source)
   }
 
@@ -45,17 +46,17 @@ final class LodyShell {
     push(LodyPageController(spec: spec, inSheet: target !== navigation, content: content), on: target)
   }
 
-  func presentNative(_ content: UIViewController, title: String) {
+  func presentNative(_ content: UIViewController, title: String, detents: [Double] = [1], grabber: Bool = false) {
     let spec = ShellPageSpec(
       id: 0, title: title, style: "formSheet", animation: "slide", dismissible: true, headerShown: true,
-      headerVariant: "transparent", detents: [1]
+      headerVariant: "transparent", detents: detents, grabber: grabber
     )
     presentModal(LodyPageController(spec: spec, inSheet: true, content: content))
   }
 
-  func openPage(_ id: String, params: String = "{}", from source: UIViewController) {
-    let pages = source.navigationController?.viewControllers.compactMap { $0 as? LodyPageController } ?? []
-    emitOpen?(id, params, pages.last { $0.spec.id != 0 }?.spec.id ?? 0)
+  func openPage(_ id: String, params: String = "{}", options: [String: Any] = [:], from source: UIViewController?) {
+    let pages = source?.navigationController?.viewControllers.compactMap { $0 as? LodyPageController } ?? []
+    emitOpen?(id, params, options, pages.last { $0.spec.id != 0 }?.spec.id ?? 0)
   }
 
   private func push(_ page: LodyPageController, on target: UINavigationController?) {

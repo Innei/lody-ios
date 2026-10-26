@@ -35,7 +35,7 @@ const NATIVE_PREFIXES = [
   'settings.preferences.',
   'settings.queuedMessageBehavior.',
   'settings.quickReplies.',
-  'settings.section.about',
+  'settings.section.',
   'workspace.edit.signedOut',
   'workspace.edit.invalidIcon',
   'workspace.edit.iconUploadFailed',
@@ -54,6 +54,19 @@ const NATIVE_PREFIXES = [
   'settings.remote.prompt',
   'settings.remote.conflict',
   'time.',
+  'settings.remote.machine',
+  'settings.remote.agent',
+  'settings.remote.mcp',
+  'settings.account.',
+  'settings.workspace.',
+  'settings.connection.',
+  'settings.machineCount',
+  'settings.history.title',
+  'settings.archived.title',
+  'settings.about.',
+  'settings.developer.',
+  'account.',
+  'diagnostics.title',
 ];
 const isNativeKey = (key) =>
   NATIVE_PREFIXES.some((prefix) => key.startsWith(prefix));

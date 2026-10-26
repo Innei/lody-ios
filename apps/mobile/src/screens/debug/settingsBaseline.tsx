@@ -7,8 +7,8 @@ import {
   getConnection,
   type Connection,
 } from '@/cloud/catalog/connection';
-import { present } from '@/lib/presentation';
-import { SettingsScreen } from '../SettingsScreen';
+import { t } from '@/lib/i18n';
+import { definePage, present } from '@/lib/presentation';
 import { uiVerify } from './uiVerify';
 
 export const settingsBaselineScenarios = [
@@ -59,28 +59,19 @@ export function switchSettingsBaselineAccount(
   };
 }
 
+const SettingsBaselineScreen = definePage<{ scenario: Scenario }>({
+  id: 'settings-baseline',
+  title: t('tabs.settings'),
+  native: true,
+  presentation: {
+    style: 'formSheet',
+    headerVariant: 'transparent',
+    sheetAllowedDetents: [1],
+  },
+});
+
 export async function openSettingsBaseline(scenario: Scenario) {
-  if (!uiVerify) return;
-  const startedAt = Date.now();
-  const hasCatalog = scenario === 'cached' || scenario === 'live';
-  let state: Connection['state'] = 'offline';
-  if (scenario === 'live') state = 'live';
-  if (scenario === 'syncing') state = 'syncing';
-  update({
-    scenario,
-    refreshes: 0,
-    startedAt,
-    connection: {
-      state,
-      machines: hasCatalog ? cached.machineIds.length : 0,
-      syncedAt: hasCatalog ? startedAt - 60_000 : undefined,
-    },
-  });
-  try {
-    await present(SettingsScreen, {});
-  } finally {
-    if (fixture?.startedAt === startedAt) update(null);
-  }
+  if (uiVerify) await present(SettingsBaselineScreen, { scenario });
 }
 
 export function SettingsBaselineProviders({

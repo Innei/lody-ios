@@ -116,8 +116,8 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       outbox.presenter = { self?.appContext?.utilities?.currentViewController() }
       outbox.emit = { key in self?.sendEvent("onOutboxChange", ["key": key]) }
       LodyShell.shared.emit = { type, id in self?.sendEvent("onNav", ["type": type, "id": id]) }
-      LodyShell.shared.emitOpen = { page, params, container in
-        self?.sendEvent("onNav", ["type": "open", "page": page, "params": params, "container": container])
+      LodyShell.shared.emitOpen = { page, params, options, container in
+        self?.sendEvent("onNav", ["type": "open", "page": page, "params": params, "options": options, "container": container])
       }
       if let runtime = self?.dataRuntime {
         DataRuntime.current = runtime
@@ -149,6 +149,11 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       self.accentPicker.dismiss()
       PushNotifications.shared.onClickAvailable = nil
     }
+  }
+
+  @JS
+  func setSettingsPreview(json: String) {
+    Task { @MainActor in SettingsPreview.set(json) }
   }
 
   @JS

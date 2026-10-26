@@ -82,19 +82,24 @@ export function registerShellPages(pages: PageDefinitionBase[]) {
   for (const page of pages) shellPages.set(page.id, page);
 }
 
-function openShellPage(id: string, params: string, container: number) {
-  const page = shellPages.get(id);
+function openShellPage(event: Extract<NavEvent, { type: 'open' }>) {
+  const page = shellPages.get(event.page);
   if (!page) return;
+  const { present: modal, ...presentation } = event.options ?? {};
+  let target: object = { ...presentation, style: 'push' };
+  if (modal) target = presentation;
+  else if (sheetPages.has(event.container))
+    target = { ...presentation, container: event.container };
   void (present as (...args: unknown[]) => Promise<unknown>)(
     page,
-    JSON.parse(params),
-    sheetPages.has(container) ? { container } : { style: 'push' },
+    JSON.parse(event.params),
+    target,
   );
 }
 
 function onNav(event: NavEvent) {
   if (event.type === 'open') {
-    openShellPage(event.page, event.params, event.container);
+    openShellPage(event);
     return;
   }
   if (event.type === 'closed') {
