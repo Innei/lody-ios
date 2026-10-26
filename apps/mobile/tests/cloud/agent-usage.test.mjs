@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import { projectRows } from '../../src/cloud/catalog/model.ts';
-import { mergeAgentQuotas } from '../../src/cloud/catalog/agent-usage.ts';
+import { mergeAgentQuotas } from '../../../../packages/cloud-runtime/src/protocol/agent-usage.ts';
 
 test('machine replica changes reach usage rows, preserve zero/expired limits and never expose API credentials', () => {
   const machine = new Flock('usage-behavior');

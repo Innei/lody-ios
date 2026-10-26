@@ -125,7 +125,6 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   saveAccentColor(value: string): void;
   accentHex(value: string, dark: boolean): string;
   accentForegroundHex(value: string): string;
-  showAccentColorPicker(title: string): Promise<void>;
   getAppIcon(): Promise<string>;
   setAppIcon(name: string): Promise<string>;
   readonly initialLocale: string;
@@ -238,8 +237,6 @@ export const accentForegroundHex = (value: string) =>
   native.accentForegroundHex(value);
 export const accentHex = (value: string, dark: boolean) =>
   native.accentHex(value, dark);
-export const showAccentColorPicker = (title: string) =>
-  native.showAccentColorPicker(title);
 export const readPreferencesRaw = () => native.readPreferences();
 export const addPreferencesListener = (
   listener: (event: { json: string }) => void,
