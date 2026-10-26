@@ -28,6 +28,10 @@ extension DataRuntime {
     guard inOpenSession(payload, sink: .promise(promise)) else { return }
     callForRN(C.self, payload: payload, promise: promise)
   }
+  func controlTurn(_ payload: String, sink: ReplySink) {
+    guard inOpenSession(payload, sink: sink) else { return }
+    callForRN(RuntimeContract.Calls.ControlTurn.self, payload: payload, sink: sink)
+  }
   func workspaceBillingEntitlement(workspace: String, user: String, promise: Promise) {
     guard self.workspace == workspace, userId == user else { promise.resolve("{}"); return }
     let generation = self.generation
@@ -138,6 +142,7 @@ extension DataRuntime {
               "attachmentId": attachmentID, "phase": phase]
             if let percent { event["percent"] = percent }
             self.emitUploadProgress(event)
+            NotificationCenter.default.post(name: .lodyAttachmentUploadProgress, object: nil, userInfo: event)
           }
         }
         try Task.checkCancellation()

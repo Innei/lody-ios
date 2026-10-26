@@ -23,6 +23,9 @@ struct SessionFeedState: Equatable, Sendable {
   var revision = -1
   var overflow = false
   var entriesJSON = "[]"
+  var billableTurnCount: Int?
+  var composerJSON: String?
+  var transcript = SessionTranscriptFacts()
 }
 
 @MainActor
@@ -90,6 +93,7 @@ final class SessionFeed {
         MainActor.assumeIsolated { [weak self] in
           guard let self, self.token == token, !self.received, let saved, saved.version == 1 else { return }
           self.state.entriesJSON = saved.entriesJSON
+          self.state.transcript = saved.transcript
           self.changed?()
         }
       }
@@ -146,7 +150,10 @@ final class SessionFeed {
     state.overflow = false
     if envelope.status == "live" {
       received = true
-      state = SessionFeedState(status: "live", revision: revision, entriesJSON: envelope.entriesJSON)
+      state = SessionFeedState(
+        status: "live", revision: revision, entriesJSON: envelope.entriesJSON,
+        billableTurnCount: envelope.billableTurnCount, composerJSON: envelope.composerJSON, transcript: envelope.transcript
+      )
     } else {
       state.status = envelope.status
     }

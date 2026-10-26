@@ -28,7 +28,10 @@ final class OutboxDispatcher {
     var foregroundSessionId = ""
     var latestUserMessages: [String: String] = [:]
     var catalogRevision = 0
+    var context = OutboxForeground()
   }
+
+  private typealias Plan = (queue: Bool, guide: Bool)
 
   private struct Trigger: Equatable {
     let store: ObjectIdentifier?
@@ -39,20 +42,23 @@ final class OutboxDispatcher {
   static let maxSessionReserves = 8
   private static let occupying: Set<String> = ["creating", "sending", "unknown", "uploaded"]
   private static let settled: Set<String> = ["accepted", "queued", "failed"]
-  private static let busy: Set<String> = ["running", "initializing", "processing", "in_progress", "queued", "requestPermission", "waiting"]
+  static let busy: Set<String> = ["running", "initializing", "processing", "in_progress", "queued", "requestPermission", "waiting"]
 
   let inflight: OutboxInflight
+  var settled: (() -> Void)?
   private let services: OutboxServices
   private let text: (String) -> String
+  private let foreground: String?
   private var store: OutboxStore?
   private var inputs = Inputs()
   private var released: [String: String] = [:]
   private var trigger: Trigger?
   private var scheduled = false
 
-  init(services: OutboxServices, inflight: OutboxInflight, text: @escaping (String) -> String) {
+  init(services: OutboxServices, inflight: OutboxInflight, foreground: String? = nil, text: @escaping (String) -> String) {
     self.services = services
     self.inflight = inflight
+    self.foreground = foreground
     self.text = text
   }
 
@@ -76,8 +82,13 @@ final class OutboxDispatcher {
     let next = Trigger(store: store.map(ObjectIdentifier.init), revision: store?.revision ?? 0, inputs: inputs)
     guard next != trigger else { return }
     trigger = next
-    guard let store, store.snapshot.ready, !inputs.userId.isEmpty else { return }
+    guard let store, store.snapshot.ready else { return }
     let records = store.snapshot.records
+    if let foreground {
+      if let record = records.first(where: { $0.sessionId == foreground }) { considerForeground(record, store: store) }
+      return
+    }
+    guard !inputs.userId.isEmpty else { return }
     var slots = records.filter { $0.sessionId != inputs.foregroundSessionId && Self.occupying.contains($0.phase) }.count
     for record in records { consider(record, store: store, slots: &slots) }
   }
@@ -109,18 +120,44 @@ final class OutboxDispatcher {
     guard id != inputs.foregroundSessionId, phase == "waiting", !inflight.contains(id),
           inputs.connected, slots < Self.maxSessionReserves else { return }
     slots += 1
+    start(record, store: store, plan: nil)
+  }
+
+  private func considerForeground(_ record: OutboxRecord, store: OutboxStore) {
+    let id = record.sessionId, phase = record.phase, context = inputs.context
+    guard !inflight.contains(id) else { return }
+    if record.creation == nil, context.transcript.replied.contains(record.sendId) {
+      store.remove(id)
+      return
+    }
+    if record.creation != nil, context.serverCreated, phase == "unknown" {
+      store.put(record.with(phase: "waiting", dropCreation: true))
+      return
+    }
+    guard phase == "waiting", !context.overflow, !inputs.userId.isEmpty,
+          record.creation != nil || !context.transcript.entryIds.contains(record.sendId),
+          record.creation == nil ? context.live : inputs.connected else { return }
+    start(record, store: store, plan: context.plan(record.send))
+  }
+
+  private func start(_ record: OutboxRecord, store: OutboxStore, plan: Plan?) {
+    let id = record.sessionId
     inflight.set(id, true)
     let marked = record.with(phase: record.creation == nil ? "sending" : "creating")
     let marking = store.put(marked)
     let userId = inputs.userId
     Task { @MainActor in
-      await self.dispatch(record, marked: marked, marking: marking, store: store, userId: userId)
+      await self.dispatch(record, marked: marked, marking: marking, store: store, userId: userId, plan: plan)
       self.inflight.set(id, false)
+      guard self.foreground != nil else { return }
+      self.trigger = nil
+      self.schedule()
+      self.settled?()
     }
   }
 
   private func dispatch(_ record: OutboxRecord, marked: OutboxRecord, marking: Task<Void, Error>,
-                        store: OutboxStore, userId: String) async {
+                        store: OutboxStore, userId: String, plan: Plan?) async {
     let id = record.sessionId
     var started = false
     do {
@@ -149,18 +186,19 @@ final class OutboxDispatcher {
         return
       }
       started = true
-      let result = try Self.parse(await services.sendSessionTurn(Self.turn(record, userId: userId)))
+      let result = try Self.parse(await services.sendSessionTurn(Self.turn(record, userId: userId, plan: plan)))
       let state = result["state"]?.string ?? ""
       if state == "not_sent" {
-        if result["reason"]?.string == "session_not_ready" {
+        if plan == nil, result["reason"]?.string == "session_not_ready" {
           try await store.put(record.with(phase: "waiting")).value
           return
         }
         await fail(record, store: store, reason: quotaError(result["reason"]?.string, fallback: "send.error.notSent"))
         return
       }
-      let next = ["accepted", "uploaded", "queued"].contains(state) ? state : "unknown"
-      try await store.put(record.with(phase: next)).value
+      var next = record.with(phase: ["accepted", "uploaded", "queued"].contains(state) ? state : "unknown")
+      if let plan { next.send["guide"] = .bool(plan.guide) }
+      try await store.put(next).value
     } catch {
       if started { _ = await store.put(record.with(phase: "unknown")).result }
       else { await fail(record, store: store, reason: text("send.error.draftSaveFailed")) }
@@ -194,14 +232,14 @@ final class OutboxDispatcher {
     return value
   }
 
-  static func turn(_ record: OutboxRecord, userId: String) -> String {
+  static func turn(_ record: OutboxRecord, userId: String, plan: (queue: Bool, guide: Bool)? = nil) -> String {
     let session = record.session, send = record.send
-    let guide = send["guide"] == .bool(true)
     let busy = send["queue"] == .bool(true) || Self.busy.contains(session["status"]?.string ?? "")
+    let plan = plan ?? (send["guide"]?.truthy != true && busy, send["guide"] == .bool(true))
     var payload: [String: OutboxValue] = [
       "userId": .string(userId),
-      "guide": .bool(guide),
-      "queue": .bool(send["guide"]?.truthy != true && busy),
+      "guide": .bool(plan.guide),
+      "queue": .bool(plan.queue),
     ]
     payload["sessionId"] = session["id"]
     for key in ["machineId", "cliType", "agentType", "resume"] { payload[key] = session[key] }

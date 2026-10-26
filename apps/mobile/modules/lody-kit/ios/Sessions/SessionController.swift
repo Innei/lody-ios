@@ -1,3 +1,4 @@
+import LodyCore
 import UIKit
 
 @MainActor
@@ -5,26 +6,41 @@ class SessionController: UIViewController {
   let chat = LodyChatView(appContext: nil)
   let source: SessionSource
   let sessionId: String
+  let environment: SessionSendEnvironment
   private let feedService: SessionFeedService
   private let findQuery: String
   private lazy var actions = SessionActions(source: source)
-  private var feed: SessionFeed?
+  private(set) var feed: SessionFeed?
+  lazy var composerModel = SessionComposerModel(choice: initialChoice, service: environment.composer)
+  lazy var control = SessionControl(request: environment.control)
+  var sender: SessionSender?
+  var quotaEntry = "pending"
+  var rendered: [String: String] = [:]
+  private let initialChoice: ModelChoice?
   private var observers: [NSObjectProtocol] = []
   private var findToken = 0
   private var listed = false
   private var moreItem: UIBarButtonItem?
   private var renderedEntries: String?
 
-  init(sessionId: String, findQuery: String = "", source: SessionSource = .live, feed: SessionFeedService = .live) {
+  init(sessionId: String, findQuery: String = "", choice: ModelChoice? = nil, source: SessionSource = .live,
+       feed: SessionFeedService = .live, environment: SessionSendEnvironment = .live) {
     self.sessionId = sessionId
     self.findQuery = findQuery
     self.source = source
+    self.environment = environment
+    initialChoice = choice
     feedService = feed
     super.init(nibName: nil, bundle: nil)
   }
 
   convenience init(params: [String: Any]) {
-    self.init(sessionId: params["sessionId"] as? String ?? "", findQuery: params["findQuery"] as? String ?? "")
+    let keys = ["modelId", "effort", "modeId"]
+    var choice: ModelChoice?
+    if keys.contains(where: { params[$0] is String }) {
+      choice = ModelChoice(modelId: params["modelId"] as? String, effort: params["effort"] as? String, modeId: params["modeId"] as? String)
+    }
+    self.init(sessionId: params["sessionId"] as? String ?? "", findQuery: params["findQuery"] as? String ?? "", choice: choice)
   }
 
   @available(*, unavailable)
@@ -32,8 +48,14 @@ class SessionController: UIViewController {
 
   isolated deinit {
     feed?.finish()
+    if sender != nil { environment.foreground(sessionId, false) }
     for observer in observers { NotificationCenter.default.removeObserver(observer) }
   }
+
+  var queuedMessageBehavior: String { LodyPreferences.queuedMessageBehavior }
+  var composerPreview: [String: Any]? { nil }
+  var persistsDraft: Bool { true }
+  func adjustComposer(_ state: inout [String: Any]) {}
 
   // The chat binds its title and scroll edges to its nearest controller; the shell page shows this item.
   override var navigationItem: UINavigationItem { parent?.navigationItem ?? super.navigationItem }
@@ -46,7 +68,8 @@ class SessionController: UIViewController {
     chat.imageSharingEnabled = false
     wireEvents()
     find(query: findQuery, keyboard: false)
-    observers = (source.changes + [UIApplication.didBecomeActiveNotification]).map { name in
+    wireSendEvents()
+    observers = (source.changes + [UIApplication.didBecomeActiveNotification, .lodyPreferencesDidChange]).map { name in
       NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
         let activated = note.name == UIApplication.didBecomeActiveNotification
         MainActor.assumeIsolated {
@@ -102,24 +125,13 @@ class SessionController: UIViewController {
       self.renderFeed(session)
     }
     self.feed = feed
+    startSender(state)
     feed.start()
   }
 
   private func renderFeed(_ session: SessionItem) {
     let state = feed?.state ?? SessionFeedState()
-    let disconnected = ["offline", "failed", "stopped"].contains(state.status)
-    var connection = ""
-    if !state.overflow, disconnected {
-      connection = "paused"
-    } else if !state.overflow, state.status != "live" {
-      connection = "connecting"
-    }
-    chat.setComposerState(Self.json([
-      "editable": false, "canSend": false, "sending": false, "running": session.status == "running",
-      "notice": state.overflow ? LodyStrings.text("chat.notice.syncStopped") : "", "reconnect": state.overflow,
-      "connection": connection,
-      "placeholder": LodyStrings.text(session.archived ? "chat.composer.archived" : "chat.composer.placeholder"),
-    ]))
+    renderComposer(session, state)
     chat.setEmptyText(LodyStrings.text(state.status == "live" ? "chat.empty.prompt" : "chat.empty.loading"))
     guard state.entriesJSON != renderedEntries else { return }
     renderedEntries = state.entriesJSON

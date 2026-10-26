@@ -689,6 +689,9 @@ with metro_context:
                     elif case in ('session-search', 'mentions-production'):
                         # Long search and mention-kind loops reach ~290s alone.
                         check_timeout = 420
+                    elif case in ('send-queue', 'send-guide'):
+                        # Queue/steer/stop and guide rounds reach ~185s on both the RN and native fixtures.
+                        check_timeout = 300
                     elif case in ('branch-picker', 'message-share', 'session-search-pad', 'chat-stream-performance', 'mention-chat', 'mention-sheet', 'appearance', 'ipad'):
                         check_timeout = 300
                     check_started = time.monotonic()

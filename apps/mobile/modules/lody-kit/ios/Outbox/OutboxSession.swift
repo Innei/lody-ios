@@ -90,6 +90,14 @@ final class OutboxSession {
     dispatcher.update(store: store(user: scope.user, workspace: scope.workspace), inputs: inputs)
   }
 
+  func leaveForeground(_ id: String) {
+    if inputs.foregroundSessionId == id { setForeground("") }
+  }
+
+  func serverCreated(_ sessionId: String) -> Bool { inputs.latestUserMessages[sessionId] != nil }
+
+  func outboxStore(user: String, workspace: String) -> OutboxStore? { store(user: user, workspace: workspace) }
+
   func pendingSessions(user: String, workspace: String, excluding server: [String: String]) -> [OutboxValue] {
     guard let store = store(user: user, workspace: workspace) else { return [] }
     return store.snapshot.records.filter { server[$0.sessionId] == nil }.map { .object($0.session) }
@@ -142,6 +150,7 @@ final class OutboxSession {
   private func changed(_ store: OutboxStore) {
     Self.published.set(store.key, store.json, generation: store.generation)
     emit?(store.key)
+    NotificationCenter.default.post(name: .lodyOutboxDidChange, object: store)
     if store.key == OutboxStores.key(user: scope.user, workspace: scope.workspace) {
       CatalogSession.shared.outboxChanged()
       dispatcher.schedule()
@@ -149,7 +158,7 @@ final class OutboxSession {
     fixture?.changed(store)
   }
 
-  private var services: OutboxServices {
+  var services: OutboxServices {
     OutboxServices(
       createSession: { [weak self] payload in
         guard let runtime = self?.runtime else { throw OutboxError.scopeExpired }
