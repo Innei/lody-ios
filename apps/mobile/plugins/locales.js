@@ -51,6 +51,7 @@ const NATIVE_PREFIXES = [
   'settings.remote.',
   'settings.mcp.',
   'settings.usage.',
+  'diagnostics.',
   'time.',
   'settings.shortcuts.',
   'settings.roles.',

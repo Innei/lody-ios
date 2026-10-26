@@ -43,7 +43,21 @@ enum LodyNativePages {
     "mcp-settings-preview": { _ in RemoteSettingsPreviews.mcp() },
     "machine-settings-preview": { _ in RemoteSettingsPreviews.machine() },
     "remote-setting-editor-preview": { params in RemoteSettingsPreviews.editor(params) },
+    "diagnostics": { _ in DiagnosticsController() },
+    "diagnostics-preview": { _ in DiagnosticsPreviewController() },
+    "picker": { params in LodyNativePages.picker(params) },
   ]
+
+  private static func picker(_ params: [String: Any]) -> UIViewController {
+    let options = (params["options"] as? [[String: Any]] ?? []).map {
+      (id: $0["id"] as? String ?? "", title: $0["title"] as? String ?? "", subtitle: $0["subtitle"] as? String ?? "")
+    }
+    return CreateChoiceController(
+      title: params["title"] as? String ?? LodyStrings.text("picker.title"), header: params["header"] as? String ?? "",
+      placeholder: params["placeholder"] as? String ?? LodyStrings.text("picker.empty"), options: options,
+      selected: params["selectedId"] as? String, onPick: { _ in }
+    )
+  }
 
   static func make(_ id: String, params: String?) -> UIViewController? {
     let object = params.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) } as? [String: Any]

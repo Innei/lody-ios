@@ -89,10 +89,6 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   >;
   acknowledgePushClick(id: string): Promise<void>;
   setPushVisibleRoute(route: string): Promise<void>;
-  diagnosticCount(window: number): Promise<number>;
-  shareDiagnostics(window: number): Promise<void>;
-  clearDiagnostics(): Promise<void>;
-  debugSeedDiagnostics(): Promise<void>;
   recordPushNavigation(
     id: string,
     source: string,
