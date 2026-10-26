@@ -1,63 +1,9 @@
-import { NativeGroupedList, NativeNavigationHeader } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
-import {
-  useProjectModel,
-  type ProjectModel,
-} from '@/features/sessions/useProjectModel';
-import { isChatProjectId } from '@/features/sessions/inbox';
-import { openCatalogRow } from '@/hooks/screens/openCatalogRow';
 import { t } from '@/lib/i18n';
-import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 
-function ProjectList({ model }: { model: ProjectModel }) {
-  return (
-    <NativeGroupedList
-      style={{ flex: 1 }}
-      accent={model.colors.accent}
-      contentStyle
-      sections={model.sections}
-      placeholder={model.placeholder}
-      previewUserId={model.account?.user.id}
-      previewWorkspaceId={model.selected?.id}
-      onRowPress={({ nativeEvent: { id } }) =>
-        openCatalogRow(id, model.catalog)
-      }
-      onRowAction={({ nativeEvent: { id, actionId } }) =>
-        model.rowAction(id, actionId)
-      }
-    />
-  );
-}
-
-function View() {
-  const {
-    params: { projectId },
-  } = usePageRuntime<{ projectId: string }>();
-  const model = useProjectModel(projectId);
-  return (
-    <>
-      <NativeNavigationHeader
-        title={model.project?.name ?? t('project.title')}
-        items={
-          model.project && !isChatProjectId(model.project.id)
-            ? [
-                {
-                  type: 'button',
-                  icon: { type: 'sfSymbol', name: 'plus' },
-                  accessibilityLabel: t('project.newSession.accessibility'),
-                  onPress: model.newSession,
-                },
-              ]
-            : undefined
-        }
-      />
-      <ProjectList model={model} />
-    </>
-  );
-}
 export const ProjectScreen = definePage<{ projectId: string }>({
   id: 'project',
   title: t('project.title'),
-  Component: View,
+  native: true,
   presentation: { style: 'push', headerVariant: 'transparent' },
 });
