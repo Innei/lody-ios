@@ -113,7 +113,7 @@ final class LodyCreateSessionView: ExpoView {
     controller.form.open(projectId: config.projectId, context: config.context)
     var branchAttempts: [String: Int] = [:]
     controller.loadBranches = { repo, page in
-      if LodyUIVerify.enabled, config.workspaceId == "ui-project-picker" {
+      if LodyUIVerify.enabled {
         let key = "\(repo):\(page)"
         branchAttempts[key, default: 0] += 1
         return try await LodyUIVerify.branches(repo: repo, page: page, attempt: branchAttempts[key]!)

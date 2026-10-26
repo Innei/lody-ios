@@ -33,6 +33,7 @@ final class InboxController: UIViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
+    loadPreferences()
     list.frame = view.bounds
     list.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     list.setContentStyle(true)
@@ -45,6 +46,10 @@ final class InboxController: UIViewController {
       }
     }
     registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: Self, _: UITraitCollection) in self.render() }
+    // UI Verify can reset the prefs after this controller has already read them.
+    observers.append(NotificationCenter.default.addObserver(forName: .lodyInboxPreferencesReset, object: nil, queue: .main) {
+      [weak self] _ in MainActor.assumeIsolated { self?.reloadPreferences() }
+    })
   }
 
   override func viewDidLayoutSubviews() {
@@ -103,8 +108,9 @@ final class InboxController: UIViewController {
       UserDefaults.standard.set(InboxSort.allCases.firstIndex(of: sort) ?? 0, forKey: "inboxProjectSort")
       self.render()
     }
-    chrome.openSettings = {
-      LodyShell.shared.presentNative(SettingsController(), title: LodyStrings.text("tabs.settings"), detents: [1])
+    // JS presents these so deep links that reset the stack also dismiss them.
+    chrome.openSettings = { [weak self] in
+      LodyShell.shared.openPage("settings", options: ["present": true], from: self?.parent)
     }
     chrome.openDebug = { [weak self] in LodyShell.shared.openPage("debug", from: self?.parent) }
     chrome.newSession = { [weak self] in self?.newSession() }
@@ -243,9 +249,8 @@ final class InboxController: UIViewController {
       "color": LodyAccentChoice.hex(UIColor.lodyAccent.resolvedColor(with: traitCollection)),
     ]
     params["image"] = workspace.image
-    LodyShell.shared.presentNative(
-      WorkspaceEditorController(params: params), title: LodyStrings.text("workspace.edit.title"), detents: [0.5]
-    )
+    let json = (try? JSONSerialization.data(withJSONObject: params)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+    LodyShell.shared.openPage("workspace-editor", params: json, options: ["present": true], from: parent)
   }
 
   private func newSession() {
@@ -257,8 +262,23 @@ final class InboxController: UIViewController {
     SessionActions.create(["workspaceId": state.workspaceId, "zoomSourceLabel": LodyStrings.text("tabs.newSession")])
   }
 
+  private func loadPreferences() {
+    mode = Self.storedIndex("inboxView")
+    sort = InboxSort.allCases[Self.storedIndex("inboxProjectSort")]
+    expanded = UserDefaults.standard.dictionary(forKey: "inboxExpansion") as? [String: Bool] ?? [:]
+  }
+
+  private func reloadPreferences() {
+    loadPreferences()
+    render()
+  }
+
   private static func storedIndex(_ key: String) -> Int {
     let value = UserDefaults.standard.integer(forKey: key)
     return (0...2).contains(value) ? value : 0
   }
+}
+
+extension Notification.Name {
+  static let lodyInboxPreferencesReset = Notification.Name("LodyInboxPreferencesReset")
 }

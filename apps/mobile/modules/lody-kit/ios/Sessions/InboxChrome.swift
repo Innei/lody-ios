@@ -34,7 +34,8 @@ final class InboxChrome {
   private let workspace = LodyMenuButton(appContext: nil)
   private let settings = LodySymbolButton(appContext: nil)
   private let search = LodyNavigationSearch()
-  private var workspaceWidth: NSLayoutConstraint?
+  private lazy var workspaceSlot = InboxBarSlot(workspace)
+  private lazy var settingsSlot = InboxBarSlot(settings)
   private var workspaceItem: UIBarButtonItem?
   private var settingsItem: UIBarButtonItem?
   private var filterItem: UIBarButtonItem?
@@ -44,19 +45,11 @@ final class InboxChrome {
 
   init() {
     workspace.accessibilityIdentifier = "workspace-menu"
-    workspace.translatesAutoresizingMaskIntoConstraints = false
-    workspace.heightAnchor.constraint(equalToConstant: 44).isActive = true
-    workspaceWidth = workspace.widthAnchor.constraint(equalToConstant: 44)
-    workspaceWidth?.isActive = true
     workspace.selected = { [weak self] id in self?.selected(id) }
     workspace.sized = { [weak self] width in
       self?.naturalWidth = width
       self?.layout()
     }
-    settings.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      settings.widthAnchor.constraint(equalToConstant: 44), settings.heightAnchor.constraint(equalToConstant: 44),
-    ])
     settings.setSymbol("gearshape")
     settings.setAccessibilityName(LodyStrings.text("tabs.settings"))
     settings.setLongPress(true)
@@ -94,12 +87,12 @@ final class InboxChrome {
     workspace.setStatus(model.devices.status)
     workspace.setItems(menuItems(model))
     layout()
-    let left = [workspaceItem ?? UIBarButtonItem(customView: workspace)]
+    let left = [workspaceItem ?? UIBarButtonItem(customView: workspaceSlot)]
     let filter = filterItem ?? UIBarButtonItem(image: UIImage(systemName: "line.3.horizontal.decrease"), menu: nil)
     filter.tintColor = .label
     filter.accessibilityLabel = LodyStrings.text("inbox.settings.section.view")
     filter.menu = filterMenu(mode: model.mode, sort: model.sort)
-    let right = [settingsItem ?? UIBarButtonItem(customView: settings), filter]
+    let right = [settingsItem ?? UIBarButtonItem(customView: settingsSlot), filter]
     (workspaceItem, settingsItem, filterItem) = (left[0], right[0], filter)
     if header.leftItems != left { header.leftItems = left }
     if header.rightItems != right { header.rightItems = right }
@@ -158,7 +151,7 @@ final class InboxChrome {
     let insets = host.view.safeAreaInsets
     // Leave room for both trailing actions and UIKit's glass group margins.
     let limit = max(44, host.view.bounds.width - insets.left - insets.right - 192)
-    workspaceWidth?.constant = min(naturalWidth, limit)
+    workspaceSlot.size = CGSize(width: min(naturalWidth, limit), height: 44)
   }
 
   private func menuItems(_ model: Model) -> [LodyMenuItem] {
@@ -200,5 +193,38 @@ final class InboxChrome {
       ) { [weak self] _ in self?.setSort?(item.sort) }
     }
     return UIMenu(children: views + [UIMenu(options: .displayInline, children: sorts)])
+  }
+}
+
+// UIKit sizes bar custom views to the bar's height; the control keeps its 44 pt target and overflows the slot.
+private final class InboxBarSlot: UIView {
+  private let content: UIView
+  private var width: NSLayoutConstraint!
+  private var height: NSLayoutConstraint!
+  var size = CGSize(width: 44, height: 44) {
+    didSet {
+      width.constant = size.width
+      height.constant = size.height
+      setNeedsLayout()
+    }
+  }
+
+  init(_ content: UIView) {
+    self.content = content
+    super.init(frame: CGRect(x: 0, y: 0, width: 44, height: 44))
+    translatesAutoresizingMaskIntoConstraints = false
+    addSubview(content)
+    width = widthAnchor.constraint(equalToConstant: 44)
+    height = heightAnchor.constraint(equalToConstant: 44)
+    NSLayoutConstraint.activate([width, height])
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    content.bounds = CGRect(origin: .zero, size: size)
+    content.center = CGPoint(x: bounds.midX, y: bounds.midY)
   }
 }
