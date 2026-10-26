@@ -30,16 +30,22 @@ def use_button():
     return ui.wait(lambda items: next((item for item in items if item.get('AXLabel') == label and item.get('type') == 'Button' and item.get('enabled')), None), 'Use folder is not ready')
 
 
+def cancel_button():
+    return next((item for item in ui.state() if item.get('AXLabel') == catalog.text('common.cancel') and item.get('type') == 'Button'), None)
+
+
 def entries():
     return [item for item in ui.state() if str(item.get('AXUniqueId', '')).startswith('entry:')]
 
 
 assert 'Studio Mac' in spoken(ui.element('studio'))
 assert 'Travel Mac' in spoken(ui.element('travel'))
+assert cancel_button(), 'Choose Folder has no Cancel'
 ui.capture('machines')
 
 tap('travel')
 has_text(catalog.text('directory.error.read'))
+assert not cancel_button(), 'Cancel replaced Back inside a machine'
 ui.element('retry')
 assert not any(item.get('AXLabel') == catalog.text('directory.accessibility.use') and item.get('enabled') for item in ui.state()), 'Use folder enabled without a listing'
 ui.capture('read-failure')
@@ -83,4 +89,7 @@ use_button()
 ui.axe('tap', '--label', catalog.text('directory.accessibility.use'), '--post-delay', '.5')
 has_text('Selected website /Users/demo/Projects/website')
 ui.capture('registered')
-print(json.dumps({'readFailureRetry': True, 'paginationDeduplicated': True, 'typedPath': True, 'unconfirmedRegistrationRetry': True}))
+ui.element('studio')
+ui.axe('tap', '--label', catalog.text('common.cancel'), '--post-delay', '.8')
+ui.wait(lambda items: not any(item.get('AXUniqueId') == 'studio' for item in items), 'Cancel did not close Choose Folder')
+print(json.dumps({'readFailureRetry': True, 'paginationDeduplicated': True, 'typedPath': True, 'unconfirmedRegistrationRetry': True, 'cancel': True}))
