@@ -45,8 +45,8 @@ final class SessionSource {
     read: { SessionCatalogPreview.state ?? SessionPublished.state() },
     raw: { id in SessionCatalogPreview.state == nil ? SessionPublished.raw(id) : SessionCatalogPreview.raw(id) },
     write: { workspaceId, sessionId, write in
-      if SessionCatalogPreview.state != nil, case .delete(let ids) = write {
-        try await SessionCatalogPreview.delete(sessionId, ids: ids)
+      if LodyPreviewBridge.active, case .delete(let ids) = write {
+        try await LodyPreviewBridge.request("deleteSessions", ["sessionId": sessionId, "sessionIds": ids])
         return
       }
       try await SessionActions.cloud(workspaceId, sessionId, write)
@@ -126,9 +126,6 @@ enum SessionPublished {
 enum SessionCatalogPreview {
   private(set) static var state: SessionListState?
   private static var sessions: [Any] = []
-  private static var failures: Set<String> = []
-  private static var failed: Set<String> = []
-  private static var deleted: Set<String> = []
 
   static func set(_ json: String) {
     guard LodyUIVerify.enabled else { return }
@@ -142,35 +139,19 @@ enum SessionCatalogPreview {
       return
     }
     sessions = catalog["sessions"] as? [Any] ?? []
-    failures = Set(payload["deleteFailures"] as? [String] ?? [])
-    var next = SessionListState(
+    state = SessionListState(
       userId: (account?["user"] as? [String: Any])?["id"] as? String ?? "",
       workspaceId: payload["workspaceId"] as? String ?? "", catalog: decoded
     )
-    next.catalog.sessions.removeAll { deleted.contains($0.id) }
-    state = next
     NotificationCenter.default.post(name: .lodySessionCatalogPreviewDidChange, object: nil)
   }
 
   static func raw(_ id: String) -> String? { SessionSource.rawSession(in: sessions, id) }
 
-  static func delete(_ sessionId: String, ids: [String]) async throws {
-    try await Task.sleep(for: .milliseconds(900))
-    if failures.contains(sessionId), !failed.contains(sessionId) {
-      failed.insert(sessionId)
-      throw DataRuntime.failure("offline_fixture", "offline_fixture")
-    }
-    deleted.formUnion(ids)
-    state?.catalog.sessions.removeAll { ids.contains($0.id) }
-    NotificationCenter.default.post(name: .lodySessionCatalogPreviewDidChange, object: nil)
-  }
-
   private static func reset() {
     state = nil
     sessions = []
-    failures = []
-    failed = []
-    deleted = []
+    LodyPreviewBridge.reset()
     NotificationCenter.default.post(name: .lodySessionCatalogPreviewDidChange, object: nil)
   }
 }

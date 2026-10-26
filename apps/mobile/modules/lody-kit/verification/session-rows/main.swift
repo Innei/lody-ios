@@ -72,4 +72,58 @@ precondition(SessionRows.projectMenu(SessionProject(id: "w:unassigned")).map(\.i
 
 let views = catalog.viewed(["root": root.lastMessageAt!])
 precondition(views.sessions[0].lastViewedMessageAt == root.lastMessageAt && views.sessions[1].lastViewedMessageAt == nil)
-print("PASS: session rows match the RN inbox projection")
+
+let day = 86_400_000.0
+let midday = Calendar.current.startOfDay(for: Date(timeIntervalSince1970: now / 1000)).timeIntervalSince1970 * 1000 + 12 * hour
+func item(_ id: String, _ status: String = "completed", project: String = "p", at: Double = midday, _ change: (inout SessionItem) -> Void = { _ in }) -> SessionItem {
+  var session = SessionItem(id: id, title: id, status: status, projectId: project, lastMessageAt: at, lastReadAt: at)
+  change(&session)
+  return session
+}
+let inboxCatalog = SessionCatalog(projects: [SessionProject(id: "p", name: "lody-ios")], sessions: [
+  item("waiting", "waiting"), item("failed", "error"), item("running", "running"),
+  item("unread") { $0.lastReadAt = midday - hour }, item("pinned") { $0.pinned = true },
+  item("today"), item("yesterday", at: midday - day), item("week", at: midday - 3 * day), item("month", at: midday - 20 * day),
+  item("older", at: midday - 60 * day), item("archived") { $0.archived = true },
+])
+let inbox = InboxSections.inbox(inboxCatalog, now: midday)
+precondition(inbox.map(\.id) == ["attention", "pinned", "live", "unread", "today", "yesterday", "week", "month", "older"], "\(inbox.map(\.id))")
+precondition(inbox[0].rows.map(\.id) == ["waiting", "failed"] && inbox[0].header == "inbox.section.attention")
+precondition(!inbox.flatMap(\.rows).contains { $0.id == "archived" }, "Archived sessions stay out until searched")
+precondition(InboxSections.inbox(inboxCatalog, keyword: "archived", now: midday).flatMap(\.rows).map(\.id) == ["archived"])
+precondition(inbox[2].rows[0].imageTint == "blue" && inbox[4].rows[0].imageTint.isEmpty && inbox[0].rows[1].imageTint == "danger")
+precondition(inbox[0].rows[0].subtitle == "lody-ios" && inbox.flatMap(\.rows).allSatisfy { $0.diff.isEmpty })
+precondition(InboxSections.inbox(inboxCatalog, chatOnly: true, now: midday).isEmpty)
+
+let many = SessionCatalog(projects: [SessionProject(id: "p", name: "lody-ios", rootPath: "/Users/me/git/lody-ios"), SessionProject(id: "empty", name: "Empty")],
+  sessions: (0..<6).map { item("s\($0)", at: midday - Double($0) * hour) } + [item("c1", project: "m:unassigned"), item("pin") { $0.pinned = true }])
+let projects = InboxSections.projects(many, now: midday)
+precondition(projects.map(\.id) == ["pinned", "empty", "p", "chat"], "\(projects.map(\.id))")
+precondition(projects[0].rows.map(\.id) == ["toggle:pinned", "pin"] && projects[0].headerExpanded == true)
+precondition(projects[1].rows[0].id == "project:empty" && projects[1].rows[0].badge == "0" && projects[1].rows[0].navigates)
+let lody = projects[2]
+precondition(lody.rows[0].id == "toggle:p" && lody.rows[0].subtitle == "~/git/lody-ios" && lody.rows[0].monogram == "l")
+precondition(lody.rows.dropFirst().map(\.id) == ["s0", "s1", "s2", "s3", "s4", "project:p"] && lody.rows.last?.title == "inbox.project.more")
+precondition(projects[3].rows.map(\.id) == ["toggle:chat", "c1"] && projects[3].rows[0].menuActions.map(\.id) == ["newChat"])
+let collapsed = InboxSections.projects(many, expanded: ["p": false], now: midday)[2]
+precondition(collapsed.headerExpanded == false && collapsed.rows[0].badge == "6" && collapsed.rows.count == lody.rows.count)
+
+var urgent = many
+urgent.projects.append(SessionProject(id: "z", name: "zeta"))
+urgent.sessions.append(item("z1", "waiting", project: "z", at: midday - 90 * day))
+precondition(InboxSections.projects(urgent, sort: .urgency, now: midday).map(\.id) == ["pinned", "z", "p", "empty", "chat"])
+precondition(InboxSections.projects(urgent, sort: .activity, now: midday).map(\.id) == ["pinned", "p", "z", "empty", "chat"])
+let zetaParent = InboxSections.projects(urgent, now: midday).first { $0.id == "z" }!.rows[0]
+precondition(zetaParent.value == "inbox.project.attention" && zetaParent.imageTint == "warning")
+
+precondition(InboxSections.reconcilePinOrder(["b", "gone", "a"], pinned: ["a", "b", "c", "d"]) { ["c": 1, "d": 2][$0] ?? 0 } == ["d", "c", "b", "a"])
+precondition(InboxSections.orderPinned([item("x") { $0.pinned = true }, item("y", at: midday + 1) { $0.pinned = true }], pinOrder: ["x"]).map(\.id) == ["x", "y"])
+
+let hits = InboxSections.match(many, keyword: "LODY")
+precondition(hits.projectIds == ["p"] && hits.sessions.count == 7)
+let found = InboxSections.search(many, hits: InboxSearchHits(projectIds: ["p"], sessions: [("s1", "matched line"), ("s2", nil)]), now: midday)
+precondition(found.map(\.id) == ["projects", "sessions"] && found[0].rows[0].id == "project:p" && found[0].rows[0].menuActions.count == 3)
+precondition(found[1].rows.map(\.id) == ["s1", "s2"] && found[1].rows[0].subtitle == "matched line" && found[1].rows[1].subtitle == "lody-ios")
+precondition(InboxSections.search(many, hits: InboxSearchHits()).isEmpty)
+precondition(InboxSections.activityBucket(.nan, now: midday) == "today" && InboxSections.activityBucket(midday - 8 * day, now: midday) == "month")
+print("PASS: session rows and inbox sections match the RN inbox projection")

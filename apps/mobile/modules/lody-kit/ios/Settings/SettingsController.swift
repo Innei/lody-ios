@@ -67,8 +67,8 @@ class SettingsController: UIViewController {
         "workspaceId": workspace.id, "name": workspace.name, "color": LodyAccentChoice.hex(.lodyAccent.resolvedColor(with: traitCollection)),
       ]
       params["image"] = workspace.image
-      LodyShell.shared.openPage(
-        "workspace-editor", params: Self.json(params), options: ["title": text("workspace.general"), "present": true], from: self
+      LodyShell.shared.presentNative(
+        WorkspaceEditorController(params: params), title: text("workspace.general"), detents: [0.5]
       )
     } else if id == "account", state.account != nil {
       LodyShell.shared.pushNative(AccountController(source: source), title: LodyStrings.text("account.title"), from: self)
@@ -103,8 +103,4 @@ class SettingsController: UIViewController {
   }
 
   private func text(_ key: String) -> String { SettingsSections.text(key) }
-
-  private static func json(_ object: [String: Any]) -> String {
-    (try? JSONSerialization.data(withJSONObject: object)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
-  }
 }

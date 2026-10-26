@@ -58,6 +58,14 @@ export type NavEvent =
       sessionId?: string;
       projectId?: string;
       context?: 'chat';
+      zoomSourceLabel?: string;
+    }
+  | { type: 'result'; id: number; value: string }
+  | {
+      type: 'preview';
+      id: string;
+      action: string;
+      fields: Record<string, unknown>;
     };
 export type ShellPage = {
   id: number;
@@ -202,6 +210,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   cancelComposerRelay(id: string): Promise<void>;
   showToast(message: string, kind: string): void;
   setSettingsPreview(json: string): void;
+  previewReply(id: string, error: string): void;
   prepareSheetZoom(sourceLabel: string): void;
   dismissSheetZoom(): Promise<void>;
   copyText(text: string): void;
@@ -310,6 +319,8 @@ export type SessionBannerKind = 'completed' | 'attention';
 
 export const setSettingsPreview = (json: string) =>
   native.setSettingsPreview(json);
+export const previewReply = (id: string, error = '') =>
+  native.previewReply(id, error);
 
 /** Rendered by a dedicated UIWindow above sheets, so it is never occluded. */
 export function showToast(message: string, kind: ToastKind = 'error'): void {

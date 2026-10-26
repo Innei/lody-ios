@@ -5,6 +5,7 @@ import {
   navPopToRoot,
   navPresent,
   navSetStack,
+  previewReply,
   type ShellPage as ShellPageSpec,
 } from '@lody-ios/kit';
 
@@ -12,6 +13,7 @@ import type { StackRoute } from './homeTransitions';
 import type { PageDefinitionBase } from './page';
 import {
   cancelPresentation,
+  completePresentation,
   present,
   type PresentationSession,
   type PresentTarget,
@@ -91,6 +93,35 @@ export function registerShellSessionHandler(
   sessionHandler = handler;
 }
 
+type PreviewHandler = (
+  action: string,
+  fields: Record<string, unknown>,
+) => Promise<void>;
+let previewHandler: PreviewHandler | undefined;
+
+// UI verification fixtures apply native changes to their own state, then reply.
+export function registerShellPreviewHandler(handler: PreviewHandler) {
+  previewHandler = handler;
+  return () => {
+    if (previewHandler === handler) previewHandler = undefined;
+  };
+}
+
+function answerPreview(event: Extract<NavEvent, { type: 'preview' }>) {
+  if (!previewHandler) {
+    previewReply(event.id, 'preview_unavailable');
+    return;
+  }
+  previewHandler(event.action, event.fields).then(
+    () => previewReply(event.id),
+    (error: unknown) =>
+      previewReply(
+        event.id,
+        error instanceof Error ? error.message : 'preview_failed',
+      ),
+  );
+}
+
 function openShellPage(event: Extract<NavEvent, { type: 'open' }>) {
   const page = shellPages.get(event.page);
   if (!page) return;
@@ -113,6 +144,14 @@ function onNav(event: NavEvent) {
   }
   if (event.type === 'session') {
     sessionHandler?.(event);
+    return;
+  }
+  if (event.type === 'result') {
+    completePresentation(event.id, JSON.parse(event.value));
+    return;
+  }
+  if (event.type === 'preview') {
+    answerPreview(event);
     return;
   }
   if (event.type === 'closed') {

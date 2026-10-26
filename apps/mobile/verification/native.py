@@ -36,7 +36,7 @@ checks = {
     'workspace-settings-pages': ['LodyStrings.swift', 'List/LodyListModels.swift', '../share-extension/ExpoShim.swift', 'Settings/SettingsWorkspace.swift', 'Settings/ProjectVisibilitySections.swift', 'Settings/GitHubSettingsSections.swift'],
     'settings-runtime-pages': ['LodyStrings.swift', 'List/LodyListModels.swift', '../share-extension/ExpoShim.swift', 'Settings/LodyListState.swift', 'Settings/MemorySettingsSections.swift', 'Settings/PublishedSharesSections.swift'],
     'remote-settings': ['LodyStrings.swift', 'List/LodyListModels.swift', '../share-extension/ExpoShim.swift', 'Settings/LodyListState.swift', 'Settings/SettingsWorkspace.swift', 'Settings/RemoteSettingsSections.swift'],
-    'session-rows': ['LodyStrings.swift', 'List/LodyListModels.swift', '../share-extension/ExpoShim.swift', 'Settings/LodyListState.swift', 'Sessions/SessionCatalog.swift', 'Sessions/SessionRows.swift'],
+    'session-rows': ['LodyStrings.swift', 'List/LodyListModels.swift', '../share-extension/ExpoShim.swift', 'Settings/LodyListState.swift', 'Sessions/SessionCatalog.swift', 'Sessions/SessionRows.swift', 'Sessions/InboxSections.swift'],
     'ai-usage': ['LodyStrings.swift', 'List/LodyListModels.swift', '../share-extension/ExpoShim.swift', 'Settings/LodyListState.swift', 'Settings/AIUsageModels.swift', 'Settings/AIUsageSections.swift'],
     'settings-roles': ['LodyStrings.swift', 'List/LodyListModels.swift', '../share-extension/ExpoShim.swift', 'Settings/PromptShortcutSections.swift', 'Settings/AgentRoleSections.swift'],
     'notifications': ['Notifications/PushPermissionLaunchRequest.swift', 'Notifications/PushClickBuffer.swift'],

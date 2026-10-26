@@ -21,6 +21,7 @@ enum LodyNativePages {
     "settings": { _ in SettingsController() },
     "settings-baseline": { params in SettingsBaselineController(scenario: params["scenario"] as? String ?? "live") },
     "archived-sessions": { _ in ArchivedSessionsController() },
+    "workspace-editor": { params in WorkspaceEditorController(params: params) },
     "archived-sessions-preview": { _ in ArchivedSessionsPreviewController() },
     "memory-settings": { params in MemorySettingsController(scope: .live(params)) },
     "memory-preview": { _ in MemoryPreviewController() },
@@ -57,15 +58,22 @@ enum LodyNativePages {
     let options = (params["options"] as? [[String: Any]] ?? []).map {
       (id: $0["id"] as? String ?? "", title: $0["title"] as? String ?? "", subtitle: $0["subtitle"] as? String ?? "")
     }
-    return CreateChoiceController(
+    let owner = WeakController()
+    let picker = CreateChoiceController(
       title: params["title"] as? String ?? LodyStrings.text("picker.title"), header: params["header"] as? String ?? "",
       placeholder: params["placeholder"] as? String ?? LodyStrings.text("picker.empty"), options: options,
-      selected: params["selectedId"] as? String, onPick: { _ in }
+      selected: params["selectedId"] as? String, onPick: { id in LodyShell.shared.finish(from: owner.value, value: id) }
     )
+    owner.value = picker
+    return picker
   }
 
   static func make(_ id: String, params: String?) -> UIViewController? {
     let object = params.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) } as? [String: Any]
     return factories[id]?(object ?? [:])
   }
+}
+
+private final class WeakController {
+  weak var value: UIViewController?
 }
