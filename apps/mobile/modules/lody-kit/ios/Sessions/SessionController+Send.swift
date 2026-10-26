@@ -10,6 +10,16 @@ struct SessionSendEnvironment {
   var foreground: @MainActor (_ sessionId: String, _ active: Bool) -> Void
   var control: SessionControl.Request
   var composer: SessionComposerService
+  var turn: @MainActor (_ payload: String) async throws -> String = { payload in
+    guard let runtime = DataRuntime.current else { throw OutboxError.scopeExpired }
+    return try await withCheckedThrowingContinuation { runtime.sendTurn(payload, sink: .continuation($0)) }
+  }
+  var readEdit: @MainActor (_ payload: String) async throws -> String = { payload in
+    guard let runtime = DataRuntime.current else { throw OutboxError.scopeExpired }
+    return try await withCheckedThrowingContinuation {
+      runtime.dispatchTurn(payload, sink: .continuation($0), billing: nil, edit: true)
+    }
+  }
 
   static let live = SessionSendEnvironment(
     store: { OutboxSession.shared.outboxStore(user: $0, workspace: $1) },
@@ -43,7 +53,8 @@ extension SessionController {
 
   func wireSendEvents() {
     chat.onSend.onEventSent = { [weak self] body in
-      guard let self, !SessionActions.isDeleting(self.source.state.workspaceId, self.sessionId) else { return }
+      guard let self, !SessionActions.isDeleting(self.source.state.workspaceId, self.sessionId), !self.planDecision.pending
+      else { return }
       self.sender?.submit(body, choice: self.composerModel.sendChoice)
     }
     chat.onRetrySend.onEventSent = { [weak self] _ in self?.sender?.retry() }
@@ -93,7 +104,7 @@ extension SessionController {
     let deleting = SessionActions.isDeleting(state.workspaceId, sessionId)
     var composer: [String: Any] = [
       "editable": !session.archived && !deleting && !locked,
-      "canSend": sender?.canSend == true && !deleting && !locked,
+      "canSend": sender?.canSend == true && !deleting && !locked && !planDecision.pending && !errorRetry.pending,
       "sending": sender?.sending == true,
       "running": control.running || sender?.awaitingReply == true,
       "canStop": control.canStop, "stopping": control.stopping, "controlling": control.controlling,
@@ -113,9 +124,12 @@ extension SessionController {
     apply("composer", Self.json(composer), chat.setComposerState)
     apply("options", composerModel.optionsJSON, chat.setComposerOptions)
     apply("pending", sender?.pendingSendJSON ?? "", chat.setPendingSendJSON)
+    renderDecisions(feed)
+    renderEditable(feed, enabled: live && state.connected && !state.loading && !session.archived && sender?.sending != true
+      && !control.controlling && !feed.overflow && !deleting && !locked)
   }
 
-  private func apply(_ key: String, _ value: String, _ set: (String) -> Void) {
+  func apply(_ key: String, _ value: String, _ set: (String) -> Void) {
     guard rendered[key] != value else { return }
     rendered[key] = value
     set(value)

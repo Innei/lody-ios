@@ -44,6 +44,7 @@ checks = {
     'file-link': ['Chat/ChatFileLink.swift'],
     'strings': ['LodyStrings.swift'],
     'auth': ['LodyStrings.swift', 'Auth/AuthAPI.swift'],
+    'session-decisions': ['LodyStrings.swift', 'Sessions/SessionEnvelope.swift', 'Sessions/SessionDecisions.swift'],
     'outbox': ['Outbox/OutboxRecord.swift', 'Outbox/OutboxStore.swift', 'Outbox/OutboxDispatcher.swift', 'Outbox/OutboxForeground.swift', 'Sessions/SessionEnvelope.swift'],
     'chat': ['LodyStrings.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatMessageShare.swift', 'Chat/ChatStream.swift', 'Chat/ChatHaptics.swift', 'Chat/ChatImagePreviewGeometry.swift', 'Chat/ChatImageGallery.swift'],
     'markdown-repair': ['Chat/ChatMarkdownRepair.swift'],
