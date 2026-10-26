@@ -17,7 +17,6 @@ export {
   resetQuickReplies,
   selectionFeedback,
   debugReplyHaptics,
-  pickWorkspaceIcon,
   cancelComposerRelay,
   prepareSheetZoom,
   dismissSheetZoom,
@@ -31,7 +30,6 @@ export {
   type SessionBannerKind,
   addAppActiveListener,
   type RuntimeInfo,
-  type PickedWorkspaceIcon,
 } from './runtime/LodyKit';
 export {
   NativeCloseButton,
@@ -59,8 +57,6 @@ export {
   cancelAuth,
   logoutAuth,
   reopenAuthBrowser,
-  updateAuthWorkspace,
-  updateAuthWorkspaceIcon,
   sessionPreview,
   iosSimulatorControl,
   openPreviewBrowser,
@@ -148,6 +144,7 @@ export {
   type NativePagedListProps,
   type NativePagedPage,
 } from './list/NativePagedList';
+export { NativeInbox } from './list/NativeInbox';
 
 export { NativeSymbol, type NativeSymbolProps } from './chrome/NativeSymbol';
 export {
@@ -193,6 +190,7 @@ export {
   saveInboxExpansion,
   readInboxPinOrder,
   saveInboxPinOrder,
+  resetInboxPreferences,
 } from './runtime/LodyKit';
 
 export {

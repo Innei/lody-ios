@@ -8,6 +8,7 @@ import type { PropsWithChildren } from 'react';
 import {
   runtimeInfo,
   readLocalValue,
+  resetInboxPreferences,
   setSettingsPreview,
   writeLocalValue,
 } from '@lody-ios/kit';
@@ -337,10 +338,17 @@ const previewUser = {
   image: previewPhoto,
 };
 
+let inboxPreferencesReset = false;
+
 export function HomePreviewProviders({
   children,
   owner = true,
 }: PropsWithChildren<{ owner?: boolean }>) {
+  // Reused simulators keep inbox prefs; the native inbox reads them when it mounts below.
+  if (owner && !inboxPreferencesReset) {
+    inboxPreferencesReset = true;
+    resetInboxPreferences(previewUser.id, workspace.id);
+  }
   const state = useSyncExternalStore(subscribePreview, () => preview);
   const { selected } = state;
   const selectedCatalog =
@@ -352,9 +360,10 @@ export function HomePreviewProviders({
         account: { user: previewUser, workspaces: state.workspaces },
         workspaceId: selected.id,
         catalog: selectedCatalog,
+        presence: state.presence,
       }),
     );
-  }, [owner, state.workspaces, selected.id, selectedCatalog]);
+  }, [owner, state.workspaces, selected.id, selectedCatalog, state.presence]);
   useEffect(() => {
     if (!owner) return;
     const unregister = registerShellPreviewHandler(applyNativeChange);
@@ -380,11 +389,6 @@ export function HomePreviewProviders({
         restore: noop,
         logout: noop,
         reopen: noop,
-        updateWorkspace: async (id, name) => renameWorkspace(id, { name }),
-        updateWorkspaceIcon: async (id, file) => {
-          renameWorkspace(id, { image: file.uri });
-          return file.uri;
-        },
       }}
     >
       <CatalogContext

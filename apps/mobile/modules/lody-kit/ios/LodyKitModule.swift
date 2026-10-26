@@ -25,7 +25,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     return url
   }
   @MainActor private lazy var accentPicker = AccentColorPicker()
-  @MainActor private lazy var workspaceIconPicker = WorkspaceIconPicker()
 
   @MainActor private lazy var dataRuntime = DataRuntime(localStore: localStore,
     emit: { [weak self] event in self?.sendEvent("onDataRuntime", event) },
@@ -245,6 +244,14 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     UserDefaults.standard.set(ids, forKey: pinOrderKey(userId: userId, workspaceId: workspaceId))
   }
 
+  @JS
+  func resetInboxPreferences(userId: String, workspaceId: String) {
+    guard LodyUIVerify.enabled else { return }
+    for key in ["inboxView", "inboxProjectSort", "inboxExpansion", pinOrderKey(userId: userId, workspaceId: workspaceId)] {
+      UserDefaults.standard.removeObject(forKey: key)
+    }
+  }
+
   @MainActor private static func settle(_ task: Task<Void, Error>, _ promise: Promise) {
     Task { @MainActor in
       switch await task.result {
@@ -353,21 +360,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("reopenAuthBrowser") {
       MainActor.assumeIsolated { AuthSession.shared.reopen() }
     }.runOnQueue(.main)
-    AsyncFunction("updateWorkspace") { (workspaceId: String, name: String, promise: Promise) in
-      Task { @MainActor in
-        do { try await AuthSession.shared.updateWorkspace(id: workspaceId, name: name); promise.resolve(nil) }
-        catch { promise.reject("ERR_WORKSPACE", error.localizedDescription) }
-      }
-    }
-    AsyncFunction("updateWorkspaceIcon") { (workspaceId: String, uri: String, name: String, type: String, size: Int, promise: Promise) in
-      Task { @MainActor in
-        do {
-          guard let url = URL(string: uri) else { throw AuthFailure.text("workspace.edit.iconUploadFailed") }
-          let file = WorkspaceIconFile(url: url, name: name, type: type, size: size)
-          promise.resolve(try await AuthSession.shared.updateWorkspaceIcon(id: workspaceId, file: file))
-        } catch { promise.reject("ERR_WORKSPACE", error.localizedDescription) }
-      }
-    }
     AsyncFunction("sessionPreview") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.sessionPreview(payload, promise: promise) }
     }.runOnQueue(.main)
@@ -459,15 +451,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("githubPullRequest") { (payload: String) async throws -> String in
       try await GitHubPullRequests.run(payload)
     }
-    AsyncFunction("pickWorkspaceIcon") { (promise: Promise) in
-      MainActor.assumeIsolated {
-        guard let controller = self.appContext?.utilities?.currentViewController() else {
-          promise.reject("PICKER_UNAVAILABLE", "The workspace icon picker could not be presented")
-          return
-        }
-        self.workspaceIconPicker.present(from: controller, promise: promise)
-      }
-    }.runOnQueue(.main)
     AsyncFunction("githubRepositories") { (workspace: String, promise: Promise) in
       Task { @MainActor in
         if workspace == "ui-home", LodyUIVerify.mentions {
@@ -869,6 +852,8 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("previewUserId") { (view: LodySidebar, value: String) in view.previewUserId = value }
       Prop("previewWorkspaceId") { (view: LodySidebar, value: String) in view.previewWorkspaceId = value }
     }
+
+    View(LodyInboxView.self) {}
 
     View(LodyGroupedList.self) {
       Prop("bottomInset") { (view: LodyGroupedList, value: Double) in view.setBottomInset(CGFloat(value)) }
