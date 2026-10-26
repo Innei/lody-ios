@@ -51,7 +51,7 @@ for index in range(2):
            '--end-x', '65', '--end-y', '650', '--duration', '1', '--post-delay', '.8')
     session()
     ui.capture(f'cancelled-{index}')
-    action(f'complete-pop-{index}', 'swipe', '--start-x', '1', '--start-y', '650',
+    action(f'complete-pop-{index}', 'drag', '--start-x', '1', '--start-y', '650',
            '--end-x', '350', '--end-y', '650', '--duration', '.5', '--post-delay', '.8')
     home()
     ui.capture(f'returned-{index}')

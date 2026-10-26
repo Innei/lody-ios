@@ -250,6 +250,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     for key in ["inboxView", "inboxProjectSort", "inboxExpansion", pinOrderKey(userId: userId, workspaceId: workspaceId)] {
       UserDefaults.standard.removeObject(forKey: key)
     }
+    DispatchQueue.main.async { NotificationCenter.default.post(name: .lodyInboxPreferencesReset, object: nil) }
   }
 
   @MainActor private static func settle(_ task: Task<Void, Error>, _ promise: Promise) {

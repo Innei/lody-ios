@@ -4,6 +4,7 @@ import time
 from driver import UI
 from sheet_background import capture_card
 import catalog
+import settings_states
 
 ui = UI(sys.argv[1], sys.argv[2])
 
@@ -185,10 +186,11 @@ ui.capture('github-machines')
 ui.axe('tap', '--id', 'shared', '--post-delay', '.7')
 assert 'Teammate Mac' in (ui.element('machine').get('AXLabel') or '')
 assert 'Teammate Agent' in (ui.element('agent').get('AXLabel') or '')
-ui.axe('tap', '--id', 'branch')
-commit('main')
-ui.axe('tap', '--label', catalog.text('common.ok'), '--post-delay', '.5')
-assert ui.element('branch')['AXValue'] == 'main'
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'branch' and i.get('AXValue') == 'main' for i in items), 'Default branch was not selected')
+ui.axe('tap', '--id', 'branch', '--post-delay', '.6')
+ui.element('branch:develop')
+ui.axe('tap', '--id', 'branch:develop', '--post-delay', '.6')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'branch' and i.get('AXValue') == 'develop' for i in items), 'Picked branch did not return to the form')
 ui.capture('github-create')
 # Configuration stays page-local while one native input carries the shared draft.
 f = ui.element('create-session-input')['frame']
@@ -204,7 +206,7 @@ ui.wait(lambda items: any(i.get('AXUniqueId') == 'create-session-input' and i.ge
 ui.capture('shared-draft-chat')
 tap_create_type(0)
 assert 'Teammate Mac' in ui.element('machine')['AXLabel']
-assert ui.element('branch')['AXValue'] == 'main'
+assert ui.element('branch')['AXValue'] == 'develop'
 assert ui.element('create-session-input')['AXValue'] == 'Shared draft from chat', 'Switching to project cleared the shared draft'
 ui.capture('project-state-retained')
 # Return through the picker while preserving the native sheet navigation.
@@ -390,24 +392,34 @@ assert not any(i.get('AXUniqueId') == 'permission-preview' for i in ui.state())
 
 def tap_sheet_back():
     # The inbox gear behind the sheet shares the Settings label; the back button is the leftmost.
-    buttons = [i for i in ui.state() if i.get('type') == 'Button' and i.get('AXLabel') == settings_label]
+    buttons = [i for i in ui.state() if i.get('type') == 'Button' and (i.get('AXUniqueId') == 'BackButton' or i.get('AXLabel') == settings_label)]
     frame = min(buttons, key=lambda i: i['frame']['x'])['frame']
     ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.5')
+
+
+def reveal(identifier):
+    for _ in range(4):
+        items = ui.state()
+        match = next((i for i in items if i.get('AXUniqueId') == identifier), None)
+        if match and match['frame']['y'] + match['frame']['height'] < items[0]['frame']['height'] - 16:
+            return match
+        ui.axe('swipe', '--start-x', '200', '--start-y', '700', '--end-x', '200', '--end-y', '400', '--duration', '.4', '--post-delay', '.5')
+    raise AssertionError(f'Could not reach {identifier}')
+
+
 ui.axe('tap', '--label', settings_label, '--post-delay', '1')
 ui.element('account')
-ui.element('archived')
 ui.capture('settings')
 for kind in ('machine', 'agent', 'mcp'):
     row = ui.element(f'remote-{kind}')
     assert catalog.text(f'settings.remote.{kind}') in (row.get('AXLabel') or '')
     assert row['frame']['height'] >= 44
     ui.axe('tap', '--id', f'remote-{kind}', '--post-delay', '.5')
-    ui.element('retry')
-    ui.wait(lambda items: any(catalog.text('settings.remote.loadFailed') in (item.get('AXLabel') or '') for item in items), 'Remote settings must show a recoverable offline error')
+    settings_states.unavailable(ui, f'settings.unavailable.{kind}')
     ui.capture(f'remote-{kind}')
     tap_sheet_back()
     ui.element(f'remote-{kind}')
-row = ui.element('archived')
+row = reveal('archived')
 assert catalog.text('settings.archived.title') in (row.get('AXLabel') or '')
 ui.axe('tap', '--id', 'archived', '--post-delay', '.8')
 archived = ui.element('ui-search')

@@ -12,8 +12,16 @@ import {
 import { DebugScreen } from '@/screens/debug/DebugScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
 import { ProjectScreen } from '@/screens/ProjectScreen';
+import { SettingsScreen } from '@/screens/SettingsScreen';
+import { WorkspaceEditorScreen } from '@/screens/WorkspaceEditorScreen';
 
-registerShellPages([DebugScreen, NotificationSettingsScreen, ProjectScreen]);
+registerShellPages([
+  DebugScreen,
+  NotificationSettingsScreen,
+  ProjectScreen,
+  SettingsScreen,
+  WorkspaceEditorScreen,
+]);
 
 let creating = false;
 
