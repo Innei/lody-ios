@@ -127,4 +127,27 @@ precondition(found.map(\.id) == ["projects", "sessions"] && found[0].rows[0].id 
 precondition(found[1].rows.map(\.id) == ["s1", "s2"] && found[1].rows[0].subtitle == "matched line" && found[1].rows[1].subtitle == "lody-ios")
 precondition(InboxSections.search(many, hits: InboxSearchHits()).isEmpty)
 precondition(InboxSections.activityBucket(.nan, now: midday) == "today" && InboxSections.activityBucket(midday - 8 * day, now: midday) == "month")
-print("PASS: session rows and inbox sections match the RN inbox projection")
+let entry: [String: Any] = [
+  "fileDiffs": [["path": "a.swift", "add": 2, "del": 1]],
+  "items": [
+    ["type": "tool_call", "kind": "edit", "path": "a.swift", "added": 9, "removed": 9],
+    ["type": "tool_call", "kind": "read", "path": "r.swift", "added": 1],
+    ["type": "tool_call", "kind": "write", "path": "n.swift", "added": 4],
+    ["type": "tool_call", "kind": "edit", "path": "n.swift", "added": 1, "removed": 2],
+    ["type": "tool_call", "kind": "delete", "path": "n.swift"],
+    ["type": "tool_call", "kind": "edit", "path": ""],
+    ["type": "text", "path": "t.swift"],
+  ],
+]
+let files = SessionEnvelope.changedFiles(entry)
+precondition(files.map { $0["path"] as? String } == ["a.swift", "n.swift"], "Recorded diffs win; reads, empty paths and non-tools are skipped")
+precondition(files[0]["add"] as? Int == 2 && files[0]["status"] as? String == "M")
+precondition(files[1]["add"] as? Int == 5 && files[1]["del"] as? Int == 2 && files[1]["status"] as? String == "D")
+let envelope = SessionEnvelope.prepare(#"{"v":1,"status":"live","revision":4,"entries":[{"id":"e","items":[]}]}"#)!
+precondition(envelope.revision == 4 && envelope.entriesJSON.contains(#""fileDiffs":[]"#))
+precondition(SessionEnvelope.prepare("not json") == nil && SessionEnvelope.prepare(#"{"v":1,"overflow":true}"#)!.overflow)
+precondition(envelope.accepted(generation: 0, after: (-1, -1)), "A newer runtime generation resets the cursor")
+precondition(!envelope.accepted(generation: 0, after: (1, -1)), "Older generations drop")
+precondition(!envelope.accepted(generation: 1, after: (1, 4)) && envelope.accepted(generation: 1, after: (1, 3)), "Same generation needs a newer revision")
+precondition(!SessionEnvelope(version: 2, revision: 9).accepted(generation: 5, after: (1, 1)), "Unknown envelope versions drop")
+print("PASS: session rows, inbox sections and session envelopes match the RN projections")

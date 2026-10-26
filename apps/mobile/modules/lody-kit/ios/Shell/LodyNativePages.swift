@@ -23,6 +23,8 @@ enum LodyNativePages {
     "archived-sessions": { _ in ArchivedSessionsController() },
     "workspace-editor": { params in WorkspaceEditorController(params: params) },
     "archived-sessions-preview": { _ in ArchivedSessionsPreviewController() },
+    "session": { params in SessionController(params: params) },
+    "session-preview": { params in SessionPreviewController(scenario: params["scenario"] as? String ?? "live") },
     "memory-settings": { params in MemorySettingsController(scope: .live(params)) },
     "memory-preview": { _ in MemoryPreviewController() },
     "memory-states-preview": { _ in MemoryPreviewController(state: "not_installed") },

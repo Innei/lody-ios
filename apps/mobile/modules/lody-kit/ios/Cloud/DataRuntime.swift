@@ -116,7 +116,9 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     onCatalogUpdate?(owner, state, catalog)
   }
   private func emitStatus(_ extra: [String: Any] = [:]) {
-    emit((status() as [String: Any]).merging(extra, uniquingKeysWith: { _, new in new }))
+    let event = (status() as [String: Any]).merging(extra, uniquingKeysWith: { _, new in new })
+    emit(event)
+    NotificationCenter.default.post(name: .lodyDataRuntimeEvent, object: self, userInfo: event)
   }
   private func publishPresenceUnknown() {
     emitStatus()
