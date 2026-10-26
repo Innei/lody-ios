@@ -24,8 +24,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
           url.host?.hasSuffix(".trycloudflare.com") == true else { return nil }
     return url
   }
-  @MainActor private lazy var accentPicker = AccentColorPicker()
-
   @MainActor private lazy var dataRuntime = DataRuntime(localStore: localStore,
     emit: { [weak self] event in self?.sendEvent("onDataRuntime", event) },
     emitUploadProgress: { [weak self] event in self?.sendEvent("onAttachmentUploadProgress", event) })
@@ -146,7 +144,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   public override func willDestroy() {
     Task { @MainActor in
       self.dataRuntime.stop()
-      self.accentPicker.dismiss()
       PushNotifications.shared.onClickAvailable = nil
     }
   }
@@ -371,16 +368,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
           throw NSError(domain: "LodyKit.PreviewBrowser", code: 1)
         }
         controller.present(SFSafariViewController(url: url), animated: true)
-      }
-    }.runOnQueue(.main)
-    AsyncFunction("showAccentColorPicker") { (title: String, promise: Promise) in
-      MainActor.assumeIsolated {
-        guard let controller = self.appContext?.utilities?.currentViewController() else {
-          promise.reject("ERR_COLOR_PICKER", "No presenting controller")
-          return
-        }
-        self.accentPicker.present(from: controller, title: title)
-        promise.resolve(nil)
       }
     }.runOnQueue(.main)
     AsyncFunction("getAppIcon") { MainActor.assumeIsolated { LodyAppIcon.current } }.runOnQueue(.main)
@@ -926,22 +913,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
     }
 
-    View(LodySearchToolbar.self) {
-      Events("onSearchChange", "onAction")
-      Prop("placeholder") { (view: LodySearchToolbar, value: String) in
-        view.setPlaceholder(value)
-      }
-      Prop("actionAccessibilityName") { (view: LodySearchToolbar, value: String) in
-        view.setActionAccessibilityName(value)
-      }
-      Prop("tint") { (view: LodySearchToolbar, value: String) in
-        view.setTint(value)
-      }
-      Prop("visible") { (view: LodySearchToolbar, value: Bool) in
-        view.setVisible(value)
-      }
-    }
-
     View(LodyLayoutProbe.self) {
       Events("onTraits")
     }
@@ -959,26 +930,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
     }
 
-    View(LodyEmbeddedSheet.self) {
-      Events("onDismiss")
-      Prop("mediumFraction") { (view: LodyEmbeddedSheet, value: Double) in
-        view.setMediumFraction(value)
-      }
-      Prop("dismissRequest") { (view: LodyEmbeddedSheet, value: Int) in
-        view.setDismissRequest(value)
-      }
-      Prop("grabberAccessibilityIdentifier") { (view: LodyEmbeddedSheet, value: String) in
-        view.setGrabberAccessibilityIdentifier(value)
-      }
-      Prop("grabberAccessibility") { (view: LodyEmbeddedSheet, value: [String: String]) in
-        view.setGrabberAccessibility(
-          label: value["label"] ?? "",
-          medium: value["medium"] ?? "",
-          large: value["large"] ?? ""
-        )
-      }
-    }
-
     View(LodySymbolView.self) {
       Prop("symbol") { (view: LodySymbolView, symbol: String) in
         view.setSymbol(symbol)
@@ -988,13 +939,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
       Prop("tint") { (view: LodySymbolView, tint: String) in
         view.setTint(tint)
-      }
-    }
-
-    View(LodyContextMenu.self) {
-      Events("onAction")
-      Prop("actions") { (view: LodyContextMenu, actions: [LodyContextMenuAction]) in
-        view.setActions(actions)
       }
     }
 

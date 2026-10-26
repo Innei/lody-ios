@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { pullRequestReferences } from '../../src/features/pull-request/references.ts';
+import { pullRequestReferences } from '../../../../packages/cloud-runtime/src/protocol/pull-request.ts';
 import { createPullRequestSource } from '../../src/features/pull-request/source.ts';
 import { checksSummary } from '../../src/features/pull-request/checks.ts';
 

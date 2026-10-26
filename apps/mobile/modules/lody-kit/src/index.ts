@@ -1,6 +1,5 @@
 export {
   runtimeInfo,
-  showAccentColorPicker,
   readPreferencesRaw,
   addPreferencesListener,
   saveAccentColor,
@@ -23,22 +22,15 @@ export {
   showSessionBanner,
   dismissSessionBanner,
   type ToastKind,
-  type SessionBannerKind,
   addAppActiveListener,
   type RuntimeInfo,
 } from './runtime/LodyKit';
-export {
-  NativeCloseButton,
-  type NativeCloseButtonProps,
-} from './chrome/NativeCloseButton';
+export { NativeCloseButton } from './chrome/NativeCloseButton';
 export {
   type NativeBarItem,
   type NativeHeaderSearch,
   type NativeHeaderSearchCommands,
   NativeNavigationHeader,
-  type NativeNavigationHeaderProps,
-  type NativeToolbarItem,
-  type NativeViewBarItem,
 } from './chrome/NativeNavigationHeader';
 export {
   navigationScrollEdgeEffects,
@@ -57,7 +49,6 @@ export {
   iosSimulatorControl,
   openPreviewBrowser,
   type SessionPreviewReply,
-  type IosSimulatorCommand,
   type IosSimulatorDevice,
   type IosSimulatorPreview,
   type IosSimulatorReply,
@@ -127,53 +118,25 @@ export {
 
 export {
   NativeGroupedList,
-  type NativeGroupedListProps,
-  type NativeListAction,
   type NativeListRow,
   type NativeListSection,
-  type NativeListStatus,
-  type NativeListVisual,
 } from './list/NativeGroupedList';
-export {
-  NativePagedList,
-  type NativePagedListProps,
-  type NativePagedPage,
-} from './list/NativePagedList';
+export { NativePagedList, type NativePagedPage } from './list/NativePagedList';
 export { NativeInbox } from './list/NativeInbox';
 
-export { NativeSymbol, type NativeSymbolProps } from './chrome/NativeSymbol';
-export {
-  NativeSymbolButton,
-  type NativeSymbolButtonProps,
-} from './chrome/NativeSymbolButton';
-export {
-  NativeSearchToolbar,
-  type NativeSearchToolbarProps,
-} from './chrome/NativeSearchToolbar';
+export { NativeSymbol } from './chrome/NativeSymbol';
+export { NativeSymbolButton } from './chrome/NativeSymbolButton';
 export {
   NativeSplit,
   NativeSplitContent,
   type NativeSplitLayout,
   type NativeSplitFrame,
 } from './chrome/NativeSplit';
-export {
-  NativeLayoutProbe,
-  type NativeLayoutTraits,
-} from './chrome/NativeLayoutProbe';
-export {
-  NativeEmbeddedSheet,
-  type NativeEmbeddedSheetProps,
-} from './chrome/NativeFloatingPanel';
+export { NativeLayoutProbe } from './chrome/NativeLayoutProbe';
 
-export {
-  NativePressable,
-  type NativePressableProps,
-} from './press/NativePressable';
+export { NativePressable } from './press/NativePressable';
 
-export {
-  NativeGlassSurface,
-  type NativeGlassSurfaceProps,
-} from './press/NativeGlassSurface';
+export { NativeGlassSurface } from './press/NativeGlassSurface';
 
 export {
   initialInboxView,
@@ -199,14 +162,7 @@ export {
 export {
   NativeMenuButton,
   type NativeMenuItem,
-  type NativeMenuButtonProps,
 } from './chrome/NativeMenuButton';
-
-export {
-  NativeContextMenu,
-  type NativeContextMenuAction,
-  type NativeContextMenuProps,
-} from './menu/NativeContextMenu';
 
 export { NativeChat, type ChatDraftAttachment } from './chat/NativeChat';
 
@@ -215,8 +171,6 @@ export { NativeComposer } from './chat/NativeComposer';
 export {
   NativeCreateSession,
   type CreateSessionRequest,
-  type CreateSessionSelection,
-  type CreateSessionSubmit,
 } from './create/NativeCreateSession';
 
 export {
@@ -228,11 +182,8 @@ export {
   listDir,
   localProjectIdOf,
   type DiffContent,
-  type DiffSideKind,
   type FileContent,
-  type FileKind,
   type DirectoryEntry,
-  type DirectoryListing,
 } from './diff/files';
 export { readContentText, previewContent, openFile } from './runtime/LodyKit';
 export { createSendId } from './runtime/LodyKit';
@@ -240,19 +191,9 @@ export {
   NativeHTMLPreviewView,
   type HTMLPreviewIssue,
 } from './html-preview/NativeHTMLPreviewView';
-export {
-  NativeInlineDiff,
-  type NativeInlineDiffProps,
-} from './diff/NativeInlineDiff';
-export {
-  NativeMarkdownDocumentView,
-  type NativeMarkdownDocumentViewProps,
-} from './markdown/NativeMarkdownDocumentView';
-export {
-  NativeDiffToolbar,
-  NativeDiffSurface,
-  type NativeDiffToolbarProps,
-} from './diff/NativeDiffToolbar';
+export { NativeInlineDiff } from './diff/NativeInlineDiff';
+export { NativeMarkdownDocumentView } from './markdown/NativeMarkdownDocumentView';
+export { NativeDiffToolbar, NativeDiffSurface } from './diff/NativeDiffToolbar';
 
 export * from './notifications/notifications';
 export * from './diagnostics/diagnostics';
@@ -263,7 +204,7 @@ export { getMentionCatalog } from './chat/mentions';
 export { NativeShellPOC, NativePagePOC } from './chrome/NativeShellPOC';
 export { ComposerHandoffPOC } from './chat/ComposerHandoffPOC';
 
-export { NativeSidebar, type NativeSidebarProps } from './list/NativeSidebar';
+export { NativeSidebar } from './list/NativeSidebar';
 export {
   prepareChatEntries,
   type PreparedChatEntries,
