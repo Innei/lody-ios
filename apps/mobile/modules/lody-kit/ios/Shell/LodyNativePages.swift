@@ -52,6 +52,10 @@ enum LodyNativePages {
     "project-history": { params in ProjectHistoryController(scope: .live(params)) },
     "project-history-preview": { _ in ProjectHistoryPreview.make() },
     "directory-preview": { _ in DirectoryPreviewController() },
+    "project": { params in ProjectController(projectId: params["projectId"] as? String ?? "") },
+    "project-preview": { params in
+      ProjectPreviewController(projectId: params["projectId"] as? String ?? "preview-lody", connected: params["offline"] == nil)
+    },
   ]
 
   private static func picker(_ params: [String: Any]) -> UIViewController {
