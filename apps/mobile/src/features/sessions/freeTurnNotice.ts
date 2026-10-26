@@ -17,7 +17,9 @@ export function freeTurnNotice(
     return '';
   const remaining = FREE_SESSION_TURN_LIMIT - count;
   if (remaining <= 0) return t('chat.composer.freeTurnLimit');
-  return tp('chat.composer.freeTurnsRemaining', remaining, { remaining });
+  return tp('chat.composer.freeTurnsRemaining', remaining, {
+    count: remaining,
+  });
 }
 
 export function freeTurnLimitReached(

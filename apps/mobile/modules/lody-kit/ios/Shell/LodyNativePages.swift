@@ -25,6 +25,7 @@ enum LodyNativePages {
     "archived-sessions-preview": { _ in ArchivedSessionsPreviewController() },
     "session": { params in SessionController(params: params) },
     "session-preview": { params in SessionPreviewController(scenario: params["scenario"] as? String ?? "live") },
+    "send-preview": { params in SendPreviewController(params: params) },
     "memory-settings": { params in MemorySettingsController(scope: .live(params)) },
     "memory-preview": { _ in MemoryPreviewController() },
     "memory-states-preview": { _ in MemoryPreviewController(state: "not_installed") },

@@ -97,14 +97,14 @@ func record(_ id: String, phase: String = "waiting", sendId: String? = nil, extr
 
 @MainActor var retained: [AnyObject] = []
 
-@MainActor func harness(_ records: [OutboxRecord], _ network: Network, inputs: OutboxDispatcher.Inputs? = nil)
-  async -> (OutboxDispatcher, OutboxStore, Disk) {
+@MainActor func harness(_ records: [OutboxRecord], _ network: Network, inputs: OutboxDispatcher.Inputs? = nil,
+                        foreground: String? = nil) async -> (OutboxDispatcher, OutboxStore, Disk) {
   let disk = Disk()
   disk.values["pending-sends:u1:w"] = OutboxRecord.encode(records)
   let stores = OutboxStores(persistence: disk.persistence, awaitingConfirmation: { "send.reason.awaitingConfirmation" })
   retained.append(stores)
   let store = stores.store(user: "u1", workspace: "w")!
-  let dispatcher = OutboxDispatcher(services: network.services, inflight: OutboxInflight(), text: { $0 })
+  let dispatcher = OutboxDispatcher(services: network.services, inflight: OutboxInflight(), foreground: foreground, text: { $0 })
   stores.onChange = { [weak dispatcher] _ in dispatcher?.schedule() }
   dispatcher.update(store: store, inputs: inputs ?? .init(userId: "u1", connected: true))
   await settle()
@@ -115,6 +115,8 @@ func record(_ id: String, phase: String = "waiting", sendId: String? = nil, extr
   @MainActor static func main() async throws {
     try await pendingSends()
     try await dispatch()
+    try await foreground()
+    try await handoff()
   }
 
   @MainActor static func pendingSends() async throws {
@@ -315,6 +317,139 @@ func record(_ id: String, phase: String = "waiting", sendId: String? = nil, extr
     precondition(phases(store) == ["unknown"] && network.alerts.isEmpty, "an unreadable ACK is ambiguous, not failed")
     print("PASS: session_not_ready waits again, definite rejections fail with an alert, ambiguous replies become unknown")
     _ = dispatcher
+  }
+
+  @MainActor static func page(_ entries: [[String: Any]] = [], live: Bool = true, running: Bool = false, steer: Bool = false,
+                              behavior: String = "queue", serverCreated: Bool = false) -> OutboxDispatcher.Inputs {
+    let context = OutboxForeground(
+      live: live, serverCreated: serverCreated, steerable: steer, promptBusy: running, queuedMessageBehavior: behavior,
+      transcript: SessionTranscriptFacts(entries: entries))
+    return .init(userId: "u1", connected: true, context: context)
+  }
+
+  @MainActor static func foreground() async throws {
+    var network = Network()
+    let choice: OutboxValue = .object(["configOptionValues": .object(["permission_mode": .string("always-approve"), "fast": .bool(false)])])
+    var (dispatcher, store, _) = await harness([record("s1", sendId: "F1", extra: ["choice": choice]), record("s2")], network,
+                                               inputs: page(live: false), foreground: "s1")
+    precondition(network.ensured.isEmpty && phases(store) == ["waiting", "waiting"])
+    var settles = 0
+    dispatcher.settled = { settles += 1 }
+    dispatcher.update(store: store, inputs: page())
+    await settle()
+    precondition(settles == 1, "the page learns when its dispatch releases the session")
+    precondition(network.ensured == ["s1"] && network.sent.count == 1 && network.sent[0]["id"] == .string("F1"))
+    precondition(network.sent[0]["attachments"] == record("s1").send["attachments"] && network.sent[0]["queue"] == .bool(false))
+    precondition(network.sent[0]["configOptionValues"] == choice.object?["configOptionValues"])
+    precondition(phases(store).sorted() == ["accepted", "waiting"] && network.released.isEmpty, "the page leaves other sessions and reserves alone")
+    print("PASS: the page dispatcher sends its own session once the transcript is live, with the same identity and choices")
+
+    for state in ["not_sent", "unknown"] {
+      network = Network()
+      network.send = { _ in #"{"state":"\#(state)","reason":"session_not_ready"}"# }
+      (dispatcher, store, _) = await harness([record("s1")], network, inputs: page(), foreground: "s1")
+      precondition(phases(store) == [state == "not_sent" ? "failed" : "unknown"] && store.snapshot.records[0].send["text"] == .string("hello"))
+      precondition(network.alerts.count == (state == "not_sent" ? 1 : 0))
+      dispatcher.update(store: store, inputs: page([["id": "other", "role": "user"]]))
+      await settle()
+      precondition(network.sent.count == 1, "a definite or ambiguous result is never replayed automatically")
+    }
+    try await store.put(store.snapshot.records[0].with(phase: "failed")).value
+    try await store.put(store.snapshot.records[0].with(phase: "waiting")).value
+    await settle()
+    precondition(network.sent.count == 2 && network.sent[1]["id"] == network.sent[0]["id"])
+    print("PASS: page failures keep the draft, unknown results never replay, and an explicit retry reuses the identity")
+
+    network = Network()
+    network.create = { _ in #"{"state":"created","session":{"id":"s1","machineId":"m1"}}"# }
+    (dispatcher, store, _) = await harness([record("s1", extra: ["creation": .string("{}")])], network,
+                                           inputs: page(live: false), foreground: "s1")
+    precondition(network.created.count == 1 && network.sent.isEmpty && phases(store) == ["waiting"])
+    dispatcher.update(store: store, inputs: page())
+    await settle()
+    precondition(network.created.count == 1 && network.sent.count == 1 && phases(store) == ["accepted"])
+    network = Network()
+    (dispatcher, store, _) = await harness([record("s1", phase: "unknown", extra: ["creation": .string("{}")])], network,
+                                           inputs: page(serverCreated: true), foreground: "s1")
+    precondition(network.created.isEmpty && network.sent.count == 1 && phases(store) == ["accepted"])
+    print("PASS: creation becomes one first turn after the destination is live; a server-created session resumes once")
+
+    network = Network()
+    (dispatcher, store, _) = await harness([record("s1", phase: "unknown", sendId: "D")], network,
+                                           inputs: page([["id": "D", "role": "user"]]), foreground: "s1")
+    precondition(phases(store) == ["unknown"])
+    for entries: [[String: Any]] in [
+      [["id": "D", "role": "user"], ["id": "x", "role": "assistant", "userTurnId": "other"]],
+      [["id": "D", "role": "user"], ["id": "other", "role": "user"], ["id": "legacy", "role": "assistant"]],
+    ] {
+      dispatcher.update(store: store, inputs: page(entries))
+      await settle()
+      precondition(phases(store) == ["unknown"], "an unrelated reply cannot settle the send")
+    }
+    dispatcher.update(store: store, inputs: page([["id": "own", "role": "assistant", "userTurnId": "D"]]))
+    await settle()
+    precondition(store.snapshot.records.isEmpty && network.sent.isEmpty)
+    network = Network()
+    (dispatcher, store, _) = await harness([record("s1", sendId: "D")], network, inputs: page([["id": "D", "role": "user"]]), foreground: "s1")
+    precondition(network.sent.isEmpty && phases(store) == ["waiting"], "a cached user row blocks a replay")
+    print("PASS: only a causally matching reply settles a page send; a cached user row never confirms or replays it")
+
+    let running: [[String: Any]] = [["id": "active", "role": "assistant", "finished": false]]
+    for (steer, behavior, queue, guide) in [(true, "guide", false, true), (true, "queue", true, false), (false, "guide", true, false)] {
+      network = Network()
+      (dispatcher, store, _) = await harness([record("s1")], network,
+                                             inputs: page(running, running: true, steer: steer, behavior: behavior), foreground: "s1")
+      precondition(network.sent[0]["queue"] == .bool(queue) && network.sent[0]["guide"] == .bool(guide), "\(steer) \(behavior)")
+      precondition(store.snapshot.records[0].send["guide"] == .bool(guide))
+    }
+    network = Network()
+    (dispatcher, store, _) = await harness([record("s1", extra: ["guide": .bool(true)])], network, inputs: page(), foreground: "s1")
+    precondition(network.sent[0]["guide"] == .bool(false) && network.sent[0]["queue"] == .bool(false), "guide needs steer capability")
+    print("PASS: page routing guides only with steer capability and the guide preference, and queues behind a running reply")
+    _ = dispatcher
+  }
+
+  @MainActor static func handoff() async throws {
+    for creation in [false, true] {
+      let network = Network()
+      let ack = Gate()
+      network.send = { _ in try await ack.wait(); return #"{"state":"accepted"}"# }
+      network.create = { _ in try await ack.wait(); return #"{"state":"created","session":{"id":"s1","machineId":"m1"}}"# }
+      let disk = Disk()
+      let extra: [String: OutboxValue] = creation ? ["creation": .string("{}")] : [:]
+      disk.values["pending-sends:u1:w"] = OutboxRecord.encode([record("s1", sendId: "H", extra: extra)])
+      let stores = OutboxStores(persistence: disk.persistence, awaitingConfirmation: { "send.reason.awaitingConfirmation" })
+      let store = stores.store(user: "u1", workspace: "w")!
+      let inflight = OutboxInflight()
+      let global = OutboxDispatcher(services: network.services, inflight: inflight, text: { $0 })
+      var owned: OutboxDispatcher? = OutboxDispatcher(services: network.services, inflight: inflight, foreground: "s1", text: { $0 })
+      stores.onChange = { [weak global, weak owned] _ in global?.schedule(); owned?.schedule() }
+      global.update(store: store, inputs: .init(userId: "u1", connected: true, foregroundSessionId: "s1"))
+      owned?.update(store: store, inputs: page(live: true))
+      await settle()
+      precondition(network.sent.count + network.created.count == 1, "the page dispatches its session once")
+      global.update(store: store, inputs: .init(userId: "u1", connected: true, latestUserMessages: creation ? [:] : ["s1": ""]))
+      owned?.update(store: nil, inputs: .init())
+      owned = nil
+      await settle()
+      precondition(network.sent.count + network.created.count == 1, "leaving the page mid-send never redispatches the same id")
+      ack.open()
+      await settle()
+      let ids = network.sent.compactMap { $0["id"]?.string }
+      precondition(ids == ["H"] && network.created.count == (creation ? 1 : 0) && phases(store) == ["accepted"], "\(ids) \(phases(store))")
+    }
+    let network = Network()
+    let ack = Gate()
+    network.send = { _ in try await ack.wait(); return #"{"state":"accepted"}"# }
+    let (global, store, _) = await harness([record("s1", sendId: "B")], network)
+    let owned = OutboxDispatcher(services: network.services, inflight: global.inflight, foreground: "s1", text: { $0 })
+    global.update(store: store, inputs: .init(userId: "u1", connected: true, foregroundSessionId: "s1"))
+    owned.update(store: store, inputs: page(live: true))
+    await settle()
+    ack.open()
+    await settle()
+    precondition(network.sent.count == 1 && phases(store) == ["accepted"], "a page opened mid-send leaves the background write alone")
+    print("PASS: the page and background dispatchers hand a session over without dispatching the same id twice")
   }
 }
 

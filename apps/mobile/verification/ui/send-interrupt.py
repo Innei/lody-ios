@@ -20,7 +20,7 @@ ui.capture('interrupt-first-only')
 
 ui.axe('tap', '--id', turns[0] + ':steer')
 request = json.loads(ui.element('control-request')['AXLabel'])
-assert request['action'] == 'stop' and 'messageId' not in request and request['turnId'] == 'running-reply', request
+assert request['action'] == 'steer' and request['interrupt'] is True and request['messageId'] == turns[0] and request['turnId'] == 'running-reply', request
 assert not ui.element('session-stop')['enabled']
 ui.capture('interrupting')
 ui.axe('tap', '--id', 'send-complete')
@@ -32,4 +32,4 @@ ui.element(turns[0] + ':user')
 ui.element(turns[1] + ':queued')
 ui.wait(lambda items: any(i.get('AXUniqueId') == turns[1] + ':steer' and i.get('enabled') for i in items), 'The next queued message must offer Steer')
 ui.capture('interrupt-advanced-first')
-print('PASS: without acknowledged steer only the first queued message is steerable, Steer sends stop, and the queue advances FIFO')
+print('PASS: without acknowledged steer only the first queued message is steerable, Steer interrupts the running turn, and the queue advances FIFO')

@@ -6,6 +6,9 @@ struct SessionEnvelope: Sendable {
   var status = ""
   var overflow = false
   var entriesJSON = "[]"
+  var billableTurnCount: Int?
+  var composerJSON: String?
+  var transcript = SessionTranscriptFacts()
 
   static func prepare(_ json: String) -> SessionEnvelope? {
     guard let object = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any] else { return nil }
@@ -13,7 +16,12 @@ struct SessionEnvelope: Sendable {
       version: (object["v"] as? NSNumber)?.intValue, revision: (object["revision"] as? NSNumber)?.intValue,
       status: object["status"] as? String ?? "", overflow: object["overflow"] as? Bool == true
     )
+    envelope.billableTurnCount = (object["billableTurnCount"] as? NSNumber)?.intValue
+    if let composer = object["composer"] as? [String: Any], let data = try? JSONSerialization.data(withJSONObject: composer) {
+      envelope.composerJSON = String(decoding: data, as: UTF8.self)
+    }
     guard let entries = object["entries"] as? [[String: Any]] else { return envelope }
+    envelope.transcript = SessionTranscriptFacts(entries: entries)
     let augmented = entries.map { entry in entry.merging(["fileDiffs": changedFiles(entry)]) { _, new in new } }
     if let data = try? JSONSerialization.data(withJSONObject: augmented) {
       envelope.entriesJSON = String(decoding: data, as: UTF8.self)
@@ -54,5 +62,35 @@ struct SessionEnvelope: Sendable {
     guard version == 1, generation >= cursor.generation else { return false }
     if generation > cursor.generation { return revision != nil }
     return (revision ?? .min) > cursor.revision
+  }
+}
+
+struct SessionTranscriptFacts: Equatable, Sendable {
+  var entryIds: Set<String> = []
+  var replied: Set<String> = []
+  var delivered: Set<String> = []
+  var unfinishedTurnId: String?
+  var conversational = false
+
+  init() {}
+
+  init(entries: [[String: Any]]) {
+    var preceding: String?
+    for entry in entries {
+      guard let id = entry["id"] as? String else { continue }
+      entryIds.insert(id)
+      if let delivery = entry["delivery"] as? String, !delivery.isEmpty { delivered.insert(id) }
+      switch entry["role"] as? String {
+      case "user":
+        preceding = id
+        conversational = true
+      case "assistant":
+        conversational = true
+        if let target = entry["userTurnId"] as? String ?? preceding { replied.insert(target) }
+        if entry["finished"] as? Bool != true { unfinishedTurnId = id }
+      default:
+        break
+      }
+    }
   }
 }
