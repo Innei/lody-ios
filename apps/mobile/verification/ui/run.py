@@ -400,6 +400,9 @@ with metro_context:
         # A Chinese App Language otherwise brings up the pinyin IME, which buffers typed
         # fixture text as composition instead of committing it to the field.
         sim('spawn', args.udid, 'defaults', 'write', 'com.apple.Preferences', 'AppleKeyboards', '-array', 'en_US@sw=QWERTY')
+        # A pending autocorrection is accepted by the next touch anywhere outside the field, so
+        # typed fixture text would change with whatever the keyboard has learned on this device.
+        sim('spawn', args.udid, 'defaults', 'write', 'com.apple.keyboard.preferences', 'KeyboardAutocorrection', '-bool', 'false')
         keyboard = args.output / 'software-keyboard'
         subprocess.run(['xcrun', 'clang', '-fobjc-arc', '-framework', 'Foundation', str(Path(__file__).with_name('software-keyboard.m')), '-o', str(keyboard)], check=True, timeout=60)
         subprocess.run([str(keyboard), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), args.udid], check=True, timeout=30)
