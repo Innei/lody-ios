@@ -65,16 +65,49 @@ struct SessionEnvelope: Sendable {
   }
 }
 
+struct SessionItemTarget: Equatable, Sendable {
+  var entryId: String
+  var itemId: String
+  var detail: String
+}
+
 struct SessionTranscriptFacts: Equatable, Sendable {
+  static let recoverable: Set<String> = [
+    "acp_provider_overloaded", "acp_upstream_api_error", "acp_internal_error", "acp_unknown_error",
+    "agent_disconnected", "agent_no_output", "acp_not_ready",
+  ]
+
   var entryIds: Set<String> = []
   var replied: Set<String> = []
   var delivered: Set<String> = []
+  var answered: Set<String> = []
   var unfinishedTurnId: String?
   var conversational = false
+  var proposedPlan: SessionItemTarget?
+  var retryableError: SessionItemTarget?
+  var editableUserId: String?
+  var editEligibility = ""
 
   init() {}
 
   init(entries: [[String: Any]]) {
+    proposedPlan = Self.latestProposedPlan(entries)
+    retryableError = Self.latestRetryableError(entries)
+    var assistantSeen = false
+    for entry in entries.reversed() {
+      if assistantSeen, let id = entry["id"] as? String { answered.insert(id) }
+      if entry["role"] as? String == "assistant" { assistantSeen = true }
+    }
+    let latest = entries.lastIndex { $0["role"] as? String == "user" && $0["status"] as? String != "queued" }
+    let goal = entries.last { ($0["items"] as? [[String: Any]] ?? []).contains { $0["type"] as? String == "goal" } }
+    if let latest {
+      editableUserId = entries[latest]["id"] as? String
+      let preceding = latest > 0 ? entries[latest - 1] : [:]
+      editEligibility = [
+        editableUserId ?? "", entries[latest]["status"] as? String ?? "", preceding["id"] as? String ?? "",
+        "\(preceding["finished"] as? Bool ?? false)", goal?["id"] as? String ?? "", "\(goal?["rev"] ?? "")",
+      ].joined(separator: ":")
+    }
     var preceding: String?
     for entry in entries {
       guard let id = entry["id"] as? String else { continue }
@@ -92,5 +125,35 @@ struct SessionTranscriptFacts: Equatable, Sendable {
         break
       }
     }
+  }
+
+  static func latestProposedPlan(_ entries: [[String: Any]]) -> SessionItemTarget? {
+    for entry in entries.reversed() {
+      // A subsequent user turn consumes the previous decision even after remount.
+      if entry["role"] as? String == "user" { return nil }
+      for item in (entry["items"] as? [[String: Any]] ?? []).reversed() {
+        guard item["type"] as? String == "proposed_plan", let markdown = item["markdown"] as? String else { continue }
+        guard item["status"] as? String == "completed", item["isLatest"] as? Bool == true,
+              !markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let entryId = entry["id"] as? String, let itemId = item["itemId"] as? String else { return nil }
+        return SessionItemTarget(entryId: entryId, itemId: itemId, detail: item["turnId"] as? String ?? "")
+      }
+    }
+    return nil
+  }
+
+  static func latestRetryableError(_ entries: [[String: Any]]) -> SessionItemTarget? {
+    for entry in entries.reversed() {
+      if entry["role"] as? String == "user" { return nil }
+      for item in (entry["items"] as? [[String: Any]] ?? []).reversed() {
+        guard item["type"] as? String == "system_notice", item["name"] as? String == "chat_failed" else { continue }
+        let meta = item["meta"] as? [String: Any] ?? [:]
+        let reason = meta["reason"] as? String ?? ""
+        guard recoverable.contains(reason), meta["code"] as? String != "git_executable_not_found",
+              let entryId = entry["id"] as? String, let itemId = item["itemId"] as? String else { return nil }
+        return SessionItemTarget(entryId: entryId, itemId: itemId, detail: reason)
+      }
+    }
+    return nil
   }
 }

@@ -77,6 +77,7 @@ final class SessionFeed {
   }
 
   var watching: Bool { unwatch != nil }
+  var generation: Int { cursor.generation }
 
   func start() {
     guard unwatch == nil, !userId.isEmpty, !workspaceId.isEmpty else { return }

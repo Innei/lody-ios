@@ -1,6 +1,5 @@
 """Real Inbox/sidebar → cached conversation → native find, without cloud."""
 import json
-import subprocess
 import sys
 from driver import UI
 import catalog
@@ -84,34 +83,8 @@ def back_to_inbox():
 
 def highlight_probe(name, expected=True):
     """Read actual highlight layers and their screen coordinates, never mutate UI."""
-    processes = subprocess.check_output(['xcrun', 'simctl', 'spawn', ui.udid, 'launchctl', 'list'], text=True)
-    pid = next(line.split()[0] for line in processes.splitlines() if 'UIKitApplication:app.innei.lody[' in line)
-    expression = '''({ NSMutableArray *q = [NSMutableArray array];
-      for (UIWindowScene *scene in [[UIApplication sharedApplication] connectedScenes]) {
-        if ([scene isKindOfClass:[UIWindowScene class]]) [q addObjectsFromArray:(NSArray *)[scene windows]];
-      }
-      NSMutableArray *result = [NSMutableArray array];
-      for (NSUInteger i = 0; i < [q count]; i++) {
-        UIView *v = q[i];
-        for (CALayer *layer in [[v layer] sublayers]) {
-          if ([[layer name] isEqualToString:@"lody-find"] && [layer isKindOfClass:[CAShapeLayer class]]) {
-            CAShapeLayer *shape = (CAShapeLayer *)layer;
-            auto bounds = [(UIBezierPath *)[UIBezierPath bezierPathWithCGPath:(CGPathRef)[shape path]] bounds];
-            auto r = [v convertRect:bounds toView:nil];
-            [result addObject:@{@"active": @([shape strokeColor] != nil), @"x": @(r.origin.x),
-              @"y": @(r.origin.y), @"width": @(r.size.width), @"height": @(r.size.height)}];
-          }
-        }
-        [q addObjectsFromArray:(NSArray *)[v subviews]];
-      }
-      [@"FIND_LAYERS=" stringByAppendingString:[[NSString alloc] initWithData:[NSJSONSerialization dataWithJSONObject:result options:0 error:nil] encoding:NSUTF8StringEncoding]];
-    })'''
-    result = subprocess.run(['lldb', '--batch', '-p', pid, '-o', 'expr -l objc++ -- @import UIKit; @import QuartzCore;',
-        '-o', 'expr -l objc++ -O -- ' + expression.replace('\n', ' '), '-o', 'detach'],
-        text=True, capture_output=True, timeout=45)
-    (ui.output / f'{name}-native.log').write_text(result.stdout + result.stderr)
-    assert result.returncode == 0, result.stderr
-    layers = json.loads(result.stdout.rsplit('FIND_LAYERS=', 1)[1].splitlines()[0])
+    # The app reports its rendered layers; attaching a debugger here left the app unresponsive to AX and taps.
+    layers = json.loads(ui.element('chat-find-probe').get('AXValue') or '[]')
     (ui.output / f'{name}-highlights.json').write_text(json.dumps(layers, indent=2))
     if not expected:
         assert not layers, 'Closing find left highlight layers behind'

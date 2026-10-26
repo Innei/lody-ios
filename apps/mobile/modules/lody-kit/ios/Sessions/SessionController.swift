@@ -6,7 +6,7 @@ class SessionController: UIViewController {
   let chat = LodyChatView(appContext: nil)
   let source: SessionSource
   let sessionId: String
-  let environment: SessionSendEnvironment
+  var environment: SessionSendEnvironment
   private let feedService: SessionFeedService
   private let findQuery: String
   private lazy var actions = SessionActions(source: source)
@@ -14,6 +14,13 @@ class SessionController: UIViewController {
   lazy var composerModel = SessionComposerModel(choice: initialChoice, service: environment.composer)
   lazy var control = SessionControl(request: environment.control)
   var sender: SessionSender?
+  let planDecision = SessionDecision(.plan)
+  let errorRetry = SessionDecision(.retry)
+  var openingFile = false
+  var mentions: MentionCatalogStore?
+  var mentionSequence = 0
+  var editable = ""
+  var editCheck = ""
   var quotaEntry = "pending"
   var rendered: [String: String] = [:]
   private let initialChoice: ModelChoice?
@@ -69,6 +76,9 @@ class SessionController: UIViewController {
     wireEvents()
     find(query: findQuery, keyboard: false)
     wireSendEvents()
+    wireDecisionEvents()
+    wireRouteEvents()
+    wireMentionEvents()
     observers = (source.changes + [UIApplication.didBecomeActiveNotification, .lodyPreferencesDidChange]).map { name in
       NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
         let activated = note.name == UIApplication.didBecomeActiveNotification
@@ -113,6 +123,7 @@ class SessionController: UIViewController {
     chat.setNavigationBranch(session.branchName ?? "")
     chat.setTitleMenu(titleMenu(session, machine: machine, machineState: machineState))
     chat.mentionRepository = session.projectId.hasPrefix("github:") ? String(session.projectId.dropFirst(7)) : ""
+    renderMentions(state, session)
     renderFeed(session)
     updateMoreMenu(session)
   }
@@ -146,6 +157,12 @@ class SessionController: UIViewController {
 
   private func titleMenu(_ session: SessionItem, machine: String, machineState: String) -> String {
     var items: [[String: Any]] = []
+    if browsable {
+      items.append([
+        "id": "files", "title": LodyStrings.text("session.action.projectFiles"),
+        "subtitle": projectName(session, catalog: source.state.catalog), "symbol": "folder",
+      ])
+    }
     if let branch = session.branchName {
       items.append([
         "id": "branch", "title": LodyStrings.text("session.title.copyBranch"), "subtitle": branch,
@@ -167,7 +184,13 @@ class SessionController: UIViewController {
     let deleting = SessionActions.isDeleting(source.state.workspaceId, sessionId)
     let more = moreItem ?? UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: nil)
     more.accessibilityLabel = LodyStrings.text("common.more")
-    more.menu = UIMenu(children: [
+    var changes: [UIMenuElement] = []
+    if reviewable {
+      changes.append(UIAction(title: LodyStrings.text("workspaceChanges.title"), image: UIImage(systemName: "plus.forwardslash.minus")) {
+        [weak self] _ in self?.openWorkspaceChanges()
+      })
+    }
+    more.menu = UIMenu(children: changes + [
       UIAction(title: LodyStrings.text("session.action.find"), image: UIImage(systemName: "magnifyingglass")) { [weak self] _ in
         self?.find(query: "", keyboard: true)
       },
@@ -203,6 +226,10 @@ class SessionController: UIViewController {
       LodyToastOverlay.shared.show(message: LodyStrings.text("session.title.branchCopied"), kind: "info")
     case "rename":
       perform("rename")
+    case "files":
+      guard let session = source.state.catalog.session(sessionId) else { return }
+      let name = projectName(session, catalog: source.state.catalog)
+      openProjectFiles(title: name.isEmpty ? LodyStrings.text("session.action.projectFiles") : name)
     default:
       break
     }

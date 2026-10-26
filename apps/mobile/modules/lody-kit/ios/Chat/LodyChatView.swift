@@ -470,6 +470,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     }
     addSubview(overlay)
     addSubview(findBar)
+    if LodyUIVerify.enabled { addSubview(ChatFindProbe()) }
     overlay.translatesAutoresizingMaskIntoConstraints = false
     collection.translatesAutoresizingMaskIntoConstraints = false
     edgeFade.translatesAutoresizingMaskIntoConstraints = false
