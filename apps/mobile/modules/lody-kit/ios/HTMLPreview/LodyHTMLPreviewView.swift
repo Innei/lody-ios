@@ -17,6 +17,10 @@ final class LodyHTMLPreviewView: LodyAppearanceView, WKNavigationDelegate, WKUID
   let onIssues = EventDispatcher()
   let onLoad = EventDispatcher()
   let onFail = EventDispatcher()
+  var loaded: (() -> Void)?
+  var failed: ((String) -> Void)?
+  var issuesChanged: (([[String: String]]) -> Void)?
+  var resourceRequested: ((_ id: String, _ path: String) -> Void)?
   private var webView: WKWebView?
   private var content: StoredContent?
   private var documentURL: URL?
@@ -30,7 +34,7 @@ final class LodyHTMLPreviewView: LodyAppearanceView, WKNavigationDelegate, WKUID
   func setHandle(_ handle: String) {
     if self.handle == handle, webView != nil { return }
     self.handle = handle
-    guard let stored = ContentStore.shared.get(handle) else { onFail(["code": "content_expired"]); return }
+    guard let stored = ContentStore.shared.get(handle) else { fail("content_expired"); return }
     stopLoading()
     content = stored
     resourceCount = 0
@@ -66,7 +70,7 @@ final class LodyHTMLPreviewView: LodyAppearanceView, WKNavigationDelegate, WKUID
     WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "lody-preview-localhost", encodedContentRuleList: rules) { [weak self, weak web] ruleList, _ in
       DispatchQueue.main.async {
         guard let self, let web, web === self.webView else { return }
-        guard let ruleList else { self.onFail(["code": "resource_failed"]); return }
+        guard let ruleList else { self.fail("resource_failed"); return }
         web.configuration.userContentController.add(ruleList)
         web.load(URLRequest(url: url))
       }
@@ -91,7 +95,9 @@ final class LodyHTMLPreviewView: LodyAppearanceView, WKNavigationDelegate, WKUID
     guard resourceCount <= 128 else { fail(task, code: "resource_limit"); return }
     let id = UUID().uuidString
     requests[id] = task
-    onResourceRequest(["id": id, "path": HTMLPreviewResource.path(url, documentPath: content.path)])
+    let path = HTMLPreviewResource.path(url, documentPath: content.path)
+    onResourceRequest(["id": id, "path": path])
+    resourceRequested?(id, path)
   }
 
   fileprivate func stop(_ task: WKURLSchemeTask) {
@@ -101,6 +107,10 @@ final class LodyHTMLPreviewView: LodyAppearanceView, WKNavigationDelegate, WKUID
   func setResponses(_ json: String) {
     guard let data = json.data(using: .utf8),
       let replies = try? JSONSerialization.jsonObject(with: data) as? [[String: String]] else { return }
+    respond(replies)
+  }
+
+  func respond(_ replies: [[String: String]]) {
     for reply in replies {
       guard let id = reply["id"], let task = requests.removeValue(forKey: id) else { continue }
       guard let handle = reply["handle"], let resource = ContentStore.shared.get(handle) else {
@@ -154,12 +164,15 @@ final class LodyHTMLPreviewView: LodyAppearanceView, WKNavigationDelegate, WKUID
     }
     if issues[key] == issue { return }
     issues[key] = issue
-    onIssues(["issues": issues.keys.sorted().compactMap { issues[$0] }])
+    let sorted = issues.keys.sorted().compactMap { issues[$0] }
+    onIssues(["issues": sorted])
+    issuesChanged?(sorted)
   }
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     guard webView === self.webView else { return }
     onLoad([:])
+    loaded?()
     probe()
   }
 
@@ -186,18 +199,18 @@ final class LodyHTMLPreviewView: LodyAppearanceView, WKNavigationDelegate, WKUID
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
     guard webView === self.webView else { return }
     if (error as NSError).code == NSURLErrorCancelled { return }
-    onFail(["code": "resource_failed"])
+    fail("resource_failed")
   }
 
   func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
     guard webView === self.webView else { return }
     if (error as NSError).code == NSURLErrorCancelled { return }
-    onFail(["code": "resource_failed"])
+    fail("resource_failed")
   }
 
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
     guard webView === self.webView else { return }
-    onFail(["code": "content_expired"])
+    fail("content_expired")
   }
 
   func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
@@ -275,6 +288,11 @@ final class LodyHTMLPreviewView: LodyAppearanceView, WKNavigationDelegate, WKUID
       }
       responder = current.next
     }
+  }
+
+  private func fail(_ code: String) {
+    onFail(["code": code])
+    failed?(code)
   }
 
   private func stopLoading() {
