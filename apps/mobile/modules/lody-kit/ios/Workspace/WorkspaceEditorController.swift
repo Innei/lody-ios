@@ -38,7 +38,7 @@ final class WorkspaceEditorController: LodyFormController {
   private let spinner = UIActivityIndicatorView(style: .medium)
   private let overlay = UIView()
   private let changeLabel = UILabel()
-  private let iconButton = UIControl()
+  private let iconButton = UIButton(type: .custom)
   private lazy var cancelItem = Self.barButton(symbol: "xmark", label: LodyStrings.text("common.cancel")) { [weak self] in
     self?.closeForm()
   }
