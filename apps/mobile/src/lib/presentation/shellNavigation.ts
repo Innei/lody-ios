@@ -5,7 +5,7 @@ import {
   navPopToRoot,
   navPresent,
   navSetStack,
-  previewReply,
+  navReply,
   type ShellPage as ShellPageSpec,
 } from '@lody-ios/kit';
 
@@ -14,6 +14,7 @@ import type { PageDefinitionBase } from './page';
 import {
   cancelPresentation,
   completePresentation,
+  getPresentationSession,
   present,
   type PresentationSession,
   type PresentTarget,
@@ -109,17 +110,39 @@ export function registerShellPreviewHandler(handler: PreviewHandler) {
 
 function answerPreview(event: Extract<NavEvent, { type: 'preview' }>) {
   if (!previewHandler) {
-    previewReply(event.id, 'preview_unavailable');
+    navReply(event.id, 'preview_unavailable');
     return;
   }
   previewHandler(event.action, event.fields).then(
-    () => previewReply(event.id),
+    () => navReply(event.id),
     (error: unknown) =>
-      previewReply(
+      navReply(
         event.id,
         error instanceof Error ? error.message : 'preview_failed',
       ),
   );
+}
+
+// Transitional: native pages call back into params their React caller still owns.
+// Remove with the native session navigation.
+function answerCallback(event: Extract<NavEvent, { type: 'callback' }>) {
+  const params = getPresentationSession(event.page)?.params as
+    Record<string, unknown> | undefined;
+  const handler = params?.[event.name];
+  if (typeof handler !== 'function') {
+    navReply(event.id, 'callback_unavailable');
+    return;
+  }
+  const reply = (error?: string) => {
+    if (openPages.has(event.page)) navReply(event.id, error);
+  };
+  Promise.resolve()
+    .then(() => handler(JSON.parse(event.value)))
+    .then(
+      () => reply(),
+      (error: unknown) =>
+        reply(error instanceof Error ? error.message : 'callback_failed'),
+    );
 }
 
 function openShellPage(event: Extract<NavEvent, { type: 'open' }>) {
@@ -152,6 +175,10 @@ function onNav(event: NavEvent) {
   }
   if (event.type === 'preview') {
     answerPreview(event);
+    return;
+  }
+  if (event.type === 'callback') {
+    answerCallback(event);
     return;
   }
   if (event.type === 'closed') {

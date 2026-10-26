@@ -17,7 +17,7 @@ export {
   dismissSheetZoom,
   showToast,
   setSettingsPreview,
-  previewReply,
+  navReply,
   copyText,
   showSessionBanner,
   dismissSessionBanner,
@@ -102,7 +102,6 @@ export {
   sessionCreationOptions,
   workspaceBillingEntitlement,
   githubPullRequest,
-  githubRepositories,
   shareWriteCatalog,
   shareWriteOptions,
   sharePending,
@@ -169,11 +168,6 @@ export { NativeChat, type ChatDraftAttachment } from './chat/NativeChat';
 export { NativeComposer } from './chat/NativeComposer';
 
 export {
-  NativeCreateSession,
-  type CreateSessionRequest,
-} from './create/NativeCreateSession';
-
-export {
   turnDiff,
   fileDiff,
   workspaceChanges,
@@ -197,8 +191,6 @@ export { NativeDiffToolbar, NativeDiffSurface } from './diff/NativeDiffToolbar';
 
 export * from './notifications/notifications';
 export * from './diagnostics/diagnostics';
-
-export { NativeMentionPicker } from './chat/NativeMentionPicker';
 
 export { getMentionCatalog } from './chat/mentions';
 export { NativeShellPOC, NativePagePOC } from './chrome/NativeShellPOC';

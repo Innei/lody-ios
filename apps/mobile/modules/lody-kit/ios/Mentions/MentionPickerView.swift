@@ -1,11 +1,10 @@
-import ExpoModulesCore
 import UIKit
 
-/// Full-height picker hosted by the shared present/page contract.
-final class LodyMentionPickerView: ExpoView, UICollectionViewDataSource, UICollectionViewDelegate {
-  let onPick = EventDispatcher()
-  let onQueryReset = EventDispatcher()
-  let onRetry = EventDispatcher()
+@MainActor
+final class MentionPickerView: UIView, UICollectionViewDataSource, UICollectionViewDelegate {
+  var onPick: ((String) -> Void)?
+  var onQueryReset: (() -> Void)?
+  var onRetry: (() -> Void)?
   private let notice = UIButton(type: .system)
   private var noticeHeight: NSLayoutConstraint!
   private var query = ""
@@ -20,11 +19,11 @@ final class LodyMentionPickerView: ExpoView, UICollectionViewDataSource, UIColle
   private var breadcrumbHeight: NSLayoutConstraint!
   private weak var scrollOwner: UIViewController?
 
-  required init(appContext: AppContext? = nil) {
+  override init(frame: CGRect) {
     var config = UICollectionLayoutListConfiguration(appearance: .insetGrouped)
     config.backgroundColor = .lodyGroupedBackground
     list = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewCompositionalLayout.list(using: config))
-    super.init(appContext: appContext)
+    super.init(frame: frame)
     backgroundColor = .lodyGroupedBackground
     location.contentHorizontalAlignment = .leading
     location.titleLabel?.font = .dynamic(of: 13, weight: .medium)
@@ -72,6 +71,9 @@ final class LodyMentionPickerView: ExpoView, UICollectionViewDataSource, UIColle
     ])
   }
 
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
   override func didMoveToWindow() {
     super.didMoveToWindow()
     if window == nil {
@@ -92,14 +94,12 @@ final class LodyMentionPickerView: ExpoView, UICollectionViewDataSource, UIColle
     }
   }
 
-  func configure(_ json: String) {
-    struct Configuration: Decodable { let category: String; let items: [ChatMentionItem]; var query: String?; var notice: String? }
-    guard let data = json.data(using: .utf8), let value = try? JSONDecoder().decode(Configuration.self, from: data) else { return }
-    category = value.category
-    items = value.items.filter { $0.category == category }
-    query = value.query ?? ""
-    notice.setTitle(value.notice, for: .normal)
-    notice.isHidden = value.notice?.isEmpty != false
+  func configure(category: String, items: [ChatMentionItem], query: String, notice text: String) {
+    self.category = category
+    self.items = items.filter { $0.category == category }
+    self.query = query
+    notice.setTitle(text, for: .normal)
+    notice.isHidden = text.isEmpty
     noticeHeight.constant = notice.isHidden ? 0 : 44
     render()
   }
@@ -122,14 +122,14 @@ final class LodyMentionPickerView: ExpoView, UICollectionViewDataSource, UIColle
     list.reloadData()
   }
 
-  @objc private func retry() { onRetry([:]) }
+  @objc private func retry() { onRetry?() }
   @objc private func back() {
     path = (path as NSString).deletingLastPathComponent
     query = ""
-    onQueryReset([:])
+    onQueryReset?()
     render()
   }
-  @objc private func pickDirectory() { onPick(["path": path]) }
+  @objc private func pickDirectory() { onPick?(path) }
   func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int { rows.count }
   func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
     let item = rows[indexPath.item]
@@ -145,8 +145,8 @@ final class LodyMentionPickerView: ExpoView, UICollectionViewDataSource, UIColle
     if item.kind == "directory" {
       path = item.path
       query = ""
-      onQueryReset([:])
+      onQueryReset?()
       render()
-    } else { onPick(["path": item.path]) }
+    } else { onPick?(item.path) }
   }
 }

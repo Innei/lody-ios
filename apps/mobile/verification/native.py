@@ -77,6 +77,8 @@ checks = {
     'live-activity': ['../live-activity/LodyActivityAttributes.swift', '../live-activity/LiveActivityCatalog.swift'],
     'page-progress': ['List/LodyPageProgress.swift'],
     'create-session': ['LodyStrings.swift', 'CreateSession/CreateSessionForm.swift'],
+    'nav-request': ['Shell/LodyNavRequest.swift'],
+    'create-draft': ['LodyStrings.swift', 'CreateSession/CreateSessionForm.swift', 'Outbox/OutboxRecord.swift', 'CreateSession/CreateDraftRecord.swift'],
     'share-ingest': ['LodyStrings.swift', 'Chat/ChatAttachments.swift', 'CreateSession/CreateSessionForm.swift', 'CreateSession/ShareStore.swift', '../share-extension/ShareIngest.swift'],
     'share': ['LodyStrings.swift', 'CreateSession/CreateSessionForm.swift', 'CreateSession/ShareStore.swift'],
 }

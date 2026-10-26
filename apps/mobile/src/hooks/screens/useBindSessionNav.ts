@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { cancelComposerRelay, prepareSheetZoom } from '@lody-ios/kit';
 import { present, type PagePresentationOptions } from '@/lib/presentation';
 import { homeScope, showHomeSession } from '@/lib/presentation/homeDetail';
@@ -10,6 +10,11 @@ import { CreateSessionScreen } from '@/screens/CreateSessionScreen';
 import { SessionShareScreen } from '@/screens/SessionShareScreen';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
+import { initialInboxProjectSort } from '@lody-ios/kit';
+import {
+  isChatProjectId,
+  sortCatalogProjects,
+} from '@/features/sessions/inbox';
 import { t } from '../../lib/i18n/index.ts';
 import { prepareSessionHistory } from '@/features/sessions/prepareSessionHistory';
 
@@ -25,7 +30,9 @@ function sheetOptions(
 
 export function useBindSessionNav() {
   const { account } = useAuth();
-  const { selected } = useCatalog();
+  const { selected, catalog } = useCatalog();
+  const latestCatalog = useRef(catalog);
+  latestCatalog.current = catalog;
   useEffect(() => {
     const scope = homeScope(account?.user.id, selected?.id);
     const open = (params: SessionParams, preparing = false) =>
@@ -68,8 +75,15 @@ export function useBindSessionNav() {
         const result = await present(
           CreateSessionScreen,
           {
+            userId: account?.user.id ?? '',
             workspaceId: intent.workspaceId,
-            projects: intent.catalog.projects,
+            projects: sortCatalogProjects(
+              intent.catalog.projects.filter((p) => !isChatProjectId(p.id)),
+              latestCatalog.current.sessions,
+              initialInboxProjectSort,
+            ),
+            machineNames: latestCatalog.current.machineNames ?? {},
+            relay: true,
             projectId: intent.projectId,
             context: intent.context,
             initialText: intent.draft?.text,

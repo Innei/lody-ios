@@ -134,8 +134,8 @@ export function useComposerMentions(
         {
           category,
           query: nativeEvent.query,
+          source: context.source,
           initial: context.catalogs.get(category),
-          load: (refresh: boolean) => load(category, refresh),
         },
         {
           title: t(`native.chat.mention.${labels[category]}`),

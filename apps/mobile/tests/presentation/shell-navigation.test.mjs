@@ -21,7 +21,7 @@ globalThis.__shellNative = {
     listener = next;
     return { remove() {} };
   },
-  previewReply: (id, error = '') => {
+  navReply: (id, error = '') => {
     replies.push([id, error]);
   },
 };
@@ -29,7 +29,7 @@ const mocks = {
   react:
     'export const createContext = () => ({}); export const use = () => null; export const useEffect = () => {}; export const useSyncExternalStore = () => false;',
   '@lody-ios/kit':
-    'export const { navPresent, navPopToRoot, navSetStack, addNavListener, previewReply } = globalThis.__shellNative;',
+    'export const { navPresent, navPopToRoot, navSetStack, addNavListener, navReply } = globalThis.__shellNative;',
 };
 const root = new URL('../../src/lib/presentation/', import.meta.url).pathname;
 const bundle = await build({
@@ -314,4 +314,74 @@ test('preview requests reply after the fixture applies them, and fail without on
   unregister();
   listener({ type: 'preview', id: 'r4', action: 'noop', fields: {} });
   assert.deepEqual(replies.at(-1), ['r4', 'preview_unavailable']);
+});
+
+test('native callbacks reach the presenting params once and reply, but not after the page closes', async () => {
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const calls = [];
+  let release;
+  const result = present(page('formSheet'), {
+    label: 'not a function',
+    onCreated: async (value) => {
+      calls.push(value);
+      if (value.fail) throw new Error('open_failed');
+      if (value.wait) await new Promise((resolve) => (release = resolve));
+    },
+  });
+  const id = last().id;
+  const value = (body) => JSON.stringify(body);
+  listener({
+    type: 'callback',
+    id: 'c1',
+    page: id,
+    name: 'onCreated',
+    value: value({ ok: 1 }),
+  });
+  listener({
+    type: 'callback',
+    id: 'c2',
+    page: id,
+    name: 'onCreated',
+    value: value({ fail: true }),
+  });
+  listener({
+    type: 'callback',
+    id: 'c3',
+    page: id,
+    name: 'label',
+    value: 'null',
+  });
+  listener({
+    type: 'callback',
+    id: 'c4',
+    page: 999,
+    name: 'onCreated',
+    value: 'null',
+  });
+  await settle();
+  assert.deepEqual(calls, [{ ok: 1 }, { fail: true }]);
+  assert.deepEqual(replies.slice(-4), [
+    ['c3', 'callback_unavailable'],
+    ['c4', 'callback_unavailable'],
+    ['c1', ''],
+    ['c2', 'open_failed'],
+  ]);
+  listener({
+    type: 'callback',
+    id: 'c5',
+    page: id,
+    name: 'onCreated',
+    value: value({ wait: true }),
+  });
+  await settle();
+  const before = replies.length;
+  listener({ type: 'closed', id });
+  release();
+  await settle();
+  assert.equal(
+    replies.length,
+    before,
+    'A reply after the page closed must be dropped',
+  );
+  assert.equal((await result).status, 'cancelled');
 });

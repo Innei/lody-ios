@@ -73,7 +73,9 @@ final class LodyPageController: UIViewController {
     guard inSheet, spec.style != "push", spec.headerShown,
           navigationItem.rightBarButtonItems?.isEmpty ?? true, navigationItem.leftBarButtonItems?.isEmpty ?? true else { return }
     let close = UIBarButtonItem(primaryAction: UIAction(image: UIImage(systemName: "xmark")) { [weak self] _ in
-      self?.dismiss(animated: true)
+      // An active search controller is presented by this page; dismissing the page itself would only end the search.
+      let sheet = self?.navigationController ?? self
+      sheet?.presentingViewController?.dismiss(animated: true)
     })
     close.accessibilityLabel = LodyStrings.text("accessibility.closeSheet", ["title": spec.title])
     navigationItem.rightBarButtonItems = [close]
