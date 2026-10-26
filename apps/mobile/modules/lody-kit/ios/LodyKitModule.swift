@@ -157,8 +157,8 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   @JS
-  func previewReply(id: String, error: String) {
-    Task { @MainActor in LodyPreviewBridge.reply(id, error: error) }
+  func navReply(id: String, error: String) {
+    Task { @MainActor in LodyNavRequest.reply(id, error: error) }
   }
 
   @JS
@@ -430,18 +430,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("githubPullRequest") { (payload: String) async throws -> String in
       try await GitHubPullRequests.run(payload)
     }
-    AsyncFunction("githubRepositories") { (workspace: String, promise: Promise) in
-      Task { @MainActor in
-        if workspace == "ui-home", LodyUIVerify.mentions {
-          promise.resolve(["LodyAI/FreshProject"]); return
-        }
-        if LodyUIVerify.enabled, workspace == "ui-project-picker" {
-          promise.resolve((1...20).map { "Owner/Repo\($0)" }); return
-        }
-        do { promise.resolve(try await GitHubCloud.repositories(workspace: workspace)) }
-        catch { promise.reject(error) }
-      }
-    }
     AsyncFunction("sessionCreationOptions") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
         if let response = MentionFixture.response(payload, options: true) { promise.resolve(response); return }
@@ -654,23 +642,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("searchCommandJSON") { (view: LodyNavigationHeaderView, value: String) in view.setSearchCommand(value) }
       Prop("title") { (view: LodyNavigationHeaderView, value: String) in view.setTitle(value) }
       Prop("barHidden") { (view: LodyNavigationHeaderView, value: Bool) in view.setBarHidden(value) }
-    }
-
-    View(LodyMentionPickerView.self) {
-      Events("onPick", "onQueryReset", "onRetry")
-      Prop("configurationJSON") { (view: LodyMentionPickerView, value: String) in view.configure(value) }
-    }
-
-    View(LodyCreateSessionView.self) {
-      Events("onRequest", "onPrefs", "onSelection", "onSubmit", "onRelayReady", "onMentionBrowse", "onCancel")
-      Prop("configJSON") { (view: LodyCreateSessionView, value: String) in view.configure(value) }
-      Prop("refreshKey") { (view: LodyCreateSessionView, value: String) in view.setRefreshKey(value) }
-      Prop("responseJSON") { (view: LodyCreateSessionView, value: String) in view.respond(value) }
-      Prop("composerRelay") { (view: LodyCreateSessionView, value: Bool) in view.setComposerRelay(value) }
-      Prop("sendHandoff") { (view: LodyCreateSessionView, value: Bool?) in view.setSendHandoff(value ?? true) }
-      Prop("restoreDraftToken") { (view: LodyCreateSessionView, value: Int) in view.restore(value) }
-      Prop("mentionItemsJSON") { (view: LodyCreateSessionView, value: String) in view.setMentionItems(value) }
-      Prop("mentionResultJSON") { (view: LodyCreateSessionView, value: String) in view.setMentionResult(value) }
     }
 
     View(LodyComposerView.self) {

@@ -61,7 +61,8 @@ export type NavEvent =
       id: string;
       action: string;
       fields: Record<string, unknown>;
-    };
+    }
+  | { type: 'callback'; id: string; page: number; name: string; value: string };
 export type ShellPage = {
   id: number;
   title: string;
@@ -149,7 +150,6 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
     userId: string,
   ): Promise<string>;
   githubPullRequest(payload: string): Promise<string>;
-  githubRepositories(workspaceId: string): Promise<string[]>;
   shareWriteCatalog(json: string): void;
   shareWriteOptions(target: string, json: string): void;
   sharePending(): string;
@@ -193,7 +193,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   cancelComposerRelay(id: string): Promise<void>;
   showToast(message: string, kind: string): void;
   setSettingsPreview(json: string): void;
-  previewReply(id: string, error: string): void;
+  navReply(id: string, error: string): void;
   prepareSheetZoom(sourceLabel: string): void;
   dismissSheetZoom(): Promise<void>;
   copyText(text: string): void;
@@ -284,8 +284,7 @@ export type SessionBannerKind = 'completed' | 'attention';
 
 export const setSettingsPreview = (json: string) =>
   native.setSettingsPreview(json);
-export const previewReply = (id: string, error = '') =>
-  native.previewReply(id, error);
+export const navReply = (id: string, error = '') => native.navReply(id, error);
 
 /** Rendered by a dedicated UIWindow above sheets, so it is never occluded. */
 export function showToast(message: string, kind: ToastKind = 'error'): void {
@@ -470,8 +469,6 @@ export const workspaceBillingEntitlement = (
 ) => native.workspaceBillingEntitlement(workspaceId, userId);
 export const githubPullRequest = (payload: string) =>
   native.githubPullRequest(payload);
-export const githubRepositories = (workspaceId: string) =>
-  native.githubRepositories(workspaceId);
 export const shareWriteCatalog = (json: string) =>
   native.shareWriteCatalog(json);
 export const shareWriteOptions = (target: string, json: string) =>

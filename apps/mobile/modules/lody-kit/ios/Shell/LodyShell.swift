@@ -67,11 +67,34 @@ final class LodyShell {
 
   // Settles the React presentation that hosts this native page; pages pushed natively have none.
   func finish(from controller: UIViewController?, value: Any?) {
-    var current = controller
-    while let candidate = current, !(candidate is LodyPageController) { current = candidate.parent }
-    guard let page = current as? LodyPageController, page.spec.id != 0, !page.closed else { return }
+    guard let page = Self.page(of: controller), page.spec.id != 0, !page.closed else { return }
     let data = try? JSONSerialization.data(withJSONObject: value ?? NSNull(), options: .fragmentsAllowed)
     emitNav?(["type": "result", "id": page.spec.id, "value": data.map { String(decoding: $0, as: UTF8.self) } ?? "null"])
+  }
+
+  func callback(from controller: UIViewController?, name: String, value: Any) async throws {
+    guard let page = Self.page(of: controller), page.spec.id != 0, !page.closed else {
+      throw LodyNavRequest.failure("callback_unavailable")
+    }
+    let data = try? JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed)
+    try await LodyNavRequest.send(
+      [
+        "type": "callback", "page": page.spec.id, "name": name,
+        "value": data.map { String(decoding: $0, as: UTF8.self) } ?? "null",
+      ],
+      key: "callback:\(page.spec.id):\(name)", timeout: nil, via: emitNav
+    )
+  }
+
+  func close(from controller: UIViewController?) {
+    guard let page = Self.page(of: controller), page.spec.id != 0 else { return }
+    close(page.spec.id)
+  }
+
+  private static func page(of controller: UIViewController?) -> LodyPageController? {
+    var current = controller
+    while let candidate = current, !(candidate is LodyPageController) { current = candidate.parent }
+    return current as? LodyPageController
   }
 
   private func push(_ page: LodyPageController, on target: UINavigationController?) {
@@ -191,6 +214,7 @@ final class LodyShell {
     emit?(type, id)
     guard type == "closed" else { return }
     pages[id] = nil
+    LodyNavRequest.reset(prefix: "callback:\(id):")
     scheduleSweep()
   }
 

@@ -74,6 +74,9 @@ enum LodyNativePages {
     "live-activity-preview": { _ in LiveActivityPreviewController() },
     "onboarding": { _ in OnboardingController() },
     "onboarding-preview": { _ in OnboardingPreviewController() },
+    "mention-picker": { params in MentionPickerController.page(params) },
+    "create-session": { params in CreateSessionHostController(params: decode(CreateSessionHostParams.self, params) ?? CreateSessionHostParams()) },
+    "create-session-preview": { params in CreateSessionPreviewController(scenario: params["scenario"] as? String ?? "create-parity") },
   ]
 
   private static func picker(_ params: [String: Any]) -> UIViewController {
@@ -88,6 +91,11 @@ enum LodyNativePages {
     )
     owner.value = picker
     return picker
+  }
+
+  private static func decode<Value: Decodable>(_ type: Value.Type, _ params: [String: Any]) -> Value? {
+    guard let data = try? JSONSerialization.data(withJSONObject: params) else { return nil }
+    return try? JSONDecoder().decode(type, from: data)
   }
 
   static func make(_ id: String, params: String?) -> UIViewController? {

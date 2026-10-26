@@ -104,6 +104,8 @@ const NATIVE_PREFIXES = [
   'settings.liveActivity.',
   'onboarding.',
   'login.',
+  'mentions.',
+  'session.newTitle',
 ];
 const isNativeKey = (key) =>
   NATIVE_PREFIXES.some((prefix) => key.startsWith(prefix));
