@@ -164,7 +164,7 @@ assert catalog.text('settings.mcp.defaultOff') in label('setting:mcp::c1')
 tap('setting:mcp::c1')
 ui.capture('mcp-editor')
 toggle = ui.element('setting-enabled')['frame']
-ui.axe('swipe', '--start-x', str(toggle['x'] + 10), '--start-y', str(toggle['y'] + toggle['height'] / 2), '--end-x', str(toggle['x'] + toggle['width'] - 10), '--end-y', str(toggle['y'] + toggle['height'] / 2), '--duration', '.3', '--post-delay', '.5')
+ui.axe('drag', '--start-x', str(toggle['x'] + 10), '--start-y', str(toggle['y'] + toggle['height'] / 2), '--end-x', str(toggle['x'] + toggle['width'] - 10), '--end-y', str(toggle['y'] + toggle['height'] / 2), '--duration', '.3', '--post-delay', '.5')
 ui.wait(lambda items: any(item.get('AXUniqueId') == 'setting-enabled' and item.get('AXValue') == '1' for item in items), 'MCP toggle did not turn on')
 save()
 ui.wait(lambda items: any(item.get('AXUniqueId') == 'setting:mcp::c1' and catalog.text('settings.mcp.defaultOn') in spoken(item) for item in items), 'MCP default did not persist')

@@ -5,7 +5,13 @@ import catalog
 
 ui = UI(sys.argv[1], sys.argv[2])
 ui.axe('tap', '--label', catalog.text('tabs.settings'), '--post-delay', '1')
-row = ui.element('project-history')
+for _ in range(6):
+    row = next((item for item in ui.state() if item.get('AXUniqueId') == 'project-history' and item['frame']['y'] + item['frame']['height'] < 800), None)
+    if row:
+        break
+    ui.axe('swipe', '--start-x', '200', '--start-y', '700', '--end-x', '200', '--end-y', '350', '--duration', '.4', '--post-delay', '.4')
+else:
+    raise AssertionError('Settings does not expose project history')
 assert catalog.text('settings.history.title') in row.get('AXLabel', '')
 assert row['frame']['height'] >= 44
 ui.capture('settings-entry')
