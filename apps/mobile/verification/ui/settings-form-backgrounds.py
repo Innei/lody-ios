@@ -23,7 +23,7 @@ for form, fields in forms.items():
                              and item['frame']['y'] < items[0]['frame']['height'] - 150
                              for item in items),
             f'{form}: keyboard did not expand')
-    capture_card(ui, f'{form}-keyboard', fields[0])
+    capture_card(ui, f'{form}-keyboard', fields[0], inset='trailing' if form == 'workspace' else 'leading')
     ui.axe('tap', '--label', catalog.text('common.cancel'), '--post-delay', '.5')
     ui.wait(lambda items: not any(item.get('AXUniqueId') == fields[0] for item in items),
             f'{form}: editor did not dismiss')

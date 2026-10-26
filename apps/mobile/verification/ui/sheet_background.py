@@ -3,7 +3,7 @@ import statistics
 import subprocess
 
 
-def capture_card(ui, name, row_id):
+def capture_card(ui, name, row_id, inset='leading'):
     ui.capture(name)
     row = ui.element(row_id)['frame']
     width = round(ui.state()[0]['frame']['width'])
@@ -20,7 +20,11 @@ def capture_card(ui, name, row_id):
 
     y = row['y'] + row['height'] / 2
     # The leading inset avoids text, provider icons, and trailing accessories.
-    card = sample(row['x'] + 8, y)
+    x = row['x'] + 8
+    if inset == 'trailing':
+        # A select-all field puts its leading handle and shadow inside the leading inset.
+        x = row['x'] + row['width'] - 8
+    card = sample(x, y)
     ground = sample(row['x'] - 6, y)
     difference = max(abs(a - b) for a, b in zip(card, ground))
     print(f'{name}: card={card}, sheet={ground}, difference={difference}', flush=True)
