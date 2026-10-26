@@ -38,6 +38,11 @@ enum LodyNativePages {
     "published-shares-denied": { _ in PublishedSharesPreviewController(state: "denied") },
     "published-shares-readonly": { _ in PublishedSharesPreviewController(state: "readonly") },
     "published-shares-readback-denied": { _ in PublishedSharesPreviewController(state: "readback-denied") },
+    "remote-settings": { params in RemoteSettingsController(kind: params["kind"] as? String ?? "machine", scope: .live(params)) },
+    "settings-preview": { _ in SettingsPreviewController() },
+    "mcp-settings-preview": { _ in RemoteSettingsPreviews.mcp() },
+    "machine-settings-preview": { _ in RemoteSettingsPreviews.machine() },
+    "remote-setting-editor-preview": { params in RemoteSettingsPreviews.editor(params) },
   ]
 
   static func make(_ id: String, params: String?) -> UIViewController? {

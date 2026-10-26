@@ -3,8 +3,6 @@ import test from 'node:test';
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import { projectRows } from '../../src/cloud/catalog/model.ts';
 import { mergeAgentQuotas } from '../../src/cloud/catalog/agent-usage.ts';
-import { agentUsageRings } from '../../src/features/settings/agent-usage.ts';
-import { setLocale } from '../../src/lib/i18n/index.ts';
 
 test('machine replica changes reach usage rows, preserve zero/expired limits and never expose API credentials', () => {
   const machine = new Flock('usage-behavior');
@@ -45,36 +43,36 @@ test('machine replica changes reach usage rows, preserve zero/expired limits and
   });
   machine.commit();
   const read = () => projectRows(machine.scan(), 'm1').agentUsage.m1;
-  const item = { id: 'official', kind: 'agent', machineId: 'm1' };
+  const quota = (usage, id) => usage.quotas.find((q) => q.id === id);
   const initial = read();
   assert.equal(initial.configs.length, 2);
   assert.ok(!JSON.stringify(initial).includes('synthetic-secret'));
-  assert.equal(agentUsageRings({ ...item, id: 'api' }, initial).length, 0);
-  assert.equal(agentUsageRings(item, initial)[0].fraction, 0);
-  assert.match(agentUsageRings(item, initial)[1].label, /Spark/);
+  assert.equal(
+    initial.configs.find((config) => config.id === 'api').eligible,
+    false,
+  );
+  assert.equal(
+    initial.configs.find((config) => config.id === 'official').eligible,
+    true,
+  );
+  assert.equal(quota(initial, 'codex').windows[0].usedPercent, 0);
+  assert.match(quota(initial, 'codex_bengalfox').name, /Spark/);
   machine.set(['rateLimit', 'codex', 'codex'], snapshot(72));
   machine.commit();
   const updated = read();
-  setLocale('en');
-  const [ring] = agentUsageRings(item, updated);
-  assert.equal(ring.label, 'Codex · 5 hours');
-  assert.match(ring.accessibilityLabel, /72% used/);
-  assert.ok(
-    !agentUsageRings(item, updated)
-      .map((r) => `${r.label} ${r.caption} ${r.accessibilityLabel}`)
-      .join(' ')
-      .includes('{'),
-  );
-  assert.equal(ring.fraction, 0.72);
+  const [window] = quota(updated, 'codex').windows;
+  assert.equal(window.usedPercent, 72);
+  assert.equal(window.duration, 18000);
+  assert.equal(window.resetsAt, 1);
   // JSON is also the durable catalog boundary; offline must not recompute usage from a past reset time.
   assert.equal(
-    agentUsageRings(item, JSON.parse(JSON.stringify(updated)))[0].fraction,
-    0.72,
+    quota(JSON.parse(JSON.stringify(updated)), 'codex').windows[0].usedPercent,
+    72,
   );
   machine.delete(['rateLimit', 'codex', 'codex']);
   machine.delete(['rateLimit', 'codex', 'codex_bengalfox']);
   machine.commit();
-  assert.deepEqual(agentUsageRings(item, read()), []);
+  assert.deepEqual(read().quotas, []);
 });
 
 test('legacy Claude ratios and timestamps migrate while current windows and independent tiers win', () => {

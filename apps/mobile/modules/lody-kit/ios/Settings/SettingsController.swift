@@ -61,9 +61,7 @@ class SettingsController: UIViewController {
     } else if let page = workspacePages[id], workspace != nil {
       push(page, title: title(id), params: state.scope)
     } else if let kind = remote[id], workspace != nil {
-      LodyShell.shared.openPage(
-        "remote-settings", params: Self.json(state.scope.merging(["kind": kind]) { _, new in new }), options: ["title": text("remote.\(kind)")], from: self
-      )
+      push("remote-settings", title: text("remote.\(kind)"), params: state.scope.merging(["kind": kind]) { _, new in new })
     } else if id == "workspace-general", let workspace {
       var params: [String: Any] = [
         "workspaceId": workspace.id, "name": workspace.name, "color": LodyAccentChoice.hex(.lodyAccent.resolvedColor(with: traitCollection)),

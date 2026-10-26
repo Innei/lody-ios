@@ -1,8 +1,8 @@
 import { NativeGroupedList } from '@lody-ios/kit';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 import { definePage } from '@/lib/presentation';
+import { t } from '@/lib/i18n';
 import { QuickReplyEditorScreen } from '../QuickReplyEditorScreen';
-import { RemoteSettingEditorScreen } from '../RemoteSettingEditorScreen';
 import { WorkspaceEditorScreen } from '../WorkspaceEditorScreen';
 
 function Preview() {
@@ -38,18 +38,8 @@ function Preview() {
         }
         if (kind === 'machine' || kind === 'agent' || kind === 'mcp') {
           void present(
-            RemoteSettingEditorScreen,
-            {
-              workspaceId: 'settings-forms-preview',
-              item: {
-                kind,
-                id: 'preview',
-                name: 'Studio',
-                prompt: 'Keep changes focused.',
-                enabledByDefault: true,
-              },
-              service: async () => [],
-            },
+            RemoteSettingEditorPreviewScreen,
+            { kind },
             {
               sheetAllowedDetents: kind === 'agent' ? [1] : [0.5, 1],
               sheetGrabberVisible: kind !== 'agent',
@@ -60,6 +50,19 @@ function Preview() {
     />
   );
 }
+
+const RemoteSettingEditorPreviewScreen = definePage<{
+  kind: 'machine' | 'agent' | 'mcp';
+}>({
+  id: 'remote-setting-editor-preview',
+  title: t('settings.remote.edit'),
+  native: true,
+  presentation: {
+    style: 'formSheet',
+    headerVariant: 'transparent',
+    sheetAllowedDetents: [1],
+  },
+});
 
 export const SettingsFormsPreviewScreen = definePage({
   id: 'settings-forms-preview',

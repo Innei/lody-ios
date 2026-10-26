@@ -11,6 +11,7 @@ class LodyFormController: UIViewController {
     scroll.translatesAutoresizingMaskIntoConstraints = false
     scroll.contentInsetAdjustmentBehavior = .automatic
     scroll.keyboardDismissMode = .interactive
+    scroll.delaysContentTouches = false
     scroll.alwaysBounceVertical = true
     LodyScrollEdges.navigation(scroll)
     view.addSubview(scroll)
