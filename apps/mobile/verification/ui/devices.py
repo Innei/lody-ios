@@ -59,8 +59,16 @@ def draft_intact(expected):
 def focus_creation():
     for _ in range(3):
         f = ui.element('create-session-input')['frame']
-        ui.axe('tap', '-x', str(f['x'] + 30), '-y', str(f['y'] + f['height']/2), '--post-delay', '1.2')
+        y = f['y'] + f['height'] / 2
+        # The resting capsule's input spans the whole capsule; Add and attachment thumbnails overlay its leading edge.
+        leading = [i['frame'] for i in ui.state() if i.get('AXUniqueId') in ('session-attach', 'session-attachment-stack', 'session-mention', 'session-permission')
+                   and i['frame']['height'] > 0 and i['frame']['y'] <= y <= i['frame']['y'] + i['frame']['height']]
+        x = max([frame['x'] + frame['width'] for frame in leading], default=f['x']) + 16
+        ui.axe('tap', '-x', str(x), '-y', str(y), '--post-delay', '1.2')
         if any('UIKeyboard' in (i.get('AXUniqueId') or '') for i in ui.state()):
+            # The focusing tap lands on the draft text; tap the open sheet's empty corner to put the caret at the end.
+            f = ui.element('create-session-input')['frame']
+            ui.axe('tap', '-x', str(f['x'] + f['width'] - 24), '-y', str(f['y'] + f['height'] - 16), '--post-delay', '.6')
             return
     raise AssertionError('Creation composer did not focus the keyboard')
 
