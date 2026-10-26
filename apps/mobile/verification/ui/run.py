@@ -20,7 +20,7 @@ from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
 BATCHES = {
-    'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'directory', 'project', 'notifications', 'diagnostics', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker', 'branch-picker'],
+    'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'directory', 'project', 'activity', 'notifications', 'diagnostics', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker', 'branch-picker'],
     'send': ['send-scroll-guide', 'send-scroll-queue', 'send-scroll-normal', 'quick-replies', 'context-chip', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'permission-mode-chat', 'permission-mode-sheet', 'permission-mode-create', 'paste-plain-chat', 'paste-plain-sheet', 'rich-paste-chat', 'rich-paste-sheet', 'attachment-overlay-chat', 'attachment-overlay-sheet', 'attachment-overlay-create', 'attachment-camera-chat', 'attachment-camera-sheet', 'attachment-motion-chat', 'attachment-motion-sheet', 'attachment-motion-create', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'composer-fullscreen', 'composer-rest-draft', 'composer-motion', 'model-memory'],
     'chat': ['workspace-changes', 'message-share', 'user-mentions', 'file-preview', 'html-preview', 'file-selection', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'mermaid', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'chat-chrome', 'title-rename', 'simulator-preview'],
 }
@@ -118,6 +118,7 @@ PREVIEW = {
     'project-history': 'project-history-preview',
     'directory': 'directory-preview',
     'project': 'project-preview',
+    'activity': 'activity-preview',
     'project-picker': 'project-picker-preview',
     'branch-picker': 'create-parity',
     'settings': 'settings-preview',
@@ -228,6 +229,7 @@ READY = {
     'project-history': 'history-project:["studio","demo"]',
     'directory': 'studio',
     'project': 'project-live',
+    'activity': 'activity-running',
     'project-picker': 'create-session-input',
     'branch-picker': 'create-session-input',
     'settings': 'settings-machine',
@@ -558,7 +560,7 @@ with metro_context:
                         script = Path(__file__).with_name('send-scroll.py')
                     if case in {'devices', 'devices-pad'}:
                         script = Path(__file__).with_name('devices.py')
-                    if case in ('diagnostics', 'directory', 'project', 'settings-baseline', 'workspace-general', 'machine-settings', 'settings-form-backgrounds', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states', 'agent-roles'):
+                    if case in ('diagnostics', 'directory', 'project', 'activity', 'settings-baseline', 'workspace-general', 'machine-settings', 'settings-form-backgrounds', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states', 'agent-roles'):
                         script = Path(__file__).with_name(f'{case}.py')
                     if case == 'archived-sessions':
                         script = Path(__file__).with_name('archived-sessions.py')
@@ -674,7 +676,7 @@ with metro_context:
                     elif case == 'home':
                         # Create, Debug, Settings and workspace editing share this case; ~540s alone on the native inbox.
                         check_timeout = 600
-                    elif case in ('branch-picker', 'session-search', 'session-search-pad', 'chat-stream-performance', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance', 'ipad'):
+                    elif case in ('branch-picker', 'message-share', 'session-search', 'session-search-pad', 'chat-stream-performance', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance', 'ipad'):
                         check_timeout = 300
                     check_started = time.monotonic()
                     with (output / 'check.log').open('w') as log:

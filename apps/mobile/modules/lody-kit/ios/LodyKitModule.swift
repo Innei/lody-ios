@@ -264,9 +264,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   }
 
   public func definition() -> ModuleDefinition {
-    AsyncFunction("sessionSharing") { (payload: String, promise: Promise) in
-      MainActor.assumeIsolated { self.dataRuntime.sessionSharing(payload, promise: promise) }
-    }.runOnQueue(.main)
     Events("onDataRuntime", "onPushClick", "onAttachmentUploadProgress", "onPreferencesChange", "onAuthChange", "onCatalogChange", "onOutboxChange", "onNav")
     AsyncFunction("outboxPut") { (userId: String, workspaceId: String, json: String, promise: Promise) in
       MainActor.assumeIsolated { Self.settle(OutboxSession.shared.put(user: userId, workspace: workspaceId, json: json), promise) }
@@ -470,12 +467,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       }
     }.runOnQueue(.main)
     AsyncFunction("localProjects") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.localProjects(payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("workspaceSettings") { (payload: String) async throws -> String in
-      try await WorkspaceSettingsCloud.run(payload)
-    }
-    AsyncFunction("remoteSettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.remoteSettings(payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("memorySettings") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.memorySettings(payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("publishedShares") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.publishedShares(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.createSession(payload, sink: .promise(promise)) } }.runOnQueue(.main)
     AsyncFunction("workspaceBillingEntitlement") { (workspace: String, user: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.workspaceBillingEntitlement(workspace: workspace, user: user, promise: promise) }
@@ -721,19 +712,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("prepareChatEntries") { (json: String) in
       try PreparedChatEntries(json)
     }.runOnQueue(PreparedChatEntries.queue)
-
-    View(LodySessionShareView.self) {
-      Events("onAction")
-      Prop("configurationJSON") { (view: LodySessionShareView, value: String) in view.configure(value) }
-    }
-
-    View(LodyMessageShareView.self) {
-      Events("onState", "onBlocks")
-      Prop("selectedJSON") { (view: LodyMessageShareView, value: String) in view.setSelected(value) }
-      Prop("contentJSON") { (view: LodyMessageShareView, value: String) in view.setContent(value) }
-      Prop("shareToken") { (view: LodyMessageShareView, value: Int) in view.share(value) }
-      Prop("retryToken") { (view: LodyMessageShareView, value: Int) in view.retry(value) }
-    }
 
     View(LodySimulatorView.self) {
       Prop("sourceJSON") { (view: LodySimulatorView, value: String) in view.setSource(value) }

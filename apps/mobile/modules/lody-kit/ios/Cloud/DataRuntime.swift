@@ -295,9 +295,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         userId: userId
       )
     case .shareProgress(let value):
-      var progress: [String: Any] = ["editorId": value.editorId, "phase": value.phase.rawValue]
-      if let percent = value.percent { progress["percent"] = percent }
-      emitStatus(["shareProgress": progress])
+      NotificationCenter.default.post(name: .lodyShareProgress, object: value)
     case .machinePresence(let value):
       guard !backgrounded, value.onlineMachineIds.reduce(0, { $0 + $1.utf8.count }) <= 1024 * 1024 else { return }
       reason = "machine_presence"
