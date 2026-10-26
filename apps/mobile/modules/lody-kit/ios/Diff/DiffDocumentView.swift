@@ -23,6 +23,7 @@ final class DiffDocumentView: UIView, UICollectionViewDataSource, UICollectionVi
   private let layout = DiffDocumentLayout()
   let collectionView: UICollectionView
   var onRender: (() -> Void)?
+  var onScroll: (() -> Void)?
   private(set) var path = ""
   private(set) var mode: DiffDocumentMode = .diff(.unified)
   private var rows: [InlineDiffLine] = []
@@ -293,6 +294,7 @@ final class DiffDocumentView: UIView, UICollectionViewDataSource, UICollectionVi
   }
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    onScroll?()
     guard isFile else { return }
     let pin = pin
     for cell in collectionView.visibleCells {

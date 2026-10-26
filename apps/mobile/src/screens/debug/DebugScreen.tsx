@@ -1,5 +1,10 @@
 import { AIUsagePreviewScreen } from './AIUsagePreviewScreen';
 import { ArchivedSessionsPreviewScreen } from './ArchivedSessionsPreviewScreen';
+import {
+  FileContentPreviewScreen,
+  FileDiffPreviewScreen,
+  WorkspaceChangesPreviewScreen,
+} from './FileDiffPreviewScreen';
 import { SessionPreviewScreen } from './SessionPreviewScreen';
 import {
   PublishedSharesPreviewScreen,
@@ -273,6 +278,13 @@ function View() {
         openRow('edit-message-preview', 'Message editing', 'pencil'),
         openRow('scroll-edge-pages', '分页表单滚动边缘', 'rectangle.split.2x1'),
         openRow('scroll-edge-diff', 'Diff 滚动边缘', 'doc.text'),
+        openRow('file-diff-preview', 'Native diff', 'plus.forwardslash.minus'),
+        openRow(
+          'workspace-changes-preview',
+          'Native workspace changes',
+          'arrow.triangle.branch',
+        ),
+        openRow('file-content-preview', 'Native file content', 'doc'),
         openRow('composer-success', '聊天输入成功', 'checkmark.circle'),
         openRow('composer-failure', '聊天输入恢复', 'arrow.uturn.backward'),
         openRow(
@@ -459,6 +471,10 @@ function View() {
     'agent-roles-preview': () => void present(AgentRolesPreviewScreen, {}),
     'archived-sessions-preview': () =>
       void present(ArchivedSessionsPreviewScreen, {}),
+    'file-diff-preview': () => void present(FileDiffPreviewScreen, {}),
+    'workspace-changes-preview': () =>
+      void present(WorkspaceChangesPreviewScreen, {}),
+    'file-content-preview': () => void present(FileContentPreviewScreen, {}),
     ...Object.fromEntries(
       ['live', 'offline', 'find'].map((scenario) => [
         `session-preview-${scenario}`,

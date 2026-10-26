@@ -78,6 +78,9 @@ enum LodyNativePages {
     "mention-picker": { params in MentionPickerController.page(params) },
     "create-session": { params in CreateSessionHostController(params: decode(CreateSessionHostParams.self, params) ?? CreateSessionHostParams()) },
     "create-session-preview": { params in CreateSessionPreviewController(scenario: params["scenario"] as? String ?? "create-parity") },
+    "file-diff-preview": { _ in FileDiffPreviewController() },
+    "workspace-changes-preview": { _ in WorkspaceChangesPreviewController() },
+    "file-content-preview": { _ in FileContentPreviewController() },
   ]
 
   private static func picker(_ params: [String: Any]) -> UIViewController {

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { unifiedPatch } from '../../src/features/diff/unifiedPatch.ts';
 
@@ -28,4 +29,12 @@ test('unified patch treats an empty old side as a new file', () => {
   const patch = unifiedPatch('src/new.ts', '', 'export const n = 1;\n');
   assert.match(patch, /--- a\/src\/new\.ts\n/);
   assert.match(patch, /\+export const n = 1;\n/);
+});
+
+test('the JS patch matches the golden the native UnifiedPatch check pins', () => {
+  const read = (name) =>
+    JSON.parse(readFileSync(new URL(`../fixtures/${name}`, import.meta.url)));
+  const golden = read('unified-patch.golden.json');
+  for (const { name, path, old, new: next } of read('unified-patch.json'))
+    assert.equal(unifiedPatch(path, old, next), golden[name], name);
 });

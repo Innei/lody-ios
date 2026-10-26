@@ -5,6 +5,8 @@ import UIKit
 final class LodyMarkdownDocumentView: LodyAppearanceView {
   let onFail = EventDispatcher()
   let onFilePress = EventDispatcher()
+  var failed: (() -> Void)?
+  var filePressed: ((_ path: String, _ line: Int) -> Void)?
   private let documentScroll = UIScrollView()
   private let document = FileMarkdownView()
   private weak var scrollOwner: UIViewController?
@@ -28,6 +30,7 @@ final class LodyMarkdownDocumentView: LodyAppearanceView {
       }
       if let target = ChatFileLink(href) {
         self?.onFilePress(["path": target.path, "line": target.line ?? 0])
+        self?.filePressed?(target.path, target.line ?? 0)
       } else if let url = URL(string: href), ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
         UIApplication.shared.open(url)
       }
@@ -48,6 +51,7 @@ final class LodyMarkdownDocumentView: LodyAppearanceView {
 
   private func fail() {
     onFail(["message": "content_expired"])
+    failed?()
   }
 
   private func render() {

@@ -73,6 +73,7 @@ final class LodyDiffSurface: ExpoView {
 
 final class LodyDiffToolbar: ExpoView {
   let onStyleChange = EventDispatcher()
+  var styleChanged: ((String) -> Void)?
   private let container = UIView()
   private let statsGlass: UIVisualEffectView
   private let stats = UILabel()
@@ -107,7 +108,7 @@ final class LodyDiffToolbar: ExpoView {
     statsGlass.isAccessibilityElement = true
     statsGlass.accessibilityIdentifier = "diff-toolbar-stats"
     segment.selectedSegmentIndex = 0
-    segment.addTarget(self, action: #selector(styleChanged), for: .valueChanged)
+    segment.addTarget(self, action: #selector(segmentChanged), for: .valueChanged)
 
     addSubview(container)
     container.addSubview(statsGlass)
@@ -154,7 +155,9 @@ final class LodyDiffToolbar: ExpoView {
     segment.selectedSegmentIndex = value == "split" ? 1 : 0
   }
 
-  @objc private func styleChanged() {
-    onStyleChange(["style": segment.selectedSegmentIndex == 1 ? "split" : "unified"])
+  @objc private func segmentChanged() {
+    let style = segment.selectedSegmentIndex == 1 ? "split" : "unified"
+    onStyleChange(["style": style])
+    styleChanged?(style)
   }
 }

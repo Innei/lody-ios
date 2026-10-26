@@ -108,6 +108,13 @@ const NATIVE_PREFIXES = [
   'login.',
   'mentions.',
   'session.newTitle',
+  'diff.',
+  'workspaceChanges.',
+  'changes.fileCount',
+  'files.error.archived',
+  'file.preview',
+  'file.source',
+  'html.',
 ];
 const isNativeKey = (key) =>
   NATIVE_PREFIXES.some((prefix) => key.startsWith(prefix));
