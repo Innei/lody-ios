@@ -98,6 +98,8 @@ struct SessionProject: Decodable, Equatable, Sendable {
 struct SessionCatalog: Equatable, Sendable {
   var projects: [SessionProject] = []
   var sessions: [SessionItem] = []
+  var machineIds: [String] = []
+  var machineNames: [String: String] = [:]
 
   func session(_ id: String) -> SessionItem? { sessions.first { $0.id == id } }
 
@@ -113,18 +115,17 @@ struct SessionCatalog: Equatable, Sendable {
   }
 
   static func decode(saved: Data, pending: [SessionItem] = []) -> SessionCatalog? {
-    struct Opaque: Decodable {
-      init(from decoder: any Decoder) throws {}
-    }
     struct Shape: Decodable {
       var projects: [Lossy<SessionProject>]
       var sessions: [Lossy<SessionItem>]
-      var machineIds: [Opaque]
+      var machineIds: [Lossy<String>]
+      var machineNames: Lossy<[String: String]>?
     }
     struct Saved: Decodable { var catalog: Shape }
     guard let shape = try? JSONDecoder().decode(Saved.self, from: saved).catalog else { return nil }
     return SessionCatalog(
-      projects: shape.projects.compactMap(\.value), sessions: shape.sessions.compactMap(\.value) + pending
+      projects: shape.projects.compactMap(\.value), sessions: shape.sessions.compactMap(\.value) + pending,
+      machineIds: shape.machineIds.compactMap(\.value), machineNames: shape.machineNames?.value ?? [:]
     )
   }
 }

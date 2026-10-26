@@ -35,12 +35,6 @@ export type AttachmentUploadProgress = {
   phase: 'preparing' | 'uploading' | 'verifying' | 'complete';
   percent?: number;
 };
-export type PickedWorkspaceIcon = {
-  uri: string;
-  name: string;
-  type: string;
-  size: number;
-};
 export type NavEvent =
   | { type: 'closed' | 'focus' | 'blur'; id: number }
   | {
@@ -59,6 +53,8 @@ export type NavEvent =
       projectId?: string;
       context?: 'chat';
       zoomSourceLabel?: string;
+      findQuery?: string;
+      catalog?: string;
     }
   | { type: 'result'; id: number; value: string }
   | {
@@ -143,6 +139,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   saveInboxExpansion(projectId: string, expanded: boolean): void;
   readInboxPinOrder(userId: string, workspaceId: string): string[];
   saveInboxPinOrder(userId: string, workspaceId: string, ids: string[]): void;
+  resetInboxPreferences(userId: string, workspaceId: string): void;
   watchSession(id: string): Promise<void>;
   prepareChatEntries(
     json: string,
@@ -206,7 +203,6 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
     chunksMs: number[],
     config: ReplyHapticsConfig,
   ): Promise<number>;
-  pickWorkspaceIcon(): Promise<PickedWorkspaceIcon | null>;
   cancelComposerRelay(id: string): Promise<void>;
   showToast(message: string, kind: string): void;
   setSettingsPreview(json: string): void;
@@ -241,14 +237,6 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   cancelLogin(): Promise<void>;
   logout(): Promise<void>;
   reopenAuthBrowser(): Promise<void>;
-  updateWorkspace(workspaceId: string, name: string): Promise<void>;
-  updateWorkspaceIcon(
-    workspaceId: string,
-    uri: string,
-    name: string,
-    type: string,
-    size: number,
-  ): Promise<string>;
   decodeFlock(
     snapshot: string,
     updates: string[],
@@ -297,10 +285,6 @@ export const debugReplyHaptics = (
   chunksMs: number[],
   config: ReplyHapticsConfig,
 ) => native.debugReplyHaptics(chunksMs, config);
-
-export function pickWorkspaceIcon(): Promise<PickedWorkspaceIcon | null> {
-  return native.pickWorkspaceIcon();
-}
 
 export function cancelComposerRelay(id: string): Promise<void> {
   return native.cancelComposerRelay(id);
@@ -354,19 +338,6 @@ export const loginAuth = () => native.login();
 export const cancelAuth = () => native.cancelLogin();
 export const logoutAuth = () => native.logout();
 export const reopenAuthBrowser = () => native.reopenAuthBrowser();
-export const updateAuthWorkspace = (workspaceId: string, name: string) =>
-  native.updateWorkspace(workspaceId, name);
-export const updateAuthWorkspaceIcon = (
-  workspaceId: string,
-  file: PickedWorkspaceIcon,
-) =>
-  native.updateWorkspaceIcon(
-    workspaceId,
-    file.uri,
-    file.name,
-    file.type,
-    file.size,
-  );
 export type SessionPreviewReply = {
   url?: string;
   error?: string;
@@ -555,6 +526,8 @@ export const saveInboxPinOrder = (
   workspaceId: string,
   ids: string[],
 ) => native.saveInboxPinOrder(userId, workspaceId, ids);
+export const resetInboxPreferences = (userId: string, workspaceId: string) =>
+  native.resetInboxPreferences(userId, workspaceId);
 
 export const readLocalValue = (key: string) => native.readLocalValue(key);
 export const searchInbox = (

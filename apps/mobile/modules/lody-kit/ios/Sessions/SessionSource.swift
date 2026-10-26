@@ -4,7 +4,12 @@ struct SessionListState: Equatable, Sendable {
   var userId = ""
   var workspaceId = ""
   var loading = false
+  var connected = true
+  var presence = SettingsMachinePresence.unknown
+  var workspaces: [AuthWorkspace] = []
   var catalog = SessionCatalog()
+
+  var workspace: AuthWorkspace? { workspaces.first { $0.id == workspaceId } }
 
   var key: String { userId.isEmpty || workspaceId.isEmpty ? "" : "\(userId):\(workspaceId)" }
 }
@@ -84,11 +89,17 @@ enum SessionPublished {
       var account: AuthAccount?
       var initialWorkspace: String?
     }
+    struct Scoped: Decodable {
+      var workspaceId: String?
+      var presence: SettingsMachinePresence?
+    }
     struct Catalog: Decodable {
       var userId: String?
       var workspaceId: String?
       var loading: Bool?
+      var connected: Bool?
       var catalogRevision: Int?
+      var presence: Lossy<Scoped>?
       var pendingSessions: [Lossy<SessionItem>]?
     }
     let auth = try? JSONDecoder().decode(Auth.self, from: Data(AuthSession.published.json.utf8))
@@ -97,9 +108,15 @@ enum SessionPublished {
     let scoped = published?.userId == account.user.id
     let selected = scoped ? published?.workspaceId : auth?.initialWorkspace
     let workspace = account.workspaces.first { $0.id == selected } ?? account.workspaces.first
-    var state = SessionListState(userId: account.user.id, workspaceId: workspace?.id ?? "", loading: !scoped)
+    var state = SessionListState(
+      userId: account.user.id, workspaceId: workspace?.id ?? "", loading: !scoped, workspaces: account.workspaces
+    )
     guard scoped, let published else { return state }
     state.loading = published.loading ?? false
+    state.connected = published.connected ?? true
+    if let scoped = published.presence?.value, scoped.workspaceId == published.workspaceId {
+      state.presence = scoped.presence ?? .unknown
+    }
     let key = "\(account.user.id):\(published.workspaceId ?? ""):\(published.catalogRevision ?? -1)"
     let base: SessionCatalog
     if let cache, cache.key == key {
@@ -125,6 +142,7 @@ enum SessionPublished {
 @MainActor
 enum SessionCatalogPreview {
   private(set) static var state: SessionListState?
+  private(set) static var catalogJSON = ""
   private static var sessions: [Any] = []
 
   static func set(_ json: String) {
@@ -133,16 +151,27 @@ enum SessionCatalogPreview {
     let account = payload?["account"] as? [String: Any]
     guard let payload, let catalog = payload["catalog"] as? [String: Any],
       let data = try? JSONSerialization.data(withJSONObject: ["catalog": catalog]),
-      let decoded = SessionCatalog.decode(saved: data)
+      let decoded = SessionCatalog.decode(saved: data),
+      let raw = try? JSONSerialization.data(withJSONObject: catalog)
     else {
       if state != nil { reset() }
       return
     }
     sessions = catalog["sessions"] as? [Any] ?? []
-    state = SessionListState(
-      userId: (account?["user"] as? [String: Any])?["id"] as? String ?? "",
-      workspaceId: payload["workspaceId"] as? String ?? "", catalog: decoded
+    catalogJSON = String(decoding: raw, as: UTF8.self)
+    let workspaceId = payload["workspaceId"] as? String ?? ""
+    let workspaces = (try? JSONSerialization.data(withJSONObject: account?["workspaces"] ?? []))
+      .flatMap { try? JSONDecoder().decode([AuthWorkspace].self, from: $0) } ?? []
+    var next = SessionListState(
+      userId: (account?["user"] as? [String: Any])?["id"] as? String ?? "", workspaceId: workspaceId, workspaces: workspaces,
+      catalog: decoded
     )
+    if let scoped = payload["presence"] as? [String: Any], scoped["workspaceId"] as? String == workspaceId,
+      let data = try? JSONSerialization.data(withJSONObject: scoped["presence"] ?? [:]),
+      let presence = try? JSONDecoder().decode(SettingsMachinePresence.self, from: data) {
+      next.presence = presence
+    }
+    state = next
     NotificationCenter.default.post(name: .lodySessionCatalogPreviewDidChange, object: nil)
   }
 
@@ -150,6 +179,7 @@ enum SessionCatalogPreview {
 
   private static func reset() {
     state = nil
+    catalogJSON = ""
     sessions = []
     LodyPreviewBridge.reset()
     NotificationCenter.default.post(name: .lodySessionCatalogPreviewDidChange, object: nil)

@@ -7,9 +7,6 @@ import {
   readAuthStateRaw,
   reopenAuthBrowser,
   restoreAuth,
-  updateAuthWorkspace,
-  updateAuthWorkspaceIcon,
-  type PickedWorkspaceIcon,
 } from '@lody-ios/kit';
 import type { DeviceCode, SavedAccount } from '../../models/auth.ts';
 import { parseLocal } from '../kv';
@@ -29,11 +26,6 @@ type AuthContextValue = AuthState & {
   restore: () => Promise<void>;
   logout: () => Promise<void>;
   reopen: () => Promise<void>;
-  updateWorkspace: (workspaceId: string, name: string) => Promise<void>;
-  updateWorkspaceIcon: (
-    workspaceId: string,
-    file: PickedWorkspaceIcon,
-  ) => Promise<string>;
 };
 
 const fallback: AuthState = {
@@ -55,8 +47,6 @@ const actions = {
   restore: restoreAuth,
   logout: logoutAuth,
   reopen: reopenAuthBrowser,
-  updateWorkspace: updateAuthWorkspace,
-  updateWorkspaceIcon: updateAuthWorkspaceIcon,
 };
 
 let current = read(readAuthStateRaw(), null);

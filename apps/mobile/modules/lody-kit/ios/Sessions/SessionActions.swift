@@ -10,7 +10,7 @@ final class SessionActions {
     self.source = source
   }
 
-  func open(_ rowId: String, from controller: UIViewController) {
+  func open(_ rowId: String, findQuery: String? = nil, from controller: UIViewController) {
     if rowId.hasPrefix("project:") {
       let params = Self.json(["projectId": String(rowId.dropFirst(8))])
       LodyShell.shared.openPage("project", params: params, from: controller)
@@ -18,7 +18,15 @@ final class SessionActions {
     }
     let state = source.state
     guard state.catalog.session(rowId) != nil, let session = source.raw(rowId) else { return }
-    LodyShell.shared.sessionIntent("open", ["workspaceId": state.workspaceId, "session": session])
+    var intent: [String: Any] = ["workspaceId": state.workspaceId, "session": session]
+    if let findQuery, !findQuery.isEmpty { intent["findQuery"] = findQuery }
+    LodyShell.shared.sessionIntent("open", intent)
+  }
+
+  static func create(_ fields: [String: Any]) {
+    var intent = fields
+    if SessionCatalogPreview.state != nil { intent["catalog"] = SessionCatalogPreview.catalogJSON }
+    LodyShell.shared.sessionIntent("create", intent)
   }
 
   func perform(_ actionId: String, row id: String, from controller: UIViewController) {
@@ -30,16 +38,16 @@ final class SessionActions {
     case "open":
       open(SessionRows.projectId(ofRow: id).map { "project:\($0)" } ?? id, from: controller)
     case "newChat":
-      LodyShell.shared.sessionIntent("create", ["workspaceId": state.workspaceId, "context": "chat"])
+      Self.create(["workspaceId": state.workspaceId, "context": "chat"])
     case "newSession":
       let session = state.catalog.session(id)
       var intent: [String: Any] = ["workspaceId": state.workspaceId]
       if let session, SessionRows.isChat(session.projectId) {
-        LodyShell.shared.sessionIntent("create", intent)
+        Self.create(intent)
         return
       }
       if let project = SessionRows.projectId(ofRow: id) ?? session?.projectId { intent["projectId"] = project }
-      LodyShell.shared.sessionIntent("create", intent)
+      Self.create(intent)
     case "share":
       LodyShell.shared.sessionIntent("share", ["workspaceId": state.workspaceId, "sessionId": id])
     default:

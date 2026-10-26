@@ -1,4 +1,3 @@
-import ExpoModulesCore
 import PhotosUI
 import UIKit
 import UniformTypeIdentifiers
@@ -11,21 +10,6 @@ struct WorkspaceIconPickerError: LocalizedError {
 
 final class WorkspaceIconPicker: NSObject, PHPickerViewControllerDelegate {
   private var completion: ((Result<WorkspaceIconFile?, Error>) -> Void)?
-
-  func present(from controller: UIViewController, promise: Promise) {
-    present(from: controller) { result in
-      switch result {
-      case .success(let file?):
-        promise.resolve(["uri": file.url.absoluteString, "name": file.name, "type": file.type, "size": file.size])
-      case .success(nil):
-        promise.resolve(nil)
-      case .failure(let error as WorkspaceIconPickerError):
-        promise.reject(error.code, error.message)
-      case .failure(let error):
-        promise.reject(error)
-      }
-    }
-  }
 
   @MainActor
   func pick(from controller: UIViewController) async throws -> WorkspaceIconFile? {

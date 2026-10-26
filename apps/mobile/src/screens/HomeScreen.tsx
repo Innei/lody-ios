@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { NativeInbox } from '@lody-ios/kit';
 import { definePage, present } from '@/lib/presentation';
 import {
   getHomeDetail,
@@ -20,7 +21,6 @@ import {
 import { t } from '@/lib/i18n';
 import { useAuth } from '@/cloud/auth/AuthProvider';
 import { useCatalog } from '@/cloud/catalog/CatalogProvider';
-import { InboxScreen } from './InboxScreen';
 import { PadHome } from './PadHomeScreen';
 import { usePanelSheet } from './PanelSheetScreen';
 import { SessionScreen, type SessionParams } from './SessionScreen';
@@ -76,7 +76,11 @@ function Home() {
   usePanelSheet(mode);
   return (
     <View testID="home" style={styles.root}>
-      {mode === 'compact' ? <InboxScreen.Component /> : <PadHome mode={mode} />}
+      {mode === 'compact' ? (
+        <NativeInbox style={styles.root} />
+      ) : (
+        <PadHome mode={mode} />
+      )}
     </View>
   );
 }

@@ -37,8 +37,6 @@ test('LodyKit keeps asynchronous native calls on the queued module DSL', () => {
     'cancelLogin',
     'logout',
     'reopenAuthBrowser',
-    'updateWorkspace',
-    'updateWorkspaceIcon',
     'selectionFeedback',
   ]) {
     assert.match(moduleSource, new RegExp(`AsyncFunction\\("${name}"\\)`));

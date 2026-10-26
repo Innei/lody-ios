@@ -22,6 +22,8 @@ struct LodyMenuAvatar {
 final class LodyMenuButton: ExpoView {
   let onSelect = EventDispatcher()
   let onSize = EventDispatcher()
+  var selected: ((String) -> Void)?
+  var sized: ((CGFloat) -> Void)?
   private let button = UIButton(type: .system)
   private let statusImage = UIImageView()
   private var status = ""
@@ -89,7 +91,10 @@ final class LodyMenuButton: ExpoView {
         image: item.symbol.isEmpty ? nil : UIImage(systemName: item.symbol),
         attributes: item.disabled ? .disabled : [],
         state: state
-      ) { [weak self] _ in self?.onSelect(["id": item.id]) }
+      ) { [weak self] _ in
+        self?.onSelect(["id": item.id])
+        self?.selected?(item.id)
+      }
       result.subtitle = item.subtitle.isEmpty ? nil : item.subtitle
       return result
     }
@@ -128,6 +133,8 @@ final class LodyMenuButton: ExpoView {
       ),
       to: button
     )
-    onSize(["width": LodyMenuButtonStyle.unconstrainedWidth(for: button)])
+    let width = LodyMenuButtonStyle.unconstrainedWidth(for: button)
+    onSize(["width": width])
+    sized?(width)
   }
 }

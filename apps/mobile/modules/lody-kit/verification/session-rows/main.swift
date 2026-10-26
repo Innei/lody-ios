@@ -15,6 +15,7 @@ let saved = """
 """
 guard let catalog = SessionCatalog.decode(saved: Data(saved.utf8)) else { fatalError("Catalog must decode") }
 precondition(catalog.projects.map(\.id) == ["p"], "Malformed projects are dropped")
+precondition(catalog.machineIds == ["m"] && catalog.machineNames.isEmpty)
 precondition(catalog.sessions.map(\.id) == ["root", "child", "tab", "chat"], "Malformed sessions are dropped")
 precondition(SessionCatalog.decode(saved: Data(#"{"catalog":{"projects":[],"sessions":[]}}"#.utf8)) == nil, "Incomplete catalogs are rejected")
 

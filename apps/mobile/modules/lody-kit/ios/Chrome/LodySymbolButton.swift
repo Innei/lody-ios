@@ -4,6 +4,8 @@ import UIKit
 final class LodySymbolButton: ExpoView {
   let onSymbolPress = EventDispatcher()
   let onSymbolLongPress = EventDispatcher()
+  var pressed: (() -> Void)?
+  var held: (() -> Void)?
   private let button = UIButton(type: .system)
   private let hold = UILongPressGestureRecognizer()
   private var symbol = "circle"
@@ -16,8 +18,8 @@ final class LodySymbolButton: ExpoView {
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
-    button.addTarget(self, action: #selector(pressed), for: .primaryActionTriggered)
-    hold.addTarget(self, action: #selector(held))
+    button.addTarget(self, action: #selector(press), for: .primaryActionTriggered)
+    hold.addTarget(self, action: #selector(longPressed(_:)))
     hold.minimumPressDuration = 0.6
     hold.isEnabled = false
     button.addGestureRecognizer(hold)
@@ -107,13 +109,15 @@ final class LodySymbolButton: ExpoView {
     button.isEnabled = !disabled && !loading
   }
 
-  @objc private func pressed() {
+  @objc private func press() {
     onSymbolPress([:])
+    pressed?()
   }
 
-  @objc private func held(_ recognizer: UILongPressGestureRecognizer) {
+  @objc private func longPressed(_ recognizer: UILongPressGestureRecognizer) {
     guard recognizer.state == .began else { return }
     UISelectionFeedbackGenerator().selectionChanged()
     onSymbolLongPress([:])
+    held?()
   }
 }
