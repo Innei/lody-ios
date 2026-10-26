@@ -671,7 +671,10 @@ with metro_context:
                     elif case == 'navigation':
                         # Three cold relaunches plus catalog links; 360s still dies on a cold CI AXe session.
                         check_timeout = 480
-                    elif case in ('branch-picker', 'session-search', 'session-search-pad', 'chat-stream-performance', 'home', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance', 'ipad'):
+                    elif case == 'home':
+                        # Create, Debug, Settings and workspace editing share this case; ~540s alone on the native inbox.
+                        check_timeout = 600
+                    elif case in ('branch-picker', 'session-search', 'session-search-pad', 'chat-stream-performance', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance', 'ipad'):
                         check_timeout = 300
                     check_started = time.monotonic()
                     with (output / 'check.log').open('w') as log:
