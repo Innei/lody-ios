@@ -75,7 +75,7 @@ class SettingsController: UIViewController {
     } else if ["project-history", "archived"].contains(id), workspace != nil {
       LodyShell.shared.openPage(id == "archived" ? "archived-sessions" : "project-history", from: self)
     } else if id == "diagnostics" {
-      LodyShell.shared.openPage("diagnostics", from: self)
+      push("diagnostics", title: LodyStrings.text("diagnostics.title"))
     } else if id == "connection", workspace != nil, state.connection.state == "offline" {
       source.refresh()
     } else if id == "debug-open" {
