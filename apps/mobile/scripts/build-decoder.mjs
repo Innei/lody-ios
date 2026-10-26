@@ -74,8 +74,10 @@ for (const name of [
   );
 }
 
-const fileIcons = root + 'modules/lody-kit/file-icons';
-for (const name of await readdir(fileIcons)) {
-  if (name.endsWith('.png'))
-    await copyFile(fileIcons + '/' + name, output + '/' + name);
+for (const folder of ['file-icons', 'images']) {
+  const source = root + 'modules/lody-kit/' + folder;
+  for (const name of await readdir(source)) {
+    if (name.endsWith('.png'))
+      await copyFile(source + '/' + name, output + '/' + name);
+  }
 }
