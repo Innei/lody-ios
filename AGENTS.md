@@ -55,6 +55,7 @@
 
 - UI Verify runs only in English (`en`, `en_US`), retaining light/dark coverage. Do not run a separate Chinese locale pass.
 - UI Verify establishes the English software keyboard and offline environment once per runner batch; cases reuse that baseline. Enter Debug fixtures through `UI.open_case` deep links, never by scrolling the Debug menu. Batch text input; use individual software keys only when the key interaction is itself under test. Record entry/check timings and prefer observable readiness over fixed sleeps.
+- On native UIKit pages use `axe drag`, not `swipe`; swipe doesn't drive UIKit pan gestures (switch thumbs, edge back).
 
 - UI baselines must run without login, user credentials, cloud access, or a connected machine. Add independently resettable Debug scenes using production components and `present`; inject deterministic data/service outcomes at their boundary.
 - UI changes must add/update a behavior check in `apps/mobile/verification/ui` or reuse the existing native checks. Shared controls must be exercised in each affected host.

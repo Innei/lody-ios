@@ -44,7 +44,7 @@ private final class DirectoryPreviewAnchor {
 @MainActor
 private final class DirectoryFixture {
   private var travelReads = 0
-  private var registerAttempts = 0
+  private var unconfirmed: Set<String> = []
 
   func service() -> DirectoryService {
     DirectoryService(
@@ -58,8 +58,7 @@ private final class DirectoryFixture {
       },
       add: { [self] machineId, path in
         try await pause()
-        registerAttempts += 1
-        if path.hasSuffix("/website"), registerAttempts == 1 { throw SettingsError("project_write_unknown") }
+        if path.hasSuffix("/website"), unconfirmed.insert(path).inserted { throw SettingsError("project_write_unknown") }
         let name = path.split(separator: "/").last.map(String.init) ?? path
         return CreateProject(id: "project:\(path)", machineId: machineId, name: name, rootPath: path)
       },

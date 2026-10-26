@@ -35,10 +35,17 @@ def assert_no_empty():
     assert not any(catalog.text('settings.history.emptySessions') in spoken(item) for item in ui.state()), 'Loading/error incorrectly claims no conversations'
 
 def loading():
-    ui.wait(lambda items: any(catalog.text('settings.history.loadingSessions') in spoken(item) for item in items), 'Missing loading explanation')
-    assert_no_empty()
-    assert not button('settings.history.sync')['enabled']
-    assert not button('settings.history.import', count=0)['enabled']
+    # One snapshot: the fixture scan lasts 4 s, about two describe-ui reads.
+    sync = catalog.text('settings.history.sync')
+    action = catalog.text('settings.history.import', count=0)
+    def settled(items):
+        loading = any(catalog.text('settings.history.loadingSessions') in spoken(item) for item in items)
+        bars = all(any(item.get('AXLabel') == label and item.get('type') == 'Button' for item in items) for label in (sync, action))
+        return items if loading and bars else None
+    items = ui.wait(settled, 'Missing loading explanation with its bar items')
+    assert not any(catalog.text('settings.history.emptySessions') in spoken(item) for item in items), 'Loading/error incorrectly claims no conversations'
+    for label in (sync, action):
+        assert not any(item.get('enabled') for item in items if item.get('AXLabel') == label and item.get('type') == 'Button'), f'{label} must be disabled while loading'
     ui.capture('loading')
 
 ui.capture('projects')
@@ -90,7 +97,7 @@ state('history-session:conflict', 'settings.history.imported')
 assert not button('settings.history.import', count=0)['enabled']
 assert not button('settings.history.selectAll')['enabled']
 ui.capture('conflict-resolved')
-ui.axe('swipe', '--start-x', '2', '--start-y', '450', '--end-x', '365', '--end-y', '450', '--duration', '.5', '--post-delay', '1')
+ui.axe('drag', '--start-x', '2', '--start-y', '450', '--end-x', '365', '--end-y', '450', '--duration', '.5', '--post-delay', '1')
 ui.element(target['AXUniqueId'])
 assert not any(item.get('AXLabel') == catalog.text('settings.history.selectAll') for item in ui.state()), 'Detail toolbar leaked into target list'
 ui.capture('returned-agents')

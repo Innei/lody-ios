@@ -627,8 +627,8 @@ with metro_context:
                     if case in ('agent-roles', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states'):
                         check_timeout = 420
                     if case in ('settings', 'agents-settings'):
-                        # These cases visit several Settings contexts or editors.
-                        check_timeout = 300
+                        # These cases visit several Settings contexts or editors; settings reaches ~300s under load.
+                        check_timeout = 420
                     if case == 'settings-baseline':
                         # Six fixture scenarios plus page visits; ~305s under load.
                         check_timeout = 420
