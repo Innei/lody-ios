@@ -85,8 +85,17 @@ if not any(i.get('AXUniqueId') == 'PREFERRED_LANGUAGE' for i in ui.state()):
             break
         ui.axe('swipe', '--start-x', '200', '--start-y', '740', '--end-x', '200', '--end-y', '380',
                '--duration', '.4', '--post-delay', '.4')
-    ui.axe('tap', '--id', 'com.apple.settings.apps', '--post-delay', '.4')
-    ui.element('app.innei.lody')
+    # A freshly booted pool Simulator can show an empty Apps list while it indexes; reopening reloads it.
+    for attempt in range(3):
+        ui.axe('tap', '--id', 'com.apple.settings.apps', '--post-delay', '.4')
+        try:
+            ui.element('app.innei.lody', timeout=20)
+            break
+        except AssertionError:
+            ui.capture(f'language-apps-empty-{attempt}')
+            if attempt == 2:
+                raise
+            ui.axe('tap', '--id', 'BackButton', '--post-delay', '.6')
     ui.axe('tap', '--id', 'app.innei.lody', '--post-delay', '.4')
 language = ui.element('PREFERRED_LANGUAGE')
 assert 'English' in language['AXLabel']
