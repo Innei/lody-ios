@@ -101,6 +101,8 @@ const NATIVE_PREFIXES = [
   'share.',
   'notifications.',
   'settings.liveActivity.',
+  'onboarding.',
+  'login.',
 ];
 const isNativeKey = (key) =>
   NATIVE_PREFIXES.some((prefix) => key.startsWith(prefix));

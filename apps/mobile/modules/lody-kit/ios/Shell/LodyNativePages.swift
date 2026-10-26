@@ -71,6 +71,8 @@ enum LodyNativePages {
     "notification-settings": { _ in NotificationSettingsController() },
     "notification-preview": { _ in NotificationPreviewController() },
     "live-activity-preview": { _ in LiveActivityPreviewController() },
+    "onboarding": { _ in OnboardingController() },
+    "onboarding-preview": { _ in OnboardingPreviewController() },
   ]
 
   private static func picker(_ params: [String: Any]) -> UIViewController {

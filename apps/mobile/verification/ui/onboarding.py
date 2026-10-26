@@ -20,6 +20,15 @@ def has_label(text):
     return lambda items: any(item.get('AXLabel') == text for item in items)
 
 
+def intro_settled(step, plays, keys):
+    """UIKit leaves views below 0.01 alpha out of accessibility, so every block being listed means none stayed hidden."""
+    probe = ui.wait(lambda items: next((item for item in items if item.get('AXUniqueId') == 'onboarding-intro' and item.get('AXLabel') == f'plays {plays}' and item.get('AXValue') in ('settled', 'reduced', 'unsettled')), None), f'Intro play {plays} never finished ({step})')
+    assert probe.get('AXValue') in ('settled', 'reduced'), f'Intro ended with blocks off their final state ({step}): {probe.get("AXValue")}'
+    labels = [item.get('AXLabel') or '' for item in ui.state()]
+    for key in keys:
+        assert any(catalog.text(key) in label for label in labels), f'{key} is not visible after the intro ({step})'
+
+
 connect = ui.element('onboarding-connect')
 screen = ui.state()[0]['frame']
 sheet = ui.element('onboarding-sheet')['frame']
@@ -33,6 +42,8 @@ assert connect['frame']['height'] >= 44
 assert not any(item.get('AXUniqueId') == 'xmark' or item.get('AXLabel') == catalog.system('close') for item in ui.state()), 'Welcome sheet must not offer a close button'
 for key in ('onboarding.sessions.title', 'onboarding.reply.title', 'onboarding.privacy.title'):
     ui.wait(lambda items, key=key: any(catalog.text(key) in (item.get('AXLabel') or '') for item in items), f'Missing feature {key}')
+features = ('onboarding.sessions.title', 'onboarding.reply.title', 'onboarding.privacy.title')
+intro_settled('open', 1, (*features, 'onboarding.title', 'login.footnote'))
 ui.capture('idle')
 
 # Stop above the connect control. A drag that runs through it can press the button
@@ -55,6 +66,7 @@ ui.capture('waiting')
 tap('auth-cancel', '.8')
 ui.wait(has_label(catalog.text('auth.error.cancelledSignIn')), 'Missing cancelled error')
 assert ui.element('onboarding-connect').get('AXLabel') == catalog.text('login.retry')
+intro_settled('error', 2, features)
 ui.capture('error')
 
 tap('onboarding-connect', '1.2')
