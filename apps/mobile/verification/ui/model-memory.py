@@ -6,10 +6,28 @@ import catalog
 ui = UI(sys.argv[1], sys.argv[2])
 
 def tap_id(value):
-    ui.element(value)
-    ui.axe('tap', '--id', value, '--post-delay', '.5')
+    print('Tap:', value, flush=True)
+    node = ui.element(value)
+    if value == 'model':
+        input_top = ui.element('create-session-input')['frame']['y']
+        frame = node['frame']
+        if frame['y'] + frame['height'] > input_top:
+            start = input_top - 12
+            ui.axe('swipe', '--start-x', '201', '--start-y', str(start),
+                   '--end-x', '201', '--end-y', str(max(150, start - 160)), '--duration', '.4', '--post-delay', '.6')
+            node = ui.element(value)
+    if value.endswith(':toggle'):
+        before = node.get('AXValue')
+        ui.tap_switch(node)
+        ui.wait(lambda items: any(i.get('AXUniqueId') == value and i.get('AXValue') != before for i in items), 'Model switch did not change')
+        return
+    frame = node['frame']
+    ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.5')
+    if value == 'create-session-input':
+        ui.wait(lambda items: any((i.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar') and i['frame']['y'] < 800 for i in items), 'Software keyboard did not appear')
 
 def tab(key):
+    print('Tab:', key, flush=True)
     ui.axe('tap', '--label', catalog.text('model.tab.' + key), '--post-delay', '.5')
 
 def back():
@@ -19,6 +37,7 @@ def back():
     ui.axe('tap', '-x', str(f['x'] + f['width']/2), '-y', str(f['y'] + f['height']/2), '--post-delay', '.5')
 
 def summary(value):
+    print('Summary:', value, flush=True)
     ui.wait(lambda items: any(value in (i.get('AXLabel') or '') for i in items), 'Missing remembered summary: ' + value)
 
 tap_id('model')

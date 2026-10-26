@@ -289,10 +289,18 @@ The `settings` scene includes identically named Agent configs on two computers;
 checks verify machine headers, usage/read-only states, editing identity and cache
 refresh without cloud access.
 
+`--suite settings-preferences` is the broader notification and Quick Replies
+business suite; ordinary Settings layout changes only need `settings-baseline`.
 `queued-message-behavior` enters Preferences, checks signed-out notification
 navigation and cancelled/completed edge-pop, then cold-launches to prove the saved
-Steer choice restores. `preferences-preview` is the direct Debug entry; product
-Settings reaches it through the Personal group and no longer repeats its options.
+Steer choice restores. Notification fixtures additionally reject a request,
+settings navigation, and a Live Activities change without granting real permission.
+The rejected Live Activities write is immediate, so a batched React rollback must
+still leave the native switch at its owner's value. `model-memory` covers the
+native forwarded handler; `share-probe.py` toggles the same control in the real
+Share Extension and checks explicit `false` reaches the inbox draft.
+`preferences-preview` is the direct Debug entry; product Settings reaches it
+through the Personal group and no longer repeats its individual options.
 
 `workspace-general` uses the existing offline Home providers to exercise only
 Settings → Workspace → General: the shared editor, seeded system icon picker,

@@ -26,6 +26,7 @@ BATCHES = {
 }
 SUITES = {
     'settings-workspace': ['prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states', 'agent-roles', 'role-mention-chat', 'role-mention-sheet'],
+    'settings-preferences': ['queued-message-behavior', 'notifications', 'quick-replies'],
     'guidance-scroll': ['send-scroll-normal', 'send-scroll-guide', 'send-scroll-queue'],
     'html-files': ['html-preview', 'file-preview'],
     'markdown-files': ['markdown', 'file-preview'],
@@ -645,7 +646,8 @@ with metro_context:
                     if case == 'proposed-plan':
                         # Document, search and business dispatch outcomes share this case.
                         check_timeout = 360
-                    if case == 'quick-replies':
+                    if case in ('quick-replies', 'model-memory'):
+                        # Editing, restart or several model/agent round trips share these checks.
                         check_timeout = 420
                     if case.startswith(('attachment-overlay-', 'attachment-motion-')) and args.photo_access in ['full', 'granted']:
                         check_timeout = 360
@@ -682,7 +684,7 @@ with metro_context:
                     elif case in ('session-search', 'mentions-production'):
                         # Long search and mention-kind loops reach ~290s alone.
                         check_timeout = 420
-                    elif case in ('branch-picker', 'message-share', 'session-search-pad', 'chat-stream-performance', 'model-memory', 'mention-chat', 'mention-sheet', 'appearance', 'ipad'):
+                    elif case in ('branch-picker', 'message-share', 'session-search-pad', 'chat-stream-performance', 'mention-chat', 'mention-sheet', 'appearance', 'ipad'):
                         check_timeout = 300
                     check_started = time.monotonic()
                     with (output / 'check.log').open('w') as log:

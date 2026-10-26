@@ -109,6 +109,18 @@ class UI:
                     restart_accessibility(self.udid)
                 time.sleep(2)
 
+    def tap_switch(self, node):
+        # Target the thumb inside sheet-scaled switches, and always release it.
+        frame = node['frame']
+        x = frame['x'] + frame['height'] / 2
+        if node.get('AXValue') == '1':
+            x = frame['x'] + frame['width'] - frame['height'] / 2
+        point = ('-x', str(x), '-y', str(frame['y'] + frame['height'] / 2))
+        try:
+            self.axe('touch', *point, '--down')
+        finally:
+            self.axe('touch', *point, '--up')
+
     def type_into(self, identifier, text):
         """Batch input under the runner's shared English keyboard baseline."""
         self.axe('type', text)
