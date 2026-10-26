@@ -102,6 +102,8 @@ enum RemoteSettingsSections {
     "claude", "codex", "kimi", "grok", "deepseek", "minimax", "glm", "mimo", "opencode", "gemini", "openai",
   ]
 
+  static func agentName(_ type: String) -> String { agentNames[type] ?? type }
+
   static func agentIcon(_ type: String) -> String {
     let kind = ["claude-p": "claude", "kimi-code": "kimi"][type] ?? type
     return iconKinds.contains(kind) ? "lody-agent-\(kind)" : ""

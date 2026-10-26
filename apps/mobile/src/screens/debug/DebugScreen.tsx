@@ -15,6 +15,7 @@ import { SessionSharePreviewScreen } from './SessionSharePreviewScreen';
 import { DiffScrollEdgePreviewScreen } from './DiffScrollEdgePreviewScreen';
 import { SteerPreviewScreen } from './SteerPreviewScreen';
 import { AgentErrorPreviewScreen } from './AgentErrorPreviewScreen';
+import { DirectoryPreviewScreen } from './DirectoryPreviewScreen';
 import { ProjectHistoryPreviewScreen } from './ProjectHistoryPreviewScreen';
 import { PullRequestPreviewScreen } from './PullRequestPreviewScreen';
 import { FilePreviewScreen } from './FilePreviewScreen';
@@ -204,6 +205,7 @@ function View() {
           '项目会话同步验收',
           'arrow.triangle.2.circlepath',
         ),
+        openRow('directory-preview', 'Folder browser', 'folder'),
         openRow('settings-preview', '远程设置验收', 'gear'),
         openRow('mcp-settings-preview', 'MCP 设置验收', 'server.rack'),
         openRow('memory-preview', 'Memory acceptance', 'brain'),
@@ -410,6 +412,7 @@ function View() {
     'community-notice': () => showCommunityNotice(),
     'project-history-preview': () =>
       void present(ProjectHistoryPreviewScreen, {}),
+    'directory-preview': () => void present(DirectoryPreviewScreen, {}),
     'pull-request-preview': () => void present(PullRequestPreviewScreen, {}),
     'project-picker-preview': () => void openCreateParity(),
     'ai-usage-preview': () => void present(AIUsagePreviewScreen, {}),
