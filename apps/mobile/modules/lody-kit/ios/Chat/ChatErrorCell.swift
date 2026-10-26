@@ -61,6 +61,8 @@ final class ChatErrorCell: UICollectionViewCell {
     var details = buttonConfiguration(LodyStrings.text("native.chat.error.details"))
     details.baseForegroundColor = .secondaryLabel
     detailButton.configuration = details
+    // Reconfigured cells keep UIKit's cached accessibility children, which would leave a hidden Retry reachable.
+    card.accessibilityElements = [titleLabel, summaryLabel, retryButton, detailButton].filter { !$0.isHidden }
     setNeedsLayout()
   }
 

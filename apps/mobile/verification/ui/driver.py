@@ -84,7 +84,7 @@ class UI:
             args = (*args, '--tap-style', 'physical')
         # Each AXe process registers fresh virtual HID services that backboardd opens ~30 ms later;
         # events still pending when the process exits are dropped, so keep it alive past the open.
-        if args and args[0] == 'key':
+        if args and args[0] in ('key', 'key-sequence', 'key-combo', 'button'):
             args = ('batch', '--step', shlex.join(args))
         if args and args[0] == 'batch' and not str(args[-1]).startswith('sleep'):
             args = (*args, '--step', 'sleep .2')
