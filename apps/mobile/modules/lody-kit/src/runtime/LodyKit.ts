@@ -49,6 +49,15 @@ export type NavEvent =
       params: string;
       options?: { title?: string; present?: boolean };
       container: number;
+    }
+  | {
+      type: 'session';
+      action: 'open' | 'share' | 'create';
+      workspaceId: string;
+      session?: string;
+      sessionId?: string;
+      projectId?: string;
+      context?: 'chat';
     };
 export type ShellPage = {
   id: number;

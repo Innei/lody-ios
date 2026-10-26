@@ -72,8 +72,10 @@ class SettingsController: UIViewController {
       )
     } else if id == "account", state.account != nil {
       LodyShell.shared.pushNative(AccountController(source: source), title: LodyStrings.text("account.title"), from: self)
-    } else if ["project-history", "archived"].contains(id), workspace != nil {
-      LodyShell.shared.openPage(id == "archived" ? "archived-sessions" : "project-history", from: self)
+    } else if id == "archived", workspace != nil {
+      push("archived-sessions", title: LodyStrings.text("settings.archived.title"))
+    } else if id == "project-history", workspace != nil {
+      LodyShell.shared.openPage("project-history", from: self)
     } else if id == "diagnostics" {
       push("diagnostics", title: LodyStrings.text("diagnostics.title"))
     } else if id == "connection", workspace != nil, state.connection.state == "offline" {

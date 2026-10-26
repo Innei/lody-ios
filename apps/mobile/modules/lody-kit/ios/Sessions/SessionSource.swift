@@ -1,0 +1,180 @@
+import Foundation
+
+struct SessionListState: Equatable, Sendable {
+  var userId = ""
+  var workspaceId = ""
+  var loading = false
+  var catalog = SessionCatalog()
+
+  var key: String { userId.isEmpty || workspaceId.isEmpty ? "" : "\(userId):\(workspaceId)" }
+}
+
+enum SessionWrite: Sendable {
+  case archive(Bool)
+  case pin(Bool)
+  case read(Double)
+  case rename(String)
+  case delete([String])
+}
+
+typealias SessionWriteService = @MainActor (_ workspaceId: String, _ sessionId: String, _ write: SessionWrite) async throws -> Void
+
+@MainActor
+final class SessionSource {
+  let changes: [Notification.Name]
+  let write: SessionWriteService
+  private let read: @MainActor () -> SessionListState
+  private let rawSession: @MainActor (String) -> String?
+
+  init(
+    changes: [Notification.Name], read: @escaping @MainActor () -> SessionListState,
+    raw: @escaping @MainActor (String) -> String? = { _ in nil }, write: @escaping SessionWriteService
+  ) {
+    self.changes = changes
+    self.read = read
+    rawSession = raw
+    self.write = write
+  }
+
+  var state: SessionListState { read() }
+
+  func raw(_ sessionId: String) -> String? { rawSession(sessionId) }
+
+  static let live = SessionSource(
+    changes: [.lodyAuthDidChange, .lodyCatalogDidChange, .lodySessionCatalogPreviewDidChange],
+    read: { SessionCatalogPreview.state ?? SessionPublished.state() },
+    raw: { id in SessionCatalogPreview.state == nil ? SessionPublished.raw(id) : SessionCatalogPreview.raw(id) },
+    write: { workspaceId, sessionId, write in
+      if SessionCatalogPreview.state != nil, case .delete(let ids) = write {
+        try await SessionCatalogPreview.delete(sessionId, ids: ids)
+        return
+      }
+      try await SessionActions.cloud(workspaceId, sessionId, write)
+    }
+  )
+
+  // Mirrors the JS session view store: a local watermark that clears unread emphasis.
+  nonisolated static func views(userId: String, workspaceId: String) async -> [String: Double] {
+    guard !userId.isEmpty, !workspaceId.isEmpty,
+      let data = try? JSONSerialization.data(withJSONObject: [userId, workspaceId], options: .withoutEscapingSlashes)
+    else { return [:] }
+    let key = "session-views:\(String(decoding: data, as: UTF8.self))"
+    let raw: String? = await withCheckedContinuation { done in
+      LocalStore.queue.async { done.resume(returning: try? LocalStore.shared.read(key)) }
+    }
+    guard let raw, let object = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any] else { return [:] }
+    return object.compactMapValues { ($0 as? NSNumber)?.doubleValue }.filter { $0.value.isFinite }
+  }
+
+  static func rawSession(in catalog: Any?, _ id: String) -> String? {
+    guard let sessions = catalog as? [Any],
+      let session = sessions.first(where: { ($0 as? [String: Any])?["id"] as? String == id }),
+      let data = try? JSONSerialization.data(withJSONObject: session)
+    else { return nil }
+    return String(decoding: data, as: UTF8.self)
+  }
+}
+
+@MainActor
+enum SessionPublished {
+  private static var cache: (key: String, catalog: SessionCatalog)?
+
+  static func state() -> SessionListState {
+    struct Auth: Decodable {
+      var account: AuthAccount?
+      var initialWorkspace: String?
+    }
+    struct Catalog: Decodable {
+      var userId: String?
+      var workspaceId: String?
+      var loading: Bool?
+      var catalogRevision: Int?
+      var pendingSessions: [Lossy<SessionItem>]?
+    }
+    let auth = try? JSONDecoder().decode(Auth.self, from: Data(AuthSession.published.json.utf8))
+    guard let account = auth?.account else { return SessionListState() }
+    let published = try? JSONDecoder().decode(Catalog.self, from: Data(CatalogSession.published.json.utf8))
+    let scoped = published?.userId == account.user.id
+    let selected = scoped ? published?.workspaceId : auth?.initialWorkspace
+    let workspace = account.workspaces.first { $0.id == selected } ?? account.workspaces.first
+    var state = SessionListState(userId: account.user.id, workspaceId: workspace?.id ?? "", loading: !scoped)
+    guard scoped, let published else { return state }
+    state.loading = published.loading ?? false
+    let key = "\(account.user.id):\(published.workspaceId ?? ""):\(published.catalogRevision ?? -1)"
+    let base: SessionCatalog
+    if let cache, cache.key == key {
+      base = cache.catalog
+    } else {
+      base = SessionCatalog.decode(saved: Data(CatalogSession.published.raw.utf8)) ?? SessionCatalog()
+      cache = (key, base)
+    }
+    state.catalog = base
+    state.catalog.sessions += (published.pendingSessions ?? []).compactMap(\.value)
+    return state
+  }
+
+  static func raw(_ id: String) -> String? {
+    let saved = try? JSONSerialization.jsonObject(with: Data(CatalogSession.published.raw.utf8)) as? [String: Any]
+    if let found = SessionSource.rawSession(in: (saved?["catalog"] as? [String: Any])?["sessions"], id) { return found }
+    let state = try? JSONSerialization.jsonObject(with: Data(CatalogSession.published.json.utf8)) as? [String: Any]
+    return SessionSource.rawSession(in: state?["pendingSessions"], id)
+  }
+}
+
+// UI verification fixtures that still live in React publish their catalog here.
+@MainActor
+enum SessionCatalogPreview {
+  private(set) static var state: SessionListState?
+  private static var sessions: [Any] = []
+  private static var failures: Set<String> = []
+  private static var failed: Set<String> = []
+  private static var deleted: Set<String> = []
+
+  static func set(_ json: String) {
+    guard LodyUIVerify.enabled else { return }
+    let payload = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]
+    let account = payload?["account"] as? [String: Any]
+    guard let payload, let catalog = payload["catalog"] as? [String: Any],
+      let data = try? JSONSerialization.data(withJSONObject: ["catalog": catalog]),
+      let decoded = SessionCatalog.decode(saved: data)
+    else {
+      if state != nil { reset() }
+      return
+    }
+    sessions = catalog["sessions"] as? [Any] ?? []
+    failures = Set(payload["deleteFailures"] as? [String] ?? [])
+    var next = SessionListState(
+      userId: (account?["user"] as? [String: Any])?["id"] as? String ?? "",
+      workspaceId: payload["workspaceId"] as? String ?? "", catalog: decoded
+    )
+    next.catalog.sessions.removeAll { deleted.contains($0.id) }
+    state = next
+    NotificationCenter.default.post(name: .lodySessionCatalogPreviewDidChange, object: nil)
+  }
+
+  static func raw(_ id: String) -> String? { SessionSource.rawSession(in: sessions, id) }
+
+  static func delete(_ sessionId: String, ids: [String]) async throws {
+    try await Task.sleep(for: .milliseconds(900))
+    if failures.contains(sessionId), !failed.contains(sessionId) {
+      failed.insert(sessionId)
+      throw DataRuntime.failure("offline_fixture", "offline_fixture")
+    }
+    deleted.formUnion(ids)
+    state?.catalog.sessions.removeAll { ids.contains($0.id) }
+    NotificationCenter.default.post(name: .lodySessionCatalogPreviewDidChange, object: nil)
+  }
+
+  private static func reset() {
+    state = nil
+    sessions = []
+    failures = []
+    failed = []
+    deleted = []
+    NotificationCenter.default.post(name: .lodySessionCatalogPreviewDidChange, object: nil)
+  }
+}
+
+extension Notification.Name {
+  static let lodySessionCatalogPreviewDidChange = Notification.Name("LodySessionCatalogPreviewDidChange")
+}

@@ -20,6 +20,8 @@ enum LodyNativePages {
     "agent-roles-preview": { _ in AgentRolesPreviewController() },
     "settings": { _ in SettingsController() },
     "settings-baseline": { params in SettingsBaselineController(scenario: params["scenario"] as? String ?? "live") },
+    "archived-sessions": { _ in ArchivedSessionsController() },
+    "archived-sessions-preview": { _ in ArchivedSessionsPreviewController() },
     "memory-settings": { params in MemorySettingsController(scope: .live(params)) },
     "memory-preview": { _ in MemoryPreviewController() },
     "memory-states-preview": { _ in MemoryPreviewController(state: "not_installed") },

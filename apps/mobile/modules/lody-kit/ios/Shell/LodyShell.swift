@@ -6,6 +6,7 @@ final class LodyShell {
 
   var emit: ((String, Int) -> Void)?
   var emitOpen: ((String, String, [String: Any], Int) -> Void)?
+  var emitSession: (([String: Any]) -> Void)?
   private var navigation: UINavigationController?
   private var pages: [Int: WeakPage] = [:]
   private let delegate = ShellNavigationDelegate()
@@ -57,6 +58,11 @@ final class LodyShell {
   func openPage(_ id: String, params: String = "{}", options: [String: Any] = [:], from source: UIViewController?) {
     let pages = source?.navigationController?.viewControllers.compactMap { $0 as? LodyPageController } ?? []
     emitOpen?(id, params, options, pages.last { $0.spec.id != 0 }?.spec.id ?? 0)
+  }
+
+  // Sessions open through the React sessionNav mailbox until Home is native.
+  func sessionIntent(_ action: String, _ fields: [String: Any]) {
+    emitSession?(fields.merging(["action": action]) { _, new in new })
   }
 
   private func push(_ page: LodyPageController, on target: UINavigationController?) {

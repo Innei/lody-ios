@@ -82,6 +82,15 @@ export function registerShellPages(pages: PageDefinitionBase[]) {
   for (const page of pages) shellPages.set(page.id, page);
 }
 
+export type ShellSessionIntent = Extract<NavEvent, { type: 'session' }>;
+let sessionHandler: ((intent: ShellSessionIntent) => void) | undefined;
+
+export function registerShellSessionHandler(
+  handler: (intent: ShellSessionIntent) => void,
+) {
+  sessionHandler = handler;
+}
+
 function openShellPage(event: Extract<NavEvent, { type: 'open' }>) {
   const page = shellPages.get(event.page);
   if (!page) return;
@@ -100,6 +109,10 @@ function openShellPage(event: Extract<NavEvent, { type: 'open' }>) {
 function onNav(event: NavEvent) {
   if (event.type === 'open') {
     openShellPage(event);
+    return;
+  }
+  if (event.type === 'session') {
+    sessionHandler?.(event);
     return;
   }
   if (event.type === 'closed') {
