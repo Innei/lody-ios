@@ -626,6 +626,9 @@ with metro_context:
                     if case == 'agents-settings':
                         command.append('--agents-only')
                     check_timeout = 180
+                    if case == 'morph':
+                        # Send, open and dismiss loops; ~175s alone with the driver's HID padding.
+                        check_timeout = 300
                     if case == 'mcp-settings':
                         check_timeout = 300
                     if case in ('agent-roles', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states'):
@@ -676,7 +679,10 @@ with metro_context:
                     elif case == 'home':
                         # Create, Debug, Settings and workspace editing share this case; ~540s alone on the native inbox.
                         check_timeout = 600
-                    elif case in ('branch-picker', 'message-share', 'session-search', 'session-search-pad', 'chat-stream-performance', 'model-memory', 'mention-chat', 'mention-sheet', 'mentions-production', 'appearance', 'ipad'):
+                    elif case in ('session-search', 'mentions-production'):
+                        # Long search and mention-kind loops reach ~290s alone.
+                        check_timeout = 420
+                    elif case in ('branch-picker', 'message-share', 'session-search-pad', 'chat-stream-performance', 'model-memory', 'mention-chat', 'mention-sheet', 'appearance', 'ipad'):
                         check_timeout = 300
                     check_started = time.monotonic()
                     with (output / 'check.log').open('w') as log:
