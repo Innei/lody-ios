@@ -433,14 +433,8 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     }.runOnQueue(.main)
     AsyncFunction("setPushUser") { (userId: String?) in MainActor.assumeIsolated { PushNotifications.shared.identify(userId) } }.runOnQueue(.main)
     AsyncFunction("pushStatus") { (promise: Promise) in MainActor.assumeIsolated { PushNotifications.shared.status { promise.resolve($0) } } }.runOnQueue(.main)
-    AsyncFunction("requestPushPermission") { (promise: Promise) in MainActor.assumeIsolated { PushNotifications.shared.request { promise.resolve($0) } } }.runOnQueue(.main)
     AsyncFunction("pendingPushClick") { MainActor.assumeIsolated { PushNotifications.shared.readPending() } }.runOnQueue(.main)
     AsyncFunction("acknowledgePushClick") { (id: String) in MainActor.assumeIsolated { PushNotifications.shared.acknowledge(id) } }.runOnQueue(.main)
-    AsyncFunction("liveActivityStatus") { MainActor.assumeIsolated { LiveActivities.shared.status() } }.runOnQueue(.main)
-    AsyncFunction("setLiveActivitiesEnabled") { (enabled: Bool) in MainActor.assumeIsolated { LiveActivities.shared.enabled = enabled } }.runOnQueue(.main)
-    AsyncFunction("debugLiveActivity") { (action: String) in
-      MainActor.assumeIsolated { LiveActivities.shared.debug(action) }
-    }.runOnQueue(.main)
     AsyncFunction("setPushVisibleRoute") { (route: String) in MainActor.assumeIsolated { PushNotifications.shared.visibleRoute = route } }.runOnQueue(.main)
 
     AsyncFunction("recordPushNavigation") { (id: String, source: String, outcome: String, reason: String) in

@@ -68,6 +68,9 @@ enum LodyNativePages {
     "session-share-preview": { _ in SessionSharePreviewController() },
     "agent-error": { params in AgentErrorController(params: params) },
     "message-share": { params in MessageShareController(contentJSON: params["contentJSON"] as? String ?? "") },
+    "notification-settings": { _ in NotificationSettingsController() },
+    "notification-preview": { _ in NotificationPreviewController() },
+    "live-activity-preview": { _ in LiveActivityPreviewController() },
   ]
 
   private static func picker(_ params: [String: Any]) -> UIViewController {
