@@ -461,7 +461,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
         self.dataRuntime.creationOptions(payload, promise: promise)
       }
     }.runOnQueue(.main)
-    AsyncFunction("localProjects") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.localProjects(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("createSession") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.createSession(payload, sink: .promise(promise)) } }.runOnQueue(.main)
     AsyncFunction("workspaceBillingEntitlement") { (workspace: String, user: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.workspaceBillingEntitlement(workspace: workspace, user: user, promise: promise) }

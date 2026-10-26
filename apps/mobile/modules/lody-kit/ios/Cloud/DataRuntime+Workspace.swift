@@ -17,20 +17,6 @@ extension DataRuntime {
   func creationOptions(_ payload: String, promise: Promise) {
     workspaceCallForRN(RuntimeContract.Calls.CreationOptions.self, payload: payload, promise: promise)
   }
-  func localProjects(_ payload: String, promise: Promise) {
-    let history = Self.scope(payload)?["action"] as? String == "history"
-    workspaceCallForRN(RuntimeContract.Calls.LocalProjects.self, payload: payload, promise: promise,
-      timeout: history ? nil : 45) { result -> any Encodable in
-      switch result {
-      case .cancelled(let value): return value
-      case .machines(let value): return value
-      case .targets(let value): return value.targets
-      case .history(let value): return value
-      case .directory(let value): return value
-      case .project(let value): return value.project
-      }
-    }
-  }
   func sessionPreview(_ payload: String, promise: Promise) {
     guard Self.scope(payload)?["sessionId"] as? String == sessionId else {
       fail(promise, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))

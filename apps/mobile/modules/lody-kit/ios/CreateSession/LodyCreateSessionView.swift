@@ -77,10 +77,6 @@ final class LodyCreateSessionView: ExpoView {
       let value = try await self.request("repositories", [:])
       return CreateJSON.decode([CreateProject].self, value ?? "") ?? []
     }
-    controller.browseProject = { [weak self] in
-      guard let self, let json = try? await self.request("browse", [:]) else { return nil }
-      return CreateJSON.decode(CreateProject.self, json)
-    }
   }
 
   private func request(_ kind: String, _ body: [String: Any]) async throws -> String? {
@@ -111,6 +107,8 @@ final class LodyCreateSessionView: ExpoView {
       userId: config.userId, workspaceId: config.workspaceId, projects: config.projects,
       machineNames: config.machineNames, prefs: config.prefs)
     controller.form.open(projectId: config.projectId, context: config.context)
+    let workspaceId = config.workspaceId
+    controller.browseProject = { await DirectoryController.browse(workspaceId: workspaceId) }
     var branchAttempts: [String: Int] = [:]
     controller.loadBranches = { repo, page in
       if LodyUIVerify.enabled {

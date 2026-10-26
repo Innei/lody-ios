@@ -32,7 +32,6 @@ import type {
   CreationOptions,
 } from '@lody/cloud-runtime/models/send';
 import type { CreatedSession } from '../models/send.ts';
-import { DirectoryScreen } from './DirectoryScreen';
 import { t } from '../lib/i18n/index.ts';
 
 export type { CreatedSession } from '../models/send.ts';
@@ -99,11 +98,7 @@ function View() {
       const names = await githubRepositories(params.workspaceId);
       return JSON.stringify(names.flatMap((name) => githubProject(name) ?? []));
     }
-    const result = await present(DirectoryScreen, {
-      workspaceId: params.workspaceId,
-      browserId: `${Date.now()}-${Math.random()}`,
-    });
-    return result.status === 'completed' ? JSON.stringify(result.value) : null;
+    return null;
   }
 
   function submit(
