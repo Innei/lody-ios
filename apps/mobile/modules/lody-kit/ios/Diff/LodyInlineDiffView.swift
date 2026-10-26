@@ -47,7 +47,7 @@ final class LodyInlineDiffView: ExpoView {
   }
 
   private func applyHighlight(_ document: InlineDiffDocument) {
-    let language = Self.language(for: path)
+    let language = DiffLanguage.name(for: path)
     var theme = ChatMarkdownTheme.make(traits: traitCollection, secondary: false)
     theme.fonts.code = UIFont.lodySFMono(ofSize: 13)
     theme.colors.code = .label
@@ -91,17 +91,5 @@ final class LodyInlineDiffView: ExpoView {
     {
       scheduleRender()
     }
-  }
-
-  private static func language(for path: String) -> String? {
-    let name = (path as NSString).lastPathComponent.lowercased()
-    let ext = (name as NSString).pathExtension
-    return [
-      "ts": "typescript", "tsx": "typescript", "js": "javascript", "jsx": "javascript",
-      "swift": "swift", "py": "python", "rb": "ruby", "go": "go", "rs": "rust",
-      "java": "java", "kt": "kotlin", "c": "c", "cpp": "cpp", "cs": "csharp",
-      "json": "json", "yml": "yaml", "yaml": "yaml", "md": "markdown",
-      "css": "css", "html": "xml", "sh": "bash",
-    ][ext.isEmpty ? name : ext]
   }
 }

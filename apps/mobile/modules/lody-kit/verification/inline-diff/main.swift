@@ -73,6 +73,70 @@ do {
   precondition(texts(document) == ["context:same"])
 }
 
+// Full documents collapse unchanged runs beyond three lines of context into expandable gaps.
+do {
+  let old = (1...20).map { "line-\($0)" }.joined(separator: "\n") + "\n"
+  let new = (1...20).map { $0 == 2 || $0 == 18 ? "changed-\($0)" : "line-\($0)" }.joined(separator: "\n") + "\n"
+  let rows = InlineDiffModel.rows(old: old, new: new)
+  let hidden = DiffDocumentModel.hidden(rows)
+  precondition(hidden.count == 1)
+  precondition(rows[hidden[0]].map(\.text) == (6...14).map { "line-\($0)" })
+  let items = DiffDocumentModel.items(rows, hidden: hidden, style: .unified)
+  precondition(items.count == rows.count - hidden[0].count + 1)
+  precondition(items.contains(.gap(hidden[0])))
+  precondition(DiffDocumentModel.items(rows, hidden: [], style: .unified).count == rows.count)
+  let tail = DiffDocumentModel.hidden(InlineDiffModel.rows(old: "1\n2\n3\n4\n5\n6\n7\n8\n", new: "1\n2\n3\n4\n5\n6\n7\nX\n"))
+  precondition(tail == [0..<4])
+  precondition(DiffDocumentModel.hidden(InlineDiffModel.rows(old: "same\n", new: "same\n")).isEmpty)
+}
+
+// Split pairs a deleted run with the inserted run that replaces it; extra lines face an empty side.
+do {
+  let rows = InlineDiffModel.rows(old: "a\nb\nc\n", new: "a\nB\nC\nD\nc\n")
+  let pairs = DiffDocumentModel.pairs(rows[...]).map { "\($0.0?.text ?? "-")|\($0.1?.text ?? "-")" }
+  precondition(pairs == ["a|a", "b|B", "-|C", "-|D", "c|c"], "\(pairs)")
+  let items = DiffDocumentModel.items(rows, hidden: [], style: .split)
+  precondition(items.count == 5)
+}
+
+// File mode numbers every line, and line ranges index the normalized source in UTF-16.
+do {
+  let text = DiffDocumentModel.normalized("é1\r\nb\rlast")
+  precondition(text == "é1\nb\nlast")
+  precondition(DiffDocumentModel.file(text).map(\.newNumber) == [1, 2, 3])
+  precondition(DiffDocumentModel.lineRanges(text) == [NSRange(location: 0, length: 2), NSRange(location: 3, length: 1), NSRange(location: 5, length: 4)])
+  precondition(DiffDocumentModel.lineRanges("a\n\nb\n").count == 3)
+  precondition(DiffLanguage.name(for: "src/App.tsx") == "typescript")
+  precondition(DiffLanguage.name(for: "Makefile") == nil)
+}
+
+// Wrapped rows grow in whole 20 pt lines; unwrapped rows keep one line and report their width.
+do {
+  let geometry = DiffDocumentGeometry(wrap: true, numberWidth: 24, sideWidth: 200, contentWidth: 200)
+  precondition(geometry.lines("short") == 1)
+  let long = String(repeating: "word ", count: 40)
+  let lines = geometry.lines(long)
+  precondition(lines > 2, "\(lines)")
+  precondition(geometry.height(of: .line(InlineDiffLine(kind: .insert, oldNumber: nil, newNumber: 1, text: long, emphasis: []))) == CGFloat(lines) * 20)
+  precondition(geometry.height(of: .gap(0..<3)) == 28)
+  let flat = DiffDocumentGeometry(wrap: false, numberWidth: 24, sideWidth: 200, contentWidth: 200)
+  precondition(flat.lines(long) == 1)
+  precondition(abs(flat.width(of: "abcd") - flat.digit * 4) < 0.5)
+  precondition(flat.width(of: "中文") > 0)
+  precondition(DiffDocumentGeometry.numberWidth(maxNumber: 12345, minimumDigits: 3) == DiffDocumentGeometry.digitWidth * 5)
+}
+
+// The layout returns only the rows that intersect the visible rect.
+do {
+  let layout = DiffDocumentLayout()
+  layout.update(heights: [20, 28, 40, 20], width: 320)
+  precondition(layout.collectionViewContentSize == CGSize(width: 320, height: 108))
+  let visible = layout.layoutAttributesForElements(in: CGRect(x: 0, y: 25, width: 320, height: 10))?.map(\.indexPath.item)
+  precondition(visible == [1], "\(String(describing: visible))")
+  let tail = layout.layoutAttributesForElements(in: CGRect(x: 0, y: 60, width: 320, height: 100))?.map(\.indexPath.item)
+  precondition(tail == [2, 3])
+}
+
 let renderer = InlineDiffRenderer(frame: CGRect(x: 0, y: 0, width: 320, height: 10))
 renderer.render(
   InlineDiffModel.build(old: "short\n", new: "short\nvery-long-identifier-that-needs-horizontal-scroll\n"),
@@ -147,4 +211,4 @@ for style in [UIUserInterfaceStyle.light, .dark] {
   }
 }
 
-print("PASS: inline diff model, hunks, emphasis, layout height, scroll axes, green/red tint scale")
+print("PASS: inline diff model, hunks, emphasis, layout height, scroll axes, green/red tint scale, document gaps, split pairs, wrap geometry")
