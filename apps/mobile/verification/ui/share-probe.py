@@ -5,6 +5,7 @@ python3 apps/mobile/verification/ui/share-probe.py --app /path/to/Lody.app
 Signed out: the extension loads with Lody stopped, explains sign-in and keeps Send
 disabled. With a fixture App Group snapshot: the shared text fills the native form,
 Send writes one inbox entry carrying the chosen agent, and Lody comes forward.
+The model switch also carries an explicit false value into the shared draft.
 """
 import argparse
 import json
@@ -144,6 +145,31 @@ def labels_at(*points):
     return [n.get('AXLabel') or '' for point in points for n in flatten(json.loads(ui.axe('describe-ui', '--point', point)))]
 
 
+def remote(identifier, match=None):
+    match = match or (lambda node: node.get('AXUniqueId') == identifier)
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        for point in ['200,244', '200,320', '200,440', '200,580', '200,150']:
+            nodes = list(flatten(json.loads(ui.axe('describe-ui', '--point', point))))
+            item = next((n for n in nodes if match(n)), None)
+            if item:
+                return item
+    (output / ('missing-' + identifier.replace(':', '-') + '.json')).write_text(json.dumps(nodes, indent=2))
+    ui.capture('missing-remote-element')
+    raise AssertionError('Missing remote extension element: ' + identifier)
+
+
+def remote_tap(identifier):
+    frame = remote(identifier)['frame']
+    ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--tap-style', 'physical', '--post-delay', '.6')
+
+def remote_back():
+    nodes = list(flatten(json.loads(ui.axe('describe-ui', '--point', '30,112'))))
+    button = next(n for n in nodes if n.get('type') == 'Button' and n.get('AXLabel') in ['Back', 'New Session'])
+    frame = button['frame']
+    ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--tap-style', 'physical', '--post-delay', '.6')
+
+
 video = subprocess.Popen(['xcrun', 'simctl', 'io', args.udid, 'recordVideo', '--codec=h264', '--force', str(output / 'run.mp4')],
     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 try:
@@ -167,7 +193,7 @@ try:
         }))
     (store / 'catalog.json').write_text(json.dumps({'userId': 'probe-user', 'workspaceId': 'probe-ws', 'projects': [project], 'machineNames': {'ui': 'Fixture Mac'}}))
     options = {'sessionId': 'cached', 'project': project, 'agents': [{'id': 'agent', 'name': 'Fixture Agent', 'machineId': 'ui', 'machineName': 'Fixture Mac', 'cliType': 'builtin', 'agentType': 'codex'}],
-        'capabilities': [{'machineId': 'ui', 'cliType': 'builtin', 'agentType': 'codex', 'models': [{'id': 'a', 'name': 'Model A'}], 'modes': [], 'reasoningEfforts': {}}]}
+        'capabilities': [{'machineId': 'ui', 'cliType': 'builtin', 'agentType': 'codex', 'models': [{'id': 'a', 'name': 'Model A'}], 'modes': [], 'reasoningEfforts': {}, 'configOptions': [{'id': 'fast-mode', 'name': 'Fast mode', 'category': 'model_config', 'type': 'boolean', 'currentValue': False, 'options': []}]}]}
     from urllib.parse import quote
     for target in ['chat', quote(project['id'], safe='')]:
         (store / 'options' / f'{target}.json').write_text(json.dumps(options))
@@ -178,23 +204,20 @@ try:
         time.sleep(.3)
         send = find_send() or send
     ui.capture('ready')
+    remote_tap('model')
+    # A point query returns only the leading segment, not the 'list-segments' container.
+    tab = remote('model-tab', lambda node: node.get('role_description') == 'tab')['frame']
+    ui.axe('tap', '-x', str(tab['x'] + tab['width'] * 1.5), '-y', str(tab['y'] + tab['height'] / 2), '--tap-style', 'physical', '--post-delay', '.6')
+    assert remote('fast-mode:toggle').get('AXValue') == '0'
+    for enabled in [True, False]:
+        ui.tap_switch(remote('fast-mode:toggle'))
+        expected = '1' if enabled else '0'
+        assert remote('fast-mode:toggle').get('AXValue') == expected, 'Extension model switch did not update'
+        ui.capture('model-fast-' + ('on' if enabled else 'off'))
+    remote_back()
+    send = find_send()
+    assert send and send['enabled'], 'Changing model options must keep the share ready'
     if args.branches:
-        def remote(identifier):
-            deadline = time.monotonic() + 15
-            while time.monotonic() < deadline:
-                for point in ['200,244', '200,320', '200,440', '200,580', '200,150']:
-                    nodes = list(flatten(json.loads(ui.axe('describe-ui', '--point', point))))
-                    item = next((n for n in nodes if n.get('AXUniqueId') == identifier), None)
-                    if item:
-                        return item
-            (output / ('missing-' + identifier.replace(':', '-') + '.json')).write_text(json.dumps(nodes, indent=2))
-            ui.capture('missing-remote-element')
-            raise AssertionError('Missing remote extension element: ' + identifier)
-
-        def remote_tap(identifier):
-            frame = remote(identifier)['frame']
-            ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--tap-style', 'physical', '--post-delay', '.6')
-
         assert 'trunk' in str(remote('branch')), 'Cached default must be chosen in the extension'
         remote_tap('branch')
         remote('branch:trunk')
@@ -217,6 +240,7 @@ try:
     entry = entries[0]
     assert 'Lody share probe' in entry['text'], 'Shared text must reach the manifest'
     assert entry['draft']['agent']['id'] == 'agent' and entry['draft']['sessionId'] != 'cached', 'Draft must carry the agent and a fresh session id'
+    assert entry['draft']['choice']['configOptionValues']['fast-mode'] is False, 'Explicit false model option must reach the share inbox'
     if args.branches:
         assert entry['draft']['branch'] == 'feature/cached', 'Selected branch must reach the inbox draft'
     (output / 'manifest.json').write_text(json.dumps(entry, indent=2))
@@ -238,10 +262,7 @@ try:
         remote('branches-cached')
         ui.capture('missing-cache')
         # Back belongs to the remote extension's own navigation stack.
-        nodes = list(flatten(json.loads(ui.axe('describe-ui', '--point', '30,112'))))
-        button = next(n for n in nodes if n.get('type') == 'Button' and n.get('AXLabel') in ['Back', 'New Session'])
-        frame = button['frame']
-        ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--tap-style', 'physical', '--post-delay', '.6')
+        remote_back()
         send = find_send()
         assert send and send['enabled'], 'No branch cache must still allow handoff to the app'
         frame = send['frame']

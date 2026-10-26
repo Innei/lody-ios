@@ -1065,8 +1065,13 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   @objc private func rowSwitchChanged(_ sender: RowSwitch) {
-    onRowToggle(["id": sender.rowID, "value": sender.isOn])
-    forwarded?("rowToggle", ["id": sender.rowID, "value": sender.isOn])
+    let requested = sender.isOn
+    // The owner may reject a change without sending different props back.
+    if let index = indexPath(for: sender.rowID), let current = row(at: index)?.toggle {
+      sender.setOn(current, animated: false)
+    }
+    onRowToggle(["id": sender.rowID, "value": requested])
+    forwarded?("rowToggle", ["id": sender.rowID, "value": requested])
   }
 
   /// Reused per row id so a reconfigure keeps the live switch instead of swapping in a

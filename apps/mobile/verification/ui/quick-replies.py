@@ -21,15 +21,32 @@ def status(value):
     ui.wait(lambda items: any(i.get('AXLabel') == value for i in items), f'Missing {value}')
 
 
+def keyboard_ready():
+    ui.wait(lambda items: any((i.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar') and i['frame']['y'] < 800 for i in items), 'Software keyboard did not appear')
+
+
 def type_field(identifier, text):
-    # Let controlled RN inputs acknowledge each HID character before the next.
-    for index, char in enumerate(text):
-        ui.axe('type', char)
-        ui.wait(lambda items: any(i.get('AXUniqueId') == identifier and (i.get('AXValue') or '').casefold() == text[:index + 1].casefold() for i in items), 'Input did not commit')
+    keyboard_ready()
+    ui.type_into(identifier, text)
+
+
+def press(identifier):
+    print('Press:', identifier, flush=True)
+    frame = ui.element(identifier)['frame']
+    # Give native press/selection recognizers a real down/up interval.
+    step = f"touch -x {frame['x'] + frame['width'] / 2} -y {frame['y'] + frame['height'] / 2} --down --up --delay .15"
+    ui.axe('batch', '--step', step, '--step', 'sleep .5')
+
+
+def collapse():
+    field = ui.element('session-input')['frame']
+    if field['height'] > 48:
+        ui.axe('tap', '-x', '4', '-y', str(field['y'] - 110), '--post-delay', '.8')
+    ui.wait(lambda _: abs(ui.element('session-input')['frame']['height'] - 48) <= 1, 'Composer did not collapse')
 
 
 def settings():
-    ui.axe('tap', '--id', 'quick-settings', '--post-delay', '.5')
+    press('quick-settings')
     ui.axe('tap', '--id', 'quick-replies', '--post-delay', '.5')
 
 
@@ -39,7 +56,7 @@ def close_settings():
     ui.axe('tap', '--label', catalog.text('accessibility.closeSheet', title=catalog.text('settings.preferences.title')), '--post-delay', '.7')
 
 
-ui.axe('tap', '--id', 'quick-reset', '--post-delay', '.8')
+press('quick-reset')
 ui.element('quick-reply:continue')
 assert len(chips()) == 3
 by_id = {i['AXUniqueId']: i for i in chips()}
@@ -52,13 +69,14 @@ assert continue_chip['width'] < review_chip['width']
 assert continue_chip['width'] < commit_chip['width']
 assert continue_chip['width'] < 100, 'Continue must size to its title instead of filling an equal column'
 ui.capture('idle')
-ui.axe('tap', '--id', 'session-input')
+ui.axe('tap', '--id', 'session-input', '--post-delay', '.8')
+keyboard_ready()
 ui.type_into('session-input', 'draft')
 hidden()
 ui.capture('draft-hidden')
-for _ in range(5):
-    ui.axe('key', '42')
-ui.element('quick-reply:continue')
+ui.axe('batch', *(('--step', 'key 42 --duration .1') * 5))
+ui.wait(lambda _: not ui.element('session-input').get('AXValue'), 'Draft was not cleared')
+hidden()
 time.sleep(.4)
 reply_label = 'The changes are ready. What would you like to do next?'
 def reply_frame():
@@ -74,23 +92,25 @@ for _ in range(3):
     assert abs(reply_frame()['y'] - resting_reply['y']) <= 1, 'Typing the first character moved the transcript'
     assert abs(ui.element('session-input')['frame']['y'] - resting_input['y']) <= 1, 'Typing moved the input'
     ui.capture('editing-draft')
-    ui.axe('key', '42')
-    ui.element('quick-reply:continue')
+    ui.axe('key', '42', '--duration', '.1')
+    ui.wait(lambda _: not ui.element('session-input').get('AXValue'), 'Final character was not removed')
+    hidden()
     time.sleep(.3)
     assert abs(reply_frame()['y'] - resting_reply['y']) <= 1, 'Deleting the final character moved the transcript'
+ui.capture('editing-cleared-focused')
+collapse()
+ui.element('quick-reply:continue')
 ui.capture('editing-cleared')
-ui.axe('tap', '--id', 'quick-running', '--post-delay', '.5')
+press('quick-running')
 hidden()
 ui.capture('running-hidden')
-ui.axe('tap', '--id', 'quick-finish', '--post-delay', '.5')
+press('quick-finish')
 ui.element('quick-reply:continue')
-ui.axe('tap', '--id', 'quick-empty', '--post-delay', '.5')
+press('quick-empty')
 hidden()
-ui.axe('tap', '--id', 'quick-reset', '--post-delay', '.7')
+press('quick-reset')
 
 # Click the short label, but send the full configured message.
-ui.axe('tap', '--id', 'session-input', '--tap-style', 'physical', '--post-delay', '1')
-ui.wait(lambda items: any((i.get('AXUniqueId') or '').startswith('UIKeyboardLayoutStar') and i['frame']['y'] < 800 for i in items), 'Software keyboard did not appear')
 chip = ui.element('quick-reply:commit-push')
 if chip['frame']['x'] + chip['frame']['width'] > 390:
     y = chip['frame']['y'] + chip['frame']['height'] / 2
@@ -110,19 +130,20 @@ message = catalog.text('settings.quickReplies.defaults.commit-push.message')
 user = ui.wait(lambda items: next((i for i in items if (i.get('AXUniqueId') or '').endswith(':user') and i.get('AXLabel') == message), None), 'Full quick-reply text missing from transcript')
 turn = user['AXUniqueId'].removesuffix(':user')
 ui.capture('sent')
-ui.axe('tap', '--id', 'quick-fail')
+press('quick-fail')
 ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('send.alert.title') for i in items), 'Missing failure alert')
-ui.axe('tap', '--label', catalog.system('ok'))
+ui.axe('tap', '--label', catalog.system('ok'), '--post-delay', '.5')
 assert ui.element(turn + ':user')['AXLabel'] == message
 hidden()
 ui.capture('failed-retained')
-ui.axe('tap', '--id', turn + ':pending')
+press(turn + ':pending')
 status('Calls: 2 · sending')
-ui.axe('tap', '--id', 'quick-ack')
+press('quick-ack')
 status('Calls: 2 · accepted')
 hidden()
-ui.axe('tap', '--id', 'quick-finish')
+press('quick-finish')
 status('Calls: 2 · idle')
+collapse()
 ui.element('quick-reply:continue')
 
 settings()
@@ -140,8 +161,7 @@ row = ui.wait(lambda items: next((i for i in items if (i.get('AXLabel') or '').c
 custom_id = row['AXUniqueId']
 ui.axe('tap', '--id', custom_id, '--post-delay', '.5')
 ui.axe('tap', '--id', 'quick-reply-label')
-for _ in range(5):
-    ui.axe('key', '42')
+ui.axe('batch', *(('--step', 'key 42 --duration .1') * 5))
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'quick-reply-label' and not i.get('AXValue') for i in items), 'Name was not cleared')
 type_field('quick-reply-label', 'Build Again')
 ui.axe('tap', '--label', 'Save', '--post-delay', '.6')
