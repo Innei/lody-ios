@@ -69,6 +69,9 @@ class DirectoryController: UIViewController {
   private lazy var useItem = LodyFormController.barButton(symbol: "checkmark", label: Self.text("accessibility.use"), prominent: true) {
     [weak self] in self?.confirm()
   }
+  private lazy var cancelItem = LodyFormController.barButton(symbol: "xmark", label: LodyStrings.text("common.cancel")) {
+    [weak self] in self?.cancel()
+  }
 
   init(browser: DirectoryBrowser, machine: DirectoryMachine? = nil, path: String? = nil) {
     self.browser = browser
@@ -164,6 +167,10 @@ class DirectoryController: UIViewController {
     }
   }
 
+  private func cancel() {
+    (parent ?? self).navigationController?.dismiss(animated: true)
+  }
+
   private func enter(_ path: String) {
     guard let machine, !saving else { return }
     let name = path.split(whereSeparator: { $0 == "/" || $0 == "\\" }).last.map(String.init) ?? path
@@ -208,6 +215,10 @@ class DirectoryController: UIViewController {
 
   private func render() {
     let header = parent?.navigationItem
+    if root, let parent, parent.navigationController?.viewControllers.first === parent {
+      cancelItem.isEnabled = !saving
+      if header?.leftBarButtonItems != [cancelItem] { header?.leftBarButtonItems = [cancelItem] }
+    }
     if machine != nil {
       useItem.accessibilityLabel = Self.text(saving ? "accessibility.using" : "accessibility.use")
       useItem.isEnabled = directory != nil && !loading && !saving
