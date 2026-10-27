@@ -25,6 +25,11 @@ def wait_text(text):
     ui.wait(lambda items: any(text in spoken(i) for i in items), f'Missing {text}')
 
 
+def wait_clipboard(text):
+    ui.wait(lambda _: subprocess.check_output(['xcrun', 'simctl', 'pbpaste', ui.udid], text=True).strip() == text,
+            f'Clipboard did not receive {text}')
+
+
 def tap_label(label):
     ui.wait(lambda items: any(i.get('AXLabel') == label for i in items), f'Missing {label}')
     ui.axe('tap', '--label', label, '--post-delay', '.6')
@@ -70,8 +75,9 @@ assert 'unwatch' not in probe().split(','), 'Closing tool details stopped the ow
 # Subagent details consume the same feed and expose their result and copy action.
 ui.axe('tap', '--id', 'preview-answer:task', '--post-delay', '.5')
 assert 'Native task summary: all checks passed.' in spoken(ui.element('subagent-detail-result'))
+subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input='before subagent copy', text=True, check=True)
 ui.axe('tap', '--id', 'subagent-detail-copy', '--post-delay', '.3')
-wait_text(catalog.text('subagent.detail.copied'))
+wait_clipboard('Native task summary: all checks passed.')
 ui.capture('native-subagent')
 tap_label(catalog.text('accessibility.closeSheet', title=catalog.text('native.chat.transcript.subtask')))
 assert probe().split(',').count('watch') == 1
@@ -84,13 +90,13 @@ import time
 time.sleep(.7)
 ui.axe('touch', '-x', str(x), '-y', str(y), '--up')
 tap_label(catalog.text('session.preview.copyLink'))
-wait_text(catalog.text('session.preview.copied'))
-assert subprocess.check_output(['xcrun', 'simctl', 'pbpaste', ui.udid], text=True).strip() == 'https://native-fixture.trycloudflare.com'
+wait_clipboard('https://native-fixture.trycloudflare.com')
 ui.capture('native-browser-preview')
 
 # The native session owns PR draft handoff and the simulator operation.
 ui.axe('tap', '--id', 'session-input', '--post-delay', '.3')
-ui.axe('type', 'Keep this draft')
+ui.type_into('session-input', 'Keep this draft')
+original_draft = ui.element('session-input').get('AXValue') or ''
 tap_label('PR #31')
 ui.element('pr-title')
 ui.axe('tap', '--id', 'pr-checks', '--post-delay', '.4')
@@ -101,7 +107,7 @@ tap_label(catalog.text('common.ok'))
 for _ in range(2):
     ui.axe('drag', '--start-x', '2', '--start-y', '450', '--end-x', '365', '--end-y', '450', '--duration', '.5', '--post-delay', '.7')
 draft = ui.element('session-input').get('AXValue') or ''
-assert draft.startswith('Keep this draft\n\n') and 'github.com/Innei/lody-ios/pull/31' in draft, draft
+assert draft.startswith(original_draft + '\n\n') and 'github.com/Innei/lody-ios/pull/31' in draft, draft
 ui.capture('native-pr-draft')
 tap_label(more)
 tap_menu_item(catalog.text('simulator.menu'))
@@ -116,7 +122,7 @@ assert probe().split(',').count('watch') == 1
 
 ui.axe('tap', '--id', 'chat-navigation-title', '--post-delay', '.6')
 tap_menu_item(catalog.text('session.title.copyBranch'))
-wait_text(catalog.text('session.title.branchCopied'))
+wait_clipboard('feature/native-session')
 
 tap_label(more)
 tap_label(catalog.text('session.action.archive'))

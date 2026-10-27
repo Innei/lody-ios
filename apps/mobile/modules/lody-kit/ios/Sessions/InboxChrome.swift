@@ -162,8 +162,8 @@ final class InboxChrome {
   func layout() {
     guard let host else { return }
     let insets = host.view.safeAreaInsets
-    // Leave room for both trailing actions and UIKit's glass group margins.
-    let trailing: CGFloat = host.traitCollection.horizontalSizeClass == .regular ? 80 : 192
+    // Reserve the split view toggle and UIKit glass margins in the sidebar.
+    let trailing: CGFloat = host.traitCollection.horizontalSizeClass == .regular ? 160 : 192
     let limit = max(44, host.view.bounds.width - insets.left - insets.right - trailing)
     workspaceSlot.size = CGSize(width: min(naturalWidth, limit), height: 44)
   }
