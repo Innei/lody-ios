@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import withLocales from '../plugins/withLocales.js';
 import { buildDataRuntime } from '../../../packages/cloud-runtime/scripts/build.mjs';
 import { build } from 'esbuild';
 import {
@@ -9,6 +11,9 @@ import {
 } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
+// Prebuild creates the target; subsequent builds keep its generated strings current.
+const localeTarget = root + 'ios/Lody';
+if (existsSync(localeTarget)) withLocales.writeResources(root, localeTarget);
 const result = await build({
   entryPoints: [root + 'modules/lody-kit/decoder/index.ts'],
   bundle: true,

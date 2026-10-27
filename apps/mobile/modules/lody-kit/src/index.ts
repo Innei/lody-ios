@@ -97,7 +97,6 @@ export {
   controlSessionTurn,
   sessionCreationOptions,
   workspaceBillingEntitlement,
-  githubPullRequest,
   shareWriteCatalog,
   shareWriteOptions,
   sharePending,

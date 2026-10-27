@@ -427,9 +427,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("recordPushNavigation") { (id: String, source: String, outcome: String, reason: String) in
       DiagnosticsStore.shared.navigation(id: id, source: source, outcome: outcome, reason: reason)
     }
-    AsyncFunction("githubPullRequest") { (payload: String) async throws -> String in
-      try await GitHubPullRequests.run(payload)
-    }
+
     AsyncFunction("sessionCreationOptions") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated {
         if let response = MentionFixture.response(payload, options: true) { promise.resolve(response); return }

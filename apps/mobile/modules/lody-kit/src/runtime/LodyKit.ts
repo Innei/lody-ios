@@ -149,7 +149,6 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
     workspaceId: string,
     userId: string,
   ): Promise<string>;
-  githubPullRequest(payload: string): Promise<string>;
   shareWriteCatalog(json: string): void;
   shareWriteOptions(target: string, json: string): void;
   sharePending(): string;
@@ -455,8 +454,6 @@ export const workspaceBillingEntitlement = (
   workspaceId: string,
   userId: string,
 ) => native.workspaceBillingEntitlement(workspaceId, userId);
-export const githubPullRequest = (payload: string) =>
-  native.githubPullRequest(payload);
 export const shareWriteCatalog = (json: string) =>
   native.shareWriteCatalog(json);
 export const shareWriteOptions = (target: string, json: string) =>

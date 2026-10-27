@@ -110,7 +110,7 @@ assert ui.element('pr-comment-input').get('AXValue') == '67890'
 ui.axe('tap', '--label', catalog.text('pr.send'), '--post-delay', '.5')
 ui.element('pr-title')
 # The refreshed comment may be below the fold, so scroll the native list.
-ui.axe('swipe', '--start-x', '210', '--start-y', '650', '--end-x', '210', '--end-y', '280', '--duration', '.4', '--post-delay', '.5')
+ui.axe('drag', '--start-x', '210', '--start-y', '650', '--end-x', '210', '--end-y', '280', '--duration', '.4', '--post-delay', '.5')
 assert '67890' in str(ui.element('pr-comment-1'))
 ui.capture('comment-posted')
 back()
