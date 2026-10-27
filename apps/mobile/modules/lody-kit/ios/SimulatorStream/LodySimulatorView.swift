@@ -56,7 +56,7 @@ final class LodySimulatorView: ExpoView {
     if stream?.superview === self { stream?.frame = bounds }
   }
 
-  private func adoptZoomTransition(on destination: UIViewController? = nil) {
+  func adoptZoomTransition(on destination: UIViewController? = nil) {
     guard let controller = destination ?? (sequence(first: self as UIResponder, next: { $0.next })
       .first(where: { $0 is UIViewController }) as? UIViewController),
       controller.preferredTransition == nil else { return }
@@ -89,7 +89,7 @@ final class LodySimulatorView: ExpoView {
     stream.preview?.isHidden = true
   }
 
-  private func returnToPreview() {
+  func returnToPreview() {
     guard let stream, stream.fullscreen === self else { return }
     stream.fullscreen = nil
     stream.preview?.attach(returning: window == nil)

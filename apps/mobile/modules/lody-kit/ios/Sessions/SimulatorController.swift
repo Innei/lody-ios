@@ -19,7 +19,15 @@ final class SimulatorController: UIViewController {
     store.watch(self) { [weak self] in self?.render() }
     render()
   }
-  override func didMove(toParent parent: UIViewController?) { super.didMove(toParent: parent); if isViewLoaded { render() } }
+  override func didMove(toParent parent: UIViewController?) {
+    super.didMove(toParent: parent)
+    if let parent { simulator.adoptZoomTransition(on: parent) }
+    if isViewLoaded { render() }
+  }
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
+    if navigationController == nil { simulator.returnToPreview() }
+  }
   private func render() {
     let source = store.sourceJSON
     simulator.setSource(source); simulator.isHidden = source.isEmpty; notice.isHidden = !source.isEmpty
