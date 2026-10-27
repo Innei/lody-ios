@@ -76,7 +76,7 @@ What that week actually looked like:
 ### Authentic Apple HIG Native Experience
 
 - **Human Interface Guidelines Compliance**: Native adoption of iOS semantic colors, automatic light and dark mode adaptation, and Dynamic Type with SF Pro and SF Mono.
-- **Native Navigation**: A single Expo Router native Stack with typed routes, transparent headers, and automatic scroll edge effects. Transient flows open as native sheets through the shared `present()` runtime, and system grouped rows use UIKit `UICollectionViewListCell` via `LodyGroupedList`.
+- **Native Navigation**: The UIKit shell owns navigation controllers, transparent headers, and automatic scroll edge effects. Home uses an adaptive native split with session and inspector navigation. Transient flows open as native sheets through the shared `present()` runtime, and system grouped rows use UIKit `UICollectionViewListCell` via `LodyGroupedList`.
 - **Bilingual by Default**: English and Simplified Chinese product copy lives in `apps/mobile/locales`, is checked in CI, and is projected into native `xcstrings` catalogs by the local `withLocales` config plugin.
 
 ### High-Performance Native Streaming Chat
@@ -89,7 +89,7 @@ What that week actually looked like:
 ### Code Diffs & Workspace File Browsing
 
 - **Turn Changes Overview**: Automatically summarizes file changes for each conversation turn, with one-tap access to all modified files.
-- **Word-Level Diff Highlighting**: Full-screen diffs reuse a prewarmed Expo DOM WebView running [@pierre/diffs](https://github.com/pierrecomputer/pierre/tree/main/packages/diffs). Tool-detail diffs render natively in LodyKit.
+- **Word-Level Diff Highlighting**: File, workspace and tool-detail diffs render natively in LodyKit. The former DOM viewer remains available only in Debug comparison scenes.
 - **Remote Workspace File Tree**: Browse project directories and files on remote Macs or servers at any time, with previews via native code view `LodyCodeView` or system Quick Look.
 
 **Agent Conversation Sync** in Settings lists supported local projects and agents on your own computers. Refresh their history, select conversations to import, and explicitly confirm any conflict replacement. Imports run in batches and retain partial progress; this is a manual history import, not automatic device-to-device mirroring.
@@ -116,19 +116,19 @@ What that week actually looked like:
 
 ```mermaid
 flowchart TB
-    subgraph UI ["React Native Presentation Layer (Expo Router)"]
+    subgraph UI ["React Native Bootstrap and Page Contracts"]
         direction TB
-        Nav["Native Stack · Typed Routes"]
+        Nav["Shell Bootstrap · Deep Links"]
         Presentation["definePage / present() Presentation Runtime"]
-        Screens["Session Details / File Tree / Diff Viewer / Settings"]
+        Screens["Native Page Declarations · Debug Scenes"]
     end
 
     subgraph NativeKit ["Local Native Module (modules/lody-kit)"]
         direction TB
-        LodyKitModule["LodyKit NativeModule Facade"]
+        LodyKitModule["LodyKit Facade · UIKit Shell and Product Controllers"]
         ChatView["LodyChatView (UICollectionView)"]
         Markdown["MarkdownView & Litext (CoreText Glyph Fade-In)"]
-        DiffView["Shared DOM Diff + Native Inline Diff"]
+        DiffView["Native File and Diff Views"]
         Composer["ChatComposerView (Native Input & Keyboard Avoidance)"]
     end
 
@@ -162,13 +162,13 @@ lody-ios/
 ├── apps/
 │   └── mobile/
 │       ├── src/
-│       │   ├── app/                 # Expo Router routes (typed routes) and the Stack declaration
+│       │   ├── shell/               # Shell bootstrap, page registration and deep links
 │       │   ├── screens/             # *Screen pages defined with definePage
 │       │   ├── features/            # Domain logic (sessions, diff, licenses)
 │       │   ├── cloud/               # Cloud protocol (auth, catalog, send, kv, settings)
 │       │   ├── models/              # Shared data shapes
 │       │   ├── ui/                  # Shared React Native base components
-│       │   ├── hooks/               # Screen bindings (session nav, page runtime, process sheet)
+│       │   ├── hooks/               # Bootstrap and Debug screen bindings
 │       │   └── lib/                 # Infrastructure (presentation, i18n, theme)
 │       ├── modules/
 │       │   └── lody-kit/            # First-party local native Swift module (LodyKit)
@@ -184,7 +184,7 @@ lody-ios/
 │       ├── scripts/                 # native:assets, license generation, locale checks
 │       └── package.json
 ├── packages/
-│   └── dom-webview/                 # Vendored Expo DOM WebView (MIT) hosting the shared diff view
+│   └── dom-webview/                 # Vendored Expo DOM WebView (MIT) retained for Debug DOM comparisons
 ├── docs/                            # Architecture design, specs, and evolution docs
 ├── package.json                     # Monorepo root configuration
 └── pnpm-workspace.yaml
@@ -281,9 +281,9 @@ Lody iOS is made possible thanks to these open-source projects and creators:
 - **[FlowDown](https://github.com/Lakr233/FlowDown)**: Thanks to [Lakr233](https://github.com/Lakr233) and contributors. Lody's native message collection view, stream batching mechanism, and dynamic measurement cache architecture drew significant inspiration from FlowDown.
 - **[unixzii](https://github.com/unixzii)**: Original author of Litext, the CoreText rich-text engine underneath MarkdownView and Lody's native chat rendering. Also a generous teacher — a great deal of this project's iOS knowledge came from him.
 - **[MarkdownView](https://github.com/Lakr233/MarkdownView) & [Litext](https://github.com/Lakr233/Litext)**: High-performance, extensible CoreText Markdown rendering and typography for iOS.
-- **[@pierre/diffs](https://github.com/pierrecomputer/pierre/tree/main/packages/diffs)**: Word-level diff algorithms and the full-screen DOM viewer.
+- **[@pierre/diffs](https://github.com/pierrecomputer/pierre/tree/main/packages/diffs)**: The former DOM viewer, retained for Debug comparisons.
 - **[Loro](https://github.com/loro-dev/loro)**: High-performance, production-grade next-generation CRDT state synchronization.
-- **[Expo DOM WebView](https://github.com/expo/expo/tree/main/packages/%40expo/dom-webview)**: Vendored under `packages/dom-webview` (MIT) and extended to host the shared diff view.
+- **[Expo DOM WebView](https://github.com/expo/expo/tree/main/packages/%40expo/dom-webview)**: Vendored under `packages/dom-webview` (MIT) and retained for Debug DOM comparisons.
 - **[AXe](https://github.com/cameroncooke/AXe)**: Simulator UI automation driving the offline UI baselines.
 - **[baguette](https://github.com/tddworks/baguette)**: Headless iOS Simulator control and streaming (Apache-2.0). The native simulator viewer is a client of its HTTP and WebSocket protocol; baguette itself runs on the Mac and is not bundled.
 - **[libdatachannel](https://github.com/paullouisageneau/libdatachannel)**: Native data-only Simulator transport (MPL-2.0), built from pinned source at `pod install` with media and WebSocket disabled, over [libjuice](https://github.com/paullouisageneau/libjuice) (MPL-2.0), [usrsctp](https://github.com/sctplab/usrsctp) (BSD-3-Clause) and [Mbed TLS](https://github.com/Mbed-TLS/mbedtls) (Apache-2.0). No camera, microphone or WebView is involved.

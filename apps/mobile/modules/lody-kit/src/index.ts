@@ -32,10 +32,7 @@ export {
   type NativeHeaderSearchCommands,
   NativeNavigationHeader,
 } from './chrome/NativeNavigationHeader';
-export {
-  navigationScrollEdgeEffects,
-  panelScrollEdgeEffects,
-} from './chrome/scrollEdges';
+export { navigationScrollEdgeEffects } from './chrome/scrollEdges';
 
 export {
   readAuthStateRaw,
