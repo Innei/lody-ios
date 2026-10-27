@@ -1,8 +1,12 @@
 Product Home and Session are UIKit controllers. `home`, `navigation`,
 `session-search`, `ipad`, `ipad-sidebar`, `wide-panel` and `pad-layout` exercise
 production lists, session selection, inspector navigation and adaptive widths.
+`home-settings` and `home-workspace` separately reset the settings and workspace
+editing flows. `ipad-create` isolates composer handoff across two successive
+landscape/portrait creations and verifies retained focus and the first message.
 `session-native` covers shared-feed message, process and subagent details, PR draft
-handoff, browser preview commands and the simulator. `session-feed` checks the real
+handoff and browser preview commands. `session-simulator` checks the native
+full-screen/PiP transition and retention of one live decoder. `session-feed` checks the real
 native cache/subscription lifecycle and generation ordering; the retired RN feed
 has no production owner.
 

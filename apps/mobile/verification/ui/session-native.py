@@ -93,7 +93,7 @@ tap_label(catalog.text('session.preview.copyLink'))
 wait_clipboard('https://native-fixture.trycloudflare.com')
 ui.capture('native-browser-preview')
 
-# The native session owns PR draft handoff and the simulator operation.
+# The native session owns PR draft handoff.
 ui.axe('tap', '--id', 'session-input', '--post-delay', '.3')
 ui.type_into('session-input', 'Keep this draft')
 original_draft = ui.element('session-input').get('AXValue') or ''
@@ -109,16 +109,6 @@ for _ in range(2):
 draft = ui.element('session-input').get('AXValue') or ''
 assert draft.startswith(original_draft + '\n\n') and 'github.com/Innei/lody-ios/pull/31' in draft, draft
 ui.capture('native-pr-draft')
-tap_label(more)
-tap_menu_item(catalog.text('simulator.menu'))
-ui.element('simulator-stream')
-ui.capture('native-simulator')
-ui.axe('tap', '--id', 'BackButton', '--post-delay', '.8')
-ui.element('simulator-preview-expand')
-ui.capture('native-floating-simulator')
-ui.axe('tap', '--id', 'simulator-preview-close', '--post-delay', '.5')
-assert probe().split(',').count('watch') == 1
-
 
 ui.axe('tap', '--id', 'chat-navigation-title', '--post-delay', '.6')
 tap_menu_item(catalog.text('session.title.copyBranch'))

@@ -38,7 +38,7 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate {
     split.primaryBackgroundStyle = .none
     split.preferredDisplayMode = .oneBesideSecondary
     split.showsSecondaryOnlyButton = true
-    primary.setViewControllers([page(inbox, title: LodyStrings.text("tabs.sessions"))], animated: false)
+    primary.setViewControllers([page(inbox, title: "")], animated: false)
     secondary.setViewControllers([placeholder()], animated: false)
     primary.view.accessibilityIdentifier = "ipad-panel"
     secondary.view.accessibilityIdentifier = "ipad-detail"

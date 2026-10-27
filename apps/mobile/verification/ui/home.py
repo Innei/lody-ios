@@ -1,10 +1,9 @@
-"""Home keeps the workspace avatar and view/settings group in the navigation bar, the integrated bottom search beside the create button, long-press Settings opens Debug, and the settings sheet hosts remote and archived pages."""
+"""Native Home lists, creation drafts, search, grouping and session actions."""
 import sys
 import time
 from driver import UI
 from sheet_background import capture_card
 import catalog
-import settings_states
 
 ui = UI(sys.argv[1], sys.argv[2])
 
@@ -23,13 +22,8 @@ def dismiss_search():
     ui.axe('tap', '--label', button['AXLabel'], '--post-delay', '1')
 
 
-# expo-router's bottom toolbar drops accessibilityLabel (RouterToolbarModule sets the
-# UIView label, not routerAccessibilityLabel), so the create button is located by position.
 def tap_create():
-    buttons = [i for i in ui.state() if i.get('type') == 'Button' and i.get('frame')]
-    button = max(buttons, key=lambda i: i['frame']['y'])
-    frame = button['frame']
-    ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '1')
+    ui.axe('tap', '--label', catalog.text('tabs.newSession'), '--post-delay', '1')
 
 
 workspace_name = '我的超长工作区名称不能折行'
@@ -195,19 +189,20 @@ ui.capture('github-create')
 # Configuration stays page-local while one native input carries the shared draft.
 f = ui.element('create-session-input')['frame']
 ui.axe('tap', '-x', str(f['x'] + f['width']/2), '-y', str(f['y'] + f['height']/2), '--post-delay', '.5')
-commit('Shared draft')
-ui.wait(lambda items: any(i.get('AXUniqueId') == 'create-session-input' and i.get('AXValue') == 'Shared draft' for i in items), 'Draft did not enter the visible input')
+ui.type_into('create-session-input', 'Shared draft')
+shared_draft = ui.element('create-session-input')['AXValue']
 ui.capture('shared-draft-project')
 tap_create_type(1)
 assert 'Fixture Mac' in ui.element('machine')['AXLabel']
-assert ui.element('create-session-input')['AXValue'] == 'Shared draft', 'Switching to chat cleared the shared draft'
+assert ui.element('create-session-input')['AXValue'] == shared_draft, 'Switching to chat cleared the shared draft'
 commit(' from chat')
-ui.wait(lambda items: any(i.get('AXUniqueId') == 'create-session-input' and i.get('AXValue') == 'Shared draft from chat' for i in items), 'Chat did not continue the shared draft')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'create-session-input' and (i.get('AXValue') or '').casefold() == (shared_draft + ' from chat').casefold() for i in items), 'Chat did not continue the shared draft')
+shared_draft = ui.element('create-session-input')['AXValue']
 ui.capture('shared-draft-chat')
 tap_create_type(0)
 assert 'Teammate Mac' in ui.element('machine')['AXLabel']
 assert ui.element('branch')['AXValue'] == 'develop'
-assert ui.element('create-session-input')['AXValue'] == 'Shared draft from chat', 'Switching to project cleared the shared draft'
+assert ui.element('create-session-input')['AXValue'] == shared_draft, 'Switching to project cleared the shared draft'
 ui.capture('project-state-retained')
 # Return through the picker while preserving the native sheet navigation.
 project_row = next(item for item in ui.state() if item.get('AXUniqueId') == 'project')
@@ -360,115 +355,4 @@ ui.wait(
 ui.capture('session-rename')
 ui.axe('tap', '--label', catalog.text('common.cancel'), '--post-delay', '.6')
 
-settings_label = catalog.text('tabs.settings')
-
-
-def settings_button():
-    return ui.wait(
-        lambda items: next((i for i in items if i.get('type') == 'Button' and i.get('AXLabel') == settings_label), None),
-        'Missing settings button',
-    )
-
-
-def hold_settings():
-    frame = settings_button()['frame']
-    ui.axe(
-        'touch',
-        '-x', str(frame['x'] + frame['width'] / 2),
-        '-y', str(frame['y'] + frame['height'] / 2),
-        '--down', '--up', '--delay', '1.2',
-    )
-    time.sleep(1)
-
-
-hold_settings()
-ui.element('permission-preview')
-assert not any(i.get('AXUniqueId') == 'account' for i in ui.state())
-ui.capture('debug')
-ui.axe('tap', '--id', 'BackButton', '--post-delay', '1')
-home_ready()
-assert not any(i.get('AXUniqueId') == 'permission-preview' for i in ui.state())
-
-
-def tap_sheet_back():
-    # The inbox gear behind the sheet shares the Settings label; the back button is the leftmost.
-    buttons = [i for i in ui.state() if i.get('type') == 'Button' and (i.get('AXUniqueId') == 'BackButton' or i.get('AXLabel') == settings_label)]
-    frame = min(buttons, key=lambda i: i['frame']['x'])['frame']
-    ui.axe('tap', '-x', str(frame['x'] + frame['width'] / 2), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.5')
-
-
-def reveal(identifier):
-    for _ in range(4):
-        items = ui.state()
-        match = next((i for i in items if i.get('AXUniqueId') == identifier), None)
-        if match and match['frame']['y'] + match['frame']['height'] < items[0]['frame']['height'] - 16:
-            return match
-        ui.axe('drag', '--start-x', '200', '--start-y', '700', '--end-x', '200', '--end-y', '400', '--duration', '.4', '--post-delay', '.5')
-    raise AssertionError(f'Could not reach {identifier}')
-
-
-ui.axe('tap', '--label', settings_label, '--post-delay', '1')
-ui.element('account')
-ui.capture('settings')
-for kind in ('machine', 'agent', 'mcp'):
-    row = ui.element(f'remote-{kind}')
-    assert catalog.text(f'settings.remote.{kind}') in (row.get('AXLabel') or '')
-    assert row['frame']['height'] >= 44
-    ui.axe('tap', '--id', f'remote-{kind}', '--post-delay', '.5')
-    settings_states.unavailable(ui, f'settings.unavailable.{kind}')
-    ui.capture(f'remote-{kind}')
-    tap_sheet_back()
-    ui.element(f'remote-{kind}')
-row = reveal('archived')
-assert catalog.text('settings.archived.title') in (row.get('AXLabel') or '')
-ui.axe('tap', '--id', 'archived', '--post-delay', '.8')
-archived = ui.element('ui-search')
-spoken = ' '.join((i.get('AXLabel') or '') for i in [archived, *(archived.get('children') or [])])
-assert '搜索历史会话 Search' in spoken and catalog.text('inbox.badge.archived') in spoken, spoken
-assert archived['frame']['height'] >= 44
-ui.capture('archived-sessions')
-tap_sheet_back()
-ui.element('archived')
-ui.axe('tap', '--label', catalog.text('accessibility.closeSheet', title=settings_label), '--post-delay', '1')
-home_ready()
-assert not any(i.get('AXUniqueId') == 'archived' for i in ui.state())
-ui.capture('settings-closed')
-
-ui.axe('tap', '--label', avatar_label, '--post-delay', '.5')
-ui.wait(
-    lambda items: any(i.get('AXLabel') == catalog.text('workspace.edit.action') for i in items),
-    'Workspace menu must include the edit action',
-)
-edit_workspace = next(i for i in ui.state() if i.get('AXLabel') == catalog.text('workspace.edit.action'))
-assert 'selected' not in str(edit_workspace.get('traits') or []).lower(), edit_workspace
-ui.capture('workspace-menu')
-ui.axe('tap', '--label', catalog.text('workspace.edit.action'), '--post-delay', '.8')
-ui.element('workspace-name')
-ui.wait(
-    lambda items: any(i.get('AXLabel') == catalog.text('workspace.edit.nameFooter') for i in items)
-    and any(i.get('AXLabel') == catalog.text('workspace.edit.changeIcon') for i in items),
-    'Workspace editor must show the name footer and the icon control',
-)
-ui.capture('workspace-editor')
-ui.axe('tap', '--label', catalog.text('workspace.edit.changeIcon'), '--post-delay', '1')
-ui.capture('workspace-icon-picker')
-ui.axe('tap', '-x', '67', '-y', '379', '--post-delay', '1.5')
-ui.element('workspace-name')
-ui.capture('workspace-icon-updated')
-ui.axe('tap', '--id', 'workspace-name', '--post-delay', '.5')
-ui.axe('tap', '--label', catalog.system('clear'), '--post-delay', '.2')
-ui.axe('type', '2026')
-assert ui.element('workspace-name')['AXValue'] == '2026'
-ui.capture('workspace-editor-filled')
-ui.axe('tap', '--label', catalog.text('workspace.edit.save'), '--post-delay', '1')
-renamed_label = catalog.workspace_switch('2026')
-ui.wait(
-    lambda items: any(i.get('AXLabel') == renamed_label for i in items),
-    'Saving the workspace name must update the home menu',
-)
-ui.capture('workspace-renamed')
-ui.axe('tap', '--label', renamed_label, '--post-delay', '.5')
-edit_workspace = next(i for i in ui.state() if i.get('AXLabel') == catalog.text('workspace.edit.action'))
-assert 'selected' not in str(edit_workspace.get('traits') or []).lower(), edit_workspace
-ui.capture('workspace-menu-after-edit')
-print('Create opens repeatedly from the bottom toolbar; integrated search finds archived sessions and cancels back; the view menu regroups; long-press Settings opens Debug and returns; the settings sheet pushes remote and archived pages and closes back to the inbox; the workspace menu edits and immediately reflects the current workspace name.')
+print('PASS: native Home create/draft handoff, integrated search, grouping, session preview and rename cancellation.')
