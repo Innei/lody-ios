@@ -3,6 +3,9 @@ import UIKit
 extension SessionController {
   func wireRouteEvents() {
     chat.turnInfoEnabled = true
+    chat.onTurnInfoPress.onEventSent = { [weak self] body in
+      if let id = body["entryId"] as? String { self?.openMessageDetails(id) }
+    }
     chat.imageSharingEnabled = true
     chat.onShareImage.onEventSent = { [weak self] body in
       self?.open("message-share", ["contentJSON": body["contentJSON"] as? String ?? ""], present: true)
@@ -89,6 +92,14 @@ extension SessionController {
       }
       return
     }
+    if item["type"] as? String == "subagent_task" {
+      let page = SubagentTaskController(entryId: entryId, item: item)
+      subagentPage = page
+      page.onActivity = { [weak self, weak page] entry, item in self?.activity(entryId: entry, itemId: item, from: page) }
+      page.onFile = { [weak self, weak page] path, line in self?.openFile(path, line: line, from: page) }
+      LodyShell.shared.presentNative(page, title: LodyStrings.text("native.chat.transcript.subtask"), detents: [0.6, 1], grabber: true)
+      return
+    }
     let page = ItemDetailController(sessionId: sessionId, entryId: entryId, itemIds: [itemId], generation: feed?.generation ?? 0,
                                     service: itemDetailService)
     LodyShell.shared.presentNative(page, title: LodyStrings.text("detail.title"), detents: [0.6, 1], grabber: true)
@@ -110,10 +121,13 @@ extension SessionController {
   }
 
   func open(_ page: String, _ params: [String: Any], present: Bool = false, title: String? = nil, from source: UIViewController? = nil) {
-    var options: [String: Any] = [:]
-    if present { options["present"] = true }
-    if let title { options["title"] = title }
-    LodyShell.shared.openPage(page, params: Self.json(params), options: options, from: source ?? parent ?? self)
+    guard let content = LodyNativePages.make(page, params: Self.json(params)) else {
+      preconditionFailure("Missing native session page: \(page)")
+    }
+    let titles = ["files": "files.title", "workspace-changes": "workspaceChanges.title", "file-diff": "diff.title"]
+    let name = title ?? content.title ?? titles[page].map { LodyStrings.text($0) } ?? ""
+    if present { LodyShell.shared.presentNative(content, title: name, grabber: true) }
+    else { LodyShell.shared.pushNative(content, title: name, from: source ?? self) }
   }
 
   static func item(in entriesJSON: String, entryId: String, itemId: String) -> [String: Any]? {

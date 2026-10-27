@@ -22,6 +22,8 @@ const NATIVE_PREFIXES = [
   'picker.',
   'process.',
   'pr.',
+  'subagent.',
+  'simulator.',
   'permission.',
   'question.',
   'projectPicker.',

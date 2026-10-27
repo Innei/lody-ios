@@ -151,3 +151,8 @@ precondition(!envelope.accepted(generation: 0, after: (1, -1)), "Older generatio
 precondition(!envelope.accepted(generation: 1, after: (1, 4)) && envelope.accepted(generation: 1, after: (1, 3)), "Same generation needs a newer revision")
 precondition(!SessionEnvelope(version: 2, revision: 9).accepted(generation: 5, after: (1, 1)), "Unknown envelope versions drop")
 print("PASS: session rows, inbox sections and session envelopes match the RN projections")
+
+let toolsCatalog = SessionCatalog.decode(saved: Data(#"{"catalog":{"projects":[],"machineIds":["mac"],"machineSimulators":{"mac":"available"},"sessions":[{"id":"with-tools","pullRequests":[{"repository":"Innei/lody-ios","number":31,"status":"open","ci":"f"}],"iosSimulatorPreviewRequestId":"preview-request"}]}}"#.utf8))!
+precondition(toolsCatalog.machineSimulators["mac"] == "available")
+precondition(toolsCatalog.session("with-tools")?.pullRequests.first?.number == 31)
+precondition(toolsCatalog.session("with-tools")?.iosSimulatorPreviewRequestId == "preview-request")

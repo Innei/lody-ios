@@ -65,6 +65,32 @@ assert probe().split(',').count('watch') == 1, 'Tool details started another run
 assert 'unwatch' not in probe().split(','), 'Closing tool details stopped the owning feed'
 
 
+# The native session owns PR draft handoff and the simulator operation.
+ui.axe('tap', '--id', 'session-input', '--post-delay', '.3')
+ui.axe('type', 'Keep this draft')
+tap_label('PR #31')
+ui.element('pr-title')
+ui.axe('tap', '--id', 'pr-checks', '--post-delay', '.4')
+ui.element('pr-check-1')
+tap_label(catalog.text('pr.investigate'))
+wait_text(catalog.text('pr.draftAdded'))
+tap_label(catalog.text('common.ok'))
+for _ in range(2):
+    ui.axe('drag', '--start-x', '2', '--start-y', '450', '--end-x', '365', '--end-y', '450', '--duration', '.5', '--post-delay', '.7')
+draft = ui.element('session-input').get('AXValue') or ''
+assert draft.startswith('Keep this draft\n\n') and 'github.com/Innei/lody-ios/pull/31' in draft, draft
+ui.capture('native-pr-draft')
+tap_label(more)
+tap_menu_item(catalog.text('simulator.menu'))
+ui.element('simulator-stream')
+ui.capture('native-simulator')
+ui.axe('drag', '--start-x', '2', '--start-y', '450', '--end-x', '365', '--end-y', '450', '--duration', '.5', '--post-delay', '.7')
+ui.element('simulator-preview-expand')
+ui.capture('native-floating-simulator')
+ui.axe('tap', '--id', 'simulator-preview-close', '--post-delay', '.5')
+assert probe().split(',').count('watch') == 1
+
+
 ui.axe('tap', '--id', 'chat-navigation-title', '--post-delay', '.6')
 tap_menu_item(catalog.text('session.title.copyBranch'))
 wait_text(catalog.text('session.title.branchCopied'))
