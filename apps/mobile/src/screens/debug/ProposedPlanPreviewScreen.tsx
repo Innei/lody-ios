@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NativeChat, NativeNavigationHeader } from '@lody-ios/kit';
 import { definePage, present } from '@/lib/presentation';
-import { PermissionScreen } from '@/screens/PermissionScreen';
+import { PermissionSheetPreviewScreen } from './PermissionSheetPreviewScreen';
 import { useProposedPlan } from '@/features/sessions/useProposedPlan';
 import { planExecutionChoice } from '@/features/sessions/proposedPlan';
 import type {
@@ -240,17 +240,11 @@ function View() {
             nativeEvent.itemId !== target.itemId
           )
             return;
-          void present(PermissionScreen, {
-            sessionId: 'plan-fixture',
-            generation: 0,
-            target,
-            service: {
-              detail: async () => ({ options: target.options ?? [] }),
-              respond: async () => {
-                setResponses((count) => count + 1);
-                return 'accepted';
-              },
-            },
+          void present(PermissionSheetPreviewScreen, {
+            scenario: 'permission',
+          }).then((result) => {
+            if (result.status === 'completed' && result.value)
+              setResponses((count) => count + 1);
           });
         }}
       />

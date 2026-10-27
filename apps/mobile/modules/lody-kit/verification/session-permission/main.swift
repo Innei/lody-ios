@@ -46,3 +46,32 @@ precondition(projected.transcript.permission == target)
 let malformed = pending.replacingOccurrences(of: "\"requestId\":\"request\",", with: "")
 let rejected = SessionEnvelope.prepare("{\"entries\":" + malformed + "}")!
 precondition(rejected.transcript.permission == nil && rejected.transcript.permissionError != nil)
+
+// The passive page starts from the latest projection and rejects old runtime replies.
+var projection = PermissionProjection()
+func envelope(_ revision: Int, _ entries: String = pending, status: String = "live") -> String {
+  "{\"v\":1,\"revision\":\(revision),\"status\":\"\(status)\",\"entries\":\(entries)}"
+}
+projection.receive(generation: 1, phase: "live", json: envelope(1))
+precondition(projection.state == .ready(target))
+projection.receive(generation: 1, phase: "live", json: envelope(0, "[]"))
+precondition(projection.state == .ready(target))
+projection.receive(generation: 2, phase: "starting", json: nil)
+precondition(projection.state == .waiting)
+projection.receive(generation: 1, phase: "live", json: envelope(99))
+precondition(projection.state == .waiting)
+projection.receive(generation: 2, phase: "live", json: envelope(0, status: "syncing"))
+precondition(projection.state == .waiting)
+projection.receive(generation: 2, phase: "live", json: envelope(1))
+precondition(projection.state == .ready(target))
+projection.receive(generation: 2, phase: "background", json: nil)
+precondition(projection.state == .waiting)
+projection.receive(generation: 2, phase: "live", json: envelope(2))
+precondition(projection.state == .ready(target))
+projection.receive(generation: 2, phase: "live", json: envelope(3, malformed))
+guard case .invalid = projection.state else { fatalError("Malformed permissions must fail visibly") }
+projection.receive(generation: 2, phase: "live", json: envelope(4, "[]"))
+precondition(projection.state == .ready(nil))
+projection.receive(generation: 2, phase: "live", json: #"{"v":1,"overflow":true}"#)
+guard case .invalid = projection.state else { fatalError("Overflow must not resolve a pending request") }
+print("PASS: passive permission projection, generation recovery, revision ordering and visible contract errors")

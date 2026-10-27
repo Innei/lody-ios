@@ -4,18 +4,12 @@ import type {
   EntrySummary,
   PermissionResult,
   PermissionTarget,
-  PermissionTargetState,
 } from '@lody/cloud-runtime/models/session';
 
 export type {
   PermissionResult,
   PermissionTarget,
-  PermissionTargetState,
 } from '@lody/cloud-runtime/models/session';
-
-export type PermissionTargetSource = (
-  onState: (state: PermissionTargetState) => void,
-) => () => void;
 
 type Settlement =
   { status: 'cancelled' } | { status: 'completed'; value: PermissionResult };
@@ -72,34 +66,19 @@ export function createPermissionGate() {
 
 export type PermissionChannel = {
   gate: ReturnType<typeof createPermissionGate>;
-  source: PermissionTargetSource;
-  publish: (state: PermissionTargetState) => void;
   retain: () => () => void;
 };
 
 const channels = new Map<string, PermissionChannel>();
 
 // A layout change remounts the chat while its permission sheet stays open; the
-// sheet and the new mount must share one gate and one target source.
+// sheet and the new mount must share one presentation gate.
 export function permissionChannel(sessionId: string): PermissionChannel {
   const existing = channels.get(sessionId);
   if (existing) return existing;
-  const listeners = new Set<(state: PermissionTargetState) => void>();
-  let state: PermissionTargetState = { ready: false };
   let holders = 0;
   const channel: PermissionChannel = {
     gate: createPermissionGate(),
-    source(onState) {
-      listeners.add(onState);
-      onState(state);
-      return () => {
-        listeners.delete(onState);
-      };
-    },
-    publish(next) {
-      state = next;
-      for (const notify of listeners) notify(state);
-    },
     retain() {
       holders++;
       let released = false;

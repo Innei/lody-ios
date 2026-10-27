@@ -2,9 +2,12 @@ import LodyCore
 import UIKit
 
 @MainActor
-final class PermissionController: UIViewController {
+class PermissionController: UIViewController {
   private let sessionId: String
   private let service: PermissionService
+  private let source: PermissionSource?
+  private var unobserve: (() -> Void)?
+  private var ready = false
   private let list = LodyGroupedList(appContext: nil)
   private var target: SessionPermission?
   private var questions: PermissionQuestionView?
@@ -21,16 +24,17 @@ final class PermissionController: UIViewController {
   private var outcome: (answer: String?, cancelled: Bool) = (nil, true)
   var onClose: ((String?, Bool) -> Void)?
 
-  init(sessionId: String, service: PermissionService = .live) {
+  init(sessionId: String, service: PermissionService = .live, source: PermissionSource? = nil) {
     self.sessionId = sessionId
     self.service = service
+    self.source = source
     super.init(nibName: nil, bundle: nil)
   }
 
   @available(*, unavailable)
   required init?(coder: NSCoder) { fatalError() }
 
-  isolated deinit { detailTask?.cancel(); sendTask?.cancel() }
+  isolated deinit { unobserve?(); detailTask?.cancel(); sendTask?.cancel() }
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -45,6 +49,24 @@ final class PermissionController: UIViewController {
       else { answer(id) }
     }
     render()
+    unobserve = source?.observe { [weak self] state in
+      switch state {
+      case .waiting: self?.update(nil, ready: false)
+      case .ready(let target): self?.update(target, ready: true)
+      case .invalid(let message): self?.showInvalidRequest(message)
+      }
+    }
+    if phase != .open { stopObserving() }
+  }
+
+  override func didMove(toParent parent: UIViewController?) {
+    super.didMove(toParent: parent)
+    let close = UIBarButtonItem(systemItem: .close, primaryAction: UIAction { [weak self] _ in
+      self?.navigationController?.dismiss(animated: true)
+    })
+    close.accessibilityLabel = LodyStrings.text("accessibility.closeSheet", ["title": LodyStrings.text("permission.title")])
+    parent?.navigationItem.rightBarButtonItem = close
+    render()
   }
 
   override func viewDidAppear(_ animated: Bool) {
@@ -56,6 +78,7 @@ final class PermissionController: UIViewController {
     super.viewWillDisappear(animated)
     if phase == .open, SettingsPage.leaving(self) {
       phase = .closing
+      stopObserving()
       detailTask?.cancel()
       sendTask?.cancel()
     }
@@ -65,15 +88,31 @@ final class PermissionController: UIViewController {
     super.viewDidDisappear(animated)
     guard phase != .closed, SettingsPage.leaving(self) else { return }
     phase = .closed
+    stopObserving()
     detailTask?.cancel()
     sendTask?.cancel()
     onClose?(outcome.answer, outcome.cancelled)
   }
 
   func update(_ next: SessionPermission?, ready: Bool) {
-    guard phase == .open, ready else { return }
+    guard phase == .open else { return }
+    let resumed = !self.ready && ready
+    if self.ready != ready {
+      self.ready = ready
+      if !ready {
+        revision += 1
+        detailTask?.cancel()
+        sendTask?.cancel()
+        busy = false
+      }
+      render()
+    }
+    guard ready else { return }
     guard let next else { close(); return }
-    guard next != target else { return }
+    if next == target {
+      if resumed, next.questionMeta == nil { loadDetail(next) }
+      return
+    }
     resetTarget()
     target = next
     options = next.options ?? []
@@ -106,6 +145,7 @@ final class PermissionController: UIViewController {
   func showInvalidRequest(_ message: String) {
     guard phase == .open else { return }
     resetTarget()
+    ready = false
     error = message
     loadViewIfNeeded()
     render()
@@ -156,7 +196,7 @@ final class PermissionController: UIViewController {
   }
 
   private func answer(_ optionId: String, answers: [String: RuntimeContract.JSONValue]? = nil) {
-    guard !busy, phase == .open, let target else { return }
+    guard ready, !busy, phase == .open, let target else { return }
     precondition(options.contains { $0.optionId == optionId }, "Unknown permission option")
     busy = true
     error = ""
@@ -181,7 +221,7 @@ final class PermissionController: UIViewController {
         guard let self, !Task.isCancelled, phase == .open, self.revision == requestRevision else { return }
         busy = false
         DiagnosticsStore.shared.record("permission", "respond_failed", fields: ["code": String((error as NSError).code)])
-        self.error = LodyStrings.text("permission.error.send")
+        self.error = LodyStrings.text(error.localizedDescription.contains("invalid_option") ? "permission.error.invalidOption" : "permission.error.send")
         render()
       }
     }
@@ -190,6 +230,7 @@ final class PermissionController: UIViewController {
   private func close(answer: String? = nil) {
     guard phase == .open else { return }
     phase = .closing
+    stopObserving()
     detailTask?.cancel()
     sendTask?.cancel()
     outcome = (answer, false)
@@ -199,13 +240,19 @@ final class PermissionController: UIViewController {
   private func dismissSheet() {
     // Remote resolution can arrive while the shell is still presenting this page.
     guard let sheet = navigationController, !sheet.isBeingPresented else { return }
+    LodyShell.shared.finish(from: self, value: outcome.answer.map { ["requestId": $0] })
     sheet.presentingViewController?.dismiss(animated: true)
+  }
+
+  private func stopObserving() {
+    unobserve?()
+    unobserve = nil
   }
 
   private func render() {
     guard isViewLoaded else { return }
     list.isHidden = questions != nil
-    questions?.update(busy: busy, error: error)
+    questions?.update(busy: busy || !ready, error: error)
     let title = LodyStrings.text(questions == nil ? "permission.title" : "question.title")
     parent?.navigationItem.title = title
     guard questions == nil else { return }
@@ -226,7 +273,7 @@ final class PermissionController: UIViewController {
       var row = LodyListRow()
       row.id = option.optionId
       row.title = option.name
-      row.action = !busy
+      row.action = ready && !busy
       row.destructive = option.kind?.hasPrefix("reject") == true
       return row
     }
@@ -234,7 +281,7 @@ final class PermissionController: UIViewController {
       var retry = LodyListRow()
       retry.id = "permission-retry"
       retry.title = LodyStrings.text("common.retry")
-      retry.action = !busy
+      retry.action = ready && !busy
       section.rows.append(retry)
     }
     list.setSections([section], animated: false)

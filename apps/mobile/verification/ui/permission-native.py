@@ -1,10 +1,16 @@
 """Native session permission lifecycle and retained question answers, without JS probes."""
 import json
 import sys
+import time
 from driver import UI
 import catalog
 
 ui = UI(sys.argv[1], sys.argv[2])
+started = time.monotonic()
+
+
+def checkpoint(name):
+    print(f'{name}: {time.monotonic() - started:.2f}s', flush=True)
 
 
 def wait_text(text):
@@ -59,6 +65,7 @@ wait_text(catalog.text('process.empty'))
 ui.axe('tap', '--label', close_process)
 gone()
 assert ui.element('session-input').get('AXValue') == '12345', 'Nested permission lost the draft'
+checkpoint('manual close and nested reopen')
 
 fresh()
 fixture('Permission request')
@@ -74,7 +81,10 @@ gone()
 
 fresh()
 fixture('Remote answer')
-wait_text('Allow once')
+# The remote reply can arrive before a slow AX read samples the transient options.
+# Verify its resolved projection and closed sheet; pending UI is checked above.
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'permission-preview-probe' and 'remote' in (i.get('AXValue') or '') for i in items),
+        'Remote answer did not reach the session')
 gone()
 ui.capture('remote-answer')
 fixture('Request replacement')
@@ -83,6 +93,7 @@ ui.axe('tap', '--label', 'Allow once')
 wait_text('Run checks 3')
 wait_text('Allow once')
 ui.capture('replacement')
+checkpoint('successive, remote and replaced requests')
 ui.axe('tap', '--label', 'Allow once')
 gone()
 
@@ -129,6 +140,7 @@ assert answers == {'language': 'Swift', 'checks': ['Unit tests', 'UI tests'], 'n
 assert 'submit:request-1:2' in probe, probe
 assert ui.element('session-input').get('AXValue') == '12345', 'Answering questions lost the draft'
 ui.capture('answered')
+checkpoint('question answers and retry')
 ui.open_case('permission-native-waiting')
 wait_text(catalog.text('permission.waiting'))
 ui.capture('waiting')
@@ -136,4 +148,5 @@ wait_text('Allow once')
 ui.axe('tap', '--label', 'Allow once')
 gone()
 
+checkpoint('waiting request')
 print('PASS: manual dismissal gate, successive requests, remote answer, request replacement, multi-question answers and retry')

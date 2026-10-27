@@ -10,6 +10,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   static weak var current: DataRuntime?
   var webView: WKWebView?
   var sessionId: String?
+  private(set) var sessionSnapshot: (generation: Int, json: String)?
   private var retainedSessions: [String] = []
   var reservedSessions: [String] = []
   var userId = ""
@@ -87,7 +88,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   func start(workspace: String, slug: String, name: String, owner: String, userId: String) {
     disposeView()
     if self.workspace != workspace || self.userId != userId {
-      sessionId = nil; retainedSessions = []; reservedSessions = []; billing.clear()
+      sessionId = nil; sessionSnapshot = nil; retainedSessions = []; reservedSessions = []; billing.clear()
     }
     self.userId = userId; cacheErrorShown = false
     self.workspace = workspace; self.owner = owner; health = RuntimeHealth()
@@ -117,6 +118,10 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   }
   private func emitStatus(_ extra: [String: Any] = [:]) {
     let event = (status() as [String: Any]).merging(extra, uniquingKeysWith: { _, new in new })
+    if sessionSnapshot?.generation != generation || ["starting", "background", "failed", "stopped"].contains(phase) {
+      sessionSnapshot = nil
+    }
+    if let json = extra["session"] as? String { sessionSnapshot = (generation, json) }
     emit(event)
     NotificationCenter.default.post(name: .lodyDataRuntimeEvent, object: self, userInfo: event)
   }
@@ -226,6 +231,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     emitStatus(["sessionId": id, "session": payload])
   }
   func openSession(_ id: String) {
+    if sessionId != id { sessionSnapshot = nil }
     sessionId = id
     dispatch(RuntimeContract.Calls.OpenSession.self, .init(sessionId: id))
   }
@@ -233,7 +239,9 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     ContentStore.shared.clear(session: id)
     guard sessionId == id else { return }
     sessionId = nil
+    sessionSnapshot = nil
     dispatch(RuntimeContract.Calls.CloseSession.self, .init())
+    emitStatus()
   }
   func ensureSession(_ id: String, sink: ReplySink) {
     guard workspace != nil, !id.isEmpty else {

@@ -9,8 +9,6 @@ test('a chat remounted while its permission sheet is open reuses that sheet', ()
   const releaseMount = first.retain();
   first.gate.opened();
   const releaseSheet = first.retain();
-  const heard = [];
-  const stop = first.source((state) => heard.push(state));
   releaseMount();
 
   const second = permissionChannel('s1');
@@ -18,10 +16,6 @@ test('a chat remounted while its permission sheet is open reuses that sheet', ()
   assert.equal(second, first);
   assert.equal(second.gate.shouldOpen(target), false);
   assert.equal(second.gate.canPrompt(), false);
-  second.publish({ ready: true, target });
-  assert.deepEqual(heard.at(-1), { ready: true, target });
-
-  stop();
   first.gate.settled({ status: 'completed', value: { requestId: 'r1' } });
   releaseSheet();
   releaseRemount();

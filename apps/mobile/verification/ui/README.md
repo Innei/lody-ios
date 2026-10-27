@@ -1,5 +1,12 @@
 # Offline UI verification
 
+`permission` opens the shared native permission sheet from RN chat, checks native result
+settlement, retained composer drafts, remote resolution, and multi-question retry.
+`permission-native` covers the same controller in the native session, including request
+replacement and the per-visit auto-open gate. Both run offline from an embedded Release
+bundle without JS inspector probes. `session-permission` checks projection ordering and
+runtime recovery as well as malformed requests and question answer keys.
+
 `item-details` exercises the native tool-detail sheet with deterministic service outcomes:
 initial retry, expandable raw payloads, failed pagination retaining prior output, page append,
 and revision replacement. `inline-diff` covers the RN chat entry into the same native sheet;

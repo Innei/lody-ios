@@ -703,7 +703,9 @@ with metro_context:
                         # Long search and mention-kind loops reach ~290s alone.
                         check_timeout = 420
                     elif case == 'permission-native':
-                        # Permission lifecycle, nested process entry and multi-step questions take ~180s.
+                        # Multiple fresh sessions plus nested permissions and questions can reach 300s.
+                        check_timeout = 420
+                    elif case == 'permission':
                         check_timeout = 300
                     elif case in ('send-queue', 'send-guide'):
                         # Queue/steer/stop and guide rounds reach ~185s on both the RN and native fixtures.

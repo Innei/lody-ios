@@ -468,9 +468,6 @@ function View() {
           PermissionScreen,
           {
             sessionId: session.id,
-            generation: cursor.current.generation,
-            target,
-            source: permissions.source,
           },
           target?.kind === 'ask_user_question'
             ? { title: t('question.title') }
@@ -485,7 +482,7 @@ function View() {
   };
 
   // Opening on entry beats waiting for the replica: the sheet resolves its own
-  // target through the channel source once the transcript arrives.
+  // target from the native projection once the transcript arrives.
   useEffect(() => {
     if (session.awaitingUserSince != null && gate.canPrompt())
       void askPermission();
@@ -494,7 +491,6 @@ function View() {
   useEffect(() => {
     const ready = snapshot.status === 'live';
     const target = ready ? firstPermissionTarget(snapshot.entries) : undefined;
-    permissions.publish({ ready, target });
     if (target && gate.shouldOpen(target)) void askPermission(target);
   }, [snapshot]);
 

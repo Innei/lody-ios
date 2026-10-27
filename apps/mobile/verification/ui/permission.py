@@ -1,9 +1,7 @@
 """Permission sheet opens ahead of its target and never costs the composer draft."""
 import sys
-import os
 import json
 from driver import UI
-from inspector import inspector
 import catalog
 
 ui = UI(sys.argv[1], sys.argv[2])
@@ -11,10 +9,14 @@ close = catalog.text('accessibility.closeSheet', title=catalog.text('permission.
 DRAFT = '12345'
 
 
+def control(action):
+    ui.axe('tap', '--label', 'Request controls')
+    ui.wait(lambda items: any(i.get('AXLabel') == action for i in items), action)
+    ui.axe('tap', '--label', action)
+
+
 def target(available):
-    inspector(ui.udid, int(os.environ['LODY_UI_METRO_PORT']), 'Runtime.evaluate', {
-        'expression': 'globalThis.__lodyUiVerifyPermissionTarget(' + str(available).lower() + ')',
-    })
+    control('Resolve target' if available else 'Remote answer')
 
 
 def open_sheet():
@@ -45,6 +47,7 @@ ui.capture('pending')
 ui.axe('tap', '--label', close, '--post-delay', '1')
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-input' and i.get('AXValue') == DRAFT for i in items),
         'Closing the sheet lost the composer draft')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'permission-result' and 'cancelled' in (i.get('AXValue') or '') for i in items), 'Close did not cancel the RN presentation')
 ui.capture('closed')
 
 open_sheet()
@@ -52,6 +55,7 @@ ui.axe('tap', '--label', 'Allow once', '--post-delay', '1')
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-input' and i.get('AXValue') == DRAFT for i in items),
         'Answering the request lost the composer draft')
 assert not any(i.get('AXLabel') == 'Allow once' for i in ui.state()), 'Sheet stayed up after answering'
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'permission-result' and 'request-1' in (i.get('AXValue') or '') for i in items), 'Native answer did not settle the RN presentation')
 ui.capture('answered')
 
 open_sheet()
@@ -60,14 +64,13 @@ ui.wait(lambda items: not any(i.get('AXLabel') == 'Allow once' for i in items),
         'Sheet stayed up after the request was answered elsewhere', timeout=15)
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-input' and i.get('AXValue') == DRAFT for i in items),
         'Remote answer lost the composer draft')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'permission-result' and 'completed' in (i.get('AXValue') or '') for i in items), 'Remote answer did not settle the RN presentation')
 ui.capture('answered-elsewhere')
 print('PASS: sheet opens before its target, keeps the draft through close, answer and remote answer')
 
 
-def question_probe(expression):
-    return inspector(ui.udid, int(os.environ['LODY_UI_METRO_PORT']), 'Runtime.evaluate', {
-        'expression': expression, 'returnByValue': True,
-    })['result'].get('value')
+def question_probe():
+    return ui.element('permission-sheet-probe').get('AXValue') or ''
 
 
 def open_questions():
@@ -80,7 +83,7 @@ def open_questions():
 
 open_questions()
 ui.capture('question-single')
-ui.axe('swipe', '--start-x', '200', '--start-y', '400', '--end-x', '200', '--end-y', '60', '--duration', '.5', '--post-delay', '1')
+ui.axe('drag', '--start-x', '200', '--start-y', '400', '--end-x', '200', '--end-y', '60', '--duration', '.5', '--post-delay', '1')
 screen = next(i['frame']['height'] for i in ui.state() if i.get('type') == 'Application')
 button = ui.element('question-next')['frame']
 assert button['y'] + button['height'] <= screen - 30, f'Full-height sheet must keep the action above the home indicator: {button}'
@@ -91,7 +94,7 @@ ui.wait(lambda items: any(i.get('AXLabel') == 'Which checks should run?' for i i
 ui.axe('tap', '--id', 'question-option-0')
 ui.axe('tap', '--id', 'question-option-1')
 ui.capture('question-multiple')
-assert question_probe('globalThis.__lodyUiVerifyQuestion.attempts') == 0, 'Choosing options must never submit automatically'
+assert 'submit:' not in question_probe(), 'Choosing options must never submit automatically'
 assert ui.element('list-step-0').get('AXValue') == catalog.text('native.list.answered'), 'Answered step must say so'
 assert not ui.element('list-step-2').get('AXValue'), 'Unanswered step must not claim an answer'
 ui.axe('tap', '--id', 'list-step-0')
@@ -103,26 +106,33 @@ assert not any(i.get('AXUniqueId') == 'question-next' for i in ui.state()), 'Las
 ui.axe('tap', '--id', 'question-custom', '--post-delay', '1')
 ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('common.done') for i in items), 'Custom answer prompt missing')
 ui.axe('type', 'Keep it native')
+note = ui.wait(lambda items: next((i.get('AXValue') for i in items if i.get('type') == 'TextField' and i.get('AXValue')), None), 'Missing typed answer')
 ui.capture('question-prompt')
 ui.axe('tap', '--label', catalog.text('common.done'), '--post-delay', '1')
-ui.wait(lambda items: any(i.get('AXUniqueId') == 'question-custom' and 'Keep it native' in (i.get('AXLabel') or '') for i in items),
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'question-custom' and note in (i.get('AXLabel') or '') for i in items),
         'Custom answer must show on its row')
 ui.capture('question-text')
+control('Suspend')
+assert not ui.element('question-submit').get('enabled', True), 'Suspended request remained actionable'
+ui.capture('question-suspended')
+control('Resume')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'question-custom' and note in (i.get('AXLabel') or '') for i in items), 'Resume lost question answers')
 ui.axe('tap', '--id', 'question-submit', '--post-delay', '1')
 ui.wait(lambda items: any(i.get('AXLabel') == catalog.text('permission.error.send') for i in items), 'Upload failure must retain the card')
-observed_answers = question_probe('globalThis.__lodyUiVerifyQuestion.answers')
+probe = question_probe()
+observed_answers, _ = json.JSONDecoder().raw_decode(probe[probe.index('{'):])
 assert observed_answers == {
-    'language': 'Swift', 'checks': ['Unit tests', 'UI tests'], 'notes': 'Keep it native',
+    'language': 'Swift', 'checks': ['Unit tests', 'UI tests'], 'notes': note,
 }, 'The production card did not submit the full answer set'
 print('Observed answer payload: ' + json.dumps(observed_answers), flush=True)
-assert question_probe('globalThis.__lodyUiVerifyQuestion.attempts') == 1
+assert 'submit:request-1:1' in question_probe()
 ui.capture('question-retry')
 ui.axe('tap', '--id', 'question-submit', '--post-delay', '1')
 ui.wait(lambda items: not any(i.get('AXUniqueId') == 'question-submit' for i in items), 'Successful retry did not close the card')
 ui.capture('question-answered')
 open_questions()
-question_probe('globalThis.__lodyUiVerifyQuestion.remoteAnswer()')
-ui.wait(lambda items: not any(i.get('AXUniqueId') == 'question-submit' for i in items), 'Desktop answer did not close the question card')
+control('Remote answer')
+ui.wait(lambda items: not any(i.get('AXUniqueId') == 'permission-sheet-probe' for i in items), 'Desktop answer did not close the question card')
 ui.capture('question-answered-elsewhere')
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-input' and i.get('AXValue') == DRAFT for i in items), 'Question resolution lost the composer draft')
 print('PASS: multi-question answers, navigation, failed upload, retry and desktop resolution')

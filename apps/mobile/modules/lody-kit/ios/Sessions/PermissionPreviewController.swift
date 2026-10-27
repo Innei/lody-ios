@@ -57,7 +57,7 @@ final class PermissionPreviewController: SessionController {
 }
 
 @MainActor
-private final class PermissionFixture {
+final class PermissionFixture {
   var changed: (() -> Void)?
   var log: [String] = []
   private var receive: (@MainActor (SessionRuntimeEvent) -> Void)?
@@ -67,9 +67,11 @@ private final class PermissionFixture {
   private var attempts = 0
   private var replacing = false
   private let waiting: Bool
+  private let deferred: Bool
 
-  init(waiting: Bool) {
+  init(waiting: Bool, deferred: Bool = false) {
     self.waiting = waiting
+    self.deferred = deferred
     if waiting { request(questions: false) }
   }
 
@@ -123,7 +125,7 @@ private final class PermissionFixture {
         try await Task.sleep(for: .seconds(2))
         self?.emit()
       }
-    } else {
+    } else if !deferred {
       emit()
     }
     return { [weak self] in self?.receive = nil }
@@ -170,10 +172,18 @@ private final class PermissionFixture {
     request(questions: false)
   }
 
-  private func emit() {
+  func resolve() {
+    current = nil
+    emit()
+  }
+
+  func suspend() { emit(status: "syncing") }
+  func resume() { emit() }
+
+  private func emit(status: String = "live") {
     revision += 1
     let envelope: [String: Any] = [
-      "v": 1, "revision": revision, "status": "live", "entries": [
+      "v": 1, "revision": revision, "status": status, "entries": [
         ["id": "entry", "role": "assistant", "status": "completed", "finished": true, "items": current.map { [$0] } ?? []],
       ],
     ]
