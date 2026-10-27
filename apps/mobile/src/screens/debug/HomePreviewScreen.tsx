@@ -273,6 +273,7 @@ function usePreviewOwner() {
         'catalog:ui-home:ui-home',
         JSON.stringify({ catalog, syncedAt: 0 }),
       ),
+      writeLocalValue('pending-sends:ui-home:ui-home', '[]'),
       writeLocalValue('draft:ui-home:ui-home:ui-design', ''),
       writeLocalValue(
         `session:${JSON.stringify(['ui-home', 'ui-home', 'ui-design'])}`,
@@ -354,7 +355,7 @@ export function HomePreviewProviders({
   const selectedCatalog =
     selected.id === workspace.id ? state.catalog : emptyCatalog;
   useEffect(() => {
-    if (!owner) return;
+    if (!owner || !state.cacheReady) return;
     setSettingsPreview(
       JSON.stringify({
         account: { user: previewUser, workspaces: state.workspaces },
@@ -363,7 +364,14 @@ export function HomePreviewProviders({
         presence: state.presence,
       }),
     );
-  }, [owner, state.workspaces, selected.id, selectedCatalog, state.presence]);
+  }, [
+    owner,
+    state.cacheReady,
+    state.workspaces,
+    selected.id,
+    selectedCatalog,
+    state.presence,
+  ]);
   useEffect(() => {
     if (!owner) return;
     const unregister = registerShellPreviewHandler(applyNativeChange);

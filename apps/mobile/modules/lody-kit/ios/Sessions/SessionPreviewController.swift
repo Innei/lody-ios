@@ -40,6 +40,8 @@ final class SessionPreviewController: SessionController {
   @available(*, unavailable)
   required init?(coder: NSCoder) { fatalError() }
 
+  override var persistsDraft: Bool { false }
+
   override func viewDidLoad() {
     probe.isAccessibilityElement = true
     probe.accessibilityIdentifier = "session-preview-probe"
