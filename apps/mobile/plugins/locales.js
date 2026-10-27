@@ -28,7 +28,7 @@ const NATIVE_PREFIXES = [
   'accessibility.closeSheet',
   'inbox.section.',
   'inbox.project.',
-  'message.details.title',
+  'message.details.',
   'send.status.',
   'chat.composer.freeTurn',
   'chat.edit.',

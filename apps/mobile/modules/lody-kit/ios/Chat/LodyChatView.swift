@@ -80,6 +80,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var errorRetryState: ChatErrorRetryState?
   let onActivityPress = EventDispatcher()
   let onTurnInfoPress = EventDispatcher()
+  weak var messageDetailsPage: MessageDetailsController?
   var turnInfoEnabled = false
   let onShareImage = EventDispatcher()
   var imageSharingEnabled = false
@@ -343,7 +344,11 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
         cell.configure(row)
         cell.detailsButton.removeAction(identifiedBy: .init("turn-info"), for: .touchUpInside)
         cell.detailsButton.addAction(UIAction(identifier: .init("turn-info")) { [weak self] _ in
-          self?.onTurnInfoPress(["entryId": row.entryID])
+          guard let self else { return }
+          let page = MessageDetailsController(entryId: row.entryID, entry: self.transcript.entries.first { $0.id == row.entryID })
+          self.messageDetailsPage = page
+          LodyShell.shared.presentNative(page, title: LodyStrings.text("message.details.title"), detents: [0.75, 1], grabber: true)
+          self.onTurnInfoPress(["entryId": row.entryID])
         }, for: .touchUpInside)
         cell.actionButton.menu = messageMenu(entryID: row.entryID, source: cell.actionButton)
         return cell

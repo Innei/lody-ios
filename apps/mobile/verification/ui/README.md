@@ -990,9 +990,12 @@ composer check also covers mixed text/image/RTF clipboard representations, selec
 text replacement and unavailable actions for nontext or read-only inputs.
 
 `message-details` uses the offline message fixture to verify the native collection-view
-Sheet, recorded configuration, exact token breakdown, absent metadata, late usage
+sheet owned directly by the native chat, recorded configuration, exact token breakdown, absent metadata, late usage
 updates while open and the independent message-action menu in English light/dark
-appearances. Screenshots and video cover the states; no cloud turn is sent.
+appearances. `session-native` also checks opening details from the native session
+without starting or stopping its runtime subscription. `verify:native --case
+message-details` covers metadata precedence, invalid/missing/zero usage and
+configuration filtering. Screenshots and video cover the states; no cloud turn is sent.
 
 `simulator-preview` uses the production preview hook, full-screen host, floating
 chat host and JPEG decoder with a local native frame source. It checks that the

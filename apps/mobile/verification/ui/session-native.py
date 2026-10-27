@@ -44,6 +44,14 @@ assert 'Native session preview' in spoken(title), title
 wait_text('src/App.tsx')
 ui.capture('live')
 
+ui.axe('tap', '--id', 'preview-answer:meta:details', '--post-delay', '.5')
+assert 'Native fixture model' in spoken(ui.element('model'))
+ui.capture('message-details')
+tap_label(catalog.text('common.done'))
+assert probe().split(',').count('watch') == 1, 'Opening details started another runtime subscription'
+assert 'unwatch' not in probe().split(','), 'Closing details stopped the owning session feed'
+
+
 ui.axe('tap', '--id', 'chat-navigation-title', '--post-delay', '.6')
 tap_menu_item(catalog.text('session.title.copyBranch'))
 wait_text(catalog.text('session.title.branchCopied'))

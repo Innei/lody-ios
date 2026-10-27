@@ -1,4 +1,3 @@
-import { useMessageDetailsSheet } from '@/hooks/screens/useMessageDetailsSheet';
 import { openMessageShare } from '@/screens/MessageShareScreen';
 import { uiVerify } from './uiVerify';
 import { useEffect, useState } from 'react';
@@ -795,7 +794,6 @@ function View() {
   } else if (overlayTasks) {
     displayedEntriesJSON = JSON.stringify(overlayTaskEntries(taskAdvanced));
   }
-  const openMessageDetails = useMessageDetailsSheet(displayedEntriesJSON);
   const { openProcess, openTask } = useProcessSheet(
     displayedEntriesJSON,
     (entryId, itemId) => {
@@ -1175,9 +1173,6 @@ function View() {
       />
       <NativeChat
         turnInfoEnabled
-        onTurnInfoPress={({ nativeEvent }) =>
-          openMessageDetails(nativeEvent.entryId)
-        }
         imageSharingEnabled
         onShareImage={({ nativeEvent }) =>
           openMessageShare(nativeEvent.contentJSON)

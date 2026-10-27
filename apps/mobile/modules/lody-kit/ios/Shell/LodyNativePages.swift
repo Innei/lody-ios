@@ -74,6 +74,11 @@ enum LodyNativePages {
       EditMessageController(sessionId: params["sessionId"] as! String, entryId: params["entryId"] as! String)
     },
     "edit-message-preview": { params in EditMessagePreviewController(scenario: params["scenario"] as? String ?? "retry") },
+    "message-details": { params in
+      let entryId = params["entryId"] as! String
+      let entries = try! JSONDecoder().decode([ChatEntry].self, from: Data((params["entriesJSON"] as! String).utf8))
+      return MessageDetailsController(entryId: entryId, entry: entries.first { $0.id == entryId })
+    },
     "message-share": { params in MessageShareController(contentJSON: params["contentJSON"] as? String ?? "") },
     "notification-settings": { _ in NotificationSettingsController() },
     "notification-preview": { _ in NotificationPreviewController() },
