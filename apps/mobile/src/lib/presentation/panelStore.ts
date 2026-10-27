@@ -104,7 +104,8 @@ export function panelPresent(mode: PanelMode): PresentPage {
       unknown,
       Partial<PagePresentationOptions> | undefined,
     ];
-    if (page.panel) return openPanel(page, params, mode, options);
+    if (page.panel && !page.native)
+      return openPanel(page, params, mode, options);
     return (present as (...values: unknown[]) => unknown)(page, ...args);
   }) as PresentPage;
 }

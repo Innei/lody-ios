@@ -6,7 +6,7 @@ import { NativeChat, NativeNavigationHeader, copyText } from '@lody-ios/kit';
 import { sessionDebugText } from '@/features/sessions/sessionDebug';
 import { t } from '@/lib/i18n/index.ts';
 import { definePage, present } from '@/lib/presentation';
-import { FileDiffScreen } from '@/screens/FileDiffScreen';
+import { FileDiffFixtureScreen as FileDiffScreen } from './FilePageFixtureScreen';
 import { ItemDetailPreviewScreen } from './ItemDetailPreviewScreen';
 import type { ItemSummary } from '@lody/cloud-runtime/models/session';
 import { basename } from '@/features/sessions/path';

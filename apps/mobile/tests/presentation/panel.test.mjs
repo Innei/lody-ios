@@ -102,3 +102,12 @@ test('a panel-aware present sends view pages to the panel and everything else to
   );
   closePanel();
 });
+
+test('native pages use the UIKit navigator instead of an empty RN panel component', () => {
+  const before = routed.length;
+  const native = { ...page('file-content'), native: 'file-content' };
+  void panelPresent('replace')(native, { sessionId: 's', path: 'a.md' });
+  assert.equal(routed.length, before + 1);
+  assert.equal(routed.at(-1).page.native, 'file-content');
+  assert.equal(getPanelEntries().length, 0);
+});

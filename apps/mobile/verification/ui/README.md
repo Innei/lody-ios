@@ -1,5 +1,11 @@
 # Offline UI verification
 
+`file-preview`, `html-preview`, and `workspace-changes` now enter the production
+UIKit pages from the chat host. Native fixture services provide directory reads,
+file contents, diff results, and feedback outcomes. `preview-feedback` verifies the
+real native outbox flow, including draft preservation, failed delivery, timeout,
+and duplicate-send rejection; `html-preview` checks diagnostic references.
+
 `permission` opens the shared native permission sheet from RN chat, checks native result
 settlement, retained composer drafts, remote resolution, and multi-question retry.
 `permission-native` covers the same controller in the native session, including request

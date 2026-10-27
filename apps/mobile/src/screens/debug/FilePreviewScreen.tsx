@@ -1,11 +1,13 @@
-import { FileDiffScreen } from '../FileDiffScreen';
+import {
+  FileDiffFixtureScreen as FileDiffScreen,
+  FileContentFixtureScreen as FileContentScreen,
+  FilesFixtureScreen as FilesScreen,
+} from './FilePageFixtureScreen';
 import { DiffWebViewWarmer } from '@/features/diff/DiffWebViewWarmer';
 import { useState } from 'react';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
-import { FilesScreen } from '@/screens/FilesScreen';
 import { NativeChat, NativeNavigationHeader } from '@lody-ios/kit';
 import { View as RNView } from 'react-native';
-import { FileContentScreen } from '../FileContentScreen';
 import { definePage, present } from '@/lib/presentation';
 import { useOpenFile } from '@/hooks/screens/useOpenFile';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
@@ -94,10 +96,6 @@ function View() {
   const [userMentions, setUserMentions] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
   const [feedbackReport, setFeedbackReport] = useState('');
-  const feedback = async (report: string) => {
-    setFeedbackReport(report);
-    return 'sent' as const;
-  };
   const { push } = usePageRuntime();
   const openFile = useOpenFile('ui-verify-files');
   const { openProcess } = useProcessSheet(
@@ -126,7 +124,7 @@ function View() {
                     void present(FileContentScreen, {
                       sessionId: 'ui-verify-files',
                       path: 'docs/interactive.html',
-                      feedback,
+                      onFeedback: setFeedbackReport,
                     }),
                 },
                 {
@@ -137,7 +135,7 @@ function View() {
                       sessionId: 'ui-verify-files',
                       path: 'docs/broken.html',
                       preview: true,
-                      feedback,
+                      onFeedback: setFeedbackReport,
                     }),
                 },
                 {
@@ -148,7 +146,7 @@ function View() {
                       sessionId: 'ui-verify-diff',
                       entryId: 'diff-preview',
                       path: 'docs/interactive.html',
-                      feedback,
+                      onFeedback: setFeedbackReport,
                     }),
                 },
                 {
@@ -159,10 +157,8 @@ function View() {
                       sessionId: 'ui-verify-files',
                       path: 'docs/broken.html',
                       preview: true,
-                      feedback: async (report) => {
-                        setFeedbackReport(report);
-                        throw new Error('send_failed');
-                      },
+                      onFeedback: setFeedbackReport,
+                      feedbackOutcome: 'failed',
                     }),
                 },
                 {
@@ -173,10 +169,8 @@ function View() {
                       sessionId: 'ui-verify-files',
                       path: 'docs/broken.html',
                       preview: true,
-                      feedback: async (report) => {
-                        setFeedbackReport(report);
-                        return 'queued';
-                      },
+                      onFeedback: setFeedbackReport,
+                      feedbackOutcome: 'queued',
                     }),
                 },
               ],
