@@ -52,7 +52,11 @@ final class FilesFixtureController: FilesController {
       return try JSONDecoder().decode(RuntimeContract.DirectoryListing.self, from: Data(json.utf8))
     }, open: { sessionId, path, controller in
       await FileContentController.open(sessionId: sessionId, path: path,
-        service: .init(read: FileContentPreviewController.service.read, quickLook: FileContentService.live.quickLook), from: controller)
+        service: .init(read: { session, path in
+          // Keep the loading scene observable across the native sheet transition.
+          if path.hasSuffix("report.md") { try await Task.sleep(for: .seconds(3)) }
+          return try await FileContentPreviewController.service.read(session, path)
+        }, quickLook: FileContentService.live.quickLook), from: controller)
     }))
   }
   @available(*, unavailable)

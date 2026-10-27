@@ -130,7 +130,7 @@ ui.element('file-document')
 ui.capture('browser-document')
 document_selection('browser-document')
 # A short, slow pull cancels the sheet return.
-ui.axe('swipe', '--start-x', '201', '--start-y', '80', '--end-x', '201', '--end-y', '160', '--duration', '.8', '--post-delay', '.6')
+ui.axe('drag', '--start-x', '201', '--start-y', '80', '--end-x', '201', '--end-y', '160', '--duration', '.8', '--post-delay', '.6')
 title('report.md')
 ui.element('file-document')
 ui.capture('browser-cancelled-return')
@@ -144,7 +144,7 @@ ui.element('file-source')
 plain = geometry('browser-code')
 shared = ui.element('diff-webview-probe')['AXLabel']
 assert plain['line'] == 0 and not plain['highlighted'], plain
-ui.axe('swipe', '--start-x', '220', '--start-y', '650', '--end-x', '220', '--end-y', '300', '--duration', '.5', '--post-delay', '.6')
+ui.axe('drag', '--start-x', '220', '--start-y', '650', '--end-x', '220', '--end-y', '300', '--duration', '.5', '--post-delay', '.6')
 assert geometry('browser-code-scroll')['y'] > plain['y'] + 100
 ui.capture('browser-code-scroll')
 back()
