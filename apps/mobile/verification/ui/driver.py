@@ -121,6 +121,75 @@ class UI:
         finally:
             self.axe('touch', *point, '--up')
 
+    def restore_software_keyboard(self):
+        """Undo AXe composite typing's simulated hardware-keyboard attachment.
+
+        The batch runner compiles this host-only helper once. Standalone scripts
+        without a runner keep their caller-owned keyboard setup unchanged.
+        """
+        helper = self.output.resolve().parents[1] / 'software-keyboard'
+        if not helper.is_file():
+            return
+        developer_dir = subprocess.check_output(['xcode-select', '-p'], text=True, timeout=10).strip()
+        subprocess.run([str(helper), developer_dir, self.udid], check=True, timeout=30, capture_output=True)
+
+    @staticmethod
+    def visible_keyboard(items):
+        if not items:
+            return None
+        screen = items[0]['frame']
+        bottom = screen['y'] + screen['height']
+        candidates = []
+        for item in items:
+            identifier = item.get('AXUniqueId') or ''
+            if identifier != 'inputView' and not identifier.startswith('UIKeyboardLayoutStar'):
+                continue
+            frame = item['frame']
+            visible_height = min(bottom, frame['y'] + frame['height']) - max(screen['y'], frame['y'])
+            if frame['width'] > 100 and visible_height > 150 and frame['y'] > screen['y']:
+                candidates.append(frame)
+        return min(candidates, key=lambda frame: frame['y'], default=None)
+
+    def keyboard_ready(self, items):
+        keyboard = self.visible_keyboard(items)
+        if not keyboard:
+            return False
+        def within(item):
+            frame = item.get('frame', {})
+            y = frame.get('y', -1)
+            return keyboard['y'] <= y < keyboard['y'] + keyboard['height']
+        # QuickPath leaves obscured keycaps in AX. Require its exact tutorial
+        # copy as well as a Continue button inside the keyboard before tapping.
+        tutorial = any(within(item) and 'speed up your typing by sliding your finger' in (item.get('AXLabel') or '').casefold()
+                       for item in items)
+        if tutorial:
+            button = next((item for item in items if within(item) and item.get('type') == 'Button'
+                           and item.get('AXLabel') == 'Continue'), None)
+            if button:
+                frame = button['frame']
+                self.axe('tap', '-x', str(frame['x'] + frame['width'] / 2),
+                         '-y', str(frame['y'] + frame['height'] / 2), '--tap-style', 'physical')
+            return False
+        keys = {(item.get('AXLabel') or '').casefold() for item in items
+                if within(item) and item.get('type') == 'Button' and item.get('enabled') is not False}
+        return {'q', 'a'}.issubset(keys)
+
+    def wait_for_keyboard(self, identifier):
+        """Require visible, stable software keyboard and a field above it."""
+        samples = []
+        def stable(items):
+            keyboard = self.visible_keyboard(items)
+            field = next((item for item in items if item.get('AXUniqueId') == identifier), None)
+            if not self.keyboard_ready(items) or not keyboard or not field or field['frame']['y'] + field['frame']['height'] > keyboard['y'] + 1:
+                samples.clear()
+                return None
+            geometry = tuple(frame[key] for frame in [keyboard, field['frame']] for key in ['x', 'y', 'width', 'height'])
+            if samples and any(abs(x - y) > .5 for x, y in zip(samples[-1], geometry)):
+                samples.clear()
+            samples.append(geometry)
+            return keyboard if len(samples) >= 3 else None
+        return self.wait(stable, 'Software keyboard and ' + identifier + ' did not settle visibly')
+
     def type_into(self, identifier, text):
         """Batch input under the runner's shared English keyboard baseline."""
         self.axe('type', text)
@@ -129,6 +198,7 @@ class UI:
             self.axe('tap', '--id', identifier, '--post-delay', '.4')
             self.axe('type', text)
             got = self.element(identifier).get('AXValue') or ''
+        self.restore_software_keyboard()
         assert got.casefold() == text.casefold(), f'Typed text did not commit: {got!r}'
 
     def paste_file(self, identifier):

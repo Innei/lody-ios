@@ -11,9 +11,9 @@ ui = UI(*sys.argv[1:])
 throw_trace = ThrowTrace(ui)
 ui.axe('tap', '--id', 'create-session-input', '--tap-style', 'physical', '--post-delay', '.5')
 # The runner establishes the English software keyboard once for this batch.
-ui.wait(lambda items: next((i for i in items if i.get('AXUniqueId') == 'inputView' and i['frame']['height'] > 200), None),
-        'The handoff must begin with the software keyboard visible')
+ui.wait_for_keyboard('create-session-input')
 ui.type_into('create-session-input', 'hi')
+ui.wait_for_keyboard('create-session-input')
 draft = ui.element('create-session-input')['AXValue']
 ui.capture('source')
 ui.axe('tap', '--id', 'session-send', '--tap-style', 'physical')
@@ -39,7 +39,7 @@ assert abs(source[1] + source[3] - adopted[1] - adopted[3]) < 1.5, 'Adoption mov
 # Chat adds its fullscreen grabber above the form's input, keeping the bottom fixed.
 grabber = ui.element('session-grabber')['frame']
 assert abs(adopted[3] - source[3] - grabber['height']) < 1.5, relay
-assert ui.element('inputView')['frame']['height'] > 200, 'Adoption dismissed the keyboard'
+ui.wait_for_keyboard('session-input')
 (ui.output / 'composer-relay.json').write_text(json.dumps(relay, indent=2))
 delivery_frame = ui.element(turn + ':delivery')['frame']
 geometry_errors = []
