@@ -457,30 +457,7 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("sendSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, sink: .promise(promise)) } }.runOnQueue(.main)
     AsyncFunction("readSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.readSessionEdit(payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("sessionItemDetail") { (payload: String, promise: Promise) in
-      try MainActor.assumeIsolated {
-        if LodyUIVerify.enabled,
-          let data = payload.data(using: .utf8),
-          let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-          params["sessionId"] as? String == "ui-verify-diff",
-          params["entryId"] as? String == "diff-preview",
-          params["itemId"] as? String == "edit"
-        {
-          let result = try JSONSerialization.data(withJSONObject: [
-            "itemId": "edit",
-            "rev": 1,
-            "truncated": false,
-            "blocks": [[
-              "type": "diff",
-              "path": "src/inline.ts",
-              "oldText": "export const greeting = 'hi'\n",
-              "newText": "export const greeting = 'hello'\n",
-            ]],
-          ])
-          promise.resolve(String(decoding: result, as: UTF8.self))
-          return
-        }
-        self.dataRuntime.itemDetail(payload, promise: promise)
-      }
+      MainActor.assumeIsolated { self.dataRuntime.itemDetail(payload, promise: promise) }
     }.runOnQueue(.main)
     AsyncFunction("respondSessionPermission") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sessionWrite(RuntimeContract.Calls.RespondPermission.self, payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("turnDiff") { (payload: String, promise: Promise) in

@@ -7,7 +7,7 @@ import { sessionDebugText } from '@/features/sessions/sessionDebug';
 import { t } from '@/lib/i18n/index.ts';
 import { definePage, present } from '@/lib/presentation';
 import { FileDiffScreen } from '@/screens/FileDiffScreen';
-import { ItemDetailScreen } from '@/screens/ItemDetailScreen';
+import { ItemDetailPreviewScreen } from './ItemDetailPreviewScreen';
 import type { ItemSummary } from '@lody/cloud-runtime/models/session';
 import { basename } from '@/features/sessions/path';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
@@ -802,27 +802,7 @@ function View() {
         return;
       }
       if (itemId === 'explore-read') {
-        void present(ItemDetailScreen, {
-          sessionId: 'ui-verify-subtask',
-          entryId,
-          itemIds: [itemId],
-          generation: 0,
-          service: async () => ({
-            itemId,
-            rev: 1,
-            blocks: [
-              {
-                type: 'terminal_command',
-                command: 'cat ChatComposerView.swift',
-              },
-              {
-                type: 'terminal_output',
-                output: 'The shared chip row is ChatQuickRepliesView.',
-              },
-            ],
-            truncated: false,
-          }),
-        });
+        void present(ItemDetailPreviewScreen, { scenario: 'subtask' });
         return;
       }
       setMode('attention');
@@ -1016,12 +996,7 @@ function View() {
                   title: 'Inline Diff Fixture',
                   icon: { type: 'sfSymbol', name: 'plusminus' },
                   onPress: () =>
-                    void present(ItemDetailScreen, {
-                      sessionId: 'ui-verify-diff',
-                      entryId: 'diff-preview',
-                      itemIds: ['edit'],
-                      generation: 0,
-                    }),
+                    void present(ItemDetailPreviewScreen, { scenario: 'diff' }),
                 },
               ],
             },

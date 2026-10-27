@@ -29,6 +29,7 @@ const NATIVE_PREFIXES = [
   'inbox.section.',
   'inbox.project.',
   'message.details.',
+  'detail.',
   'send.status.',
   'chat.composer.freeTurn',
   'chat.edit.',

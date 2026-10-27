@@ -1,5 +1,13 @@
 # Offline UI verification
 
+`item-details` exercises the native tool-detail sheet with deterministic service outcomes:
+initial retry, expandable raw payloads, failed pagination retaining prior output, page append,
+and revision replacement. `inline-diff` covers the RN chat entry into the same native sheet;
+`chat-chrome` covers nested subtask details, and `session-native` covers the native session entry.
+Run these in English light/dark with video.
+The `item-details` native check also proves stale-response rejection, nested subagent revision
+updates, runtime-generation recovery, cancellation, and invalid cursor errors.
+
 `composer-motion` records two empty-composer keyboard round trips with the context
 chip and quick replies in English light/dark. It checks the expanded input,
 restored capsule aligned to both message-text edges, the context chip's leading

@@ -16,6 +16,7 @@ class SessionController: UIViewController {
   var sender: SessionSender?
   let planDecision = SessionDecision(.plan)
   let errorRetry = SessionDecision(.retry)
+  let itemDetailService: ItemDetailService
   let permissionService: PermissionService
   var permissionGate = SessionPermissionGate()
   weak var processPage: ProcessController?
@@ -36,12 +37,14 @@ class SessionController: UIViewController {
   private var renderedEntries: String?
 
   init(sessionId: String, findQuery: String = "", choice: ModelChoice? = nil, source: SessionSource = .live,
-       feed: SessionFeedService = .live, environment: SessionSendEnvironment = .live, permission: PermissionService = .live) {
+       feed: SessionFeedService = .live, environment: SessionSendEnvironment = .live, permission: PermissionService = .live,
+       itemDetail: ItemDetailService? = nil) {
     self.sessionId = sessionId
     self.findQuery = findQuery
     self.source = source
     self.environment = environment
     permissionService = permission
+    itemDetailService = itemDetail ?? .live(sessionId: sessionId)
     initialChoice = choice
     feedService = feed
     super.init(nibName: nil, bundle: nil)

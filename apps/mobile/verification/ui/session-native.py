@@ -51,6 +51,19 @@ tap_label(catalog.text('common.done'))
 assert probe().split(',').count('watch') == 1, 'Opening details started another runtime subscription'
 assert 'unwatch' not in probe().split(','), 'Closing details stopped the owning session feed'
 
+ui.element('preview-answer:process')
+ui.axe('tap', '--id', 'preview-answer:process', '--post-delay', '.5')
+assert ui.element('preview-answer:edit')['type'] == 'Button'
+ui.axe('tap', '--id', 'preview-answer:edit')
+wait_text('Native session tool detail')
+ui.capture('native-item-details')
+tap_label(catalog.text('common.done'))
+ui.element('preview-answer:edit')
+tap_label(catalog.text('accessibility.closeSheet', title=catalog.text('process.title')))
+ui.element('session-preview-probe')
+assert probe().split(',').count('watch') == 1, 'Tool details started another runtime subscription'
+assert 'unwatch' not in probe().split(','), 'Closing tool details stopped the owning feed'
+
 
 ui.axe('tap', '--id', 'chat-navigation-title', '--post-delay', '.6')
 tap_menu_item(catalog.text('session.title.copyBranch'))

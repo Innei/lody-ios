@@ -38,7 +38,7 @@ assert abs(center_x(status['frame']) - chrome_center()) <= 1, 'Connecting alone 
 assert 28 <= status['frame']['height'] <= 34, 'Status should fit one line with compact padding'
 ui.capture('connecting')
 
-ui.axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '700', '--duration', '1', '--post-delay', '1')
+ui.axe('drag', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '700', '--duration', '1', '--post-delay', '1')
 status = ui.element('chat-overlay-status')
 scroll = ui.element('chat-scroll-to-bottom')
 assert abs(center_x(status['frame']) - chrome_center()) <= 1, 'Showing scroll moved the connection status'
@@ -63,7 +63,7 @@ ui.capture('paused')
 ui.axe('tap', '--label', 'Fixtures')
 overlay('Clear Overlay')
 assert 'chat-overlay-status' not in ui.axe('describe-ui'), 'Clearing overlay must remove the status glass'
-ui.axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '700', '--duration', '1', '--post-delay', '1')
+ui.axe('drag', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '700', '--duration', '1', '--post-delay', '1')
 scroll_only = ui.element('chat-scroll-to-bottom')['frame']
 assert abs(scroll_only['x'] - scroll['frame']['x']) <= 1, 'Hiding status moved the scroll action'
 ui.capture('scroll-only')
@@ -88,7 +88,7 @@ ui.element('subagent-detail-copy')
 ui.capture('task-detail')
 detail_grabber = next(i['frame'] for i in ui.state() if i.get('AXLabel') == 'Sheet Grabber')
 ui.axe(
-    'swipe',
+    'drag',
     '--start-x', str(detail_grabber['x'] + detail_grabber['width'] / 2),
     '--start-y', str(detail_grabber['y'] + detail_grabber['height'] / 2),
     '--end-x', str(detail_grabber['x'] + detail_grabber['width'] / 2),
@@ -108,7 +108,7 @@ ui.wait(
 ui.capture('tasks-sheet')
 grabber = next(i['frame'] for i in ui.state() if i.get('AXLabel') == 'Sheet Grabber')
 ui.axe(
-    'swipe',
+    'drag',
     '--start-x', str(grabber['x'] + grabber['width'] / 2),
     '--start-y', str(grabber['y'] + grabber['height'] / 2),
     '--end-x', str(grabber['x'] + grabber['width'] / 2),
@@ -132,12 +132,12 @@ ui.wait(lambda items: any('cat ChatComposerView.swift' in (i.get('AXLabel') or '
 ui.capture('subtask-tool-detail')
 # Close the nested detail and its owning subtask sheet independently.
 for _ in range(2):
-    grabber = next(i['frame'] for i in ui.state() if i.get('AXLabel') == 'Sheet Grabber')
-    ui.axe('swipe', '--start-x', str(center_x(grabber)), '--start-y', str(mid_y(grabber)), '--end-x', str(center_x(grabber)), '--end-y', '900', '--duration', '.4', '--post-delay', '.8')
+    grabber = max((i['frame'] for i in ui.state() if i.get('AXLabel') == 'Sheet Grabber'), key=lambda frame: frame['y'])
+    ui.axe('drag', '--start-x', str(center_x(grabber)), '--start-y', str(mid_y(grabber)), '--end-x', str(center_x(grabber)), '--end-y', '900', '--duration', '.4', '--post-delay', '.8')
 ui.wait(lambda items: not any(i.get('AXUniqueId') == 'session-subtasks' for i in items), 'Completed task count remained in the composer')
 ui.axe('tap', '--label', 'Fixtures')
 overlay('Clear Overlay')
-ui.axe('swipe', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '700', '--duration', '1', '--post-delay', '1')
+ui.axe('drag', '--start-x', '200', '--start-y', '300', '--end-x', '200', '--end-y', '700', '--duration', '1', '--post-delay', '1')
 ui.axe('tap', '--label', 'Fixtures')
 overlay('Connecting Overlay')
 ui.axe('tap', '--id', 'session-input', '--post-delay', '1')

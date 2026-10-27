@@ -53,6 +53,7 @@ import {
   openModelMemory,
 } from './createFixture';
 import { ComposerPreviewScreen } from './ComposerPreviewScreen';
+import { ItemDetailPreviewScreen } from './ItemDetailPreviewScreen';
 import { EditMessagePreviewScreen } from './EditMessagePreviewScreen';
 import { ComposerHandoffPreviewScreen } from './ComposerHandoffPreviewScreen';
 import { ChatPreviewScreen } from './ChatPreviewScreen';
@@ -278,6 +279,11 @@ function View() {
         openRow('mention-sheet', '@ 引用交互 · 新会话', 'at'),
         openRow('composer-preview', '输入框验收', 'square.and.pencil'),
         openRow('proposed-plan-preview', 'Proposed plan', 'doc.text'),
+        openRow(
+          'item-detail-preview',
+          'Item details',
+          'doc.text.magnifyingglass',
+        ),
         openRow('edit-message-preview', 'Message editing', 'pencil'),
         openRow('scroll-edge-pages', '分页表单滚动边缘', 'rectangle.split.2x1'),
         openRow('scroll-edge-diff', 'Diff 滚动边缘', 'doc.text'),
@@ -559,6 +565,8 @@ function View() {
       ),
     'proposed-plan-preview': () => void present(ProposedPlanPreviewScreen, {}),
     'agent-error-preview': () => void present(AgentErrorPreviewScreen, {}),
+    'item-detail-preview': () =>
+      void present(ItemDetailPreviewScreen, { scenario: 'paging' }),
     'edit-message-preview': () => void present(EditMessagePreviewScreen, {}),
     'edit-message-unknown': () =>
       void present(EditMessagePreviewScreen, { scenario: 'unknown' }),
