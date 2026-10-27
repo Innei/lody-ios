@@ -684,8 +684,8 @@ with metro_context:
                         # Six graph types, fallbacks, plan expansion and document copy.
                         check_timeout = 300
                     elif case in ['file-preview', 'html-preview']:
-                        # Held selections plus loaded image/PDF close, reopen and drag dismissal.
-                        check_timeout = 420
+                        # Browser/chat/process selection plus image/PDF reopen and dismissal.
+                        check_timeout = 600
                     elif case == 'simulator-preview':
                         # Held/cancelled/committed zoom gestures plus hide, stop and reopen flows.
                         check_timeout = 420
