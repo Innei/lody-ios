@@ -172,6 +172,10 @@ full-height layout, retained drafts and complete answers after a failed submissi
 The native fixture injects the feed and permission service; it requires no Metro,
 account or machine. Run with an embedded Release app in both appearances.
 
+`edit-message` uses the native editor with offline services. It checks cancellation,
+attachment edits, explicit retry, preparation failure and uncertain-result readback
+without replaying writes, while preserving the presenting chat draft.
+
 If a normal signed Debug app is already built, each verification command can lease
 its own iPhone 17 Pro / iOS 27.0 device from the `Lody * Verify` pool. The documented
 command without `--case` or `--batch` is that phone lease only. Pad-only cases

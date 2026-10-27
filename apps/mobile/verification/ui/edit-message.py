@@ -22,7 +22,7 @@ def open_editor():
     send = button['frame']
     assert send['y'] + send['height'] <= keyboard['y'] + 1, 'Keyboard covers the editor send button'
 
-ui.axe('swipe', '--start-x', '190', '--start-y', '250', '--end-x', '190', '--end-y', '570', '--duration', '.5', '--post-delay', '.7')
+ui.axe('drag', '--start-x', '190', '--start-y', '250', '--end-x', '190', '--end-y', '570', '--duration', '.5', '--post-delay', '.7')
 hold('earlier:user')
 assert not any(item.get('AXLabel') == catalog.text('native.chat.editAction') for item in ui.state())
 ui.capture('earlier-menu')
@@ -62,3 +62,32 @@ assert ui.element('edit-fixture-count')['AXLabel'] == '2'
 assert not any(item.get('AXUniqueId') == 'old-reply:text' for item in ui.state())
 ui.capture('replaced')
 print('PASS: last-message menu, full-screen editing, cancellation, attachment add/remove, failure retention and replacement')
+
+ui.open_case('edit-message-unknown')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'edit-fixture-count' and i.get('AXLabel') == '0' for i in items), 'Fresh editor fixture missing')
+open_editor()
+ui.axe('tap', '--id', 'session-send')
+ui.element('edit-message-retry')
+assert not ui.element('session-send')['enabled'], 'Uncertain edit must not be sent again'
+assert ui.element('edit-message-input')['AXValue'] == 'Original prompt'
+ui.capture('unknown-retained')
+ui.axe('tap', '--id', 'edit-message-retry')
+ui.element('edit-message-retry')
+assert not ui.element('session-send')['enabled'], 'Unconfirmed read must not unlock sending'
+ui.axe('tap', '--id', 'edit-message-retry')
+ui.element('session-input')
+assert ui.element('edit-fixture-count')['AXLabel'] == '1', 'Readback replayed the edit'
+ui.capture('unknown-confirmed')
+
+ui.open_case('edit-message-load-failure')
+ui.wait(lambda items: any(i.get('AXUniqueId') == 'edit-fixture-count' and i.get('AXLabel') == '0' for i in items), 'Fresh editor fixture missing')
+hold('editable:user')
+ui.axe('tap', '--label', catalog.text('native.chat.editAction'))
+ui.element('edit-message-error')
+ui.capture('load-failed')
+ui.axe('tap', '--id', 'edit-message-retry')
+ui.element('edit-message-input')
+assert ui.element('edit-message-input')['AXValue'] == 'Original prompt'
+ui.axe('tap', '--label', catalog.text('common.cancel'))
+ui.element('session-input')
+print('PASS: uncertain edits only read back, no write replay, and failed preparation can retry')

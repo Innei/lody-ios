@@ -31,6 +31,7 @@ const NATIVE_PREFIXES = [
   'message.details.title',
   'send.status.',
   'chat.composer.freeTurn',
+  'chat.edit.',
   'workspaceChanges.title',
   'session.alert.syncing.',
   'send.alert.',

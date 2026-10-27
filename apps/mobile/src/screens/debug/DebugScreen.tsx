@@ -559,7 +559,11 @@ function View() {
       ),
     'proposed-plan-preview': () => void present(ProposedPlanPreviewScreen, {}),
     'agent-error-preview': () => void present(AgentErrorPreviewScreen, {}),
-    'edit-message-preview': () => void present(EditMessagePreviewScreen),
+    'edit-message-preview': () => void present(EditMessagePreviewScreen, {}),
+    'edit-message-unknown': () =>
+      void present(EditMessagePreviewScreen, { scenario: 'unknown' }),
+    'edit-message-load-failure': () =>
+      void present(EditMessagePreviewScreen, { scenario: 'load-failure' }),
     'simulator-preview': () => void present(SimulatorPreviewScreen),
     'chat-preview': () => void present(ChatPreviewScreen, {}),
     'chat-shine-preview': () => void present(ShinePreviewScreen, {}),

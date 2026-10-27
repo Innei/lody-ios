@@ -653,6 +653,9 @@ with metro_context:
                     if case == 'settings-baseline':
                         # Six fixture scenarios plus page visits; ~305s under load.
                         check_timeout = 420
+                    if case == 'edit-message':
+                        # Attachment retry, uncertain-result readback and preparation failure are separate editor visits.
+                        check_timeout = 300
                     if case == 'pull-request':
                         # Authorization, comment and investigation round trips share this case.
                         check_timeout = 300

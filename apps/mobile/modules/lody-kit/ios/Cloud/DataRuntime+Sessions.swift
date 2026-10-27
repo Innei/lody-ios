@@ -44,16 +44,16 @@ extension DataRuntime {
       promise.resolve(String(data: data, encoding: .utf8) ?? "{}")
     }
   }
-  func prepareSessionEdit(_ payload: String, promise: Promise) {
+  func prepareSessionEdit(_ payload: String, sink: ReplySink) {
     let generation = self.generation
-    guard let workspace, let session = sessionId else { promise.reject("not_ready", "Session unavailable"); return }
+    guard let workspace, let session = sessionId else { fail(sink, "not_ready", "Session unavailable"); return }
     Task { @MainActor in
       do {
         let result: String = try await withCheckedThrowingContinuation {
           self.dispatchTurn(payload, sink: .continuation($0), billing: nil, edit: true)
         }
         guard var draft = try JSONSerialization.jsonObject(with: Data(result.utf8)) as? [String: Any],
-              draft["state"] as? String == "ready" else { promise.resolve(result); return }
+              draft["state"] as? String == "ready" else { sink.resolve(result); return }
         var attachments: [[String: Any]] = []
         let originals = draft["attachments"] as? [[String: Any]] ?? []
         guard originals.count <= 16 else { throw SessionAttachments.error(LodyStrings.text("native.attachment.error.limit")) }
@@ -75,8 +75,8 @@ extension DataRuntime {
         draft["attachments"] = attachments
         let encoded = String(data: try JSONSerialization.data(withJSONObject: draft), encoding: .utf8)!
         downloads.handOff()
-        promise.resolve(encoded)
-      } catch { promise.reject("edit_prepare_failed", error.localizedDescription) }
+        sink.resolve(encoded)
+      } catch { fail(sink, "edit_prepare_failed", error.localizedDescription) }
     }
   }
   func readSessionEdit(_ payload: String, promise: Promise) {
