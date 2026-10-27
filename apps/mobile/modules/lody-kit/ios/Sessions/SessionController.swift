@@ -20,7 +20,6 @@ class SessionController: UIViewController {
   let permissionService: PermissionService
   var permissionGate = SessionPermissionGate()
   weak var subagentPage: SubagentTaskController?
-  weak var messageDetailsPage: MessageDetailsController?
   var simulator: SessionSimulator?
   var openingSimulator = false
   let simulatorService: SimulatorService?

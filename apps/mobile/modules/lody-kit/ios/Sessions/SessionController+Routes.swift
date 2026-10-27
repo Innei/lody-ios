@@ -3,9 +3,6 @@ import UIKit
 extension SessionController {
   func wireRouteEvents() {
     chat.turnInfoEnabled = true
-    chat.onTurnInfoPress.onEventSent = { [weak self] body in
-      if let id = body["entryId"] as? String { self?.openMessageDetails(id) }
-    }
     chat.imageSharingEnabled = true
     chat.onShareImage.onEventSent = { [weak self] body in
       self?.open("message-share", ["contentJSON": body["contentJSON"] as? String ?? ""], present: true)

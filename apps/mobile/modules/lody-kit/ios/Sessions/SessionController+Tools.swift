@@ -103,16 +103,5 @@ extension SessionController {
     LodyShell.shared.pushNative(page, title: "PR #\(reference.number)", from: self)
   }
 
-  func openMessageDetails(_ entryId: String) {
-    let entries = (try? JSONDecoder().decode([ChatEntry].self, from: Data((feed?.state.entriesJSON ?? "[]").utf8))) ?? []
-    let page = MessageDetailsController(entryId: entryId, entry: entries.first { $0.id == entryId })
-    messageDetailsPage = page
-    LodyShell.shared.presentNative(page, title: LodyStrings.text("message.details.title"), detents: [0.5, 1], grabber: true)
-  }
-  func updateDetails(_ json: String) {
-    subagentPage?.update(json)
-    guard let page = messageDetailsPage else { return }
-    let entries = (try? JSONDecoder().decode([ChatEntry].self, from: Data(json.utf8))) ?? []
-    page.update(entries.first { $0.id == page.entryId })
-  }
+  func updateDetails(_ json: String) { subagentPage?.update(json) }
 }
