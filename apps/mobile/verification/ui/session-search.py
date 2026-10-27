@@ -1,5 +1,6 @@
 """Real Inbox/sidebar → cached conversation → native find, without cloud."""
 import json
+import subprocess
 import sys
 from driver import UI
 import catalog
@@ -31,9 +32,18 @@ def replace(field, text):
     if clear:
         tap(clear)
         tap(field)
-    ui.axe('type', text)
-    if catalog.LANGUAGE != 'en':
-        ui.axe('key', '40')
+    # Paste the query as one batch; HID typing can retain Shift across searches.
+    subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input=text, text=True, check=True)
+    ui.restore_software_keyboard()
+    ui.wait(ui.keyboard_ready, 'Search keyboard did not become visible')
+    field = ui.element(field['AXUniqueId']) if field.get('AXUniqueId') else inbox_field()
+    frame = field['frame']
+    ui.axe('touch', '-x', str(frame['x'] + frame['width'] / 2),
+           '-y', str(frame['y'] + frame['height'] / 2), '--down', '--up', '--delay', '.8')
+    paste = ui.wait(lambda items: next((i for i in items if i.get('AXLabel') == 'Paste'), None), 'Missing search paste action')
+    tap(paste)
+    current = ui.element(field['AXUniqueId']) if field.get('AXUniqueId') else inbox_field()
+    assert current.get('AXValue') == text, current
 
 
 def search(text):

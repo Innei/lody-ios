@@ -164,7 +164,9 @@ ui.axe('tap', '--id', 'BackButton', '--tap-style', 'physical', '--post-delay', '
 def create_and_send(landscape):
     name = 'landscape' if landscape else 'portrait'
     if any('UIKeyboard' in (item.get('AXUniqueId') or '') for item in ui.state()):
-        ui.axe('tap', '--label', 'Hide keyboard', '--tap-style', 'physical', '--post-delay', '.5')
+        hide = labeled('Hide keyboard')['frame']
+        ui.axe('tap', '-x', str(hide['x'] + hide['width'] / 2),
+               '-y', str(hide['y'] + hide['height'] / 2), '--post-delay', '.5')
     pad.show_list(ui)
     labeled(catalog.text('tabs.newSession'))
     ui.axe('tap', '--label', catalog.text('tabs.newSession'),
@@ -214,7 +216,9 @@ try:
     subprocess.run(['sips', '-r', '90', str(landscape)], check=True, timeout=20)
     ui.axe('tap', '--id', 'session-input', '--tap-style', 'physical', '--post-delay', '.6')
     ui.capture('session-glass-focused')
-    ui.axe('tap', '--label', 'Hide keyboard', '--tap-style', 'physical', '--post-delay', '.5')
+    hide = labeled('Hide keyboard')['frame']
+    ui.axe('tap', '-x', str(hide['x'] + hide['width'] / 2),
+           '-y', str(hide['y'] + hide['height'] / 2), '--post-delay', '.5')
     ui.wait(lambda items: not any('UIKeyboard' in (item.get('AXUniqueId') or '') for item in items) or None,
             'The keyboard did not hide')
 
