@@ -987,6 +987,7 @@ function View() {
 }
 export const SessionScreen = definePage<SessionParams>({
   id: 'session',
+  native: true,
   title: t('session.title'),
   Component: View,
   presentation: { style: 'push', headerVariant: 'transparent' },

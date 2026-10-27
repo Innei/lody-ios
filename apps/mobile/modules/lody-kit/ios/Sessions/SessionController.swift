@@ -19,6 +19,12 @@ class SessionController: UIViewController {
   let itemDetailService: ItemDetailService
   let permissionService: PermissionService
   var permissionGate = SessionPermissionGate()
+  weak var subagentPage: SubagentTaskController?
+  weak var messageDetailsPage: MessageDetailsController?
+  var simulator: SessionSimulator?
+  var openingSimulator = false
+  let simulatorService: SimulatorService?
+  let pullRequestPage: @MainActor (SessionPullRequest, SessionListState) -> PullRequestController
   weak var processPage: ProcessController?
   var permissionPage: PermissionController?
   var permissionScope: (userId: String, workspaceId: String)?
@@ -38,13 +44,16 @@ class SessionController: UIViewController {
 
   init(sessionId: String, findQuery: String = "", choice: ModelChoice? = nil, source: SessionSource = .live,
        feed: SessionFeedService = .live, environment: SessionSendEnvironment = .live, permission: PermissionService = .live,
-       itemDetail: ItemDetailService? = nil) {
+       itemDetail: ItemDetailService? = nil, simulator: SimulatorService? = nil,
+       pullRequest: @escaping @MainActor (SessionPullRequest, SessionListState) -> PullRequestController = SessionController.livePullRequest) {
     self.sessionId = sessionId
     self.findQuery = findQuery
     self.source = source
     self.environment = environment
     permissionService = permission
     itemDetailService = itemDetail ?? .live(sessionId: sessionId)
+    simulatorService = simulator
+    pullRequestPage = pullRequest
     initialChoice = choice
     feedService = feed
     super.init(nibName: nil, bundle: nil)
@@ -56,7 +65,10 @@ class SessionController: UIViewController {
     if keys.contains(where: { params[$0] is String }) {
       choice = ModelChoice(modelId: params["modelId"] as? String, effort: params["effort"] as? String, modeId: params["modeId"] as? String)
     }
-    self.init(sessionId: params["sessionId"] as? String ?? "", findQuery: params["findQuery"] as? String ?? "", choice: choice)
+    let sessionId: String
+    if let id = params["sessionId"] as? String { sessionId = id }
+    else { sessionId = (params["session"] as! [String: Any])["id"] as! String }
+    self.init(sessionId: sessionId, findQuery: params["findQuery"] as? String ?? "", choice: choice)
   }
 
   @available(*, unavailable)
@@ -64,12 +76,13 @@ class SessionController: UIViewController {
 
   isolated deinit {
     feed?.finish()
+    simulator?.finish()
     if sender != nil { environment.foreground(sessionId, false) }
     for observer in observers { NotificationCenter.default.removeObserver(observer) }
   }
 
   var queuedMessageBehavior: String { LodyPreferences.queuedMessageBehavior }
-  var composerPreview: [String: Any]? { nil }
+  var composerPreview: [String: Any]? { simulatorChip }
   var persistsDraft: Bool { true }
   func adjustComposer(_ state: inout [String: Any]) {}
 
@@ -131,6 +144,7 @@ class SessionController: UIViewController {
       return
     }
     listed = true
+    prepareSimulator(state, session)
     startFeed(state)
     chat.setAttachmentContext(Self.json(["workspaceId": state.workspaceId, "sessionId": sessionId]))
     let machine = state.catalog.machineNames[session.machineId] ?? ""
@@ -167,6 +181,7 @@ class SessionController: UIViewController {
     guard state.entriesJSON != renderedEntries else { return }
     renderedEntries = state.entriesJSON
     processPage?.update(state.entriesJSON)
+    updateDetails(state.entriesJSON)
     chat.setEntries(state.entriesJSON)
     chat.scheduleUpdate()
   }
@@ -211,7 +226,7 @@ class SessionController: UIViewController {
         [weak self] _ in self?.openWorkspaceChanges()
       })
     }
-    more.menu = UIMenu(children: changes + [
+    more.menu = UIMenu(children: changes + simulatorMenu() + [
       UIAction(title: LodyStrings.text("session.action.find"), image: UIImage(systemName: "magnifyingglass")) { [weak self] _ in
         self?.find(query: "", keyboard: true)
       },
@@ -231,7 +246,8 @@ class SessionController: UIViewController {
     ])
     moreItem = more
     let header = LodyNavigationHeader.of(navigationItem)
-    if header.rightItems != [more] { header.rightItems = [more] }
+    let items = [pullRequestItem(session), more].compactMap { $0 }
+    if header.rightItems != items { header.rightItems = items }
   }
 
   private func wireEvents() {

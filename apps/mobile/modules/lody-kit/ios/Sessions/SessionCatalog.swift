@@ -1,5 +1,12 @@
 import Foundation
 
+struct SessionPullRequest: Decodable, Equatable, Sendable {
+  var repository: String
+  var number: Int
+  var status: String
+  var ci: String?
+}
+
 struct SessionItem: Equatable, Sendable {
   var id: String
   var title = ""
@@ -23,6 +30,8 @@ struct SessionItem: Equatable, Sendable {
   var cliType = ""
   var agentType = ""
   var resume: String?
+  var pullRequests: [SessionPullRequest] = []
+  var iosSimulatorPreviewRequestId: String?
 
   var activityAt: Double { lastMessageAt ?? SessionItem.parse(createdAt) }
 
@@ -37,7 +46,7 @@ extension SessionItem: Decodable {
   private enum CodingKeys: String, CodingKey {
     case id, title, status, archived, pinned, projectId, createdAt, openedBySessionId, openedByRootSessionId
     case parentSessionId, lastMessageAt, lastReadAt, awaitingUserSince, branchName, lastModel, diff, machineId
-    case cliType, agentType, resume
+    case cliType, agentType, resume, pullRequests, iosSimulatorPreviewRequestId
   }
 
   private struct Model: Decodable {
@@ -72,6 +81,8 @@ extension SessionItem: Decodable {
     cliType = value(.cliType) ?? ""
     agentType = value(.agentType) ?? ""
     resume = present(value(.resume))
+    pullRequests = value(.pullRequests) ?? []
+    iosSimulatorPreviewRequestId = present(value(.iosSimulatorPreviewRequestId))
     modelNeverRan = values.contains(.lastModel) && ((try? values.decodeNil(forKey: .lastModel)) ?? false)
     if let model: Model = value(.lastModel) {
       modelName = [model.name, model.modelId].compactMap { $0 }.first { !$0.isEmpty } ?? ""
@@ -109,6 +120,7 @@ struct SessionCatalog: Equatable, Sendable {
   var sessions: [SessionItem] = []
   var machineIds: [String] = []
   var machineNames: [String: String] = [:]
+  var machineSimulators: [String: String] = [:]
 
   func session(_ id: String) -> SessionItem? { sessions.first { $0.id == id } }
 
@@ -129,12 +141,13 @@ struct SessionCatalog: Equatable, Sendable {
       var sessions: [Lossy<SessionItem>]
       var machineIds: [Lossy<String>]
       var machineNames: Lossy<[String: String]>?
+      var machineSimulators: Lossy<[String: String]>?
     }
     struct Saved: Decodable { var catalog: Shape }
     guard let shape = try? JSONDecoder().decode(Saved.self, from: saved).catalog else { return nil }
     return SessionCatalog(
       projects: shape.projects.compactMap(\.value), sessions: shape.sessions.compactMap(\.value) + pending,
-      machineIds: shape.machineIds.compactMap(\.value), machineNames: shape.machineNames?.value ?? [:]
+      machineIds: shape.machineIds.compactMap(\.value), machineNames: shape.machineNames?.value ?? [:], machineSimulators: shape.machineSimulators?.value ?? [:]
     )
   }
 }

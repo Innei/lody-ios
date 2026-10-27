@@ -24,7 +24,15 @@ final class SessionPreviewController: SessionController {
         .init(itemId: params.itemId, rev: 1, blocks: [.object([
           "type": .string("terminal_output"), "output": .string("Native session tool detail"),
         ])], truncated: false)
-      }, observe: { _ in {} })
+      }, observe: { _ in {} }),
+      simulator: .init(call: { command in
+        if case .stop = command { return .init(success: true) }
+        if case .list = command {
+          return .init(success: true, devices: [.init(udid: "native-fixture-phone", name: "Fixture Phone", runtime: "iOS 27", deviceType: "iPhone", state: "Booted", available: true, occupancy: .available)])
+        }
+        return .init(success: true, preview: .init(operationId: "native-fixture", udid: "native-fixture-phone", phase: .ready, transport: .remote, viewerUrl: "lody-simulator-fixture://stream"))
+      }),
+      pullRequest: { _, _ in PullRequestPreviewController(params: [:]) }
     )
   }
 
@@ -63,10 +71,11 @@ private final class SessionPreviewFixture {
       sessions: [
         SessionItem(
           id: Self.sessionId, title: "Native session preview", status: "idle", projectId: "preview-lody",
-          lastMessageAt: now - 60_000, branchName: "feature/native-session", machineId: "preview-mac"
+          lastMessageAt: now - 60_000, branchName: "feature/native-session", machineId: "preview-mac",
+          pullRequests: [.init(repository: "Innei/lody-ios", number: 31, status: "open", ci: "f")]
         ),
       ],
-      machineIds: ["preview-mac"], machineNames: ["preview-mac": "Preview Mac"]
+      machineIds: ["preview-mac"], machineNames: ["preview-mac": "Preview Mac"], machineSimulators: ["preview-mac": "available"]
     )
   }
 

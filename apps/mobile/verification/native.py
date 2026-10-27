@@ -23,6 +23,7 @@ if args.udid is None:
     raise SystemExit(run_with_simulator(SimulatorPool(), 'Native', command))
 sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'], text=True).strip()
 checks = {
+    'session-simulator': ['Sessions/SessionSimulator.swift'],
     'preview-feedback': ['Outbox/OutboxRecord.swift', 'Outbox/OutboxStore.swift', 'HTMLPreview/PreviewFeedback.swift'],
     'pull-request': ['PullRequests/PullRequestStore.swift'],
     'item-details': ['ItemDetails/ItemDetailStore.swift'],
@@ -190,7 +191,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
                 *map(str, sources), '-o', str(Path(output) / 'libAnchoredOverlayKit.a'),
             ], check=True, timeout=120)
             command += ['-I', output, '-L', output, '-lAnchoredOverlayKit']
-        if name in ['preview-feedback', 'pull-request', 'item-details', 'attachments', 'auth', 'outbox', 'github-mentions', 'github-pr', 'session-sharing', 'settings']:
+        if name in ['session-simulator', 'preview-feedback', 'pull-request', 'item-details', 'attachments', 'auth', 'outbox', 'github-mentions', 'github-pr', 'session-sharing', 'settings']:
             command += ['-parse-as-library']
         if name == 'inline-diff':
             command += ['-framework', 'UIKit']
