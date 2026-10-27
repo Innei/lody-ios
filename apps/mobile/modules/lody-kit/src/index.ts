@@ -95,8 +95,6 @@ export {
   sendSessionTurn,
   readSessionEdit,
   controlSessionTurn,
-  sessionItemDetail,
-  respondSessionPermission,
   sessionCreationOptions,
   workspaceBillingEntitlement,
   githubPullRequest,

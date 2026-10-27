@@ -1,7 +1,7 @@
 import { openMessageShare } from '@/screens/MessageShareScreen';
 import { uiVerify } from './uiVerify';
 import { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, View as RNView } from 'react-native';
 import { NativeChat, NativeNavigationHeader, copyText } from '@lody-ios/kit';
 import { sessionDebugText } from '@/features/sessions/sessionDebug';
 import { t } from '@/lib/i18n/index.ts';
@@ -11,14 +11,7 @@ import { ItemDetailPreviewScreen } from './ItemDetailPreviewScreen';
 import type { ItemSummary } from '@lody/cloud-runtime/models/session';
 import { basename } from '@/features/sessions/path';
 import { useProcessSheet } from '@/hooks/screens/useProcessSheet';
-import {
-  PermissionScreen,
-  type PermissionService,
-} from '@/screens/PermissionScreen';
-import type {
-  PermissionTarget,
-  PermissionTargetSource,
-} from '@/features/sessions/permissionTarget';
+import { PermissionSheetPreviewScreen } from './PermissionSheetPreviewScreen';
 
 const answer = `## 原生聊天布局\n\n列表使用 **UICollectionView**，正文直接由 UIKit 渲染。\n\n- 输入区始终可见，跟随键盘移动\n- 执行过程在 Sheet 中平铺\n- 完成后保持回答和过程入口\n\n### 代码示例\n\n\`\`\`swift\nlet layout = UICollectionViewFlowLayout()\nlet list = UICollectionView(\n  frame: .zero,\n  collectionViewLayout: layout\n)\n\`\`\`\n\n这是一条用于检查换行、**粗体**和 \`inline code\` 的较长段落。切换浅色和深色外观，正文和输入框都应清晰可读。\n\n> 引用块用于确认左侧竖条与次级文字颜色。\n\n1. 有序列表\n   - 嵌套的无序项\n   - [x] 已完成的任务\n   - [ ] 未完成的任务\n2. 第二项，见 [Apple HIG](https://developer.apple.com/design/human-interface-guidelines/)\n\n| table-bleed-start | table-bleed-mid | table-bleed-end |\n| --- | --- | --- |\n| AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA | BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB | CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC |\n\n---\n\nRuby: <ruby>日本語<rt>にほんご</rt></ruby> · <ruby>勉強<rp>(</rp><rt>べんきょう</rt><rp>)</rp></ruby> · <ruby>コンピューター<rt>こんぴゅーたー</rt></ruby>\n\n分割线之后的收尾段落。`;
 const history = Array.from({ length: 80 }, (_, index) => ({
@@ -299,138 +292,13 @@ function processCountEntries(count: number, startedAt: number) {
   ];
 }
 
-const permissionTarget: PermissionTarget = {
-  entryId: 'preview',
-  itemId: 'edit',
-  requestId: 'ui-verify-request',
-  options: [
-    { optionId: 'allow', name: 'Allow once', kind: 'allow_once' },
-    { optionId: 'always', name: 'Always allow', kind: 'allow_always' },
-    { optionId: 'reject', name: 'Reject', kind: 'reject_once' },
-    { optionId: 'custom', name: 'Custom choice' },
-  ],
-  kind: 'execute',
-  title: '在 lody-ios 中执行命令',
-  path: undefined,
-};
-
-// Resolves late so the sheet opens before the target is known, then clears the
-// request the way a desktop answer would, so the sheet must close on its own.
-const permissionSource: PermissionTargetSource = (onState) => {
-  onState({ ready: false });
-  if (uiVerify) {
-    // Let the driver observe each state before advancing the fixture.
-    const update = (available: boolean) =>
-      onState({
-        ready: true,
-        target: available ? permissionTarget : undefined,
-      });
-    globalThis.__lodyUiVerifyPermissionTarget = update;
-    return () => {
-      if (globalThis.__lodyUiVerifyPermissionTarget === update)
-        globalThis.__lodyUiVerifyPermissionTarget = undefined;
-    };
-  }
-  const resolve = setTimeout(
-    () => onState({ ready: true, target: permissionTarget }),
-    2000,
-  );
-  const answered = setTimeout(() => onState({ ready: true }), 10_000);
-  return () => {
-    clearTimeout(resolve);
-    clearTimeout(answered);
-  };
-};
-
-const permissionService: PermissionService = {
-  // Empty detail options prove the sheet renders the synced request's actions.
-  detail: async () => ({
-    options: [],
-    command: {
-      type: 'terminal_command',
-      command: 'pnpm',
-      args: ['verify:ui'],
-      cwd: '/Users/lody/lody-ios',
-    },
-  }),
-  respond: async () => 'accepted',
-};
-
-const questionTarget: PermissionTarget = {
-  ...permissionTarget,
-  requestId: 'ui-verify-questions',
-  kind: 'ask_user_question',
-  title: 'Project preferences',
-  questionMeta: {
-    source: 'lody',
-    version: 1,
-    allowCustomAnswer: true,
-    questions: [
-      {
-        id: 'language',
-        header: 'Language',
-        question: 'Which language should we use?',
-        multiSelect: false,
-        options: [
-          { label: 'Swift', description: 'Native iOS implementation' },
-          { label: 'TypeScript', description: 'Shared app logic' },
-        ],
-      },
-      {
-        id: 'checks',
-        header: 'Checks',
-        question: 'Which checks should run?',
-        multiSelect: true,
-        options: [{ label: 'Unit tests' }, { label: 'UI tests' }],
-      },
-      {
-        id: 'notes',
-        header: 'Notes',
-        question: 'Anything else we should know?',
-        multiSelect: false,
-        allowCustomAnswer: true,
-        options: [],
-      },
-    ],
-  },
-};
-
-function openQuestionFixture() {
-  let attempts = 0;
-  const source: PermissionTargetSource = (onState) => {
-    onState({ ready: true, target: questionTarget });
-    const probe = { remoteAnswer: () => onState({ ready: true }), attempts: 0 };
-    if (uiVerify) globalThis.__lodyUiVerifyQuestion = probe;
-    return () => {
-      if (globalThis.__lodyUiVerifyQuestion === probe)
-        globalThis.__lodyUiVerifyQuestion = undefined;
-    };
-  };
-  void present(
-    PermissionScreen,
-    {
-      sessionId: 'ui-verify-question',
-      generation: 0,
-      target: questionTarget,
-      source,
-      service: {
-        detail: async () => ({ options: [] }),
-        respond: async (_session, _target, _option, answers) => {
-          attempts += 1;
-          if (uiVerify && globalThis.__lodyUiVerifyQuestion) {
-            globalThis.__lodyUiVerifyQuestion.answers = answers;
-            globalThis.__lodyUiVerifyQuestion.attempts = attempts;
-          }
-          if (attempts === 1) throw new Error('upload_failed');
-          return 'accepted';
-        },
-      },
-    },
-    { title: t('question.title') },
-  );
-}
-
 function View() {
+  const [permissionResult, setPermissionResult] = useState('');
+  const openPermissionFixture = async (scenario: 'waiting' | 'questions') => {
+    setPermissionResult('');
+    const result = await present(PermissionSheetPreviewScreen, { scenario });
+    setPermissionResult(JSON.stringify(result));
+  };
   const [startedAt] = useState(Date.now);
   const [showImage, setShowImage] = useState(false);
   const [selectionFixture, setSelectionFixture] = useState(false);
@@ -810,6 +678,13 @@ function View() {
   );
   return (
     <>
+      <RNView
+        accessible
+        testID="permission-result"
+        accessibilityLabel="Permission result"
+        accessibilityValue={{ text: permissionResult }}
+        style={{ position: 'absolute', width: 1, height: 1 }}
+      />
       <NativeNavigationHeader
         title={navigationTitle}
         items={[
@@ -828,19 +703,13 @@ function View() {
                       type: 'action',
                       title: 'Permission Fixture',
                       icon: { type: 'sfSymbol', name: 'lock.open' },
-                      onPress: () =>
-                        void present(PermissionScreen, {
-                          sessionId: 'ui-verify-permission',
-                          generation: 0,
-                          source: permissionSource,
-                          service: permissionService,
-                        }),
+                      onPress: () => void openPermissionFixture('waiting'),
                     },
                     {
                       type: 'action',
                       title: 'Question Fixture',
                       icon: { type: 'sfSymbol', name: 'questionmark.bubble' },
-                      onPress: openQuestionFixture,
+                      onPress: () => void openPermissionFixture('questions'),
                     },
                   ],
                 },

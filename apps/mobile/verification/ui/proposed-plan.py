@@ -39,7 +39,7 @@ for _ in range(4):
     button = next((i for i in ui.state() if i.get('AXLabel') == 'Collapse plan'), None)
     if button and 110 <= button['frame']['y'] < ui.element('session-input')['frame']['y'] - 44:
         break
-    ui.axe('swipe', '--start-x', '200', '--start-y', '580', '--end-x', '200', '--end-y', '260', '--duration', '.4', '--post-delay', '.5')
+    ui.axe('drag', '--start-x', '200', '--start-y', '580', '--end-x', '200', '--end-y', '260', '--duration', '.4', '--post-delay', '.5')
 tap('Collapse plan')
 assert document()['frame']['height'] == 240
 ui.capture('collapsed-again')
@@ -112,7 +112,7 @@ for _ in range(5):
     buttons = [i for i in ui.state() if i.get('role') == 'AXButton' and i.get('AXLabel') == 'Continue discussing']
     if buttons and 110 <= buttons[0]['frame']['y'] < ui.element('session-input')['frame']['y'] - 44:
         break
-    ui.axe('swipe', '--start-x', '200', '--start-y', '580', '--end-x', '200', '--end-y', '260', '--duration', '.4', '--post-delay', '.5')
+    ui.axe('drag', '--start-x', '200', '--start-y', '580', '--end-x', '200', '--end-y', '260', '--duration', '.4', '--post-delay', '.5')
 expanded_actions = [i['frame'] for i in ui.state() if i.get('role') == 'AXButton' and i.get('AXLabel') == 'Continue discussing']
 assert abs(expanded_actions[0]['x'] - discuss['x']) < 1, 'Expanded actions lost right alignment'
 ui.capture('business-expanded')

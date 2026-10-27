@@ -24,6 +24,11 @@ enum LodyNativePages {
     "workspace-editor": { params in WorkspaceEditorController(params: params) },
     "archived-sessions-preview": { _ in ArchivedSessionsPreviewController() },
     "session": { params in SessionController(params: params) },
+    "session-permission": { params in
+      let sessionId = params["sessionId"] as! String
+      return PermissionController(sessionId: sessionId, source: .live(sessionId: sessionId))
+    },
+    "permission-sheet-preview": { params in PermissionSheetPreviewController(scenario: params["scenario"] as! String) },
     "permission-native-preview": { params in PermissionPreviewController(waiting: params["waiting"] as? Bool == true) },
     "session-preview": { params in SessionPreviewController(scenario: params["scenario"] as? String ?? "live") },
     "send-preview": { params in SendPreviewController(params: params) },

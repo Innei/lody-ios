@@ -3,10 +3,6 @@ import ExpoModulesCore
 import Foundation
 
 extension DataRuntime {
-  func itemDetail(_ payload: String, promise: Promise) {
-    guard inOpenSession(payload, sink: .promise(promise)) else { return }
-    callForRN(RuntimeContract.Calls.ItemDetail.self, payload: payload, promise: promise) { ItemDetailReply(detail: $0) }
-  }
   func workspaceChanges(_ payload: String, promise: Promise) {
     guard inOpenSession(payload, sink: .promise(promise)) else { return }
     callForRN(RuntimeContract.Calls.WorkspaceChanges.self, payload: payload, promise: promise)
@@ -70,21 +66,5 @@ extension DataRuntime {
     }
     guard let output = try? JSONSerialization.data(withJSONObject: object), let text = String(data: output, encoding: .utf8) else { return json }
     return text
-  }
-}
-
-private struct ItemDetailReply: Encodable {
-  let detail: RuntimeContract.ItemDetail
-  func encode(to encoder: any Encoder) throws {
-    var c = encoder.container(keyedBy: RuntimeContract.Key.self)
-    try c.encode(detail.itemId, forKey: .init("itemId"))
-    try c.encode(detail.rev, forKey: .init("rev"))
-    try c.encode(detail.blocks, forKey: .init("blocks"))
-    try c.encodeIfPresent(detail.rawInput?.value, forKey: .init("rawInput"))
-    try c.encodeIfPresent(detail.rawOutput?.value, forKey: .init("rawOutput"))
-    try c.encodeIfPresent(detail.options, forKey: .init("options"))
-    try c.encodeIfPresent(detail.outcome?.value, forKey: .init("outcome"))
-    try c.encode(detail.truncated, forKey: .init("truncated"))
-    try c.encodeIfPresent(detail.nextCursor, forKey: .init("nextCursor"))
   }
 }
