@@ -16,6 +16,11 @@ class SessionController: UIViewController {
   var sender: SessionSender?
   let planDecision = SessionDecision(.plan)
   let errorRetry = SessionDecision(.retry)
+  let permissionService: PermissionService
+  var permissionGate = SessionPermissionGate()
+  weak var processPage: ProcessController?
+  var permissionPage: PermissionController?
+  var permissionScope: (userId: String, workspaceId: String)?
   var openingFile = false
   var mentions: MentionCatalogStore?
   var mentionSequence = 0
@@ -31,11 +36,12 @@ class SessionController: UIViewController {
   private var renderedEntries: String?
 
   init(sessionId: String, findQuery: String = "", choice: ModelChoice? = nil, source: SessionSource = .live,
-       feed: SessionFeedService = .live, environment: SessionSendEnvironment = .live) {
+       feed: SessionFeedService = .live, environment: SessionSendEnvironment = .live, permission: PermissionService = .live) {
     self.sessionId = sessionId
     self.findQuery = findQuery
     self.source = source
     self.environment = environment
+    permissionService = permission
     initialChoice = choice
     feedService = feed
     super.init(nibName: nil, bundle: nil)
@@ -99,15 +105,25 @@ class SessionController: UIViewController {
     markViewed()
   }
 
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    renderPermission()
+  }
+
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
     PushNotifications.shared.visibleRoute = ""
+    if SettingsPage.leaving(self) {
+      permissionPage?.update(nil, ready: true)
+      processPage?.navigationController?.presentingViewController?.dismiss(animated: false)
+    }
   }
 
   func render() {
     guard isViewLoaded else { return }
     let state = source.state
     guard let session = state.catalog.session(sessionId) else {
+      permissionPage?.update(nil, ready: true)
       if listed, !state.loading { navigationController?.popViewController(animated: true) }
       return
     }
@@ -143,9 +159,11 @@ class SessionController: UIViewController {
   private func renderFeed(_ session: SessionItem) {
     let state = feed?.state ?? SessionFeedState()
     renderComposer(session, state)
+    renderPermission()
     chat.setEmptyText(LodyStrings.text(state.status == "live" ? "chat.empty.prompt" : "chat.empty.loading"))
     guard state.entriesJSON != renderedEntries else { return }
     renderedEntries = state.entriesJSON
+    processPage?.update(state.entriesJSON)
     chat.setEntries(state.entriesJSON)
     chat.scheduleUpdate()
   }

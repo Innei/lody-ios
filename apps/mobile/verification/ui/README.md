@@ -165,6 +165,13 @@ the complete answer payload, failed-upload retry, remote answer dismissal and
 composer draft retention in both appearances. Screenshots and video cover each
 answer state; no real agent request is dispatched.
 
+`permission-native` exercises the UIKit session and its permission/question sheets
+through `permission-native-preview`. It checks automatic and manual opening,
+per-visit dismissal, remote resolution, a late reply after request replacement,
+full-height layout, retained drafts and complete answers after a failed submission.
+The native fixture injects the feed and permission service; it requires no Metro,
+account or machine. Run with an embedded Release app in both appearances.
+
 If a normal signed Debug app is already built, each verification command can lease
 its own iPhone 17 Pro / iOS 27.0 device from the `Lody * Verify` pool. The documented
 command without `--case` or `--batch` is that phone lease only. Pad-only cases

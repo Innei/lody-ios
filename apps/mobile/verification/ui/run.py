@@ -46,7 +46,7 @@ CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
 # These lease an iPad. `--case` still accepts them; the default phone run must not.
 PAD_CASES = ['devices-pad', 'session-delete-pad', 'session-tree-pad', 'ipad', 'ipad-chrome', 'ipad-sidebar', 'native-shell', 'native-collection', 'session-search-pad', 'wide-panel', 'pad-layout']
-CASES = PHONE_CASES + PAD_CASES + ['devices', 'camera-chat', 'camera-sheet', 'message-details', 'edit-message', 'session-share', 'session-delete', 'session-search', 'morph', 'sheet-zoom-project', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'create-parity', 'settings-baseline', 'workspace-general', 'machine-settings', 'settings-form-backgrounds', 'agents-settings', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states', 'agent-roles', 'role-mention-chat', 'role-mention-sheet', 'archived-sessions', 'session-native', 'native-diff', 'native-workspace-changes', 'native-file-content']
+CASES = PHONE_CASES + PAD_CASES + ['devices', 'camera-chat', 'camera-sheet', 'message-details', 'edit-message', 'session-share', 'session-delete', 'session-search', 'morph', 'sheet-zoom-project', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'create-parity', 'settings-baseline', 'workspace-general', 'machine-settings', 'settings-form-backgrounds', 'agents-settings', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states', 'agent-roles', 'role-mention-chat', 'role-mention-sheet', 'archived-sessions', 'session-native', 'permission-native', 'native-diff', 'native-workspace-changes', 'native-file-content']
 # These select HomePreviewProviders at app launch, using the same shared bundle.
 HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'sheet-zoom-project', 'mentions-production', 'home', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-chrome', 'ipad-sidebar', 'wide-panel', 'pad-layout'}
 HOME_CASES.update({'session-delete', 'session-delete-pad', 'devices', 'devices-pad', 'workspace-general'})
@@ -56,6 +56,7 @@ PREVIEW = {
     'agent-roles': 'agent-roles-preview',
     'archived-sessions': 'archived-sessions-preview',
     'session-native': 'session-preview-live',
+    'permission-native': 'permission-native-preview',
     'native-diff': 'file-diff-preview',
     'native-workspace-changes': 'workspace-changes-preview',
     'native-file-content': 'file-content-preview',
@@ -177,6 +178,7 @@ READY = {
     'agent-roles': 'list-unavailable-action',
     'archived-sessions': 'archived-preview-writes',
     'session-native': 'session-preview-probe',
+    'permission-native': 'permission-preview-probe',
     'native-diff': 'diff-preview:changes:docs/superpowers/.diff-check.md',
     'native-workspace-changes': 'file:src/greeting.ts',
     'native-file-content': 'file:report.md',
@@ -574,7 +576,7 @@ with metro_context:
                         script = Path(__file__).with_name('devices.py')
                     if case in ('diagnostics', 'directory', 'project', 'activity', 'settings-baseline', 'workspace-general', 'machine-settings', 'settings-form-backgrounds', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states', 'agent-roles'):
                         script = Path(__file__).with_name(f'{case}.py')
-                    if case in ('archived-sessions', 'session-native', 'native-diff', 'native-workspace-changes', 'native-file-content'):
+                    if case in ('archived-sessions', 'session-native', 'permission-native', 'native-diff', 'native-workspace-changes', 'native-file-content'):
                         script = Path(__file__).with_name(f'{case}.py')
                     if case == 'file-selection':
                         script = Path(__file__).with_name('file-selection.py')
@@ -695,6 +697,9 @@ with metro_context:
                     elif case in ('session-search', 'mentions-production'):
                         # Long search and mention-kind loops reach ~290s alone.
                         check_timeout = 420
+                    elif case == 'permission-native':
+                        # Permission lifecycle, nested process entry and multi-step questions take ~180s.
+                        check_timeout = 300
                     elif case in ('send-queue', 'send-guide'):
                         # Queue/steer/stop and guide rounds reach ~185s on both the RN and native fixtures.
                         check_timeout = 300
