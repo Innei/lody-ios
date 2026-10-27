@@ -218,6 +218,7 @@ class FileContentController: UIViewController {
 
   private func renderHeader() {
     guard let host = parent?.navigationItem else { return }
+    host.title = title
     let close = UIBarButtonItem(systemItem: .close, primaryAction: UIAction { [weak self] _ in self?.close() })
     close.accessibilityIdentifier = "file-back"
     close.accessibilityLabel = LodyStrings.text("native.close")

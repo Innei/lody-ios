@@ -182,6 +182,7 @@ class FileDiffController: UIViewController {
 
   private func renderHeader() {
     guard let host = parent?.navigationItem else { return }
+    host.title = title
     func action(_ key: String, _ symbol: String, disabled: Bool = false, _ handler: @escaping (FileDiffController) -> Void) -> UIAction {
       UIAction(title: LodyStrings.text(key), image: UIImage(systemName: symbol), attributes: disabled ? .disabled : []) { [weak self] _ in
         self.map(handler)

@@ -117,7 +117,7 @@ const NATIVE_PREFIXES = [
   'diff.',
   'workspaceChanges.',
   'changes.fileCount',
-  'files.error.archived',
+  'files.',
   'file.preview',
   'file.source',
   'html.',

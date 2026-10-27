@@ -17,6 +17,30 @@ enum LodyNativePages {
       return page
     },
     "pull-request-native-preview": { params in PullRequestPreviewController(params: params) },
+    "files": { params in
+      FilesController(params: .init(workspaceId: params["workspaceId"] as! String, sessionId: params["sessionId"] as! String,
+        relativePath: params["path"] as! String, userId: params["userId"] as! String))
+    },
+    "files-fixture": { params in
+      FilesFixtureController(params: .init(workspaceId: params["workspaceId"] as! String, sessionId: params["sessionId"] as! String,
+        relativePath: params["path"] as! String, userId: params["userId"] as! String))
+    },
+    "file-content": { params in
+      let sessionId = params["sessionId"] as! String
+      return FileContentController(sessionId: sessionId, path: params["path"] as! String, line: params["line"] as? Int,
+        preview: params["preview"] as? Bool ?? false, feedback: .live(sessionId: sessionId))
+    },
+    "file-content-fixture": { params in FileContentFixtureController(params: params) },
+    "file-diff-fixture": { params in FileDiffFixtureController(params: params) },
+    "file-diff": { params in
+      let sessionId = params["sessionId"] as! String
+      return FileDiffController(request: .init(sessionId: sessionId, entryId: params["entryId"] as? String, path: params["path"] as! String),
+        feedback: .live(sessionId: sessionId))
+    },
+    "workspace-changes": { params in
+      let sessionId = params["sessionId"] as! String
+      return WorkspaceChangesController(sessionId: sessionId, feedback: .live(sessionId: sessionId))
+    },
     "appearance-settings": { _ in AppearanceController() },
     "app-icon": { _ in AppIconController() },
     "about": { _ in AboutController() },

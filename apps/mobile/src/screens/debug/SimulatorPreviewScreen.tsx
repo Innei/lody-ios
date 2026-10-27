@@ -11,7 +11,7 @@ import {
   stopSimulator,
 } from '@/features/simulator/operations';
 import { workspaceMenuActions } from '@/features/sessions/workspaceMenu';
-import { WorkspaceChangesScreen } from '@/screens/WorkspaceChangesScreen';
+import { WorkspaceChangesPreviewScreen as WorkspaceChangesScreen } from './FileDiffPreviewScreen';
 import { DiffWebViewWarmer } from '@/features/diff/DiffWebViewWarmer';
 import { present } from '@/lib/presentation';
 import { t } from '@/lib/i18n';
@@ -85,42 +85,6 @@ function View() {
     'available',
     'agent-1',
   );
-  const [changesSource] = useState(() => {
-    let reads = 0;
-    return async () => {
-      reads += 1;
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      if (reads === 2) throw new Error('offline fixture');
-      return {
-        status: 'ok' as const,
-        base: 'HEAD',
-        files:
-          reads >= 4
-            ? []
-            : [
-                {
-                  path: 'src/greeting.ts',
-                  add: 1,
-                  del: 1,
-                  kind: 'modified' as const,
-                },
-                {
-                  path: 'docs/new-guide.md',
-                  add: 12,
-                  del: 0,
-                  kind: 'added' as const,
-                },
-                {
-                  path: 'src/removed.ts',
-                  add: 0,
-                  del: 5,
-                  kind: 'deleted' as const,
-                },
-                { path: 'assets/image.png' },
-              ],
-      };
-    };
-  });
   return (
     <>
       <DiffWebViewWarmer />
@@ -132,11 +96,7 @@ function View() {
             accessibilityLabel: t('common.more'),
             menu: {
               items: workspaceMenuActions({
-                openChanges: () =>
-                  void present(WorkspaceChangesScreen, {
-                    sessionId: 'ui-verify-workspace',
-                    source: changesSource,
-                  }),
+                openChanges: () => void present(WorkspaceChangesScreen, {}),
                 simulator: {
                   ...simulator,
                   menuItem: ready ? simulator.menuItem : undefined,
