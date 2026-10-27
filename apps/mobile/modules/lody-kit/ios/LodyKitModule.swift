@@ -456,8 +456,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("controlSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sessionWrite(RuntimeContract.Calls.ControlTurn.self, payload: payload, promise: promise) } }.runOnQueue(.main)
     AsyncFunction("sendSessionTurn") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, sink: .promise(promise)) } }.runOnQueue(.main)
     AsyncFunction("readSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.readSessionEdit(payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("prepareSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.prepareSessionEdit(payload, promise: promise) } }.runOnQueue(.main)
-    AsyncFunction("sendSessionEdit") { (payload: String, promise: Promise) in MainActor.assumeIsolated { self.dataRuntime.sendTurn(payload, sink: .promise(promise), edit: true) } }.runOnQueue(.main)
     AsyncFunction("sessionItemDetail") { (payload: String, promise: Promise) in
       try MainActor.assumeIsolated {
         if LodyUIVerify.enabled,

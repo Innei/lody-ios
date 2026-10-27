@@ -94,8 +94,6 @@ export {
   releaseReserve,
   sendSessionTurn,
   readSessionEdit,
-  prepareSessionEdit,
-  sendSessionEdit,
   controlSessionTurn,
   sessionItemDetail,
   respondSessionPermission,

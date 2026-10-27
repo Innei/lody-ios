@@ -21,7 +21,9 @@ extension SessionController {
     }
     chat.onEditMessage.onEventSent = { [weak self] body in
       guard let self, let entryId = body["entryId"] as? String, !entryId.isEmpty, entryId == chat.editableMessageID else { return }
-      open("edit-message", ["sessionId": sessionId, "entryId": entryId], present: true)
+      let editor = EditMessageController(sessionId: sessionId, entryId: entryId)
+      editor.onFinish = { [weak self] id in self?.chat.editedMessageID = id }
+      LodyShell.shared.presentNative(editor, title: LodyStrings.text("chat.edit.title"), dismissible: false, style: "fullScreen")
     }
     chat.onErrorRetry.onEventSent = { [weak self] body in
       guard let self else { return }
