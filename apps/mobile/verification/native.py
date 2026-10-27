@@ -23,6 +23,7 @@ if args.udid is None:
     raise SystemExit(run_with_simulator(SimulatorPool(), 'Native', command))
 sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'], text=True).strip()
 checks = {
+    'item-details': ['ItemDetails/ItemDetailStore.swift'],
     'message-details': ['LodyStrings.swift', 'List/LodyListModels.swift', '../share-extension/ExpoShim.swift', 'Settings/LodyListState.swift', 'Chat/ChatTurnMetadata.swift', 'Messages/MessageDetailsSections.swift'],
     'html-preview': ['HTMLPreview/HTMLPreviewResource.swift'],
     'simulator-transport': ['LodyStrings.swift', 'SimulatorStream/SimulatorDeviceView.swift', 'SimulatorStream/SimulatorRemote.swift', 'SimulatorStream/SimulatorRTCFrame.swift', 'SimulatorStream/SimulatorRTC.swift', 'SimulatorStream/SimulatorTransport.swift'],
@@ -187,7 +188,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
                 *map(str, sources), '-o', str(Path(output) / 'libAnchoredOverlayKit.a'),
             ], check=True, timeout=120)
             command += ['-I', output, '-L', output, '-lAnchoredOverlayKit']
-        if name in ['attachments', 'auth', 'outbox', 'github-mentions', 'github-pr', 'session-sharing', 'settings']:
+        if name in ['item-details', 'attachments', 'auth', 'outbox', 'github-mentions', 'github-pr', 'session-sharing', 'settings']:
             command += ['-parse-as-library']
         if name == 'inline-diff':
             command += ['-framework', 'UIKit']

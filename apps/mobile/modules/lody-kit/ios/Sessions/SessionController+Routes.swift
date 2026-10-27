@@ -89,9 +89,9 @@ extension SessionController {
       }
       return
     }
-    open("session-item-detail", [
-      "sessionId": sessionId, "entryId": entryId, "itemIds": [itemId], "generation": feed?.generation ?? 0,
-    ], present: true, from: source)
+    let page = ItemDetailController(sessionId: sessionId, entryId: entryId, itemIds: [itemId], generation: feed?.generation ?? 0,
+                                    service: itemDetailService)
+    LodyShell.shared.presentNative(page, title: LodyStrings.text("detail.title"), detents: [0.6, 1], grabber: true)
   }
 
   private func openFile(_ path: String, line: Int, from source: UIViewController? = nil) {
@@ -119,7 +119,9 @@ extension SessionController {
   static func item(in entriesJSON: String, entryId: String, itemId: String) -> [String: Any]? {
     let entries = (try? JSONSerialization.jsonObject(with: Data(entriesJSON.utf8))) as? [[String: Any]] ?? []
     let items = entries.first { $0["id"] as? String == entryId }?["items"] as? [[String: Any]] ?? []
-    return items.first { $0["itemId"] as? String == itemId }
+    return items.flatMap { item in
+      [item] + ((item["run"] as? [String: Any])?["items"] as? [[String: Any]] ?? [])
+    }.first { $0["itemId"] as? String == itemId }
   }
 }
 

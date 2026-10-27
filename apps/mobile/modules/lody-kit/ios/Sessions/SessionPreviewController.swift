@@ -1,3 +1,4 @@
+import LodyCore
 import UIKit
 
 @MainActor
@@ -18,7 +19,12 @@ final class SessionPreviewController: SessionController {
         watch: { _, receive in fixture.watch(receive) },
         reconnect: { _ in fixture.reconnect() },
         cached: { _, _, _ in SessionPreviewFixture.envelope(status: "syncing", revision: 0, reply: "Cached reply") }
-      )
+      ),
+      itemDetail: ItemDetailService(load: { params in
+        .init(itemId: params.itemId, rev: 1, blocks: [.object([
+          "type": .string("terminal_output"), "output": .string("Native session tool detail"),
+        ])], truncated: false)
+      }, observe: { _ in {} })
     )
   }
 
@@ -141,7 +147,7 @@ private final class SessionPreviewFixture {
           "id": "preview-answer", "role": "assistant", "status": "completed", "finished": true,
           "modelInfo": ["name": "Native fixture model", "thoughtLevel": "High"],
           "items": [
-            ["itemId": "edit", "type": "tool_call", "kind": "edit", "status": "completed", "title": "Edit", "path": "src/App.tsx",
+            ["itemId": "edit", "rev": 1, "hasDetail": true, "type": "tool_call", "kind": "edit", "status": "completed", "title": "Edit", "path": "src/App.tsx",
              "added": 3, "removed": 1],
             ["itemId": "reply", "type": "text", "text": reply],
           ],

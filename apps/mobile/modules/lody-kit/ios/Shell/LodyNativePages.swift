@@ -79,6 +79,11 @@ enum LodyNativePages {
       let entries = try! JSONDecoder().decode([ChatEntry].self, from: Data((params["entriesJSON"] as! String).utf8))
       return MessageDetailsController(entryId: entryId, entry: entries.first { $0.id == entryId })
     },
+    "session-item-detail": { params in
+      ItemDetailController(sessionId: params["sessionId"] as! String, entryId: params["entryId"] as! String,
+                           itemIds: params["itemIds"] as! [String], generation: params["generation"] as! Int)
+    },
+    "item-detail-preview": { params in ItemDetailPreviewController(scenario: params["scenario"] as! String) },
     "message-share": { params in MessageShareController(contentJSON: params["contentJSON"] as? String ?? "") },
     "notification-settings": { _ in NotificationSettingsController() },
     "notification-preview": { _ in NotificationPreviewController() },
