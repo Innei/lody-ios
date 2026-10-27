@@ -1,3 +1,11 @@
+Product Home and Session are UIKit controllers. `home`, `navigation`,
+`session-search`, `ipad`, `ipad-sidebar`, `wide-panel` and `pad-layout` exercise
+production lists, session selection, inspector navigation and adaptive widths.
+`session-native` covers shared-feed message, process and subagent details, PR draft
+handoff, browser preview commands and the simulator. `session-feed` checks the real
+native cache/subscription lifecycle and generation ordering; the retired RN feed
+has no production owner.
+
 # Offline UI verification
 
 `file-preview`, `html-preview`, and `workspace-changes` now enter the production

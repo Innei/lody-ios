@@ -58,9 +58,9 @@ extension SessionController {
     page.update(feed?.state.entriesJSON ?? "[]")
     page.onActivity = { [weak self, weak page] entry, item in self?.activity(entryId: entry, itemId: item, from: page) }
     page.onFile = { [weak self, weak page] path, line in self?.openFile(path, line: line, from: page) }
-    LodyShell.shared.presentNative(
+    LodyShell.shared.presentDetail(
       page, title: LodyStrings.text(startItemId == "__tasks__" ? "process.tasks" : "process.title"),
-      detents: [0.6, 1], grabber: true
+      from: self
     )
   }
 
@@ -94,12 +94,12 @@ extension SessionController {
       subagentPage = page
       page.onActivity = { [weak self, weak page] entry, item in self?.activity(entryId: entry, itemId: item, from: page) }
       page.onFile = { [weak self, weak page] path, line in self?.openFile(path, line: line, from: page) }
-      LodyShell.shared.presentNative(page, title: LodyStrings.text("native.chat.transcript.subtask"), detents: [0.6, 1], grabber: true)
+      LodyShell.shared.presentDetail(page, title: LodyStrings.text("native.chat.transcript.subtask"), from: source ?? self)
       return
     }
     let page = ItemDetailController(sessionId: sessionId, entryId: entryId, itemIds: [itemId], generation: feed?.generation ?? 0,
                                     service: itemDetailService)
-    LodyShell.shared.presentNative(page, title: LodyStrings.text("detail.title"), detents: [0.6, 1], grabber: true)
+    LodyShell.shared.presentDetail(page, title: LodyStrings.text("detail.title"), from: source ?? self)
   }
 
   private func openFile(_ path: String, line: Int, from source: UIViewController? = nil) {
@@ -123,7 +123,9 @@ extension SessionController {
     }
     let titles = ["files": "files.title", "workspace-changes": "workspaceChanges.title", "file-diff": "diff.title"]
     let name = title ?? content.title ?? titles[page].map { LodyStrings.text($0) } ?? ""
-    if present { LodyShell.shared.presentNative(content, title: name, grabber: true) }
+    if ["file-content", "file-diff", "files", "workspace-changes"].contains(page) {
+      LodyShell.shared.presentDetail(content, title: name, from: source ?? self, push: !present, detents: [1])
+    } else if present { LodyShell.shared.presentNative(content, title: name, grabber: true) }
     else { LodyShell.shared.pushNative(content, title: name, from: source ?? self) }
   }
 

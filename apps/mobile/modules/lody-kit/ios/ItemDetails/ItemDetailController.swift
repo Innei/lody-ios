@@ -60,7 +60,7 @@ class ItemDetailController: UIViewController {
         guard let self else { return }
         store.finish()
         LodyShell.shared.finish(from: self, value: nil)
-        navigationController?.dismiss(animated: true)
+        LodyShell.shared.close(from: self)
       }
     )
   }

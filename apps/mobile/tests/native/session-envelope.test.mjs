@@ -1,41 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LoroMap, LoroList } from 'loro-crdt/base64';
-import { acceptEnvelope } from '../../src/features/sessions/acceptEnvelope.ts';
 import { openTestSession } from '../helpers.mjs';
-
-test('信封校验：版本、generation、revision 三道闸', () => {
-  const at = (generation, revision) => ({ generation, revision });
-
-  assert.equal(
-    acceptEnvelope(at(3, 10), { generation: 3 }, { v: 2, revision: 11 }),
-    'drop',
-  );
-  assert.equal(
-    acceptEnvelope(at(3, 10), { generation: 2 }, { v: 1, revision: 11 }),
-    'drop',
-  );
-  assert.equal(
-    acceptEnvelope(at(3, 10), { generation: 3 }, { v: 1, revision: 10 }),
-    'drop',
-  );
-  assert.equal(
-    acceptEnvelope(at(3, 10), { generation: 3 }, { v: 1, revision: 9 }),
-    'drop',
-  );
-  assert.equal(
-    acceptEnvelope(at(3, 10), { generation: 3 }, { v: 1, revision: 11 }),
-    'accept',
-  );
-  assert.equal(
-    acceptEnvelope(at(3, 10), { generation: 4 }, { v: 1, revision: 1 }),
-    'reset',
-  );
-  assert.equal(
-    acceptEnvelope(at(-1, -1), { generation: 0 }, { v: 1, revision: 1 }),
-    'reset',
-  );
-});
 
 test('权限作答：过期 / 非法 option / 已有 outcome / 重复同答', async () => {
   const { runtime, server, pushUpdate, close } = await openTestSession();
@@ -162,13 +128,7 @@ test('reopening within one native generation accepts the fresh session', async (
       async () => {},
     );
   });
-  assert.equal(
-    acceptEnvelope(
-      { generation: 1, revision: before.revision },
-      { generation: 1 },
-      fresh,
-    ),
-    'accept',
-  );
+  assert.equal(fresh.v, 1);
+  assert.ok(fresh.revision > before.revision);
   close();
 });

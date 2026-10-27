@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 class ProjectController: UIViewController {
-  let list = LodyGroupedList(appContext: nil)
+  let list = SessionListView()
   let source: SessionSource
   let projectId: String
   private let connected: @MainActor () -> Bool
@@ -37,6 +37,7 @@ class ProjectController: UIViewController {
     super.viewDidLoad()
     list.frame = view.bounds
     list.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    list.accessibilityIdentifier = "ipad-project-list"
     list.setContentStyle(true)
     list.forwarded = { [weak self] name, body in self?.event(name, body) }
     view.addSubview(list)

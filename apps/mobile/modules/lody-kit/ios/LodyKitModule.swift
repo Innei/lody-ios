@@ -1,7 +1,6 @@
 import LodyCore
 import ExpoModulesCore
 import UIKit
-import SafariServices
 
 @Record
 struct LodyRuntimeInfo {
@@ -19,11 +18,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
   private let authObservers = NotificationObservers()
   private let catalogObservers = NotificationObservers()
 
-  private static func previewURL(_ address: String) -> URL? {
-    guard let url = URL(string: address), url.scheme == "https", url.user == nil, url.password == nil,
-          url.host?.hasSuffix(".trycloudflare.com") == true else { return nil }
-    return url
-  }
   @MainActor private lazy var dataRuntime = DataRuntime(localStore: localStore,
     emit: { [weak self] event in self?.sendEvent("onDataRuntime", event) },
     emitUploadProgress: { [weak self] event in self?.sendEvent("onAttachmentUploadProgress", event) })
@@ -269,6 +263,9 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("outboxRemove") { (userId: String, workspaceId: String, sessionId: String, promise: Promise) in
       MainActor.assumeIsolated { Self.settle(OutboxSession.shared.remove(user: userId, workspace: workspaceId, sessionId: sessionId), promise) }
     }.runOnQueue(.main)
+    AsyncFunction("navigateSession") { (json: String) in
+      try MainActor.assumeIsolated { try SessionNavigation.receive(json) }
+    }.runOnQueue(.main)
     AsyncFunction("navPresent") { (json: String) in
       MainActor.assumeIsolated { LodyShell.shared.present(json) }
     }.runOnQueue(.main)
@@ -355,20 +352,8 @@ public final class LodyKitModule: Module, @unchecked Sendable {
     AsyncFunction("reopenAuthBrowser") {
       MainActor.assumeIsolated { AuthSession.shared.reopen() }
     }.runOnQueue(.main)
-    AsyncFunction("sessionPreview") { (payload: String, promise: Promise) in
-      MainActor.assumeIsolated { self.dataRuntime.sessionPreview(payload, promise: promise) }
-    }.runOnQueue(.main)
     AsyncFunction("iosSimulatorControl") { (payload: String, promise: Promise) in
       MainActor.assumeIsolated { self.dataRuntime.iosSimulatorControl(payload, promise: promise) }
-    }.runOnQueue(.main)
-    AsyncFunction("openPreviewBrowser") { (address: String) in
-      try MainActor.assumeIsolated {
-        guard let url = Self.previewURL(address),
-              let controller = self.appContext?.utilities?.currentViewController() else {
-          throw NSError(domain: "LodyKit.PreviewBrowser", code: 1)
-        }
-        controller.present(SFSafariViewController(url: url), animated: true)
-      }
     }.runOnQueue(.main)
     AsyncFunction("getAppIcon") { MainActor.assumeIsolated { LodyAppIcon.current } }.runOnQueue(.main)
     AsyncFunction("setAppIcon") { (name: String, promise: Promise) in
@@ -752,7 +737,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
       Prop("previewWorkspaceId") { (view: LodySidebar, value: String) in view.previewWorkspaceId = value }
     }
 
-    View(LodyInboxView.self) {}
 
     View(LodyGroupedList.self) {
       Prop("bottomInset") { (view: LodyGroupedList, value: Double) in view.setBottomInset(CGFloat(value)) }
@@ -855,19 +839,6 @@ public final class LodyKitModule: Module, @unchecked Sendable {
 
     View(LodyLayoutProbe.self) {
       Events("onTraits")
-    }
-
-    View(LodySplitView.self) {
-      Events("onColumnLayout")
-      Prop("detailRequest") { (view: LodySplitView, value: Int) in
-        view.setDetailRequest(value)
-      }
-      Prop("layoutMode") { (view: LodySplitView, value: String) in
-        view.setLayoutMode(value)
-      }
-      Prop("panelOpen") { (view: LodySplitView, value: Bool) in
-        view.setPanelOpen(value)
-      }
     }
 
     View(LodySymbolView.self) {

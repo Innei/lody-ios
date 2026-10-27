@@ -25,13 +25,6 @@ extension DataRuntime {
     workspaceCallForRN(RuntimeContract.Calls.CreationOptions.self, payload: payload, sink: sink)
   }
 
-  func sessionPreview(_ payload: String, promise: Promise) {
-    guard Self.scope(payload)?["sessionId"] as? String == sessionId else {
-      fail(promise, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
-      return
-    }
-    callForRN(RuntimeContract.Calls.SessionPreview.self, payload: payload, inject: ["userId": userId], promise: promise)
-  }
   func iosSimulatorControl(_ payload: String, promise: Promise) {
     workspaceCallForRN(RuntimeContract.Calls.IosSimulatorControl.self, payload: payload, promise: promise)
   }

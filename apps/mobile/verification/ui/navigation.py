@@ -13,11 +13,15 @@ ui = UI(udid, sys.argv[2])
 
 
 def stack(expected):
+    wants_session = len(expected) > 1
     def matches(items):
         assert not any(i.get('AXUniqueId') == 'redbox-dismiss' for i in items), 'React Native reported a runtime error'
         probe = next((i for i in items if i.get('AXUniqueId') == 'ui-navigation-state'), None)
-        return probe is not None and json.loads(probe['AXValue']) == expected
-    ui.wait(matches, f'Expected navigation stack {expected}')
+        # The RN shell retains one Home; UIKit owns its collapsed session stack.
+        root = probe is not None and json.loads(probe['AXValue']) == ['index']
+        session = any(i.get('AXUniqueId') == 'session-input' for i in items)
+        return root and session == wants_session
+    ui.wait(matches, f'Expected native {"session" if wants_session else "home"} above one shell root')
 
 
 def swipe_back():

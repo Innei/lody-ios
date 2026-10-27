@@ -48,7 +48,6 @@ export function useProjectModel(projectId: string) {
       if (selected)
         void requestNewSession(
           selected.id,
-          catalog,
           projectId,
           undefined,
           t('project.newSession.accessibility'),

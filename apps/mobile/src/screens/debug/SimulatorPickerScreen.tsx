@@ -9,7 +9,7 @@ import { simulatorControl } from '@/features/simulator/operations';
 import { definePage } from '@/lib/presentation';
 import { usePalette } from '@/lib/theme/palette';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
-import { t } from '../lib/i18n/index.ts';
+import { t } from '@/lib/i18n/index.ts';
 
 type Params = { workspaceId: string; sessionId: string };
 

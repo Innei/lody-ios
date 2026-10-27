@@ -702,6 +702,15 @@ with metro_context:
                     elif case in ('session-search', 'mentions-production'):
                         # Long search and mention-kind loops reach ~290s alone.
                         check_timeout = 420
+                    elif case == 'session-native':
+                        # Shared-feed details, PR draft handoff, previews and session actions.
+                        check_timeout = 420
+                    elif case == 'ipad':
+                        # Sidebar, both orientations, keyboard and two native creation flows.
+                        check_timeout = 600
+                    elif case in ('wide-panel', 'pad-layout'):
+                        # Both orientations and inspector/sheet preservation across width changes.
+                        check_timeout = 420
                     elif case == 'permission-native':
                         # Multiple fresh sessions plus nested permissions and questions can reach 300s.
                         check_timeout = 420
@@ -710,7 +719,7 @@ with metro_context:
                     elif case in ('send-queue', 'send-guide'):
                         # Queue/steer/stop and guide rounds reach ~185s on both the RN and native fixtures.
                         check_timeout = 300
-                    elif case in ('branch-picker', 'message-share', 'session-search-pad', 'chat-stream-performance', 'mention-chat', 'mention-sheet', 'appearance', 'ipad'):
+                    elif case in ('branch-picker', 'message-share', 'session-search-pad', 'chat-stream-performance', 'mention-chat', 'mention-sheet', 'appearance'):
                         check_timeout = 300
                     check_started = time.monotonic()
                     with (output / 'check.log').open('w') as log:

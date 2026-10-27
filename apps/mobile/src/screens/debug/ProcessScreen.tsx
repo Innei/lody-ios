@@ -2,7 +2,7 @@ import { useOpenFile } from '@/hooks/screens/useOpenFile';
 import { useSyncExternalStore } from 'react';
 import { NativeChat } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
-import { t } from '../lib/i18n/index.ts';
+import { t } from '@/lib/i18n/index.ts';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
 
 type ProcessParams = {

@@ -59,7 +59,7 @@ class FileContentController: UIViewController {
     guard !sessionId.isEmpty, !path.isEmpty else { return }
     if await service.quickLook(sessionId, path, controller) { return }
     let content = FileContentController(sessionId: sessionId, path: path, line: line, feedback: feedback, service: service)
-    LodyShell.shared.presentNative(content, title: FilePathText.basename(path), grabber: true)
+    LodyShell.shared.presentDetail(content, title: FilePathText.basename(path), from: controller, detents: [1])
   }
 
   override func viewDidLoad() {
@@ -246,6 +246,7 @@ class FileContentController: UIViewController {
   }
 
   private func close(then completion: (() -> Void)? = nil) {
+    if HomeController.current?.closePanel(from: self) == true { completion?(); return }
     let sheet = navigationController ?? self
     guard let presenter = sheet.presentingViewController else { completion?(); return }
     presenter.dismiss(animated: true, completion: completion)

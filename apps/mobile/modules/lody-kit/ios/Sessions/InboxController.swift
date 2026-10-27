@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 final class InboxController: UIViewController {
-  let list = LodyGroupedList(appContext: nil)
+  let list = SessionListView()
   let source: SessionSource
   private let chrome = InboxChrome()
   private lazy var actions = SessionActions(source: source)
@@ -36,6 +36,7 @@ final class InboxController: UIViewController {
     loadPreferences()
     list.frame = view.bounds
     list.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    list.accessibilityIdentifier = "ipad-inbox-list"
     list.setContentStyle(true)
     list.forwarded = { [weak self] name, body in self?.event(name, body) }
     view.addSubview(list)
@@ -45,7 +46,7 @@ final class InboxController: UIViewController {
         MainActor.assumeIsolated { self?.render() }
       }
     }
-    registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: Self, _: UITraitCollection) in self.render() }
+    registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitHorizontalSizeClass.self]) { (self: Self, _: UITraitCollection) in self.render() }
     // UI Verify can reset the prefs after this controller has already read them.
     observers.append(NotificationCenter.default.addObserver(forName: .lodyInboxPreferencesReset, object: nil, queue: .main) {
       [weak self] _ in MainActor.assumeIsolated { self?.reloadPreferences() }

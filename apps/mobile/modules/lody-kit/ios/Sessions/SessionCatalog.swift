@@ -95,9 +95,10 @@ struct SessionProject: Decodable, Equatable, Sendable {
   var id: String
   var name = ""
   var rootPath = ""
+  var machineId = ""
   var repoFullName: String?
 
-  private enum CodingKeys: String, CodingKey { case id, name, rootPath, repoFullName }
+  private enum CodingKeys: String, CodingKey { case id, name, rootPath, repoFullName, machineId }
 
   init(id: String, name: String = "", rootPath: String = "", repoFullName: String? = nil) {
     self.id = id
@@ -111,6 +112,7 @@ struct SessionProject: Decodable, Equatable, Sendable {
     id = try values.decode(String.self, forKey: .id)
     name = (try? values.decodeIfPresent(String.self, forKey: .name)) ?? ""
     rootPath = (try? values.decodeIfPresent(String.self, forKey: .rootPath)) ?? ""
+    machineId = (try? values.decodeIfPresent(String.self, forKey: .machineId)) ?? ""
     repoFullName = (try? values.decodeIfPresent(String.self, forKey: .repoFullName)) ?? nil
   }
 }

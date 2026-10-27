@@ -13,7 +13,7 @@ import { definePage } from '@/lib/presentation';
 import type { HeaderItems } from '@/lib/presentation/headerContext';
 import { usePalette } from '@/lib/theme/palette';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
-import { t, type TranslationKey } from '../lib/i18n/index.ts';
+import { t, type TranslationKey } from '@/lib/i18n/index.ts';
 
 export type SimulatorParams = { sessionId: string };
 

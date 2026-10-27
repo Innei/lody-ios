@@ -40,6 +40,7 @@ final class InboxChrome {
   private var settingsItem: UIBarButtonItem?
   private var filterItem: UIBarButtonItem?
   private var toolbar: [UIBarButtonItem] = []
+  private var toolbarRegular: Bool?
   private var naturalWidth: CGFloat = 44
   private var waitingForTransition = false
 
@@ -95,7 +96,15 @@ final class InboxChrome {
     let right = [settingsItem ?? UIBarButtonItem(customView: settingsSlot), filter]
     (workspaceItem, settingsItem, filterItem) = (left[0], right[0], filter)
     if header.leftItems != left { header.leftItems = left }
-    if header.rightItems != right { header.rightItems = right }
+    let regular = host.traitCollection.horizontalSizeClass == .regular
+    let headerItems = regular ? [] : right
+    if header.rightItems != headerItems { header.rightItems = headerItems }
+    let placement = regular ? "stacked" : "integrated"
+    if search.config.placement != placement {
+      search.configure(.init(placeholder: LodyStrings.text("search.field.placeholder"), placement: placement,
+        hideWhenScrolling: false, obscureBackground: false, hideNavigationBar: false))
+      header.search = search
+    }
     if header.search !== search { header.search = search }
     showToolbar()
   }
@@ -131,14 +140,18 @@ final class InboxChrome {
       }
       return
     }
-    if toolbar.isEmpty {
+    let regular = host.traitCollection.horizontalSizeClass == .regular
+    if toolbar.isEmpty || toolbarRegular != regular {
+      toolbarRegular = regular
       let create = UIBarButtonItem(primaryAction: UIAction(image: UIImage(systemName: "plus")) { [weak self] _ in
         self?.newSession?()
       })
       create.sharesBackground = false
       create.tintColor = .lodyAccent
       create.accessibilityLabel = LodyStrings.text("tabs.newSession")
-      toolbar = [host.navigationItem.searchBarPlacementBarButtonItem, .fixedSpace(6), create]
+      if regular, let filterItem, let settingsItem {
+        toolbar = [filterItem, settingsItem, .flexibleSpace(), create]
+      } else { toolbar = [host.navigationItem.searchBarPlacementBarButtonItem, .fixedSpace(6), create] }
     }
     if host.toolbarItems ?? [] != toolbar { host.setToolbarItems(toolbar, animated: false) }
     if let navigation = host.navigationController, navigation.topViewController === host {
@@ -150,7 +163,8 @@ final class InboxChrome {
     guard let host else { return }
     let insets = host.view.safeAreaInsets
     // Leave room for both trailing actions and UIKit's glass group margins.
-    let limit = max(44, host.view.bounds.width - insets.left - insets.right - 192)
+    let trailing: CGFloat = host.traitCollection.horizontalSizeClass == .regular ? 80 : 192
+    let limit = max(44, host.view.bounds.width - insets.left - insets.right - trailing)
     workspaceSlot.size = CGSize(width: min(naturalWidth, limit), height: 44)
   }
 

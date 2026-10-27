@@ -218,7 +218,7 @@ class FileDiffController: UIViewController {
   func preview() {
     if html {
       let content = FileContentController(sessionId: request.sessionId, path: request.path, preview: true, feedback: feedback, service: files)
-      LodyShell.shared.presentNative(content, title: FilePathText.basename(request.path), grabber: true)
+      LodyShell.shared.presentDetail(content, title: FilePathText.basename(request.path), from: self, detents: [1])
       return
     }
     Task { [weak self, request, service] in

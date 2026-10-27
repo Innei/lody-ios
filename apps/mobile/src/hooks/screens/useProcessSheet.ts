@@ -1,7 +1,10 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { usePageRuntime } from './usePageRuntime';
 import { t } from '@/lib/i18n/index.ts';
-import { createProcessSource, ProcessScreen } from '@/screens/ProcessScreen';
+import {
+  createProcessSource,
+  ProcessScreen,
+} from '@/screens/debug/ProcessScreen';
 import { openSubagentTask } from './openSubagentTask';
 import { findSessionItem } from '@/features/sessions/subagentHistory';
 

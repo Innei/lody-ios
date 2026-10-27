@@ -9,7 +9,7 @@ for _ in range(6):
     row = next((item for item in ui.state() if item.get('AXUniqueId') == 'project-history' and item['frame']['y'] + item['frame']['height'] < 800), None)
     if row:
         break
-    ui.axe('swipe', '--start-x', '200', '--start-y', '700', '--end-x', '200', '--end-y', '350', '--duration', '.4', '--post-delay', '.4')
+    ui.axe('drag', '--start-x', '200', '--start-y', '700', '--end-x', '200', '--end-y', '350', '--duration', '.4', '--post-delay', '.4')
 else:
     raise AssertionError('Settings does not expose project history')
 assert catalog.text('settings.history.title') in row.get('AXLabel', '')

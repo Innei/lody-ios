@@ -40,7 +40,8 @@ export function useSessionSimulator(
 
   const show = useCallback(
     async (name: string) => {
-      const { SimulatorScreen } = await import('@/screens/SimulatorScreen');
+      const { SimulatorScreen } =
+        await import('@/screens/debug/SimulatorScreen');
       setResolving(false);
       await present(SimulatorScreen, { sessionId }, { title: name });
     },
@@ -64,7 +65,7 @@ export function useSessionSimulator(
       const resumed = await resumeSimulator(workspaceId, sessionId);
       if (resumed) return show(resumed);
       const { SimulatorPickerScreen } =
-        await import('@/screens/SimulatorPickerScreen');
+        await import('@/screens/debug/SimulatorPickerScreen');
       setResolving(false);
       const result = await present(SimulatorPickerScreen, {
         workspaceId,

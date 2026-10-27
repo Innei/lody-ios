@@ -25,6 +25,7 @@ struct SessionFeedState: Equatable, Sendable {
   var entriesJSON = "[]"
   var billableTurnCount: Int?
   var composerJSON: String?
+  var preview: SessionBrowserPreview?
   var transcript = SessionTranscriptFacts()
 }
 
@@ -95,6 +96,7 @@ final class SessionFeed {
           guard let self, self.token == token, !self.received, let saved, saved.version == 1 else { return }
           self.state.entriesJSON = saved.entriesJSON
           self.state.transcript = saved.transcript
+          self.state.preview = saved.preview
           self.changed?()
         }
       }
@@ -153,7 +155,7 @@ final class SessionFeed {
       received = true
       state = SessionFeedState(
         status: "live", revision: revision, entriesJSON: envelope.entriesJSON,
-        billableTurnCount: envelope.billableTurnCount, composerJSON: envelope.composerJSON, transcript: envelope.transcript
+        billableTurnCount: envelope.billableTurnCount, composerJSON: envelope.composerJSON, preview: envelope.preview, transcript: envelope.transcript
       )
     } else {
       state.status = envelope.status

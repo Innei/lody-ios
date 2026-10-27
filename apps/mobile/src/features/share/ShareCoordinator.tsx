@@ -13,7 +13,6 @@ import { getPendingSendStore } from '@/cloud/send/pendingSends';
 import { useShellNavigationState } from '@/lib/presentation/shellNavigation';
 import { uiVerify } from '@/lib/uiVerify';
 import { t } from '@/lib/i18n';
-import type { Catalog } from '@lody/cloud-runtime/models/catalog';
 import type { CreationOptions } from '@lody/cloud-runtime/models/send';
 import { showToast } from '@/ui/toast';
 import type { NativeCreateDraft } from '../sessions/createDraft';
@@ -43,7 +42,7 @@ async function draftAvailable(draft: NativeCreateDraft) {
   }
 }
 
-function deliver(entry: ShareEntry, catalog: Catalog) {
+function deliver(entry: ShareEntry) {
   return deliverShare(entry, {
     adopt: (id) => JSON.parse(shareAdopt(id)) as ShareEntry,
     remove: shareRemove,
@@ -54,7 +53,6 @@ function deliver(entry: ShareEntry, catalog: Catalog) {
     openForm: (adopted) =>
       requestNewSession(
         adopted.workspaceId,
-        catalog,
         adopted.projectId,
         adopted.context,
         undefined,
@@ -130,7 +128,7 @@ export function ShareCoordinator() {
       return;
     }
     busy.current = true;
-    void deliver(step.entry, current.catalog).then((result) => {
+    void deliver(step.entry).then((result) => {
       if (result === 'kept') failed.current.add(step.entry.id);
       busy.current = false;
       setWake((value) => value + 1);
