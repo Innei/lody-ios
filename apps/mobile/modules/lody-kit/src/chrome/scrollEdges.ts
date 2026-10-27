@@ -3,9 +3,3 @@ export const navigationScrollEdgeEffects = {
   top: 'soft',
   bottom: 'soft',
 } as const;
-
-export const panelScrollEdgeEffects = {
-  ...navigationScrollEdgeEffects,
-  left: 'hidden',
-  right: 'hidden',
-} as const;
