@@ -731,7 +731,7 @@ unchanged focus and input state, and adoption within 1.5 pt. Review `run.mp4`
 with `transition-events.json` for the system button-to-sheet zoom, reverse zoom
 and the source-less send dismissal. `--case sheet-zoom-project` covers the
 Project page navigation button, repeated opening/cancellation, and retaining the
-owning project route. These fixtures do not send a cloud message.
+owning native project page, and returning to Home. These fixtures do not send a cloud message.
 
 `send`, `send-handoff`, `send-rounds`, `send-queue`, `send-guide`, `send-transition`, and `send-transition-handoff` enable the `--ui-verify-throw` probe.
 It requests the Simulator screen's maximum refresh rate and samples Core Animation
