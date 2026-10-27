@@ -13,7 +13,7 @@ import type {
   usePendingSends,
 } from '@/cloud/send/pendingSends';
 import type { Session } from '@lody/cloud-runtime/models/catalog';
-import type { Snapshot } from './useSessionRuntime';
+import type { Snapshot } from '@lody/cloud-runtime/models/session';
 import { sessionState } from './status';
 import { resolveSessionMessageSubmitRoute } from './messageSubmitRoute';
 import { outboxInflight } from '../../cloud/send/outboxInflight';

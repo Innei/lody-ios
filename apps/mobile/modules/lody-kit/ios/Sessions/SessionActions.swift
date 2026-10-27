@@ -16,8 +16,8 @@ final class SessionActions {
 
   func open(_ rowId: String, findQuery: String? = nil, from controller: UIViewController) {
     if rowId.hasPrefix("project:") {
-      let params = Self.json(["projectId": String(rowId.dropFirst(8))])
-      LodyShell.shared.openPage("project", params: params, from: controller)
+      let page = ProjectController(projectId: String(rowId.dropFirst(8)), source: source)
+      LodyShell.shared.pushNative(page, title: LodyStrings.text("project.title"), from: controller)
       return
     }
     let state = source.state
@@ -28,9 +28,7 @@ final class SessionActions {
   }
 
   static func create(_ fields: [String: Any]) {
-    var intent = fields
-    if SessionCatalogPreview.state != nil { intent["catalog"] = SessionCatalogPreview.catalogJSON }
-    LodyShell.shared.sessionIntent("create", intent)
+    LodyShell.shared.sessionIntent("create", fields)
   }
 
   func perform(_ actionId: String, row id: String, from controller: UIViewController) {

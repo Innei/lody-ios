@@ -171,7 +171,19 @@ enum SessionPublished {
 // UI verification fixtures that still live in React publish their catalog here.
 @MainActor
 enum SessionCatalogPreview {
-  private(set) static var state: SessionListState?
+  private static var base: SessionListState?
+  private static var observer: NSObjectProtocol?
+  static var state: SessionListState? {
+    guard var state = base else { return nil }
+    let pending = pendingSessions()
+    state.catalog.sessions += try! JSONDecoder().decode([SessionItem].self, from: JSONEncoder().encode(pending))
+    return state
+  }
+  private static func pendingSessions() -> [OutboxValue] {
+    guard let base else { return [] }
+    let existing = Dictionary(uniqueKeysWithValues: base.catalog.sessions.map { ($0.id, "") })
+    return OutboxSession.shared.pendingSessions(user: base.userId, workspace: base.workspaceId, excluding: existing)
+  }
   private(set) static var catalogJSON = ""
   private static var sessions: [Any] = []
 
@@ -201,14 +213,25 @@ enum SessionCatalogPreview {
       let presence = try? JSONDecoder().decode(SettingsMachinePresence.self, from: data) {
       next.presence = presence
     }
-    state = next
+    base = next
+    if observer == nil {
+      observer = NotificationCenter.default.addObserver(forName: .lodyOutboxDidChange, object: nil, queue: .main) { _ in
+        MainActor.assumeIsolated { NotificationCenter.default.post(name: .lodySessionCatalogPreviewDidChange, object: nil) }
+      }
+    }
     NotificationCenter.default.post(name: .lodySessionCatalogPreviewDidChange, object: nil)
   }
 
-  static func raw(_ id: String) -> String? { SessionSource.rawSession(in: sessions, id) }
+  static func raw(_ id: String) -> String? {
+    if let raw = SessionSource.rawSession(in: sessions, id) { return raw }
+    guard let pending = pendingSessions().first(where: { $0.object?["id"]?.string == id }) else { return nil }
+    return String(decoding: try! JSONEncoder().encode(pending), as: UTF8.self)
+  }
 
   private static func reset() {
-    state = nil
+    base = nil
+    if let observer { NotificationCenter.default.removeObserver(observer) }
+    observer = nil
     catalogJSON = ""
     sessions = []
     LodyPreviewBridge.reset()

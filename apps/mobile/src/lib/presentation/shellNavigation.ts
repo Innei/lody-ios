@@ -9,7 +9,7 @@ import {
   type ShellPage as ShellPageSpec,
 } from '@lody-ios/kit';
 
-import type { StackRoute } from './homeTransitions';
+type StackRoute = { key: string; name: string; params?: object };
 import type { PageDefinitionBase } from './page';
 import {
   cancelPresentation,
@@ -85,15 +85,6 @@ export function registerShellPages(pages: PageDefinitionBase[]) {
   for (const page of pages) shellPages.set(page.id, page);
 }
 
-export type ShellSessionIntent = Extract<NavEvent, { type: 'session' }>;
-let sessionHandler: ((intent: ShellSessionIntent) => void) | undefined;
-
-export function registerShellSessionHandler(
-  handler: (intent: ShellSessionIntent) => void,
-) {
-  sessionHandler = handler;
-}
-
 type PreviewHandler = (
   action: string,
   fields: Record<string, unknown>,
@@ -163,10 +154,6 @@ function openShellPage(event: Extract<NavEvent, { type: 'open' }>) {
 function onNav(event: NavEvent) {
   if (event.type === 'open') {
     openShellPage(event);
-    return;
-  }
-  if (event.type === 'session') {
-    sessionHandler?.(event);
     return;
   }
   if (event.type === 'result') {

@@ -190,7 +190,7 @@ for _ in range(24):
     x = area['x'] + area['width'] * .75
     top = ui.element('chat-find-field')['frame']['y'] + 100
     bottom = ui.element('session-input')['frame']['y'] - 30
-    ui.axe('swipe', '--start-x', str(x), '--start-y', str(top), '--end-x', str(x),
+    ui.axe('drag', '--start-x', str(x), '--start-y', str(top), '--end-x', str(x),
            '--end-y', str(bottom), '--duration', '.35', '--post-delay', '.2')
 else:
     raise AssertionError('Could not reach the explicit history load control')

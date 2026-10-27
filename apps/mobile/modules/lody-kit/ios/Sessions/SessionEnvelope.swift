@@ -1,5 +1,10 @@
 import Foundation
 
+struct SessionBrowserPreview: Equatable, Sendable {
+  var label: String
+  var active: Bool
+}
+
 struct SessionEnvelope: Sendable {
   var version: Int?
   var revision: Int?
@@ -8,6 +13,7 @@ struct SessionEnvelope: Sendable {
   var entriesJSON = "[]"
   var billableTurnCount: Int?
   var composerJSON: String?
+  var preview: SessionBrowserPreview?
   var transcript = SessionTranscriptFacts()
 
   static func prepare(_ json: String) -> SessionEnvelope? {
@@ -16,6 +22,9 @@ struct SessionEnvelope: Sendable {
       version: (object["v"] as? NSNumber)?.intValue, revision: (object["revision"] as? NSNumber)?.intValue,
       status: object["status"] as? String ?? "", overflow: object["overflow"] as? Bool == true
     )
+    if let preview = object["preview"] as? [String: Any], let label = preview["label"] as? String {
+      envelope.preview = SessionBrowserPreview(label: label, active: preview["active"] as? Bool == true)
+    }
     envelope.billableTurnCount = (object["billableTurnCount"] as? NSNumber)?.intValue
     if let composer = object["composer"] as? [String: Any], let data = try? JSONSerialization.data(withJSONObject: composer) {
       envelope.composerJSON = String(decoding: data, as: UTF8.self)

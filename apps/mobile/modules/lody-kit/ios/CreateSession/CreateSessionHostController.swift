@@ -46,6 +46,7 @@ class CreateSessionHostController: UIViewController {
   private var refreshKey = ""
   private var created: Any?
   private var opening = false
+  var onCreated: (@MainActor ([String: Any]) async throws -> Void)?
 
   init(params: CreateSessionHostParams, service: CreateSessionService = .live) {
     self.params = params
@@ -230,13 +231,19 @@ class CreateSessionHostController: UIViewController {
     }
     created = built.created
     guard relays, input.relayPayload != nil else {
-      LodyShell.shared.finish(from: self, value: built.created)
-      return close()
+      if let onCreated {
+        Task {
+          do { try await onCreated(built.created as! [String: Any]); close() }
+          catch { controller.submissionFailed(); LodyToastOverlay.shared.show(message: LodyStrings.text("session.toast.openFailed"), kind: "error") }
+        }
+      } else { LodyShell.shared.finish(from: self, value: built.created); close() }
+      return
     }
     opening = true
     Task {
       do {
-        try await LodyShell.shared.callback(from: self, name: "onCreated", value: built.created ?? NSNull())
+        if let onCreated { try await onCreated(built.created as! [String: Any]) }
+        else { try await LodyShell.shared.callback(from: self, name: "onCreated", value: built.created ?? NSNull()) }
       } catch {
         guard opening, (error as NSError).localizedDescription != "request_reset" else { return }
         opening = false

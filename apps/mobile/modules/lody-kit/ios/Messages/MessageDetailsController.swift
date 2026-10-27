@@ -32,7 +32,7 @@ final class MessageDetailsController: UIViewController {
       title: LodyStrings.text("common.done"), primaryAction: UIAction { [weak self] _ in
         guard let self else { return }
         LodyShell.shared.finish(from: self, value: nil)
-        self.navigationController?.dismiss(animated: true)
+        LodyShell.shared.close(from: self)
       }
     )
   }

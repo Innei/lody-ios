@@ -1,5 +1,6 @@
 """Native read-only session page: cached then live transcript, title menu, header actions, find, offline reconnect and deletion return."""
 import sys
+import subprocess
 from driver import UI
 import catalog
 
@@ -51,8 +52,9 @@ tap_label(catalog.text('common.done'))
 assert probe().split(',').count('watch') == 1, 'Opening details started another runtime subscription'
 assert 'unwatch' not in probe().split(','), 'Closing details stopped the owning session feed'
 
-ui.element('preview-answer:process')
-ui.axe('tap', '--id', 'preview-answer:process', '--post-delay', '.5')
+ui.capture('details-return')
+process = ui.element('preview-answer:process')['frame']
+ui.axe('tap', '-x', str(process['x'] + 30), '-y', str(process['y'] + process['height'] / 2), '--post-delay', '.5')
 assert ui.element('preview-answer:edit')['type'] == 'Button'
 ui.axe('tap', '--id', 'preview-answer:edit')
 wait_text('Native session tool detail')
@@ -64,6 +66,27 @@ ui.element('session-preview-probe')
 assert probe().split(',').count('watch') == 1, 'Tool details started another runtime subscription'
 assert 'unwatch' not in probe().split(','), 'Closing tool details stopped the owning feed'
 
+
+# Subagent details consume the same feed and expose their result and copy action.
+ui.axe('tap', '--id', 'preview-answer:task', '--post-delay', '.5')
+assert 'Native task summary: all checks passed.' in spoken(ui.element('subagent-detail-result'))
+ui.axe('tap', '--id', 'subagent-detail-copy', '--post-delay', '.3')
+wait_text(catalog.text('subagent.detail.copied'))
+ui.capture('native-subagent')
+tap_label(catalog.text('accessibility.closeSheet', title=catalog.text('native.chat.transcript.subtask')))
+assert probe().split(',').count('watch') == 1
+
+# Browser preview commands use the injected native service, with no cloud access.
+chip = ui.element('session-preview')['frame']
+x, y = chip['x'] + chip['width'] / 2, chip['y'] + chip['height'] / 2
+ui.axe('touch', '-x', str(x), '-y', str(y), '--down')
+import time
+time.sleep(.7)
+ui.axe('touch', '-x', str(x), '-y', str(y), '--up')
+tap_label(catalog.text('session.preview.copyLink'))
+wait_text(catalog.text('session.preview.copied'))
+assert subprocess.check_output(['xcrun', 'simctl', 'pbpaste', ui.udid], text=True).strip() == 'https://native-fixture.trycloudflare.com'
+ui.capture('native-browser-preview')
 
 # The native session owns PR draft handoff and the simulator operation.
 ui.axe('tap', '--id', 'session-input', '--post-delay', '.3')
@@ -84,7 +107,7 @@ tap_label(more)
 tap_menu_item(catalog.text('simulator.menu'))
 ui.element('simulator-stream')
 ui.capture('native-simulator')
-ui.axe('drag', '--start-x', '2', '--start-y', '450', '--end-x', '365', '--end-y', '450', '--duration', '.5', '--post-delay', '.7')
+ui.axe('tap', '--id', 'BackButton', '--post-delay', '.8')
 ui.element('simulator-preview-expand')
 ui.capture('native-floating-simulator')
 ui.axe('tap', '--id', 'simulator-preview-close', '--post-delay', '.5')

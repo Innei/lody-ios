@@ -75,26 +75,26 @@ y = row['y'] + row['height'] / 2
 left = row['x'] + 12
 right = row['x'] + row['width'] - 12
 middle = row['x'] + row['width'] / 2
-ui.axe('swipe', '--start-x', str(right), '--start-y', str(y),
+ui.axe('drag', '--start-x', str(right), '--start-y', str(y),
        '--end-x', str(middle), '--end-y', str(y), '--duration', '.6', '--post-delay', '.5')
 archive_label = catalog.text('session.action.archive')
 assert_swipe_has_no_selection(archive_label)
 ui.capture('trailing-action')
-ui.axe('swipe', '--start-x', str(middle), '--start-y', str(y),
+ui.axe('drag', '--start-x', str(middle), '--start-y', str(y),
        '--end-x', str(right), '--end-y', str(y), '--duration', '.4', '--post-delay', '.4')
-ui.axe('swipe', '--start-x', str(left), '--start-y', str(y),
+ui.axe('drag', '--start-x', str(left), '--start-y', str(y),
        '--end-x', str(middle), '--end-y', str(y), '--duration', '.6', '--post-delay', '.5')
 pin_label = catalog.text('session.action.pin')
 assert_swipe_has_no_selection(pin_label)
 ui.capture('leading-action')
-ui.axe('swipe', '--start-x', str(middle), '--start-y', str(y),
+ui.axe('drag', '--start-x', str(middle), '--start-y', str(y),
        '--end-x', str(left), '--end-y', str(y), '--duration', '.4', '--post-delay', '.4')
 
 # Catalog updates arrive continuously through the CRDT runtime. Pulling the
 # inbox must only bounce; a refresh control would stay active because there is
 # no request lifecycle for React to finish.
 before_pull = ui.element('ui-design')['frame']['y']
-ui.axe('swipe', '--start-x', '200', '--start-y', str(before_pull + 20),
+ui.axe('drag', '--start-x', '200', '--start-y', str(before_pull + 20),
        '--end-x', '200', '--end-y', str(before_pull + 240), '--duration', '.7', '--post-delay', '1')
 after_pull = ui.element('ui-design')['frame']['y']
 assert abs(after_pull - before_pull) <= 2, 'Pulling the CRDT inbox left a refresh control active'
@@ -115,7 +115,7 @@ for index in [1, 0, 1, 0]:
     width = ui.element('create-session-input')['frame']['width']
     start, end = (width - 20, 20) if index == 1 else (20, width - 20)
     y = before['y'] + before['height'] / 2
-    ui.axe('swipe', '--start-x', str(start), '--start-y', str(y),
+    ui.axe('drag', '--start-x', str(start), '--start-y', str(y),
            '--end-x', str(end), '--end-y', str(y), '--duration', '.7', '--post-delay', '.6')
     ui.element('create-type')
     assert any(i.get('AXUniqueId') == 'project' for i in ui.state()) == (index == 0), 'Swipe did not commit the expected page'
@@ -127,7 +127,7 @@ for index in [1, 0, 1, 0]:
 
 header = next(item['frame'] for item in ui.state() if item.get('AXLabel') == close_create)
 x, y = header['x'] + header['width'] / 2, header['y'] + header['height'] / 2
-ui.axe('swipe', '--start-x', str(x), '--start-y', str(y),
+ui.axe('drag', '--start-x', str(x), '--start-y', str(y),
        '--end-x', str(x), '--end-y', str(y + 45), '--duration', '1', '--post-delay', '1')
 ui.element('create-session-input')
 ui.element('create-type')
@@ -154,7 +154,7 @@ ui.element('project')
 header = next(item['frame'] for item in ui.state() if item.get('AXLabel') == close_create)
 start_x = header['x'] + header['width'] / 2
 ui.axe(
-    'swipe',
+    'drag',
     '--start-x', str(start_x),
     '--start-y', str(header['y'] + header['height'] / 2),
     '--end-x', str(start_x),
@@ -403,7 +403,7 @@ def reveal(identifier):
         match = next((i for i in items if i.get('AXUniqueId') == identifier), None)
         if match and match['frame']['y'] + match['frame']['height'] < items[0]['frame']['height'] - 16:
             return match
-        ui.axe('swipe', '--start-x', '200', '--start-y', '700', '--end-x', '200', '--end-y', '400', '--duration', '.4', '--post-delay', '.5')
+        ui.axe('drag', '--start-x', '200', '--start-y', '700', '--end-x', '200', '--end-y', '400', '--duration', '.4', '--post-delay', '.5')
     raise AssertionError(f'Could not reach {identifier}')
 
 

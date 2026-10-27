@@ -39,7 +39,7 @@ final class LodyShell {
   }
 
   func pushNative(_ content: UIViewController, title: String, from source: UIViewController) {
-    guard let target = source.navigationController else { return }
+    guard let target = (source as? UINavigationController) ?? source.navigationController else { return }
     let spec = ShellPageSpec(
       id: 0, title: title, style: "push", animation: "slide", dismissible: true, headerShown: true,
       headerVariant: "transparent"
@@ -47,9 +47,9 @@ final class LodyShell {
     push(LodyPageController(spec: spec, inSheet: target !== navigation, content: content), on: target)
   }
 
-  func presentNative(_ content: UIViewController, title: String, detents: [Double] = [1], grabber: Bool = false, dismissible: Bool = true, style: String = "formSheet") {
+  func presentNative(_ content: UIViewController, title: String, detents: [Double] = [1], grabber: Bool = false, dismissible: Bool = true, style: String = "formSheet", headerShown: Bool = true) {
     let spec = ShellPageSpec(
-      id: 0, title: title, style: style, animation: "slide", dismissible: dismissible, headerShown: true,
+      id: 0, title: title, style: style, animation: "slide", dismissible: dismissible, headerShown: headerShown,
       headerVariant: "transparent", detents: detents, grabber: grabber
     )
     presentModal(LodyPageController(spec: spec, inSheet: true, content: content))
@@ -60,9 +60,22 @@ final class LodyShell {
     emitOpen?(id, params, options, pages.last { $0.spec.id != 0 }?.spec.id ?? 0)
   }
 
-  // Sessions open through the React sessionNav mailbox until Home is native.
+  func configureNavigation(_ controller: UINavigationController) { controller.delegate = delegate }
+
+  func pushRootNative(_ content: UIViewController, title: String) {
+    guard let navigation else { return }
+    pushNative(content, title: title, from: navigation)
+  }
+
+  func presentDetail(_ content: UIViewController, title: String, from source: UIViewController, push: Bool = false, detents: [Double] = [0.6, 1]) {
+    if HomeController.current?.showPanel(content, title: title, from: source) == true { return }
+    if push { pushNative(content, title: title, from: source) }
+    else { presentNative(content, title: title, detents: detents, grabber: true) }
+  }
+
   func sessionIntent(_ action: String, _ fields: [String: Any]) {
-    emitNav?(fields.merging(["type": "session", "action": action]) { _, new in new })
+    do { try SessionNavigation.handle(action, fields) }
+    catch { LodyToastOverlay.shared.show(message: LodyStrings.text("session.toast.openFailed"), kind: "error") }
   }
 
   // Settles the React presentation that hosts this native page; pages pushed natively have none.
@@ -87,8 +100,12 @@ final class LodyShell {
   }
 
   func close(from controller: UIViewController?) {
-    guard let page = Self.page(of: controller), page.spec.id != 0 else { return }
-    close(page.spec.id)
+    guard let page = Self.page(of: controller) else { return }
+    if HomeController.current?.closePanel(from: page) == true { return }
+    if page.spec.id != 0 { close(page.spec.id); return }
+    guard let navigation = page.navigationController else { return }
+    if navigation.viewControllers.first === page { navigation.presentingViewController?.dismiss(animated: true) }
+    else { navigation.popViewController(animated: true) }
   }
 
   private static func page(of controller: UIViewController?) -> LodyPageController? {
@@ -150,6 +167,7 @@ final class LodyShell {
     if navigation.presentedViewController != nil {
       navigation.dismiss(animated: true) { [weak self] in self?.sweep() }
     }
+    HomeController.current?.reset()
     navigation.popToRootViewController(animated: true)
     scheduleSweep()
   }
@@ -235,7 +253,7 @@ final class LodyShell {
 
   private func alive(_ page: LodyPageController) -> Bool {
     guard let container = page.navigationController else { return false }
-    return container === navigation || container.presentingViewController != nil
+    return container === navigation || container.presentingViewController != nil || HomeController.current?.contains(container) == true
   }
 
   private static func modalStyle(_ style: String) -> UIModalPresentationStyle {

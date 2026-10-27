@@ -221,21 +221,17 @@ export function listRowAction(
     return;
   }
   if (actionId === 'newChat') {
-    void requestNewSession(workspace.id, catalog, undefined, 'chat');
+    void requestNewSession(workspace.id, undefined, 'chat');
     return;
   }
   if (actionId === 'newSession') {
     const projectId = projectIdOfRow(id);
     const session = catalog.sessions.find((item) => item.id === id);
     if (session && isChatSession(session)) {
-      void requestNewSession(workspace.id, catalog, undefined);
+      void requestNewSession(workspace.id, undefined);
       return;
     }
-    void requestNewSession(
-      workspace.id,
-      catalog,
-      projectId ?? session?.projectId,
-    );
+    void requestNewSession(workspace.id, projectId ?? session?.projectId);
     return;
   }
   if (actionId === 'share') {

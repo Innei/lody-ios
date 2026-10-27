@@ -1,3 +1,5 @@
+import LodyCore
+import SafariServices
 import UIKit
 
 extension SessionController {
@@ -12,15 +14,7 @@ extension SessionController {
       renderComposer()
       render()
     }
-    chat.onPreview.onEventSent = { [weak self] body in
-      guard let self, let action = body["action"] as? String else { return }
-      switch action {
-      case "close": store.hidePreview()
-      case "stop": Task { do { try await store.stop() } catch { self.toolError(error) } }
-      case "open", "expand": openSimulator()
-      default: break
-      }
-    }
+
   }
 
   var simulatorChip: [String: Any]? {
@@ -100,8 +94,99 @@ extension SessionController {
       guard let self, source.state.key == state.key else { throw OutboxError.scopeExpired }
       chat.composer.appendDraft(Self.json(["id": UUID().uuidString, "text": text]))
     }
-    LodyShell.shared.pushNative(page, title: "PR #\(reference.number)", from: self)
+    LodyShell.shared.presentDetail(page, title: "PR #\(reference.number)", from: self, push: true)
   }
 
   func updateDetails(_ json: String) { subagentPage?.update(json) }
+
+}
+
+extension SessionController {
+  var browserChip: [String: Any]? {
+    guard let preview = feed?.state.preview else { return nil }
+    var actions: [[String: Any]] = [["id": "copy", "title": LodyStrings.text("session.preview.copyLink"), "symbol": "link"]]
+    if preview.active { actions.append(["id": "stop", "title": LodyStrings.text("session.preview.stop"), "symbol": "stop.circle", "destructive": true]) }
+    return ["label": browserBusy ? LodyStrings.text("session.preview.connecting") : preview.label,
+      "symbol": "safari", "state": browserBusy ? "connecting" : "ready",
+      "accessibilityLabel": LodyStrings.text("session.preview.open", ["target": preview.label]), "actions": actions]
+  }
+
+  var contextChips: [(id: String, chip: [String: Any])] {
+    var chips: [(String, [String: Any])] = []
+    if let browserChip { chips.append(("browser", browserChip)) }
+    if let simulatorChip { chips.append(("simulator", simulatorChip)) }
+    return chips
+  }
+
+  func makeComposerPreview() -> [String: Any]? {
+    let chips = contextChips
+    guard chips.count > 1 else { return chips.first?.chip }
+    let label = LodyStrings.text("session.context.count", ["count": chips.count])
+    let actions = chips.flatMap { source in
+      (source.chip["actions"] as? [[String: Any]] ?? []).map { action in
+        var action = action; action["id"] = source.id + ":" + (action["id"] as! String); return action
+      }
+    }
+    return ["label": label, "symbol": "square.stack", "state": browserBusy || simulator?.connecting == true ? "connecting" : "ready",
+      "accessibilityLabel": label, "actions": actions]
+  }
+
+  func contextAction(_ action: String) {
+    // The floating simulator uses these actions independently of the composer chip.
+    if action == "expand" { openSimulator(); return }
+    if action == "close" { simulator?.hidePreview(); return }
+    let chips = contextChips
+    if chips.count < 2 { resourceAction(chips.first?.id ?? "simulator", action); return }
+    if action != "open", let separator = action.firstIndex(of: ":") {
+      resourceAction(String(action[..<separator]), String(action[action.index(after: separator)...])); return
+    }
+    let menu = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
+    for source in chips {
+      menu.addAction(UIAlertAction(title: source.chip["accessibilityLabel"] as? String, style: .default) { [weak self] _ in
+        self?.resourceAction(source.id, "open")
+      })
+    }
+    menu.addAction(UIAlertAction(title: LodyStrings.text("common.cancel"), style: .cancel))
+    menu.popoverPresentationController?.sourceView = chat.composer
+    menu.popoverPresentationController?.sourceRect = chat.composer.bounds
+    present(menu, animated: true)
+  }
+
+  private func resourceAction(_ resource: String, _ action: String) {
+    if resource == "browser" { browserAction(action); return }
+    if action == "stop" {
+      Task { do { try await simulator?.stop() } catch { toolError(error) } }
+    } else { openSimulator() }
+  }
+
+  private func browserAction(_ action: String) {
+    guard !browserBusy else { return }
+    let state = source.state
+    browserBusy = true; renderComposer()
+    Task { [weak self] in
+      guard let self else { return }
+      defer { browserBusy = false; renderComposer() }
+      do {
+        let command: RuntimeContract.SessionPreviewParamsAction = action == "stop" ? .revoke : .create
+        let reply = try await requestBrowserPreview(state, command)
+        guard source.state.key == state.key else { throw OutboxError.scopeExpired }
+        guard viewIfLoaded?.window != nil else { return }
+        if let error = reply.error {
+          let message = error == "unsupported" ? LodyStrings.text("session.preview.unsupported") : reply.message ?? LodyStrings.text("session.preview.generic")
+          throw SettingsError(message)
+        }
+        if action == "stop" { LodyToastOverlay.shared.show(message: LodyStrings.text("session.preview.stopped"), kind: "info"); return }
+        guard let address = reply.url, let url = URL(string: address), url.scheme == "https", url.user == nil, url.password == nil,
+              url.host?.hasSuffix(".trycloudflare.com") == true else { throw SettingsError(LodyStrings.text("session.preview.generic")) }
+        if action == "copy" {
+          UIPasteboard.general.string = address
+          LodyToastOverlay.shared.show(message: LodyStrings.text("session.preview.copied"), kind: "info")
+        } else { present(SFSafariViewController(url: url), animated: true) }
+      } catch {
+        guard viewIfLoaded?.window != nil else { return }
+        let alert = UIAlertController(title: LodyStrings.text("session.preview.failed"), message: String(describing: error), preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: LodyStrings.text("common.ok"), style: .default)); present(alert, animated: true)
+      }
+    }
+  }
 }

@@ -347,7 +347,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
           guard let self else { return }
           let page = MessageDetailsController(entryId: row.entryID, entry: self.transcript.entries.first { $0.id == row.entryID })
           self.messageDetailsPage = page
-          LodyShell.shared.presentNative(page, title: LodyStrings.text("message.details.title"), detents: [0.75, 1], grabber: true)
+          LodyShell.shared.presentDetail(page, title: LodyStrings.text("message.details.title"), from: self.navigation, detents: [0.75, 1])
           self.onTurnInfoPress(["entryId": row.entryID])
         }, for: .touchUpInside)
         cell.actionButton.menu = messageMenu(entryID: row.entryID, source: cell.actionButton)

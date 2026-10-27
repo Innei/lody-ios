@@ -3,6 +3,7 @@ import UIKit
 
 @MainActor
 class SessionController: UIViewController {
+  typealias BrowserRequest = @MainActor (SessionListState, RuntimeContract.SessionPreviewParamsAction) async throws -> RuntimeContract.SessionPreviewResult
   let chat = LodyChatView(appContext: nil)
   let source: SessionSource
   let sessionId: String
@@ -22,6 +23,8 @@ class SessionController: UIViewController {
   weak var subagentPage: SubagentTaskController?
   var simulator: SessionSimulator?
   var openingSimulator = false
+  var browserBusy = false
+  let requestBrowserPreview: BrowserRequest
   let simulatorService: SimulatorService?
   let pullRequestPage: @MainActor (SessionPullRequest, SessionListState) -> PullRequestController
   weak var processPage: ProcessController?
@@ -44,7 +47,12 @@ class SessionController: UIViewController {
   init(sessionId: String, findQuery: String = "", choice: ModelChoice? = nil, source: SessionSource = .live,
        feed: SessionFeedService = .live, environment: SessionSendEnvironment = .live, permission: PermissionService = .live,
        itemDetail: ItemDetailService? = nil, simulator: SimulatorService? = nil,
-       pullRequest: @escaping @MainActor (SessionPullRequest, SessionListState) -> PullRequestController = SessionController.livePullRequest) {
+       pullRequest: @escaping @MainActor (SessionPullRequest, SessionListState) -> PullRequestController = SessionController.livePullRequest,
+       browser: BrowserRequest? = nil) {
+    requestBrowserPreview = browser ?? { state, action in
+      guard let runtime = DataRuntime.current, runtime.workspace == state.workspaceId, runtime.userId == state.userId else { throw OutboxError.scopeExpired }
+      return try await runtime.perform(RuntimeContract.Calls.SessionPreview.self, .init(sessionId: sessionId, userId: state.userId, action: action))
+    }
     self.sessionId = sessionId
     self.findQuery = findQuery
     self.source = source
@@ -81,8 +89,8 @@ class SessionController: UIViewController {
   }
 
   var queuedMessageBehavior: String { LodyPreferences.queuedMessageBehavior }
-  var composerPreview: [String: Any]? { simulatorChip }
   var persistsDraft: Bool { true }
+  var composerPreview: [String: Any]? { makeComposerPreview() }
   func adjustComposer(_ state: inout [String: Any]) {}
 
   // The chat binds its title and scroll edges to its nearest controller; the shell page shows this item.
@@ -99,6 +107,9 @@ class SessionController: UIViewController {
     wireSendEvents()
     wireDecisionEvents()
     wireRouteEvents()
+    chat.onPreview.onEventSent = { [weak self] body in
+      if let action = body["action"] as? String { self?.contextAction(action) }
+    }
     wireMentionEvents()
     observers = (source.changes + [UIApplication.didBecomeActiveNotification, .lodyPreferencesDidChange]).map { name in
       NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
@@ -275,7 +286,7 @@ class SessionController: UIViewController {
     actions.perform(action, row: sessionId, from: self)
   }
 
-  private func find(query: String, keyboard: Bool) {
+  func find(query: String, keyboard: Bool) {
     guard keyboard || !query.isEmpty else { return }
     findToken += 1
     chat.setFindRequest(Self.json(["token": findToken, "query": query, "keyboard": keyboard, "open": true]))

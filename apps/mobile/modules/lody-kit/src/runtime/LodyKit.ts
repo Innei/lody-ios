@@ -43,18 +43,6 @@ export type NavEvent =
       options?: { title?: string; present?: boolean };
       container: number;
     }
-  | {
-      type: 'session';
-      action: 'open' | 'share' | 'create';
-      workspaceId: string;
-      session?: string;
-      sessionId?: string;
-      projectId?: string;
-      context?: 'chat';
-      zoomSourceLabel?: string;
-      findQuery?: string;
-      catalog?: string;
-    }
   | { type: 'result'; id: number; value: string }
   | {
       type: 'preview';
@@ -161,9 +149,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
   markSessionRead(payload: string): Promise<string>;
   renameSession(payload: string): Promise<string>;
   controlSessionTurn(payload: string): Promise<string>;
-  sessionPreview(payload: string): Promise<string>;
   iosSimulatorControl(payload: string): Promise<string>;
-  openPreviewBrowser(url: string): Promise<void>;
   sendSessionTurn(payload: string): Promise<string>;
   readSessionEdit(payload: string): Promise<string>;
   turnDiff(payload: string): Promise<string>;
@@ -207,6 +193,7 @@ declare class LodyKitNativeModule extends NativeModule<Events> {
     sessionId: string,
   ): Promise<void>;
   setForegroundSession(sessionId: string): Promise<void>;
+  navigateSession(json: string): Promise<void>;
   navPresent(json: string): Promise<void>;
   navClose(id: number): Promise<void>;
   navPopToRoot(): Promise<void>;
@@ -313,18 +300,6 @@ export const loginAuth = () => native.login();
 export const cancelAuth = () => native.cancelLogin();
 export const logoutAuth = () => native.logout();
 export const reopenAuthBrowser = () => native.reopenAuthBrowser();
-export type SessionPreviewReply = {
-  url?: string;
-  error?: string;
-  message?: string;
-};
-export const sessionPreview = async (
-  sessionId: string,
-  action: 'create' | 'revoke' = 'create',
-): Promise<SessionPreviewReply> =>
-  JSON.parse(
-    await native.sessionPreview(JSON.stringify({ sessionId, action })),
-  );
 export type IosSimulatorCommand =
   | { action: 'list' }
   | { action: 'exterior'; udid: string }
@@ -368,8 +343,6 @@ export const iosSimulatorControl = async (
       JSON.stringify({ workspaceId, sessionId, command }),
     ),
   );
-export const openPreviewBrowser = (url: string) =>
-  native.openPreviewBrowser(url);
 export const decodeFlock = (
   snapshot: string,
   updates: string[],
@@ -395,6 +368,9 @@ export const setOutboxInflight = (sessionId: string, active: boolean) =>
   native.setOutboxInflight(sessionId, active);
 export const setForegroundSession = (sessionId: string) =>
   native.setForegroundSession(sessionId);
+export const navigateSession = (intent: object) =>
+  native.navigateSession(JSON.stringify(intent));
+
 export const navPresent = (page: ShellPage) =>
   native.navPresent(JSON.stringify(page));
 export const navClose = (id: number) => native.navClose(id);

@@ -162,7 +162,6 @@ export function useInboxModel() {
     try {
       await requestNewSession(
         selected.id,
-        catalog,
         undefined,
         undefined,
         t('tabs.newSession'),

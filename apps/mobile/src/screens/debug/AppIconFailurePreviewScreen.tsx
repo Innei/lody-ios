@@ -1,4 +1,4 @@
-import { AppIconView } from '../AppIconScreen';
+import { AppIconView } from './AppIconView';
 import { definePage } from '@/lib/presentation';
 
 const service = {

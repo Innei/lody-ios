@@ -141,7 +141,7 @@ ui.wait(lambda items: not any(item.get('AXUniqueId') == 'create-session-input' f
 pad.show_list(ui)
 labeled(catalog.text('tabs.newSession'))
 
-# The project is a second ScreenStackItem owned by the panel, with its own title
+# The project is a second native page owned by the list navigation controller, with its own title
 # and native Back button while the root detail remains unchanged.
 ui.axe('tap', '--id', 'project:ui:empty', '--post-delay', '1')
 ui.wait(
@@ -218,7 +218,7 @@ try:
     panel = ui.element('ipad-panel')['frame']
     x = int(panel['x'] + panel['width'] / 2)
     ui.axe(
-        'swipe', '--start-x', str(x), '--start-y', '600',
+        'drag', '--start-x', str(x), '--start-y', '600',
         '--end-x', str(x), '--end-y', '300', '--duration', '.5', '--post-delay', '.7',
     )
     ui.capture('panel-scrolled-edge')

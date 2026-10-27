@@ -32,7 +32,8 @@ final class SessionPreviewController: SessionController {
         }
         return .init(success: true, preview: .init(operationId: "native-fixture", udid: "native-fixture-phone", phase: .ready, transport: .remote, viewerUrl: "lody-simulator-fixture://stream"))
       }),
-      pullRequest: { _, _ in PullRequestPreviewController(params: [:]) }
+      pullRequest: { _, _ in PullRequestPreviewController(params: [:]) },
+      browser: { _, _ in .init(url: "https://native-fixture.trycloudflare.com") }
     )
   }
 
@@ -147,6 +148,7 @@ private final class SessionPreviewFixture {
   nonisolated static func envelope(status: String, revision: Int, reply: String) -> String? {
     let object: [String: Any] = [
       "v": 1, "status": status, "revision": revision,
+      "preview": ["label": "localhost:5173", "active": true],
       "entries": [
         [
           "id": "preview-user", "role": "user", "status": "completed", "finished": true,
@@ -158,6 +160,8 @@ private final class SessionPreviewFixture {
           "items": [
             ["itemId": "edit", "rev": 1, "hasDetail": true, "type": "tool_call", "kind": "edit", "status": "completed", "title": "Edit", "path": "src/App.tsx",
              "added": 3, "removed": 1],
+            ["itemId": "task", "type": "subagent_task", "taskId": "native-task", "status": "completed",
+             "actor": "test-runner", "description": "Verify the native session", "summary": "Native task summary: all checks passed."],
             ["itemId": "reply", "type": "text", "text": reply],
           ],
         ],

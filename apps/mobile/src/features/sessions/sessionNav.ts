@@ -1,4 +1,4 @@
-import type { Catalog, Session } from '@lody/cloud-runtime/models/catalog';
+import type { Session } from '@lody/cloud-runtime/models/catalog';
 
 export type SessionNavIntent =
   | { kind: 'share'; workspaceId: string; sessionId: string }
@@ -6,7 +6,6 @@ export type SessionNavIntent =
   | {
       kind: 'create';
       workspaceId: string;
-      catalog: Catalog;
       projectId?: string;
       context?: 'project' | 'chat';
       zoomSourceLabel?: string;
@@ -75,7 +74,6 @@ export function requestShareSession(workspaceId: string, sessionId: string) {
 
 export function requestNewSession(
   workspaceId: string,
-  catalog: Catalog,
   projectId?: string,
   context?: 'project' | 'chat',
   zoomSourceLabel?: string,
@@ -84,7 +82,6 @@ export function requestNewSession(
   return enqueue({
     kind: 'create',
     workspaceId,
-    catalog,
     projectId,
     context,
     zoomSourceLabel,
