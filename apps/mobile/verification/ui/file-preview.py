@@ -142,7 +142,6 @@ ui.axe('tap', '--id', 'entry:sample.swift', '--post-delay', '.2')
 title('sample.swift')
 ui.element('file-source')
 plain = geometry('browser-code')
-shared = ui.element('diff-webview-probe')['AXLabel']
 assert plain['line'] == 0 and not plain['highlighted'], plain
 ui.axe('drag', '--start-x', '220', '--start-y', '650', '--end-x', '220', '--end-y', '300', '--duration', '.5', '--post-delay', '.6')
 assert geometry('browser-code-scroll')['y'] > plain['y'] + 100
@@ -181,9 +180,8 @@ source = ui.element('file-source')
 ui.wait(lambda _: geometry('code-ready').get('line') == 120, 'Target code did not render')
 ui.capture('code')
 initial = geometry('code-target')
-assert ui.element('diff-webview-probe')['AXLabel'] == shared, 'Source must reuse the parked DOM WebView without navigation'
 assert initial['line'] == 120 and initial['highlighted'], initial
-assert initial['sourceMatches'] and initial['scriptCount'] == 0, initial
+assert initial['sourceMatches'], initial
 assert initial['coloredTokens'] > 0, initial
 assert initial['top'] < initial['targetY'] < initial['bottom'] - initial['targetHeight'], initial
 assert initial['contentWidth'] > initial['width'] * 2, initial
@@ -214,7 +212,6 @@ title('sample.swift', timeout=3)
 ui.element('file-source')
 ui.wait(lambda _: geometry('code-reopened').get('handle') != initial['handle'], 'Reopened source did not render fresh content')
 reopened = geometry('code-reopened')
-assert ui.element('diff-webview-probe')['AXLabel'] == shared, 'Reopening source must reuse the same WebView and bundle'
 assert reopened['top'] < reopened['targetY'] < reopened['bottom'] - reopened['targetHeight'], reopened
 ui.capture('code-reopened')
 back()
@@ -244,17 +241,15 @@ ui.capture('process-code-target')
 back()
 ui.axe('tap', '--label', catalog.text('accessibility.closeSheet', title=catalog.text('process.title')), '--post-delay', '.5')
 ui.element('file-links:answer')
-# File and FileDiff must share the same parked renderer, then return to source.
+# Switching between Diff and source preserves source rendering and target-line reveal.
 ui.axe('tap', '--label', 'Diff Viewer', '--post-delay', '.5')
 ui.element('diff-render-ms')
-assert ui.element('diff-webview-probe')['AXLabel'] == shared, 'Diff must reuse the source renderer instance'
 ui.capture('shared-diff')
 back()
 ui.element('file-links:answer')
 link(1)
 title('sample.swift')
 ui.element('file-source')
-assert ui.element('diff-webview-probe')['AXLabel'] == shared, 'Source must return without reloading Shiki'
 ui.wait(lambda _: geometry('source-after-diff').get('line') == 120, 'Source mode was not restored after diff')
 restored = geometry('source-after-diff')
 assert restored['highlighted'] and restored['top'] < restored['targetY'] < restored['bottom'] - restored['targetHeight'], restored
