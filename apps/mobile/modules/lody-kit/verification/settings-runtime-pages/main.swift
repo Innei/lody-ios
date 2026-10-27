@@ -59,8 +59,8 @@ let unknown = MemoryFailure(Failure(description: "memory_write_unknown"))
 precondition(unknown.uncertain && unknown.status == nil, "write_unknown is never mistaken for the unknown provider status")
 let wrapped = NSError(domain: "LodyKit.DataRuntime", code: 1, userInfo: [NSLocalizedDescriptionKey: "command_failed: memory_offline"])
 precondition(MemoryFailure(wrapped).status == "offline")
-let request = String(decoding: try! JSONEncoder().encode(MemoryRequest(workspaceId: "w", action: "list")), as: UTF8.self)
-precondition(request == #"{"workspaceId":"w","action":"list"}"#, request)
+let request = try! JSONSerialization.jsonObject(with: JSONEncoder().encode(MemoryRequest(workspaceId: "w", action: "list"))) as! [String: String]
+precondition(request == ["workspaceId": "w", "action": "list"], "Memory request must encode the expected fields")
 
 func share(_ id: String, publisher: String = "me", status: String = "active", link: Bool = true, revoke: Bool = true) -> PublishedShare {
   PublishedShare(shareId: id, rootSessionId: "source", publisherUserId: publisher, status: status, title: id == "untitled" ? "" : "Title",
