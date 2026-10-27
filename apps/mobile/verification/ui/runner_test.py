@@ -46,9 +46,48 @@ class RunnerTest(unittest.TestCase):
     def test_batch_typing_does_not_retry_committed_input(self):
         with tempfile.TemporaryDirectory() as directory:
             ui = UI('owned-simulator', directory)
-            with patch.object(ui, 'axe') as axe, patch.object(ui, 'element', return_value={'AXValue': 'DRAFT'}):
+            with patch.object(ui, 'axe') as axe, patch.object(ui, 'element', return_value={'AXValue': 'DRAFT'}), patch.object(ui, 'restore_software_keyboard') as restore:
                 ui.type_into('field', 'draft')
                 axe.assert_called_once_with('type', 'draft')
+                restore.assert_called_once()
+
+    def test_typing_restores_only_the_owned_simulator_keyboard(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            helper = root / 'software-keyboard'
+            helper.touch()
+            ui = UI('owned-simulator', root / 'light' / 'send')
+            with patch('driver.subprocess.check_output', return_value='/Xcode/Developer\n'), patch('driver.subprocess.run') as run:
+                ui.restore_software_keyboard()
+                run.assert_called_once_with([str(helper), '/Xcode/Developer', 'owned-simulator'],
+                                            check=True, timeout=30, capture_output=True)
+
+    def test_keyboard_height_alone_does_not_prove_visibility(self):
+        screen = {'frame': {'x': 0, 'y': 0, 'width': 402, 'height': 874}}
+        keyboard = {'AXUniqueId': 'inputView', 'frame': {'x': 0, 'y': 874, 'width': 402, 'height': 300}}
+        self.assertIsNone(UI.visible_keyboard([screen, keyboard]))
+        keyboard['frame']['y'] = 574
+        self.assertEqual(UI.visible_keyboard([screen, keyboard]), keyboard['frame'])
+
+    def test_keyboard_tutorial_requires_exact_copy_and_contained_button(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ui = UI('owned-simulator', directory)
+            items = [
+                {'frame': {'x': 0, 'y': 0, 'width': 402, 'height': 874}},
+                {'AXUniqueId': 'inputView', 'frame': {'x': 0, 'y': 574, 'width': 402, 'height': 300}},
+                {'type': 'Button', 'AXLabel': 'q', 'frame': {'x': 0, 'y': 600}},
+                {'type': 'Button', 'AXLabel': 'a', 'frame': {'x': 0, 'y': 640}},
+                {'type': 'Button', 'AXLabel': 'Continue', 'frame': {'x': 10, 'y': 100, 'width': 80, 'height': 44}},
+            ]
+            with patch.object(ui, 'axe') as axe:
+                self.assertTrue(ui.keyboard_ready(items))
+                axe.assert_not_called()
+                items.append({'AXLabel': 'Speed up your typing by sliding your finger across the letters.', 'frame': {'x': 0, 'y': 700}})
+                self.assertFalse(ui.keyboard_ready(items))
+                axe.assert_not_called()
+                items[-2]['frame']['y'] = 780
+                self.assertFalse(ui.keyboard_ready(items))
+                axe.assert_called_once()
 
     def test_batch_typing_recovers_uncommitted_input_once(self):
         with tempfile.TemporaryDirectory() as directory:

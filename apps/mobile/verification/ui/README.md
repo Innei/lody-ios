@@ -749,6 +749,15 @@ restoration. The original `composer-relay` POC remains available for comparison.
 These are deterministic latency checks, not a simulation of physical-device Low
 Power Mode or proof of device CPU/GPU frame rates.
 
+AXe composite typing can attach a simulated hardware keyboard and hide the
+software keyboard, collapsing a sheet before Send. `UI.type_into` restores the
+owned device's software keyboard using the helper compiled once by the batch
+runner. `send-handoff` requires visible keycaps and stable keyboard/input frames
+before and after typing and after adoption; an offscreen `inputView` with a
+nonzero height is not readiness. The exact QuickPath tutorial is dismissed only
+through its Continue button inside the keyboard. This preserves the batch's
+English baseline without weakening the composer identity or geometry checks.
+
 `send-transition` and `send-transition-handoff` send a long message and five real
 local file/image providers through the chat composer and the new-session sheet.
 They check equal source/landing height, independent text and attachment expansion,
