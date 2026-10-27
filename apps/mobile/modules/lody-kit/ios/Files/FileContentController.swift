@@ -293,7 +293,7 @@ class FileContentController: UIViewController {
   }
 }
 
-private final class FileIssuesSummary: UIControl {
+private final class FileIssuesSummary: UIButton {
   private let title = UILabel()
   private let detail = UILabel()
 
@@ -325,6 +325,8 @@ private final class FileIssuesSummary: UIControl {
     row.translatesAutoresizingMaskIntoConstraints = false
     addSubview(row)
     NSLayoutConstraint.activate([
+      warning.widthAnchor.constraint(equalToConstant: 24),
+      chevron.widthAnchor.constraint(equalToConstant: 12),
       row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
       row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
       row.topAnchor.constraint(equalTo: topAnchor, constant: 16),
