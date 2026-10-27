@@ -90,22 +90,29 @@ function infoStrings(catalogs) {
   return { sourceLanguage: 'en', strings, version: '1.0' };
 }
 
+function writeResources(projectRoot, target) {
+  const catalogs = load(projectRoot);
+  for (const [name, contents] of [
+    ['Localizable.xcstrings', nativeStrings(catalogs)],
+    ['InfoPlist.xcstrings', infoStrings(catalogs)],
+  ]) {
+    const file = path.join(target, name);
+    const next = `${JSON.stringify(contents, null, 2)}\n`;
+    if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8') !== next)
+      fs.writeFileSync(file, next);
+  }
+}
+
 const withGeneratedResources = (config) =>
   withDangerousMod(config, [
     'ios',
     (config) => {
-      const catalogs = load(config.modRequest.projectRoot);
-      const target = path.join(
-        config.modRequest.platformProjectRoot,
-        config.modRequest.projectName,
-      );
-      fs.writeFileSync(
-        path.join(target, 'Localizable.xcstrings'),
-        `${JSON.stringify(nativeStrings(catalogs), null, 2)}\n`,
-      );
-      fs.writeFileSync(
-        path.join(target, 'InfoPlist.xcstrings'),
-        `${JSON.stringify(infoStrings(catalogs), null, 2)}\n`,
+      writeResources(
+        config.modRequest.projectRoot,
+        path.join(
+          config.modRequest.platformProjectRoot,
+          config.modRequest.projectName,
+        ),
       );
       return config;
     },
@@ -145,3 +152,5 @@ const withLocalizedInfoPlist = (config) =>
 
 module.exports = (config) =>
   withResourcesLinked(withGeneratedResources(withLocalizedInfoPlist(config)));
+
+module.exports.writeResources = writeResources;

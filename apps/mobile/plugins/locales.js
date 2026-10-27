@@ -21,6 +21,7 @@ const NATIVE_PREFIXES = [
   'model.',
   'picker.',
   'process.',
+  'pr.',
   'permission.',
   'question.',
   'projectPicker.',

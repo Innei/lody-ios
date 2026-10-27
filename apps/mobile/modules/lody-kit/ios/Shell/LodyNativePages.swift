@@ -3,6 +3,20 @@ import UIKit
 @MainActor
 enum LodyNativePages {
   private static let factories: [String: ([String: Any]) -> UIViewController] = [
+    "pull-request": { params in
+      let repository = params["repository"] as! String
+      let number = params["number"] as! Int
+      let scope = SettingsActor.live(params)
+      let store = PullRequestStore(repository: repository, number: number, scope: scope,
+        service: .live(workspaceId: scope.workspaceId, repository: repository, number: number))
+      let page = PullRequestController(store: store)
+      page.investigate = { [weak page] text in
+        guard let page else { throw PullRequestStore.failure("unavailable") }
+        try await LodyShell.shared.callback(from: page, name: "onInvestigate", value: text)
+      }
+      return page
+    },
+    "pull-request-native-preview": { params in PullRequestPreviewController(params: params) },
     "appearance-settings": { _ in AppearanceController() },
     "app-icon": { _ in AppIconController() },
     "about": { _ in AboutController() },

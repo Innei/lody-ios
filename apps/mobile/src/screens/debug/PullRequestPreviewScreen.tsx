@@ -3,82 +3,13 @@ import { t } from '@/lib/i18n';
 import { NativeChat, NativeNavigationHeader } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { usePageRuntime } from '@/hooks/screens/usePageRuntime';
-import { PullRequestScreen } from '../PullRequestScreen';
+import { PullRequestNativePreviewScreen } from './PullRequestNativePreviewScreen';
 import type { PullRequestPreviewData } from '@lody/cloud-runtime/models/pull-request';
-import { createPullRequestSource } from '@/features/pull-request/source';
 import { useState } from 'react';
 
 function previewAction() {
   Alert.alert(t('pr.preview'), t('pr.previewAction'));
 }
-const actions = {
-  openGitHub: previewAction,
-  share: previewAction,
-  investigate: previewAction,
-  comment: async () => {
-    previewAction();
-    return false;
-  },
-};
-
-const data: PullRequestPreviewData = {
-  state: 'open',
-  author: 'Innei',
-  comments: [],
-  repository: 'Innei/lody-ios',
-  number: 31,
-  title: 'fix: automatically reconnect session stream reads',
-  body: '会话同步在临时断线后自动重连。\n\n保留已有消息和读取位置，使用指数退避重试。离开会话时取消等待，恢复连接后继续同步。\n\n仅重试读取，不会重新发送消息或重复执行机器命令。',
-  headRef: 'fix/session-auto-reconnect',
-  baseRef: 'main',
-  headSha: 'ed40e8079',
-  additions: 229,
-  deletions: 16,
-  changedFiles: 4,
-  commits: 1,
-  checks: [
-    {
-      id: 1,
-      name: 'Checks',
-      status: 'completed',
-      conclusion: 'failure',
-      appName: 'GitHub Actions',
-      htmlUrl: null,
-    },
-    {
-      id: 2,
-      name: 'Native behavior',
-      status: 'completed',
-      conclusion: 'success',
-      appName: 'GitHub Actions',
-      htmlUrl: null,
-    },
-    {
-      id: 3,
-      name: 'Build iOS Simulator',
-      status: 'completed',
-      conclusion: 'success',
-      appName: 'GitHub Actions',
-      htmlUrl: null,
-    },
-    {
-      id: 4,
-      name: 'Offline iOS UI · Pages',
-      status: 'in_progress',
-      conclusion: null,
-      appName: 'GitHub Actions',
-      htmlUrl: null,
-    },
-    {
-      id: 5,
-      name: 'Offline iOS UI · Chat',
-      status: 'queued',
-      conclusion: null,
-      appName: 'GitHub Actions',
-      htmlUrl: null,
-    },
-  ],
-};
 const entries = [
   {
     id: 'pr-user',
@@ -114,58 +45,24 @@ function View() {
     mode = 'preview',
     state: PullRequestPreviewData['state'] = 'open',
   ) {
-    let current = { ...data, state };
-    if (mode === 'empty') current = { ...data, checks: [] };
-    let reads = 0;
-    let writes = 0;
-    const source = createPullRequestSource(
-      async () => {
-        reads++;
-        if (mode === 'authorization' && reads === 1)
-          throw new Error('authorization_required');
-        return current;
-      },
-      async (body) => {
-        writes++;
-        if (mode === 'comment' && writes === 1) throw new Error('forbidden');
-        current = {
-          ...current,
-          comments: [{ id: 1, body, author: 'Preview', url: '' }],
-        };
-      },
-    );
-    try {
-      await push(
-        PullRequestScreen,
-        {
-          source,
-          actions: {
-            ...actions,
-            investigate: () => {
-              setAppendDraftJSON(
-                JSON.stringify({
-                  id: String(Date.now()),
-                  text: 'Investigate PR #31',
-                }),
-              );
-              Alert.alert(t('pr.investigate'), t('pr.draftAdded'));
-            },
-            comment: async (body) => {
-              if (mode === 'preview') {
-                previewAction();
-                return false;
-              }
-              await source.postComment(body);
-              return true;
-            },
-          },
+    await push(
+      PullRequestNativePreviewScreen,
+      {
+        mode,
+        state,
+        onInvestigate: () => {
+          setAppendDraftJSON(
+            JSON.stringify({
+              id: String(Date.now()),
+              text: 'Investigate PR #31',
+            }),
+          );
         },
-        { title: 'PR #31' },
-      );
-    } finally {
-      source.dispose();
-    }
+      },
+      { title: 'PR #31' },
+    );
   }
+
   return (
     <>
       <NativeNavigationHeader
