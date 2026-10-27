@@ -5,7 +5,10 @@ import {
   FileDiffPreviewScreen,
   WorkspaceChangesPreviewScreen,
 } from './FileDiffPreviewScreen';
-import { SessionPreviewScreen } from './SessionPreviewScreen';
+import {
+  SessionPreviewScreen,
+  PermissionNativePreviewScreen,
+} from './SessionPreviewScreen';
 import {
   PublishedSharesPreviewScreen,
   publishedShareStatePages,
@@ -471,6 +474,10 @@ function View() {
     'agent-roles-preview': () => void present(AgentRolesPreviewScreen, {}),
     'archived-sessions-preview': () =>
       void present(ArchivedSessionsPreviewScreen, {}),
+    'permission-native-waiting': () =>
+      void present(PermissionNativePreviewScreen, { waiting: true }),
+    'permission-native-preview': () =>
+      void present(PermissionNativePreviewScreen, {}),
     'file-diff-preview': () => void present(FileDiffPreviewScreen, {}),
     'workspace-changes-preview': () =>
       void present(WorkspaceChangesPreviewScreen, {}),

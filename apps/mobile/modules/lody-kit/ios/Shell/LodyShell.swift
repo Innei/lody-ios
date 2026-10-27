@@ -47,9 +47,9 @@ final class LodyShell {
     push(LodyPageController(spec: spec, inSheet: target !== navigation, content: content), on: target)
   }
 
-  func presentNative(_ content: UIViewController, title: String, detents: [Double] = [1], grabber: Bool = false) {
+  func presentNative(_ content: UIViewController, title: String, detents: [Double] = [1], grabber: Bool = false, dismissible: Bool = true) {
     let spec = ShellPageSpec(
-      id: 0, title: title, style: "formSheet", animation: "slide", dismissible: true, headerShown: true,
+      id: 0, title: title, style: "formSheet", animation: "slide", dismissible: dismissible, headerShown: true,
       headerVariant: "transparent", detents: detents, grabber: grabber
     )
     presentModal(LodyPageController(spec: spec, inSheet: true, content: content))

@@ -77,6 +77,8 @@ struct SessionTranscriptFacts: Equatable, Sendable {
     "agent_disconnected", "agent_no_output", "acp_not_ready",
   ]
 
+  var permission: SessionPermission?
+  var permissionError: String?
   var entryIds: Set<String> = []
   var replied: Set<String> = []
   var delivered: Set<String> = []
@@ -91,6 +93,8 @@ struct SessionTranscriptFacts: Equatable, Sendable {
   init() {}
 
   init(entries: [[String: Any]]) {
+    do { permission = try SessionPermission.first(in: entries) }
+    catch { permissionError = error.localizedDescription }
     proposedPlan = Self.latestProposedPlan(entries)
     retryableError = Self.latestRetryableError(entries)
     var assistantSeen = false
