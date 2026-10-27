@@ -52,7 +52,8 @@ def readable_heading(name):
         return min(light, dark) > count * .01
     assert contrast(state['originX'] + 28, state['originY'], width - 28,
                     state['originY'] + state['controls'][0]['y'] - 8), 'The HTML heading has no visible contrast against the page background'
-    title = next(item['frame'] for item in items if item.get('role') == 'AXHeading' and item.get('AXLabel') == 'interactive.html')
+    # UIKit exposes the covered diff title too; the presented file is the last heading.
+    title = [item['frame'] for item in items if item.get('role') == 'AXHeading' and item.get('AXLabel') == 'interactive.html'][-1]
     assert contrast(title['x'], title['y'], title['x'] + title['width'], title['y'] + title['height']), 'The native title has no visible contrast against its background'
 
 def interactive(prefix):

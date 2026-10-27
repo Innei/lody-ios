@@ -144,7 +144,7 @@ ui.element('file-source')
 plain = geometry('browser-code')
 assert plain['line'] == 0 and not plain['highlighted'], plain
 ui.axe('drag', '--start-x', '220', '--start-y', '650', '--end-x', '220', '--end-y', '300', '--duration', '.5', '--post-delay', '.6')
-assert geometry('browser-code-scroll')['y'] > plain['y'] + 100
+ui.wait(lambda _: geometry('browser-code-scroll')['y'] > plain['y'] + 100, 'Source did not scroll vertically')
 ui.capture('browser-code-scroll')
 back()
 back()
@@ -188,10 +188,12 @@ assert initial['contentWidth'] > initial['width'] * 2, initial
 assert initial['contentHeight'] > initial['height'] * 2, initial
 # Real gestures must move the source in both axes without wrapping it.
 ui.axe('drag', '--start-x', '330', '--start-y', '440', '--end-x', '100', '--end-y', '440', '--duration', '.5', '--post-delay', '.6')
+ui.wait(lambda _: geometry('code-horizontal')['x'] > initial['x'] + 80, 'Source did not scroll horizontally')
 horizontal = geometry('code-horizontal')
 assert horizontal['x'] > initial['x'] + 80, horizontal
 ui.capture('code-horizontal')
 ui.axe('drag', '--start-x', '220', '--start-y', '650', '--end-x', '220', '--end-y', '300', '--duration', '.5', '--post-delay', '.6')
+ui.wait(lambda _: geometry('code-vertical')['y'] > initial['y'] + 100, 'Source did not scroll vertically')
 vertical = geometry('code-vertical')
 assert vertical['y'] > initial['y'] + 100, vertical
 ui.capture('code-vertical')
@@ -200,6 +202,7 @@ for _ in range(8):
     if current['y'] + current['bottom'] >= current['contentHeight'] - 2:
         break
     ui.axe('drag', '--start-x', '220', '--start-y', '700', '--end-x', '220', '--end-y', '240', '--duration', '.25', '--post-delay', '.6')
+    ui.wait(lambda _: geometry('code-bottom')['y'] > current['y'], 'Source did not advance toward its final line')
 last = geometry('code-bottom')
 assert last['y'] + last['bottom'] >= last['contentHeight'] - 2, last
 ui.capture('code-bottom')
