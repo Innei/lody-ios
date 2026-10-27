@@ -169,14 +169,19 @@ def create_and_send(landscape):
     labeled(catalog.text('tabs.newSession'))
     ui.axe('tap', '--label', catalog.text('tabs.newSession'),
            '--tap-style', 'physical', '--post-delay', '1')
-    field = ui.element('create-session-input')['frame']
+    ui.element('create-session-input')
     ui.axe('tap', '--id', 'create-session-input', '--post-delay', '.5')
     message = f'iPad {name} new message'
     ui.type_into('create-session-input', message)
+    message = ui.element('create-session-input')['AXValue']
     ui.capture(f'{name}-before-send')
     print(f'SEND {name} at {time.time()}', flush=True)
-    send = min((item['frame'] for item in ui.state() if item.get('AXUniqueId') == 'session-send'),
-               key=lambda frame: abs(frame['y'] - field['y']))
+    # The keyboard moves the sheet; ignore the underlying session's Send button.
+    field = ui.element('create-session-input')['frame']
+    send = min((item['frame'] for item in ui.state()
+                if item.get('AXUniqueId') == 'session-send'
+                and field['x'] <= item['frame']['x'] < field['x'] + field['width']),
+               key=lambda frame: abs(frame['y'] - field['y'] - field['height']))
     ui.axe('tap', '-x', str(send['x'] + send['width'] / 2),
            '-y', str(send['y'] + send['height'] / 2), '--post-delay', '.8')
     ui.wait(lambda items: not any(item.get('AXUniqueId') == 'create-session-input' for item in items),
