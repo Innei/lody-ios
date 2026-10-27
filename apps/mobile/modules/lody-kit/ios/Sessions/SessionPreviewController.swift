@@ -139,6 +139,7 @@ private final class SessionPreviewFixture {
         ],
         [
           "id": "preview-answer", "role": "assistant", "status": "completed", "finished": true,
+          "modelInfo": ["name": "Native fixture model", "thoughtLevel": "High"],
           "items": [
             ["itemId": "edit", "type": "tool_call", "kind": "edit", "status": "completed", "title": "Edit", "path": "src/App.tsx",
              "added": 3, "removed": 1],

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useMessageDetailsSheet } from '@/hooks/screens/useMessageDetailsSheet';
 import { NativeChat, NativeNavigationHeader } from '@lody-ios/kit';
 import { definePage } from '@/lib/presentation';
 import { openMessageShare } from '@/screens/MessageShareScreen';
@@ -83,7 +82,6 @@ function View() {
     },
   ];
   const entriesJSON = JSON.stringify(entries);
-  const openDetails = useMessageDetailsSheet(entriesJSON);
   return (
     <>
       <NativeNavigationHeader
@@ -118,8 +116,7 @@ function View() {
         style={{ flex: 1 }}
         entriesJSON={entriesJSON}
         turnInfoEnabled
-        onTurnInfoPress={({ nativeEvent }) => {
-          openDetails(nativeEvent.entryId);
+        onTurnInfoPress={() => {
           if (fixture === 'late-usage')
             setTimeout(() => setLateUsage(true), 2000);
         }}

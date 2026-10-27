@@ -32,6 +32,8 @@ struct ChatEntry: Decodable {
   var permissionWaitMs: Double? = nil
   var items: [ChatItem]
   let fileDiffs: [ChatFileDiff]?
+  var inputConfig: ChatTurnInput? = nil
+  var tokenUsage: ChatTurnUsage? = nil
   var modelInfo: ModelInfo? = nil
   var userTurnId: String? = nil
   var executionId: String? = nil

@@ -68,6 +68,7 @@ extension LodyChatView {
   }
 
   private func receiveEntries(_ entries: [ChatEntry]) {
+    if let page = messageDetailsPage { page.update(entries.first { $0.id == page.entryId }) }
     streamPerformanceProbe?.receive(entries)
     displayError = nil
     let user = entries.last { $0.role == "user" && !$0.isQueued }

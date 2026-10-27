@@ -22,7 +22,7 @@ for key, value in [('model', 'GPT-6 Astra'), ('reasoning', 'High'), ('fast', 'Of
     row = ui.element(key)
     assert value in str(row), row
 ui.capture('configuration-and-tokens')
-ui.axe('swipe', '--start-x', '220', '--start-y', '740', '--end-x', '220', '--end-y', '370', '--duration', '.5', '--post-delay', '.5')
+ui.axe('drag', '--start-x', '220', '--start-y', '740', '--end-x', '220', '--end-y', '370', '--duration', '.5', '--post-delay', '.5')
 for key, value in [('reasoningTokens', '2,000'), ('cacheRead', '120,000'), ('cacheWrite', '4,096')]:
     assert value in str(ui.element(key))
 ui.capture('token-breakdown')

@@ -1,4 +1,3 @@
-import { useMessageDetailsSheet } from '@/hooks/screens/useMessageDetailsSheet';
 import { openMessageShare } from '@/screens/MessageShareScreen';
 import { EditMessageScreen } from './EditMessageScreen';
 import { useEditableMessage } from '@/features/sessions/useEditableMessage';
@@ -535,7 +534,6 @@ function View() {
     [snapshot.entries, preparedHistory],
   );
   const openFile = useOpenFile(session.id);
-  const openMessageDetails = useMessageDetailsSheet(entriesJSON);
   const { openProcess, openTask } = useProcessSheet(
     entriesJSON,
     onActivityPress,
@@ -850,9 +848,6 @@ function View() {
       <NativeChat
         simulatorPreviewJSON={simulator.previewJSON}
         turnInfoEnabled
-        onTurnInfoPress={({ nativeEvent }) =>
-          openMessageDetails(nativeEvent.entryId)
-        }
         editableMessageId={editableMessageId}
         editedMessageId={editedMessageId}
         onEditMessage={({ nativeEvent }) => {

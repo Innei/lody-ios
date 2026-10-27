@@ -16,6 +16,7 @@ import { FileContentScreen } from '@/screens/FileContentScreen';
 import { FileDiffScreen } from '@/screens/FileDiffScreen';
 import { FilesScreen } from '@/screens/FilesScreen';
 import { ItemDetailScreen } from '@/screens/ItemDetailScreen';
+import { MessageDetailsScreen } from '@/screens/MessageDetailsScreen';
 import { MessageShareScreen } from '@/screens/MessageShareScreen';
 import { NotificationSettingsScreen } from '@/screens/NotificationSettingsScreen';
 import { ProjectScreen } from '@/screens/ProjectScreen';
@@ -31,6 +32,7 @@ registerShellPages([
   FileDiffScreen,
   FilesScreen,
   ItemDetailScreen,
+  MessageDetailsScreen,
   MessageShareScreen,
   NotificationSettingsScreen,
   ProjectScreen,
