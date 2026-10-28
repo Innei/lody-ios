@@ -4,7 +4,7 @@ import UIKit
 @MainActor
 class SessionController: UIViewController {
   typealias BrowserRequest = @MainActor (SessionListState, RuntimeContract.SessionPreviewParamsAction) async throws -> RuntimeContract.SessionPreviewResult
-  let chat = LodyChatView(appContext: nil)
+  let chat = LodyChatView(frame: .zero)
   let source: SessionSource
   let sessionId: String
   var environment: SessionSendEnvironment
@@ -107,7 +107,7 @@ class SessionController: UIViewController {
     wireSendEvents()
     wireDecisionEvents()
     wireRouteEvents()
-    chat.onPreview.onEventSent = { [weak self] body in
+    chat.onPreview = { [weak self] body in
       if let action = body["action"] as? String { self?.contextAction(action) }
     }
     wireMentionEvents()
@@ -261,8 +261,8 @@ class SessionController: UIViewController {
   }
 
   private func wireEvents() {
-    chat.onReconnect.onEventSent = { [weak self] _ in self?.feed?.reconnect() }
-    chat.onTitleMenu.onEventSent = { [weak self] body in self?.titleMenuSelected(body["id"] as? String ?? "") }
+    chat.onReconnect = { [weak self] _ in self?.feed?.reconnect() }
+    chat.onTitleMenu = { [weak self] body in self?.titleMenuSelected(body["id"] as? String ?? "") }
   }
 
   private func titleMenuSelected(_ id: String) {

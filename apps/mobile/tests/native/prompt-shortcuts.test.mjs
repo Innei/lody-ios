@@ -1,4 +1,3 @@
-import { quotaError } from '../../src/cloud/send/quotaError.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { build } from 'esbuild';
@@ -289,12 +288,5 @@ test('publication readback, owner fences, revoked access and explicit repair aft
       { kind: 'body', bodyDocId: 'body' },
       false,
     )(),
-  );
-});
-
-test('unavailable shortcuts show an actionable message in both send callers', () => {
-  assert.match(
-    quotaError('shortcut_unavailable', 'fallback'),
-    /Refresh Prompt Shortcuts/,
   );
 });

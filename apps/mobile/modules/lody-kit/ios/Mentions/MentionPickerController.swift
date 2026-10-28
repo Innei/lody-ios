@@ -6,7 +6,7 @@ final class MentionPickerController: UIViewController {
   private let store: MentionCatalogStore?
   private let onPick: (MentionItem) -> Void
   private let picker = MentionPickerView()
-  private let status = LodyGroupedList(appContext: nil)
+  private let status = LodyGroupedList(frame: .zero)
   private let search = LodyNavigationSearch()
   private var catalog: MentionCatalog?
   private var query: String

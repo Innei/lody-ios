@@ -30,7 +30,6 @@ const CJK = /[㐀-鿿豈-﫿！-｠]/;
 const SOURCES = [
   ['modules/lody-kit/ios', '**/*.swift'],
   ['modules/lody-kit/live-activity', '**/*.swift'],
-  ['src', '**/*.{ts,tsx}'],
 ];
 for (const [dir, pattern] of SOURCES) {
   const base = path.join(root, dir);

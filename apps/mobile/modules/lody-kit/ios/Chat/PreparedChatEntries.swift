@@ -1,7 +1,7 @@
-import ExpoModulesCore
+import Foundation
 
 /// Navigation owns this decoded value; no process-wide history cache or cursor.
-final class PreparedChatEntries: SharedObject {
+final class PreparedChatEntries {
   static let queue = DispatchQueue(label: "app.innei.lody.chat-prepare", qos: .userInitiated)
   let json: String
   let entries: [ChatEntry]
@@ -9,7 +9,6 @@ final class PreparedChatEntries: SharedObject {
   init(_ json: String) throws {
     self.json = json
     entries = try Self.decode(json)
-    super.init()
   }
 
   static func decode(_ json: String) throws -> [ChatEntry] {

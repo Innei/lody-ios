@@ -1,4 +1,3 @@
-import ExpoModulesCore
 import UIKit
 
 private struct SidebarItemID: Hashable {
@@ -22,8 +21,8 @@ private final class SidebarAppearanceController: UIViewController {
 /// Owns sidebar layout, outline expansion and persistent detail selection.
 /// The grouped host is deliberately not in this view's rendering path.
 final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
-  let onRowPress = EventDispatcher()
-  let onRowAction = EventDispatcher()
+  var onRowPress: ([String: Any]) -> Void = { _ in }
+  var onRowAction: ([String: Any]) -> Void = { _ in }
   var previewUserId = ""
   var previewWorkspaceId = ""
   private var sections: [LodyListSection] = []
@@ -53,9 +52,12 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     cell.accessibilityTraits = .header
   }
 
-  required init(appContext: AppContext? = nil) {
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override init(frame: CGRect) {
     collection = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewCompositionalLayout.list(using: .init(appearance: .sidebar)))
-    super.init(appContext: appContext)
+    super.init(frame: frame)
     _ = registration
     _ = headerRegistration
     backgroundColor = .secondarySystemBackground

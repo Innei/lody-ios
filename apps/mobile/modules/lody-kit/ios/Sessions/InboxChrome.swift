@@ -31,8 +31,8 @@ final class InboxChrome {
 
   private weak var host: UIViewController?
   private var header: LodyNavigationHeader?
-  private let workspace = LodyMenuButton(appContext: nil)
-  private let settings = LodySymbolButton(appContext: nil)
+  private let workspace = LodyMenuButton(frame: .zero)
+  private let settings = LodySymbolButton(frame: .zero)
   private let search = LodyNavigationSearch()
   private lazy var workspaceSlot = InboxBarSlot(workspace)
   private lazy var settingsSlot = InboxBarSlot(settings)

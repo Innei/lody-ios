@@ -1,7 +1,7 @@
 import {
   permissionModeFor,
   withPermissionMode,
-} from '../../src/cloud/send/capability.ts';
+} from '../../../../packages/cloud-runtime/src/protocol/capability.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';

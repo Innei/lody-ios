@@ -8,7 +8,8 @@ enum SessionNavigation {
     try handle(fields["kind"] as! String, fields)
   }
 
-  static func handle(_ action: String, _ fields: [String: Any]) throws {
+  @discardableResult
+  static func handle(_ action: String, _ fields: [String: Any]) throws -> LodyPageController? {
     let source = HomeController.current?.source ?? .live
     let state = source.state
     if let workspace = fields["workspaceId"] as? String, workspace != state.workspaceId { throw OutboxError.scopeExpired }
@@ -51,10 +52,11 @@ enum SessionNavigation {
       }
       let regular = HomeController.current?.traitCollection.horizontalSizeClass == .regular
       if !regular, let label = fields["zoomSourceLabel"] as? String { LodySheetZoom.prepare(sourceLabel: label) }
-      LodyShell.shared.presentNative(content, title: LodyStrings.text("create.title"),
+      return LodyShell.shared.presentNative(content, title: LodyStrings.text("create.title"),
         detents: regular ? [1] : [0.62, 1], grabber: !regular, headerShown: false)
     default: preconditionFailure("Unknown session navigation: \(action)")
     }
+    return nil
   }
 
   private static func open(_ id: String, query: String = "", choice: ModelChoice? = nil, source: SessionSource) {

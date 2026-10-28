@@ -1,34 +1,9 @@
-"""One owned Metro, optionally serving independent Simulator workers."""
-from contextlib import contextmanager
+"""Independent native Simulator workers; failures retain sibling evidence."""
 import json
 import os
-from pathlib import Path
 import signal
-import socket
 import subprocess
 import time
-from urllib.request import Request, urlopen
-
-
-def diagnose_metro(port, output, phase, metro=None):
-    # Never dump headers, manifests, bundle bodies or the process environment.
-    probes = []
-    for method, path in [('GET', '/status'), ('HEAD', '/?disableOnboarding=1'), ('GET', '/?disableOnboarding=1')]:
-        started = time.monotonic()
-        probe = {'method': method, 'path': path.split('?')[0]}
-        try:
-            request = Request(f'http://127.0.0.1:{port}{path}', method=method,
-                              headers={'expo-platform': 'ios', 'accept': 'application/expo+json,application/json'})
-            with urlopen(request, timeout=10) as response:
-                probe['status'] = response.status
-                probe['bytes'] = len(response.read())
-        except Exception as error:
-            probe['error'] = str(error)
-        probe['seconds'] = round(time.monotonic() - started, 3)
-        probes.append(probe)
-    diagnostic = {'phase': phase, 'port': port, 'metroExitCode': metro.poll() if metro else None, 'probes': probes}
-    (output / f'metro-{phase}.json').write_text(json.dumps(diagnostic, indent=2))
-    print(json.dumps(diagnostic), flush=True)
 
 
 def stop_process(process):
@@ -40,78 +15,6 @@ def stop_process(process):
             os.killpg(process.pid, signal.SIGKILL)
             process.wait()
 
-
-def load_expo_manifest(port, timeout=60):
-    request = Request(
-        f'http://127.0.0.1:{port}/?disableOnboarding=1',
-        headers={'expo-platform': 'ios', 'accept': 'application/expo+json'},
-    )
-    with urlopen(request, timeout=timeout) as response:
-        return json.load(response)
-
-
-def read_launch_asset(url, timeout=120):
-    with urlopen(url, timeout=timeout) as response:
-        return response.read()
-
-
-def prewarm_bundle(port, attempts=3, manifest_timeout=60, asset_timeout=120, pause=1):
-    last_error = None
-    for attempt in range(attempts):
-        try:
-            manifest = load_expo_manifest(port, manifest_timeout)
-            read_launch_asset(manifest['launchAsset']['url'], asset_timeout)
-            return manifest
-        except Exception as error:
-            last_error = error
-            if attempt + 1 == attempts:
-                break
-            time.sleep(pause)
-    raise TimeoutError(f'Metro bundle prewarm failed after {attempts} attempts') from last_error
-
-
-@contextmanager
-def managed_metro(root, port, output):
-    # Never attach a verification run to another task's server/bundle.
-    try:
-        with socket.create_connection(('127.0.0.1', port), timeout=2):
-            raise RuntimeError(f'Port {port} is occupied; choose another --port')
-    except OSError:
-        pass
-    with (output / 'metro.log').open('w') as log:
-        environment = {
-            **os.environ,
-            'NODE_OPTIONS': os.environ.get('NODE_OPTIONS', '') + f' --require="{Path(__file__).with_name("metro-diagnostics.cjs")}"',
-            'LODY_UI_METRO_DIAGNOSTICS': '1', 'CI': '1', 'EXPO_NO_DOTENV': '1',
-            'EXPO_PUBLIC_UI_VERIFY': '1', 'EXPO_PUBLIC_UI_VERIFY_HOME': '0',
-            'REACT_NATIVE_PACKAGER_HOSTNAME': '127.0.0.1',
-        }
-        metro = subprocess.Popen(
-            ['pnpm', '--filter', '@lody-ios/mobile', 'exec', 'expo', 'start', '--dev-client', '--host', 'lan', '--port', str(port)],
-            cwd=root, env=environment, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
-        )
-        try:
-            deadline = time.monotonic() + 90
-            while True:
-                if metro.poll() is not None:
-                    raise RuntimeError('Metro exited; inspect metro.log')
-                try:
-                    with urlopen(f'http://127.0.0.1:{port}/status', timeout=2) as response:
-                        if b'packager-status:running' in response.read():
-                            break
-                except OSError:
-                    pass
-                if time.monotonic() > deadline:
-                    raise TimeoutError('Metro did not become ready')
-                time.sleep(.5)
-            try:
-                prewarm_bundle(port)
-            except Exception:
-                diagnose_metro(port, output, 'startup', metro)
-                raise
-            yield
-        finally:
-            stop_process(metro)
 
 
 def run_batches(commands, output):

@@ -4,5 +4,5 @@ Unmodified 24 pt SVGs from [GitHub Octicons](https://github.com/primer/octicons/
 MIT license: ../../licenses/Octicons-LICENSE.txt.
 
 Xcode preserves the vectors and renders them as templates, so UIKit owns tint and appearance.
-The withLodyIcons Expo plugin links this catalog to the application target so native toolbar image lookup can find it.
+`native/project.yml` links this catalog to the application target so native toolbar image lookup can find it.
 The lody- prefix avoids asset-name collisions with other libraries.

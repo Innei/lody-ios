@@ -45,6 +45,7 @@ final class AuthSession {
   static let shared = AuthSession()
   nonisolated static let published = AuthPublished()
 
+  private(set) var snapshot = AuthSnapshot()
   var api = AuthAPI()
   var presenter: (() -> UIViewController?)?
   var stopRuntime: (() -> Void)?
@@ -291,7 +292,7 @@ final class AuthSession {
   }
 
   private func publish() {
-    let snapshot = AuthSnapshot(
+    snapshot = AuthSnapshot(
       account: account,
       busy: busy,
       localReady: localReady,

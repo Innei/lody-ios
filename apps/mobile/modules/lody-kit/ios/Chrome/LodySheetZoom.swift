@@ -1,7 +1,7 @@
 import UIKit
 
-/// Supplies the source item before screens asks UIKit to present the sheet.
-/// UIKit owns the animation, backdrop and interactive dismissal; screens keeps
+/// Supplies the source item before the shell asks UIKit to present the sheet.
+/// UIKit owns the animation, backdrop and interactive dismissal; the shell keeps
 /// its presentation delegate so a swipe still settles the presentation session.
 @MainActor
 enum LodySheetZoom {
@@ -12,7 +12,7 @@ enum LodySheetZoom {
   static func prepare(sourceLabel: String) {
     disarm()
     token = NotificationCenter.default.addObserver(
-      forName: Notification.Name("RNSScreenWillPresent"), object: nil, queue: nil
+      forName: Notification.Name("LodyWillPresent"), object: nil, queue: nil
     ) { notification in
       nonisolated(unsafe) let object = notification.object
       nonisolated(unsafe) let presenter = notification.userInfo?["presenter"]

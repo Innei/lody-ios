@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 final class QuickRepliesController: UIViewController {
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private var observer: NSObjectProtocol?
   private var reordering = false
   private var replies: [QuickReply] = []

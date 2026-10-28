@@ -49,7 +49,7 @@ struct NotificationService {
 
 @MainActor
 final class NotificationSettingsController: UIViewController {
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private let service: NotificationService
   private let signedIn: @MainActor () -> Bool
   private var observers: [NSObjectProtocol] = []

@@ -76,7 +76,7 @@ final class SettingsSource {
   }
 }
 
-// UI verification fixtures that still live in React publish their account here.
+// Native offline fixtures publish their account independently of authenticated services.
 @MainActor
 enum SettingsPreview {
   private(set) static var state: SettingsState?

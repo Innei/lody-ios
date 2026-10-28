@@ -1,4 +1,3 @@
-import ExpoModulesCore
 import UniformTypeIdentifiers
 import UIKit
 import WebKit
@@ -13,10 +12,10 @@ private final class HTMLPreviewHandler: NSObject, WKURLSchemeHandler, WKScriptMe
 }
 
 final class LodyHTMLPreviewView: LodyAppearanceView, WKNavigationDelegate, WKUIDelegate {
-  let onResourceRequest = EventDispatcher()
-  let onIssues = EventDispatcher()
-  let onLoad = EventDispatcher()
-  let onFail = EventDispatcher()
+  var onResourceRequest: ([String: Any]) -> Void = { _ in }
+  var onIssues: ([String: Any]) -> Void = { _ in }
+  var onLoad: ([String: Any]) -> Void = { _ in }
+  var onFail: ([String: Any]) -> Void = { _ in }
   var loaded: (() -> Void)?
   var failed: ((String) -> Void)?
   var issuesChanged: (([[String: String]]) -> Void)?

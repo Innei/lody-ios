@@ -1,16 +1,12 @@
 import LodyCore
-import ExpoModulesCore
 import Foundation
 
 extension DataRuntime {
   enum ReplySink {
-    case promise(Promise)
     case continuation(CheckedContinuation<String, Error>)
 
     func resolve(_ value: Any?) {
       switch self {
-      case .promise(let promise):
-        promise.resolve(value)
       case .continuation(let continuation):
         if let text = value as? String {
           continuation.resume(returning: text)
@@ -24,20 +20,12 @@ extension DataRuntime {
 
     func reject(_ error: Error) {
       switch self {
-      case .promise(let promise):
-        promise.reject(error as NSError)
       case .continuation(let continuation):
         continuation.resume(throwing: error)
       }
     }
   }
 
-  func fail(_ promise: Promise, _ code: String, _ message: String) {
-    fail(.promise(promise), code, message)
-  }
-
-  // Expo's `reject(code:description:)` drops the description in this version,
-  // so every failure reads "undefined reason". Carry the text in an NSError.
   func fail(_ sink: ReplySink, _ code: String, _ message: String) {
     sink.reject(Self.failure(code, message))
   }
@@ -63,18 +51,14 @@ extension DataRuntime {
     }
     return true
   }
-  func callForRN<C: RuntimeCall>(_ call: C.Type, payload: String, inject: [String: Any] = [:], promise: Promise, timeout: Double? = nil,
+  func callJSON<C: RuntimeCall>(_ call: C.Type, payload: String, inject: [String: Any] = [:], sink: ReplySink, timeout: Double? = nil,
     project: @escaping @MainActor (C.Result) -> any Encodable = { $0 }) where C.Params: Decodable, C.Result: Encodable {
-    callForRN(C.self, payload: payload, inject: inject, sink: .promise(promise), timeout: timeout, project: project)
-  }
-  func callForRN<C: RuntimeCall>(_ call: C.Type, payload: String, inject: [String: Any] = [:], sink: ReplySink, timeout: Double? = nil,
-    project: @escaping @MainActor (C.Result) -> any Encodable = { $0 }) where C.Params: Decodable, C.Result: Encodable {
-    guard let params = rnParams(C.self, payload: payload, inject: inject, sink: sink) else { return }
+    guard let params = decodeParams(C.self, payload: payload, inject: inject, sink: sink) else { return }
     self.call(C.self, params, sink: sink, timeout: timeout) { result in
       (try? JSONEncoder().encode(project(result))).map { String(decoding: $0, as: UTF8.self) }
     }
   }
-  func rnParams<C: RuntimeCall>(_ call: C.Type, payload: String, inject: [String: Any] = [:], sink: ReplySink) -> C.Params? where C.Params: Decodable {
+  func decodeParams<C: RuntimeCall>(_ call: C.Type, payload: String, inject: [String: Any] = [:], sink: ReplySink) -> C.Params? where C.Params: Decodable {
     guard let data = payload.data(using: .utf8), data.count <= 128 * 1024,
           var object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
       fail(sink, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
@@ -86,9 +70,6 @@ extension DataRuntime {
       fail(sink, "command_failed", "invalid_params: \(C.method)")
       return nil
     }
-  }
-  func call<C: RuntimeCall>(_ call: C.Type, _ params: C.Params, promise: Promise, timeout: Double? = nil, resolve: @escaping @MainActor (C.Result) -> Any?) {
-    self.call(C.self, params, sink: .promise(promise), timeout: timeout, resolve: resolve)
   }
   func call<C: RuntimeCall>(_ call: C.Type, _ params: C.Params, sink: ReplySink, timeout: Double? = nil,
     failed: @escaping @MainActor () -> Void = {}, resolve: @escaping @MainActor (C.Result) -> Any?) {

@@ -4,7 +4,7 @@ import UIKit
 @MainActor
 final class FileDiffPreviewController: UIViewController {
   static let paths = ["docs/superpowers/.diff-check.md", "src/very-long-directory-name/nested/components/another-long-file-name.ts"]
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private let fixture = FileDiffFixture()
 
   override func viewDidLoad() {
@@ -18,11 +18,11 @@ final class FileDiffPreviewController: UIViewController {
       LodyShell.shared.pushNative(FileDiffController(request: request, service: fixture.service), title: FilePathText.basename(path), from: self)
     }
     view.addSubview(list)
-    let section = LodyListSection()
+    var section = LodyListSection()
     section.id = "diff-preview:changes"
     section.header = LodyStrings.plural("changes.fileCount", Self.paths.count)
     section.rows = Self.paths.map { path in
-      let row = LodyListRow()
+      var row = LodyListRow()
       row.id = "diff-preview:changes:\(path)"
       row.title = FilePathText.basename(path)
       row.subtitle = FilePathText.dirname(path)

@@ -3,9 +3,7 @@
 //
 // The list is the production dependency closure of the app (every library that
 // can end up in the shipped build), plus the native and vendored components that
-// do not come from npm. Build-only tooling (Metro, the Expo CLI, the Babel
-// transform pipeline, React Native codegen) is pruned because it is never part
-// of the distributed app.
+// do not come from npm. Development dependencies are outside this closure.
 //
 //   node scripts/build-licenses.mjs           # rewrite the generated file
 //   node scripts/build-licenses.mjs --check   # fail if the file is stale
@@ -22,79 +20,11 @@ const output = path.join(root, 'modules/lody-kit/licenses/LodyLicenses.json');
 const check = process.argv.includes('--check');
 
 /** Workspace packages whose production dependencies make up the app. */
-const workspacePackages = [
-  'apps/mobile',
-  'packages/dom-webview',
-  'packages/cloud-runtime',
-];
-
-/**
- * Build-only dependencies. These run while bundling or compiling the app and
- * never reach the device, so they are not distributed and need no notice.
- */
-const buildTooling = [
-  // Metro bundler, Expo CLI and project generation.
-  /^metro$/,
-  /^metro-.*/,
-  /^@expo\/cli$/,
-  /^@expo\/metro$/,
-  /^@expo\/metro-config$/,
-  /^@expo\/devtools$/,
-  /^@expo\/fingerprint$/,
-  /^@expo\/local-build-cache-provider$/,
-  /^@expo\/package-manager$/,
-  /^@expo\/image-utils$/,
-  /^@expo\/spawn-async$/,
-  /^@expo\/xcpretty$/,
-  /^@expo\/json-file$/,
-  /^@expo\/osascript$/,
-  /^@expo\/plist$/,
-  /^@expo\/prebuild-config$/,
-  /^@expo\/env$/,
-  /^@expo\/scheme$/,
-  /^@expo\/xml$/,
-  /^@expo\/config$/,
-  /^@expo\/config-plugins$/,
-  /^@expo\/config-types$/,
-  /^@expo\/code-signing-certificates$/,
-  /^@expo\/expo-modules-macros-plugin$/,
-  /^@expo\/expo-modules-autolinking$/,
-  /^expo-modules-autolinking$/,
-  // Babel transform pipeline and the browser-target data it uses.
-  /^babel-preset-expo$/,
-  /^babel-plugin-syntax-hermes-parser$/,
-  /^@babel\/(core|parser|generator|traverse|template|types|code-frame|compat-data)$/,
-  /^@babel\/helper-.*/,
-  /^@babel\/plugin-.*/,
-  /^@babel\/preset-.*/,
-  /^browserslist$/,
-  /^caniuse-lite$/,
-  /^electron-to-chromium$/,
-  /^node-releases$/,
-  /^update-browserslist-db$/,
-  /^baseline-browser-mapping$/,
-  /^regenerate$/,
-  /^regenerate-unicode-properties$/,
-  /^regexpu-core$/,
-  /^regjsgen$/,
-  /^regjsparser$/,
-  /^unicode-.*-ecmascript$/,
-  // React Native codegen, Gradle, template and dev-server tooling.
-  /^@react-native\/(codegen|gradle-plugin|community-cli-plugin|dev-middleware|metro-config|typescript-utils)$/,
-  /^@react-native\/babel-plugin.*/,
-  /^@react-native\/template.*/,
-  /^react-devtools-core$/,
-  /^react-refresh$/,
-  /^hermes-(compiler|parser|estree)$/,
-  // Dev and test helpers.
-  /^jest.*$/,
-  /^@jest\/.*/,
-  /^pretty-format$/,
-];
+const workspacePackages = ['apps/mobile', 'packages/cloud-runtime'];
 
 /**
  * Components that ship without a matching npm dependency: native Swift packages,
- * the vendored icon set, and a CocoaPod pulled in by an Expo module.
+ * the vendored icon set, and CocoaPods.
  */
 const nativeComponents = [
   {
@@ -175,16 +105,7 @@ const nativeComponents = [
     url: 'https://github.com/lobehub/lobe-icons',
     file: 'modules/lody-kit/licenses/LobeIcons-LICENSE.txt',
   },
-  {
-    name: 'ReachabilitySwift',
-    license: 'MIT',
-    url: 'https://github.com/ashleymills/Reachability.swift',
-    file: 'modules/lody-kit/licenses/ReachabilitySwift-LICENSE.txt',
-  },
 ];
-
-/** Npm packages linked natively but not reachable from the declared graph. */
-const nativeOnlyPackages = ['react-native-gesture-handler'];
 
 /** The app's own license, so the notices screen also carries the AGPL text. */
 const firstPartyLicense = {
@@ -252,7 +173,7 @@ function resolvePackage(name, fromDir) {
   }
 }
 
-/** Production dependency closure of the workspace, minus build-only tooling. */
+/** Production dependency closure of the workspace. */
 function collectPackages() {
   const packages = new Map();
   const queue = [];
@@ -266,8 +187,7 @@ function collectPackages() {
   }
   while (queue.length) {
     const [name, dir] = queue.shift();
-    if (packages.has(dir) || buildTooling.some((rule) => rule.test(name)))
-      continue;
+    if (packages.has(dir)) continue;
     let manifest;
     try {
       manifest = readJson(path.join(dir, 'package.json'));
@@ -279,11 +199,6 @@ function collectPackages() {
       const resolved = resolvePackage(dependency, dir);
       if (resolved) queue.push([dependency, resolved]);
     }
-  }
-  for (const name of nativeOnlyPackages) {
-    const resolved = resolvePackage(name, path.join(repo, 'apps/mobile'));
-    if (resolved && !packages.has(resolved))
-      packages.set(resolved, readJson(path.join(resolved, 'package.json')));
   }
   return packages;
 }

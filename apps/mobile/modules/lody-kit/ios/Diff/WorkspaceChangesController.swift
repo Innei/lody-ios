@@ -6,7 +6,7 @@ class WorkspaceChangesController: UIViewController {
   let sessionId: String
   let feedback: PreviewFeedback?
   let service: FileDiffService
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private var result: RuntimeContract.WorkspaceChangesOk?
   private var error = ""
   private var loading = true
@@ -68,11 +68,11 @@ class WorkspaceChangesController: UIViewController {
       sections.append(Self.section(result))
     }
     if !error.isEmpty {
-      let retry = LodyListRow()
+      var retry = LodyListRow()
       retry.id = "retry"
       retry.title = LodyStrings.text("common.retry")
       retry.action = true
-      let section = LodyListSection()
+      var section = LodyListSection()
       section.id = "error"
       section.footer = error
       section.rows = [retry]
@@ -93,7 +93,7 @@ class WorkspaceChangesController: UIViewController {
   static func section(_ result: RuntimeContract.WorkspaceChangesOk) -> LodyListSection {
     let files = result.files
     let base = result.base == "diff-store" ? LodyStrings.text("workspaceChanges.localBase") : result.base
-    let section = LodyListSection()
+    var section = LodyListSection()
     section.id = "changes"
     section.header = LodyStrings.plural("changes.fileCount", files.count)
     if !files.isEmpty, files.allSatisfy({ $0.add != nil && $0.del != nil }) {
@@ -101,7 +101,7 @@ class WorkspaceChangesController: UIViewController {
     }
     section.footer = LodyStrings.text("workspaceChanges.base", ["base": base])
     section.rows = files.map { file in
-      let row = LodyListRow()
+      var row = LodyListRow()
       row.id = "file:\(file.path)"
       row.title = FilePathText.basename(file.path)
       row.subtitle = FilePathText.dirname(file.path)
@@ -109,10 +109,10 @@ class WorkspaceChangesController: UIViewController {
       row.filePath = file.path
       row.badge = file.kind.map { LodyStrings.text("workspaceChanges.\($0.rawValue)") } ?? ""
       if let add = file.add, let del = file.del {
-        let added = LodyListValueSegment()
+        var added = LodyListValueSegment()
         added.text = "+\(add)"
         added.tint = "green"
-        let deleted = LodyListValueSegment()
+        var deleted = LodyListValueSegment()
         deleted.text = " −\(del)"
         deleted.tint = "danger"
         row.valueSegments = [added, deleted]

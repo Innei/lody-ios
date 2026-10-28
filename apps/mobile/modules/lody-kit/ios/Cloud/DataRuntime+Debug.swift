@@ -1,37 +1,7 @@
 import LodyCore
-import ExpoModulesCore
 import Foundation
 
 extension DataRuntime {
-  func debugProbeSchema(promise: Promise) {
-    guard let workspace else {
-      fail(promise, "not_ready", LodyStrings.text("native.runtime.notConnected"))
-      return
-    }
-    callForRN(RuntimeContract.Calls.ProbeSchema.self, payload: "{}", inject: ["workspaceId": workspace],
-      promise: promise) { ProbeReport(report: $0) }
-  }
-  func debugBackground(_ action: String, promise: Promise) {
-    guard LodyUIVerify.enabled, workspace == nil || backgroundProbe else {
-      fail(promise, "probe_unavailable", "offline acceptance builds only"); return
-    }
-    switch action {
-    case "start":
-      backgroundProbe = true; probeUpdates = 0; probeBackgroundUpdates = 0
-      start(workspace: "background-fixture", slug: "background-fixture", name: "Background", owner: "background-fixture", userId: "")
-      sessionId = "background-fixture"
-    case "send":
-      dispatchTurn(#"{"sessionId":"background-fixture","machineId":"background-fixture","text":"background"}"#,
-        sink: .promise(promise), billing: nil, edit: false)
-      return
-    case "complete": webView?.evaluateJavaScript("globalThis.backgroundProbe.complete()", completionHandler: nil)
-    case "expire":
-      SessionBackgroundTasks.shared.debugExpire()
-    case "stop": stop(); backgroundProbe = false
-    default: break
-    }
-    promise.resolve("{}")
-  }
   // Synthetic server boundary, exercising the production WebView owner and background allowance.
   static var backgroundProbeHTML: String {
     let methods = (try? JSONEncoder().encode(RuntimeContract.runtimeMethods)).map { String(decoding: $0, as: UTF8.self) } ?? "[]"

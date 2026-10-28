@@ -55,6 +55,8 @@ jobs:
           echo "UI_UDID=$udid" >> "$GITHUB_ENV"
           xcrun simctl boot "$udid"
           xcrun simctl bootstatus "$udid" -b
+      - name: Core routing and protocol policies
+        run: swift test --package-path packages/lody-core
       - name: Native behavior checks
         run: pnpm verify:native --udid "$UI_UDID"
       - name: Capture failed Simulator screen
@@ -80,8 +82,6 @@ jobs:
     name: Build iOS Simulator
     runs-on: xcode-27
     timeout-minutes: 45
-    env:
-      EXPO_PUBLIC_UI_VERIFY: '1'
     steps:
       - uses: actions/checkout@v6
         with:
@@ -103,9 +103,12 @@ jobs:
       - name: Generate native project and install Pods
         working-directory: apps/mobile
         run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
           pnpm prebuild
           cd ios
           bundle exec pod install
+      - name: Verify native dependencies
+        run: /bin/bash .github/scripts/verify-ios-build-mode.sh apps/mobile/ios
       - name: Build signed Simulator app
         run: |
           APP=$(pnpm --silent verify:build --configuration Release --derived-data "$RUNNER_TEMP/lody-build")
@@ -135,8 +138,6 @@ jobs:
       fail-fast: false
       matrix:
         suite: [core-home, core-send]
-    env:
-      EXPO_PUBLIC_UI_VERIFY: '1'
     steps:
       - uses: actions/checkout@v6
         with:

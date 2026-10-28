@@ -146,7 +146,7 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate {
     return controller
   }
   private func page(_ content: UIViewController, title: String) -> LodyPageController {
-    LodyPageController(spec: .init(id: 0, title: title, style: "push", animation: "slide", dismissible: true,
+    LodyPageController(spec: .init(title: title, style: "push", animation: "slide", dismissible: true,
       headerShown: true, headerVariant: "transparent"), inSheet: false, content: content)
   }
   private func layoutColumns() {

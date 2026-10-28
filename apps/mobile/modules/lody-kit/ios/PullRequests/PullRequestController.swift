@@ -4,7 +4,7 @@ import UIKit
 class PullRequestController: UIViewController {
   enum Page { case overview, checks, check(PullRequestCheck, String) }
   let store: PullRequestStore
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   private let page: Page
   var investigate: ((String) async throws -> Void)?
   var external: (() -> Void)?
@@ -108,7 +108,7 @@ class PullRequestController: UIViewController {
 
   private func renderHeader() {
     guard let parent else { return }
-    let githubButton = LodySymbolButton(appContext: nil)
+    let githubButton = LodySymbolButton(frame: .zero)
     githubButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
     githubButton.widthAnchor.constraint(equalToConstant: 44).isActive = true
     githubButton.heightAnchor.constraint(equalToConstant: 44).isActive = true

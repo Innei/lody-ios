@@ -3,7 +3,7 @@ import UIKit
 
 @MainActor
 class AgentRolesController: UIViewController {
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   let scope: SettingsScope
   private let service: AgentRoleService
   private var workspace = SettingsWorkspace()

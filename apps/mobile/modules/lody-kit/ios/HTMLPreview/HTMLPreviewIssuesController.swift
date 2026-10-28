@@ -6,7 +6,7 @@ final class HTMLPreviewIssuesController: UIViewController {
   private let issues: [[String: String]]
   private let send: @MainActor (String) async throws -> PreviewFeedbackResult
   private let openSession: @MainActor () -> Void
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private let footer = UIStackView()
   private let status = UILabel()
   private let button = UIButton(configuration: .filled())
@@ -35,7 +35,7 @@ final class HTMLPreviewIssuesController: UIViewController {
     list.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     view.addSubview(list)
     list.setSections(issues.enumerated().map { index, issue in
-      let row = LodyListRow()
+      var row = LodyListRow()
       row.id = "html-issue-\(index)"
       row.title = HTMLPreviewText.issue(issue)
       row.subtitle = issue["path"] ?? ""
@@ -43,7 +43,7 @@ final class HTMLPreviewIssuesController: UIViewController {
       row.wrapSubtitle = true
       row.image = "exclamationmark.triangle"
       row.imageTint = "warning"
-      let section = LodyListSection()
+      var section = LodyListSection()
       section.id = "issue-\(index)"
       section.header = issue["reference"] ?? ""
       section.rows = [row]

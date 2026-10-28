@@ -13,12 +13,6 @@ PODS = (
         'compile': {'.swift', '.m'},
         'resources': {'.metal'},
     },
-    {
-        'name': 'ExpoDomWebView',
-        'root': Path('packages/dom-webview/ios'),
-        'compile': {'.swift', '.m'},
-        'resources': set(),
-    },
 )
 
 

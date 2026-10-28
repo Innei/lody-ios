@@ -151,7 +151,7 @@ class FileContentController: UIViewController {
 
   private func makeBody(handle: String, text: String) -> UIView {
     if html, !source {
-      let preview = LodyHTMLPreviewView(appContext: nil)
+      let preview = LodyHTMLPreviewView(frame: .zero)
       preview.failed = { [weak self] code in self?.htmlFailed(code) }
       preview.issuesChanged = { [weak self] issues in
         self?.issues = issues
@@ -165,7 +165,7 @@ class FileContentController: UIViewController {
       return preview
     }
     if markdown, !source {
-      let document = LodyMarkdownDocumentView(appContext: nil)
+      let document = LodyMarkdownDocumentView(frame: .zero)
       document.failed = { [weak self] in
         self?.error = LodyStrings.text("native.file.error.stale")
         self?.render()

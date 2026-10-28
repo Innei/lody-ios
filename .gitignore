@@ -7,7 +7,8 @@ dist/
 .env.*.local
 apps/mobile/ios/
 apps/mobile/android/
-apps/mobile/modules/lody-kit/ios/Resources/
+apps/mobile/modules/lody-kit/ios/Resources/*
+!apps/mobile/modules/lody-kit/ios/Resources/DebugHome.json
 apps/mobile/modules/lody-kit/ios/Vendor/
 apps/mobile/modules/lody-kit/datachannel/.build/
 .superpowers/
@@ -16,7 +17,6 @@ apps/mobile/modules/lody-kit/datachannel/.build/
 *.pyc
 # 用 **/ 写法：Lody App 的项目文件只读本文件，裸 .artifacts/ 会让根级目录在 App 里也消失
 **/.artifacts/
-packages/dom-webview/build/*
 packages/lody-core/.build/
 packages/lody-core/.swiftpm/
 apps/macos/Resources/Generated/

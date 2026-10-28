@@ -22,8 +22,8 @@ final class CreateSessionController: UIViewController {
 
   let composer: ChatComposerView
   private let host: UIView
-  private let paged = LodyPagedList(appContext: nil)
-  private let single = LodyGroupedList(appContext: nil)
+  private let paged = LodyPagedList(frame: .zero)
+  private let single = LodyGroupedList(frame: .zero)
   private lazy var hostHeight = host.heightAnchor.constraint(equalToConstant: 64)
   private var loads: [Bool: Task<Void, Never>] = [:]
   private var retryTimer: Timer?

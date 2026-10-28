@@ -1,4 +1,3 @@
-import ExpoModulesCore
 import WebKit
 
 // One isolated, offline WebKit instance per decode. The WASM replica is released with it.
@@ -22,7 +21,7 @@ final class FlockDecoder: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     timeout = timer
     DispatchQueue.main.asyncAfter(deadline: .now() + 20, execute: timer)
     do {
-      guard let url = Bundle(for: LodyKitModule.self).url(forResource: "FlockDecoder", withExtension: "html") ?? Bundle.main.url(forResource: "FlockDecoder", withExtension: "html") else {
+      guard let url = Bundle.main.url(forResource: "FlockDecoder", withExtension: "html") ?? Bundle.main.url(forResource: "FlockDecoder", withExtension: "html") else {
         throw NSError(domain: "LodyKit.DecoderMissing", code: 1)
       }
       webView?.loadHTMLString(try String(contentsOf: url, encoding: .utf8), baseURL: nil)

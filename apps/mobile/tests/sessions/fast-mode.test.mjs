@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { fastModeFor, withFastMode } from '../../src/cloud/send/capability.ts';
+import {
+  fastModeFor,
+  withFastMode,
+} from '../../../../packages/cloud-runtime/src/protocol/capability.ts';
 
 test('Fast respects agent capability, current default and an explicit off choice', () => {
   for (const id of ['fast-mode', 'fast']) {

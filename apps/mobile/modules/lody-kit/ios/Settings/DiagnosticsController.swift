@@ -33,7 +33,7 @@ class DiagnosticsController: UIViewController {
   static let ranges = [900, 3600, 86400, 604800]
   private static let rangeKeys = [900: "quarterHour", 3600: "hour", 86400: "day", 604800: "week"]
 
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   var service: DiagnosticsService
   private var range = 3600
   private var count: Int?

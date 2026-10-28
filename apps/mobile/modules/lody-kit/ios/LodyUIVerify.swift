@@ -5,7 +5,7 @@ import Foundation
 /// (or `--lody-offline`) turns them on. TestFlight never passes those arguments.
 enum LodyUIVerify {
   static var enabled: Bool { has("--ui-verify") }
-  static var offline: Bool { has("--lody-offline") }
+  static var offline: Bool { enabled || has("--lody-offline") }
   static var home: Bool { enabled && has("--ui-verify-home") }
   static var mentions: Bool { enabled && has("--ui-verify-mentions") }
   static var throwProbe: Bool { enabled && has("--ui-verify-throw") }

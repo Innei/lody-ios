@@ -351,7 +351,7 @@ private final class FileLinkButton: UIButton {
 enum MaterialFileIcon {
   static func image(for path: String) -> UIImage? {
     let name = "material-\(ChatFileLink.iconName(for: path))"
-    let image = UIImage(named: name, in: Bundle(for: LodyKitModule.self), compatibleWith: nil)
+    let image = UIImage(named: name, in: Bundle.main, compatibleWith: nil)
       ?? UIImage(named: name, in: .main, compatibleWith: nil)
     return image?.withRenderingMode(.alwaysOriginal)
   }

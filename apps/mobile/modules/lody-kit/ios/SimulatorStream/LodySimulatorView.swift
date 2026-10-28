@@ -1,15 +1,17 @@
-import ExpoModulesCore
 import UIKit
 
 /// Full-screen host borrows the chat-owned renderer, including its live decoder.
-final class LodySimulatorView: ExpoView {
+final class LodySimulatorView: UIView {
   private var stream: SimulatorStreamView?
   private var lastCommand = 0
 
-  required init(appContext: AppContext? = nil) {
-    super.init(appContext: appContext)
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
     NotificationCenter.default.addObserver(self, selector: #selector(willPush(_:)),
-      name: Notification.Name("RNSScreenWillPush"), object: nil)
+      name: Notification.Name("LodyWillPush"), object: nil)
   }
 
   isolated deinit { NotificationCenter.default.removeObserver(self) }

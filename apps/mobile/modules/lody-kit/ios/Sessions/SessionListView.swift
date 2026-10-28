@@ -3,8 +3,8 @@ import UIKit
 // Both layouts render the same catalog projection and keep one owner for actions.
 @MainActor
 final class SessionListView: UIView {
-  private let grouped = LodyGroupedList(appContext: nil)
-  private let sidebar = LodySidebar(appContext: nil)
+  private let grouped = LodyGroupedList(frame: .zero)
+  private let sidebar = LodySidebar(frame: .zero)
   var forwarded: ((String, [String: Any]) -> Void)?
   var selectedSessionId = "" { didSet { sidebar.setSelectedRowId(selectedSessionId) } }
   private var sections: [LodyListSection] = []
@@ -12,8 +12,8 @@ final class SessionListView: UIView {
   override init(frame: CGRect) {
     super.init(frame: frame)
     grouped.forwarded = { [weak self] name, body in self?.forwarded?(name, body) }
-    sidebar.onRowPress.onEventSent = { [weak self] body in self?.forwarded?("rowPress", body) }
-    sidebar.onRowAction.onEventSent = { [weak self] body in self?.forwarded?("rowAction", body) }
+    sidebar.onRowPress = { [weak self] body in self?.forwarded?("rowPress", body) }
+    sidebar.onRowAction = { [weak self] body in self?.forwarded?("rowAction", body) }
     registerForTraitChanges([UITraitHorizontalSizeClass.self]) { (self: Self, _: UITraitCollection) in self.applyLayout() }
     applyLayout()
   }

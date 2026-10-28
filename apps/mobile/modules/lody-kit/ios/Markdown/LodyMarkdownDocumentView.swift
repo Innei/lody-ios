@@ -1,10 +1,9 @@
-import ExpoModulesCore
 import MarkdownView
 import UIKit
 
 final class LodyMarkdownDocumentView: LodyAppearanceView {
-  let onFail = EventDispatcher()
-  let onFilePress = EventDispatcher()
+  var onFail: ([String: Any]) -> Void = { _ in }
+  var onFilePress: ([String: Any]) -> Void = { _ in }
   var failed: (() -> Void)?
   var filePressed: ((_ path: String, _ line: Int) -> Void)?
   private let documentScroll = UIScrollView()
@@ -13,8 +12,11 @@ final class LodyMarkdownDocumentView: LodyAppearanceView {
   private var handle = ""
   private var renderScheduled = false
 
-  required init(appContext: AppContext? = nil) {
-    super.init(appContext: appContext)
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
     backgroundColor = .lodyBackground
     documentScroll.alwaysBounceVertical = true
     documentScroll.contentInsetAdjustmentBehavior = .automatic

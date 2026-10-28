@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 class ArchivedSessionsController: UIViewController {
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   let source: SessionSource
   private lazy var actions = SessionActions(source: source)
   private var views: [String: Double] = [:]

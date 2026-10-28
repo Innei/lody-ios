@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 final class AppIconController: UIViewController {
-  private let grid = LodyAppIconGrid(appContext: nil)
+  private let grid = LodyAppIconGrid(frame: .zero)
   private var observer: NSObjectProtocol?
   private var pending = ""
 

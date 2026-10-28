@@ -14,10 +14,10 @@ enum ItemDetailBlockView {
     switch block.type {
     case "diff":
       if let path = block.path { stack.addArrangedSubview(text(path, color: .secondaryLabel, monospaced: false)) }
-      let diff = LodyInlineDiffView(appContext: nil)
+      let diff = LodyInlineDiffView(frame: .zero)
       let height = diff.heightAnchor.constraint(equalToConstant: 44)
       height.isActive = true
-      diff.onRender.onEventSent = { [weak height] body in height?.constant = max(44, body["contentHeight"] as! Double) }
+      diff.onRender = { [weak height] body in height?.constant = max(44, body["contentHeight"] as! Double) }
       diff.setPath(block.path ?? "")
       diff.setOldText(block.oldText ?? "")
       diff.setNewText(block.newText ?? "")

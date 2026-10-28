@@ -1,7 +1,5 @@
-import ExpoModulesCore
 import UIKit
 
-@Record
 struct LodyAppIconItem {
   var id: String = ""
   var title: String = ""
@@ -58,7 +56,7 @@ private final class AppIconCell: UICollectionViewCell {
 }
 
 final class LodyAppIconGrid: LodyAppearanceView, UICollectionViewDataSource, UICollectionViewDelegate {
-  let onSelect = EventDispatcher()
+  var onSelect: ([String: Any]) -> Void = { _ in }
   var selectHandler: ((String) -> Void)?
   private let collection: UICollectionView
   private weak var scrollOwner: UIViewController?
@@ -67,13 +65,13 @@ final class LodyAppIconGrid: LodyAppearanceView, UICollectionViewDataSource, UIC
   private var pending = ""
   private var enabled = false
 
-  required init(appContext: AppContext? = nil) {
+  override init(frame: CGRect) {
     let item = NSCollectionLayoutItem(layoutSize: .init(widthDimension: .fractionalWidth(1.0 / 3), heightDimension: .fractionalHeight(1)))
     let group = NSCollectionLayoutGroup.horizontal(layoutSize: .init(widthDimension: .fractionalWidth(1), heightDimension: .absolute(140)), repeatingSubitem: item, count: 3)
     let section = NSCollectionLayoutSection(group: group)
     section.contentInsets = .init(top: 20, leading: 16, bottom: 20, trailing: 16)
     collection = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewCompositionalLayout(section: section))
-    super.init(appContext: appContext)
+    super.init(frame: frame)
     collection.register(AppIconCell.self, forCellWithReuseIdentifier: "icon")
     collection.dataSource = self
     collection.delegate = self

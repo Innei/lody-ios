@@ -77,7 +77,7 @@ class OnboardingController: UIViewController {
     LodyScrollEdges.navigation(scroll)
     view.addSubview(scroll)
 
-    let logo = UIImageView(image: UIImage(named: "onboarding-logo", in: Bundle(for: LodyKitModule.self), compatibleWith: nil)
+    let logo = UIImageView(image: UIImage(named: "onboarding-logo", in: Bundle.main, compatibleWith: nil)
       ?? UIImage(named: "onboarding-logo"))
     logo.accessibilityIgnoresInvertColors = true
     logo.layer.cornerRadius = 15

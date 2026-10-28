@@ -2,16 +2,14 @@
 
 ## 1. Project summary
 
-Expo Router iOS app in apps/mobile; UIKit capabilities live in LodyKit.
+UIKit iOS app in apps/mobile; UI, state and coordinators live in LodyKit.
 
 ## 2. Environment
 
-Use `pnpm start` for Metro. For a verified signed build, use the managed lease
-wrapper below and pass `$LODY_VERIFY_UDID` as the xcodebuild destination; do not
-use `pnpm ios`, which lets Expo select another Simulator. Check listening Node
-processes before starting a server; do not stop servers owned by another task.
-Metro currently uses 8081. Generate assets with
-`pnpm --filter @lody-ios/mobile native:assets` before direct xcodebuild.
+Generate with `pnpm prebuild` and `pnpm --filter @lody-ios/mobile pods`.
+Use `pnpm verify:build` for a signed simulator build. `pnpm start` opens Xcode;
+there is no JavaScript development server. Runtime asset changes require
+`pnpm --filter @lody-ios/mobile native:assets` before rebuilding.
 
 ## 3. Auth
 
@@ -21,11 +19,10 @@ lease a reusable `Lody * Verify` Simulator. For a build plus multiple checks, us
 `$LODY_VERIFY_UDID`; nested verify commands reuse that lease. Never call
 `simctl create` directly for local verification. Explicit `--udid` is reserved
 for a caller-owned device such as CI, which also owns its cleanup.
-For a local full run, `pnpm verify:ui --parallel --app <Debug.app>` starts one
-Metro and three independently leased Simulators. Do not wrap this parallel
-command in a single-device lease. The runner owns an isolated Metro (default
-8097, override with `--port`) with `EXPO_PUBLIC_UI_VERIFY=1`; account restoration
-and login are disabled, and Debug scenes use production components with local fixtures.
+For a local full run, `pnpm verify:ui --parallel --app <Lody.app>` leases separate
+Simulators for the native batches. Do not wrap parallel mode in a single-device
+lease. The runner launches with `--ui-verify`, disables account restoration and
+network access, and uses production controllers with deterministic services.
 Reuse one `--output` path per verify (retries replace it); never suffix `-1`/`-2`
 unless comparing two builds. Build with `pnpm verify:build`, which reuses the
 workspace Xcode DerivedData and prints the App path for `--app`; keep one build
@@ -50,7 +47,7 @@ that alignment; regression runs stay programmatic gates and are never ingested.
 
 ## 5. Project probes & quick navigation
 
-`xcrun simctl list devices booted`; `axe describe-ui --udid <id>`. Product tabs are sessions, settings and search. Development-only Debug lives under Settings.
+`xcrun simctl list devices booted`; `axe describe-ui --udid <id>`. Home has an adaptive inbox/session/inspector split; Settings opens from the inbox. Development-only Debug lives under Settings.
 
 ## 6. Known constraints
 

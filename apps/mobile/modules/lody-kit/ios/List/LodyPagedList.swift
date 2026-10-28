@@ -1,17 +1,14 @@
-#if !LODY_SHARE_EXTENSION
-import ExpoModulesCore
-#endif
 import UIKit
 
-struct LodyPagedPage: Record {
-  @Field var id: String = ""
-  @Field var title: String = ""
-  @Field var sections: [LodyListSection] = []
+struct LodyPagedPage {
+  var id: String = ""
+  var title: String = ""
+  var sections: [LodyListSection] = []
 }
 
-final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
-  let onRowPress = EventDispatcher()
-  let onPageChange = EventDispatcher()
+final class LodyPagedList: UIView, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
+  var onRowPress: ([String: Any]) -> Void = { _ in }
+  var onPageChange: ([String: Any]) -> Void = { _ in }
   var forwardedRowPress: (([String: Any]) -> Void)?
   var forwardedPageChange: ((Int) -> Void)?
 
@@ -31,9 +28,9 @@ final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewC
     let controller: UIViewController
     let list: LodyGroupedList
 
-    init(appContext: AppContext?, onPress: @escaping ([String: Any]) -> Void) {
+    init(onPress: @escaping ([String: Any]) -> Void) {
       controller = UIViewController()
-      list = LodyGroupedList(appContext: appContext)
+      list = LodyGroupedList(frame: .zero)
       list.forwarded = { name, body in
         if name == "rowPress" { onPress(body) }
       }
@@ -48,8 +45,11 @@ final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewC
     }
   }
 
-  required init(appContext: AppContext? = nil) {
-    super.init(appContext: appContext)
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
     backgroundColor = .clear
     pager.dataSource = self
     pager.delegate = self
@@ -115,7 +115,7 @@ final class LodyPagedList: ExpoView, UIPageViewControllerDataSource, UIPageViewC
 
   private func rebuild(_ pages: [LodyPagedPage]) {
     boxes = pages.map { page in
-      let box = PageBox(appContext: appContext) { [weak self] body in
+      let box = PageBox() { [weak self] body in
         self?.onRowPress(body)
         self?.forwardedRowPress?(body)
       }

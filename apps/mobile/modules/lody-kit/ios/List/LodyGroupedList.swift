@@ -1,6 +1,3 @@
-#if !LODY_SHARE_EXTENSION
-import ExpoModulesCore
-#endif
 import SwiftUI
 import UIKit
 
@@ -69,15 +66,15 @@ private struct ListItemID: Hashable {
 }
 
 final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISearchBarDelegate, UITextFieldDelegate {
-  let onRowPress = EventDispatcher()
-  let onRowToggle = EventDispatcher()
-  let onRowAction = EventDispatcher()
-  let onReorder = EventDispatcher()
-  let onRefresh = EventDispatcher()
-  let onSegmentChange = EventDispatcher()
-  let onSearchChange = EventDispatcher()
-  let onNoticeAction = EventDispatcher()
-  let onUnavailableAction = EventDispatcher()
+  var onRowPress: ([String: Any]) -> Void = { _ in }
+  var onRowToggle: ([String: Any]) -> Void = { _ in }
+  var onRowAction: ([String: Any]) -> Void = { _ in }
+  var onReorder: ([String: Any]) -> Void = { _ in }
+  var onRefresh: ([String: Any]) -> Void = { _ in }
+  var onSegmentChange: ([String: Any]) -> Void = { _ in }
+  var onSearchChange: ([String: Any]) -> Void = { _ in }
+  var onNoticeAction: ([String: Any]) -> Void = { _ in }
+  var onUnavailableAction: ([String: Any]) -> Void = { _ in }
   var forwarded: ((String, [String: Any]) -> Void)?
 
   func emitRowPress(_ body: [String: Any]) {
@@ -438,9 +435,9 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     elementKind: UICollectionView.elementKindSectionFooter
   ) { _, _, _ in }
 
-  required init(appContext: AppContext? = nil) {
+  override init(frame: CGRect) {
     collection = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewCompositionalLayout.list(using: .init(appearance: .insetGrouped)))
-    super.init(appContext: appContext)
+    super.init(frame: frame)
     // UIKit rejects a registration created inside the cell provider.
     _ = sessionRegistration
     _ = projectRegistration

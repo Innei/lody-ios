@@ -3,7 +3,7 @@ import UIKit
 
 @MainActor
 final class EditMessagePreviewController: UIViewController {
-  private let chat = LodyChatView(appContext: nil)
+  private let chat = LodyChatView(frame: .zero)
   private let count = UILabel()
   private let payload = UILabel()
   private let scenario: String
@@ -35,7 +35,7 @@ final class EditMessagePreviewController: UIViewController {
     chat.setInitialDraft("Keep this chat draft")
     chat.setComposerState(SessionController.json(["editable": true, "canSend": true, "sending": false, "notice": "", "reconnect": false, "placeholder": ""]))
     chat.editableMessageID = "editable"
-    chat.onEditMessage.onEventSent = { [weak self] body in
+    chat.onEditMessage = { [weak self] body in
       guard let self, let id = body["entryId"] as? String else { return }
       openEditor(id)
     }

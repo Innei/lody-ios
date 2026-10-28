@@ -50,15 +50,15 @@ final class SessionSource {
     read: { SessionCatalogPreview.state ?? SessionPublished.state() },
     raw: { id in SessionCatalogPreview.state == nil ? SessionPublished.raw(id) : SessionCatalogPreview.raw(id) },
     write: { workspaceId, sessionId, write in
-      if LodyPreviewBridge.active, case .delete(let ids) = write {
-        try await LodyPreviewBridge.request("deleteSessions", ["sessionId": sessionId, "sessionIds": ids])
+      if NativeHomeFixture.active, case .delete(let ids) = write {
+        try await NativeHomeFixture.request("deleteSessions", ["sessionId": sessionId, "sessionIds": ids])
         return
       }
       try await SessionActions.cloud(workspaceId, sessionId, write)
     }
   )
 
-  // Mirrors the JS session view store: a local watermark that clears unread emphasis.
+  // A persisted local watermark clears unread emphasis.
   nonisolated static func views(userId: String, workspaceId: String) async -> [String: Double] {
     guard !userId.isEmpty, !workspaceId.isEmpty,
       let data = try? JSONSerialization.data(withJSONObject: [userId, workspaceId], options: .withoutEscapingSlashes)
@@ -168,7 +168,7 @@ enum SessionPublished {
   }
 }
 
-// UI verification fixtures that still live in React publish their catalog here.
+// Native offline fixtures publish their catalog independently of authenticated services.
 @MainActor
 enum SessionCatalogPreview {
   private static var base: SessionListState?
@@ -234,7 +234,6 @@ enum SessionCatalogPreview {
     observer = nil
     catalogJSON = ""
     sessions = []
-    LodyPreviewBridge.reset()
     NotificationCenter.default.post(name: .lodySessionCatalogPreviewDidChange, object: nil)
   }
 }

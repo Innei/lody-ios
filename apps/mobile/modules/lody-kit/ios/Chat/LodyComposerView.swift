@@ -1,13 +1,12 @@
-import ExpoModulesCore
 import UIKit
 
 /// Standalone host for the same input used by LodyChatView, including sheet keyboard clearance.
-final class LodyComposerView: ExpoView {
-  let onSend = EventDispatcher()
-  let onRelayReady = EventDispatcher()
-  let onHeightChange = EventDispatcher()
-  let onComposerOptionChange = EventDispatcher()
-  let onMentionBrowse = EventDispatcher()
+final class LodyComposerView: UIView {
+  var onSend: ([String: Any]) -> Void = { _ in }
+  var onRelayReady: ([String: Any]) -> Void = { _ in }
+  var onHeightChange: ([String: Any]) -> Void = { _ in }
+  var onComposerOptionChange: ([String: Any]) -> Void = { _ in }
+  var onMentionBrowse: ([String: Any]) -> Void = { _ in }
   let composer = ChatComposerView(frame: .zero)
   var composerRelay = false
   var forwarded: ((String, [String: Any]) -> Void)?
@@ -108,7 +107,7 @@ final class LodyComposerView: ExpoView {
     relayTarget = target
     // The keyboard expanded this sheet. Keep that detent while its responder
     // changes host, rather than letting UIKit collapse it before dismissal.
-    var owner = reactViewController()
+    var owner = owningViewController
     while let controller = owner {
       if controller.presentingViewController != nil, let sheet = controller.sheetPresentationController,
          (sheet.presentedView?.frame.height ?? 0) > window.bounds.height * 0.85 {
@@ -167,8 +166,11 @@ final class LodyComposerView: ExpoView {
     }
   }
 
-  required init(appContext: AppContext? = nil) {
-    super.init(appContext: appContext)
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
     NotificationCenter.default.addObserver(self, selector: #selector(scrollOwnerChanged), name: LodyScrollEdges.ownerChanged, object: nil)
     NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
     NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged), name: UIResponder.keyboardWillHideNotification, object: nil)

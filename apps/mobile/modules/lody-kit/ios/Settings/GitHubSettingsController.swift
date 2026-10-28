@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 class GitHubSettingsController: UIViewController {
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   private let service: GitHubSettingsService
   private let fixedWorkspace: String?
   private let changed: @MainActor () -> Void

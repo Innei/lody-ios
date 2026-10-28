@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 class SettingsController: UIViewController {
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   let source: SettingsSource
   private var state = SettingsState()
   private var observers: [NSObjectProtocol] = []
@@ -10,6 +10,7 @@ class SettingsController: UIViewController {
   init(source: SettingsSource = .live) {
     self.source = source
     super.init(nibName: nil, bundle: nil)
+    title = LodyStrings.text("tabs.settings")
   }
 
   @available(*, unavailable)

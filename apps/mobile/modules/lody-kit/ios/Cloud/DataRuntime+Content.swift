@@ -1,25 +1,7 @@
 import LodyCore
-import ExpoModulesCore
 import Foundation
 
 extension DataRuntime {
-  func workspaceChanges(_ payload: String, promise: Promise) {
-    guard inOpenSession(payload, sink: .promise(promise)) else { return }
-    callForRN(RuntimeContract.Calls.WorkspaceChanges.self, payload: payload, promise: promise)
-  }
-  func listDir(_ payload: String, promise: Promise) {
-    guard Self.scope(payload)?["workspaceId"] as? String == workspace else {
-      fail(promise, "not_ready", LodyStrings.text("native.runtime.sessionNotSynced"))
-      return
-    }
-    callForRN(RuntimeContract.Calls.ListDir.self, payload: payload, promise: promise)
-  }
-  func turnDiff(_ payload: String, promise: Promise) {
-    contentCall(RuntimeContract.Calls.TurnDiff.self, payload: payload, sink: .promise(promise), session: \.sessionId)
-  }
-  func fileDiff(_ payload: String, promise: Promise) {
-    contentCall(RuntimeContract.Calls.FileDiff.self, payload: payload, sink: .promise(promise), session: \.sessionId)
-  }
   func readFile(_ payload: String) async throws -> String {
     try await withCheckedThrowingContinuation { continuation in
       contentCall(RuntimeContract.Calls.ReadFile.self, payload: payload, sink: .continuation(continuation), session: \.sessionId)
@@ -27,7 +9,7 @@ extension DataRuntime {
   }
   private func contentCall<C: RuntimeCall>(_ call: C.Type, payload: String, sink: ReplySink,
     session: (C.Params) -> String) where C.Params: Decodable, C.Result: Encodable {
-    guard inOpenSession(payload, sink: sink), let params = rnParams(C.self, payload: payload, sink: sink) else { return }
+    guard inOpenSession(payload, sink: sink), let params = decodeParams(C.self, payload: payload, sink: sink) else { return }
     let owner = session(params)
     self.call(C.self, params, sink: sink) { result in
       (try? JSONEncoder().encode(result)).map { Self.parkContent(method: C.method, session: owner, json: $0) }

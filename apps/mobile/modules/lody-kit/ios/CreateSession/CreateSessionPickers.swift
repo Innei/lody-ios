@@ -3,7 +3,7 @@ import UIKit
 
 @MainActor
 class CreateListController: UIViewController {
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
 
   override func viewDidLoad() {
     super.viewDidLoad()

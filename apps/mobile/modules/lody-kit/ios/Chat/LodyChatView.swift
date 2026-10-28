@@ -1,5 +1,4 @@
 import ChatKit
-import ExpoModulesCore
 import Litext
 import UIKit
 
@@ -53,8 +52,8 @@ private final class ChatNavigationController: UIViewController {
 }
 
 final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout, UIGestureRecognizerDelegate, ChatSendHandoffSettling {
-  let onSend = EventDispatcher()
-  let onEditMessage = EventDispatcher()
+  var onSend: ([String: Any]) -> Void = { _ in }
+  var onEditMessage: ([String: Any]) -> Void = { _ in }
   var editableMessageID = "" {
     didSet {
       for cell in collection.visibleCells {
@@ -72,32 +71,32 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     pauseTracking()
     collection.scrollToItem(at: index, at: .top, animated: false)
   }
-  let onStop = EventDispatcher()
-  let onSteer = EventDispatcher()
-  let onErrorRetry = EventDispatcher()
-  let onPlanDecision = EventDispatcher()
+  var onStop: ([String: Any]) -> Void = { _ in }
+  var onSteer: ([String: Any]) -> Void = { _ in }
+  var onErrorRetry: ([String: Any]) -> Void = { _ in }
+  var onPlanDecision: ([String: Any]) -> Void = { _ in }
   var planDecisionState: ChatPlanDecisionState?
   var errorRetryState: ChatErrorRetryState?
-  let onActivityPress = EventDispatcher()
-  let onTurnInfoPress = EventDispatcher()
+  var onActivityPress: ([String: Any]) -> Void = { _ in }
+  var onTurnInfoPress: ([String: Any]) -> Void = { _ in }
   weak var messageDetailsPage: MessageDetailsController?
   var turnInfoEnabled = false
-  let onShareImage = EventDispatcher()
+  var onShareImage: ([String: Any]) -> Void = { _ in }
   var imageSharingEnabled = false
-  let onFilePress = EventDispatcher()
-  let onTurnChangesPress = EventDispatcher()
-  let onReconnect = EventDispatcher()
-  let onRetrySend = EventDispatcher()
-  let onTitlePress = EventDispatcher()
-  let onPreview = EventDispatcher()
+  var onFilePress: ([String: Any]) -> Void = { _ in }
+  var onTurnChangesPress: ([String: Any]) -> Void = { _ in }
+  var onReconnect: ([String: Any]) -> Void = { _ in }
+  var onRetrySend: ([String: Any]) -> Void = { _ in }
+  var onTitlePress: ([String: Any]) -> Void = { _ in }
+  var onPreview: ([String: Any]) -> Void = { _ in }
   private let simulatorPreview = SimulatorPreview(frame: .zero)
 
   func setSimulatorPreview(_ json: String) {
     simulatorPreview.setSource(json)
   }
-  let onTitleMenu = EventDispatcher()
-  let onComposerOptionChange = EventDispatcher()
-  let onMentionBrowse = EventDispatcher()
+  var onTitleMenu: ([String: Any]) -> Void = { _ in }
+  var onComposerOptionChange: ([String: Any]) -> Void = { _ in }
+  var onMentionBrowse: ([String: Any]) -> Void = { _ in }
   private let titleButton = ChatNavigationTitleButton()
   private var navigationTitle = ""
   private var navigationSubtitle = ""
@@ -257,7 +256,10 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     cell.accessibilityHint = LodyStrings.text("native.chat.row.openChanges")
   }
 
-  required init(appContext: AppContext? = nil) {
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override init(frame: CGRect) {
     let layout = ChatCollectionLayout()
     layout.minimumLineSpacing = 0
     layout.minimumInteritemSpacing = 0
@@ -269,10 +271,10 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     )
     let collection = ChatCollectionView(frame: .zero, collectionViewLayout: layout)
     self.collection = collection
-    super.init(appContext: appContext)
+    super.init(frame: frame)
     titleButton.accessibilityIdentifier = "chat-navigation-title"
     titleButton.accessibilityHint = LodyStrings.text("native.chat.title.hint")
-    titleButton.addAction(UIAction { [weak self] _ in self?.onTitlePress() }, for: .touchUpInside)
+    titleButton.addAction(UIAction { [weak self] _ in self?.onTitlePress([:]) }, for: .touchUpInside)
     navigation.view = UIView(frame: .zero)
     navigation.view.isUserInteractionEnabled = false
     navigation.updateTitle = { [weak self] in self?.attachTitle() }
@@ -440,7 +442,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       }
       self.onSend(payload)
     }
-    composer.onStop = { [weak self] in self?.onStop() }
+    composer.onStop = { [weak self] in self?.onStop([:]) }
     composer.onSteer = { [weak self] in self?.onSteer(["id": $0]) }
     composer.onReconnect = { [weak self] in self?.onReconnect([:]) }
     composer.onPreview = { [weak self] in self?.onPreview(["action": $0]) }

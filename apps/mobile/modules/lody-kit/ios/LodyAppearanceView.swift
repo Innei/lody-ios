@@ -1,11 +1,11 @@
-#if !LODY_SHARE_EXTENSION
-import ExpoModulesCore
-#endif
 import UIKit
 
-class LodyAppearanceView: ExpoView {
-  required init(appContext: AppContext? = nil) {
-    super.init(appContext: appContext)
+class LodyAppearanceView: UIView {
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
     NotificationCenter.default.addObserver(
       self,
       selector: #selector(lodyAppearanceDidChange),

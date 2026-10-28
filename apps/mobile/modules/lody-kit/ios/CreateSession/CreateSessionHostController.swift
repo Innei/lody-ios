@@ -38,7 +38,7 @@ struct CreateSessionHostParams: Decodable {
 class CreateSessionHostController: UIViewController {
   private let params: CreateSessionHostParams
   private let service: CreateSessionService
-  private let input = LodyComposerView(appContext: nil)
+  private let input = LodyComposerView(frame: .zero)
   private let controller: CreateSessionController
   private let navigation: UINavigationController
   private var mentions: MentionCatalogStore?

@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 final class AccountController: UIViewController {
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private let source: SettingsSource
   private var observers: [NSObjectProtocol] = []
 
