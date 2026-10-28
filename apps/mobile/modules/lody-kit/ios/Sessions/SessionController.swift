@@ -150,7 +150,7 @@ class SessionController: UIViewController {
     let state = source.state
     guard let session = state.catalog.session(sessionId) else {
       permissionPage?.update(nil, ready: true)
-      if listed, !state.loading { navigationController?.popViewController(animated: true) }
+      if listed, !state.loading { LodyShell.shared.close(from: self) }
       return
     }
     listed = true
