@@ -24,6 +24,8 @@ if args.udid is None:
     raise SystemExit(run_with_simulator(SimulatorPool(), 'Native', command))
 sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'], text=True).strip()
 checks = {
+    'home-layout': ['Chrome/LodyHomeLayout.swift'],
+    'fold-host': ['Chrome/LodyFoldHost.swift'],
     'session-feed': ['Sessions/SessionFeed.swift', 'Sessions/SessionEnvelope.swift', 'Sessions/SessionPermission.swift'],
     'session-simulator': ['Sessions/SessionSimulator.swift'],
     'preview-feedback': ['Outbox/OutboxRecord.swift', 'Outbox/OutboxStore.swift', 'HTMLPreview/PreviewFeedback.swift'],
@@ -170,7 +172,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             subprocess.run(['swift', 'run', '--package-path', str(package), '--scratch-path', str(root / '.artifacts/native-local-store')], check=True, timeout=600)
             continue
         binary = str(Path(output) / name)
-        simulator = name in ['message-details', 'simulator-transport', 'share-ingest', 'chat-kit', 'scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'context-chip', 'attachments', 'inline-diff', 'list', 'list-snapshots', 'ai-usage', 'workspace-settings-pages', 'settings-roles', 'settings-runtime-pages', 'remote-settings', 'session-rows', 'banner', 'chat-title', 'live-activity', 'chat-chrome']
+        simulator = name in ['fold-host', 'message-details', 'simulator-transport', 'share-ingest', 'chat-kit', 'scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'context-chip', 'attachments', 'inline-diff', 'list', 'list-snapshots', 'ai-usage', 'workspace-settings-pages', 'settings-roles', 'settings-runtime-pages', 'remote-settings', 'session-rows', 'banner', 'chat-title', 'live-activity', 'chat-chrome']
         command = ['xcrun', '--sdk', 'iphonesimulator', 'swiftc'] if simulator else ['xcrun', 'swiftc']
         command += ['-swift-version', '6']
         if name in ['message-details', 'list-snapshots', 'ai-usage', 'workspace-settings-pages', 'settings-roles', 'settings-runtime-pages', 'remote-settings', 'session-rows']:

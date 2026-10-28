@@ -5,10 +5,10 @@ final class LodyFoldHost {
   let controller: UIViewController
   private let place: (UIViewController?, UIViewController?) -> Void
 
-  // The arrangement API ships only in the iOS 27.2 SDK (Swift 6.4.2); older
+  // The arrangement API ships in the iOS 27.1 SDK (Swift 6.4); older
   // toolchains still build the app and keep the plain split everywhere.
   static func make(onLayout: @escaping () -> Void) -> LodyFoldHost? {
-    #if compiler(>=6.4.2)
+    #if compiler(>=6.4)
     guard #available(iOS 27.1, *) else { return nil }
     let arrangement = LodyArrangementController()
     arrangement.onLayout = onLayout
@@ -24,10 +24,10 @@ final class LodyFoldHost {
   }
 
   static func observeHinge(on view: UIView, onChange: @escaping (Bool) -> Void) {
-    #if compiler(>=6.4.2)
+    #if compiler(>=6.4)
     guard #available(iOS 27.1, *) else { return }
     view.addInteraction(UIHingeInteraction { _, update in
-      onChange(update.hinge.map { $0.status != .closed } ?? false)
+      onChange(update.hinge?.status == .partiallyOpen)
     })
     #endif
   }
@@ -42,7 +42,7 @@ final class LodyFoldHost {
   }
 }
 
-#if compiler(>=6.4.2)
+#if compiler(>=6.4)
 @available(iOS 27.1, *)
 private final class LodyArrangementController: UIArrangementViewController {
   var onLayout: (() -> Void)?
