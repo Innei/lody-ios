@@ -1,8 +1,8 @@
-# iPhone Duo: UIKit and React Native notes
+# iPhone Duo: native layout notes
 
-What we verified while adapting Lody to iPhone Duo (iOS 27.1 / 27.2 SDK, simulator
-`iPhone Duo`). Shipped in `5333e6a`. Re-verify on newer SDKs before relying on details
-marked as simulator behavior.
+Lody uses native UIKit containers on iPhone Duo and iPad. The device measurements
+below come from the iPhone Duo Simulator with the iOS 27.1 SDK; re-verify on newer
+SDKs before relying on simulator-specific behavior.
 
 ## Device facts
 
@@ -41,8 +41,9 @@ a vertical bar on the trailing edge. The status bar becomes vertical too.
 - The regions are empty during early layout, and nothing notifies when they appear.
   Don't drive layout from them at mount time.
 - `UIHingeInteraction` is event-driven: its handler fires with the initial state and on
-  every change (`status` 3 = fully open). Use it to decide whether a fold exists, and
-  combine it with the layout mode, since portrait has a horizontal fold.
+  every change (`status` 3 = fully open). Only `.partiallyOpen` selects the book layout. Combine it with available space,
+  since portrait has a horizontal fold. A fully open hinge uses the ordinary split
+  and never makes the fold a column boundary.
 - `UIView.reservedRegions(kind: .occlusion)` includes the status-bar column of the
   vertical bar. The safe area already covers it.
 
@@ -53,23 +54,36 @@ a vertical bar on the trailing edge. The status bar becomes vertical too.
 (475.67 | 475.33 pt). The trailing pane gets the vertical bar; the leading pane keeps
 its own horizontal bar.
 
-Lody's `LodySplitView` uses it only when the layout is wide and the hinge is open. iPad
-keeps `UISplitViewController`.
+`HomeController` uses it only for the wide, partially open book posture. Fully open
+Duo and iPad keep `UISplitViewController`, with a 320 pt preferred list width and a
+45% preferred detail width. Native view transforms animate between containers;
+Reduce Motion skips the transition.
 
 - The arrangement has only two slots, so the wide layout maps list | chat, or chat |
   panel once a panel is open.
-- The hidden third column is parked under a hidden child VC. A react-native-screens
-  navigation controller with no parent gets re-adopted by its RN stack into the outer
-  Router controller.
+- The hidden third column is parked under a hidden child VC. When details are open
+  in book posture, the chat sidebar button presents the same list in a native popover.
+- File, Diff, subtask and PR details use the adaptive detail stack: beside chat in a
+  wide window, a Sheet in a tall regular window, and native navigation in compact
+  windows where the route requests a push. The same navigation controller and pages
+  survive container changes.
+- Activity, tool-call details and message details always use Sheet. Other transient
+  forms retain their existing native Sheet presentations.
+- The shell presents the preserved detail navigation inside a disposable modal
+  host. Rehosting releases that host before attaching the navigation to the split.
+- Document canvases use `lodyOpaqueBackground`: it resolves the system background
+  inside a dynamic color provider. This retains automatic theme and contrast
+  updates while preventing glass Sheet promotion from leaving the canvas
+  transparent after it returns to a split.
 
 ## SDK guard
 
-The arrangement, hinge and reserved-region APIs exist only in the Xcode-beta 27.2
-SDK. `canImport(UIKit.UIArrangementViewController)` is false on both SDKs (it is not a
+The arrangement, hinge and reserved-region APIs are available in the Xcode 27.1
+SDK (Swift 6.4). `canImport(UIKit.UIArrangementViewController)` is false on both SDKs (it is not a
 separate Clang submodule). Guard with the toolchain version instead:
 
 ```swift
-#if compiler(>=6.4.2)
+#if compiler(>=6.4)
 if #available(iOS 27.1, *) { … }
 #endif
 ```
@@ -77,7 +91,10 @@ if #available(iOS 27.1, *) { … }
 Xcode 27.0 builds compile the guarded code out and keep the plain split. Swift 6:
 don't capture a `@convention(c)` pointer inside `MainActor.assumeIsolated`.
 
-## React Native pitfalls
+## Historical React Native findings
+
+These notes describe the earlier React Native client, not the current native
+presentation implementation.
 
 These showed up on the Duo, but most are host or layout bugs that ordinary iPhones hid.
 
@@ -103,26 +120,30 @@ placement="left" | "right"`, `Stack.SearchBar` and `Stack.Screen` options regist
   bounds and then rely on autoresizing. When the window was first created on another
   display size, the difference stayed baked in (canvas 1436 pt wide in a 951 pt
   window). Pin overlay content with Auto Layout.
-- **Toast placement:** center within the safe area, and on an open fold, over the
-  trailing pane rather than across the hinge.
+- **Toast placement:** the current native toast centers within the safe area. Only an
+  active book fold restricts it to the trailing pane; fully open Duo ignores inactive
+  fold regions.
 
 ## Where it lives
 
-| Concern                              | File                                                                                                  |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Layout mode (compact / wide / tall)  | `apps/mobile/src/lib/presentation/layoutMode.ts`, `modules/lody-kit/ios/Chrome/LodyLayoutProbe.swift` |
-| Split shell, fold switching, parking | `modules/lody-kit/ios/Chrome/LodySplitView.swift`                                                     |
-| Arrangement and hinge (SDK-guarded)  | `modules/lody-kit/ios/Chrome/LodyFoldHost.swift`                                                      |
-| Panel stack and store                | `apps/mobile/src/lib/presentation/PanelStack.tsx`, `panelStore.ts`                                    |
-| Chat horizontal safe area            | `modules/lody-kit/ios/Chat/LodyChatView.swift`                                                        |
-| Toast band and canvas                | `modules/lody-kit/ios/Toast/LodyToastOverlay.swift`                                                   |
-| Design decisions                     | `docs/superpowers/specs/2026-10-17-wide-layout-design.md`                                             |
+All paths below are under `packages/LodyKit/Sources/LodyKit`.
+
+| Concern                                  | File                                                  |
+| ---------------------------------------- | ----------------------------------------------------- |
+| Available-space and posture policy       | `Chrome/LodyHomeLayout.swift`                         |
+| Split, fold, Sheet and popover ownership | `Shell/HomeController.swift`, `Shell/LodyShell.swift` |
+| Native arrangement and hinge             | `Chrome/LodyFoldHost.swift`                           |
+| Page close and rehosting lifecycle       | `Shell/LodyPageController.swift`                      |
+| Chat safe area                           | `Chat/LodyChatView.swift`                             |
+| Toast band and canvas                    | `Toast/LodyToastOverlay.swift`                        |
+
+The approved design is in `docs/superpowers/specs/2026-10-28-duo-ipad-native-layout.md`.
 
 ## Testing on the Duo simulator
 
-- Build with Xcode-beta and the 27.2 SDK (`DEVELOPER_DIR=/Applications/Xcode-beta.app/…`,
-  `-sdk iphonesimulator27.2`) to compile the fold code. Default Xcode builds run but
-  never fold.
+- Build with Xcode 27.1 or newer to compile the fold code. The Swift 6.4 guard
+  includes this SDK; older toolchains keep the ordinary split. Run
+  `pnpm verify:native --case fold-host` on an iOS 27.1 Simulator to check pane handoff.
 - Screenshots: `xcrun simctl io <udid> screenshot --display 3` (inner) or `--display 1`
   (outer). A black image means that display is off in the current posture.
 - `axe` taps land transposed on the Duo, and `axe` has no display option. Folding,

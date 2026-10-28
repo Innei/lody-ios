@@ -597,6 +597,9 @@ try:
                     check_timeout = 300
                 if case == 'mcp-settings':
                     check_timeout = 300
+                if case == 'native-file-content':
+                    # Source, links, HTML navigation and three feedback outcomes share this case.
+                    check_timeout = 300
                 if case in ('agent-roles', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states'):
                     check_timeout = 420
                 if case in ('settings', 'agents-settings'):

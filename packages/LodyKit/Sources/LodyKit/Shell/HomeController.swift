@@ -288,6 +288,11 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate, UIP
   }
 
   private func dismissBookList(completion: @escaping () -> Void) {
+    if primary.presentingViewController == nil {
+      restoreBookList()
+      completion()
+      return
+    }
     primary.dismiss(animated: false) { [weak self] in
       self?.restoreBookList()
       completion()

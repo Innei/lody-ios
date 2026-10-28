@@ -77,9 +77,9 @@ assert initial['sourceMatches'] and visible_target(initial), initial
 assert initial['contentWidth'] > initial['width'] * 2, initial
 ui.capture('code')
 ui.axe('drag', '--start-x', '330', '--start-y', '440', '--end-x', '100', '--end-y', '440', '--duration', '.5', '--post-delay', '.6')
-assert geometry('code-horizontal')['x'] > initial['x'] + 80, geometry('code-horizontal')
+ui.wait(lambda _: geometry('code-horizontal')['x'] > initial['x'] + 80, 'Source did not scroll horizontally')
 ui.axe('drag', '--start-x', '220', '--start-y', '650', '--end-x', '220', '--end-y', '300', '--duration', '.5', '--post-delay', '.6')
-assert geometry('code-vertical')['y'] > initial['y'] + 100, geometry('code-vertical')
+ui.wait(lambda _: geometry('code-vertical')['y'] > initial['y'] + 100, 'Source did not scroll vertically')
 ui.capture('code-scrolled')
 close()
 
