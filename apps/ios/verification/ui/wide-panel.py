@@ -1,5 +1,7 @@
 """Activity stays a sheet; file navigation adapts between a sheet and split view."""
 import sys
+import subprocess
+from pathlib import Path
 from driver import UI
 import catalog
 import pad
@@ -24,6 +26,13 @@ def sheet_close(label):
     frame = labeled(label)['frame']
     assert frame['y'] > ui.state()[0]['frame']['y'] + 40, ('Detail is a full-height drawer instead of a sheet', frame)
     return frame
+
+
+def surface_color(name):
+    path = ui.output / (name + '.png')
+    helper = Path(__file__).with_name('image-color.swift')
+    value = subprocess.check_output(['xcrun', 'swift', str(helper), str(path), '.85', '.5'], text=True, timeout=45)
+    return tuple(float(component) for component in value.strip().split(','))
 
 
 def close(label):
@@ -70,6 +79,7 @@ try:
         labeled('Unified')
         ui.capture(orientation + '-file-detail')
         if wide:
+            before_color = surface_color('landscape-file-detail')
             rotate(ui, 'portrait')
             ui.element('diff-toolbar-stats')
             # The child remains on the same stack in a centered sheet.
@@ -95,7 +105,23 @@ try:
             ui.capture('native-alert-after-rotation')
             tap(labeled('OK')['frame'])
             ui.element('diff-toolbar-stats')
+            # The child is accessible during dismissal; require the final split geometry.
+            frames = []
+            def settled(items):
+                heading = next((item['frame'] for item in items if item.get('AXLabel') == '.diff-check.md'), None)
+                chat = next((item['frame'] for item in items if item.get('AXUniqueId') == 'session-input'), None)
+                if not heading or not chat or heading['x'] < chat['x'] + chat['width'] - 1:
+                    frames.clear()
+                    return False
+                if frames and frames[-1] != heading:
+                    frames.clear()
+                frames.append(heading)
+                return len(frames) >= 4
+            ui.wait(settled, 'File stack did not settle into its split after the native alert closed')
             ui.capture('file-stack-restored-landscape')
+            after_color = surface_color('file-stack-restored-landscape')
+            assert max(abs(a - b) for a, b in zip(before_color, after_color)) < .05, (
+                'The detail retained a modal appearance after returning to the split', before_color, after_color)
         ui.axe('tap', '--id', 'BackButton')
         ui.element(file_row)
         close(root_close)

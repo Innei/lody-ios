@@ -20,7 +20,8 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate, UIP
   private var folded = false
   private var bookPosture = false
   private var foldPanes: [UIViewController] = []
-  private var inspectorInSheet = false
+  private var inspectorSheet: UIViewController?
+  private var inspectorInSheet: Bool { inspectorSheet != nil }
   private var adaptingInspector = false
   private var updatingLayout = false
   private var listInPopover = false
@@ -187,8 +188,9 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate, UIP
   }
   func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
     if presentationController.presentedViewController === primary { restoreBookList(); return }
-    guard presentationController.presentedViewController === inspector else { return }
-    inspectorInSheet = false
+    guard let modal = inspectorSheet, presentationController.presentedViewController === modal else { return }
+    LodyShell.shared.releaseNavigation(from: modal)
+    inspectorSheet = nil
     panelOpen = false
     clearInspector()
     split.setViewController(inspector, for: .inspector)
@@ -246,9 +248,9 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate, UIP
       split.hide(.primary)
       if !inspectorInSheet {
         split.setViewController(nil, for: .inspector)
-        if LodyShell.shared.presentNavigation(inspector, detents: detailDetents) {
-          inspectorInSheet = true
-          inspector.presentationController?.delegate = self
+        if let modal = LodyShell.shared.presentNavigation(inspector, detents: detailDetents) {
+          inspectorSheet = modal
+          modal.presentationController?.delegate = self
         } else { split.setViewController(inspector, for: .inspector) }
       }
     } else if panelOpen {
@@ -278,7 +280,7 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate, UIP
   private func showBookList() {
     guard folded, panelOpen, !listInPopover else { return }
     release(primary)
-    if LodyShell.shared.presentNavigation(primary, popoverFrom: bookSidebarItem) {
+    if LodyShell.shared.presentNavigation(primary, popoverFrom: bookSidebarItem) != nil {
       listInPopover = true
       primary.viewControllers.compactMap { $0 as? LodyPageController }.forEach { $0.isRehosting = true }
       primary.popoverPresentationController?.delegate = self
@@ -295,6 +297,7 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate, UIP
   private func restoreBookList() {
     guard listInPopover else { return }
     listInPopover = false
+    primary.modalPresentationStyle = .automatic
     primary.viewControllers.compactMap { $0 as? LodyPageController }.forEach { $0.isRehosting = false }
     park(primary)
     invalidateLayout()
@@ -317,28 +320,33 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate, UIP
   }
 
   private func dismissInspectorForLayout() {
+    guard let modal = inspectorSheet else { return }
     // A transient form above the detail keeps its own presentation until it closes.
-    if let child = inspector.presentedViewController { retryAfterDismissal(of: child); return }
-    if let transition = inspector.transitionCoordinator {
+    if let child = modal.presentedViewController ?? inspector.presentedViewController { retryAfterDismissal(of: child); return }
+    if let transition = modal.transitionCoordinator {
       adaptingInspector = true
-      transition.animate(alongsideTransition: nil) { [weak self] _ in
+      let coordinated = transition.animate(alongsideTransition: nil) { [weak self] _ in
         self?.adaptingInspector = false
         self?.invalidateLayout()
       }
-      return
+      if coordinated { return }
+      adaptingInspector = false
     }
     adaptingInspector = true
     let pages = inspector.viewControllers.compactMap { $0 as? LodyPageController }
     pages.forEach { $0.isRehosting = panelOpen }
-    inspector.dismiss(animated: false) { [weak self] in
+    let reattach = { [weak self] in
+      LodyShell.shared.releaseNavigation(from: modal)
       pages.forEach { $0.isRehosting = false }
       guard let self else { return }
-      self.inspectorInSheet = false
+      self.inspectorSheet = nil
       self.adaptingInspector = false
       if !self.panelOpen { self.clearInspector() }
       self.split.setViewController(self.inspector, for: .inspector)
       self.invalidateLayout()
     }
+    if modal.presentingViewController == nil { reattach() }
+    else { modal.dismiss(animated: false, completion: reattach) }
   }
 
   private func retryAfterDismissal(of controller: UIViewController) {

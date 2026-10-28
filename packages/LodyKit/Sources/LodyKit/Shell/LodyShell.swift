@@ -71,20 +71,27 @@ final class LodyShell {
   }
 
   @discardableResult
-  func presentNavigation(_ container: UINavigationController, detents: [Double] = [1], popoverFrom item: UIBarButtonItem? = nil) -> Bool {
-    guard let navigation, navigation.presentedViewController == nil else { return false }
-    container.modalPresentationStyle = item == nil ? .formSheet : .popover
-    if let item, let popover = container.popoverPresentationController {
+  func presentNavigation(_ container: UINavigationController, detents: [Double] = [1], popoverFrom item: UIBarButtonItem? = nil) -> UIViewController? {
+    guard let navigation, navigation.presentedViewController == nil else { return nil }
+    let modal: UIViewController
+    if item == nil { modal = ShellNavigationHost(container) }
+    else { modal = container }
+    modal.modalPresentationStyle = item == nil ? .formSheet : .popover
+    if let item, let popover = modal.popoverPresentationController {
       container.preferredContentSize = CGSize(width: 320, height: 600)
       popover.barButtonItem = item
       popover.permittedArrowDirections = .up
-    } else if let sheet = container.sheetPresentationController {
+    } else if let sheet = modal.sheetPresentationController {
       Self.configure(sheet, ShellPageSpec(title: "", style: "formSheet", animation: "slide", dismissible: true,
         headerShown: true, headerVariant: "transparent", detents: detents, grabber: true))
     }
-    NotificationCenter.default.post(name: Notification.Name("LodyWillPresent"), object: container, userInfo: ["presenter": navigation])
-    navigation.present(container, animated: true)
-    return true
+    NotificationCenter.default.post(name: Notification.Name("LodyWillPresent"), object: modal, userInfo: ["presenter": navigation])
+    navigation.present(modal, animated: true)
+    return modal
+  }
+
+  func releaseNavigation(from modal: UIViewController) {
+    (modal as? ShellNavigationHost)?.releaseNavigation()
   }
 
   func sessionIntent(_ action: String, _ fields: [String: Any]) {
@@ -228,5 +235,30 @@ extension UIView {
       responder = current.next
     }
     return nil
+  }
+}
+
+// Keep UIKit's modal decorations on a disposable host. The reusable navigation
+// stack remains a child controller when it moves between a split and a Sheet.
+private final class ShellNavigationHost: UIViewController {
+  private let navigation: UINavigationController
+  init(_ navigation: UINavigationController) {
+    self.navigation = navigation
+    super.init(nibName: nil, bundle: nil)
+  }
+  required init?(coder: NSCoder) { fatalError() }
+  override var childForStatusBarStyle: UIViewController? { navigation }
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    addChild(navigation)
+    navigation.view.frame = view.bounds
+    navigation.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    view.addSubview(navigation.view)
+    navigation.didMove(toParent: self)
+  }
+  func releaseNavigation() {
+    navigation.willMove(toParent: nil)
+    navigation.view.removeFromSuperview()
+    navigation.removeFromParent()
   }
 }

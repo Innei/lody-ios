@@ -42,8 +42,8 @@ final class DiffDocumentView: UIView, UICollectionViewDataSource, UICollectionVi
   override init(frame: CGRect) {
     collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
     super.init(frame: frame)
-    backgroundColor = .systemBackground
-    collectionView.backgroundColor = .systemBackground
+    backgroundColor = .lodyOpaqueBackground
+    collectionView.backgroundColor = .lodyOpaqueBackground
     collectionView.isDirectionalLockEnabled = true
     collectionView.alwaysBounceVertical = true
     collectionView.dataSource = self

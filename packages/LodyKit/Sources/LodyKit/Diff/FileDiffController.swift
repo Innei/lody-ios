@@ -55,7 +55,7 @@ class FileDiffController: UIViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = .systemBackground
+    view.backgroundColor = .lodyOpaqueBackground
     for subview in [document, notice, spinner] {
       subview.frame = view.bounds
       subview.autoresizingMask = [.flexibleWidth, .flexibleHeight]

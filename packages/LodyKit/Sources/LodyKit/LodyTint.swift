@@ -148,6 +148,13 @@ extension UIColor {
       : UIColor.systemGroupedBackground.resolvedColor(with: traits)
   }
 
+  /// Reading canvases remain opaque when moving out of a glass Sheet. Resolve
+  /// the semantic color inside the provider to retain automatic theme/contrast
+  /// updates without promoting the canvas itself to a vibrant material.
+  static let lodyOpaqueBackground = UIColor { traits in
+    UIColor.systemBackground.resolvedColor(with: traits)
+  }
+
   /// Glass sheets resolve grouped semantics to vibrant fills. Rows that still
   /// need to read as cards use these opaque system card values instead.
   static let lodyOpaqueCard = UIColor { traits in
