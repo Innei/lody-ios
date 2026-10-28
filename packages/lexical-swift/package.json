@@ -16,7 +16,7 @@
     "@lexical/list": "0.49.0",
     "@lexical/markdown": "0.49.0",
     "@lexical/rich-text": "0.49.0",
-    "happy-dom": "20.14.5",
+    "happy-dom": "21.0.4",
     "lexical": "0.49.0"
   }
 }
