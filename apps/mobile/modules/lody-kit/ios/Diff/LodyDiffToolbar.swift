@@ -1,9 +1,8 @@
-import ExpoModulesCore
 import UIKit
 import WebKit
 
 /// Bounds discovery to this diff surface; never searches another screen's WebView.
-final class LodyDiffSurface: ExpoView {
+final class LodyDiffSurface: UIView {
   private weak var scrollOwner: UIViewController?
   private weak var documentScroll: UIScrollView?
   private weak var toolbar: LodyDiffToolbar?
@@ -71,8 +70,8 @@ final class LodyDiffSurface: ExpoView {
   }
 }
 
-final class LodyDiffToolbar: ExpoView {
-  let onStyleChange = EventDispatcher()
+final class LodyDiffToolbar: UIView {
+  var onStyleChange: ([String: Any]) -> Void = { _ in }
   var styleChanged: ((String) -> Void)?
   private let container = UIView()
   private let statsGlass: UIVisualEffectView
@@ -96,10 +95,13 @@ final class LodyDiffToolbar: ExpoView {
     edgeFade.color = superview?.backgroundColor ?? .lodyBackground
   }
 
-  required init(appContext: AppContext? = nil) {
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override init(frame: CGRect) {
     statsGlass = UIVisualEffectView(effect: UIGlassEffect())
     statsGlass.cornerConfiguration = .capsule()
-    super.init(appContext: appContext)
+    super.init(frame: frame)
     edgeFade.isHidden = true
     addSubview(edgeFade)
     backgroundColor = .clear

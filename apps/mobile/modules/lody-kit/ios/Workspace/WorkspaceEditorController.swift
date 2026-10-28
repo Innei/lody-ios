@@ -9,13 +9,13 @@ struct WorkspaceEditorService {
   static var live: WorkspaceEditorService {
     WorkspaceEditorService(
       rename: { id, name in
-        guard LodyPreviewBridge.active else { return try await AuthSession.shared.updateWorkspace(id: id, name: name) }
-        try await LodyPreviewBridge.request("updateWorkspace", ["workspaceId": id, "name": name])
+        guard NativeHomeFixture.active else { return try await AuthSession.shared.updateWorkspace(id: id, name: name) }
+        try await NativeHomeFixture.request("updateWorkspace", ["workspaceId": id, "name": name])
       },
       upload: { id, file in
-        guard LodyPreviewBridge.active else { return try await AuthSession.shared.updateWorkspaceIcon(id: id, file: file) }
+        guard NativeHomeFixture.active else { return try await AuthSession.shared.updateWorkspaceIcon(id: id, file: file) }
         let uri = file.url.absoluteString
-        try await LodyPreviewBridge.request("updateWorkspaceIcon", ["workspaceId": id, "uri": uri])
+        try await NativeHomeFixture.request("updateWorkspaceIcon", ["workspaceId": id, "uri": uri])
         return uri
       },
       pick: { try await WorkspaceIconPicker().pick(from: $0) }

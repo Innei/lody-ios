@@ -1,0 +1,46 @@
+name: Lody
+options:
+  bundleIdPrefix: app.innei
+  deploymentTarget:
+    iOS: '26.0'
+  developmentLanguage: en
+  knownRegions: [en, zh-Hans]
+  fileTypes:
+    icon:
+      file: true
+      buildPhase: resources
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    DEVELOPMENT_TEAM: KAMM5N88X3
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+targets:
+  Lody:
+    type: application
+    platform: iOS
+    sources:
+      - path: Lody
+        excludes: [Info.plist, Lody.entitlements]
+      - path: ../modules/lody-kit/ios/Icons.xcassets
+      - path: ../modules/lody-kit/ios/Colors.xcassets
+      - path: ../modules/lody-kit/live-activity/AgentIcons.xcassets
+      - path: ../assets/icons/Aqua.icon
+        type: file
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.innei.lody
+        INFOPLIST_FILE: Lody/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ../native/Lody/Lody.entitlements
+        TARGETED_DEVICE_FAMILY: '1,2'
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: Aqua
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+schemes:
+  Lody:
+    build:
+      targets:
+        Lody: all
+    run:
+      config: Debug

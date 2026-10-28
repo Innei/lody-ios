@@ -25,7 +25,6 @@ env:
   MOBILE_DIR: apps/mobile
   APPLE_TEAM_ID: KAMM5N88X3
   LODY_BUNDLE_ID: app.innei.lody
-  EXPO_USE_PRECOMPILED_MODULES: '0'
   ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
   ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
   ASC_BYPASS_KEYCHAIN: '1'
@@ -95,9 +94,9 @@ jobs:
         working-directory: ${{ env.MOBILE_DIR }}
         run: |
           set -euo pipefail
-          marketing_version="$(npx expo config --json | jq -r '.version // empty')"
+          marketing_version="$(node -p "require('./package.json').version")"
           if [[ ! "$marketing_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Expo config produced invalid marketing version: $marketing_version"
+            echo "::error::package.json has an invalid marketing version: $marketing_version"
             exit 1
           fi
           build_number="$(asc builds next-build-number \
@@ -121,7 +120,9 @@ jobs:
 
       - name: Generate native iOS project
         working-directory: ${{ env.MOBILE_DIR }}
-        run: npx expo prebuild --platform ios --non-interactive --no-install
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          pnpm prebuild
 
       - name: Stamp build number
         working-directory: ${{ env.MOBILE_DIR }}
@@ -187,24 +188,17 @@ jobs:
           set -euo pipefail
           target_bundle_ids="$(
             cd "$MOBILE_DIR"
-            node <<'NODE'
-          const { IOSConfig } = require('expo/config-plugins');
-          const project = IOSConfig.XcodeUtils.getPbxproj(process.cwd());
-          const base = process.env.LODY_BUNDLE_ID;
-          const unquote = (value) => String(value ?? '').replace(/^"|"$/g, '');
-          const identifiers = new Set();
-          for (const config of Object.values(project.pbxXCBuildConfigurationSection())) {
-            const settings = config?.buildSettings;
-            if (unquote(config?.name) !== 'Release') continue;
-            const identifier = unquote(settings?.PRODUCT_BUNDLE_IDENTIFIER);
-            if (identifier !== base && !identifier.startsWith(`${base}.`)) continue;
-            identifiers.add(identifier);
-          }
-          if (!identifiers.has(base)) {
-            throw new Error(`Generated project has no Release target for ${base}`);
-          }
-          process.stdout.write([...identifiers].sort().join('\n'));
-          NODE
+            bundle exec ruby <<'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('ios/Lody.xcodeproj')
+          base = ENV.fetch('LODY_BUNDLE_ID')
+          identifiers = project.targets.flat_map(&:build_configurations)
+            .select { |config| config.name == 'Release' }
+            .map { |config| config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] }
+            .compact.select { |id| id == base || id.start_with?(base + '.') }.uniq.sort
+          abort "Generated project has no Release target for #{base}" unless identifiers.include?(base)
+          puts identifiers
+          RUBY
           )"
           export TARGET_BUNDLE_IDS="$target_bundle_ids"
           /bin/bash .github/scripts/install-app-store-profiles.sh
@@ -213,37 +207,26 @@ jobs:
         working-directory: ${{ env.MOBILE_DIR }}
         run: |
           set -euo pipefail
-          node <<'NODE'
-          const { IOSConfig } = require('expo/config-plugins');
-          const { writeFileSync } = require('node:fs');
-          const { APPLE_TEAM_ID, IOS_PROFILE_MAP } = process.env;
-          if (!APPLE_TEAM_ID || !IOS_PROFILE_MAP) {
-            throw new Error('Team and installed provisioning profiles are required');
-          }
-          const profiles = JSON.parse(IOS_PROFILE_MAP);
-          const expected = new Set(Object.keys(profiles));
-          const project = IOSConfig.XcodeUtils.getPbxproj(process.cwd());
-          const unquote = (value) => String(value).replace(/^"|"$/g, '');
-          const patched = new Set();
-          for (const config of Object.values(project.pbxXCBuildConfigurationSection())) {
-            const settings = config?.buildSettings;
-            if (unquote(config?.name) !== 'Release') continue;
-            const identifier = unquote(settings?.PRODUCT_BUNDLE_IDENTIFIER);
-            if (!expected.has(identifier)) continue;
-            Object.assign(settings, {
-              CODE_SIGN_STYLE: 'Manual',
-              CODE_SIGN_IDENTITY: '"Apple Distribution"',
-              DEVELOPMENT_TEAM: APPLE_TEAM_ID,
-              PROVISIONING_PROFILE_SPECIFIER: `"${profiles[identifier]}"`,
-            });
-            patched.add(identifier);
-          }
-          const missing = [...expected].filter((identifier) => !patched.has(identifier));
-          if (missing.length > 0) {
-            throw new Error(`Could not apply signing to: ${missing.join(', ')}`);
-          }
-          writeFileSync(project.filepath, project.writeSync());
-          NODE
+          bundle exec ruby <<'RUBY'
+          require 'json'
+          require 'xcodeproj'
+          profiles = JSON.parse(ENV.fetch('IOS_PROFILE_MAP'))
+          team = ENV.fetch('APPLE_TEAM_ID')
+          project = Xcodeproj::Project.open('ios/Lody.xcodeproj')
+          patched = []
+          project.targets.flat_map(&:build_configurations).each do |config|
+            next unless config.name == 'Release'
+            settings = config.build_settings
+            identifier = settings['PRODUCT_BUNDLE_IDENTIFIER']
+            next unless profiles.key?(identifier)
+            settings.merge!('CODE_SIGN_STYLE' => 'Manual', 'CODE_SIGN_IDENTITY' => 'Apple Distribution',
+              'DEVELOPMENT_TEAM' => team, 'PROVISIONING_PROFILE_SPECIFIER' => profiles.fetch(identifier))
+            patched << identifier
+          end
+          missing = profiles.keys - patched
+          abort "Could not apply signing to: #{missing.join(', ')}" unless missing.empty?
+          project.save
+          RUBY
           xcodebuild -project ios/Lody.xcodeproj -alltargets -configuration Release \
             -sdk iphoneos -showBuildSettings -json > "$RUNNER_TEMP/signing-settings.json"
           jq -e \

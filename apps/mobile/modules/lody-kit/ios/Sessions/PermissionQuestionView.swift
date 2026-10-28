@@ -10,7 +10,7 @@ final class PermissionQuestionView: UIView {
   }
 
   private let meta: SessionPermission.Questions
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private let submit = UIButton(type: .system)
   private let error = UILabel()
   private var drafts: [Draft]

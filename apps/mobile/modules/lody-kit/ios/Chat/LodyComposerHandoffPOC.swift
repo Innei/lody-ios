@@ -1,15 +1,14 @@
-import ExpoModulesCore
 import UIKit
 
 /// Offline experiment only: the actual chat composer travels between controllers.
-final class LodyComposerHandoffPOC: ExpoView {
-  let onClose = EventDispatcher()
+final class LodyComposerHandoffPOC: UIView {
+  var onClose: ([String: Any]) -> Void = { _ in }
   private var navigation: UINavigationController?
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
-    guard window != nil, navigation == nil, let owner = reactViewController() else { return }
-    let page = ComposerHandoffPOCController(appContext: appContext)
+    guard window != nil, navigation == nil, let owner = owningViewController else { return }
+    let page = ComposerHandoffPOCController()
     let navigation = UINavigationController(rootViewController: page)
     navigation.modalPresentationStyle = .fullScreen
     page.onClose = { [weak self, weak navigation] in
@@ -27,7 +26,6 @@ final class LodyComposerHandoffPOC: ExpoView {
 
 private final class ComposerHandoffPOCController: UIViewController {
   var onClose: (() -> Void)?
-  private let context: AppContext?
   private let slow = UISwitch()
   private var chat: LodyChatView?
   private var sheet: UINavigationController?
@@ -37,8 +35,7 @@ private final class ComposerHandoffPOCController: UIViewController {
   private var arrived = false
   private let status = UILabel()
 
-  init(appContext: AppContext?) {
-    context = appContext
+  init() {
     super.init(nibName: nil, bundle: nil)
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -76,7 +73,7 @@ private final class ComposerHandoffPOCController: UIViewController {
   }
 
   private func openSheet() {
-    let chat = LodyChatView(appContext: context)
+    let chat = LodyChatView(frame: .zero)
     self.chat = chat
     arrived = false
     moving = false

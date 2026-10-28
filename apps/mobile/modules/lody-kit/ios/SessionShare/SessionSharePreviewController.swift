@@ -3,7 +3,7 @@ import UIKit
 
 @MainActor
 final class SessionSharePreviewController: UIViewController {
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private let fixture = SessionShareFixture()
 
   override func viewDidLoad() {

@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 final class PreferencesController: UIViewController {
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private var observer: NSObjectProtocol?
 
   init() {

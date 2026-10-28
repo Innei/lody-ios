@@ -24,7 +24,7 @@ struct ProjectHistoryService {
 
 @MainActor
 class ProjectHistoryController: UIViewController {
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   let scope: SettingsActor
   private let makeService: (String) -> ProjectHistoryService
   private var service: ProjectHistoryService

@@ -1,5 +1,4 @@
 import LodyCore
-import ExpoModulesCore
 import Foundation
 
 extension DataRuntime {
@@ -16,33 +15,13 @@ extension DataRuntime {
         sink.resolve(#"{"state":"rejected"}"#); return
       }
       guard self.inWorkspace(payload, sink: sink) else { return }
-      self.callForRN(RuntimeContract.Calls.CreateSession.self, payload: payload,
+      self.callJSON(RuntimeContract.Calls.CreateSession.self, payload: payload,
         inject: ["billingEntitlement": entitlement ?? NSNull()], sink: sink)
     }
   }
-  func workspaceWrite<C: RuntimeCall>(_ call: C.Type, payload: String, promise: Promise) where C.Params: Decodable, C.Result: Encodable {
-    guard inWorkspace(payload, sink: .promise(promise)) else { return }
-    callForRN(C.self, payload: payload, promise: promise)
-  }
-  func sessionWrite<C: RuntimeCall>(_ call: C.Type, payload: String, promise: Promise) where C.Params: Decodable, C.Result: Encodable {
-    guard inOpenSession(payload, sink: .promise(promise)) else { return }
-    callForRN(C.self, payload: payload, promise: promise)
-  }
   func controlTurn(_ payload: String, sink: ReplySink) {
     guard inOpenSession(payload, sink: sink) else { return }
-    callForRN(RuntimeContract.Calls.ControlTurn.self, payload: payload, sink: sink)
-  }
-  func workspaceBillingEntitlement(workspace: String, user: String, promise: Promise) {
-    guard self.workspace == workspace, userId == user else { promise.resolve("{}"); return }
-    let generation = self.generation
-    Task { @MainActor in
-      let entitlement = await billing.entitlement(workspace: workspace, user: user)
-      guard self.generation == generation, self.workspace == workspace, self.userId == user else {
-        promise.resolve("{}"); return
-      }
-      let data = (try? JSONSerialization.data(withJSONObject: entitlement ?? [:])) ?? Data("{}".utf8)
-      promise.resolve(String(data: data, encoding: .utf8) ?? "{}")
-    }
+    callJSON(RuntimeContract.Calls.ControlTurn.self, payload: payload, sink: sink)
   }
   func prepareSessionEdit(_ payload: String, sink: ReplySink) {
     let generation = self.generation
@@ -78,9 +57,6 @@ extension DataRuntime {
         sink.resolve(encoded)
       } catch { fail(sink, "edit_prepare_failed", error.localizedDescription) }
     }
-  }
-  func readSessionEdit(_ payload: String, promise: Promise) {
-    dispatchTurn(payload, sink: .promise(promise), billing: nil, edit: true)
   }
   func sendTurn(_ payload: String, sink: ReplySink, edit: Bool = false) {
     guard let workspace else { dispatchTurn(payload, sink: sink, billing: nil, edit: edit); return }
@@ -141,7 +117,6 @@ extension DataRuntime {
             var event: [String: Any] = ["sessionId": target, "sendId": sendID,
               "attachmentId": attachmentID, "phase": phase]
             if let percent { event["percent"] = percent }
-            self.emitUploadProgress(event)
             NotificationCenter.default.post(name: .lodyAttachmentUploadProgress, object: nil, userInfo: event)
           }
         }
@@ -209,7 +184,7 @@ extension DataRuntime {
     let release: @MainActor (Bool) -> Void = { success in
       if let task { SessionBackgroundTasks.shared.finish(task, success: success) }
     }
-    guard let params = rnParams(C.self, payload: payload, inject: inject, sink: sink) else { release(false); return }
+    guard let params = decodeParams(C.self, payload: payload, inject: inject, sink: sink) else { release(false); return }
     self.call(C.self, params, sink: sink, timeout: timeout, failed: { release(false) }) { result in
       let data = try? JSONEncoder().encode(result)
       let reply = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }

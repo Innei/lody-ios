@@ -48,7 +48,7 @@ struct RemoteSettingsCache {
 
 @MainActor
 class RemoteSettingsController: UIViewController {
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   let kind: String
   let scope: SettingsActor
   private let service: RemoteSettingsService

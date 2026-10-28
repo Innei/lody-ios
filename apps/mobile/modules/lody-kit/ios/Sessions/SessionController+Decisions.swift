@@ -5,7 +5,7 @@ extension SessionController {
   func wireDecisionEvents() {
     planDecision.changed = { [weak self] in self?.renderComposer() }
     errorRetry.changed = { [weak self] in self?.renderComposer() }
-    chat.onPlanDecision.onEventSent = { [weak self] body in
+    chat.onPlanDecision = { [weak self] body in
       guard let self else { return }
       let (entryId, itemId) = (body["entryId"] as? String ?? "", body["itemId"] as? String ?? "")
       let action = body["action"] as? String ?? "", id = body["id"] as? String ?? ""
@@ -19,13 +19,13 @@ extension SessionController {
         }
       }
     }
-    chat.onEditMessage.onEventSent = { [weak self] body in
+    chat.onEditMessage = { [weak self] body in
       guard let self, let entryId = body["entryId"] as? String, !entryId.isEmpty, entryId == chat.editableMessageID else { return }
       let editor = EditMessageController(sessionId: sessionId, entryId: entryId)
       editor.onFinish = { [weak self] id in self?.chat.editedMessageID = id }
       LodyShell.shared.presentNative(editor, title: LodyStrings.text("chat.edit.title"), dismissible: false, style: "fullScreen")
     }
-    chat.onErrorRetry.onEventSent = { [weak self] body in
+    chat.onErrorRetry = { [weak self] body in
       guard let self else { return }
       let target = feed?.state.transcript.retryableError, enabled = decisionsEnabled.retry
       let choice = composerModel.active

@@ -4,32 +4,20 @@ import UIKit
 final class LodyShell {
   static let shared = LodyShell()
 
-  var emit: ((String, Int) -> Void)?
-  var emitOpen: ((String, String, [String: Any], Int) -> Void)?
-  var emitNav: (([String: Any]) -> Void)?
   private var navigation: UINavigationController?
-  private var pages: [Int: WeakPage] = [:]
   private let delegate = ShellNavigationDelegate()
 
-  func present(_ json: String) {
-    guard let spec = try? JSONDecoder().decode(ShellPageSpec.self, from: Data(json.utf8)) else { return }
-    let container = spec.container.flatMap { pages[$0]?.value?.navigationController }
-    let page = LodyPageController(spec: spec, inSheet: spec.root != true && (spec.style != "push" || container != nil))
-    page.onEvent = { [weak self, weak page] type, id in
-      guard let self, let page, self.pages[id]?.value === page else { return }
-      self.event(type, id)
-    }
-    if spec.root == true {
-      // A reloaded JS runtime restarts presentation ids; earlier pages must not report into it.
-      pages = [spec.id: WeakPage(value: page)]
-      setRoot(page)
-    } else if spec.style == "push" {
-      pages[spec.id] = WeakPage(value: page)
-      push(page, on: container ?? navigation)
-    } else {
-      pages[spec.id] = WeakPage(value: page)
-      presentModal(page)
-    }
+  var presenter: UIViewController? { topController() }
+
+  func start(in window: UIWindow, content: UIViewController) {
+    let spec = ShellPageSpec(title: "", style: "push", animation: "none", dismissible: false,
+      headerShown: false, headerVariant: "transparent")
+    let root = LodyPageController(spec: spec, inSheet: false, content: content)
+    let navigation = UINavigationController(rootViewController: root)
+    navigation.delegate = delegate
+    self.navigation = navigation
+    window.rootViewController = navigation
+    window.makeKeyAndVisible()
   }
 
   func pushNative(_ id: String, title: String, params: [String: Any] = [:], from source: UIViewController) {
@@ -41,23 +29,32 @@ final class LodyShell {
   func pushNative(_ content: UIViewController, title: String, from source: UIViewController) {
     guard let target = (source as? UINavigationController) ?? source.navigationController else { return }
     let spec = ShellPageSpec(
-      id: 0, title: title, style: "push", animation: "slide", dismissible: true, headerShown: true,
+      title: title, style: "push", animation: "slide", dismissible: true, headerShown: true,
       headerVariant: "transparent"
     )
     push(LodyPageController(spec: spec, inSheet: target !== navigation, content: content), on: target)
   }
 
-  func presentNative(_ content: UIViewController, title: String, detents: [Double] = [1], grabber: Bool = false, dismissible: Bool = true, style: String = "formSheet", headerShown: Bool = true) {
+  @discardableResult
+  func presentNative(_ content: UIViewController, title: String, detents: [Double] = [1], grabber: Bool = false, dismissible: Bool = true, style: String = "formSheet", headerShown: Bool = true) -> LodyPageController {
     let spec = ShellPageSpec(
-      id: 0, title: title, style: style, animation: "slide", dismissible: dismissible, headerShown: headerShown,
+      title: title, style: style, animation: "slide", dismissible: dismissible, headerShown: headerShown,
       headerVariant: "transparent", detents: detents, grabber: grabber
     )
-    presentModal(LodyPageController(spec: spec, inSheet: true, content: content))
+    let page = LodyPageController(spec: spec, inSheet: true, content: content)
+    presentModal(page)
+    return page
   }
 
   func openPage(_ id: String, params: String = "{}", options: [String: Any] = [:], from source: UIViewController?) {
-    let pages = source?.navigationController?.viewControllers.compactMap { $0 as? LodyPageController } ?? []
-    emitOpen?(id, params, options, pages.last { $0.spec.id != 0 }?.spec.id ?? 0)
+    guard let content = LodyNativePages.make(id, params: params) else {
+      preconditionFailure("Unknown native page: \(id)")
+    }
+    if options["present"] as? Bool == true {
+      presentNative(content, title: content.title ?? "", grabber: true)
+    } else if let source {
+      pushNative(content, title: content.title ?? "", from: source)
+    } else { pushRootNative(content, title: content.title ?? "") }
   }
 
   func configureNavigation(_ controller: UINavigationController) { controller.delegate = delegate }
@@ -78,31 +75,20 @@ final class LodyShell {
     catch { LodyToastOverlay.shared.show(message: LodyStrings.text("session.toast.openFailed"), kind: "error") }
   }
 
-  // Settles the React presentation that hosts this native page; pages pushed natively have none.
   func finish(from controller: UIViewController?, value: Any?) {
-    guard let page = Self.page(of: controller), page.spec.id != 0, !page.closed else { return }
-    let data = try? JSONSerialization.data(withJSONObject: value ?? NSNull(), options: .fragmentsAllowed)
-    emitNav?(["type": "result", "id": page.spec.id, "value": data.map { String(decoding: $0, as: UTF8.self) } ?? "null"])
+    Self.page(of: controller)?.onResult?(value)
   }
 
   func callback(from controller: UIViewController?, name: String, value: Any) async throws {
-    guard let page = Self.page(of: controller), page.spec.id != 0, !page.closed else {
-      throw LodyNavRequest.failure("callback_unavailable")
+    guard let callback = Self.page(of: controller)?.onCallback else {
+      throw NSError(domain: "Lody.Navigation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing native callback: \(name)"])
     }
-    let data = try? JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed)
-    try await LodyNavRequest.send(
-      [
-        "type": "callback", "page": page.spec.id, "name": name,
-        "value": data.map { String(decoding: $0, as: UTF8.self) } ?? "null",
-      ],
-      key: "callback:\(page.spec.id):\(name)", timeout: nil, via: emitNav
-    )
+    try await callback(name, value)
   }
 
   func close(from controller: UIViewController?) {
     guard let page = Self.page(of: controller) else { return }
     if HomeController.current?.closePanel(from: page) == true { return }
-    if page.spec.id != 0 { close(page.spec.id); return }
     guard let navigation = page.navigationController else { return }
     if navigation.viewControllers.first === page { navigation.presentingViewController?.dismiss(animated: true) }
     else { navigation.popViewController(animated: true) }
@@ -123,75 +109,28 @@ final class LodyShell {
       }
       return
     }
-    if let index = page.spec.insertAt, index < target.viewControllers.count {
-      var stack = target.viewControllers
-      stack.insert(page, at: max(1, index))
-      target.setViewControllers(stack, animated: false)
-      return
-    }
-    NotificationCenter.default.post(name: Notification.Name("RNSScreenWillPush"), object: page)
+    NotificationCenter.default.post(name: Notification.Name("LodyWillPush"), object: page)
     target.pushViewController(page, animated: page.spec.animation != "none")
   }
 
-  func setStack(_ ids: [Int]) {
-    guard let navigation else { return }
-    if let transition = navigation.transitionCoordinator {
-      transition.animate(alongsideTransition: nil) { [weak self] _ in self?.setStack(ids) }
-      return
+  func openSessionFromExternal(_ id: String) {
+    guard let navigation else { preconditionFailure("Application navigation has not started") }
+    let open = {
+      HomeController.current?.reset()
+      navigation.popToRootViewController(animated: false)
+      HomeController.current?.openSession(id)
     }
-    let stack: [UIViewController] = ids.compactMap { pages[$0]?.value }
-      .filter { $0.navigationController === navigation && !$0.closed }
-    guard stack.first === navigation.viewControllers.first, stack != navigation.viewControllers else { return }
-    navigation.setViewControllers(stack, animated: false)
-    scheduleSweep()
-  }
-
-  func close(_ id: Int) {
-    guard let page = pages[id]?.value, !page.closed else { return }
-    guard let container = page.navigationController else {
-      page.markClosed()
-      return
-    }
-    if container !== navigation, container.viewControllers.first === page {
-      container.presentingViewController?.dismiss(animated: true) { [weak self] in self?.sweep() }
-      return
-    }
-    guard let index = container.viewControllers.firstIndex(of: page), index > 0 else { return }
-    if container.presentedViewController != nil { container.dismiss(animated: false) }
-    container.popToViewController(container.viewControllers[index - 1], animated: true)
-    scheduleSweep()
+    if navigation.presentedViewController != nil { navigation.dismiss(animated: true, completion: open) }
+    else { open() }
   }
 
   func popToRoot() {
     guard let navigation else { return }
     if navigation.presentedViewController != nil {
-      navigation.dismiss(animated: true) { [weak self] in self?.sweep() }
+      navigation.dismiss(animated: true)
     }
     HomeController.current?.reset()
     navigation.popToRootViewController(animated: true)
-    scheduleSweep()
-  }
-
-  private func setRoot(_ page: LodyPageController) {
-    if let navigation {
-      // A new root comes from a reloaded runtime: retire the old stack so its surfaces stop with it.
-      if navigation.presentedViewController != nil { navigation.dismiss(animated: false) }
-      navigation.willMove(toParent: nil)
-      navigation.view.removeFromSuperview()
-      navigation.removeFromParent()
-      self.navigation = nil
-    }
-    guard let host = UIApplication.shared.connectedScenes
-      .compactMap({ ($0 as? UIWindowScene)?.keyWindow?.rootViewController }).first
-    else { return }
-    let navigation = UINavigationController(rootViewController: page)
-    navigation.delegate = delegate
-    host.addChild(navigation)
-    navigation.view.frame = host.view.bounds
-    navigation.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    host.view.addSubview(navigation.view)
-    navigation.didMove(toParent: host)
-    self.navigation = navigation
   }
 
   private func presentModal(_ page: LodyPageController) {
@@ -217,7 +156,7 @@ final class LodyShell {
       Self.configure(sheet, spec)
     }
     NotificationCenter.default.post(
-      name: Notification.Name("RNSScreenWillPresent"), object: container, userInfo: ["presenter": presenter]
+      name: Notification.Name("LodyWillPresent"), object: container, userInfo: ["presenter": presenter]
     )
     presenter.present(container, animated: spec.animation != "none")
   }
@@ -226,34 +165,6 @@ final class LodyShell {
     var top: UIViewController? = navigation
     while let presented = top?.presentedViewController, !presented.isBeingDismissed { top = presented }
     return top
-  }
-
-  private func event(_ type: String, _ id: Int) {
-    emit?(type, id)
-    guard type == "closed" else { return }
-    pages[id] = nil
-    LodyNavRequest.reset(prefix: "callback:\(id):")
-    scheduleSweep()
-  }
-
-  private func scheduleSweep() {
-    DispatchQueue.main.async { [weak self] in self?.sweep() }
-  }
-
-  private func sweep() {
-    for (id, entry) in pages {
-      guard let page = entry.value else {
-        pages[id] = nil
-        emit?("closed", id)
-        continue
-      }
-      if !page.closed, !alive(page) { page.markClosed() }
-    }
-  }
-
-  private func alive(_ page: LodyPageController) -> Bool {
-    guard let container = page.navigationController else { return false }
-    return container === navigation || container.presentingViewController != nil || HomeController.current?.contains(container) == true
   }
 
   private static func modalStyle(_ style: String) -> UIModalPresentationStyle {
@@ -280,10 +191,6 @@ final class LodyShell {
   }
 }
 
-private struct WeakPage {
-  weak var value: LodyPageController?
-}
-
 private final class ShellNavigationDelegate: NSObject, UINavigationControllerDelegate {
   func navigationController(
     _ navigationController: UINavigationController,
@@ -292,5 +199,17 @@ private final class ShellNavigationDelegate: NSObject, UINavigationControllerDel
   ) {
     // Reconcile only after UIKit settles, including a cancelled interactive pop.
     navigationController.setToolbarHidden(viewController.toolbarItems?.isEmpty ?? true, animated: false)
+  }
+}
+
+
+extension UIView {
+  var owningViewController: UIViewController? {
+    var responder = next
+    while let current = responder {
+      if let controller = current as? UIViewController { return controller }
+      responder = current.next
+    }
+    return nil
   }
 }

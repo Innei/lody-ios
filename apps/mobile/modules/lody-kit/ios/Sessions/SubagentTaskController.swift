@@ -5,8 +5,8 @@ final class SubagentTaskController: UIViewController {
   let entryId: String
   let itemId: String
   private var item: [String: Any]
-  private let chat = LodyChatView(appContext: nil)
-  private let list = LodyGroupedList(appContext: nil)
+  private let chat = LodyChatView(frame: .zero)
+  private let list = LodyGroupedList(frame: .zero)
   var onActivity: ((String, String) -> Void)?
   var onFile: ((String, Int) -> Void)?
 
@@ -15,11 +15,11 @@ final class SubagentTaskController: UIViewController {
     super.init(nibName: nil, bundle: nil)
     chat.setProcessEntryID(entryId); chat.setProcessStartID("__subagent__"); chat.setComposerState("{}")
     chat.setEmptyText(LodyStrings.text("process.empty"))
-    chat.onActivityPress.onEventSent = { [weak self] body in
+    chat.onActivityPress = { [weak self] body in
       guard let entry = body["entryId"] as? String, let item = body["itemId"] as? String else { return }
       self?.onActivity?(entry, item)
     }
-    chat.onFilePress.onEventSent = { [weak self] body in
+    chat.onFilePress = { [weak self] body in
       guard let path = body["path"] as? String else { return }
       self?.onFile?(path, body["line"] as? Int ?? 0)
     }
@@ -67,16 +67,16 @@ final class SubagentTaskController: UIViewController {
       return
     }
     chat.isHidden = true; list.isHidden = false
-    let section = LodyListSection(); section.id = "task"
-    let header = LodyListRow(); header.id = "subagent-header"; header.title = description; header.subtitle = subtitle
+    var section = LodyListSection(); section.id = "task"
+    var header = LodyListRow(); header.id = "subagent-header"; header.title = description; header.subtitle = subtitle
     section.rows = [header]
     if !result.isEmpty {
-      let body = LodyListRow(); body.id = "subagent-detail-result"; body.title = result
-      let copy = LodyListRow(); copy.id = "subagent-detail-copy"; copy.title = LodyStrings.text("subagent.detail.copy"); copy.action = true
+      var body = LodyListRow(); body.id = "subagent-detail-result"; body.title = result
+      var copy = LodyListRow(); copy.id = "subagent-detail-copy"; copy.title = LodyStrings.text("subagent.detail.copy"); copy.action = true
       section.rows += [body, copy]
     }
     if let name = item["lastToolName"] as? String, !name.isEmpty {
-      let tool = LodyListRow(); tool.id = "subagent-last-tool"; tool.title = LodyStrings.text("subagent.detail.lastTool"); tool.value = name
+      var tool = LodyListRow(); tool.id = "subagent-last-tool"; tool.title = LodyStrings.text("subagent.detail.lastTool"); tool.value = name
       section.rows.append(tool)
     }
     list.setSections([section])

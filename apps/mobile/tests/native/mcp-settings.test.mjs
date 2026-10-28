@@ -3,7 +3,6 @@ import test from 'node:test';
 import { build } from 'esbuild';
 import { Flock } from '@loro-dev/flock-wasm/base64';
 import { openTestSession } from '../helpers.mjs';
-import { quotaError } from '../../src/cloud/send/quotaError.ts';
 
 const bundle = await build({
   stdin: {
@@ -299,10 +298,6 @@ test('catalog failure or a missing connection stops sending before any history, 
           edit: { item, name: 'docs', enabledByDefault: true },
         }),
       /mcp_connection_missing/,
-    );
-    assert.notEqual(
-      quotaError('mcp_catalog_unavailable', 'fallback'),
-      'mcp_catalog_unavailable',
     );
   } finally {
     f.close();

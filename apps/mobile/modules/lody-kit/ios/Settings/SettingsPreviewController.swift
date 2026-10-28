@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 final class SettingsPreviewController: UIViewController {
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private let fixture = SettingsPreviewFixture()
 
   override func viewDidLoad() {

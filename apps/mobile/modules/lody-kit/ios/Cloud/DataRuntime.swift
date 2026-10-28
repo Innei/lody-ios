@@ -1,6 +1,5 @@
 import LodyRuntime
 import LodyCore
-import ExpoModulesCore
 import WebKit
 import UIKit
 
@@ -43,18 +42,13 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   var probeUpdates = 0
   var probeBackgroundUpdates = 0
   private let observers = NotificationObservers()
-  private let emit: ([String: Any]) -> Void
   var onCatalogUpdate: ((_ owner: String, _ state: String, _ catalog: String?) -> Void)?
   var onMachinePresence: ((_ owner: String, _ presence: RuntimeContract.MachinePresence?) -> Void)?
   var knownRepos: [String: String] = [:]
-  let emitUploadProgress: ([String: Any]) -> Void
   private var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
 
-  init(localStore: LocalStore, emit: @escaping ([String: Any]) -> Void,
-    emitUploadProgress: @escaping ([String: Any]) -> Void) {
+  init(localStore: LocalStore) {
     self.localStore = localStore
-    self.emit = emit
-    self.emitUploadProgress = emitUploadProgress
     super.init()
     observers.add(NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
       MainActor.assumeIsolated {
@@ -122,7 +116,6 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       sessionSnapshot = nil
     }
     if let json = extra["session"] as? String { sessionSnapshot = (generation, json) }
-    emit(event)
     NotificationCenter.default.post(name: .lodyDataRuntimeEvent, object: self, userInfo: event)
   }
   private func publishPresenceUnknown() {
@@ -147,7 +140,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       return
     }
     do {
-      try RuntimeDocument.load(in: view, bundle: Bundle(for: LodyKitModule.self))
+      try RuntimeDocument.load(in: view, bundle: Bundle.main)
     } catch { disposeView(); publish("failed", reason: "missing_resource") }
   }
   private func disposeView() {

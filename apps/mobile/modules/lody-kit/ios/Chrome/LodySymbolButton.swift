@@ -1,9 +1,8 @@
-import ExpoModulesCore
 import UIKit
 
-final class LodySymbolButton: ExpoView {
-  let onSymbolPress = EventDispatcher()
-  let onSymbolLongPress = EventDispatcher()
+final class LodySymbolButton: UIView {
+  var onSymbolPress: ([String: Any]) -> Void = { _ in }
+  var onSymbolLongPress: ([String: Any]) -> Void = { _ in }
   var pressed: (() -> Void)?
   var held: (() -> Void)?
   private let button = UIButton(type: .system)
@@ -16,8 +15,11 @@ final class LodySymbolButton: ExpoView {
   private var disabled = false
   private var foreground: UIColor = .label
 
-  required init(appContext: AppContext? = nil) {
-    super.init(appContext: appContext)
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
     button.addTarget(self, action: #selector(press), for: .primaryActionTriggered)
     hold.addTarget(self, action: #selector(longPressed(_:)))
     hold.minimumPressDuration = 0.6

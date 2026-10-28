@@ -4,7 +4,7 @@ import UIKit
 class ActivityController: UIViewController {
   static let activeStatuses: Set = ["running", "initializing", "processing", "in_progress", "queued", "waiting", "requestPermission"]
 
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   let source: SessionSource
   private let workspaceId: String
   private let userId: String

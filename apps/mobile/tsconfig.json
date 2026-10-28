@@ -1,12 +1,13 @@
 {
-  "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "paths": {
-      "@/*": ["./src/*"],
-      "@lody-ios/kit": ["./modules/lody-kit/src"]
-    },
-    "allowImportingTsExtensions": true
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "lib": ["ES2023", "DOM"]
   },
-  "include": ["**/*.ts", "**/*.tsx"]
+  "include": ["modules/lody-kit/decoder/**/*.ts"]
 }

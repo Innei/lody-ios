@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 final class PublishedShareDetailController: UIViewController {
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private let scope: SettingsActor
   private let expected: String
   private let actor: String

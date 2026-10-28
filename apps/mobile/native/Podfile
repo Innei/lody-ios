@@ -1,0 +1,75 @@
+require 'cocoapods/project'
+# CocoaPods' sequential UUID list drops Xcodeproj's uniqueness filter, so objects
+# added late (cocoapods-spm's SPM target dependencies) reuse the project object's
+# own UUID and leave rootObject pointing at a PBXTargetDependency Xcode rejects.
+module LodyUniqueProjectUUIDs
+  def generate_available_uuid_list(count = 100)
+    @lody_uuid_cursor ||= @generated_uuids.size
+    taken = (@generated_uuids + uuids).to_set
+    uniques = []
+    while uniques.size < count
+      candidate = format('%.6s%07X0', @uuid_prefix, @lody_uuid_cursor)
+      @lody_uuid_cursor += 1
+      uniques << candidate unless taken.include?(candidate)
+    end
+    @generated_uuids += uniques
+    @available_uuids += uniques
+  end
+end
+Pod::Project.prepend(LodyUniqueProjectUUIDs)
+plugin 'cocoapods-spm'
+require 'cocoapods-spm/hooks/helpers/update_script'
+# cocoapods-spm 0.1.20 appends to the app target's xcfilelists, which the
+# generated project may not create; touch them so the hook does not raise.
+module LodySPMFileLists
+  def update_script(options = {})
+    aggregate_targets.each do |target|
+      user_build_configurations.each_key do |config|
+        %w[copy_resources_script embed_frameworks_script].each do |name|
+          %w[input output].each do |kind|
+            path = target.send("#{name}_#{kind}_files_path", config)
+            FileUtils.touch(path) unless path.exist?
+          end
+        end
+      end
+    end
+    super
+  end
+end
+Pod::SPM::UpdateScript::Mixin.prepend(LodySPMFileLists)
+# XcodeGen 2.39 predates Icon Composer's file type.
+app_project = Xcodeproj::Project.open('Lody.xcodeproj')
+app_project.files.select { |file| file.path&.end_with?('.icon') }.each do |file|
+  file.last_known_file_type = 'folder.iconcomposer.icon'
+end
+app_project.save
+platform :ios, '26.0'
+use_frameworks! :linkage => :static
+
+target 'Lody' do
+  spm_pkg "LodyCore", :path => File.expand_path("../../../packages/lody-core", __dir__)
+  spm_pkg "ChatKit", :path => File.expand_path("../../../packages/chat-kit", __dir__)
+  spm_pkg "Lexical", :path => File.expand_path("../../../packages/lexical-swift", __dir__)
+  spm_pkg "MarkdownView", :url => "https://github.com/Lakr233/MarkdownView.git", :version => "4.6.5"
+  spm_pkg "BeautifulMermaidSwift", :url => "https://github.com/lukilabs/beautiful-mermaid-swift.git", :version => "1.0.4", :products => ["BeautifulMermaid"]
+  spm_pkg "swift-collections", :url => "https://github.com/apple/swift-collections", :version => "1.7.1", :products => ["OrderedCollections"]
+  spm_pkg "Litext", :url => "https://github.com/Lakr233/Litext.git", :version => "3.6.2"
+  pod 'LodyKit', :path => '../modules/lody-kit/ios'
+  pod 'AnchoredOverlayKit', :path => '../../../node_modules/@rien7/anchored-overlay-kit'
+end
+require_relative '../plugins/share-extension'
+lody_share_extension('app.innei.lody')
+require_relative '../plugins/push-extension'
+lody_push_extension('app.innei.lody')
+lody_live_activity_extension('app.innei.lody')
+target 'LodyNotificationService' do
+  pod 'OneSignalXCFramework/OneSignal', '5.5.1'
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '26.0'
+    end
+  end
+end

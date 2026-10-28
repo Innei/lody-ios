@@ -23,7 +23,7 @@ final class FileContentPreviewController: UIViewController {
     Fixture(id: "html:diff", title: "HTML diff", path: "docs/interactive.html", feedback: .success(.sent)),
   ]
 
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private let report = UIView(frame: CGRect(x: 0, y: 0, width: 44, height: 44))
 
   override func viewDidLoad() {
@@ -40,10 +40,10 @@ final class FileContentPreviewController: UIViewController {
     report.isUserInteractionEnabled = false
     report.isHidden = true
     view.addSubview(report)
-    let section = LodyListSection()
+    var section = LodyListSection()
     section.id = "files"
     section.rows = Self.fixtures.map { fixture in
-      let row = LodyListRow()
+      var row = LodyListRow()
       row.id = fixture.id
       row.title = fixture.title
       row.subtitle = fixture.path

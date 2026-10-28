@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 final class AboutController: UIViewController {
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
 
   init() {
     super.init(nibName: nil, bundle: nil)

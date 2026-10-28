@@ -9,47 +9,33 @@ import shutil
 import subprocess
 import sys
 import time
-from contextlib import nullcontext
-from orchestrator import diagnose_metro, managed_metro, run_batches
+from orchestrator import run_batches
 from driver import UI, allow_custom_scheme, launch_covered
-from inspector import inspector
 
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from simulator import DEVICE_TYPES, run_with_simulator, SimulatorPool
 
 CHAT = ROOT / 'apps/mobile/modules/lody-kit/verification/chat'
+# Each retained scene owns its services in Swift and exercises production controllers.
 BATCHES = {
-    'pages': ['session-tree', 'pull-request', 'mentions-production', 'project-history-entry', 'project-history', 'directory', 'project', 'activity', 'notifications', 'diagnostics', 'settings', 'appearance', 'queued-message-behavior', 'inbox', 'background', 'permission', 'home', 'home-settings', 'home-workspace', 'licenses', 'navigation', 'navigation-toolbar', 'onboarding', 'community-notice', 'live-activity', 'project-picker', 'branch-picker'],
-    'send': ['send-scroll-guide', 'send-scroll-queue', 'send-scroll-normal', 'quick-replies', 'context-chip', 'root-reuse', 'mention-chat', 'mention-sheet', 'send-transition', 'send-transition-handoff', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'send-rounds', 'send', 'free-turn-notice', 'send-handoff', 'send-handoff-delayed', 'model-options', 'fast-chat', 'fast-sheet', 'permission-mode-chat', 'permission-mode-sheet', 'permission-mode-create', 'paste-plain-chat', 'paste-plain-sheet', 'rich-paste-chat', 'rich-paste-sheet', 'attachment-overlay-chat', 'attachment-overlay-sheet', 'attachment-overlay-create', 'attachment-camera-chat', 'attachment-camera-sheet', 'attachment-motion-chat', 'attachment-motion-sheet', 'attachment-motion-create', 'composer', 'composer-glass', 'composer-glass-chat', 'composer-video', 'composer-success', 'composer-failure', 'composer-rich', 'composer-fullscreen', 'composer-rest-draft', 'composer-motion', 'model-memory'],
-    'chat': ['workspace-changes', 'message-share', 'user-mentions', 'file-preview', 'html-preview', 'file-selection', 'mcp-files', 'chat-performance', 'chat-stream-performance', 'layout', 'context-menu', 'tracking', 'smooth-scroll', 'image-preview', 'markdown', 'mermaid', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'chat-chrome', 'title-rename', 'simulator-preview'],
+    'pages': ['onboarding', 'home', 'home-settings', 'home-workspace', 'navigation', 'licenses', 'create-parity', 'model-memory', 'project-picker', 'branch-picker', 'project-history', 'project-history-entry', 'directory', 'project', 'activity', 'notifications', 'diagnostics', 'live-activity', 'settings-baseline', 'appearance', 'queued-message-behavior'],
+    'send': ['send', 'send-queue', 'send-guide', 'send-interrupt', 'send-rounds', 'send-scroll-guide', 'send-scroll-queue', 'send-scroll-normal', 'session-native', 'session-simulator', 'permission-native', 'item-details', 'edit-message', 'session-share', 'agent-error', 'native-diff', 'native-workspace-changes', 'native-file-content'],
+    'settings': ['agents-settings', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states', 'agent-roles', 'archived-sessions'],
 }
 SUITES = {
-    'settings-workspace': ['prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states', 'agent-roles', 'role-mention-chat', 'role-mention-sheet'],
-    'settings-preferences': ['queued-message-behavior', 'notifications', 'quick-replies'],
+    'settings-workspace': BATCHES['settings'],
     'guidance-scroll': ['send-scroll-normal', 'send-scroll-guide', 'send-scroll-queue'],
-    'html-files': ['html-preview', 'file-preview'],
-    'markdown-files': ['markdown', 'file-preview'],
-    'permission-composer': ['permission-mode-chat', 'permission-mode-sheet', 'permission-mode-create'],
-    'paste-plain': ['paste-plain-chat', 'paste-plain-sheet'],
-    'rich-paste': ['rich-paste-chat', 'rich-paste-sheet'],
-    'chat-kit': ['chat-stream-performance', 'composer', 'send-transition-handoff'],
-    'chat-kit-input': ['composer', 'send-transition-handoff'],
-    'camera': ['camera-chat', 'camera-sheet'],
-    'glass-transitions': ['chat-chrome', 'mention-chat', 'mention-sheet', 'send-queue', 'send-transition', 'send-transition-handoff'],
-    'core': ['onboarding', 'inbox', 'navigation', 'send', 'send-handoff', 'composer-success'],
-    'core-home': ['onboarding', 'inbox', 'navigation'],
-    'core-send': ['send', 'send-handoff', 'composer-success'],
-    'send-reliability': ['send-guide', 'outbox', 'queued-message-behavior', 'send-queue', 'send-interrupt', 'send', 'send-handoff', 'send-transition', 'send-transition-handoff'],
+    'core': ['onboarding', 'home-settings', 'navigation', 'send', 'session-native', 'create-parity'],
+    'core-home': ['onboarding', 'home-settings', 'navigation'],
+    'core-send': ['send', 'session-native', 'create-parity'],
+    'send-reliability': ['send-guide', 'send-queue', 'send-interrupt', 'send'],
 }
 CORE_SUITES = {name for name in SUITES if name.startswith('core')}
 PHONE_CASES = [case for batch in BATCHES.values() for case in batch]
-# These lease an iPad. `--case` still accepts them; the default phone run must not.
-PAD_CASES = ['devices-pad', 'session-delete-pad', 'session-tree-pad', 'ipad', 'ipad-create', 'ipad-chrome', 'ipad-sidebar', 'native-shell', 'native-collection', 'session-search-pad', 'wide-panel', 'pad-layout']
-CASES = PHONE_CASES + PAD_CASES + ['devices', 'camera-chat', 'camera-sheet', 'item-details', 'message-details', 'edit-message', 'session-share', 'session-delete', 'session-search', 'home-settings', 'home-workspace', 'morph', 'sheet-zoom-project', 'composer-relay', 'outbox', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'create-parity', 'settings-baseline', 'workspace-general', 'machine-settings', 'settings-form-backgrounds', 'agents-settings', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states', 'agent-roles', 'role-mention-chat', 'role-mention-sheet', 'archived-sessions', 'session-native', 'session-simulator', 'permission-native', 'native-diff', 'native-workspace-changes', 'native-file-content']
-# These select HomePreviewProviders at app launch, using the same shared bundle.
-HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'sheet-zoom-project', 'mentions-production', 'home', 'home-settings', 'home-workspace', 'licenses', 'navigation', 'navigation-toolbar', 'project-history-entry', 'ipad', 'ipad-create', 'ipad-chrome', 'ipad-sidebar', 'wide-panel', 'pad-layout'}
-HOME_CASES.update({'session-delete', 'session-delete-pad', 'devices', 'devices-pad', 'workspace-general'})
+PAD_CASES = ['devices-pad', 'session-delete-pad', 'ipad', 'ipad-create', 'ipad-chrome', 'ipad-sidebar', 'session-search-pad', 'wide-panel', 'pad-layout']
+CASES = PHONE_CASES + PAD_CASES + ['session-delete', 'session-search', 'devices', 'workspace-general', 'morph', 'sheet-zoom-project', 'mentions-production']
+HOME_CASES = {'session-search', 'session-search-pad', 'morph', 'sheet-zoom-project', 'mentions-production', 'home', 'home-settings', 'home-workspace', 'licenses', 'navigation', 'project-history-entry', 'ipad', 'ipad-create', 'ipad-chrome', 'ipad-sidebar', 'wide-panel', 'pad-layout', 'session-delete', 'session-delete-pad', 'devices', 'devices-pad', 'workspace-general'}
 PREVIEW = {
     'role-mention-chat': 'mention-chat',
     'role-mention-sheet': 'mention-sheet',
@@ -295,13 +281,11 @@ parser.add_argument(
 )
 parser.add_argument('--app', required=True, type=Path)
 parser.add_argument('--output', type=Path, default=ROOT / '.artifacts/ui')
-parser.add_argument('--port', type=int, default=8097)
 selection = parser.add_mutually_exclusive_group()
 selection.add_argument('--case', choices=CASES)
 selection.add_argument('--batch', choices=BATCHES)
 selection.add_argument('--suite', choices=SUITES, help='Named case set; core* is the PR regression')
-selection.add_argument('--parallel', action='store_true', help='Run all three batches on separate leased Simulators sharing one Metro')
-parser.add_argument('--shared-metro', action='store_true', help=argparse.SUPPRESS)
+selection.add_argument('--parallel', action='store_true', help='Run native batches on separate leased Simulators')
 parser.add_argument('--camera-access', choices=['fixture', 'allow', 'deny'], default='fixture', help='Camera capture fixture or real system permission return')
 parser.add_argument('--photo-access', choices=['full', 'limited', 'denied', 'settings', 'granted'], default='full', help='Real system Photos permission outcome for attachment overlay cases')
 parser.add_argument('--language', choices=['en'], default='en', help='UI verification runs in English only')
@@ -310,7 +294,7 @@ parser.add_argument('--fail-fast', action='store_true', help='Stop after the fir
 parser.add_argument(
     '--embedded',
     action='store_true',
-    help='Use a Release app with an embedded bundle; do not start Metro',
+    help=argparse.SUPPRESS,
 )
 parser.add_argument(
     '--require-video',
@@ -319,26 +303,23 @@ parser.add_argument(
     help='Require a captured run.mp4; --suite core defaults to off',
 )
 args = parser.parse_args()
-if args.parallel and (args.udid or args.shared_metro or args.embedded):
-    parser.error('--parallel owns three Simulator leases and its Metro; omit --udid, --shared-metro and --embedded')
-if args.embedded and args.shared_metro:
-    parser.error('--embedded does not start Metro')
+if args.parallel and args.udid:
+    parser.error('--parallel owns its Simulator leases; omit --udid')
 os.environ['LODY_UI_PHOTO_ACCESS'] = args.photo_access
 os.environ['LODY_UI_CAMERA_ACCESS'] = args.camera_access
 args.output = args.output.resolve()
 # Stale evidence is replaced in place; only a run needing A/B comparison picks a different --output.
-if not args.shared_metro and any((args.output / marker).exists() for marker in ['results.json', 'batches.json', 'environment.json', 'metro.log']):
+if any((args.output / marker).exists() for marker in ['results.json', 'batches.json', 'environment.json']):
     shutil.rmtree(args.output)
 args.output.mkdir(parents=True, exist_ok=True)
 if args.parallel:
     commands = {
         batch: [sys.executable, __file__, '--app', str(args.app.resolve()), '--batch', batch,
-                '--output', str(args.output / batch), '--port', str(args.port),
-                '--language', args.language, '--camera-access', args.camera_access, '--photo-access', args.photo_access, '--shared-metro']
+                '--output', str(args.output / batch),
+                '--language', args.language, '--camera-access', args.camera_access, '--photo-access', args.photo_access, '--embedded']
         for batch in BATCHES
     }
-    with managed_metro(ROOT, args.port, args.output):
-        raise SystemExit(run_batches(commands, args.output))
+    raise SystemExit(run_batches(commands, args.output))
 selected = PHONE_CASES
 if args.suite:
     selected = SUITES[args.suite]
@@ -394,394 +375,361 @@ def terminate_app():
 
 results = []
 links_ready = False
-# Only the parent starts/prewarms/stops Metro; batch workers and embedded apps never own it.
-metro_context = nullcontext() if args.shared_metro or args.embedded else managed_metro(ROOT, args.port, args.output)
-with metro_context:
-    try:
-        (args.output / 'environment.json').write_text(json.dumps({
-            'node': subprocess.check_output(['node', '--version'], text=True).strip(),
-            'batch': args.batch, 'suite': args.suite, 'cases': selected, 'appearances': appearances,
-            'failFast': fail_fast, 'requireVideo': require_video, 'embedded': args.embedded,
-            'metroPort': None if args.embedded else args.port, 'sharedMetro': args.shared_metro,
-            'udid': args.udid, 'app': str(args.app.resolve()), 'language': args.language,
-            'photoAccess': args.photo_access, 'cameraAccess': args.camera_access,
-            'baseCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
-            'worktreeDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True).strip()),
-            'xcode': subprocess.check_output(['xcodebuild', '-version'], text=True).strip(),
-            'axe': subprocess.check_output(['axe', '--version'], text=True).strip(),
-        }, indent=2))
-        sim('spawn', args.udid, 'defaults', 'write', 'com.apple.keyboard.preferences', 'AutomaticMinimizationEnabled', '-bool', 'false')
-        # A Chinese App Language otherwise brings up the pinyin IME, which buffers typed
-        # fixture text as composition instead of committing it to the field.
-        sim('spawn', args.udid, 'defaults', 'write', 'com.apple.Preferences', 'AppleKeyboards', '-array', 'en_US@sw=QWERTY')
-        # A pending autocorrection is accepted by the next touch anywhere outside the field, so
-        # typed fixture text would change with whatever the keyboard has learned on this device.
-        sim('spawn', args.udid, 'defaults', 'write', 'com.apple.keyboard.preferences', 'KeyboardAutocorrection', '-bool', 'false')
-        keyboard = args.output / 'software-keyboard'
-        subprocess.run(['xcrun', 'clang', '-fobjc-arc', '-framework', 'Foundation', str(Path(__file__).with_name('software-keyboard.m')), '-o', str(keyboard)], check=True, timeout=60)
-        subprocess.run([str(keyboard), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), args.udid], check=True, timeout=30)
-        sim('install', args.udid, str(args.app.resolve()))
-        if 'workspace-general' in selected or any(case.startswith('attachment-motion-') for case in selected) or (args.photo_access in ['full', 'limited', 'granted'] and any(case.startswith('attachment-overlay-') for case in selected)):
-            # Photos outlives app launches. Seed once per app container so repeats
-            # don't fill the grid with duplicates or reinitialize the photo service.
-            container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
-            seeded = container / 'Library/Caches/lody-ui-photo-fixture-v3'
-            if not seeded.exists():
-                terminate_app()
-                # Enough rows to exercise layout changes while scrolled.
-                fixtures = args.output / 'photo-fixtures'
-                fixtures.mkdir(parents=True, exist_ok=True)
-                photos = []
-                for index in range(12):
-                    photo = fixtures / f'photo-{index}.png'
-                    shutil.copyfile(ROOT / 'apps/mobile/assets/icon.png', photo)
-                    photos.append(str(photo.resolve()))
-                sim('addmedia', args.udid, *photos, timeout=120)
-                seeded.parent.mkdir(parents=True, exist_ok=True)
-                seeded.touch()
-        sim('ui', args.udid, 'content_size', 'large')
-        cases = sorted(HOME_CASES.intersection(selected)) + [case for case in selected if case not in HOME_CASES]
-        launch_mode = None
-        app_pid = None
-        trace_throw = any(case.startswith('send-scroll-') for case in selected) or bool(set(selected).intersection({'send-transition', 'send-transition-handoff', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'ipad-chrome'}))
-        for appearance in appearances:
-            sim('ui', args.udid, 'appearance', appearance)
-            for case in cases:
-                output = args.output / appearance / case
-                ui = UI(args.udid, output)
-                recording = None
-                started = time.monotonic()
-                result = {'case': case, 'appearance': appearance, 'language': args.language, 'status': 'failed'}
-                try:
-                    if case.startswith('attachment-camera-') or case in ('camera-chat', 'camera-sheet'):
-                        terminate_app()
-                        launch_mode = None
-                        if args.camera_access != 'fixture':
-                            sim('privacy', args.udid, 'reset', 'camera', 'app.innei.lody')
-                    if case.startswith(('attachment-overlay-', 'attachment-motion-')):
-                        terminate_app()
-                        grant_photos = case.startswith('attachment-motion-') or args.photo_access == 'granted'
-                        sim('privacy', args.udid, 'grant' if grant_photos else 'reset', 'photos', 'app.innei.lody')
-                        launch_mode = None
-                    mode = (case in HOME_CASES, case in ('smooth-scroll', 'chat-performance'), case in ('camera-chat', 'camera-sheet'))
-                    if case == 'chat-performance':
-                        container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
-                        (container / 'tmp/lody-chat-loading.json').unlink(missing_ok=True)
-                    restart = args.embedded or launch_mode != mode or case in HOME_CASES or case in ('quick-replies', 'appearance')
-                    if restart:
-                        result['appLifecycle'] = 'launch'
-                        terminate_app()
-                        launch = ['launch', args.udid, 'app.innei.lody', '--ui-verify']
-                        if case in HOME_CASES:
-                            launch.append('--ui-verify-home')
-                        if case in {'session-search', 'session-search-pad'}:
-                            launch.append('--ui-verify-search')
-                        if case in {'morph', 'sheet-zoom-project', 'mentions-production', 'home', 'home-settings', 'home-workspace', 'ipad', 'ipad-create', 'ipad-chrome', 'ipad-sidebar'}:
-                            launch.append('--ui-verify-mentions')
-                        if mode[2] or (case.startswith('attachment-camera-') and args.camera_access == 'fixture'):
-                            sim('privacy', args.udid, 'reset', 'photos', 'app.innei.lody')
-                            launch.append('--ui-verify-camera')
-                        if case.startswith('attachment-motion-'):
-                            launch.append('--ui-verify-camera')
-                        if mode[1]:
-                            launch.append('--ui-verify-scroll')
-                        if case == 'navigation-toolbar':
-                            launch.append('--ui-verify-opening')
-                        if trace_throw:
-                            launch.append('--ui-verify-throw')
-                        if not args.embedded:
-                            launch += [
-                                '--initialUrl', f'http://127.0.0.1:{args.port}?disableOnboarding=1',
-                                '-expo.devlauncher.hasGrantedNetworkPermission', 'YES',
-                                '-EXDevMenuShowsAtLaunch', 'NO',
-                                '-EXDevMenuIsOnboardingFinished', 'YES',
-                                '-EXDevMenuShowFloatingActionButton', 'NO',
-                            ]
-                        launch += [
-                            '-AppleLanguages', f'({args.language})',
-                            '-AppleLocale', 'en_US',
-                            '-AppleKeyboards', '(en_US@sw=QWERTY)',
-                        ]
-                        sim(*launch)
-                        launch_mode = mode
-                    if not restart:
-                        result['appLifecycle'] = 'return-to-root'
-                        inspector(args.udid, args.port, 'Runtime.evaluate', {
-                            'expression': 'globalThis.__lodyUiVerifyReset()',
-                        })
-                    processes = sim('spawn', args.udid, 'launchctl', 'list').stdout.splitlines()
-                    result['appPid'] = next((line.split()[0] for line in processes if 'UIKitApplication:app.innei.lody[' in line), None)
-                    assert result['appPid'], 'Lody process is missing'
-                    if result['appLifecycle'] == 'return-to-root':
-                        assert result['appPid'] == app_pid, 'Returning to root unexpectedly replaced the App process'
-                    app_pid = result['appPid']
-                    if restart and not args.embedded:
-                        try:
-                            ui.element('ui-verify-ready', timeout=20)
-                        except AssertionError:
-                            # A cold dev launcher can return to its home screen
-                            # despite --initialUrl. Only recover that observed UI;
-                            # other startup failures still require the real marker.
-                            if any(item.get('AXLabel') == 'Enter URL manually' for item in ui.state()):
-                                sim('openurl', args.udid,
-                                    f'exp+lody-ios://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A{args.port}')
-                                if any(item.get('AXLabel') == 'Open' for item in ui.state()):
-                                    ui.axe('tap', '--label', 'Open')
-                    activated = time.monotonic()
-
-                    def verify_ready(items):
-                        global activated
-                        if any(item.get('AXUniqueId') == 'ui-verify-ready' for item in items):
-                            return True
-                        # A cold AXe session can resign the app to SpringBoard before
-                        # the first tree arrives. Bring it forward again, then keep waiting.
-                        if launch_covered(items, result.get('appPid')) and time.monotonic() - activated >= 5:
-                            activated = time.monotonic()
-                            sim(*launch)
-                        return False
-
-                    ui.wait(verify_ready, 'Missing ui-verify-ready', timeout=180)
-                    if not links_ready:
-                        sim('openurl', args.udid, 'lody:///')
-                        allow_custom_scheme(ui)
-                        ui.element('ui-verify-ready')
-                        links_ready = True
-                    if require_video:
-                        recording = subprocess.Popen(['xcrun', 'simctl', 'io', args.udid, 'recordVideo', '--codec=hevc', str(output / 'run.mp4')], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-                        deadline = time.monotonic() + 20
-                        while time.monotonic() < deadline:
-                            if select.select([recording.stderr], [], [], .5)[0]:
-                                line = recording.stderr.readline()
-                                if b'Recording started' in line:
-                                    break
-                                if not line:
-                                    raise RuntimeError('Video recorder exited before its first frame')
-                        else:
-                            raise TimeoutError('Video recorder did not start')
-                    preview = PREVIEW.get(case, 'chat-preview')
-                    ready = 'ui-verify-ready' if case in HOME_CASES else READY.get(case, 'session-input')
-                    entry_started = time.monotonic()
-                    if case not in HOME_CASES:
-                        ui.open_case(preview)
-                        result['caseEntry'] = 'deep-link'
-                    ui.element(ready)
-                    result['caseEntrySeconds'] = round(time.monotonic() - entry_started, 2)
-                    if case == 'permission':
-                        ui.wait(lambda items: any(i.get('AXLabel') == 'Fixtures' for i in items), 'Missing permission fixture toolbar')
-                    if case == 'image-preview':
-                        ui.axe('tap', '--label', 'Fixtures')
-                        ui.axe('tap', '--label', 'Image Fixture')
-                        ui.element('preview-image:attachment:ui-verify-image')
-                    ui.capture('before')
-                    script = Path(__file__).with_name(f'{case}.py') if case in ['workspace-changes', 'simulator-preview', 'item-details', 'message-details', 'message-share', 'pull-request', 'project-history-entry', 'project-history', 'project-picker', 'branch-picker', 'notifications', 'user-mentions', 'file-preview', 'html-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'mermaid', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'home-settings', 'home-workspace', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'context-menu', 'chat-chrome', 'title-rename', 'composer-rich', 'composer-fullscreen'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
-                    if case.startswith('send-scroll-'):
-                        script = Path(__file__).with_name('send-scroll.py')
-                    if case in {'devices', 'devices-pad'}:
-                        script = Path(__file__).with_name('devices.py')
-                    if case in ('diagnostics', 'directory', 'project', 'activity', 'settings-baseline', 'workspace-general', 'machine-settings', 'settings-form-backgrounds', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states', 'agent-roles'):
-                        script = Path(__file__).with_name(f'{case}.py')
-                    if case in ('archived-sessions', 'session-native', 'session-simulator', 'permission-native', 'native-diff', 'native-workspace-changes', 'native-file-content'):
-                        script = Path(__file__).with_name(f'{case}.py')
-                    if case == 'file-selection':
-                        script = Path(__file__).with_name('file-selection.py')
-                    if case in {'home-settings', 'home-workspace', 'ipad-create', 'quick-replies', 'context-chip', 'morph', 'sheet-zoom-project', 'native-shell', 'native-collection', 'ipad-chrome', 'ipad-sidebar', 'wide-panel', 'pad-layout', 'composer-relay', 'outbox', 'navigation-toolbar', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'free-turn-notice', 'create-parity'}:
-                        script = Path(__file__).with_name(f'{case}.py')
-                    if case in ['session-tree', 'session-tree-pad']:
-                        script = Path(__file__).with_name('session-tree.py')
-                    if case == 'send-handoff-delayed':
-                        script = Path(__file__).with_name('send-handoff.py')
-                    if case in {'session-search', 'session-search-pad'}:
-                        script = Path(__file__).with_name('session-search.py')
-                    if case == 'session-share':
-                        script = Path(__file__).with_name('session-share.py')
-                    if case in {'session-delete', 'session-delete-pad'}:
-                        script = Path(__file__).with_name('session-delete.py')
-                    if case.startswith('permission-mode-'):
-                        script = Path(__file__).with_name('permission-mode.py')
-                    if case in ['fast-chat', 'fast-sheet']:
-                        script = Path(__file__).with_name('fast.py')
-                    if case.startswith('attachment-overlay-'):
-                        script = Path(__file__).with_name('attachment-selection.py' if args.photo_access == 'granted' else 'attachment-overlay.py')
-                    if case.startswith('attachment-motion-'):
-                        script = Path(__file__).with_name('attachment-motion.py')
-                    if case == 'attachment-overlay-create' and args.photo_access != 'granted':
-                        script = Path(__file__).with_name('attachment-create.py')
-                    if case.startswith('attachment-camera-') or case in ('camera-chat', 'camera-sheet'):
-                        script = Path(__file__).with_name('attachment-camera.py')
-                    if case == 'edit-message':
-                        script = Path(__file__).with_name('edit-message.py')
-                    if case in ['paste-plain-sheet', 'paste-plain-chat']:
-                        script = Path(__file__).with_name('paste-plain.py')
-                    if case in ['rich-paste-sheet', 'rich-paste-chat']:
-                        script = Path(__file__).with_name('rich-paste.py')
-                    if case in ('composer-rest-draft', 'composer-motion'):
-                        script = Path(__file__).with_name(f'{case}.py')
-                    if case == 'composer-glass-chat':
-                        script = Path(__file__).with_name('composer-glass.py')
-                    if case == 'mentions-production':
-                        script = Path(__file__).with_name('mentions-production.py')
-                    if case == 'root-reuse':
-                        script = Path(__file__).with_name('root-reuse.py')
-                    if case in ['role-mention-chat', 'role-mention-sheet']:
-                        script = Path(__file__).with_name('role-mentions.py')
-                    if case in ['mention-chat', 'mention-sheet']:
-                        script = Path(__file__).with_name('mentions.py')
-                    if case in ['camera-chat', 'camera-sheet']:
-                        script = Path(__file__).with_name('attachment-camera.py')
-                    if case in ['send-transition', 'send-transition-handoff']:
-                        script = Path(__file__).with_name('send-transition.py')
-                    if case == 'agents-settings':
-                        script = Path(__file__).with_name('settings.py')
-                    command = [sys.executable, str(script), args.udid]
-                    if case in ['composer-success', 'composer-failure']:
-                        command += ['--expect', case.removeprefix('composer-'), '--output', str(output)]
-                    elif case == 'layout':
-                        command += ['--send']
-                    else:
-                        command += [str(output)]
-                    if case.startswith('send-scroll-'):
-                        command.append(case.removeprefix('send-scroll-'))
-                    if case == 'agents-settings':
-                        command.append('--agents-only')
-                    check_timeout = 180
-                    if case == 'morph':
-                        # Send, open and dismiss loops; ~175s alone with the driver's HID padding.
-                        check_timeout = 300
-                    if case == 'mcp-settings':
-                        check_timeout = 300
-                    if case in ('agent-roles', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states'):
-                        check_timeout = 420
-                    if case in ('settings', 'agents-settings'):
-                        # These cases visit several Settings contexts or editors; settings reaches ~300s under load.
-                        check_timeout = 420
-                    if case == 'settings-baseline':
-                        # Six fixture scenarios plus page visits; ~305s under load.
-                        check_timeout = 420
-                    if case == 'edit-message':
-                        # Attachment retry, uncertain-result readback and preparation failure are separate editor visits.
-                        check_timeout = 300
-                    if case == 'pull-request':
-                        # Authorization, comment and investigation round trips share this case.
-                        check_timeout = 300
-                    if case == 'proposed-plan':
-                        # Document, search and business dispatch outcomes share this case.
-                        check_timeout = 360
-                    if case in ('quick-replies', 'model-memory'):
-                        # Editing, restart or several model/agent round trips share these checks.
-                        check_timeout = 420
-                    if case.startswith(('attachment-overlay-', 'attachment-motion-')) and args.photo_access in ['full', 'granted']:
-                        check_timeout = 360
-                    if case == 'chat-performance':
-                        check_timeout = 480
-                    elif case in ['send-transition', 'send-transition-handoff']:
-                        # Mixed-file import, text expansion, gallery gestures and
-                        # per-file upload states need multiple AXe round trips.
-                        # Keep each gesture/animation assertion independently bounded.
-                        check_timeout = 420
-                    elif case == 'live-activity':
-                        # Includes a real 61-second dismissal wait plus lock/unlock
-                        # and Dynamic Island transitions; 180s cuts off deep links.
-                        check_timeout = 480
-                    elif case == 'mermaid':
-                        # Six graph types, fallbacks, plan expansion and document copy.
-                        check_timeout = 300
-                    elif case in ['file-preview', 'html-preview']:
-                        # Browser/chat/process selection plus image/PDF reopen and dismissal.
-                        check_timeout = 600
-                    elif case == 'simulator-preview':
-                        # Held/cancelled/committed zoom gestures plus hide, stop and reopen flows.
-                        check_timeout = 420
-                    elif case == 'send':
-                        # Product path can finish, then AXe restore during pending
-                        # toggles eats the rest of a 300s budget.
-                        check_timeout = 480
-                    elif case == 'navigation':
-                        # Three cold relaunches plus catalog links; 360s still dies on a cold CI AXe session.
-                        check_timeout = 480
-                    elif case == 'home':
-                        # Create, Debug, Settings and workspace editing share this case; ~540s alone on the native inbox.
-                        check_timeout = 600
-                    elif case in ('session-search', 'mentions-production'):
-                        # Long search and mention-kind loops reach ~290s alone.
-                        check_timeout = 420
-                    elif case == 'session-native':
-                        # Shared-feed details, PR draft handoff, previews and session actions.
-                        check_timeout = 420
-                    elif case == 'ipad':
-                        # Sidebar, both orientations, keyboard and two native creation flows.
-                        check_timeout = 600
-                    elif case in ('wide-panel', 'pad-layout'):
-                        # Both orientations and inspector/sheet preservation across width changes.
-                        check_timeout = 420
-                    elif case == 'permission-native':
-                        # Multiple fresh sessions plus nested permissions and questions can reach 300s.
-                        check_timeout = 420
-                    elif case == 'permission':
-                        check_timeout = 300
-                    elif case in ('send-queue', 'send-guide'):
-                        # Queue/steer/stop and guide rounds reach ~185s on both the RN and native fixtures.
-                        check_timeout = 300
-                    elif case in ('branch-picker', 'message-share', 'session-search-pad', 'chat-stream-performance', 'mention-chat', 'mention-sheet', 'appearance'):
-                        check_timeout = 300
-                    check_started = time.monotonic()
-                    with (output / 'check.log').open('w') as log:
-                        env = {**os.environ, 'LODY_UI_LANGUAGE': args.language}
-                        if args.embedded:
-                            env['LODY_UI_EMBEDDED'] = '1'
-                        else:
-                            env['LODY_UI_METRO_PORT'] = str(args.port)
-                        subprocess.run(command, check=True, timeout=check_timeout, stdout=log, stderr=subprocess.STDOUT, env=env)
-                    result['checkSeconds'] = round(time.monotonic() - check_started, 2)
-                    ui.capture('after')
-                    result['status'] = 'passed'
-                    if case in ('appearance', 'quick-replies', 'queued-message-behavior'):
-                        # These checks cold-launch the App; the next case needs a fresh process baseline.
-                        launch_mode = None
-                except Exception as error:
-                    # A failed case may have crashed or left a system modal; recover explicitly.
+# Each worker owns only its Simulator lease and native app process.
+try:
+    (args.output / 'environment.json').write_text(json.dumps({
+        'node': subprocess.check_output(['node', '--version'], text=True).strip(),
+        'batch': args.batch, 'suite': args.suite, 'cases': selected, 'appearances': appearances,
+        'failFast': fail_fast, 'requireVideo': require_video, 'native': True,
+        'udid': args.udid, 'app': str(args.app.resolve()), 'language': args.language,
+        'photoAccess': args.photo_access, 'cameraAccess': args.camera_access,
+        'baseCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+        'worktreeDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True).strip()),
+        'xcode': subprocess.check_output(['xcodebuild', '-version'], text=True).strip(),
+        'axe': subprocess.check_output(['axe', '--version'], text=True).strip(),
+    }, indent=2))
+    sim('spawn', args.udid, 'defaults', 'write', 'com.apple.keyboard.preferences', 'AutomaticMinimizationEnabled', '-bool', 'false')
+    # A Chinese App Language otherwise brings up the pinyin IME, which buffers typed
+    # fixture text as composition instead of committing it to the field.
+    sim('spawn', args.udid, 'defaults', 'write', 'com.apple.Preferences', 'AppleKeyboards', '-array', 'en_US@sw=QWERTY')
+    # A pending autocorrection is accepted by the next touch anywhere outside the field, so
+    # typed fixture text would change with whatever the keyboard has learned on this device.
+    sim('spawn', args.udid, 'defaults', 'write', 'com.apple.keyboard.preferences', 'KeyboardAutocorrection', '-bool', 'false')
+    keyboard = args.output / 'software-keyboard'
+    subprocess.run(['xcrun', 'clang', '-fobjc-arc', '-framework', 'Foundation', str(Path(__file__).with_name('software-keyboard.m')), '-o', str(keyboard)], check=True, timeout=60)
+    subprocess.run([str(keyboard), subprocess.check_output(['xcode-select', '-p'], text=True).strip(), args.udid], check=True, timeout=30)
+    sim('install', args.udid, str(args.app.resolve()))
+    if 'workspace-general' in selected or any(case.startswith('attachment-motion-') for case in selected) or (args.photo_access in ['full', 'limited', 'granted'] and any(case.startswith('attachment-overlay-') for case in selected)):
+        # Photos outlives app launches. Seed once per app container so repeats
+        # don't fill the grid with duplicates or reinitialize the photo service.
+        container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
+        seeded = container / 'Library/Caches/lody-ui-photo-fixture-v3'
+        if not seeded.exists():
+            terminate_app()
+            # Enough rows to exercise layout changes while scrolled.
+            fixtures = args.output / 'photo-fixtures'
+            fixtures.mkdir(parents=True, exist_ok=True)
+            photos = []
+            for index in range(12):
+                photo = fixtures / f'photo-{index}.png'
+                shutil.copyfile(ROOT / 'apps/mobile/assets/icon.png', photo)
+                photos.append(str(photo.resolve()))
+            sim('addmedia', args.udid, *photos, timeout=120)
+            seeded.parent.mkdir(parents=True, exist_ok=True)
+            seeded.touch()
+    sim('ui', args.udid, 'content_size', 'large')
+    cases = sorted(HOME_CASES.intersection(selected)) + [case for case in selected if case not in HOME_CASES]
+    launch_mode = None
+    app_pid = None
+    trace_throw = any(case.startswith('send-scroll-') for case in selected) or bool(set(selected).intersection({'send-transition', 'send-transition-handoff', 'send', 'send-handoff', 'send-handoff-delayed', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'ipad-chrome'}))
+    for appearance in appearances:
+        sim('ui', args.udid, 'appearance', appearance)
+        for case in cases:
+            output = args.output / appearance / case
+            ui = UI(args.udid, output)
+            recording = None
+            started = time.monotonic()
+            result = {'case': case, 'appearance': appearance, 'language': args.language, 'status': 'failed'}
+            try:
+                if case.startswith('attachment-camera-') or case in ('camera-chat', 'camera-sheet'):
+                    terminate_app()
                     launch_mode = None
-                    result['error'] = str(error)
-                    if not args.embedded:
-                        diagnose_metro(args.port, output, 'failure')
+                    if args.camera_access != 'fixture':
+                        sim('privacy', args.udid, 'reset', 'camera', 'app.innei.lody')
+                if case.startswith(('attachment-overlay-', 'attachment-motion-')):
+                    terminate_app()
+                    grant_photos = case.startswith('attachment-motion-') or args.photo_access == 'granted'
+                    sim('privacy', args.udid, 'grant' if grant_photos else 'reset', 'photos', 'app.innei.lody')
+                    launch_mode = None
+                mode = (case in HOME_CASES, case in ('smooth-scroll', 'chat-performance'), case in ('camera-chat', 'camera-sheet'))
+                if case == 'chat-performance':
+                    container = Path(sim('get_app_container', args.udid, 'app.innei.lody', 'data').stdout.strip())
+                    (container / 'tmp/lody-chat-loading.json').unlink(missing_ok=True)
+                restart = True
+                if restart:
+                    result['appLifecycle'] = 'launch'
+                    terminate_app()
+                    launch = ['launch', args.udid, 'app.innei.lody', '--ui-verify']
+                    if case in HOME_CASES:
+                        launch.append('--ui-verify-home')
+                    if case in {'session-search', 'session-search-pad'}:
+                        launch.append('--ui-verify-search')
+                    if case in {'morph', 'sheet-zoom-project', 'mentions-production', 'home', 'home-settings', 'home-workspace', 'ipad', 'ipad-create', 'ipad-chrome', 'ipad-sidebar'}:
+                        launch.append('--ui-verify-mentions')
+                    if mode[2] or (case.startswith('attachment-camera-') and args.camera_access == 'fixture'):
+                        sim('privacy', args.udid, 'reset', 'photos', 'app.innei.lody')
+                        launch.append('--ui-verify-camera')
+                    if case.startswith('attachment-motion-'):
+                        launch.append('--ui-verify-camera')
+                    if mode[1]:
+                        launch.append('--ui-verify-scroll')
+                    if case == 'navigation-toolbar':
+                        launch.append('--ui-verify-opening')
+                    if trace_throw:
+                        launch.append('--ui-verify-throw')
+                    launch += [
+                        '-AppleLanguages', f'({args.language})',
+                        '-AppleLocale', 'en_US',
+                        '-AppleKeyboards', '(en_US@sw=QWERTY)',
+                    ]
+                    sim(*launch)
+                    launch_mode = mode
+                processes = sim('spawn', args.udid, 'launchctl', 'list').stdout.splitlines()
+                result['appPid'] = next((line.split()[0] for line in processes if 'UIKitApplication:app.innei.lody[' in line), None)
+                assert result['appPid'], 'Lody process is missing'
+                if result['appLifecycle'] == 'return-to-root':
+                    assert result['appPid'] == app_pid, 'Returning to root unexpectedly replaced the App process'
+                app_pid = result['appPid']
+                activated = time.monotonic()
+
+                def verify_ready(items):
+                    global activated
+                    if any(item.get('AXUniqueId') == 'ui-verify-ready' for item in items):
+                        return True
+                    # A cold AXe session can resign the app to SpringBoard before
+                    # the first tree arrives. Bring it forward again, then keep waiting.
+                    if launch_covered(items, result.get('appPid')) and time.monotonic() - activated >= 5:
+                        activated = time.monotonic()
+                        sim(*launch)
+                    return False
+
+                ui.wait(verify_ready, 'Missing ui-verify-ready', timeout=180)
+                if not links_ready:
+                    sim('openurl', args.udid, 'lody:///')
+                    allow_custom_scheme(ui)
+                    ui.element('ui-verify-ready')
+                    links_ready = True
+                if require_video:
+                    recording = subprocess.Popen(['xcrun', 'simctl', 'io', args.udid, 'recordVideo', '--codec=hevc', str(output / 'run.mp4')], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                    deadline = time.monotonic() + 20
+                    while time.monotonic() < deadline:
+                        if select.select([recording.stderr], [], [], .5)[0]:
+                            line = recording.stderr.readline()
+                            if b'Recording started' in line:
+                                break
+                            if not line:
+                                raise RuntimeError('Video recorder exited before its first frame')
+                    else:
+                        raise TimeoutError('Video recorder did not start')
+                preview = PREVIEW.get(case, 'chat-preview')
+                ready = 'ui-verify-ready' if case in HOME_CASES else READY.get(case, 'session-input')
+                entry_started = time.monotonic()
+                if case not in HOME_CASES:
+                    ui.open_case(preview)
+                    result['caseEntry'] = 'deep-link'
+                ui.element(ready)
+                result['caseEntrySeconds'] = round(time.monotonic() - entry_started, 2)
+                if case == 'permission':
+                    ui.wait(lambda items: any(i.get('AXLabel') == 'Fixtures' for i in items), 'Missing permission fixture toolbar')
+                if case == 'image-preview':
+                    ui.axe('tap', '--label', 'Fixtures')
+                    ui.axe('tap', '--label', 'Image Fixture')
+                    ui.element('preview-image:attachment:ui-verify-image')
+                ui.capture('before')
+                script = Path(__file__).with_name(f'{case}.py') if case in ['workspace-changes', 'simulator-preview', 'item-details', 'message-details', 'message-share', 'pull-request', 'project-history-entry', 'project-history', 'project-picker', 'branch-picker', 'notifications', 'user-mentions', 'file-preview', 'html-preview', 'chat-performance', 'chat-stream-performance', 'settings', 'appearance', 'queued-message-behavior', 'send', 'send-handoff', 'send-rounds', 'send-queue', 'steer', 'send-guide', 'send-interrupt', 'smooth-scroll', 'composer', 'composer-glass', 'composer-video', 'markdown', 'mermaid', 'duration', 'process-counts', 'process-failed', 'agent-error', 'proposed-plan', 'changes', 'inline-diff', 'background', 'inbox', 'permission', 'home', 'home-settings', 'home-workspace', 'ipad', 'licenses', 'navigation', 'model-memory', 'onboarding', 'community-notice', 'live-activity', 'context-menu', 'chat-chrome', 'title-rename', 'composer-rich', 'composer-fullscreen'] else CHAT / ('composer.py' if case.startswith('composer-') else f'{case}.py')
+                if case.startswith('send-scroll-'):
+                    script = Path(__file__).with_name('send-scroll.py')
+                if case in {'devices', 'devices-pad'}:
+                    script = Path(__file__).with_name('devices.py')
+                if case in ('diagnostics', 'directory', 'project', 'activity', 'settings-baseline', 'workspace-general', 'machine-settings', 'settings-form-backgrounds', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states', 'agent-roles'):
+                    script = Path(__file__).with_name(f'{case}.py')
+                if case in ('archived-sessions', 'session-native', 'session-simulator', 'permission-native', 'native-diff', 'native-workspace-changes', 'native-file-content'):
+                    script = Path(__file__).with_name(f'{case}.py')
+                if case == 'file-selection':
+                    script = Path(__file__).with_name('file-selection.py')
+                if case in {'home-settings', 'home-workspace', 'ipad-create', 'quick-replies', 'context-chip', 'morph', 'sheet-zoom-project', 'native-shell', 'native-collection', 'ipad-chrome', 'ipad-sidebar', 'wide-panel', 'pad-layout', 'composer-relay', 'outbox', 'navigation-toolbar', 'scroll-edge', 'scroll-edge-pages', 'scroll-edge-diff', 'reply-haptics', 'free-turn-notice', 'create-parity'}:
+                    script = Path(__file__).with_name(f'{case}.py')
+                if case in ['session-tree', 'session-tree-pad']:
+                    script = Path(__file__).with_name('session-tree.py')
+                if case == 'send-handoff-delayed':
+                    script = Path(__file__).with_name('send-handoff.py')
+                if case in {'session-search', 'session-search-pad'}:
+                    script = Path(__file__).with_name('session-search.py')
+                if case == 'session-share':
+                    script = Path(__file__).with_name('session-share.py')
+                if case in {'session-delete', 'session-delete-pad'}:
+                    script = Path(__file__).with_name('session-delete.py')
+                if case.startswith('permission-mode-'):
+                    script = Path(__file__).with_name('permission-mode.py')
+                if case in ['fast-chat', 'fast-sheet']:
+                    script = Path(__file__).with_name('fast.py')
+                if case.startswith('attachment-overlay-'):
+                    script = Path(__file__).with_name('attachment-selection.py' if args.photo_access == 'granted' else 'attachment-overlay.py')
+                if case.startswith('attachment-motion-'):
+                    script = Path(__file__).with_name('attachment-motion.py')
+                if case == 'attachment-overlay-create' and args.photo_access != 'granted':
+                    script = Path(__file__).with_name('attachment-create.py')
+                if case.startswith('attachment-camera-') or case in ('camera-chat', 'camera-sheet'):
+                    script = Path(__file__).with_name('attachment-camera.py')
+                if case == 'edit-message':
+                    script = Path(__file__).with_name('edit-message.py')
+                if case in ['paste-plain-sheet', 'paste-plain-chat']:
+                    script = Path(__file__).with_name('paste-plain.py')
+                if case in ['rich-paste-sheet', 'rich-paste-chat']:
+                    script = Path(__file__).with_name('rich-paste.py')
+                if case in ('composer-rest-draft', 'composer-motion'):
+                    script = Path(__file__).with_name(f'{case}.py')
+                if case == 'composer-glass-chat':
+                    script = Path(__file__).with_name('composer-glass.py')
+                if case == 'mentions-production':
+                    script = Path(__file__).with_name('mentions-production.py')
+                if case == 'root-reuse':
+                    script = Path(__file__).with_name('root-reuse.py')
+                if case in ['role-mention-chat', 'role-mention-sheet']:
+                    script = Path(__file__).with_name('role-mentions.py')
+                if case in ['mention-chat', 'mention-sheet']:
+                    script = Path(__file__).with_name('mentions.py')
+                if case in ['camera-chat', 'camera-sheet']:
+                    script = Path(__file__).with_name('attachment-camera.py')
+                if case in ['send-transition', 'send-transition-handoff']:
+                    script = Path(__file__).with_name('send-transition.py')
+                if case == 'agents-settings':
+                    script = Path(__file__).with_name('settings.py')
+                command = [sys.executable, str(script), args.udid]
+                if case in ['composer-success', 'composer-failure']:
+                    command += ['--expect', case.removeprefix('composer-'), '--output', str(output)]
+                elif case == 'layout':
+                    command += ['--send']
+                else:
+                    command += [str(output)]
+                if case.startswith('send-scroll-'):
+                    command.append(case.removeprefix('send-scroll-'))
+                if case == 'agents-settings':
+                    command.append('--agents-only')
+                check_timeout = 180
+                if case == 'morph':
+                    # Send, open and dismiss loops; ~175s alone with the driver's HID padding.
+                    check_timeout = 300
+                if case == 'mcp-settings':
+                    check_timeout = 300
+                if case in ('agent-roles', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states'):
+                    check_timeout = 420
+                if case in ('settings', 'agents-settings'):
+                    # These cases visit several Settings contexts or editors; settings reaches ~300s under load.
+                    check_timeout = 420
+                if case == 'settings-baseline':
+                    # Six fixture scenarios plus page visits; ~305s under load.
+                    check_timeout = 420
+                if case == 'edit-message':
+                    # Attachment retry, uncertain-result readback and preparation failure are separate editor visits.
+                    check_timeout = 300
+                if case == 'pull-request':
+                    # Authorization, comment and investigation round trips share this case.
+                    check_timeout = 300
+                if case == 'proposed-plan':
+                    # Document, search and business dispatch outcomes share this case.
+                    check_timeout = 360
+                if case in ('quick-replies', 'model-memory'):
+                    # Editing, restart or several model/agent round trips share these checks.
+                    check_timeout = 420
+                if case.startswith(('attachment-overlay-', 'attachment-motion-')) and args.photo_access in ['full', 'granted']:
+                    check_timeout = 360
+                if case == 'chat-performance':
+                    check_timeout = 480
+                elif case in ['send-transition', 'send-transition-handoff']:
+                    # Mixed-file import, text expansion, gallery gestures and
+                    # per-file upload states need multiple AXe round trips.
+                    # Keep each gesture/animation assertion independently bounded.
+                    check_timeout = 420
+                elif case == 'live-activity':
+                    # Includes a real 61-second dismissal wait plus lock/unlock
+                    # and Dynamic Island transitions; 180s cuts off deep links.
+                    check_timeout = 480
+                elif case == 'mermaid':
+                    # Six graph types, fallbacks, plan expansion and document copy.
+                    check_timeout = 300
+                elif case in ['file-preview', 'html-preview']:
+                    # Browser/chat/process selection plus image/PDF reopen and dismissal.
+                    check_timeout = 600
+                elif case == 'simulator-preview':
+                    # Held/cancelled/committed zoom gestures plus hide, stop and reopen flows.
+                    check_timeout = 420
+                elif case == 'send':
+                    # Product path can finish, then AXe restore during pending
+                    # toggles eats the rest of a 300s budget.
+                    check_timeout = 480
+                elif case == 'navigation':
+                    # Three cold relaunches plus catalog links; 360s still dies on a cold CI AXe session.
+                    check_timeout = 480
+                elif case == 'home':
+                    # Create, Debug, Settings and workspace editing share this case; ~540s alone on the native inbox.
+                    check_timeout = 600
+                elif case in ('session-search', 'mentions-production'):
+                    # Long search and mention-kind loops reach ~290s alone.
+                    check_timeout = 420
+                elif case == 'session-native':
+                    # Shared-feed details, PR draft handoff, previews and session actions.
+                    check_timeout = 420
+                elif case == 'ipad':
+                    # Sidebar, both orientations, keyboard and two native creation flows.
+                    check_timeout = 600
+                elif case in ('wide-panel', 'pad-layout'):
+                    # Both orientations and inspector/sheet preservation across width changes.
+                    check_timeout = 420
+                elif case == 'permission-native':
+                    # Multiple fresh sessions plus nested permissions and questions can reach 300s.
+                    check_timeout = 420
+                elif case == 'permission':
+                    check_timeout = 300
+                elif case in ('send-queue', 'send-guide'):
+                    # Queue/steer/stop and guide rounds reach ~185s on both the RN and native fixtures.
+                    check_timeout = 300
+                elif case in ('branch-picker', 'message-share', 'session-search-pad', 'chat-stream-performance', 'mention-chat', 'mention-sheet', 'appearance'):
+                    check_timeout = 300
+                check_started = time.monotonic()
+                with (output / 'check.log').open('w') as log:
+                    env = {**os.environ, 'LODY_UI_LANGUAGE': args.language}
+                    env['LODY_UI_NATIVE'] = '1'
+                    subprocess.run(command, check=True, timeout=check_timeout, stdout=log, stderr=subprocess.STDOUT, env=env)
+                result['checkSeconds'] = round(time.monotonic() - check_started, 2)
+                ui.capture('after')
+                result['status'] = 'passed'
+                if case in ('appearance', 'quick-replies', 'queued-message-behavior'):
+                    # These checks cold-launch the App; the next case needs a fresh process baseline.
+                    launch_mode = None
+            except Exception as error:
+                # A failed case may have crashed or left a system modal; recover explicitly.
+                launch_mode = None
+                result['error'] = str(error)
+                try:
+                    native_log = sim('spawn', args.udid, 'log', 'show', '--last', '5m', '--style', 'compact', '--predicate', 'process == "Lody"', check=False)
+                    (output / 'native.log').write_text(native_log.stdout + native_log.stderr)
+                except Exception as log_error:
+                    result['nativeLogError'] = str(log_error)
+                try:
+                    ui.screenshot('failure')
+                except Exception as screenshot_error:
+                    result['screenshotError'] = str(screenshot_error)
+                try:
+                    (output / 'failure.json').write_text(ui.axe('describe-ui'))
+                except Exception as capture_error:
+                    result['captureError'] = str(capture_error)
+                failure_png = output / 'failure.png'
+                if failure_png.exists():
+                    failures = args.output / 'failures'
+                    failures.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(failure_png, failures / f'{appearance}-{case}.png')
+            finally:
+                if recording is not None:
+                    recording.send_signal(signal.SIGINT)
                     try:
-                        native_log = sim('spawn', args.udid, 'log', 'show', '--last', '5m', '--style', 'compact', '--predicate', 'process == "Lody"', check=False)
-                        (output / 'native.log').write_text(native_log.stdout + native_log.stderr)
-                    except Exception as log_error:
-                        result['nativeLogError'] = str(log_error)
-                    try:
-                        ui.screenshot('failure')
-                    except Exception as screenshot_error:
-                        result['screenshotError'] = str(screenshot_error)
-                    try:
-                        (output / 'failure.json').write_text(ui.axe('describe-ui'))
-                    except Exception as capture_error:
-                        result['captureError'] = str(capture_error)
-                    failure_png = output / 'failure.png'
-                    if failure_png.exists():
-                        failures = args.output / 'failures'
-                        failures.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(failure_png, failures / f'{appearance}-{case}.png')
-                finally:
-                    if recording is not None:
-                        recording.send_signal(signal.SIGINT)
-                        try:
-                            recording.wait(timeout=15)
-                        except subprocess.TimeoutExpired:
-                            recording.kill()
-                            recording.wait()
-                        recording.stderr.close()
-                    if require_video and recording is not None and (not (output / 'run.mp4').exists() or (output / 'run.mp4').stat().st_size == 0):
-                        result['status'] = 'failed'
-                        result.setdefault('error', 'Required video was not captured')
-                    result['seconds'] = round(time.monotonic() - started, 2)
-                    results.append(result)
-                    (args.output / 'results.json').write_text(json.dumps(results, indent=2))
-                    print(json.dumps(result), flush=True)
-                if fail_fast and result['status'] != 'passed':
-                    break
-            if fail_fast and results and results[-1]['status'] != 'passed':
+                        recording.wait(timeout=15)
+                    except subprocess.TimeoutExpired:
+                        recording.kill()
+                        recording.wait()
+                    recording.stderr.close()
+                if require_video and recording is not None and (not (output / 'run.mp4').exists() or (output / 'run.mp4').stat().st_size == 0):
+                    result['status'] = 'failed'
+                    result.setdefault('error', 'Required video was not captured')
+                result['seconds'] = round(time.monotonic() - started, 2)
+                results.append(result)
+                (args.output / 'results.json').write_text(json.dumps(results, indent=2))
+                print(json.dumps(result), flush=True)
+            if fail_fast and result['status'] != 'passed':
                 break
-    finally:
-        terminate_app()
+        if fail_fast and results and results[-1]['status'] != 'passed':
+            break
+finally:
+    terminate_app()
 if not results or any(r['status'] != 'passed' for r in results):
     raise SystemExit(1)

@@ -19,7 +19,7 @@ struct FilesService {
 class FilesController: UIViewController {
   private let params: RuntimeContract.ListDirParams
   private let service: FilesService
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private var listing: RuntimeContract.DirectoryListing?
   private var error = ""
   private var task: Task<Void, Never>?
@@ -55,10 +55,10 @@ class FilesController: UIViewController {
     }
   }
   private func render() {
-    let section = LodyListSection(); section.id = "entries"
+    var section = LodyListSection(); section.id = "entries"
     section.footer = error.isEmpty && listing?.truncated == true ? LodyStrings.text("files.truncated") : error
     section.rows = (listing?.entries ?? []).map { entry in
-      let row = LodyListRow(); row.id = "entry:" + entry.name; row.title = entry.name
+      var row = LodyListRow(); row.id = "entry:" + entry.name; row.title = entry.name
       row.image = entry.type == .directory ? "folder" : ""
       row.filePath = entry.type == .file ? join(entry.name) : ""
       row.imageTint = entry.type == .file ? "secondary" : ""
@@ -66,7 +66,7 @@ class FilesController: UIViewController {
       return row
     }
     if !error.isEmpty {
-      let retry = LodyListRow(); retry.id = "retry"; retry.title = LodyStrings.text("common.retry"); retry.action = true
+      var retry = LodyListRow(); retry.id = "retry"; retry.title = LodyStrings.text("common.retry"); retry.action = true
       section.rows.append(retry)
     }
     list.setPlaceholder(LodyStrings.text(listing == nil ? "common.reading" : "files.emptyFolder"))

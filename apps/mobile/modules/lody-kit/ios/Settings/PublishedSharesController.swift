@@ -3,7 +3,7 @@ import UIKit
 
 @MainActor
 class PublishedSharesController: UIViewController {
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   let scope: SettingsActor
   private let service: PublishedSharesService
   private var workspace = ""

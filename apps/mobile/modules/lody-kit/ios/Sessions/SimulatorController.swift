@@ -3,7 +3,7 @@ import UIKit
 @MainActor
 final class SimulatorController: UIViewController {
   private let store: SessionSimulator
-  private let simulator = LodySimulatorView(appContext: nil)
+  private let simulator = LodySimulatorView(frame: .zero)
   private let notice = UIContentUnavailableView(configuration: .empty())
   private var command = 0
 
@@ -79,7 +79,7 @@ final class SimulatorController: UIViewController {
 final class SimulatorPickerController: UIViewController {
   private let store: SessionSimulator
   private let selected: (SessionSimulator.Device) -> Void
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private var devices: [SessionSimulator.Device] = []
   private var error = ""
   private var task: Task<Void, Never>?
@@ -117,8 +117,8 @@ final class SimulatorPickerController: UIViewController {
     list.setLoading(false)
     var sections: [LodyListSection] = []
     if !error.isEmpty {
-      let section = LodyListSection(); section.id = "error"; section.footer = error
-      let retry = LodyListRow(); retry.id = "retry"; retry.title = LodyStrings.text("common.retry"); retry.action = true
+      var section = LodyListSection(); section.id = "error"; section.footer = error
+      var retry = LodyListRow(); retry.id = "retry"; retry.title = LodyStrings.text("common.retry"); retry.action = true
       section.rows = [retry]; sections.append(section)
     }
     for key in ["booted", "shutdown", "unavailable"] {
@@ -127,9 +127,9 @@ final class SimulatorPickerController: UIViewController {
         return key == (device.state == "Booted" ? "booted" : "shutdown")
       }
       guard !group.isEmpty else { continue }
-      let section = LodyListSection(); section.id = key; section.header = LodyStrings.text("simulator.section." + key)
+      var section = LodyListSection(); section.id = key; section.header = LodyStrings.text("simulator.section." + key)
       section.rows = group.map { device in
-        let row = LodyListRow(); row.id = device.udid; row.title = device.name; row.subtitle = device.runtime
+        var row = LodyListRow(); row.id = device.udid; row.title = device.name; row.subtitle = device.runtime
         row.image = device.deviceType.hasPrefix("iPad") ? "ipad" : "iphone"
         row.value = LodyStrings.text(device.state == "Booted" ? "simulator.device.preview" : "simulator.device.boot")
         if device.occupancy == .otherSession { row.value = LodyStrings.text("simulator.device.occupied") }

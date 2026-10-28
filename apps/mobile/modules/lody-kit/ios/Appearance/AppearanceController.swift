@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 final class AppearanceController: UIViewController {
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private let accentPicker = AccentColorPicker()
   private var observers: [NSObjectProtocol] = []
 

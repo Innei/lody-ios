@@ -1,7 +1,6 @@
-"""Parallel workers run concurrently, keep failures, and never attach to another Metro."""
+"""Native workers run concurrently and retain evidence when a sibling fails."""
 import json
 from pathlib import Path
-import socket
 import shlex
 import subprocess
 import sys
@@ -12,7 +11,7 @@ from unittest.mock import call, patch
 
 from driver import UI, launch_covered, restart_accessibility
 import catalog
-from orchestrator import managed_metro, prewarm_bundle, run_batches
+from orchestrator import run_batches
 
 
 class RunnerTest(unittest.TestCase):
@@ -135,16 +134,6 @@ sys.exit(1 if name == 'b' else 0)
             for name in commands:
                 self.assertIn('completed ' + name, (output / name / 'worker.log').read_text())
 
-    def test_owned_metro_refuses_occupied_port_without_stopping_it(self):
-        with socket.socket() as server, tempfile.TemporaryDirectory() as output:
-            server.bind(('127.0.0.1', 0))
-            server.listen()
-            port = server.getsockname()[1]
-            with self.assertRaisesRegex(RuntimeError, 'occupied'):
-                with managed_metro(Path(output), port, Path(output)):
-                    self.fail('An existing server must never be reused')
-            with socket.create_connection(('127.0.0.1', port)):
-                pass
 
 
 class AcceptanceRoundTest(unittest.TestCase):
@@ -238,22 +227,22 @@ class CaseSelectionTest(unittest.TestCase):
     def test_core_suite_is_the_six_product_paths(self):
         source = Path(__file__).with_name('run.py').read_text()
         self.assertIn(
-            "'core': ['onboarding', 'inbox', 'navigation', 'send', 'send-handoff', 'composer-success']",
+            "'core': ['onboarding', 'home-settings', 'navigation', 'send', 'session-native', 'create-parity']",
             source,
         )
-        self.assertIn("'core-home': ['onboarding', 'inbox', 'navigation']", source)
-        self.assertIn("'core-send': ['send', 'send-handoff', 'composer-success']", source)
+        self.assertIn("'core-home': ['onboarding', 'home-settings', 'navigation']", source)
+        self.assertIn("'core-send': ['send', 'session-native', 'create-parity']", source)
         self.assertIn("selection.add_argument('--suite', choices=SUITES", source)
         self.assertIn('core_suite = args.suite in CORE_SUITES', source)
         self.assertIn("appearances = ['light']", source)
         self.assertIn("'--embedded'", source)
-        self.assertIn('args.shared_metro or args.embedded', source)
+        self.assertNotIn('managed_metro', source)
         self.assertIn("ui.screenshot('failure')", source)
         self.assertIn("elif case == 'navigation':", source)
         self.assertIn("elif case == 'send':", source)
         self.assertIn('check_timeout = 480', source)
         self.assertIn('accessibility automation', Path(__file__).with_name('driver.py').read_text())
-        self.assertIn("env['LODY_UI_EMBEDDED'] = '1'", source)
+        self.assertIn("env['LODY_UI_NATIVE'] = '1'", source)
         self.assertIn('except subprocess.TimeoutExpired as error:', source)
         navigation = Path(__file__).with_name('navigation.py').read_text()
         driver = Path(__file__).with_name('driver.py').read_text()
@@ -264,10 +253,9 @@ class CaseSelectionTest(unittest.TestCase):
         self.assertIn('_scheme_allowed', navigation)
         self.assertIn("range(2 if embedded else 3)", navigation)
         self.assertIn("range(1 if embedded else 2)", navigation)
-        self.assertIn("if embedded:", navigation)
         self.assertIn('recover=False', driver)
         self.assertIn('got.casefold() == text.casefold()', Path(__file__).with_name('driver.py').read_text())
-        self.assertIn("if not os.environ.get('LODY_UI_EMBEDDED'):", Path(__file__).with_name('send-handoff.py').read_text())
+        self.assertIn("if not os.environ.get('LODY_UI_NATIVE'):", Path(__file__).with_name('send-handoff.py').read_text())
         native = Path(__file__).resolve().parents[1].joinpath('native.py').read_text()
         self.assertIn('timeout=240', native)
         self.assertIn("files.insert(0, 'LodyUIVerify.swift')", native)
@@ -517,31 +505,6 @@ class SchemePermissionTest(unittest.TestCase):
         self.assertNotIn("ui.axe('tap', '--label', 'Open'", handshake)
 
 
-class PrewarmTest(unittest.TestCase):
-    def test_prewarm_retries_manifest_then_succeeds(self):
-        calls = {'manifest': 0}
-
-        def manifest(_port, _timeout=60):
-            calls['manifest'] += 1
-            if calls['manifest'] < 2:
-                raise TimeoutError('slow compile')
-            return {'launchAsset': {'url': 'http://127.0.0.1/bundle'}}
-
-        with (
-            patch('orchestrator.load_expo_manifest', manifest),
-            patch('orchestrator.read_launch_asset', return_value=b'ok'),
-            patch('orchestrator.time.sleep'),
-        ):
-            prewarm_bundle(8097, attempts=3, pause=0)
-        self.assertEqual(calls['manifest'], 2)
-
-    def test_prewarm_gives_up_after_retries(self):
-        with (
-            patch('orchestrator.load_expo_manifest', side_effect=TimeoutError('slow compile')),
-            patch('orchestrator.time.sleep'),
-            self.assertRaises(TimeoutError),
-        ):
-            prewarm_bundle(8097, attempts=2, pause=0)
 
 
 if __name__ == '__main__':

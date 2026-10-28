@@ -1,119 +1,116 @@
-#if !LODY_SHARE_EXTENSION
-import ExpoModulesCore
-#endif
 import UIKit
 
-struct LodyListAction: Record {
-  @Field var id: String = ""
-  @Field var title: String = ""
-  @Field var symbol: String = ""
-  @Field var tint: String = ""
-  @Field var destructive: Bool = false
-  @Field var selected: Bool = false
+struct LodyListAction {
+  var id: String = ""
+  var title: String = ""
+  var symbol: String = ""
+  var tint: String = ""
+  var destructive: Bool = false
+  var selected: Bool = false
 }
 
-struct LodyListValueSegment: Record {
-  @Field var text: String = ""
-  @Field var tint: String = ""
+struct LodyListValueSegment {
+  var text: String = ""
+  var tint: String = ""
 }
 
-struct LodyListRow: Record {
-  @Field var id: String = ""
-  @Field var title: String = ""
-  @Field var subtitle: String = ""
-  @Field var modelName: String = ""
-  @Field var value: String = ""
-  @Field var progress: Double? = nil
-  @Field var valueSegments: [LodyListValueSegment] = []
-  @Field var image: String = ""
-  @Field var imageAsset: String = ""
-  @Field var imageOriginal: Bool = false
-  @Field var filePath: String = ""
-  @Field var imageTint: String = ""
-  @Field var subtitleMono: Bool = false
-  @Field var wrapSubtitle: Bool = false
-  @Field var unread: Bool = false
-  @Field var badge: String = ""
-  @Field var diff: [String: Int] = [:]
-  @Field var action: Bool = false
-  @Field var selected: Bool = false
-  @Field var accessibilityValue: String = ""
-  @Field var toggle: Bool? = nil
-  @Field var navigates: Bool = false
-  @Field var disclosure: Bool = false
-  @Field var destructive: Bool = false
-  @Field var parent: Bool = false
-  @Field var parentId: String = ""
-  @Field var collapsedValue: String = ""
-  @Field var collapsedBadge: String = ""
-  @Field var collapsedImageTint: String = ""
-  @Field var monogram: String = ""
-  @Field var pinned: Bool = false
-  @Field var actions: [LodyListAction] = []
-  @Field var leadingActions: [LodyListAction] = []
-  @Field var menuActions: [LodyListAction] = []
-  @Field var options: [LodyListAction] = []
-  @Field var preview: String = ""
-  @Field var status: String = ""
-  @Field var trailingSymbol: String = ""
-  @Field var trailingSymbolLabel: String = ""
-  @Field var valueSymbol: String = ""
+struct LodyListRow {
+  var id: String = ""
+  var title: String = ""
+  var subtitle: String = ""
+  var modelName: String = ""
+  var value: String = ""
+  var progress: Double? = nil
+  var valueSegments: [LodyListValueSegment] = []
+  var image: String = ""
+  var imageAsset: String = ""
+  var imageOriginal: Bool = false
+  var filePath: String = ""
+  var imageTint: String = ""
+  var subtitleMono: Bool = false
+  var wrapSubtitle: Bool = false
+  var unread: Bool = false
+  var badge: String = ""
+  var diff: [String: Int] = [:]
+  var action: Bool = false
+  var selected: Bool = false
+  var accessibilityValue: String = ""
+  var toggle: Bool? = nil
+  var navigates: Bool = false
+  var disclosure: Bool = false
+  var destructive: Bool = false
+  var parent: Bool = false
+  var parentId: String = ""
+  var collapsedValue: String = ""
+  var collapsedBadge: String = ""
+  var collapsedImageTint: String = ""
+  var monogram: String = ""
+  var pinned: Bool = false
+  var actions: [LodyListAction] = []
+  var leadingActions: [LodyListAction] = []
+  var menuActions: [LodyListAction] = []
+  var options: [LodyListAction] = []
+  var preview: String = ""
+  var status: String = ""
+  var trailingSymbol: String = ""
+  var trailingSymbolLabel: String = ""
+  var valueSymbol: String = ""
 }
 
-struct LodyListVisualItem: Record {
-  @Field var id: String = ""
-  @Field var label: String = ""
-  @Field var value: String = ""
-  @Field var amount: Double = 0
-  @Field var detail: String = ""
-  @Field var percent: String = ""
-  @Field var fraction: Double = 0
-  @Field var caption: String = ""
-  @Field var accessibilityLabel: String = ""
-  @Field var accessibilityValue: String = ""
-  @Field var pace: Double? = nil
-  @Field var tone: String = ""
-  @Field var cost: Double? = nil
-  @Field var axisLabel: String = ""
+struct LodyListVisualItem {
+  var id: String = ""
+  var label: String = ""
+  var value: String = ""
+  var amount: Double = 0
+  var detail: String = ""
+  var percent: String = ""
+  var fraction: Double = 0
+  var caption: String = ""
+  var accessibilityLabel: String = ""
+  var accessibilityValue: String = ""
+  var pace: Double? = nil
+  var tone: String = ""
+  var cost: Double? = nil
+  var axisLabel: String = ""
 }
 
-struct LodyListVisual: Record {
-  @Field var type: String = ""
-  @Field var title: String = ""
-  @Field var summary: String = ""
-  @Field var dimmed: Bool = false
-  @Field var metrics: [String] = []
-  @Field var costTitle: String = ""
-  @Field var costSummary: String = ""
-  @Field var items: [LodyListVisualItem] = []
+struct LodyListVisual {
+  var type: String = ""
+  var title: String = ""
+  var summary: String = ""
+  var dimmed: Bool = false
+  var metrics: [String] = []
+  var costTitle: String = ""
+  var costSummary: String = ""
+  var items: [LodyListVisualItem] = []
 }
 
-struct LodyListNotice: Record {
-  @Field var symbol: String = ""
-  @Field var text: String = ""
-  @Field var tint: String = ""
-  @Field var actionSymbol: String = ""
-  @Field var actionLabel: String = ""
+struct LodyListNotice {
+  var symbol: String = ""
+  var text: String = ""
+  var tint: String = ""
+  var actionSymbol: String = ""
+  var actionLabel: String = ""
 }
 
-struct LodyListUnavailable: Record {
-  @Field var symbol: String = ""
-  @Field var title: String = ""
-  @Field var message: String = ""
-  @Field var actionTitle: String = ""
+struct LodyListUnavailable {
+  var symbol: String = ""
+  var title: String = ""
+  var message: String = ""
+  var actionTitle: String = ""
 }
 
-struct LodyListSection: Record {
-  @Field var id: String = ""
-  @Field var header: String = ""
-  @Field var headerValue: String = ""
-  @Field var headerActionId: String = ""
-  @Field var headerExpanded: Bool? = nil
-  @Field var headerProminent: Bool = false
-  @Field var headerStatus: String = ""
-  @Field var footer: String = ""
-  @Field var rows: [LodyListRow] = []
-  @Field var visual: LodyListVisual? = nil
+struct LodyListSection {
+  var id: String = ""
+  var header: String = ""
+  var headerValue: String = ""
+  var headerActionId: String = ""
+  var headerExpanded: Bool? = nil
+  var headerProminent: Bool = false
+  var headerStatus: String = ""
+  var footer: String = ""
+  var rows: [LodyListRow] = []
+  var visual: LodyListVisual? = nil
 }
 
 // Both native list hosts share hierarchy, while keeping their own layout and selection.

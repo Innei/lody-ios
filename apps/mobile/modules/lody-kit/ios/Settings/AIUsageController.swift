@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 class AIUsageController: UIViewController {
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   private let service: UsageService
   private let fixedWorkspace: String?
   private var scope = ""

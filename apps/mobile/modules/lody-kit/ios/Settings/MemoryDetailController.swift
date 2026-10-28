@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 final class MemoryDetailController: UIViewController {
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private let scope: SettingsActor
   private let expected: String
   private let workspaceId: String

@@ -55,7 +55,7 @@ class DirectoryController: UIViewController {
     }
   }
 
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   private let browser: DirectoryBrowser
   private let root: Bool
   private let path: String?

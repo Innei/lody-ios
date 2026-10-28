@@ -109,6 +109,6 @@ ui.wait(lambda items: any(i.get('AXLabel') == 'Calls: 3 · idle' for i in items)
 ui.wait(lambda items: any(i.get('AXUniqueId') == 'session-send' and i.get('enabled') for i in items), 'A confirmed reply left the next draft locked')
 assert ui.element('session-input').get('AXValue') == confirmation_draft, 'Confirmation changed the next draft'
 ui.capture('causal-unlocked')
-if not os.environ.get('LODY_UI_EMBEDDED'):
+if not os.environ.get('LODY_UI_NATIVE'):
     trace.verify(2)
 print('PASS: offline media/text, retained failure and explicit retry without another throw, history takeover, new draft preserved')

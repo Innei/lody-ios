@@ -4,18 +4,18 @@ extension SessionController {
   func wireRouteEvents() {
     chat.turnInfoEnabled = true
     chat.imageSharingEnabled = true
-    chat.onShareImage.onEventSent = { [weak self] body in
+    chat.onShareImage = { [weak self] body in
       self?.open("message-share", ["contentJSON": body["contentJSON"] as? String ?? ""], present: true)
     }
-    chat.onActivityPress.onEventSent = { [weak self] body in
+    chat.onActivityPress = { [weak self] body in
       guard let self, let entryId = body["entryId"] as? String, let itemId = body["itemId"] as? String else { return }
       if itemId.isEmpty { openProcess(entryId: entryId, startItemId: body["processStartId"] as? String ?? "") }
       else { activity(entryId: entryId, itemId: itemId) }
     }
-    chat.onFilePress.onEventSent = { [weak self] body in
+    chat.onFilePress = { [weak self] body in
       self?.openFile(body["path"] as? String ?? "", line: (body["line"] as? NSNumber)?.intValue ?? 0)
     }
-    chat.onTurnChangesPress.onEventSent = { [weak self] body in
+    chat.onTurnChangesPress = { [weak self] body in
       guard let self, let path = body["path"] as? String else { return }
       // Displayed native rows can lag the replica; the diff page validates its target.
       self.open("file-diff", ["sessionId": self.sessionId, "entryId": body["entryId"] as? String ?? "", "path": path],
@@ -140,7 +140,7 @@ extension SessionController {
 
 extension SessionController {
   func wireMentionEvents() {
-    chat.onMentionBrowse.onEventSent = { [weak self] body in self?.browseMentions(body) }
+    chat.onMentionBrowse = { [weak self] body in self?.browseMentions(body) }
   }
 
   func renderMentions(_ state: SessionListState, _ session: SessionItem) {

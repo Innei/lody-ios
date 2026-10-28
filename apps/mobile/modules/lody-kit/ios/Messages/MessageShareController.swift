@@ -9,7 +9,7 @@ final class MessageShareController: UIViewController {
   }
 
   private let preview: MessageSharePreview
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private let feedback = UIStackView()
   private let feedbackLabel = UILabel()
   private lazy var feedbackButton = LodyFormButton.make(id: "message-share-feedback-action", title: "") { [weak self] in

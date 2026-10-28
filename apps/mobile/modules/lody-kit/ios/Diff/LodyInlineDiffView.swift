@@ -1,10 +1,9 @@
-import ExpoModulesCore
 import MarkdownView
 import UIKit
 
-final class LodyInlineDiffView: ExpoView {
-  let onRender = EventDispatcher()
-  let onFail = EventDispatcher()
+final class LodyInlineDiffView: UIView {
+  var onRender: ([String: Any]) -> Void = { _ in }
+  var onFail: ([String: Any]) -> Void = { _ in }
   private let renderer = InlineDiffRenderer()
   private var path = ""
   private var oldText: String?
@@ -12,8 +11,11 @@ final class LodyInlineDiffView: ExpoView {
   private var renderScheduled = false
   private var lastHeight: CGFloat = 0
 
-  required init(appContext: AppContext? = nil) {
-    super.init(appContext: appContext)
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
     clipsToBounds = true
     backgroundColor = .clear
     addSubview(renderer)

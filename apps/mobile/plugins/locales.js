@@ -116,6 +116,8 @@ const NATIVE_PREFIXES = [
   'diagnostics.title',
   'share.',
   'notifications.',
+  'communityNotice.',
+  'shareInbox.',
   'settings.liveActivity.',
   'onboarding.',
   'login.',

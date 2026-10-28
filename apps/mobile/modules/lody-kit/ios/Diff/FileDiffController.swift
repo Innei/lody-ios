@@ -23,7 +23,7 @@ class FileDiffController: UIViewController {
   private let service: FileDiffService
   private let files: FileContentService
   private let document = DiffDocumentView()
-  private let toolbar = LodyDiffToolbar(appContext: nil)
+  private let toolbar = LodyDiffToolbar(frame: .zero)
   private let notice = UIContentUnavailableView(configuration: .empty())
   private let spinner = UIActivityIndicatorView(style: .medium)
   private let renderProbe = UIView(frame: CGRect(x: 0, y: 0, width: 44, height: 44))

@@ -100,5 +100,5 @@ ui.capture('target-reconciled')
 assert not geometry_errors, '\n'.join(geometry_errors)
 print('PASS: immediate first turn, failure/retry, stable delivery then working duration through first reply takeover')
 
-if not os.environ.get('LODY_UI_EMBEDDED'):
+if not os.environ.get('LODY_UI_NATIVE'):
     throw_trace.verify(1)

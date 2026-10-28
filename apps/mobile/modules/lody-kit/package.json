@@ -1,6 +1,5 @@
 {
   "name": "@lody-ios/kit",
   "version": "0.1.0",
-  "private": true,
-  "main": "src/index.ts"
+  "private": true
 }

@@ -7,8 +7,7 @@ private key is shipped in the app.
 
 OneSignal iOS **5.5.1 Stable**, selected from the official
 https://onesignal.github.io/sdk-releases/releases.json, is pinned in LodyKit's podspec
-and the config plugin. CocoaPods installs the native SDK; there is no RN OneSignal
-bridge. LodyKit owns initialization, identity, subscription observation, click
+and `native/Podfile`. CocoaPods installs the native SDK. LodyKit owns initialization, identity, subscription observation, click
 buffering and foreground policy. The Notification Service Extension uses the same
 SDK version and App Group `group.app.innei.lody`.
 
@@ -22,7 +21,7 @@ SDK version and App Group `group.app.innei.lody`.
 3. Run `pnpm prebuild`, then `pnpm --filter @lody-ios/mobile pods`. The Podfile helper
    idempotently creates the generated NSE and Live Activity widget targets before
    CocoaPods analyzes them.
-4. Build the signed workspace (`pnpm ios`, or `xcodebuild` with normal signing).
+4. Open the workspace with `pnpm ios` and Run in Xcode, or use `xcodebuild` with normal signing.
    The app embeds `LodyNotificationService.appex` and `LodyLiveActivity.appex`. Changing the OneSignal App ID or
    native configuration requires a new native build, not an OTA update.
 5. Configure Convex's generic `ONE_SIGNAL_APPS` inventory and the new app's secret
@@ -39,7 +38,7 @@ opts out the current subscription, clears delivered notifications, and drops buf
 clicks. Offline logout cannot synchronously revoke a remote provider binding; use
 neutral lock-screen previews.
 
-The SDK's Web launch URL is suppressed. RN handles `data.route` after auth and
+The SDK's Web launch URL is suppressed. `LodyApplication` handles `data.route` after auth and
 navigation become ready, checks the recipient and workspace, selects the workspace,
 then resolves the real Session from its catalog. Missing sessions wait during sync;
 completed sync reports an unavailable session. Foreground notifications for the
@@ -61,14 +60,13 @@ Dynamic Island. Its rows deep-link with the `lody://` scheme
 its id instead, and unmatched paths redirect to the home route. Settings →
 Notifications carries the Live Activity toggle, which stores its state in the App Group
 and ends every running activity when turned off.
-`withSceneLifecycle` passes cold-start URL contexts to React Native launch options
-and forwards warm scene URLs through the existing Expo AppDelegate linking handler.
+`SceneDelegate` forwards cold-start and warm scene URLs directly to `LodyApplication`.
 
 Sources and `AgentIcons.xcassets` live in `modules/lody-kit/live-activity/` and are
 copied into `ios/LodyLiveActivity/` by the Podfile helper, so editing them requires a
 fresh `pod install` before the next build. The catalog carries eleven agent marks from
 Lobe Icons (MIT, `modules/lody-kit/licenses/LobeIcons-LICENSE.txt`) as template images
-and is also linked into the application by `withLodyIcons`, where `agentIcon()` picks the
+and is also linked into the application by `native/project.yml`, where `agentIcon()` picks the
 same names for grouped rows; unknown agents fall back to their two-letter glyph. Widget
 strings travel in the content state's `copy`; missing keys default to English.
 
@@ -105,7 +103,7 @@ contain `activityId`, `workspaceId`, `workspaceName`, but no `userId` or
 `workspaceSlug`: decoding recovers the owner from the exact v5 workspace prefix,
 rejects inconsistent identities, and falls back to the workspace ID for navigation.
 OneSignal metadata and optional future fields are tolerated. Update/end content
-decodes directly into the same Widget state without a second RN replica.
+decodes directly into the same Widget state without a second replica.
 
 Every live catalog snapshot reconciles the existing activity. Running and waiting
 turns remain; completed, failed, archived and idle sessions leave. Unread replies
@@ -147,7 +145,7 @@ Set `ONE_SIGNAL_IOS_API_KEY` to this OneSignal app's REST API key in Convex's
 environment variables. This is distinct from the APNs `.p8` signing key: configure
 that key, its Key ID and Apple Team ID in the OneSignal iOS platform dashboard for
 bundle `app.innei.lody`. Live Activities require `.p8` authentication; an existing
-`.p12` ordinary-push configuration is insufficient. Neither secret belongs in Expo environment variables,
+`.p12` ordinary-push configuration is insufficient. Neither secret belongs in build environment variables,
 the repository, or the widget. An explicit inventory replaces legacy environment
 fallback; do not overwrite it with only the new iOS entry.
 
@@ -160,7 +158,7 @@ Apple Developer / signing checklist:
   signing; regenerate profiles if their capabilities changed.
 - Prebuild owns `NSSupportsLiveActivities`, the remote-notification background
   mode and entitlements. Pod install embeds both extensions. There is no extra
-  Live Activity permission prompt to request through RN, and no continuous
+  Live Activity permission prompt to request, and no continuous
   background execution entitlement is needed.
 - Rebuild and install the native app. In iOS Settings allow Live Activities for
   Lody, and enable the in-app Notifications → Live Activity toggle.

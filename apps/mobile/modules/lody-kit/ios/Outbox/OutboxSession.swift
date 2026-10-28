@@ -48,7 +48,6 @@ final class OutboxSession {
   private nonisolated static let loading = #"{"ready":false,"records":[]}"#
 
   var presenter: (() -> UIViewController?)?
-  var emit: ((String) -> Void)?
   private weak var runtime: DataRuntime?
   private let stores = OutboxStores(persistence: .local) { LodyStrings.text("send.reason.awaitingConfirmation") }
   private lazy var dispatcher = OutboxDispatcher(services: services, inflight: Self.published.inflight) { LodyStrings.text($0) }
@@ -127,8 +126,8 @@ final class OutboxSession {
     case "start":
       fixture?.stop()
       guard let store = store(user: OutboxFixture.user, workspace: OutboxFixture.workspace) else { return "{}" }
-      fixture = OutboxFixture(store: store, alert: { [weak self] in self?.alert($0, $1) }) { [weak self] in
-        self?.emit?(store.key)
+      fixture = OutboxFixture(store: store, alert: { [weak self] in self?.alert($0, $1) }) {
+        NotificationCenter.default.post(name: .lodyOutboxDidChange, object: store)
       }
     case "stop":
       fixture?.stop()
@@ -149,7 +148,6 @@ final class OutboxSession {
 
   private func changed(_ store: OutboxStore) {
     Self.published.set(store.key, store.json, generation: store.generation)
-    emit?(store.key)
     NotificationCenter.default.post(name: .lodyOutboxDidChange, object: store)
     if store.key == OutboxStores.key(user: scope.user, workspace: scope.workspace) {
       CatalogSession.shared.outboxChanged()

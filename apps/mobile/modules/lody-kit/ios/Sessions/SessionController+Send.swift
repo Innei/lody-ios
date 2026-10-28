@@ -52,15 +52,15 @@ extension SessionController {
   }
 
   func wireSendEvents() {
-    chat.onSend.onEventSent = { [weak self] body in
+    chat.onSend = { [weak self] body in
       guard let self, !SessionActions.isDeleting(self.source.state.workspaceId, self.sessionId), !self.planDecision.pending
       else { return }
       self.sender?.submit(body, choice: self.composerModel.sendChoice)
     }
-    chat.onRetrySend.onEventSent = { [weak self] _ in self?.sender?.retry() }
-    chat.onComposerOptionChange.onEventSent = { [weak self] body in self?.composerModel.change(body) }
-    chat.onStop.onEventSent = { [weak self] _ in self?.controlTurn("stop") }
-    chat.onSteer.onEventSent = { [weak self] body in self?.controlTurn("steer", messageId: body["id"] as? String) }
+    chat.onRetrySend = { [weak self] _ in self?.sender?.retry() }
+    chat.onComposerOptionChange = { [weak self] body in self?.composerModel.change(body) }
+    chat.onStop = { [weak self] _ in self?.controlTurn("stop") }
+    chat.onSteer = { [weak self] body in self?.controlTurn("steer", messageId: body["id"] as? String) }
   }
 
   private func controlTurn(_ action: String, messageId: String? = nil) {

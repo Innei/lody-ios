@@ -3,7 +3,7 @@ import UIKit
 
 @MainActor
 class MemorySettingsController: UIViewController {
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   let scope: SettingsActor
   private let service: MemoryService
   private var workspace = ""

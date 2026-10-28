@@ -109,7 +109,7 @@ final class InboxController: UIViewController {
       UserDefaults.standard.set(InboxSort.allCases.firstIndex(of: sort) ?? 0, forKey: "inboxProjectSort")
       self.render()
     }
-    // JS presents these so deep links that reset the stack also dismiss them.
+    // The application shell owns these presentations so external links can dismiss them.
     chrome.openSettings = { [weak self] in
       LodyShell.shared.openPage("settings", options: ["present": true], from: self?.parent)
     }
@@ -236,11 +236,11 @@ final class InboxController: UIViewController {
   }
 
   private func selectWorkspace(_ id: String) {
-    guard LodyPreviewBridge.active else {
+    guard NativeHomeFixture.active else {
       CatalogSession.shared.selectWorkspace(id)
       return
     }
-    Task { try? await LodyPreviewBridge.request("selectWorkspace", ["workspaceId": id]) }
+    Task { try? await NativeHomeFixture.request("selectWorkspace", ["workspaceId": id]) }
   }
 
   private func editWorkspace() {
@@ -250,8 +250,8 @@ final class InboxController: UIViewController {
       "color": LodyAccentChoice.hex(UIColor.lodyAccent.resolvedColor(with: traitCollection)),
     ]
     params["image"] = workspace.image
-    let json = (try? JSONSerialization.data(withJSONObject: params)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
-    LodyShell.shared.openPage("workspace-editor", params: json, options: ["present": true], from: parent)
+    LodyShell.shared.presentNative(WorkspaceEditorController(params: params),
+      title: LodyStrings.text("workspace.edit.title"), detents: [0.5])
   }
 
   private func newSession() {

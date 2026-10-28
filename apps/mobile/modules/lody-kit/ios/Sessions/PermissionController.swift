@@ -8,7 +8,7 @@ class PermissionController: UIViewController {
   private let source: PermissionSource?
   private var unobserve: (() -> Void)?
   private var ready = false
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private var target: SessionPermission?
   private var questions: PermissionQuestionView?
   private var options: [SessionPermission.Option] = []

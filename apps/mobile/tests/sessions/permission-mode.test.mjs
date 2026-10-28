@@ -3,7 +3,7 @@ import test from 'node:test';
 import {
   permissionModeFor,
   withPermissionMode,
-} from '../../src/cloud/send/capability.ts';
+} from '../../../../packages/cloud-runtime/src/protocol/capability.ts';
 
 const modes = [
   { id: 'ask', name: 'Ask' },

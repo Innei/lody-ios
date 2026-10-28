@@ -191,7 +191,7 @@ final class AgentRoleEditorController: LodyFormController {
 
 @MainActor
 final class AgentRoleTargetController: UIViewController {
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
   private let agents: [AgentRoleAgent]
   private let picked: (AgentRoleAgent) -> Void
 

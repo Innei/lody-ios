@@ -21,7 +21,7 @@ enum LodyLicenses {
   // A few hundred KB: decode on first open instead of at launch.
   private static var catalog: Catalog {
     if let cache { return cache }
-    let url = Bundle(for: LodyKitModule.self).url(forResource: "LodyLicenses", withExtension: "json")
+    let url = Bundle.main.url(forResource: "LodyLicenses", withExtension: "json")
       ?? Bundle.main.url(forResource: "LodyLicenses", withExtension: "json")
     let loaded = url.flatMap { try? Data(contentsOf: $0) }
       .flatMap { try? JSONDecoder().decode(Catalog.self, from: $0) } ?? Catalog(packages: [], texts: [])

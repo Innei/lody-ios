@@ -1,9 +1,8 @@
-import ExpoModulesCore
 import OneSignalFramework
 import UserNotifications
 import UIKit
 
-/// Process-owned listener: notification clicks can precede the React bridge.
+/// Process-owned listener: notification clicks can precede scene restoration.
 @MainActor
 final class PushNotifications: NSObject, OSNotificationClickListener, OSNotificationLifecycleListener, OSPushSubscriptionObserver, OSUserStateObserver {
   static let shared = PushNotifications()
@@ -177,21 +176,22 @@ final class PushNotifications: NSObject, OSNotificationClickListener, OSNotifica
   }
 }
 
-public final class PushAppDelegateSubscriber: ExpoAppDelegateSubscriber {
-  public func applicationDidEnterBackground(_ application: UIApplication) {
+@MainActor
+final class PushLifecycle {
+  func applicationDidEnterBackground(_ application: UIApplication) {
     DiagnosticsStore.shared.record("app", "background", fields: ["appState": String(application.applicationState.rawValue)])
     LiveActivities.shared.diagnosticSnapshot("background")
     DiagnosticsStore.shared.flush()
   }
 
-  public func applicationDidBecomeActive(_ application: UIApplication) {
+  func applicationDidBecomeActive(_ application: UIApplication) {
     DiagnosticsStore.shared.record("app", "foreground", fields: ["appState": String(application.applicationState.rawValue)])
     LiveActivities.shared.diagnosticSnapshot("foreground")
     PushNotifications.shared.status { _ in }
     LiveActivities.shared.recoverRegistrations()
   }
 
-  public func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+  func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
     DiagnosticsStore.shared.record("app", "launch", fields: ["appState": String(application.applicationState.rawValue), "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""])
     PushNotifications.shared.start(launchOptions)
     LiveActivities.shared.start()

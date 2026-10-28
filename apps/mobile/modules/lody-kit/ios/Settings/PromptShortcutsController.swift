@@ -3,7 +3,7 @@ import UIKit
 
 @MainActor
 class PromptShortcutsController: UIViewController {
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   private let service: PromptShortcutService
   private let fixed: SettingsWorkspace?
   private var workspace = SettingsWorkspace()

@@ -1,7 +1,5 @@
-import ExpoModulesCore
 import UIKit
 
-@Record
 struct LodyMenuItem {
   var id: String = ""
   var title: String = ""
@@ -12,16 +10,15 @@ struct LodyMenuItem {
   var children: [LodyMenuItem] = []
 }
 
-@Record
 struct LodyMenuAvatar {
   var text: String = ""
   var color: String = ""
   var image: String = ""
 }
 
-final class LodyMenuButton: ExpoView {
-  let onSelect = EventDispatcher()
-  let onSize = EventDispatcher()
+final class LodyMenuButton: UIView {
+  var onSelect: ([String: Any]) -> Void = { _ in }
+  var onSize: ([String: Any]) -> Void = { _ in }
   var selected: ((String) -> Void)?
   var sized: ((CGFloat) -> Void)?
   private let button = UIButton(type: .system)
@@ -32,8 +29,11 @@ final class LodyMenuButton: ExpoView {
   private var photo: UIImage?
   private var label = ""
 
-  required init(appContext: AppContext? = nil) {
-    super.init(appContext: appContext)
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
     button.changesSelectionAsPrimaryAction = false
     button.showsMenuAsPrimaryAction = true
     addSubview(button)

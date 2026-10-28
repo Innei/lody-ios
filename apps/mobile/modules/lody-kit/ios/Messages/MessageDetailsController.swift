@@ -4,7 +4,7 @@ import UIKit
 final class MessageDetailsController: UIViewController {
   let entryId: String
   private var entry: ChatEntry?
-  private let list = LodyGroupedList(appContext: nil)
+  private let list = LodyGroupedList(frame: .zero)
 
   init(entryId: String, entry: ChatEntry?) {
     self.entryId = entryId

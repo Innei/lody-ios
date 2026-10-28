@@ -1,11 +1,6 @@
 import UIKit
 
-public enum LodyShellHost {
-  @MainActor public static var surface: ((String, [AnyHashable: Any]) -> UIView)?
-}
-
-struct ShellPageSpec: Decodable {
-  var id: Int
+struct ShellPageSpec {
   var title: String
   var style: String
   var animation: String
@@ -15,22 +10,19 @@ struct ShellPageSpec: Decodable {
   var detents: [Double]?
   var grabber: Bool?
   var initialDetent: Int?
-  var container: Int?
-  var root: Bool?
-  var insertAt: Int?
-  var native: String?
-  var nativeParams: String?
 }
 
 final class LodyPageController: UIViewController {
   let spec: ShellPageSpec
   let inSheet: Bool
-  var onEvent: ((String, Int) -> Void)?
+  var onResult: ((Any?) -> Void)?
+  var onCallback: (@MainActor (String, Any) async throws -> Void)?
+  var onClose: (() -> Void)?
   private(set) var closed = false
   private var headerHidden: Bool?
-  private var content: UIViewController?
+  private let content: UIViewController
 
-  init(spec: ShellPageSpec, inSheet: Bool, content: UIViewController? = nil) {
+  init(spec: ShellPageSpec, inSheet: Bool, content: UIViewController) {
     self.spec = spec
     self.inSheet = inSheet
     self.content = content
@@ -57,18 +49,13 @@ final class LodyPageController: UIViewController {
   isolated deinit { NotificationCenter.default.removeObserver(self) }
 
   override func loadView() {
-    if let native = content ?? spec.native.flatMap({ LodyNativePages.make($0, params: spec.nativeParams) }) {
-      content = nil
-      view = UIView()
-      embed(native)
-      addCloseItem()
-    } else {
-      view = LodyShellHost.surface?("LodyPage", ["presentationId": spec.id]) ?? UIView()
-    }
+    view = UIView()
+    embed(content)
+    addCloseItem()
     updateBackground()
   }
 
-  // React pages add this from ShellPage; native sheet roots without their own items get the same control.
+  // Sheet roots without their own items receive a shared close control.
   private func addCloseItem() {
     guard inSheet, spec.style != "push", spec.headerShown,
           navigationItem.rightBarButtonItems?.isEmpty ?? true, navigationItem.leftBarButtonItems?.isEmpty ?? true else { return }
@@ -112,12 +99,10 @@ final class LodyPageController: UIViewController {
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
-    onEvent?("focus", spec.id)
   }
 
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
-    onEvent?("blur", spec.id)
   }
 
   override func viewDidDisappear(_ animated: Bool) {
@@ -144,7 +129,9 @@ final class LodyPageController: UIViewController {
   func markClosed() {
     guard !closed else { return }
     closed = true
-    onEvent?("closed", spec.id)
+    let completion = onClose
+    onClose = nil; onResult = nil; onCallback = nil
+    completion?()
   }
 
   @objc private func appearanceChanged() {

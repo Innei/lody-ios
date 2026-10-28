@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Build the Simulator app for verification on one shared build cache.
 
-CI uses ``--configuration Release`` so Hermes is embedded and UI jobs do not
-start Metro. Local Metro runs still default to Debug.
+Both Debug and Release use the standalone UIKit application entry point.
 
 Verification always builds this same workspace, so it must reuse one Xcode
 DerivedData instead of writing a fresh multi-GB cache per task. Unless
@@ -85,6 +84,8 @@ def xcodebuild(arguments):
         '-destination',
         arguments.destination,
     ]
+    if arguments.destination.startswith('id='):
+        command += ['ONLY_ACTIVE_ARCH=YES']
     if arguments.derived_data is not None:
         command += ['-derivedDataPath', str(arguments.derived_data)]
     return command
@@ -100,10 +101,6 @@ def resolve_product(command):
     settings = json.loads(result.stdout)[0]['buildSettings']
     app = Path(settings['TARGET_BUILD_DIR']) / settings['FULL_PRODUCT_NAME']
     return app, Path(settings['BUILD_DIR']).parent
-
-
-def prepare_fixture_environment():
-    os.environ['EXPO_PUBLIC_UI_VERIFY'] = '1'
 
 
 def generate_assets():
@@ -155,7 +152,6 @@ def main(argv=None):
     if not WORKSPACE.exists():
         raise SystemExit(f'{WORKSPACE} is missing; run pnpm prebuild and pod install first')
     log_path = (ROOT / arguments.log).resolve()
-    prepare_fixture_environment()
     command = xcodebuild(arguments)
     app, cache = resolve_product(command)
     progress(f'derived data  {cache}')

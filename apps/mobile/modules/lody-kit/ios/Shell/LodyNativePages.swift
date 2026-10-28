@@ -4,6 +4,7 @@ import UIKit
 enum LodyNativePages {
   private static let factories: [String: ([String: Any]) -> UIViewController] = [
     "home": { _ in HomeController() },
+    "debug": { _ in NativeDebugController() },
     "pull-request": { params in
       let repository = params["repository"] as! String
       let number = params["number"] as! Int

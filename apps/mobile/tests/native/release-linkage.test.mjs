@@ -35,29 +35,17 @@ async function touch(path, contents = '') {
   await writeFile(path, contents);
 }
 
-test('rejects precompiled Expo modules without prebuilt React Native', async () => {
+test('native builds reject any React Native, Expo, or Hermes pod', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'lody-build-mode-'));
   const iosDirectory = join(directory, 'ios');
   try {
-    await touch(
-      join(
-        iosDirectory,
-        'Pods/ExpoModulesWorklets/ExpoModulesWorklets.xcframework/Info.plist',
-      ),
-    );
-
-    const mixed = runGuard(buildModeGuard, [iosDirectory]);
-    assert.notEqual(mixed.status, 0);
-    assert.match(`${mixed.stdout}${mixed.stderr}`, /mixed native build/i);
-
-    await touch(
-      join(
-        iosDirectory,
-        'Pods/React-Core-prebuilt/React.xcframework/Info.plist',
-      ),
-    );
-    const compatible = runGuard(buildModeGuard, [iosDirectory]);
-    assert.equal(compatible.status, 0, compatible.stderr);
+    await mkdir(join(iosDirectory, 'Pods'), { recursive: true });
+    assert.equal(runGuard(buildModeGuard, [iosDirectory]).status, 0);
+    for (const name of ['React-Core', 'ExpoModulesCore', 'hermes-engine']) {
+      await mkdir(join(iosDirectory, 'Pods', name));
+      assert.notEqual(runGuard(buildModeGuard, [iosDirectory]).status, 0, name);
+      await rm(join(iosDirectory, 'Pods', name), { recursive: true });
+    }
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -121,7 +109,6 @@ test('release checks the build mode and exported IPA before upload', async () =>
     join(repoRoot, '.github/workflows/release.yml'),
     'utf8',
   );
-  assert.match(workflow, /EXPO_USE_PRECOMPILED_MODULES: '0'/);
 
   const podInstall = workflow.indexOf('bundle exec pod install');
   const buildModeCheck = workflow.indexOf('verify-ios-build-mode.sh');

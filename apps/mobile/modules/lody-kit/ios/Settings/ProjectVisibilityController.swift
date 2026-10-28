@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 class ProjectVisibilityController: UIViewController {
-  let list = LodyGroupedList(appContext: nil)
+  let list = LodyGroupedList(frame: .zero)
   private let service: VisibilityService
   private let fixed: SettingsWorkspace?
   private let changed: @MainActor () -> Void

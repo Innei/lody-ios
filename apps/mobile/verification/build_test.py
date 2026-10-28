@@ -153,18 +153,13 @@ class CleanupCommandTests(unittest.TestCase):
             self.assertTrue(cache.exists())
 
 
-class FixtureEnvironmentTests(unittest.TestCase):
-    def test_sets_the_verify_flag(self):
+class NativeBuildTests(unittest.TestCase):
+    def test_release_lease_keeps_normal_signing_and_only_builds_the_selected_architecture(self):
         build = load('build')
-        previous = os.environ.get('EXPO_PUBLIC_UI_VERIFY')
-        try:
-            build.prepare_fixture_environment()
-            self.assertEqual(os.environ['EXPO_PUBLIC_UI_VERIFY'], '1')
-        finally:
-            if previous is None:
-                os.environ.pop('EXPO_PUBLIC_UI_VERIFY', None)
-            else:
-                os.environ['EXPO_PUBLIC_UI_VERIFY'] = previous
+        arguments = build.parser.parse_args(['--configuration', 'Release', '--destination', 'id=DEVICE'])
+        command = build.xcodebuild(arguments)
+        self.assertIn('ONLY_ACTIVE_ARCH=YES', command)
+        self.assertFalse(any('CODE_SIGNING_ALLOWED' in value for value in command))
 
 
 if __name__ == '__main__':
