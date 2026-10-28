@@ -58,9 +58,9 @@ extension SessionController {
     page.update(feed?.state.entriesJSON ?? "[]")
     page.onActivity = { [weak self, weak page] entry, item in self?.activity(entryId: entry, itemId: item, from: page) }
     page.onFile = { [weak self, weak page] path, line in self?.openFile(path, line: line, from: page) }
-    LodyShell.shared.presentDetail(
+    LodyShell.shared.presentNative(
       page, title: String(localized: String.LocalizationValue(startItemId == "__tasks__" ? "process.tasks" : "process.title"), bundle: .lody),
-      from: self
+      detents: [0.6, 1], grabber: true
     )
   }
 
@@ -94,12 +94,19 @@ extension SessionController {
       subagentPage = page
       page.onActivity = { [weak self, weak page] entry, item in self?.activity(entryId: entry, itemId: item, from: page) }
       page.onFile = { [weak self, weak page] path, line in self?.openFile(path, line: line, from: page) }
-      LodyShell.shared.presentDetail(page, title: String(localized: "native.chat.transcript.subtask", bundle: .lody), from: source ?? self)
+      let title = String(localized: "native.chat.transcript.subtask", bundle: .lody)
+      if source is ProcessController, let modal = source?.navigationController, modal.presentingViewController != nil {
+        // Activity is transient; its selected task belongs to the session's detail stack.
+        modal.dismiss(animated: true) { [weak self] in
+          guard let self, self.view.window != nil else { return }
+          LodyShell.shared.presentDetail(page, title: title, from: self, push: true)
+        }
+      } else { LodyShell.shared.presentDetail(page, title: title, from: source ?? self, push: true) }
       return
     }
     let page = ItemDetailController(sessionId: sessionId, entryId: entryId, itemIds: [itemId], generation: feed?.generation ?? 0,
                                     service: itemDetailService)
-    LodyShell.shared.presentDetail(page, title: String(localized: "detail.title", bundle: .lody), from: source ?? self)
+    LodyShell.shared.presentNative(page, title: String(localized: "detail.title", bundle: .lody), detents: [0.6, 1], grabber: true)
   }
 
   private func openFile(_ path: String, line: Int, from source: UIViewController? = nil) {

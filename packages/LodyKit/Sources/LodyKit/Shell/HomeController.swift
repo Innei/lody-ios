@@ -2,7 +2,7 @@ import LodyCore
 import UIKit
 
 @MainActor
-final class HomeController: UIViewController, UISplitViewControllerDelegate {
+final class HomeController: UIViewController, UISplitViewControllerDelegate, UIPopoverPresentationControllerDelegate {
   static weak var current: HomeController?
   let source: SessionSource
   private let split = UISplitViewController(style: .doubleColumn)
@@ -18,16 +18,33 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate {
   private let parking = UIViewController()
   private lazy var foldHost = LodyFoldHost.make { [weak self] in self?.view.setNeedsLayout() }
   private var folded = false
-  private var hingeOpen = false
+  private var bookPosture = false
   private var foldPanes: [UIViewController] = []
-  private var wide: Bool { traitCollection.horizontalSizeClass == .regular && view.bounds.width >= view.bounds.height }
+  private var inspectorInSheet = false
+  private var adaptingInspector = false
+  private var updatingLayout = false
+  private var listInPopover = false
+  private var presentationRetry: Timer?
+  private lazy var bookSidebarItem: UIBarButtonItem = {
+    let item = UIBarButtonItem(image: UIImage(systemName: "sidebar.left"), primaryAction: UIAction { [weak self] _ in self?.showBookList() })
+    item.accessibilityLabel = String(localized: "tabs.sessions", bundle: .lody)
+    return item
+  }()
+  private var detailDetents: [Double] = [0.6, 1]
+  private var layout: LodyHomeLayout {
+    LodyHomeLayout(size: view.bounds.size, regular: traitCollection.horizontalSizeClass == .regular, book: bookPosture)
+  }
+  private var wide: Bool { layout.sideBySide }
 
   init(source: SessionSource = .live) {
     self.source = source; inbox = InboxController(source: source)
     super.init(nibName: nil, bundle: nil)
   }
   required init?(coder: NSCoder) { fatalError() }
-  isolated deinit { observers.forEach(NotificationCenter.default.removeObserver) }
+  isolated deinit {
+    presentationRetry?.invalidate()
+    observers.forEach(NotificationCenter.default.removeObserver)
+  }
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -38,6 +55,9 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate {
     split.primaryBackgroundStyle = .none
     split.preferredDisplayMode = .oneBesideSecondary
     split.showsSecondaryOnlyButton = true
+    split.preferredPrimaryColumnWidth = 320
+    split.preferredInspectorColumnWidthFraction = 0.45
+    split.maximumInspectorColumnWidth = .greatestFiniteMagnitude
     primary.setViewControllers([page(inbox, title: "")], animated: false)
     secondary.setViewControllers([placeholder()], animated: false)
     primary.view.accessibilityIdentifier = "ipad-panel"
@@ -49,13 +69,24 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate {
     }
     adopt(split)
     addChild(parking); parking.view.isHidden = true; view.addSubview(parking.view); parking.didMove(toParent: self)
-    LodyFoldHost.observeHinge(on: view) { [weak self] open in self?.hingeOpen = open; self?.layoutColumns() }
+    LodyFoldHost.observeHinge(on: view) { [weak self] book in
+      guard let self, self.bookPosture != book else { return }
+      self.bookPosture = book
+      self.layoutColumns()
+    }
     observers = source.changes.map { name in
       NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
         MainActor.assumeIsolated { self?.scopeChanged() }
       }
     }
+    observers.append(NotificationCenter.default.addObserver(forName: .lodyPageDidClose, object: nil, queue: .main) { [weak self] _ in
+      MainActor.assumeIsolated { self?.invalidateLayout() }
+    })
     scopeChanged()
+  }
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    invalidateLayout()
   }
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
@@ -78,9 +109,9 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate {
     clearSession()
   }
   private func clearSession() {
-    session = nil; panelOpen = false
+    session = nil
+    closePanel()
     secondary.setViewControllers([placeholder()], animated: false)
-    inspector.setViewControllers([], animated: false)
     inbox.list.selectedSessionId = ""
     primary.viewControllers.flatMap(\.children).compactMap { $0 as? ProjectController }.forEach { $0.list.selectedSessionId = "" }
     layoutColumns()
@@ -88,9 +119,12 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate {
   }
   func openSession(_ id: String, query: String = "", choice: ModelChoice? = nil) {
     guard source.state.catalog.session(id) != nil else { return }
+    if listInPopover {
+      dismissBookList { [weak self] in self?.openSession(id, query: query, choice: choice) }
+      return
+    }
     if session?.sessionId != id {
-      panelOpen = false
-      inspector.setViewControllers([], animated: false)
+      closePanel()
       let next = SessionController(sessionId: id, findQuery: query, choice: choice, source: source)
       session = next
       secondary.setViewControllers([page(next, title: "")], animated: false)
@@ -98,7 +132,7 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate {
     inbox.list.selectedSessionId = id
     primary.viewControllers.flatMap(\.children).compactMap { $0 as? ProjectController }.forEach { $0.list.selectedSessionId = id }
     layoutColumns()
-    if !folded { split.show(.secondary) }
+    if !folded, !panelOpen { split.show(.secondary) }
   }
   func contains(_ controller: UIViewController) -> Bool {
     var ancestor: UIViewController? = controller
@@ -108,18 +142,19 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate {
     }
     return false
   }
-  func showPanel(_ content: UIViewController, title: String, from: UIViewController) -> Bool {
-    guard wide, contains(from), session != nil else { return false }
+  func showPanel(_ content: UIViewController, title: String, from: UIViewController, push: Bool, detents: [Double]) -> Bool {
+    guard contains(from) || from.navigationController === inspector, session != nil else { return false }
+    if layout == .compact, !push, !panelOpen { return false }
     let next = page(content, title: title)
     if from.navigationController === inspector {
       inspector.pushViewController(next, animated: true)
     } else {
-      let close = UIBarButtonItem(image: UIImage(systemName: "xmark"), primaryAction: UIAction { [weak self] _ in self?.closePanel() })
-      close.accessibilityLabel = String(localized: "accessibility.closePanel", bundle: .lody)
-      next.navigationItem.leftBarButtonItem = close
+      clearInspector()
+      detailDetents = detents
       inspector.setViewControllers([next], animated: false)
     }
     panelOpen = true
+    invalidateLayout()
     layoutColumns()
     return true
   }
@@ -129,10 +164,38 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate {
     else { closePanel() }
     return true
   }
-  private func closePanel() { panelOpen = false; inspector.setViewControllers([], animated: false); layoutColumns() }
+  private func closePanel() {
+    panelOpen = false
+    if !inspectorInSheet { clearInspector() }
+    invalidateLayout()
+    layoutColumns()
+  }
+  private func clearInspector() {
+    inspector.viewControllers.compactMap { $0 as? LodyPageController }.forEach { $0.markClosed() }
+    inspector.setViewControllers([], animated: false)
+  }
   func splitViewController(_ svc: UISplitViewController, topColumnForCollapsingToProposedTopColumn proposed: UISplitViewController.Column) -> UISplitViewController.Column {
     if panelOpen { return .inspector }
     return session == nil ? .primary : .secondary
+  }
+  func splitViewController(_ svc: UISplitViewController, didHide column: UISplitViewController.Column) {
+    guard column == .inspector, layout == .compact, svc.isCollapsed, panelOpen,
+          !inspectorInSheet, !adaptingInspector, !updatingLayout, !svc.isShowing(.inspector) else { return }
+    panelOpen = false
+    clearInspector()
+    invalidateLayout()
+  }
+  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+    if presentationController.presentedViewController === primary { restoreBookList(); return }
+    guard presentationController.presentedViewController === inspector else { return }
+    inspectorInSheet = false
+    panelOpen = false
+    clearInspector()
+    split.setViewController(inspector, for: .inspector)
+    invalidateLayout()
+  }
+  func popoverPresentationControllerDidDismissPopover(_ popoverPresentationController: UIPopoverPresentationController) {
+    restoreBookList()
   }
   private func placeholder() -> UIViewController {
     let controller = UIViewController()
@@ -150,14 +213,45 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate {
       headerShown: true, headerVariant: "transparent"), inSheet: false, content: content)
   }
   private func layoutColumns() {
-    guard isViewLoaded else { return }
-    let key = "\(wide):\(hingeOpen):\(panelOpen):\(split.isCollapsed)"
+    guard isViewLoaded, !adaptingInspector, !updatingLayout else { return }
+    let mode = layout
+    let key = "\(mode):\(panelOpen):\(split.isCollapsed):\(inspectorInSheet)"
     guard key != layoutKey else { return }
     layoutKey = key
-    setFolded(wide && hingeOpen && foldHost != nil)
-    if folded { placeFoldPanes(); return }
+    if listInPopover, mode != .book || !panelOpen {
+      // Keep a creation/settings Sheet above the sidebar alive until it closes.
+      if let child = primary.presentedViewController { retryAfterDismissal(of: child); return }
+      dismissBookList { [weak self] in self?.invalidateLayout() }
+      return
+    }
+    if inspectorInSheet, mode != .tall || !panelOpen {
+      dismissInspectorForLayout()
+      return
+    }
+    updatingLayout = true
+    defer { updatingLayout = false }
+    let useFold = mode == .book && foldHost != nil
+    let frames = useFold != folded ? visiblePaneFrames() : []
+    setFolded(useFold)
+    updateInspectorChrome()
+    updateBookSidebar()
+    if folded {
+      placeFoldPanes()
+      animatePaneFrames(from: frames)
+      return
+    }
     split.preferredSplitBehavior = wide ? .tile : .overlay
-    if panelOpen {
+    if panelOpen, mode == .tall {
+      split.hide(.inspector)
+      split.hide(.primary)
+      if !inspectorInSheet {
+        split.setViewController(nil, for: .inspector)
+        if LodyShell.shared.presentNavigation(inspector, detents: detailDetents) {
+          inspectorInSheet = true
+          inspector.presentationController?.delegate = self
+        } else { split.setViewController(inspector, for: .inspector) }
+      }
+    } else if panelOpen {
       split.show(.inspector)
       if wide { split.hide(.primary) }
     }
@@ -165,6 +259,126 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate {
       split.hide(.inspector)
       if wide { split.show(.primary) }
       else if !split.isCollapsed { split.hide(.primary) }
+    }
+    animatePaneFrames(from: frames)
+  }
+
+  private func invalidateLayout() { layoutKey = ""; if isViewLoaded { view.setNeedsLayout() } }
+
+  private func updateBookSidebar() {
+    guard let item = secondary.viewControllers.first?.navigationItem else { return }
+    let header = LodyNavigationHeader.of(item)
+    if folded, panelOpen { header.leftItems = [bookSidebarItem] }
+    else if header.leftItems == [bookSidebarItem] {
+      header.leftItems = nil
+      item.leftBarButtonItems = nil
+    }
+  }
+
+  private func showBookList() {
+    guard folded, panelOpen, !listInPopover else { return }
+    release(primary)
+    if LodyShell.shared.presentNavigation(primary, popoverFrom: bookSidebarItem) {
+      listInPopover = true
+      primary.viewControllers.compactMap { $0 as? LodyPageController }.forEach { $0.isRehosting = true }
+      primary.popoverPresentationController?.delegate = self
+    } else { park(primary) }
+  }
+
+  private func dismissBookList(completion: @escaping () -> Void) {
+    primary.dismiss(animated: false) { [weak self] in
+      self?.restoreBookList()
+      completion()
+    }
+  }
+
+  private func restoreBookList() {
+    guard listInPopover else { return }
+    listInPopover = false
+    primary.viewControllers.compactMap { $0 as? LodyPageController }.forEach { $0.isRehosting = false }
+    park(primary)
+    invalidateLayout()
+  }
+
+  private func park(_ controller: UIViewController) {
+    release(controller)
+    parking.addChild(controller); parking.view.addSubview(controller.view); controller.didMove(toParent: parking)
+  }
+
+  private func updateInspectorChrome() {
+    guard let root = inspector.viewControllers.first else { return }
+    if layout == .compact { root.navigationItem.leftBarButtonItem = nil; return }
+    let close = root.navigationItem.leftBarButtonItem ?? UIBarButtonItem(image: UIImage(systemName: "xmark"),
+      primaryAction: UIAction { [weak self] _ in self?.closePanel() })
+    if layout == .tall {
+      close.accessibilityLabel = String.localizedStringWithFormat(String(localized: "accessibility.closeSheet", bundle: .lody), root.title ?? "")
+    } else { close.accessibilityLabel = String(localized: "accessibility.closePanel", bundle: .lody) }
+    root.navigationItem.leftBarButtonItem = close
+  }
+
+  private func dismissInspectorForLayout() {
+    // A transient form above the detail keeps its own presentation until it closes.
+    if let child = inspector.presentedViewController { retryAfterDismissal(of: child); return }
+    if let transition = inspector.transitionCoordinator {
+      adaptingInspector = true
+      transition.animate(alongsideTransition: nil) { [weak self] _ in
+        self?.adaptingInspector = false
+        self?.invalidateLayout()
+      }
+      return
+    }
+    adaptingInspector = true
+    let pages = inspector.viewControllers.compactMap { $0 as? LodyPageController }
+    pages.forEach { $0.isRehosting = panelOpen }
+    inspector.dismiss(animated: false) { [weak self] in
+      pages.forEach { $0.isRehosting = false }
+      guard let self else { return }
+      self.inspectorInSheet = false
+      self.adaptingInspector = false
+      if !self.panelOpen { self.clearInspector() }
+      self.split.setViewController(self.inspector, for: .inspector)
+      self.invalidateLayout()
+    }
+  }
+
+  private func retryAfterDismissal(of controller: UIViewController) {
+    guard presentationRetry == nil else { return }
+    // UIKit-owned Share/alert controllers have no LodyPage close notification.
+    // Watch only while a modal blocks rehosting; never dismiss that modal for layout.
+    let timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self, weak controller] _ in
+      MainActor.assumeIsolated {
+        guard controller?.presentingViewController == nil else { return }
+        self?.presentationRetry?.invalidate()
+        self?.presentationRetry = nil
+        self?.invalidateLayout()
+      }
+    }
+    timer.tolerance = 0.1
+    presentationRetry = timer
+  }
+
+  private func visiblePaneFrames() -> [(UIView, CGRect)] {
+    guard view.window != nil, !UIAccessibility.isReduceMotionEnabled else { return [] }
+    return [primary, secondary, inspector].compactMap { controller in
+      guard controller.view.window != nil, !controller.view.isHidden else { return nil }
+      let frame = controller.view.convert(controller.view.bounds, to: view)
+      return frame.intersects(view.bounds) ? (controller.view, frame) : nil
+    }
+  }
+
+  private func animatePaneFrames(from frames: [(UIView, CGRect)]) {
+    guard !frames.isEmpty else { return }
+    view.layoutIfNeeded()
+    let panes = frames.compactMap { pane, previous -> UIView? in
+      guard pane.window != nil else { return nil }
+      let target = pane.convert(pane.bounds, to: view)
+      guard target.width > 0, target.height > 0 else { return nil }
+      pane.transform = CGAffineTransform(translationX: previous.midX - target.midX, y: previous.midY - target.midY)
+        .scaledBy(x: previous.width / target.width, y: previous.height / target.height)
+      return pane
+    }
+    UIView.animate(withDuration: 0.32, delay: 0, options: [.beginFromCurrentState, .curveEaseInOut, .allowUserInteraction]) {
+      panes.forEach { $0.transform = .identity }
     }
   }
   private func setFolded(_ value: Bool) {
@@ -175,7 +389,7 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate {
     } else {
       foldHost.show(leading: nil, trailing: nil); foldPanes = []
       for column in [primary, secondary, inspector] where column.parent === parking { release(column) }
-      for (controller, column) in zip([primary, secondary, inspector], [UISplitViewController.Column.primary, .secondary, .inspector]) {
+      for (controller, column) in zip([primary, secondary, inspector], [UISplitViewController.Column.primary, .secondary, .inspector]) where controller !== inspector || !inspectorInSheet {
         split.setViewController(controller, for: column)
       }
     }
@@ -188,7 +402,7 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate {
     guard panes != foldPanes else { return }
     foldHost.show(leading: nil, trailing: nil)
     for column in [primary, secondary, inspector] where !panes.contains(column) {
-      release(column); parking.addChild(column); parking.view.addSubview(column.view); column.didMove(toParent: parking)
+      park(column)
     }
     for pane in panes where pane.parent === parking { release(pane) }
     foldHost.show(leading: panes[0], trailing: panes[1]); foldPanes = panes

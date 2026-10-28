@@ -166,13 +166,13 @@ enum LodyToastOverlay {
       return !pills.isEmpty
     }
 
-    // On an open iPhone Duo fold, toasts center on the trailing pane instead
+    // On an active book fold, toasts center on the trailing pane instead
     // of straddling the hinge.
     private var toastBand: CGRect {
       var band = bounds.inset(by: safeAreaInsets)
-      #if compiler(>=6.4.2)
+      #if compiler(>=6.4)
       if #available(iOS 27.1, *) {
-        let folds = reservedRegions(kind: .division, options: .includeInactive)
+        let folds = reservedRegions(kind: .division, options: [])
         if let fold = folds.first(where: { $0.frame.height >= bounds.height - 1 }) {
           if effectiveUserInterfaceLayoutDirection == .rightToLeft {
             band.size.width = min(band.maxX, fold.frame.minX) - band.minX

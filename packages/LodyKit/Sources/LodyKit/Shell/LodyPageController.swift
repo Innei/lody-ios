@@ -19,6 +19,7 @@ final class LodyPageController: UIViewController {
   var onCallback: (@MainActor (String, Any) async throws -> Void)?
   var onClose: (() -> Void)?
   private(set) var closed = false
+  var isRehosting = false
   private var headerHidden: Bool?
   private let content: UIViewController
 
@@ -107,7 +108,7 @@ final class LodyPageController: UIViewController {
 
   override func viewDidDisappear(_ animated: Bool) {
     super.viewDidDisappear(animated)
-    if isMovingFromParent || isBeingDismissed || navigationController?.isBeingDismissed == true {
+    if isMovingFromParent || (!isRehosting && (isBeingDismissed || navigationController?.isBeingDismissed == true)) {
       markClosed()
     }
   }
@@ -132,6 +133,7 @@ final class LodyPageController: UIViewController {
     let completion = onClose
     onClose = nil; onResult = nil; onCallback = nil
     completion?()
+    NotificationCenter.default.post(name: .lodyPageDidClose, object: self)
   }
 
   @objc private func appearanceChanged() {
@@ -147,4 +149,8 @@ final class LodyPageController: UIViewController {
     let compactSheet = inSheet && !regular && (container == .formSheet || container == .pageSheet)
     view.backgroundColor = overlay || compactSheet ? .clear : .lodyGroupedBackground
   }
+}
+
+extension Notification.Name {
+  static let lodyPageDidClose = Notification.Name("LodyPageDidClose")
 }

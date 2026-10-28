@@ -65,9 +65,26 @@ final class LodyShell {
   }
 
   func presentDetail(_ content: UIViewController, title: String, from source: UIViewController, push: Bool = false, detents: [Double] = [0.6, 1]) {
-    if HomeController.current?.showPanel(content, title: title, from: source) == true { return }
+    if HomeController.current?.showPanel(content, title: title, from: source, push: push, detents: detents) == true { return }
     if push { pushNative(content, title: title, from: source) }
     else { presentNative(content, title: title, detents: detents, grabber: true) }
+  }
+
+  @discardableResult
+  func presentNavigation(_ container: UINavigationController, detents: [Double] = [1], popoverFrom item: UIBarButtonItem? = nil) -> Bool {
+    guard let navigation, navigation.presentedViewController == nil else { return false }
+    container.modalPresentationStyle = item == nil ? .formSheet : .popover
+    if let item, let popover = container.popoverPresentationController {
+      container.preferredContentSize = CGSize(width: 320, height: 600)
+      popover.barButtonItem = item
+      popover.permittedArrowDirections = .up
+    } else if let sheet = container.sheetPresentationController {
+      Self.configure(sheet, ShellPageSpec(title: "", style: "formSheet", animation: "slide", dismissible: true,
+        headerShown: true, headerVariant: "transparent", detents: detents, grabber: true))
+    }
+    NotificationCenter.default.post(name: Notification.Name("LodyWillPresent"), object: container, userInfo: ["presenter": navigation])
+    navigation.present(container, animated: true)
+    return true
   }
 
   func sessionIntent(_ action: String, _ fields: [String: Any]) {

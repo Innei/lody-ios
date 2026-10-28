@@ -39,6 +39,7 @@ def close_settings():
 def session_kept(name):
     ui.element('session-input')
     assert chat_title() == title, ('The open session changed', name, chat_title(), title)
+    assert ui.element('session-input').get('AXValue') == draft, ('The draft changed', name)
     ui.capture(f'{name}-session')
 
 
@@ -60,6 +61,11 @@ ui.axe('tap', '--id', 'ui-design', '--tap-style', 'physical', '--post-delay', '.
 ui.element('session-input')
 title = chat_title()
 assert title, 'The session title is missing'
+draft = 'Keep this draft through layout changes'
+ui.axe('tap', '--id', 'session-input')
+ui.type_into('session-input', draft)
+# iPad's keyboard dismissal preserves focus and the composer draft.
+tap(labeled('Hide keyboard')['frame'])
 ui.capture('portrait-session')
 
 try:

@@ -20,6 +20,11 @@ This supersedes the fold alignment rule in the older wide-layout proposal.
   detail navigation stack and any open transient sheet.
 - New-session creation, search, sending and service ownership reuse the existing
   production controllers. The mockup's local replies are not an implementation.
+- Activity always opens in a native Sheet, including on wide Duo and iPad layouts;
+  it never takes the file inspector column.
+- Tool-call details and message details also use Sheets. Subagent-task details
+  and PR details use SplitView alongside files and diffs. Compact windows keep
+  their native navigation behavior.
 - Preserve native safe areas, bars, scroll edges, selection, VoiceOver and touch
   targets. Do not add a second presentation manager or angle-driven animation.
 

@@ -24,6 +24,20 @@ enum NativeDebug {
       LodyShell.shared.pushRootNative(NativeDebugController(), title: "Debug")
       return
     }
+    if scenario == "home-native-alert" {
+      let alert = UIAlertController(title: "Layout verification", message: nil, preferredStyle: .alert)
+      alert.addAction(UIAlertAction(title: "OK", style: .default))
+      LodyShell.shared.presenter?.present(alert, animated: true)
+      return
+    }
+    if scenario == "home-file-preview" {
+      guard let home = HomeController.current,
+            let content = LodyNativePages.make("file-diff-preview", params: "{}") else {
+        preconditionFailure("Home file preview requires an open offline Home session")
+      }
+      LodyShell.shared.presentDetail(content, title: String(localized: "diff.title", bundle: .lody), from: home, push: true, detents: [1])
+      return
+    }
     let content: UIViewController
     var id = scenario
     var fields: [String: Any] = [:]
