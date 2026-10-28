@@ -1,5 +1,5 @@
 // Read projection aligned with Lody OSS session-comment-types.ts. No runtime
-// imports from @lody/shared: its root is not safe to bundle with Metro.
+// imports from @lody/shared: its root is not safe for browser bundles.
 export type PullRequestCheck = {
   id: number;
   name: string;

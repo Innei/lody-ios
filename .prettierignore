@@ -2,16 +2,15 @@ packages/dom-webview/build/
 packages/dom-webview/LICENSE
 packages/dom-webview/README.md
 pnpm-lock.yaml
-apps/mobile/ios/
+apps/ios/Lody.xcodeproj/
+apps/ios/.generated/
 node_modules/
 .expo/
 dist/
-apps/mobile/modules/lody-kit/ios/Resources/
-apps/mobile/modules/lody-kit/verification/chat/throw-tuner.html
-apps/mobile/expo-env.d.ts
+apps/ios/verification/kit/chat/throw-tuner.html
 
 .acceptances/
-apps/mobile/vendor
+apps/ios/vendor
 .artifacts/
 packages/lexical-swift/Fixtures/haklex/
 packages/lexical-swift/Fixtures/html/

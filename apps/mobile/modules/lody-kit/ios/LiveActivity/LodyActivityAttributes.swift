@@ -1,1 +1,0 @@
-../../live-activity/LodyActivityAttributes.swift

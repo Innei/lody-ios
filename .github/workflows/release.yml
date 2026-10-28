@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 env:
-  MOBILE_DIR: apps/mobile
+  IOS_DIR: apps/ios
   APPLE_TEAM_ID: KAMM5N88X3
   LODY_BUNDLE_ID: app.innei.lody
   ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -73,7 +73,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Generate native runtime assets
-        working-directory: ${{ env.MOBILE_DIR }}
+        working-directory: ${{ env.IOS_DIR }}
         run: pnpm native:assets
 
       - name: Prepare App Store Connect authentication
@@ -91,7 +91,7 @@ jobs:
 
       - name: Resolve version and build number
         id: build
-        working-directory: ${{ env.MOBILE_DIR }}
+        working-directory: ${{ env.IOS_DIR }}
         run: |
           set -euo pipefail
           marketing_version="$(node -p "require('./package.json').version")"
@@ -119,33 +119,20 @@ jobs:
           echo "Building $marketing_version ($build_number)"
 
       - name: Generate native iOS project
-        working-directory: ${{ env.MOBILE_DIR }}
+        working-directory: ${{ env.IOS_DIR }}
         run: |
           command -v xcodegen >/dev/null || brew install xcodegen
           pnpm prebuild
 
       - name: Stamp build number
-        working-directory: ${{ env.MOBILE_DIR }}
+        working-directory: ${{ env.IOS_DIR }}
         run: |
           set -euo pipefail
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" ios/Lody/Info.plist
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' ios/Lody/Info.plist)" = "$BUILD_NUMBER"
-
-      - name: Install CocoaPods
-        working-directory: ${{ env.MOBILE_DIR }}
-        run: |
-          set -euo pipefail
-          if command -v brew >/dev/null 2>&1 && brew --prefix ruby >/dev/null 2>&1; then
-            PATH="$(brew --prefix ruby)/bin:$PATH"
-            export PATH
-          fi
-          bundle config set --local path 'vendor/bundle'
-          bundle install
-          cd ios
-          bundle exec pod install
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" .generated/Lody/Info.plist
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' .generated/Lody/Info.plist)" = "$BUILD_NUMBER"
 
       - name: Verify compatible native build mode
-        run: /bin/bash .github/scripts/verify-ios-build-mode.sh "$MOBILE_DIR/ios"
+        run: /bin/bash .github/scripts/verify-ios-build-mode.sh "$IOS_DIR"
 
       - name: Import distribution certificate
         env:
@@ -187,47 +174,19 @@ jobs:
         run: |
           set -euo pipefail
           target_bundle_ids="$(
-            cd "$MOBILE_DIR"
-            bundle exec ruby <<'RUBY'
-          require 'xcodeproj'
-          project = Xcodeproj::Project.open('ios/Lody.xcodeproj')
-          base = ENV.fetch('LODY_BUNDLE_ID')
-          identifiers = project.targets.flat_map(&:build_configurations)
-            .select { |config| config.name == 'Release' }
-            .map { |config| config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] }
-            .compact.select { |id| id == base || id.start_with?(base + '.') }.uniq.sort
-          abort "Generated project has no Release target for #{base}" unless identifiers.include?(base)
-          puts identifiers
-          RUBY
+            xcodebuild -project "$IOS_DIR/Lody.xcodeproj" -alltargets \
+              -configuration Release -sdk iphoneos -showBuildSettings -json |
+              jq -r '[.[].buildSettings | select(.TARGET_NAME == "Lody" or .PRODUCT_TYPE == "com.apple.product-type.app-extension") | .PRODUCT_BUNDLE_IDENTIFIER] | unique[]'
           )"
           export TARGET_BUNDLE_IDS="$target_bundle_ids"
           /bin/bash .github/scripts/install-app-store-profiles.sh
 
       - name: Apply manual signing
-        working-directory: ${{ env.MOBILE_DIR }}
+        working-directory: ${{ env.IOS_DIR }}
         run: |
           set -euo pipefail
-          bundle exec ruby <<'RUBY'
-          require 'json'
-          require 'xcodeproj'
-          profiles = JSON.parse(ENV.fetch('IOS_PROFILE_MAP'))
-          team = ENV.fetch('APPLE_TEAM_ID')
-          project = Xcodeproj::Project.open('ios/Lody.xcodeproj')
-          patched = []
-          project.targets.flat_map(&:build_configurations).each do |config|
-            next unless config.name == 'Release'
-            settings = config.build_settings
-            identifier = settings['PRODUCT_BUNDLE_IDENTIFIER']
-            next unless profiles.key?(identifier)
-            settings.merge!('CODE_SIGN_STYLE' => 'Manual', 'CODE_SIGN_IDENTITY' => 'Apple Distribution',
-              'DEVELOPMENT_TEAM' => team, 'PROVISIONING_PROFILE_SPECIFIER' => profiles.fetch(identifier))
-            patched << identifier
-          end
-          missing = profiles.keys - patched
-          abort "Could not apply signing to: #{missing.join(', ')}" unless missing.empty?
-          project.save
-          RUBY
-          xcodebuild -project ios/Lody.xcodeproj -alltargets -configuration Release \
+          python3 scripts/prebuild-native.py
+          xcodebuild -project Lody.xcodeproj -alltargets -configuration Release \
             -sdk iphoneos -showBuildSettings -json > "$RUNNER_TEMP/signing-settings.json"
           jq -e \
             --arg team "$APPLE_TEAM_ID" \
@@ -236,12 +195,12 @@ jobs:
             "$RUNNER_TEMP/signing-settings.json"
 
       - name: Archive
-        working-directory: ${{ env.MOBILE_DIR }}/ios
+        working-directory: ${{ env.IOS_DIR }}
         run: |
           set -o pipefail
           command -v xcbeautify >/dev/null || brew install xcbeautify
           xcodebuild \
-            -workspace Lody.xcworkspace \
+            -project Lody.xcodeproj \
             -scheme Lody \
             -configuration Release \
             -destination 'generic/platform=iOS' \

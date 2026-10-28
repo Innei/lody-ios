@@ -9,7 +9,7 @@ const record = (value: unknown): Record<string, any> | undefined =>
     ? (value as Record<string, any>)
     : undefined;
 
-/** RN-safe normalization of the public OSS ask-user-question metadata. */
+/** Browser-safe normalization of the public OSS ask-user-question metadata. */
 export function parseQuestionMeta(meta: unknown): QuestionMeta | undefined {
   const root = record(meta);
   if (!root) return undefined;

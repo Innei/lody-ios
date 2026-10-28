@@ -1,4 +1,5 @@
 [.[] | .buildSettings |
+  select(.SKIP_INSTALL != "YES" or .PRODUCT_TYPE == "com.apple.product-type.app-extension") |
   select($profiles[.PRODUCT_BUNDLE_IDENTIFIER] != null)] as $settings |
 ([$settings[].PRODUCT_BUNDLE_IDENTIFIER] | unique | sort) == ($profiles | keys | sort) and
 all($settings[];

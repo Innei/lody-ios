@@ -1,0 +1,304 @@
+# Native OneSignal integration
+
+The iOS-only app keeps bundle ID `app.innei.lody` and uses the public OneSignal App
+ID `e383bf31-7c8e-4641-b3f6-3486e77b9a82`. `LODY_ONESIGNAL_APP_ID` can override it at
+prebuild time (an empty value disables initialization). No REST API key or APNs
+private key is shipped in the app.
+
+OneSignal iOS **5.5.1 Stable**, selected from the official
+https://onesignal.github.io/sdk-releases/releases.json, is pinned in `project.yml` and resolved by Swift Package Manager. LodyKit owns initialization, identity, subscription observation, click
+buffering and foreground policy. The Notification Service Extension uses the same
+SDK version and App Group `group.app.innei.lody`.
+
+## Build and configure
+
+1. Configure this OneSignal App's iOS platform for `app.innei.lody` and its APNs key.
+2. Keep automatic signing and choose your Apple team. Register Push Notifications
+   and the App Group for the app, and the same group for the NSE identifier
+   `app.innei.lody.notification-service` and the widget extension identifier
+   `app.innei.lody.live-activity`.
+3. Run `pnpm prebuild`. XcodeGen creates the app, LodyKit, NSE, Share and Live Activity targets.
+4. Open the project with `pnpm ios` and Run in Xcode, or use `xcodebuild` with normal signing.
+   The app embeds `LodyNotificationService.appex` and `LodyLiveActivity.appex`. Changing the OneSignal App ID or
+   native configuration requires a new native build, not an OTA update.
+5. Configure Convex's generic `ONE_SIGNAL_APPS` inventory and the new app's secret
+   API key as documented in that backend's `PUSH_NOTIFICATIONS.md`.
+
+## Runtime behavior
+
+The native SDK requests notification permission immediately after OneSignal
+initialization during app launch. iOS displays the system prompt only while the
+authorization status is undetermined; after a denial, Settings → Notifications is the
+manual entry. After account restoration, the SDK uses the Better Auth user ID as its
+external ID. Login does not trigger another permission request. Logout detaches and
+opts out the current subscription, clears delivered notifications, and drops buffered
+clicks. Offline logout cannot synchronously revoke a remote provider binding; use
+neutral lock-screen previews.
+
+The SDK's Web launch URL is suppressed. `LodyApplication` handles `data.route` after auth and
+navigation become ready, checks the recipient and workspace, selects the workspace,
+then resolves the real Session from its catalog. Missing sessions wait during sync;
+completed sync reports an unavailable session. Foreground notifications for the
+focused session are suppressed. Permission data opens the session rather than
+executing an approval from a notification.
+
+The Debug page's **Verify OneSignal subscription** action observes a real server
+subscription (nonempty, not `local-`) and shows the official integration dialog once
+per process; the button can request permission. This developer-only scaffolding is
+kept out of product flows. Only subscription readiness is exposed, not token/ID data.
+In-app messages, email/SMS, and tags are not enabled by this integration.
+
+## Live Activity
+
+The widget extension renders `LodyConversationLiveActivityAttributes` (locally
+aliased as `LodyActivityAttributes`) on the Lock Screen and in the
+Dynamic Island. Its rows deep-link with the `lody://` scheme
+(`lody:///{workspaceSlug}/sessions/{sessionId}`); a workspace without a slug routes by
+its id instead, and unmatched paths redirect to the home route. Settings →
+Notifications carries the Live Activity toggle, which stores its state in the App Group
+and ends every running activity when turned off.
+`SceneDelegate` forwards cold-start and warm scene URLs directly to `LodyApplication`.
+
+Sources and `AgentIcons.xcassets` live in `Extensions/LiveActivity/` and are
+referenced directly by XcodeGen. Run `pnpm prebuild` after adding or removing files. The catalog carries eleven agent marks from
+Lobe Icons (MIT, `App/Resources/Licenses/LobeIcons-LICENSE.txt`) as template images
+and is also linked into the application by `project.yml`, where `agentIcon()` picks the
+same names for grouped rows; unknown agents fall back to their two-letter glyph. Widget
+strings travel in the content state's `copy`; missing keys default to English.
+
+The app requests an activity itself with `pushType: .token` and hands the token to
+OneSignal. The native owner uses OneSignal's manual registration API, not automatic
+`setup`: it observes both current and future activity tokens and push-to-start
+tokens. Registration requires an initialized SDK, an identified user, the app toggle
+and system authorization. Turning the toggle off removes the push-to-start token;
+account changes end old activities and queue registration cleanup before OneSignal
+changes identity. Offline Debug scenes never register tokens.
+
+OneSignal 5.5.1's enter/exit success callbacks acknowledge SDK enqueueing, not
+HTTP success; the failure callbacks are not wired to its network executor. Logs
+therefore say `enter_submitted` / `exit_submitted`. Foreground and push-subscription
+readiness re-submit current tokens and call the SDK's public
+`OneSignalLiveActivitiesManagerImpl.start()` hook to schedule a pending-cache poll.
+Identical tokens alone are ignored by the SDK cache, including cached unsuccessful
+requests. Recovery polls are throttled to one request per 30 seconds, matching the
+SDK's delayed poll; they do not keep the app alive in the background.
+
+A replacement native instance under the same v5 ID updates the token without an
+intermediate exit, avoiding an unnecessary DELETE racing the replacement POST.
+Ended activities invalidate their observers and still submit exit. Registration
+recovery does not establish device delivery. Recheck these assumptions when
+upgrading the pinned SDK:
+[enqueue callbacks](https://github.com/OneSignal/OneSignal-iOS-SDK/blob/5.5.1/iOS_SDK/OneSignalSDK/OneSignalLiveActivities/Source/OneSignalLiveActivitiesManagerImpl.swift),
+[request cache and retry poll](https://github.com/OneSignal/OneSignal-iOS-SDK/blob/5.5.1/iOS_SDK/OneSignalSDK/OneSignalLiveActivities/Source/Executors/OSLiveActivitiesExecutor.swift).
+
+Convex `notifications.syncLiveActivitySummary` updates the v5 activity ID
+`lody-conversations:v5:<workspaceId>:<userId>`. When `permissionAlert` is present,
+it also sends a start to `activities/activity/LodyConversationLiveActivityAttributes`.
+The concrete Swift type name must match this path. The existing backend attributes
+contain `activityId`, `workspaceId`, `workspaceName`, but no `userId` or
+`workspaceSlug`: decoding recovers the owner from the exact v5 workspace prefix,
+rejects inconsistent identities, and falls back to the workspace ID for navigation.
+OneSignal metadata and optional future fields are tolerated. Update/end content
+decodes directly into the same Widget state without a second replica.
+
+Every live catalog snapshot reconciles the existing activity. Running and waiting
+turns remain; completed, failed, archived and idle sessions leave. Unread replies
+never enter widget focus. Multiple running turns show a count and stable session
+links, while a pending question or permission takes focus. The overview opens
+`/activity` with account/workspace validation and the existing native session rows.
+When no work remains, the app ends the activity with the finished rows marked
+completed (or failed for `error` sessions), their frozen turn durations, and a
+60-second Lock Screen dismissal date. A subsequent turn creates a new activity.
+Timers start at the session's `lastRunningSeen` (the current turn), never at the
+previous message or the session creation; the widget replaces raster images larger
+than their frame with a grey box, so the jellyfish ships at exact 1x/2x/3x sizes.
+
+The inspected Convex backend already sends a 30-minute `stale_date` and an
+immediately dismissed `end` when its summary becomes empty. Its existing summary
+may include unread replies, so its termination condition differs from local
+running/waiting reconciliation. It remotely starts only for permission alerts;
+starting an ordinary turn while the app is closed does not by itself start a new
+activity. Local reconciliation runs only while the catalog runtime can execute.
+Real background APNs delivery still requires device verification below.
+
+### Enable native iOS on the existing backend
+
+No Convex schema change or new device-token endpoint is required. In the deployment
+that serves the app, add/update this entry in the **complete** `ONE_SIGNAL_APPS`
+JSON array (keep all existing app entries):
+
+```json
+{
+  "name": "native-ios",
+  "appId": "e383bf31-7c8e-4641-b3f6-3486e77b9a82",
+  "apiKeyEnv": "ONE_SIGNAL_IOS_API_KEY",
+  "push": true,
+  "liveActivities": true
+}
+```
+
+Set `ONE_SIGNAL_IOS_API_KEY` to this OneSignal app's REST API key in Convex's
+environment variables. This is distinct from the APNs `.p8` signing key: configure
+that key, its Key ID and Apple Team ID in the OneSignal iOS platform dashboard for
+bundle `app.innei.lody`. Live Activities require `.p8` authentication; an existing
+`.p12` ordinary-push configuration is insufficient. Neither secret belongs in build environment variables,
+the repository, or the widget. An explicit inventory replaces legacy environment
+fallback; do not overwrite it with only the new iOS entry.
+
+Apple Developer / signing checklist:
+
+- Main App ID `app.innei.lody`: Push Notifications and App Group
+  `group.app.innei.lody`.
+- NSE ID `app.innei.lody.notification-service` and Widget ID
+  `app.innei.lody.live-activity`: same App Group and Apple team. Keep automatic
+  signing; regenerate profiles if their capabilities changed.
+- Prebuild owns `NSSupportsLiveActivities`, the remote-notification background
+  mode and entitlements. Pod install embeds both extensions. There is no extra
+  Live Activity permission prompt to request, and no continuous
+  background execution entitlement is needed.
+- Rebuild and install the native app. In iOS Settings allow Live Activities for
+  Lody, and enable the in-app Notifications → Live Activity toggle.
+
+Device rollout check (use only an account authorized in this app): launch and log
+in once to register tokens, start a running session, background/lock the phone,
+then observe a server update. With no existing activity, trigger a normal agent
+permission request to exercise remote start; tap it to open the correct workspace
+and session. Resolve it inside the app (the old Capacitor widget's inline permission
+AppIntent is intentionally not used here). Check server end, toggle off/on, logout,
+and switching accounts. Do not treat a successful REST response or a Simulator
+fixture as proof of APNs delivery. Offline logout cannot instantly retract an
+already queued remote start; reconnect and verify cleanup during rollout.
+
+References: [OneSignal manual Live Activity registration](https://documentation.onesignal.com/docs/en/mobile-sdk-reference),
+[OneSignal Live Activity requirements](https://documentation.onesignal.com/docs/en/live-activities-developer-setup),
+[OneSignal start API](https://documentation.onesignal.com/reference/start-live-activity),
+[Apple ActivityKit push delivery](https://developer.apple.com/documentation/activitykit/starting-and-updating-live-activities-with-activitykit-push-notifications).
+
+## Verification
+
+### Investigating Live Activities that stop updating
+
+Settings → Diagnostics is available without signing in in normal builds. It
+exports the last 15 minutes, hour (default), 24 hours or 7 days through the system
+share sheet. Records remain on this device; nothing uploads automatically.
+App and notification-service events use separate rolling JSONL files in the App
+Group, coordinated by a shared file lock, and are merged chronologically for
+export. Retention is at most 7 days and 5 MiB total (half per process); capacity
+pressure can remove older records earlier. Files are excluded from backups and
+remain accessible while locked after the first unlock. Clear removes both
+processes' saved records; new events may subsequently be recorded. Share-sheet
+dismissal removes its temporary export, and already shared copies are unaffected.
+
+The export includes app/system versions, lifecycle and activity observations,
+notification permission/subscription state, foreground suppression reasons,
+click buffering and routing decisions, extension completion/expiry, numeric
+errors and validated reference numbers. It excludes bodies, titles, URLs,
+credentials, APNs tokens and token hashes. SDK verbose logging remains disabled.
+`session_open_requested` records a navigation request, not a confirmed visible
+screen. Content observations and extension callbacks are not universal APNs
+receipts; correlate with backend logs and the OneSignal report for delivery.
+An interrupted final record is discarded without hiding valid history, and the
+export reports known capture gaps in the app process. Storage failures do not
+change push behavior; read/export/clear failures are shown in the diagnostics UI.
+
+`verify:native --case diagnostics` covers persistence, time boundaries, merging,
+redaction, interrupted writes, concurrent writers, expiry and capacity eviction.
+`verify:ui --case diagnostics` seeds an isolated offline store and exercises the
+production page in English/light/dark, real file export and system sharing,
+failure recovery, clear cancellation and the signed-out Settings entry. The
+fixture never initializes OneSignal or uses user/cloud credentials.
+
+LodyKit writes persistent `notice` events to Apple's unified log under subsystem
+`app.innei.lody`, category `live-activity`. In macOS Console, select the attached
+iPhone, start streaming, and filter by that subsystem/category before reproducing.
+Keep the phone locked/backgrounded through the failure; record the wall-clock time
+before reopening Lody (foreground catalog updates can replace the stalled state).
+For a Simulator, use `xcrun simctl spawn <udid> log stream --level info --style json
+--predicate 'subsystem == "app.innei.lody" AND category == "live-activity"'`.
+Normal verification fixtures do not register with OneSignal and cannot prove APNs delivery.
+
+All activity correlation keys are the first 16 lowercase hex characters of SHA-256
+of the OneSignal activity ID, matching the Convex `[live-activity]` logs. Native
+ActivityKit IDs are hashed separately as `native`, so replacement instances using
+the same topic can be distinguished. No APNs token (or token hash), user ID,
+conversation title/content, SDK response body, or credential is logged. The
+OneSignal SDK's verbose logging remains disabled. Native error logs expose only
+numeric codes; backend receipts expose only validated message UUIDs, counts and
+fixed diagnostic categories. Pseudonymous correlation keys still belong in support
+logs, not public reports.
+
+Trace one `activity` key in this order:
+
+1. `created` / `observe`, then `enter_submitted`: the token was handed to the SDK,
+   not acknowledged by OneSignal's server. `registration_recovery_requested`
+   schedules the SDK pending-cache poll. Older builds' `enter_succeeded` callback
+   also only acknowledged enqueueing; never use it as a network receipt.
+2. Convex `request` / `response`: distinguish HTTP acceptance from delivery. Use
+   `messageId` to open the OneSignal report and check recipients/failures/delivery.
+   The same hash may be sent to several app aliases; compare `oneSignalApp` from
+   the native snapshot with the intended backend app configuration.
+3. `content_observed` / `activity_snapshot`: `serverUpdatedAt` preserves the
+   backend summary timestamp in milliseconds, `staleDate` is seconds. Local
+   catalog content omits the server timestamp (reported as zero). Content
+   observations include local updates and are NOT confirmed APNs receipts; a
+   suspended app may not observe them until foreground. Foreground/background
+   snapshots provide the current state. Counts-changing observations are logged
+   immediately; repeated local content is sampled at most once per minute.
+4. `unregister` gives the initiating reason (`catalog_inactive`,
+   `workspace_changed`, `identity_changed`, `toggle_off`, `recovery_not_active`,
+   or a system lifecycle transition); `exit_submitted` only acknowledges SDK
+   submission. Same-ID native replacement no longer submits exit. `lifecycle`
+   reports `stale`, `ended`, or `dismissed` independently. A system `ended` event
+   alone does not identify whether APNs or iOS ended the activity.
+
+Investigation on 2026-10-11 reproduced a producer lifetime mismatch: the CLI's
+summary used the retired three-minute `lastRunningSeen` heartbeat predicate.
+The companion CLI fix uses current turn ownership and fresh peer presence while
+honoring explicit prompt completion. The companion backend fix ends when only
+completed/unread history remains, matching the native running/waiting lifetime.
+Neither fix makes ordinary updates recreate an already ended activity.
+There is no three-minute end timer; the failure required a subsequent summary
+trigger. The separate 30-minute content freshness deadline only marks content
+stale. Device logs are still needed to attribute a particular incident.
+The original diagnostic change did not alter start/end policy or add retries.
+The registration recovery described above is separate from that producer fix.
+
+The diagnostic code needs a new native build and the backend logging changes need
+deployment to the app's actual Convex environment before a device timeline can be
+collected. Do not infer the deployment from a CLI default (`--prod` can point at a
+different project). Confirm the running app’s environment before reading logs.
+
+- `pnpm check`, `pnpm test`, `pnpm bundle`, signed iOS Simulator build.
+- `pnpm verify:native --case live-activity` exercises the exact Convex start
+  attributes, identity rejection, content decoding and local catalog behavior.
+- `pnpm verify:ui --app <Debug.app> --case live-activity` exercises the shared
+  Widget using attributes decoded from the Convex schema, without contacting APNs.
+- `pnpm verify:ui --app <Debug.app> --case notifications`.
+  Both appearances exercise the production settings with injected outcomes. The
+  native SDK is disabled under `--ui-verify`, so these checks create no subscriptions.
+- With real APNs configured, use a normal install/relaunch preserving app data.
+  Log in, grant permission, send a test notification to this installation, and check
+  foreground/background, cold-start navigation, account switching, and an image
+  notification (NSE). Check signed Push/App Group entitlements and extension embedding.
+  Never uninstall/reset just to repeat OneSignal registration verification.
+
+Offline checks prove local behavior and build wiring, not provider delivery. Real
+push delivery and backend activation require the configured OneSignal/APNs account.
+
+### Apple Watch / small activity family
+
+The existing Widget opts into `.supplementalActivityFamilies([.small])` and selects
+`LodySmallActivityView` using `activityFamily`; the Lock Screen and Dynamic Island
+retain their existing layouts. Small content fits its container using three type
+sizes, keeps up to two overview rows, and shortens status labels with
+`ViewThatFits`. Agent marks retain a status dot; waiting, completed and failed
+states use orange, blue and red. The 84 pt glow is omitted at reduced luminance.
+The system continues to own the platter, navigation and forwarding to the Watch.
+There is no production watchOS app, separate push token or network connection.
+
+Compact labels travel as optional `copy.smallAttention`, `smallWaiting`,
+`smallDone`, `smallFailed` and `smallStale`; older payloads fall back to English.
+Small-family stale content says “Outdated” rather than inferring disconnection and
+hides running timers, while reduced luminance uses system-updated abbreviated
+minute text. See `verification/ui/activity-host/README.md` for offline native
+layout capture and the separate paired-device forwarding check.

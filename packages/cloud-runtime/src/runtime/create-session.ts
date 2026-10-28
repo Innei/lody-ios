@@ -188,7 +188,7 @@ export function creationOptions(
         !['builtin', 'registry', 'custom'].includes(String(value.cliType))
       )
         continue;
-      // Project only labels and IDs; never send launch environment or secrets to RN.
+      // Project only labels and IDs; never send launch environment or secrets to the UI.
       agents.push({
         id: value.id,
         name: value.name,

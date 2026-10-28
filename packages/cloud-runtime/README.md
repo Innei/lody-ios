@@ -15,7 +15,7 @@ HTML document with the existing CSP and inline WASM and copies dependency licens
 text alongside it. Platform builders supply their own output directory.
 
 Run `pnpm --filter @lody/cloud-runtime typecheck`. Existing behavioral fixtures
-under `apps/mobile/tests` now load these shared production sources, retaining
+under `apps/ios/tests` now load these shared production sources, retaining
 protocol, write ordering, uncertain delivery and recovery checks.
 
 ## Host contract
@@ -48,5 +48,5 @@ call the host with `channel.request` / `channel.emit`, handle it in the host
 through `RuntimeChannel` (iOS: `DataRuntime+*.swift`, using `callForRN` when
 the result goes to RN), run `pnpm contract`, and add its envelopes to
 `contract/fixtures/to-runtime.json` / `to-host.json`. Both
-`apps/mobile/tests/cloud/contract.test.mjs` and
+`apps/ios/tests/cloud/contract.test.mjs` and
 `swift test --package-path packages/lody-core` check the same fixtures.

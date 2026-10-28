@@ -2,15 +2,17 @@
 set -euo pipefail
 
 ios_directory="${1:?Usage: verify-ios-build-mode.sh <ios-directory>}"
-pods_directory="$ios_directory/Pods"
-if [ ! -d "$pods_directory" ]; then
-  echo "::error::CocoaPods directory does not exist: $pods_directory" >&2
+project="$ios_directory/Lody.xcodeproj/project.pbxproj"
+if [ ! -f "$project" ]; then
+  echo "::error::Native Xcode project is missing; run pnpm prebuild" >&2
   exit 1
 fi
-for pod in "$pods_directory"/{React*,Expo*,expo-*,hermes*,Yoga,RNScreens,RNReanimated}; do
-  if [ -e "$pod" ]; then
-    echo "::error::React Native dependency in standalone native build: $pod" >&2
-    exit 1
-  fi
-done
-echo 'Standalone native CocoaPods dependencies verified.'
+if [ -e "$ios_directory/Pods" ] || [ -e "$ios_directory/Podfile" ]; then
+  echo "::error::Stale CocoaPods output in the XcodeGen project: $ios_directory" >&2
+  exit 1
+fi
+if grep -Ei '(React[-./]|ReactAppDependencyProvider|RCTBridge|ExpoModules|Expo[./]|hermes[-.]|Metro|RNReanimated|RNScreens)' "$project"; then
+  echo '::error::React Native build reference in the standalone native project' >&2
+  exit 1
+fi
+echo 'Standalone XcodeGen project verified.'

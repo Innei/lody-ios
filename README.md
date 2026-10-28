@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="apps/mobile/assets/logo.png" width="100" height="100" alt="Lody iOS Logo" />
+  <img src="docs/assets/lody-ios-logo.png" width="100" height="100" alt="Lody iOS Logo" />
   <h1>Lody iOS</h1>
   <p><b>Independent iOS Native Client</b> · AI Collaboration & Session Companion for Mobile</p>
 
@@ -49,7 +49,7 @@ Requires iOS 26 or later. Beta builds track `main` and update automatically; the
 
 **Lody iOS** is an independent open-source client crafted for iPhone, providing a lightweight and secure bridge between remote Lody services and local workspaces.
 
-The application runs entirely in Swift and UIKit. LodyKit owns navigation, screens, authentication, catalog projections and durable sends. A Swift-managed offscreen WebView runs the bundled Loro/Flock protocol engine; React Native, Expo, Hermes and Metro are no longer app dependencies.
+The application UI and native state run in Swift and UIKit. LodyKit owns navigation, screens, authentication, catalog projections and durable sends. A Swift-managed offscreen WebView runs the bundled Loro/Flock protocol engine; React Native, Expo, Hermes and Metro are no longer app dependencies.
 
 ---
 
@@ -75,7 +75,7 @@ What that week actually looked like:
 
 - **Human Interface Guidelines Compliance**: Native adoption of iOS semantic colors, automatic light and dark mode adaptation, and Dynamic Type with SF Pro and SF Mono.
 - **Native Navigation**: The UIKit shell owns navigation controllers, transparent headers, and automatic scroll edge effects. Home uses an adaptive native split with session and inspector navigation. Transient flows open as native sheets through `LodyShell.presentNative`, and system grouped rows use UIKit `UICollectionViewListCell` via `LodyGroupedList`.
-- **Bilingual by Default**: English and Simplified Chinese product copy lives in `apps/mobile/locales`, is checked in CI, and is projected into native `xcstrings` catalogs by `scripts/native-locales.cjs` during asset generation.
+- **Bilingual by Default**: English and Simplified Chinese product copy lives in `packages/LodyKit/Sources/LodyKit/Resources/Localizable.xcstrings`. Swift uses `String(localized:)`, Xcode compiles the catalog, and CI checks translation coverage and format arguments. Permission prompts live in `apps/ios/App/InfoPlist.xcstrings`.
 
 ### High-Performance Native Streaming Chat
 
@@ -128,17 +128,28 @@ flowchart TB
 
 ## Directory Structure
 
+The Xcode navigator includes app sources, extensions, runtime inputs, scripts and
+verification files. `Shared Extension Sources` groups the LodyKit files compiled
+by extensions; their single source of truth remains the local Swift package.
+Generated runtime assets and build configuration live under `.generated`.
+
 ```text
-apps/mobile/native/                  # Persistent app entry, assets, plist, XcodeGen and Podfile
-apps/mobile/modules/lody-kit/ios/     # UIKit UI, native state and coordinators
-apps/mobile/modules/lody-kit/data-runtime/ # Bundled WebView runtime
-apps/mobile/modules/lody-kit/decoder/ # Browser-safe decoding adapter
-apps/mobile/modules/lody-kit/verification/ # Native behavior checks
-apps/mobile/plugins/                 # Extension generators and locale projection rules
-apps/mobile/verification/            # Offline UI checks and simulator/build tooling
-apps/mobile/locales/                 # English / Simplified Chinese catalogs
-apps/mobile/tests/                   # Protocol and tooling Node tests
-packages/cloud-runtime/              # Shared browser-safe protocol and contract
+apps/ios/Lody.xcodeproj              # Generated Xcode project
+apps/ios/project.yml                # XcodeGen: app, extensions and verify hosts
+apps/ios/App/                       # UIKit entry, plist, entitlements and app assets
+apps/ios/App/Resources/             # Images, file icons and dependency notices
+apps/ios/Extensions/                # Share, notification service and Live Activity
+apps/ios/.generated/                # Generated plist, XcodeGen input and runtime assets
+apps/ios/runtime/decoder/           # Browser-safe decoding adapter
+apps/ios/scripts/                   # Asset generation and source checks
+apps/ios/verification/kit/          # Native behavior checks
+apps/ios/verification/ui/           # Offline UI verification
+apps/ios/tests/                     # Protocol and tooling Node tests
+packages/LodyKit/Package.swift      # LodyKit library, dependencies and Metal resources
+packages/LodyKit/Sources/LodyKit/    # UIKit UI, native state and coordinators
+packages/LodyKit/Sources/LodyKit/Resources/ # Native String Catalog
+packages/LodyKit/DataChannel/        # Pinned native transport build
+packages/cloud-runtime/              # Bundled browser-safe protocol and contract
 packages/lody-core/                  # Swift wire types and routing policies
 packages/chat-kit/                   # Native chat core
 packages/lexical-swift/              # Native editor
@@ -155,7 +166,7 @@ packages/lexical-swift/              # Native editor
 - **Node.js**: Node 22 LTS, version 22.13 or later
 - **pnpm**: `11.10.0` (`corepack enable`)
 - **XcodeGen**: `brew install xcodegen`
-- **Ruby & Bundler**: `apps/mobile/Gemfile` pins `cocoapods ~> 1.16` and `cocoapods-spm`
+- **CMake**: `brew install cmake` for the pinned native data channel library
 
 ### Getting Started
 
@@ -167,30 +178,26 @@ packages/lexical-swift/              # Native editor
    pnpm install
    ```
 
-2. **Install the CocoaPods toolchain** (into `apps/mobile/vendor/bundle`):
-
-   ```sh
-   cd apps/mobile
-   bundle install
-   cd ../..
-   ```
-
-3. **Generate the native project and open Xcode**:
+2. **Generate the native project and open Xcode**:
 
    ```sh
    pnpm ios
    ```
 
-   > [!TIP]
-   > This project uses `cocoapods-spm` to integrate SPM static library dependencies. `pnpm ios` runs `native:assets`, generates the native project, and executes `bundle exec pod install` to fetch dependencies and link symbols.
-   > Select a simulator and Run in Xcode. `pnpm start` opens the existing workspace. Rebuild after source changes; there is no Metro server.
+   `pnpm ios` builds bundled protocol assets and the native data channel library,
+   then generates `apps/ios/Lody.xcodeproj` with XcodeGen. Xcode resolves
+   Swift packages directly. Select a simulator and Run. `pnpm start` opens the
+   existing project. App, extensions and offline verification hosts come from
+   `project.yml`; rerun `pnpm prebuild` after changing those sources.
+   LodyKit is a local Swift package in `packages/LodyKit`; SwiftPM discovers its
+   sources automatically and bundles its Metal shaders.
 
-4. **Update native assets**:
+3. **Update native assets**:
 
-   If you modify runtime assets in `modules/lody-kit/data-runtime/` or `modules/lody-kit/decoder/`, run:
+   After editing `packages/cloud-runtime` or `apps/ios/runtime/decoder`, run:
 
    ```sh
-   pnpm --filter @lody-ios/mobile native:assets
+   pnpm bundle
    ```
 
 ### Quality Checks & Testing
@@ -213,7 +220,7 @@ pnpm verify:ui --app /absolute/path/to/Lody.app                # Offline UI base
 pnpm verify:ui --suite core --app /absolute/path/to/Lody.app  # PR core paths, Release app
 ```
 
-The runner captures screenshots for visual states and video for temporal behavior; missing scenes and timeouts fail the run. See [`apps/mobile/verification/ui/README.md`](apps/mobile/verification/ui/README.md) for the case inventory and Simulator leasing rules.
+The runner captures screenshots for visual states and video for temporal behavior; missing scenes and timeouts fail the run. See [`apps/ios/verification/ui/README.md`](apps/ios/verification/ui/README.md) for the case inventory and Simulator leasing rules.
 
 ### Releases
 
@@ -239,5 +246,5 @@ Lody iOS is made possible thanks to these open-source projects and creators:
 - **[Loro](https://github.com/loro-dev/loro)**: High-performance, production-grade next-generation CRDT state synchronization.
 - **[AXe](https://github.com/cameroncooke/AXe)**: Simulator UI automation driving the offline UI baselines.
 - **[baguette](https://github.com/tddworks/baguette)**: Headless iOS Simulator control and streaming (Apache-2.0). The native simulator viewer is a client of its HTTP and WebSocket protocol; baguette itself runs on the Mac and is not bundled.
-- **[libdatachannel](https://github.com/paullouisageneau/libdatachannel)**: Native data-only Simulator transport (MPL-2.0), built from pinned source at `pod install` with media and WebSocket disabled, over [libjuice](https://github.com/paullouisageneau/libjuice) (MPL-2.0), [usrsctp](https://github.com/sctplab/usrsctp) (BSD-3-Clause) and [Mbed TLS](https://github.com/Mbed-TLS/mbedtls) (Apache-2.0). No camera, microphone or WebView is involved.
+- **[libdatachannel](https://github.com/paullouisageneau/libdatachannel)**: Native data-only Simulator transport (MPL-2.0), built from pinned source at `pnpm prebuild` with media and WebSocket disabled, over [libjuice](https://github.com/paullouisageneau/libjuice) (MPL-2.0), [usrsctp](https://github.com/sctplab/usrsctp) (BSD-3-Clause) and [Mbed TLS](https://github.com/Mbed-TLS/mbedtls) (Apache-2.0). No camera, microphone or WebView is involved.
 - **[vphone-client](https://github.com/datdadev/vphone-client)**: Its native remote iPhone viewer (hardware decode into `AVSampleBufferDisplayLayer`, raw UIKit touch forwarding, never dropping input behind video) shaped the design of Lody's simulator viewer.
