@@ -53,7 +53,7 @@ end_y = connect['frame']['y'] - 36
 if end_y < start_y + 80:
     end_y = start_y + 80
 x = sheet['x'] + sheet['width'] / 2
-ui.axe('swipe', '--start-x', str(x), '--start-y', str(start_y),
+ui.axe('drag', '--start-x', str(x), '--start-y', str(start_y),
        '--end-x', str(x), '--end-y', str(end_y), '--duration', '.5', '--post-delay', '1')
 ui.element('onboarding-connect')
 ui.capture('after-swipe')
@@ -73,4 +73,16 @@ tap('onboarding-connect', '1.2')
 ui.wait(lambda items: not any(item.get('AXUniqueId') == 'onboarding-sheet' for item in items), 'Sheet did not close after sign-in')
 ui.element('onboarding-preview')
 ui.capture('closed')
-print('Welcome sheet resists swipe, has no close button, walks connect → waiting → error → retry, and closes itself on sign-in.')
+
+# Device Flow publishes the account before dismissing its SFSafariViewController.
+# Dismissing the content controller only closes Safari and strands the finished sheet.
+ui.open_case('onboarding-preview')
+ui.element('onboarding-connect')
+tap('onboarding-connect', '.8')
+ui.element('onboarding-code')
+ui.axe('tap', '--label', catalog.text('login.reopen'), '--post-delay', '1.2')
+ui.wait(lambda items: any(item.get('AXUniqueId') == 'onboarding-preview' for item in items)
+        and not any(item.get('AXUniqueId') == 'onboarding-sheet' for item in items),
+        'Welcome sheet stayed after sign-in with the authorization browser open')
+ui.capture('browser-closed')
+print('Welcome sheet resists drag, supports cancel and retry, and closes on sign-in with or without the authorization browser open.')

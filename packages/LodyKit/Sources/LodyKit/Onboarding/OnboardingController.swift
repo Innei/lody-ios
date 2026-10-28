@@ -172,7 +172,8 @@ class OnboardingController: UIViewController {
       guard !finished else { return }
       finished = true
       LodyShell.shared.finish(from: self, value: nil)
-      dismiss(animated: true)
+      // Close the welcome container even when its authorization browser is on top.
+      LodyShell.shared.close(from: self)
       return
     }
     let resumed = state.waiting && !next.waiting

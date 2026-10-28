@@ -1,3 +1,4 @@
+import SafariServices
 import UIKit
 
 @MainActor
@@ -24,7 +25,7 @@ private final class OnboardingFixture {
       state: { [self] in state },
       login: { [self] in move([.idle: .waiting, .waiting: .waiting, .error: .signedIn, .signedIn: .signedIn][phase] ?? phase) },
       cancel: { [self] in move(.error) },
-      reopen: {}
+      reopen: { [self] in authorizeInBrowser() }
     )
   }
 
@@ -40,5 +41,17 @@ private final class OnboardingFixture {
   private func move(_ next: Phase) {
     phase = next
     NotificationCenter.default.post(name: Self.changed, object: nil)
+  }
+
+  private func authorizeInBrowser() {
+    guard phase == .waiting, let presenter = LodyShell.shared.presenter else { return }
+    // Exercise the real modal hierarchy without loading Cloud or using credentials.
+    let browser = SFSafariViewController(url: URL(string: "http://127.0.0.1:9")!)
+    presenter.present(browser, animated: true) { [self] in
+      // Match AuthSession: publish the account while Safari still covers onboarding,
+      // then close the owned browser. The welcome sheet must close as well.
+      move(.signedIn)
+      browser.dismiss(animated: true)
+    }
   }
 }
