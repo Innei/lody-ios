@@ -1,6 +1,6 @@
 # Lody iOS
 
-- This is an independent iOS-only UIKit client. pnpm builds the bundled cloud protocol assets; XcodeGen generates app, extension and verification targets; Swift Package Manager builds LodyiOSKit and its native dependencies.
+- This repository holds the independent UIKit iOS client and the AppKit Mac client (`macOS/`, `packages/LodyMacKit`, product “Lody”, bundle id `app.innei.lody.mac`). pnpm builds the bundled cloud protocol assets; XcodeGen generates app, extension and verification targets; Swift Package Manager builds LodyiOSKit and its native dependencies.
 - Platform-neutral data (auth, catalog, outbox, data runtime, local store, session sources and senders, create-session data, transcript projection, the string catalog) lives in `packages/LodyData`, which imports only Foundation and builds for iOS and macOS. It never imports UIKit or AppKit; platform effects go through the `LodyHost` seam (`LodyHosting.current`), which LodyiOSKit implements as `LodyUIKitHost`. LodyiOSKit re-exports LodyData. Live wiring that reads Debug fixtures or list rows stays in LodyiOSKit as extensions (`SessionSource.live`, `CreateSessionService.live`).
 - First-party UI lives in the Swift package `packages/LodyiOSKit/Sources/LodyiOSKit`; the iOS application entry point is `iOS`, and extensions are in `Extensions`. Use Swift/UIKit or SwiftUI; do not add bridge packages. SwiftPM discovers LodyiOSKit sources automatically. Run `pnpm prebuild` after changing app/extension source membership or shared extension references in `project.yml`; never edit the generated Xcode project by hand.
 - Do not add Android implementations, fallback stubs, or Android build scripts.
@@ -49,6 +49,14 @@
 - Generate native runtime assets before prebuild/build. Preserve dependency licenses beside generated resources. Native watchdog behavior has a deterministic Swift check in `verification/kit/watchdog`.
 
 - `ChatComposerView` in LodyiOSKit owns the shared native input, draft handoff/restore, and model controls. Chat embeds it directly. The new-session form is native (`CreateSession/CreateSessionController`) and is shared by the app sheet (`LodyCreateSessionView`) and the Share Extension; it places the composer on the keyboard layout guide, so do not add a second keyboard avoidance owner. Build its pages from `LodyGroupedList` / `LodyPagedList`, and before changing it capture `verify:ui --case create-parity` from the previous build, then compare with `verification/ui/parity-diff.py`. New-session drafts carry text and attachments together into the first turn, including native restoration when upload fails.
+
+## Mac client
+
+- The Mac app is a cloud client only. `LodyMacKit` owns AppKit UI and implements `LodyHost` as `MacHost`: the runtime never suspends when Lody is not frontmost, and closing the last window keeps it syncing. It never registers `lody://`, which the official desktop app owns.
+- Mac storage lives under `~/Library/Application Support/app.innei.lody.mac` (`LodyStorage.root`); never write to the shared `Lody` folder the official desktop app uses. Credentials stay in this Mac's Keychain.
+- Mac UI strings live in `packages/LodyMacKit/Sources/LodyMacKit/Resources/Localizable.xcstrings` (`bundle: .lodyMac`); `pnpm i18n:check` covers them.
+- Debug builds register `lodymacverify://` only: `case/<name>` opens an offline UI catalog scene built from production controllers, plus `reset`, `appearance/light|dark` and `dump?out=<absolute .json>` (in-process view state). The Debug page is in the app menu and Settings.
+- Build with `pnpm mac:build`; verify UI with `pnpm verify:mac [--case <name>]`, which drives the app through the auv TypeScript SDK pinned to the installed `/opt/homebrew/bin/auv`. Clicks need foreground input and briefly take focus; assert on the view dump first and OCR only for visible text (no CJK OCR in light mode).
 
 ## Share Extension
 

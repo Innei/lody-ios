@@ -7,6 +7,7 @@ options:
     - order:
         [
           iOS,
+          macOS,
           Extensions,
           Shared Extension Sources,
           Packages,
@@ -20,6 +21,7 @@ options:
   bundleIdPrefix: app.innei
   deploymentTarget:
     iOS: '26.0'
+    macOS: '26.0'
   developmentLanguage: en
   knownRegions:
     - en
@@ -30,6 +32,7 @@ options:
       buildPhase: resources
 fileGroups:
   - iOS
+  - macOS
   - Extensions
   - runtime
   - .generated
@@ -59,6 +62,8 @@ packages:
     path: 'packages/chat-kit'
   Lexical:
     path: 'packages/lexical-swift'
+  LodyMacKit:
+    path: 'packages/LodyMacKit'
   OneSignal:
     url: https://github.com/OneSignal/OneSignal-XCFramework.git
     exactVersion: 5.5.1
@@ -371,6 +376,40 @@ targets:
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
         SWIFT_OPTIMIZATION_LEVEL: '-Onone'
         SKIP_INSTALL: 'YES'
+    scheme: {}
+  LodyMac:
+    type: application
+    platform: macOS
+    sources:
+      - path: macOS
+        excludes:
+          - Info.plist
+          - Info.Debug.plist
+          - Lody.entitlements
+          - '**/*.md'
+      - path: .generated/Resources
+        excludes:
+          - DebugHome.json
+      - path: iOS/Resources/Licenses
+    settings:
+      base:
+        PRODUCT_NAME: Lody
+        PRODUCT_MODULE_NAME: LodyMacApp
+        PRODUCT_BUNDLE_IDENTIFIER: app.innei.lody.mac
+        INFOPLIST_FILE: macOS/Info.plist
+        CODE_SIGN_ENTITLEMENTS: macOS/Lody.entitlements
+        ENABLE_HARDENED_RUNTIME: 'YES'
+        COMBINE_HIDPI_IMAGES: 'YES'
+        SUPPORTED_PLATFORMS: macosx
+      configs:
+        Debug:
+          INFOPLIST_FILE: macOS/Info.Debug.plist
+    preBuildScripts:
+      - name: Verify native sources
+        script: python3 "${SRCROOT}/scripts/check-native-sources.py"
+        basedOnDependencyAnalysis: false
+    dependencies:
+      - package: LodyMacKit
     scheme: {}
 schemes:
   Lody:

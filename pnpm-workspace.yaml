@@ -1,6 +1,7 @@
 packages:
   - packages/*
 allowBuilds:
+  protobufjs: false
   esbuild: true
 nodeLinker: hoisted
 minimumReleaseAgeExclude:

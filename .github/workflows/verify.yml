@@ -124,6 +124,41 @@ jobs:
           path: .artifacts/ui-build
           retention-days: 14
 
+  mac:
+    name: Build Mac app
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - name: Ensure cmake
+        run: command -v cmake >/dev/null || brew install cmake
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - name: Generate native project
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          pnpm prebuild
+      - name: Shared data and Mac kit tests
+        run: |
+          swift test --package-path packages/LodyData
+          swift test --package-path packages/LodyMacKit
+      - name: Build Mac app
+        run: |
+          APP=$(pnpm --silent mac:build --adhoc)
+          codesign --verify --deep --strict "$APP"
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-build-${{ github.sha }}
+          path: .artifacts/mac-build
+          retention-days: 14
+          if-no-files-found: warn
   ui:
     name: Offline iOS UI (${{ matrix.suite }})
     needs: build

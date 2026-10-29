@@ -127,6 +127,8 @@ for files in checks.values():
     if 'Chat/ChatComposerView.swift' in files:
         files.append('Chat/ChatQuickReplies.swift')
         files.append('Chat/ChatComposerFormatBar.swift')
+    if ('Cloud/LocalStore.swift' in files or 'Diagnostics/DiagnosticsStore.swift' in files) and 'LodyStorage.swift' not in files:
+        files.append('LodyStorage.swift')
     if 'Chat/ChatTranscript.swift' in files:
         files.append('Chat/ChatPendingSend.swift')
         files.append('Chat/ChatTurnMetadata.swift')

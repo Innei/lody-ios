@@ -18,7 +18,7 @@ public final class DiagnosticsStore: @unchecked Sendable {
     let group = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.innei.lody")
     let root = group ?? URL.applicationSupportDirectory
     #else
-    let root = URL.applicationSupportDirectory
+    let root = LodyStorage.root
     #endif
     let name = CommandLine.arguments.contains("--ui-verify") ? "DiagnosticsVerify" : "Diagnostics"
     return root.appending(path: name)

@@ -29,17 +29,37 @@ test('passes when every Xcode-managed native source is linked in the native proj
     await mkdir(join(directory, 'Extensions'), { recursive: true });
     await write(join(directory, 'iOS/Chat/Cell.swift'), 'enum Cell {}\n');
     await write(join(directory, 'iOS/Chat/Shaders/Particles.metal'), '');
+    await write(join(directory, 'macOS/LodyMacMain.swift'), 'enum Main {}\n');
     const pbxproj = join(directory, 'Lody.xcodeproj/project.pbxproj');
     await write(
       pbxproj,
       [
         '/* Cell.swift in Sources */',
         '/* Particles.metal in Sources */',
+        '/* LodyMacMain.swift in Sources */',
         '',
       ].join('\n'),
     );
     const result = run(directory, { PROJECT_FILE_PATH: pbxproj });
     assert.equal(result.status, 0, result.stderr);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('fails when a new Mac app Swift file is not in the Mac compile sources', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'lody-native-sources-'));
+  try {
+    await write(join(directory, 'pnpm-workspace.yaml'), 'packages: []\n');
+    await mkdir(join(directory, 'Extensions'), { recursive: true });
+    await mkdir(join(directory, 'iOS'), { recursive: true });
+    await write(join(directory, 'macOS/LodyMacMain.swift'), 'enum Main {}\n');
+    await write(join(directory, 'macOS/Window.swift'), 'enum Window {}\n');
+    const pbxproj = join(directory, 'Lody.xcodeproj/project.pbxproj');
+    await write(pbxproj, '/* LodyMacMain.swift in Sources */\n');
+    const result = run(directory, { PROJECT_FILE_PATH: pbxproj });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /LodyMac compile: Window\.swift/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

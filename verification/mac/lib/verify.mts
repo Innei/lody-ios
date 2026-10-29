@@ -1,0 +1,244 @@
+import { execFile } from 'node:child_process';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+
+import {
+  createAuv,
+  ImageEncoding,
+  InputPolicy,
+  startAuv,
+} from '@auv-js/sdk/node';
+import type { RunnerClient, WindowClient } from '@auv-js/sdk/node';
+
+const exec = promisify(execFile);
+
+export const bundleId = 'app.innei.lody.mac';
+export const scheme = 'lodymacverify';
+
+export interface Session {
+  appPath: string;
+  output: string;
+  runner: RunnerClient;
+  timings: { step: string; ms: number }[];
+  close: () => Promise<void>;
+}
+
+export interface ViewNode {
+  class: string;
+  identifier?: string;
+  text?: string;
+  hidden?: boolean;
+  enabled?: boolean;
+  children?: ViewNode[];
+}
+
+export interface Dump {
+  windows: {
+    title: string;
+    identifier: string;
+    appearance: string;
+    tabs?: string[];
+    root?: ViewNode;
+  }[];
+}
+
+export async function launch(appPath: string) {
+  await exec('pkill', ['-f', `${appPath}/Contents/MacOS/`]).catch(() => {});
+  await exec('open', ['-g', '-n', '-a', appPath, '--args', '--ui-verify']);
+  const deadline = performance.now() + 15000;
+  while (performance.now() < deadline) {
+    const { stdout } = await exec('pgrep', [
+      '-f',
+      `${appPath}/Contents/MacOS/`,
+    ]).catch(() => ({ stdout: '' }));
+    if (stdout.trim()) return;
+    await sleep(100);
+  }
+  throw new Error('the Mac app did not launch');
+}
+
+export async function startSession(
+  appPath: string,
+  output: string,
+): Promise<Session> {
+  await mkdir(output, { recursive: true });
+  const storeRoot = join(output, 'auv-store');
+  const daemon = await startAuv({
+    binaryPath: '/opt/homebrew/bin/auv',
+    listeners: [`unix:///tmp/lody-auv-${process.pid}.sock`],
+    noRegister: true,
+    storeRoot,
+  });
+  const connection = await daemon.connect();
+  const runner = createAuv(connection).runner({
+    runnerClass: 'auv.core.local',
+  });
+  return {
+    appPath,
+    output,
+    runner,
+    timings: [],
+    close: async () => {
+      await connection.close();
+      await daemon.stop();
+      await exec('pkill', ['-f', `${appPath}/Contents/MacOS/`]).catch(() => {});
+    },
+  };
+}
+
+export async function step<T>(
+  session: Session,
+  name: string,
+  body: () => Promise<T>,
+): Promise<T> {
+  const start = performance.now();
+  try {
+    return await body();
+  } finally {
+    session.timings.push({
+      step: name,
+      ms: Math.round(performance.now() - start),
+    });
+  }
+}
+
+export function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function route(session: Session, path: string) {
+  return step(session, `open ${path}`, () =>
+    exec('open', ['-g', '-a', session.appPath, `${scheme}://${path}`]),
+  );
+}
+
+export async function openScene(
+  session: Session,
+  name: string,
+  appearance: 'light' | 'dark' = 'light',
+) {
+  await route(session, `appearance/${appearance}`);
+  await route(session, `case/${name}`);
+  await waitForDump(session, (dump) =>
+    dump.windows.some((w) => w.identifier === 'catalog-scene'),
+  );
+}
+
+export async function window(
+  session: Session,
+  titleContains = 'Catalog ·',
+): Promise<WindowClient> {
+  return session.runner.windows.resolve({
+    applicationId: bundleId,
+    titleContains,
+  });
+}
+
+export async function dump(session: Session): Promise<Dump> {
+  const out = join(session.output, `dump-${process.pid}.json`);
+  await rm(out, { force: true });
+  await route(session, `dump?out=${encodeURIComponent(out)}`);
+  const deadline = performance.now() + 5000;
+  while (performance.now() < deadline) {
+    const text = await readFile(out, 'utf8').catch(() => '');
+    if (text) return JSON.parse(text) as Dump;
+    await sleep(50);
+  }
+  throw new Error('the app did not write its view dump');
+}
+
+export async function waitForDump(
+  session: Session,
+  predicate: (dump: Dump) => boolean,
+  timeoutMs = 5000,
+) {
+  return step(session, 'wait dump', async () => {
+    const deadline = performance.now() + timeoutMs;
+    let last: Dump | undefined;
+    while (performance.now() < deadline) {
+      last = await dump(session);
+      if (predicate(last)) return last;
+      await sleep(150);
+    }
+    throw new Error(
+      `view state did not match within ${timeoutMs} ms:\n${JSON.stringify(last)?.slice(0, 2000)}`,
+    );
+  });
+}
+
+export function nodes(root: ViewNode | undefined): ViewNode[] {
+  if (!root) return [];
+  return [root, ...(root.children ?? []).flatMap(nodes)];
+}
+
+export function scene(dump: Dump) {
+  return dump.windows.find((w) => w.identifier === 'catalog-scene');
+}
+
+export function find(dump: Dump, predicate: (node: ViewNode) => boolean) {
+  return nodes(scene(dump)?.root).filter(
+    (node) => !node.hidden && predicate(node),
+  );
+}
+
+export async function waitForText(
+  session: Session,
+  text: string,
+  timeoutMs = 5000,
+) {
+  return step(session, `ocr "${text}"`, async () => {
+    const target = await window(session);
+    const deadline = performance.now() + timeoutMs;
+    while (true) {
+      const result = await target.findText(text, {});
+      if (result.matches.length > 0) return result.matches[0]!;
+      if (performance.now() > deadline)
+        throw new Error(`text "${text}" not visible within ${timeoutMs} ms`);
+      await sleep(100);
+    }
+  });
+}
+
+export async function clickText(session: Session, text: string) {
+  return step(session, `click "${text}"`, async () => {
+    const target = await window(session);
+    const result = await target.findText(text, {});
+    if (result.matches.length === 0)
+      throw new Error(`no click target "${text}"`);
+    return target.click(result.matches[0]!, {
+      policy: InputPolicy.FOREGROUND_PREFERRED,
+    });
+  });
+}
+
+export async function typeInto(session: Session, field: string, text: string) {
+  return step(session, `type "${text}"`, async () => {
+    await session.runner.macos.accessibility.focusText({
+      application: bundleId,
+      selector: { case: 'query', value: field },
+    });
+    const target = await window(session);
+    return target.typeText(text, {
+      policy: InputPolicy.BACKGROUND_ONLY,
+      replaceExisting: true,
+    });
+  });
+}
+
+export async function capture(session: Session, name: string) {
+  return step(session, `capture ${name}`, async () => {
+    const target = await window(session);
+    const shot = await target.capture();
+    const image = await session.runner.captures.image(shot.capture!, {
+      encoding: ImageEncoding.PNG,
+    });
+    const path = join(session.output, `${name}.png`);
+    await writeFile(path, image.data);
+    return path;
+  });
+}
+
+export function expect(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(message);
+}

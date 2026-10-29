@@ -25,12 +25,15 @@
     "format:check": "prettier --check .",
     "test": "node --experimental-strip-types --experimental-test-module-mocks --test tests/**/*.test.mjs && python3 verification/ui/runner_test.py && python3 verification/simulator_test.py && python3 verification/build_test.py",
     "verify:build": "python3 verification/build.py",
+    "mac:build": "python3 verification/mac/build.py",
+    "verify:mac": "node --experimental-strip-types verification/mac/run.mts",
     "verify:ui": "python3 verification/ui/run.py",
     "verify:native": "python3 verification/native.py",
     "verify:simulator": "python3 verification/simulator.py",
     "verify:clean": "python3 verification/clean.py"
   },
   "devDependencies": {
+    "@auv-js/sdk": "0.0.35",
     "esbuild": "0.25.12",
     "prettier": "3.9.6",
     "typescript": "~6.0.3",

@@ -12,7 +12,9 @@ public final class LocalStore: @unchecked Sendable {
 
   public var generation: Int { generationLock.withLock { currentGeneration } }
 
-  public init(url: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Lody/catalog.sqlite")) {
+  public static var defaultURL: URL { LodyStorage.root.appendingPathComponent("Lody/catalog.sqlite") }
+
+  public init(url: URL = LocalStore.defaultURL) {
     self.url = url
   }
   deinit { sqlite3_close(db) }
