@@ -7,6 +7,7 @@ import { parseArgs } from 'node:util';
 import { sidebar } from './cases/sidebar.mts';
 import { signIn } from './cases/sign-in.mts';
 import { tabs } from './cases/tabs.mts';
+import { transcript } from './cases/transcript.mts';
 import { capture, dump, launch, route, startSession } from './lib/verify.mts';
 import type { Session } from './lib/verify.mts';
 
@@ -14,6 +15,7 @@ const cases: Record<string, (session: Session) => Promise<void>> = {
   'sign-in': signIn,
   sidebar,
   tabs,
+  transcript,
 };
 
 const { values } = parseArgs({

@@ -15,7 +15,9 @@ struct MacEnvironment {
   var titlePrefix = ""
 
   static var live: MacEnvironment {
-    MacEnvironment(sessions: .live, pane: { MacSessionSummaryPane(sessionId: $0, sessions: .live) })
+    MacEnvironment(sessions: .live, pane: { sessionId in
+      MacSessionController(sessionId: sessionId, source: .live(sessionId: sessionId, state: SessionPublished.state()))
+    })
   }
 }
 

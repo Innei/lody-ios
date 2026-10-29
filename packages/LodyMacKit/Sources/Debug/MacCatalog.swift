@@ -31,6 +31,7 @@ enum MacCatalog {
       },
       Scene(id: "sidebar", title: "Sidebar") { MacFixtures.workspaceWindow(sessionId: "s-mac") },
       Scene(id: "tabs", title: "Tabs") { MacFixtures.tabbedWindows() },
+      Scene(id: "transcript", title: "Transcript") { MacFixtures.workspaceWindow(sessionId: "s-mac") },
     ]
   }
 

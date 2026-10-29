@@ -32,7 +32,10 @@ enum MacFixtures {
     let sessions = MacSessionsSource.fixture(listState)
     return MacEnvironment(
       sessions: sessions,
-      pane: { MacSessionSummaryPane(sessionId: $0, sessions: sessions) },
+      pane: { sessionId in
+        guard sessionId == "s-mac" else { return MacSessionSummaryPane(sessionId: sessionId, sessions: sessions) }
+        return MacSessionController(sessionId: sessionId, source: MacTranscriptFixture().source)
+      },
       requiresAccount: false,
       windowIdentifier: "catalog-scene",
       titlePrefix: "Catalog · "
@@ -41,6 +44,7 @@ enum MacFixtures {
 
   static func workspaceWindow(sessionId: String?) -> [NSWindow] {
     let controller = MainWindowController(environment: environment, sessionId: sessionId)
+    if let workspace = controller.workspace { MacTabCoordinator.shared.select(workspace) }
     return controller.window.map { [$0] } ?? []
   }
 
@@ -48,6 +52,7 @@ enum MacFixtures {
     let first = MainWindowController(environment: environment, sessionId: "s-mac")
     let second = first.addTab(sessionId: "s-landing")
     let third = first.addTab(sessionId: "s-plan")
+    if let workspace = third.workspace { MacTabCoordinator.shared.select(workspace) }
     return [first, second, third].compactMap(\.window)
   }
 }

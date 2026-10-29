@@ -409,6 +409,40 @@
         }
       }
     },
+    "mac.permission.failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't send the answer. Try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法发送回答，请重试。"
+          }
+        }
+      }
+    },
+    "mac.permission.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow this action?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许此操作？"
+          }
+        }
+      }
+    },
     "mac.settings.account": {
       "extractionState": "manual",
       "localizations": {
@@ -694,6 +728,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "在浏览器中输入此代码以继续。"
+          }
+        }
+      }
+    },
+    "mac.transcript.plan": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "计划"
           }
         }
       }
