@@ -1,22 +1,29 @@
 import Foundation
 
 @MainActor
-final class SessionSender {
-  struct Inputs: Equatable {
-    var userId = ""
-    var connected = false
-    var session: SessionItem?
-    var context = OutboxForeground()
+public final class SessionSender {
+  public struct Inputs: Equatable, Sendable {
+    public var userId = ""
+    public var connected = false
+    public var session: SessionItem?
+    public var context = OutboxForeground()
+
+    public init(userId: String = "", connected: Bool = false, session: SessionItem? = nil, context: OutboxForeground = OutboxForeground()) {
+      self.userId = userId
+      self.connected = connected
+      self.session = session
+      self.context = context
+    }
   }
 
-  let sessionId: String
-  var changed: (() -> Void)?
-  var clearDraft: ((Int) -> Void)?
-  var restoreDraft: ((Int) -> Void)?
+  public let sessionId: String
+  public var changed: (() -> Void)?
+  public var clearDraft: ((Int) -> Void)?
+  public var restoreDraft: ((Int) -> Void)?
   private let store: OutboxStore?
   private let dispatcher: OutboxDispatcher
   private let inflight: OutboxInflight
-  private(set) var inputs = Inputs()
+  public private(set) var inputs = Inputs()
   private var observers: [NSObjectProtocol] = []
   private var clearToken = 0
   private var restoreToken = 0
@@ -25,11 +32,11 @@ final class SessionSender {
   private var progress: [String: OutboxValue] = [:]
   private var progressKey = ""
 
-  init(sessionId: String, store: OutboxStore?, services: OutboxServices, inflight: OutboxInflight) {
+  public init(sessionId: String, store: OutboxStore?, services: OutboxServices, inflight: OutboxInflight) {
     self.sessionId = sessionId
     self.store = store
     self.inflight = inflight
-    dispatcher = OutboxDispatcher(services: services, inflight: inflight, foreground: sessionId) { String(localized: String.LocalizationValue($0), bundle: .lody) }
+    dispatcher = OutboxDispatcher(services: services, inflight: inflight, foreground: sessionId) { String(localized: String.LocalizationValue($0), bundle: .lodyData) }
     previous = record
     dispatcher.settled = { [weak self] in self?.changed?() }
     observers = [
@@ -48,46 +55,46 @@ final class SessionSender {
     dispatcher.update(store: nil, inputs: .init())
   }
 
-  var record: OutboxRecord? { store?.snapshot.records.first { $0.sessionId == sessionId } }
-  var ready: Bool { store?.snapshot.ready == true }
+  public var record: OutboxRecord? { store?.snapshot.records.first { $0.sessionId == sessionId } }
+  public var ready: Bool { store?.snapshot.ready == true }
   private var dispatching: Bool { inflight.contains(sessionId) }
 
-  var sending: Bool {
+  public var sending: Bool {
     guard let record else { return false }
     let guideUploaded = record.send["guide"]?.truthy == true && record.phase == "uploaded"
     return !["failed", "accepted", "queued"].contains(record.phase) && !guideUploaded
   }
 
-  var awaitingReply: Bool {
+  public var awaitingReply: Bool {
     guard let record, record.creation == nil else { return false }
     return ["accepted", "uploaded"].contains(record.phase)
   }
 
-  var canSend: Bool {
+  public var canSend: Bool {
     ready && !dispatching && !sending && record?.phase != "failed" && !inputs.context.overflow
       && inputs.session?.archived != true && !inputs.userId.isEmpty
   }
 
-  var pendingSendJSON: String {
+  public var pendingSendJSON: String {
     guard let record else { return "" }
     let phase = record.phase, live = inputs.context.live
     var send = record.send
     if phase == "sending" { send["uploadProgress"] = .object(progress) }
     let queued = phase == "queued" || !["accepted", "uploaded", "failed"].contains(phase)
     send["queue"] = .bool(record.send["queue"] == .bool(true) && queued)
-    send["status"] = .string(String(localized: String.LocalizationValue(OutboxForeground.statusKey(record.send, live: live)), bundle: .lody))
+    send["status"] = .string(String(localized: String.LocalizationValue(OutboxForeground.statusKey(record.send, live: live)), bundle: .lodyData))
     send["reconnect"] = .bool(phase == "waiting" && !live)
     send["failed"] = .bool(phase == "failed")
     return Self.encode(.object(send))
   }
 
-  func update(_ next: Inputs) {
+  public func update(_ next: Inputs) {
     inputs = next
     dispatcher.update(store: store, inputs: .init(userId: next.userId, connected: next.connected, context: next.context))
     settle()
   }
 
-  func submit(_ event: [String: Any], choice: [String: OutboxValue]) {
+  public func submit(_ event: [String: Any], choice: [String: OutboxValue]) {
     let current = record
     guard let store, ready, !dispatching, !sending, !inputs.context.overflow, inputs.session?.archived != true,
           !inputs.userId.isEmpty, let session = inputs.session?.outboxValue ?? current?.session,
@@ -108,11 +115,11 @@ final class SessionSender {
     let put = store.put(draft)
     Task { @MainActor in
       guard case .failure = await put.result else { return }
-      store.put(draft.with(phase: "failed", reason: String(localized: "send.error.draftSaveShort", bundle: .lody)))
+      store.put(draft.with(phase: "failed", reason: String(localized: "send.error.draftSaveShort", bundle: .lodyData)))
     }
   }
 
-  func retry() {
+  public func retry() {
     guard let store, let record, record.phase == "failed", !dispatching else { return }
     var next = record.with(phase: "waiting")
     next.send["reason"] = nil
@@ -161,26 +168,26 @@ final class SessionSender {
     changed?()
   }
 
-  static func object(_ value: [String: Any]) -> [String: OutboxValue]? {
+  public static func object(_ value: [String: Any]) -> [String: OutboxValue]? {
     guard let data = try? JSONSerialization.data(withJSONObject: value) else { return nil }
     return (try? JSONDecoder().decode(OutboxValue.self, from: data))?.object
   }
 
-  static func encode(_ value: OutboxValue) -> String {
+  public static func encode(_ value: OutboxValue) -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .withoutEscapingSlashes
     return (try? encoder.encode(value)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
   }
 }
 
-struct SessionUploadProgress: Sendable {
-  var sessionId = ""
-  var sendId = ""
-  var attachmentId = ""
-  var phase = ""
-  var percent: Int?
+public struct SessionUploadProgress: Sendable {
+  public var sessionId = ""
+  public var sendId = ""
+  public var attachmentId = ""
+  public var phase = ""
+  public var percent: Int?
 
-  init(_ info: [AnyHashable: Any]) {
+  public init(_ info: [AnyHashable: Any]) {
     sessionId = info["sessionId"] as? String ?? ""
     sendId = info["sendId"] as? String ?? ""
     attachmentId = info["attachmentId"] as? String ?? ""
@@ -190,7 +197,7 @@ struct SessionUploadProgress: Sendable {
 }
 
 extension SessionItem {
-  var outboxValue: [String: OutboxValue] {
+  public var outboxValue: [String: OutboxValue] {
     var value: [String: OutboxValue] = [
       "id": .string(id), "machineId": .string(machineId), "title": .string(title), "status": .string(status),
       "archived": .bool(archived), "pinned": .bool(pinned), "projectId": .string(projectId), "createdAt": .string(createdAt),

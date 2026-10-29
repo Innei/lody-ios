@@ -3,6 +3,10 @@ import Foundation
 public enum RuntimeJSON: Sendable {
   public struct Invalid: Error, Sendable {}
 
+  public static func string(_ object: [String: Any]) -> String {
+    (try? JSONSerialization.data(withJSONObject: object)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+  }
+
   public static func object(_ value: some Encodable) throws -> [String: Any] {
     guard let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(value)) as? [String: Any] else { throw Invalid() }
     return object

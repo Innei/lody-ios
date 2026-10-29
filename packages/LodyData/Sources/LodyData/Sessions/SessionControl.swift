@@ -1,34 +1,43 @@
 import Foundation
 
 @MainActor
-final class SessionControl {
-  struct State: Equatable {
-    var running = false
-    var canStop = false
-    var controlling = false
-    var stopping = false
-    var steerID = ""
-    var steerInterrupts = false
+public final class SessionControl {
+  public struct State: Equatable, Sendable {
+    public var running = false
+    public var canStop = false
+    public var controlling = false
+    public var stopping = false
+    public var steerID = ""
+    public var steerInterrupts = false
+
+    public init(running: Bool = false, canStop: Bool = false, controlling: Bool = false, stopping: Bool = false, steerID: String = "", steerInterrupts: Bool = false) {
+      self.running = running
+      self.canStop = canStop
+      self.controlling = controlling
+      self.stopping = stopping
+      self.steerID = steerID
+      self.steerInterrupts = steerInterrupts
+    }
   }
 
-  typealias Request = @MainActor (_ payload: String) async throws -> String
+  public typealias Request = @MainActor (_ payload: String) async throws -> String
 
-  var changed: (() -> Void)?
+  public var changed: (() -> Void)?
   private let request: Request
   private var inFlight = false
   private var busy = ""
   private var stoppedTurn = ""
 
-  init(request: @escaping Request) {
+  public init(request: @escaping Request) {
     self.request = request
   }
 
-  static let live: Request = { payload in
+  public static let live: Request = { payload in
     guard let runtime = DataRuntime.current else { throw OutboxError.scopeExpired }
     return try await withCheckedThrowingContinuation { runtime.controlTurn(payload, sink: .continuation($0)) }
   }
 
-  func state(session: SessionItem, transcript: SessionTranscriptFacts, live: Bool, overflow: Bool, steerable: Bool) -> State {
+  public func state(session: SessionItem, transcript: SessionTranscriptFacts, live: Bool, overflow: Bool, steerable: Bool) -> State {
     let turn = transcript.unfinishedTurnId
     let stopped = turn != nil && stoppedTurn == turn
     return State(
@@ -41,7 +50,7 @@ final class SessionControl {
     )
   }
 
-  func act(_ action: String, messageId: String? = nil, session: SessionItem, transcript: SessionTranscriptFacts,
+  public func act(_ action: String, messageId: String? = nil, session: SessionItem, transcript: SessionTranscriptFacts,
            live: Bool, overflow: Bool, steerable: Bool) {
     guard canControl(session: session, transcript: transcript, live: live, overflow: overflow), !inFlight,
           let turn = transcript.unfinishedTurnId else { return }
@@ -56,11 +65,11 @@ final class SessionControl {
     let request = request
     Task { @MainActor [weak self] in
       do {
-        let result = try await request(SessionController.json(payload))
+        let result = try await request(RuntimeJSON.string(payload))
         let state = (try? JSONSerialization.jsonObject(with: Data(result.utf8)) as? [String: Any])?["state"] as? String
         if state == "stopped" { self?.stoppedTurn = turn }
       } catch {
-        LodyToastOverlay.shared.show(message: String(localized: "native.chat.composer.controlError", bundle: .lody), kind: "error")
+        LodyHosting.current?.toast(String(localized: "native.chat.composer.controlError", bundle: .lodyData), kind: "error")
       }
       self?.inFlight = false
       self?.busy = ""

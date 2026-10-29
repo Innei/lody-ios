@@ -1,20 +1,31 @@
 import Foundation
+import LodyCore
 
-struct SessionListState: Equatable, Sendable {
-  var userId = ""
-  var workspaceId = ""
-  var loading = false
-  var connected = true
-  var presence = SettingsMachinePresence.unknown
-  var workspaces: [AuthWorkspace] = []
-  var catalog = SessionCatalog()
+public struct SessionListState: Equatable, Sendable {
+  public var userId = ""
+  public var workspaceId = ""
+  public var loading = false
+  public var connected = true
+  public var presence = SettingsMachinePresence.unknown
+  public var workspaces: [AuthWorkspace] = []
+  public var catalog = SessionCatalog()
 
-  var workspace: AuthWorkspace? { workspaces.first { $0.id == workspaceId } }
+  public var workspace: AuthWorkspace? { workspaces.first { $0.id == workspaceId } }
 
-  var key: String { userId.isEmpty || workspaceId.isEmpty ? "" : "\(userId):\(workspaceId)" }
+  public var key: String { userId.isEmpty || workspaceId.isEmpty ? "" : "\(userId):\(workspaceId)" }
+
+  public init(userId: String = "", workspaceId: String = "", loading: Bool = false, connected: Bool = true, presence: SettingsMachinePresence = SettingsMachinePresence.unknown, workspaces: [AuthWorkspace] = [], catalog: SessionCatalog = SessionCatalog()) {
+    self.userId = userId
+    self.workspaceId = workspaceId
+    self.loading = loading
+    self.connected = connected
+    self.presence = presence
+    self.workspaces = workspaces
+    self.catalog = catalog
+  }
 }
 
-enum SessionWrite: Sendable {
+public enum SessionWrite: Sendable {
   case archive(Bool)
   case pin(Bool)
   case read(Double)
@@ -22,16 +33,16 @@ enum SessionWrite: Sendable {
   case delete([String])
 }
 
-typealias SessionWriteService = @MainActor (_ workspaceId: String, _ sessionId: String, _ write: SessionWrite) async throws -> Void
+public typealias SessionWriteService = @MainActor (_ workspaceId: String, _ sessionId: String, _ write: SessionWrite) async throws -> Void
 
 @MainActor
-final class SessionSource {
-  let changes: [Notification.Name]
-  let write: SessionWriteService
+public final class SessionSource {
+  public let changes: [Notification.Name]
+  public let write: SessionWriteService
   private let read: @MainActor () -> SessionListState
   private let rawSession: @MainActor (String) -> String?
 
-  init(
+  public init(
     changes: [Notification.Name], read: @escaping @MainActor () -> SessionListState,
     raw: @escaping @MainActor (String) -> String? = { _ in nil }, write: @escaping SessionWriteService
   ) {
@@ -41,25 +52,12 @@ final class SessionSource {
     self.write = write
   }
 
-  var state: SessionListState { read() }
+  public var state: SessionListState { read() }
 
-  func raw(_ sessionId: String) -> String? { rawSession(sessionId) }
-
-  static let live = SessionSource(
-    changes: [.lodyAuthDidChange, .lodyCatalogDidChange, .lodySessionCatalogPreviewDidChange, .lodySessionViewsDidChange],
-    read: { SessionCatalogPreview.state ?? SessionPublished.state() },
-    raw: { id in SessionCatalogPreview.state == nil ? SessionPublished.raw(id) : SessionCatalogPreview.raw(id) },
-    write: { workspaceId, sessionId, write in
-      if NativeHomeFixture.active, case .delete(let ids) = write {
-        try await NativeHomeFixture.request("deleteSessions", ["sessionId": sessionId, "sessionIds": ids])
-        return
-      }
-      try await SessionActions.cloud(workspaceId, sessionId, write)
-    }
-  )
+  public func raw(_ sessionId: String) -> String? { rawSession(sessionId) }
 
   // A persisted local watermark clears unread emphasis.
-  nonisolated static func views(userId: String, workspaceId: String) async -> [String: Double] {
+  public nonisolated static func views(userId: String, workspaceId: String) async -> [String: Double] {
     guard !userId.isEmpty, !workspaceId.isEmpty,
       let data = try? JSONSerialization.data(withJSONObject: [userId, workspaceId], options: .withoutEscapingSlashes)
     else { return [:] }
@@ -72,7 +70,7 @@ final class SessionSource {
   }
 
   // The watermark is the message time, not the device clock, so later messages regain emphasis.
-  static func markViewed(userId: String, workspaceId: String, sessionId: String, at lastMessageAt: Double?) {
+  public static func markViewed(userId: String, workspaceId: String, sessionId: String, at lastMessageAt: Double?) {
     guard let lastMessageAt, lastMessageAt.isFinite, !userId.isEmpty, !workspaceId.isEmpty,
       let data = try? JSONSerialization.data(withJSONObject: [userId, workspaceId], options: .withoutEscapingSlashes)
     else { return }
@@ -94,14 +92,14 @@ final class SessionSource {
           if saved {
             NotificationCenter.default.post(name: .lodySessionViewsDidChange, object: nil)
           } else {
-            LodyToastOverlay.shared.show(message: String(localized: "catalog.toast.localSaveFailed", bundle: .lody), kind: "error")
+            LodyHosting.current?.toast(String(localized: "catalog.toast.localSaveFailed", bundle: .lodyData), kind: "error")
           }
         }
       }
     }
   }
 
-  static func rawSession(in catalog: Any?, _ id: String) -> String? {
+  public static func rawSession(in catalog: Any?, _ id: String) -> String? {
     guard let sessions = catalog as? [Any],
       let session = sessions.first(where: { ($0 as? [String: Any])?["id"] as? String == id }),
       let data = try? JSONSerialization.data(withJSONObject: session)
@@ -111,26 +109,46 @@ final class SessionSource {
 }
 
 @MainActor
-enum SessionPublished {
+public enum SessionPublished: Sendable {
   private static var cache: (key: String, catalog: SessionCatalog)?
 
-  static func state() -> SessionListState {
+  public static func state() -> SessionListState {
     struct Auth: Decodable {
-      var account: AuthAccount?
-      var initialWorkspace: String?
+      public var account: AuthAccount?
+      public var initialWorkspace: String?
+
+      public init(account: AuthAccount? = nil, initialWorkspace: String? = nil) {
+        self.account = account
+        self.initialWorkspace = initialWorkspace
+      }
     }
     struct Scoped: Decodable {
-      var workspaceId: String?
-      var presence: SettingsMachinePresence?
+      public var workspaceId: String?
+      public var presence: SettingsMachinePresence?
+
+      public init(workspaceId: String? = nil, presence: SettingsMachinePresence? = nil) {
+        self.workspaceId = workspaceId
+        self.presence = presence
+      }
     }
     struct Catalog: Decodable {
-      var userId: String?
-      var workspaceId: String?
-      var loading: Bool?
-      var connected: Bool?
-      var catalogRevision: Int?
-      var presence: Lossy<Scoped>?
-      var pendingSessions: [Lossy<SessionItem>]?
+      public var userId: String?
+      public var workspaceId: String?
+      public var loading: Bool?
+      public var connected: Bool?
+      public var catalogRevision: Int?
+      public var presence: Lossy<Scoped>?
+      public var pendingSessions: [Lossy<SessionItem>]?
+
+      public init(userId: String? = nil, workspaceId: String? = nil, loading: Bool? = nil, connected: Bool? = nil, catalogRevision: Int? = nil, presence: Lossy<Scoped>? = nil, pendingSessions: [Lossy<SessionItem>]? = nil) {
+        self.userId = userId
+        self.workspaceId = workspaceId
+        self.loading = loading
+        self.connected = connected
+        self.catalogRevision = catalogRevision
+        self.presence = presence
+        self.pendingSessions = pendingSessions
+      }
     }
     let auth = try? JSONDecoder().decode(Auth.self, from: Data(AuthSession.published.json.utf8))
     guard let account = auth?.account else { return SessionListState() }
@@ -160,7 +178,7 @@ enum SessionPublished {
     return state
   }
 
-  static func raw(_ id: String) -> String? {
+  public static func raw(_ id: String) -> String? {
     let saved = try? JSONSerialization.jsonObject(with: Data(CatalogSession.published.raw.utf8)) as? [String: Any]
     if let found = SessionSource.rawSession(in: (saved?["catalog"] as? [String: Any])?["sessions"], id) { return found }
     let state = try? JSONSerialization.jsonObject(with: Data(CatalogSession.published.json.utf8)) as? [String: Any]
@@ -170,10 +188,10 @@ enum SessionPublished {
 
 // Native offline fixtures publish their catalog independently of authenticated services.
 @MainActor
-enum SessionCatalogPreview {
+public enum SessionCatalogPreview: Sendable {
   private static var base: SessionListState?
   private static var observer: NSObjectProtocol?
-  static var state: SessionListState? {
+  public static var state: SessionListState? {
     guard var state = base else { return nil }
     let pending = pendingSessions()
     state.catalog.sessions += try! JSONDecoder().decode([SessionItem].self, from: JSONEncoder().encode(pending))
@@ -184,10 +202,10 @@ enum SessionCatalogPreview {
     let existing = Dictionary(uniqueKeysWithValues: base.catalog.sessions.map { ($0.id, "") })
     return OutboxSession.shared.pendingSessions(user: base.userId, workspace: base.workspaceId, excluding: existing)
   }
-  private(set) static var catalogJSON = ""
+  public private(set) static var catalogJSON = ""
   private static var sessions: [Any] = []
 
-  static func set(_ json: String) {
+  public static func set(_ json: String) {
     guard LodyUIVerify.enabled else { return }
     let payload = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]
     let account = payload?["account"] as? [String: Any]
@@ -222,7 +240,7 @@ enum SessionCatalogPreview {
     NotificationCenter.default.post(name: .lodySessionCatalogPreviewDidChange, object: nil)
   }
 
-  static func raw(_ id: String) -> String? {
+  public static func raw(_ id: String) -> String? {
     if let raw = SessionSource.rawSession(in: sessions, id) { return raw }
     guard let pending = pendingSessions().first(where: { $0.object?["id"]?.string == id }) else { return nil }
     return String(decoding: try! JSONEncoder().encode(pending), as: UTF8.self)
@@ -239,6 +257,40 @@ enum SessionCatalogPreview {
 }
 
 extension Notification.Name {
-  static let lodySessionCatalogPreviewDidChange = Notification.Name("LodySessionCatalogPreviewDidChange")
-  static let lodySessionViewsDidChange = Notification.Name("LodySessionViewsDidChange")
+  public static let lodySessionCatalogPreviewDidChange = Notification.Name("LodySessionCatalogPreviewDidChange")
+  public static let lodySessionViewsDidChange = Notification.Name("LodySessionViewsDidChange")
+}
+
+extension SessionSource {
+  public static func cloud(_ workspaceId: String, _ sessionId: String, _ write: SessionWrite) async throws {
+    guard let runtime = DataRuntime.current, runtime.workspace == workspaceId else {
+      throw DataRuntime.failure("not_ready", String(localized: "native.runtime.sessionNotSynced", bundle: .lodyData))
+    }
+    switch write {
+    case .archive(let archived):
+      _ = try await runtime.workspaceCall(RuntimeContract.Calls.ArchiveSession.self) { workspace, _ in
+        .init(workspaceId: workspace, sessionId: sessionId, archived: archived)
+      }
+    case .pin(let pinned):
+      _ = try await runtime.workspaceCall(RuntimeContract.Calls.PinSession.self) { workspace, _ in
+        .init(workspaceId: workspace, sessionId: sessionId, pinned: pinned)
+      }
+    case .read(let at):
+      _ = try await runtime.workspaceCall(RuntimeContract.Calls.MarkSessionRead.self) { workspace, _ in
+        .init(workspaceId: workspace, sessionId: sessionId, lastReadAt: at)
+      }
+    case .rename(let title):
+      _ = try await runtime.workspaceCall(RuntimeContract.Calls.RenameSession.self) { workspace, _ in
+        .init(workspaceId: workspace, sessionId: sessionId, title: title)
+      }
+    case .delete(let ids):
+      let payload = RuntimeJSON.string(["workspaceId": workspaceId, "sessionId": sessionId, "sessionIds": ids])
+      guard OutboxSession.shared.allowsDeletion(payload) else {
+        throw DataRuntime.failure("session_has_pending_send", "session_has_pending_send")
+      }
+      _ = try await runtime.workspaceCall(RuntimeContract.Calls.DeleteSession.self) { workspace, _ in
+        .init(workspaceId: workspace, sessionId: sessionId, sessionIds: ids)
+      }
+    }
+  }
 }

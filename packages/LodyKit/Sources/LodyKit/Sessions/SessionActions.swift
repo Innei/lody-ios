@@ -149,40 +149,4 @@ final class SessionActions {
   private static func toast(_ key: String) {
     LodyToastOverlay.shared.show(message: String(localized: String.LocalizationValue("session.toast." + key), bundle: .lody), kind: "error")
   }
-
-  private static func json(_ object: [String: Any]) -> String {
-    (try? JSONSerialization.data(withJSONObject: object)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
-  }
-
-  static func cloud(_ workspaceId: String, _ sessionId: String, _ write: SessionWrite) async throws {
-    guard let runtime = DataRuntime.current, runtime.workspace == workspaceId else {
-      throw DataRuntime.failure("not_ready", String(localized: "native.runtime.sessionNotSynced", bundle: .lody))
-    }
-    switch write {
-    case .archive(let archived):
-      _ = try await runtime.workspaceCall(RuntimeContract.Calls.ArchiveSession.self) { workspace, _ in
-        .init(workspaceId: workspace, sessionId: sessionId, archived: archived)
-      }
-    case .pin(let pinned):
-      _ = try await runtime.workspaceCall(RuntimeContract.Calls.PinSession.self) { workspace, _ in
-        .init(workspaceId: workspace, sessionId: sessionId, pinned: pinned)
-      }
-    case .read(let at):
-      _ = try await runtime.workspaceCall(RuntimeContract.Calls.MarkSessionRead.self) { workspace, _ in
-        .init(workspaceId: workspace, sessionId: sessionId, lastReadAt: at)
-      }
-    case .rename(let title):
-      _ = try await runtime.workspaceCall(RuntimeContract.Calls.RenameSession.self) { workspace, _ in
-        .init(workspaceId: workspace, sessionId: sessionId, title: title)
-      }
-    case .delete(let ids):
-      let payload = json(["workspaceId": workspaceId, "sessionId": sessionId, "sessionIds": ids])
-      guard OutboxSession.shared.allowsDeletion(payload) else {
-        throw DataRuntime.failure("session_has_pending_send", "session_has_pending_send")
-      }
-      _ = try await runtime.workspaceCall(RuntimeContract.Calls.DeleteSession.self) { workspace, _ in
-        .init(workspaceId: workspace, sessionId: sessionId, sessionIds: ids)
-      }
-    }
-  }
 }

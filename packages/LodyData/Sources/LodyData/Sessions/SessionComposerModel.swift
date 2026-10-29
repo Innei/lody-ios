@@ -2,14 +2,14 @@ import Foundation
 import LodyCore
 
 @MainActor
-struct SessionComposerService {
-  var options: @MainActor (_ workspaceId: String, _ projectId: String) async throws -> CreationOptions
-  var tier: @MainActor (_ workspaceId: String, _ userId: String) async -> String?
+public struct SessionComposerService: Sendable {
+  public var options: @MainActor (_ workspaceId: String, _ projectId: String) async throws -> CreationOptions
+  public var tier: @MainActor (_ workspaceId: String, _ userId: String) async -> String?
 
-  static let live = SessionComposerService(
+  public static let live = SessionComposerService(
     options: { workspaceId, projectId in
       guard let runtime = DataRuntime.current else { throw OutboxError.scopeExpired }
-      let payload = SessionController.json(["workspaceId": workspaceId, "projectId": projectId])
+      let payload = RuntimeJSON.string(["workspaceId": workspaceId, "projectId": projectId])
       let json: String = try await withCheckedThrowingContinuation { runtime.creationOptions(payload, sink: .continuation($0)) }
       guard let options = CreateJSON.decode(CreationOptions.self, json) else { throw OutboxError.invalidRecord }
       return options
@@ -19,13 +19,18 @@ struct SessionComposerService {
       return await runtime.billing.entitlement(workspace: workspaceId, user: userId)?["effectivePlanTier"] as? String
     }
   )
+
+  public init(options: @escaping @MainActor (_ workspaceId: String, _ projectId: String) async throws -> CreationOptions, tier: @escaping @MainActor (_ workspaceId: String, _ userId: String) async -> String?) {
+    self.options = options
+    self.tier = tier
+  }
 }
 
 @MainActor
-final class SessionComposerModel {
-  var changed: (() -> Void)?
-  private(set) var capability: Capability?
-  private(set) var tier: String?
+public final class SessionComposerModel {
+  public var changed: (() -> Void)?
+  public private(set) var capability: Capability?
+  public private(set) var tier: String?
   private let service: SessionComposerService
   private var choice: ModelChoice
   private var hydrated: Bool
@@ -36,7 +41,7 @@ final class SessionComposerModel {
   private var tierKey = ""
   private var tierTimer: Timer?
 
-  init(choice: ModelChoice?, service: SessionComposerService = .live) {
+  public init(choice: ModelChoice?, service: SessionComposerService = .live) {
     self.choice = choice ?? ModelChoice()
     hydrated = choice != nil
     self.service = service
@@ -47,10 +52,10 @@ final class SessionComposerModel {
     tierTimer?.invalidate()
   }
 
-  var active: ModelChoice { hydrated ? choice : snapshotChoice ?? choice }
-  var steerable: Bool { capability?.steer == true }
+  public var active: ModelChoice { hydrated ? choice : snapshotChoice ?? choice }
+  public var steerable: Bool { capability?.steer == true }
 
-  func hydrate(pending: OutboxRecord?, ready: Bool, snapshot: ModelChoice?) {
+  public func hydrate(pending: OutboxRecord?, ready: Bool, snapshot: ModelChoice?) {
     snapshotChoice = snapshot
     guard ready else { return }
     if let pending {
@@ -64,7 +69,7 @@ final class SessionComposerModel {
     }
   }
 
-  func load(workspaceId: String, projectId: String?, session: SessionItem) {
+  public func load(workspaceId: String, projectId: String?, session: SessionItem) {
     let key = [workspaceId, projectId ?? "", session.machineId, session.cliType, session.agentType].joined(separator: "\n")
     guard key != capabilityKey else { return }
     capabilityKey = key
@@ -84,7 +89,7 @@ final class SessionComposerModel {
     }
   }
 
-  func watchTier(workspaceId: String, userId: String, watch: Bool) {
+  public func watchTier(workspaceId: String, userId: String, watch: Bool) {
     let key = watch && !workspaceId.isEmpty && !userId.isEmpty ? "\(userId):\(workspaceId)" : ""
     guard key != tierKey else { return }
     tierKey = key
@@ -108,7 +113,7 @@ final class SessionComposerModel {
     }
   }
 
-  var optionsJSON: String {
+  public var optionsJSON: String {
     let value = active
     let permission = CreateLogic.permissionMode(capability, value)
     var options: [String: Any] = [
@@ -120,10 +125,10 @@ final class SessionComposerModel {
       "efforts": CreateLogic.effortsFor(capability, modelId: value.modelId).map { ["id": $0, "title": $0] },
     ]
     options["fast"] = CreateLogic.fastMode(capability, value)?.enabled
-    return SessionController.json(options)
+    return RuntimeJSON.string(options)
   }
 
-  func change(_ body: [String: Any]) {
+  public func change(_ body: [String: Any]) {
     hydrated = true
     if let permission = body["permissionId"] as? String {
       choice = CreateLogic.withPermissionMode(capability, active, value: permission)
@@ -136,7 +141,7 @@ final class SessionComposerModel {
     changed?()
   }
 
-  var sendChoice: [String: OutboxValue] {
+  public var sendChoice: [String: OutboxValue] {
     let value = active
     var result: [String: OutboxValue] = [:]
     let explicit = capability != nil
@@ -156,7 +161,7 @@ final class SessionComposerModel {
     return result
   }
 
-  static func choice(_ value: OutboxValue) -> ModelChoice? {
+  public static func choice(_ value: OutboxValue) -> ModelChoice? {
     guard let data = try? JSONEncoder().encode(value) else { return nil }
     return try? JSONDecoder().decode(ModelChoice.self, from: data)
   }

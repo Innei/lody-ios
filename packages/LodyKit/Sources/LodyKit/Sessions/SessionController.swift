@@ -302,6 +302,6 @@ class SessionController: UIViewController {
   }
 
   static func json(_ object: [String: Any]) -> String {
-    (try? JSONSerialization.data(withJSONObject: object)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+    RuntimeJSON.string(object)
   }
 }
