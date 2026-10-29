@@ -1,4 +1,4 @@
-import UIKit
+import Foundation
 
 /// A short background allowance for a user send, without a system Live Activity.
 /// Expiration releases local execution time; it never cancels the remote agent.
@@ -7,7 +7,7 @@ final class SessionBackgroundTasks {
   static let shared = SessionBackgroundTasks()
   private struct Work {
     let owner: String
-    let task: UIBackgroundTaskIdentifier
+    let token: AnyObject
   }
   private var work: [String: Work] = [:]
   private(set) var debugState = "idle"
@@ -17,16 +17,13 @@ final class SessionBackgroundTasks {
   }
 
   func begin(owner: String) -> String? {
-    guard UIApplication.shared.applicationState == .active else { return nil }
+    guard let host = LodyHosting.current, host.isActive else { return nil }
     let id = UUID().uuidString
-    let task = UIApplication.shared.beginBackgroundTask(withName: "Session send") { [weak self] in
-      self?.expire(id)
-    }
-    guard task != .invalid else {
+    guard let token = host.beginSendAllowance(expired: { [weak self] in self?.expire(id) }) else {
       debugState = "unavailable"
       return nil
     }
-    work[id] = Work(owner: owner, task: task)
+    work[id] = Work(owner: owner, token: token)
     debugState = "running"
     return id
   }
@@ -48,7 +45,7 @@ final class SessionBackgroundTasks {
 
   func finish(_ id: String, success: Bool) {
     guard let current = work.removeValue(forKey: id) else { return }
-    UIApplication.shared.endBackgroundTask(current.task)
+    LodyHosting.current?.endSendAllowance(current.token)
     debugState = success ? "completed" : "stopped"
   }
 

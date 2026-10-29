@@ -26,14 +26,13 @@ public final class LodyApplication {
 
   public func start(in window: UIWindow) {
     precondition(observers.isEmpty, "Lody supports one active scene")
+    LodyHosting.current = LodyUIKitHost.shared
     ContentPreview.clearAll()
     if LodyUIVerify.offline { URLProtocol.registerClass(OfflineProbe.self) }
     lodyApplyWindowAccent()
     LiveActivities.shared.syncAppIcon()
     DataRuntime.current = runtime
-    AuthSession.shared.presenter = { LodyShell.shared.presenter }
     AuthSession.shared.stopRuntime = { [weak self] in self?.runtime.stop() }
-    OutboxSession.shared.presenter = { LodyShell.shared.presenter }
     OutboxSession.shared.attach(runtime)
     CatalogSession.shared.attach(runtime)
     for name in [Notification.Name.lodyAuthDidChange, .lodyCatalogDidChange, UIApplication.didBecomeActiveNotification] {

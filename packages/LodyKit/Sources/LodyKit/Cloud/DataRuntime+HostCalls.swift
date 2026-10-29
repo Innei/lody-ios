@@ -1,5 +1,5 @@
+import Foundation
 import LodyCore
-import UIKit
 
 extension DataRuntime {
   func handle(_ id: String, _ request: RuntimeContract.HostRequest) {
@@ -62,9 +62,9 @@ extension DataRuntime {
       var value: RuntimeContract.JSONValue?
       if let result = try? await SessionSharing.run(operation, args: args, workspace: workspace, userId: user, useLink: { action, url in
         if action == "copy" {
-          UIPasteboard.general.setItems([[UIPasteboard.typeAutomatic: url.absoluteString]], options: [.localOnly: true])
+          LodyHosting.current?.copyLink(url)
         } else if action == "open" {
-          guard await UIApplication.shared.open(url) else { throw SessionSharing.ManagementFailure(code: "shares_link_failed") }
+          guard await LodyHosting.current?.open(url) == true else { throw SessionSharing.ManagementFailure(code: "shares_link_failed") }
         }
       }) {
         value = try? RuntimeJSON.decode(RuntimeContract.JSONValue.self, from: result)

@@ -1,78 +1,117 @@
 import Foundation
 
-struct AuthUser: Codable, Equatable, Sendable {
-  let id: String
-  let name: String
-  let email: String
-  let image: String?
+public struct AuthUser: Codable, Equatable, Sendable {
+  public let id: String
+  public let name: String
+  public let email: String
+  public let image: String?
+
+  public init(id: String, name: String, email: String, image: String?) {
+    self.id = id
+    self.name = name
+    self.email = email
+    self.image = image
+  }
 }
 
-struct AuthWorkspace: Codable, Equatable, Sendable {
-  let id: String
-  let name: String
-  let slug: String?
-  let image: String?
+public struct AuthWorkspace: Codable, Equatable, Sendable {
+  public let id: String
+  public let name: String
+  public let slug: String?
+  public let image: String?
 
-  func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(id, forKey: .id)
     try container.encode(name, forKey: .name)
     try container.encode(slug, forKey: .slug)
     try container.encodeIfPresent(image, forKey: .image)
   }
+
+  public init(id: String, name: String, slug: String?, image: String?) {
+    self.id = id
+    self.name = name
+    self.slug = slug
+    self.image = image
+  }
 }
 
-struct AuthAccount: Codable, Equatable, Sendable {
-  let user: AuthUser
-  var workspaces: [AuthWorkspace]
+public struct AuthAccount: Codable, Equatable, Sendable {
+  public let user: AuthUser
+  public var workspaces: [AuthWorkspace]
 
-  static func decode(_ json: String?) -> AuthAccount? {
+  public static func decode(_ json: String?) -> AuthAccount? {
     guard let json, let account = try? JSONDecoder().decode(AuthAccount.self, from: Data(json.utf8)),
           !account.user.id.isEmpty else { return nil }
     return account
   }
 
-  static func userID(_ json: String?) -> String? {
+  public static func userID(_ json: String?) -> String? {
     guard let json, let object = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any],
           let user = object["user"] as? [String: Any] else { return nil }
     return user["id"] as? String
   }
 
-  var json: String {
+  public var json: String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .withoutEscapingSlashes
     return (try? encoder.encode(self)).map { String(decoding: $0, as: UTF8.self) } ?? "null"
   }
+
+  public init(user: AuthUser, workspaces: [AuthWorkspace]) {
+    self.user = user
+    self.workspaces = workspaces
+  }
 }
 
-struct DeviceCode: Sendable {
-  let deviceCode: String
-  let userCode: String
-  let verificationURL: String
-  let expiresIn: Double
-  let interval: Double
+public struct DeviceCode: Sendable {
+  public let deviceCode: String
+  public let userCode: String
+  public let verificationURL: String
+  public let expiresIn: Double
+  public let interval: Double
+
+  public init(deviceCode: String, userCode: String, verificationURL: String, expiresIn: Double, interval: Double) {
+    self.deviceCode = deviceCode
+    self.userCode = userCode
+    self.verificationURL = verificationURL
+    self.expiresIn = expiresIn
+    self.interval = interval
+  }
 }
 
-struct WorkspaceIconFile: Sendable {
-  let url: URL
-  let name: String
-  let type: String
-  let size: Int
+public struct WorkspaceIconFile: Sendable {
+  public let url: URL
+  public let name: String
+  public let type: String
+  public let size: Int
+
+  public init(url: URL, name: String, type: String, size: Int) {
+    self.url = url
+    self.name = name
+    self.type = type
+    self.size = size
+  }
 }
 
-struct AuthFailure: LocalizedError {
-  let message: String
-  var expired = false
+public struct AuthFailure: LocalizedError {
+  public let message: String
+  public var expired = false
 
-  var errorDescription: String? { message }
+  public var errorDescription: String? { message }
+
+  public init(message: String, expired: Bool = false) {
+    self.message = message
+    self.expired = expired
+  }
 }
 
-struct AuthAPI: Sendable {
-  typealias Transport = @Sendable (URLRequest) async throws -> (Data, Int)
+public struct AuthAPI: Sendable {
+  public typealias Transport = @Sendable (URLRequest) async throws -> (Data, Int)
 
-  static let authOrigin = "https://backend.lody.ai"
-  static let cloudOrigin = "https://api.lody.ai"
-  static let clientID = "lody-cli"
+  public static let authOrigin = "https://backend.lody.ai"
+  public static let cloudOrigin = "https://api.lody.ai"
+  public static let clientID = "lody-cli"
   private static let iconTypes: Set<String> = ["image/png", "image/jpeg", "image/webp", "image/gif"]
   private static let iconMaxBytes = 1024 * 1024
   private static let componentCharacters = CharacterSet(
@@ -86,7 +125,7 @@ struct AuthAPI: Sendable {
     return URLSession(configuration: configuration)
   }()
 
-  var transport: Transport = { request in
+  public var transport: Transport = { request in
     do {
       let (data, response) = try await AuthAPI.session.data(for: request)
       return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
@@ -94,28 +133,28 @@ struct AuthAPI: Sendable {
       throw AuthFailure(message: "Network request failed")
     }
   }
-  var sleep: @Sendable (Double) async throws -> Void = { milliseconds in
+  public var sleep: @Sendable (Double) async throws -> Void = { milliseconds in
     try await Task.sleep(nanoseconds: UInt64(max(0, milliseconds) * 1_000_000))
   }
-  var now: @Sendable () -> Double = { Date().timeIntervalSince1970 * 1000 }
+  public var now: @Sendable () -> Double = { Date().timeIntervalSince1970 * 1000 }
 
-  func deviceCode() async throws -> DeviceCode {
+  public func deviceCode() async throws -> DeviceCode {
     let data = try Self.record(await request("/device/code", body: ["client_id": Self.clientID]))
     let address = try Self.requiredString(data["verification_uri_complete"])
     guard var url = URLComponents(string: address), url.scheme?.lowercased() == "https",
           let host = url.host?.lowercased(), ["lody.ai", "backend.lody.ai"].contains(host),
           url.port == nil || url.port == 443, url.user == nil, url.password == nil else {
-      throw AuthFailure(message: String(localized: "auth.error.invalidAuthorizeUrl", bundle: .lody))
+      throw AuthFailure(message: String(localized: "auth.error.invalidAuthorizeUrl", bundle: .lodyData))
     }
     guard let expiresIn = Self.positive(data["expires_in"]), let interval = Self.positive(data["interval"]) else {
-      throw AuthFailure(message: String(localized: "auth.error.invalidExpiry", bundle: .lody))
+      throw AuthFailure(message: String(localized: "auth.error.invalidExpiry", bundle: .lodyData))
     }
     // The auth site redirects to this official web UI; match the CLI's direct device-page link.
     url.scheme = "https"
     url.host = "lody.ai"
     url.port = nil
     if url.path.isEmpty { url.path = "/" }
-    guard let verification = url.url?.absoluteString else { throw AuthFailure(message: String(localized: "auth.error.invalidAuthorizeUrl", bundle: .lody)) }
+    guard let verification = url.url?.absoluteString else { throw AuthFailure(message: String(localized: "auth.error.invalidAuthorizeUrl", bundle: .lodyData)) }
     return DeviceCode(
       deviceCode: try Self.requiredString(data["device_code"]),
       userCode: try Self.requiredString(data["user_code"]),
@@ -125,7 +164,7 @@ struct AuthAPI: Sendable {
     )
   }
 
-  func pollToken(_ code: DeviceCode) async throws -> String {
+  public func pollToken(_ code: DeviceCode) async throws -> String {
     var interval = code.interval * 1000
     let deadline = now() + code.expiresIn * 1000
     polling: while now() < deadline {
@@ -141,20 +180,20 @@ struct AuthAPI: Sendable {
       switch data["error"] as? String {
       case "authorization_pending": continue
       case "slow_down": interval += 5000
-      case "access_denied": throw AuthFailure(message: String(localized: "auth.error.accessDenied", bundle: .lody))
+      case "access_denied": throw AuthFailure(message: String(localized: "auth.error.accessDenied", bundle: .lodyData))
       case "expired_token": break polling
-      default: throw AuthFailure(message: String(localized: "auth.error.deviceAuthFailed", bundle: .lody))
+      default: throw AuthFailure(message: String(localized: "auth.error.deviceAuthFailed", bundle: .lodyData))
       }
     }
-    throw AuthFailure(message: String(localized: "auth.error.codeExpired", bundle: .lody))
+    throw AuthFailure(message: String(localized: "auth.error.codeExpired", bundle: .lodyData))
   }
 
-  func account(token: String) async throws -> AuthAccount {
+  public func account(token: String) async throws -> AuthAccount {
     let session = try await request("/get-session", token: token)
     if session is NSNull { throw Self.expired }
     let user = try Self.record(Self.record(session)["user"])
     guard let list = try await request("/organization/list", token: token) as? [Any] else {
-      throw AuthFailure(message: String(localized: "auth.error.invalidWorkspaceList", bundle: .lody))
+      throw AuthFailure(message: String(localized: "auth.error.invalidWorkspaceList", bundle: .lodyData))
     }
     let email = try Self.requiredString(user["email"])
     return AuthAccount(
@@ -168,20 +207,20 @@ struct AuthAPI: Sendable {
     )
   }
 
-  func updateWorkspace(token: String, id: String, name: String) async throws -> AuthWorkspace {
+  public func updateWorkspace(token: String, id: String, name: String) async throws -> AuthWorkspace {
     try Self.workspace(await request("/organization/update", token: token, body: ["organizationId": id, "data": ["name": name]]))
   }
 
-  func updateWorkspaceIcon(token: String, id: String, image: String) async throws -> AuthWorkspace {
+  public func updateWorkspaceIcon(token: String, id: String, image: String) async throws -> AuthWorkspace {
     try Self.workspace(await request("/organization/update", token: token, body: ["organizationId": id, "data": ["logo": image]]))
   }
 
-  func uploadWorkspaceIcon(token: String, id: String, file: WorkspaceIconFile) async throws -> String {
+  public func uploadWorkspaceIcon(token: String, id: String, file: WorkspaceIconFile) async throws -> String {
     guard Self.iconTypes.contains(file.type), file.size > 0, file.size <= Self.iconMaxBytes else {
-      throw AuthFailure(message: String(localized: "workspace.edit.invalidIcon", bundle: .lody))
+      throw AuthFailure(message: String(localized: "workspace.edit.invalidIcon", bundle: .lodyData))
     }
     guard file.url.isFileURL, let contents = try? Data(contentsOf: file.url) else {
-      throw AuthFailure(message: String(localized: "workspace.edit.iconUploadFailed", bundle: .lody))
+      throw AuthFailure(message: String(localized: "workspace.edit.iconUploadFailed", bundle: .lodyData))
     }
     let boundary = "lody-\(UUID().uuidString)"
     let filename = file.name.replacingOccurrences(of: "\"", with: "%22")
@@ -198,12 +237,12 @@ struct AuthAPI: Sendable {
     let (data, status) = try await transport(request)
     let value = try Self.json(data)
     if status == 401 { throw Self.expired }
-    guard (200..<300).contains(status) else { throw AuthFailure(message: String(localized: "workspace.edit.iconUploadFailed", bundle: .lody)) }
+    guard (200..<300).contains(status) else { throw AuthFailure(message: String(localized: "workspace.edit.iconUploadFailed", bundle: .lodyData)) }
     let avatar = try Self.record(Self.record(value)["avatar"])
     return "\(Self.cloudOrigin)/api/avatars/\(Self.component(try Self.requiredString(avatar["avatarId"])))"
   }
 
-  func signOut(token: String) async throws {
+  public func signOut(token: String) async throws {
     _ = try await request("/sign-out", token: token, body: [:])
   }
 
@@ -217,28 +256,28 @@ struct AuthAPI: Sendable {
     let value = try Self.json(data)
     if status == 401 { throw Self.expired }
     if !(200..<300).contains(status), path != "/device/token" {
-      throw AuthFailure(message: String.localizedStringWithFormat(String(localized: "auth.error.requestFailed", bundle: .lody), String(describing: status)))
+      throw AuthFailure(message: String.localizedStringWithFormat(String(localized: "auth.error.requestFailed", bundle: .lodyData), String(describing: status)))
     }
     return value
   }
 
   private static var expired: AuthFailure {
-    AuthFailure(message: String(localized: "auth.error.expired", bundle: .lody), expired: true)
+    AuthFailure(message: String(localized: "auth.error.expired", bundle: .lodyData), expired: true)
   }
 
   private static func json(_ data: Data) throws -> Any {
     do { return try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) }
-    catch { throw AuthFailure(message: String(localized: "auth.error.invalidResponse", bundle: .lody)) }
+    catch { throw AuthFailure(message: String(localized: "auth.error.invalidResponse", bundle: .lodyData)) }
   }
 
   private static func record(_ value: Any?) throws -> [String: Any] {
-    guard let value = value as? [String: Any] else { throw AuthFailure(message: String(localized: "auth.error.invalidResponse", bundle: .lody)) }
+    guard let value = value as? [String: Any] else { throw AuthFailure(message: String(localized: "auth.error.invalidResponse", bundle: .lodyData)) }
     return value
   }
 
   private static func requiredString(_ value: Any?) throws -> String {
     guard let value = value as? String, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-      throw AuthFailure(message: String(localized: "auth.error.missingFields", bundle: .lody))
+      throw AuthFailure(message: String(localized: "auth.error.missingFields", bundle: .lodyData))
     }
     return value
   }
@@ -249,7 +288,7 @@ struct AuthAPI: Sendable {
     return number.doubleValue
   }
 
-  static func optionalHTTPS(_ value: Any?) -> String? {
+  public static func optionalHTTPS(_ value: Any?) -> String? {
     guard let value = value as? String, value.hasPrefix("https://"), var url = URLComponents(string: value),
           url.user == nil, url.password == nil, let host = url.host, !host.isEmpty else { return nil }
     url.host = host.lowercased()
@@ -269,5 +308,8 @@ struct AuthAPI: Sendable {
 
   private static func component(_ value: String) -> String {
     value.addingPercentEncoding(withAllowedCharacters: componentCharacters) ?? value
+  }
+
+  public init() {
   }
 }

@@ -1,6 +1,4 @@
 import Foundation
-import SafariServices
-import UIKit
 
 struct AuthSnapshot: Encodable, Sendable {
   struct Code: Encodable, Sendable {
@@ -47,7 +45,6 @@ final class AuthSession {
 
   private(set) var snapshot = AuthSnapshot()
   var api = AuthAPI()
-  var presenter: (() -> UIViewController?)?
   var stopRuntime: (() -> Void)?
 
   private var account: AuthAccount?
@@ -62,7 +59,6 @@ final class AuthSession {
   private var current: Task<Void, Never>?
   private var attempt = 0
   private var started = false
-  private var browser: SFSafariViewController?
 
   var catalogScope: AuthCatalogScope {
     AuthCatalogScope(account: account, localReady: localReady, initialWorkspace: initialWorkspace, initialCatalog: initialCatalog)
@@ -246,14 +242,13 @@ final class AuthSession {
   private func clearLocal() async throws {
     // Stop producers before clearing their queued writes, including background Sessions.
     stopRuntime?()
-    ShareStore.clear()
+    LodyHosting.current?.clearSharedData()
     try await Self.onStore { try $0.clear() }
   }
 
   private func clearCredentials() throws {
     stopRuntime?()
-    PushNotifications.shared.identify(nil)
-    LiveActivities.shared.endAll()
+    LodyHosting.current?.forgetDevice()
     try AuthKeychain.clear()
   }
 
@@ -274,21 +269,17 @@ final class AuthSession {
 
   private func openBrowser(_ address: String) throws {
     guard let url = URL(string: address), url.scheme == "https", url.host == "lody.ai",
-          url.user == nil, url.password == nil, let controller = presenter?() else {
+          url.user == nil, url.password == nil, LodyHosting.current?.presentAuthorization(url) == true else {
       throw NSError(domain: "LodyKit.AuthBrowser", code: 1)
     }
-    let browser = SFSafariViewController(url: url)
-    self.browser = browser
-    controller.present(browser, animated: true)
   }
 
   private func closeBrowser() {
-    browser?.dismiss(animated: true)
-    browser = nil
+    LodyHosting.current?.dismissAuthorization()
   }
 
   private func toast(_ key: String) {
-    LodyToastOverlay.shared.show(message: String(localized: String.LocalizationValue(key), bundle: .lody), kind: "error")
+    LodyHosting.current?.toast(String(localized: String.LocalizationValue(key), bundle: .lody), kind: "error")
   }
 
   private func publish() {

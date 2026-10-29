@@ -1,7 +1,6 @@
 import LodyRuntime
 import LodyCore
 import WebKit
-import UIKit
 
 // The owner lives in Swift, so a wedged JS event loop cannot disable its watchdog.
 @MainActor
@@ -50,7 +49,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
   init(localStore: LocalStore) {
     self.localStore = localStore
     super.init()
-    observers.add(NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+    observers.add(NotificationCenter.default.addObserver(forName: .lodyHostDidEnterBackground, object: nil, queue: .main) { [weak self] _ in
       MainActor.assumeIsolated {
         guard let self, self.workspace != nil else { return }
         self.backgrounded = true
@@ -59,10 +58,10 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
         self.dispatch(RuntimeContract.Calls.SetActive.self, .init(active: false))
       }
     })
-    observers.add(NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { _ in
+    observers.add(NotificationCenter.default.addObserver(forName: .lodyHostDidReceiveMemoryWarning, object: nil, queue: .main) { _ in
       MainActor.assumeIsolated { ContentStore.shared.clearAll() }
     })
-    observers.add(NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+    observers.add(NotificationCenter.default.addObserver(forName: .lodyHostDidBecomeActive, object: nil, queue: .main) { [weak self] _ in
       MainActor.assumeIsolated {
         guard let self, self.workspace != nil, self.backgrounded else { return }
         self.backgrounded = false
@@ -87,7 +86,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     self.userId = userId; cacheErrorShown = false
     self.workspace = workspace; self.owner = owner; health = RuntimeHealth()
     workspaceSlug = slug; workspaceName = name
-    backgrounded = UIApplication.shared.applicationState == .background
+    backgrounded = LodyHosting.current?.isBackground ?? false
     if backgrounded { publish("background", reason: "paused") }
     else { build(reason: "subscribe") }
   }
@@ -196,7 +195,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     case "backgroundProbe":
       guard backgroundProbe else { return }
       probeUpdates += 1
-      if UIApplication.shared.applicationState == .background { probeBackgroundUpdates += 1 }
+      if LodyHosting.current?.isBackground == true { probeBackgroundUpdates += 1 }
       emitStatus()
     default: break
     }
@@ -290,13 +289,8 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     case .catalog(let value):
       guard value.catalog.utf8.count <= 12 * 1024 * 1024 else { return }
       publish("live", reason: "catalog", catalog: value.catalog)
-      LiveActivities.shared.sync(
-        catalogJSON: value.catalog,
-        workspaceId: workspace ?? "",
-        workspaceSlug: workspaceSlug,
-        workspaceName: workspaceName,
-        userId: userId
-      )
+      LodyHosting.current?.catalogDidUpdate(value.catalog, workspaceId: workspace ?? "", workspaceSlug: workspaceSlug,
+        workspaceName: workspaceName, userId: userId)
     case .shareProgress(let value):
       NotificationCenter.default.post(name: .lodyShareProgress, object: value)
     case .machinePresence(let value):

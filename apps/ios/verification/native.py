@@ -99,7 +99,7 @@ checks = {
         'LodyLocalization.swift',
         'Toast/LodySessionBannerView.swift',
     ],
-    'chat-title': ['LodyLocalization.swift', 'LodyUIVerify.swift', 'LodyTint.swift', 'Chrome/LodyNavigationHeader.swift', 'Chrome/LodyNavigationSearch.swift', 'Chat/ChatNavigationTitle.swift'],
+    'chat-title': ['LodyLocalization.swift', 'Debug/LodyUIVerify.swift', 'LodyTint.swift', 'Chrome/LodyNavigationHeader.swift', 'Chrome/LodyNavigationSearch.swift', 'Chat/ChatNavigationTitle.swift'],
     'live-activity-registration': ['Notifications/LiveActivityRegistration.swift'],
     'live-activity': ['LiveActivity/LodyActivityAttributes.swift', 'LiveActivity/LiveActivityCatalog.swift'],
     'page-progress': ['List/LodyPageProgress.swift'],
@@ -131,7 +131,7 @@ for files in checks.values():
         files.append('Chat/ChatPendingSend.swift')
         files.append('Chat/ChatTurnMetadata.swift')
     if 'Chat/ChatSendHandoff.swift' in files or 'Chat/ChatMentionPanel.swift' in files:
-        files.insert(0, 'LodyUIVerify.swift')
+        files.insert(0, 'Debug/LodyUIVerify.swift')
 if 'markdown-repair' in checks:
     subprocess.run(['node', str(root / 'apps/ios/scripts/build-decoder.mjs')], cwd=root, check=True, timeout=120)
 with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:

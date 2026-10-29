@@ -1,5 +1,4 @@
 import Foundation
-import UIKit
 
 final class OutboxPublished: @unchecked Sendable {
   private let lock = NSLock()
@@ -47,14 +46,12 @@ final class OutboxSession {
   private nonisolated static let empty = #"{"ready":true,"records":[]}"#
   private nonisolated static let loading = #"{"ready":false,"records":[]}"#
 
-  var presenter: (() -> UIViewController?)?
   private weak var runtime: DataRuntime?
   private let stores = OutboxStores(persistence: .local) { String(localized: "send.reason.awaitingConfirmation", bundle: .lody) }
   private lazy var dispatcher = OutboxDispatcher(services: services, inflight: Self.published.inflight) { String(localized: String.LocalizationValue($0), bundle: .lody) }
   private var scope = (user: "", workspace: "")
   private var inputs = OutboxDispatcher.Inputs()
   private var fixture: OutboxFixture?
-  private var alertWindows: [UIWindow] = []
 
   private init() {
     stores.onChange = { [weak self] store in self?.changed(store) }
@@ -175,23 +172,7 @@ final class OutboxSession {
   }
 
   private func alert(_ title: String, _ message: String) {
-    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-    guard let scene = presenter?()?.view.window?.windowScene ?? scenes.first(where: { $0.activationState == .foregroundActive })
-    else { return }
-    let previous = scene.keyWindow
-    let window = UIWindow(windowScene: scene)
-    window.windowLevel = .alert
-    window.backgroundColor = .clear
-    window.rootViewController = UIViewController()
-    window.rootViewController?.view.backgroundColor = .clear
-    alertWindows.append(window)
-    let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-    alert.addAction(UIAlertAction(title: String(localized: "common.ok", bundle: .lody), style: .default) { [weak self, weak window, weak previous] _ in
-      window?.isHidden = true
-      self?.alertWindows.removeAll { $0 === window }
-      previous?.makeKey()
-    })
-    window.makeKeyAndVisible()
-    window.rootViewController?.present(alert, animated: true)
+    LodyHosting.current?.alert(title: title, message: message)
   }
+
 }

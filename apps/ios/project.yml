@@ -124,7 +124,7 @@ targets:
           - LodyTint.swift
           - Appearance/LodyDesign.swift
           - UIFont+Dynamic.swift
-          - LodyUIVerify.swift
+          - CreateSession/LodyUIVerify+Branches.swift
           - Chrome/LodyScrollEdges.swift
           - Chrome/LodyEdgeFade.swift
           - List/LodyGroupedList.swift
@@ -180,6 +180,7 @@ targets:
         createIntermediateGroups: false
         includes:
           - LodyDataBundle.swift
+          - Debug/LodyUIVerify.swift
           - Preferences/LodyAppearanceChoices.swift
           - Text/TextSearch.swift
           - Resources/Localizable.xcstrings

@@ -1,13 +1,13 @@
 import Foundation
 import Security
 
-enum AuthKeychain {
+public enum AuthKeychain {
   private static var query: [String: Any] { [
     kSecClass as String: kSecClassGenericPassword,
     kSecAttrService as String: "app.innei.lody.auth",
     kSecAttrAccount as String: "better-auth-session",
   ] }
-  static func read() throws -> String? {
+  public static func read() throws -> String? {
     var request = query
     request[kSecReturnData as String] = true
     request[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -19,7 +19,7 @@ enum AuthKeychain {
     }
     return token
   }
-  static func save(_ token: String) throws {
+  public static func save(_ token: String) throws {
     guard !token.isEmpty else { throw NSError(domain: "LodyKit.Auth", code: 1) }
     let values = [kSecValueData as String: Data(token.utf8)]
     var status = SecItemUpdate(query as CFDictionary, values as CFDictionary)
@@ -30,7 +30,7 @@ enum AuthKeychain {
     }
     guard status == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(status)) }
   }
-  static func clear() throws {
+  public static func clear() throws {
     let status = SecItemDelete(query as CFDictionary)
     guard status == errSecSuccess || status == errSecItemNotFound else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(status)) }
   }
