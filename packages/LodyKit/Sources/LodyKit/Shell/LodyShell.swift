@@ -9,9 +9,9 @@ final class LodyShell {
 
   var presenter: UIViewController? { topController() }
 
-  func start(in window: UIWindow, content: UIViewController) {
-    let spec = ShellPageSpec(title: "", style: "push", animation: "none", dismissible: false,
-      headerShown: false, headerVariant: "transparent")
+  func start(in window: UIWindow, content: UIViewController, title: String = "") {
+    let spec = ShellPageSpec(title: title, style: "push", animation: "none", dismissible: false,
+      headerShown: !title.isEmpty, headerVariant: "transparent")
     let root = LodyPageController(spec: spec, inSheet: false, content: content)
     let navigation = UINavigationController(rootViewController: root)
     navigation.delegate = delegate
