@@ -39,12 +39,18 @@ test('LodyData sources never import a UI framework', async () => {
 });
 
 test('LodyKit re-exports LodyData for the app and its pages', async () => {
-  const manifest = await readFile(join(repoRoot, 'packages/LodyKit/Package.swift'), 'utf8');
+  const manifest = await readFile(
+    join(repoRoot, 'packages/LodyKit/Package.swift'),
+    'utf8',
+  );
   assert.match(manifest, /\.product\(name: "LodyData", package: "LodyData"\)/);
-  const files = await swiftFiles(join(repoRoot, 'packages/LodyKit/Sources/LodyKit'));
+  const files = await swiftFiles(
+    join(repoRoot, 'packages/LodyKit/Sources/LodyKit'),
+  );
   const exports = [];
   for (const file of files) {
-    if (/^@_exported import LodyData$/m.test(await readFile(file, 'utf8'))) exports.push(file);
+    if (/^@_exported import LodyData$/m.test(await readFile(file, 'utf8')))
+      exports.push(file);
   }
   assert.equal(exports.length, 1);
 });

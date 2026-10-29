@@ -20,16 +20,16 @@
 
 ## 决定
 
-| 决定 | 来自 |
-| --- | --- |
-| AppKit，在本仓库新开 target，app 名 “Lody” | 你 |
-| 只做云端客户端，不在本机跑 agent | 你接受了推荐 |
-| `LodyData`（共享）+ `LodyMacKit`；LodyKit 改名为 `LodyiOSKit` | 你 |
-| 第一版能新建会话、回复、审批权限 | 你接受了推荐 |
-| 布局 q1-c、调性 q2-a 参考 Codex、transcript q3-a | 你 |
-| 中性选中态 + 自定义 accent（q4-a） | 你 |
-| 输入框照 Codex 截图做（q8） | 你 |
-| Codex 式侧栏、原生窗口标签 | 你接受了推荐 |
+| 决定                                                          | 来自         |
+| ------------------------------------------------------------- | ------------ |
+| AppKit，在本仓库新开 target，app 名 “Lody”                    | 你           |
+| 只做云端客户端，不在本机跑 agent                              | 你接受了推荐 |
+| `LodyData`（共享）+ `LodyMacKit`；LodyKit 改名为 `LodyiOSKit` | 你           |
+| 第一版能新建会话、回复、审批权限                              | 你接受了推荐 |
+| 布局 q1-c、调性 q2-a 参考 Codex、transcript q3-a              | 你           |
+| 中性选中态 + 自定义 accent（q4-a）                            | 你           |
+| 输入框照 Codex 截图做（q8）                                   | 你           |
+| Codex 式侧栏、原生窗口标签                                    | 你接受了推荐 |
 
 ## 请重点检查（我自己做的判断）
 

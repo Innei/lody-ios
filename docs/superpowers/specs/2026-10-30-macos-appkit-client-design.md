@@ -48,25 +48,25 @@ AppKit, as a new target in this repository.
 
 ## Package layout
 
-| Package | Platforms | Contents |
-| --- | --- | --- |
-| `packages/lody-core` | iOS 26, macOS 26 (already) | unchanged |
-| `packages/LodyData` (new) | iOS 26, macOS 26 | shared data layer, see below |
-| `packages/LodyKit` → `LodyiOSKit` | iOS 26 | iOS UI, controllers, iOS-only services |
-| `packages/LodyMacKit` (new) | macOS 26 | AppKit UI and Mac-only services |
+| Package                           | Platforms                  | Contents                               |
+| --------------------------------- | -------------------------- | -------------------------------------- |
+| `packages/lody-core`              | iOS 26, macOS 26 (already) | unchanged                              |
+| `packages/LodyData` (new)         | iOS 26, macOS 26           | shared data layer, see below           |
+| `packages/LodyKit` → `LodyiOSKit` | iOS 26                     | iOS UI, controllers, iOS-only services |
+| `packages/LodyMacKit` (new)       | macOS 26                   | AppKit UI and Mac-only services        |
 
 ### What moves into `LodyData`
 
-| Moves | Stays in the iOS package |
-| --- | --- |
-| Auth: `AuthAPI`, `AuthKeychain`, `AuthSession` | LiveActivity |
-| Catalog (all) | Notifications (OneSignal, push click buffer) |
-| Cloud data: `DataRuntime` and its extensions, `LocalStore`, `ContentStore`, `FlockDecoder`, workspace / GitHub / sharing cloud calls, `RuntimeJSON` | `ShareStore` |
-| Outbox: store, dispatcher, record, `OutboxSession` | `*Sections` list-row descriptions (move later when Mac needs them) |
-| CreateSession data: `CreateSessionService`, `CreateModelOptions`, `CreateSessionForm`, `CreateDraftRecord` | `CreateSessionController` and its pages |
-| Sessions models: source, sender, feed, envelope, catalog, permission projection/service, decisions, composer model | All controllers and views |
-| Preferences, Diagnostics store, Text utilities | |
-| Transcript projection: `Chat/ChatTranscript.swift` and `ChatStream`; `chat-kit`'s `ChatKitCore` gains a macOS platform | |
+| Moves                                                                                                                                               | Stays in the iOS package                                           |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Auth: `AuthAPI`, `AuthKeychain`, `AuthSession`                                                                                                      | LiveActivity                                                       |
+| Catalog (all)                                                                                                                                       | Notifications (OneSignal, push click buffer)                       |
+| Cloud data: `DataRuntime` and its extensions, `LocalStore`, `ContentStore`, `FlockDecoder`, workspace / GitHub / sharing cloud calls, `RuntimeJSON` | `ShareStore`                                                       |
+| Outbox: store, dispatcher, record, `OutboxSession`                                                                                                  | `*Sections` list-row descriptions (move later when Mac needs them) |
+| CreateSession data: `CreateSessionService`, `CreateModelOptions`, `CreateSessionForm`, `CreateDraftRecord`                                          | `CreateSessionController` and its pages                            |
+| Sessions models: source, sender, feed, envelope, catalog, permission projection/service, decisions, composer model                                  | All controllers and views                                          |
+| Preferences, Diagnostics store, Text utilities                                                                                                      |                                                                    |
+| Transcript projection: `Chat/ChatTranscript.swift` and `ChatStream`; `chat-kit`'s `ChatKitCore` gains a macOS platform                              |                                                                    |
 
 The Mac renders the same transcript rows as iOS (tool calls, plans, subagent
 cards, permission requests), so it must use the shared projection rather than
@@ -119,13 +119,13 @@ keep the old paths.
 
 `LodyData` must not import UIKit or AppKit. The known ties today:
 
-| Where | Tie |
-| --- | --- |
-| `DataRuntime.swift` | `UIApplication` did-enter-background / did-become-active / memory-warning notifications, `applicationState` |
-| `SessionBackgroundTasks.swift` | `beginBackgroundTask` / `endBackgroundTask` for user-started sends |
-| `OutboxSession.swift:178` | `connectedScenes` lookup |
-| `DataRuntime+HostCalls.swift:67` | `UIApplication.shared.open(url)` |
-| `AuthSession.swift` | `UIViewController` for presenting sign-in |
+| Where                            | Tie                                                                                                         |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `DataRuntime.swift`              | `UIApplication` did-enter-background / did-become-active / memory-warning notifications, `applicationState` |
+| `SessionBackgroundTasks.swift`   | `beginBackgroundTask` / `endBackgroundTask` for user-started sends                                          |
+| `OutboxSession.swift:178`        | `connectedScenes` lookup                                                                                    |
+| `DataRuntime+HostCalls.swift:67` | `UIApplication.shared.open(url)`                                                                            |
+| `AuthSession.swift`              | `UIViewController` for presenting sign-in                                                                   |
 
 `AuthSession` also reaches into iOS-only services on sign-out (`ShareStore`,
 push, Live Activities, the logout toast), and `OutboxSession` presents a
@@ -173,6 +173,7 @@ on both platforms together.
 - Screens: sign-in, a sidebar with workspaces and sessions, sessions open in
   tabs, a session transcript rendered with MarkdownView/Litext (both have
   AppKit implementations), a plain-text composer, permission approval.
+
 ## Mac visual design
 
 Chosen boards on the [design canvas](https://claude.ai/artifact/3LSmrnU2B8LPdJ89dSTdCh):

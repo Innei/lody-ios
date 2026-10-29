@@ -265,7 +265,7 @@ class CaseSelectionTest(unittest.TestCase):
         self.assertIn("if not os.environ.get('LODY_UI_NATIVE'):", Path(__file__).with_name('send-handoff.py').read_text())
         native = Path(__file__).resolve().parents[1].joinpath('native.py').read_text()
         self.assertIn('timeout=240', native)
-        self.assertIn("files.insert(0, 'LodyUIVerify.swift')", native)
+        self.assertIn("files.insert(0, 'Debug/LodyUIVerify.swift')", native)
 
 
 class CaptureTest(unittest.TestCase):
