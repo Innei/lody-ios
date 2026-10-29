@@ -28,6 +28,7 @@ const { values } = parseArgs({
     case: { type: 'string', multiple: true },
     app: { type: 'string' },
     output: { type: 'string', default: '.artifacts/mac-verify' },
+    'in-process': { type: 'boolean', default: false },
   },
 });
 
@@ -62,11 +63,14 @@ if (!existsSync(appPath))
   throw new Error(`no app at ${appPath}; run pnpm mac:build first`);
 const output = resolve(values.output!);
 
+const inProcess = values['in-process']!;
 console.log(
-  'Mac UI verify brings Lody to the front for clicks and moves the pointer briefly.',
+  inProcess
+    ? 'Mac UI verify drives controls in-process; no screenshots or OCR.'
+    : 'Mac UI verify brings Lody to the front for clicks and moves the pointer briefly.',
 );
 await launch(appPath);
-const session = await startSession(appPath, output);
+const session = await startSession(appPath, output, inProcess);
 let failures = 0;
 try {
   for (const name of selected) {

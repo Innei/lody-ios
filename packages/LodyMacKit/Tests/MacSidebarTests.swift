@@ -106,3 +106,15 @@ final class MacWorkspaceStreamingTests: XCTestCase {
     XCTAssertEqual(panes.map(\.streaming), [false, true])
   }
 }
+
+@MainActor
+final class MacWindowTabTests: XCTestCase {
+  func testNewTabsJoinTheEndOfTheGroup() throws {
+    let first = MainWindowController(environment: MacFixtures.environment, sessionId: "s-mac")
+    let second = first.addTab(sessionId: "s-landing")
+    let third = first.addTab(sessionId: "s-plan")
+    defer { [first, second, third].forEach { $0.window?.close() } }
+    let titles = try XCTUnwrap(first.window?.tabbedWindows).map(\.title)
+    XCTAssertEqual(titles, ["Catalog · Build the AppKit sidebar", "Catalog · Landing page copy", "Catalog · Q4 roadmap"])
+  }
+}

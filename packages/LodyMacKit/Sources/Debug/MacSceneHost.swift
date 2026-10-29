@@ -6,6 +6,11 @@ final class MacSceneHost {
   private var windows: [NSWindow] = []
   private(set) var current: String?
 
+  var front: NSWindow? {
+    if let key = NSApp.keyWindow, windows.contains(where: { $0 === key || $0.tabbedWindows?.contains(key) == true }) { return key }
+    return windows.last { $0.isVisible }.map { $0.tabGroup?.selectedWindow ?? $0 }
+  }
+
   @discardableResult
   func open(_ id: String) -> Bool {
     guard let scene = MacCatalog.scene(id) else { return false }

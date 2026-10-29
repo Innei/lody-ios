@@ -18,7 +18,7 @@ enum MacViewDump {
       if let content = window.contentView { entry["root"] = node(content) }
       return entry
     }
-    let data = try JSONSerialization.data(withJSONObject: ["windows": windows, "accent": MacAccent.current().rawValue], options: [.prettyPrinted, .sortedKeys])
+    let data = try JSONSerialization.data(withJSONObject: ["windows": windows, "accent": MacAccent.current().rawValue, "action": MacVerifyActions.last], options: [.prettyPrinted, .sortedKeys])
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     try data.write(to: url, options: .atomic)
   }
@@ -28,6 +28,9 @@ enum MacViewDump {
     if !view.accessibilityIdentifier().isEmpty { entry["identifier"] = view.accessibilityIdentifier() }
     if view.isHidden { entry["hidden"] = true }
     if let text = text(view), !text.isEmpty { entry["text"] = text }
+    if let placeholder = (view as? MacComposerTextView)?.placeholder ?? (view as? NSTextField)?.placeholderString, !placeholder.isEmpty {
+      entry["placeholder"] = placeholder
+    }
     if let control = view as? NSControl { entry["enabled"] = control.isEnabled }
     if view.window?.firstResponder === view { entry["firstResponder"] = true }
     let children = view.subviews.map(node)

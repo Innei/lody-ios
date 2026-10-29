@@ -45,6 +45,14 @@ enum MacFixtures {
           reply: { payload, _ in transcript.reply(payload["text"] as? String ?? "") }
         ))
         composer.replyContext = ("lody-ios", "mac-client", "Mac Studio")
+        composer.onReplyChoice = { [weak composer] body in
+          guard let composer else { return }
+          var choice = composer.model.replyChoice
+          if let mode = body["permissionId"] as? String { choice.modeId = mode }
+          if let modelId = body["modelId"] as? String, !modelId.isEmpty { choice.modelId = modelId }
+          if let effort = body["effort"] as? String, !effort.isEmpty { choice.effort = effort }
+          composer.updateReply(ready: true, capability: MacComposerFixture.capability, choice: choice)
+        }
         let pane = MacSessionController(sessionId: sessionId, source: transcript.source, composer: composer)
         pane.retained = transcript
         return pane

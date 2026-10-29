@@ -45,7 +45,7 @@ struct MacTranscriptModel {
         if process.isEmpty {
           items.append(Self.activity(row))
         } else {
-          items += process.map(Self.activity)
+          items += process.map(Self.processItem)
         }
       case "changes":
         items.append(.changes(id: row.id, text: row.text))
@@ -70,6 +70,14 @@ struct MacTranscriptModel {
     }
     let raw = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] ?? []
     permission = try? SessionPermission.first(in: raw)
+  }
+
+  private static func processItem(_ row: ChatRow) -> MacTranscriptItem {
+    switch row.kind {
+    case "text": .prose(id: row.id, markdown: row.text)
+    case "proposed_plan": .plan(id: row.id, markdown: row.text)
+    default: activity(row)
+    }
   }
 
   private static func activity(_ row: ChatRow) -> MacTranscriptItem {

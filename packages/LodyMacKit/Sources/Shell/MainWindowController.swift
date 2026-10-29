@@ -83,7 +83,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   func addTab(sessionId: String? = nil) -> MainWindowController {
     let next = MainWindowController(environment: environment, sessionId: sessionId)
     if let window, let tab = next.window {
-      window.addTabbedWindow(tab, ordered: .above)
+      (window.tabbedWindows?.last ?? window).addTabbedWindow(tab, ordered: .above)
       tab.makeKeyAndOrderFront(nil)
     }
     return next

@@ -19,7 +19,9 @@ export const scheme = 'lodymacverify';
 export interface Session {
   appPath: string;
   output: string;
-  runner: RunnerClient;
+  runner?: RunnerClient;
+  inProcess: boolean;
+  seq: number;
   timings: { step: string; ms: number }[];
   close: () => Promise<void>;
 }
@@ -28,6 +30,7 @@ export interface ViewNode {
   class: string;
   identifier?: string;
   text?: string;
+  placeholder?: string;
   hidden?: boolean;
   enabled?: boolean;
   children?: ViewNode[];
@@ -35,6 +38,7 @@ export interface ViewNode {
 
 export interface Dump {
   accent?: string;
+  action?: { seq?: number; ok?: boolean; error?: string };
   windows: {
     title: string;
     identifier: string;
@@ -64,8 +68,23 @@ export async function launch(appPath: string) {
 export async function startSession(
   appPath: string,
   output: string,
+  inProcess = false,
 ): Promise<Session> {
   await mkdir(output, { recursive: true });
+  if (inProcess) {
+    return {
+      appPath,
+      output,
+      inProcess,
+      seq: 0,
+      timings: [],
+      close: async () => {
+        await exec('pkill', ['-f', `${appPath}/Contents/MacOS/`]).catch(
+          () => {},
+        );
+      },
+    };
+  }
   const storeRoot = join(output, 'auv-store');
   const daemon = await startAuv({
     binaryPath: '/opt/homebrew/bin/auv',
@@ -81,6 +100,8 @@ export async function startSession(
     appPath,
     output,
     runner,
+    inProcess,
+    seq: 0,
     timings: [],
     close: async () => {
       await connection.close();
@@ -133,6 +154,7 @@ export async function window(session: Session): Promise<WindowClient> {
   const scenes = state.windows.filter((w) => w.identifier === 'catalog-scene');
   const target = scenes.find((w) => w.key) ?? scenes[scenes.length - 1];
   if (!target) throw new Error('no catalog scene window is open');
+  if (!session.runner) throw new Error('auv is not running in-process mode');
   return session.runner.windows.resolve({
     applicationId: bundleId,
     title: target.title,
@@ -192,6 +214,21 @@ export async function waitForText(
   text: string,
   timeoutMs = 5000,
 ) {
+  if (session.inProcess) {
+    return step(session, `text "${text}"`, () =>
+      waitForDump(
+        session,
+        (dump) =>
+          find(
+            dump,
+            (node) =>
+              (node.text ?? '').includes(text) ||
+              (node.placeholder ?? '').includes(text),
+          ).length > 0,
+        timeoutMs,
+      ),
+    );
+  }
   return step(session, `ocr "${text}"`, async () => {
     const target = await window(session);
     const deadline = performance.now() + timeoutMs;
@@ -205,7 +242,23 @@ export async function waitForText(
   });
 }
 
+async function act(
+  session: Session,
+  verb: string,
+  query: Record<string, string>,
+) {
+  const seq = ++session.seq;
+  const params = new URLSearchParams({ seq: String(seq), ...query });
+  await route(
+    session,
+    `act/${verb}?${params.toString().replaceAll('+', '%20')}`,
+  );
+  const done = await waitForDump(session, (dump) => dump.action?.seq === seq);
+  if (!done.action?.ok) throw new Error(done.action?.error || `${verb} failed`);
+}
+
 export async function clickText(session: Session, text: string) {
+  if (session.inProcess) return act(session, 'click', { text });
   return step(session, `click "${text}"`, async () => {
     const target = await window(session);
     const result = await target.findText(text, {});
@@ -218,9 +271,10 @@ export async function clickText(session: Session, text: string) {
 }
 
 export async function typeInto(session: Session, field: string, text: string) {
+  if (session.inProcess) return act(session, 'type', { field, text });
   return step(session, `type "${text.trim()}"`, async () => {
-    const focused = await session.runner.macos.accessibility
-      .focusText({
+    const focused = await session
+      .runner!.macos.accessibility.focusText({
         application: bundleId,
         selector: { case: 'query', value: field },
       })
@@ -246,10 +300,11 @@ export async function choose(
   current: string,
   option: string,
 ) {
+  if (session.inProcess) return act(session, 'choose', { current, option });
   await clickText(session, current);
   await sleep(250);
   return step(session, `choose "${option}"`, async () => {
-    const all = await session.runner.windows.list();
+    const all = await session.runner!.windows.list();
     const menus = all.filter((w) => w.window.applicationId === bundleId);
     for (const menu of menus) {
       const result = await menu
@@ -266,10 +321,11 @@ export async function choose(
 }
 
 export async function capture(session: Session, name: string) {
+  if (session.inProcess) return undefined;
   return step(session, `capture ${name}`, async () => {
     const target = await window(session);
     const shot = await target.capture();
-    const image = await session.runner.captures.image(shot.capture!, {
+    const image = await session.runner!.captures.image(shot.capture!, {
       encoding: ImageEncoding.PNG,
     });
     const path = join(session.output, `${name}.png`);
@@ -279,6 +335,7 @@ export async function capture(session: Session, name: string) {
 }
 
 export async function pressReturn(session: Session) {
+  if (session.inProcess) return act(session, 'key', { name: 'return' });
   return step(session, 'press return', async () => {
     const target = await window(session);
     return target.pressKeys('return', { policy: InputPolicy.BACKGROUND_ONLY });

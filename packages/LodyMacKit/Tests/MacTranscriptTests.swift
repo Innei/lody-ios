@@ -37,4 +37,20 @@ final class MacTranscriptTests: XCTestCase {
     XCTAssertTrue(MacTranscriptModel(entriesJSON: "not json").items.isEmpty)
     XCTAssertNil(MacTranscriptModel(entriesJSON: "[]").permission)
   }
+
+  func testNarrationInsideAFinishedTurnStaysProse() {
+    let finished = """
+    [{"id":"u1","role":"user","status":"completed","finished":true,"items":[{"itemId":"q","type":"text","text":"Add a sidebar"}]},
+     {"id":"a1","role":"assistant","status":"completed","finished":true,"items":[
+      {"itemId":"read","type":"tool_call","kind":"read","title":"Read MainWindowController.swift","status":"completed"},
+      {"itemId":"intro","type":"text","text":"I'll add an outline view."},
+      {"itemId":"edit","type":"tool_call","kind":"edit","title":"Edit SidebarViewController.swift","status":"completed"},
+      {"itemId":"done","type":"text","text":"The sidebar is in place."}]}]
+    """
+    let prose = MacTranscriptModel(entriesJSON: finished).items.compactMap { item -> String? in
+      if case .prose(_, let markdown) = item { return markdown }
+      return nil
+    }
+    XCTAssertEqual(prose, ["I'll add an outline view.", "The sidebar is in place."])
+  }
 }

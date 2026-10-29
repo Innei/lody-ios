@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import LodyMacKit
 
@@ -33,5 +34,51 @@ final class MacVerifyRouteTests: XCTestCase {
       windows.forEach { $0.close() }
     }
     XCTAssertNil(MacCatalog.scene("missing"))
+  }
+}
+
+@MainActor
+final class MacVerifyActionTests: XCTestCase {
+  private final class Target: NSObject {
+    var clicks = 0
+    var chosen = ""
+    @objc func click(_ sender: Any?) { clicks += 1 }
+    @objc func choose(_ sender: NSPopUpButton) { chosen = sender.titleOfSelectedItem ?? "" }
+  }
+
+  func testActRoutesCarryASequenceAndTheirArguments() {
+    let route = { (string: String) in MacVerifyRoute(URL(string: string)!) }
+    XCTAssertEqual(route("lodymacverify://act/click?seq=3&text=Allow"), .act(3, .click("Allow")))
+    XCTAssertEqual(route("lodymacverify://act/choose?seq=4&current=System&option=Purple"), .act(4, .choose(current: "System", option: "Purple")))
+    XCTAssertEqual(route("lodymacverify://act/type?seq=5&field=Reply%E2%80%A6&text=Ship%20it"), .act(5, .type(field: "Reply…", text: "Ship it")))
+    XCTAssertEqual(route("lodymacverify://act/key?seq=6&name=return"), .act(6, .key("return")))
+    XCTAssertNil(route("lodymacverify://act/click?text=Allow"))
+    XCTAssertNil(route("lodymacverify://act/key?seq=1&name=escape"))
+  }
+
+  func testActionsDriveTheControlsOfAWindow() throws {
+    let target = Target()
+    let button = NSButton(title: "Allow", target: target, action: #selector(Target.click(_:)))
+    let popup = NSPopUpButton()
+    popup.addItems(withTitles: ["System", "Purple"])
+    popup.target = target
+    popup.action = #selector(Target.choose(_:))
+    let input = MacComposerTextView()
+    input.placeholder = "Reply…"
+    var sent = 0
+    input.onSubmit = { sent += 1 }
+    let stack = NSStackView(views: [button, popup, input])
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300), styleMask: [.titled], backing: .buffered, defer: true)
+    window.contentView = stack
+
+    XCTAssertNil(MacVerifyActions.perform(.click("Allow"), in: window))
+    XCTAssertEqual(target.clicks, 1)
+    XCTAssertNil(MacVerifyActions.perform(.choose(current: "System", option: "Purple"), in: window))
+    XCTAssertEqual(target.chosen, "Purple")
+    XCTAssertNil(MacVerifyActions.perform(.type(field: "Reply…", text: "Ship it"), in: window))
+    XCTAssertEqual(input.string, "Ship it")
+    XCTAssertNil(MacVerifyActions.perform(.key("return"), in: window))
+    XCTAssertEqual(sent, 1)
+    XCTAssertNotNil(MacVerifyActions.perform(.click("Missing"), in: window))
   }
 }
