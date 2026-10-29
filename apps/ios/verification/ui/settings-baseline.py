@@ -4,6 +4,7 @@ import sys
 import time
 from driver import UI
 import catalog
+import flat_rows
 
 ui = UI(sys.argv[1], sys.argv[2])
 scenarios = ('live', 'signed-out', 'no-workspace', 'syncing', 'offline', 'cached')
@@ -65,6 +66,9 @@ for index, scenario in enumerate(scenarios):
     top = identifiers(ui.state())
     assert not {'notifications', 'queued-message-behavior', 'accent-color', 'app-icon'} & top
     ui.capture(f'{scenario}-top')
+    if scenario == 'live':
+        flat_rows.assert_flat(ui, 'live-flat', 'preferences', 'appearance')
+        flat_rows.assert_section_gap(ui, 'appearance', 'workspace-general')
 
     if scenario == 'live':
         tap('account')

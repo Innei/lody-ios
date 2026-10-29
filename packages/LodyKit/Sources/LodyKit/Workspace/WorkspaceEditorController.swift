@@ -71,7 +71,7 @@ final class WorkspaceEditorController: LodyFormController {
       DispatchQueue.main.async { self?.name.selectAll(nil) }
     }, for: .editingDidBegin)
     stack.addArrangedSubview(iconRow())
-    stack.addArrangedSubview(LodyFormGroup(header: text("name"), footer: text("nameFooter"), name))
+    stack.addArrangedSubview(LodyFormGroup(footer: text("nameFooter"), name))
     render()
   }
 

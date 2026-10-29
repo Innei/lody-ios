@@ -207,17 +207,16 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var composerHasAcknowledgedSend = false
   private var lastAcknowledgedDraftToken = 0
   private var lastRestoredDraftToken = 0
-  private let fileHeaderRegistration = UICollectionView.CellRegistration<UICollectionViewListCell, ChatRow> { cell, _, row in
-    var content = UIListContentConfiguration.groupedHeader()
-    content.text = row.text
-    content.textProperties.font = .preferredFont(forTextStyle: .footnote)
-    content.textProperties.color = .secondaryLabel
-    content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 4)
+  private let fileHeaderRegistration = UICollectionView.CellRegistration<ChatFileCell, ChatRow> { cell, _, row in
+    let content = ChatFileCell.headerContent(for: row.text)
+    cell.directionalLayoutMargins.leading = content.directionalLayoutMargins.leading
+    cell.directionalLayoutMargins.trailing = content.directionalLayoutMargins.trailing
     cell.contentConfiguration = content
-    cell.backgroundConfiguration = .clear()
+    cell.apply(group: row.group, selected: false)
+    cell.accessories = []
     if let file = row.fileDiff {
       let counts = UILabel()
-      counts.font = .monospacedDigitSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize, weight: .regular)
+      counts.font = LodyDesign.mono(12, compatibleWith: cell.traitCollection)
       let value = NSMutableAttributedString(string: "+\(file.add ?? 0)", attributes: [.foregroundColor: UIColor.systemGreen])
       value.append(NSAttributedString(string: "  −\(file.del ?? 0)", attributes: [.foregroundColor: UIColor.systemRed]))
       counts.attributedText = value
@@ -230,12 +229,13 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
   private let fileRegistration = UICollectionView.CellRegistration<ChatFileCell, ChatRow> { cell, _, row in
     guard let file = row.fileDiff else { return }
-    var content = ChatFileCell.rowContent(for: file.path)
+    let content = ChatFileCell.rowContent(for: file.path)
     cell.directionalLayoutMargins.leading = content.directionalLayoutMargins.leading
     cell.directionalLayoutMargins.trailing = content.directionalLayoutMargins.leading
     cell.contentConfiguration = content
+    cell.apply(group: row.group, selected: cell.isHighlighted || cell.isSelected)
     let counts = UILabel()
-    counts.font = .monospacedDigitSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize, weight: .regular)
+    counts.font = LodyDesign.mono(12, compatibleWith: cell.traitCollection)
     let value = NSMutableAttributedString(string: "+\(file.add ?? 0)", attributes: [.foregroundColor: UIColor.systemGreen])
     value.append(NSAttributedString(string: "  −\(file.del ?? 0)", attributes: [.foregroundColor: UIColor.systemRed]))
     counts.attributedText = value

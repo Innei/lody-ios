@@ -58,8 +58,17 @@ assert probe().split(',').count('watch') == 1, 'Opening details started another 
 assert 'unwatch' not in probe().split(','), 'Closing details stopped the owning session feed'
 
 ui.capture('details-return')
-process = ui.element('preview-answer:process')['frame']
-ui.axe('tap', '-x', str(process['x'] + 30), '-y', str(process['y'] + process['height'] / 2), '--post-delay', '.5')
+process_row = ui.element('preview-user:duration')
+process = process_row['frame']
+assert ', ' in (process_row.get('AXLabel') or ''), f"The process row must read its duration and summary lines: {process_row.get('AXLabel')}"
+assert not any(item.get('AXUniqueId') == 'preview-answer:process' for item in ui.state()), 'The first summary must merge into the process row'
+task = ui.element('preview-answer:task')['frame']
+reply = ui.element('preview-answer:reply')['frame']
+assert process['y'] + process['height'] <= task['y'] + 1 and task['y'] + task['height'] <= reply['y'] + 1, \
+    'Sub-agent rows hang under the process row, above the answer'
+assert task['height'] >= 44 and process['height'] >= 52, f'Process {process} and sub-agent {task} rows keep their rail heights'
+ui.capture('native-process-rail')
+ui.axe('tap', '-x', str(process['x'] + 60), '-y', str(process['y'] + process['height'] / 2), '--post-delay', '.5')
 assert ui.element('preview-answer:edit')['type'] == 'Button'
 ui.axe('tap', '--id', 'preview-answer:edit')
 wait_text('Native session tool detail')
@@ -79,7 +88,8 @@ subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input='before subagent co
 ui.axe('tap', '--id', 'subagent-detail-copy', '--post-delay', '.3')
 wait_clipboard('Native task summary: all checks passed.')
 ui.capture('native-subagent')
-tap_label(catalog.text('accessibility.closeSheet', title=catalog.text('native.chat.transcript.subtask')))
+ui.axe('tap', '--wait-timeout', '5', '--id', 'BackButton', '--post-delay', '.6')
+ui.element('preview-answer:task')
 assert probe().split(',').count('watch') == 1
 
 # Browser preview commands use the injected native service, with no cloud access.

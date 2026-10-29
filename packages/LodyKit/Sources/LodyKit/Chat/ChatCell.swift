@@ -196,7 +196,11 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   var numericText: ChatNumericTextHost { messageContent.numericText }
   var bubble: UIView { messageContent.bubble }
   let icon = ChatMarkView()
-  let separator = UIView()
+  let processGlyph = LodyStatusGlyphView(kind: .done)
+  let processTitle = UILabel()
+  let processDetail = UILabel()
+  let processChevron = UIImageView()
+  let processTree = CAShapeLayer()
   var row: ChatRow?
   var onInteraction: (() -> Void)?
   var canEdit: (() -> Bool)?
@@ -224,11 +228,26 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     contentView.addSubview(messageContent)
     messageContent.disclosure.addAction(UIAction { [weak self] _ in self?.onToggle?() }, for: .touchUpInside)
     contentView.addSubview(icon)
-    contentView.addSubview(separator)
     icon.contentMode = .center
-    separator.backgroundColor = .separator
-    separator.isHidden = true
-    separator.isUserInteractionEnabled = false
+    processTree.fillColor = nil
+    processTree.lineWidth = 1
+    processTree.lineCap = .round
+    contentView.layer.addSublayer(processTree)
+    processDetail.numberOfLines = 1
+    processDetail.lineBreakMode = .byTruncatingTail
+    processTitle.lineBreakMode = .byTruncatingTail
+    processChevron.contentMode = .center
+    processChevron.tintColor = .lodyTertiary
+    processChevron.image = UIImage(
+      systemName: "chevron.right",
+      withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+    )
+    for view in [processGlyph, processTitle, processDetail, processChevron] as [UIView] {
+      view.isAccessibilityElement = false
+      view.isUserInteractionEnabled = false
+      view.isHidden = true
+      contentView.addSubview(view)
+    }
     isAccessibilityElement = true
     contentView.addInteraction(UIContextMenuInteraction(delegate: self))
   }
@@ -244,15 +263,17 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     else { messageContent.isHidden = false }
     bubble.isHidden = row.kind != "user"
     applyLeadingMark(for: row, previousSymbol: previousSymbol, sameRow: sameRow)
-    separator.isHidden = row.kind != "duration"
+    applyProcess(row)
     accessibilityIdentifier = row.id
-    accessibilityLabel = text.string.replacingOccurrences(of: "\u{FFFC}", with: "")
+    accessibilityLabel = row.kind == "duration"
+      ? [row.text, row.detail].filter { !$0.isEmpty }.joined(separator: ", ")
+      : text.string.replacingOccurrences(of: "\u{FFFC}", with: "")
     updateEditAccessibility()
     accessibilityTraits = row.actionable ? .button : .staticText
     accessibilityHint = hint(for: row)
     let process = row.kind == "summary"
     numericText.isHidden = !process
-    label.isHidden = process
+    label.isHidden = process || row.kind == "duration"
     if process {
       numericText.apply(text: text, animated: sameRow, shines: row.shines)
       label.setShine(false)
@@ -277,8 +298,90 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     label.isHidden = false
     numericText.reset()
     numericText.isHidden = true
+    processTree.path = nil
     label.onLink = nil
     accessibilityCustomActions = nil
+  }
+
+  private func applyProcess(_ row: ChatRow) {
+    let rail = row.kind == "duration"
+    processGlyph.isHidden = !rail
+    processTitle.isHidden = !rail
+    processDetail.isHidden = !rail || row.detail.isEmpty
+    processChevron.isHidden = !(row.actionable && (rail || row.kind == "summary"))
+    icon.isHidden = rail
+    guard rail else {
+      processTree.path = nil
+      return
+    }
+    processGlyph.kind = Self.glyphKind(row)
+    processTitle.attributedText = Self.processTitle(row, traits: traitCollection)
+    processDetail.font = Self.detailFont(traitCollection)
+    processDetail.textColor = .lodySecondary
+    processDetail.text = row.detail
+  }
+
+  static func glyphKind(_ row: ChatRow) -> LodyStatusGlyph.Kind {
+    if row.attention { return .attention }
+    return row.running ? .live : .done
+  }
+
+  static func processTitle(_ row: ChatRow, traits: UITraitCollection) -> NSAttributedString {
+    let title = NSMutableAttributedString(string: row.text, attributes: [
+      .font: LodyDesign.font(.subheadline, size: 14.5, weight: .semibold, compatibleWith: traits),
+      .foregroundColor: UIColor.lodyInk,
+    ])
+    guard let duration = row.workDurationMs else { return title }
+    let range = (row.text as NSString).range(of: ChatWorkDuration.label(duration), options: .backwards)
+    guard range.location != NSNotFound else { return title }
+    title.addAttributes([
+      .font: LodyDesign.mono(12, compatibleWith: traits),
+      .foregroundColor: UIColor.lodySecondary,
+    ], range: range)
+    return title
+  }
+
+  private static func detailFont(_ traits: UITraitCollection) -> UIFont {
+    LodyDesign.font(.footnote, size: 12.5, compatibleWith: traits)
+  }
+
+  private static func processLines(_ row: ChatRow, traits: UITraitCollection) -> (title: CGFloat, detail: CGFloat) {
+    let title = ceil(LodyDesign.font(.subheadline, size: 14.5, weight: .semibold, compatibleWith: traits).lineHeight)
+    let detail = row.detail.isEmpty ? 0 : ceil(detailFont(traits).lineHeight) + 2
+    return (title, detail)
+  }
+
+  static func processHeight(for row: ChatRow, width: CGFloat, traits: UITraitCollection) -> CGFloat {
+    let lines = processLines(row, traits: traits)
+    if lines.detail == 0 { return max(44, lines.title + 16) }
+    return max(LodyDesign.Rail.primaryHeight, lines.title + lines.detail + 16)
+  }
+
+  private static let chevronSlot: CGFloat = 24
+  private static var railCenter: CGFloat { LodyDesign.Rail.center - ChatReadingColumn.cellMargin }
+
+  private func layoutProcess(_ row: ChatRow, width: CGFloat) {
+    let height = contentView.bounds.height
+    let lines = Self.processLines(row, traits: traitCollection)
+    let x = LodyDesign.Rail.text - ChatReadingColumn.cellMargin
+    let textWidth = max(1, width - x - (processChevron.isHidden ? 0 : Self.chevronSlot))
+    let top = floor((height - lines.title - lines.detail) / 2)
+    processTitle.frame = CGRect(x: x, y: top, width: textWidth, height: lines.title)
+    processDetail.frame = CGRect(x: x, y: processTitle.frame.maxY + 2, width: textWidth, height: lines.detail - 2)
+    let glyph = LodyDesign.Rail.glyph
+    processGlyph.frame = CGRect(x: Self.railCenter - glyph / 2, y: processTitle.frame.midY - glyph / 2, width: glyph, height: glyph)
+    processChevron.frame = CGRect(x: width - 16, y: (height - 16) / 2, width: 16, height: 16)
+    let path = UIBezierPath()
+    if row.treeDown {
+      path.move(to: CGPoint(x: Self.railCenter, y: processGlyph.frame.maxY + 3))
+      path.addLine(to: CGPoint(x: Self.railCenter, y: height))
+    }
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    processTree.frame = contentView.bounds
+    processTree.strokeColor = UIColor.lodyRail.resolvedColor(with: traitCollection).cgColor
+    processTree.path = path.isEmpty ? nil : path.cgPath
+    CATransaction.commit()
   }
 
   private func applyLeadingMark(for row: ChatRow, previousSymbol: String, sameRow: Bool) {
@@ -347,7 +450,8 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   }
 
   static func messageFont(for row: ChatRow, compatibleWith traits: UITraitCollection) -> UIFont {
-    let font = UIFont.dynamic(of: row.kind == "user" ? 17 : 13, compatibleWith: traits)
+    let sizes: [String: CGFloat] = ["user": 17, "summary": 12.5]
+    let font = UIFont.dynamic(of: sizes[row.kind] ?? 13, compatibleWith: traits)
     if row.kind == "duration" || row.kind == "summary" {
       return font.withTabularNumbers()
     }
@@ -364,7 +468,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   static func leading(_ row: ChatRow) -> CGFloat {
     switch row.kind {
     case "text", "user", "duration", "delivery": return 0
-    case "summary": return 12
+    case "summary": return LodyDesign.Rail.text - ChatReadingColumn.cellMargin
     default: return 24
     }
   }
@@ -383,13 +487,14 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   static func iconFrame(for row: ChatRow, textY: CGFloat, textHeight: CGFloat) -> CGRect {
     if row.kind == "summary" {
       let size: CGFloat = 8
-      return CGRect(x: 0, y: textY + (textHeight - size) / 2, width: size, height: size)
+      return CGRect(x: railCenter - size / 2, y: textY + (textHeight - size) / 2, width: size, height: size)
     }
     return CGRect(x: 2, y: textY, width: 20, height: min(textHeight, 20))
   }
   static func textWidth(_ row: ChatRow, width: CGFloat) -> CGFloat {
     if row.kind == "user" { return max(1, width * 0.84 - 26) }
     if row.kind == "delivery" { return max(1, width * 0.84) }
+    if row.kind == "summary" && row.actionable { return max(1, width - leading(row) - chevronSlot) }
     return max(1, width - leading(row))
   }
 
@@ -397,6 +502,17 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     super.layoutSubviews()
     guard let row else { return }
     let width = contentView.bounds.width
+    if row.kind == "duration" {
+      isAccessibilityElement = true
+      label.isAccessibilityElement = false
+      expandable = false
+      messageContent.expandable = false
+      messageContent.disclosure.isHidden = true
+      accessibilityValue = nil
+      messageContent.frame = contentView.bounds
+      layoutProcess(row, width: width)
+      return
+    }
     if row.kind == "user" {
       let size = label.sizeThatFits(CGSize(width: width * 0.84 - 26, height: .greatestFiniteMagnitude))
       expandable = size.height + 20 > ChatMessageContent.maximumCollapsedHeight
@@ -449,9 +565,8 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
         ? (label.lineAdvances(width: textWidth).first ?? height)
         : height
       icon.frame = Self.iconFrame(for: row, textY: y, textHeight: markHeight)
+      processChevron.frame = CGRect(x: width - 16, y: icon.frame.midY - 8, width: 16, height: 16)
     }
-    let pixel = 1 / max(1, traitCollection.displayScale)
-    separator.frame = CGRect(x: 0, y: contentView.bounds.height - pixel, width: width, height: pixel)
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {

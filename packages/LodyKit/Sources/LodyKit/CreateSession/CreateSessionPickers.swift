@@ -11,6 +11,7 @@ class CreateListController: UIViewController {
     list.frame = view.bounds
     list.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     list.setTransparent(true)
+    list.setGrouped(true)
     list.forwarded = { [weak self] name, body in self?.event(name, body) }
     view.addSubview(list)
   }

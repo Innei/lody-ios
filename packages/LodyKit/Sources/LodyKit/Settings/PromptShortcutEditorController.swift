@@ -48,10 +48,8 @@ final class PromptShortcutEditorController: LodyFormController {
     slug.autocapitalizationType = .none
     for field in [name, slug] { field.changed = { [weak self] in self?.render() } }
     prompt.changed = { [weak self] in self?.render() }
-    stack.addArrangedSubview(
-      LodyFormGroup(header: String(localized: "settings.remote.name", bundle: .lody), footer: readOnly ? text("readonly") : nil, name)
-    )
-    stack.addArrangedSubview(LodyFormGroup(header: text("slug"), footer: text("slugHint"), slug))
+    let hints = (readOnly ? [text("readonly")] : []) + [text("slugHint")]
+    stack.addArrangedSubview(LodyFormGroup(footer: hints.joined(separator: " "), name, slug))
     stack.addArrangedSubview(promptGroup)
     stack.addArrangedSubview(LodyFormGroup(footer: text("visibilityHint"), shared))
     render()

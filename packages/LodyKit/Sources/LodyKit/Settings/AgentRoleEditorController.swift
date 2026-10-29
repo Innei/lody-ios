@@ -31,7 +31,7 @@ final class AgentRoleEditorController: LodyFormController {
   private lazy var deleteButton = LodyFormButton.make(id: "role-delete", title: text("delete"), destructive: true) {
     [weak self] in self?.confirmDelete()
   }
-  private let errorLabel = LodyFormGroup.caption(color: .systemRed, size: 17)
+  private let errorLabel = LodyFormGroup.caption(color: .systemRed, size: 15)
   private lazy var errorView = LodyFormGroup.inset(errorLabel)
   private lazy var cancelItem = Self.barButton(symbol: "xmark", label: String(localized: "common.cancel", bundle: .lody)) { [weak self] in
     self?.closeForm()
@@ -65,14 +65,12 @@ final class AgentRoleEditorController: LodyFormController {
     name.clearButtonMode = .whileEditing
     name.changed = { [weak self] in self?.render() }
     errorLabel.accessibilityIdentifier = "role-error"
+    let hints = [role.flatMap { AgentRoleSections.readOnlyHint($0, userId: workspace.userId) }, text("configurationHint"), text("visibilityHint")]
     stack.addArrangedSubview(LodyFormGroup(
-      header: String(localized: "settings.remote.name", bundle: .lody), footer: role.flatMap { AgentRoleSections.readOnlyHint($0, userId: workspace.userId) },
-      name
+      footer: hints.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " "),
+      name, summary, targetContent(), shared
     ))
     stack.addArrangedSubview(errorView)
-    stack.addArrangedSubview(LodyFormGroup(header: text("description"), summary))
-    stack.addArrangedSubview(LodyFormGroup(header: text("target"), footer: text("configurationHint"), targetContent()))
-    stack.addArrangedSubview(LodyFormGroup(footer: text("visibilityHint"), shared))
     stack.addArrangedSubview(LodyFormGroup(header: text("prompt"), footer: text("effectHint"), prompt))
     if role != nil, !readOnly { stack.addArrangedSubview(LodyFormGroup(deleteButton)) }
     observer = NotificationCenter.default.addObserver(forName: scope.change, object: nil, queue: .main) { [weak self] _ in
@@ -89,20 +87,12 @@ final class AgentRoleEditorController: LodyFormController {
   }
 
   private func targetContent() -> UIView {
-    guard let role else { return targetButton }
-    let label = LodyFormGroup.caption(color: .label, size: 17)
+    guard let role else { return LodyFormRow(label: text("target"), content: targetButton, picker: true) }
+    let label = LodyFormGroup.caption(color: .lodyInk, size: 15)
+    label.textAlignment = .right
     label.text = role.targets.map { "\($0.machineName) · \($0.agentName)" }.joined(separator: "\n")
     label.accessibilityIdentifier = "role-targets"
-    let container = UIView()
-    label.translatesAutoresizingMaskIntoConstraints = false
-    container.addSubview(label)
-    NSLayoutConstraint.activate([
-      label.topAnchor.constraint(equalTo: container.topAnchor, constant: 16),
-      label.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -16),
-      label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
-      label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
-    ])
-    return container
+    return LodyFormRow(label: text("target"), content: label)
   }
 
   private var scopeValid: Bool { scope.current().key == workspace.key }

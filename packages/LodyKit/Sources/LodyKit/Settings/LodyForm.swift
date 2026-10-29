@@ -7,7 +7,7 @@ class LodyFormController: UIViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = .lodyGroupedBackground
+    view.backgroundColor = .lodyGround
     scroll.translatesAutoresizingMaskIntoConstraints = false
     scroll.contentInsetAdjustmentBehavior = .automatic
     scroll.keyboardDismissMode = .interactive
@@ -16,7 +16,7 @@ class LodyFormController: UIViewController {
     LodyScrollEdges.navigation(scroll)
     view.addSubview(scroll)
     stack.axis = .vertical
-    stack.spacing = 24
+    stack.spacing = LodyDesign.Rail.groupGap
     stack.translatesAutoresizingMaskIntoConstraints = false
     scroll.addSubview(stack)
     NSLayoutConstraint.activate([
@@ -26,8 +26,8 @@ class LodyFormController: UIViewController {
       scroll.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
       stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 16),
       stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -16),
-      stack.leadingAnchor.constraint(equalTo: scroll.frameLayoutGuide.leadingAnchor, constant: 16),
-      stack.trailingAnchor.constraint(equalTo: scroll.frameLayoutGuide.trailingAnchor, constant: -16),
+      stack.leadingAnchor.constraint(equalTo: scroll.frameLayoutGuide.leadingAnchor),
+      stack.trailingAnchor.constraint(equalTo: scroll.frameLayoutGuide.trailingAnchor),
     ])
   }
 
@@ -60,35 +60,38 @@ class LodyFormController: UIViewController {
 }
 
 final class LodyFormGroup: UIStackView {
-  private let footerLabel = LodyFormGroup.caption()
+  static let margin: CGFloat = 16
+  private let footerLabel = LodyFormGroup.caption(size: 12.5)
 
-  init(header: String? = nil, footer: String? = nil, _ content: UIView) {
+  init(header: String? = nil, footer: String? = nil, _ rows: UIView...) {
     super.init(frame: .zero)
     axis = .vertical
-    spacing = 7
+    spacing = 0
     if let header {
-      let title = Self.caption()
-      title.text = header.uppercased()
+      let title = UILabel()
+      title.text = header
+      title.font = .dynamic(of: 13, weight: .semibold)
+      title.textColor = .lodySecondary
+      title.numberOfLines = 0
       title.accessibilityTraits = .header
-      addArrangedSubview(Self.inset(title))
+      addArrangedSubview(Self.inset(title, bottom: 6))
     }
-    let card = UIView()
-    card.backgroundColor = UIColor { traits in
-      traits.userInterfaceStyle == .dark ? .tertiarySystemGroupedBackground : .secondarySystemGroupedBackground
+    addArrangedSubview(Self.hairline())
+    var labels: [UILabel] = []
+    for row in rows {
+      let content = Self.row(for: row)
+      if let labeled = content as? LodyFormRow { labels.append(labeled.label) }
+      addArrangedSubview(content)
+      addArrangedSubview(Self.hairline())
     }
-    card.layer.cornerRadius = 26
-    card.layer.cornerCurve = .continuous
-    card.clipsToBounds = true
-    content.translatesAutoresizingMaskIntoConstraints = false
-    card.addSubview(content)
-    NSLayoutConstraint.activate([
-      content.topAnchor.constraint(equalTo: card.topAnchor),
-      content.bottomAnchor.constraint(equalTo: card.bottomAnchor),
-      content.leadingAnchor.constraint(equalTo: card.leadingAnchor),
-      content.trailingAnchor.constraint(equalTo: card.trailingAnchor),
-    ])
-    addArrangedSubview(card)
-    addArrangedSubview(Self.inset(footerLabel))
+    if let first = labels.first {
+      first.widthAnchor.constraint(greaterThanOrEqualToConstant: 96).isActive = true
+      first.widthAnchor.constraint(lessThanOrEqualTo: widthAnchor, multiplier: 0.4).isActive = true
+      for label in labels.dropFirst() {
+        label.widthAnchor.constraint(equalTo: first.widthAnchor).isActive = true
+      }
+    }
+    addArrangedSubview(Self.inset(footerLabel, top: 8))
     self.footer = footer
   }
 
@@ -103,7 +106,37 @@ final class LodyFormGroup: UIStackView {
     }
   }
 
-  static func caption(color: UIColor = .secondaryLabel, size: CGFloat = 13) -> UILabel {
+  private static func row(for view: UIView) -> UIView {
+    if let field = view as? LodyFormField {
+      return LodyFormRow(label: field.accessibilityLabel ?? "", content: field)
+    }
+    if let button = view as? UIButton {
+      button.contentHorizontalAlignment = .leading
+      button.configuration?.contentInsets.leading = margin
+      button.configuration?.contentInsets.trailing = margin
+      button.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
+    }
+    return view
+  }
+
+  static func hairline() -> UIView {
+    let container = UIView()
+    let line = UIView()
+    line.backgroundColor = .lodyLine
+    line.isUserInteractionEnabled = false
+    line.translatesAutoresizingMaskIntoConstraints = false
+    container.addSubview(line)
+    NSLayoutConstraint.activate([
+      container.heightAnchor.constraint(equalToConstant: 0.5),
+      line.topAnchor.constraint(equalTo: container.topAnchor),
+      line.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+      line.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: margin),
+      line.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+    ])
+    return container
+  }
+
+  static func caption(color: UIColor = .lodySecondary, size: CGFloat = 13) -> UILabel {
     let label = UILabel()
     label.font = .dynamic(of: size)
     label.textColor = color
@@ -111,30 +144,107 @@ final class LodyFormGroup: UIStackView {
     return label
   }
 
-  static func inset(_ label: UIView) -> UIView {
+  static func inset(_ label: UIView, top: CGFloat = 0, bottom: CGFloat = 0) -> UIView {
     let container = UIView()
     label.translatesAutoresizingMaskIntoConstraints = false
     container.addSubview(label)
     NSLayoutConstraint.activate([
-      label.topAnchor.constraint(equalTo: container.topAnchor),
-      label.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-      label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
-      label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
+      label.topAnchor.constraint(equalTo: container.topAnchor, constant: top),
+      label.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -bottom),
+      label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: margin),
+      label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -margin),
     ])
     return container
+  }
+}
+
+final class LodyFormRow: UIView {
+  let label = UILabel()
+  private let content: UIView
+
+  init(label text: String, content: UIView, picker: Bool = false) {
+    self.content = content
+    super.init(frame: .zero)
+    label.text = text
+    label.font = .dynamic(of: 15)
+    label.textColor = .lodySecondary
+    label.numberOfLines = 0
+    let interactive = Self.containsControl(content)
+    label.isAccessibilityElement = interactive && !(content is LodyFormField)
+    isAccessibilityElement = !interactive
+    accessibilityLabel = text
+    label.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    label.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+    if let field = content as? LodyFormField {
+      field.textAlignment = .right
+      field.horizontalInset = 0
+    }
+    if picker, let button = content as? UIButton { Self.stylePicker(button) }
+    content.setContentHuggingPriority(.init(1), for: .horizontal)
+    content.setContentCompressionResistancePriority(.init(700), for: .horizontal)
+    for view in [label, content] {
+      view.translatesAutoresizingMaskIntoConstraints = false
+      addSubview(view)
+    }
+    let margin = LodyFormGroup.margin
+    NSLayoutConstraint.activate([
+      heightAnchor.constraint(greaterThanOrEqualToConstant: 48),
+      label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: margin),
+      label.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 12),
+      label.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -12),
+      label.centerYAnchor.constraint(equalTo: centerYAnchor),
+      content.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 12),
+      content.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -margin),
+      content.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 4),
+      content.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -4),
+      content.centerYAnchor.constraint(equalTo: centerYAnchor),
+    ])
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override var accessibilityValue: String? {
+    get { Self.texts(in: content).joined(separator: ", ") }
+    set {}
+  }
+
+  private static func containsControl(_ view: UIView) -> Bool {
+    view is UIControl || view.subviews.contains(where: containsControl)
+  }
+
+  private static func texts(in view: UIView) -> [String] {
+    if let label = view as? UILabel { return [label.text ?? ""].filter { !$0.isEmpty } }
+    return view.subviews.flatMap(texts)
+  }
+
+  private static func stylePicker(_ button: UIButton) {
+    guard var configuration = button.configuration else { return }
+    configuration.baseForegroundColor = .lodyInk
+    configuration.image = UIImage(systemName: "chevron.up.chevron.down")
+    configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+    configuration.imageColorTransformer = UIConfigurationColorTransformer { _ in .lodyTertiary }
+    configuration.imagePlacement = .trailing
+    configuration.imagePadding = 6
+    configuration.contentInsets = .zero
+    configuration.titleAlignment = .trailing
+    button.configuration = configuration
+    button.contentHorizontalAlignment = .trailing
+    button.titleLabel?.numberOfLines = 0
   }
 }
 
 final class LodyFormField: UITextField, UITextFieldDelegate {
   private let limit: Int
   var changed: (() -> Void)?
+  var horizontalInset: CGFloat = LodyFormGroup.margin { didSet { setNeedsLayout() } }
 
   init(id: String, label: String, text: String?, limit: Int) {
     self.limit = limit
     super.init(frame: .zero)
     self.text = text
-    font = .dynamic(of: 17)
-    textColor = .label
+    font = .dynamic(of: 15)
+    textColor = .lodyInk
     autocorrectionType = .no
     accessibilityIdentifier = id
     accessibilityLabel = label
@@ -147,11 +257,11 @@ final class LodyFormField: UITextField, UITextFieldDelegate {
   required init?(coder: NSCoder) { fatalError() }
 
   override func textRect(forBounds bounds: CGRect) -> CGRect {
-    super.textRect(forBounds: bounds).inset(by: UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16))
+    super.textRect(forBounds: bounds).inset(by: UIEdgeInsets(top: 0, left: horizontalInset, bottom: 0, right: horizontalInset))
   }
 
   override func editingRect(forBounds bounds: CGRect) -> CGRect {
-    super.editingRect(forBounds: bounds).inset(by: UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16))
+    super.editingRect(forBounds: bounds).inset(by: UIEdgeInsets(top: 0, left: horizontalInset, bottom: 0, right: horizontalInset))
   }
 
   override func clearButtonRect(forBounds bounds: CGRect) -> CGRect {
@@ -172,9 +282,14 @@ final class LodyFormTextView: UITextView, UITextViewDelegate {
   init(id: String, label: String, text: String?, limit: Int, minHeight: CGFloat) {
     self.limit = limit
     super.init(frame: .zero, textContainer: nil)
-    self.text = text
-    font = .dynamic(of: 17)
-    textColor = .label
+    let font = UIFont.dynamic(of: 15)
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.minimumLineHeight = 21 * font.pointSize / 15
+    paragraph.maximumLineHeight = paragraph.minimumLineHeight
+    typingAttributes = [.font: font, .foregroundColor: UIColor.lodyInk, .paragraphStyle: paragraph]
+    attributedText = NSAttributedString(string: text ?? "", attributes: typingAttributes)
+    self.font = font
+    textColor = .lodyInk
     backgroundColor = .clear
     isScrollEnabled = false
     autocorrectionType = .no
@@ -207,7 +322,8 @@ final class LodyFormToggle: UIView {
     super.init(frame: .zero)
     let label = UILabel()
     label.text = title
-    label.font = .dynamic(of: 17)
+    label.font = .dynamic(of: 15)
+    label.textColor = .lodyInk
     label.numberOfLines = 0
     label.isAccessibilityElement = false
     toggle.isOn = isOn
@@ -219,8 +335,9 @@ final class LodyFormToggle: UIView {
     row.translatesAutoresizingMaskIntoConstraints = false
     addSubview(row)
     NSLayoutConstraint.activate([
-      row.topAnchor.constraint(equalTo: topAnchor, constant: 16),
-      row.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -16),
+      heightAnchor.constraint(greaterThanOrEqualToConstant: 52),
+      row.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+      row.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
       row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
       row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
     ])
@@ -236,7 +353,7 @@ enum LodyFormButton {
     configuration.baseForegroundColor = destructive ? .systemRed : .lodyAccent
     configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
       var next = attributes
-      next.font = .dynamic(of: 17)
+      next.font = .dynamic(of: 15)
       return next
     }
     let button = UIButton(configuration: configuration, primaryAction: UIAction { _ in action() })

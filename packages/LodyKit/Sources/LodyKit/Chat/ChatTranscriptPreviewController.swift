@@ -103,7 +103,7 @@ final class ChatTranscriptPreviewController: UIViewController {
   private static func rowView(_ row: ChatRow) -> UIView {
     let secondary = row.kind == "thought" || row.kind == "summary" || row.kind == "duration"
     let label = UILabel()
-    label.text = row.text
+    label.text = [row.text, row.detail].filter { !$0.isEmpty }.joined(separator: " · ")
     label.font = messageFont(for: row)
     label.textColor = secondary ? .secondaryLabel : .label
     label.numberOfLines = 0

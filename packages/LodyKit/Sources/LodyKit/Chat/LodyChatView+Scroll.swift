@@ -442,7 +442,8 @@ extension LodyChatView {
     if row.kind == "chat_failed" { return ChatErrorCell.height(row, width: width, traits: traitCollection) }
     if row.subagent != nil { return ChatSubagentCell.height(row, width: width, traits: traitCollection) }
     if row.kind == "meta" { return ChatMetaCell.height(for: row, width: width, traits: traitCollection, detailsEnabled: turnInfoEnabled) }
-    if row.kind == "changesHeader" { return 28 }
+    if row.kind == "duration" { return ChatCell.processHeight(for: row, width: width, traits: traitCollection) }
+    if row.kind == "changesHeader" { return ChatFileCell.headerHeight }
     if row.kind == "changes" { return ChatFileCell.rowHeight() }
     let measured = measure(row, width: width)
     if row.kind == "user" {
@@ -450,10 +451,7 @@ extension LodyChatView {
         limit: collapsedMessageHeights[row.entryID] ?? ChatMessageContent.maximumCollapsedHeight,
         expanded: expandedMessages.contains(row.entryID)) + ChatRowPadding.content + 12
     }
-    // Process and pending status rows are buttons. Duration stays copy-sized
-    // even after the folded process makes it tappable — a 44 pt floor would
-    // leave an empty gap between the timer and the hairline.
-    let tapFloor = row.kind != "duration" && (row.actionable || row.kind == "summary" || row.kind == "pending")
+    let tapFloor = row.actionable || row.kind == "summary" || row.kind == "pending"
     let measuredHeight = measured + ChatCell.rowExtra(for: row, previousKind: previousKind ?? kind(before: row.id))
     if tapFloor { return max(44, measuredHeight) }
     if row.kind == "delivery" {

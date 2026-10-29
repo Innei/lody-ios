@@ -29,6 +29,12 @@ let mentionSize = mentionView.sizeThatFits(CGSize(width: 180, height: 1000))
 precondition(mentionSize.width <= 181 && mentionSize.height > 44, "Long file references wrap within the message width")
 print("User mentions: rich labels, file and GitHub targets, VoiceOver actions, wrapping and literal-text boundaries passed")
 
+struct LodyListRow {
+  var parent = false
+  var imageTint = ""
+  var unread = false
+}
+
 // A partially offscreen text view must retain every line when scrolling exposes it.
 let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 400))
 let view = CKTextView(frame: CGRect(x: 0, y: 350, width: 350, height: 600))
@@ -82,64 +88,84 @@ let durationRow = ChatRow(
   id: "turn:duration",
   entryID: "reply",
   kind: "duration",
-  text: "Working for 3s",
+  text: "Processing for " + ChatWorkDuration.label(3_000),
   running: true,
   workDurationMs: 3_000
 )
-let durationCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
-window.addSubview(durationCell)
-durationCell.configure(durationRow, text: NSAttributedString(string: durationRow.text))
-durationCell.layoutIfNeeded()
 precondition(!durationRow.shines, "The duration label must stay static")
-precondition(ChatCell.leading(durationRow) == 0, "The duration label must align to the full row's leading edge")
-precondition(ChatCell.textWidth(durationRow, width: 320) == 320,
-  "The duration label must not reserve a trailing indicator slot")
-print("Chat render: duration label is static and uses the full row width")
+precondition(ChatReadingColumn.cellMargin == 16, "Chat rows must use the 16 pt reading margin")
 
-let separatorColor = UIColor.separator.resolvedColor(with: durationCell.traitCollection).cgColor
-let durationSeparator = durationCell.contentView.subviews.first {
-  $0.backgroundColor?.resolvedColor(with: durationCell.traitCollection).cgColor == separatorColor
-}
-precondition(durationSeparator?.frame.minX == 0 && durationSeparator?.frame.maxX == 320,
-  "The duration separator must span the full row width")
-precondition(durationSeparator?.frame.maxY == durationCell.contentView.bounds.maxY,
-  "The duration separator must sit directly below the label row")
-print("Chat render: duration separator spans the row below the label")
+let railTraits = window.traitCollection
+let processRow = ChatRow(
+  id: "done:duration",
+  entryID: "done",
+  kind: "duration",
+  text: "Processed for " + ChatWorkDuration.label(64_000),
+  actionable: true,
+  workDurationMs: 64_000,
+  detail: "Ran 2 commands · Read 3 files",
+  treeDown: true
+)
+let processHeight = ChatCell.processHeight(for: processRow, width: 358, traits: railTraits)
+precondition(processHeight >= LodyDesign.Rail.primaryHeight, "A two-line process row must be at least 52 pt, got \(processHeight)")
+let processCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 358, height: processHeight))
+window.addSubview(processCell)
+processCell.configure(processRow, text: NSAttributedString(string: processRow.text))
+processCell.layoutIfNeeded()
+let railCenter = LodyDesign.Rail.center - ChatReadingColumn.cellMargin
+let railText = LodyDesign.Rail.text - ChatReadingColumn.cellMargin
+precondition(!processCell.processGlyph.isHidden && abs(processCell.processGlyph.frame.midX - railCenter) < 0.5,
+  "The process glyph must sit on the rail center")
+precondition(processCell.processGlyph.kind == .done, "A finished process must draw the done glyph")
+precondition(abs(processCell.processTitle.frame.minX - railText) < 0.5, "Process line one must start at the rail text column")
+precondition(processCell.label.isHidden && processCell.numericText.isHidden, "The rail row replaces the plain duration label")
+precondition(processCell.processDetail.text == processRow.detail && processCell.processDetail.numberOfLines == 1,
+  "Line two must show the process summary on one line")
+precondition(processCell.processDetail.frame.minY >= processCell.processTitle.frame.maxY - 0.5,
+  "Line two must sit below line one")
+precondition(processCell.processDetail.frame.minX == processCell.processTitle.frame.minX, "Both lines share the text column")
+let titleText = processCell.processTitle.attributedText!
+let titleFont = titleText.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
+let titleWeight = (titleFont.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any])?[.weight] as? CGFloat ?? 0
+let titleSize = LodyDesign.font(.subheadline, size: 14.5, compatibleWith: processCell.traitCollection).pointSize
+precondition(abs(titleFont.pointSize - titleSize) < 0.1 && titleWeight >= UIFont.Weight.semibold.rawValue - 0.01,
+  "Line one uses 14.5 pt semibold, got \(titleFont.pointSize) weight \(titleWeight)")
+let durationLabel = ChatWorkDuration.label(64_000)
+let durationRange = (titleText.string as NSString).range(of: durationLabel, options: .backwards)
+precondition(durationRange.location != NSNotFound, "Line one must carry the duration")
+let durationRunFont = titleText.attribute(.font, at: durationRange.location, effectiveRange: nil) as! UIFont
+precondition(durationRunFont.fontDescriptor.symbolicTraits.contains(.traitMonoSpace) && abs(durationRunFont.pointSize - LodyDesign.mono(12, compatibleWith: processCell.traitCollection).pointSize) < 0.1,
+  "The duration uses 12 pt mono")
+precondition(!processCell.processChevron.isHidden && processCell.processChevron.frame.maxX <= 358,
+  "An actionable process row shows a trailing chevron")
+precondition(processCell.processTitle.frame.maxX <= processCell.processChevron.frame.minX, "Text must clear the chevron")
+let separatorColor = UIColor.separator.resolvedColor(with: processCell.traitCollection).cgColor
+precondition(!processCell.contentView.subviews.contains {
+  !$0.isHidden && $0.backgroundColor?.resolvedColor(with: processCell.traitCollection).cgColor == separatorColor
+}, "The process row draws no hairline")
+let trunk = processCell.processTree.path?.boundingBoxOfPath ?? .null
+precondition(!trunk.isNull && abs(trunk.midX - railCenter) < 0.5 && abs(trunk.maxY - processHeight) < 0.5
+  && trunk.minY >= processCell.processGlyph.frame.maxY,
+  "A process row with sub-agents draws a trunk from below its glyph to the row bottom")
+precondition(processCell.accessibilityLabel == processRow.text + ", " + processRow.detail,
+  "VoiceOver reads both process lines")
 
-func chromeHeight(_ row: ChatRow, text: String, width: CGFloat, traits: UITraitCollection) -> CGFloat {
-  let view = CKTextView()
-  view.setText(NSAttributedString(string: text, attributes: [
-    .font: ChatCell.messageFont(for: row, compatibleWith: traits),
-  ]))
-  return view.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
-}
-
-let spacingTraits = durationCell.traitCollection
-let durationTextHeight = chromeHeight(durationRow, text: durationRow.text, width: 320, traits: spacingTraits)
-precondition(
-  ChatRowPadding.durationBottom == ChatRowPadding.content / 2,
-  "The work-duration trailing gap must be half the body-to-process gap"
-)
-precondition(
-  ChatCell.rowExtra(for: durationRow) == ChatRowPadding.content + ChatRowPadding.durationBottom,
-  "The duration row must size to that half-gap instead of the body-text padding"
-)
-let durationNatural = ChatCell(frame: CGRect(
-  x: 0,
-  y: 0,
-  width: 320,
-  height: durationTextHeight + ChatCell.rowExtra(for: durationRow)
-))
-window.addSubview(durationNatural)
-durationNatural.configure(durationRow, text: NSAttributedString(string: durationRow.text, attributes: [
-  .font: ChatCell.messageFont(for: durationRow, compatibleWith: spacingTraits),
-]))
-durationNatural.layoutIfNeeded()
-precondition(
-  abs((durationNatural.bounds.height - durationNatural.label.frame.maxY) - ChatRowPadding.durationBottom) < 0.6,
-  "The gap below the work-duration label must be half the gap between body text and the process row"
-)
-print("Chat render: duration bottom gap is half the text-to-process gap")
+let liveHeight = ChatCell.processHeight(for: durationRow, width: 358, traits: railTraits)
+precondition(liveHeight >= 44 && liveHeight < processHeight, "A one-line process row stays one line tall")
+let liveCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 358, height: liveHeight))
+window.addSubview(liveCell)
+liveCell.configure(durationRow, text: NSAttributedString(string: durationRow.text))
+liveCell.layoutIfNeeded()
+precondition(liveCell.processGlyph.kind == .live, "A running process draws the live glyph")
+precondition(liveCell.processChevron.isHidden, "A process row that cannot open hides the chevron")
+precondition(liveCell.processDetail.isHidden, "A process row without a summary hides line two")
+precondition(liveCell.processTree.path == nil, "A process row without sub-agents draws no trunk")
+precondition(abs(liveCell.processTitle.frame.midY - liveHeight / 2) < 1, "One-line process text is centered")
+var waitingRow = processRow
+waitingRow.attention = true
+liveCell.configure(waitingRow, text: NSAttributedString(string: waitingRow.text))
+precondition(liveCell.processGlyph.kind == .attention, "A process that needs attention draws the attention glyph")
+print("Chat render: process rows draw the rail glyph, two lines, chevron and sub-agent trunk")
 
 let answerRow = ChatRow(id: "reply:answer", entryID: "reply", kind: "text", text: "计时完成。")
 precondition(
@@ -281,12 +307,16 @@ precondition((runningSummary.icon.image?.size.width ?? .greatestFiniteMagnitude)
   "The process status pip must be smaller than thought and tool icons")
 precondition((failedLiveSummary.icon.image?.size.width ?? .greatestFiniteMagnitude) < (thoughtCell.icon.image?.size.width ?? 0),
   "The warning mark must stay in the process pip scale")
-precondition(ChatCell.leading(doneSummary.row!) == 12, "The process pip must not keep the 24-point icon gutter")
-precondition(doneSummary.icon.frame.minX == 0, "The process pip must sit on the text leading edge")
+precondition(ChatCell.leading(doneSummary.row!) == railText, "Summary text must start at the rail text column")
+precondition(abs(doneSummary.icon.frame.midX - railCenter) < 0.5, "The summary pip must sit on the rail center")
 precondition(doneSummary.icon.frame.width == 8, "The process pip slot must match the 6-point dot")
 precondition(abs(doneSummary.icon.frame.midY - doneSummary.label.frame.midY) <= 0.5,
   "The process pip must sit on the text baseline")
-precondition(doneSummary.label.frame.minX == 12, "Process text must follow the pip without extra padding")
+precondition(doneSummary.label.frame.minX == railText, "Summary text must start at the rail text column")
+precondition(!doneSummary.processChevron.isHidden && doneSummary.label.frame.maxX <= doneSummary.processChevron.frame.minX,
+  "Summary rows open the activity through a trailing chevron")
+precondition(ChatCell.messageFont(for: doneSummary.row!, compatibleWith: traits).pointSize == 12.5 * UIFont.dynamicScale(compatibleWith: traits),
+  "Summary rows use 12.5 pt text")
 
 let wrappedSummary = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: 80))
 window.addSubview(wrappedSummary)
@@ -861,16 +891,10 @@ func sameRGB(_ lhs: (CGFloat, CGFloat, CGFloat, CGFloat), _ rhs: (CGFloat, CGFlo
   abs(lhs.0 - rhs.0) < 0.001 && abs(lhs.1 - rhs.1) < 0.001 && abs(lhs.2 - rhs.2) < 0.001
 }
 
-let lightBubble = rgba(.lodyUserBubble, style: .light)
-let lightAccent = rgba(.lodyAccent, style: .light)
-precondition(abs(lightBubble.3 - 0.10) < 0.001, "Light user bubbles are a 10% accent wash")
-precondition(sameRGB(lightBubble, lightAccent), "Light user bubbles keep accent chroma instead of mixing toward the canvas")
-let darkBubble = rgba(.lodyUserBubble, style: .dark)
-let darkAccent = rgba(.lodyAccent, style: .dark)
-precondition(abs(darkBubble.3 - 0.14) < 0.001, "Dark user bubbles are a 14% accent wash")
-precondition(sameRGB(darkBubble, darkAccent), "Dark user bubbles keep accent chroma instead of mixing toward the canvas")
+for style in [UIUserInterfaceStyle.light, .dark] {
+  let bubble = rgba(.lodyUserBubble, style: style)
+  precondition(sameRGB(bubble, rgba(.lodyInset, style: style)) && bubble.3 == 1, "User bubbles share the inset fill: \(style.rawValue)")
+}
 let glyphFill = glyphBubble.backgroundColor!.resolvedColor(with: glyphBubble.traitCollection)
-var glyphAlpha: CGFloat = 1
-glyphFill.getRed(nil, green: nil, blue: nil, alpha: &glyphAlpha)
-precondition(glyphAlpha < 1, "The on-screen user bubble must stay translucent")
-print("Chat render: user bubbles tint the canvas instead of baking a mix")
+precondition(glyphFill == UIColor.lodyInset.resolvedColor(with: glyphBubble.traitCollection), "The on-screen user bubble paints the inset fill")
+print("Chat render: user bubbles use the neutral inset fill")

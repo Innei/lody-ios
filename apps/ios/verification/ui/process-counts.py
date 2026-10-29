@@ -1,4 +1,3 @@
-"""Process-row counts roll with numericText and keep the 44 pt floor."""
 import sys
 from driver import UI
 import catalog
@@ -13,7 +12,7 @@ def process_row(items):
     return next(
         (
             item for item in items
-            if item.get('AXUniqueId') == 'counts-preview:process'
+            if item.get('AXUniqueId') == 'counts-preview:duration'
         ),
         None,
     )
@@ -33,8 +32,12 @@ first = ui.wait(
 )
 first_count = count_of(first)
 assert 1 <= first_count < 9, first
+assert ', ' in first['AXLabel'], first['AXLabel']
+assert not any(item.get('AXUniqueId') == 'counts-preview:process' for item in ui.state()), (
+    'The first process summary must merge into the duration row'
+)
 height = first['frame']['height']
-assert abs(height - 44) <= 1, 'Process row started off the 44-point floor: ' + str(height)
+assert height >= 52, 'The process row must accommodate its title and counts: ' + str(height)
 ui.capture('counts-one')
 
 changed = ui.wait(

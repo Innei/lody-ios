@@ -38,10 +38,13 @@ final class RemoteSettingEditorController: LodyFormController {
     name.clearButtonMode = .whileEditing
     name.returnKeyType = .done
     name.changed = { [weak self] in self?.render() }
-    stack.addArrangedSubview(LodyFormGroup(
-      header: text("name"), footer: item.kind == "machine" ? text("machineHint") : nil, name
-    ))
-    if item.kind == "machine" { stack.addArrangedSubview(LodyFormGroup(header: text("machineId"), machineRow())) }
+    if item.kind == "machine" {
+      stack.addArrangedSubview(LodyFormGroup(
+        footer: text("machineHint"), name, LodyFormRow(label: text("machineId"), content: machineRow())
+      ))
+    } else {
+      stack.addArrangedSubview(LodyFormGroup(name))
+    }
     if item.kind == "mcp" {
       failure.accessibilityIdentifier = "setting-error"
       failure.accessibilityTraits = .staticText
@@ -72,8 +75,9 @@ final class RemoteSettingEditorController: LodyFormController {
   private func machineRow() -> UIView {
     let id = UILabel()
     id.text = item.id
-    id.font = .monospacedSystemFont(ofSize: 15, weight: .regular)
-    id.textColor = .secondaryLabel
+    id.font = LodyDesign.mono(13)
+    id.textColor = .lodyInk
+    id.textAlignment = .right
     id.lineBreakMode = .byTruncatingMiddle
     var configuration = UIButton.Configuration.plain()
     configuration.image = UIImage(systemName: "doc.on.doc")
@@ -87,9 +91,7 @@ final class RemoteSettingEditorController: LodyFormController {
     copy.heightAnchor.constraint(equalToConstant: 44).isActive = true
     let row = UIStackView(arrangedSubviews: [id, copy])
     row.alignment = .center
-    row.isLayoutMarginsRelativeArrangement = true
-    row.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 4)
-    row.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+    row.spacing = 4
     return row
   }
 

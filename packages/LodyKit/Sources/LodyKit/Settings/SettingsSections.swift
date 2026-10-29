@@ -5,12 +5,7 @@ enum SettingsSections {
     let account = state.account
     let workspace = account == nil ? nil : state.workspace
     var sections = [
-      section("account", rows: [
-        row(
-          "account", account?.user.name ?? text("account.welcome"), subtitle: account?.user.email ?? text("account.signInHint"),
-          image: account?.user.image ?? "person.crop.circle", action: account != nil, navigates: account != nil
-        ),
-      ]),
+      section("account", rows: [accountRow(account)]),
       section("personal", header: text("section.personal"), rows: [
         row("preferences", text("preferences.title"), subtitle: text("preferences.subtitle"), image: "slider.horizontal.3"),
         row("appearance", text("appearance.title"), subtitle: text("appearance.subtitle"), image: "paintpalette"),
@@ -91,6 +86,20 @@ enum SettingsSections {
     section.footer = footer
     section.rows = rows
     return section
+  }
+
+  private static func accountRow(_ account: AuthAccount?) -> LodyListRow {
+    var result = row(
+      "account", account?.user.name ?? text("account.welcome"), subtitle: account?.user.email ?? text("account.signInHint"),
+      image: account?.user.image ?? "person.crop.circle", action: account != nil, navigates: account != nil
+    )
+    if let account, account.user.image?.isEmpty ?? true {
+      result.image = ""
+      result.monogram = String(account.user.name.trimmingCharacters(in: .whitespaces).prefix(1)).uppercased()
+    }
+    if result.monogram.isEmpty, result.image.isEmpty { result.image = "person.crop.circle" }
+    result.subtitleMono = account != nil
+    return result
   }
 
   private static func row(

@@ -135,6 +135,10 @@ struct ChatRow: Equatable {
   var workDurationMs: Int? = nil
   var imageAsset = ""
   var subagent: ChatSubagentCard? = nil
+  var detail = ""
+  var treeChild = false
+  var treeLast = false
+  var treeDown = false
   var shines: Bool { running && kind != "duration" }
   /// `only` / `first` / `middle` / `last` for consecutive file rows in one group.
   var group = ""
@@ -214,13 +218,27 @@ enum ChatWorkDuration {
   private static func pad2(_ value: Int) -> String {
     value < 10 ? "0\(value)" : String(value)
   }
+
+  static func label(_ milliseconds: Int) -> String {
+    format(
+      milliseconds,
+      hour: String(localized: "native.chat.duration.hour", bundle: .lody),
+      minute: String(localized: "native.chat.duration.minute", bundle: .lody),
+      second: String(localized: "native.chat.duration.second", bundle: .lody)
+    )
+  }
+
+  static func title(_ milliseconds: Int, running: Bool) -> String {
+    let key = running ? "native.chat.transcript.status.workingFor" : "native.chat.transcript.status.workedFor"
+    return String.localizedStringWithFormat(String(localized: String.LocalizationValue(key), bundle: .lody), label(milliseconds))
+  }
 }
 
 /// Conversation stays readable on wide hosts; the scroll view itself stays full-bleed
 /// so the vertical indicator remains on the screen edge.
 enum ChatReadingColumn {
   static let maximumWidth: CGFloat = 800
-  static let cellMargin: CGFloat = 20
+  static let cellMargin: CGFloat = 16
   static let sectionTop: CGFloat = 4
   static let sectionBottom: CGFloat = 4
 
@@ -340,9 +358,9 @@ struct ChatTranscript {
       }
       // Preserve existing duration attribution for ordinary conversation rows.
       if entry.executionId == nil && entry.holdOpen != true {
-        return ordinary[entry.id] ?? []
+        return ChatTranscript.hangSubagents(ordinary[entry.id] ?? [])
       }
-      return result
+      return ChatTranscript.hangSubagents(result)
     }
   }
 
@@ -448,7 +466,7 @@ struct ChatTranscript {
         }
       }
       var result: [ChatRow] = []
-      var absorbedProcess = false
+      var absorbed: Int?
       if entry.role == "assistant", !processOnly {
         let turn: ChatEntry?
         if let userTurnID = entry.userTurnId {
@@ -464,24 +482,34 @@ struct ChatTranscript {
             id: turnID + ":duration",
             entryID: entry.id,
             kind: "duration",
-            text: workDurationTitle(duration, running: entry.isRunning),
+            text: ChatWorkDuration.title(duration, running: entry.isRunning),
             running: entry.isRunning,
             workDurationMs: duration
           )
           if entry.finished, let first = groups.keys.min(), let indices = groups[first] {
             let process = indices.map { entry.items[$0] }
-            let summary = ChatProcessSummary.title(items: process, running: false, includesThought: false)
-            if !summary.isEmpty { row.text += " · " + summary }
+            row.detail = ChatProcessSummary.title(items: process, running: false, includesThought: false)
             row.actionable = true
             row.attention = process.contains { $0.permission?.pending == true || $0.status == "failed" }
-            absorbedProcess = true
+            absorbed = first
+          } else if !entry.finished, entry.holdOpen != true, entry.executionId == nil,
+                    let first = visible.first(where: { entry.items[$0].type != "subagent_task" }),
+                    let indices = groups[first] {
+            let process = indices.map { entry.items[$0] }
+            let tail = entry.items.indices.last { !entry.items[$0].hidesFromTranscript }
+            let live = entry.isRunning && indices.last == tail && process.first?.processDurationMs == nil
+            row.detail = ChatProcessSummary.title(items: process, running: live)
+            row.actionable = true
+            row.processStartID = entry.items[first].itemId
+            row.attention = process.contains { $0.permission?.pending == true || $0.status == "failed" }
+            absorbed = first
           }
           result.append(row)
         }
       }
       for index in visible {
         if let indices = groups[index] {
-          if absorbedProcess { continue }
+          if index == absorbed { continue }
           let process = indices.map { entry.items[$0] }
           let needsPermission = process.contains { $0.permission?.pending == true }
           let failed = process.contains { $0.status == "failed" }
@@ -492,7 +520,7 @@ struct ChatTranscript {
           var title = ChatProcessSummary.title(items: process, running: running)
           if !running, let duration = process.first?.processDurationMs {
             let summary = ChatProcessSummary.title(items: process, running: false, includesThought: false)
-            title = workDurationTitle(duration, running: false)
+            title = ChatWorkDuration.title(duration, running: false)
             if !summary.isEmpty { title += " · " + summary }
           }
           result.append(ChatRow(id: entry.id + ":process" + (firstGroup ? "" : ":" + entry.items[index].itemId), entryID: entry.id, kind: "summary",
@@ -573,17 +601,19 @@ struct ChatTranscript {
         if !files.isEmpty {
           let add = files.reduce(0) { $0 + ($1.add ?? 0) }
           let del = files.reduce(0) { $0 + ($1.del ?? 0) }
-          result.append(ChatRow(
+          var header = ChatRow(
             id: entry.id + ":changes", entryID: entry.id, kind: "changesHeader",
             text: String.localizedStringWithFormat(String(localized: "native.chat.transcript.fileCount", bundle: .lody), files.count),
             fileDiff: ChatFileDiff(path: "", add: add, del: del, status: nil)
-          ))
+          )
+          header.group = "first"
+          result.append(header)
           for (index, file) in files.enumerated() {
             var row = ChatRow(
               id: entry.id + ":changes:" + file.path, entryID: entry.id, kind: "changes",
-              text: file.path, symbol: "doc.text", actionable: true, fileDiff: file
+              text: file.path, actionable: true, fileDiff: file
             )
-            row.group = fileGroup(index: index, count: files.count)
+            row.group = index == files.count - 1 ? "last" : "middle"
             result.append(row)
           }
         }
@@ -594,6 +624,19 @@ struct ChatTranscript {
 }
 
 extension ChatTranscript {
+  static func hangSubagents(_ rows: [ChatRow]) -> [ChatRow] {
+    var tasks = rows.filter { $0.kind == "subagent_task" }
+    var result = rows.filter { $0.kind != "subagent_task" }
+    guard !tasks.isEmpty, let process = result.firstIndex(where: { $0.kind == "duration" }) else { return rows }
+    for index in tasks.indices {
+      tasks[index].treeChild = true
+      tasks[index].treeLast = index == tasks.count - 1
+    }
+    result[process].treeDown = true
+    result.insert(contentsOf: tasks, at: process + 1)
+    return result
+  }
+
   fileprivate static func subagentRow(entry: ChatEntry, item: ChatItem) -> ChatRow {
     let actor = item.actor?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     let description = item.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -702,15 +745,6 @@ enum ChatProcessSummary {
   }
 }
 
-private func workDurationTitle(_ milliseconds: Int, running: Bool) -> String {
-  let duration = ChatWorkDuration.format(
-    milliseconds,
-    hour: String(localized: "native.chat.duration.hour", bundle: .lody),
-    minute: String(localized: "native.chat.duration.minute", bundle: .lody),
-    second: String(localized: "native.chat.duration.second", bundle: .lody)
-  )
-  return String.localizedStringWithFormat(String(localized: String.LocalizationValue(running ? "native.chat.transcript.status.workingFor" : "native.chat.transcript.status.workedFor"), bundle: .lody), String(describing: duration))
-}
 
 private func planPrefix(_ status: String?) -> String {
   switch status {
@@ -718,13 +752,6 @@ private func planPrefix(_ status: String?) -> String {
   case "in_progress": return "› "
   default: return "○ "
   }
-}
-
-private func fileGroup(index: Int, count: Int) -> String {
-  if count == 1 { return "only" }
-  if index == 0 { return "first" }
-  if index == count - 1 { return "last" }
-  return "middle"
 }
 
 extension ChatPendingSend {
@@ -786,7 +813,7 @@ extension ChatPendingSend {
         id: id + ":duration",
         entryID: id,
         kind: "duration",
-        text: workDurationTitle(duration, running: true),
+        text: ChatWorkDuration.title(duration, running: true),
         running: true,
         workDurationMs: duration
       ))

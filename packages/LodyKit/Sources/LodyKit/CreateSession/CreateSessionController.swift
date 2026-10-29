@@ -61,6 +61,8 @@ final class CreateSessionController: UIViewController {
     }
     paged.setTransparent(true)
     single.setTransparent(true)
+    paged.setGrouped(true)
+    single.setGrouped(true)
     paged.forwardedRowPress = { [weak self] in self?.rowPressed($0["id"] as? String ?? "") }
     paged.forwardedPageChange = { [weak self] in self?.pageChanged($0) }
     single.forwarded = { [weak self] name, body in

@@ -137,6 +137,10 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private var bottomInset: CGFloat = 0
   private var transparent = false
   private var contentStyle = false
+  private var grouped = false
+  private var textLeadings: [String: CGFloat] = [:]
+  private var flatSystem: Bool { !grouped && !contentStyle }
+  private static let flatHeaderTop: CGFloat = 10
   private var reordering = false
   var previewUserId = ""
   var previewWorkspaceId = ""
@@ -153,7 +157,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   private func configureSettingsCell(_ cell: SettingsListCell, _ row: LodyListRow) {
-    Self.configureSystem(cell, row, toggle: toggle(for: row))
+    Self.configureSystem(cell, row, toggle: toggle(for: row), flat: flatSystem)
+    if flatSystem { flatten(cell, row) }
     if reordering { cell.accessories.append(.reorder(displayed: .always)) }
     let button = cell.optionButton
     button.isHidden = row.options.isEmpty
@@ -171,11 +176,56 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     if !row.options.isEmpty {
       cell.accessibilityIdentifier = nil
       let indicator = UIImageView(image: UIImage(systemName: "chevron.up.chevron.down"))
-      indicator.tintColor = .tertiaryLabel
+      indicator.tintColor = flatSystem ? .lodyTertiary : .tertiaryLabel
       indicator.preferredSymbolConfiguration = .init(pointSize: 11, weight: .semibold)
       cell.accessories.append(.customView(configuration: .init(customView: indicator, placement: .trailing(at: { $0.count }))))
       cell.bringSubviewToFront(button)
     }
+  }
+
+  private func flatten(_ cell: SettingsListCell, _ row: LodyListRow) {
+    guard var content = cell.contentConfiguration as? UIListContentConfiguration else { return }
+    let textLeading = textLeadings[row.id] ?? LodyFlatRows.readingMargin
+    let monogram = !row.monogram.isEmpty && row.image.isEmpty && row.filePath.isEmpty
+    let photo = LodyListPhoto.url(row.image) != nil || monogram
+    let font = photo
+      ? LodyDesign.font(.body, size: 17, weight: .semibold)
+      : LodyDesign.font(.subheadline, size: 15)
+    let secondaryFont = row.subtitleMono ? LodyDesign.mono(12) : LodyDesign.font(.footnote, size: 12.5)
+    content.textProperties.font = font
+    if !row.destructive { content.textProperties.color = .lodyInk }
+    content.secondaryTextProperties.font = secondaryFont
+    content.secondaryTextProperties.color = .lodySecondary
+    content.textToSecondaryTextVerticalPadding = 2
+    var leading = textLeading
+    if monogram {
+      content.image = LodyListPhoto.monogram(row.monogram, side: LodyFlatRows.avatarSize)
+    }
+    if content.image != nil, photo {
+      let side = CGSize(width: LodyFlatRows.avatarSize, height: LodyFlatRows.avatarSize)
+      content.imageProperties.maximumSize = side
+      content.imageProperties.reservedLayoutSize = side
+      content.imageProperties.cornerRadius = side.width / 2
+      content.imageToTextPadding = 12
+      leading = LodyFlatRows.readingMargin
+    } else if content.image != nil {
+      let box = LodyFlatRows.iconBox
+      content.imageProperties.reservedLayoutSize = CGSize(width: box, height: LodyFlatRows.iconSize)
+      content.imageProperties.maximumSize = CGSize(width: LodyFlatRows.iconSize, height: LodyFlatRows.iconSize)
+      content.imageProperties.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+      if row.imageTint.isEmpty, !row.destructive, !row.imageOriginal, row.filePath.isEmpty, row.status.isEmpty {
+        content.imageProperties.tintColor = .lodySecondary
+      }
+      leading = LodyFlatRows.iconCenter - box / 2
+      content.imageToTextPadding = max(0, textLeading - leading - box)
+    }
+    let text = font.lineHeight + (content.secondaryText == nil ? 0 : secondaryFont.lineHeight + 2)
+    let lines = max(text, content.image == nil ? 0 : content.imageProperties.reservedLayoutSize.height)
+    let vertical = max(8, ceil((LodyFlatRows.minHeight(hasSubtitle: content.secondaryText != nil) - lines) / 2))
+    content.directionalLayoutMargins = .init(top: vertical, leading: leading, bottom: vertical, trailing: LodyDesign.Rail.trailing)
+    cell.preservesSuperviewLayoutMargins = false
+    cell.directionalLayoutMargins = .init(top: 0, leading: 0, bottom: 0, trailing: LodyDesign.Rail.trailing)
+    cell.contentConfiguration = content
   }
 
   private lazy var visualRegistration = UICollectionView.CellRegistration<UICollectionViewListCell, ListItemID> { [weak self] cell, _, id in
@@ -313,7 +363,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private static func configureSystem(
     _ cell: UICollectionViewListCell,
     _ row: LodyListRow,
-    toggle: UISwitch? = nil
+    toggle: UISwitch? = nil,
+    flat: Bool = false
   ) {
     cell.accessibilityIdentifier = row.id
     let accent = LodyGroupedList.accent
@@ -408,7 +459,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       accessories.append(.customView(configuration: .init(customView: label, placement: .trailing())))
     } else if !row.value.isEmpty {
       var options = UICellAccessory.LabelOptions()
-      options.tintColor = .secondaryLabel
+      options.tintColor = flat ? .lodySecondary : .secondaryLabel
+      if flat { options.font = LodyDesign.font(.subheadline, size: 15) }
       accessories.append(.label(text: row.value, options: options))
     }
     if !row.trailingSymbol.isEmpty {
@@ -421,7 +473,9 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       )
     }
     if row.selected { accessories.append(.checkmark()) }
-    if row.disclosure { accessories.append(.disclosureIndicator()) }
+    if row.disclosure {
+      accessories.append(.disclosureIndicator(options: flat ? .init(tintColor: .lodyTertiary) : .init()))
+    }
     cell.accessories = accessories
     var traits: UIAccessibilityTraits = row.action ? .button : .staticText
     if row.selected { traits.insert(.selected) }
@@ -458,7 +512,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     _ = registration
     _ = visualRegistration
     _ = searchRegistration
-    collection.backgroundColor = .lodyGroupedBackground
+    collection.backgroundColor = .lodyGround
     collection.tintColor = .lodyAccent
     collection.contentInsetAdjustmentBehavior = .automatic
     collection.alwaysBounceVertical = true
@@ -489,24 +543,41 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     }
     collection.delegate = self
     let layout = UICollectionViewCompositionalLayout { [weak self] index, environment in
-      let flat = self?.contentStyle ?? false
+      let flatSystem = self?.flatSystem ?? false
+      let flat = (self?.contentStyle ?? false) || flatSystem
       var configuration = UICollectionLayoutListConfiguration(appearance: flat ? .plain : .insetGrouped)
       // The collection owns the ground; the layout must not repaint it at full detent.
       configuration.backgroundColor = .clear
       if flat {
-        configuration.headerTopPadding = 0
-        configuration.showsSeparators = false
+        configuration.headerTopPadding = flatSystem && index > 0 ? LodyDesign.Rail.groupGap - Self.flatHeaderTop : 0
+        configuration.showsSeparators = flatSystem
       }
       // `.firstItemInSection` splits the inset card into a header card and an
       // items card; a parent row is a plain first item so the card stays whole.
       let model = self?.section(at: index)
       let outline = model?.rows.first?.parent ?? false
+      if flatSystem {
+        var separators = UIListSeparatorConfiguration(listAppearance: .plain)
+        separators.color = .lodyLine
+        configuration.separatorConfiguration = separators
+        let count = model?.rows.count ?? 0
+        let leading = LodyFlatRows.textLeading(sectionHasIcons: LodyFlatRows.sectionHasIcons(model?.rows ?? []))
+        configuration.itemSeparatorHandler = { indexPath, proposed in
+          var separator = proposed
+          separator.topSeparatorVisibility = .hidden
+          let inset = LodyFlatRows.separatorLeading(textLeading: leading, isLast: indexPath.item >= count - 1)
+          separator.bottomSeparatorVisibility = inset == nil ? .hidden : .visible
+          separator.bottomSeparatorInsets = .init(top: 0, leading: inset ?? 0, bottom: 0, trailing: 0)
+          return separator
+        }
+      }
       let hideEmptyFooter = LodyListSectionAnimation.hidesEmptyFooter(
         rowCount: model?.rows.count ?? 0,
         placeholder: self?.placeholderText ?? ""
       )
       configuration.headerMode = outline ? .none : .supplementary
-      configuration.footerMode = outline || hideEmptyFooter ? .none : .supplementary
+      let emptyFlatFooter = flatSystem && (model?.footer ?? "").isEmpty
+      configuration.footerMode = outline || hideEmptyFooter || emptyFlatFooter ? .none : .supplementary
       configuration.leadingSwipeActionsConfigurationProvider = { indexPath in
         self?.swipeActions(at: indexPath, leading: true)
       }
@@ -516,7 +587,9 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       let section = NSCollectionLayoutSection.list(using: configuration, layoutEnvironment: environment)
       // Plain lists pin headers by default; a clear header would float over rows.
       for item in section.boundarySupplementaryItems { item.pinToVisibleBounds = false }
-      if flat, index > 0 {
+      if flat, !flatSystem, index > 0, outline {
+        section.contentInsets.top = LodyDesign.Rail.bandGap
+      } else if flat, !flatSystem, index > 0 {
         section.contentInsets.top = model?.gap == .group ? LodyDesign.Rail.groupGap : LodyDesign.Rail.sectionGap
       }
       if outline, !flat {
@@ -850,6 +923,11 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     rowsByID = Dictionary(value.flatMap { section in
       section.rows.map { (ListItemID(section: section.id, row: $0.id), $0) }
     }, uniquingKeysWith: { _, latest in latest })
+    textLeadings = [:]
+    for section in value {
+      let leading = LodyFlatRows.textLeading(sectionHasIcons: LodyFlatRows.sectionHasIcons(section.rows))
+      for row in section.rows { textLeadings[row.id] = leading }
+    }
     let live = Set(rowsByID.keys.map(\.row))
     toggles = toggles.filter { live.contains($0.key) }
     // Hierarchy belongs to the data, even when sections arrives before contentStyle.
@@ -953,6 +1031,15 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     setNeedsLayout()
   }
 
+  func setGrouped(_ value: Bool) {
+    guard value != grouped else { return }
+    grouped = value
+    lodyAppearanceDidChange()
+    collection.collectionViewLayout.invalidateLayout()
+    collection.reloadData()
+    setNeedsLayout()
+  }
+
   func setReordering(_ value: Bool) {
     guard value != reordering else { return }
     reordering = value
@@ -975,7 +1062,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     setNeedsLayout()
   }
 
-  private var ground: UIColor { contentStyle ? .lodyGround : .lodyGroupedBackground }
+  private var ground: UIColor { grouped && !contentStyle ? .lodyGroupedBackground : .lodyGround }
 
   override func lodyAppearanceDidChange() {
     collection.backgroundColor = transparent ? .clear : ground
@@ -1151,6 +1238,11 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       cell.configurationUpdateHandler = { cell, state in
         cell.backgroundConfiguration = LodyListCellBackground.railConfiguration(for: state)
       }
+    } else if flatSystem {
+      cell.automaticallyUpdatesBackgroundConfiguration = false
+      cell.configurationUpdateHandler = { cell, state in
+        cell.backgroundConfiguration = LodyListCellBackground.railConfiguration(for: state)
+      }
     } else if transparent {
       // A static backgroundConfiguration freezes the cell's appearance, so the
       // highlighted and selected states stop rendering. The update handler
@@ -1241,6 +1333,13 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       content = section.headerProminent ? .prominentInsetGroupedHeader() : .groupedHeader()
       if section.headerProminent { content.textProperties.color = .label }
     }
+    if flatSystem {
+      content.textProperties.transform = .none
+      content.textProperties.color = .lodySecondary
+      content.textProperties.font = header
+        ? LodyDesign.font(.footnote, size: 13, weight: .semibold)
+        : LodyDesign.font(.footnote, size: 12.5)
+    }
     content.text = text
     content.textProperties.numberOfLines = 0
     if header, !section.headerStatus.isEmpty,
@@ -1255,7 +1354,12 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     } else {
       view.accessibilityLabel = nil
     }
-    if contentStyle {
+    if flatSystem {
+      let footerLeading = LodyFlatRows.textLeading(sectionHasIcons: LodyFlatRows.sectionHasIcons(section.rows))
+      content.directionalLayoutMargins = header
+        ? .init(top: Self.flatHeaderTop, leading: LodyFlatRows.readingMargin, bottom: 6, trailing: LodyDesign.Rail.trailing)
+        : .init(top: 8, leading: footerLeading, bottom: 0, trailing: LodyDesign.Rail.trailing)
+    } else if contentStyle {
       content.directionalLayoutMargins = .init(top: 10, leading: 16, bottom: 10, trailing: LodyDesign.Rail.trailing)
       if header {
         let title = NSMutableAttributedString(string: text, attributes: [

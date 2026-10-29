@@ -132,6 +132,7 @@ targets:
           - List/LodyPageProgress.swift
           - List/LiquidGlassSegmentedControl.swift
           - List/LodyListCellBackground.swift
+          - List/LodyFlatRows.swift
           - List/LodyListPhoto.swift
           - List/LodyListRowInteractions.swift
           - List/LodyListSectionAnimation.swift

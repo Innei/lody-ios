@@ -19,6 +19,7 @@ final class LodyPagedList: UIView, UIPageViewControllerDataSource, UIPageViewCon
   private var pagingEnabled = true
   private var bottomInset: CGFloat = 0
   private var transparent = false
+  private var grouped = false
   private var offsetObservation: NSKeyValueObservation?
   private var titleObservation: NSKeyValueObservation?
   private weak var pageScrollView: UIScrollView?
@@ -95,6 +96,11 @@ final class LodyPagedList: UIView, UIPageViewControllerDataSource, UIPageViewCon
     boxes.forEach { $0.list.setTransparent(value) }
   }
 
+  func setGrouped(_ value: Bool) {
+    grouped = value
+    boxes.forEach { $0.list.setGrouped(value) }
+  }
+
   func setAccent(_ value: String) {
     boxes.forEach { $0.list.setAccent(value) }
   }
@@ -120,6 +126,7 @@ final class LodyPagedList: UIView, UIPageViewControllerDataSource, UIPageViewCon
         self?.forwardedRowPress?(body)
       }
       box.list.setTransparent(transparent)
+      box.list.setGrouped(grouped)
       box.list.setBottomInset(bottomInset)
       box.list.setSections(page.sections)
       return box

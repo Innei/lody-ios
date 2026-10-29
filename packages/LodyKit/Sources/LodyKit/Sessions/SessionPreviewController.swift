@@ -153,11 +153,11 @@ private final class SessionPreviewFixture {
       "preview": ["label": "localhost:5173", "active": true],
       "entries": [
         [
-          "id": "preview-user", "role": "user", "status": "completed", "finished": true,
+          "id": "preview-user", "role": "user", "status": "completed", "finished": true, "timestamp": "2026-10-29T10:00:00Z",
           "items": [["itemId": "text", "type": "text", "text": "Show the native session page"]],
         ],
         [
-          "id": "preview-answer", "role": "assistant", "status": "completed", "finished": true,
+          "id": "preview-answer", "role": "assistant", "status": "completed", "finished": true, "endedAt": 1_793_268_064_000,
           "modelInfo": ["name": "Native fixture model", "thoughtLevel": "High"],
           "items": [
             ["itemId": "edit", "rev": 1, "hasDetail": true, "type": "tool_call", "kind": "edit", "status": "completed", "title": "Edit", "path": "src/App.tsx",

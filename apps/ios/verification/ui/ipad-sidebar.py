@@ -45,6 +45,10 @@ def sample(x, y):
 ground = sample(panel['x'] + panel['width'] / 2, fab['y'] - 60)
 assert max(ground) - min(ground) <= 3, ('The sidebar canvas is neutral, not the bluish system gray', ground)
 
+head = ui.element('toggle:ui:local:lody')['frame']
+assert abs(head['x'] - panel['x'] - 12) <= 1 and abs(panel['x'] + panel['width'] - head['x'] - head['width'] - 12) <= 1, \
+    ('iPad section heads are inset bands with 12 pt side margins', head, panel)
+
 # Record the landscape sidebar hiding and returning; the bottom search must travel with its column.
 rotation.rotate(ui, 'landscape')
 try:

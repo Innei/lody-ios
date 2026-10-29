@@ -14,12 +14,12 @@ assert header['AXLabel'] == catalog.text(
     'native.chat.file.diffStats',
     text=catalog.plural('native.chat.transcript.fileCount', 2), add=2, **{'del': 2}
 )
-assert 28 <= header['frame']['height'] < 29, header['frame']['height']
+assert 44 <= header['frame']['height'] < 45, header['frame']['height']
 for path in paths:
     card = ui.element('diff-preview:changes:' + path)
     assert card['AXLabel'] == catalog.text('native.chat.file.diffStats', text=path, add=1, **{'del': 1})
     height = card['frame']['height']
-    assert 44 <= height < 45, f'{path} height {height}'
+    assert 40 <= height < 41, f'{path} height {height}'
 answer = ui.element('diff-preview:answer')
 first_id = 'diff-preview:changes:' + paths[0]
 second_id = 'diff-preview:changes:' + paths[1]
@@ -37,9 +37,12 @@ def group_settled(items):
     first_bottom = first_frame['y'] + first_frame['height']
     if first_frame['y'] < answer['frame']['y'] + answer['frame']['height']:
         return None
-    if header_bottom > first_frame['y'] + 2:
+    if abs(first_frame['y'] - header_bottom) > 2:
         return None
     if abs(second_frame['y'] - first_bottom) > 2:
+        return None
+    if any(abs(frame['x'] - header_frame['x']) > 1 or abs(frame['width'] - header_frame['width']) > 1
+           for frame in (first_frame, second_frame)):
         return None
     return header_item, first_item, second_item
 
@@ -135,5 +138,5 @@ for index, path in enumerate(paths):
 assert probes[0][0] == probes[1][0], f'reused instance changed {probes}'
 assert probes[1][1] <= probes[0][1], f'second open reloaded the DOM bundle {probes}'
 ui.capture('returned')
-print('File cards, counts, direct diff navigation and completed state passed')
+print('Grouped file block, counts, direct diff navigation and completed state passed')
 print('diff-reuse instanceId=%s navigationCount=%s,%s renderMs=%s' % (probes[0][0], probes[0][1], probes[1][1], times))

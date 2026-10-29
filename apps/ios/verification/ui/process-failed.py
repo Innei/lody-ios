@@ -1,4 +1,3 @@
-"""A live process with a failed tool stays yellow, keeps shine, and uses a warning mark."""
 import sys
 import time
 from driver import UI
@@ -21,7 +20,7 @@ def process_row(items):
     return next(
         (
             item for item in items
-            if item.get('AXUniqueId') == 'failed-preview:process'
+            if item.get('AXUniqueId') == 'failed-preview:duration'
             and thinking in (item.get('AXLabel') or '')
         ),
         None,
@@ -36,17 +35,21 @@ label = row.get('AXLabel') or ''
 assert thinking in label, label
 assert read in label, label
 assert tools in label, label
-assert abs(row['frame']['height'] - 44) <= 1, (
-    'The failed-tool process row must stay on the 44-point floor: ' + str(row['frame'])
+assert ', ' in label, label
+assert not any(item.get('AXUniqueId') == 'failed-preview:process' for item in ui.state()), (
+    'The failed-tool summary must merge into the duration row'
+)
+assert row['frame']['height'] >= 52, (
+    'The failed-tool process row must accommodate its title and summary: ' + str(row['frame'])
 )
 ui.capture('failed-live')
 time.sleep(2.2)
-still = ui.element('failed-preview:process')
+still = ui.element('failed-preview:duration')
 assert thinking in (still.get('AXLabel') or ''), still.get('AXLabel')
-assert abs(still['frame']['height'] - 44) <= 1, still['frame']
+assert abs(still['frame']['height'] - row['frame']['height']) <= 0.5, still['frame']
 ui.capture('failed-shine')
 
-ui.axe('tap', '--id', 'failed-preview:process', '--post-delay', '.7')
+ui.axe('tap', '--id', 'failed-preview:duration', '--post-delay', '.7')
 running = ui.element('failed-preview:read')
 assert '继续读取' in (running.get('AXLabel') or ''), running.get('AXLabel')
 ui.capture('process-detail-shine-start')

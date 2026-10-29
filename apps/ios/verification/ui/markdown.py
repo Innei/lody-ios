@@ -5,6 +5,7 @@ import sys
 import time
 from pathlib import Path
 from driver import UI
+from flat_rows import _pixels
 import catalog
 
 ui = UI(*sys.argv[1:])
@@ -170,8 +171,22 @@ def settled_code_copy(items):
     return current if settled else None
 
 
+def assert_code_fill(ui, copy):
+    window = ui.state()[0]['frame']
+    width, height, data = _pixels(ui.output / 'code-copy-target.png')
+    scale = width / window['width']
+    x = round((copy['x'] + 2) * scale)
+    bar_y = round((copy['y'] + copy['height'] / 2) * scale)
+    body_y = round((copy['y'] + copy['height'] - 2) * scale)
+    assert 0 <= x < width and 0 <= bar_y < body_y < height, ('Code fill samples are offscreen', copy)
+    bar = data[bar_y * width + x]
+    body = data[body_y * width + x]
+    assert abs(bar - body) < 4, f'Code top bar and body must share one fill ({bar} vs {body})'
+
+
 copy = ui.wait(settled_code_copy, 'Code Copy button did not settle')
 ui.capture('code-copy-target')
+assert_code_fill(ui, copy)
 subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input='clipboard sentinel', text=True, check=True, timeout=10)
 ui.axe('tap', '-x', str(copy['x'] + copy['width'] / 2), '-y', str(copy['y'] + copy['height'] / 2), '--post-delay', '.3')
 text = subprocess.check_output(['xcrun', 'simctl', 'pbpaste', ui.udid], text=True, timeout=10)

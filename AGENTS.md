@@ -19,6 +19,9 @@
 - Do not use green as the app accent. Diff additions use systemGreen, paired with systemRed deletions. Use UIKit semantic colors for native content, system blue for actions, and neutral system backgrounds. Preserve automatic dark mode and accessibility contrast adaptation.
 - Preserve native navigation, safe areas, VoiceOver labels, and at least 44 pt touch targets. MVP acceptance uses the default text size; keep system text behavior but do not add special layouts or remount logic for oversized accessibility text.
 - Reference Yohaku iOS for native UI boundaries. System grouped rows use `LodyGroupedList` / `UICollectionViewListCell` in LodyKit; navigation uses UIKit automatic scroll edges through the existing native stack. Register native collection views with UIKit directly; do not simulate native effects with decorative overlays.
+- `LodyGroupedList` system-row pages default to flat rail rows; CreateSession and its pickers opt back into inset-grouped rows with `setGrouped(true)`.
+- Home section heads are `lodyBand` bands: full-bleed and square on iPhone; in the iPad sidebar they are inset with 12 pt side margins and rounded corners, because full-bleed bands clash with the inset sidebar rows.
+- Chat process, summary and sub-agent rows use Home's rail glyphs and tree lines; answer text uses the full width with 16 pt margins. File changes form one grouped `lodyInset` block, and code blocks use `lodyInset` fill. The composer is outside the design language rail scope.
 
 - Navigating native list rows retain selection until the owning controller returns. Deselect alongside the navigation transition and restore selection when an interactive return is cancelled; ordinary action rows deselect immediately. Diffable snapshots preserve selection themselves; never reselect a captured row in snapshot completion, which can run after return-time deselection.
 
@@ -29,6 +32,7 @@
 - `HomeController` owns the adaptive UIKit split and list, session and inspector navigation controllers. Preserve system back and interactive pop. `SessionNavigation` handles session actions; tool pages use `LodyShell.presentDetail`. Keep sheets for transient flows and Debug demos.
 - Register page factories in `Shell/LodyNativePages.swift`. Controllers read Swift-owned state and observe NotificationCenter changes. Inject service closures for I/O; offline preview subclasses use scripted services. Use `String(localized:bundle:)` with `.lody` and edit `packages/LodyKit/Sources/LodyKit/Resources/Localizable.xcstrings` directly. Use Foundation format arguments and catalog plural variations; `InfoPlist.xcstrings` owns permission prompts.
 - Pages write bar items to the hosting `LodyPageController.navigationItem`. Bottom toolbars appear only while their page is top; item updates wait for the running transition. Remove observers when their owner goes away; UIKit work runs on the main actor.
+- `LodyFormController` editors use inline-label `LodyFormRow` rows in hairline-separated `LodyFormGroup` groups on `lodyGround`.
 - `pnpm test` checks cloud protocol and verification tooling. Use Node 22 LTS (22.13+) for TypeScript stripping and module mocks. `pnpm verify:native` checks native behavior; `swift test --package-path packages/lody-core` checks routing and protocol policy.
 
 - Keep fault injection, runtime internals, and navigation/native demos on the development-only Debug page, reached from Settings. Product screens expose actionable connection state only.

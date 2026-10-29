@@ -156,14 +156,20 @@ let liveDurationJSON = """
 """
 let liveDurationEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(liveDurationJSON.utf8))
 let liveDurationRows = ChatTranscript(entries: liveDurationEntries).rows(now: 65_999)
-assert(liveDurationRows.map(\.kind) == ["duration", "summary"], "Duration must be the first assistant row")
+assert(liveDurationRows.map(\.kind) == ["duration"], "A live process right after the timer merges into one process row")
 assert(liveDurationRows[0].running && liveDurationRows[0].workDurationMs == 65_999,
   "A live turn must measure from timestamp to the injected clock")
-assert(liveDurationRows[0].actionable == false, "A live timer must not reserve a reconnect control")
-assert(liveDurationRows[1].workDurationMs == nil,
-  "The shiny process row must not own the static duration label")
-assert(!liveDurationRows[0].shines && liveDurationRows[1].shines,
-  "Only the process label may shine; the separate duration label must stay static")
+assert(liveDurationRows[0].actionable && liveDurationRows[0].processStartID == "tool",
+  "The merged live row opens the process it absorbed")
+assert(!liveDurationRows[0].detail.isEmpty && !liveDurationRows[0].text.contains(" · "),
+  "The timer keeps line one; the process summary is line two")
+assert(!liveDurationRows[0].shines, "The process row stays static; its glyph shows progress")
+let textFirstJSON = liveDurationJSON.replacingOccurrences(
+  of: #"[{"itemId":"tool""#, with: #"[{"itemId":"intro","type":"text","text":"Looking"},{"itemId":"tool""#
+)
+let textFirstRows = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(textFirstJSON.utf8))).rows(now: 65_999)
+assert(textFirstRows.map(\.kind) == ["duration", "text", "summary"], "A process after text stays below the text")
+assert(textFirstRows[0].detail.isEmpty && !textFirstRows[0].actionable, "A timer with nothing to absorb has no line two")
 
 let emptyReplyJSON = """
 [{"id":"sent","role":"user","status":"completed","finished":true,
@@ -240,11 +246,8 @@ assert(timedThoughtRow.text == String.localizedStringWithFormat(String(localized
 ))), "Completed thought-only work shows elapsed time without a redundant thought label or separator")
 assert(timedThoughtRow.actionable && timedThoughtTranscript.rows(processEntryID: "timed-finished").first?.text == "Analyze",
   "The duration must still open the original thought content")
-assert(
-  finishedDurationRow?.text.contains("native.chat.transcript.activity.tools") == true
-    || finishedDurationRow?.text.contains(" · ") == true,
-  "The folded process title must follow the work duration"
-)
+assert(finishedDurationRow?.detail.isEmpty == false && finishedDurationRow?.text.contains(" · ") == false,
+  "The folded process title is line two of the work row")
 assert(
   ChatWorkDuration.format(3_665_999, hour: "h", minute: "m", second: "s") == "1h 01m 05s",
   "Duration formatting must match the OSS compact format"
@@ -344,7 +347,8 @@ assert(!noticeEntries.contains(where: \.isRunning), "A system notice is not an a
 assert(noticeTranscript.rows().map(\.kind) == ["summary", "text", "meta", "changesHeader", "changes"])
 assert(noticeTranscript.rows().last?.fileDiff?.path == "docs/.diff-check.md")
 assert(noticeTranscript.rows().last?.fileDiff?.add == 1)
-assert(noticeTranscript.rows().last?.group == "only")
+assert(noticeTranscript.rows().last?.group == "last")
+assert(noticeTranscript.rows().first { $0.kind == "changesHeader" }?.group == "first", "The header opens the file block")
 // A CLI harness has no compiled catalog, so plural rows fall back to the key;
 // the strings check covers the Foundation substitution itself.
 assert(noticeTranscript.rows().contains { $0.kind == "changesHeader" && $0.text == "native.chat.transcript.fileCount" })
@@ -367,7 +371,7 @@ transcript.entries = try JSONDecoder().decode([ChatEntry].self, from: Data(twoFi
 let grouped = transcript.rows().filter { $0.kind == "changes" || $0.kind == "changesHeader" }
 assert(grouped.map(\.kind) == ["changesHeader", "changes", "changes"])
 assert(grouped[0].text == "native.chat.transcript.fileCount" && grouped[0].fileDiff?.add == 15 && grouped[0].fileDiff?.del == 5)
-assert(grouped.dropFirst().map(\.group) == ["first", "last"])
+assert(grouped.map(\.group) == ["first", "middle", "last"])
 print("File group: header totals and first/last membership passed")
 
 let mixedFail = """
@@ -815,11 +819,11 @@ func assertReadingColumn(collectionWidth: CGFloat, itemWidth: CGFloat, inset: CG
     line: line
   )
 }
-assertReadingColumn(collectionWidth: 390, itemWidth: 350, inset: 20)
-assertReadingColumn(collectionWidth: 800, itemWidth: 760, inset: 20)
-assertReadingColumn(collectionWidth: 1180, itemWidth: 760, inset: 210)
+assertReadingColumn(collectionWidth: 390, itemWidth: 358, inset: 16)
+assertReadingColumn(collectionWidth: 800, itemWidth: 768, inset: 16)
+assertReadingColumn(collectionWidth: 1180, itemWidth: 768, inset: 206)
 precondition(ChatReadingColumn.columnWidth(in: 1180) == 800)
-print("Reading column: wide hosts keep a 760 pt column inside a full-bleed scroll view")
+print("Reading column: wide hosts keep a 768 pt column inside a full-bleed scroll view")
 
 let failureJSON = """
 [{"id":"error","role":"assistant","status":"completed","finished":true,"items":[
@@ -1010,3 +1014,32 @@ executingPlan.items.append(try JSONDecoder().decode(ChatItem.self, from: Data(an
 let executionTranscript = ChatTranscript(entries: [executingPlan])
 assert(executionTranscript.rows().filter { $0.kind == "proposed_plan" }.map(\.itemID) == ["old", "doc"])
 assert(!executionTranscript.rows(processEntryID: "proposed", processStartID: "__execution__").contains { $0.kind == "proposed_plan" })
+
+let hangJSON = """
+[{"id":"hang","role":"assistant","status":"completed","finished":true,
+"timestamp":"1970-01-01T00:00:00.000Z","endedAt":60000,
+"items":[{"itemId":"tool","type":"tool_call","status":"completed"},
+{"itemId":"answer","type":"text","text":"done"},
+{"itemId":"a","type":"subagent_task","taskId":"a","status":"completed","actor":"Explore","description":"Find chrome"},
+{"itemId":"b","type":"subagent_task","taskId":"b","status":"failed","actor":"Review","description":"Check tests"}]}]
+"""
+let hangRows = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(hangJSON.utf8))).rows(now: 999_999)
+assert(hangRows.map(\.kind) == ["duration", "subagent_task", "subagent_task", "text", "meta"],
+  "Sub-agents hang under the process row, above the answer")
+assert(hangRows[0].treeDown && hangRows[1].treeChild && !hangRows[1].treeLast && hangRows[2].treeChild && hangRows[2].treeLast,
+  "The tree runs from the process row to the last sub-agent")
+assert(hangRows.filter { $0.kind == "subagent_task" }.map(\.itemID) == ["a", "b"], "Sub-agents keep item order")
+var heldEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(hangJSON.utf8))
+heldEntries[0].holdOpen = true
+let heldRows = ChatTranscript(entries: heldEntries).rows(now: 999_999)
+assert(!heldRows.contains { $0.kind == "duration" }, "A held turn has no process row")
+assert(heldRows.filter { $0.kind == "subagent_task" }.allSatisfy { !$0.treeChild && !$0.treeLast },
+  "Without a process row sub-agents stay top-level")
+let heldKinds = heldRows.map(\.kind)
+assert(heldKinds.firstIndex(of: "text")! < heldKinds.firstIndex(of: "subagent_task")!, "Without a process row sub-agents keep item order")
+var runningHang = try JSONDecoder().decode([ChatEntry].self, from: Data(hangJSON.utf8))
+runningHang[0].finished = false
+let runningHangRows = ChatTranscript(entries: runningHang).rows(now: 30_000)
+assert(Array(runningHangRows.map(\.kind).prefix(3)) == ["duration", "subagent_task", "subagent_task"],
+  "Live sub-agents also hang under the process row")
+print("Process rail: live merge, line two, sub-agent tree placement and held turns passed")

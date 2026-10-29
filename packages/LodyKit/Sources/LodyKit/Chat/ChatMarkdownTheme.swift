@@ -15,10 +15,12 @@ enum ChatMarkdownTheme {
     theme.fonts.largeTitle = .dynamic(of: 23, weight: .semibold, compatibleWith: traits)
     theme.fonts.footnote = .dynamic(of: 13, compatibleWith: traits)
     theme.colors.body = secondary ? .secondaryLabel : .label
-    theme.colors.code = theme.colors.body
+    theme.colors.code = secondary ? .secondaryLabel : .lodyInk
     theme.colors.highlight = .systemBlue
     theme.colors.emphasis = .lodyAccent
     theme.colors.codeBackground = .lodyInset
+    theme.colors.codeBlockBackground = .lodyInset
+    theme.colors.codeBlockBarBackground = .clear
     theme.colors.selectionBackground = nil
     theme.spacings.paragraph = 8
     theme.spacings.headingBefore = 12

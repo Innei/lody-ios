@@ -33,7 +33,7 @@ final class QuickReplyEditorController: LodyFormController {
     label.clearButtonMode = .whileEditing
     label.changed = { [weak self] in self?.updateSave() }
     message.changed = { [weak self] in self?.updateSave() }
-    stack.addArrangedSubview(LodyFormGroup(header: text("label"), label))
+    stack.addArrangedSubview(LodyFormGroup(label))
     stack.addArrangedSubview(LodyFormGroup(header: text("message"), footer: text("sendHint"), message))
   }
 

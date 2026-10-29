@@ -1,9 +1,7 @@
 import UIKit
 
 final class ChatFileCell: UICollectionViewListCell {
-  static let iconSize: CGFloat = 18
-  static let iconGap: CGFloat = 8
-  static let minHeight: CGFloat = 44
+  static let headerHeight: CGFloat = 44
 
   private let chrome = UIView()
   private let separator = UIView()
@@ -16,14 +14,14 @@ final class ChatFileCell: UICollectionViewListCell {
     chrome.layer.cornerCurve = .continuous
     chrome.layer.masksToBounds = true
     insertSubview(chrome, belowSubview: contentView)
-    separator.backgroundColor = .separator
-    contentView.addSubview(separator)
+    separator.backgroundColor = .lodyLine
+    chrome.addSubview(separator)
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   func apply(group: String, selected: Bool) {
     backgroundConfiguration = .clear()
-    chrome.backgroundColor = selected ? .lodyFileGroupSelected : .lodyFileGroup
+    chrome.backgroundColor = selected ? .lodyInsetSelected : .lodyInset
     chrome.layer.cornerRadius = group == "middle" ? 0 : 12
     switch group {
     case "first":
@@ -43,51 +41,44 @@ final class ChatFileCell: UICollectionViewListCell {
   override func layoutSubviews() {
     super.layoutSubviews()
     chrome.frame = bounds
-    let scale = max(traitCollection.displayScale, 1)
-    let inset = directionalLayoutMargins.leading + Self.iconSize + Self.iconGap
     separator.frame = CGRect(
-      x: inset,
-      y: bounds.height - 1 / scale,
-      width: max(0, bounds.width - inset - 16),
-      height: 1 / scale
+      x: 14,
+      y: bounds.height - 0.5,
+      width: max(0, bounds.width - 28),
+      height: 0.5
     )
   }
 
   static func title(for path: String) -> NSAttributedString {
-    let normalized = path.replacingOccurrences(of: "\\", with: "/") as NSString
-    let name = normalized.lastPathComponent
-    let parent = (normalized.deletingLastPathComponent as NSString).lastPathComponent
-    let font = UIFont.preferredFont(forTextStyle: .subheadline)
-    let text = NSMutableAttributedString(string: name, attributes: [
-      .font: font,
-      .foregroundColor: UIColor.label,
+    NSAttributedString(string: path.replacingOccurrences(of: "\\", with: "/"), attributes: [
+      .font: LodyDesign.mono(12.5),
+      .foregroundColor: UIColor.lodyInk,
     ])
-    if !parent.isEmpty && parent != "." && parent != "/" {
-      text.append(NSAttributedString(string: " · \(parent)", attributes: [
-        .font: UIFont.preferredFont(forTextStyle: .caption1),
-        .foregroundColor: UIColor.secondaryLabel,
-      ]))
-    }
-    return text
+  }
+
+  static func headerContent(for text: String) -> UIListContentConfiguration {
+    var content = UIListContentConfiguration.cell()
+    content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14)
+    content.text = text
+    content.textProperties.font = LodyDesign.font(.subheadline, size: 14.5, weight: .semibold)
+    content.textProperties.color = .lodyInk
+    content.textProperties.numberOfLines = 1
+    content.textProperties.lineBreakMode = .byTruncatingTail
+    return content
   }
 
   static func rowContent(for path: String = "Filename") -> UIListContentConfiguration {
     var content = UIListContentConfiguration.cell()
-    content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
+    content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14)
     content.attributedText = title(for: path)
+    content.textProperties.font = LodyDesign.mono(12.5)
+    content.textProperties.color = .lodyInk
     content.textProperties.numberOfLines = 1
     content.textProperties.lineBreakMode = .byTruncatingTail
-    content.image = MaterialFileIcon.image(for: path)
-    content.imageProperties.reservedLayoutSize = CGSize(width: iconSize, height: iconSize)
-    content.imageProperties.maximumSize = CGSize(width: iconSize, height: iconSize)
-    content.imageToTextPadding = iconGap
     return content
   }
 
   static func rowHeight() -> CGFloat {
-    let content = rowContent()
-    let text = ceil(UIFont.preferredFont(forTextStyle: .subheadline).lineHeight)
-    let vertical = content.directionalLayoutMargins.top + content.directionalLayoutMargins.bottom
-    return max(minHeight, max(iconSize, text) + vertical)
+    44
   }
 }

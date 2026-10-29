@@ -187,6 +187,8 @@ struct LodyListRow {
   var collapsedValue = ""
   var highlight = ""
   var wrapSubtitle = false
+  var imageAsset = ""
+  var filePath = ""
 }
 
 extension UIColor {
@@ -314,6 +316,10 @@ let attention = laidOutSessionRow(LodySessionRowContent(
   onReview: { reviewed += 1 }
 ))
 let review = reviewButton(in: attention)!
+assert(review.configuration?.background.backgroundColor == .clear && (review.configuration?.background.strokeWidth ?? 0) > 0, "Review is an outlined capsule")
+assert(review.configuration?.baseForegroundColor == .lodyInk, "Review keeps ink text")
+let attentionWeight = ((sessionLabel(attention, "Migrate auth middleware").attributedText!.attribute(.font, at: 0, effectiveRange: nil) as! UIFont).fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any])?[.weight] as? CGFloat ?? 0
+assert(attentionWeight < UIFont.Weight.semibold.rawValue, "Needs-you rows rely on the glyph; only unread rows are bold")
 assert(review.bounds.height < 44 && review.point(inside: CGPoint(x: review.bounds.midX, y: review.bounds.midY - 21), with: nil),
        "Review draws small but hit-tests at 44 pt")
 assert(frame(review, in: attention).maxX <= 390 - 16 + 0.5)
@@ -349,8 +355,7 @@ let delRange = statsText.range(of: "−2")
 assert(addRange.location != NSNotFound && delRange.location != NSNotFound, statsText as String)
 let addColor = stats.attribute(.foregroundColor, at: addRange.location, effectiveRange: nil) as! UIColor
 let delColor = stats.attribute(.foregroundColor, at: delRange.location, effectiveRange: nil) as! UIColor
-assert(addColor.isEqual(UIColor.systemGreen), "Diff additions must be system green")
-assert(delColor.isEqual(UIColor.systemRed), "Diff deletions must be system red")
+assert(addColor.isEqual(UIColor.lodySecondary) && delColor.isEqual(UIColor.lodySecondary), "List diff summaries stay quiet; only needs-you keeps a color")
 
 // Compare the same real content view at the same width, including reuse back
 // into the default host. Sidebar typography can shrink, but not text or touch targets.
@@ -401,18 +406,56 @@ let railProjectName = sessionLabel(railProject, "lody-ios")
 assert(abs(frame(railProjectName, in: railProject).minX - 46) < 0.5, "The project name starts on the text column")
 let projectWeight = (railProjectName.font.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any])?[.weight] as? CGFloat
 assert((projectWeight ?? 0) >= UIFont.Weight.semibold.rawValue, "The project name is semibold")
-let railProjectLine = visibleLabel(railProject, containing: "2 running")!
-assert(railProjectLine.attributedText!.string.contains("~/git/lody-ios"), "Counts share line two with the path")
-let railProjectText = railProjectLine.attributedText!
-let pathFont = railProjectText.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
-let countFont = railProjectText.attribute(.font, at: (railProjectText.string as NSString).range(of: "2 running").location, effectiveRange: nil) as! UIFont
-assert(pathFont == countFont, "Project line two uses one face")
-assert(abs(frame(railProjectLine, in: railProject).minX - 46) < 0.5)
+let band = railProject.backgroundColor?.resolvedColor(with: railProject.traitCollection)
+assert(band == UIColor.lodyBand.resolvedColor(with: railProject.traitCollection), "A project header is a full-width band")
+assert(abs(railProject.bounds.height - 44) <= 0.5, "A project band is one 44 pt line: \(railProject.bounds.height)")
+let railProjectPath = visibleLabel(railProject, containing: "~/git/lody-ios")!
+assert(abs(midY(railProjectPath, in: railProject) - midY(railProjectName, in: railProject)) < 1, "The path rides the name line")
+assert(frame(railProjectPath, in: railProject).minX > frame(railProjectName, in: railProject).maxX, "The path follows the name")
+assert(railProjectPath.font.fontDescriptor.symbolicTraits.contains(.traitMonoSpace), "The path is monospaced")
+assert(railProjectPath.textColor == .lodyTertiary, "The path stays faint")
+let runningProject = laidOut(LodyProjectRowView(LodyProjectRowContent(row: LodyListRow(title: "lody-ios", subtitle: "~/git/lody-ios", value: "2 running", imageTint: "blue"))))
+let railProjectState = visibleLabel(runningProject, containing: "2 running")!
+assert(abs(frame(railProjectState, in: runningProject).maxX - (390 - 16)) < 0.5, "Project state sits in the time column")
+assert(abs(midY(railProjectState, in: runningProject) - midY(sessionLabel(runningProject, "lody-ios"), in: runningProject)) < 1, "Project state rides the name line")
+assert(railProjectState.textColor == .lodySecondary, "Running projects stay neutral")
+let waitingProject = laidOut(LodyProjectRowView(LodyProjectRowContent(row: LodyListRow(title: "lody-ios", subtitle: "~/git/lody-ios", value: "2 need you", imageTint: "warning"))))
+assert(visibleLabel(waitingProject, containing: "2 need you")!.textColor == .lodyAttention, "Only needs-you keeps amber on the band")
+let failedProject = laidOut(LodyProjectRowView(LodyProjectRowContent(row: LodyListRow(title: "lody-ios", value: "1 failed", imageTint: "danger"))))
+assert(visibleLabel(failedProject, containing: "1 failed")!.textColor == .lodySecondary, "Failure counts stay neutral on the band")
 let railProjectCount = visibleLabel(railProject, containing: "7")!
 assert(abs(frame(railProjectCount, in: railProject).maxX - (390 - 16)) < 0.5, "The collapsed count sits in the time column")
-assert(abs(railProject.bounds.height - 52) <= 4, "A project row matches a primary row: \(railProject.bounds.height)")
+assert(visibleLabel(railProject, containing: "2 running") == nil, "A collapsed band shows its count instead of its state")
 let compactProject = laidOut(LodyProjectRowView(LodyProjectRowContent(row: LodyListRow(title: "lody-ios"), density: .compact)))
 assert(abs(frame(statusGlyph(in: compactProject), in: compactProject).midX - LodyDesign.Rail.compactCenter) < 0.5)
+assert(abs(compactProject.bounds.height - 44) <= 0.5, "A compact project band keeps a 44 pt target: \(compactProject.bounds.height)")
+assert(compactProject.layer.cornerRadius >= 8 && compactProject.layer.cornerCurve == .continuous, "Inset sidebar bands round their corners")
+assert(railProject.layer.cornerRadius == 0, "Full-bleed phone bands stay square")
+var bandAlpha: CGFloat = 0
+UIColor.lodyBand.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light)).getWhite(nil, alpha: &bandAlpha)
+assert(bandAlpha < 0.2, "The band is a wash so it reads on both the phone ground and the sidebar ground")
+
+func projectAvatar(_ view: UIView) -> UIImageView? {
+  view.subviews.compactMap { $0 as? UIImageView }.first { $0.accessibilityIdentifier == "project-avatar" && !$0.isHidden && $0.image != nil }
+}
+let avatarProject = laidOut(LodyProjectRowView(LodyProjectRowContent(row: LodyListRow(title: "lody-ios", subtitle: "~/git/lody-ios", image: disk.absoluteString))))
+let avatar = projectAvatar(avatarProject)
+assert(avatar != nil, "A project with an owner photo shows it")
+let avatarFrame = frame(avatar!, in: avatarProject)
+assert(abs(avatarFrame.width - 18) < 0.5 && abs(avatarFrame.height - 18) < 0.5, "The project avatar is an 18 pt tile: \(avatarFrame)")
+assert(abs(avatarFrame.midX - LodyDesign.Rail.center) < 0.5, "The project avatar centers on the rail")
+assert(abs(avatarFrame.midY - frame(sessionLabel(avatarProject, "lody-ios"), in: avatarProject).midY) < 0.5, "The project avatar centers on the name")
+assert(avatar!.layer.cornerRadius > 2 && avatar!.layer.cornerRadius < 9 && avatar!.clipsToBounds, "The project avatar is a rounded square, not a circle")
+assert(alpha(avatar!.image!, x: 0, y: 0) > 0.9, "The project avatar is not pre-cropped to a circle")
+assert(statusGlyph(in: avatarProject).isHidden, "The avatar replaces the folder glyph")
+assert(abs(frame(sessionLabel(avatarProject, "lody-ios"), in: avatarProject).minX - 46) < 0.5, "The avatar keeps the text column")
+let compactAvatar = laidOut(LodyProjectRowView(LodyProjectRowContent(row: LodyListRow(title: "lody-ios", image: disk.absoluteString), density: .compact)))
+assert(abs(frame(projectAvatar(compactAvatar)!, in: compactAvatar).midX - LodyDesign.Rail.compactCenter) < 0.5, "Compact rows center the avatar on their rail")
+let pendingAvatar = laidOut(LodyProjectRowView(LodyProjectRowContent(row: LodyListRow(title: "lody-ios", image: "https://avatars.invalid/lody?size=96"))))
+assert(projectAvatar(pendingAvatar) == nil && !statusGlyph(in: pendingAvatar).isHidden, "A loading avatar keeps the folder glyph")
+let reused = laidOut(LodyProjectRowView(LodyProjectRowContent(row: LodyListRow(title: "lody-ios", image: disk.absoluteString))))
+reused.configuration = LodyProjectRowContent(row: LodyListRow(title: "other"))
+assert(projectAvatar(reused) == nil && !statusGlyph(in: reused).isHidden, "A reused row without a photo returns to the folder glyph")
 
 let searchHit = laidOutSessionRow(LodySessionRowContent(
   row: LodyListRow(
@@ -510,7 +553,7 @@ let groupedProjectFont = sessionLabel(densityProject, "Lody").font!
 var sidebarProject = projectContent
 sidebarProject.density = .compact
 densityProject.configuration = sidebarProject
-assert(fittedHeight(densityProject) < groupedProjectHeight)
+assert(fittedHeight(densityProject) <= groupedProjectHeight)
 assert(fittedHeight(densityProject) >= 44)
 assert(densityProject.accessibilityLabel == groupedProjectLabel)
 assert(sessionLabel(densityProject, "Lody").font.pointSize < groupedProjectFont.pointSize)
@@ -686,6 +729,9 @@ for (index, outline) in outlines.enumerated() {
 glyph.kind = .failed
 glyph.layoutIfNeeded()
 assert(painted(glyph, .lodyFailure))
+glyph.kind = .live
+glyph.layoutIfNeeded()
+assert(painted(glyph, .lodySecondary) && !painted(glyph, .lodyInk), "The live arc is quiet grey")
 glyph.kind = .none
 glyph.layoutIfNeeded()
 assert(shapes(glyph).isEmpty, "A row without state draws nothing")
@@ -700,3 +746,15 @@ assert(shapes(spinner).contains { $0.animationKeys()?.isEmpty == false }, "A liv
 spinner.removeFromSuperview()
 assert(!shapes(spinner).contains { $0.animationKeys()?.isEmpty == false }, "Leaving the window stops the spin")
 print("PASS: status glyphs map row state, draw distinct shapes and spin only when visible")
+
+assert(LodyFlatRows.sectionHasIcons([LodyListRow(title: "A"), LodyListRow(image: "gear")]), "One symbol row gives the section a rail")
+assert(LodyFlatRows.sectionHasIcons([LodyListRow(imageAsset: "lody-mark-github")]), "Asset glyphs count as icons")
+assert(LodyFlatRows.sectionHasIcons([LodyListRow(filePath: "a.swift")]), "File rows draw an icon")
+assert(!LodyFlatRows.sectionHasIcons([LodyListRow(title: "A"), LodyListRow(title: "B")]), "Text-only sections have no rail")
+assert(LodyFlatRows.textLeading(sectionHasIcons: true) == LodyDesign.Rail.text, "Icon sections put text on the rail text column")
+assert(LodyFlatRows.textLeading(sectionHasIcons: false) == 16, "Text-only sections start at the reading margin")
+assert(LodyFlatRows.iconCenter == LodyDesign.Rail.center && LodyFlatRows.iconSize == 18, "Icons sit on the rail at 18 pt")
+assert(LodyFlatRows.separatorLeading(textLeading: 46, isLast: false) == 46, "Hairlines run under the text column")
+assert(LodyFlatRows.separatorLeading(textLeading: 46, isLast: true) == nil, "The last row of a section has no hairline")
+assert(LodyFlatRows.minHeight(hasSubtitle: false) == 44 && LodyFlatRows.minHeight(hasSubtitle: true) == 52, "Flat rows keep 44 / 52 pt minimums")
+print("PASS: flat system rows place icons on the rail and hairlines under the text column")
