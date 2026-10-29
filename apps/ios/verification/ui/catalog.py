@@ -6,7 +6,7 @@ from pathlib import Path
 
 LANGUAGE = os.environ.get('LODY_UI_LANGUAGE', 'en')
 CATALOG = json.loads(
-    (Path(__file__).resolve().parents[4] / 'packages/LodyKit/Sources/LodyKit/Resources/Localizable.xcstrings').read_text()
+    (Path(__file__).resolve().parents[4] / 'packages/LodyData/Sources/LodyData/Resources/Localizable.xcstrings').read_text()
 )['strings']
 
 

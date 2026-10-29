@@ -9,6 +9,7 @@ test('String Catalog checks accept reordered arguments and reject broken transla
   const root = await mkdtemp(path.join(tmpdir(), 'lody-localization-'));
   const app = path.join(root, 'apps/ios');
   const kit = path.join(root, 'packages/LodyKit/Sources/LodyKit');
+  const data = path.join(root, 'packages/LodyData/Sources/LodyData');
   const entry = (en, zh = en) => ({
     localizations: Object.fromEntries(
       [
@@ -20,7 +21,7 @@ test('String Catalog checks accept reordered arguments and reject broken transla
       ]),
     ),
   });
-  const catalog = path.join(kit, 'Resources/Localizable.xcstrings');
+  const catalog = path.join(data, 'Resources/Localizable.xcstrings');
   const save = (file, strings) =>
     writeFile(
       file,
@@ -36,6 +37,7 @@ test('String Catalog checks accept reordered arguments and reject broken transla
       path.join(app, 'App'),
       path.join(app, 'Extensions'),
       path.dirname(catalog),
+      kit,
     ]) {
       await mkdir(directory, { recursive: true });
     }
@@ -80,6 +82,15 @@ test('String Catalog checks accept reordered arguments and reject broken transla
     result = run();
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /missing catalog key summary/);
+
+    await writeFile(
+      path.join(data, 'Status.swift'),
+      'let status = String(localized: "status", bundle: .lodyData)',
+    );
+    await save(catalog, { summary: entry('Summary') });
+    result = run();
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /missing catalog key status/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

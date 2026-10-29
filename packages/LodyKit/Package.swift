@@ -43,7 +43,7 @@ let package = Package(
         "LodyDataChannel",
       ],
       exclude: ["Notifications/AGENTS.md", "SimulatorStream/README.md"],
-      resources: [.process("Chat/Shaders"), .process("Resources")],
+      resources: [.process("Chat/Shaders")],
       linkerSettings: [.linkedLibrary("sqlite3"), .linkedLibrary("c++")]
     ),
   ]

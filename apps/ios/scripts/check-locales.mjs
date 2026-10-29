@@ -3,6 +3,7 @@ import path from 'node:path';
 
 const root = path.join(import.meta.dirname, '..');
 const kit = path.resolve(root, '../../packages/LodyKit/Sources/LodyKit');
+const data = path.resolve(root, '../../packages/LodyData/Sources/LodyData');
 const problems = [];
 
 function signature(value) {
@@ -42,7 +43,7 @@ function readCatalog(file) {
   return catalog.strings;
 }
 
-const strings = readCatalog(path.join(kit, 'Resources/Localizable.xcstrings'));
+const strings = readCatalog(path.join(data, 'Resources/Localizable.xcstrings'));
 const info = readCatalog(path.join(root, 'App/InfoPlist.xcstrings'));
 for (const key of [
   'CFBundleDisplayName',
@@ -53,7 +54,7 @@ for (const key of [
   if (!(key in info)) problems.push(`InfoPlist.xcstrings: missing ${key}`);
 }
 
-for (const base of [kit, path.join(root, 'Extensions')]) {
+for (const base of [kit, data, path.join(root, 'Extensions')]) {
   for (const file of fs.globSync('**/*.swift', {
     cwd: base,
     exclude: (name) => name === 'debug',

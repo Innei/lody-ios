@@ -175,12 +175,13 @@ targets:
           - CreateSession/CreateSessionController.swift
           - CreateSession/CreateSessionPickers.swift
           - CreateSession/ShareStore.swift
-          - Resources/Localizable.xcstrings
       - path: ../../packages/LodyData/Sources/LodyData
         group: Shared Extension Sources
         createIntermediateGroups: false
         includes:
+          - LodyDataBundle.swift
           - Text/TextSearch.swift
+          - Resources/Localizable.xcstrings
       - App/Icons.xcassets
       - App/Colors.xcassets
       - Extensions/LiveActivity/AgentIcons.xcassets

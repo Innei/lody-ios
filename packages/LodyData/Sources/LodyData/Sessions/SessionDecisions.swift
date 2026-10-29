@@ -2,26 +2,32 @@ import Foundation
 import LodyCore
 
 @MainActor
-final class SessionDecision {
-  enum Kind { case plan, retry }
+public final class SessionDecision {
+  public enum Kind { case plan, retry }
 
-  struct Attempt: Equatable {
-    var target: SessionItemTarget
-    var sendId = ""
-    var phase: String
+  public struct Attempt: Equatable {
+    public var target: SessionItemTarget
+    public var sendId = ""
+    public var phase: String
+
+    public init(target: SessionItemTarget, sendId: String = "", phase: String) {
+      self.target = target
+      self.sendId = sendId
+      self.phase = phase
+    }
   }
 
-  typealias Request = @MainActor (_ target: SessionItemTarget, _ id: String) async throws -> String
+  public typealias Request = @MainActor (_ target: SessionItemTarget, _ id: String) async throws -> String
 
-  let kind: Kind
-  var changed: (() -> Void)?
-  private(set) var attempt: Attempt?
+  public let kind: Kind
+  public var changed: (() -> Void)?
+  public private(set) var attempt: Attempt?
 
-  init(_ kind: Kind) {
+  public init(_ kind: Kind) {
     self.kind = kind
   }
 
-  var pending: Bool { attempt?.phase == "pending" }
+  public var pending: Bool { attempt?.phase == "pending" }
 
   private func same(_ attempt: Attempt?, _ target: SessionItemTarget) -> Bool {
     guard let attempt, attempt.target.entryId == target.entryId else { return false }
@@ -29,7 +35,7 @@ final class SessionDecision {
   }
 
   // One explicit new turn per decision; a write is never replayed or treated as complete from its ACK.
-  func decide(target: SessionItemTarget?, enabled: Bool, entryId: String, itemId: String, action: String = "execute",
+  public func decide(target: SessionItemTarget?, enabled: Bool, entryId: String, itemId: String, action: String = "execute",
               id: String, request: Request) async {
     guard let target, enabled, target.entryId == entryId, target.itemId == itemId, !pending else { return }
     if same(attempt, target), attempt?.phase != "failed" { return }
@@ -53,7 +59,7 @@ final class SessionDecision {
     changed?()
   }
 
-  func state(target: SessionItemTarget?, enabled: Bool, answered: Set<String>) -> [String: Any] {
+  public func state(target: SessionItemTarget?, enabled: Bool, answered: Set<String>) -> [String: Any] {
     var selected = target
     let replied = attempt.map { answered.contains($0.sendId) } ?? false
     if pending || (target == nil && attempt?.phase == "unknown" && !replied) { selected = attempt?.target }
@@ -77,19 +83,19 @@ final class SessionDecision {
 
   private static func message(_ phase: String, failed: String, unknown: String) -> String {
     switch phase {
-    case "failed": String(localized: String.LocalizationValue(failed), bundle: .lody)
-    case "unknown": String(localized: String.LocalizationValue(unknown), bundle: .lody)
+    case "failed": String(localized: String.LocalizationValue(failed), bundle: .lodyData)
+    case "unknown": String(localized: String.LocalizationValue(unknown), bundle: .lodyData)
     default: ""
     }
   }
 
-  static let capacityContinuation =
+  public static let capacityContinuation =
     "Continue working from where you left off. The previous turn stopped because the selected model was at capacity."
-  static let errorContinuation =
+  public static let errorContinuation =
     "Continue working from where you left off. The previous turn stopped because of an agent error."
 
   // OSS execution-turn-config: leave planning for this turn while preserving permissions and the model.
-  static func planExecutionChoice(_ choice: ModelChoice, _ capability: Capability?) -> ModelChoice {
+  public static func planExecutionChoice(_ choice: ModelChoice, _ capability: Capability?) -> ModelChoice {
     var next = choice
     let modes = capability?.legacyModes ?? capability?.modes ?? []
     if choice.modeId == "plan" { next.modeId = modes.first { $0.id != "plan" }?.id ?? choice.modeId }

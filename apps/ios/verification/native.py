@@ -118,6 +118,8 @@ if args.case:
 for files in checks.values():
     if files and 'LodyLocalization.swift' not in files:
         files.append('LodyLocalization.swift')
+    if files and 'LodyDataBundle.swift' not in files:
+        files.append('LodyDataBundle.swift')
     if 'LodyTint.swift' in files and 'Appearance/LodyDesign.swift' not in files:
         files.append('Appearance/LodyDesign.swift')
     if 'Chat/ChatComposerView.swift' in files:
@@ -186,7 +188,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             sources.mkdir(parents=True)
             for file in files:
                 (sources / Path(file).name).symlink_to(source(file))
-            (sources / 'Resources').symlink_to(kit / 'Sources/LodyKit/Resources', target_is_directory=True)
+            (sources / 'Resources').symlink_to(data / 'Resources', target_is_directory=True)
             (sources / 'main.swift').symlink_to(checks_root / name / 'main.swift')
             (package / 'Package.swift').symlink_to(checks_root / name / 'Package.swift')
             subprocess.run(['swift', 'run', '--package-path', str(package), '--scratch-path', str(root / '.artifacts/native-local-store')], check=True, timeout=600)
@@ -265,7 +267,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
         elif name == 'strings':
             resources = Path(output) / 'Localization.bundle'
             resources.mkdir()
-            subprocess.run(['xcrun', 'xcstringstool', 'compile', str(kit / 'Sources/LodyKit/Resources/Localizable.xcstrings'),
+            subprocess.run(['xcrun', 'xcstringstool', 'compile', str(data / 'Resources/Localizable.xcstrings'),
                             '--output-directory', str(resources)], check=True)
             subprocess.run([*command, str(resources)], check=True, timeout=60)
         elif name == 'attachments':

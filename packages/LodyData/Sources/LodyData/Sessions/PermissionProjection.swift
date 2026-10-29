@@ -1,17 +1,17 @@
 import Foundation
 
 // A display projection of the active session, never a second replica or subscription.
-struct PermissionProjection: Equatable {
-  enum State: Equatable {
+public struct PermissionProjection: Equatable {
+  public enum State: Equatable {
     case waiting
     case ready(SessionPermission?)
     case invalid(String)
   }
-  private(set) var state = State.waiting
+  public private(set) var state = State.waiting
   private var generation = -1
   private var revision = -1
 
-  mutating func receive(generation incoming: Int, phase: String, json: String?) {
+  public mutating func receive(generation incoming: Int, phase: String, json: String?) {
     guard incoming >= generation else { return }
     if incoming > generation {
       generation = incoming
@@ -32,5 +32,9 @@ struct PermissionProjection: Equatable {
       revision = next
       state = status == "live" ? .ready(try SessionPermission.first(in: entries)) : .waiting
     } catch { state = .invalid(error.localizedDescription) }
+  }
+
+  public init(state: State = State.waiting) {
+    self.state = state
   }
 }

@@ -17,7 +17,8 @@ let package = Package(
         .product(name: "LodyCore", package: "lody-core"),
         .product(name: "LodyRuntime", package: "lody-core"),
         .product(name: "MarkdownParser", package: "MarkdownView"),
-      ]
+      ],
+      resources: [.process("Resources")]
     ),
     .testTarget(name: "LodyDataTests", dependencies: ["LodyData"]),
   ]
