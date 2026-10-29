@@ -96,12 +96,12 @@ jobs:
           node-version: 22
       - run: pnpm install --frozen-lockfile
       - name: Generate native project
-        working-directory: apps/ios
+        working-directory: .
         run: |
           command -v xcodegen >/dev/null || brew install xcodegen
           pnpm prebuild
       - name: Verify native dependencies
-        run: /bin/bash .github/scripts/verify-ios-build-mode.sh apps/ios
+        run: /bin/bash .github/scripts/verify-ios-build-mode.sh .
       - name: Build signed Simulator app
         run: |
           APP=$(pnpm --silent verify:build --configuration Release --derived-data "$RUNNER_TEMP/lody-build")
@@ -160,7 +160,7 @@ jobs:
           xcrun simctl boot "$udid"
           xcrun simctl bootstatus "$udid" -b
       - name: Core offline UI regression
-        run: python3 apps/ios/verification/ui/run.py --udid "$UI_UDID" --app "$RUNNER_TEMP/lody-app/Lody.app" --suite "${{ matrix.suite }}" --embedded
+        run: python3 verification/ui/run.py --udid "$UI_UDID" --app "$RUNNER_TEMP/lody-app/Lody.app" --suite "${{ matrix.suite }}" --embedded
       - name: Capture failed Simulator screen
         if: failure() && env.UI_UDID != ''
         run: |

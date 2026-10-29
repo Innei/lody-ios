@@ -7,19 +7,10 @@ settings:
 importers:
 
   .:
-    devDependencies:
-      esbuild:
-        specifier: 0.25.12
-        version: 0.25.12
-      prettier:
-        specifier: 3.9.6
-        version: 3.9.6
-
-  apps/ios:
     dependencies:
       '@lody/cloud-runtime':
         specifier: workspace:*
-        version: link:../../packages/cloud-runtime
+        version: link:packages/cloud-runtime
       '@loro-dev/flock-wasm':
         specifier: 0.4.3
         version: 0.4.3
@@ -57,6 +48,12 @@ importers:
         specifier: 3.25.76
         version: 3.25.76
     devDependencies:
+      esbuild:
+        specifier: 0.25.12
+        version: 0.25.12
+      prettier:
+        specifier: 3.9.6
+        version: 3.9.6
       typescript:
         specifier: ~6.0.3
         version: 6.0.3

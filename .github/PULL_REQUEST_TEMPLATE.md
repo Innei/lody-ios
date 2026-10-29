@@ -31,12 +31,12 @@ Verification belongs in the Human section, against this repo:
 - `pnpm test` when presentation or session behavior changes.
 - `pnpm bundle` when the JS bundle can change.
 - A signed iOS simulator build when native code, pods, or signing changes. Leave normal Xcode signing enabled.
-- A UI change is anything a person sees or touches: layout, motion, navigation chrome, sheets, lists, composer, icons, color, or copy that changes layout. Add or update a behavior check in `apps/ios/verification/ui`, then run the affected cases in English (`en`, `en_US`) with no login, credentials, cloud, or connected machine. Omit `--appearance` so the run covers light and dark, and pass `--require-video`. `--suite core` is light-only and does not record video; it does not satisfy this.
+- A UI change is anything a person sees or touches: layout, motion, navigation chrome, sheets, lists, composer, icons, color, or copy that changes layout. Add or update a behavior check in `verification/ui`, then run the affected cases in English (`en`, `en_US`) with no login, credentials, cloud, or connected machine. Omit `--appearance` so the run covers light and dark, and pass `--require-video`. `--suite core` is light-only and does not record video; it does not satisfy this.
   - The run writes `<output>/<appearance>/<case>/*.png` and `<output>/<appearance>/<case>/run.mp4`. `--parallel` puts `pages`, `send`, or `chat` between `<output>` and the appearance.
   - This PR must contain every one of those PNGs and every `run.mp4`. In the body, reference each PNG as `![<appearance> <case> <name>](<path>)` and each video as `[<appearance> <case> run.mp4](<path>)`. Upload them with `gh` 2.99.0 or newer by repeating `--attach <path>` on `gh pr create` or `gh pr edit`. A path written in the body is rewritten to the uploaded asset. `gh` uploads at most 50 files per command; another `gh pr edit --attach` batch covers the rest, and the body still references every file.
   - Do not commit `.artifacts`. A local path, a CI log, or a prose description does not count. Skip `*.json`, logs, and accessibility trees. Attach `failure.png` only when that frame is the behavior under review.
 - SwiftPM discovers LodyiOSKit sources automatically; changes to app/extension membership or shared source references include `pnpm prebuild`.
-- Native changes persist in project.yml, native app config, or LodyiOSKit. A generated `apps/ios/Lody.xcodeproj` edit is not the source of truth.
+- Native changes persist in project.yml, native app config, or LodyiOSKit. A generated `Lody.xcodeproj` edit is not the source of truth.
 - Delete a test checkbox that does not apply and say why that gate was skipped.
 -->
 
@@ -72,11 +72,11 @@ Required for a UI change. One group per case and appearance. Point each image an
 - [ ] `pnpm test`
 - [ ] `pnpm bundle`
 - [ ] Signed iOS simulator build
-- [ ] UI behavior check in `apps/ios/verification/ui` (English, light and dark, `--require-video`)
+- [ ] UI behavior check in `verification/ui` (English, light and dark, `--require-video`)
 - [ ] Every PNG and every `run.mp4` from those cases is attached to this PR
 - [ ] `pnpm prebuild`
 
-<!-- User-visible requirement alignment: an acceptance round from apps/ios/verification/ui/README.md, or why none is needed. -->
+<!-- User-visible requirement alignment: an acceptance round from verification/ui/README.md, or why none is needed. -->
 
 - Acceptance: ...
 

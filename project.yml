@@ -1,0 +1,381 @@
+---
+name: Lody
+options:
+  createIntermediateGroups: true
+  groupSortPosition: top
+  groupOrdering:
+    - order:
+        [
+          iOS,
+          Extensions,
+          Shared Extension Sources,
+          Packages,
+          runtime,
+          scripts,
+          tests,
+          verification,
+          .generated,
+          Products,
+        ]
+  bundleIdPrefix: app.innei
+  deploymentTarget:
+    iOS: '26.0'
+  developmentLanguage: en
+  knownRegions:
+    - en
+    - zh-Hans
+  fileTypes:
+    icon:
+      file: true
+      buildPhase: resources
+fileGroups:
+  - iOS
+  - Extensions
+  - runtime
+  - .generated
+  - project.yml
+  - package.json
+  - tsconfig.json
+  - PUSH_NOTIFICATIONS.md
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    DEVELOPMENT_TEAM: KAMM5N88X3
+    CODE_SIGN_STYLE: Automatic
+    SUPPORTS_MACCATALYST: 'NO'
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: 'NO'
+    SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: 'NO'
+    ENABLE_USER_SCRIPT_SANDBOXING: 'NO'
+    MARKETING_VERSION: '0.2.0'
+    CURRENT_PROJECT_VERSION: '1'
+packages:
+  LodyiOSKit:
+    path: packages/LodyiOSKit
+  LodyCore:
+    path: 'packages/lody-core'
+  LodyData:
+    path: 'packages/LodyData'
+  ChatKit:
+    path: 'packages/chat-kit'
+  Lexical:
+    path: 'packages/lexical-swift'
+  OneSignal:
+    url: https://github.com/OneSignal/OneSignal-XCFramework.git
+    exactVersion: 5.5.1
+targets:
+  Lody:
+    type: application
+    platform: iOS
+    sources:
+      - path: iOS
+        excludes:
+          - Info.plist
+          - Lody.entitlements
+          - '**/*.md'
+      - path: .generated/Resources
+      - Extensions/LiveActivity/AgentIcons.xcassets
+      - path: scripts
+        buildPhase: none
+        excludes:
+          - '**/__pycache__'
+          - '**/*.pyc'
+      - path: tests
+        buildPhase: none
+        excludes:
+          - '**/__pycache__'
+          - '**/*.pyc'
+      - path: verification
+        buildPhase: none
+        excludes:
+          - '**/__pycache__'
+          - '**/*.pyc'
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.innei.lody
+        INFOPLIST_FILE: .generated/Lody/Info.plist
+        CODE_SIGN_ENTITLEMENTS: 'iOS/Lody.entitlements'
+        TARGETED_DEVICE_FAMILY: '1,2'
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: Aqua
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    preBuildScripts:
+      - name: Verify native sources
+        script: python3 "${SRCROOT}/scripts/check-native-sources.py"
+        basedOnDependencyAnalysis: false
+    dependencies:
+      # The app owns embedding the dynamic SDK used by LodyiOSKit and the notification extension.
+      - package: OneSignal
+        product: OneSignalFramework
+      - package: LodyiOSKit
+      - target: LodyShare
+      - target: LodyNotificationService
+      - target: LodyLiveActivity
+  LodyShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Extensions/Share
+      - path: packages/LodyiOSKit/Sources/LodyiOSKit
+        group: Shared Extension Sources
+        createIntermediateGroups: false
+        includes:
+          - LodyAppearanceView.swift
+          - LodyLocalization.swift
+          - LodyTint.swift
+          - Appearance/LodyDesign.swift
+          - UIFont+Dynamic.swift
+          - CreateSession/LodyUIVerify+Branches.swift
+          - Chrome/LodyScrollEdges.swift
+          - Chrome/LodyEdgeFade.swift
+          - List/LodyGroupedList.swift
+          - List/LodyListModels.swift
+          - List/LodyPagedList.swift
+          - List/LodyPageSectionRail.swift
+          - List/LodyPageProgress.swift
+          - List/LiquidGlassSegmentedControl.swift
+          - List/LodyListCellBackground.swift
+          - List/LodyFlatRows.swift
+          - List/LodyListPhoto.swift
+          - List/LodyListRowInteractions.swift
+          - List/LodyListSectionAnimation.swift
+          - List/LodyProgressRowView.swift
+          - List/LodyProjectRowView.swift
+          - List/LodyRowDensity.swift
+          - List/LodySessionRowView.swift
+          - List/LodyStatusGlyph.swift
+          - List/LodyStepStrip.swift
+          - List/LodyUnreadNavigationHold.swift
+          - List/LodyListStatus.swift
+          - List/LodyListVisualView.swift
+          - Chat/ChatAttachments.swift
+          - Chat/ChatAttachmentSheet.swift
+          - Chat/ChatCameraCapture.swift
+          - Chat/ChatAttachmentCamera.swift
+          - Chat/ChatComposerView.swift
+          - Chat/ChatComposerFormatBar.swift
+          - Chat/ChatReferenceNode.swift
+          - Chat/ChatComposerModelPanel.swift
+          - Chat/ChatComposerSurfaceLayout.swift
+          - Chat/ChatComposerLiquidGlassSurfaceLayout.swift
+          - Chat/ChatComposerAttachmentStack.swift
+          - Chat/ChatComposerGrabber.swift
+          - Chat/ChatQuickReplies.swift
+          - Chat/ChatMentionPanel.swift
+          - Chat/ChatSendHandoff.swift
+          - Chat/ChatThrowCurve.swift
+          - Chat/ChatNumericText.swift
+          - Toast/LodyToastOverlay.swift
+          - Toast/LodyToastPillView.swift
+          - Toast/LodySessionBannerView.swift
+          - CreateSession/CreateSessionSections.swift
+          - CreateSession/CreateModelOptions+Rows.swift
+          - CreateSession/CreateSessionController.swift
+          - CreateSession/CreateSessionPickers.swift
+          - CreateSession/ShareStore.swift
+      - path: packages/LodyData/Sources/LodyData
+        group: Shared Extension Sources
+        createIntermediateGroups: false
+        includes:
+          - LodyDataBundle.swift
+          - Debug/LodyUIVerify.swift
+          - Preferences/LodyAppearanceChoices.swift
+          - Text/TextSearch.swift
+          - CreateSession/CreateSessionForm.swift
+          - CreateSession/CreateModelOptions.swift
+          - Chat/LodyAgentIcon.swift
+          - Chat/ChatPendingSend.swift
+          - Resources/Localizable.xcstrings
+      - iOS/Icons.xcassets
+      - iOS/Colors.xcassets
+      - Extensions/LiveActivity/AgentIcons.xcassets
+    info:
+      path: '.generated/LodyShare/Info.plist'
+      properties:
+        CFBundleDisplayName: Lody
+        CFBundleShortVersionString: '$(MARKETING_VERSION)'
+        CFBundleVersion: '$(CURRENT_PROJECT_VERSION)'
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: '$(PRODUCT_MODULE_NAME).ShareViewController'
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 8
+              NSExtensionActivationSupportsImageWithMaxCount: 8
+              NSExtensionActivationSupportsFileWithMaxCount: 8
+        NSPhotoLibraryUsageDescription: Choose photos to attach to a Lody message.
+        NSCameraUsageDescription: Take photos to attach to a Lody message.
+    entitlements:
+      path: '.generated/LodyShare/LodyShare.entitlements'
+      properties:
+        com.apple.security.application-groups:
+          - group.app.innei.lody
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.innei.lody.share
+        APPLICATION_EXTENSION_API_ONLY: 'YES'
+        TARGETED_DEVICE_FAMILY: '1,2'
+        SKIP_INSTALL: 'YES'
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: '$(inherited) LODY_SHARE_EXTENSION'
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    dependencies:
+      - package: LodyCore
+        product: LodyCore
+      - package: ChatKit
+        product: ChatKit
+      - package: Lexical
+        product: Lexical
+      - package: Lexical
+        product: LexicalListPlugin
+      - package: Lexical
+        product: LexicalLinkPlugin
+      - package: Lexical
+        product: LexicalMarkdown
+      - package: Lexical
+        product: EditorHistoryPlugin
+      - package: Lexical
+        product: LexicalHTML
+  LodyNotificationService:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Extensions/NotificationService
+      - path: packages/LodyData/Sources/LodyData
+        group: Shared Extension Sources
+        createIntermediateGroups: false
+        includes:
+          - Diagnostics/DiagnosticsStore.swift
+    info:
+      path: '.generated/LodyNotificationService/Info.plist'
+      properties:
+        CFBundleDisplayName: Lody Notifications
+        CFBundleShortVersionString: '$(MARKETING_VERSION)'
+        CFBundleVersion: '$(CURRENT_PROJECT_VERSION)'
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: '$(PRODUCT_MODULE_NAME).NotificationService'
+        OneSignal_app_groups_key: group.app.innei.lody
+    entitlements:
+      path: '.generated/LodyNotificationService/LodyNotificationService.entitlements'
+      properties:
+        com.apple.security.application-groups:
+          - group.app.innei.lody
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.innei.lody.notification-service
+        APPLICATION_EXTENSION_API_ONLY: 'YES'
+        TARGETED_DEVICE_FAMILY: '1,2'
+        SKIP_INSTALL: 'YES'
+        SWIFT_VERSION: '5.0'
+    dependencies:
+      - package: OneSignal
+        product: OneSignalExtension
+  LodyLiveActivity:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Extensions/LiveActivity
+      - path: packages/LodyiOSKit/Sources/LodyiOSKit
+        group: Shared Extension Sources
+        createIntermediateGroups: false
+        includes:
+          - LiveActivity/LodyActivityAttributes.swift
+          - LiveActivity/LiveActivityCatalog.swift
+    info:
+      path: '.generated/LodyLiveActivity/Info.plist'
+      properties:
+        CFBundleDisplayName: Lody
+        CFBundleShortVersionString: '$(MARKETING_VERSION)'
+        CFBundleVersion: '$(CURRENT_PROJECT_VERSION)'
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: '.generated/LodyLiveActivity/LodyLiveActivity.entitlements'
+      properties:
+        com.apple.security.application-groups:
+          - group.app.innei.lody
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.innei.lody.live-activity
+        APPLICATION_EXTENSION_API_ONLY: 'YES'
+        TARGETED_DEVICE_FAMILY: '1,2'
+        SKIP_INSTALL: 'YES'
+  LodyActivityVerify:
+    type: application
+    platform: iOS
+    deploymentTarget: '26.0'
+    sources:
+      - 'verification/ui/activity-host/App.swift'
+      - path: packages/LodyiOSKit/Sources/LodyiOSKit
+        group: Shared Extension Sources
+        createIntermediateGroups: false
+        includes:
+          - LiveActivity/LodyActivityAttributes.swift
+          - LiveActivity/LiveActivityCatalog.swift
+      - Extensions/LiveActivity/LiveActivityViews.swift
+      - Extensions/LiveActivity/SmallActivityView.swift
+      - Extensions/LiveActivity/LiveActivityFixtures.swift
+      - Extensions/LiveActivity/AgentIcons.xcassets
+    info:
+      path: '.generated/LodyActivityVerify/Info.plist'
+      properties:
+        CFBundleDisplayName: LodyActivityVerify
+        CFBundleShortVersionString: '$(MARKETING_VERSION)'
+        CFBundleVersion: '$(CURRENT_PROJECT_VERSION)'
+        NSSupportsLiveActivities: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - lodyverify
+              - lody
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.innei.lody
+        ASSETCATALOG_COMPILER_APPICON_NAME: ''
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+        SWIFT_OPTIMIZATION_LEVEL: '-Onone'
+        SKIP_INSTALL: 'YES'
+    scheme: {}
+    dependencies:
+      - target: LodyLiveActivity
+  LodySmallActivityVerify:
+    type: application
+    platform: watchOS
+    deploymentTarget: '26.0'
+    sources:
+      - 'verification/ui/activity-host/WatchApp.swift'
+      - path: packages/LodyiOSKit/Sources/LodyiOSKit
+        group: Shared Extension Sources
+        createIntermediateGroups: false
+        includes:
+          - LiveActivity/LodyActivityAttributes.swift
+          - LiveActivity/LiveActivityCatalog.swift
+      - Extensions/LiveActivity/LiveActivityViews.swift
+      - Extensions/LiveActivity/SmallActivityView.swift
+      - Extensions/LiveActivity/LiveActivityFixtures.swift
+      - Extensions/LiveActivity/AgentIcons.xcassets
+    info:
+      path: '.generated/LodySmallActivityVerify/Info.plist'
+      properties:
+        CFBundleDisplayName: LodySmallActivityVerify
+        CFBundleShortVersionString: '$(MARKETING_VERSION)'
+        CFBundleVersion: '$(CURRENT_PROJECT_VERSION)'
+        WKApplication: true
+        WKWatchOnly: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.innei.lody.small-activity-verify
+        ASSETCATALOG_COMPILER_APPICON_NAME: ''
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+        SWIFT_OPTIMIZATION_LEVEL: '-Onone'
+        SKIP_INSTALL: 'YES'
+    scheme: {}
+schemes:
+  Lody:
+    build:
+      targets:
+        Lody: all
+    run:
+      config: Debug

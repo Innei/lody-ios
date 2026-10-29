@@ -2,7 +2,7 @@
 
 ## 1. Project summary
 
-UIKit iOS app in apps/ios; UI, state and coordinators live in LodyiOSKit.
+UIKit iOS app in iOS/; UI, state and coordinators live in LodyiOSKit.
 
 ## 2. Environment
 
@@ -29,19 +29,19 @@ workspace Xcode DerivedData and prints the App path for `--app`; keep one build
 cache per checkout, and never copy the checkout into the temp directory to build
 (`pnpm verify:clean` reports and reclaims those leftovers). No account, cloud
 credentials or connected machine is needed. See
-`apps/ios/verification/ui/README.md` for cases, evidence and CI setup.
+`verification/ui/README.md` for cases, evidence and CI setup.
 
 Official Lody Device Flow and simulator Keychain only. Inspect the simulator UI for existing login; never copy desktop credentials. No seeded account is provided. Unauthenticated checks must be reported separately from authenticated flows.
 
 ## 4. Surfaces
 
 Use AXe with explicit simulator UDID and simctl screenshots. `pnpm verify:build`
-builds project apps/ios/Lody.xcodeproj, scheme Lody, Debug, with normal
+builds project Lody.xcodeproj, scheme Lody, Debug, with normal
 signing and one shared DerivedData; the app bundle identifier is app.innei.lody.
 Run pnpm check, pnpm test and pnpm bundle as supporting gates.
 
 UI evidence for a visual or interaction requirement alignment comes from a finished
-`pnpm verify:ui` run exported by `apps/ios/verification/ui/acceptance-round.py`
+`pnpm verify:ui` run exported by `verification/ui/acceptance-round.py`
 (claims file + `lh acceptance run ingest`). Export and ingest by hand, only for
 that alignment; regression runs stay programmatic gates and are never ingested.
 

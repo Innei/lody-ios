@@ -75,7 +75,7 @@ What that week actually looked like:
 
 - **Human Interface Guidelines Compliance**: Native adoption of iOS semantic colors, automatic light and dark mode adaptation, and Dynamic Type with SF Pro and SF Mono.
 - **Native Navigation**: The UIKit shell owns navigation controllers, transparent headers, and automatic scroll edge effects. Home uses an adaptive native split with session and inspector navigation. Transient flows open as native sheets through `LodyShell.presentNative`, and system grouped rows use UIKit `UICollectionViewListCell` via `LodyGroupedList`.
-- **Bilingual by Default**: English and Simplified Chinese product copy lives in `packages/LodyData/Sources/LodyData/Resources/Localizable.xcstrings`. Swift uses `String(localized:)`, Xcode compiles the catalog, and CI checks translation coverage and format arguments. Permission prompts live in `apps/ios/App/InfoPlist.xcstrings`.
+- **Bilingual by Default**: English and Simplified Chinese product copy lives in `packages/LodyData/Sources/LodyData/Resources/Localizable.xcstrings`. Swift uses `String(localized:)`, Xcode compiles the catalog, and CI checks translation coverage and format arguments. Permission prompts live in `iOS/InfoPlist.xcstrings`.
 
 ### High-Performance Native Streaming Chat
 
@@ -134,17 +134,17 @@ by extensions; their single source of truth remains the local Swift package.
 Generated runtime assets and build configuration live under `.generated`.
 
 ```text
-apps/ios/Lody.xcodeproj              # Generated Xcode project
-apps/ios/project.yml                # XcodeGen: app, extensions and verify hosts
-apps/ios/App/                       # UIKit entry, plist, entitlements and app assets
-apps/ios/App/Resources/             # Images, file icons and dependency notices
-apps/ios/Extensions/                # Share, notification service and Live Activity
-apps/ios/.generated/                # Generated plist, XcodeGen input and runtime assets
-apps/ios/runtime/decoder/           # Browser-safe decoding adapter
-apps/ios/scripts/                   # Asset generation and source checks
-apps/ios/verification/kit/          # Native behavior checks
-apps/ios/verification/ui/           # Offline UI verification
-apps/ios/tests/                     # Protocol and tooling Node tests
+Lody.xcodeproj              # Generated Xcode project
+project.yml                # XcodeGen: app, extensions and verify hosts
+iOS/                       # UIKit entry, plist, entitlements and app assets
+iOS/Resources/             # Images, file icons and dependency notices
+Extensions/                # Share, notification service and Live Activity
+.generated/                # Generated plist, XcodeGen input and runtime assets
+runtime/decoder/           # Browser-safe decoding adapter
+scripts/                   # Asset generation and source checks
+verification/kit/          # Native behavior checks
+verification/ui/           # Offline UI verification
+tests/                     # Protocol and tooling Node tests
 packages/LodyiOSKit/Package.swift      # LodyiOSKit library, dependencies and Metal resources
 packages/LodyiOSKit/Sources/LodyiOSKit/    # UIKit UI, native state and coordinators
 packages/LodyData/Sources/LodyData/Resources/ # Native String Catalog
@@ -185,7 +185,7 @@ packages/lexical-swift/              # Native editor
    ```
 
    `pnpm ios` builds bundled protocol assets and the native data channel library,
-   then generates `apps/ios/Lody.xcodeproj` with XcodeGen. Xcode resolves
+   then generates `Lody.xcodeproj` with XcodeGen. Xcode resolves
    Swift packages directly. Select a simulator and Run. `pnpm start` opens the
    existing project. App, extensions and offline verification hosts come from
    `project.yml`; rerun `pnpm prebuild` after changing those sources.
@@ -194,7 +194,7 @@ packages/lexical-swift/              # Native editor
 
 3. **Update native assets**:
 
-   After editing `packages/cloud-runtime` or `apps/ios/runtime/decoder`, run:
+   After editing `packages/cloud-runtime` or `runtime/decoder`, run:
 
    ```sh
    pnpm bundle
@@ -220,7 +220,7 @@ pnpm verify:ui --app /absolute/path/to/Lody.app                # Offline UI base
 pnpm verify:ui --suite core --app /absolute/path/to/Lody.app  # PR core paths, Release app
 ```
 
-The runner captures screenshots for visual states and video for temporal behavior; missing scenes and timeouts fail the run. See [`apps/ios/verification/ui/README.md`](apps/ios/verification/ui/README.md) for the case inventory and Simulator leasing rules.
+The runner captures screenshots for visual states and video for temporal behavior; missing scenes and timeouts fail the run. See [`verification/ui/README.md`](verification/ui/README.md) for the case inventory and Simulator leasing rules.
 
 ### Releases
 

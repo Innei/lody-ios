@@ -2,9 +2,9 @@
 
 - This is an independent iOS-only UIKit client. pnpm builds the bundled cloud protocol assets; XcodeGen generates app, extension and verification targets; Swift Package Manager builds LodyiOSKit and its native dependencies.
 - Platform-neutral data (auth, catalog, outbox, data runtime, local store, session sources and senders, create-session data, transcript projection, the string catalog) lives in `packages/LodyData`, which imports only Foundation and builds for iOS and macOS. It never imports UIKit or AppKit; platform effects go through the `LodyHost` seam (`LodyHosting.current`), which LodyiOSKit implements as `LodyUIKitHost`. LodyiOSKit re-exports LodyData. Live wiring that reads Debug fixtures or list rows stays in LodyiOSKit as extensions (`SessionSource.live`, `CreateSessionService.live`).
-- First-party UI lives in the Swift package `packages/LodyiOSKit/Sources/LodyiOSKit`; the application entry point is `App`, and extensions are in `Extensions`. Use Swift/UIKit or SwiftUI; do not add bridge packages. SwiftPM discovers LodyiOSKit sources automatically. Run `pnpm prebuild` after changing app/extension source membership or shared extension references in `project.yml`; never edit the generated Xcode project by hand.
+- First-party UI lives in the Swift package `packages/LodyiOSKit/Sources/LodyiOSKit`; the iOS application entry point is `iOS`, and extensions are in `Extensions`. Use Swift/UIKit or SwiftUI; do not add bridge packages. SwiftPM discovers LodyiOSKit sources automatically. Run `pnpm prebuild` after changing app/extension source membership or shared extension references in `project.yml`; never edit the generated Xcode project by hand.
 - Do not add Android implementations, fallback stubs, or Android build scripts.
-- `apps/ios/Lody.xcodeproj`, `.generated` are generated. Persist app configuration in `apps/ios/App`, app/extension target definitions in `apps/ios/project.yml`, and package dependencies/resources in `packages/LodyiOSKit/Package.swift` and `packages/LodyData/Package.swift`. Run `pnpm prebuild`.
+- `Lody.xcodeproj`, `.generated` are generated. Persist app configuration in `iOS`, app/extension target definitions in `project.yml`, and package dependencies/resources in `packages/LodyiOSKit/Package.swift` and `packages/LodyData/Package.swift`. Run `pnpm prebuild`.
 - Keep normal Xcode signing enabled, including simulator validation. Do not use `CODE_SIGNING_ALLOWED=NO`.
 - Cloud integration targets official Lody Cloud. Use browser-safe public protocol imports in `packages/cloud-runtime`; do not import Node-dependent `@lody/shared` or `@lody/loro-streams-rpc` root entries, absolute paths from another checkout, or private backend packages.
 - Credentials belong in Keychain. Never copy desktop credentials, tokens, transcripts, or private service configuration into this repository.
@@ -62,8 +62,8 @@
 - On native UIKit pages use `axe drag`, not `swipe`; swipe doesn't drive UIKit pan gestures (switch thumbs, edge back).
 
 - UI baselines must run without login, user credentials, cloud access, or a connected machine. Add independently resettable Debug scenes using production controllers and `LodyShell.presentNative`; inject deterministic data/service outcomes at their boundary.
-- UI changes must add/update a behavior check in `apps/ios/verification/ui` or reuse the existing native checks. Shared controls must be exercised in each affected host.
-- Local checks omit `--udid` to lease a `Lody * Verify` Simulator. Build with `pnpm verify:build` (one shared Xcode DerivedData per checkout; never pass a per-task `-derivedDataPath` or copy the checkout into the temp directory, and reclaim such leftovers with `pnpm verify:clean`). Wrap build + multi-check flows with `pnpm verify:simulator --name '<current verify>' -- <command>` and use `$LODY_VERIFY_UDID`; never call `simctl create` directly. Explicit `--udid` is for caller-owned devices such as CI. See `apps/ios/verification/ui/README.md`.
+- UI changes must add/update a behavior check in `verification/ui` or reuse the existing native checks. Shared controls must be exercised in each affected host.
+- Local checks omit `--udid` to lease a `Lody * Verify` Simulator. Build with `pnpm verify:build` (one shared Xcode DerivedData per checkout; never pass a per-task `-derivedDataPath` or copy the checkout into the temp directory, and reclaim such leftovers with `pnpm verify:clean`). Wrap build + multi-check flows with `pnpm verify:simulator --name '<current verify>' -- <command>` and use `$LODY_VERIFY_UDID`; never call `simctl create` directly. Explicit `--udid` is for caller-owned devices such as CI. See `verification/ui/README.md`.
 - Capture screenshots for visual states and video for temporal behavior. Missing scenes/timeouts fail verification; screenshots alone do not establish visual correctness.
 
 ## Push notifications
@@ -71,10 +71,10 @@
 - Native OneSignal SDK ownership stays in LodyiOSKit `Notifications/PushNotifications.swift`;
   `PushLifecycle` initializes at app launch, retains SDK listeners and caches
   clicks until `LodyApplication` resolves and acknowledges them.
-- `project.yml` and `App` persist the NSE, App Group,
+- `project.yml` and `iOS` persist the NSE, App Group,
   SDK pin and entitlements across prebuild. Never fix only generated `ios/` files.
 - Notification navigation accepts only the legacy workspace/session route and resolves
   against the signed-in user's catalog. `recipientUserId` fences clicks after an
   account switch; old payloads use the SDK's current external ID as a compatibility fallback.
 - Debug's offline notification fixture never initializes OneSignal or requests real
-  permission. See `apps/ios/PUSH_NOTIFICATIONS.md` for setup and verification limits.
+  permission. See `PUSH_NOTIFICATIONS.md` for setup and verification limits.

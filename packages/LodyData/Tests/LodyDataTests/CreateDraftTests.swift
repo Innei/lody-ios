@@ -4,7 +4,7 @@ import LodyCore
 
 final class CreateDraftTests: XCTestCase {
   private let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-    .appendingPathComponent("../../../../apps/ios/tests/fixtures").standardized
+    .appendingPathComponent("../../../../tests/fixtures").standardized
 
   func testDraftRecordsMatchTheDesktopGolden() throws {
     let cases = try JSONSerialization.jsonObject(with: Data(contentsOf: fixtures.appendingPathComponent("create-draft.json"))) as! [[String: Any]]
