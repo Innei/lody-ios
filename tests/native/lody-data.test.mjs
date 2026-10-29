@@ -44,9 +44,7 @@ test('LodyiOSKit re-exports LodyData for the app and its pages', async () => {
     'utf8',
   );
   assert.match(manifest, /\.product\(name: "LodyData", package: "LodyData"\)/);
-  const files = await swiftFiles(
-    join(repoRoot, 'packages/LodyiOSKit/Sources'),
-  );
+  const files = await swiftFiles(join(repoRoot, 'packages/LodyiOSKit/Sources'));
   const exports = [];
   for (const file of files) {
     if (/^@_exported import LodyData$/m.test(await readFile(file, 'utf8')))
