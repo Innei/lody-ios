@@ -7,7 +7,13 @@ final class MacTranscriptView: NSView {
   private let scroll = NSScrollView()
   private let column = NSStackView()
   private var rendered: [MacTranscriptItem] = []
+  private var rows: [String: (item: MacTranscriptItem, view: NSView)] = [:]
+  private var renderedCard: MacPermissionFlow.Card?
+  private var cardView: MacPermissionCard?
   var onAnswer: ((String) -> Void)?
+  var onRetry: (() -> Void)?
+
+  var rowViews: [NSView] { column.arrangedSubviews.filter { $0 !== cardView } }
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
@@ -41,21 +47,54 @@ final class MacTranscriptView: NSView {
 
   required init?(coder: NSCoder) { nil }
 
-  func render(_ model: MacTranscriptModel) {
+  func render(_ model: MacTranscriptModel, card: MacPermissionFlow.Card? = nil) {
     let pinnedToBottom = isScrolledToBottom
-    let items = model.items
-    if items != rendered {
-      rendered = items
-      column.arrangedSubviews.forEach { $0.removeFromSuperview() }
-      for item in items { add(view(for: item)) }
+    if model.items != rendered {
+      rendered = model.items
+      place(model.items)
     }
-    column.arrangedSubviews.filter { $0 is MacPermissionCard }.forEach { $0.removeFromSuperview() }
-    if let permission = model.permission {
-      let card = MacPermissionCard(permission: permission)
-      card.onAnswer = { [weak self] in self?.onAnswer?($0) }
-      add(card)
+    if card != renderedCard {
+      renderedCard = card
+      cardView?.removeFromSuperview()
+      cardView = card.map { card in
+        let view = MacPermissionCard(card: card)
+        view.onAnswer = { [weak self] in self?.onAnswer?($0) }
+        add(view)
+        return view
+      }
     }
     if pinnedToBottom { scrollToBottom() }
+  }
+
+  private func place(_ items: [MacTranscriptItem]) {
+    var next: [String: (item: MacTranscriptItem, view: NSView)] = [:]
+    var used = Set<ObjectIdentifier>()
+    let views = items.map { item -> NSView in
+      let reused = reuse(item).flatMap { used.contains(ObjectIdentifier($0)) ? nil : $0 }
+      let view = reused ?? self.view(for: item)
+      used.insert(ObjectIdentifier(view))
+      next[item.id] = (item, view)
+      return view
+    }
+    rows = next
+    for view in rowViews where !used.contains(ObjectIdentifier(view)) { view.removeFromSuperview() }
+    for (index, view) in views.enumerated() {
+      let current = column.arrangedSubviews
+      if index < current.count, current[index] === view { continue }
+      view.removeFromSuperview()
+      column.insertArrangedSubview(view, at: index)
+      view.widthAnchor.constraint(equalTo: column.widthAnchor, constant: -32).isActive = true
+    }
+  }
+
+  private func reuse(_ item: MacTranscriptItem) -> NSView? {
+    guard let old = rows[item.id] else { return nil }
+    if old.item == item { return old.view }
+    if case .prose(_, let markdown) = item, let view = old.view as? MacMarkdownView {
+      view.update(markdown)
+      return view
+    }
+    return nil
   }
 
   private var isScrolledToBottom: Bool {
@@ -87,6 +126,12 @@ final class MacTranscriptView: NSView {
       let label = NSTextField(wrappingLabelWithString: text)
       label.textColor = .systemRed
       return label
+    case .subagent(_, let title, let detail, let running):
+      return MacSubagentCard(title: title, detail: detail, running: running)
+    case .failedSend(_, let text):
+      let row = MacFailedSendView(text: text)
+      row.onRetry = { [weak self] in self?.onRetry?() }
+      return row
     }
   }
 }
@@ -121,6 +166,11 @@ final class MacMarkdownView: NSView {
     ])
     markdown.setMarkdown(text)
     setAccessibilityIdentifier("transcript-prose")
+  }
+
+  func update(_ text: String) {
+    markdown.setMarkdown(text)
+    needsLayout = true
   }
 
   required init?(coder: NSCoder) { nil }

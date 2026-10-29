@@ -80,30 +80,40 @@ final class MacActivityLine: NSStackView {
 @MainActor
 final class MacPermissionCard: NSView {
   var onAnswer: ((String) -> Void)?
-  private var options: [SessionPermission.Option] = []
+  private let options: [SessionPermission.Option]
 
-  init(permission: SessionPermission) {
+  init(card: MacPermissionFlow.Card) {
+    options = card.options
     super.init(frame: .zero)
+    let permission = card.permission
     let fill = MacFillView(fill: .controlBackgroundColor, radius: 12, border: true)
     let heading = NSTextField(labelWithString: String(localized: "mac.permission.title", bundle: .lodyMac))
     heading.font = .systemFont(ofSize: 13, weight: .semibold)
     let detail = NSTextField(wrappingLabelWithString: [permission.title, permission.path].compactMap { $0 }.joined(separator: "\n"))
     detail.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
     detail.textColor = .secondaryLabelColor
-    options = permission.options ?? []
+    let firstAllow = options.firstIndex { $0.kind?.hasPrefix("allow") == true }
     let buttons = options.enumerated().map { index, option in
       let button = NSButton(title: option.name, target: self, action: #selector(pressed(_:)))
       button.tag = index
       button.controlSize = .large
-      if option.kind?.hasPrefix("allow") == true, !options.prefix(index).contains(where: { $0.kind?.hasPrefix("allow") == true }) {
-        button.keyEquivalent = "\r"
-        button.bezelColor = .lodyAccent
-      }
+      button.isEnabled = !card.busy
+      if index == firstAllow { button.bezelColor = .lodyAccent }
       return button
     }
-    let row = NSStackView(views: buttons.reversed())
-    row.spacing = 8
-    let stack = NSStackView(views: [heading, detail, row])
+    var views: [NSView] = [heading, detail]
+    if !buttons.isEmpty {
+      let row = NSStackView(views: buttons.reversed())
+      row.spacing = 8
+      views.append(row)
+    }
+    if !card.error.isEmpty {
+      let error = NSTextField(wrappingLabelWithString: card.error)
+      error.textColor = .systemOrange
+      error.setAccessibilityIdentifier("permission-error")
+      views.append(error)
+    }
+    let stack = NSStackView(views: views)
     stack.orientation = .vertical
     stack.alignment = .leading
     stack.spacing = 8
@@ -131,6 +141,84 @@ final class MacPermissionCard: NSView {
     guard options.indices.contains(sender.tag) else { return }
     onAnswer?(options[sender.tag].optionId)
   }
+}
+
+@MainActor
+final class MacSubagentCard: NSView {
+  init(title: String, detail: String, running: Bool) {
+    super.init(frame: .zero)
+    let fill = MacFillView(fill: .controlBackgroundColor, radius: 10, border: true)
+    let glyph = NSImageView(image: NSImage(systemSymbolName: "person.2", accessibilityDescription: nil) ?? NSImage())
+    glyph.contentTintColor = running ? .lodyAccent : .secondaryLabelColor
+    let heading = NSTextField(labelWithString: title)
+    heading.font = .systemFont(ofSize: 13, weight: .medium)
+    heading.lineBreakMode = .byTruncatingTail
+    let body = NSTextField(wrappingLabelWithString: detail)
+    body.font = .systemFont(ofSize: 12)
+    body.textColor = .secondaryLabelColor
+    body.isHidden = detail.isEmpty
+    let text = NSStackView(views: [heading, body])
+    text.orientation = .vertical
+    text.alignment = .leading
+    text.spacing = 2
+    let stack = NSStackView(views: [glyph, text])
+    stack.alignment = .top
+    stack.spacing = 8
+    stack.edgeInsets = NSEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    fill.translatesAutoresizingMaskIntoConstraints = false
+    fill.addSubview(stack)
+    addSubview(fill)
+    NSLayoutConstraint.activate([
+      fill.topAnchor.constraint(equalTo: topAnchor),
+      fill.bottomAnchor.constraint(equalTo: bottomAnchor),
+      fill.leadingAnchor.constraint(equalTo: leadingAnchor),
+      fill.trailingAnchor.constraint(equalTo: trailingAnchor),
+      stack.topAnchor.constraint(equalTo: fill.topAnchor),
+      stack.bottomAnchor.constraint(equalTo: fill.bottomAnchor),
+      stack.leadingAnchor.constraint(equalTo: fill.leadingAnchor),
+      stack.trailingAnchor.constraint(equalTo: fill.trailingAnchor),
+    ])
+    setAccessibilityElement(true)
+    setAccessibilityLabel([title, detail].filter { !$0.isEmpty }.joined(separator: ", "))
+    setAccessibilityIdentifier("transcript-subagent")
+  }
+
+  required init?(coder: NSCoder) { nil }
+}
+
+@MainActor
+final class MacFailedSendView: NSView {
+  var onRetry: (() -> Void)?
+
+  init(text: String) {
+    super.init(frame: .zero)
+    let glyph = NSImageView(image: NSImage(systemSymbolName: "exclamationmark.circle", accessibilityDescription: nil) ?? NSImage())
+    glyph.contentTintColor = .systemOrange
+    let label = NSTextField(wrappingLabelWithString: text)
+    label.font = .systemFont(ofSize: 12)
+    label.textColor = .secondaryLabelColor
+    let retry = NSButton(title: String(localized: "mac.transcript.retry", bundle: .lodyMac), target: nil, action: nil)
+    retry.controlSize = .small
+    retry.target = self
+    retry.action = #selector(retryPressed)
+    retry.setAccessibilityIdentifier("transcript-retry")
+    let stack = NSStackView(views: [glyph, label, retry])
+    stack.spacing = 6
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(stack)
+    NSLayoutConstraint.activate([
+      stack.topAnchor.constraint(equalTo: topAnchor),
+      stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+      stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+      stack.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor),
+    ])
+    setAccessibilityIdentifier("transcript-failed-send")
+  }
+
+  required init?(coder: NSCoder) { nil }
+
+  @objc private func retryPressed() { onRetry?() }
 }
 
 @MainActor

@@ -8,10 +8,13 @@ enum MacTranscriptItem: Equatable {
   case activity(id: String, symbol: String, text: String, attention: Bool, running: Bool)
   case changes(id: String, text: String)
   case notice(id: String, text: String)
+  case subagent(id: String, title: String, detail: String, running: Bool)
+  case failedSend(id: String, text: String)
 
   var id: String {
     switch self {
-    case .user(let id, _), .prose(let id, _), .plan(let id, _), .changes(let id, _), .notice(let id, _): id
+    case .user(let id, _), .prose(let id, _), .plan(let id, _), .changes(let id, _), .notice(let id, _), .failedSend(let id, _): id
+    case .subagent(let id, _, _, _): id
     case .activity(let id, _, _, _, _): id
     }
   }
@@ -21,11 +24,15 @@ struct MacTranscriptModel {
   var items: [MacTranscriptItem] = []
   var permission: SessionPermission?
 
-  init(entriesJSON: String) {
+  init(entriesJSON: String, pendingJSON: String = "") {
     let data = Data(entriesJSON.utf8)
     guard let entries = try? JSONDecoder().decode([ChatEntry].self, from: data) else { return }
     let transcript = ChatTranscript(entries: entries)
-    for row in transcript.rows() {
+    var rows = transcript.rows()
+    if let pending = try? JSONDecoder().decode(ChatPendingSend.self, from: Data(pendingJSON.utf8)) {
+      rows += pending.rows(entries: entries)
+    }
+    for row in rows {
       switch row.kind {
       case "user":
         items.append(.user(id: row.id, text: row.text))
@@ -44,6 +51,19 @@ struct MacTranscriptModel {
         items.append(.changes(id: row.id, text: row.text))
       case "chat_failed":
         items.append(.notice(id: row.id, text: row.text))
+      case "subagent_task":
+        let card = row.subagent
+        let title = [card?.actor, card?.description].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+        items.append(.subagent(id: row.id, title: title.isEmpty ? row.text : title, detail: card?.detail ?? "", running: row.running))
+      case "attachments":
+        let names = row.attachments.map(\.fileName).joined(separator: ", ")
+        items.append(.activity(id: row.id, symbol: "paperclip", text: names, attention: false, running: row.running))
+      case "image":
+        items.append(.activity(id: row.id, symbol: "photo", text: row.image?.fileName ?? "", attention: false, running: false))
+      case "delivery":
+        items.append(.activity(id: row.id, symbol: "clock", text: row.text, attention: row.attention, running: false))
+      case "pending":
+        items.append(.failedSend(id: row.id, text: row.text))
       default:
         continue
       }

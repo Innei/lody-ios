@@ -6,7 +6,8 @@ import LodyData
 struct MacTranscriptSource {
   var start: @MainActor (_ changed: @escaping @MainActor (SessionFeedState) -> Void) -> Void
   var stop: @MainActor () -> Void
-  var answer: @MainActor (SessionPermission, String) async throws -> Void
+  var detail: MacPermissionFlow.Detail
+  var respond: MacPermissionFlow.Respond
 
   static func live(sessionId: String, state: SessionListState, permission: PermissionService = .live) -> MacTranscriptSource {
     let feed = SessionFeed(sessionId: sessionId, userId: state.userId, workspaceId: state.workspaceId)
@@ -16,8 +17,11 @@ struct MacTranscriptSource {
         feed.start()
       },
       stop: { feed.finish() },
-      answer: { target, optionId in
-        _ = try await permission.respond(.init(
+      detail: { target in
+        try await permission.detail(sessionId, target).options?.map { .init(optionId: $0.optionId, name: $0.name, kind: $0.kind) }
+      },
+      respond: { target, optionId in
+        try await permission.respond(.init(
           sessionId: sessionId, entryId: target.entryId, itemId: target.itemId,
           requestId: target.requestId, optionId: optionId
         ))
@@ -32,14 +36,18 @@ final class MacSessionController: NSViewController, MacSessionPane {
   private let source: MacTranscriptSource
   private let transcript = MacTranscriptView()
   private let composer: NSViewController?
+  private let permission: MacPermissionFlow
   private var model = MacTranscriptModel(entriesJSON: "[]")
+  private var feed = SessionFeedState()
   private var streaming = false
 
   init(sessionId: String, source: MacTranscriptSource, composer: NSViewController? = nil) {
     self.sessionId = sessionId
     self.source = source
     self.composer = composer
+    permission = MacPermissionFlow(detail: source.detail, respond: source.respond)
     super.init(nibName: nil, bundle: nil)
+    permission.changed = { [weak self] in self?.paint() }
   }
 
   required init?(coder: NSCoder) { nil }
@@ -68,7 +76,8 @@ final class MacSessionController: NSViewController, MacSessionPane {
       constraints.append(transcript.bottomAnchor.constraint(equalTo: root.bottomAnchor))
     }
     NSLayoutConstraint.activate(constraints)
-    transcript.onAnswer = { [weak self] optionId in self?.answer(optionId) }
+    transcript.onAnswer = { [weak self] optionId in self?.permission.answer(optionId) }
+    transcript.onRetry = { [weak self] in self?.onRetry?() }
     view = root
   }
 
@@ -85,20 +94,29 @@ final class MacSessionController: NSViewController, MacSessionPane {
 
   var onFeed: ((SessionFeedState) -> Void)?
   var onStreaming: ((Bool) -> Void)?
+  var onRetry: (() -> Void)?
+  var pendingJSON: () -> String = { "" }
   var retained: AnyObject?
 
+  func refreshPending() {
+    guard isViewLoaded else { return }
+    rebuild()
+  }
+
   private func render(_ state: SessionFeedState) {
-    model = MacTranscriptModel(entriesJSON: state.entriesJSON)
-    transcript.render(model)
+    feed = state
+    rebuild()
     onFeed?(state)
   }
 
-  private func answer(_ optionId: String) {
-    guard let target = model.permission else { return }
-    Task { [source] in
-      do { try await source.answer(target, optionId) } catch {
-        LodyHosting.current?.toast(String(localized: "mac.permission.failed", bundle: .lodyMac), kind: "error")
-      }
-    }
+  private func rebuild() {
+    model = MacTranscriptModel(entriesJSON: feed.entriesJSON, pendingJSON: pendingJSON())
+    permission.show(model.permission)
+    paint()
+  }
+
+  private func paint() {
+    guard isViewLoaded else { return }
+    transcript.render(model, card: permission.card)
   }
 }

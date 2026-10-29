@@ -6,8 +6,7 @@ import UserNotifications
 final class MacNotifier: NSObject, UNUserNotificationCenterDelegate {
   static let shared = MacNotifier()
   static let key = "lody.mac.notifications"
-  private var previous: SessionCatalog?
-  private var workspaceId = ""
+  private var baseline = MacNotificationBaseline()
   private var observer: NSObjectProtocol?
   var onOpen: ((String) -> Void)?
 
@@ -29,15 +28,8 @@ final class MacNotifier: NSObject, UNUserNotificationCenterDelegate {
   }
 
   private func catalogChanged() {
-    let state = SessionPublished.state()
-    guard state.workspaceId == workspaceId else {
-      workspaceId = state.workspaceId
-      previous = state.catalog
-      return
-    }
     let onScreen = NSApp.isActive ? MacTabCoordinator.shared.streamingSession : nil
-    let decisions = MacNotificationDecider.decide(previous: previous, next: state.catalog, onScreen: onScreen)
-    previous = state.catalog
+    let decisions = baseline.next(SessionPublished.state(), onScreen: onScreen)
     guard enabled else { return }
     decisions.forEach(post)
   }
@@ -57,7 +49,7 @@ final class MacNotifier: NSObject, UNUserNotificationCenterDelegate {
     }
     content.sound = .default
     content.threadIdentifier = sessionId
-    content.userInfo = ["sessionId": sessionId, "workspaceId": workspaceId]
+    content.userInfo = ["sessionId": sessionId, "workspaceId": baseline.workspaceId]
     UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
   }
 

@@ -4,8 +4,6 @@ import LodyData
 @MainActor
 final class MacHost: LodyHost {
   private let frontmost: () -> Bool
-  var toastHandler: ((String, String) -> Void)?
-  var catalogHandler: ((String, String) -> Void)?
 
   init(frontmost: @escaping () -> Bool = { NSApp?.isActive ?? true }) {
     self.frontmost = frontmost
@@ -32,7 +30,8 @@ final class MacHost: LodyHost {
   func endSendAllowance(_ token: AnyObject) {}
 
   func toast(_ message: String, kind: String) {
-    toastHandler?(message, kind)
+    let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first { $0.isVisible && $0.contentViewController != nil }
+    MacToast.show(message, kind: kind, in: window)
   }
 
   func alert(title: String, message: String) {
@@ -52,9 +51,7 @@ final class MacHost: LodyHost {
 
   func dismissAuthorization() {}
 
-  func catalogDidUpdate(_ catalogJSON: String, workspaceId: String, workspaceSlug: String, workspaceName: String, userId: String) {
-    catalogHandler?(catalogJSON, workspaceId)
-  }
+  func catalogDidUpdate(_ catalogJSON: String, workspaceId: String, workspaceSlug: String, workspaceName: String, userId: String) {}
 
   func clearSharedData() {}
 

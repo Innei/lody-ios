@@ -21,3 +21,23 @@ enum MacNotificationDecider {
     }
   }
 }
+
+@MainActor
+struct MacNotificationBaseline {
+  private(set) var workspaceId = ""
+  private var previous: SessionCatalog?
+
+  // Restored SQLite catalogs publish while loading; only live catalogs may form the baseline.
+  mutating func next(_ state: SessionListState, onScreen: String?) -> [MacNotificationDecision] {
+    if state.workspaceId != workspaceId {
+      workspaceId = state.workspaceId
+      previous = nil
+    }
+    guard !state.loading else {
+      previous = nil
+      return []
+    }
+    defer { previous = state.catalog }
+    return MacNotificationDecider.decide(previous: previous, next: state.catalog, onScreen: onScreen)
+  }
+}

@@ -8,6 +8,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   private let service: MacComposerService
   private let view1 = MacComposerView()
   private var optionsTask: Task<Void, Never>?
+  private var draft = MacDraftHandoff()
   var onReplyChoice: (([String: Any]) -> Void)?
   var replyContext: (project: String, branch: String, machine: String) = ("", "", "") {
     didSet { render() }
@@ -47,6 +48,15 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     if let choice { model.replyChoice = choice }
     render()
   }
+
+  func restoreDraft() {
+    guard let text = draft.restore(current: view1.input.string) else { return }
+    view1.input.string = text
+    model.text = text
+    render()
+  }
+
+  func clearDraft() { draft.clear() }
 
   func textDidChange(_ notification: Notification) {
     model.text = view1.input.string
@@ -114,13 +124,20 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   private func send() {
     guard model.canSend else { return }
     let payload = model.payload(id: UUID().uuidString.lowercased())
+    let text = model.text
     switch model.mode {
     case .newSession:
-      guard let sessionId = model.form.current.options?.sessionId, let draft = model.form.draft(sessionId: sessionId) else { return }
-      service.create(draft, payload)
+      guard let sessionId = model.form.current.options?.sessionId, let created = model.form.draft(sessionId: sessionId) else { return }
+      clearInput()
+      service.create(created, payload)
     case .reply:
+      draft.sent(text)
+      clearInput()
       service.reply(payload, model.replyChoice)
     }
+  }
+
+  private func clearInput() {
     view1.input.string = ""
     model.text = ""
     render()

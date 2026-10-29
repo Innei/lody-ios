@@ -749,23 +749,6 @@
         }
       }
     },
-    "mac.permission.failed": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't send the answer. Try again."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法发送回答，请重试。"
-          }
-        }
-      }
-    },
     "mac.permission.title": {
       "extractionState": "manual",
       "localizations": {
@@ -1136,6 +1119,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "计划"
+          }
+        }
+      }
+    },
+    "mac.transcript.retry": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
           }
         }
       }

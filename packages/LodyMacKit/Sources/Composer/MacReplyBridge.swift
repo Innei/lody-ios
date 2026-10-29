@@ -10,6 +10,11 @@ final class MacReplyBridge {
   private let sender: SessionSender
   private let choices: SessionComposerModel
   private var feed = SessionFeedState()
+  private var pending = ""
+  private var observer: NSObjectProtocol?
+  var onPending: (() -> Void)?
+
+  var pendingJSON: String { sender.pendingSendJSON }
 
   init(sessionId: String, sessions: MacSessionsSource) {
     self.sessionId = sessionId
@@ -32,8 +37,19 @@ final class MacReplyBridge {
       self?.refresh()
     }
     sender.changed = { [weak self] in self?.refresh() }
+    sender.restoreDraft = { [weak composer] _ in composer?.restoreDraft() }
+    sender.clearDraft = { [weak composer] _ in composer?.clearDraft() }
     choices.changed = { [weak self] in self?.refresh() }
+    observer = NotificationCenter.default.addObserver(forName: .lodyCatalogDidChange, object: nil, queue: .main) { [weak self] _ in
+      MainActor.assumeIsolated { self?.refresh() }
+    }
   }
+
+  isolated deinit {
+    if let observer { NotificationCenter.default.removeObserver(observer) }
+  }
+
+  func retry() { sender.retry() }
 
   func setStreaming(_ on: Bool) {
     if on { OutboxSession.shared.setForeground(sessionId) } else { OutboxSession.shared.leaveForeground(sessionId) }
@@ -59,5 +75,10 @@ final class MacReplyBridge {
     if sender.inputs != inputs { sender.update(inputs) }
     composer.replyContext = (project?.name ?? "", session.branchName ?? "", state.catalog.machineNames[session.machineId] ?? "")
     composer.updateReply(ready: sender.canSend, capability: choices.capability, choice: choices.active)
+    let next = sender.pendingSendJSON
+    if next != pending {
+      pending = next
+      onPending?()
+    }
   }
 }

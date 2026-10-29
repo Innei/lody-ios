@@ -14,9 +14,11 @@ final class MacTranscriptFixture {
         changed(state)
       },
       stop: { [self] in changed = nil },
-      answer: { [self] _, optionId in
+      detail: { _ in nil },
+      respond: { [self] _, optionId in
         answered = optionId
         changed?(state)
+        return .accepted
       }
     )
   }

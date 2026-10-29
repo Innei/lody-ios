@@ -1,0 +1,165 @@
+import AppKit
+import XCTest
+import LodyCore
+import LodyData
+@testable import LodyMacKit
+
+@MainActor
+final class MacNotificationBaselineTests: XCTestCase {
+  private func state(_ workspace: String, loading: Bool, _ sessions: [SessionItem]) -> SessionListState {
+    SessionListState(userId: "u", workspaceId: workspace, loading: loading, catalog: SessionCatalog(sessions: sessions))
+  }
+
+  func testRestoredCatalogsAndWorkspaceSwitchesNeverNotify() {
+    var baseline = MacNotificationBaseline()
+    XCTAssertEqual(baseline.next(state("w1", loading: true, [SessionItem(id: "a", title: "A", status: "running")]), onScreen: nil), [])
+    XCTAssertEqual(baseline.next(state("w1", loading: false, [SessionItem(id: "a", title: "A", status: "idle")]), onScreen: nil), [])
+    XCTAssertEqual(baseline.next(state("w1", loading: false, [SessionItem(id: "a", title: "A", status: "running")]), onScreen: nil), [])
+    XCTAssertEqual(
+      baseline.next(state("w1", loading: false, [SessionItem(id: "a", title: "A", status: "idle")]), onScreen: nil),
+      [.finished(sessionId: "a", title: "A")]
+    )
+    XCTAssertEqual(baseline.next(state("w2", loading: false, [SessionItem(id: "a", title: "A", status: "running")]), onScreen: nil), [])
+    XCTAssertEqual(baseline.next(state("w2", loading: false, [SessionItem(id: "a", title: "A", status: "idle")]), onScreen: nil), [.finished(sessionId: "a", title: "A")])
+  }
+}
+
+@MainActor
+final class MacPermissionFlowTests: XCTestCase {
+  private func permission(options: String?, kind: String = "edit", request: String = "r1") throws -> SessionPermission {
+    let optionsJSON = options.map { ",\"options\":\($0)" } ?? ""
+    let json = """
+    [{"id":"a1","role":"assistant","items":[{"itemId":"edit","type":"tool_call","kind":"\(kind)","title":"Edit file","permission":{"pending":true,"requestId":"\(request)"\(optionsJSON)}}]}]
+    """
+    let entries = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [[String: Any]])
+    return try XCTUnwrap(try SessionPermission.first(in: entries))
+  }
+
+  func testMissingOptionsLoadFromDetail() async throws {
+    let flow = MacPermissionFlow(
+      detail: { _ in [.init(optionId: "allow", name: "Allow", kind: "allow_once")] },
+      respond: { _, _ in .accepted }
+    )
+    flow.show(try permission(options: nil))
+    XCTAssertEqual(flow.card?.options, [])
+    await flow.settled()
+    XCTAssertEqual(flow.card?.options.map(\.name), ["Allow"])
+  }
+
+  func testAnswersRunOnceAndStaleResultsStayAnswerable() async throws {
+    var calls = 0
+    var results: [RuntimeContract.RespondPermissionResultState] = [.stale, .accepted]
+    let flow = MacPermissionFlow(detail: { _ in nil }, respond: { _, _ in
+      calls += 1
+      return results.removeFirst()
+    })
+    let target = try permission(options: #"[{"optionId":"allow","name":"Allow","kind":"allow_once"}]"#)
+    flow.show(target)
+    flow.answer("allow")
+    flow.answer("allow")
+    XCTAssertEqual(flow.card?.busy, true)
+    await flow.settled()
+    XCTAssertEqual(calls, 1)
+    XCTAssertEqual(flow.card?.busy, false)
+    XCTAssertFalse(flow.card?.error.isEmpty ?? true)
+    flow.answer("allow")
+    await flow.settled()
+    XCTAssertNil(flow.card)
+    flow.show(target)
+    XCTAssertNil(flow.card, "an accepted request stays hidden until the feed drops it")
+  }
+
+  func testTheCardNeverClaimsReturn() throws {
+    let target = try permission(options: #"[{"optionId":"allow","name":"Allow","kind":"allow_once"}]"#)
+    let card = MacPermissionCard(card: .init(permission: target, options: target.options ?? [], busy: false, error: ""))
+    let buttons = card.descendants(NSButton.self)
+    XCTAssertFalse(buttons.isEmpty)
+    XCTAssertTrue(buttons.allSatisfy { $0.keyEquivalent.isEmpty })
+  }
+}
+
+@MainActor
+final class MacReplyDraftTests: XCTestCase {
+  func testRejectedSendsRestoreTheTextAndAcceptedSendsDropIt() {
+    var draft = MacDraftHandoff()
+    draft.sent("Ship it")
+    XCTAssertEqual(draft.restore(current: ""), "Ship it")
+    XCTAssertNil(draft.restore(current: ""))
+    draft.sent("Again")
+    draft.clear()
+    XCTAssertNil(draft.restore(current: ""))
+    draft.sent("Third")
+    XCTAssertNil(draft.restore(current: "typed meanwhile"))
+  }
+
+  func testPendingAndFailedSendsRenderInTheTranscript() {
+    let pending = #"{"id":"p1","text":"Ship it","attachments":[],"status":"Sending…","failed":false}"#
+    let sending = MacTranscriptModel(entriesJSON: "[]", pendingJSON: pending)
+    XCTAssertTrue(sending.items.contains { if case .user(_, "Ship it") = $0 { true } else { false } }, "\(sending.items)")
+    let failed = MacTranscriptModel(entriesJSON: "[]", pendingJSON: #"{"id":"p1","text":"Ship it","attachments":[],"status":"Couldn't send","failed":true}"#)
+    XCTAssertTrue(failed.items.contains { if case .failedSend = $0 { true } else { false } }, "\(failed.items)")
+  }
+}
+
+@MainActor
+final class MacCreateFailureTests: XCTestCase {
+  func testAFailedOutboxWriteRecordsAFailedDraftAndToasts() async throws {
+    let project = CreateProject(id: "p1", machineId: "m1", name: "lody-ios")
+    let agent = CreationAgent(id: "claude", name: "Claude", machineId: "m1", machineName: "Mac Studio", cliType: "builtin", agentType: "claude")
+    var form = CreateSessionForm(userId: "u", workspaceId: "w", projects: [project])
+    form.open(projectId: "p1", context: nil)
+    form.applyOptions(CreationOptions(sessionId: "new-1", project: project, agents: [agent], capabilities: []), chat: false)
+    form.selectMachine("m1")
+    let draft = try XCTUnwrap(form.draft(sessionId: "new-1"))
+    var writes: [String] = []
+    var opened: [String] = []
+    var toasts: [String] = []
+    await MacComposerService.create(
+      draft, ["id": "t1", "text": "Hello", "startedAt": 1],
+      put: { json in
+        writes.append(json)
+        return Task { throw OutboxError.scopeExpired }
+      },
+      opened: { opened.append($0) },
+      toast: { toasts.append($0) }
+    )
+    XCTAssertEqual(writes.count, 2)
+    XCTAssertTrue(writes[1].contains("\"failed\""), writes[1])
+    XCTAssertEqual(opened, [])
+    XCTAssertEqual(toasts.count, 1)
+  }
+}
+
+@MainActor
+final class MacTranscriptReuseTests: XCTestCase {
+  func testStreamingUpdatesKeepEarlierRowsAndGrowProseInPlace() {
+    let view = MacTranscriptView()
+    var model = MacTranscriptModel(entriesJSON: "[]")
+    model.items = [.user(id: "u", text: "Hi"), .prose(id: "p", markdown: "Hel")]
+    view.render(model)
+    let first = view.rowViews
+    model.items = [.user(id: "u", text: "Hi"), .prose(id: "p", markdown: "Hello there"), .notice(id: "n", text: "Oops")]
+    view.render(model)
+    let second = view.rowViews
+    XCTAssertEqual(second.count, 3)
+    XCTAssertTrue(first[0] === second[0])
+    XCTAssertTrue(first[1] === second[1])
+  }
+}
+
+@MainActor
+final class MacToastTests: XCTestCase {
+  func testToastsShowAsABannerInTheWindow() {
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300), styleMask: [.titled], backing: .buffered, defer: true)
+    MacToast.show("Couldn't save", kind: "error", in: window)
+    let banner = window.contentView?.descendants(NSView.self).first { $0.accessibilityIdentifier() == "toast" }
+    XCTAssertNotNil(banner)
+    XCTAssertTrue(window.contentView?.descendants(NSTextField.self).contains { $0.stringValue == "Couldn't save" } ?? false)
+  }
+}
+
+extension NSView {
+  func descendants<T: NSView>(_ type: T.Type) -> [T] {
+    subviews.flatMap { ([$0 as? T].compactMap { $0 }) + $0.descendants(type) }
+  }
+}

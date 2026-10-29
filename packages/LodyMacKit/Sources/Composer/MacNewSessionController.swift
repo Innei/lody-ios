@@ -65,6 +65,9 @@ final class MacLiveSessionPane {
     pane.retained = bridge
     pane.onFeed = { [weak bridge] in bridge?.update($0) }
     pane.onStreaming = { [weak bridge] in bridge?.setStreaming($0) }
+    pane.onRetry = { [weak bridge] in bridge?.retry() }
+    pane.pendingJSON = { [weak bridge] in bridge?.pendingJSON ?? "" }
+    bridge.onPending = { [weak pane] in pane?.refreshPending() }
     return pane
   }
 }
