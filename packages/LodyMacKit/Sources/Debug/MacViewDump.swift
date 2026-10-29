@@ -15,7 +15,7 @@ enum MacViewDump {
       if let content = window.contentView { entry["root"] = node(content) }
       return entry
     }
-    let data = try JSONSerialization.data(withJSONObject: ["windows": windows], options: [.prettyPrinted, .sortedKeys])
+    let data = try JSONSerialization.data(withJSONObject: ["windows": windows, "accent": MacAccent.current().rawValue], options: [.prettyPrinted, .sortedKeys])
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     try data.write(to: url, options: .atomic)
   }

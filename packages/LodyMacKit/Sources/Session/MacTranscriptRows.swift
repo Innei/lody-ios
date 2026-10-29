@@ -97,7 +97,7 @@ final class MacPermissionCard: NSView {
       button.controlSize = .large
       if option.kind?.hasPrefix("allow") == true, !options.prefix(index).contains(where: { $0.kind?.hasPrefix("allow") == true }) {
         button.keyEquivalent = "\r"
-        button.bezelColor = .controlAccentColor
+        button.bezelColor = .lodyAccent
       }
       return button
     }

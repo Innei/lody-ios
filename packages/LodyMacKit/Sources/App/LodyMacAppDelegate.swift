@@ -23,6 +23,12 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
     AuthSession.shared.stopRuntime = { [weak self] in self?.runtime.stop() }
     OutboxSession.shared.attach(runtime)
     CatalogSession.shared.attach(runtime)
+    MacNotifier.shared.onOpen = { [weak self] sessionId in
+      NSApp.activate()
+      self?.showMain()
+      MainWindowController.frontmost?.workspace?.open(sessionId)
+    }
+    MacNotifier.shared.start()
     showMain()
     AuthSession.shared.start()
   }

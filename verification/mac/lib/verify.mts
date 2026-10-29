@@ -34,6 +34,7 @@ export interface ViewNode {
 }
 
 export interface Dump {
+  accent?: string;
   windows: {
     title: string;
     identifier: string;

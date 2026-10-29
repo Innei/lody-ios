@@ -18,7 +18,7 @@ final class SidebarSessionCell: NSTableCellView {
       glyph.contentTintColor = .systemOrange
     } else if MacSessionStatus.busy(row.status) {
       glyph.image = NSImage(systemSymbolName: "circle.fill", accessibilityDescription: nil)
-      glyph.contentTintColor = .controlAccentColor
+      glyph.contentTintColor = .lodyAccent
     } else if row.unread {
       glyph.image = NSImage(systemSymbolName: "circle.fill", accessibilityDescription: nil)
       glyph.contentTintColor = .secondaryLabelColor

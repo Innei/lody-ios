@@ -34,6 +34,13 @@ enum MacCatalog {
       Scene(id: "transcript", title: "Transcript") { MacFixtures.workspaceWindow(sessionId: "s-mac") },
       Scene(id: "composer-new", title: "Composer · new session") { MacFixtures.workspaceWindow(sessionId: nil) },
       Scene(id: "composer-reply", title: "Composer · reply") { MacFixtures.workspaceWindow(sessionId: "s-mac") },
+      Scene(id: "accent", title: "Accent") {
+        MacAccent.system.apply()
+        let workspace = MacFixtures.workspaceWindow(sessionId: "s-mac")
+        let settings = MacSceneHost.window(MacSettingsController(), title: "Accent", size: NSSize(width: 520, height: 300))
+        if let frame = workspace.first?.frame { settings.setFrameTopLeftPoint(NSPoint(x: frame.maxX - 300, y: frame.maxY - 60)) }
+        return workspace + [settings]
+      },
     ]
   }
 

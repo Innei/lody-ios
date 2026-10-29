@@ -57,7 +57,7 @@ final class MacComposerView: NSView {
     send.bezelStyle = .circular
     send.image = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: String(localized: "mac.composer.send", bundle: .lodyMac))
     send.title = ""
-    send.bezelColor = .controlAccentColor
+    send.bezelColor = .lodyAccent
     send.contentTintColor = .white
     send.target = self
     send.action = #selector(sendPressed)
