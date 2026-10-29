@@ -11,7 +11,10 @@ enum MacViewDump {
         "appearance": window.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])?.rawValue ?? "",
         "frame": frame(window.frame),
       ]
-      if let tabs = window.tabbedWindows { entry["tabs"] = tabs.map(\.title) }
+      if let tabs = window.tabbedWindows {
+        entry["tabs"] = tabs.map(\.title)
+        entry["badges"] = tabs.map { $0.tab.accessoryView?.accessibilityIdentifier() ?? "" }
+      }
       if let content = window.contentView { entry["root"] = node(content) }
       return entry
     }

@@ -12,7 +12,7 @@ struct MacTranscriptSource {
   static func live(sessionId: String, state: SessionListState, permission: PermissionService = .live) -> MacTranscriptSource {
     let feed = SessionFeed(sessionId: sessionId, userId: state.userId, workspaceId: state.workspaceId)
     return MacTranscriptSource(
-      start: { changed in
+      start: { [feed] changed in
         feed.changed = { [weak feed] in if let feed { changed(feed.state) } }
         feed.start()
       },

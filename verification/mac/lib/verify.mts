@@ -41,6 +41,7 @@ export interface Dump {
     key: boolean;
     appearance: string;
     tabs?: string[];
+    badges?: string[];
     root?: ViewNode;
   }[];
 }

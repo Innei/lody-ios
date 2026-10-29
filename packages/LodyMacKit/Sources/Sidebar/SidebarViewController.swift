@@ -21,6 +21,8 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   private let source: MacSessionsSource
   private let outline = NSOutlineView()
   private let search = NSSearchField()
+  private let workspacePicker = NSPopUpButton()
+  private var workspaceIds: [String] = []
   private let approvals = NSButton()
   private let account = NSTextField(labelWithString: "")
   private let machines = NSTextField(labelWithString: "")
@@ -43,6 +45,11 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     let newSession = SidebarActionButton(title: String(localized: "mac.sidebar.newSession", bundle: .lodyMac), symbol: "square.and.pencil")
     newSession.target = self
     newSession.action = #selector(newSessionPressed)
+    workspacePicker.isBordered = false
+    workspacePicker.font = .systemFont(ofSize: 13, weight: .semibold)
+    workspacePicker.target = self
+    workspacePicker.action = #selector(workspaceChanged)
+    workspacePicker.setAccessibilityIdentifier("sidebar-workspace")
     search.placeholderString = String(localized: "mac.sidebar.search", bundle: .lodyMac)
     search.delegate = self
     search.controlSize = .regular
@@ -77,7 +84,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     footer.orientation = .vertical
     footer.alignment = .leading
     footer.spacing = 2
-    let top = NSStackView(views: [newSession, search, approvals])
+    let top = NSStackView(views: [workspacePicker, newSession, search, approvals])
     top.orientation = .vertical
     top.alignment = .leading
     top.spacing = 6
@@ -135,6 +142,14 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     for node in roots { outline.expandItem(node) }
     approvals.title = String(localized: "mac.sidebar.approvals \(model.needsApproval)", bundle: .lodyMac)
     approvals.contentTintColor = model.needsApproval > 0 ? .systemOrange : .secondaryLabelColor
+    let ids = state.workspaces.map(\.id)
+    if ids != workspaceIds {
+      workspaceIds = ids
+      workspacePicker.removeAllItems()
+      workspacePicker.addItems(withTitles: state.workspaces.map(\.name))
+    }
+    workspacePicker.isHidden = ids.count < 2
+    if let index = ids.firstIndex(of: state.workspaceId) { workspacePicker.selectItem(at: index) }
     let user = AuthSession.shared.snapshot.account?.user
     account.stringValue = state.workspace?.name ?? user?.name ?? ""
     let online = state.presence.onlineMachineIds.count
@@ -186,6 +201,12 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   func controlTextDidChange(_ obj: Notification) { reload() }
 
   @objc private func newSessionPressed() { onNewSession?() }
+
+  @objc private func workspaceChanged() {
+    let index = workspacePicker.indexOfSelectedItem
+    guard workspaceIds.indices.contains(index), workspaceIds[index] != source.read().workspaceId else { return }
+    source.selectWorkspace(workspaceIds[index])
+  }
 }
 
 final class SidebarRowView: NSTableRowView {

@@ -26,6 +26,11 @@ export async function tabs(session: Session) {
         ]),
       `native tabs carry session titles: ${group.tabs?.join(' | ')}`,
     );
+    expect(
+      JSON.stringify(group.badges) ===
+        JSON.stringify(['tab-badge-working', 'tab-badge-approval', '']),
+      `background tabs show working and approval badges: ${group.badges?.join(' | ')}`,
+    );
     await capture(session, `tabs-${appearance}`);
   }
 }

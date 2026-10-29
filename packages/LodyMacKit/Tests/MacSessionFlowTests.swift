@@ -163,3 +163,49 @@ extension NSView {
     subviews.flatMap { ([$0 as? T].compactMap { $0 }) + $0.descendants(type) }
   }
 }
+
+@MainActor
+final class MacWorkspaceChromeTests: XCTestCase {
+  func testTabTitlesAndBadgesFollowTheCatalog() {
+    let name = Notification.Name("MacWorkspaceChromeTests")
+    var state = MacFixtures.listState
+    let sessions = MacSessionsSource(changes: [name], read: { state }, write: { _, _, _ in }, selectWorkspace: { _ in })
+    let workspace = MacWorkspaceController(environment: MacEnvironment(
+      sessions: sessions, pane: { MacSessionSummaryPane(sessionId: $0, sessions: sessions) }, newSession: { MacPlaceholderController(text: "") }
+    ))
+    var titles: [String] = []
+    var badges: [MacTabBadge?] = []
+    workspace.onTitle = { title, _ in titles.append(title) }
+    workspace.onBadge = { badges.append($0) }
+    _ = workspace.view
+    workspace.open("s-review")
+    XCTAssertEqual(titles.last, "Review transcript projection")
+    XCTAssertEqual(badges.last, .some(nil))
+    let index = state.catalog.sessions.firstIndex { $0.id == "s-review" }!
+    state.catalog.sessions[index].title = "Review the projection"
+    state.catalog.sessions[index].awaitingUserSince = 1
+    NotificationCenter.default.post(name: name, object: nil)
+    XCTAssertEqual(titles.last, "Review the projection")
+    XCTAssertEqual(badges.last, .approval)
+    state.catalog.sessions[index].awaitingUserSince = nil
+    state.catalog.sessions[index].status = "running"
+    NotificationCenter.default.post(name: name, object: nil)
+    XCTAssertEqual(badges.last, .working)
+  }
+
+  func testTheSidebarSwitchesWorkspaces() throws {
+    var state = MacFixtures.listState
+    state.workspaces.append(AuthWorkspace(id: "w-side", name: "Side Projects", slug: nil, image: nil))
+    var selected: [String] = []
+    let sidebar = SidebarViewController(source: MacSessionsSource(
+      changes: [], read: { state }, write: { _, _, _ in }, selectWorkspace: { selected.append($0) }
+    ))
+    _ = sidebar.view
+    let picker = try XCTUnwrap(sidebar.view.descendants(NSPopUpButton.self).first { $0.accessibilityIdentifier() == "sidebar-workspace" })
+    XCTAssertFalse(picker.isHidden)
+    XCTAssertEqual(picker.itemTitles, ["Innei Lab", "Side Projects"])
+    picker.selectItem(at: 1)
+    _ = picker.sendAction(picker.action, to: picker.target)
+    XCTAssertEqual(selected, ["w-side"])
+  }
+}

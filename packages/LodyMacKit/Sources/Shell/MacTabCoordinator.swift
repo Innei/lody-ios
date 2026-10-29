@@ -42,3 +42,19 @@ final class MacTabCoordinator {
     tab.sessionId.flatMap { catalog.session($0)?.status }
   }
 }
+
+enum MacTabBadge: Equatable {
+  case approval, working
+
+  @MainActor
+  init?(_ session: SessionItem?) {
+    guard let session else { return nil }
+    if session.awaitingUserSince != nil {
+      self = .approval
+    } else if MacSessionStatus.busy(session.status) {
+      self = .working
+    } else {
+      return nil
+    }
+  }
+}
