@@ -624,6 +624,9 @@ try:
                     check_timeout = 420
                 if case.startswith(('attachment-overlay-', 'attachment-motion-')) and args.photo_access in ['full', 'granted']:
                     check_timeout = 360
+                if case == 'ipad-chrome':
+                    # Each native selection probe attaches lldb; the case runs ten of them.
+                    check_timeout = 360
                 if case == 'chat-performance':
                     check_timeout = 480
                 elif case in ['send-transition', 'send-transition-handoff']:

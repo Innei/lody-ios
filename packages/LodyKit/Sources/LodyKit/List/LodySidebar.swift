@@ -379,12 +379,14 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     let id = row.id
     guard let coordinator else {
       collection.deselectItem(at: index, animated: animated)
+      synchronizeSelection()
       updateVisibleRows()
       return
     }
     let started = coordinator.animate(alongsideTransition: { [weak self] _ in
       guard let self, let current = self.indexPath(for: id) else { return }
       self.collection.deselectItem(at: current, animated: animated)
+      self.synchronizeSelection()
       self.updateVisibleRows()
     }, completion: { [weak self] context in
       guard context.isCancelled, let self, let current = self.indexPath(for: id) else { return }
@@ -393,6 +395,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     })
     if !started {
       collection.deselectItem(at: index, animated: animated)
+      synchronizeSelection()
       updateVisibleRows()
     }
   }

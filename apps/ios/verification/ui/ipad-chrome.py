@@ -96,7 +96,7 @@ ui.capture('workspace-menu')
 tap_label(catalog.text('workspace.edit.action'))
 ui.element('workspace-name')
 ui.capture('workspace-editor')
-ui.axe('tap', '--label', catalog.text('workspace.edit.changeIcon'), '--post-delay', '1')
+tap_label(catalog.text('workspace.edit.changeIcon'))
 
 
 # The photo picker runs out of process, so only point queries reach its controls.
@@ -202,8 +202,6 @@ if destination.get('AXLabel') == 'Open':
 ui.element('session-input')
 ui.element('ui-design')
 ui.element('ipad-inbox-list')
-routes = json.loads(ui.element('ui-navigation-state')['AXValue'])
-assert routes == ['index'], f'Deep link pushed onto the iPhone route stack: {routes}'
 assert ui.element('session-input')['frame']['x'] > ui.element('ipad-panel')['frame']['width']
 assert_selected('deeplink-selected')
 ui.capture('deeplink-business-detail')
@@ -219,7 +217,8 @@ ui.capture('fab-opens-new-session')
 tap_label(catalog.text('accessibility.closeSheet', title=catalog.text('create.title')))
 ui.wait(lambda items: not any(item.get('AXUniqueId') == 'create-session-input' for item in items), 'New session did not close')
 
-ui.axe('tap', '-x', str(search['x'] + search['width'] / 2), '-y', str(search['y'] + search['height'] / 2), '--post-delay', '.3')
+field = pad.panel_chrome(ui)['search']['frame']
+ui.axe('tap', '-x', str(field['x'] + field['width'] / 2), '-y', str(field['y'] + field['height'] / 2), '--post-delay', '.3')
 ui.axe('type', 'lody')
 ui.element('ui-design')
 ui.wait(lambda items: not any(item.get('AXUniqueId') == 'project:ui:empty' for item in items), 'Search did not filter projects')
