@@ -10,8 +10,8 @@ enum LodyListCellBackground {
     return visual
   }
 
-  static func outlineConfiguration(for state: UICellConfigurationState) -> UIBackgroundConfiguration {
-    var background = UIBackgroundConfiguration.listGroupedCell().updated(for: visualState(for: state))
+  static func railConfiguration(for state: UICellConfigurationState) -> UIBackgroundConfiguration {
+    var background = UIBackgroundConfiguration.listPlainCell().updated(for: visualState(for: state))
     if !state.isHighlighted && !state.isSelected && !state.isSwiped {
       background.backgroundColor = .clear
     }

@@ -18,7 +18,7 @@ def tap(item):
 
 def inbox_field():
     return ui.wait(lambda items: next((i for i in items
-        if i.get('subrole') == 'AXSearchField' and i.get('AXUniqueId') != 'chat-find-field'), None),
+        if (i.get('subrole') == 'AXSearchField' or i.get('AXUniqueId') == 'sidebar-search') and i.get('AXUniqueId') != 'chat-find-field'), None),
         'Missing Inbox search field')
 
 
@@ -32,6 +32,14 @@ def replace(field, text):
     if clear:
         tap(clear)
         tap(field)
+    if pad:
+        # iPad fields paste the host pasteboard unreliably; batch-type the query instead.
+        ui.restore_software_keyboard()
+        ui.wait(ui.keyboard_ready, 'Search keyboard did not become visible')
+        ui.axe('type', text)
+        current = ui.element(field['AXUniqueId']) if field.get('AXUniqueId') else inbox_field()
+        assert (current.get('AXValue') or '').casefold() == text.casefold(), current
+        return
     # Paste the query as one batch; HID typing can retain Shift across searches.
     subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input=text, text=True, check=True)
     ui.restore_software_keyboard()

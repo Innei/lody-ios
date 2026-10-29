@@ -29,6 +29,7 @@ struct LodyListRow {
   var imageTint: String = ""
   var subtitleMono: Bool = false
   var wrapSubtitle: Bool = false
+  var highlight: String = ""
   var unread: Bool = false
   var badge: String = ""
   var diff: [String: Int] = [:]
@@ -41,6 +42,7 @@ struct LodyListRow {
   var destructive: Bool = false
   var parent: Bool = false
   var parentId: String = ""
+  var lastChild: Bool = false
   var collapsedValue: String = ""
   var collapsedBadge: String = ""
   var collapsedImageTint: String = ""
@@ -111,6 +113,11 @@ struct LodyListSection {
   var footer: String = ""
   var rows: [LodyListRow] = []
   var visual: LodyListVisual? = nil
+  var gap: LodyListGap = .section
+}
+
+enum LodyListGap {
+  case section, group
 }
 
 // Both native list hosts share hierarchy, while keeping their own layout and selection.
@@ -184,10 +191,10 @@ extension LodyListSection {
 }
 
 extension LodyListRow {
-  func displayingCollapsed(_ collapsed: Bool) -> LodyListRow {
+  func displayingCollapsed(_ collapsed: Bool, keepingTime: Bool = false) -> LodyListRow {
     guard collapsed, !collapsedValue.isEmpty else { return self }
     var copy = self
-    copy.value = collapsedValue
+    if !keepingTime { copy.value = collapsedValue }
     copy.badge = collapsedBadge
     copy.imageTint = collapsedImageTint
     return copy

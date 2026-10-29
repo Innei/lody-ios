@@ -78,25 +78,14 @@ def assert_selected(stage, identifier='ui-design', selected=True):
 
 ui.element('ipad-detail-placeholder')
 pad.show_list(ui)
-panel = ui.element('ipad-panel')['frame']
-search = ui.wait(lambda items: next((item for item in items if item.get('subrole') == 'AXSearchField'), None), 'Missing system search')['frame']
-settings = labeled(catalog.text('tabs.settings'))['frame']
-view_menu = labeled(catalog.text('inbox.settings.section.view'))['frame']
-workspace_item = ui.wait(lambda items: next((item for item in items if (item.get('AXLabel') or '').startswith('Switch workspace,')), None), 'Missing workspace switch')
+chrome = pad.panel_chrome(ui)
+panel = chrome['panel']
+search = chrome['search']['frame']
+settings = chrome['settings']['frame']
+view_menu = chrome['view']['frame']
+workspace_item = chrome['workspace']
 workspace = workspace_item['frame']
-fab = labeled(catalog.text('tabs.newSession'))['frame']
-assert workspace['y'] + workspace['height'] <= search['y'] < panel['y'] + 150
-assert workspace['x'] < panel['x'] + 40
-assert workspace['x'] + workspace['width'] <= panel['x'] + panel['width'] - 8
-assert view_menu['x'] < settings['x'] < fab['x']
-for action in (settings, view_menu):
-    assert action['y'] > panel['y'] + panel['height'] - 110
-    assert abs(action['y'] - fab['y']) < 10
-assert workspace['width'] >= 44 and workspace['height'] >= 44
-# Glass toolbar items report their 36 pt visual; UIKit keeps the 44 pt hit region.
-assert fab['width'] >= 36 and fab['height'] >= 36
-assert fab['x'] > panel['x'] + panel['width'] - 100
-assert fab['y'] > panel['y'] + panel['height'] - 110
+fab = chrome['create']['frame']
 ui.capture('sidebar-glass-fab')
 
 tap_label(workspace_item['AXLabel'])
@@ -128,6 +117,7 @@ ui.wait(
 ui.element('workspace-name')
 ui.capture('workspace-icon-updated')
 tap_label(catalog.text('common.cancel'))
+pad.show_list(ui)
 tap_label(workspace_item['AXLabel'])
 edit_workspace = labeled(catalog.text('workspace.edit.action'))
 assert 'selected' not in str(edit_workspace.get('traits') or []).lower(), edit_workspace

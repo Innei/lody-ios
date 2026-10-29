@@ -61,7 +61,7 @@ final class InboxController: UIViewController {
   override func didMove(toParent parent: UIViewController?) {
     super.didMove(toParent: parent)
     if let parent {
-      chrome.attach(to: parent)
+      chrome.attach(to: parent, content: self, scrollView: list.sidebarScrollView)
       render()
     } else {
       chrome.detach()
@@ -81,7 +81,9 @@ final class InboxController: UIViewController {
     let catalog = state.catalog.viewed(views)
     chrome.update(InboxChrome.Model(
       workspaces: state.workspaces, selected: state.workspace,
-      devices: InboxDevices(catalog: state.catalog, presence: state.presence), mode: mode, sort: sort
+      devices: InboxDevices(catalog: state.catalog, presence: state.presence),
+      running: state.catalog.sessions.filter { !$0.archived && SessionState($0) == .live }.count,
+      mode: mode, sort: sort
     ))
     list.setPreviewUserId(state.userId)
     list.setPreviewWorkspaceId(state.workspaceId)
@@ -127,7 +129,7 @@ final class InboxController: UIViewController {
     if requested?.key != key || requested?.catalog != catalog { requestSearch(term, key: key, state: state, catalog: catalog) }
     let current = search.flatMap { $0.key == key && $0.catalog == catalog ? $0 : nil }
     list.setPlaceholder(String(localized: String.LocalizationValue(current == nil ? "search.placeholder.loading" : "search.placeholder.noMatch"), bundle: .lody))
-    list.setSections(InboxSections.search(catalog, hits: current?.hits ?? InboxSearchHits()))
+    list.setSections(InboxSections.search(catalog, hits: current?.hits ?? InboxSearchHits(), query: term))
   }
 
   private func requestSearch(_ term: String, key: String, state: SessionListState, catalog: SessionCatalog) {

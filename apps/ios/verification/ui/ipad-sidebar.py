@@ -1,8 +1,10 @@
 """iPad Sidebar layout and relocated actions, using offline Home fixtures."""
+import subprocess
 import sys
 import catalog
 from driver import UI
 import pad
+import rotation
 
 ui = UI(sys.argv[1], sys.argv[2])
 
@@ -18,26 +20,50 @@ def tap_label(label):
 
 ui.element('ipad-detail-placeholder')
 pad.show_list(ui)
-panel = ui.element('ipad-panel')['frame']
-search = ui.wait(lambda items: next((item for item in items if item.get('subrole') == 'AXSearchField'), None), 'Missing system search')['frame']
-settings = labeled(catalog.text('tabs.settings'))['frame']
-view_menu = labeled(catalog.text('inbox.settings.section.view'))['frame']
-workspace_item = ui.wait(lambda items: next((item for item in items if (item.get('AXLabel') or '').startswith('Switch workspace,')), None), 'Missing workspace switch')
+chrome = pad.panel_chrome(ui)
+panel = chrome['panel']
+search = chrome['search']['frame']
+settings = chrome['settings']['frame']
+view_menu = chrome['view']['frame']
+workspace_item = chrome['workspace']
 workspace = workspace_item['frame']
-fab = labeled(catalog.text('tabs.newSession'))['frame']
-assert workspace['y'] + workspace['height'] <= search['y'] < panel['y'] + 150
-assert workspace['x'] < panel['x'] + 40
-assert workspace['x'] + workspace['width'] <= panel['x'] + panel['width'] - 8
-assert view_menu['x'] < settings['x'] < fab['x']
-for action in (settings, view_menu):
-    assert action['y'] > panel['y'] + panel['height'] - 110
-    assert abs(action['y'] - fab['y']) < 10
-assert workspace['width'] >= 44 and workspace['height'] >= 44
-# Glass toolbar items report their 36 pt visual; UIKit keeps the 44 pt hit region.
-assert fab['width'] >= 36 and fab['height'] >= 36
-assert fab['x'] > panel['x'] + panel['width'] - 100
-assert fab['y'] > panel['y'] + panel['height'] - 110
+fab = chrome['create']['frame']
 ui.capture('sidebar-glass-fab')
+
+ui.screenshot('sidebar-ground')
+screen_width = round(ui.element('ipad-home')['frame']['width'])
+pixels = subprocess.check_output([
+    'ffmpeg', '-v', 'error', '-i', str(ui.output / 'sidebar-ground.png'),
+    '-vf', f'scale={screen_width}:-1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-',
+], timeout=20)
+
+
+def sample(x, y):
+    return tuple(pixels[(round(y) * screen_width + round(x)) * 3 + channel] for channel in range(3))
+
+
+ground = sample(panel['x'] + panel['width'] / 2, fab['y'] - 60)
+assert max(ground) - min(ground) <= 3, ('The sidebar canvas is neutral, not the bluish system gray', ground)
+
+# Record the landscape sidebar hiding and returning; the bottom search must travel with its column.
+rotation.rotate(ui, 'landscape')
+try:
+    pad.show_list(ui)
+    wide = pad.panel_chrome(ui)
+    ui.capture('landscape-sidebar')
+    home = ui.element('ipad-home')['frame']
+    screen = (round(home['width']), round(home['height']))
+    band = (0, wide['search']['frame']['y'], wide['panel']['width'] + 10, wide['search']['frame']['height'])
+    pad.record_tap(ui, catalog.system('hideSidebar'), 'landscape-hide', screen, band)
+    labeled(catalog.system('showSidebar'))
+    ui.capture('landscape-sidebar-hidden')
+    pad.record_tap(ui, catalog.system('showSidebar'), 'landscape-show', screen, band)
+    labeled(catalog.system('hideSidebar'))
+    pad.panel_chrome(ui)
+    ui.capture('landscape-sidebar-shown')
+finally:
+    rotation.restore_portrait(ui)
+pad.show_list(ui)
 
 tap_label(catalog.text('inbox.settings.section.view'))
 for key in ('view.projects', 'view.activity', 'view.chat', 'sort.name', 'sort.activity', 'sort.urgency'):
@@ -53,7 +79,9 @@ close_settings = catalog.text('accessibility.closeSheet', title=catalog.text('ta
 labeled(close_settings)
 ui.capture('sidebar-settings')
 tap_label(close_settings)
-ui.element('ipad-inbox-list')
+ui.wait(lambda items: not any(item.get('AXLabel') == close_settings for item in items), 'Settings did not close')
+# UIKit dismisses the portrait overlay column when a sheet presents over it.
+pad.show_list(ui)
 
 tap_label(workspace_item['AXLabel'])
 labeled(catalog.text('workspace.edit.action'))
@@ -65,10 +93,12 @@ ui.capture('workspace-switched')
 pad.show_list(ui)
 tap_label(catalog.workspace_switch('另一个工作区', count=0, total=0))
 tap_label('我的超长工作区名称不能折行')
+pad.show_list(ui)
 ui.element('ui-design')
 tap_label(catalog.text('tabs.newSession'))
 ui.element('create-session-input')
 ui.capture('new-session')
 tap_label(catalog.text('accessibility.closeSheet', title=catalog.text('create.title')))
-ui.element('ipad-inbox-list')
+ui.wait(lambda items: not any(item.get('AXUniqueId') == 'create-session-input' for item in items), 'New Session did not close')
+pad.show_list(ui)
 print('PASS: Workspace at the top; view/settings at the bottom; workspace, view, settings and new-session actions remain usable.')

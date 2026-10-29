@@ -192,7 +192,17 @@ class OnboardingController: UIViewController {
 
   private func applyButton() {
     let waiting = state.waiting
-    var configuration: UIButton.Configuration = waiting ? .glass() : .prominentGlass()
+    let font = UIFontMetrics(forTextStyle: .body).scaledFont(for: .systemFont(ofSize: 17, weight: .semibold))
+    var configuration: UIButton.Configuration = .lodyProminent(font: font)
+    if waiting {
+      configuration = .glass()
+      configuration.baseForegroundColor = .lodyAccent
+      configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+        var attributes = attributes
+        attributes.font = font
+        return attributes
+      }
+    }
     var key = "login.connect"
     if waiting {
       key = "common.cancel"
@@ -200,18 +210,7 @@ class OnboardingController: UIViewController {
       key = "login.retry"
     }
     configuration.title = String(localized: String.LocalizationValue(key), bundle: .lody)
-    configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
-      var attributes = attributes
-      attributes.font = UIFontMetrics(forTextStyle: .body).scaledFont(for: .systemFont(ofSize: 17, weight: .semibold))
-      return attributes
-    }
     configuration.cornerStyle = .capsule
-    if waiting {
-      configuration.baseForegroundColor = .lodyAccent
-    } else {
-      configuration.baseBackgroundColor = .lodyAccent
-      configuration.baseForegroundColor = LodyAccentChoice.current.foregroundColor
-    }
     button.configuration = configuration
     button.accessibilityIdentifier = waiting ? "auth-cancel" : "onboarding-connect"
     button.accessibilityLabel = String(localized: String.LocalizationValue(key), bundle: .lody)

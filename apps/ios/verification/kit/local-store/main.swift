@@ -14,6 +14,12 @@ assert(MarkdownPlainText.string(#"\*字面星号\*"#) == "*字面星号*")
 assert(TextSearch.ranges(in: "👨‍👩‍👧 café CAFE 中文中文", query: "cafe").count == 2)
 assert(TextSearch.ranges(in: "中文中文", query: "中文") == [NSRange(location: 0, length: 2), NSRange(location: 2, length: 2)])
 assert(TextSearch.ranges(in: "anything", query: " ").isEmpty)
+let longLead = String(repeating: "context ", count: 12) + "needle and the rest of the message continues for a while longer"
+let leadSnippet = TextSearch.snippet(longLead, query: "needle")!
+assert(leadSnippet.hasPrefix("…") && (leadSnippet as NSString).range(of: "needle").location <= 24,
+       "The match stays near the start of a snippet so one line shows it: \(leadSnippet)")
+assert(leadSnippet.dropFirst().hasPrefix("context ") || leadSnippet.dropFirst().hasPrefix("needle"), "Snippets start on a whole word: \(leadSnippet)")
+assert(TextSearch.snippet(String(repeating: "中文", count: 30) + "needle", query: "needle")!.hasSuffix("needle"), "Unspaced scripts keep the plain cut")
 for (text, query) in [("ＣＡＦＥ café", "cafe"), ("İstanbul istanbul", "istanbul"), ("中文你好", "你好"), ("e\u{301}", "é")] {
   assert(TextSearch.ranges(in: text, query: query).first == text.localizedStandardRange(of: query).map { NSRange($0, in: text) })
 }

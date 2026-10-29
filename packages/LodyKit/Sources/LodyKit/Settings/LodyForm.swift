@@ -211,7 +211,6 @@ final class LodyFormToggle: UIView {
     label.numberOfLines = 0
     label.isAccessibilityElement = false
     toggle.isOn = isOn
-    toggle.onTintColor = .lodyAccent
     toggle.accessibilityIdentifier = id
     toggle.accessibilityLabel = title
     let row = UIStackView(arrangedSubviews: [label, toggle])

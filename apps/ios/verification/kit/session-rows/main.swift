@@ -31,7 +31,8 @@ precondition(SessionState(live) == .live, "Awaiting input never hides a live run
 
 let row = SessionRows.row(root, projectName: "Lody", now: now)
 precondition(row.subtitle == "Lody · main" && row.subtitleMono && row.modelName == "gpt-5")
-precondition(row.value == "time.minutesAgo" && row.unread && row.badge == "inbox.badge.archived" && row.imageTint.isEmpty)
+precondition(row.value == "time.compact.minutes" && row.accessibilityValue == "time.minutesAgo", "Rows draw a compact time and speak the full one")
+precondition(row.unread && row.badge == "inbox.badge.archived" && row.imageTint.isEmpty)
 precondition(row.actions.map(\.id) == ["read", "archive"] && row.actions[1].title == "session.action.unarchive")
 precondition(row.leadingActions.map(\.id) == ["pin"] && row.leadingActions[0].tint == "yellow")
 precondition(row.menuActions.map(\.id) == ["rename", "pin", "archive", "share", "delete"] && row.menuActions[4].destructive)
@@ -47,8 +48,21 @@ let archived = catalog.sessions.filter(\.archived).sorted(by: SessionRows.byActi
 precondition(archived.map(\.id) == ["root", "child", "tab"])
 let rows = SessionRows.treeRows(archived, all: catalog.sessions) { SessionRows.row($0, now: now) }
 precondition(rows.map(\.id) == ["root", "child", "tab"], "Opened sessions nest; contained tabs keep their own entry")
+var foldedRow = rows[0]
+foldedRow.value = "1h"
+foldedRow.collapsedBadge = "attention"
+let shownFolded = foldedRow.displayingCollapsed(true, keepingTime: true)
+precondition(shownFolded.value == "1h" && shownFolded.badge == "attention", "A folded parent keeps its time and takes its children's state")
+precondition(foldedRow.displayingCollapsed(true).value == "inbox.session.children", "Compact hosts still show the count in the time column")
 precondition(rows[0].collapsedValue == "inbox.session.children" && rows[1].parentId == "root" && rows[2].parentId.isEmpty)
 precondition(rows[0].collapsedBadge == "inbox.badge.archived")
+precondition(rows.map(\.lastChild) == [false, true, false], "Only the final opened session closes the rail")
+var second = SessionItem(id: "second", projectId: "p", openedBySessionId: "root")
+second.lastMessageAt = 1
+second.archived = true
+let pair = SessionRows.treeRows([root, child, second], all: [root, child, second]) { SessionRows.row($0, now: now) }
+precondition(pair.map(\.id) == ["root", "child", "second"] && pair.map(\.lastChild) == [false, false, true],
+             "Earlier siblings keep the trunk running to the last child")
 precondition(SessionRows.treeRows(archived, all: catalog.sessions, maxRoots: 1) { SessionRows.row($0) }.count == 2)
 
 var cycleA = SessionItem(id: "a", projectId: "p", openedBySessionId: "b")
@@ -114,6 +128,13 @@ urgent.projects.append(SessionProject(id: "z", name: "zeta"))
 urgent.sessions.append(item("z1", "waiting", project: "z", at: midday - 90 * day))
 precondition(InboxSections.projects(urgent, sort: .urgency, now: midday).map(\.id) == ["pinned", "z", "p", "empty", "chat"])
 precondition(InboxSections.projects(urgent, sort: .activity, now: midday).map(\.id) == ["pinned", "p", "z", "empty", "chat"])
+let spaced = InboxSections.projects(urgent, sort: .urgency, now: midday)
+precondition(spaced.dropFirst().map(\.gap) == [.group, .section, .section, .group],
+             "Pinned and Chat stand apart from the projects; projects sit a smaller step apart: \(spaced.map(\.gap))")
+var unpinnedCatalog = many
+unpinnedCatalog.sessions.removeAll { $0.pinned }
+precondition(InboxSections.projects(unpinnedCatalog, now: midday).filter { $0.id != "chat" }.allSatisfy { $0.gap == .section },
+             "Without a pinned group, projects only use the smaller step")
 let zetaParent = InboxSections.projects(urgent, now: midday).first { $0.id == "z" }!.rows[0]
 precondition(zetaParent.value == "inbox.project.attention" && zetaParent.imageTint == "warning")
 
@@ -125,6 +146,10 @@ precondition(hits.projectIds == ["p"] && hits.sessions.count == 7)
 let found = InboxSections.search(many, hits: InboxSearchHits(projectIds: ["p"], sessions: [("s1", "matched line"), ("s2", nil)]), now: midday)
 precondition(found.map(\.id) == ["projects", "sessions"] && found[0].rows[0].id == "project:p" && found[0].rows[0].menuActions.count == 3)
 precondition(found[1].rows.map(\.id) == ["s1", "s2"] && found[1].rows[0].subtitle == "matched line" && found[1].rows[1].subtitle == "lody-ios")
+let highlighted = InboxSections.search(many, hits: InboxSearchHits(projectIds: ["p"], sessions: [("s1", "matched line"), ("s2", nil)]), query: "matched", now: midday)
+precondition(highlighted[1].rows.allSatisfy { $0.highlight == "matched" }, "Search rows carry the query to highlight")
+precondition(highlighted[1].rows[0].wrapSubtitle && !highlighted[1].rows[1].wrapSubtitle, "Only message snippets take a second line")
+precondition(highlighted[0].rows[0].highlight == "matched", "Project hits highlight too")
 precondition(InboxSections.search(many, hits: InboxSearchHits()).isEmpty)
 precondition(InboxSections.activityBucket(.nan, now: midday) == "today" && InboxSections.activityBucket(midday - 8 * day, now: midday) == "month")
 let entry: [String: Any] = [

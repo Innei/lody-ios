@@ -75,6 +75,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   var onSearchChange: ([String: Any]) -> Void = { _ in }
   var onNoticeAction: ([String: Any]) -> Void = { _ in }
   var onUnavailableAction: ([String: Any]) -> Void = { _ in }
+  var onRowReview: (([String: Any]) -> Void)?
   var forwarded: ((String, [String: Any]) -> Void)?
 
   func emitRowPress(_ body: [String: Any]) {
@@ -89,6 +90,15 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     }
     onRowPress(body)
     forwarded?("rowPress", body)
+  }
+
+  func emitRowReview(_ id: String) {
+    guard let onRowReview else {
+      emitRowPress(["id": id])
+      return
+    }
+    onRowReview(["id": id])
+    forwarded?("rowReview", ["id": id])
   }
 
   func emitRowAction(_ body: [String: Any]) {
@@ -235,7 +245,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     configuration.text = value.title
     configuration.secondaryText = value.message.isEmpty ? nil : value.message
     if !value.actionTitle.isEmpty {
-      var button = UIButton.Configuration.prominentGlass()
+      var button = UIButton.Configuration.lodyProminent()
       button.title = value.actionTitle
       configuration.button = button
       configuration.buttonProperties.primaryAction = UIAction { [weak self] _ in
@@ -274,24 +284,28 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   private func configureProject(_ cell: UICollectionViewListCell, _ row: LodyListRow) {
-    cell.contentConfiguration = LodyProjectRowContent(row: row, accent: Self.accent)
-    cell.accessories = row.navigates
-      ? [.disclosureIndicator()]
-      : [.outlineDisclosure(options: .init(style: .header, tintColor: .tertiaryLabel))]
+    let id = row.id
+    cell.contentConfiguration = LodyProjectRowContent(
+      row: row,
+      expanded: row.navigates ? nil : true,
+      onToggle: { [weak self] in self?.toggleOutline(id) }
+    )
+    cell.accessories = []
     cell.accessibilityIdentifier = row.id
     cell.accessibilityTraits = [.button, .header]
   }
 
   private func configureSession(_ cell: LodyIndentedCell, _ row: LodyListRow) {
-    let tint = lodyTint(row.imageTint)
-    cell.contentConfiguration = LodySessionRowContent(
-      row: row,
-      dot: tint,
-      live: tint != nil && row.imageTint.hasPrefix("#") && row.badge.isEmpty
-    )
-    cell.accessories = row.collapsedValue.isEmpty ? [] : [
-      .outlineDisclosure(options: .init(style: .cell, tintColor: .tertiaryLabel))
-    ]
+    let id = row.id
+    let expanded = !collapsedSessions.contains(id)
+    var content = LodySessionRowContent(row: row, treeDown: !row.collapsedValue.isEmpty && expanded, expanded: expanded)
+    content.onReview = { [weak self] in self?.emitRowReview(id) }
+    if !row.collapsedValue.isEmpty {
+      content.onToggle = { [weak self] in self?.toggleOutline(id) }
+    }
+    cell.contentConfiguration = content
+    cell.textLeading = LodySessionRowView.textLeading(for: row, density: .regular)
+    cell.accessories = []
     cell.accessibilityIdentifier = row.id
     cell.accessibilityTraits = row.action ? .button : .staticText
   }
@@ -475,9 +489,14 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     }
     collection.delegate = self
     let layout = UICollectionViewCompositionalLayout { [weak self] index, environment in
-      var configuration = UICollectionLayoutListConfiguration(appearance: .insetGrouped)
+      let flat = self?.contentStyle ?? false
+      var configuration = UICollectionLayoutListConfiguration(appearance: flat ? .plain : .insetGrouped)
       // The collection owns the ground; the layout must not repaint it at full detent.
       configuration.backgroundColor = .clear
+      if flat {
+        configuration.headerTopPadding = 0
+        configuration.showsSeparators = false
+      }
       // `.firstItemInSection` splits the inset card into a header card and an
       // items card; a parent row is a plain first item so the card stays whole.
       let model = self?.section(at: index)
@@ -495,7 +514,12 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
         self?.swipeActions(at: indexPath, leading: false)
       }
       let section = NSCollectionLayoutSection.list(using: configuration, layoutEnvironment: environment)
-      if outline {
+      // Plain lists pin headers by default; a clear header would float over rows.
+      for item in section.boundarySupplementaryItems { item.pinToVisibleBounds = false }
+      if flat, index > 0 {
+        section.contentInsets.top = model?.gap == .group ? LodyDesign.Rail.groupGap : LodyDesign.Rail.sectionGap
+      }
+      if outline, !flat {
         // The decoration spans the section frame including its insets; matching
         // them puts the card exactly under the rows.
         let card = NSCollectionLayoutDecorationItem.background(elementKind: LodySectionCardView.kind)
@@ -517,8 +541,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     placeholder.isHidden = true
     addSubview(collection)
     addSubview(placeholder)
-    topFade.color = .lodyGroupedBackground
-    bottomFade.color = .lodyGroupedBackground
+    topFade.color = ground
+    bottomFade.color = ground
     addSubview(topFade)
     addSubview(bottomFade)
     segments.addTarget(self, action: #selector(segmentChanged), for: .valueChanged)
@@ -780,6 +804,20 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     collection.setContentOffset(CGPoint(x: 0, y: -collection.adjustedContentInset.top), animated: false)
   }
 
+  private func toggleOutline(_ id: String) {
+    guard let item = rowsByID.keys.first(where: { $0.row == id }) else { return }
+    var snapshot = dataSource.snapshot(for: item.section)
+    guard snapshot.contains(item) else { return }
+    let expanded = !snapshot.isExpanded(item)
+    if expanded {
+      snapshot.expand([item])
+    } else {
+      snapshot.collapse([item])
+    }
+    dataSource.apply(snapshot, to: item.section, animatingDifferences: !UIAccessibility.isReduceMotionEnabled)
+    outlineChanged(item, expanded: expanded)
+  }
+
   private func outlineChanged(_ item: ListItemID, expanded: Bool) {
     guard let row = rowsByID[item] else { return }
     if row.parent {
@@ -909,6 +947,8 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   func setContentStyle(_ value: Bool) {
     guard value != contentStyle else { return }
     contentStyle = value
+    lodyAppearanceDidChange()
+    collection.collectionViewLayout.invalidateLayout()
     collection.reloadData()
     setNeedsLayout()
   }
@@ -930,15 +970,17 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   func setTransparent(_ value: Bool) {
     guard value != transparent else { return }
     transparent = value
-    collection.backgroundColor = value ? .clear : .lodyGroupedBackground
+    collection.backgroundColor = value ? .clear : ground
     collection.reloadData()
     setNeedsLayout()
   }
 
+  private var ground: UIColor { contentStyle ? .lodyGround : .lodyGroupedBackground }
+
   override func lodyAppearanceDidChange() {
-    collection.backgroundColor = transparent ? .clear : .lodyGroupedBackground
-    topFade.color = .lodyGroupedBackground
-    bottomFade.color = .lodyGroupedBackground
+    collection.backgroundColor = transparent ? .clear : ground
+    topFade.color = ground
+    bottomFade.color = ground
   }
 
   func setBottomInset(_ height: CGFloat) {
@@ -1082,7 +1124,6 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     toggle.rowID = row.id
     toggle.setOn(on, animated: false)
     toggle.isEnabled = row.action
-    toggle.onTintColor = LodyGroupedList.accent
     toggle.accessibilityIdentifier = row.id + ":toggle"
     return toggle
   }
@@ -1090,7 +1131,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private func decorate(_ cell: UICollectionViewListCell, row: LodyListRow) {
     // Project membership keeps the existing columns; only opened sessions indent.
     cell.indentationWidth = 20
-    cell.indentationLevel = row.parentId.isEmpty ? 0 : 1
+    cell.indentationLevel = row.parentId.isEmpty || contentStyle ? 0 : 1
     cell.configurationUpdateHandler = nil
     cell.automaticallyUpdatesBackgroundConfiguration = true
     if contentStyle {
@@ -1098,19 +1139,17 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       if var content = cell.contentConfiguration as? UIListContentConfiguration {
         content.textProperties.numberOfLines = 2
         content.secondaryTextProperties.font = .preferredFont(forTextStyle: .footnote)
-        content.directionalLayoutMargins = .init(top: 12, leading: 22, bottom: 12, trailing: 22)
-        if outline, row.navigates { content.textProperties.color = LodyGroupedList.accent }
+        content.directionalLayoutMargins = .init(
+          top: 10, leading: LodyDesign.Rail.text, bottom: 10, trailing: LodyDesign.Rail.trailing
+        )
+        if outline, row.navigates {
+          content.textProperties.font = LodyDesign.font(.subheadline, size: 15)
+          content.textProperties.color = .lodySecondary
+        }
         cell.contentConfiguration = content
       }
-      if outline {
-        cell.configurationUpdateHandler = { cell, state in
-          cell.backgroundConfiguration = LodyListCellBackground.outlineConfiguration(for: state)
-        }
-      } else {
-        cell.configurationUpdateHandler = { cell, state in
-          let visual = LodyListCellBackground.visualState(for: state)
-          cell.backgroundConfiguration = UIBackgroundConfiguration.listGroupedCell().updated(for: visual)
-        }
+      cell.configurationUpdateHandler = { cell, state in
+        cell.backgroundConfiguration = LodyListCellBackground.railConfiguration(for: state)
       }
     } else if transparent {
       // A static backgroundConfiguration freezes the cell's appearance, so the
@@ -1217,16 +1256,20 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       view.accessibilityLabel = nil
     }
     if contentStyle {
-      content.directionalLayoutMargins = .init(top: 10, leading: 22, bottom: 10, trailing: 22)
+      content.directionalLayoutMargins = .init(top: 10, leading: 16, bottom: 10, trailing: LodyDesign.Rail.trailing)
       if header {
-        let title = NSMutableAttributedString(string: text, attributes: [.font: UIFont.preferredFont(forTextStyle: .subheadline), .foregroundColor: UIColor.secondaryLabel])
+        let title = NSMutableAttributedString(string: text, attributes: [
+          .font: LodyDesign.font(.footnote, size: 13, weight: .semibold), .foregroundColor: UIColor.lodySecondary,
+        ])
         if !section.headerValue.isEmpty {
-          title.append(NSAttributedString(string: "  " + section.headerValue, attributes: [.font: UIFont.preferredFont(forTextStyle: .caption1), .foregroundColor: UIColor.tertiaryLabel]))
+          title.append(NSAttributedString(string: "  " + section.headerValue, attributes: [
+            .font: LodyDesign.mono(12), .foregroundColor: UIColor.lodyTertiary,
+          ]))
         }
         content.text = nil
         content.attributedText = title
-        content.directionalLayoutMargins.top = 14
-        content.directionalLayoutMargins.bottom = 14
+        content.directionalLayoutMargins.top = 10
+        content.directionalLayoutMargins.bottom = 4
       }
     }
     if header && !section.headerActionId.isEmpty {
@@ -1293,8 +1336,10 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     } else {
       collectionView.deselectItem(at: indexPath, animated: true)
     }
-    // Outline parents toggle through UIKit; the expansion handlers report the change.
-    if row.parent && !row.navigates { return }
+    if row.parent && !row.navigates {
+      toggleOutline(row.id)
+      return
+    }
     emitRowPress(["id": row.id])
   }
 
@@ -1346,7 +1391,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   private func displayed(_ row: LodyListRow) -> LodyListRow {
-    var copy = row.displayingCollapsed(collapsedSessions.contains(row.id))
+    var copy = row.displayingCollapsed(collapsedSessions.contains(row.id), keepingTime: true)
     copy.unread = unreadHold.applied(rowID: row.id, unread: row.unread)
     return copy
   }

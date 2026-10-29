@@ -6,6 +6,7 @@ final class InboxChrome {
     var workspaces: [AuthWorkspace]
     var selected: AuthWorkspace?
     var devices: InboxDevices
+    var running = 0
     var mode: Int
     var sort: InboxSort
   }
@@ -34,13 +35,14 @@ final class InboxChrome {
   private let workspace = LodyMenuButton(frame: .zero)
   private let settings = LodySymbolButton(frame: .zero)
   private let search = LodyNavigationSearch()
+  private let padBar = InboxPadBar()
+  private weak var content: UIViewController?
   private lazy var workspaceSlot = InboxBarSlot(workspace)
   private lazy var settingsSlot = InboxBarSlot(settings)
   private var workspaceItem: UIBarButtonItem?
   private var settingsItem: UIBarButtonItem?
   private var filterItem: UIBarButtonItem?
   private var toolbar: [UIBarButtonItem] = []
-  private var toolbarRegular: Bool?
   private var naturalWidth: CGFloat = 44
   private var waitingForTransition = false
 
@@ -62,11 +64,15 @@ final class InboxChrome {
     search.emit = { [weak self] event, text in
       if event == "change" { self?.searchChanged?(text) }
     }
+    padBar.searchChanged = { [weak self] text in self?.searchChanged?(text) }
+    padBar.create = { [weak self] in self?.newSession?() }
   }
 
-  func attach(to host: UIViewController) {
+  func attach(to host: UIViewController, content: UIViewController, scrollView: UIScrollView) {
     self.host = host
+    self.content = content
     header = LodyNavigationHeader.of(host.navigationItem)
+    padBar.attachScrollEdge(to: scrollView)
   }
 
   func update(_ model: Model?) {
@@ -81,11 +87,13 @@ final class InboxChrome {
     )
     var avatar = LodyMenuAvatar()
     avatar.text = String(name.prefix(1))
-    avatar.color = LodyAccentChoice.hex(UIColor.lodyAccent.resolvedColor(with: host.traitCollection))
     avatar.image = model.selected?.image ?? ""
     workspace.setAvatar(avatar)
     workspace.setLabel(name)
-    workspace.setStatus(model.devices.status)
+    let running = model.running > 0
+      ? String.localizedStringWithFormat(String(localized: "inbox.header.running", bundle: .lody), model.running)
+      : ""
+    workspace.setDetail([model.devices.summary, running].filter { !$0.isEmpty }.joined(separator: " · "))
     workspace.setItems(menuItems(model))
     layout()
     let left = [workspaceItem ?? UIBarButtonItem(customView: workspaceSlot)]
@@ -96,16 +104,11 @@ final class InboxChrome {
     let right = [settingsItem ?? UIBarButtonItem(customView: settingsSlot), filter]
     (workspaceItem, settingsItem, filterItem) = (left[0], right[0], filter)
     if header.leftItems != left { header.leftItems = left }
+    if header.rightItems != right { header.rightItems = right }
+    // iPad keeps integrated search in the navigation bar, so the sidebar hosts its own bottom field.
     let regular = host.traitCollection.horizontalSizeClass == .regular
-    let headerItems = regular ? [] : right
-    if header.rightItems != headerItems { header.rightItems = headerItems }
-    let placement = regular ? "stacked" : "integrated"
-    if search.config.placement != placement {
-      search.configure(.init(placeholder: String(localized: "search.field.placeholder", bundle: .lody), placement: placement,
-        hideWhenScrolling: false, obscureBackground: false, hideNavigationBar: false))
-      header.search = search
-    }
-    if header.search !== search { header.search = search }
+    if regular, header.search === search { header.search = nil }
+    if !regular, header.search !== search { header.search = search }
     showToolbar()
   }
 
@@ -120,6 +123,7 @@ final class InboxChrome {
     if let item = workspaceItem, header.leftItems == [item] { header.leftItems = nil }
     if let settingsItem, let filterItem, header.rightItems == [settingsItem, filterItem] { header.rightItems = nil }
     if header.search === search { header.search = nil }
+    showPadBar(false)
     if let host, !toolbar.isEmpty, host.toolbarItems ?? [] == toolbar {
       host.setToolbarItems(nil, animated: false)
       if let navigation = host.navigationController, navigation.topViewController === host {
@@ -141,17 +145,23 @@ final class InboxChrome {
       return
     }
     let regular = host.traitCollection.horizontalSizeClass == .regular
-    if toolbar.isEmpty || toolbarRegular != regular {
-      toolbarRegular = regular
+    showPadBar(regular)
+    if regular {
+      if !toolbar.isEmpty, host.toolbarItems ?? [] == toolbar { host.setToolbarItems(nil, animated: false) }
+      toolbar = []
+      if let navigation = host.navigationController, navigation.topViewController === host {
+        navigation.setToolbarHidden(true, animated: false)
+      }
+      return
+    }
+    if toolbar.isEmpty {
       let create = UIBarButtonItem(primaryAction: UIAction(image: UIImage(systemName: "plus")) { [weak self] _ in
         self?.newSession?()
       })
       create.sharesBackground = false
       create.tintColor = .lodyAccent
       create.accessibilityLabel = String(localized: "tabs.newSession", bundle: .lody)
-      if regular, let filterItem, let settingsItem {
-        toolbar = [filterItem, settingsItem, .flexibleSpace(), create]
-      } else { toolbar = [host.navigationItem.searchBarPlacementBarButtonItem, .fixedSpace(6), create] }
+      toolbar = [host.navigationItem.searchBarPlacementBarButtonItem, .fixedSpace(6), create]
     }
     if host.toolbarItems ?? [] != toolbar { host.setToolbarItems(toolbar, animated: false) }
     if let navigation = host.navigationController, navigation.topViewController === host {
@@ -162,10 +172,26 @@ final class InboxChrome {
   func layout() {
     guard let host else { return }
     let insets = host.view.safeAreaInsets
-    // Reserve the split view toggle and UIKit glass margins in the sidebar.
-    let trailing: CGFloat = host.traitCollection.horizontalSizeClass == .regular ? 160 : 192
-    let limit = max(44, host.view.bounds.width - insets.left - insets.right - trailing)
+    let width = host.view.bounds.width - insets.left - insets.right
+    let limit = max(44, width - 192)
     workspaceSlot.size = CGSize(width: min(naturalWidth, limit), height: 44)
+  }
+
+  private func showPadBar(_ shown: Bool) {
+    content?.additionalSafeAreaInsets.bottom = shown ? InboxPadBar.height + 10 : 0
+    guard shown, let host else {
+      padBar.removeFromSuperview()
+      return
+    }
+    guard padBar.superview !== host.view else { return }
+    padBar.removeFromSuperview()
+    padBar.translatesAutoresizingMaskIntoConstraints = false
+    host.view.addSubview(padBar)
+    NSLayoutConstraint.activate([
+      padBar.leadingAnchor.constraint(equalTo: host.view.safeAreaLayoutGuide.leadingAnchor),
+      padBar.trailingAnchor.constraint(equalTo: host.view.safeAreaLayoutGuide.trailingAnchor),
+      padBar.bottomAnchor.constraint(equalTo: host.view.keyboardLayoutGuide.topAnchor),
+    ])
   }
 
   private func menuItems(_ model: Model) -> [LodyMenuItem] {

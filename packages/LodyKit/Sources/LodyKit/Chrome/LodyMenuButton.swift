@@ -22,12 +22,11 @@ final class LodyMenuButton: UIView {
   var selected: ((String) -> Void)?
   var sized: ((CGFloat) -> Void)?
   private let button = UIButton(type: .system)
-  private let statusImage = UIImageView()
-  private var status = ""
   private var avatar = LodyMenuAvatar()
   private var photoURL: URL?
   private var photo: UIImage?
   private var label = ""
+  private var detail = ""
 
   @available(*, unavailable)
   required init?(coder: NSCoder) { fatalError() }
@@ -37,9 +36,6 @@ final class LodyMenuButton: UIView {
     button.changesSelectionAsPrimaryAction = false
     button.showsMenuAsPrimaryAction = true
     addSubview(button)
-    statusImage.isUserInteractionEnabled = false
-    statusImage.isAccessibilityElement = false
-    button.addSubview(statusImage)
   }
 
   override func didMoveToWindow() {
@@ -50,7 +46,6 @@ final class LodyMenuButton: UIView {
   override func layoutSubviews() {
     super.layoutSubviews()
     button.frame = bounds
-    statusImage.frame = CGRect(x: bounds.width - LodyMenuButtonStyle.trailingInset - 6, y: (bounds.height - 6) / 2, width: 6, height: 6)
   }
 
   func setAccessibilityName(_ value: String) {
@@ -76,11 +71,8 @@ final class LodyMenuButton: UIView {
     apply()
   }
 
-  func setStatus(_ value: String) {
-    status = value
-    statusImage.isHidden = value.isEmpty
-    statusImage.image = UIImage(systemName: value == "unknown" ? "circle" : "circle.fill")
-    statusImage.tintColor = value == "online" ? .systemBlue : .secondaryLabel
+  func setDetail(_ value: String) {
+    detail = value
     apply()
   }
 
@@ -123,12 +115,14 @@ final class LodyMenuButton: UIView {
   }
 
   private func apply() {
+    let tint = lodyTint(avatar.color)
     LodyMenuButtonStyle.apply(
       label: label,
-      showsStatus: !status.isEmpty,
+      detail: detail,
       avatar: LodyMenuButtonStyle.avatarImage(
         text: avatar.text,
-        fill: lodyTint(avatar.color) ?? .systemIndigo,
+        fill: tint ?? .lodyAccent,
+        foreground: tint == nil ? LodyAccentChoice.current.foregroundColor : .white,
         photo: photo
       ),
       to: button

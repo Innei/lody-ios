@@ -16,7 +16,7 @@ enum ChatMarkdownTheme {
     theme.fonts.footnote = .dynamic(of: 13, compatibleWith: traits)
     theme.colors.body = secondary ? .secondaryLabel : .label
     theme.colors.code = theme.colors.body
-    theme.colors.highlight = .lodyAccent
+    theme.colors.highlight = .systemBlue
     theme.colors.emphasis = .lodyAccent
     theme.colors.codeBackground = .lodyInset
     theme.colors.selectionBackground = nil

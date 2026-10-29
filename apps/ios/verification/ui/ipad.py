@@ -27,7 +27,7 @@ def labeled(label):
 
 
 def search_field():
-    return ui.wait(lambda items: next((item for item in items if item.get('subrole') == 'AXSearchField'), None), 'Missing sidebar search')
+    return ui.wait(lambda items: next((item for item in items if item.get('subrole') == 'AXSearchField' or item.get('AXUniqueId') == 'sidebar-search'), None), 'Missing sidebar search')
 
 
 def assert_split_column(name):
@@ -48,30 +48,7 @@ def assert_panel_layout():
 
 
 def assert_panel_chrome():
-    panel = ui.element('ipad-panel')['frame']
-    items = ui.state()
-    search = search_field()
-    view = next(
-        item for item in items
-        if item.get('AXLabel') == catalog.text('inbox.settings.section.view')
-    )
-    settings = next(
-        item for item in items
-        if item.get('AXLabel') == catalog.text('tabs.settings')
-    )
-    new_session = next(
-        item for item in items
-        if item.get('AXLabel') == catalog.text('tabs.newSession')
-    )
-    collapse = labeled(catalog.system('hideSidebar'))
-    panel_bottom = panel['y'] + panel['height']
-    assert search['frame']['y'] < panel['y'] + 150, (search, panel)
-    for action in (view, settings, new_session):
-        assert action['frame']['y'] > panel_bottom - 110, (action, panel)
-    assert view['frame']['x'] < settings['frame']['x'] < new_session['frame']['x'], (view, settings, new_session)
-    assert new_session['frame']['x'] > panel['x'] + panel['width'] - 100, (new_session, panel)
-    assert collapse['frame']['y'] < panel['y'] + 80, (collapse, panel)
-    assert collapse['frame']['x'] + collapse['frame']['width'] <= panel['x'] + panel['width']
+    pad.panel_chrome(ui)
 
 
 def assert_detail_content_fits():

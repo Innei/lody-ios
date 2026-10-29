@@ -34,6 +34,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
   private let appearance = SidebarAppearanceController()
   private weak var scrollOwner: UIViewController?
   private let collection: UICollectionView
+  var scrollView: UIScrollView { collection }
   private let placeholder = UILabel()
   private var dataSource: UICollectionViewDiffableDataSource<String, SidebarItemID>!
 
@@ -60,8 +61,8 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     super.init(frame: frame)
     _ = registration
     _ = headerRegistration
-    backgroundColor = .secondarySystemBackground
-    collection.backgroundColor = .secondarySystemBackground
+    backgroundColor = .lodySidebar
+    collection.backgroundColor = .lodySidebar
     collection.tintColor = accent
     collection.contentInsetAdjustmentBehavior = .automatic
     collection.alwaysBounceVertical = true
@@ -92,7 +93,11 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
       configuration.leadingSwipeActionsConfigurationProvider = { [weak self] in self?.swipes(at: $0, leading: true) }
       configuration.trailingSwipeActionsConfigurationProvider = { [weak self] in self?.swipes(at: $0, leading: false) }
       let section = NSCollectionLayoutSection.list(using: configuration, layoutEnvironment: environment)
-      section.contentInsets = .init(top: 4, leading: 12, bottom: 8, trailing: 12)
+      var top: CGFloat = 4
+      if index > 0 {
+        top = model.gap == .group ? LodyDesign.Rail.compactGroupGap : LodyDesign.Rail.compactSectionGap
+      }
+      section.contentInsets = .init(top: top, leading: 12, bottom: 0, trailing: 12)
       return section
     }
     collection.setCollectionViewLayout(layout, animated: false)
@@ -159,6 +164,20 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
       }
       responder = current.next
     }
+  }
+
+  private func toggleOutline(_ id: String) {
+    guard let item = rows.keys.first(where: { $0.row == id }) else { return }
+    var snapshot = dataSource.snapshot(for: item.section)
+    guard snapshot.contains(item) else { return }
+    let expanded = !snapshot.isExpanded(item)
+    if expanded {
+      snapshot.expand([item])
+    } else {
+      snapshot.collapse([item])
+    }
+    dataSource.apply(snapshot, to: item.section, animatingDifferences: !UIAccessibility.isReduceMotionEnabled)
+    outlineChanged(item, expanded: expanded)
   }
 
   private func outlineChanged(_ item: SidebarItemID, expanded: Bool) {
@@ -230,7 +249,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
   }
 
   private func displayed(_ row: LodyListRow) -> LodyListRow {
-    var copy = row.displayingCollapsed(collapsedSessions.contains(row.id))
+    var copy = row.displayingCollapsed(collapsedSessions.contains(row.id), keepingTime: true)
     copy.unread = unreadHold.applied(rowID: row.id, unread: row.unread)
     return copy
   }
@@ -279,32 +298,34 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
   }
 
   private func configure(_ cell: UICollectionViewListCell, row: LodyListRow) {
+    let id = row.id
     let project = row.parent || row.id.hasPrefix("project:")
     if project {
-      let content = LodyProjectRowContent(row: row, accent: accent, density: .compact)
+      let content = LodyProjectRowContent(
+        row: row,
+        density: .compact,
+        expanded: row.parent && !row.navigates ? true : nil,
+        onToggle: { [weak self] in self?.toggleOutline(id) }
+      )
       cell.contentConfiguration = content
       cell.accessibilityLabel = content.accessibilityLabel
     } else {
-      let tint = lodyTint(row.imageTint)
-      let content = LodySessionRowContent(row: row, dot: tint,
-        live: tint != nil && row.imageTint.hasPrefix("#") && row.badge.isEmpty, density: .compact)
+      let expanded = !collapsedSessions.contains(id)
+      var content = LodySessionRowContent(
+        row: row, density: .compact, treeDown: !row.collapsedValue.isEmpty && expanded, expanded: expanded
+      )
+      if !row.collapsedValue.isEmpty {
+        content.onToggle = { [weak self] in self?.toggleOutline(id) }
+      }
       cell.contentConfiguration = content
       cell.accessibilityLabel = content.accessibilityLabel
     }
     cell.isAccessibilityElement = true
-    cell.indentationWidth = 16
+    cell.indentationWidth = 0
     cell.accessibilityIdentifier = row.id
     cell.accessibilityTraits = project ? [.button, .header] : .button
     if rowAppearsSelected(row) { cell.accessibilityTraits.insert(.selected) }
-    if row.parent && !row.navigates {
-      cell.accessories = [.outlineDisclosure(options: .init(style: .header, tintColor: .tertiaryLabel))]
-    } else if !row.collapsedValue.isEmpty {
-      cell.accessories = [.outlineDisclosure(options: .init(style: .cell, tintColor: .tertiaryLabel))]
-    } else if project && row.navigates {
-      cell.accessories = [.disclosureIndicator()]
-    } else {
-      cell.accessories = []
-    }
+    cell.accessories = []
     cell.automaticallyUpdatesBackgroundConfiguration = false
     cell.configurationUpdateHandler = { [weak self] cell, state in
       var visual = state
@@ -332,6 +353,7 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
     guard let row = row(at: indexPath) else { return }
     if row.parent && !row.navigates {
       collectionView.deselectItem(at: indexPath, animated: false)
+      toggleOutline(row.id)
       return
     }
     unreadHold.begin(

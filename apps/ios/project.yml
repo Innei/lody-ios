@@ -120,6 +120,7 @@ targets:
           - LodyAppearanceView.swift
           - LodyLocalization.swift
           - LodyTint.swift
+          - Appearance/LodyDesign.swift
           - UIFont+Dynamic.swift
           - LodyUIVerify.swift
           - Chrome/LodyScrollEdges.swift
@@ -138,6 +139,8 @@ targets:
           - List/LodyProjectRowView.swift
           - List/LodyRowDensity.swift
           - List/LodySessionRowView.swift
+          - List/LodyStatusGlyph.swift
+          - Text/TextSearch.swift
           - List/LodyStepStrip.swift
           - List/LodyUnreadNavigationHold.swift
           - List/LodyListStatus.swift

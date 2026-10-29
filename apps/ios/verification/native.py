@@ -77,6 +77,9 @@ checks = {
         'List/LodyUnreadNavigationHold.swift',
         'List/LodySessionRowView.swift',
         'List/LodyProjectRowView.swift',
+        'Appearance/LodyDesign.swift',
+        'List/LodyStatusGlyph.swift',
+        'Text/TextSearch.swift',
     ],
     'list-snapshots': ['List/LodyListModels.swift'],
     'banner': [
@@ -92,6 +95,7 @@ checks = {
     'create-draft': ['LodyLocalization.swift', 'CreateSession/CreateSessionForm.swift', 'Outbox/OutboxRecord.swift', 'CreateSession/CreateDraftRecord.swift'],
     'share-ingest': ['LodyLocalization.swift', 'Chat/ChatAttachments.swift', 'CreateSession/CreateSessionForm.swift', 'CreateSession/ShareStore.swift', str(root / 'apps/ios/Extensions/Share/ShareIngest.swift')],
     'share': ['LodyLocalization.swift', 'CreateSession/CreateSessionForm.swift', 'CreateSession/ShareStore.swift'],
+    'design': ['LodyTint.swift'],
 }
 if args.case:
     if args.case not in checks:
@@ -100,6 +104,8 @@ if args.case:
 for files in checks.values():
     if files and 'LodyLocalization.swift' not in files:
         files.append('LodyLocalization.swift')
+    if 'LodyTint.swift' in files and 'Appearance/LodyDesign.swift' not in files:
+        files.append('Appearance/LodyDesign.swift')
     if 'Chat/ChatComposerView.swift' in files:
         files.append('Chat/ChatQuickReplies.swift')
         files.append('Chat/ChatComposerFormatBar.swift')
@@ -172,7 +178,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             subprocess.run(['swift', 'run', '--package-path', str(package), '--scratch-path', str(root / '.artifacts/native-local-store')], check=True, timeout=600)
             continue
         binary = str(Path(output) / name)
-        simulator = name in ['fold-host', 'message-details', 'simulator-transport', 'share-ingest', 'chat-kit', 'scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'context-chip', 'attachments', 'inline-diff', 'list', 'list-snapshots', 'ai-usage', 'workspace-settings-pages', 'settings-roles', 'settings-runtime-pages', 'remote-settings', 'session-rows', 'banner', 'chat-title', 'live-activity', 'chat-chrome']
+        simulator = name in ['fold-host', 'message-details', 'simulator-transport', 'share-ingest', 'chat-kit', 'scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'context-chip', 'attachments', 'inline-diff', 'list', 'list-snapshots', 'ai-usage', 'workspace-settings-pages', 'settings-roles', 'settings-runtime-pages', 'remote-settings', 'session-rows', 'banner', 'chat-title', 'live-activity', 'chat-chrome', 'design']
         command = ['xcrun', '--sdk', 'iphonesimulator', 'swiftc'] if simulator else ['xcrun', 'swiftc']
         command += ['-swift-version', '6']
         if name in ['message-details', 'list-snapshots', 'ai-usage', 'workspace-settings-pages', 'settings-roles', 'settings-runtime-pages', 'remote-settings', 'session-rows']:

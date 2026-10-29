@@ -65,6 +65,20 @@ enum LodyRelativeTime {
 
   static func now() -> Double { Date().timeIntervalSince1970 * 1000 }
 
+  static func compact(_ value: Double, now: Double = now(), calendar: Calendar = .current) -> String {
+    guard value.isFinite else { return "" }
+    let elapsed = now - value
+    if elapsed < minute { return String(localized: "time.compact.now", bundle: .lody) }
+    if elapsed < hour { return String.localizedStringWithFormat(String(localized: "time.compact.minutes", bundle: .lody), Int(elapsed / minute)) }
+    if elapsed < day { return String.localizedStringWithFormat(String(localized: "time.compact.hours", bundle: .lody), Int(elapsed / hour)) }
+    if elapsed < 7 * day { return String.localizedStringWithFormat(String(localized: "time.compact.days", bundle: .lody), Int(elapsed / day)) }
+    let formatter = DateFormatter()
+    formatter.locale = LodyFormat.locale
+    formatter.timeZone = calendar.timeZone
+    formatter.setLocalizedDateFormatFromTemplate("MMMd")
+    return formatter.string(from: Date(timeIntervalSince1970: value / 1000))
+  }
+
   static func text(_ value: Double, now: Double = now(), calendar: Calendar = .current) -> String {
     guard value.isFinite else { return "" }
     let elapsed = now - value

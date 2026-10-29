@@ -1,4 +1,5 @@
 """Native Home lists, creation drafts, search, grouping and session actions."""
+import subprocess
 import sys
 import time
 from driver import UI
@@ -40,6 +41,51 @@ def assert_swipe_has_no_selection(action_label):
     assert 'selected' not in str(row.get('traits') or []).lower(), row
 
 
+def assert_flat_ground(row, project):
+    edit_label = catalog.text('workspace.edit.action')
+    if any(i.get('AXLabel') == edit_label for i in ui.state()):
+        ui.axe('tap', '-x', str(screen / 2), '-y', '700', '--post-delay', '.6')
+    ui.wait(lambda items: not any(i.get('AXLabel') == edit_label for i in items), 'The workspace menu must not cover the list')
+    ui.screenshot('rail-ground')
+    width = round(screen)
+    pixels = subprocess.check_output([
+        'ffmpeg', '-v', 'error', '-i', str(ui.output / 'rail-ground.png'),
+        '-vf', f'scale={width}:-1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-',
+    ], timeout=20)
+
+    def sample(x, y):
+        return tuple(pixels[(round(y) * width + round(x)) * 3 + channel] for channel in range(3))
+    edge = sample(4, row['y'] + row['height'] / 2)
+    beside = sample(4, project['y'] + project['height'] / 2)
+    gap = sample(4, project['y'] - 2)
+    assert max(abs(a - b) for a, b in zip(edge, gap)) <= 6, ('Rows sit on the list ground, not an inset card', edge, gap)
+    assert max(abs(a - b) for a, b in zip(beside, gap)) <= 6, ('Project rows share the ground', beside, gap)
+    native = subprocess.check_output([
+        'ffmpeg', '-v', 'error', '-i', str(ui.output / 'rail-ground.png'),
+        '-f', 'rawvideo', '-pix_fmt', 'gray', '-',
+    ], timeout=20)
+    native_width = int(subprocess.check_output([
+        'ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width', '-of', 'csv=p=0',
+        str(ui.output / 'rail-ground.png'),
+    ], timeout=20).decode().strip())
+    scale = native_width / screen
+    boundary = round((row['y'] + row['height']) * scale)
+
+    def darkest(x):
+        return min(native[(y * native_width) + round(x * scale)] for y in range(boundary - 3, boundary + 3))
+    ground_level = native[(boundary - 12) * native_width + round(200 * scale)]
+    for x in [30, 200, screen - 6]:
+        assert abs(ground_level - darkest(x)) <= 3, ('Rows carry no hairline; spacing separates modules', x, ground_level, darkest(x))
+    group = ui.element('toggle:pinned')['frame']
+    top = round((group['y'] + group['height'] / 2 - 8) * scale)
+    chevron = min(
+        native[y * native_width + x]
+        for y in range(top, top + round(16 * scale))
+        for x in range(round((screen - 34) * scale), round((screen - 14) * scale))
+    )
+    assert abs(ground_level - chevron) <= 3, ('Group rows draw no disclosure chevron', ground_level, chevron)
+
+
 close_create = catalog.text('accessibility.closeSheet', title=catalog.text('create.title'))
 
 home_ready()
@@ -64,6 +110,10 @@ assert pinned_row['frame']['y'] < project['frame']['y'], (
 if any(i.get('AXUniqueId') == 'xmark' and i.get('AXLabel') == catalog.system('close') for i in ui.state()):
     ui.axe('tap', '--id', 'xmark', '--post-delay', '1')
 ui.capture('home')
+rail_row = ui.element('ui-design')['frame']
+screen = ui.state()[0]['frame']['width']
+assert abs(rail_row['x']) <= 0.5 and abs(rail_row['width'] - screen) <= 1, ('Content rows span the full width', rail_row, screen)
+assert_flat_ground(rail_row, ui.element('toggle:ui:local:lody')['frame'])
 row = ui.element('ui-design')['frame']
 y = row['y'] + row['height'] / 2
 left = row['x'] + 12
@@ -280,16 +330,19 @@ project = ui.element('toggle:ui:local:lody')
 assert any('Lody iOS' in (child.get('AXLabel') or '') for child in project.get('children') or []), project
 
 
-# The outline disclosure accessory shares the parent's identifier, so tap by frame.
 def tap_project():
     frame = ui.element('toggle:ui:local:lody')['frame']
     ui.axe('tap', '-x', str(frame['x'] + 120), '-y', str(frame['y'] + frame['height'] / 2), '--post-delay', '.8')
 
 
-if catalog.system('collapse') not in (project.get('custom_actions') or []):
+def group_actions(item):
+    return sum([entry.get('custom_actions') or [] for entry in [item] + (item.get('children') or [])], [])
+
+
+if catalog.text('native.list.collapse') not in group_actions(project):
     tap_project()
     project = ui.element('toggle:ui:local:lody')
-assert catalog.system('collapse') in (project.get('custom_actions') or []), project
+assert catalog.text('native.list.collapse') in group_actions(project), project
 tap_project()
 ui.wait(lambda items: not any(i.get('AXUniqueId') == 'ui-design' for i in items), 'Collapsing the project must hide its sessions')
 ui.capture('project-collapsed')

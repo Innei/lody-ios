@@ -48,7 +48,7 @@ final class AppearanceController: UIViewController {
 
   private func accentRow() -> LodyListRow {
     let current = LodyAccentChoice.current
-    let presets = ["blue", "indigo", "purple", "pink"]
+    let presets = ["ink", "blue", "indigo", "purple", "pink"]
     let preset = presets.contains(current.rawValue)
     var row = LodyListRow.item(
       "accent-color", text("accent"), value: preset ? text(current.rawValue) : text("custom"), image: "circle.fill"

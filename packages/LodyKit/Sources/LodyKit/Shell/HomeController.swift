@@ -31,6 +31,9 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate, UIP
     item.accessibilityLabel = String(localized: "tabs.sessions", bundle: .lody)
     return item
   }()
+  private lazy var sidebarItem = UIBarButtonItem(
+    image: UIImage(systemName: "sidebar.left"), primaryAction: UIAction { [weak self] _ in self?.toggleSidebar() }
+  )
   private var detailDetents: [Double] = [0.6, 1]
   private var layout: LodyHomeLayout {
     LodyHomeLayout(size: view.bounds.size, regular: traitCollection.horizontalSizeClass == .regular, book: bookPosture)
@@ -56,6 +59,7 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate, UIP
     split.primaryBackgroundStyle = .none
     split.preferredDisplayMode = .oneBesideSecondary
     split.showsSecondaryOnlyButton = true
+    split.displayModeButtonVisibility = .never
     split.preferredPrimaryColumnWidth = 320
     split.preferredInspectorColumnWidthFraction = 0.45
     split.maximumInspectorColumnWidth = .greatestFiniteMagnitude
@@ -113,6 +117,7 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate, UIP
     session = nil
     closePanel()
     secondary.setViewControllers([placeholder()], animated: false)
+    updateBookSidebar()
     inbox.list.selectedSessionId = ""
     primary.viewControllers.flatMap(\.children).compactMap { $0 as? ProjectController }.forEach { $0.list.selectedSessionId = "" }
     layoutColumns()
@@ -129,6 +134,7 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate, UIP
       let next = SessionController(sessionId: id, findQuery: query, choice: choice, source: source)
       session = next
       secondary.setViewControllers([page(next, title: "")], animated: false)
+      updateBookSidebar()
     } else if !query.isEmpty { session?.find(query: query, keyboard: false) }
     inbox.list.selectedSessionId = id
     primary.viewControllers.flatMap(\.children).compactMap { $0 as? ProjectController }.forEach { $0.list.selectedSessionId = id }
@@ -178,6 +184,9 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate, UIP
   func splitViewController(_ svc: UISplitViewController, topColumnForCollapsingToProposedTopColumn proposed: UISplitViewController.Column) -> UISplitViewController.Column {
     if panelOpen { return .inspector }
     return session == nil ? .primary : .secondary
+  }
+  func splitViewController(_ svc: UISplitViewController, willChangeTo displayMode: UISplitViewController.DisplayMode) {
+    updateBookSidebar(sidebarShown: displayMode != .secondaryOnly)
   }
   func splitViewController(_ svc: UISplitViewController, didHide column: UISplitViewController.Column) {
     guard column == .inspector, layout == .compact, svc.isCollapsed, panelOpen,
@@ -267,14 +276,28 @@ final class HomeController: UIViewController, UISplitViewControllerDelegate, UIP
 
   private func invalidateLayout() { layoutKey = ""; if isViewLoaded { view.setNeedsLayout() } }
 
-  private func updateBookSidebar() {
-    guard let item = secondary.viewControllers.first?.navigationItem else { return }
+  private func updateBookSidebar(sidebarShown: Bool? = nil) {
+    guard isViewLoaded, let item = secondary.viewControllers.first?.navigationItem else { return }
     let header = LodyNavigationHeader.of(item)
-    if folded, panelOpen { header.leftItems = [bookSidebarItem] }
-    else if header.leftItems == [bookSidebarItem] {
+    var toggle: UIBarButtonItem?
+    if folded {
+      toggle = panelOpen ? bookSidebarItem : nil
+    } else if !split.isCollapsed, traitCollection.horizontalSizeClass == .regular {
+      toggle = sidebarItem
+      let shown = sidebarShown ?? (split.displayMode != .secondaryOnly)
+      let key = shown ? "ipad.sidebar.hide" : "ipad.sidebar.show"
+      sidebarItem.accessibilityLabel = String(localized: String.LocalizationValue(key), bundle: .lody)
+    }
+    if let toggle {
+      if header.leftItems != [toggle] { header.leftItems = [toggle] }
+    } else if let current = header.leftItems, current == [bookSidebarItem] || current == [sidebarItem] {
       header.leftItems = nil
       item.leftBarButtonItems = nil
     }
+  }
+
+  private func toggleSidebar() {
+    if split.displayMode == .secondaryOnly { split.show(.primary) } else { split.hide(.primary) }
   }
 
   private func showBookList() {

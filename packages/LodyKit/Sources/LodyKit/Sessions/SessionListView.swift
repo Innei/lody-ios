@@ -28,6 +28,7 @@ final class SessionListView: UIView {
     active.frame = bounds; active.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     render()
   }
+  var sidebarScrollView: UIScrollView { sidebar.scrollView }
   func setContentStyle(_ value: Bool) { grouped.setContentStyle(value) }
   func setPreviewUserId(_ value: String) { grouped.setPreviewUserId(value); sidebar.previewUserId = value }
   func setPreviewWorkspaceId(_ value: String) { grouped.setPreviewWorkspaceId(value); sidebar.previewWorkspaceId = value }

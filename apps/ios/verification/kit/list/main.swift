@@ -33,6 +33,67 @@ LodyMenuButtonStyle.apply(label: "Innei", avatar: loaded, to: shortMenu)
 assert(abs(LodyMenuButtonStyle.unconstrainedWidth(for: shortMenu) - shortWidth) < 1,
        "Loading the avatar must not resize the workspace button")
 
+func ink(_ image: UIImage) -> CGFloat {
+  let width = Int(image.size.width.rounded(.up) * 3), height = Int(image.size.height.rounded(.up) * 3)
+  var pixels = [UInt8](repeating: 0, count: width * height * 4)
+  pixels.withUnsafeMutableBytes { bytes in
+    let context = CGContext(
+      data: bytes.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    )!
+    context.scaleBy(x: 3, y: 3)
+    UIGraphicsPushContext(context)
+    image.withRenderingMode(.alwaysTemplate).withTintColor(.black).draw(at: .zero)
+    UIGraphicsPopContext()
+  }
+  return stride(from: 3, to: pixels.count, by: 4).reduce(CGFloat(0)) { $0 + CGFloat(pixels[$1]) } / 255 / 9
+}
+
+let boldChevron = UIImage(systemName: "chevron.down", withConfiguration: UIImage.SymbolConfiguration(pointSize: 10, weight: .bold))!
+
+func alpha(of image: UIImage, at point: CGPoint) -> UInt8 {
+  var pixel = [UInt8](repeating: 0, count: 4)
+  pixel.withUnsafeMutableBytes { bytes in
+    let context = CGContext(
+      data: bytes.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    )!
+    UIGraphicsPushContext(context)
+    image.draw(at: CGPoint(x: -point.x, y: -point.y))
+    UIGraphicsPopContext()
+  }
+  return pixel[3]
+}
+
+assert(LodyMenuButtonStyle.avatarSide == 32, "The workspace monogram is a 32 pt square")
+let squareAvatar = LodyMenuButtonStyle.avatarImage(text: "I", fill: .lodyInk, foreground: .white, photo: nil)
+assert(alpha(of: squareAvatar, at: CGPoint(x: 4, y: 4)) < 60, "The monogram is a circle that echoes the capsule")
+assert(alpha(of: squareAvatar, at: CGPoint(x: 16, y: 1.5)) > 200 && alpha(of: squareAvatar, at: CGPoint(x: 1.5, y: 16)) > 200,
+       "The circle fills the avatar side")
+let headerMenu = UIButton(type: .system)
+LodyMenuButtonStyle.apply(label: "Innei", detail: "3 machines · 2 running", avatar: squareAvatar, to: headerMenu)
+let headerDetail = NSAttributedString(headerMenu.configuration!.attributedSubtitle!)
+assert(headerDetail.string == "3 machines · 2 running", "The status line sits under the workspace name")
+let headerDetailFont = headerDetail.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
+assert(headerDetailFont.fontDescriptor.symbolicTraits.contains(.traitMonoSpace), "The status line is monospaced")
+let headerTitle = NSAttributedString(headerMenu.configuration!.attributedTitle!)
+assert(headerTitle.string.hasPrefix("Innei"))
+let headerTitleFont = headerTitle.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
+let headerWeight = (headerTitleFont.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any])?[.weight] as? CGFloat
+assert(abs(headerTitleFont.pointSize - 17) <= 0.5 && (headerWeight ?? 0) >= UIFont.Weight.semibold.rawValue, "The name is 17 pt semibold")
+assert(headerTitle.containsAttachments(in: NSRange(location: 0, length: headerTitle.length)), "A chevron follows the name")
+var headerChevron: UIImage?
+headerTitle.enumerateAttribute(.attachment, in: NSRange(location: 0, length: headerTitle.length)) { value, _, _ in
+  headerChevron = headerChevron ?? (value as? NSTextAttachment)?.image
+}
+assert(ink(headerChevron!) > ink(boldChevron), "The header chevron is heavier than a bold 10 pt chevron beside the semibold name")
+LodyMenuButtonStyle.apply(label: "Design states", detail: "2 online / 2 devices · 3 running", avatar: squareAvatar, to: headerMenu)
+let narrowHeader = headerMenu.sizeThatFits(CGSize(width: 200, height: CGFloat.greatestFiniteMagnitude))
+assert(narrowHeader.height <= LodyMenuButtonStyle.height, "A long status line truncates instead of wrapping: \(narrowHeader.height)")
+LodyMenuButtonStyle.apply(label: "Innei", avatar: squareAvatar, to: headerMenu)
+assert(headerMenu.configuration?.attributedSubtitle == nil, "No status leaves a single-line button")
+print("PASS: the workspace header draws a square monogram, a semibold name with chevron and a mono status line")
+
 var swipedState = UICellConfigurationState(traitCollection: UITraitCollection())
 swipedState.isSwiped = true
 swipedState.isSelected = true
@@ -100,9 +161,9 @@ assert(fromData != nil, "data image URLs must decode a circular photo")
 print("PASS: workspace title stays single-line, swiped rows stay unselected, and list photos are safely cropped")
 
 let restingState = UICellConfigurationState(traitCollection: UITraitCollection())
-assert(LodyListCellBackground.outlineConfiguration(for: restingState).backgroundColor == .clear, "Outline rows at rest must show the section card, not their own background")
-assert(LodyListCellBackground.outlineConfiguration(for: tappedState).backgroundColor != .clear, "Outline rows must still paint their highlight")
-assert(LodyListCellBackground.outlineConfiguration(for: swipedState).backgroundColor != .clear, "A swiped outline row must carry an opaque background with it")
+assert(LodyListCellBackground.railConfiguration(for: restingState).backgroundColor == .clear, "Outline rows at rest must show the section card, not their own background")
+assert(LodyListCellBackground.railConfiguration(for: tappedState).backgroundColor != .clear, "Outline rows must still paint their highlight")
+assert(LodyListCellBackground.railConfiguration(for: swipedState).backgroundColor != .clear, "A swiped outline row must carry an opaque background with it")
 assert(LodySectionCardView(frame: .zero).layer.cornerRadius > 0, "The section card must be rounded")
 
 struct LodyListRow {
@@ -110,6 +171,7 @@ struct LodyListRow {
   var subtitle = ""
   var modelName = ""
   var value = ""
+  var accessibilityValue = ""
   var unread = false
   var destructive = false
   var badge = ""
@@ -119,6 +181,16 @@ struct LodyListRow {
   var monogram = ""
   var image = ""
   var imageTint = ""
+  var parent = false
+  var parentId = ""
+  var lastChild = false
+  var collapsedValue = ""
+  var highlight = ""
+  var wrapSubtitle = false
+}
+
+extension UIColor {
+  static let lodyBackground = UIColor.systemBackground
 }
 
 // Layout-only harness: project status colors are outside this check.
@@ -127,8 +199,11 @@ func lodyTint(_ value: String) -> UIColor? {
   return nil
 }
 
-func laidOutSessionRow(_ content: LodySessionRowContent) -> LodySessionRowView {
-  let view = LodySessionRowView(content)
+@MainActor func laidOutSessionRow(_ content: LodySessionRowContent) -> LodySessionRowView {
+  laidOut(LodySessionRowView(content))
+}
+
+@MainActor func laidOut<View: UIView>(_ view: View) -> View {
   let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
   window.makeKeyAndVisible()
   let host = UIView(frame: window.bounds)
@@ -145,10 +220,6 @@ func laidOutSessionRow(_ content: LodySessionRowContent) -> LodySessionRowView {
   return view
 }
 
-func sessionMark(in view: UIView) -> UIView {
-  view.subviews.first { $0.layer.cornerRadius == 7 }!
-}
-
 func labels(in view: UIView) -> [UILabel] {
   [view as? UILabel].compactMap { $0 } + view.subviews.flatMap(labels(in:))
 }
@@ -157,91 +228,118 @@ func sessionLabel(_ view: UIView, _ text: String) -> UILabel {
   labels(in: view).first { ($0.text ?? $0.attributedText?.string) == text }!
 }
 
+func visibleLabel(_ view: UIView, containing text: String) -> UILabel? {
+  labels(in: view).first { !$0.isHidden && ($0.text ?? $0.attributedText?.string ?? "").contains(text) }
+}
+
 func midY(_ inner: UIView, in outer: UIView) -> CGFloat {
   inner.convert(CGPoint(x: 0, y: inner.bounds.midY), to: outer).y
 }
-
-let live = laidOutSessionRow(
-  LodySessionRowContent(
-    row: LodyListRow(title: "正在运行的任务", subtitle: "lody-ios", value: "刚刚"),
-    dot: .systemBlue,
-    live: true
-  )
-)
-let liveMark = sessionMark(in: live)
-let liveTitle = sessionLabel(live, "正在运行的任务")
-let liveMeta = sessionLabel(live, "lody-ios")
-let liveMarkY = midY(liveMark, in: live)
-let liveTitleY = liveTitle.convert(CGPoint(x: 0, y: liveTitle.font.ascender / 2), to: live).y
-let liveMetaY = midY(liveMeta, in: live)
-assert(
-  abs(liveMarkY - liveTitleY) < abs(liveMarkY - liveMetaY),
-  "Live mark must sit on the title, not the project name"
-)
-assert(
-  liveMark.convert(CGPoint(x: liveMark.bounds.maxX, y: 0), to: live).x
-    <= liveTitle.convert(.zero, to: live).x + 1,
-  "Live mark must sit in front of the title"
-)
-
-let solo = laidOutSessionRow(
-  LodySessionRowContent(
-    row: LodyListRow(title: "无项目会话", value: "刚刚"),
-    dot: .systemBlue,
-    live: true
-  )
-)
-let soloMark = sessionMark(in: solo)
-let soloTitle = sessionLabel(solo, "无项目会话")
-assert(
-  abs(midY(soloMark, in: solo) - soloTitle.convert(CGPoint(x: 0, y: soloTitle.font.ascender / 2), to: solo).y) < 6,
-  "A row without a project name still keeps the mark on the title"
-)
-
-print("PASS: session live mark sits in front of the title")
 
 func frame(_ inner: UIView, in outer: UIView) -> CGRect {
   inner.convert(inner.bounds, to: outer)
 }
 
-let badgeOnly = laidOutSessionRow(
-  LodySessionRowContent(
-    row: LodyListRow(title: "Conversation opening greeting", value: "Yesterday", badge: "Archived"),
-    dot: nil,
-    live: false
-  )
-)
-let withProject = laidOutSessionRow(
-  LodySessionRowContent(
-    row: LodyListRow(title: "hihi", subtitle: "lody-ios", value: "Yesterday", badge: "Archived"),
-    dot: nil,
-    live: false
-  )
-)
-let badge = sessionLabel(badgeOnly, "Archived")
-let badgeTitle = sessionLabel(badgeOnly, "Conversation opening greeting")
-let badgeTime = sessionLabel(badgeOnly, "Yesterday")
-let badgeFrame = frame(badge, in: badgeOnly)
-let badgeTitleFrame = frame(badgeTitle, in: badgeOnly)
-assert(
-  badgeFrame.maxY <= badgeTitleFrame.minY + 1,
-  "A badge with no project name must keep its own line above the title"
-)
-assert(
-  abs(badgeFrame.minX - badgeTitleFrame.minX) < 2,
-  "A leading badge must line up with the title, not sit on an empty meta label"
-)
-assert(
-  abs(midY(badgeTime, in: badgeOnly) - midY(badge, in: badgeOnly))
-    < abs(midY(badgeTime, in: badgeOnly) - midY(badgeTitle, in: badgeOnly)),
-  "Time stays on the badge line when the session has no project name"
-)
-assert(
-  abs(badgeOnly.bounds.height - withProject.bounds.height) < 8,
-  "A chat row with only a badge keeps the two-line session height"
-)
+func statusGlyph(in view: UIView) -> LodyStatusGlyphView {
+  view.subviews.compactMap { $0 as? LodyStatusGlyphView }.first!
+}
 
-print("PASS: a badge without a project name keeps the two-line session row")
+func treePath(in view: UIView) -> CGPath? {
+  let rail = UIColor.lodyRail.resolvedColor(with: view.traitCollection).cgColor
+  return (view.layer.sublayers ?? []).compactMap { $0 as? CAShapeLayer }
+    .first { $0.strokeColor == rail && !$0.isHidden }?.path
+}
+
+func reviewButton(in view: UIView) -> UIButton? {
+  view.subviews.compactMap { $0 as? UIButton }.first { !$0.isHidden }
+}
+
+let primary = laidOutSessionRow(LodySessionRowContent(
+  row: LodyListRow(title: "Ship 0.42 release", subtitle: "lody-ios · main", modelName: "Opus", value: "6m", subtitleMono: true, imageTint: "blue")
+))
+let primaryGlyph = frame(statusGlyph(in: primary), in: primary)
+let primaryTitle = sessionLabel(primary, "Ship 0.42 release")
+let primaryMeta = visibleLabel(primary, containing: "lody-ios")!
+assert(abs(primaryGlyph.midX - 24) < 0.5, "The rail glyph centers at 24 pt: \(primaryGlyph)")
+assert(abs(frame(primaryTitle, in: primary).minX - 46) < 0.5, "Primary text starts at 46 pt")
+assert(abs(frame(primaryMeta, in: primary).minX - 46) < 0.5, "Line two aligns with the title")
+assert(abs(frame(sessionLabel(primary, "6m"), in: primary).maxX - (390 - 16)) < 0.5, "Time keeps a 16 pt trailing margin")
+assert(
+  abs(primaryGlyph.midY - midY(primaryTitle, in: primary)) < abs(primaryGlyph.midY - midY(primaryMeta, in: primary)),
+  "The glyph sits on the title line"
+)
+assert(statusGlyph(in: primary).kind == .live)
+assert(abs(primary.bounds.height - 52) <= 4, "A primary row is about 52 pt: \(primary.bounds.height)")
+let metaText = primaryMeta.attributedText!
+let projectFont = metaText.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
+let modelFont = metaText.attribute(.font, at: (metaText.string as NSString).range(of: "Opus").location, effectiveRange: nil) as! UIFont
+assert(projectFont == modelFont, "Line two uses one face for project, branch and model")
+assert(!projectFont.fontDescriptor.symbolicTraits.contains(.traitMonoSpace), "Line two is not monospaced")
+assert(treePath(in: primary) == nil, "A row outside a group draws no tree line")
+assert(reviewButton(in: primary) == nil)
+assert(LodySessionRowView.textLeading(for: LodyListRow(), density: .regular) == 46)
+
+let child = laidOutSessionRow(LodySessionRowContent(
+  row: LodyListRow(title: "Test on macOS", modelName: "Codex", value: "3m", imageTint: "blue", parentId: "ship")
+))
+let childGlyph = frame(statusGlyph(in: child), in: child)
+assert(abs(childGlyph.midX - 46) < 0.5, "A child glyph centers at 46 pt")
+let childTitle = visibleLabel(child, containing: "Test on macOS")!
+assert(abs(frame(childTitle, in: child).minX - 62) < 0.5, "Child text starts at 62 pt")
+assert((childTitle.attributedText?.string ?? childTitle.text ?? "").contains("· Codex"), "The child names its model after the title")
+assert(abs(child.bounds.height - 40) <= 4, "A child row is about 40 pt: \(child.bounds.height)")
+let trunk = treePath(in: child)!.boundingBox
+assert(trunk.minY <= 0.5 && trunk.maxY >= child.bounds.height - 0.5, "Earlier children carry the trunk through the row")
+assert(abs(trunk.minX - 23.5) <= 1, "The trunk runs at the rail center")
+assert(LodySessionRowView.textLeading(for: LodyListRow(parentId: "ship"), density: .regular) == 62)
+
+let lastChild = laidOutSessionRow(LodySessionRowContent(
+  row: LodyListRow(title: "Land upstream fix", value: "5m", parentId: "ship", lastChild: true)
+))
+let elbow = treePath(in: lastChild)!.boundingBox
+assert(elbow.maxY < lastChild.bounds.height - 4, "The last child ends the trunk at its elbow")
+assert(elbow.maxX >= 38, "The elbow reaches the child glyph")
+
+let parent = laidOutSessionRow(LodySessionRowContent(
+  row: LodyListRow(title: "Ship 0.42 release", subtitle: "lody-ios", value: "6m", imageTint: "blue", collapsedValue: "2"),
+  treeDown: true
+))
+let down = treePath(in: parent)!.boundingBox
+assert(down.minY > frame(statusGlyph(in: parent), in: parent).maxY - 0.5 && down.maxY >= parent.bounds.height - 0.5,
+       "An expanded parent starts the trunk below its glyph")
+
+var reviewed = 0
+let attention = laidOutSessionRow(LodySessionRowContent(
+  row: LodyListRow(title: "Migrate auth middleware", subtitle: "lody-cloud", value: "2m", badge: "Needs approval", imageTint: "warning"),
+  onReview: { reviewed += 1 }
+))
+let review = reviewButton(in: attention)!
+assert(review.bounds.height < 44 && review.point(inside: CGPoint(x: review.bounds.midX, y: review.bounds.midY - 21), with: nil),
+       "Review draws small but hit-tests at 44 pt")
+assert(frame(review, in: attention).maxX <= 390 - 16 + 0.5)
+assert(abs(frame(review, in: attention).midY - attention.bounds.midY) < 0.5, "Review centers on the row")
+assert(abs(attention.bounds.height - 52) <= 4, "Review keeps the primary row height: \(attention.bounds.height)")
+assert(visibleLabel(attention, containing: "2m")?.attributedText?.string.contains("lody-cloud") == true, "The time moves to line two beside Review")
+let attentionTitle = frame(visibleLabel(attention, containing: "Migrate auth middleware")!, in: attention)
+assert(attentionTitle.maxX <= frame(review, in: attention).minX - 8 + 0.5, "The title never runs under Review")
+assert(visibleLabel(attention, containing: "Needs approval") == nil, "Status pills are replaced by the glyph")
+assert(attention.accessibilityLabel?.contains("Needs approval") == true, "VoiceOver still hears the state")
+_ = attention.accessibilityCustomActions?.first?.actionHandler?(attention.accessibilityCustomActions!.first!)
+assert(reviewed == 1, "VoiceOver reaches Review as a custom action")
+var compactAttention = LodySessionRowContent(
+  row: LodyListRow(title: "Migrate auth middleware", value: "2m", imageTint: "warning"), onReview: {}
+)
+compactAttention.density = .compact
+let compactRow = laidOutSessionRow(compactAttention)
+assert(reviewButton(in: compactRow) == nil, "Compact rows rely on the glyph alone")
+assert(abs(frame(statusGlyph(in: compactRow), in: compactRow).midX - 10) < 0.5, "Compact rail centers at 10 pt")
+var compactChild = LodySessionRowContent(row: LodyListRow(title: "Child", value: "1m", parentId: "p"))
+compactChild.density = .compact
+let compactChildRow = laidOutSessionRow(compactChild)
+assert(abs(frame(statusGlyph(in: compactChildRow), in: compactChildRow).midX - LodyDesign.Rail.compactChildCenter) < 0.5)
+assert(LodySessionRowView.textLeading(for: LodyListRow(parentId: "p"), density: .compact) == LodyDesign.Rail.compactChildText)
+
+print("PASS: rail rows place glyphs, text, tree lines and Review on the design grid")
 
 let statsRow = LodyListRow(title: "Review", subtitle: "main", diff: ["add": 4, "del": 2])
 let stats = LodySessionRowView.meta(for: statsRow)
@@ -265,7 +363,7 @@ assert(delColor.isEqual(UIColor.systemRed), "Diff deletions must be system red")
 }
 
 let densityRow = LodyListRow(title: "Review sidebar", subtitle: "feature/sidebar", modelName: "GPT-6", value: "Now")
-let sessionContent = LodySessionRowContent(row: densityRow, dot: .systemBlue, live: true)
+let sessionContent = LodySessionRowContent(row: densityRow)
 let densitySession = LodySessionRowView(sessionContent)
 let groupedSessionHeight = fittedHeight(densitySession)
 let groupedSessionLabel = densitySession.accessibilityLabel
@@ -273,13 +371,13 @@ let groupedTitleFont = sessionLabel(densitySession, densityRow.title).font!
 var sidebarSession = sessionContent
 sidebarSession.density = .compact
 densitySession.configuration = sidebarSession
-assert(fittedHeight(densitySession) <= groupedSessionHeight - 8, "Sidebar must fit more rows at the same width")
+assert(fittedHeight(densitySession) < groupedSessionHeight, "Sidebar must fit more rows at the same width")
 assert(fittedHeight(densitySession) >= 44, "Compact rows must keep a 44 pt touch target")
 assert(densitySession.accessibilityLabel == groupedSessionLabel, "Sidebar must retain all session information")
 assert(sessionLabel(densitySession, densityRow.title).font.pointSize < groupedTitleFont.pointSize, "Sidebar title must be quieter than the grouped title")
 assert(sessionLabel(densitySession, densityRow.title).adjustsFontForContentSizeCategory)
 let groupedMetaFont = LodySessionRowView.meta(for: densityRow).attribute(.font, at: 0, effectiveRange: nil) as! UIFont
-let sidebarMetaFont = sessionLabel(densitySession, densityRow.subtitle).attributedText!.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
+let sidebarMetaFont = visibleLabel(densitySession, containing: densityRow.subtitle)!.attributedText!.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
 assert(sidebarMetaFont.pointSize < groupedMetaFont.pointSize, "Attributed branch text must follow sidebar density too")
 densitySession.configuration = sessionContent
 assert(sessionLabel(densitySession, densityRow.title).font == groupedTitleFont, "Reuse must restore the phone title size")
@@ -288,24 +386,136 @@ sidebarSession.row = LodyListRow(title: "No metadata")
 densitySession.configuration = sidebarSession
 assert(fittedHeight(densitySession) >= 44, "A one-line sidebar row must still be tappable")
 
-let pinnedHeader = LodyProjectRowView(LodyProjectRowContent(row: LodyListRow(title: "Pinned", image: "pin.fill"), accent: .systemBlue))
-assert(pinnedHeader.subviews.contains { ($0 as? UIImageView)?.image != nil }, "A symbol project header must show its glyph")
+let pinnedHeader = laidOut(LodyProjectRowView(LodyProjectRowContent(row: LodyListRow(title: "Pinned", image: "pin.fill"))))
+let pinnedSymbol = pinnedHeader.subviews.compactMap { $0 as? UIImageView }.first { $0.image != nil && !$0.isHidden }!
+assert(abs(frame(pinnedSymbol, in: pinnedHeader).midX - 24) < 0.5, "A symbol header draws its symbol in the rail")
+assert(statusGlyph(in: pinnedHeader).isHidden, "A symbol header replaces the folder glyph")
 
-let projectContent = LodyProjectRowContent(row: LodyListRow(title: "Lody", subtitle: "/tmp/lody", monogram: "L"), accent: .systemBlue)
+let railProject = laidOut(LodyProjectRowView(LodyProjectRowContent(
+  row: LodyListRow(title: "lody-ios", subtitle: "~/git/lody-ios", value: "2 running", badge: "7", subtitleMono: true, monogram: "L", imageTint: "blue")
+)))
+let railProjectGlyph = statusGlyph(in: railProject)
+assert(railProjectGlyph.kind == .project && !railProjectGlyph.isHidden)
+assert(abs(frame(railProjectGlyph, in: railProject).midX - 24) < 0.5, "The folder glyph centers on the rail")
+let railProjectName = sessionLabel(railProject, "lody-ios")
+assert(abs(frame(railProjectName, in: railProject).minX - 46) < 0.5, "The project name starts on the text column")
+let projectWeight = (railProjectName.font.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any])?[.weight] as? CGFloat
+assert((projectWeight ?? 0) >= UIFont.Weight.semibold.rawValue, "The project name is semibold")
+let railProjectLine = visibleLabel(railProject, containing: "2 running")!
+assert(railProjectLine.attributedText!.string.contains("~/git/lody-ios"), "Counts share line two with the path")
+let railProjectText = railProjectLine.attributedText!
+let pathFont = railProjectText.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
+let countFont = railProjectText.attribute(.font, at: (railProjectText.string as NSString).range(of: "2 running").location, effectiveRange: nil) as! UIFont
+assert(pathFont == countFont, "Project line two uses one face")
+assert(abs(frame(railProjectLine, in: railProject).minX - 46) < 0.5)
+let railProjectCount = visibleLabel(railProject, containing: "7")!
+assert(abs(frame(railProjectCount, in: railProject).maxX - (390 - 16)) < 0.5, "The collapsed count sits in the time column")
+assert(abs(railProject.bounds.height - 52) <= 4, "A project row matches a primary row: \(railProject.bounds.height)")
+let compactProject = laidOut(LodyProjectRowView(LodyProjectRowContent(row: LodyListRow(title: "lody-ios"), density: .compact)))
+assert(abs(frame(statusGlyph(in: compactProject), in: compactProject).midX - LodyDesign.Rail.compactCenter) < 0.5)
+
+let searchHit = laidOutSessionRow(LodySessionRowContent(
+  row: LodyListRow(
+    title: "Refactor Catalog sync", subtitle: "…the catalog now resumes from the last durable cursor watermark instead of replaying every replica",
+    modelName: "Codex", value: "1h", highlight: "CATALOG", wrapSubtitle: true
+  )
+))
+let snippetLabel = visibleLabel(searchHit, containing: "watermark")!
+let snippetText = snippetLabel.attributedText!
+func weight(_ font: UIFont) -> CGFloat {
+  (font.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any])?[.weight] as? CGFloat ?? 0
+}
+let snippetMatch = (snippetText.string as NSString).range(of: "catalog")
+let matchFont = snippetText.attribute(.font, at: snippetMatch.location, effectiveRange: nil) as! UIFont
+let contextFont = snippetText.attribute(.font, at: snippetMatch.location + snippetMatch.length + 2, effectiveRange: nil) as! UIFont
+assert(weight(matchFont) >= UIFont.Weight.semibold.rawValue && weight(contextFont) < UIFont.Weight.medium.rawValue, "The matched words stand out in the snippet")
+assert(snippetText.attribute(.foregroundColor, at: snippetMatch.location, effectiveRange: nil) as? UIColor == .lodyInk, "Matches read in ink")
+assert(snippetLabel.numberOfLines == 2 && snippetLabel.bounds.height > snippetLabel.font.lineHeight * 1.5, "A long snippet wraps to a second line")
+let searchTitle = visibleLabel(searchHit, containing: "Refactor")!.attributedText!
+let titleMatch = (searchTitle.string as NSString).range(of: "Catalog")
+let titleMatchFont = searchTitle.attribute(.font, at: titleMatch.location, effectiveRange: nil) as! UIFont
+assert(weight(titleMatchFont) >= UIFont.Weight.semibold.rawValue, "Title matches stand out too")
+let plainHit = laidOutSessionRow(LodySessionRowContent(row: LodyListRow(title: "Refactor catalog sync", subtitle: "feature/sync", value: "1h")))
+assert(visibleLabel(plainHit, containing: "feature/sync")!.numberOfLines == 1, "Ordinary rows keep a single line two")
+print("PASS: search rows highlight the query in titles and wrapped message snippets")
+
+func inlineMark(_ view: UIView, after label: UILabel) -> UIImageView? {
+  view.subviews.compactMap { $0 as? UIImageView }
+    .first { !$0.isHidden && $0.image != nil && frame($0, in: view).minX >= frame(label, in: view).maxX - 0.5 }
+}
+
+var projectToggles = 0
+let openProject = laidOut(LodyProjectRowView(LodyProjectRowContent(
+  row: LodyListRow(title: "lody-ios", subtitle: "~/git/lody-ios"), expanded: true, onToggle: { projectToggles += 1 }
+)))
+let openName = frame(sessionLabel(openProject, "lody-ios"), in: openProject)
+let openMark = inlineMark(openProject, after: sessionLabel(openProject, "lody-ios"))!
+let openMarkFrame = frame(openMark, in: openProject)
+assert(openMarkFrame.minX - openName.maxX >= 3 && openMarkFrame.minX - openName.maxX <= 8, "The fold mark follows the group name")
+assert(openMarkFrame.width <= 14 && abs(openMarkFrame.midY - openName.midY) < 1, "The fold mark is small and sits on the name line")
+assert(openMark.image!.size.width > openMark.image!.size.height, "An open group points the mark down")
+assert(ink(openMark.image!) > ink(boldChevron), "The group mark carries the weight of the semibold name")
+let closedProject = laidOut(LodyProjectRowView(LodyProjectRowContent(
+  row: LodyListRow(title: "lody-cloud", subtitle: "~/git/lody-cloud", badge: "4"), expanded: false, onToggle: {}
+)))
+let closedMark = inlineMark(closedProject, after: sessionLabel(closedProject, "lody-cloud"))!
+assert(closedMark.image!.size.height > closedMark.image!.size.width, "A collapsed group points the mark sideways")
+assert(inlineMark(railProject, after: sessionLabel(railProject, "lody-ios")) == nil, "Groups that navigate draw no fold mark")
+let collapseGroup = openProject.accessibilityCustomActions?.first { $0.name == "native.list.collapse" }
+assert(collapseGroup != nil, "VoiceOver can collapse an open group")
+_ = collapseGroup!.actionHandler!(collapseGroup!)
+assert(projectToggles == 1)
+assert(closedProject.accessibilityCustomActions?.contains { $0.name == "native.list.expand" } == true, "VoiceOver can expand a collapsed group")
+
+var sessionToggles = 0
+let foldParent = laidOutSessionRow(LodySessionRowContent(
+  row: LodyListRow(title: "Refactor catalog sync", subtitle: "feature/sync", modelName: "Codex", value: "1h", collapsedValue: "3 sessions"),
+  expanded: false,
+  onToggle: { sessionToggles += 1 }
+))
+let fold = foldParent.subviews.compactMap { $0 as? UIButton }.first { !$0.isHidden }!
+let foldFrame = frame(fold, in: foldParent)
+let foldTitle = frame(sessionLabel(foldParent, "Refactor catalog sync"), in: foldParent)
+let foldLine = frame(visibleLabel(foldParent, containing: "feature/sync")!, in: foldParent)
+assert(foldFrame.minY >= foldTitle.maxY - 0.5 && abs(foldFrame.midY - foldLine.midY) < 1.5, "The sub-agent toggle sits on line two")
+assert(foldFrame.minX >= foldLine.maxX - 0.5, "The toggle follows the line-two text")
+assert(fold.configuration?.attributedTitle.map { String($0.characters) }?.contains("3 sessions") == true, "The toggle names the children")
+assert(fold.point(inside: CGPoint(x: fold.bounds.midX, y: fold.bounds.midY - 21), with: nil), "The toggle hit-tests at 44 pt")
+assert(visibleLabel(foldParent, containing: "1h") != nil, "A folded parent keeps its time")
+let expandChildren = foldParent.accessibilityCustomActions?.first { $0.name == "native.list.expand" }
+assert(expandChildren != nil, "VoiceOver can expand sub-agents")
+_ = expandChildren!.actionHandler!(expandChildren!)
+assert(sessionToggles == 1, "The toggle folds the sub-agents, not the session")
+assert(reviewButton(in: parent) == nil, "Without a toggle handler the parent draws no control")
+let compactFold = laidOutSessionRow(LodySessionRowContent(
+  row: LodyListRow(title: "Refactor catalog sync", subtitle: "feature/sync", modelName: "Codex", value: "1h", collapsedValue: "3 sessions"),
+  density: .compact,
+  expanded: false,
+  onToggle: { sessionToggles += 1 }
+))
+let compactToggle = compactFold.subviews.compactMap { $0 as? UIButton }.first { !$0.isHidden }
+assert(compactToggle?.configuration?.attributedTitle.map { String($0.characters) }?.contains("3 sessions") == true, "The sidebar folds sub-agents on line two too")
+assert(visibleLabel(compactFold, containing: "1h") != nil, "A folded sidebar parent keeps its time")
+var compactGroup = LodyProjectRowContent(row: LodyListRow(title: "lody-ios", subtitle: "~/git/lody-ios"), density: .compact, expanded: true)
+compactGroup.onToggle = {}
+let compactGroupView = LodyProjectRowView(compactGroup)
+assert(compactGroupView.subviews.contains { ($0 as? UIImageView)?.isHidden == false && ($0 as? UIImageView)?.image != nil }, "Sidebar groups draw the inline fold mark")
+print("PASS: groups and sub-agent parents fold through inline marks, not trailing accessories")
+
+let projectContent = LodyProjectRowContent(row: LodyListRow(title: "Lody", subtitle: "/tmp/lody", monogram: "L"))
 let densityProject = LodyProjectRowView(projectContent)
 let groupedProjectHeight = fittedHeight(densityProject)
 let groupedProjectLabel = densityProject.accessibilityLabel
-let projectText = densityProject.subviews.first { $0 is UIStackView }!
-let groupedProjectFont = sessionLabel(projectText, "Lody").font!
+let groupedProjectFont = sessionLabel(densityProject, "Lody").font!
 var sidebarProject = projectContent
 sidebarProject.density = .compact
 densityProject.configuration = sidebarProject
-assert(fittedHeight(densityProject) <= groupedProjectHeight - 8)
+assert(fittedHeight(densityProject) < groupedProjectHeight)
 assert(fittedHeight(densityProject) >= 44)
 assert(densityProject.accessibilityLabel == groupedProjectLabel)
-assert(sessionLabel(projectText, "Lody").font.pointSize < groupedProjectFont.pointSize)
+assert(sessionLabel(densityProject, "Lody").font.pointSize < groupedProjectFont.pointSize)
 densityProject.configuration = projectContent
-assert(sessionLabel(projectText, "Lody").font == groupedProjectFont, "Reuse must restore the phone project size")
+assert(sessionLabel(densityProject, "Lody").font == groupedProjectFont, "Reuse must restore the phone project size")
 assert(abs(fittedHeight(densityProject) - groupedProjectHeight) < 0.5)
 print("PASS: sidebar uses quieter typography with complete text and 44 pt targets; grouped reuse restores its font and spacing")
 
@@ -395,12 +605,11 @@ assert(
 print("PASS: list asset glyphs keep SF Symbol text alignment")
 
 let resizingSession = LodySessionRowView(LodySessionRowContent(
-  row: LodyListRow(title: "Steer E2E", value: "Now"), dot: .systemBlue, live: true
+  row: LodyListRow(title: "Steer E2E", value: "Now")
 ))
 for badgeText in ["Running", "", "Completed"] {
   resizingSession.configuration = LodySessionRowContent(
-    row: LodyListRow(title: "Steer E2E", value: "Now", badge: badgeText),
-    dot: .systemBlue, live: !badgeText.isEmpty
+    row: LodyListRow(title: "Steer E2E", value: "Now", badge: badgeText, imageTint: badgeText.isEmpty ? "" : "blue")
   )
   let fitting = resizingSession.systemLayoutSizeFitting(
     CGSize(width: 370, height: CGFloat.greatestFiniteMagnitude),
@@ -439,3 +648,55 @@ assert(
   "Opening an already-read row does not hold emphasis"
 )
 print("PASS: unread emphasis waits for a covering push to finish")
+
+assert(LodyStatusGlyph.kind(for: LodyListRow(imageTint: "warning")) == .attention)
+assert(LodyStatusGlyph.kind(for: LodyListRow(imageTint: "blue")) == .live)
+assert(LodyStatusGlyph.kind(for: LodyListRow(imageTint: "danger")) == .failed)
+assert(LodyStatusGlyph.kind(for: LodyListRow(unread: true)) == .unread)
+assert(LodyStatusGlyph.kind(for: LodyListRow(unread: true, imageTint: "warning")) == .attention, "Attention outranks unread")
+assert(LodyStatusGlyph.kind(for: LodyListRow()) == .done)
+assert(LodyStatusGlyph.kind(for: LodyListRow(parent: true)) == .project)
+assert(LodyStatusGlyphView.rotates(kind: .live, reduceMotion: false, inWindow: true))
+assert(!LodyStatusGlyphView.rotates(kind: .live, reduceMotion: true, inWindow: true), "Reduce Motion stops the live arc")
+assert(!LodyStatusGlyphView.rotates(kind: .live, reduceMotion: false, inWindow: false), "Offscreen glyphs do not animate")
+assert(!LodyStatusGlyphView.rotates(kind: .done, reduceMotion: false, inWindow: true))
+
+func shapes(_ view: UIView) -> [CAShapeLayer] {
+  (view.layer.sublayers ?? []).compactMap { $0 as? CAShapeLayer }.filter { !$0.isHidden && $0.path != nil }
+}
+func painted(_ view: UIView, _ color: UIColor) -> Bool {
+  let resolved = color.resolvedColor(with: view.traitCollection).cgColor
+  return shapes(view).contains { $0.fillColor == resolved || $0.strokeColor == resolved }
+}
+let glyph = LodyStatusGlyphView(kind: .attention)
+glyph.frame = CGRect(x: 0, y: 0, width: 14, height: 14)
+glyph.layoutIfNeeded()
+assert(!glyph.isAccessibilityElement, "Row labels carry the state; the glyph is decoration")
+assert(painted(glyph, .lodyAttention), "Attention paints amber")
+var outlines: [[CGPath]] = []
+for kind in [LodyStatusGlyph.Kind.attention, .live, .unread, .failed, .done, .project] {
+  glyph.kind = kind
+  glyph.layoutIfNeeded()
+  assert(!shapes(glyph).isEmpty, "\(kind) draws a shape")
+  outlines.append(shapes(glyph).map { $0.path! })
+}
+for (index, outline) in outlines.enumerated() {
+  assert(!outlines[(index + 1)...].contains(outline), "Every state has its own glyph")
+}
+glyph.kind = .failed
+glyph.layoutIfNeeded()
+assert(painted(glyph, .lodyFailure))
+glyph.kind = .none
+glyph.layoutIfNeeded()
+assert(shapes(glyph).isEmpty, "A row without state draws nothing")
+
+let glyphWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+glyphWindow.makeKeyAndVisible()
+let spinner = LodyStatusGlyphView(kind: .live)
+spinner.frame = CGRect(x: 0, y: 0, width: 14, height: 14)
+glyphWindow.addSubview(spinner)
+spinner.layoutIfNeeded()
+assert(shapes(spinner).contains { $0.animationKeys()?.isEmpty == false }, "A live glyph on screen spins")
+spinner.removeFromSuperview()
+assert(!shapes(spinner).contains { $0.animationKeys()?.isEmpty == false }, "Leaving the window stops the spin")
+print("PASS: status glyphs map row state, draw distinct shapes and spin only when visible")

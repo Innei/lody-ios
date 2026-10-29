@@ -46,6 +46,17 @@ features = ('onboarding.sessions.title', 'onboarding.reply.title', 'onboarding.p
 intro_settled('open', 1, (*features, 'onboarding.title', 'login.footnote'))
 ui.capture('idle')
 
+ui.screenshot('connect-label')
+connect_frame = ui.element('onboarding-connect')['frame']
+probe_width = round(screen['width'])
+row = round(connect_frame['y'] + connect_frame['height'] / 2)
+pixels = subprocess.check_output([
+    'ffmpeg', '-v', 'error', '-i', str(ui.output / 'connect-label.png'),
+    '-vf', f'scale={probe_width}:-1,crop={probe_width}:1:0:{row}', '-f', 'rawvideo', '-pix_fmt', 'gray', '-',
+], timeout=20)
+span = pixels[round(connect_frame['x'] + 16):round(connect_frame['x'] + connect_frame['width'] - 16)]
+assert max(span) - min(span) > 110, ('The Connect label must contrast with its fill', min(span), max(span))
+
 # Stop above the connect control. A drag that runs through it can press the button
 # when the gesture is cut short by the next accessibility command.
 start_y = sheet['y'] + 20

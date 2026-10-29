@@ -149,6 +149,7 @@ enum NativeHomeFixture {
   private static var polling: Task<Void, Never>?
 
   private static var catalog: [String: Any] = [:]
+  private static var statesCatalog: [String: Any] = [:]
   private static var workspaces: [[String: Any]] = []
   private static var selected = "ui-home"
   private static var rejectedDelete = false
@@ -157,6 +158,7 @@ enum NativeHomeFixture {
     let url = Bundle.main.url(forResource: "DebugHome", withExtension: "json")!
     let fixture = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as! [String: Any]
     catalog = fixture["catalog"] as! [String: Any]
+    statesCatalog = relative(fixture["statesCatalog"] as! [String: Any], now: Date().timeIntervalSince1970 * 1000)
     workspaces = fixture["workspaces"] as! [[String: Any]]
     selected = "ui-home"; rejectedDelete = false
     for key in ["inboxView", "inboxProjectSort", "inboxExpansion", "inboxPinOrder.ui-home.ui-home"] {
@@ -172,6 +174,7 @@ enum NativeHomeFixture {
       let search = LodyUIVerify.has("--ui-verify-search")
       try store.write("session:[\"ui-home\",\"ui-home\",\"ui-design\"]", fixture[search ? "searchPreviewCache" : "previewCache"] as! String)
       try store.write("session:[\"ui-home\",\"ui-home\",\"ui-search\"]", search ? fixture["olderSearchCache"] as! String : "null")
+      try store.write("session:[\"ui-home\",\"ui-states\",\"st-sync\"]", fixture["statesProseCache"] as! String)
     }
     publish()
     polling?.cancel()
@@ -211,9 +214,24 @@ enum NativeHomeFixture {
     publish()
   }
 
+  private static func relative(_ fixture: [String: Any], now: Double) -> [String: Any] {
+    var result = fixture
+    result["sessions"] = (fixture["sessions"] as! [[String: Any]]).map { session in
+      var session = session
+      for (offset, field) in [("ago", "lastMessageAt"), ("readAgo", "lastReadAt"), ("awaitingAgo", "awaitingUserSince")] {
+        guard let seconds = session.removeValue(forKey: offset) as? Double else { continue }
+        session[field] = now - seconds * 1000
+      }
+      return session
+    }
+    return result
+  }
+
   private static func publish() {
+    let catalogs = ["ui-home": catalog, "ui-states": statesCatalog]
+    let empty: [String: Any] = ["projects": [], "sessions": [], "machineIds": []]
     let payload: [String: Any] = ["account": ["user": ["id": "ui-home", "name": "UI Preview", "email": ""], "workspaces": workspaces],
-      "workspaceId": selected, "catalog": selected == "ui-home" ? catalog : ["projects": [], "sessions": [], "machineIds": []],
+      "workspaceId": selected, "catalog": catalogs[selected] ?? empty,
       "presence": ["workspaceId": selected, "presence": presence]]
     let json = String(decoding: try! JSONSerialization.data(withJSONObject: payload), as: UTF8.self)
     SettingsPreview.set(json)

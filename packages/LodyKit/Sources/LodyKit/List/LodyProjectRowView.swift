@@ -2,29 +2,34 @@ import UIKit
 
 struct LodyProjectRowContent: UIContentConfiguration {
   var row: LodyListRow
-  var accent: UIColor
   var density: LodyRowDensity = .regular
+  var expanded: Bool?
+  var onToggle: (@MainActor () -> Void)?
 
   var accessibilityLabel: String {
     [row.title, row.subtitle, row.value, row.badge].filter { !$0.isEmpty }.joined(separator: ", ")
   }
 
   func makeContentView() -> UIView & UIContentView { LodyProjectRowView(self) }
-  func updated(for state: UIConfigurationState) -> LodyProjectRowContent { self }
+  func updated(for state: UIConfigurationState) -> LodyProjectRowContent {
+    guard expanded != nil, let cell = state as? UICellConfigurationState else { return self }
+    var copy = self
+    copy.expanded = cell.isExpanded
+    return copy
+  }
 }
 
 final class LodyProjectRowView: UIView, UIContentView {
-  private let tile = UILabel()
-  private let icon = UIImageView()
-  private var photoURL: URL?
+  private let glyph = LodyStatusGlyphView(kind: .project)
+  private let symbol = UIImageView()
   private let name = UILabel()
-  private let path = UILabel()
-  private let dot = UIView()
+  private let detail = UILabel()
   private let count = UILabel()
-  private let chip = PillLabel()
-  private let text = UIStackView()
-  private var textSpacing: NSLayoutConstraint!
-  private var tileWidth: NSLayoutConstraint!
+  private let fold = UIImageView()
+  private var glyphCenter: NSLayoutConstraint!
+  private var withDetail: [NSLayoutConstraint] = []
+  private var withoutDetail: [NSLayoutConstraint] = []
+  private var withFold: [NSLayoutConstraint] = []
 
   var configuration: UIContentConfiguration {
     didSet { apply() }
@@ -35,82 +40,65 @@ final class LodyProjectRowView: UIView, UIContentView {
     super.init(frame: .zero)
     insetsLayoutMarginsFromSafeArea = false
     preservesSuperviewLayoutMargins = false
-    directionalLayoutMargins = .init(top: 11, leading: 16, bottom: 11, trailing: 4)
-    tile.font = .preferredFont(forTextStyle: .subheadline).withWeight(.semibold)
-    tile.textAlignment = .center
-    tile.layer.cornerRadius = 9
-    tile.layer.cornerCurve = .continuous
-    tile.clipsToBounds = true
-    icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(font: tile.font)
-    name.font = .preferredFont(forTextStyle: .headline)
+    symbol.tintColor = .lodySecondary
+    symbol.contentMode = .center
+    fold.tintColor = .lodyTertiary
+    fold.contentMode = .center
+    fold.setContentCompressionResistancePriority(.required, for: .horizontal)
     name.adjustsFontForContentSizeCategory = true
-    name.lineBreakMode = .byTruncatingTail
-    path.font = .monospacedSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .regular)
-    path.textColor = .secondaryLabel
-    path.lineBreakMode = .byTruncatingMiddle
-    count.font = .preferredFont(forTextStyle: .footnote)
+    name.textColor = .lodyInk
+    detail.adjustsFontForContentSizeCategory = true
     count.adjustsFontForContentSizeCategory = true
-    count.textColor = .secondaryLabel
+    count.textColor = .lodyTertiary
     count.textAlignment = .right
-    count.setContentHuggingPriority(.required, for: .horizontal)
-    count.setContentCompressionResistancePriority(.required, for: .horizontal)
-    chip.setContentHuggingPriority(.required, for: .horizontal)
-    chip.setContentCompressionResistancePriority(.required, for: .horizontal)
-    chip.font = .preferredFont(forTextStyle: .caption1).withWeight(.medium)
-    chip.adjustsFontForContentSizeCategory = true
-    chip.layer.cornerRadius = 10
-    chip.layer.cornerCurve = .continuous
-    chip.clipsToBounds = true
-    chip.textColor = .label
-    chip.backgroundColor = .tertiarySystemFill
-    dot.layer.cornerRadius = 4
+    for label in [name, detail, count] {
+      label.lineBreakMode = .byTruncatingTail
+    }
+    detail.lineBreakMode = .byTruncatingMiddle
     name.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-    path.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-    text.axis = .vertical
-    text.spacing = 2
-    text.addArrangedSubview(name)
-    text.addArrangedSubview(path)
-    for view in [tile, icon, text, dot, count, chip] {
+    detail.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    count.setContentCompressionResistancePriority(.required, for: .horizontal)
+    count.setContentHuggingPriority(.required, for: .horizontal)
+    for view in [glyph, symbol, name, detail, count, fold] {
       view.translatesAutoresizingMaskIntoConstraints = false
       addSubview(view)
     }
     let margin = layoutMarginsGuide
-    // The >= margins bound the height; this pulls it down to the taller of tile and text.
-    let shrink = heightAnchor.constraint(equalToConstant: 0)
-    shrink.priority = .defaultLow
-    // The stack has no intrinsic width of its own; fill up to the trailing group.
-    let fill = text.trailingAnchor.constraint(equalTo: count.leadingAnchor, constant: -10)
-    fill.priority = .defaultHigh
-    textSpacing = text.leadingAnchor.constraint(equalTo: tile.trailingAnchor, constant: 12)
-    tileWidth = tile.widthAnchor.constraint(equalToConstant: 32)
+    glyphCenter = glyph.centerXAnchor.constraint(equalTo: leadingAnchor)
+    let centered = name.centerYAnchor.constraint(equalTo: centerYAnchor)
+    centered.priority = .defaultHigh
+    let pinned = detail.bottomAnchor.constraint(equalTo: margin.bottomAnchor)
+    pinned.priority = .defaultHigh
     NSLayoutConstraint.activate([
       heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-      tileWidth,
-      tile.heightAnchor.constraint(equalTo: tile.widthAnchor),
-      tile.leadingAnchor.constraint(equalTo: margin.leadingAnchor),
-      tile.centerYAnchor.constraint(equalTo: centerYAnchor),
-      tile.topAnchor.constraint(greaterThanOrEqualTo: margin.topAnchor),
-      icon.leadingAnchor.constraint(equalTo: tile.leadingAnchor),
-      icon.trailingAnchor.constraint(equalTo: tile.trailingAnchor),
-      icon.topAnchor.constraint(equalTo: tile.topAnchor),
-      icon.bottomAnchor.constraint(equalTo: tile.bottomAnchor),
-      text.topAnchor.constraint(greaterThanOrEqualTo: margin.topAnchor),
-      text.bottomAnchor.constraint(lessThanOrEqualTo: margin.bottomAnchor),
-      text.centerYAnchor.constraint(equalTo: centerYAnchor),
-      textSpacing,
-      text.trailingAnchor.constraint(lessThanOrEqualTo: count.leadingAnchor, constant: -10),
-      text.trailingAnchor.constraint(lessThanOrEqualTo: chip.leadingAnchor, constant: -10),
-      shrink,
-      fill,
+      glyphCenter,
+      glyph.widthAnchor.constraint(equalToConstant: LodyDesign.Rail.glyph),
+      glyph.heightAnchor.constraint(equalToConstant: LodyDesign.Rail.glyph),
+      glyph.centerYAnchor.constraint(equalTo: name.centerYAnchor),
+      symbol.centerXAnchor.constraint(equalTo: glyph.centerXAnchor),
+      symbol.centerYAnchor.constraint(equalTo: glyph.centerYAnchor),
+      name.topAnchor.constraint(equalTo: margin.topAnchor),
+      name.leadingAnchor.constraint(equalTo: margin.leadingAnchor),
+      name.trailingAnchor.constraint(lessThanOrEqualTo: count.leadingAnchor, constant: -10),
       count.trailingAnchor.constraint(equalTo: margin.trailingAnchor),
-      count.centerYAnchor.constraint(equalTo: centerYAnchor),
-      dot.widthAnchor.constraint(equalToConstant: 8),
-      dot.heightAnchor.constraint(equalToConstant: 8),
-      dot.trailingAnchor.constraint(equalTo: count.leadingAnchor, constant: -6),
-      dot.centerYAnchor.constraint(equalTo: count.centerYAnchor),
-      chip.trailingAnchor.constraint(equalTo: margin.trailingAnchor),
-      chip.centerYAnchor.constraint(equalTo: centerYAnchor),
+      count.firstBaselineAnchor.constraint(equalTo: name.firstBaselineAnchor),
     ])
+    withDetail = [
+      detail.topAnchor.constraint(equalTo: name.bottomAnchor, constant: 2),
+      detail.leadingAnchor.constraint(equalTo: margin.leadingAnchor),
+      detail.trailingAnchor.constraint(lessThanOrEqualTo: margin.trailingAnchor),
+      detail.bottomAnchor.constraint(lessThanOrEqualTo: margin.bottomAnchor),
+      pinned,
+    ]
+    withFold = [
+      fold.leadingAnchor.constraint(equalTo: name.trailingAnchor, constant: 5),
+      fold.centerYAnchor.constraint(equalTo: name.centerYAnchor),
+      fold.trailingAnchor.constraint(lessThanOrEqualTo: count.leadingAnchor, constant: -10),
+    ]
+    withoutDetail = [
+      name.bottomAnchor.constraint(lessThanOrEqualTo: margin.bottomAnchor),
+      centered,
+    ]
     apply()
   }
 
@@ -119,50 +107,71 @@ final class LodyProjectRowView: UIView, UIContentView {
 
   private func apply() {
     guard let content = configuration as? LodyProjectRowContent else { return }
-    let compact = content.density == .compact
-    directionalLayoutMargins = compact
-      ? .init(top: 5, leading: 8, bottom: 5, trailing: 4)
-      : .init(top: 11, leading: 16, bottom: 11, trailing: 4)
-    textSpacing.constant = compact ? 8 : 12
-    tileWidth.constant = compact ? 24 : 32
-    tile.layer.cornerRadius = compact ? 6 : 9
-    name.font = compact
-      ? UIFont.preferredFont(forTextStyle: .subheadline).withWeight(.semibold)
-      : .preferredFont(forTextStyle: .headline)
-    path.font = .monospacedSystemFont(ofSize: UIFont.preferredFont(forTextStyle: compact ? .caption2 : .caption1).pointSize, weight: .regular)
-    count.font = .preferredFont(forTextStyle: compact ? .caption1 : .footnote)
-    text.spacing = compact ? 1 : 2
     let row = content.row
-    let url = LodyListPhoto.url(row.image)
-    photoURL = url
-    tile.textColor = content.accent
-    icon.tintColor = content.accent
-    let photo = url.flatMap { source in
-      LodyListPhoto.image(for: source, ready: { [weak self] image in
-        guard let self, self.photoURL == source else { return }
-        self.showTile(photo: image, symbol: nil, monogram: "", accent: content.accent)
-      })
+    let compact = content.density == .compact
+    directionalLayoutMargins = .init(
+      top: compact ? 5 : 8,
+      leading: compact ? LodyDesign.Rail.compactText : LodyDesign.Rail.text,
+      bottom: compact ? 5 : 8,
+      trailing: compact ? 10 : LodyDesign.Rail.trailing
+    )
+    glyphCenter.constant = compact ? LodyDesign.Rail.compactCenter : LodyDesign.Rail.center
+    let image = LodyListPhoto.url(row.image) == nil && !row.image.isEmpty ? UIImage(systemName: row.image) : nil
+    symbol.image = image
+    symbol.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 12, weight: .medium)
+    symbol.isHidden = image == nil
+    glyph.isHidden = image != nil
+    let nameFont = LodyDesign.font(.subheadline, size: compact ? 14 : 15, weight: .semibold)
+    let nameText = NSMutableAttributedString(string: row.title, attributes: [.font: nameFont, .foregroundColor: UIColor.lodyInk])
+    LodySessionRowView.emphasize(nameText, in: NSRange(location: 0, length: nameText.length), query: row.highlight)
+    name.font = nameFont
+    name.attributedText = nameText
+    let body = LodyDesign.font(.footnote, size: compact ? 12 : 12.5)
+    let line = NSMutableAttributedString()
+    if !row.subtitle.isEmpty {
+      line.append(NSAttributedString(string: row.subtitle, attributes: [
+        .font: body,
+        .foregroundColor: UIColor.lodySecondary,
+      ]))
     }
-    let symbol = url == nil && !row.image.isEmpty ? UIImage(systemName: row.image) : nil
-    showTile(photo: photo, symbol: symbol, monogram: row.monogram, accent: content.accent)
-    name.text = row.title
-    path.text = row.subtitle
-    path.isHidden = row.subtitle.isEmpty
-    count.text = row.value
-    count.isHidden = row.value.isEmpty
-    let tint = lodyTint(row.imageTint)
-    dot.backgroundColor = tint
-    dot.isHidden = tint == nil || row.value.isEmpty
-    chip.text = row.badge
-    chip.isHidden = row.badge.isEmpty
+    if !row.value.isEmpty {
+      if line.length > 0 {
+        line.append(NSAttributedString(string: " · ", attributes: [.font: body, .foregroundColor: UIColor.lodyTertiary]))
+      }
+      line.append(NSAttributedString(string: row.value, attributes: [.font: body, .foregroundColor: UIColor.lodySecondary]))
+    }
+    detail.attributedText = line
+    let hasDetail = line.length > 0
+    detail.isHidden = !hasDetail
+    NSLayoutConstraint.deactivate(hasDetail ? withoutDetail : withDetail)
+    NSLayoutConstraint.activate(hasDetail ? withDetail : withoutDetail)
+    count.font = LodyDesign.mono(compact ? 11 : 11.5)
+    count.text = row.badge
+    count.isHidden = row.badge.isEmpty
+    applyFold(content)
     isAccessibilityElement = true
     accessibilityLabel = content.accessibilityLabel
   }
 
-  private func showTile(photo: UIImage?, symbol: UIImage?, monogram: String, accent: UIColor) {
-    icon.image = photo ?? symbol
-    icon.contentMode = photo == nil ? .center : .scaleAspectFill
-    tile.text = icon.image == nil ? monogram : nil
-    tile.backgroundColor = photo == nil ? accent.withAlphaComponent(0.14) : .clear
+  private func applyFold(_ content: LodyProjectRowContent) {
+    guard let expanded = content.expanded else {
+      fold.isHidden = true
+      NSLayoutConstraint.deactivate(withFold)
+      accessibilityValue = nil
+      accessibilityCustomActions = nil
+      return
+    }
+    let symbol = expanded ? "chevron.down" : "chevron.right"
+    fold.image = UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 10, weight: .heavy))
+    fold.isHidden = false
+    NSLayoutConstraint.activate(withFold)
+    accessibilityValue = String(localized: String.LocalizationValue(expanded ? "native.list.expanded" : "native.list.collapsed"), bundle: .lody)
+    let toggle = String(localized: String.LocalizationValue(expanded ? "native.list.collapse" : "native.list.expand"), bundle: .lody)
+    accessibilityCustomActions = content.onToggle.map { onToggle in
+      [UIAccessibilityCustomAction(name: toggle) { _ in
+        onToggle()
+        return true
+      }]
+    }
   }
 }

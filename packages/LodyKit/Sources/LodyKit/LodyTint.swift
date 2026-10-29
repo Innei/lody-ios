@@ -19,11 +19,12 @@ enum LodyDarkBackground: String {
 }
 
 enum LodyAccentChoice: Equatable, RawRepresentable {
-  case blue, indigo, purple, pink
+  case ink, blue, indigo, purple, pink
   case custom(String)
 
   init?(rawValue: String) {
     switch rawValue {
+    case "ink": self = .ink
     case "blue": self = .blue
     case "indigo": self = .indigo
     case "purple": self = .purple
@@ -36,6 +37,7 @@ enum LodyAccentChoice: Equatable, RawRepresentable {
 
   var rawValue: String {
     switch self {
+    case .ink: "ink"
     case .blue: "blue"
     case .indigo: "indigo"
     case .purple: "purple"
@@ -53,7 +55,7 @@ enum LodyAccentChoice: Equatable, RawRepresentable {
     #else
     let defaults = UserDefaults.standard
     #endif
-    return Self(rawValue: defaults.string(forKey: "accentColor") ?? "") ?? .blue
+    return Self(rawValue: defaults.string(forKey: "accentColor") ?? "") ?? .ink
   }
 
   static func mirror() {
@@ -62,6 +64,7 @@ enum LodyAccentChoice: Equatable, RawRepresentable {
 
   var color: UIColor {
     switch self {
+    case .ink: .lodyInk
     case .blue: .systemBlue
     case .indigo: .systemIndigo
     case .purple: .systemPurple
@@ -71,6 +74,7 @@ enum LodyAccentChoice: Equatable, RawRepresentable {
   }
 
   var foregroundColor: UIColor {
+    if self == .ink { return .lodyGround }
     guard case .custom = self else { return .white }
     var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
     color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
@@ -92,7 +96,7 @@ enum LodyAccentChoice: Equatable, RawRepresentable {
   }
 
   static func hex(_ value: String, dark: Bool) -> String {
-    hex((Self(rawValue: value) ?? .blue).color.resolvedColor(with: UITraitCollection(userInterfaceStyle: dark ? .dark : .light)))
+    hex((Self(rawValue: value) ?? .ink).color.resolvedColor(with: UITraitCollection(userInterfaceStyle: dark ? .dark : .light)))
   }
 
   static func hex(_ color: UIColor) -> String {
@@ -142,6 +146,17 @@ extension UIColor {
       : .black
   }
 
+  static let lodySidebar = UIColor { traits in
+    let high = traits.accessibilityContrast == .high
+    if traits.userInterfaceStyle != .dark {
+      return UIColor(white: high ? 0xEE / 255 : 0xF7 / 255, alpha: 1)
+    }
+    if LodyDarkBackground.current == .soft {
+      return UIColor(white: high ? 0x20 / 255 : 0x18 / 255, alpha: 1)
+    }
+    return UIColor(white: high ? 0x18 / 255 : 0x0E / 255, alpha: 1)
+  }
+
   static let lodyGroupedBackground = UIColor { traits in
     traits.userInterfaceStyle == .dark
       ? UIColor.lodyBackground.resolvedColor(with: traits)
@@ -168,8 +183,7 @@ extension UIColor {
   }
 
   static let lodyUserBubble = UIColor { traits in
-    let amount: CGFloat = traits.userInterfaceStyle == .dark ? 0.14 : 0.10
-    return UIColor.lodyAccent.resolvedColor(with: traits).withAlphaComponent(amount)
+    UIColor.lodyInset.resolvedColor(with: traits)
   }
 
   /// Recessed chip on the reading canvas. Light is Tailwind `neutral-100`;
@@ -209,4 +223,21 @@ func lodyApplyWindowAccent() {
     }
   }
   #endif
+}
+
+extension UIButton.Configuration {
+  // Prominent glass draws white titles whatever the foreground, and Ink resolves near-white in dark mode.
+  @MainActor static func lodyProminent(font: UIFont? = nil) -> UIButton.Configuration {
+    let accent = LodyAccentChoice.current
+    var configuration: UIButton.Configuration = accent == .ink ? .filled() : .prominentGlass()
+    configuration.baseBackgroundColor = accent.color
+    configuration.baseForegroundColor = accent.foregroundColor
+    configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+      var attributes = attributes
+      if let font { attributes.font = font }
+      attributes.foregroundColor = accent.foregroundColor
+      return attributes
+    }
+    return configuration
+  }
 }

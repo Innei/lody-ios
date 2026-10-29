@@ -18,8 +18,12 @@ enum TextSearch {
 
   static func snippet(_ text: String, query: String) -> String? {
     guard let match = text.localizedStandardRange(of: query) else { return nil }
-    let start = text.index(match.lowerBound, offsetBy: -40, limitedBy: text.startIndex) ?? text.startIndex
-    let end = text.index(match.upperBound, offsetBy: 40, limitedBy: text.endIndex) ?? text.endIndex
+    var start = text.index(match.lowerBound, offsetBy: -18, limitedBy: text.startIndex) ?? text.startIndex
+    if start > text.startIndex, !text[text.index(before: start)].isWhitespace,
+       let space = text[start..<match.lowerBound].firstIndex(where: \.isWhitespace) {
+      start = text.index(after: space)
+    }
+    let end = text.index(match.upperBound, offsetBy: 90, limitedBy: text.endIndex) ?? text.endIndex
     let body = text[start..<end].split(whereSeparator: \.isWhitespace).joined(separator: " ")
     return (start > text.startIndex ? "…" : "") + body + (end < text.endIndex ? "…" : "")
   }

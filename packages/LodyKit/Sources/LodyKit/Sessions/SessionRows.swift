@@ -64,7 +64,8 @@ enum SessionRows {
     row.subtitleMono = !(session.branchName ?? "").isEmpty
     row.modelName = session.modelNeverRan ? String(localized: "session.notRun", bundle: .lody) : session.modelName ?? ""
     row.diff = session.diff
-    row.value = LodyRelativeTime.text(session.activityAt, now: now)
+    row.value = LodyRelativeTime.compact(session.activityAt, now: now)
+    row.accessibilityValue = LodyRelativeTime.text(session.activityAt, now: now)
     row.unread = needsEmphasis(session)
     row.pinned = session.pinned
     row.badge = state.badge
@@ -92,9 +93,10 @@ enum SessionRows {
       parent.collapsedValue = String.localizedStringWithFormat(String(localized: "inbox.session.children", bundle: .lody), group.children.count)
       parent.collapsedBadge = status.badge
       parent.collapsedImageTint = status.imageTint
-      return [parent] + group.children.map { child in
+      return [parent] + group.children.enumerated().map { index, child in
         var item = row(child)
         item.parentId = group.session.id
+        item.lastChild = index == group.children.count - 1
         return item
       }
     }

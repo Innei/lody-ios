@@ -77,14 +77,18 @@ enum InboxSections {
       trailing(&parent, sessions: chats, open: open)
       var group = sessionGroup(chatId, parent: parent, sessions: chats, all: catalog.sessions, now: now, moreId: "view:\(chatId)")
       group.headerExpanded = open
+      group.gap = .group
       sections.append(group)
     }
     guard !pinned.isEmpty else { return sections }
     let rows = SessionRows.treeRows(pinned, all: catalog.sessions) { SessionRows.row($0, now: now) }
+    if !sections.isEmpty { sections[0].gap = .group }
     return [pinnedSection(rows, expanded: expanded)] + sections
   }
 
-  static func search(_ catalog: SessionCatalog, hits: InboxSearchHits, now: Double = LodyRelativeTime.now()) -> [LodyListSection] {
+  static func search(
+    _ catalog: SessionCatalog, hits: InboxSearchHits, query: String = "", now: Double = LodyRelativeTime.now()
+  ) -> [LodyListSection] {
     let names = projectNames(catalog)
     let projectIds = Set(hits.projectIds)
     let snippets = Dictionary(hits.sessions.map { ($0.id, $0.snippet) }, uniquingKeysWith: { first, _ in first })
@@ -98,14 +102,17 @@ enum InboxSections {
       row.disclosure = true
       row.navigates = true
       row.menuActions = SessionRows.projectMenu(project)
+      row.highlight = query
       return row
     }
     let sessions = catalog.sessions.filter { snippets[$0.id] != nil }.sorted(by: SessionRows.byActivity)
     let rows = SessionRows.treeRows(sessions, all: catalog.sessions) { session in
       var row = SessionRows.row(session, projectName: place(session, names), now: now)
+      row.highlight = query
       if let snippet = snippets[session.id] ?? nil {
         row.subtitle = snippet
         row.subtitleMono = false
+        row.wrapSubtitle = true
       }
       return row
     }
