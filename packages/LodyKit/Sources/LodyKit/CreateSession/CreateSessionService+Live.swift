@@ -1,18 +1,7 @@
 import LodyCore
 import Foundation
 
-@MainActor
-struct CreateSessionService {
-  var options: (_ workspaceId: String, _ projectId: String?) async throws -> CreationOptions
-  var repositories: (_ workspaceId: String) async throws -> [String]
-  var branches: (_ workspaceId: String, _ repo: String, _ page: Int) async throws -> CreateBranches
-  var readPrefs: (_ key: String) async -> CreatePrefs?
-  var writePrefs: (_ key: String, _ prefs: CreatePrefs) -> Void
-  var put: (_ userId: String, _ workspaceId: String, _ json: String) -> Task<Void, Error>
-  var persistShare = true
-
-  static func prefsKey(userId: String, workspaceId: String) -> String { "create:\(userId):\(workspaceId)" }
-
+extension CreateSessionService {
   static var live: CreateSessionService {
     var branchAttempts: [String: Int] = [:]
     return CreateSessionService(
@@ -56,13 +45,5 @@ struct CreateSessionService {
       },
       put: { OutboxSession.shared.put(user: $0, workspace: $1, json: $2) }
     )
-  }
-
-  static func githubProject(_ repo: String) -> CreateProject? {
-    let parts = repo.split(separator: "/", omittingEmptySubsequences: false)
-    guard repo.trimmingCharacters(in: .whitespacesAndNewlines) == repo, parts.count == 2,
-          repo.range(of: #"^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}$"#, options: .regularExpression) != nil,
-          ![".", ".."].contains(String(parts[1])) else { return nil }
-    return CreateProject(id: "github:\(repo)", machineId: "", name: repo)
   }
 }

@@ -169,9 +169,8 @@ targets:
           - Toast/LodyToastOverlay.swift
           - Toast/LodyToastPillView.swift
           - Toast/LodySessionBannerView.swift
-          - CreateSession/CreateSessionForm.swift
           - CreateSession/CreateSessionSections.swift
-          - CreateSession/CreateModelOptions.swift
+          - CreateSession/CreateModelOptions+Rows.swift
           - CreateSession/CreateSessionController.swift
           - CreateSession/CreateSessionPickers.swift
           - CreateSession/ShareStore.swift
@@ -183,6 +182,8 @@ targets:
           - Debug/LodyUIVerify.swift
           - Preferences/LodyAppearanceChoices.swift
           - Text/TextSearch.swift
+          - CreateSession/CreateSessionForm.swift
+          - CreateSession/CreateModelOptions.swift
           - Resources/Localizable.xcstrings
       - App/Icons.xcassets
       - App/Colors.xcassets

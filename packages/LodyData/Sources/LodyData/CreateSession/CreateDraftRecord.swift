@@ -2,16 +2,16 @@ import LodyCore
 import Foundation
 
 // Byte-compatible with features/sessions/createDraft.ts, which the Share drain still uses.
-struct CreateDraftRecord {
-  let recordJSON: String
-  let createdJSON: String
+public struct CreateDraftRecord: Sendable {
+  public let recordJSON: String
+  public let createdJSON: String
 
-  var record: OutboxRecord? { OutboxRecord.decode(recordJSON) }
-  var created: Any? { try? JSONSerialization.jsonObject(with: Data(createdJSON.utf8)) }
+  public var record: OutboxRecord? { OutboxRecord.decode(recordJSON) }
+  public var created: Any? { try? JSONSerialization.jsonObject(with: Data(createdJSON.utf8)) }
 
-  init(
+  public init(
     draft: CreateSessionDraft, payload: [String: Any], createdAt: String = Self.now(),
-    text label: (String) -> String = { String(localized: String.LocalizationValue($0), bundle: .lody) }
+    text label: (String) -> String = { String(localized: String.LocalizationValue($0), bundle: .lodyData) }
   ) {
     let agent = draft.agent
     let message = payload["text"] as? String ?? ""
@@ -60,7 +60,7 @@ struct CreateDraftRecord {
     ] + choiceFields)
   }
 
-  static func title(_ draft: String, fallback: String) -> String {
+  public static func title(_ draft: String, fallback: String) -> String {
     let line = draft.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "\n")
       .first { !$0.isEmpty }?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     if line.isEmpty { return fallback }
@@ -69,7 +69,7 @@ struct CreateDraftRecord {
     return String(String.UnicodeScalarView(scalars.prefix(24))) + "…"
   }
 
-  static func now() -> String {
+  public static func now() -> String {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     return formatter.string(from: Date())
