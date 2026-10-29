@@ -214,6 +214,22 @@ the rules below win where they differ.
   wired on Mac.
 - Distribution: Developer ID signing, notarization, `.dmg`.
 
+## Mac Debug page and UI catalog
+
+Requested by the user on 2026-10-30, mirroring the iOS Debug page.
+
+- A development-only Debug page, reached from Settings, holds fault injection,
+  runtime internals and a UI catalog. Product screens expose only actionable
+  connection state.
+- The UI catalog opens independently resettable scenes built from the
+  production AppKit controllers with scripted services at their boundary:
+  sidebar, tabs, transcript rows (tool calls, plan, permission card), composer
+  (new session and reply), sign-in, accent and appearance. Scenes need no
+  login, credentials, cloud access or connected machine.
+- Debug builds register a test-only URL scheme, `lodymacverify://case/<name>`,
+  that opens a catalog scene directly. Release builds do not register it, and
+  the app never registers `lody://`.
+
 ## Phases
 
 1. **Extract `LodyData`.** No UI work, no iOS behavior change. Done when the
@@ -233,10 +249,14 @@ about a day.
   `swift test --package-path packages/lody-core`, a signed iOS Simulator build,
   and the existing UI Verify cases that touch sign-in, inbox, session and send.
   `swift build` and `swift test` for `LodyData` on macOS.
-- Phase 3: the Mac target build joins `pnpm check`; `LodyData` macOS tests;
-  `screencapture` screenshots of the main window (light and dark), the
-  new-session composer and a permission request, compared against the chosen
-  boards. Automated Mac UI verification comes after v1.
+- Phase 3: the Mac target build joins `pnpm check`; `LodyData` and
+  `LodyMacKit` macOS tests. Mac UI and UX are verified with the `auv` CLI, not
+  XCUITest: open a catalog scene through `lodymacverify://case/<name>`, then
+  drive and check it with `auv invoke` (`window.capture`, `window.findText` /
+  `window.waitForText`, `window.clickText`, `input.*`). Each surface (main
+  window light and dark, new-session and reply composer, permission request,
+  tabs) gets a repeatable check script with captured screenshots, compared
+  against the chosen boards.
 
 ## Left to the builder
 
