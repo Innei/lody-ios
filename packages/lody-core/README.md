@@ -1,6 +1,6 @@
 # LodyCore
 
-Local Swift package used by iOS LodyKit, the iOS Share Extension and AppKit.
+Local Swift package used by iOS LodyiOSKit, the iOS Share Extension and AppKit.
 
 `LodyCore` contains Foundation-only creation models, selection rules and runtime
 health. `LodyRuntime` depends on WebKit and owns shared nonpersistent WebView

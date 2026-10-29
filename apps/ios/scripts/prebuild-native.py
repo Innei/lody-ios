@@ -40,5 +40,5 @@ def generate(root, environment):
 
 if __name__ == '__main__':
     root = Path(__file__).resolve().parents[1]
-    subprocess.run(['/bin/bash', str(root.parents[1] / 'packages/LodyKit/DataChannel/build.sh')], check=True)
+    subprocess.run(['/bin/bash', str(root.parents[1] / 'packages/LodyiOSKit/DataChannel/build.sh')], check=True)
     generate(root, os.environ)

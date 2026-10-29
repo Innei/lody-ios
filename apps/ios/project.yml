@@ -49,8 +49,8 @@ settings:
     MARKETING_VERSION: '0.2.0'
     CURRENT_PROJECT_VERSION: '1'
 packages:
-  LodyKit:
-    path: ../../packages/LodyKit
+  LodyiOSKit:
+    path: ../../packages/LodyiOSKit
   LodyCore:
     path: '../../packages/lody-core'
   LodyData:
@@ -103,10 +103,10 @@ targets:
         script: python3 "${SRCROOT}/scripts/check-native-sources.py"
         basedOnDependencyAnalysis: false
     dependencies:
-      # The app owns embedding the dynamic SDK used by LodyKit and the notification extension.
+      # The app owns embedding the dynamic SDK used by LodyiOSKit and the notification extension.
       - package: OneSignal
         product: OneSignalFramework
-      - package: LodyKit
+      - package: LodyiOSKit
       - target: LodyShare
       - target: LodyNotificationService
       - target: LodyLiveActivity
@@ -115,7 +115,7 @@ targets:
     platform: iOS
     sources:
       - Extensions/Share
-      - path: ../../packages/LodyKit/Sources/LodyKit
+      - path: ../../packages/LodyiOSKit/Sources/LodyiOSKit
         group: Shared Extension Sources
         createIntermediateGroups: false
         includes:
@@ -275,7 +275,7 @@ targets:
     platform: iOS
     sources:
       - Extensions/LiveActivity
-      - path: ../../packages/LodyKit/Sources/LodyKit
+      - path: ../../packages/LodyiOSKit/Sources/LodyiOSKit
         group: Shared Extension Sources
         createIntermediateGroups: false
         includes:
@@ -306,7 +306,7 @@ targets:
     deploymentTarget: '26.0'
     sources:
       - 'verification/ui/activity-host/App.swift'
-      - path: ../../packages/LodyKit/Sources/LodyKit
+      - path: ../../packages/LodyiOSKit/Sources/LodyiOSKit
         group: Shared Extension Sources
         createIntermediateGroups: false
         includes:
@@ -346,7 +346,7 @@ targets:
     deploymentTarget: '26.0'
     sources:
       - 'verification/ui/activity-host/WatchApp.swift'
-      - path: ../../packages/LodyKit/Sources/LodyKit
+      - path: ../../packages/LodyiOSKit/Sources/LodyiOSKit
         group: Shared Extension Sources
         createIntermediateGroups: false
         includes:

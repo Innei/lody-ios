@@ -49,7 +49,7 @@ Requires iOS 26 or later. Beta builds track `main` and update automatically; the
 
 **Lody iOS** is an independent open-source client crafted for iPhone, providing a lightweight and secure bridge between remote Lody services and local workspaces.
 
-The application UI and native state run in Swift and UIKit. LodyKit owns navigation, screens, authentication, catalog projections and durable sends. A Swift-managed offscreen WebView runs the bundled Loro/Flock protocol engine; React Native, Expo, Hermes and Metro are no longer app dependencies.
+The application UI and native state run in Swift and UIKit. LodyiOSKit owns navigation, screens, authentication, catalog projections and durable sends. A Swift-managed offscreen WebView runs the bundled Loro/Flock protocol engine; React Native, Expo, Hermes and Metro are no longer app dependencies.
 
 ---
 
@@ -65,7 +65,7 @@ What that week actually looked like:
 - **Decide, then implement.** Navigation chrome, search, iPad shell, and onboarding were argued in the open; rejected paths stayed off `main`.
 - **HIG as acceptance, not taste.** Native `UIBarButtonItem`, system sheets, and semantic colors were required; RN fakes of system chrome were rejected on screenshots.
 - **Verify without login.** Offline Debug scenes, leased Simulators, screenshots for visual state, and video for temporal behavior became the gate: if the verify script was right, the change shipped.
-- **RN as the base, Swift where it matters.** Chat, composer, list rows, and diffs moved into LodyKit. Swift grew from a few hundred lines on day one to nearly half the UI surface by the end of the week.
+- **RN as the base, Swift where it matters.** Chat, composer, list rows, and diffs moved into LodyiOSKit. Swift grew from a few hundred lines on day one to nearly half the UI surface by the end of the week.
 
 ---
 
@@ -87,7 +87,7 @@ What that week actually looked like:
 ### Code Diffs & Workspace File Browsing
 
 - **Turn Changes Overview**: Automatically summarizes file changes for each conversation turn, with one-tap access to all modified files.
-- **Word-Level Diff Highlighting**: File, workspace and tool-detail diffs render natively in LodyKit.
+- **Word-Level Diff Highlighting**: File, workspace and tool-detail diffs render natively in LodyiOSKit.
 - **Remote Workspace File Tree**: Browse project directories and files on remote Macs or servers at any time, with previews via native code view `LodyCodeView` or system Quick Look.
 
 **Agent Conversation Sync** in Settings lists supported local projects and agents on your own computers. Refresh their history, select conversations to import, and explicitly confirm any conflict replacement. Imports run in batches and retain partial progress; this is a manual history import, not automatic device-to-device mirroring.
@@ -129,7 +129,7 @@ flowchart TB
 ## Directory Structure
 
 The Xcode navigator includes app sources, extensions, runtime inputs, scripts and
-verification files. `Shared Extension Sources` groups the LodyKit files compiled
+verification files. `Shared Extension Sources` groups the LodyiOSKit files compiled
 by extensions; their single source of truth remains the local Swift package.
 Generated runtime assets and build configuration live under `.generated`.
 
@@ -145,10 +145,10 @@ apps/ios/scripts/                   # Asset generation and source checks
 apps/ios/verification/kit/          # Native behavior checks
 apps/ios/verification/ui/           # Offline UI verification
 apps/ios/tests/                     # Protocol and tooling Node tests
-packages/LodyKit/Package.swift      # LodyKit library, dependencies and Metal resources
-packages/LodyKit/Sources/LodyKit/    # UIKit UI, native state and coordinators
+packages/LodyiOSKit/Package.swift      # LodyiOSKit library, dependencies and Metal resources
+packages/LodyiOSKit/Sources/LodyiOSKit/    # UIKit UI, native state and coordinators
 packages/LodyData/Sources/LodyData/Resources/ # Native String Catalog
-packages/LodyKit/DataChannel/        # Pinned native transport build
+packages/LodyiOSKit/DataChannel/        # Pinned native transport build
 packages/cloud-runtime/              # Bundled browser-safe protocol and contract
 packages/lody-core/                  # Swift wire types and routing policies
 packages/chat-kit/                   # Native chat core
@@ -189,7 +189,7 @@ packages/lexical-swift/              # Native editor
    Swift packages directly. Select a simulator and Run. `pnpm start` opens the
    existing project. App, extensions and offline verification hosts come from
    `project.yml`; rerun `pnpm prebuild` after changing those sources.
-   LodyKit is a local Swift package in `packages/LodyKit`; SwiftPM discovers its
+   LodyiOSKit is a local Swift package in `packages/LodyiOSKit`; SwiftPM discovers its
    sources automatically and bundles its Metal shaders.
 
 3. **Update native assets**:

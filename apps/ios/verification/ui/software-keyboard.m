@@ -1,5 +1,5 @@
 // Host-only CoreSimulator setup, using the same per-device API as idb.
-// Never linked into LodyKit or shipped with the app.
+// Never linked into LodyiOSKit or shipped with the app.
 #import <Foundation/Foundation.h>
 #import <dlfcn.h>
 

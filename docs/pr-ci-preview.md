@@ -4,7 +4,7 @@
 LodyGroupedList、原生 Stack / Toolbar；PR → 检查 → 单项检查逐层 push。
 正式会话的右上角现已接入关联 PR；单 PR 直接进入，多 PR 用原生菜单选择。
 目录投影读取 OSS `pullRequests` 和独立的 `pullRequestState` CI 提示。
-详情、检查和普通评论由 LodyKit 经官方 token broker 读取；写评论使用 operation=write。
+详情、检查和普通评论由 LodyiOSKit 经官方 token broker 读取；写评论使用 operation=write。
 凭据不进入新的 RN 接口。仅当前可见 PR 页面在前台每 30 秒刷新，支持手动刷新；
 页面共享单一内存快照，离开或切换账号/工作区后丢弃。
 
@@ -31,7 +31,7 @@ Debug 保留默认离线预览，并有空检查、授权失败后重试、评�
 - `packages/components/src/hooks/use-github-pr-details.ts`：桌面负责详情缓存及刷新；
   `pr-tab-view.tsx` 消费聚合后的 PR、checks、reviews、threads、issueComments。
 - iOS 只定义 RN-safe 本地投影，不从 `@lody/shared` 根入口导入。正式读取应沿用
-  LodyKit 的 GitHub / Keychain 边界，不向 RN 或 WebView 暴露凭据。
+  LodyiOSKit 的 GitHub / Keychain 边界，不向 RN 或 WebView 暴露凭据。
 - 未授权、权限不足、离线缓存、无 checks 和待计算的 mergeability 应各自显示；
   不将缺失或未知状态当作通过。当前实现没有持久化 PR 缓存，离线显示请求错误，
   已读取后刷新失败时明确标记旧内容。检查和评论各限一页 100 项，截断时明确提示。

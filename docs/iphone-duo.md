@@ -102,7 +102,7 @@ These showed up on the Duo, but most are host or layout bugs that ordinary iPhon
 placement="left" | "right"`, `Stack.SearchBar` and `Stack.Screen` options register on
   `useRoute().key`. In a host that isn't a route (the side panel), they attach to the
   enclosing route, usually a hidden index screen, and the vertical bar then shows them.
-  In such hosts, use LodyKit's `NativeNavigationHeader`. It writes to the screen's own
+  In such hosts, use LodyiOSKit's `NativeNavigationHeader`. It writes to the screen's own
   `UINavigationItem`.
 - **Bottom `Stack.Toolbar`** finds its controller through the view tree, so it works in
   any host.
@@ -126,7 +126,7 @@ placement="left" | "right"`, `Stack.SearchBar` and `Stack.Screen` options regist
 
 ## Where it lives
 
-All paths below are under `packages/LodyKit/Sources/LodyKit`.
+All paths below are under `packages/LodyiOSKit/Sources/LodyiOSKit`.
 
 | Concern                                  | File                                                  |
 | ---------------------------------------- | ----------------------------------------------------- |

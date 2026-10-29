@@ -2,7 +2,7 @@
 
 ## 1. Project summary
 
-UIKit iOS app in apps/ios; UI, state and coordinators live in LodyKit.
+UIKit iOS app in apps/ios; UI, state and coordinators live in LodyiOSKit.
 
 ## 2. Environment
 

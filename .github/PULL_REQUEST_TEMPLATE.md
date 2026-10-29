@@ -35,8 +35,8 @@ Verification belongs in the Human section, against this repo:
   - The run writes `<output>/<appearance>/<case>/*.png` and `<output>/<appearance>/<case>/run.mp4`. `--parallel` puts `pages`, `send`, or `chat` between `<output>` and the appearance.
   - This PR must contain every one of those PNGs and every `run.mp4`. In the body, reference each PNG as `![<appearance> <case> <name>](<path>)` and each video as `[<appearance> <case> run.mp4](<path>)`. Upload them with `gh` 2.99.0 or newer by repeating `--attach <path>` on `gh pr create` or `gh pr edit`. A path written in the body is rewritten to the uploaded asset. `gh` uploads at most 50 files per command; another `gh pr edit --attach` batch covers the rest, and the body still references every file.
   - Do not commit `.artifacts`. A local path, a CI log, or a prose description does not count. Skip `*.json`, logs, and accessibility trees. Attach `failure.png` only when that frame is the behavior under review.
-- SwiftPM discovers LodyKit sources automatically; changes to app/extension membership or shared source references include `pnpm prebuild`.
-- Native changes persist in project.yml, native app config, or LodyKit. A generated `apps/ios/Lody.xcodeproj` edit is not the source of truth.
+- SwiftPM discovers LodyiOSKit sources automatically; changes to app/extension membership or shared source references include `pnpm prebuild`.
+- Native changes persist in project.yml, native app config, or LodyiOSKit. A generated `apps/ios/Lody.xcodeproj` edit is not the source of truth.
 - Delete a test checkbox that does not apply and say why that gate was skipped.
 -->
 

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = path.join(import.meta.dirname, '..');
-const kit = path.resolve(root, '../../packages/LodyKit/Sources/LodyKit');
+const kit = path.resolve(root, '../../packages/LodyiOSKit/Sources/LodyiOSKit');
 const data = path.resolve(root, '../../packages/LodyData/Sources/LodyData');
 const problems = [];
 

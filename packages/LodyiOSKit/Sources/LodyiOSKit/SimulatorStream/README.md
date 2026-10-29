@@ -28,8 +28,8 @@ reset and stream configuration is sent afresh. A hardware action whose reply was
 lost is rejected locally, never retried over HTTP. There is no input queue across
 connections. Codec rejection (4002) retains the existing MJPEG recovery path.
 
-The peer is libdatachannel, built by `packages/LodyKit/DataChannel/build.sh` from pinned commits
-into `packages/LodyKit/Vendor/LodyDataChannel.xcframework` during `pnpm prebuild` (needs `cmake`); notices ship in Settings. Its ICE agent,
+The peer is libdatachannel, built by `packages/LodyiOSKit/DataChannel/build.sh` from pinned commits
+into `packages/LodyiOSKit/Vendor/LodyDataChannel.xcframework` during `pnpm prebuild` (needs `cmake`); notices ship in Settings. Its ICE agent,
 libjuice, relays through TURN over UDP only: `turn:?transport=tcp` and `turns:`
 servers are skipped, and a UDP-blocked network falls back to WebSocket.
 Run `pnpm verify:native --case simulator-transport` for native transport behavior

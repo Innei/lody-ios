@@ -2,10 +2,10 @@
 import PackageDescription
 
 let package = Package(
-  name: "LodyKit",
+  name: "LodyiOSKit",
   defaultLocalization: "en",
   platforms: [.iOS("26.0")],
-  products: [.library(name: "LodyKit", targets: ["LodyKit"])],
+  products: [.library(name: "LodyiOSKit", targets: ["LodyiOSKit"])],
   dependencies: [
     .package(path: "../lody-core"),
     .package(path: "../LodyData"),
@@ -21,7 +21,7 @@ let package = Package(
   targets: [
     .binaryTarget(name: "LodyDataChannel", path: "Vendor/LodyDataChannel.xcframework"),
     .target(
-      name: "LodyKit",
+      name: "LodyiOSKit",
       dependencies: [
         .product(name: "LodyCore", package: "lody-core"),
         .product(name: "LodyRuntime", package: "lody-core"),

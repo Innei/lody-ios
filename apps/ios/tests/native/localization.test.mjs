@@ -8,7 +8,7 @@ import test from 'node:test';
 test('String Catalog checks accept reordered arguments and reject broken translations and missing keys', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'lody-localization-'));
   const app = path.join(root, 'apps/ios');
-  const kit = path.join(root, 'packages/LodyKit/Sources/LodyKit');
+  const kit = path.join(root, 'packages/LodyiOSKit/Sources/LodyiOSKit');
   const data = path.join(root, 'packages/LodyData/Sources/LodyData');
   const entry = (en, zh = en) => ({
     localizations: Object.fromEntries(

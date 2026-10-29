@@ -24,7 +24,7 @@ Verify: scroll history; replay at the bottom; open the process entry while text
 arrives inside the process sheet; completion folds intermediate rows into the process entry with a 220 ms transition;
 check multiline input and interactive keyboard dismissal; repeat in dark mode.
 
-The RN page owns navigation and cloud actions; LodyKit owns collection cells,
+The RN page owns navigation and cloud actions; LodyiOSKit owns collection cells,
 Markdown, text pacing, expansion, measured row heights, keyboard and input state.
 MarkdownView parses Markdown, including unfinished input; the active tail is parsed
 on a serial background queue and parse results are cached by source text and streaming state.

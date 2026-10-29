@@ -9,7 +9,7 @@ import tempfile
 from simulator import run_with_simulator, SimulatorPool
 
 root = Path(__file__).resolve().parents[3]
-kit = root / 'packages/LodyKit'
+kit = root / 'packages/LodyiOSKit'
 data = root / 'packages/LodyData/Sources/LodyData'
 
 
@@ -18,7 +18,7 @@ def source(file):
     if path.is_absolute():
         return path
     shared = data / path
-    return shared if shared.exists() else kit / 'Sources/LodyKit' / path
+    return shared if shared.exists() else kit / 'Sources/LodyiOSKit' / path
 
 checks_root = root / 'apps/ios/verification/kit'
 parser = argparse.ArgumentParser(description=__doc__)
@@ -138,7 +138,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
     shader_bundle = Path(output) / 'LodyKitShaders.bundle'
     shader_bundle.mkdir()
     air = str(Path(output) / 'ChatEffortHeat.air')
-    subprocess.run(['xcrun', '--sdk', 'iphonesimulator', 'metal', '-c', '-target', 'air64-apple-ios26.0-simulator', '-isysroot', sdk, str(kit / 'Sources/LodyKit/Chat/Shaders/ChatEffortHeat.metal'), '-o', air], check=True, timeout=120)
+    subprocess.run(['xcrun', '--sdk', 'iphonesimulator', 'metal', '-c', '-target', 'air64-apple-ios26.0-simulator', '-isysroot', sdk, str(kit / 'Sources/LodyiOSKit/Chat/Shaders/ChatEffortHeat.metal'), '-o', air], check=True, timeout=120)
     subprocess.run(['xcrun', '--sdk', 'iphonesimulator', 'metallib', air, '-o', str(shader_bundle / 'default.metallib')], check=True, timeout=120)
     # Build the extracted modules from their production sources. Core remains
     # host-testable; UIKit checks link the same package module as the app.

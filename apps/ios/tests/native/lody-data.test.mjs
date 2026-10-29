@@ -38,14 +38,14 @@ test('LodyData sources never import a UI framework', async () => {
   assert.deepEqual(offenders, []);
 });
 
-test('LodyKit re-exports LodyData for the app and its pages', async () => {
+test('LodyiOSKit re-exports LodyData for the app and its pages', async () => {
   const manifest = await readFile(
-    join(repoRoot, 'packages/LodyKit/Package.swift'),
+    join(repoRoot, 'packages/LodyiOSKit/Package.swift'),
     'utf8',
   );
   assert.match(manifest, /\.product\(name: "LodyData", package: "LodyData"\)/);
   const files = await swiftFiles(
-    join(repoRoot, 'packages/LodyKit/Sources/LodyKit'),
+    join(repoRoot, 'packages/LodyiOSKit/Sources/LodyiOSKit'),
   );
   const exports = [];
   for (const file of files) {

@@ -1,5 +1,5 @@
 import UIKit
-import LodyKit
+import LodyiOSKit
 
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {

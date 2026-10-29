@@ -1,8 +1,8 @@
 # Scroll edge ownership
 
-LodyKit owns scroll edge policy. Native UIKit scroll views receive their styles
+LodyiOSKit owns scroll edge policy. Native UIKit scroll views receive their styles
 directly, because RNSScreen's first-descendant lookup cannot reliably find them.
-RN scroll views use ScrollViewMarker with presets exported by LodyKit; navigation
+RN scroll views use ScrollViewMarker with presets exported by LodyiOSKit; navigation
 options use the same kit presets when the framework can reach its content view.
 
 - Navigation content: soft top and bottom.
