@@ -4,20 +4,36 @@ import LodyData
 @MainActor
 final class MacTranscriptFixture {
   private var answered: String?
-  private var changed: (@MainActor (String) -> Void)?
+  private var replies: [String] = []
+  private var changed: (@MainActor (SessionFeedState) -> Void)?
 
   var source: MacTranscriptSource {
     MacTranscriptSource(
       start: { [self] changed in
         self.changed = changed
-        changed(json)
+        changed(state)
       },
       stop: { [self] in changed = nil },
       answer: { [self] _, optionId in
         answered = optionId
-        changed?(json)
+        changed?(state)
       }
     )
+  }
+
+  func reply(_ text: String) {
+    replies.append(text)
+    changed?(state)
+  }
+
+  private var state: SessionFeedState { SessionFeedState(status: "live", entriesJSON: json) }
+
+  private var followUps: String {
+    replies.enumerated().map { index, text in
+      let data = (try? JSONSerialization.data(withJSONObject: [text])) ?? Data("[\"\"]".utf8)
+      let quoted = String(decoding: data, as: UTF8.self).dropFirst().dropLast()
+      return #",{"id":"r\#(index)","role":"user","status":"completed","finished":true,"items":[{"itemId":"t","type":"text","text":\#(quoted)}]}"#
+    }.joined()
   }
 
   private var json: String {
@@ -32,7 +48,7 @@ final class MacTranscriptFixture {
       {"itemId":"read","type":"tool_call","kind":"read","title":"Read MainWindowController.swift","status":"completed"},
       {"itemId":"grep","type":"tool_call","kind":"search","title":"Search for NSSplitViewController","status":"completed"},
       {"itemId":"intro","type":"text","text":"I'll add an `NSOutlineView` source list:\\n\\n- **Pinned** above the projects\\n- projects ordered by their latest session\\n- a neutral grey selection"},
-      {"itemId":"edit","type":"tool_call","kind":"edit","title":"Edit SidebarViewController.swift"\(permission)}\(reply)]}]
+      {"itemId":"edit","type":"tool_call","kind":"edit","title":"Edit SidebarViewController.swift"\(permission)}\(reply)]}\(followUps)]
     """
   }
 }

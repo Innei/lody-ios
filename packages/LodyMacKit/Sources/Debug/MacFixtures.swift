@@ -1,4 +1,5 @@
 import AppKit
+import LodyCore
 import LodyData
 
 @MainActor
@@ -34,8 +35,21 @@ enum MacFixtures {
       sessions: sessions,
       pane: { sessionId in
         guard sessionId == "s-mac" else { return MacSessionSummaryPane(sessionId: sessionId, sessions: sessions) }
-        return MacSessionController(sessionId: sessionId, source: MacTranscriptFixture().source)
+        let transcript = MacTranscriptFixture()
+        var model = MacComposerModel(mode: .reply)
+        model.replyReady = true
+        model.replyCapability = MacComposerFixture.capability
+        model.replyChoice = ModelChoice(modelId: "opus", effort: "high", modeId: "default")
+        let composer = MacComposerController(model: model, service: MacComposerService(
+          options: { _, _ in throw OutboxError.scopeExpired }, create: { _, _ in },
+          reply: { payload, _ in transcript.reply(payload["text"] as? String ?? "") }
+        ))
+        composer.replyContext = ("lody-ios", "mac-client", "Mac Studio")
+        let pane = MacSessionController(sessionId: sessionId, source: transcript.source, composer: composer)
+        pane.retained = transcript
+        return pane
       },
+      newSession: { MacNewSessionController(state: listState, service: MacComposerFixture.service) },
       requiresAccount: false,
       windowIdentifier: "catalog-scene",
       titlePrefix: "Catalog · "

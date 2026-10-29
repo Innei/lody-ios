@@ -4,6 +4,7 @@ import { writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { composerNew, composerReply } from './cases/composer.mts';
 import { sidebar } from './cases/sidebar.mts';
 import { signIn } from './cases/sign-in.mts';
 import { tabs } from './cases/tabs.mts';
@@ -16,6 +17,8 @@ const cases: Record<string, (session: Session) => Promise<void>> = {
   sidebar,
   tabs,
   transcript,
+  'composer-new': composerNew,
+  'composer-reply': composerReply,
 };
 
 const { values } = parseArgs({

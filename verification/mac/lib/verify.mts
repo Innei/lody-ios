@@ -216,16 +216,50 @@ export async function clickText(session: Session, text: string) {
 }
 
 export async function typeInto(session: Session, field: string, text: string) {
-  return step(session, `type "${text}"`, async () => {
-    await session.runner.macos.accessibility.focusText({
-      application: bundleId,
-      selector: { case: 'query', value: field },
-    });
+  return step(session, `type "${text.trim()}"`, async () => {
+    const focused = await session.runner.macos.accessibility
+      .focusText({
+        application: bundleId,
+        selector: { case: 'query', value: field },
+      })
+      .then(() => true)
+      .catch(() => false);
     const target = await window(session);
+    if (!focused) {
+      const result = await target.findText(field, {});
+      if (result.matches.length === 0) throw new Error(`no input "${field}"`);
+      await target.click(result.matches[0]!, {
+        policy: InputPolicy.FOREGROUND_PREFERRED,
+      });
+    }
     return target.typeText(text, {
       policy: InputPolicy.BACKGROUND_ONLY,
       replaceExisting: true,
     });
+  });
+}
+
+export async function choose(
+  session: Session,
+  current: string,
+  option: string,
+) {
+  await clickText(session, current);
+  await sleep(250);
+  return step(session, `choose "${option}"`, async () => {
+    const all = await session.runner.windows.list();
+    const menus = all.filter((w) => w.window.applicationId === bundleId);
+    for (const menu of menus) {
+      const result = await menu
+        .findText(option, {})
+        .catch(() => ({ matches: [] as never[] }));
+      if (result.matches.length > 0) {
+        return menu.click(result.matches[0]!, {
+          policy: InputPolicy.FOREGROUND_PREFERRED,
+        });
+      }
+    }
+    throw new Error(`no menu item "${option}"`);
   });
 }
 
@@ -239,6 +273,13 @@ export async function capture(session: Session, name: string) {
     const path = join(session.output, `${name}.png`);
     await writeFile(path, image.data);
     return path;
+  });
+}
+
+export async function pressReturn(session: Session) {
+  return step(session, 'press return', async () => {
+    const target = await window(session);
+    return target.pressKeys('return', { policy: InputPolicy.BACKGROUND_ONLY });
   });
 }
 

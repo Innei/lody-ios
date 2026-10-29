@@ -10,14 +10,17 @@ protocol MacSessionPane: NSViewController {
 struct MacEnvironment {
   var sessions: MacSessionsSource
   var pane: @MainActor (_ sessionId: String) -> MacSessionPane
+  var newSession: @MainActor () -> NSViewController
   var requiresAccount = true
   var windowIdentifier = "main"
   var titlePrefix = ""
 
   static var live: MacEnvironment {
-    MacEnvironment(sessions: .live, pane: { sessionId in
-      MacSessionController(sessionId: sessionId, source: .live(sessionId: sessionId, state: SessionPublished.state()))
-    })
+    MacEnvironment(
+      sessions: .live,
+      pane: { MacLiveSessionPane.make(sessionId: $0) },
+      newSession: { MacNewSessionController(state: SessionPublished.state(), service: .live) }
+    )
   }
 }
 

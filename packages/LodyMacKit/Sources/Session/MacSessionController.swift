@@ -4,7 +4,7 @@ import LodyData
 
 @MainActor
 struct MacTranscriptSource {
-  var start: @MainActor (_ changed: @escaping @MainActor (String) -> Void) -> Void
+  var start: @MainActor (_ changed: @escaping @MainActor (SessionFeedState) -> Void) -> Void
   var stop: @MainActor () -> Void
   var answer: @MainActor (SessionPermission, String) async throws -> Void
 
@@ -12,7 +12,7 @@ struct MacTranscriptSource {
     let feed = SessionFeed(sessionId: sessionId, userId: state.userId, workspaceId: state.workspaceId)
     return MacTranscriptSource(
       start: { changed in
-        feed.changed = { [weak feed] in if let feed { changed(feed.state.entriesJSON) } }
+        feed.changed = { [weak feed] in if let feed { changed(feed.state) } }
         feed.start()
       },
       stop: { feed.finish() },
@@ -75,16 +75,22 @@ final class MacSessionController: NSViewController, MacSessionPane {
   func setStreaming(_ on: Bool) {
     guard on != streaming else { return }
     streaming = on
+    onStreaming?(on)
     if on {
-      source.start { [weak self] json in self?.render(json) }
+      source.start { [weak self] state in self?.render(state) }
     } else {
       source.stop()
     }
   }
 
-  private func render(_ json: String) {
-    model = MacTranscriptModel(entriesJSON: json)
+  var onFeed: ((SessionFeedState) -> Void)?
+  var onStreaming: ((Bool) -> Void)?
+  var retained: AnyObject?
+
+  private func render(_ state: SessionFeedState) {
+    model = MacTranscriptModel(entriesJSON: state.entriesJSON)
     transcript.render(model)
+    onFeed?(state)
   }
 
   private func answer(_ optionId: String) {

@@ -8,6 +8,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   private let detail = MacDetailController()
   private var pane: MacSessionPane?
   private var streaming = false
+  private var observer: NSObjectProtocol?
   private(set) var sessionId: String?
   var onTitle: ((_ title: String, _ subtitle: String) -> Void)?
   var onNewSession: (() -> Void)?
@@ -20,6 +21,10 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
 
   required init?(coder: NSCoder) { nil }
 
+  isolated deinit {
+    if let observer { NotificationCenter.default.removeObserver(observer) }
+  }
+
   override func viewDidLoad() {
     super.viewDidLoad()
     let side = NSSplitViewItem(sidebarWithViewController: sidebar)
@@ -31,6 +36,13 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     content.minimumThickness = 420
     addSplitViewItem(content)
     sidebar.onSelect = { [weak self] id in self?.open(id) }
+    observer = NotificationCenter.default.addObserver(forName: .lodyMacOpenSession, object: nil, queue: .main) { [weak self] note in
+      let id = note.userInfo?["sessionId"] as? String
+      MainActor.assumeIsolated {
+        guard let self, self.view.window?.isKeyWindow == true, let id else { return }
+        self.open(id)
+      }
+    }
     sidebar.onNewSession = { [weak self] in self?.onNewSession?() }
   }
 
@@ -41,8 +53,8 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
     sidebar.select(sessionId: id)
     guard let id else {
       pane = nil
-      detail.show(nil)
-      onTitle?("Lody", "")
+      detail.show(environment.newSession())
+      onTitle?(String(localized: "mac.newSession.title", bundle: .lodyMac), "")
       return
     }
     let next = environment.pane(id)
