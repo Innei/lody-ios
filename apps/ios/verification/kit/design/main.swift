@@ -70,6 +70,9 @@ precondition(LodyDesign.Rail.groupGap > LodyDesign.Rail.sectionGap && LodyDesign
              "Groups stand further apart than sibling projects")
 precondition(LodyDesign.Rail.compactGroupGap > LodyDesign.Rail.compactSectionGap && LodyDesign.Rail.compactGroupGap < LodyDesign.Rail.groupGap,
              "The sidebar keeps the gap hierarchy at a denser scale")
+precondition(LodyDesign.Rail.groupGap <= 16, "Labeled groups sit one small step apart; the header label already marks the break")
+precondition(LodyDesign.Rail.bandGap < LodyDesign.Rail.sectionGap && LodyDesign.Rail.compactBandGap < LodyDesign.Rail.compactSectionGap,
+             "Banded groups need less air than labeled ones")
 func hue(_ color: UIColor, _ traits: UITraitCollection) -> CGFloat {
   var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
   color.resolvedColor(with: traits).getRed(&r, green: &g, blue: &b, alpha: &a)

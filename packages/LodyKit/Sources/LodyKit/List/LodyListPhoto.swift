@@ -2,8 +2,11 @@ import UIKit
 
 @MainActor
 enum LodyListPhoto {
+  enum Shape { case circle, original }
+
   nonisolated static let size = CGSize(width: 36, height: 36)
   private static let cache = NSCache<NSURL, UIImage>()
+  private static let originals = NSCache<NSURL, UIImage>()
   private static var waiters: [URL: [(UIImage?) -> Void]] = [:]
   private static var tasks: [URL: URLSessionDataTask] = [:]
 
@@ -16,20 +19,32 @@ enum LodyListPhoto {
     return nil
   }
 
-  static func cached(_ url: URL) -> UIImage? {
-    cache.object(forKey: url as NSURL)
+  static func cached(_ url: URL, shape: Shape = .circle) -> UIImage? {
+    (shape == .circle ? cache : originals).object(forKey: url as NSURL)
   }
 
-  static func image(for url: URL, ready: @escaping (UIImage) -> Void) -> UIImage? {
-    if let image = cached(url) { return image }
+  static func image(for url: URL, shape: Shape = .circle, ready: @escaping (UIImage) -> Void) -> UIImage? {
+    if let image = cached(url, shape: shape) { return image }
     if url.isFileURL || url.scheme == "data" {
       load(url) { _ in }
-      return cached(url)
+      return cached(url, shape: shape)
     }
-    load(url) { image in
-      if let image { ready(image) }
+    load(url) { _ in
+      if let image = cached(url, shape: shape) { ready(image) }
     }
     return nil
+  }
+
+  static func prime(_ url: URL, from source: URL) {
+    guard let thumbnail = (try? Data(contentsOf: source)).flatMap(decode) else { return }
+    _ = store(thumbnail, for: url)
+  }
+
+  private static func store(_ thumbnail: UIImage, for url: URL) -> UIImage {
+    let image = circular(thumbnail)
+    originals.setObject(thumbnail, forKey: url as NSURL)
+    cache.setObject(image, forKey: url as NSURL)
+    return image
   }
 
   static func load(_ url: URL, completion: @escaping (UIImage?) -> Void) {
@@ -38,8 +53,7 @@ enum LodyListPhoto {
       return
     }
     if url.isFileURL || url.scheme == "data" {
-      let image = (try? Data(contentsOf: url)).flatMap(decode)
-      if let image { cache.setObject(image, forKey: url as NSURL) }
+      let image = (try? Data(contentsOf: url)).flatMap(decode).map { store($0, for: url) }
       completion(image)
       return
     }
@@ -49,10 +63,10 @@ enum LodyListPhoto {
     request.setValue("image/*", forHTTPHeaderField: "Accept")
     let task = URLSession.shared.dataTask(with: request) { data, response, _ in
       let valid = (response as? HTTPURLResponse).map { (200..<300).contains($0.statusCode) } ?? false
-      let image = valid ? data.flatMap(decode) : nil
+      let thumbnail = valid ? data.flatMap(decode) : nil
       DispatchQueue.main.async {
         tasks[url] = nil
-        if let image { cache.setObject(image, forKey: url as NSURL) }
+        let image = thumbnail.map { store($0, for: url) }
         let callbacks = waiters.removeValue(forKey: url) ?? []
         callbacks.forEach { $0(image) }
       }
@@ -67,6 +81,28 @@ enum LodyListPhoto {
     content.imageProperties.reservedLayoutSize = size
     content.imageProperties.cornerRadius = size.width / 2
     content.imageProperties.tintColor = placeholder ? .tertiaryLabel : nil
+  }
+
+  static func monogram(_ text: String, side: CGFloat) -> UIImage {
+    let asset = UIImageAsset()
+    for style in [UIUserInterfaceStyle.light, .dark] {
+      let traits = UITraitCollection(userInterfaceStyle: style)
+      asset.register(draw(text, in: CGRect(x: 0, y: 0, width: side, height: side), traits: traits), with: traits)
+    }
+    return asset.image(with: .current)
+  }
+
+  private static func draw(_ text: String, in bounds: CGRect, traits: UITraitCollection) -> UIImage {
+    UIGraphicsImageRenderer(bounds: bounds).image { _ in
+      UIColor.lodyInk.resolvedColor(with: traits).setFill()
+      UIBezierPath(ovalIn: bounds).fill()
+      let label = NSAttributedString(string: text, attributes: [
+        .font: UIFont.systemFont(ofSize: bounds.height * 0.4, weight: .semibold),
+        .foregroundColor: UIColor.lodyGround.resolvedColor(with: traits),
+      ])
+      let size = label.size()
+      label.draw(at: CGPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2))
+    }.withRenderingMode(.alwaysOriginal)
   }
 
   nonisolated static func circular(_ image: UIImage) -> UIImage {
@@ -93,7 +129,7 @@ enum LodyListPhoto {
       kCGImageSourceThumbnailMaxPixelSize: Int(size.width * 3),
     ]
     guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
-    return circular(UIImage(cgImage: cg, scale: 1, orientation: .up))
+    return UIImage(cgImage: cg, scale: 1, orientation: .up).withRenderingMode(.alwaysOriginal)
   }
 }
 

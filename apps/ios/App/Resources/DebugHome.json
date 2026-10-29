@@ -103,7 +103,8 @@
         "id": "states:lody-ios",
         "name": "lody-ios",
         "machineId": "ui",
-        "rootPath": "/Users/me/git/lody-ios"
+        "rootPath": "/Users/me/git/lody-ios",
+        "repoFullName": "lody-fixture/lody-ios"
       },
       {
         "id": "states:lody-cloud",
@@ -361,5 +362,8 @@
       }
     ]
   },
-  "statesProseCache": "{\"v\":1,\"status\":\"live\",\"revision\":1,\"entries\":[{\"id\":\"states-sync-0\",\"role\":\"user\",\"status\":\"completed\",\"finished\":true,\"items\":[{\"itemId\":\"prompt\",\"type\":\"text\",\"text\":\"Make catalog sync resumable after a dropped connection.\"}]},{\"id\":\"states-sync-1\",\"role\":\"assistant\",\"status\":\"completed\",\"finished\":true,\"items\":[{\"itemId\":\"answer\",\"type\":\"text\",\"text\":\"Sync now resumes from the last durable cursor watermark instead of replaying every replica from the server bootstrap.\"}]}]}"
+  "statesProseCache": "{\"v\":1,\"status\":\"live\",\"revision\":1,\"entries\":[{\"id\":\"states-sync-0\",\"role\":\"user\",\"status\":\"completed\",\"finished\":true,\"items\":[{\"itemId\":\"prompt\",\"type\":\"text\",\"text\":\"Make catalog sync resumable after a dropped connection.\"}]},{\"id\":\"states-sync-1\",\"role\":\"assistant\",\"status\":\"completed\",\"finished\":true,\"items\":[{\"itemId\":\"answer\",\"type\":\"text\",\"text\":\"Sync now resumes from the last durable cursor watermark instead of replaying every replica from the server bootstrap.\"}]}]}",
+  "photoCache": {
+    "https://avatars.githubusercontent.com/lody-fixture?size=96": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAIAAABt+uBvAAAAr0lEQVR42u3YwQ0AEAxAUXOZzcoSI9iAOAjq/ThL+45NTcMSAkCAAAECBAjQpJLrVQ8QIECAAAECBAgQIECAAAECBAjQGtDugV75HxAgQIAAAQIECBAgQIAAAQIECNCZg9apeQABAgQIECBAgAABAgQIECBAgAA5mAECBAgQIECAAAECBAgQIECAAEUEirrwaoAAAQIECBAgQIAAAQIECBAgQID+ChAgQIAAAQIUtg6pLqHeGqsF1QAAAABJRU5ErkJggg=="
+  }
 }

@@ -59,7 +59,7 @@ def assert_flat_ground(row, project):
     beside = sample(4, project['y'] + project['height'] / 2)
     gap = sample(4, project['y'] - 2)
     assert max(abs(a - b) for a, b in zip(edge, gap)) <= 6, ('Rows sit on the list ground, not an inset card', edge, gap)
-    assert max(abs(a - b) for a, b in zip(beside, gap)) <= 6, ('Project rows share the ground', beside, gap)
+    assert max(abs(a - b) for a, b in zip(beside, gap)) > 6, ('Project headers stand on their own band', beside, gap)
     native = subprocess.check_output([
         'ffmpeg', '-v', 'error', '-i', str(ui.output / 'rail-ground.png'),
         '-f', 'rawvideo', '-pix_fmt', 'gray', '-',
@@ -83,7 +83,8 @@ def assert_flat_ground(row, project):
         for y in range(top, top + round(16 * scale))
         for x in range(round((screen - 34) * scale), round((screen - 14) * scale))
     )
-    assert abs(ground_level - chevron) <= 3, ('Group rows draw no disclosure chevron', ground_level, chevron)
+    band_level = native[(top + round(8 * scale)) * native_width + round(4 * scale)]
+    assert abs(band_level - chevron) <= 3, ('Group rows draw no disclosure chevron', band_level, chevron)
 
 
 close_create = catalog.text('accessibility.closeSheet', title=catalog.text('create.title'))

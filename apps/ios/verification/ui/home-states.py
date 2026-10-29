@@ -20,16 +20,39 @@ assert abs(review['x']) <= 0.5, review
 
 
 def gap_between(above, below):
-    upper = ui.element(above)['frame']
-    return ui.element(below)['frame']['y'] - (upper['y'] + upper['height'])
+    # Both frames come from one snapshot; a scroll still settling moves rows between reads.
+    def frames(items):
+        found = {i.get('AXUniqueId'): i['frame'] for i in items if i.get('AXUniqueId') in (above, below)}
+        return found if len(found) == 2 else None
+    found = ui.wait(frames, f'Missing {above} or {below}')
+    upper = found[above]
+    return found[below]['y'] - (upper['y'] + upper['height'])
 
 
 group_gap = gap_between('st-checklist', 'toggle:states:lody-cloud')
 project_gap = gap_between('st-bump', 'toggle:states:lody-ios')
-assert group_gap >= 24, ('Pinned stands apart from the projects', group_gap)
-assert 8 <= project_gap <= 18, ('Projects sit a smaller step apart', project_gap)
-assert group_gap > project_gap + 8, ('Gaps follow module size', group_gap, project_gap)
+# Bands mark every group, so groups only need one small step between them.
+for name, gap in [('Pinned to projects', group_gap), ('project to project', project_gap)]:
+    assert 6 <= gap <= 10, (f'{name} is one small step above the next band', gap)
 ui.capture('states-top')
+
+
+def rail_photo_pixels(identifier):
+    row = ui.element(identifier)['frame']
+    ui.screenshot('avatar-probe')
+    width = round(ui.state()[0]['frame']['width'])
+    pixels = subprocess.check_output([
+        'ffmpeg', '-v', 'error', '-i', str(ui.output / 'avatar-probe.png'), '-vf', f'scale={width}:-1',
+        '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-',
+    ], timeout=20)
+    top = round(row['y'])
+    # The fixture avatar is drawn in (124, 58, 237); no system glyph or row tint uses that violet.
+    return sum(1 for y in range(top, top + round(row['height'])) for x in range(8, 44)
+               if all(abs(pixels[(y * width + x) * 3 + c] - v) < 40 for c, v in enumerate((124, 58, 237))))
+
+
+assert rail_photo_pixels('toggle:states:lody-ios') > 20, 'A project with an owner photo shows it on the rail'
+assert rail_photo_pixels('toggle:states:lody-cloud') == 0, 'A project without a photo keeps the folder glyph'
 
 
 def toggle_x(identifier):
@@ -63,10 +86,11 @@ ui.axe('swipe', '--start-x', '200', '--start-y', '700', '--end-x', '200', '--end
 for row in ['st-flaky', 'st-streams', 'st-notes']:
     ui.element(row)
 chat_gap = gap_between('st-flaky', 'toggle:chat')
-assert chat_gap >= 24, ('Chat stands apart from the projects', chat_gap)
+assert 6 <= chat_gap <= 10, ('Chat sits one small step below the projects', chat_gap)
 ui.capture('states-bottom')
 
 ui.axe('tap', '--id', 'magnifyingglass', '--post-delay', '.8')
+ui.wait(ui.keyboard_ready, 'Search keyboard did not become visible')
 ui.axe('type', 'watermark')
 hit = ui.element('st-sync')
 spoken = ' '.join([hit.get('AXLabel') or ''] + [child.get('AXLabel') or '' for child in hit.get('children') or []])

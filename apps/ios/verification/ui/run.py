@@ -627,6 +627,9 @@ try:
                 if case == 'ipad-chrome':
                     # Each native selection probe attaches lldb; the case runs ten of them.
                     check_timeout = 360
+                if case == 'ipad-sidebar':
+                    # Two recorded split transitions, two rotations and three sheets share this case.
+                    check_timeout = 300
                 if case == 'chat-performance':
                     check_timeout = 480
                 elif case in ['send-transition', 'send-transition-handoff']:

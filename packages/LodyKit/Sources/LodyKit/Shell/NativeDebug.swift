@@ -160,6 +160,9 @@ enum NativeHomeFixture {
     catalog = fixture["catalog"] as! [String: Any]
     statesCatalog = relative(fixture["statesCatalog"] as! [String: Any], now: Date().timeIntervalSince1970 * 1000)
     workspaces = fixture["workspaces"] as! [[String: Any]]
+    for case let (photo, source as String) in fixture["photoCache"] as? [String: Any] ?? [:] {
+      if let url = URL(string: photo), let data = URL(string: source) { LodyListPhoto.prime(url, from: data) }
+    }
     selected = "ui-home"; rejectedDelete = false
     for key in ["inboxView", "inboxProjectSort", "inboxExpansion", "inboxPinOrder.ui-home.ui-home"] {
       UserDefaults.standard.removeObject(forKey: key)

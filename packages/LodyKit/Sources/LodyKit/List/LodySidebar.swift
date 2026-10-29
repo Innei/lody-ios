@@ -94,7 +94,9 @@ final class LodySidebar: LodyAppearanceView, UICollectionViewDelegate {
       configuration.trailingSwipeActionsConfigurationProvider = { [weak self] in self?.swipes(at: $0, leading: false) }
       let section = NSCollectionLayoutSection.list(using: configuration, layoutEnvironment: environment)
       var top: CGFloat = 4
-      if index > 0 {
+      if index > 0, model.rows.first?.parent == true {
+        top = LodyDesign.Rail.compactBandGap
+      } else if index > 0 {
         top = model.gap == .group ? LodyDesign.Rail.compactGroupGap : LodyDesign.Rail.compactSectionGap
       }
       section.contentInsets = .init(top: top, leading: 12, bottom: 0, trailing: 12)

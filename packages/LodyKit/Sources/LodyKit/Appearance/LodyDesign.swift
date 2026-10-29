@@ -15,9 +15,11 @@ enum LodyDesign {
     static let childHeight: CGFloat = 40
     static let headerHeight: CGFloat = 30
     static let sectionGap: CGFloat = 12
-    static let groupGap: CGFloat = 28
+    static let groupGap: CGFloat = 16
     static let compactSectionGap: CGFloat = 8
-    static let compactGroupGap: CGFloat = 18
+    static let compactGroupGap: CGFloat = 14
+    static let bandGap: CGFloat = 8
+    static let compactBandGap: CGFloat = 6
     static let glyph: CGFloat = 14
   }
 
@@ -70,6 +72,8 @@ extension UIColor {
   static let lodyRail = LodyDesign.wash(light: 0.16, dark: 0.18)
   static let lodySelection = LodyDesign.wash(light: 0.06, dark: 0.10)
   static let lodyPress = LodyDesign.wash(light: 0.04, dark: 0.06)
+  static let lodyBand = LodyDesign.wash(light: 0.045, dark: 0.07)
+  static let lodyBandPressed = LodyDesign.wash(light: 0.09, dark: 0.13)
   static let lodyAttention = LodyDesign.dynamic(light: 0xC47208, dark: 0xF2A33A, lightHigh: 0x9A5800, darkHigh: 0xFFB54D)
   static let lodyFailure = UIColor.systemRed
 }

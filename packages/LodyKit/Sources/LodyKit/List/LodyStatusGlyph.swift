@@ -112,7 +112,7 @@ final class LodyStatusGlyphView: UIView {
       arc.isHidden = false
       arc.path = UIBezierPath(arcCenter: center, radius: 6 * scale, startAngle: -.pi / 2, endAngle: 0, clockwise: true).cgPath
       arc.fillColor = nil
-      arc.strokeColor = color(.lodyInk)
+      arc.strokeColor = color(.lodySecondary)
       arc.lineWidth = 2 * scale
     case .unread:
       base.path = circle(4.5).cgPath

@@ -99,10 +99,12 @@ final class LodySessionRowView: UIView, UIContentView {
     meta.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     time.setContentCompressionResistancePriority(.required, for: .horizontal)
     time.setContentHuggingPriority(.required, for: .horizontal)
-    var capsule = UIButton.Configuration.filled()
+    var capsule = UIButton.Configuration.plain()
     capsule.cornerStyle = .capsule
-    capsule.baseBackgroundColor = .lodyInk
-    capsule.baseForegroundColor = .lodyGround
+    capsule.background.backgroundColor = .clear
+    capsule.background.strokeColor = .lodyLine2
+    capsule.background.strokeWidth = 1
+    capsule.baseForegroundColor = .lodyInk
     capsule.contentInsets = .init(top: 0, leading: 11, bottom: 0, trailing: 11)
     capsule.title = String(localized: "inbox.review", bundle: .lody)
     capsule.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
@@ -226,9 +228,8 @@ final class LodySessionRowView: UIView, UIContentView {
     minimumHeight.isActive = content.density == .compact || !child
     glyphCenter.constant = Self.glyphCenter(for: row, density: content.density)
     glyph.kind = kind
-    let emphasized = row.unread || kind == .attention
     let size: CGFloat = (child ? 14 : 15) - (compact ? 1 : 0)
-    let titleFont = LodyDesign.font(.subheadline, size: size, weight: emphasized && !child ? .semibold : .regular)
+    let titleFont = LodyDesign.font(.subheadline, size: size, weight: row.unread && !child ? .semibold : .regular)
     let titleColor: UIColor = row.destructive ? .systemRed : .lodyInk
     let titleText = NSMutableAttributedString(string: row.title, attributes: [.font: titleFont, .foregroundColor: titleColor])
     if child, !row.modelName.isEmpty {
@@ -370,8 +371,7 @@ final class LodySessionRowView: UIView, UIContentView {
     if row.badge.isEmpty, add > 0 || del > 0 {
       let digits = UIFont.monospacedDigitSystemFont(ofSize: body.pointSize, weight: .regular)
       if !row.subtitle.isEmpty || !row.modelName.isEmpty { text.append(separator) }
-      text.append(NSAttributedString(string: "+\(add)", attributes: [.font: digits, .foregroundColor: UIColor.systemGreen]))
-      text.append(NSAttributedString(string: " −\(del)", attributes: [.font: digits, .foregroundColor: UIColor.systemRed]))
+      text.append(NSAttributedString(string: "+\(add) −\(del)", attributes: [.font: digits, .foregroundColor: UIColor.lodySecondary]))
     }
     return text
   }
