@@ -3,18 +3,16 @@ import AppKit
 @MainActor
 final class MacSceneHost {
   static let shared = MacSceneHost()
-  private var window: NSWindow?
+  private var windows: [NSWindow] = []
   private(set) var current: String?
 
   @discardableResult
   func open(_ id: String) -> Bool {
     guard let scene = MacCatalog.scene(id) else { return false }
-    let window = self.window ?? makeWindow()
-    self.window = window
-    window.contentViewController = scene.make()
-    window.setContentSize(scene.size)
-    window.title = "Catalog · \(scene.title)"
-    window.makeKeyAndOrderFront(nil)
+    close()
+    windows = scene.build()
+    for window in windows { window.orderFront(nil) }
+    windows.last?.makeKeyAndOrderFront(nil)
     current = id
     return true
   }
@@ -24,15 +22,23 @@ final class MacSceneHost {
     open(current)
   }
 
-  private func makeWindow() -> NSWindow {
+  private func close() {
+    for window in windows { window.close() }
+    windows = []
+  }
+
+  static func window(_ content: NSViewController, title: String, size: NSSize) -> NSWindow {
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
+      contentRect: NSRect(origin: .zero, size: size),
       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
       backing: .buffered, defer: false
     )
+    window.contentViewController = content
+    window.setContentSize(size)
     window.isReleasedWhenClosed = false
     window.tabbingMode = .disallowed
     window.identifier = NSUserInterfaceItemIdentifier("catalog-scene")
+    window.title = "Catalog · \(title)"
     window.center()
     return window
   }

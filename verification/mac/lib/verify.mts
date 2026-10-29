@@ -37,6 +37,7 @@ export interface Dump {
   windows: {
     title: string;
     identifier: string;
+    key: boolean;
     appearance: string;
     tabs?: string[];
     root?: ViewNode;
@@ -125,13 +126,14 @@ export async function openScene(
   );
 }
 
-export async function window(
-  session: Session,
-  titleContains = 'Catalog ·',
-): Promise<WindowClient> {
+export async function window(session: Session): Promise<WindowClient> {
+  const state = await dump(session);
+  const scenes = state.windows.filter((w) => w.identifier === 'catalog-scene');
+  const target = scenes.find((w) => w.key) ?? scenes[scenes.length - 1];
+  if (!target) throw new Error('no catalog scene window is open');
   return session.runner.windows.resolve({
     applicationId: bundleId,
-    titleContains,
+    title: target.title,
   });
 }
 
@@ -173,7 +175,8 @@ export function nodes(root: ViewNode | undefined): ViewNode[] {
 }
 
 export function scene(dump: Dump) {
-  return dump.windows.find((w) => w.identifier === 'catalog-scene');
+  const scenes = dump.windows.filter((w) => w.identifier === 'catalog-scene');
+  return scenes.find((w) => w.key) ?? scenes[scenes.length - 1];
 }
 
 export function find(dump: Dump, predicate: (node: ViewNode) => boolean) {

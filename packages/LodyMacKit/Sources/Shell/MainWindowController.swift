@@ -2,32 +2,42 @@ import AppKit
 import LodyData
 
 @MainActor
-final class MainWindowController: NSWindowController, NSWindowDelegate {
+final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate {
   static let tabbingIdentifier = "app.innei.lody.mac.main"
+  private static var open: [MainWindowController] = []
+  let environment: MacEnvironment
+  private(set) var workspace: MacWorkspaceController?
   private var observer: NSObjectProtocol?
   private var signedIn: Bool?
 
-  init() {
+  init(environment: MacEnvironment = .live, sessionId: String? = nil) {
+    self.environment = environment
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1100, height: 720),
       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
       backing: .buffered, defer: false
     )
-    window.titlebarAppearsTransparent = true
     window.toolbarStyle = .unified
-    window.tabbingIdentifier = Self.tabbingIdentifier
+    window.titleVisibility = .visible
+    window.tabbingIdentifier = environment.titlePrefix + Self.tabbingIdentifier
     window.tabbingMode = .preferred
-    window.setFrameAutosaveName("LodyMain")
-    window.minSize = NSSize(width: 720, height: 480)
+    window.minSize = NSSize(width: 760, height: 480)
     window.isReleasedWhenClosed = false
-    window.identifier = NSUserInterfaceItemIdentifier("main")
+    window.identifier = NSUserInterfaceItemIdentifier(environment.windowIdentifier)
     super.init(window: window)
     window.delegate = self
-    observer = NotificationCenter.default.addObserver(forName: .lodyAuthDidChange, object: nil, queue: .main) { [weak self] _ in
-      MainActor.assumeIsolated { self?.render() }
+    let toolbar = NSToolbar(identifier: "lody.main")
+    toolbar.delegate = self
+    toolbar.displayMode = .iconOnly
+    window.toolbar = toolbar
+    if environment.requiresAccount {
+      observer = NotificationCenter.default.addObserver(forName: .lodyAuthDidChange, object: nil, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated { self?.render() }
+      }
     }
     render()
-    window.center()
+    workspace?.open(sessionId)
+    Self.open.append(self)
   }
 
   required init?(coder: NSCoder) { nil }
@@ -36,22 +46,82 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     if let observer { NotificationCenter.default.removeObserver(observer) }
   }
 
+  static var frontmost: MainWindowController? {
+    open.first { $0.window?.isKeyWindow == true } ?? open.last
+  }
+
   private func render() {
-    let account = AuthSession.shared.snapshot.account
-    let next = account != nil
+    let next = !environment.requiresAccount || AuthSession.shared.snapshot.account != nil
     guard next != signedIn else { return }
     signedIn = next
-    window?.title = "Lody"
-    window?.contentViewController = next ? workspaceContent() : SignInViewController()
+    if let workspace { MacTabCoordinator.shared.remove(workspace) }
+    workspace = nil
+    guard next else {
+      window?.title = "Lody"
+      window?.subtitle = ""
+      window?.contentViewController = SignInViewController()
+      return
+    }
+    let workspace = MacWorkspaceController(environment: environment)
+    let prefix = environment.titlePrefix
+    workspace.onTitle = { [weak self] title, subtitle in
+      self?.window?.title = prefix + title
+      self?.window?.subtitle = subtitle
+    }
+    workspace.onNewSession = { [weak self] in self?.workspace?.open(nil) }
+    self.workspace = workspace
+    window?.contentViewController = workspace
+    window?.title = environment.titlePrefix + "Lody"
+    MacTabCoordinator.shared.add(workspace)
+    if window?.isKeyWindow == true { MacTabCoordinator.shared.select(workspace) }
   }
 
-  func workspaceContent() -> NSViewController {
-    MacPlaceholderController(text: String(localized: "mac.workspace.loading", bundle: .lodyMac))
+  @discardableResult
+  func addTab(sessionId: String? = nil) -> MainWindowController {
+    let next = MainWindowController(environment: environment, sessionId: sessionId)
+    if let window, let tab = next.window {
+      window.addTabbedWindow(tab, ordered: .above)
+      tab.makeKeyAndOrderFront(nil)
+    }
+    return next
   }
 
-  func newTab() {
-    window?.makeKeyAndOrderFront(nil)
+  override func newWindowForTab(_ sender: Any?) {
+    addTab()
   }
+
+  func windowDidBecomeKey(_ notification: Notification) {
+    if let workspace { MacTabCoordinator.shared.select(workspace) }
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    if let workspace { MacTabCoordinator.shared.remove(workspace) }
+    Self.open.removeAll { $0 === self }
+  }
+
+  func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+    [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, .lodyNewSession]
+  }
+
+  func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+    toolbarDefaultItemIdentifiers(toolbar)
+  }
+
+  func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+    guard itemIdentifier == .lodyNewSession else { return nil }
+    let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+    item.label = String(localized: "mac.sidebar.newSession", bundle: .lodyMac)
+    item.image = NSImage(systemSymbolName: "square.and.pencil", accessibilityDescription: item.label)
+    item.target = self
+    item.action = #selector(newSessionPressed)
+    return item
+  }
+
+  @objc private func newSessionPressed() { workspace?.open(nil) }
+}
+
+extension NSToolbarItem.Identifier {
+  static let lodyNewSession = NSToolbarItem.Identifier("lody.newSession")
 }
 
 @MainActor

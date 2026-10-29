@@ -6,8 +6,19 @@ enum MacCatalog {
   struct Scene {
     let id: String
     let title: String
-    let size: NSSize
-    let make: @MainActor () -> NSViewController
+    let build: @MainActor () -> [NSWindow]
+
+    init(id: String, title: String, size: NSSize, make: @escaping @MainActor () -> NSViewController) {
+      self.id = id
+      self.title = title
+      build = { [MacSceneHost.window(make(), title: title, size: size)] }
+    }
+
+    init(id: String, title: String, windows: @escaping @MainActor () -> [NSWindow]) {
+      self.id = id
+      self.title = title
+      build = windows
+    }
   }
 
   static var scenes: [Scene] {
@@ -18,11 +29,9 @@ enum MacCatalog {
       Scene(id: "sign-in-code", title: "Sign in · device code", size: NSSize(width: 560, height: 440)) {
         SignInViewController(service: .fixture(code: "WXYZ-1234"))
       },
+      Scene(id: "sidebar", title: "Sidebar") { MacFixtures.workspaceWindow(sessionId: "s-mac") },
+      Scene(id: "tabs", title: "Tabs") { MacFixtures.tabbedWindows() },
     ]
-  }
-
-  static func make(_ id: String) -> NSViewController? {
-    scenes.first { $0.id == id }?.make()
   }
 
   static func scene(_ id: String) -> Scene? { scenes.first { $0.id == id } }

@@ -1,14 +1,19 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { sidebar } from './cases/sidebar.mts';
 import { signIn } from './cases/sign-in.mts';
-import { launch, route, startSession } from './lib/verify.mts';
+import { tabs } from './cases/tabs.mts';
+import { capture, dump, launch, route, startSession } from './lib/verify.mts';
 import type { Session } from './lib/verify.mts';
 
 const cases: Record<string, (session: Session) => Promise<void>> = {
   'sign-in': signIn,
+  sidebar,
+  tabs,
 };
 
 const { values } = parseArgs({
@@ -72,6 +77,15 @@ try {
       );
     } catch (error) {
       failures += 1;
+      await capture(session, `failure-${name}`).catch(() => {});
+      await dump(session)
+        .then((state) =>
+          writeFile(
+            join(output, `failure-${name}.json`),
+            JSON.stringify(state, null, 1),
+          ),
+        )
+        .catch(() => {});
       console.log(
         JSON.stringify({
           case: name,

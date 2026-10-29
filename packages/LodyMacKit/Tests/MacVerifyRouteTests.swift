@@ -25,7 +25,12 @@ final class MacVerifyRouteTests: XCTestCase {
   func testEveryCatalogSceneBuildsWithoutAnAccount() {
     let ids = MacCatalog.scenes.map(\.id)
     XCTAssertTrue(ids.contains("sign-in"))
-    for id in ids { XCTAssertNotNil(MacCatalog.make(id), id) }
-    XCTAssertNil(MacCatalog.make("missing"))
+    for scene in MacCatalog.scenes {
+      let windows = scene.build()
+      XCTAssertFalse(windows.isEmpty, scene.id)
+      XCTAssertTrue(windows.allSatisfy { $0.identifier?.rawValue == "catalog-scene" }, scene.id)
+      windows.forEach { $0.close() }
+    }
+    XCTAssertNil(MacCatalog.scene("missing"))
   }
 }

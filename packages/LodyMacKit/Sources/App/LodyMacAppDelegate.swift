@@ -5,7 +5,6 @@ import LodyData
 public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
   private let host = MacHost()
   private let runtime = DataRuntime(localStore: .shared)
-  private var main: MainWindowController?
   private var settings: NSWindowController?
   private var debug: NSWindowController?
 
@@ -57,14 +56,13 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func showMain() {
-    let controller = main ?? MainWindowController()
-    main = controller
+    let controller = MainWindowController.frontmost ?? MainWindowController()
     controller.showWindow(nil)
   }
 
   @objc func newSessionTab(_ sender: Any?) {
     showMain()
-    main?.newTab()
+    MainWindowController.frontmost?.workspace?.open(nil)
   }
 
   @objc func showSettings(_ sender: Any?) {
