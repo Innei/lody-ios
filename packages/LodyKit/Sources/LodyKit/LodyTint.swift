@@ -1,67 +1,6 @@
 import UIKit
 
-enum LodyDarkBackground: String {
-  case soft
-  case black
-
-  static var current: Self {
-    Self(rawValue: UserDefaults.standard.string(forKey: "darkBackground") ?? "") ?? .soft
-  }
-
-  static func save(_ value: String) {
-    let next = Self(rawValue: value) ?? .soft
-    guard next != current else { return }
-    UserDefaults.standard.set(next.rawValue, forKey: "darkBackground")
-    DispatchQueue.main.async {
-      NotificationCenter.default.post(name: .lodyAppearanceDidChange, object: nil)
-    }
-  }
-}
-
-enum LodyAccentChoice: Equatable, RawRepresentable {
-  case ink, blue, indigo, purple, pink
-  case custom(String)
-
-  init?(rawValue: String) {
-    switch rawValue {
-    case "ink": self = .ink
-    case "blue": self = .blue
-    case "indigo": self = .indigo
-    case "purple": self = .purple
-    case "pink": self = .pink
-    default:
-      guard rawValue.utf8.count == 7, rawValue.range(of: "^#[0-9A-Fa-f]{6}$", options: .regularExpression) != nil else { return nil }
-      self = .custom(rawValue.uppercased())
-    }
-  }
-
-  var rawValue: String {
-    switch self {
-    case .ink: "ink"
-    case .blue: "blue"
-    case .indigo: "indigo"
-    case .purple: "purple"
-    case .pink: "pink"
-    case .custom(let hex): hex
-    }
-  }
-
-  // The Share Extension has its own standard defaults; the app mirrors the accent here.
-  static var shared: UserDefaults? { UserDefaults(suiteName: "group.app.innei.lody") }
-
-  static var current: Self {
-    #if LODY_SHARE_EXTENSION
-    let defaults = shared ?? .standard
-    #else
-    let defaults = UserDefaults.standard
-    #endif
-    return Self(rawValue: defaults.string(forKey: "accentColor") ?? "") ?? .ink
-  }
-
-  static func mirror() {
-    shared?.set(current.rawValue, forKey: "accentColor")
-  }
-
+extension LodyAccentChoice {
   var color: UIColor {
     switch self {
     case .ink: .lodyInk
@@ -86,9 +25,7 @@ enum LodyAccentChoice: Equatable, RawRepresentable {
   }
 
   static func save(_ value: String) {
-    guard let next = Self(rawValue: value), next != current else { return }
-    UserDefaults.standard.set(next.rawValue, forKey: "accentColor")
-    mirror()
+    guard store(value) else { return }
     DispatchQueue.main.async {
       lodyApplyWindowAccent()
       NotificationCenter.default.post(name: .lodyAppearanceDidChange, object: nil)
@@ -104,10 +41,6 @@ enum LodyAccentChoice: Equatable, RawRepresentable {
     color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
     return String(format: "#%02X%02X%02X", Int(min(255, max(0, (red * 255).rounded()))), Int(min(255, max(0, (green * 255).rounded()))), Int(min(255, max(0, (blue * 255).rounded()))))
   }
-}
-
-extension Notification.Name {
-  static let lodyAppearanceDidChange = Notification.Name("LodyAppearanceDidChange")
 }
 
 func lodyTint(_ value: String) -> UIColor? {

@@ -1,20 +1,20 @@
 import Foundation
 import LodyCore
 
-typealias OutboxValue = RuntimeContract.JSONValue
+public typealias OutboxValue = RuntimeContract.JSONValue
 
 extension RuntimeContract.JSONValue {
-  var string: String? {
+  public var string: String? {
     if case .string(let value) = self { return value }
     return nil
   }
 
-  var object: [String: OutboxValue]? {
+  public var object: [String: OutboxValue]? {
     if case .object(let value) = self { return value }
     return nil
   }
 
-  var truthy: Bool {
+  public var truthy: Bool {
     switch self {
     case .null: return false
     case .bool(let value): return value
@@ -25,16 +25,16 @@ extension RuntimeContract.JSONValue {
   }
 }
 
-struct OutboxRecord: Codable, Sendable, Equatable {
-  var session: [String: OutboxValue]
-  var send: [String: OutboxValue]
+public struct OutboxRecord: Codable, Sendable, Equatable {
+  public var session: [String: OutboxValue]
+  public var send: [String: OutboxValue]
 
-  var sessionId: String { session["id"]?.string ?? "" }
-  var sendId: String { send["id"]?.string ?? "" }
-  var phase: String { send["phase"]?.string ?? "" }
-  var creation: String? { send["creation"]?.truthy == true ? send["creation"]?.string : nil }
+  public var sessionId: String { session["id"]?.string ?? "" }
+  public var sendId: String { send["id"]?.string ?? "" }
+  public var phase: String { send["phase"]?.string ?? "" }
+  public var creation: String? { send["creation"]?.truthy == true ? send["creation"]?.string : nil }
 
-  func with(phase: String, reason: String? = nil, dropCreation: Bool = false) -> OutboxRecord {
+  public func with(phase: String, reason: String? = nil, dropCreation: Bool = false) -> OutboxRecord {
     var next = self
     next.send["phase"] = .string(phase)
     if let reason { next.send["reason"] = .string(reason) }
@@ -42,7 +42,7 @@ struct OutboxRecord: Codable, Sendable, Equatable {
     return next
   }
 
-  static func restore(_ raw: String?, awaitingConfirmation: String) -> [OutboxRecord] {
+  public static func restore(_ raw: String?, awaitingConfirmation: String) -> [OutboxRecord] {
     guard let raw, let saved = try? JSONDecoder().decode(OutboxValue.self, from: Data(raw.utf8)),
           case .array(let items) = saved else { return [] }
     return items.compactMap { item in
@@ -56,13 +56,18 @@ struct OutboxRecord: Codable, Sendable, Equatable {
     }
   }
 
-  static func encode(_ records: [OutboxRecord]) -> String {
+  public static func encode(_ records: [OutboxRecord]) -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .withoutEscapingSlashes
     return (try? encoder.encode(records)).map { String(decoding: $0, as: UTF8.self) } ?? "[]"
   }
 
-  static func decode(_ json: String) -> OutboxRecord? {
+  public static func decode(_ json: String) -> OutboxRecord? {
     try? JSONDecoder().decode(OutboxRecord.self, from: Data(json.utf8))
+  }
+
+  public init(session: [String: OutboxValue], send: [String: OutboxValue]) {
+    self.session = session
+    self.send = send
   }
 }

@@ -120,6 +120,8 @@ for files in checks.values():
         files.append('LodyLocalization.swift')
     if files and 'LodyDataBundle.swift' not in files:
         files.append('LodyDataBundle.swift')
+    if 'LodyTint.swift' in files and 'Preferences/LodyAppearanceChoices.swift' not in files:
+        files.append('Preferences/LodyAppearanceChoices.swift')
     if 'LodyTint.swift' in files and 'Appearance/LodyDesign.swift' not in files:
         files.append('Appearance/LodyDesign.swift')
     if 'Chat/ChatComposerView.swift' in files:

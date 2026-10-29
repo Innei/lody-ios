@@ -1,34 +1,45 @@
 import Foundation
 
-struct OutboxPersistence: Sendable {
-  var generation: @Sendable () -> Int
-  var read: @Sendable (String) async -> String?
-  var write: @Sendable (_ key: String, _ value: String, _ generation: Int) async throws -> Void
+public struct OutboxPersistence: Sendable {
+  public var generation: @Sendable () -> Int
+  public var read: @Sendable (String) async -> String?
+  public var write: @Sendable (_ key: String, _ value: String, _ generation: Int) async throws -> Void
+
+  public init(generation: @escaping @Sendable () -> Int, read: @escaping @Sendable (String) async -> String?, write: @escaping @Sendable (_ key: String, _ value: String, _ generation: Int) async throws -> Void) {
+    self.generation = generation
+    self.read = read
+    self.write = write
+  }
 }
 
-enum OutboxError: Error, Equatable {
+public enum OutboxError: Error, Equatable {
   case scopeExpired
   case invalidRecord
 }
 
 @MainActor
-final class OutboxStore {
-  struct Snapshot: Equatable {
-    var records: [OutboxRecord] = []
-    var ready = false
+public final class OutboxStore {
+  public struct Snapshot: Equatable {
+    public var records: [OutboxRecord] = []
+    public var ready = false
+
+    public init(records: [OutboxRecord] = [], ready: Bool = false) {
+      self.records = records
+      self.ready = ready
+    }
   }
 
-  let key: String
-  let generation: Int
-  private(set) var snapshot = Snapshot()
-  private(set) var revision = 0
-  var onChange: (() -> Void)?
+  public let key: String
+  public let generation: Int
+  public private(set) var snapshot = Snapshot()
+  public private(set) var revision = 0
+  public var onChange: (() -> Void)?
   private let persistence: OutboxPersistence
   private var durable: [OutboxRecord] = []
   private var touched = Set<String>()
   private var writes: Task<Void, Never>
 
-  init(key: String, generation: Int, persistence: OutboxPersistence, awaitingConfirmation: String) {
+  public init(key: String, generation: Int, persistence: OutboxPersistence, awaitingConfirmation: String) {
     self.key = key
     self.generation = generation
     self.persistence = persistence
@@ -42,18 +53,18 @@ final class OutboxStore {
     }
   }
 
-  var json: String {
+  public var json: String {
     let records = OutboxRecord.encode(snapshot.records)
     return #"{"ready":\#(snapshot.ready),"records":\#(records)}"#
   }
 
   @discardableResult
-  func put(_ record: OutboxRecord) -> Task<Void, Error> {
+  public func put(_ record: OutboxRecord) -> Task<Void, Error> {
     change(record.sessionId, record)
   }
 
   @discardableResult
-  func remove(_ sessionId: String) -> Task<Void, Error> {
+  public func remove(_ sessionId: String) -> Task<Void, Error> {
     change(sessionId, nil)
   }
 
@@ -90,25 +101,25 @@ final class OutboxStore {
 }
 
 @MainActor
-final class OutboxStores {
+public final class OutboxStores {
   private let persistence: OutboxPersistence
   private let awaitingConfirmation: () -> String
   private var stores: [String: OutboxStore] = [:]
   private var generation: Int
-  var onChange: ((OutboxStore) -> Void)?
-  var onReset: (() -> Void)?
+  public var onChange: ((OutboxStore) -> Void)?
+  public var onReset: (() -> Void)?
 
-  init(persistence: OutboxPersistence, awaitingConfirmation: @escaping () -> String) {
+  public init(persistence: OutboxPersistence, awaitingConfirmation: @escaping () -> String) {
     self.persistence = persistence
     self.awaitingConfirmation = awaitingConfirmation
     generation = persistence.generation()
   }
 
-  nonisolated static func key(user: String, workspace: String) -> String {
+  public nonisolated static func key(user: String, workspace: String) -> String {
     user.isEmpty || workspace.isEmpty ? "" : "pending-sends:\(user):\(workspace)"
   }
 
-  func store(user: String, workspace: String) -> OutboxStore? {
+  public func store(user: String, workspace: String) -> OutboxStore? {
     let current = persistence.generation()
     if generation != current {
       stores.removeAll()

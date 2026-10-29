@@ -180,6 +180,7 @@ targets:
         createIntermediateGroups: false
         includes:
           - LodyDataBundle.swift
+          - Preferences/LodyAppearanceChoices.swift
           - Text/TextSearch.swift
           - Resources/Localizable.xcstrings
       - App/Icons.xcassets
@@ -237,7 +238,7 @@ targets:
     platform: iOS
     sources:
       - Extensions/NotificationService
-      - path: ../../packages/LodyKit/Sources/LodyKit
+      - path: ../../packages/LodyData/Sources/LodyData
         group: Shared Extension Sources
         createIntermediateGroups: false
         includes:

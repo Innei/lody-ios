@@ -1,32 +1,45 @@
 import Foundation
 
-struct QuickReply: Codable, Equatable, Sendable {
-  let id: String
-  let label: String
-  let message: String
+public struct QuickReply: Codable, Equatable, Sendable {
+  public let id: String
+  public let label: String
+  public let message: String
+
+  public init(id: String, label: String, message: String) {
+    self.id = id
+    self.label = label
+    self.message = message
+  }
 }
 
 extension QuickReply {
-  init?(_ value: Any?) {
+  public init?(_ value: Any?) {
     guard let value = value as? [String: Any], let id = value["id"] as? String,
           let label = value["label"] as? String, let message = value["message"] as? String else { return nil }
     self.init(id: id, label: label, message: message)
   }
 }
 
-struct PreferencesSnapshot: Codable, Equatable, Sendable {
-  let accentColor: String
-  let darkBackground: String
-  let queuedMessageBehavior: String
-  let quickReplies: [QuickReply]
+public struct PreferencesSnapshot: Codable, Equatable, Sendable {
+  public let accentColor: String
+  public let darkBackground: String
+  public let queuedMessageBehavior: String
+  public let quickReplies: [QuickReply]
+
+  public init(accentColor: String, darkBackground: String, queuedMessageBehavior: String, quickReplies: [QuickReply]) {
+    self.accentColor = accentColor
+    self.darkBackground = darkBackground
+    self.queuedMessageBehavior = queuedMessageBehavior
+    self.quickReplies = quickReplies
+  }
 }
 
-enum LodyPreferences {
+public enum LodyPreferences {
   private static let queuedKey = "queuedMessageBehavior"
   private static let quickRepliesKey = "quickReplies"
   private static let defaultReplyIDs = ["continue", "review", "commit-push"]
 
-  static var snapshot: PreferencesSnapshot {
+  public static var snapshot: PreferencesSnapshot {
     PreferencesSnapshot(
       accentColor: LodyAccentChoice.current.rawValue,
       darkBackground: LodyDarkBackground.current.rawValue,
@@ -35,45 +48,45 @@ enum LodyPreferences {
     )
   }
 
-  static var json: String {
+  public static var json: String {
     (try? JSONEncoder().encode(snapshot)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
   }
 
-  static var queuedMessageBehavior: String {
+  public static var queuedMessageBehavior: String {
     UserDefaults.standard.string(forKey: queuedKey) == "guide" ? "guide" : "queue"
   }
 
-  static func saveQueuedMessageBehavior(_ value: String) {
+  public static func saveQueuedMessageBehavior(_ value: String) {
     let next = value == "guide" ? "guide" : "queue"
     guard next != queuedMessageBehavior else { return }
     UserDefaults.standard.set(next, forKey: queuedKey)
     changed()
   }
 
-  static var quickReplies: [QuickReply] {
+  public static var quickReplies: [QuickReply] {
     guard let json = UserDefaults.standard.string(forKey: quickRepliesKey),
           let items = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [Any] else { return defaultQuickReplies }
     return valid(items)
   }
 
-  static func saveQuickReplies(_ items: [QuickReply]) -> Bool {
+  public static func saveQuickReplies(_ items: [QuickReply]) -> Bool {
     guard let data = try? JSONEncoder().encode(valid(items)) else { return false }
     UserDefaults.standard.set(String(decoding: data, as: UTF8.self), forKey: quickRepliesKey)
     changed()
     return true
   }
 
-  static func resetQuickReplies() {
+  public static func resetQuickReplies() {
     UserDefaults.standard.removeObject(forKey: quickRepliesKey)
     changed()
   }
 
-  static var defaultQuickReplies: [QuickReply] {
+  public static var defaultQuickReplies: [QuickReply] {
     defaultReplyIDs.map { id in
       QuickReply(
         id: id,
-        label: String(localized: String.LocalizationValue("settings.quickReplies.defaults." + id + ".label"), bundle: .lody),
-        message: String(localized: String.LocalizationValue("settings.quickReplies.defaults." + id + ".message"), bundle: .lody)
+        label: String(localized: String.LocalizationValue("settings.quickReplies.defaults." + id + ".label"), bundle: .lodyData),
+        message: String(localized: String.LocalizationValue("settings.quickReplies.defaults." + id + ".message"), bundle: .lodyData)
       )
     }
   }
@@ -102,5 +115,5 @@ enum LodyPreferences {
 }
 
 extension Notification.Name {
-  static let lodyPreferencesDidChange = Notification.Name("LodyPreferencesDidChange")
+  public static let lodyPreferencesDidChange = Notification.Name("LodyPreferencesDidChange")
 }

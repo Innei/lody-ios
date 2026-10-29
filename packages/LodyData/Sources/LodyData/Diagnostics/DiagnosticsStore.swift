@@ -3,12 +3,12 @@ import Darwin
 import Foundation
 
 /// Only structured metadata enters diagnostics; never pass payloads, tokens or error descriptions.
-final class DiagnosticsStore: @unchecked Sendable {
-  enum Process: String, CaseIterable, Sendable {
+public final class DiagnosticsStore: @unchecked Sendable {
+  public enum Process: String, CaseIterable, Sendable {
     case app, notificationService
   }
 
-  static let shared = DiagnosticsStore(
+  public static let shared = DiagnosticsStore(
     directory: storageRoot,
     process: Bundle.main.bundleIdentifier?.hasSuffix(".notification-service") == true ? .notificationService : .app
   )
@@ -24,7 +24,7 @@ final class DiagnosticsStore: @unchecked Sendable {
     return root.appending(path: name)
   }
 
-  let directory: URL
+  public let directory: URL
   private let process: Process
   private let maxBytes: Int
   private let retention: TimeInterval = 7 * 86400
@@ -34,14 +34,14 @@ final class DiagnosticsStore: @unchecked Sendable {
   private var dropped = 0
 
   private struct Entry: Codable {
-    let at: Date
-    let process: String
-    let category: String
-    let event: String
-    let fields: [String: String]
+    public let at: Date
+    public let process: String
+    public let category: String
+    public let event: String
+    public let fields: [String: String]
   }
 
-  init(directory: URL, process: Process, maxBytes: Int = 5 * 1024 * 1024,
+  public init(directory: URL, process: Process, maxBytes: Int = 5 * 1024 * 1024,
        now: @escaping @Sendable () -> Date = { Date() }) {
     self.directory = directory
     self.process = process
@@ -49,11 +49,11 @@ final class DiagnosticsStore: @unchecked Sendable {
     self.now = now
   }
 
-  static func correlation(_ value: String) -> String {
+  public static func correlation(_ value: String) -> String {
     SHA256.hash(data: Data(value.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
   }
 
-  static func attachmentServerCode(_ value: String?) -> String? {
+  public static func attachmentServerCode(_ value: String?) -> String? {
     guard let value, value.utf8.count <= 64 else { return nil }
     let code = value.lowercased().replacingOccurrences(of: " ", with: "_").replacingOccurrences(of: "-", with: "_")
     let allowed = ["unauthorized", "forbidden", "not_found", "quota_exceeded", "storage_quota_exceeded",
@@ -62,7 +62,7 @@ final class DiagnosticsStore: @unchecked Sendable {
     return allowed.contains(code) ? code : nil
   }
 
-  func navigation(id: String, source: String, outcome: String, reason: String) {
+  public func navigation(id: String, source: String, outcome: String, reason: String) {
     var fields = ["source": source, "reason": reason]
     if source == "notification", UUID(uuidString: id) != nil { fields["message"] = id }
     else if source == "deep-link", id.hasPrefix("link:"), let link = Int(id.dropFirst(5)), link > 0 { fields["link"] = String(link) }
@@ -77,7 +77,7 @@ final class DiagnosticsStore: @unchecked Sendable {
     }
   }
 
-  func record(_ category: StaticString, _ event: StaticString, fields: [String: String] = [:]) {
+  public func record(_ category: StaticString, _ event: StaticString, fields: [String: String] = [:]) {
     let entry = Entry(at: now(), process: process.rawValue, category: category.description,
                       event: event.description, fields: Self.metadata(fields))
     queue.async {
@@ -87,13 +87,13 @@ final class DiagnosticsStore: @unchecked Sendable {
   }
 
   // Extension completion and background suspension must not strand queued records.
-  func flush() { queue.sync {} }
+  public func flush() { queue.sync {} }
 
-  func count(since window: TimeInterval) throws -> Int {
+  public func count(since window: TimeInterval) throws -> Int {
     try queue.sync { try withLock { try entries(since: window).count } }
   }
 
-  func export(since window: TimeInterval) throws -> URL {
+  public func export(since window: TimeInterval) throws -> URL {
     try queue.sync {
       let records = try withLock { try entries(since: window) }
       let info = Bundle.main.infoDictionary ?? [:]
@@ -112,7 +112,7 @@ final class DiagnosticsStore: @unchecked Sendable {
     }
   }
 
-  func clear() throws {
+  public func clear() throws {
     try queue.sync {
       try withLock {
         for source in Process.allCases {

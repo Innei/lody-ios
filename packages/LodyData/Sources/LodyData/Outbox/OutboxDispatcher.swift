@@ -1,19 +1,29 @@
 import Foundation
 
-struct OutboxServices {
-  var createSession: @MainActor (String) async throws -> String
-  var ensureSession: @MainActor (String) async throws -> Void
-  var sendSessionTurn: @MainActor (String) async throws -> String
-  var releaseReserve: @MainActor (String) -> Void
-  var alert: @MainActor (_ title: String, _ message: String) -> Void
+public struct OutboxServices {
+  public var createSession: @MainActor (String) async throws -> String
+  public var ensureSession: @MainActor (String) async throws -> Void
+  public var sendSessionTurn: @MainActor (String) async throws -> String
+  public var releaseReserve: @MainActor (String) -> Void
+  public var alert: @MainActor (_ title: String, _ message: String) -> Void
+
+  public init(createSession: @escaping @MainActor (String) async throws -> String, ensureSession: @escaping @MainActor (String) async throws -> Void, sendSessionTurn: @escaping @MainActor (String) async throws -> String, releaseReserve: @escaping @MainActor (String) -> Void, alert: @escaping @MainActor (_ title: String, _ message: String) -> Void) {
+    self.createSession = createSession
+    self.ensureSession = ensureSession
+    self.sendSessionTurn = sendSessionTurn
+    self.releaseReserve = releaseReserve
+    self.alert = alert
+  }
 }
 
-final class OutboxInflight: @unchecked Sendable {
+public final class OutboxInflight: @unchecked Sendable {
   private let lock = NSLock()
   private var ids = Set<String>()
 
-  func contains(_ id: String) -> Bool { lock.withLock { ids.contains(id) } }
-  func set(_ id: String, _ active: Bool) {
+  public init() {}
+
+  public func contains(_ id: String) -> Bool { lock.withLock { ids.contains(id) } }
+  public func set(_ id: String, _ active: Bool) {
     lock.withLock {
       if active { ids.insert(id) } else { ids.remove(id) }
     }
@@ -21,31 +31,40 @@ final class OutboxInflight: @unchecked Sendable {
 }
 
 @MainActor
-final class OutboxDispatcher {
-  struct Inputs: Equatable {
-    var userId = ""
-    var connected = false
-    var foregroundSessionId = ""
-    var latestUserMessages: [String: String] = [:]
-    var catalogRevision = 0
-    var context = OutboxForeground()
+public final class OutboxDispatcher {
+  public struct Inputs: Equatable {
+    public var userId = ""
+    public var connected = false
+    public var foregroundSessionId = ""
+    public var latestUserMessages: [String: String] = [:]
+    public var catalogRevision = 0
+    public var context = OutboxForeground()
+
+    public init(userId: String = "", connected: Bool = false, foregroundSessionId: String = "", latestUserMessages: [String: String] = [:], catalogRevision: Int = 0, context: OutboxForeground = OutboxForeground()) {
+      self.userId = userId
+      self.connected = connected
+      self.foregroundSessionId = foregroundSessionId
+      self.latestUserMessages = latestUserMessages
+      self.catalogRevision = catalogRevision
+      self.context = context
+    }
   }
 
   private typealias Plan = (queue: Bool, guide: Bool)
 
   private struct Trigger: Equatable {
-    let store: ObjectIdentifier?
-    let revision: Int
-    let inputs: Inputs
+    public let store: ObjectIdentifier?
+    public let revision: Int
+    public let inputs: Inputs
   }
 
-  static let maxSessionReserves = 8
+  public static let maxSessionReserves = 8
   private static let occupying: Set<String> = ["creating", "sending", "unknown", "uploaded"]
   private static let settled: Set<String> = ["accepted", "queued", "failed"]
-  static let busy: Set<String> = ["running", "initializing", "processing", "in_progress", "queued", "requestPermission", "waiting"]
+  public static let busy: Set<String> = ["running", "initializing", "processing", "in_progress", "queued", "requestPermission", "waiting"]
 
-  let inflight: OutboxInflight
-  var settled: (() -> Void)?
+  public let inflight: OutboxInflight
+  public var settled: (() -> Void)?
   private let services: OutboxServices
   private let text: (String) -> String
   private let foreground: String?
@@ -55,20 +74,20 @@ final class OutboxDispatcher {
   private var trigger: Trigger?
   private var scheduled = false
 
-  init(services: OutboxServices, inflight: OutboxInflight, foreground: String? = nil, text: @escaping (String) -> String) {
+  public init(services: OutboxServices, inflight: OutboxInflight, foreground: String? = nil, text: @escaping (String) -> String) {
     self.services = services
     self.inflight = inflight
     self.foreground = foreground
     self.text = text
   }
 
-  func update(store: OutboxStore?, inputs: Inputs) {
+  public func update(store: OutboxStore?, inputs: Inputs) {
     self.store = store
     self.inputs = inputs
     schedule()
   }
 
-  func schedule() {
+  public func schedule() {
     guard !scheduled else { return }
     scheduled = true
     Task { @MainActor [weak self] in
@@ -211,7 +230,7 @@ final class OutboxDispatcher {
     services.alert(text("send.alert.title"), reason)
   }
 
-  func quotaError(_ reason: String?, fallback: String) -> String {
+  public func quotaError(_ reason: String?, fallback: String) -> String {
     let keys = [
       "shortcut_unavailable": "send.error.shortcut",
       "mcp_catalog_unavailable": "send.error.mcpCatalog",
@@ -232,7 +251,7 @@ final class OutboxDispatcher {
     return value
   }
 
-  static func turn(_ record: OutboxRecord, userId: String, plan: (queue: Bool, guide: Bool)? = nil) -> String {
+  public static func turn(_ record: OutboxRecord, userId: String, plan: (queue: Bool, guide: Bool)? = nil) -> String {
     let session = record.session, send = record.send
     let busy = send["queue"] == .bool(true) || Self.busy.contains(session["status"]?.string ?? "")
     let plan = plan ?? (send["guide"]?.truthy != true && busy, send["guide"] == .bool(true))
