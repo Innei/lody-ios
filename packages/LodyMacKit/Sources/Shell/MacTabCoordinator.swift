@@ -30,12 +30,12 @@ final class MacTabCoordinator {
 
   func select(_ tab: MacStreamingTab) {
     guard selected !== tab else {
-      tab.setStreaming(tab.sessionId != nil)
+      tab.setStreaming(true)
       return
     }
     selected?.setStreaming(false)
     selected = tab
-    tab.setStreaming(tab.sessionId != nil)
+    tab.setStreaming(true)
   }
 
   func status(of tab: MacStreamingTab, catalog: SessionCatalog) -> String? {

@@ -74,3 +74,35 @@ final class MacTabCoordinatorTests: XCTestCase {
     XCTAssertEqual(coordinator.status(of: first, catalog: catalog), "running")
   }
 }
+
+@MainActor
+final class MacWorkspaceStreamingTests: XCTestCase {
+  private final class Pane: NSViewController, MacSessionPane {
+    var streaming = false
+    override func loadView() { view = NSView() }
+    func setStreaming(_ on: Bool) { streaming = on }
+  }
+
+  func testASessionOpenedInAnEmptySelectedTabStreams() {
+    var panes: [Pane] = []
+    let environment = MacEnvironment(
+      sessions: .fixture(MacFixtures.listState),
+      pane: { _ in
+        let pane = Pane()
+        panes.append(pane)
+        return pane
+      },
+      newSession: { MacPlaceholderController(text: "") }
+    )
+    let coordinator = MacTabCoordinator()
+    let workspace = MacWorkspaceController(environment: environment)
+    _ = workspace.view
+    coordinator.add(workspace)
+    coordinator.select(workspace)
+    workspace.open("s-mac")
+    XCTAssertEqual(panes.map(\.streaming), [true])
+    XCTAssertEqual(coordinator.streamingSession, "s-mac")
+    workspace.open("s-review")
+    XCTAssertEqual(panes.map(\.streaming), [false, true])
+  }
+}

@@ -178,7 +178,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   }
 
   func outlineViewSelectionDidChange(_ notification: Notification) {
-    guard let node = outline.item(atRow: outline.selectedRow) as? Node, let row = node.row else { return }
+    guard let node = outline.item(atRow: outline.selectedRow) as? Node, let row = node.row, row.id != selectedId else { return }
     selectedId = row.id
     onSelect?(row.id)
   }
