@@ -2,7 +2,7 @@ import Foundation
 import MarkdownParser
 
 /// Consume only parsed HTML nodes: code and escaped tags must stay literal.
-public enum MarkdownRuby {
+public enum MarkdownRuby: Sendable {
   public struct Annotation: Codable, Sendable {
     public let base: String
     public let reading: String

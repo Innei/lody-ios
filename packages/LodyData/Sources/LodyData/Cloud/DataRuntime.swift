@@ -4,49 +4,49 @@ import WebKit
 
 // The owner lives in Swift, so a wedged JS event loop cannot disable its watchdog.
 @MainActor
-final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
-  static weak var current: DataRuntime?
-  var webView: WKWebView?
-  var sessionId: String?
-  private(set) var sessionSnapshot: (generation: Int, json: String)?
+public final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+  public static weak var current: DataRuntime?
+  public var webView: WKWebView?
+  public var sessionId: String?
+  public private(set) var sessionSnapshot: (generation: Int, json: String)?
   private var retainedSessions: [String] = []
-  var reservedSessions: [String] = []
-  var userId = ""
+  public var reservedSessions: [String] = []
+  public var userId = ""
   private let localStore: LocalStore
-  let billing = WorkspaceBilling()
+  public let billing = WorkspaceBilling()
   private var cacheErrorShown = false
   private var timer: Timer?
-  var attachmentTasks: [String: Task<Void, Never>] = [:]
-  var attachmentAttempts: [String: UUID] = [:]
-  var grantTask: URLSessionDataTask?
-  var grantWaiters: [String] = []
-  var channel: RuntimeChannel?
-  var contractReady = false
+  public var attachmentTasks: [String: Task<Void, Never>] = [:]
+  public var attachmentAttempts: [String: UUID] = [:]
+  public var grantTask: URLSessionDataTask?
+  public var grantWaiters: [String] = []
+  public var channel: RuntimeChannel?
+  public var contractReady = false
   private var handshakeDeferred = false
-  var githubTasks: [String: Task<Void, Never>] = [:]
-  var shareTasks: [String: Task<Void, Never>] = [:]
-  var health = RuntimeHealth()
+  public var githubTasks: [String: Task<Void, Never>] = [:]
+  public var shareTasks: [String: Task<Void, Never>] = [:]
+  public var health = RuntimeHealth()
   private var pingPending = false
-  var workspace: String?
+  public var workspace: String?
   private var workspaceSlug = ""
   private var workspaceName = ""
-  var owner = ""
-  var generation = 0
-  var backgrounded = false
+  public var owner = ""
+  public var generation = 0
+  public var backgrounded = false
   private var phase = "stopped"
   private var reason = ""
   private var lastStartReason = ""
   private var acknowledgements = 0
-  var backgroundProbe = false
-  var probeUpdates = 0
-  var probeBackgroundUpdates = 0
+  public var backgroundProbe = false
+  public var probeUpdates = 0
+  public var probeBackgroundUpdates = 0
   private let observers = NotificationObservers()
-  var onCatalogUpdate: ((_ owner: String, _ state: String, _ catalog: String?) -> Void)?
-  var onMachinePresence: ((_ owner: String, _ presence: RuntimeContract.MachinePresence?) -> Void)?
-  var knownRepos: [String: String] = [:]
+  public var onCatalogUpdate: ((_ owner: String, _ state: String, _ catalog: String?) -> Void)?
+  public var onMachinePresence: ((_ owner: String, _ presence: RuntimeContract.MachinePresence?) -> Void)?
+  public var knownRepos: [String: String] = [:]
   private var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
 
-  init(localStore: LocalStore) {
+  public init(localStore: LocalStore) {
     self.localStore = localStore
     super.init()
     observers.add(NotificationCenter.default.addObserver(forName: .lodyHostDidEnterBackground, object: nil, queue: .main) { [weak self] _ in
@@ -78,7 +78,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       }
     })
   }
-  func start(workspace: String, slug: String, name: String, owner: String, userId: String) {
+  public func start(workspace: String, slug: String, name: String, owner: String, userId: String) {
     disposeView()
     if self.workspace != workspace || self.userId != userId {
       sessionId = nil; sessionSnapshot = nil; retainedSessions = []; reservedSessions = []; billing.clear()
@@ -90,11 +90,11 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     if backgrounded { publish("background", reason: "paused") }
     else { build(reason: "subscribe") }
   }
-  func stop(owner: String? = nil) {
+  public func stop(owner: String? = nil) {
     if let owner, self.owner != owner { return }
     workspace = nil; sessionId = nil; retainedSessions = []; reservedSessions = []; userId = ""; billing.clear(); disposeView(); publish("stopped", reason: "unsubscribe")
   }
-  func status() -> [String: any Sendable] {
+  public func status() -> [String: any Sendable] {
     var value: [String: any Sendable] = ["owner": owner, "generation": generation, "state": phase, "reason": reason, "acknowledgements": acknowledgements, "lastStartReason": lastStartReason]
     if backgroundProbe {
       value["probeBackgroundUpdates"] = probeBackgroundUpdates
@@ -158,7 +158,7 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     old?.navigationDelegate = nil
     old?.stopLoading()
   }
-  func recover(_ reason: String) {
+  public func recover(_ reason: String) {
     guard workspace != nil else { return }
     if backgrounded { disposeView(); publish("background", reason: reason); return }
     if health.allowRestart(at: now) { build(reason: reason) }
@@ -176,11 +176,11 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
       if alive { self.health.acknowledged(at: self.now); self.acknowledgements += 1 }
     }
   }
-  func dispatch<C: RuntimeCall>(_ call: C.Type, _ params: C.Params) {
+  public func dispatch<C: RuntimeCall>(_ call: C.Type, _ params: C.Params) {
     guard contractReady, let channel else { return }
     Task { @MainActor in _ = try? await channel.call(call, params) }
   }
-  func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+  public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
     guard let view = webView, message.webView === view, message.frameInfo.isMainFrame,
           let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
     switch type {
@@ -222,12 +222,12 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     let payload = fits ? session : #"{"v":1,"overflow":true}"#
     emitStatus(["sessionId": id, "session": payload])
   }
-  func openSession(_ id: String) {
+  public func openSession(_ id: String) {
     if sessionId != id { sessionSnapshot = nil }
     sessionId = id
     dispatch(RuntimeContract.Calls.OpenSession.self, .init(sessionId: id))
   }
-  func closeSession(_ id: String) {
+  public func closeSession(_ id: String) {
     ContentStore.shared.clear(session: id)
     guard sessionId == id else { return }
     sessionId = nil
@@ -235,9 +235,9 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     dispatch(RuntimeContract.Calls.CloseSession.self, .init())
     emitStatus()
   }
-  func ensureSession(_ id: String, sink: ReplySink) {
+  public func ensureSession(_ id: String, sink: ReplySink) {
     guard workspace != nil, !id.isEmpty else {
-      fail(sink, "not_ready", String(localized: "native.runtime.sessionNotSynced", bundle: .lody))
+      fail(sink, "not_ready", String(localized: "native.runtime.sessionNotSynced", bundle: .lodyData))
       return
     }
     call(RuntimeContract.Calls.EnsureSession.self, .init(sessionId: id), sink: sink) { _ in nil }
@@ -319,16 +319,16 @@ final class DataRuntime: NSObject, WKScriptMessageHandler, WKNavigationDelegate 
     #endif
     }
   }
-  func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
+  public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
     decisionHandler(RuntimeDocument.allows(navigationAction) ? .allow : .cancel)
   }
-  func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { if self.webView === webView { recover("process_terminated") } }
-  func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { if self.webView === webView { recover("navigation_failed") } }
-  func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { if self.webView === webView { recover("navigation_failed") } }
+  public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { if self.webView === webView { recover("process_terminated") } }
+  public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { if self.webView === webView { recover("navigation_failed") } }
+  public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { if self.webView === webView { recover("navigation_failed") } }
 }
 
-final class NotificationObservers {
+public final class NotificationObservers {
   private var tokens: [NSObjectProtocol] = []
-  func add(_ token: NSObjectProtocol) { tokens.append(token) }
+  public func add(_ token: NSObjectProtocol) { tokens.append(token) }
   deinit { for token in tokens { NotificationCenter.default.removeObserver(token) } }
 }

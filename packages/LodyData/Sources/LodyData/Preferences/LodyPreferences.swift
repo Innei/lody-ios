@@ -34,7 +34,7 @@ public struct PreferencesSnapshot: Codable, Equatable, Sendable {
   }
 }
 
-public enum LodyPreferences {
+public enum LodyPreferences: Sendable {
   private static let queuedKey = "queuedMessageBehavior"
   private static let quickRepliesKey = "quickReplies"
   private static let defaultReplyIDs = ["continue", "review", "commit-push"]

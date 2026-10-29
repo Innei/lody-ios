@@ -126,7 +126,7 @@ public struct SessionPermission: Equatable, Sendable {
 }
 
 // Owned by one session controller, so leaving the session naturally releases the gate.
-public struct SessionPermissionGate {
+public struct SessionPermissionGate: Sendable {
   public private(set) var open = false
   public private(set) var dismissed = false
   private var answered: Set<String> = []

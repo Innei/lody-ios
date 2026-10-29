@@ -12,14 +12,14 @@ public struct OutboxPersistence: Sendable {
   }
 }
 
-public enum OutboxError: Error, Equatable {
+public enum OutboxError: Error, Equatable, Sendable {
   case scopeExpired
   case invalidRecord
 }
 
 @MainActor
 public final class OutboxStore {
-  public struct Snapshot: Equatable {
+  public struct Snapshot: Equatable, Sendable {
     public var records: [OutboxRecord] = []
     public var ready = false
 

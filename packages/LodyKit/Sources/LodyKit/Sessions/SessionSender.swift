@@ -204,7 +204,3 @@ extension SessionItem {
   }
 }
 
-extension Notification.Name {
-  static let lodyOutboxDidChange = Notification.Name("LodyOutboxDidChange")
-  static let lodyAttachmentUploadProgress = Notification.Name("LodyAttachmentUploadProgress")
-}

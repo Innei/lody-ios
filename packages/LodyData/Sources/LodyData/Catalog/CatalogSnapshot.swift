@@ -1,7 +1,7 @@
 import Foundation
 import LodyCore
 
-public struct AuthCatalogScope {
+public struct AuthCatalogScope: Sendable {
   public let account: AuthAccount?
   public let localReady: Bool
   public let initialWorkspace: String

@@ -3,12 +3,12 @@ import Security
 
 /// Authenticated sharing operations stay native. The WebView receives only
 /// per-share capabilities, never the Better Auth credential or Convex JWT.
-@MainActor enum SessionSharing {
-  struct ManagementFailure: Error { let code: String }
-  typealias ManagementCall = @MainActor (String, [String: Any]) async throws -> Any
-  typealias LinkAction = @MainActor (String, URL) async throws -> Void
+@MainActor public enum SessionSharing: Sendable {
+  public struct ManagementFailure: Error, Sendable { let code: String }
+  public typealias ManagementCall = @MainActor (String, [String: Any]) async throws -> Any
+  public typealias LinkAction = @MainActor (String, URL) async throws -> Void
   private final class NoRedirect: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
-    func urlSession(_ session: URLSession, task: URLSessionTask,
+    public func urlSession(_ session: URLSession, task: URLSessionTask,
       willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
       completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
   }
@@ -21,7 +21,7 @@ import Security
     guard let value = value as? String, value.range(of: #"^[a-zA-Z0-9_-]{1,128}$"#, options: .regularExpression) != nil else { throw failure() }
     return value
   }
-  static func run(_ operation: String, args: [String: Any], workspace: String, userId: String, session: URLSession? = nil, useLink: LinkAction? = nil) async throws -> Any {
+  public static func run(_ operation: String, args: [String: Any], workspace: String, userId: String, session: URLSession? = nil, useLink: LinkAction? = nil) async throws -> Any {
     let transport = session ?? Self.transport
     guard !workspace.isEmpty, !userId.isEmpty, let credential = try AuthKeychain.read(), !credential.isEmpty else { throw failure() }
     func check() throws {
@@ -156,7 +156,7 @@ import Security
   }
 
   /// Official list/getManagement/revoke contract. Only summary fields leave native code.
-  static func management(_ args: [String: Any], workspace: String, userId: String,
+  public static func management(_ args: [String: Any], workspace: String, userId: String,
     check: @MainActor () throws -> Void, call: ManagementCall,
     secret: @MainActor (String, Int) async throws -> String?, useLink: LinkAction? = nil
   ) async throws -> [String: Any] {

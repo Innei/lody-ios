@@ -1,18 +1,24 @@
 import Foundation
 
-enum SessionProse {
-  struct Item {
-    let entryID: String
-    let itemID: String
-    let text: String
+public enum SessionProse: Sendable {
+  public struct Item: Sendable {
+    public let entryID: String
+    public let itemID: String
+    public let text: String
+
+    public init(entryID: String, itemID: String, text: String) {
+      self.entryID = entryID
+      self.itemID = itemID
+      self.text = text
+    }
   }
 
-  static func text(_ source: String, role: String) -> String {
+  public static func text(_ source: String, role: String) -> String {
     let text = role == "user" ? source : MarkdownPlainText.string(source)
     return text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
   }
 
-  static func extract(_ value: String) -> [Item] {
+  public static func extract(_ value: String) -> [Item] {
     guard let object = try? JSONSerialization.jsonObject(with: Data(value.utf8)) as? [String: Any],
       object["v"] as? Int == 1, let entries = object["entries"] as? [[String: Any]] else { return [] }
     return entries.flatMap { entry -> [Item] in

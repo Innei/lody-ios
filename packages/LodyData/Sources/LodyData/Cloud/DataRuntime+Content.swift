@@ -2,7 +2,7 @@ import LodyCore
 import Foundation
 
 extension DataRuntime {
-  func readFile(_ payload: String) async throws -> String {
+  public func readFile(_ payload: String) async throws -> String {
     try await withCheckedThrowingContinuation { continuation in
       contentCall(RuntimeContract.Calls.ReadFile.self, payload: payload, sink: .continuation(continuation), session: \.sessionId)
     }

@@ -1,6 +1,6 @@
 import Foundation
 
-public enum LodyDarkBackground: String {
+public enum LodyDarkBackground: String, Sendable {
   case soft
   case black
 
@@ -18,7 +18,7 @@ public enum LodyDarkBackground: String {
   }
 }
 
-public enum LodyAccentChoice: Equatable, RawRepresentable {
+public enum LodyAccentChoice: Equatable, RawRepresentable, Sendable {
   case ink, blue, indigo, purple, pink
   case custom(String)
 

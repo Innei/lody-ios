@@ -2,7 +2,7 @@ import Foundation
 import LodyCore
 
 extension DataRuntime {
-  func handle(_ id: String, _ request: RuntimeContract.HostRequest) {
+  public func handle(_ id: String, _ request: RuntimeContract.HostRequest) {
     switch request {
     case .grant:
       grantWaiters.append(id)

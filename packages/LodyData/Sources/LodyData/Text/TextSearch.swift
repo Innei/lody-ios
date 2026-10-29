@@ -1,6 +1,6 @@
 import Foundation
 
-public enum TextSearch {
+public enum TextSearch: Sendable {
   public static func ranges(in text: String, query: String) -> [NSRange] {
     guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
     var result: [NSRange] = []

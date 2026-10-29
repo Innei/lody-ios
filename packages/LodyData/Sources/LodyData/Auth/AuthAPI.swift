@@ -94,7 +94,7 @@ public struct WorkspaceIconFile: Sendable {
   }
 }
 
-public struct AuthFailure: LocalizedError {
+public struct AuthFailure: LocalizedError, Sendable {
   public let message: String
   public var expired = false
 

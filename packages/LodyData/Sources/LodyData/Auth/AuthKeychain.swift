@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-public enum AuthKeychain {
+public enum AuthKeychain: Sendable {
   private static var query: [String: Any] { [
     kSecClass as String: kSecClassGenericPassword,
     kSecAttrService as String: "app.innei.lody.auth",

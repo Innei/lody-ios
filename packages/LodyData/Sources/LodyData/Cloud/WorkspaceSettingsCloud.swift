@@ -1,10 +1,10 @@
 import Foundation
 
 /// A small allowlist of official settings operations. Credentials stay native.
-@MainActor enum WorkspaceSettingsCloud {
-  typealias Call = (String, String, [String: Any]) async throws -> Any
+@MainActor public enum WorkspaceSettingsCloud: Sendable {
+  public typealias Call = (String, String, [String: Any]) async throws -> Any
 
-  static func run(_ payload: String) async throws -> String {
+  public static func run(_ payload: String) async throws -> String {
     guard let token = try AuthKeychain.read(), !token.isEmpty,
           let data = payload.data(using: .utf8), data.count <= 16 * 1024,
           let args = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -30,7 +30,7 @@ import Foundation
     return String(decoding: try JSONSerialization.data(withJSONObject: value), as: UTF8.self)
   }
 
-  static func projectRows(_ value: Any) throws -> [[String: Any]] {
+  public static func projectRows(_ value: Any) throws -> [[String: Any]] {
     guard let rows = value as? [[String: Any]], rows.count <= 10000 else { throw GitHubCloud.failure() }
     var keys = Set<String>()
     var projected: [[String: Any]] = []
@@ -45,7 +45,7 @@ import Foundation
     return projected
   }
 
-  static func execute(_ request: [String: Any], workspace: String, user: String, role: String? = nil, call: Call) async throws -> [String: Any] {
+  public static func execute(_ request: [String: Any], workspace: String, user: String, role: String? = nil, call: Call) async throws -> [String: Any] {
     if request["page"] as? String == "usage" { return try await WorkspaceUsage.run(request, workspace: workspace, call: call) }
     if request["page"] as? String == "github" { return try await github(request, workspace: workspace, role: role, call: call) }
     guard request["page"] as? String == "projects" else { throw GitHubCloud.failure() }
@@ -65,7 +65,7 @@ import Foundation
     guard request["action"] as? String == "list" else { throw GitHubCloud.failure() }
     return ["rows": rows, "userId": user]
   }
-  static func github(_ request: [String: Any], workspace: String, role: String?, call: Call) async throws -> [String: Any] {
+  public static func github(_ request: [String: Any], workspace: String, role: String?, call: Call) async throws -> [String: Any] {
     let roles = Set((role ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
     let canManage = !roles.isDisjoint(with: ["admin", "owner"])
     let scope: [String: Any] = ["workspaceId": workspace]

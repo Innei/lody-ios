@@ -212,3 +212,5 @@ public struct Lossy<T: Decodable>: Decodable {
     value = try? T(from: decoder)
   }
 }
+
+extension Lossy: Sendable where T: Sendable {}

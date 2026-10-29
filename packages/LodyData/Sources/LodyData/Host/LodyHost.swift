@@ -18,7 +18,7 @@ public protocol LodyHost: AnyObject {
 }
 
 @MainActor
-public enum LodyHosting {
+public enum LodyHosting: Sendable {
   public static var current: LodyHost?
 }
 

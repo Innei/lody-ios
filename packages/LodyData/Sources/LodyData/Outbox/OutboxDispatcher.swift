@@ -1,6 +1,6 @@
 import Foundation
 
-public struct OutboxServices {
+public struct OutboxServices: Sendable {
   public var createSession: @MainActor (String) async throws -> String
   public var ensureSession: @MainActor (String) async throws -> Void
   public var sendSessionTurn: @MainActor (String) async throws -> String
@@ -32,7 +32,7 @@ public final class OutboxInflight: @unchecked Sendable {
 
 @MainActor
 public final class OutboxDispatcher {
-  public struct Inputs: Equatable {
+  public struct Inputs: Equatable, Sendable {
     public var userId = ""
     public var connected = false
     public var foregroundSessionId = ""

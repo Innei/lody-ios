@@ -2,22 +2,22 @@ import Foundation
 import LodyCore
 
 @MainActor
-final class CatalogSession {
-  static let shared = CatalogSession()
-  nonisolated static let published = CatalogPublished()
+public final class CatalogSession {
+  public static let shared = CatalogSession()
+  public nonisolated static let published = CatalogPublished()
 
   private final class Watch {
-    let owner: String
-    let key: String
-    let workspaceId: String
-    let generation: Int
-    var received = false
-    var saveErrorShown = false
-    var state = "syncing"
-    var machines = 0
-    var syncedAt: Int?
+    public let owner: String
+    public let key: String
+    public let workspaceId: String
+    public let generation: Int
+    public var received = false
+    public var saveErrorShown = false
+    public var state = "syncing"
+    public var machines = 0
+    public var syncedAt: Int?
 
-    init(owner: String, key: String, workspaceId: String, generation: Int) {
+    public init(owner: String, key: String, workspaceId: String, generation: Int) {
       self.owner = owner
       self.key = key
       self.workspaceId = workspaceId
@@ -26,10 +26,10 @@ final class CatalogSession {
   }
 
   private struct Trigger: Equatable {
-    let userId: String
-    let key: String
-    let refresh: Int
-    let localReady: Bool
+    public let userId: String
+    public let key: String
+    public let refresh: Int
+    public let localReady: Bool
   }
 
   private weak var runtime: DataRuntime?
@@ -43,7 +43,7 @@ final class CatalogSession {
   private var raw = "null"
   private var latestUserMessages: [String: String] = [:]
 
-  func attach(_ runtime: DataRuntime) {
+  public func attach(_ runtime: DataRuntime) {
     if self.runtime !== runtime {
       self.runtime?.onCatalogUpdate = nil
       self.runtime?.onMachinePresence = nil
@@ -64,7 +64,7 @@ final class CatalogSession {
     reconcile()
   }
 
-  func selectWorkspace(_ id: String) {
+  public func selectWorkspace(_ id: String) {
     guard let account = AuthSession.shared.catalogScope.account else { return }
     choice = (account.user.id, id)
     let key = "workspace:\(account.user.id)"
@@ -81,7 +81,7 @@ final class CatalogSession {
     reconcile()
   }
 
-  func refresh() {
+  public func refresh() {
     refreshes += 1
     reconcile()
   }
@@ -216,7 +216,7 @@ final class CatalogSession {
   }
 
   private func toast(_ key: String) {
-    LodyHosting.current?.toast(String(localized: String.LocalizationValue(key), bundle: .lody), kind: "error")
+    LodyHosting.current?.toast(String(localized: String.LocalizationValue(key), bundle: .lodyData), kind: "error")
   }
 
   private func setCatalog(_ value: String, sessions: [String: String]) {
@@ -225,7 +225,7 @@ final class CatalogSession {
     snapshot.catalogRevision += 1
   }
 
-  func outboxChanged() {
+  public func outboxChanged() {
     publish()
   }
 
@@ -239,5 +239,5 @@ final class CatalogSession {
 }
 
 extension Notification.Name {
-  static let lodyCatalogDidChange = Notification.Name("LodyCatalogDidChange")
+  public static let lodyCatalogDidChange = Notification.Name("LodyCatalogDidChange")
 }

@@ -2,12 +2,12 @@ import Foundation
 
 /// Only the small plan projection enters the bundled data runtime. The Better
 /// Auth credential and short-lived Convex JWT remain in native memory.
-@MainActor final class WorkspaceBilling {
+@MainActor public final class WorkspaceBilling {
   private var cached: (workspace: String, user: String, expiresAt: TimeInterval, value: [String: Any])?
 
-  func clear() { cached = nil }
+  public func clear() { cached = nil }
 
-  func entitlement(workspace: String, user: String) async -> [String: Any]? {
+  public func entitlement(workspace: String, user: String) async -> [String: Any]? {
     if let cached, cached.workspace == workspace, cached.user == user,
        cached.expiresAt > Date.timeIntervalSinceReferenceDate {
       return cached.value

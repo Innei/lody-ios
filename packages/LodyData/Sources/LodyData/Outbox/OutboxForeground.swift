@@ -1,7 +1,7 @@
 import Foundation
 
 public struct OutboxForeground: Equatable, Sendable {
-  public enum Route: Equatable { case direct, guide, queue }
+  public enum Route: Equatable, Sendable { case direct, guide, queue }
 
   public var live = false
   public var overflow = false
@@ -53,7 +53,7 @@ public struct OutboxForeground: Equatable, Sendable {
   }
 }
 
-public enum SessionQuota {
+public enum SessionQuota: Sendable {
   public static let limit = 30
   public static let warning = 5
 

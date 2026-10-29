@@ -1,8 +1,8 @@
 import Foundation
 
 /// GitHub credentials never cross the native boundary. No automatic mutation retry.
-@MainActor enum GitHubPullRequests {
-  static func run(_ payload: String) async throws -> String {
+@MainActor public enum GitHubPullRequests: Sendable {
+  public static func run(_ payload: String) async throws -> String {
     guard let bytes = payload.data(using: .utf8),
           let args = try JSONSerialization.jsonObject(with: bytes) as? [String: Any],
           let workspace = args["workspaceId"] as? String, !workspace.isEmpty,

@@ -6,9 +6,6 @@ typealias ShareState = RuntimeContract.SessionSharingResultState
 typealias ShareAction = RuntimeContract.SessionSharingParamsAction
 typealias ShareProgress = RuntimeContract.ShareProgressEvent
 
-extension Notification.Name {
-  static let lodyShareProgress = Notification.Name("LodyShareProgress")
-}
 
 @MainActor
 struct SessionShareService {

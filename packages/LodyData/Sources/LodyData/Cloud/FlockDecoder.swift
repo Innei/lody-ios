@@ -2,13 +2,13 @@ import WebKit
 
 // One isolated, offline WebKit instance per decode. The WASM replica is released with it.
 @MainActor
-final class FlockDecoder: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+public final class FlockDecoder: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   private var webView: WKWebView?
   private var timeout: DispatchWorkItem?
   private var completion: ((Result<String, Error>) -> Void)?
   private let arguments: [String: Any]
 
-  init(snapshot: String, updates: [String], mode: String, completion: @escaping (Result<String, Error>) -> Void) {
+  public init(snapshot: String, updates: [String], mode: String, completion: @escaping (Result<String, Error>) -> Void) {
     self.arguments = ["snapshot": snapshot, "updates": updates, "mode": mode]
     self.completion = completion
     super.init()
@@ -28,7 +28,7 @@ final class FlockDecoder: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     } catch { finish(.failure(error)) }
   }
 
-  func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+  public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
     webView?.callAsyncJavaScript("return globalThis.decodeFlock(snapshot, updates, mode)", arguments: arguments, in: nil, in: .page) { result in
       switch result {
       case .success(let value):
@@ -38,9 +38,9 @@ final class FlockDecoder: NSObject, WKScriptMessageHandler, WKNavigationDelegate
       }
     }
   }
-  func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { finish(.failure(error)) }
-  func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { finish(.failure(error)) }
-  func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { finish(.failure(NSError(domain: "LodyKit.DecoderTerminated", code: 1))) }
+  public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { finish(.failure(error)) }
+  public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { finish(.failure(error)) }
+  public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { finish(.failure(NSError(domain: "LodyKit.DecoderTerminated", code: 1))) }
   private func finish(_ result: Result<String, Error>) {
     guard let completion else { return }
     self.completion = nil

@@ -2,12 +2,12 @@ import LodyCore
 import Foundation
 
 @MainActor
-struct SimulatorService {
-  typealias Command = RuntimeContract.IosSimulatorControlParamsCommand
-  typealias Reply = RuntimeContract.IosSimulatorControlResult
-  var call: @MainActor (Command) async throws -> Reply
+public struct SimulatorService: Sendable {
+  public typealias Command = RuntimeContract.IosSimulatorControlParamsCommand
+  public typealias Reply = RuntimeContract.IosSimulatorControlResult
+  public var call: @MainActor (Command) async throws -> Reply
 
-  static func live(workspaceId: String, userId: String, sessionId: String) -> Self {
+  public static func live(workspaceId: String, userId: String, sessionId: String) -> Self {
     Self(call: { command in
       guard let runtime = DataRuntime.current, runtime.workspace == workspaceId, runtime.userId == userId else {
         throw OutboxError.scopeExpired
@@ -16,50 +16,54 @@ struct SimulatorService {
         .init(workspaceId: workspaceId, sessionId: sessionId, userId: userId, command: command))
     })
   }
+
+  public init(call: @escaping @MainActor (Command) async throws -> Reply) {
+    self.call = call
+  }
 }
 
 @MainActor
-final class SessionSimulator {
-  typealias Device = RuntimeContract.IosSimulatorControlResultDevicesItem
+public final class SessionSimulator {
+  public typealias Device = RuntimeContract.IosSimulatorControlResultDevicesItem
   private struct Watcher { weak var owner: AnyObject?; let changed: () -> Void }
-  let sessionId: String
-  let service: SimulatorService
-  private(set) var name = ""
-  private(set) var phase = "closed"
-  private(set) var message = ""
-  private(set) var preview: RuntimeContract.IosSimulatorControlResultPreview?
+  public let sessionId: String
+  public let service: SimulatorService
+  public private(set) var name = ""
+  public private(set) var phase = "closed"
+  public private(set) var message = ""
+  public private(set) var preview: RuntimeContract.IosSimulatorControlResultPreview?
   private var version = 0
   private var task: Task<Void, Never>?
   private var watchers: [Watcher] = []
   private var hidden: String?
-  var running: Bool { !["failed", "closed"].contains(phase) }
-  var connecting: Bool { ["preparing", "booting", "connecting"].contains(phase) }
-  var phaseText: String {
+  public var running: Bool { !["failed", "closed"].contains(phase) }
+  public var connecting: Bool { ["preparing", "booting", "connecting"].contains(phase) }
+  public var phaseText: String {
     let key = ["preparing": "starting", "booting": "starting", "connecting": "connecting", "ready": "ready", "failed": "failed", "closed": "closed"][phase]!
-    return String(localized: String.LocalizationValue("simulator.phase." + key), bundle: .lody)
+    return String(localized: String.LocalizationValue("simulator.phase." + key), bundle: .lodyData)
   }
-  var sourceJSON: String {
+  public var sourceJSON: String {
     guard phase == "ready", let preview, let url = preview.viewerUrl else { return "" }
     let data = try! JSONSerialization.data(withJSONObject: ["streamId": sessionId + ":" + preview.operationId,
       "url": url, "udid": preview.udid, "name": name, "operationId": preview.operationId])
     return String(decoding: data, as: UTF8.self)
   }
-  var previewJSON: String { hidden == preview?.operationId ? "" : sourceJSON }
+  public var previewJSON: String { hidden == preview?.operationId ? "" : sourceJSON }
 
-  init(sessionId: String, service: SimulatorService) { self.sessionId = sessionId; self.service = service }
+  public init(sessionId: String, service: SimulatorService) { self.sessionId = sessionId; self.service = service }
   isolated deinit { task?.cancel() }
-  func finish() { version += 1; task?.cancel(); task = nil }
-  func watch(_ owner: AnyObject, changed: @escaping () -> Void) { watchers.append(.init(owner: owner, changed: changed)) }
+  public func finish() { version += 1; task?.cancel(); task = nil }
+  public func watch(_ owner: AnyObject, changed: @escaping () -> Void) { watchers.append(.init(owner: owner, changed: changed)) }
   private func publish() { watchers.removeAll { $0.owner == nil }; for watcher in watchers { watcher.changed() } }
-  func hidePreview() { hidden = preview?.operationId; publish() }
-  func revealPreview() { hidden = nil; publish() }
+  public func hidePreview() { hidden = preview?.operationId; publish() }
+  public func revealPreview() { hidden = nil; publish() }
 
-  func devices() async throws -> [Device] {
+  public func devices() async throws -> [Device] {
     let reply = try await request(.list(.init()))
     guard let devices = reply.devices else { throw NSError(domain: "LodyKit.Simulator", code: 1, userInfo: [NSLocalizedDescriptionKey: "simulator_invalid_response"]) }
     return devices
   }
-  func resume() async throws -> Bool {
+  public func resume() async throws -> Bool {
     version += 1
     let token = version
     phase = "connecting"; message = ""; publish()
@@ -80,7 +84,7 @@ final class SessionSimulator {
       throw error
     }
   }
-  func start(_ device: Device) {
+  public func start(_ device: Device) {
     version += 1
     let token = version
     task?.cancel(); name = device.name; preview = nil; hidden = nil; phase = "preparing"; message = ""; publish()
@@ -94,7 +98,7 @@ final class SessionSimulator {
       } catch { if !Task.isCancelled, token == version { fail(error) } }
     }
   }
-  func stop() async throws {
+  public func stop() async throws {
     version += 1; task?.cancel(); task = nil
     let operationId = preview?.operationId
     preview = nil; phase = "closed"; publish()
@@ -104,7 +108,7 @@ final class SessionSimulator {
   private func request(_ command: SimulatorService.Command) async throws -> SimulatorService.Reply {
     let reply = try await service.call(command)
     guard reply.success == true else { throw NSError(domain: "LodyKit.Simulator", code: 1,
-      userInfo: [NSLocalizedDescriptionKey: reply.message ?? reply.error ?? String(localized: "simulator.phase.failed", bundle: .lody)]) }
+      userInfo: [NSLocalizedDescriptionKey: reply.message ?? reply.error ?? String(localized: "simulator.phase.failed", bundle: .lodyData)]) }
     return reply
   }
   private func apply(_ reply: SimulatorService.Reply) {
@@ -127,6 +131,6 @@ final class SessionSimulator {
       apply(reply)
     }
     if token == version, connecting { throw NSError(domain: "LodyKit.Simulator", code: 1,
-      userInfo: [NSLocalizedDescriptionKey: String(localized: "simulator.phase.failed", bundle: .lody)]) }
+      userInfo: [NSLocalizedDescriptionKey: String(localized: "simulator.phase.failed", bundle: .lodyData)]) }
   }
 }

@@ -2,17 +2,17 @@ import Foundation
 import SQLite3
 
 /// Access only on queue. Display projections, never credentials or CRDT state.
-final class LocalStore: @unchecked Sendable {
-  static let queue = DispatchQueue(label: "app.innei.lody.local-store", qos: .userInitiated)
-  static let shared = LocalStore()
+public final class LocalStore: @unchecked Sendable {
+  public static let queue = DispatchQueue(label: "app.innei.lody.local-store", qos: .userInitiated)
+  public static let shared = LocalStore()
   private var db: OpaquePointer?
   private let url: URL
   private let generationLock = NSLock()
   private var currentGeneration = 0
 
-  var generation: Int { generationLock.withLock { currentGeneration } }
+  public var generation: Int { generationLock.withLock { currentGeneration } }
 
-  init(url: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Lody/catalog.sqlite")) {
+  public init(url: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Lody/catalog.sqlite")) {
     self.url = url
   }
   deinit { sqlite3_close(db) }
@@ -45,7 +45,7 @@ final class LocalStore: @unchecked Sendable {
     }
     return statement
   }
-  func read(_ key: String) throws -> String? {
+  public func read(_ key: String) throws -> String? {
     try open()
     let statement = try prepare("SELECT value FROM cache WHERE key = ?", [key])
     defer { sqlite3_finalize(statement) }
@@ -54,7 +54,7 @@ final class LocalStore: @unchecked Sendable {
     guard result == SQLITE_ROW, let value = sqlite3_column_text(statement, 0) else { throw failure() }
     return String(cString: value)
   }
-  func write(_ key: String, _ value: String) throws {
+  public func write(_ key: String, _ value: String) throws {
     // ponytail: one complete projection per workspace, bounded by the runtime's 12 MiB output limit.
     // Move to indexed rows and paged reads if measured catalog restore exceeds the startup budget.
     guard key.utf8.count <= 1024, value.utf8.count <= 12 * 1024 * 1024 else {
@@ -67,7 +67,7 @@ final class LocalStore: @unchecked Sendable {
     }
   }
 
-  func write(_ key: String, _ value: String, generation expected: Int?) throws {
+  public func write(_ key: String, _ value: String, generation expected: Int?) throws {
     guard expected.map({ $0 == generation }) ?? true else { return }
     try write(key, value)
   }
@@ -103,7 +103,7 @@ final class LocalStore: @unchecked Sendable {
     }
   }
 
-  func searchInbox(userID: String, workspaceID: String, query: String) throws -> [String: Any] {
+  public func searchInbox(userID: String, workspaceID: String, query: String) throws -> [String: Any] {
     let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !term.isEmpty else { return ["projectIds": [String](), "sessions": [[String: Any]]()] }
     try open()
@@ -124,7 +124,7 @@ final class LocalStore: @unchecked Sendable {
       guard let id = session["id"] as? String else { continue }
       let projectID = session["projectId"] as? String ?? ""
       let project = projects.first { $0["id"] as? String == projectID }
-      let name = projectID.hasSuffix(":unassigned") ? String(localized: "inbox.section.chat", bundle: .lody) : project?["name"] as? String
+      let name = projectID.hasSuffix(":unassigned") ? String(localized: "inbox.section.chat", bundle: .lodyData) : project?["name"] as? String
       if [session["title"], name, session["branchName"], project?["rootPath"]].contains(where: matches) {
         hits[id] = NSNull()
       }
@@ -143,12 +143,12 @@ final class LocalStore: @unchecked Sendable {
     }
     return ["projectIds": projectIDs, "sessions": hits.map { ["id": $0.key, "snippet": $0.value] }]
   }
-  func writeSession(_ session: String, userId: String, workspace: String, id: String) throws {
+  public func writeSession(_ session: String, userId: String, workspace: String, id: String) throws {
     let data = try JSONSerialization.data(withJSONObject: [userId, workspace, id], options: [.withoutEscapingSlashes])
     guard let suffix = String(data: data, encoding: .utf8) else { return }
     try write("session:" + suffix, session)
   }
-  func startup() throws -> [String: String] {
+  public func startup() throws -> [String: String] {
     let started = ProcessInfo.processInfo.systemUptime
     defer {
       #if DEBUG
@@ -165,7 +165,7 @@ final class LocalStore: @unchecked Sendable {
     let workspace = (workspaces.first { $0["id"] as? String == selected } ?? workspaces.first)?["id"] as? String ?? ""
     return ["account": account, "workspace": workspace, "catalog": try read("catalog:\(id):\(workspace)") ?? "null"]
   }
-  func clear() throws {
+  public func clear() throws {
     generationLock.withLock { currentGeneration += 1 }
     try open()
     try transaction {

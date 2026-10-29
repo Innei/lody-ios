@@ -1,19 +1,19 @@
 import Foundation
 import CoreFoundation
 
-@MainActor enum WorkspaceUsage {
-  static func metric(_ value: Any?) throws -> Double {
+@MainActor public enum WorkspaceUsage: Sendable {
+  public static func metric(_ value: Any?) throws -> Double {
     guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
           number.doubleValue.isFinite, number.doubleValue >= 0, number.doubleValue <= 9_007_199_254_740_991,
           number.doubleValue.rounded() == number.doubleValue else { throw GitHubCloud.failure() }
     return number.doubleValue
   }
-  static func cost(_ value: Any?) -> Any {
+  public static func cost(_ value: Any?) -> Any {
     guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
           number.doubleValue.isFinite, number.doubleValue >= 0 else { return NSNull() }
     return number.doubleValue
   }
-  static func totals(_ value: Any?) throws -> [String: Any] {
+  public static func totals(_ value: Any?) throws -> [String: Any] {
     guard let raw = value as? [String: Any] else { throw GitHubCloud.failure() }
     var result: [String: Any] = ["tokens": try metric(raw["tokens"]), "costUSD": cost(raw["costUSD"])]
     if let fields = raw["breakdown"] as? [String: Any] {
@@ -25,7 +25,7 @@ import CoreFoundation
     }
     return result
   }
-  static func projection(_ value: Any, workspace: String, range: String, timeline: Bool) throws -> [String: Any] {
+  public static func projection(_ value: Any, workspace: String, range: String, timeline: Bool) throws -> [String: Any] {
     guard let raw = value as? [String: Any], raw["workspaceId"] as? String == workspace,
           raw["range"] as? String == range else { throw GitHubCloud.failure() }
     var result: [String: Any] = ["totals": try totals(raw["totals"])]
@@ -44,7 +44,7 @@ import CoreFoundation
     // emails or per-member details from these responses to the UI.
     return result
   }
-  static func run(_ request: [String: Any], workspace: String, call: WorkspaceSettingsCloud.Call) async throws -> [String: Any] {
+  public static func run(_ request: [String: Any], workspace: String, call: WorkspaceSettingsCloud.Call) async throws -> [String: Any] {
     guard request["action"] as? String == "list", let range = request["range"] as? String,
           ["day", "week", "month", "total"].contains(range) else { throw GitHubCloud.failure() }
     let args: [String: Any] = ["workspaceId": workspace, "range": range]

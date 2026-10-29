@@ -1,9 +1,9 @@
 import Foundation
 
 @MainActor
-final class OutboxFixture {
-  static let user = "ui-outbox-preview"
-  static let workspace = "fixture"
+public final class OutboxFixture {
+  public static let user = "ui-outbox-preview"
+  public static let workspace = "fixture"
 
   private let store: OutboxStore
   private let alert: (String, String) -> Void
@@ -13,22 +13,22 @@ final class OutboxFixture {
   private var failNext = false
   private var quotaNext = false
   private var requests: [CheckedContinuation<String, Error>] = []
-  private lazy var dispatcher = OutboxDispatcher(services: services, inflight: OutboxInflight()) { String(localized: String.LocalizationValue($0), bundle: .lody) }
+  private lazy var dispatcher = OutboxDispatcher(services: services, inflight: OutboxInflight()) { String(localized: String.LocalizationValue($0), bundle: .lodyData) }
 
-  init(store: OutboxStore, alert: @escaping (String, String) -> Void, notify: @escaping () -> Void) {
+  public init(store: OutboxStore, alert: @escaping (String, String) -> Void, notify: @escaping () -> Void) {
     self.store = store
     self.alert = alert
     self.notify = notify
     dispatcher.update(store: store, inputs: .init(userId: Self.user, connected: true))
   }
 
-  var state: String { #"{"calls":\#(calls),"reserves":\#(reserves.count)}"# }
+  public var state: String { #"{"calls":\#(calls),"reserves":\#(reserves.count)}"# }
 
-  func changed(_ store: OutboxStore) {
+  public func changed(_ store: OutboxStore) {
     if store === self.store { dispatcher.schedule() }
   }
 
-  func perform(_ action: String) {
+  public func perform(_ action: String) {
     switch action {
     case "failNext": failNext = true
     case "quotaNext": quotaNext = true
@@ -38,7 +38,7 @@ final class OutboxFixture {
     }
   }
 
-  func stop() {
+  public func stop() {
     requests.forEach { $0.resume(throwing: CancellationError()) }
     requests = []
   }

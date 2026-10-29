@@ -3,7 +3,7 @@ import Foundation
 
 extension DataRuntime {
   // Synthetic server boundary, exercising the production WebView owner and background allowance.
-  static var backgroundProbeHTML: String {
+  public static var backgroundProbeHTML: String {
     let methods = (try? JSONEncoder().encode(RuntimeContract.runtimeMethods)).map { String(decoding: $0, as: UTF8.self) } ?? "[]"
     return #"""
   <script>
@@ -43,13 +43,13 @@ extension DataRuntime {
   </script>
   """#
   }
-  func debugHang() { webView?.evaluateJavaScript("while (true) {}", completionHandler: nil) }
-  func debugRestart() { recover("debug_process_loss") }
+  public func debugHang() { webView?.evaluateJavaScript("while (true) {}", completionHandler: nil) }
+  public func debugRestart() { recover("debug_process_loss") }
 }
 
 private struct ProbeReport: Encodable {
-  let report: RuntimeContract.ProbeSchemaReport
-  func encode(to encoder: any Encoder) throws {
+  public let report: RuntimeContract.ProbeSchemaReport
+  public func encode(to encoder: any Encoder) throws {
     var c = encoder.container(keyedBy: RuntimeContract.Key.self)
     try c.encode(report.creationOptionsTrial, forKey: .init("creationOptionsTrial"))
     for (machineId, machine) in report.machines { try c.encode(machine, forKey: .init(machineId)) }

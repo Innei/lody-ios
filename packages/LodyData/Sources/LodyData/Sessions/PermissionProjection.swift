@@ -1,8 +1,8 @@
 import Foundation
 
 // A display projection of the active session, never a second replica or subscription.
-public struct PermissionProjection: Equatable {
-  public enum State: Equatable {
+public struct PermissionProjection: Equatable, Sendable {
+  public enum State: Equatable, Sendable {
     case waiting
     case ready(SessionPermission?)
     case invalid(String)

@@ -3,9 +3,9 @@ import LodyCore
 
 @MainActor
 public final class SessionDecision {
-  public enum Kind { case plan, retry }
+  public enum Kind: Sendable { case plan, retry }
 
-  public struct Attempt: Equatable {
+  public struct Attempt: Equatable, Sendable {
     public var target: SessionItemTarget
     public var sendId = ""
     public var phase: String

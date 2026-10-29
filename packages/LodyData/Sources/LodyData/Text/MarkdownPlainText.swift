@@ -3,7 +3,7 @@ import MarkdownParser
 
 /// Readable Markdown before UI decoration. No link destinations, image metadata,
 /// format delimiters or renderer replacement tokens escape into search/copy text.
-public enum MarkdownPlainText {
+public enum MarkdownPlainText: Sendable {
   // NSCache owns synchronization; immutable strings are safe across parser queues.
   nonisolated(unsafe) private static let cache: NSCache<NSString, NSString> = {
     let cache = NSCache<NSString, NSString>()

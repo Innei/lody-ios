@@ -1,8 +1,8 @@
 import Foundation
 
 // Resource grants go directly to the native-owned runtime.
-@MainActor enum PromptShortcutCloud {
-  static func call(operation: String, workspace: String, args: [String: Any]) async throws -> Any {
+@MainActor public enum PromptShortcutCloud: Sendable {
+  public static func call(operation: String, workspace: String, args: [String: Any]) async throws -> Any {
     let kind: String
     switch operation {
     case "listAccessibleDocuments": kind = "query"

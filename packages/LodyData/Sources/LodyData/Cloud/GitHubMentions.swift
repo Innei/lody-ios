@@ -3,8 +3,8 @@ import Foundation
 
 /// Official Cloud token broker + GitHub's bounded open issue/PR listing.
 /// Neither the login credential nor the repository token leaves native memory.
-@MainActor enum GitHubMentions {
-  static func load(workspace: String, repo: String) async throws -> [String: Any] {
+@MainActor public enum GitHubMentions: Sendable {
+  public static func load(workspace: String, repo: String) async throws -> [String: Any] {
     guard GitHubCloud.validRepository(repo) else { throw GitHubCloud.failure() }
     guard let result = try await GitHubCloud.call(
       "action", path: "github:getAccessTokenByRepoNameForClient",
@@ -42,14 +42,14 @@ import Foundation
 
 /// Official workspace repository discovery and token broker. Only projections
 /// leave native code; the app credential and broker tokens stay in memory.
-@MainActor enum GitHubCloud {
-  static func validRepository(_ repo: String) -> Bool {
+@MainActor public enum GitHubCloud: Sendable {
+  public static func validRepository(_ repo: String) -> Bool {
     repo.trimmingCharacters(in: .whitespacesAndNewlines) == repo &&
       repo.range(of: #"^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}$"#, options: .regularExpression) != nil &&
       ![".", ".."].contains(repo.components(separatedBy: "/").last ?? "")
   }
 
-  static func branches(workspace: String, repo: String, page: Int) async throws -> CreateBranches {
+  public static func branches(workspace: String, repo: String, page: Int) async throws -> CreateBranches {
     guard validRepository(repo), page > 0, page < Int.max else { throw failure() }
     let account = try AuthKeychain.read()
     guard let result = try await call(
@@ -80,7 +80,7 @@ import Foundation
     return CreateBranches(names: Array(Set(names)), defaultBranch: defaultBranch, nextPage: rows.count == 100 ? page + 1 : nil)
   }
 
-  static func repositories(workspace: String) async throws -> [String] {
+  public static func repositories(workspace: String) async throws -> [String] {
     let value = try await call("query", path: "github:getWorkspaceRepositories", args: ["workspaceId": workspace])
     if value is NSNull { return [] }
     guard let rows = value as? [[String: Any]] else { throw failure() }
@@ -91,7 +91,7 @@ import Foundation
     }
   }
 
-  static func call(_ kind: String, path: String, args: [String: Any]) async throws -> Any {
+  public static func call(_ kind: String, path: String, args: [String: Any]) async throws -> Any {
     guard let token = try AuthKeychain.read(), !token.isEmpty else { throw failure() }
     let auth = try await request("https://backend.lody.ai/api/auth/convex/token", token: token) as? [String: Any]
     guard let jwt = auth?["token"] as? String, !jwt.isEmpty else { throw failure() }
@@ -104,10 +104,10 @@ import Foundation
     return value
   }
 
-  static func failure() -> NSError {
+  public static func failure() -> NSError {
     NSError(domain: "LodyKit.GitHubCloud", code: 1, userInfo: [NSLocalizedDescriptionKey: "github_unavailable"])
   }
-  static func request(_ address: String, token: String? = nil, body: [String: Any]? = nil) async throws -> Any {
+  public static func request(_ address: String, token: String? = nil, body: [String: Any]? = nil) async throws -> Any {
     var request = URLRequest(url: URL(string: address)!, timeoutInterval: 15)
     request.cachePolicy = .reloadIgnoringLocalCacheData
     request.setValue("application/json", forHTTPHeaderField: "Accept")

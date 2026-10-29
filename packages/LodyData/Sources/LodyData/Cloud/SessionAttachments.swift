@@ -1,25 +1,24 @@
 import Foundation
 import CryptoKit
 import ImageIO
-import UIKit
 import UniformTypeIdentifiers
 
-final class AttachmentDownloadBatch {
+public final class AttachmentDownloadBatch {
   private let root: URL
   private var directories: [URL] = []
   private var handedOff = false
 
-  init(root: URL = FileManager.default.temporaryDirectory) {
+  public init(root: URL = FileManager.default.temporaryDirectory) {
     self.root = root
   }
 
-  func makeDirectory() -> URL {
+  public func makeDirectory() -> URL {
     let directory = root.appendingPathComponent(UUID().uuidString)
     directories.append(directory)
     return directory
   }
 
-  func handOff() {
+  public func handOff() {
     handedOff = true
   }
 
@@ -32,21 +31,21 @@ final class AttachmentDownloadBatch {
 }
 
 /// Upload bytes in native code; only the server's attachment references enter Streams.
-enum SessionAttachments {
-  typealias ProgressHandler = @Sendable (_ attachmentID: String, _ phase: String, _ percent: Int?) -> Void
-  static func error(_ message: String) -> NSError {
+public enum SessionAttachments: Sendable {
+  public typealias ProgressHandler = @Sendable (_ attachmentID: String, _ phase: String, _ percent: Int?) -> Void
+  public static func error(_ message: String) -> NSError {
     NSError(domain: "SessionAttachments", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
   }
-  static func segment(_ value: String) -> String {
+  public static func segment(_ value: String) -> String {
     value.addingPercentEncoding(withAllowedCharacters: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_")))!
   }
 
-  static func imageDownloadURL(workspace: String, session: String, imageId: String) -> URL {
+  public static func imageDownloadURL(workspace: String, session: String, imageId: String) -> URL {
     let path = [workspace, session, imageId].map(segment)
     return URL(string: "https://api.lody.ai/api/workspaces/\(path[0])/session-images/\(path[1])/\(path[2])")!
   }
 
-  static func imageThumbnailURL(workspace: String, session: String, imageId: String, width: Int) -> URL {
+  public static func imageThumbnailURL(workspace: String, session: String, imageId: String, width: Int) -> URL {
     var components = URLComponents(
       url: imageDownloadURL(workspace: workspace, session: session, imageId: imageId)
         .appendingPathComponent("thumbnail"),
@@ -59,14 +58,14 @@ enum SessionAttachments {
     ]
     return components.url!
   }
-  static func upload(_ attachments: [[String: Any]], workspace: String, session: String,
+  public static func upload(_ attachments: [[String: Any]], workspace: String, session: String,
     onProgress: @escaping ProgressHandler = { _, _, _ in }) async throws -> [[String: Any]] {
     guard attachments.count <= 16,
           attachments.filter({ $0["kind"] as? String == "image" }).count <= 8,
           attachments.filter({ $0["kind"] as? String == "file" }).count <= 8 else {
-      throw error(String(localized: "native.attachment.error.limit", bundle: .lody))
+      throw error(String(localized: "native.attachment.error.limit", bundle: .lodyData))
     }
-    guard let token = try AuthKeychain.read() else { throw error(String(localized: "native.attachment.error.signIn", bundle: .lody)) }
+    guard let token = try AuthKeychain.read() else { throw error(String(localized: "native.attachment.error.signIn", bundle: .lodyData)) }
     var blocks: [[String: Any]] = []
     for attachment in attachments {
       try Task.checkCancellation()
@@ -74,7 +73,7 @@ enum SessionAttachments {
             url.resolvingSymlinksInPath().path.hasPrefix(FileManager.default.temporaryDirectory.resolvingSymlinksInPath().path + "/"),
             let name = attachment["name"] as? String, !name.isEmpty,
             var kind = attachment["kind"] as? String, ["image", "file"].contains(kind) else {
-        throw error(String(localized: "native.attachment.error.invalid", bundle: .lody))
+        throw error(String(localized: "native.attachment.error.invalid", bundle: .lodyData))
       }
       let attachmentID = attachment["id"] as? String ?? ""
       let attempt = UUID()
@@ -89,7 +88,7 @@ enum SessionAttachments {
       }
       let size = try url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey])
       guard size.isRegularFile == true, let count = size.fileSize, count > 0, count <= 100 * 1024 * 1024 else {
-        throw error(String(localized: "native.attachment.error.empty", bundle: .lody))
+        throw error(String(localized: "native.attachment.error.empty", bundle: .lodyData))
       }
       let base = "https://api.lody.ai/api/workspaces/\(segment(workspace))/session-\(kind == "image" ? "images" : "files")"
       var responseStage: StaticString = kind == "image" ? "image_upload" : "file_upload"
@@ -107,13 +106,13 @@ enum SessionAttachments {
                   kCGImageSourceCreateThumbnailFromImageAlways: true,
                   kCGImageSourceThumbnailMaxPixelSize: 2048,
                   kCGImageSourceCreateThumbnailWithTransform: true,
-                ] as CFDictionary), let jpeg = UIImage(cgImage: image).jpegData(compressionQuality: 0.85) else {
-            throw error(String(localized: "native.attachment.error.imageRead", bundle: .lody))
+                ] as CFDictionary), let jpeg = jpegData(image, quality: 0.85) else {
+            throw error(String(localized: "native.attachment.error.imageRead", bundle: .lodyData))
           }
           bytes = jpeg; contentType = "image/jpeg"
           fileName = (name as NSString).deletingPathExtension + ".jpg"
         }
-        guard bytes.count <= 5 * 1024 * 1024 else { throw error(String(localized: "native.attachment.error.imageTooLarge", bundle: .lody)) }
+        guard bytes.count <= 5 * 1024 * 1024 else { throw error(String(localized: "native.attachment.error.imageTooLarge", bundle: .lodyData)) }
         let boundary = UUID().uuidString
         let safeName = fileName.replacingOccurrences(of: "\"", with: "_").replacingOccurrences(of: "\r", with: "_").replacingOccurrences(of: "\n", with: "_")
         var body = Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"sessionId\"\r\n\r\n\(session)\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\(safeName)\"\r\nContent-Type: \(contentType)\r\n\r\n".utf8)
@@ -174,15 +173,15 @@ enum SessionAttachments {
   }
 
   /// Download to disk so a video never becomes a base64 or in-memory file body.
-  static func download(workspace: String, session: String, fileId: String, fileName: String, sizeBytes: Int?, directory: URL, image: Bool = false) async throws -> URL {
+  public static func download(workspace: String, session: String, fileId: String, fileName: String, sizeBytes: Int?, directory: URL, image: Bool = false) async throws -> URL {
     guard !workspace.isEmpty, !session.isEmpty, !fileId.isEmpty else {
-      throw error(String(localized: "native.attachment.error.invalid", bundle: .lody))
+      throw error(String(localized: "native.attachment.error.invalid", bundle: .lodyData))
     }
     let limit = 100 * 1024 * 1024
     if let sizeBytes, sizeBytes <= 0 || sizeBytes > limit {
-      throw error(String(localized: "native.attachment.error.tooLarge", bundle: .lody))
+      throw error(String(localized: "native.attachment.error.tooLarge", bundle: .lodyData))
     }
-    guard let token = try AuthKeychain.read() else { throw error(String(localized: "native.attachment.error.signIn", bundle: .lody)) }
+    guard let token = try AuthKeychain.read() else { throw error(String(localized: "native.attachment.error.signIn", bundle: .lodyData)) }
     let path = [workspace, session, fileId].map(segment)
     let kind = image ? "session-images" : "session-files"
     var request = URLRequest(url: URL(string: "https://api.lody.ai/api/workspaces/\(path[0])/\(kind)/\(path[1])/\(path[2])")!, timeoutInterval: 120)
@@ -191,18 +190,18 @@ enum SessionAttachments {
     defer { try? FileManager.default.removeItem(at: temporary) }
     try Task.checkCancellation()
     guard let response = response as? HTTPURLResponse else {
-      throw error(String(localized: "native.attachment.error.download", bundle: .lody))
+      throw error(String(localized: "native.attachment.error.download", bundle: .lodyData))
     }
     if response.statusCode == 404 || response.statusCode == 410 {
-      throw error(String(localized: "native.attachment.error.unavailable", bundle: .lody))
+      throw error(String(localized: "native.attachment.error.unavailable", bundle: .lodyData))
     }
     if response.statusCode == 401 || response.statusCode == 403 {
-      throw error(String(localized: "native.attachment.error.permissionDenied", bundle: .lody))
+      throw error(String(localized: "native.attachment.error.permissionDenied", bundle: .lodyData))
     }
-    guard response.statusCode == 200 else { throw error(String(localized: "native.attachment.error.download", bundle: .lody)) }
+    guard response.statusCode == 200 else { throw error(String(localized: "native.attachment.error.download", bundle: .lodyData)) }
     let count = try temporary.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
     guard count > 0, count <= limit, sizeBytes == nil || sizeBytes == count else {
-      throw error(String(localized: "native.attachment.error.download", bundle: .lody))
+      throw error(String(localized: "native.attachment.error.download", bundle: .lodyData))
     }
     let name = (fileName.replacingOccurrences(of: "\\", with: "/") as NSString).lastPathComponent
     let safeName = name.isEmpty || name == "." || name == ".." ? "file" : name
@@ -214,10 +213,10 @@ enum SessionAttachments {
 
   private static func invalidResponse(stage: StaticString, attempt: UUID) -> NSError {
     DiagnosticsStore.shared.record("attachment", "invalid_response", fields: ["stage": stage.description, "attempt": attempt.uuidString])
-    return error(String(localized: "native.attachment.error.uploadResponse", bundle: .lody))
+    return error(String(localized: "native.attachment.error.uploadResponse", bundle: .lodyData))
   }
 
-  static func request(_ url: String, token: String, stage: StaticString, attempt: UUID, method: String = "POST", headers: [String: String], body: Data? = nil,
+  public static func request(_ url: String, token: String, stage: StaticString, attempt: UUID, method: String = "POST", headers: [String: String], body: Data? = nil,
     onProgress: (@Sendable (Int64, Int64) -> Void)? = nil) async throws -> [String: Any] {
     try Task.checkCancellation()
     var request = URLRequest(url: URL(string: url)!, timeoutInterval: 120)
@@ -257,7 +256,7 @@ enum SessionAttachments {
         fields["serverCode"] = DiagnosticsStore.attachmentServerCode(code)
       }
       DiagnosticsStore.shared.record("attachment", "http_failed", fields: fields)
-      throw error(String(localized: "native.attachment.error.upload", bundle: .lody))
+      throw error(String(localized: "native.attachment.error.upload", bundle: .lodyData))
     }
     if data.isEmpty {
       DiagnosticsStore.shared.record("attachment", "request_succeeded", fields: fields)
@@ -266,7 +265,7 @@ enum SessionAttachments {
     let value: [String: Any]
     do {
       guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-        throw error(String(localized: "native.attachment.error.uploadResponse", bundle: .lody))
+        throw error(String(localized: "native.attachment.error.uploadResponse", bundle: .lodyData))
       }
       value = object
     } catch {
@@ -278,11 +277,18 @@ enum SessionAttachments {
   }
 }
 
-final class AttachmentUploadDelegate: NSObject, URLSessionTaskDelegate {
+public final class AttachmentUploadDelegate: NSObject, URLSessionTaskDelegate {
   private let onProgress: @Sendable (Int64, Int64) -> Void
-  init(onProgress: @escaping @Sendable (Int64, Int64) -> Void) { self.onProgress = onProgress }
-  func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64,
+  public init(onProgress: @escaping @Sendable (Int64, Int64) -> Void) { self.onProgress = onProgress }
+  public func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64,
     totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
     onProgress(totalBytesSent, totalBytesExpectedToSend)
   }
+}
+
+private func jpegData(_ image: CGImage, quality: Double) -> Data? {
+  let data = NSMutableData()
+  guard let destination = CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
+  CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
+  return CGImageDestinationFinalize(destination) ? data as Data : nil
 }

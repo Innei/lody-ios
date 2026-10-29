@@ -1,16 +1,16 @@
 import Foundation
 
-struct SessionRuntimeEvent: Sendable {
-  var generation = -1
-  var state = ""
-  var sessionId: String?
-  var session: String?
+public struct SessionRuntimeEvent: Sendable {
+  public var generation = -1
+  public var state = ""
+  public var sessionId: String?
+  public var session: String?
 
-  init(generation: Int = -1, state: String = "", sessionId: String? = nil, session: String? = nil) {
+  public init(generation: Int = -1, state: String = "", sessionId: String? = nil, session: String? = nil) {
     (self.generation, self.state, self.sessionId, self.session) = (generation, state, sessionId, session)
   }
 
-  init(_ info: [AnyHashable: Any]) {
+  public init(_ info: [AnyHashable: Any]) {
     self.init(
       generation: (info["generation"] as? NSNumber)?.intValue ?? -1, state: info["state"] as? String ?? "",
       sessionId: info["sessionId"] as? String, session: info["session"] as? String
@@ -18,24 +18,35 @@ struct SessionRuntimeEvent: Sendable {
   }
 }
 
-struct SessionFeedState: Equatable, Sendable {
-  var status = "syncing"
-  var revision = -1
-  var overflow = false
-  var entriesJSON = "[]"
-  var billableTurnCount: Int?
-  var composerJSON: String?
-  var preview: SessionBrowserPreview?
-  var transcript = SessionTranscriptFacts()
+public struct SessionFeedState: Equatable, Sendable {
+  public var status = "syncing"
+  public var revision = -1
+  public var overflow = false
+  public var entriesJSON = "[]"
+  public var billableTurnCount: Int?
+  public var composerJSON: String?
+  public var preview: SessionBrowserPreview?
+  public var transcript = SessionTranscriptFacts()
+
+  public init(status: String = "syncing", revision: Int = -1, overflow: Bool = false, entriesJSON: String = "[]", billableTurnCount: Int? = nil, composerJSON: String? = nil, preview: SessionBrowserPreview? = nil, transcript: SessionTranscriptFacts = SessionTranscriptFacts()) {
+    self.status = status
+    self.revision = revision
+    self.overflow = overflow
+    self.entriesJSON = entriesJSON
+    self.billableTurnCount = billableTurnCount
+    self.composerJSON = composerJSON
+    self.preview = preview
+    self.transcript = transcript
+  }
 }
 
 @MainActor
-struct SessionFeedService {
-  var watch: @MainActor (_ sessionId: String, _ receive: @escaping @MainActor (SessionRuntimeEvent) -> Void) -> @MainActor () -> Void
-  var reconnect: @MainActor (_ sessionId: String) -> Void
-  var cached: @Sendable (_ userId: String, _ workspaceId: String, _ sessionId: String) -> String?
+public struct SessionFeedService: Sendable {
+  public var watch: @MainActor (_ sessionId: String, _ receive: @escaping @MainActor (SessionRuntimeEvent) -> Void) -> @MainActor () -> Void
+  public var reconnect: @MainActor (_ sessionId: String) -> Void
+  public var cached: @Sendable (_ userId: String, _ workspaceId: String, _ sessionId: String) -> String?
 
-  static let live = SessionFeedService(
+  public static let live = SessionFeedService(
     watch: { sessionId, receive in
       let observer = NotificationCenter.default.addObserver(forName: .lodyDataRuntimeEvent, object: nil, queue: .main) { note in
         let event = SessionRuntimeEvent(note.userInfo ?? [:])
@@ -54,12 +65,18 @@ struct SessionFeedService {
       return try? LocalStore.shared.read("session:" + String(decoding: data, as: UTF8.self))
     }
   )
+
+  public init(watch: @escaping @MainActor (_ sessionId: String, _ receive: @escaping @MainActor (SessionRuntimeEvent) -> Void) -> @MainActor () -> Void, reconnect: @escaping @MainActor (_ sessionId: String) -> Void, cached: @escaping @Sendable (_ userId: String, _ workspaceId: String, _ sessionId: String) -> String?) {
+    self.watch = watch
+    self.reconnect = reconnect
+    self.cached = cached
+  }
 }
 
 @MainActor
-final class SessionFeed {
-  private(set) var state = SessionFeedState()
-  var changed: (() -> Void)?
+public final class SessionFeed {
+  public private(set) var state = SessionFeedState()
+  public var changed: (() -> Void)?
   private let service: SessionFeedService
   private let sessionId: String
   private let userId: String
@@ -70,17 +87,17 @@ final class SessionFeed {
   private var token = 0
   private static let parsing = DispatchQueue(label: "app.innei.lody.session-feed", qos: .userInitiated)
 
-  init(sessionId: String, userId: String, workspaceId: String, service: SessionFeedService = .live) {
+  public init(sessionId: String, userId: String, workspaceId: String, service: SessionFeedService = .live) {
     self.sessionId = sessionId
     self.userId = userId
     self.workspaceId = workspaceId
     self.service = service
   }
 
-  var watching: Bool { unwatch != nil }
-  var generation: Int { cursor.generation }
+  public var watching: Bool { unwatch != nil }
+  public var generation: Int { cursor.generation }
 
-  func start() {
+  public func start() {
     guard unwatch == nil, !userId.isEmpty, !workspaceId.isEmpty else { return }
     token += 1
     cursor = (-1, -1)
@@ -104,13 +121,13 @@ final class SessionFeed {
     unwatch = service.watch(sessionId) { [weak self] event in self?.receive(event) }
   }
 
-  func finish() {
+  public func finish() {
     token += 1
     unwatch?()
     unwatch = nil
   }
 
-  func reconnect() {
+  public func reconnect() {
     guard unwatch != nil else { return }
     service.reconnect(sessionId)
   }
@@ -165,5 +182,5 @@ final class SessionFeed {
 }
 
 extension Notification.Name {
-  static let lodyDataRuntimeEvent = Notification.Name("LodyDataRuntimeEvent")
+  public static let lodyDataRuntimeEvent = Notification.Name("LodyDataRuntimeEvent")
 }

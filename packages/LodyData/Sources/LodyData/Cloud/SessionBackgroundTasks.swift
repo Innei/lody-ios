@@ -3,20 +3,20 @@ import Foundation
 /// A short background allowance for a user send, without a system Live Activity.
 /// Expiration releases local execution time; it never cancels the remote agent.
 @MainActor
-final class SessionBackgroundTasks {
-  static let shared = SessionBackgroundTasks()
+public final class SessionBackgroundTasks {
+  public static let shared = SessionBackgroundTasks()
   private struct Work {
-    let owner: String
-    let token: AnyObject
+    public let owner: String
+    public let token: AnyObject
   }
   private var work: [String: Work] = [:]
-  private(set) var debugState = "idle"
-  var debugCount: Int { work.count }
-  func debugExpire() {
+  public private(set) var debugState = "idle"
+  public var debugCount: Int { work.count }
+  public func debugExpire() {
     for id in work.keys { expire(id) }
   }
 
-  func begin(owner: String) -> String? {
+  public func begin(owner: String) -> String? {
     guard let host = LodyHosting.current, host.isActive else { return nil }
     let id = UUID().uuidString
     guard let token = host.beginSendAllowance(expired: { [weak self] in self?.expire(id) }) else {
@@ -28,7 +28,7 @@ final class SessionBackgroundTasks {
     return id
   }
 
-  func update(id: String, state: String, owner: String) {
+  public func update(id: String, state: String, owner: String) {
     guard work[id]?.owner == owner else { return }
     switch state {
     case "completed", "waiting": finish(id, success: true)
@@ -43,13 +43,13 @@ final class SessionBackgroundTasks {
     debugState = "expired"
   }
 
-  func finish(_ id: String, success: Bool) {
+  public func finish(_ id: String, success: Bool) {
     guard let current = work.removeValue(forKey: id) else { return }
     LodyHosting.current?.endSendAllowance(current.token)
     debugState = success ? "completed" : "stopped"
   }
 
-  func finishAll(owner: String) {
+  public func finishAll(owner: String) {
     for (id, current) in work where current.owner == owner { finish(id, success: false) }
   }
 }

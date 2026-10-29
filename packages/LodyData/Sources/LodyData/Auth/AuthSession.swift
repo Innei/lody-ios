@@ -1,33 +1,50 @@
 import Foundation
 
-struct AuthSnapshot: Encodable, Sendable {
-  struct Code: Encodable, Sendable {
-    let user_code: String
-    let verification_uri_complete: String
-    let expires_in: Double
-    let interval: Double
+public struct AuthSnapshot: Encodable, Sendable {
+  public struct Code: Encodable, Sendable {
+    public let user_code: String
+    public let verification_uri_complete: String
+    public let expires_in: Double
+    public let interval: Double
+
+    public init(user_code: String, verification_uri_complete: String, expires_in: Double, interval: Double) {
+      self.user_code = user_code
+      self.verification_uri_complete = verification_uri_complete
+      self.expires_in = expires_in
+      self.interval = interval
+    }
   }
 
-  var account: AuthAccount?
-  var busy = true
-  var localReady = false
-  var initialWorkspace = ""
-  var catalogRevision = 0
-  var code: Code?
-  var error: String?
+  public var account: AuthAccount?
+  public var busy = true
+  public var localReady = false
+  public var initialWorkspace = ""
+  public var catalogRevision = 0
+  public var code: Code?
+  public var error: String?
 
-  var json: String {
+  public var json: String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .withoutEscapingSlashes
     return (try? encoder.encode(self)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
   }
+
+  public init(account: AuthAccount? = nil, busy: Bool = true, localReady: Bool = false, initialWorkspace: String = "", catalogRevision: Int = 0, code: Code? = nil, error: String? = nil) {
+    self.account = account
+    self.busy = busy
+    self.localReady = localReady
+    self.initialWorkspace = initialWorkspace
+    self.catalogRevision = catalogRevision
+    self.code = code
+    self.error = error
+  }
 }
 
-final class AuthPublished: @unchecked Sendable {
+public final class AuthPublished: @unchecked Sendable {
   private let lock = NSLock()
   private var state = AuthSnapshot().json
 
-  var json: String { lock.withLock { state } }
+  public var json: String { lock.withLock { state } }
 
   fileprivate func set(_ json: String) -> Bool {
     lock.withLock {
@@ -39,13 +56,13 @@ final class AuthPublished: @unchecked Sendable {
 }
 
 @MainActor
-final class AuthSession {
-  static let shared = AuthSession()
-  nonisolated static let published = AuthPublished()
+public final class AuthSession {
+  public static let shared = AuthSession()
+  public nonisolated static let published = AuthPublished()
 
-  private(set) var snapshot = AuthSnapshot()
-  var api = AuthAPI()
-  var stopRuntime: (() -> Void)?
+  public private(set) var snapshot = AuthSnapshot()
+  public var api = AuthAPI()
+  public var stopRuntime: (() -> Void)?
 
   private var account: AuthAccount?
   private var credential: String?
@@ -60,28 +77,28 @@ final class AuthSession {
   private var attempt = 0
   private var started = false
 
-  var catalogScope: AuthCatalogScope {
+  public var catalogScope: AuthCatalogScope {
     AuthCatalogScope(account: account, localReady: localReady, initialWorkspace: initialWorkspace, initialCatalog: initialCatalog)
   }
 
-  func start() {
+  public func start() {
     guard !started else { return }
     started = true
     Task { await restore() }
   }
 
-  func restore() async {
+  public func restore() async {
     await begin { id in await self.performRestore(id) }
   }
 
-  func login() async throws {
+  public func login() async throws {
     guard !LodyUIVerify.enabled else {
       throw AuthFailure(message: "Login is disabled during offline UI verification")
     }
     await begin { id in await self.performLogin(id) }
   }
 
-  func cancel() {
+  public func cancel() {
     current?.cancel()
     current = nil
     attempt += 1
@@ -91,28 +108,28 @@ final class AuthSession {
     publish()
   }
 
-  func logout() async {
+  public func logout() async {
     let token = credential
     await begin { id in await self.performLogout(id, token: token) }
   }
 
-  func reopen() {
+  public func reopen() {
     guard let code else { return }
     do { try openBrowser(code.verificationURL) } catch {
-      self.error = String(localized: "auth.error.openAuthorizePage", bundle: .lody)
+      self.error = String(localized: "auth.error.openAuthorizePage", bundle: .lodyData)
       publish()
     }
   }
 
-  func updateWorkspace(id: String, name: String) async throws {
-    guard let account, let credential else { throw AuthFailure(message: String(localized: "workspace.edit.signedOut", bundle: .lody)) }
+  public func updateWorkspace(id: String, name: String) async throws {
+    guard let account, let credential else { throw AuthFailure(message: String(localized: "workspace.edit.signedOut", bundle: .lodyData)) }
     let generation = LocalStore.shared.generation
     let updated = try await api.updateWorkspace(token: credential, id: id, name: name)
     await persist(updated, account: account, credential: credential, generation: generation)
   }
 
-  func updateWorkspaceIcon(id: String, file: WorkspaceIconFile) async throws -> String {
-    guard let account, let credential else { throw AuthFailure(message: String(localized: "workspace.edit.signedOut", bundle: .lody)) }
+  public func updateWorkspaceIcon(id: String, file: WorkspaceIconFile) async throws -> String {
+    guard let account, let credential else { throw AuthFailure(message: String(localized: "workspace.edit.signedOut", bundle: .lodyData)) }
     let generation = LocalStore.shared.generation
     let image = try await api.uploadWorkspaceIcon(token: credential, id: id, file: file)
     let updated = try await api.updateWorkspaceIcon(token: credential, id: id, image: image)
@@ -202,15 +219,15 @@ final class AuthSession {
     do {
       let code = try await api.deviceCode()
       update(id) { self.code = code }
-      guard active(id) else { throw AuthFailure(message: String(localized: "common.cancelled", bundle: .lody)) }
+      guard active(id) else { throw AuthFailure(message: String(localized: "common.cancelled", bundle: .lodyData)) }
       try openBrowser(code.verificationURL)
       let token = try await api.pollToken(code)
       let fresh = try await api.account(token: token)
-      guard active(id) else { throw AuthFailure(message: String(localized: "common.cancelled", bundle: .lody)) }
+      guard active(id) else { throw AuthFailure(message: String(localized: "common.cancelled", bundle: .lodyData)) }
       try await clearLocal()
       try AuthKeychain.save(token)
       await save(fresh)
-      guard active(id) else { throw AuthFailure(message: String(localized: "common.cancelled", bundle: .lody)) }
+      guard active(id) else { throw AuthFailure(message: String(localized: "common.cancelled", bundle: .lodyData)) }
       update(id) { account = fresh; credential = token; self.code = nil }
     } catch {
       update(id) { self.error = error.localizedDescription; code = nil }
@@ -224,10 +241,10 @@ final class AuthSession {
     update(id) { busy = true; error = nil }
     update(id) { account = nil; credential = nil; code = nil; setCatalog(nil) }
     do {
-      guard await clearLocalAndCredentials() else { throw AuthFailure(message: String(localized: "auth.error.signOutIncomplete", bundle: .lody)) }
+      guard await clearLocalAndCredentials() else { throw AuthFailure(message: String(localized: "auth.error.signOutIncomplete", bundle: .lodyData)) }
       if let token { try await api.signOut(token: token) }
     } catch {
-      update(id) { self.error = String(localized: "auth.error.signOutIncomplete", bundle: .lody) }
+      update(id) { self.error = String(localized: "auth.error.signOutIncomplete", bundle: .lodyData) }
     }
     update(id) { busy = false; localReady = true }
   }
@@ -279,7 +296,7 @@ final class AuthSession {
   }
 
   private func toast(_ key: String) {
-    LodyHosting.current?.toast(String(localized: String.LocalizationValue(key), bundle: .lody), kind: "error")
+    LodyHosting.current?.toast(String(localized: String.LocalizationValue(key), bundle: .lodyData), kind: "error")
   }
 
   private func publish() {
@@ -307,5 +324,5 @@ final class AuthSession {
 }
 
 extension Notification.Name {
-  static let lodyAuthDidChange = Notification.Name("LodyAuthDidChange")
+  public static let lodyAuthDidChange = Notification.Name("LodyAuthDidChange")
 }

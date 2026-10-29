@@ -1,16 +1,16 @@
 import Foundation
 
-final class OutboxPublished: @unchecked Sendable {
+public final class OutboxPublished: @unchecked Sendable {
   private let lock = NSLock()
   private var generation = 0
   private var values: [String: String] = [:]
-  let inflight = OutboxInflight()
+  public let inflight = OutboxInflight()
 
-  func json(_ key: String, generation current: Int) -> String? {
+  public func json(_ key: String, generation current: Int) -> String? {
     lock.withLock { generation == current ? values[key] : nil }
   }
 
-  func set(_ key: String, _ json: String, generation current: Int) {
+  public func set(_ key: String, _ json: String, generation current: Int) {
     lock.withLock {
       guard current >= generation else { return }
       if current > generation {
@@ -23,7 +23,7 @@ final class OutboxPublished: @unchecked Sendable {
 }
 
 extension OutboxPersistence {
-  static let local = OutboxPersistence(
+  public static let local = OutboxPersistence(
     generation: { LocalStore.shared.generation },
     read: { key in
       await withCheckedContinuation { continuation in
@@ -40,15 +40,15 @@ extension OutboxPersistence {
 }
 
 @MainActor
-final class OutboxSession {
-  static let shared = OutboxSession()
-  nonisolated static let published = OutboxPublished()
+public final class OutboxSession {
+  public static let shared = OutboxSession()
+  public nonisolated static let published = OutboxPublished()
   private nonisolated static let empty = #"{"ready":true,"records":[]}"#
   private nonisolated static let loading = #"{"ready":false,"records":[]}"#
 
   private weak var runtime: DataRuntime?
-  private let stores = OutboxStores(persistence: .local) { String(localized: "send.reason.awaitingConfirmation", bundle: .lody) }
-  private lazy var dispatcher = OutboxDispatcher(services: services, inflight: Self.published.inflight) { String(localized: String.LocalizationValue($0), bundle: .lody) }
+  private let stores = OutboxStores(persistence: .local) { String(localized: "send.reason.awaitingConfirmation", bundle: .lodyData) }
+  private lazy var dispatcher = OutboxDispatcher(services: services, inflight: Self.published.inflight) { String(localized: String.LocalizationValue($0), bundle: .lodyData) }
   private var scope = (user: "", workspace: "")
   private var inputs = OutboxDispatcher.Inputs()
   private var fixture: OutboxFixture?
@@ -57,7 +57,7 @@ final class OutboxSession {
     stores.onChange = { [weak self] store in self?.changed(store) }
   }
 
-  nonisolated static func read(user: String, workspace: String) -> String {
+  public nonisolated static func read(user: String, workspace: String) -> String {
     let key = OutboxStores.key(user: user, workspace: workspace)
     guard !key.isEmpty else { return empty }
     if let json = published.json(key, generation: LocalStore.shared.generation) { return json }
@@ -67,11 +67,11 @@ final class OutboxSession {
     return loading
   }
 
-  func attach(_ runtime: DataRuntime) {
+  public func attach(_ runtime: DataRuntime) {
     self.runtime = runtime
   }
 
-  func catalogChanged(_ snapshot: CatalogSnapshot, latestUserMessages: [String: String]) {
+  public func catalogChanged(_ snapshot: CatalogSnapshot, latestUserMessages: [String: String]) {
     scope = (snapshot.userId, snapshot.workspaceId)
     inputs.userId = snapshot.userId
     inputs.connected = snapshot.connected && !snapshot.loading
@@ -80,26 +80,26 @@ final class OutboxSession {
     dispatcher.update(store: store(user: scope.user, workspace: scope.workspace), inputs: inputs)
   }
 
-  func setForeground(_ id: String) {
+  public func setForeground(_ id: String) {
     guard inputs.foregroundSessionId != id else { return }
     inputs.foregroundSessionId = id
     dispatcher.update(store: store(user: scope.user, workspace: scope.workspace), inputs: inputs)
   }
 
-  func leaveForeground(_ id: String) {
+  public func leaveForeground(_ id: String) {
     if inputs.foregroundSessionId == id { setForeground("") }
   }
 
-  func serverCreated(_ sessionId: String) -> Bool { inputs.latestUserMessages[sessionId] != nil }
+  public func serverCreated(_ sessionId: String) -> Bool { inputs.latestUserMessages[sessionId] != nil }
 
-  func outboxStore(user: String, workspace: String) -> OutboxStore? { store(user: user, workspace: workspace) }
+  public func outboxStore(user: String, workspace: String) -> OutboxStore? { store(user: user, workspace: workspace) }
 
-  func pendingSessions(user: String, workspace: String, excluding server: [String: String]) -> [OutboxValue] {
+  public func pendingSessions(user: String, workspace: String, excluding server: [String: String]) -> [OutboxValue] {
     guard let store = store(user: user, workspace: workspace) else { return [] }
     return store.snapshot.records.filter { server[$0.sessionId] == nil }.map { .object($0.session) }
   }
 
-  func allowsDeletion(_ payload: String) -> Bool {
+  public func allowsDeletion(_ payload: String) -> Bool {
     guard let args = (try? JSONSerialization.jsonObject(with: Data(payload.utf8))) as? [String: Any],
           let workspace = args["workspaceId"] as? String, let ids = args["sessionIds"] as? [String],
           workspace == scope.workspace, let store = store(user: scope.user, workspace: workspace),
@@ -107,18 +107,18 @@ final class OutboxSession {
     return !store.snapshot.records.contains { ids.contains($0.sessionId) }
   }
 
-  func put(user: String, workspace: String, json: String) -> Task<Void, Error> {
+  public func put(user: String, workspace: String, json: String) -> Task<Void, Error> {
     guard let store = store(user: user, workspace: workspace) else { return Task { throw OutboxError.scopeExpired } }
     guard let record = OutboxRecord.decode(json), !record.sessionId.isEmpty else { return Task { throw OutboxError.invalidRecord } }
     return store.put(record)
   }
 
-  func remove(user: String, workspace: String, sessionId: String) -> Task<Void, Error> {
+  public func remove(user: String, workspace: String, sessionId: String) -> Task<Void, Error> {
     guard let store = store(user: user, workspace: workspace) else { return Task { throw OutboxError.scopeExpired } }
     return store.remove(sessionId)
   }
 
-  func debugFixture(_ action: String) -> String {
+  public func debugFixture(_ action: String) -> String {
     switch action {
     case "start":
       fixture?.stop()
@@ -153,7 +153,7 @@ final class OutboxSession {
     fixture?.changed(store)
   }
 
-  var services: OutboxServices {
+  public var services: OutboxServices {
     OutboxServices(
       createSession: { [weak self] payload in
         guard let runtime = self?.runtime else { throw OutboxError.scopeExpired }

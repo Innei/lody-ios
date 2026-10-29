@@ -2,12 +2,12 @@ import LodyCore
 import Foundation
 
 extension DataRuntime {
-  func releaseReserve(_ id: String) {
+  public func releaseReserve(_ id: String) {
     reservedSessions.removeAll { $0 == id }
     dispatch(RuntimeContract.Calls.ReleaseReserve.self, .init(sessionId: id))
   }
-  func createSession(_ payload: String, sink: ReplySink) {
-    guard let workspace else { fail(sink, "not_ready", String(localized: "native.runtime.sessionNotSynced", bundle: .lody)); return }
+  public func createSession(_ payload: String, sink: ReplySink) {
+    guard let workspace else { fail(sink, "not_ready", String(localized: "native.runtime.sessionNotSynced", bundle: .lodyData)); return }
     let user = userId, generation = self.generation
     Task { @MainActor in
       let entitlement = await billing.entitlement(workspace: workspace, user: user)
@@ -19,11 +19,11 @@ extension DataRuntime {
         inject: ["billingEntitlement": entitlement ?? NSNull()], sink: sink)
     }
   }
-  func controlTurn(_ payload: String, sink: ReplySink) {
+  public func controlTurn(_ payload: String, sink: ReplySink) {
     guard inOpenSession(payload, sink: sink) else { return }
     callJSON(RuntimeContract.Calls.ControlTurn.self, payload: payload, sink: sink)
   }
-  func prepareSessionEdit(_ payload: String, sink: ReplySink) {
+  public func prepareSessionEdit(_ payload: String, sink: ReplySink) {
     let generation = self.generation
     guard let workspace, let session = sessionId else { fail(sink, "not_ready", "Session unavailable"); return }
     Task { @MainActor in
@@ -35,7 +35,7 @@ extension DataRuntime {
               draft["state"] as? String == "ready" else { sink.resolve(result); return }
         var attachments: [[String: Any]] = []
         let originals = draft["attachments"] as? [[String: Any]] ?? []
-        guard originals.count <= 16 else { throw SessionAttachments.error(String(localized: "native.attachment.error.limit", bundle: .lody)) }
+        guard originals.count <= 16 else { throw SessionAttachments.error(String(localized: "native.attachment.error.limit", bundle: .lodyData)) }
         let downloads = AttachmentDownloadBatch()
         // ponytail: download at most 16 originals for the shared local-file composer; use lazy remote previews if large attachments make editing slow.
         for block in originals {
@@ -58,7 +58,7 @@ extension DataRuntime {
       } catch { fail(sink, "edit_prepare_failed", error.localizedDescription) }
     }
   }
-  func sendTurn(_ payload: String, sink: ReplySink, edit: Bool = false) {
+  public func sendTurn(_ payload: String, sink: ReplySink, edit: Bool = false) {
     guard let workspace else { dispatchTurn(payload, sink: sink, billing: nil, edit: edit); return }
     let user = userId, generation = self.generation
     Task { @MainActor in
@@ -148,7 +148,7 @@ extension DataRuntime {
       }
     }
   }
-  func dispatchTurn(_ payload: String, sink: ReplySink, billing: [String: Any]?, edit: Bool) {
+  public func dispatchTurn(_ payload: String, sink: ReplySink, billing: [String: Any]?, edit: Bool) {
     let args = payload.data(using: .utf8).flatMap { data in
       data.count <= 128 * 1024 ? (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] : nil
     }
@@ -157,7 +157,7 @@ extension DataRuntime {
     let allowed = edit ? target == sessionId : workspace != nil && target?.isEmpty == false
     guard health.ready, contractReady, channel != nil, let args, allowed else {
       if let task { SessionBackgroundTasks.shared.finish(task, success: false) }
-      if edit { fail(sink, "not_ready", String(localized: "native.runtime.sessionNotSynced", bundle: .lody)) }
+      if edit { fail(sink, "not_ready", String(localized: "native.runtime.sessionNotSynced", bundle: .lodyData)) }
       else { sink.resolve(notSentJSON("native.runtime.sessionNotSyncedRetry")) }
       return
     }
@@ -197,7 +197,7 @@ extension DataRuntime {
 }
 
 private func notSentJSON(_ key: String) -> String {
-  let payload: [String: Any] = ["state": "not_sent", "reason": String(localized: String.LocalizationValue(key), bundle: .lody)]
+  let payload: [String: Any] = ["state": "not_sent", "reason": String(localized: String.LocalizationValue(key), bundle: .lodyData)]
   guard let data = try? JSONSerialization.data(withJSONObject: payload),
         let json = String(data: data, encoding: .utf8) else { return #"{"state":"not_sent"}"# }
   return json
