@@ -75,7 +75,7 @@ What that week actually looked like:
 
 - **Human Interface Guidelines Compliance**: Native adoption of iOS semantic colors, automatic light and dark mode adaptation, and Dynamic Type with SF Pro and SF Mono.
 - **Native Navigation**: The UIKit shell owns navigation controllers, transparent headers, and automatic scroll edge effects. Home uses an adaptive native split with session and inspector navigation. Transient flows open as native sheets through `LodyShell.presentNative`, and system grouped rows use UIKit `UICollectionViewListCell` via `LodyGroupedList`.
-- **Bilingual by Default**: English and Simplified Chinese product copy lives in `packages/LodyData/Sources/LodyData/Resources/Localizable.xcstrings`. Swift uses `String(localized:)`, Xcode compiles the catalog, and CI checks translation coverage and format arguments. Permission prompts live in `iOS/InfoPlist.xcstrings`.
+- **Bilingual by Default**: English and Simplified Chinese product copy lives in `packages/LodyData/Sources/Resources/Localizable.xcstrings`. Swift uses `String(localized:)`, Xcode compiles the catalog, and CI checks translation coverage and format arguments. Permission prompts live in `iOS/InfoPlist.xcstrings`.
 
 ### High-Performance Native Streaming Chat
 
@@ -146,8 +146,8 @@ verification/kit/          # Native behavior checks
 verification/ui/           # Offline UI verification
 tests/                     # Protocol and tooling Node tests
 packages/LodyiOSKit/Package.swift      # LodyiOSKit library, dependencies and Metal resources
-packages/LodyiOSKit/Sources/LodyiOSKit/    # UIKit UI, native state and coordinators
-packages/LodyData/Sources/LodyData/Resources/ # Native String Catalog
+packages/LodyiOSKit/Sources/    # UIKit UI, native state and coordinators
+packages/LodyData/Sources/Resources/ # Native String Catalog
 packages/LodyiOSKit/DataChannel/        # Pinned native transport build
 packages/cloud-runtime/              # Bundled browser-safe protocol and contract
 packages/lody-core/                  # Swift wire types and routing policies

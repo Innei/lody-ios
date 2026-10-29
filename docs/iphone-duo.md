@@ -126,7 +126,7 @@ placement="left" | "right"`, `Stack.SearchBar` and `Stack.Screen` options regist
 
 ## Where it lives
 
-All paths below are under `packages/LodyiOSKit/Sources/LodyiOSKit`.
+All paths below are under `packages/LodyiOSKit/Sources`.
 
 | Concern                                  | File                                                  |
 | ---------------------------------------- | ----------------------------------------------------- |

@@ -19,8 +19,9 @@ let package = Package(
         .product(name: "LodyCore", package: "lody-core"),
         .product(name: "MarkdownView", package: "MarkdownView"),
       ],
+      path: "Sources",
       resources: [.process("Resources")]
     ),
-    .testTarget(name: "LodyMacKitTests", dependencies: ["LodyMacKit"]),
+    .testTarget(name: "LodyMacKitTests", dependencies: ["LodyMacKit"], path: "Tests"),
   ]
 )

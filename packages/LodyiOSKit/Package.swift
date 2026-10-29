@@ -42,6 +42,7 @@ let package = Package(
         .product(name: "OneSignalFramework", package: "OneSignal-XCFramework"),
         "LodyDataChannel",
       ],
+      path: "Sources",
       exclude: ["Notifications/AGENTS.md", "SimulatorStream/README.md"],
       resources: [.process("Chat/Shaders")],
       linkerSettings: [.linkedLibrary("sqlite3"), .linkedLibrary("c++")]

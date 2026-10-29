@@ -20,8 +20,9 @@ let package = Package(
         .product(name: "MarkdownParser", package: "MarkdownView"),
         .product(name: "ChatKitCore", package: "chat-kit"),
       ],
+      path: "Sources",
       resources: [.process("Resources")]
     ),
-    .testTarget(name: "LodyDataTests", dependencies: ["LodyData"]),
+    .testTarget(name: "LodyDataTests", dependencies: ["LodyData"], path: "Tests"),
   ]
 )

@@ -45,7 +45,7 @@ test('LodyiOSKit re-exports LodyData for the app and its pages', async () => {
   );
   assert.match(manifest, /\.product\(name: "LodyData", package: "LodyData"\)/);
   const files = await swiftFiles(
-    join(repoRoot, 'packages/LodyiOSKit/Sources/LodyiOSKit'),
+    join(repoRoot, 'packages/LodyiOSKit/Sources'),
   );
   const exports = [];
   for (const file of files) {

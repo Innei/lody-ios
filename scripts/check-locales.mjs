@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = path.join(import.meta.dirname, '..');
-const kit = path.resolve(root, 'packages/LodyiOSKit/Sources/LodyiOSKit');
-const data = path.resolve(root, 'packages/LodyData/Sources/LodyData');
-const mac = path.resolve(root, 'packages/LodyMacKit/Sources/LodyMacKit');
+const kit = path.resolve(root, 'packages/LodyiOSKit/Sources');
+const data = path.resolve(root, 'packages/LodyData/Sources');
+const mac = path.resolve(root, 'packages/LodyMacKit/Sources');
 const problems = [];
 
 function signature(value) {

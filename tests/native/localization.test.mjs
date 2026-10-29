@@ -8,8 +8,8 @@ import test from 'node:test';
 test('String Catalog checks accept reordered arguments and reject broken translations and missing keys', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'lody-localization-'));
   const app = root;
-  const kit = path.join(root, 'packages/LodyiOSKit/Sources/LodyiOSKit');
-  const data = path.join(root, 'packages/LodyData/Sources/LodyData');
+  const kit = path.join(root, 'packages/LodyiOSKit/Sources');
+  const data = path.join(root, 'packages/LodyData/Sources');
   const entry = (en, zh = en) => ({
     localizations: Object.fromEntries(
       [
@@ -93,7 +93,7 @@ test('String Catalog checks accept reordered arguments and reject broken transla
     assert.match(result.stderr, /missing catalog key status/);
 
     await save(catalog, { summary: entry('Summary'), status: entry('Status') });
-    const mac = path.join(root, 'packages/LodyMacKit/Sources/LodyMacKit');
+    const mac = path.join(root, 'packages/LodyMacKit/Sources');
     await mkdir(path.join(mac, 'Resources'), { recursive: true });
     await writeFile(
       path.join(mac, 'Menu.swift'),
