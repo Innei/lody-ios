@@ -147,7 +147,6 @@ targets:
           - List/LodyUnreadNavigationHold.swift
           - List/LodyListStatus.swift
           - List/LodyListVisualView.swift
-          - Chat/LodyAgentIcon.swift
           - Chat/ChatAttachments.swift
           - Chat/ChatAttachmentSheet.swift
           - Chat/ChatCameraCapture.swift
@@ -165,7 +164,6 @@ targets:
           - Chat/ChatSendHandoff.swift
           - Chat/ChatThrowCurve.swift
           - Chat/ChatNumericText.swift
-          - Chat/ChatPendingSend.swift
           - Toast/LodyToastOverlay.swift
           - Toast/LodyToastPillView.swift
           - Toast/LodySessionBannerView.swift
@@ -184,6 +182,8 @@ targets:
           - Text/TextSearch.swift
           - CreateSession/CreateSessionForm.swift
           - CreateSession/CreateModelOptions.swift
+          - Chat/LodyAgentIcon.swift
+          - Chat/ChatPendingSend.swift
           - Resources/Localizable.xcstrings
       - App/Icons.xcassets
       - App/Colors.xcassets

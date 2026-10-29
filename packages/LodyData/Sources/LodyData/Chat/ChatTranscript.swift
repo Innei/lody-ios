@@ -1,153 +1,269 @@
 import CoreGraphics
 import Foundation
 
-struct ChatFileDiff: Decodable, Equatable {
-  let path: String
-  let add: Int?
-  let del: Int?
-  let status: String?
+public struct ChatFileDiff: Decodable, Equatable, Sendable {
+  public let path: String
+  public let add: Int?
+  public let del: Int?
+  public let status: String?
+
+  public init(path: String, add: Int?, del: Int?, status: String?) {
+    self.path = path
+    self.add = add
+    self.del = del
+    self.status = status
+  }
 }
 
-struct ChatEntry: Decodable {
-  struct ModelInfo: Decodable {
-    let modelId: String?
-    let name: String?
-    let thoughtLevel: String?
+public struct ChatEntry: Decodable, Sendable {
+  public struct ModelInfo: Decodable, Sendable {
+    public let modelId: String?
+    public let name: String?
+    public let thoughtLevel: String?
 
-    var title: String {
+    public var title: String {
       let name = self.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
       let model = name.isEmpty ? (modelId ?? "") : name
       return [model, thoughtLevel ?? ""]
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .filter { !$0.isEmpty }.joined(separator: " · ")
     }
+
+    public init(modelId: String?, name: String?, thoughtLevel: String?) {
+      self.modelId = modelId
+      self.name = name
+      self.thoughtLevel = thoughtLevel
+    }
   }
-  let id: String
-  let role: String
-  let status: String
-  var finished: Bool
-  let timestamp: String?
-  let endedAt: Double?
-  let startedAt: Double?
-  var permissionWaitMs: Double? = nil
-  var items: [ChatItem]
-  let fileDiffs: [ChatFileDiff]?
-  var inputConfig: ChatTurnInput? = nil
-  var tokenUsage: ChatTurnUsage? = nil
-  var modelInfo: ModelInfo? = nil
-  var userTurnId: String? = nil
-  var executionId: String? = nil
-  var executionFinished: Bool? = nil
-  var steerCount: Int? = nil
-  var delivery: String? = nil
-  var holdOpen: Bool? = nil
-  var canSteer: Bool? = nil
-  var isRunning: Bool { role == "assistant" && !finished }
-  var isQueued: Bool { role == "user" && status == "queued" }
+  public let id: String
+  public let role: String
+  public let status: String
+  public var finished: Bool
+  public let timestamp: String?
+  public let endedAt: Double?
+  public let startedAt: Double?
+  public var permissionWaitMs: Double? = nil
+  public var items: [ChatItem]
+  public let fileDiffs: [ChatFileDiff]?
+  public var inputConfig: ChatTurnInput? = nil
+  public var tokenUsage: ChatTurnUsage? = nil
+  public var modelInfo: ModelInfo? = nil
+  public var userTurnId: String? = nil
+  public var executionId: String? = nil
+  public var executionFinished: Bool? = nil
+  public var steerCount: Int? = nil
+  public var delivery: String? = nil
+  public var holdOpen: Bool? = nil
+  public var canSteer: Bool? = nil
+  public var isRunning: Bool { role == "assistant" && !finished }
+  public var isQueued: Bool { role == "user" && status == "queued" }
+
+  public init(id: String, role: String, status: String, finished: Bool, timestamp: String?, endedAt: Double?, startedAt: Double?, permissionWaitMs: Double? = nil, items: [ChatItem], fileDiffs: [ChatFileDiff]?, inputConfig: ChatTurnInput? = nil, tokenUsage: ChatTurnUsage? = nil, modelInfo: ModelInfo? = nil, userTurnId: String? = nil, executionId: String? = nil, executionFinished: Bool? = nil, steerCount: Int? = nil, delivery: String? = nil, holdOpen: Bool? = nil, canSteer: Bool? = nil) {
+    self.id = id
+    self.role = role
+    self.status = status
+    self.finished = finished
+    self.timestamp = timestamp
+    self.endedAt = endedAt
+    self.startedAt = startedAt
+    self.permissionWaitMs = permissionWaitMs
+    self.items = items
+    self.fileDiffs = fileDiffs
+    self.inputConfig = inputConfig
+    self.tokenUsage = tokenUsage
+    self.modelInfo = modelInfo
+    self.userTurnId = userTurnId
+    self.executionId = executionId
+    self.executionFinished = executionFinished
+    self.steerCount = steerCount
+    self.delivery = delivery
+    self.holdOpen = holdOpen
+    self.canSteer = canSteer
+  }
 }
 
-struct ChatImage: Codable, Equatable {
-  let id: String
-  let fileName: String
-  let storageSessionId: String?
-  let width: Double?
-  let height: Double?
+public struct ChatImage: Codable, Equatable, Sendable {
+  public let id: String
+  public let fileName: String
+  public let storageSessionId: String?
+  public let width: Double?
+  public let height: Double?
+
+  public init(id: String, fileName: String, storageSessionId: String?, width: Double?, height: Double?) {
+    self.id = id
+    self.fileName = fileName
+    self.storageSessionId = storageSessionId
+    self.width = width
+    self.height = height
+  }
 }
 
-struct ChatMessageAttachment: Decodable, Equatable {
-  let id: String
-  let fileName: String
-  var image: ChatImage? = nil
-  var localURI: String? = nil
-  var localID: String? = nil
-  var storageSessionId: String? = nil
-  var transport: String? = nil
-  var sizeBytes: Int? = nil
+public struct ChatMessageAttachment: Decodable, Equatable, Sendable {
+  public let id: String
+  public let fileName: String
+  public var image: ChatImage? = nil
+  public var localURI: String? = nil
+  public var localID: String? = nil
+  public var storageSessionId: String? = nil
+  public var transport: String? = nil
+  public var sizeBytes: Int? = nil
+
+  public init(id: String, fileName: String, image: ChatImage? = nil, localURI: String? = nil, localID: String? = nil, storageSessionId: String? = nil, transport: String? = nil, sizeBytes: Int? = nil) {
+    self.id = id
+    self.fileName = fileName
+    self.image = image
+    self.localURI = localURI
+    self.localID = localID
+    self.storageSessionId = storageSessionId
+    self.transport = transport
+    self.sizeBytes = sizeBytes
+  }
 }
 
-struct ChatItem: Decodable {
-  struct Permission: Decodable { let requestId: String; let pending: Bool }
-  struct Plan: Decodable { let content: String; let status: String }
-  struct NoticeMeta: Decodable, Equatable { let reason: String?; let code: String?; let message: String? }
-  var meta: NoticeMeta? = nil
-  var isChatFailure: Bool { type == "system_notice" && name == "chat_failed" }
-  let itemId: String
-  let type: String
-  let name: String?
-  var text: String?
-  let kind: String?
-  let title: String?
-  let status: String?
-  let path: String?
-  let hasDetail: Bool?
-  let permission: Permission?
-  let entries: [Plan]?
-  let description: String?
-  let actor: String?
-  var markdown: String? = nil
-  var isLatest: Bool? = nil
-  var lastToolName: String? = nil
-  var summary: String? = nil
-  var error: String? = nil
-  var isBackgrounded: Bool? = nil
-  var skipTranscript: Bool? = nil
-  var processDurationMs: Int? = nil
-  var isProcess: Bool { type != "text" && type != "proposed_plan" && !isAttachment && !isChatFailure && type != "subagent_task" }
-  var hidesFromTranscript: Bool {
+public struct ChatItem: Decodable, Sendable {
+  public struct Permission: Decodable, Sendable { public let requestId: String; public let pending: Bool }
+  public struct Plan: Decodable, Sendable { public let content: String; public let status: String }
+  public struct NoticeMeta: Decodable, Equatable, Sendable { public let reason: String?; public let code: String?; public let message: String? }
+  public var meta: NoticeMeta? = nil
+  public var isChatFailure: Bool { type == "system_notice" && name == "chat_failed" }
+  public let itemId: String
+  public let type: String
+  public let name: String?
+  public var text: String?
+  public let kind: String?
+  public let title: String?
+  public let status: String?
+  public let path: String?
+  public let hasDetail: Bool?
+  public let permission: Permission?
+  public let entries: [Plan]?
+  public let description: String?
+  public let actor: String?
+  public var markdown: String? = nil
+  public var isLatest: Bool? = nil
+  public var lastToolName: String? = nil
+  public var summary: String? = nil
+  public var error: String? = nil
+  public var isBackgrounded: Bool? = nil
+  public var skipTranscript: Bool? = nil
+  public var processDurationMs: Int? = nil
+  public var isProcess: Bool { type != "text" && type != "proposed_plan" && !isAttachment && !isChatFailure && type != "subagent_task" }
+  public var hidesFromTranscript: Bool {
     if type == "proposed_plan" {
       return !["delta", "completed"].contains(status ?? "") || (markdown ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     return type == "subagent_task" && skipTranscript == true
   }
-  var isLiveSubagent: Bool {
+  public var isLiveSubagent: Bool {
     type == "subagent_task" && skipTranscript != true && (status == "in_progress" || status == "pending")
   }
-  let image: ChatImage?
-  var file: ChatMessageAttachment? = nil
-  var images: [ChatImage]? = nil
-  var isImage: Bool { type == "image" || type == "image_group" }
-  var isAttachment: Bool { isImage || type == "file" }
+  public let image: ChatImage?
+  public var file: ChatMessageAttachment? = nil
+  public var images: [ChatImage]? = nil
+  public var isImage: Bool { type == "image" || type == "image_group" }
+  public var isAttachment: Bool { isImage || type == "file" }
+
+  public init(meta: NoticeMeta? = nil, itemId: String, type: String, name: String?, text: String? = nil, kind: String?, title: String?, status: String?, path: String?, hasDetail: Bool?, permission: Permission?, entries: [Plan]?, description: String?, actor: String?, markdown: String? = nil, isLatest: Bool? = nil, lastToolName: String? = nil, summary: String? = nil, error: String? = nil, isBackgrounded: Bool? = nil, skipTranscript: Bool? = nil, processDurationMs: Int? = nil, image: ChatImage?, file: ChatMessageAttachment? = nil, images: [ChatImage]? = nil) {
+    self.meta = meta
+    self.itemId = itemId
+    self.type = type
+    self.name = name
+    self.text = text
+    self.kind = kind
+    self.title = title
+    self.status = status
+    self.path = path
+    self.hasDetail = hasDetail
+    self.permission = permission
+    self.entries = entries
+    self.description = description
+    self.actor = actor
+    self.markdown = markdown
+    self.isLatest = isLatest
+    self.lastToolName = lastToolName
+    self.summary = summary
+    self.error = error
+    self.isBackgrounded = isBackgrounded
+    self.skipTranscript = skipTranscript
+    self.processDurationMs = processDurationMs
+    self.image = image
+    self.file = file
+    self.images = images
+  }
 }
 
-struct ChatRow: Equatable {
-  let id: String
-  let entryID: String
-  var kind: String
-  var text: String
-  var errorMeta: ChatItem.NoticeMeta? = nil
-  var errorRetry: ChatErrorRetryState? = nil
-  var planIsLatest = true
-  var planPermissionItemID = ""
-  var planDecision: ChatPlanDecisionState? = nil
-  var symbol = ""
-  var itemID = ""
-  var processStartID = ""
-  var actionable = false
-  var running = false
-  var attention = false
-  var streaming = false
-  var localImageURI: String? = nil
-  var image: ChatImage? = nil
-  var file: ChatMessageAttachment? = nil
-  var fileDiff: ChatFileDiff? = nil
-  var attachments: [ChatMessageAttachment] = []
-  var uploadProgress: [String: ChatAttachmentUploadProgress] = [:]
-  var workDurationMs: Int? = nil
-  var imageAsset = ""
-  var subagent: ChatSubagentCard? = nil
-  var detail = ""
-  var treeChild = false
-  var treeLast = false
-  var treeDown = false
-  var shines: Bool { running && kind != "duration" }
+public struct ChatRow: Equatable, Sendable {
+  public let id: String
+  public let entryID: String
+  public var kind: String
+  public var text: String
+  public var errorMeta: ChatItem.NoticeMeta? = nil
+  public var errorRetry: ChatErrorRetryState? = nil
+  public var planIsLatest = true
+  public var planPermissionItemID = ""
+  public var planDecision: ChatPlanDecisionState? = nil
+  public var symbol = ""
+  public var itemID = ""
+  public var processStartID = ""
+  public var actionable = false
+  public var running = false
+  public var attention = false
+  public var streaming = false
+  public var localImageURI: String? = nil
+  public var image: ChatImage? = nil
+  public var file: ChatMessageAttachment? = nil
+  public var fileDiff: ChatFileDiff? = nil
+  public var attachments: [ChatMessageAttachment] = []
+  public var uploadProgress: [String: ChatAttachmentUploadProgress] = [:]
+  public var workDurationMs: Int? = nil
+  public var imageAsset = ""
+  public var subagent: ChatSubagentCard? = nil
+  public var detail = ""
+  public var treeChild = false
+  public var treeLast = false
+  public var treeDown = false
+  public var shines: Bool { running && kind != "duration" }
   /// `only` / `first` / `middle` / `last` for consecutive file rows in one group.
-  var group = ""
+  public var group = ""
+
+  public init(id: String, entryID: String, kind: String, text: String, errorMeta: ChatItem.NoticeMeta? = nil, errorRetry: ChatErrorRetryState? = nil, planIsLatest: Bool = true, planPermissionItemID: String = "", planDecision: ChatPlanDecisionState? = nil, symbol: String = "", itemID: String = "", processStartID: String = "", actionable: Bool = false, running: Bool = false, attention: Bool = false, streaming: Bool = false, localImageURI: String? = nil, image: ChatImage? = nil, file: ChatMessageAttachment? = nil, fileDiff: ChatFileDiff? = nil, attachments: [ChatMessageAttachment] = [], uploadProgress: [String: ChatAttachmentUploadProgress] = [:], workDurationMs: Int? = nil, imageAsset: String = "", subagent: ChatSubagentCard? = nil, detail: String = "", treeChild: Bool = false, treeLast: Bool = false, treeDown: Bool = false, group: String = "") {
+    self.id = id
+    self.entryID = entryID
+    self.kind = kind
+    self.text = text
+    self.errorMeta = errorMeta
+    self.errorRetry = errorRetry
+    self.planIsLatest = planIsLatest
+    self.planPermissionItemID = planPermissionItemID
+    self.planDecision = planDecision
+    self.symbol = symbol
+    self.itemID = itemID
+    self.processStartID = processStartID
+    self.actionable = actionable
+    self.running = running
+    self.attention = attention
+    self.streaming = streaming
+    self.localImageURI = localImageURI
+    self.image = image
+    self.file = file
+    self.fileDiff = fileDiff
+    self.attachments = attachments
+    self.uploadProgress = uploadProgress
+    self.workDurationMs = workDurationMs
+    self.imageAsset = imageAsset
+    self.subagent = subagent
+    self.detail = detail
+    self.treeChild = treeChild
+    self.treeLast = treeLast
+    self.treeDown = treeDown
+    self.group = group
+  }
 }
 
-enum ChatMetaTime {
-  static let relativeDayLimit = 7
+public enum ChatMetaTime: Sendable {
+  public static let relativeDayLimit = 7
 
-  static func label(_ endedAt: Double?, now: Double, calendar: Calendar = .current) -> String {
+  public static func label(_ endedAt: Double?, now: Double, calendar: Calendar = .current) -> String {
     guard let endedAt, endedAt.isFinite, endedAt > 0, now.isFinite else { return "" }
     let ended = Date(timeIntervalSince1970: endedAt / 1000)
     let current = Date(timeIntervalSince1970: now / 1000)
@@ -166,18 +282,18 @@ enum ChatMetaTime {
   }
 }
 
-enum ChatWorkDuration {
+public enum ChatWorkDuration: Sendable {
   private static let fractionalTimestamp = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
   private static let timestamp = Date.ISO8601FormatStyle()
 
-  static func startMilliseconds(for entry: ChatEntry) -> Double? {
+  public static func startMilliseconds(for entry: ChatEntry) -> Double? {
     let parsedTimestamp = entry.timestamp.flatMap {
       (try? fractionalTimestamp.parse($0)) ?? (try? timestamp.parse($0))
     }
     return parsedTimestamp.map { $0.timeIntervalSince1970 * 1000 } ?? entry.startedAt
   }
 
-  static func milliseconds(for entry: ChatEntry, now: Double, startOverride: Double? = nil) -> Int? {
+  public static func milliseconds(for entry: ChatEntry, now: Double, startOverride: Double? = nil) -> Int? {
     let start = startOverride ?? startMilliseconds(for: entry)
     let end = entry.finished ? entry.endedAt : now
     guard let start, let end, start.isFinite, end.isFinite, end >= start,
@@ -191,11 +307,11 @@ enum ChatWorkDuration {
     return Int(max(0, end - start - wait))
   }
 
-  static func needsTimer(_ rows: [ChatRow]) -> Bool {
+  public static func needsTimer(_ rows: [ChatRow]) -> Bool {
     rows.contains { $0.kind == "duration" && $0.running && $0.workDurationMs != nil }
   }
 
-  static func format(
+  public static func format(
     _ milliseconds: Int,
     hour: String,
     minute: String,
@@ -219,71 +335,71 @@ enum ChatWorkDuration {
     value < 10 ? "0\(value)" : String(value)
   }
 
-  static func label(_ milliseconds: Int) -> String {
+  public static func label(_ milliseconds: Int) -> String {
     format(
       milliseconds,
-      hour: String(localized: "native.chat.duration.hour", bundle: .lody),
-      minute: String(localized: "native.chat.duration.minute", bundle: .lody),
-      second: String(localized: "native.chat.duration.second", bundle: .lody)
+      hour: String(localized: "native.chat.duration.hour", bundle: .lodyData),
+      minute: String(localized: "native.chat.duration.minute", bundle: .lodyData),
+      second: String(localized: "native.chat.duration.second", bundle: .lodyData)
     )
   }
 
-  static func title(_ milliseconds: Int, running: Bool) -> String {
+  public static func title(_ milliseconds: Int, running: Bool) -> String {
     let key = running ? "native.chat.transcript.status.workingFor" : "native.chat.transcript.status.workedFor"
-    return String.localizedStringWithFormat(String(localized: String.LocalizationValue(key), bundle: .lody), label(milliseconds))
+    return String.localizedStringWithFormat(String(localized: String.LocalizationValue(key), bundle: .lodyData), label(milliseconds))
   }
 }
 
 /// Conversation stays readable on wide hosts; the scroll view itself stays full-bleed
 /// so the vertical indicator remains on the screen edge.
-enum ChatReadingColumn {
-  static let maximumWidth: CGFloat = 800
-  static let cellMargin: CGFloat = 16
-  static let sectionTop: CGFloat = 4
-  static let sectionBottom: CGFloat = 4
+public enum ChatReadingColumn: Sendable {
+  public static let maximumWidth: CGFloat = 800
+  public static let cellMargin: CGFloat = 16
+  public static let sectionTop: CGFloat = 4
+  public static let sectionBottom: CGFloat = 4
 
-  static func columnWidth(in collectionWidth: CGFloat) -> CGFloat {
+  public static func columnWidth(in collectionWidth: CGFloat) -> CGFloat {
     min(max(1, collectionWidth), maximumWidth)
   }
 
-  static func horizontalInset(in collectionWidth: CGFloat) -> CGFloat {
+  public static func horizontalInset(in collectionWidth: CGFloat) -> CGFloat {
     (max(0, collectionWidth - columnWidth(in: collectionWidth)) / 2) + cellMargin
   }
 
-  static func itemWidth(in collectionWidth: CGFloat) -> CGFloat {
+  public static func itemWidth(in collectionWidth: CGFloat) -> CGFloat {
     max(1, collectionWidth - horizontalInset(in: collectionWidth) * 2)
   }
 }
 
-enum ChatTranscriptPreviewMetrics {
-  static let width: CGFloat = 320
-  static let sectionInset: CGFloat = 16
-  static let symbolGutter: CGFloat = 36
+public enum ChatTranscriptPreviewMetrics: Sendable {
+  public static let width: CGFloat = 320
+  public static let sectionInset: CGFloat = 16
+  public static let symbolGutter: CGFloat = 36
 
-  static func itemWidth(collectionWidth: CGFloat) -> CGFloat {
+  public static func itemWidth(collectionWidth: CGFloat) -> CGFloat {
     let width = collectionWidth > 1 ? collectionWidth : Self.width
     return max(1, width - sectionInset * 2)
   }
 
-  static func textWidth(itemWidth: CGFloat, hasSymbol: Bool) -> CGFloat {
+  public static func textWidth(itemWidth: CGFloat, hasSymbol: Bool) -> CGFloat {
     if !hasSymbol { return itemWidth }
     return max(1, itemWidth - symbolGutter)
   }
 }
 
 /// Stable identities belong to the protocol, never to the streamed text.
-struct ChatTranscript {
-  var entries: [ChatEntry] = []
+public struct ChatTranscript: Sendable {
+  public var entries: [ChatEntry] = []
 
-  func liveSubagentItems() -> [ChatItem] {
+  public func liveSubagentItems() -> [ChatItem] {
     entries.flatMap(\.items).filter(\.isLiveSubagent)
   }
 
   private struct CachedEnvelope: Decodable {
-    let entries: [ChatEntry]?
+    public let entries: [ChatEntry]?
   }
 
-  static func previewRows(from cache: String) -> [ChatRow] {
+  public static func previewRows(from cache: String) -> [ChatRow] {
     guard let data = cache.data(using: .utf8) else { return [] }
     if let envelope = try? JSONDecoder().decode(CachedEnvelope.self, from: data),
        let entries = envelope.entries {
@@ -297,7 +413,7 @@ struct ChatTranscript {
 
   /// Provider-proven continuation groups retain original row identities. Only
   /// the finished presentation moves user bubbles above the combined process.
-  func rows(
+  public func rows(
     processEntryID: String = "",
     processStartID: String = "",
     now: Double = Date().timeIntervalSince1970 * 1000,
@@ -335,7 +451,7 @@ struct ChatTranscript {
         var result = users
         if !process.isEmpty {
           result.append(ChatRow(id: groupID + ":execution", entryID: tail.id, kind: "summary",
-            text: String.localizedStringWithFormat(String(localized: "native.chat.transcript.execution", bundle: .lody), String(describing: String(tail.steerCount ?? 0))),
+            text: String.localizedStringWithFormat(String(localized: "native.chat.transcript.execution", bundle: .lodyData), String(describing: String(tail.steerCount ?? 0))),
             symbol: "circle.fill", processStartID: "__execution__", actionable: true))
         }
         result += members.filter { $0.role == "assistant" }.flatMap {
@@ -418,7 +534,7 @@ struct ChatTranscript {
         if let delivery = entry.delivery, delivery != "accepted" {
           let key = "native.chat.message.guide." + delivery
           result.insert(ChatRow(id: entry.id + ":delivery", entryID: entry.id, kind: "delivery",
-            text: String(localized: String.LocalizationValue(key), bundle: .lody), attention: delivery == "rejected" || delivery == "unknown"), at: 0)
+            text: String(localized: String.LocalizationValue(key), bundle: .lodyData), attention: delivery == "rejected" || delivery == "unknown"), at: 0)
         }
         return result
       }
@@ -572,16 +688,16 @@ struct ChatTranscript {
         case "tool_call":
           row.symbol = ["read": "doc.text.magnifyingglass", "search": "magnifyingglass", "edit": "square.and.pencil",
             "write": "square.and.pencil", "execute": "terminal", "bash": "terminal", "fetch": "globe"][item.kind ?? ""] ?? "wrench.and.screwdriver"
-          row.text = item.title.flatMap { $0.isEmpty ? nil : $0 } ?? item.path ?? String(localized: "native.chat.transcript.tool", bundle: .lody)
-          if item.permission?.pending == true { row.text = String.localizedStringWithFormat(String(localized: "native.chat.transcript.pending", bundle: .lody), String(describing: row.text)) }
-          else if item.status == "failed" { row.text = String.localizedStringWithFormat(String(localized: "native.chat.transcript.failed", bundle: .lody), String(describing: row.text)) }
+          row.text = item.title.flatMap { $0.isEmpty ? nil : $0 } ?? item.path ?? String(localized: "native.chat.transcript.tool", bundle: .lodyData)
+          if item.permission?.pending == true { row.text = String.localizedStringWithFormat(String(localized: "native.chat.transcript.pending", bundle: .lodyData), String(describing: row.text)) }
+          else if item.status == "failed" { row.text = String.localizedStringWithFormat(String(localized: "native.chat.transcript.failed", bundle: .lodyData), String(describing: row.text)) }
           row.actionable = item.hasDetail == true || item.permission?.pending == true
         case "plan":
           row.text = (item.entries ?? []).map { planPrefix($0.status) + $0.content }.joined(separator: "\n")
         case "subagent_task":
           row = ChatTranscript.subagentRow(entry: entry, item: item)
         default:
-          row.text = item.title ?? String(localized: "native.chat.transcript.event", bundle: .lody)
+          row.text = item.title ?? String(localized: "native.chat.transcript.event", bundle: .lodyData)
           row.symbol = "info.circle"
         }
         if !row.text.isEmpty { result.append(row) }
@@ -603,7 +719,7 @@ struct ChatTranscript {
           let del = files.reduce(0) { $0 + ($1.del ?? 0) }
           var header = ChatRow(
             id: entry.id + ":changes", entryID: entry.id, kind: "changesHeader",
-            text: String.localizedStringWithFormat(String(localized: "native.chat.transcript.fileCount", bundle: .lody), files.count),
+            text: String.localizedStringWithFormat(String(localized: "native.chat.transcript.fileCount", bundle: .lodyData), files.count),
             fileDiff: ChatFileDiff(path: "", add: add, del: del, status: nil)
           )
           header.group = "first"
@@ -621,10 +737,14 @@ struct ChatTranscript {
       return result
     }
   }
+
+  public init(entries: [ChatEntry] = []) {
+    self.entries = entries
+  }
 }
 
 extension ChatTranscript {
-  static func hangSubagents(_ rows: [ChatRow]) -> [ChatRow] {
+  public static func hangSubagents(_ rows: [ChatRow]) -> [ChatRow] {
     var tasks = rows.filter { $0.kind == "subagent_task" }
     var result = rows.filter { $0.kind != "subagent_task" }
     guard !tasks.isEmpty, let process = result.firstIndex(where: { $0.kind == "duration" }) else { return rows }
@@ -646,14 +766,14 @@ extension ChatTranscript {
     let running = item.status == "in_progress" || item.status == "pending"
     var detail = ""
     if item.status == "in_progress", !tool.isEmpty {
-      detail = String.localizedStringWithFormat(String(localized: "native.chat.subagent.runningTool", bundle: .lody), String(describing: tool))
+      detail = String.localizedStringWithFormat(String(localized: "native.chat.subagent.runningTool", bundle: .lodyData), String(describing: tool))
     } else if item.status == "completed" {
       detail = summary
     } else if item.status == "failed" {
       detail = error
     }
     let card = ChatSubagentCard(
-      actor: actor.isEmpty ? String(localized: "native.chat.transcript.subtask", bundle: .lody) : actor,
+      actor: actor.isEmpty ? String(localized: "native.chat.transcript.subtask", bundle: .lodyData) : actor,
       description: description == actor ? "" : description,
       status: item.status ?? "pending",
       detail: detail,
@@ -675,20 +795,28 @@ extension ChatTranscript {
   }
 }
 
-struct ChatSubagentCard: Equatable {
-  var actor: String
-  var description: String
-  var status: String
-  var detail: String
-  var background: Bool
+public struct ChatSubagentCard: Equatable, Sendable {
+  public var actor: String
+  public var description: String
+  public var status: String
+  public var detail: String
+  public var background: Bool
+
+  public init(actor: String, description: String, status: String, detail: String, background: Bool) {
+    self.actor = actor
+    self.description = description
+    self.status = status
+    self.detail = detail
+    self.background = background
+  }
 }
 
-enum ChatProcessSummary {
-  static func mark(attention: Bool) -> String {
+public enum ChatProcessSummary: Sendable {
+  public static func mark(attention: Bool) -> String {
     attention ? "exclamationmark.triangle.fill" : "circle.fill"
   }
 
-  static func title(items: [ChatItem], running: Bool, includesThought: Bool = true) -> String {
+  public static func title(items: [ChatItem], running: Bool, includesThought: Bool = true) -> String {
     var readPaths = Set<String>()
     var editPaths = Set<String>()
     var readWithout = 0
@@ -725,7 +853,7 @@ enum ChatProcessSummary {
     if hasThought && includesThought {
       parts.append(String(localized: String.LocalizationValue(running
           ? "native.chat.transcript.activity.thinking"
-          : "native.chat.transcript.activity.thought"), bundle: .lody))
+          : "native.chat.transcript.activity.thought"), bundle: .lodyData))
     }
     add(&parts, "native.chat.transcript.activity.commands", commands)
     add(&parts, "native.chat.transcript.activity.readFiles", readPaths.count + readWithout)
@@ -734,14 +862,14 @@ enum ChatProcessSummary {
     add(&parts, "native.chat.transcript.activity.fetches", fetches)
     add(&parts, "native.chat.transcript.activity.tools", others)
     if parts.isEmpty && includesThought {
-      return String(localized: "native.chat.transcript.status.done", bundle: .lody)
+      return String(localized: "native.chat.transcript.status.done", bundle: .lodyData)
     }
     return parts.joined(separator: " · ")
   }
 
   private static func add(_ parts: inout [String], _ key: String, _ count: Int) {
     guard count > 0 else { return }
-    parts.append(String.localizedStringWithFormat(String(localized: String.LocalizationValue(key), bundle: .lody), count))
+    parts.append(String.localizedStringWithFormat(String(localized: String.LocalizationValue(key), bundle: .lodyData), count))
   }
 }
 
@@ -755,7 +883,7 @@ private func planPrefix(_ status: String?) -> String {
 }
 
 extension ChatPendingSend {
-  static func hidingStatus(_ rows: [ChatRow], inFlight: Set<String>) -> [ChatRow] {
+  public static func hidingStatus(_ rows: [ChatRow], inFlight: Set<String>) -> [ChatRow] {
     guard !inFlight.isEmpty else { return rows }
     return rows.filter { row in
       switch row.kind {
@@ -767,7 +895,7 @@ extension ChatPendingSend {
     }
   }
 
-  func rows(entries: [ChatEntry]) -> [ChatRow] {
+  public func rows(entries: [ChatEntry]) -> [ChatRow] {
     guard (queue != true || failed == true), !entries.contains(where: { $0.id == id && $0.isQueued }) else { return [] }
     var result: [ChatRow] = []
     if !entries.contains(where: { $0.id == id }) {
@@ -801,7 +929,7 @@ extension ChatPendingSend {
     let hasDelivery = entries.contains { $0.id == id && $0.delivery != nil }
     let acknowledged = phase == "accepted"
     if !hasReply && !acknowledged && !hasDelivery {
-      let delivery = status.isEmpty ? String(localized: "send.status.awaitingConnection", bundle: .lody) : status
+      let delivery = status.isEmpty ? String(localized: "send.status.awaitingConnection", bundle: .lodyData) : status
       result.insert(ChatRow(id: id + ":delivery", entryID: id, kind: "delivery", text: delivery,
         attention: phase == "unknown"), at: 0)
     }
@@ -823,45 +951,62 @@ extension ChatPendingSend {
 }
 
 // Unknown reasons retain their payload in the detail page and use a localized fallback.
-enum ChatFailure {
-  static func title(_ meta: ChatItem.NoticeMeta?) -> String {
+public enum ChatFailure: Sendable {
+  public static func title(_ meta: ChatItem.NoticeMeta?) -> String {
     if meta?.code == "git_executable_not_found" {
-      return String(localized: "native.chat.error.git_executable_not_found", bundle: .lody)
+      return String(localized: "native.chat.error.git_executable_not_found", bundle: .lodyData)
     }
     let known: Set<String> = ["unknown", "session_archived", "agent_type_mismatch", "session_init_failed", "session_restore_failed", "session_not_found", "memory_pressure", "acp_not_ready", "agent_disconnected", "agent_no_output", "turn_pre_prompt_failed", "message_delivery_failed", "machine_access_denied", "acp_auth_required", "acp_internal_error", "acp_upstream_api_error", "acp_provider_overloaded", "acp_session_storage_incompatible", "acp_resource_not_found", "acp_request_cancelled", "acp_method_not_found", "acp_invalid_params", "acp_invalid_request", "acp_parse_error", "acp_unknown_error"]
     let reason = meta?.reason ?? "unknown"
-    return String(localized: String.LocalizationValue("native.chat.error." + (known.contains(reason) ? reason : "unknown")), bundle: .lody)
+    return String(localized: String.LocalizationValue("native.chat.error." + (known.contains(reason) ? reason : "unknown")), bundle: .lodyData)
   }
 }
 
 
-struct ChatErrorRetryState: Decodable, Equatable {
-  let entryId: String
-  let itemId: String
-  let enabled: Bool
-  let pending: Bool
-  let visible: Bool
-  let message: String
+public struct ChatErrorRetryState: Decodable, Equatable, Sendable {
+  public let entryId: String
+  public let itemId: String
+  public let enabled: Bool
+  public let pending: Bool
+  public let visible: Bool
+  public let message: String
+
+  public init(entryId: String, itemId: String, enabled: Bool, pending: Bool, visible: Bool, message: String) {
+    self.entryId = entryId
+    self.itemId = itemId
+    self.enabled = enabled
+    self.pending = pending
+    self.visible = visible
+    self.message = message
+  }
 }
 
 extension ChatFailure {
-  static func hasDetail(_ meta: ChatItem.NoticeMeta?) -> Bool {
+  public static func hasDetail(_ meta: ChatItem.NoticeMeta?) -> Bool {
     [meta?.message, meta?.code].contains { !($0 ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
   }
-  static func summary(_ meta: ChatItem.NoticeMeta?) -> String {
-    if meta?.code == "git_executable_not_found" { return String(localized: "native.chat.error.gitSummary", bundle: .lody) }
+  public static func summary(_ meta: ChatItem.NoticeMeta?) -> String {
+    if meta?.code == "git_executable_not_found" { return String(localized: "native.chat.error.gitSummary", bundle: .lodyData) }
     let descriptions = ["acp_provider_overloaded": "capacitySummary", "acp_auth_required": "authSummary", "machine_access_denied": "accessSummary"]
-    if let key = descriptions[meta?.reason ?? ""] { return String(localized: String.LocalizationValue("native.chat.error." + key), bundle: .lody) }
+    if let key = descriptions[meta?.reason ?? ""] { return String(localized: String.LocalizationValue("native.chat.error." + key), bundle: .lodyData) }
     let message = (meta?.message ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    if message.isEmpty || message.hasPrefix("{") || message.hasPrefix("[") { return String(localized: "native.chat.error.summary", bundle: .lody) }
+    if message.isEmpty || message.hasPrefix("{") || message.hasPrefix("[") { return String(localized: "native.chat.error.summary", bundle: .lodyData) }
     return String(message.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ").prefix(260))
   }
 }
 
-struct ChatPlanDecisionState: Decodable, Equatable {
-  let entryId: String
-  let itemId: String
-  let enabled: Bool
-  let pending: Bool
-  let message: String
+public struct ChatPlanDecisionState: Decodable, Equatable, Sendable {
+  public let entryId: String
+  public let itemId: String
+  public let enabled: Bool
+  public let pending: Bool
+  public let message: String
+
+  public init(entryId: String, itemId: String, enabled: Bool, pending: Bool, message: String) {
+    self.entryId = entryId
+    self.itemId = itemId
+    self.enabled = enabled
+    self.pending = pending
+    self.message = message
+  }
 }

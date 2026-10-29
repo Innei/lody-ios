@@ -8,6 +8,7 @@ let package = Package(
   products: [.library(name: "LodyData", targets: ["LodyData"])],
   dependencies: [
     .package(path: "../lody-core"),
+    .package(path: "../chat-kit"),
     .package(url: "https://github.com/Lakr233/MarkdownView.git", exact: "4.6.5"),
   ],
   targets: [
@@ -17,6 +18,7 @@ let package = Package(
         .product(name: "LodyCore", package: "lody-core"),
         .product(name: "LodyRuntime", package: "lody-core"),
         .product(name: "MarkdownParser", package: "MarkdownView"),
+        .product(name: "ChatKitCore", package: "chat-kit"),
       ],
       resources: [.process("Resources")]
     ),

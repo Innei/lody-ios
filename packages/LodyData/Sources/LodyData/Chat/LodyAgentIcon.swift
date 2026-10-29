@@ -1,6 +1,6 @@
 import Foundation
 
-enum LodyAgentIcon {
+public enum LodyAgentIcon: Sendable {
   private static let kinds: Set<String> = [
     "claude", "codex", "kimi", "grok", "deepseek", "minimax", "glm", "mimo", "opencode", "gemini", "openai",
   ]
@@ -23,7 +23,7 @@ enum LodyAgentIcon {
     "chatglm": "glm",
   ]
 
-  static func asset(modelId: String?, name: String?) -> String? {
+  public static func asset(modelId: String?, name: String?) -> String? {
     for raw in [modelId, name] {
       guard let raw else { continue }
       let value = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()

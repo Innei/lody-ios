@@ -1,13 +1,13 @@
 import Foundation
 
 // Optional metadata comes from peer history. Invalid usage is absent, never zero.
-struct ChatTurnUsage: Decodable {
-  let values: [String: Double]?
+public struct ChatTurnUsage: Decodable, Sendable {
+  public let values: [String: Double]?
   private enum Key: String, CodingKey, CaseIterable {
     case inputTokens, outputTokens, reasoningOutputTokens, cacheReadInputTokens, cacheCreationInputTokens
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     guard let container = try? decoder.container(keyedBy: Key.self) else { values = nil; return }
     var raw: [String: Double] = [:]
     for key in Key.allCases {
@@ -19,21 +19,21 @@ struct ChatTurnUsage: Decodable {
   }
 }
 
-struct ChatTurnInput: Decodable {
-  let modeId: String?
-  let options: [String: String]
+public struct ChatTurnInput: Decodable, Sendable {
+  public let modeId: String?
+  public let options: [String: String]
 
   private enum Keys: String, CodingKey { case modeId, configOptionValues }
   private struct Option: Decodable {
-    let value: String?
-    init(from decoder: Decoder) throws {
+    public let value: String?
+    public init(from decoder: Decoder) throws {
       let container = try decoder.singleValueContainer()
       if let boolean = try? container.decode(Bool.self) { value = String(boolean) }
       else { value = try? container.decode(String.self) }
     }
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try? decoder.container(keyedBy: Keys.self)
     modeId = (try? container?.decode(String.self, forKey: .modeId))?.trimmingCharacters(in: .whitespacesAndNewlines)
     let raw = (try? container?.decode([String: Option].self, forKey: .configOptionValues)) ?? [:]

@@ -4,7 +4,7 @@ import Security
 /// Authenticated sharing operations stay native. The WebView receives only
 /// per-share capabilities, never the Better Auth credential or Convex JWT.
 @MainActor public enum SessionSharing: Sendable {
-  public struct ManagementFailure: Error, Sendable { let code: String }
+  public struct ManagementFailure: Error, Sendable { public let code: String }
   public typealias ManagementCall = @MainActor (String, [String: Any]) async throws -> Any
   public typealias LinkAction = @MainActor (String, URL) async throws -> Void
   private final class NoRedirect: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
