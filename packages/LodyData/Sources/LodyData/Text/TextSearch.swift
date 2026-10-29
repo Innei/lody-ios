@@ -1,7 +1,7 @@
 import Foundation
 
-enum TextSearch {
-  static func ranges(in text: String, query: String) -> [NSRange] {
+public enum TextSearch {
+  public static func ranges(in text: String, query: String) -> [NSRange] {
     guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
     var result: [NSRange] = []
     var start = text.startIndex
@@ -16,7 +16,7 @@ enum TextSearch {
     return result
   }
 
-  static func snippet(_ text: String, query: String) -> String? {
+  public static func snippet(_ text: String, query: String) -> String? {
     guard let match = text.localizedStandardRange(of: query) else { return nil }
     var start = text.index(match.lowerBound, offsetBy: -18, limitedBy: text.startIndex) ?? text.startIndex
     if start > text.startIndex, !text[text.index(before: start)].isWhitespace,

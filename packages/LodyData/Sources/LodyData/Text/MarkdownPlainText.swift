@@ -3,7 +3,7 @@ import MarkdownParser
 
 /// Readable Markdown before UI decoration. No link destinations, image metadata,
 /// format delimiters or renderer replacement tokens escape into search/copy text.
-enum MarkdownPlainText {
+public enum MarkdownPlainText {
   // NSCache owns synchronization; immutable strings are safe across parser queues.
   nonisolated(unsafe) private static let cache: NSCache<NSString, NSString> = {
     let cache = NSCache<NSString, NSString>()
@@ -12,14 +12,14 @@ enum MarkdownPlainText {
     return cache
   }()
 
-  static func string(_ source: String) -> String {
+  public static func string(_ source: String) -> String {
     if let saved = cache.object(forKey: source as NSString) { return saved as String }
     let text = blocks(MarkdownParser().parse(source).document)
     cache.setObject(text as NSString, forKey: source as NSString, cost: source.utf8.count + text.utf8.count)
     return text
   }
 
-  static func clearCache() { cache.removeAllObjects() }
+  public static func clearCache() { cache.removeAllObjects() }
 
   private static func blocks(_ nodes: [MarkdownBlockNode]) -> String {
     nodes.map { node in

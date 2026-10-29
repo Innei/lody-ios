@@ -8,6 +8,7 @@ let package = Package(
   products: [.library(name: "LodyKit", targets: ["LodyKit"])],
   dependencies: [
     .package(path: "../lody-core"),
+    .package(path: "../LodyData"),
     .package(path: "../chat-kit"),
     .package(path: "../lexical-swift"),
     .package(path: "../../node_modules/@rien7/anchored-overlay-kit"),
@@ -24,6 +25,7 @@ let package = Package(
       dependencies: [
         .product(name: "LodyCore", package: "lody-core"),
         .product(name: "LodyRuntime", package: "lody-core"),
+        .product(name: "LodyData", package: "LodyData"),
         .product(name: "ChatKit", package: "chat-kit"),
         .product(name: "Lexical", package: "lexical-swift"),
         .product(name: "LexicalListPlugin", package: "lexical-swift"),

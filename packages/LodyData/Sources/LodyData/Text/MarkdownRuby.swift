@@ -2,14 +2,14 @@ import Foundation
 import MarkdownParser
 
 /// Consume only parsed HTML nodes: code and escaped tags must stay literal.
-enum MarkdownRuby {
-  struct Annotation: Codable {
-    let base: String
-    let reading: String
+public enum MarkdownRuby {
+  public struct Annotation: Codable, Sendable {
+    public let base: String
+    public let reading: String
   }
-  static let marker = "\u{F0000}lody-ruby:"
+  public static let marker = "\u{F0000}lody-ruby:"
 
-  static func blocks(_ nodes: [MarkdownBlockNode]) -> [MarkdownBlockNode] {
+  public static func blocks(_ nodes: [MarkdownBlockNode]) -> [MarkdownBlockNode] {
     nodes.rewrite { (node: MarkdownBlockNode) -> [MarkdownBlockNode] in
       switch node {
       case .paragraph(let children): return [.paragraph(content: inline(children, render: encoded))]
@@ -28,12 +28,12 @@ enum MarkdownRuby {
     return .text(marker + data.base64EncodedString())
   }
 
-  static func decode(_ text: String) -> Annotation? {
+  public static func decode(_ text: String) -> Annotation? {
     guard text.hasPrefix(marker), let data = Data(base64Encoded: String(text.dropFirst(marker.count))) else { return nil }
     return try? JSONDecoder().decode(Annotation.self, from: data)
   }
 
-  static func inline(_ nodes: [MarkdownInlineNode], render: (Annotation) -> MarkdownInlineNode) -> [MarkdownInlineNode] {
+  public static func inline(_ nodes: [MarkdownInlineNode], render: (Annotation) -> MarkdownInlineNode) -> [MarkdownInlineNode] {
     var result: [MarkdownInlineNode] = []
     var index = 0
     while index < nodes.count {

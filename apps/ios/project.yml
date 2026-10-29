@@ -53,6 +53,8 @@ packages:
     path: ../../packages/LodyKit
   LodyCore:
     path: '../../packages/lody-core'
+  LodyData:
+    path: '../../packages/LodyData'
   ChatKit:
     path: '../../packages/chat-kit'
   Lexical:
@@ -141,7 +143,6 @@ targets:
           - List/LodyRowDensity.swift
           - List/LodySessionRowView.swift
           - List/LodyStatusGlyph.swift
-          - Text/TextSearch.swift
           - List/LodyStepStrip.swift
           - List/LodyUnreadNavigationHold.swift
           - List/LodyListStatus.swift
@@ -175,6 +176,11 @@ targets:
           - CreateSession/CreateSessionPickers.swift
           - CreateSession/ShareStore.swift
           - Resources/Localizable.xcstrings
+      - path: ../../packages/LodyData/Sources/LodyData
+        group: Shared Extension Sources
+        createIntermediateGroups: false
+        includes:
+          - Text/TextSearch.swift
       - App/Icons.xcassets
       - App/Colors.xcassets
       - Extensions/LiveActivity/AgentIcons.xcassets

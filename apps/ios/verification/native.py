@@ -10,6 +10,16 @@ from simulator import run_with_simulator, SimulatorPool
 
 root = Path(__file__).resolve().parents[3]
 kit = root / 'packages/LodyKit'
+data = root / 'packages/LodyData/Sources/LodyData'
+
+
+def source(file):
+    path = Path(file)
+    if path.is_absolute():
+        return path
+    shared = data / path
+    return shared if shared.exists() else kit / 'Sources/LodyKit' / path
+
 checks_root = root / 'apps/ios/verification/kit'
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--case', help='Run one named native check, such as attachments or chat')
@@ -175,7 +185,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             sources = package / 'Sources'
             sources.mkdir(parents=True)
             for file in files:
-                (sources / Path(file).name).symlink_to(kit / 'Sources/LodyKit' / file)
+                (sources / Path(file).name).symlink_to(source(file))
             (sources / 'Resources').symlink_to(kit / 'Sources/LodyKit/Resources', target_is_directory=True)
             (sources / 'main.swift').symlink_to(checks_root / name / 'main.swift')
             (package / 'Package.swift').symlink_to(checks_root / name / 'Package.swift')
@@ -214,7 +224,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
         if name in ['chat-render', 'composer', 'context-chip', 'chat-title', 'chat-subagent', 'chat-files']:
             command += ['-framework', 'SwiftUI']
         main = checks_root / name / 'main.swift'
-        package_sources = [kit / 'Sources/LodyKit' / file for file in files] + [main]
+        package_sources = [source(file) for file in files] + [main]
         if any('import LodyCore' in source.read_text() for source in package_sources):
             directory = Path(output) / ('lody-core-ios' if simulator else 'lody-core-host')
             if not directory.exists():
@@ -235,7 +245,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
         if any('import Lexical' in source.read_text() for source in package_sources):
             modules = lexical_package()
             command += ['-I', str(modules), '-L', str(modules)] + [f'-l{module}' for module, _ in lexical_modules]
-        command += [str(kit / 'Sources/LodyKit' / file) for file in files]
+        command += [str(source(file)) for file in files]
         command += [str(main), '-o', binary]
         # Xcode 27 CI compiles the larger chat/composer graphs much slower than a local Mac.
         subprocess.run(command, check=True, timeout=240)
