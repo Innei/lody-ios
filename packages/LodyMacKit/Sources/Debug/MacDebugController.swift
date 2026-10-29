@@ -39,7 +39,7 @@ final class MacDebugController: NSViewController, NSTableViewDataSource, NSTable
     stack.translatesAutoresizingMaskIntoConstraints = false
     root.addSubview(stack)
     NSLayoutConstraint.activate([
-      stack.topAnchor.constraint(equalTo: root.topAnchor),
+      stack.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor),
       stack.leadingAnchor.constraint(equalTo: root.leadingAnchor),
       stack.trailingAnchor.constraint(equalTo: root.trailingAnchor),
       stack.bottomAnchor.constraint(equalTo: root.bottomAnchor),

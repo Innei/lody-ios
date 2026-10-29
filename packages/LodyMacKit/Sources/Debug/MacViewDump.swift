@@ -23,10 +23,23 @@ enum MacViewDump {
     try data.write(to: url, options: .atomic)
   }
 
+  static func snapshot(_ window: NSWindow, to url: URL) throws {
+    guard let frame = window.contentView?.superview ?? window.contentView,
+          let bitmap = frame.bitmapImageRepForCachingDisplay(in: frame.bounds) else { throw CocoaError(.fileWriteUnknown) }
+    frame.cacheDisplay(in: frame.bounds, to: bitmap)
+    guard let data = bitmap.representation(using: .png, properties: [:]) else { throw CocoaError(.fileWriteUnknown) }
+    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try data.write(to: url, options: .atomic)
+  }
+
   private static func node(_ view: NSView) -> [String: Any] {
     var entry: [String: Any] = ["class": String(describing: type(of: view)), "frame": frame(view.frame)]
     if !view.accessibilityIdentifier().isEmpty { entry["identifier"] = view.accessibilityIdentifier() }
     if view.isHidden { entry["hidden"] = true }
+    if let clip = view as? NSClipView {
+      entry["bounds"] = frame(clip.bounds)
+      if let scroll = clip.enclosingScrollView { entry["insets"] = [scroll.contentInsets.top, scroll.contentInsets.bottom].map { Double($0) } }
+    }
     if let text = text(view), !text.isEmpty { entry["text"] = text }
     if let placeholder = (view as? MacComposerTextView)?.placeholder ?? (view as? NSTextField)?.placeholderString, !placeholder.isEmpty {
       entry["placeholder"] = placeholder

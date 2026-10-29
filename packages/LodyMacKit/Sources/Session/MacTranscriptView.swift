@@ -10,6 +10,9 @@ final class MacTranscriptView: NSView {
   private var rows: [String: (item: MacTranscriptItem, view: NSView)] = [:]
   private var renderedCard: MacPermissionFlow.Card?
   private var cardView: MacPermissionCard?
+  private var pinned = true
+  private var userScrolling = false
+  private var observers: [NSObjectProtocol] = []
   var onAnswer: ((String) -> Void)?
   var onRetry: (() -> Void)?
 
@@ -43,12 +46,47 @@ final class MacTranscriptView: NSView {
       column.widthAnchor.constraint(lessThanOrEqualToConstant: 780),
       column.widthAnchor.constraint(equalTo: document.widthAnchor).withPriority(.defaultHigh),
     ])
+    document.postsFrameChangedNotifications = true
+    scroll.contentView.postsFrameChangedNotifications = true
+    scroll.contentView.postsBoundsChangedNotifications = true
+    // Markdown rows settle their height after render and title bar insets arrive late, so the pin follows geometry.
+    let geometry: [(NSNotification.Name, NSView)] = [
+      (NSView.frameDidChangeNotification, document),
+      (NSView.frameDidChangeNotification, scroll.contentView),
+      (NSView.boundsDidChangeNotification, scroll.contentView),
+    ]
+    for (name, view) in geometry {
+      observers.append(NotificationCenter.default.addObserver(forName: name, object: view, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated { self?.followBottom() }
+      })
+    }
+    let live: [(NSNotification.Name, Bool)] = [(NSScrollView.willStartLiveScrollNotification, true), (NSScrollView.didEndLiveScrollNotification, false)]
+    for (name, scrolling) in live {
+      observers.append(NotificationCenter.default.addObserver(forName: name, object: scroll, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated {
+          guard let self else { return }
+          self.userScrolling = scrolling
+          if !scrolling { self.pinned = self.isScrolledToBottom }
+        }
+      })
+    }
   }
 
   required init?(coder: NSCoder) { nil }
 
+  isolated deinit {
+    for observer in observers { NotificationCenter.default.removeObserver(observer) }
+  }
+
+  private func followBottom() {
+    guard pinned, !userScrolling, let document = scroll.documentView else { return }
+    let target = max(-scroll.contentInsets.top, document.frame.height - scroll.contentView.bounds.height + scroll.contentInsets.bottom)
+    guard abs(scroll.contentView.bounds.origin.y - target) > 0.5 else { return }
+    scroll.contentView.scroll(to: NSPoint(x: 0, y: target))
+    scroll.reflectScrolledClipView(scroll.contentView)
+  }
+
   func render(_ model: MacTranscriptModel, card: MacPermissionFlow.Card? = nil) {
-    let pinnedToBottom = isScrolledToBottom
     if model.items != rendered {
       rendered = model.items
       place(model.items)
@@ -63,7 +101,7 @@ final class MacTranscriptView: NSView {
         return view
       }
     }
-    if pinnedToBottom { scrollToBottom() }
+    if pinned { scrollToBottom() }
   }
 
   private func place(_ items: [MacTranscriptItem]) {
@@ -97,16 +135,14 @@ final class MacTranscriptView: NSView {
     return nil
   }
 
-  private var isScrolledToBottom: Bool {
+  var isScrolledToBottom: Bool {
     guard let document = scroll.documentView else { return true }
-    return scroll.contentView.bounds.maxY >= document.frame.height - 24
+    return scroll.contentView.bounds.maxY - scroll.contentInsets.bottom >= document.frame.height - 24
   }
 
   private func scrollToBottom() {
     layoutSubtreeIfNeeded()
-    guard let document = scroll.documentView else { return }
-    scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, document.frame.height - scroll.contentView.bounds.height)))
-    scroll.reflectScrolledClipView(scroll.contentView)
+    followBottom()
   }
 
   private func add(_ view: NSView) {

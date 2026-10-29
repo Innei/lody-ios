@@ -54,11 +54,16 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
     case .appearance(let mode):
       let names: [String: NSAppearance.Name] = ["light": .aqua, "dark": .darkAqua]
       NSApp.appearance = names[mode].flatMap(NSAppearance.init(named:))
+    case .snapshot(let out):
+      guard let window = MacSceneHost.shared.front else { return }
+      do { try MacViewDump.snapshot(window, to: out) } catch {
+        DiagnosticsStore.shared.record("mac", "snapshot_failed", fields: ["code": String((error as NSError).code)])
+      }
     case .act(let seq, let action):
       MacVerifyActions.run(seq, action, in: MacSceneHost.shared.front)
     case .dump(let out):
       do { try MacViewDump.write(to: out) } catch {
-        DiagnosticsStore.shared.record("mac", "dump_failed", fields: ["error": error.localizedDescription])
+        DiagnosticsStore.shared.record("mac", "dump_failed", fields: ["code": String((error as NSError).code)])
       }
     }
   }

@@ -50,7 +50,7 @@ final class MacSettingsController: NSViewController {
     let root = NSView(frame: NSRect(x: 0, y: 0, width: 520, height: 300))
     root.addSubview(stack)
     NSLayoutConstraint.activate([
-      stack.topAnchor.constraint(equalTo: root.topAnchor),
+      stack.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor),
       stack.leadingAnchor.constraint(equalTo: root.leadingAnchor),
       stack.trailingAnchor.constraint(equalTo: root.trailingAnchor),
       stack.bottomAnchor.constraint(lessThanOrEqualTo: root.bottomAnchor),

@@ -209,3 +209,71 @@ final class MacWorkspaceChromeTests: XCTestCase {
     XCTAssertEqual(selected, ["w-side"])
   }
 }
+
+@MainActor
+final class MacLayoutTests: XCTestCase {
+  func testTheTranscriptStaysPinnedToTheBottomAfterRowsSettle() {
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 400), styleMask: [.titled], backing: .buffered, defer: false)
+    let transcript = MacTranscriptView(frame: .zero)
+    var model = MacTranscriptModel(entriesJSON: "[]")
+    model.items = (0..<6).map { .prose(id: "p\($0)", markdown: "Paragraph \($0)\n\n- one\n- two\n- three") }
+    let json = """
+    [{"id":"a1","role":"assistant","items":[{"itemId":"edit","type":"tool_call","kind":"edit","title":"Edit file","permission":{"pending":true,"requestId":"r1","options":[{"optionId":"allow","name":"Allow","kind":"allow_once"}]}}]}]
+    """
+    let entries = try! JSONSerialization.jsonObject(with: Data(json.utf8)) as! [[String: Any]]
+    let permission = try! SessionPermission.first(in: entries)!
+    transcript.render(model, card: .init(permission: permission, options: permission.options ?? [], busy: false, error: ""))
+    let container = NSView(frame: NSRect(x: 0, y: 0, width: 700, height: 400))
+    window.contentView = container
+    container.addSubview(transcript)
+    transcript.frame = NSRect(x: 0, y: 0, width: 700, height: 400)
+    window.layoutIfNeeded()
+    transcript.layoutSubtreeIfNeeded()
+    let scroll = transcript.descendants(NSScrollView.self).first!
+    XCTAssertGreaterThan(scroll.documentView!.frame.height, scroll.contentView.bounds.height, "the transcript must overflow")
+    XCTAssertTrue(transcript.isScrolledToBottom, "\(scroll.contentView.bounds) in \(scroll.documentView!.frame)")
+  }
+
+  func testSettingsContentStartsBelowTheTitleBar() {
+    let window = MacSceneHost.window(MacSettingsController(), title: "Settings", size: NSSize(width: 520, height: 300))
+    defer { window.close() }
+    window.layoutIfNeeded()
+    let root = window.contentView!
+    let grid = root.descendants(NSGridView.self).first!
+    let top = grid.convert(grid.bounds, to: root).maxY
+    XCTAssertLessThanOrEqual(top, root.bounds.height - root.safeAreaInsets.top + 0.5)
+  }
+}
+
+@MainActor
+final class MacTranscriptPinTests: XCTestCase {
+  func testRowsThatGrowAfterRenderKeepTheTranscriptPinned() {
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 400), styleMask: [.titled], backing: .buffered, defer: false)
+    let transcript = MacTranscriptView(frame: NSRect(x: 0, y: 0, width: 700, height: 400))
+    window.contentView = transcript
+    var model = MacTranscriptModel(entriesJSON: "[]")
+    model.items = (0..<12).map { .user(id: "u\($0)", text: "Message \($0)") }
+    transcript.render(model)
+    window.layoutIfNeeded()
+    XCTAssertTrue(transcript.isScrolledToBottom)
+    transcript.rowViews.last!.heightAnchor.constraint(equalToConstant: 300).isActive = true
+    window.layoutIfNeeded()
+    transcript.layoutSubtreeIfNeeded()
+    XCTAssertTrue(transcript.isScrolledToBottom)
+  }
+
+  func testInsetChangesAfterRenderKeepTheTranscriptPinned() {
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 400), styleMask: [.titled], backing: .buffered, defer: false)
+    let transcript = MacTranscriptView(frame: NSRect(x: 0, y: 0, width: 700, height: 400))
+    window.contentView = transcript
+    var model = MacTranscriptModel(entriesJSON: "[]")
+    model.items = (0..<20).map { .user(id: "u\($0)", text: "Message \($0)") }
+    transcript.render(model)
+    window.layoutIfNeeded()
+    let scroll = transcript.descendants(NSScrollView.self).first!
+    scroll.automaticallyAdjustsContentInsets = false
+    scroll.contentInsets = NSEdgeInsets(top: 52, left: 0, bottom: 0, right: 0)
+    window.layoutIfNeeded()
+    XCTAssertTrue(transcript.isScrolledToBottom, "\(scroll.contentView.bounds) in \(scroll.documentView!.frame)")
+  }
+}

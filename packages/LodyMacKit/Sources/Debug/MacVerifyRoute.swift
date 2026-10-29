@@ -5,6 +5,7 @@ enum MacVerifyRoute: Equatable {
   case reset
   case appearance(String)
   case dump(URL)
+  case snapshot(URL)
   case act(Int, MacVerifyAction)
 
   static let scheme = "lodymacverify"
@@ -23,9 +24,11 @@ enum MacVerifyRoute: Equatable {
       guard parts.count == 1, let mode = parts.first, ["light", "dark", "system"].contains(mode) else { return nil }
       self = .appearance(mode)
     case "dump" where parts.isEmpty:
-      let out = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "out" }?.value
-      guard let out, out.hasPrefix("/"), out.hasSuffix(".json"), !out.contains("/../") else { return nil }
-      self = .dump(URL(fileURLWithPath: out))
+      guard let out = Self.output(url, suffix: ".json") else { return nil }
+      self = .dump(out)
+    case "snapshot" where parts.isEmpty:
+      guard let out = Self.output(url, suffix: ".png") else { return nil }
+      self = .snapshot(out)
     case "act":
       let query = Dictionary(
         (URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []).map { ($0.name, $0.value ?? "") }
@@ -35,6 +38,14 @@ enum MacVerifyRoute: Equatable {
     default:
       return nil
     }
+  }
+}
+
+extension MacVerifyRoute {
+  private static func output(_ url: URL, suffix: String) -> URL? {
+    let out = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "out" }?.value
+    guard let out, out.hasPrefix("/"), out.hasSuffix(suffix), !out.contains("/../") else { return nil }
+    return URL(fileURLWithPath: out)
   }
 }
 

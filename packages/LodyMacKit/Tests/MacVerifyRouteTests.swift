@@ -82,3 +82,22 @@ final class MacVerifyActionTests: XCTestCase {
     XCTAssertNotNil(MacVerifyActions.perform(.click("Missing"), in: window))
   }
 }
+
+@MainActor
+final class MacSnapshotTests: XCTestCase {
+  func testSnapshotRoutesAcceptOnlyAbsolutePNGPaths() {
+    XCTAssertEqual(MacVerifyRoute(URL(string: "lodymacverify://snapshot?out=/tmp/a.png")!), .snapshot(URL(fileURLWithPath: "/tmp/a.png")))
+    XCTAssertNil(MacVerifyRoute(URL(string: "lodymacverify://snapshot?out=a.png")!))
+    XCTAssertNil(MacVerifyRoute(URL(string: "lodymacverify://snapshot?out=/tmp/a.json")!))
+  }
+
+  func testSnapshotsRenderTheWindowWithoutTheScreen() throws {
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 200), styleMask: [.titled], backing: .buffered, defer: false)
+    window.contentView = NSStackView(views: [NSTextField(labelWithString: "Hello")])
+    let out = FileManager.default.temporaryDirectory.appending(path: "lody-snapshot-\(UUID().uuidString).png")
+    defer { try? FileManager.default.removeItem(at: out) }
+    try MacViewDump.snapshot(window, to: out)
+    let image = try XCTUnwrap(NSImage(contentsOf: out))
+    XCTAssertGreaterThanOrEqual(image.size.width, 320)
+  }
+}

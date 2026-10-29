@@ -321,7 +321,19 @@ export async function choose(
 }
 
 export async function capture(session: Session, name: string) {
-  if (session.inProcess) return undefined;
+  if (session.inProcess) {
+    return step(session, `snapshot ${name}`, async () => {
+      const path = join(session.output, `${name}.png`);
+      await rm(path, { force: true });
+      await route(session, `snapshot?out=${encodeURIComponent(path)}`);
+      const deadline = performance.now() + 5000;
+      while (performance.now() < deadline) {
+        if ((await readFile(path).catch(() => undefined))?.length) return path;
+        await sleep(100);
+      }
+      throw new Error(`no snapshot ${name}`);
+    });
+  }
   return step(session, `capture ${name}`, async () => {
     const target = await window(session);
     const shot = await target.capture();
