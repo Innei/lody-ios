@@ -84,3 +84,43 @@ final class MacComposerLayoutTests: XCTestCase {
   }
 }
 
+
+@MainActor
+final class MacNewSessionCatalogTests: XCTestCase {
+  private static let changed = Notification.Name("mac-new-session-test-catalog")
+
+  private func wait(until condition: () -> Bool) {
+    let deadline = Date().addingTimeInterval(2)
+    while !condition(), Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+  }
+
+  func testAFailedOptionsLoadRetriesWhenTheCatalogChanges() {
+    var state = SessionListState(userId: "u", workspaceId: "w", catalog: SessionCatalog(projects: [SessionProject(id: "p1", name: "lody-ios")]))
+    var calls = 0
+    let service = MacComposerService(options: { _, _ in
+      calls += 1
+      throw OutboxError.scopeExpired
+    }, create: { _, _ in })
+    let source = MacSessionsSource(changes: [Self.changed], read: { state }, write: { _, _, _ in }, selectWorkspace: { _ in })
+    let controller = MacNewSessionController(source: source, service: service)
+    _ = controller.view
+    wait { calls == 1 }
+    state.presence = SettingsMachinePresence(state: "live", onlineMachineIds: [])
+    NotificationCenter.default.post(name: Self.changed, object: nil)
+    wait { calls == 2 }
+    XCTAssertEqual(calls, 2)
+  }
+
+  func testProjectsAddedToTheCatalogAppearInThePicker() throws {
+    var state = SessionListState(userId: "u", workspaceId: "w", catalog: SessionCatalog(projects: [SessionProject(id: "p1", name: "lody-ios")]))
+    let service = MacComposerService(options: { _, _ in throw OutboxError.scopeExpired }, create: { _, _ in })
+    let source = MacSessionsSource(changes: [Self.changed], read: { state }, write: { _, _, _ in }, selectWorkspace: { _ in })
+    let controller = MacNewSessionController(source: source, service: service)
+    _ = controller.view
+    state.catalog.projects.append(SessionProject(id: "p2", name: "handbook"))
+    NotificationCenter.default.post(name: Self.changed, object: nil)
+    let picker = try XCTUnwrap(controller.view.descendants(NSPopUpButton.self).first { $0.accessibilityIdentifier() == "composer-project" })
+    XCTAssertTrue(picker.itemTitles.contains("handbook"))
+    XCTAssertEqual(picker.titleOfSelectedItem, "lody-ios")
+  }
+}

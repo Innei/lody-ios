@@ -5,27 +5,50 @@ import LodyData
 @MainActor
 final class MacNewSessionController: NSViewController {
   private let composer: MacComposerController
+  private let source: MacSessionsSource
+  private let status = NSTextField(labelWithString: "")
+  private var online: Set<String>
+  private var observers: [NSObjectProtocol] = []
 
-  init(state: SessionListState, service: MacComposerService) {
+  init(source: MacSessionsSource, service: MacComposerService) {
+    let state = source.read()
     var model = MacComposerModel(mode: .newSession)
-    let projects = state.catalog.projects.map { CreateProject(id: $0.id, machineId: $0.machineId, name: $0.name, rootPath: $0.rootPath) }
+    let projects = Self.projects(state)
     model.form = CreateSessionForm(userId: state.userId, workspaceId: state.workspaceId, projects: projects, machineNames: state.catalog.machineNames)
     model.form.open(projectId: nil, context: projects.isEmpty ? "chat" : nil)
-    let status = NSTextField(labelWithString: "")
     var wrapped = service
     wrapped.create = { [weak status] draft, payload in
       service.create(draft, payload)
       let title = (payload["text"] as? String ?? "").split(separator: "\n").first.map(String.init) ?? ""
       status?.stringValue = String(localized: "mac.newSession.starting \(title)", bundle: .lodyMac)
     }
-    self.status = status
+    self.source = source
+    online = Set(state.presence.onlineMachineIds)
     composer = MacComposerController(model: model, service: wrapped)
     super.init(nibName: nil, bundle: nil)
+    observers = source.changes.map { name in
+      NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated { self?.catalogChanged() }
+      }
+    }
   }
 
-  private let status: NSTextField
+  isolated deinit {
+    for observer in observers { NotificationCenter.default.removeObserver(observer) }
+  }
 
   required init?(coder: NSCoder) { nil }
+
+  private static func projects(_ state: SessionListState) -> [CreateProject] {
+    state.catalog.projects.map { CreateProject(id: $0.id, machineId: $0.machineId, name: $0.name, rootPath: $0.rootPath) }
+  }
+
+  private func catalogChanged() {
+    let state = source.read()
+    let next = Set(state.presence.onlineMachineIds)
+    composer.updateCatalog(projects: Self.projects(state), machineNames: state.catalog.machineNames, reload: next != online)
+    online = next
+  }
 
   override func loadView() {
     let root = NSView(frame: NSRect(x: 0, y: 0, width: 760, height: 600))

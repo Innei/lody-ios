@@ -57,7 +57,7 @@ enum MacFixtures {
         pane.retained = transcript
         return pane
       },
-      newSession: { MacNewSessionController(state: listState, service: MacComposerFixture.service) },
+      newSession: { MacNewSessionController(source: .fixture(listState), service: MacComposerFixture.service) },
       requiresAccount: false,
       windowIdentifier: "catalog-scene",
       titlePrefix: "Catalog · "

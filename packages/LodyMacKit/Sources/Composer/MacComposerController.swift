@@ -49,6 +49,13 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     render()
   }
 
+  func updateCatalog(projects: [CreateProject], machineNames: [String: String], reload: Bool) {
+    model.form.projects = projects
+    model.form.machineNames = machineNames
+    render()
+    if reload || model.form.current.failed { loadOptions() }
+  }
+
   func restoreDraft() {
     guard let text = draft.restore(current: view1.input.string) else { return }
     view1.input.string = text

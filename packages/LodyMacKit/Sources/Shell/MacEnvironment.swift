@@ -19,7 +19,7 @@ struct MacEnvironment {
     MacEnvironment(
       sessions: .live,
       pane: { MacLiveSessionPane.make(sessionId: $0) },
-      newSession: { MacNewSessionController(state: SessionPublished.state(), service: .live) }
+      newSession: { MacNewSessionController(source: .live, service: .live) }
     )
   }
 }
