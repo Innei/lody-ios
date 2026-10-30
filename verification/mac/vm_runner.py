@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
@@ -18,7 +19,8 @@ import time
 from types import SimpleNamespace
 
 from vm_base import warm_up
-from vm_guest import BASE, LOCK, VOLUME, Alive, Guest, attempt, build, collect, exclusive, progress, run_tests, stage, tart, vms
+from vm_guest import (BASE, GUEST_PASSWORD, GUEST_USER, LOCK, VOLUME, Alive, Guest, attempt, build, collect, exclusive,
+                      progress, run_tests, stage, tart, vms)
 from vm_vnc import hold
 
 RUNNER = 'lody-verify-runner'
@@ -167,18 +169,21 @@ def start_keeper(args):
     return keeper
 
 
-def ready(args, output):
+def launch(args):
     pid = keeper_pid()
     action = plan(running(), pid is not None)
     if action == 'attach':
         progress(f'attaching to the running {RUNNER}')
-        keeper = Alive(pid)
-    else:
-        if action == 'restart':
-            progress(f'{RUNNER} is running without its keeper; restarting it')
-            tart('stop', RUNNER, '--timeout', '60', check=False)
-        progress(f'starting {RUNNER} headless while the host builds')
-        keeper = start_keeper(args)
+        return Alive(pid)
+    if action == 'restart':
+        progress(f'{RUNNER} is running without its keeper; restarting it')
+        tart('stop', RUNNER, '--timeout', '60', check=False)
+    progress(f'starting {RUNNER} headless')
+    return start_keeper(args)
+
+
+def ready(args, output):
+    keeper = launch(args)
     line = VNC.read_text().strip()
     progress(line)
     (output / 'vnc.txt').write_text(line + '\n')
@@ -188,7 +193,7 @@ def ready(args, output):
     return guest
 
 
-def session(args, output):
+def ensure():
     state = load_state()
     base = base_stamp()
     reason = recycle_reason(RUNNER in vms(), base, state.get('base'), state.get('infra'))
@@ -197,6 +202,36 @@ def session(args, output):
         discard()
         tart('clone', BASE, RUNNER)
         save_state(base=base, infra=None)
+    return base
+
+
+def viewer_url(line):
+    found = re.search(r'vnc://admin@localhost:(\d+)', line)
+    if not found:
+        raise SystemExit(f'no VNC address in {line!r}')
+    return f'vnc://{GUEST_USER}:{GUEST_PASSWORD}@localhost:{found[1]}'
+
+
+def watch(args):
+    HOME.mkdir(exist_ok=True)
+    if not (VNC.exists() and keeper_pid()):
+        with exclusive():
+            ensure()
+            guest = Guest.attach(RUNNER, SimpleNamespace(name=str(TART_LOG)), launch(args))
+            # A viewer that connects before the login session draws stays black for its whole connection.
+            guest.boot().ssh('until pgrep -x Dock >/dev/null; do sleep 1; done; sleep 5', timeout=300)
+    MARKER.touch()
+    line = VNC.read_text().strip()
+    progress(line)
+    url = viewer_url(line)
+    if args.print_only:
+        print(url)
+        return
+    subprocess.run(['open', url], check=True)
+
+
+def session(args, output):
+    base = ensure()
     clear(HOME / 'products')
     clear(HOME / 'out')
     started = time.monotonic()

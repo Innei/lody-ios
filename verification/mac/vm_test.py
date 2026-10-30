@@ -194,6 +194,14 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(shared.stat().st_ino, inode)
         self.assertEqual(list(shared.iterdir()), [])
 
+    def test_watching_opens_the_runner_with_the_guest_login_on_its_loopback_port(self):
+        self.assertEqual(runner.viewer_url(vnc.vnc_line(5907)), 'vnc://admin:admin@localhost:5907')
+        with self.assertRaises(SystemExit):
+            runner.viewer_url('nothing here')
+        self.assertEqual(vm.parser.parse_args(['watch']).command, 'watch')
+        self.assertFalse(vm.parser.parse_args(['watch']).print_only)
+        self.assertTrue(vm.parser.parse_args(['watch', '--print-only']).print_only)
+
     def test_runs_reuse_the_runner_unless_fresh_and_reset_is_a_command(self):
         self.assertFalse(vm.parser.parse_args([]).fresh)
         self.assertTrue(vm.parser.parse_args(['--fresh']).fresh)

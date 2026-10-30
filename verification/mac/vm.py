@@ -14,6 +14,7 @@ on the host display and the host's pointer and keyboard are never used.
     pnpm verify:mac:vm --hold              # keep the run's lock until Ctrl-C
     pnpm verify:mac:vm --fresh             # use a disposable clone instead of the runner
     pnpm verify:mac:vm --host-xcode        # fallback: a disposable clone runs the host's Xcode from a share
+    pnpm verify:mac:vm watch               # open Screen Sharing on the runner (starting it if needed)
     pnpm verify:mac:vm reset               # delete the runner; the next run clones a new one
     pnpm verify:mac:vm prepare --recovery-vnc   # build or update the base VM (idempotent)
     pnpm verify:mac:vm prepare --repair-xcode   # copy Xcode into the base again
@@ -66,6 +67,11 @@ def reset(args):
     vm_runner.reset()
 
 
+def watch(args):
+    mount()
+    vm_runner.watch(args)
+
+
 def run_fresh(args, output):
     with exclusive():
         name = f'lody-verify-{os.getpid()}'
@@ -100,13 +106,14 @@ def run_fresh(args, output):
 
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument('command', nargs='?', default='run', choices=['run', 'prepare', 'reset'])
+parser.add_argument('command', nargs='?', default='run', choices=['run', 'prepare', 'reset', 'watch'])
 parser.add_argument('--case', action='append', default=[], help=f'one of {", ".join(CASES)}; repeatable')
 parser.add_argument('--output', default=str(OUTPUT))
 parser.add_argument('--in-process', action='store_true',
                     help='also run the in-process suite (pnpm verify:mac) inside the guest')
 parser.add_argument('--vnc-port', type=int, help=f'fixed loopback port for the VNC viewer (default {VNC_PORT}, '
                     'or the next free one)')
+parser.add_argument('--print-only', action='store_true', help='watch: print the viewer URL instead of opening it')
 parser.add_argument('--hold', action='store_true', help='keep the VM and VNC up after the run until Ctrl-C')
 parser.add_argument('--fresh', action='store_true', help='run in a disposable clone instead of the warm runner')
 parser.add_argument('--timeout', type=int, default=1800, help='seconds allowed for the guest test run')
@@ -122,4 +129,4 @@ parser.add_argument('--display', default='1680x1050')
 
 if __name__ == '__main__':
     arguments = parser.parse_args()
-    {'prepare': prepare, 'reset': reset, 'run': run}[arguments.command](arguments)
+    {'prepare': prepare, 'reset': reset, 'run': run, 'watch': watch}[arguments.command](arguments)
