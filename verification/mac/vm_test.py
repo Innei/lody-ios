@@ -287,5 +287,91 @@ class BaseTests(unittest.TestCase):
         self.assertEqual(int.from_bytes(payload[128:], 'big'), pow(5, 6, 23))
 
 
+class Clock:
+    def __init__(self):
+        self.now = 0.0
+
+    def time(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+class RecoveryTests(unittest.TestCase):
+    def test_keys_wait_until_a_lit_screen_has_held_still_for_ten_seconds(self):
+        clock = Clock()
+        frames = iter([('black', False)] * 5 + [('logo', True)] * 4 + [('picker', True)] * 30)
+        found = base.steady(lambda: next(frames), stable=10, timeout=120, now=clock.time, sleep=clock.sleep)
+        self.assertEqual(found, 'picker')
+        self.assertGreaterEqual(clock.now, 19)
+
+    def test_a_screen_that_never_settles_fails_with_its_step(self):
+        clock = Clock()
+        counter = iter(range(10_000))
+        with self.assertRaises(SystemExit) as failure:
+            base.steady(lambda: (str(next(counter)), True), stable=10, timeout=60, now=clock.time,
+                        sleep=clock.sleep, step='boot picker')
+        self.assertIn('boot picker', str(failure.exception))
+
+    def test_lost_keys_are_resent_until_the_frame_changes(self):
+        clock = Clock()
+        screen = {'frame': 'picker'}
+        presses = []
+
+        def commit():
+            presses.append('return')
+            if presses.count('return') == 3:
+                screen['frame'] = 'recovery'
+
+        attempts = base.advance(lambda: (screen['frame'], True), commit, prime=lambda: presses.append('right'),
+                                wait=20, now=clock.time, sleep=clock.sleep)
+        self.assertEqual(attempts, 3)
+        self.assertEqual(presses, ['right', 'return'] * 3)
+
+    def test_keys_that_never_land_fail_after_three_attempts(self):
+        clock = Clock()
+        presses = []
+        with self.assertRaises(SystemExit) as failure:
+            base.advance(lambda: ('picker', True), lambda: presses.append('return'), wait=20, now=clock.time,
+                         sleep=clock.sleep, step='Terminal')
+        self.assertEqual(len(presses), 3)
+        self.assertIn('Terminal', str(failure.exception))
+
+    def test_a_display_that_is_not_drawing_yet_reads_as_an_unlit_frame(self):
+        def silent():
+            raise TimeoutError('timed out')
+
+        self.assertEqual(base.glance(silent, 100, 50), ('unavailable', False))
+        self.assertEqual(base.glance(lambda: bytearray(4 * 100 * 50), 100, 50)[1], False)
+        self.assertEqual(base.glance(lambda: bytearray(b'\xff' * 4 * 4096 * 50), 4096, 50)[1], True)
+
+    def test_small_flicker_keeps_the_fingerprint_but_a_new_screen_changes_it(self):
+        width, height = 320, 200
+        frame = bytearray(width * height * 4)
+        flicker = bytearray(frame)
+        flicker[(100 * width + 101) * 4:(100 * width + 103) * 4] = b'\xff' * 8
+        window = bytearray(frame)
+        for y in range(40, 160):
+            window[(y * width + 40) * 4:(y * width + 280) * 4] = b'\x80' * 240 * 4
+        self.assertEqual(base.fingerprint(frame, width, height), base.fingerprint(flicker, width, height))
+        self.assertNotEqual(base.fingerprint(frame, width, height), base.fingerprint(window, width, height))
+
+    def test_the_recovery_app_is_told_apart_from_the_language_chooser_by_its_menu_bar(self):
+        width, height = 320, 200
+        chooser = bytearray(width * height * 4)
+        recovery = bytearray(chooser)
+        for y in range(0, 4):
+            recovery[y * width * 4:(y + 1) * width * 4] = b'\xe0' * width * 4
+        self.assertFalse(base.menu_bar(chooser, width, height))
+        self.assertTrue(base.menu_bar(recovery, width, height))
+
+    def test_frames_are_fingerprinted_by_their_samples(self):
+        black = bytearray(4 * 100 * 50)
+        lit = bytearray(b'\xff' * 4 * 100 * 50)
+        self.assertEqual(base.fingerprint(black, 100, 50), base.fingerprint(bytearray(4 * 100 * 50), 100, 50))
+        self.assertNotEqual(base.fingerprint(black, 100, 50), base.fingerprint(lit, 100, 50))
+
+
 if __name__ == '__main__':
     unittest.main()

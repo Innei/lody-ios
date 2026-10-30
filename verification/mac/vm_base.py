@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import hashlib
 import re
 import subprocess
 import time
@@ -154,6 +155,54 @@ def point(name, width, height):
     return round(x * width), round(y * height)
 
 
+def fingerprint(pixels, width, height, columns=64, rows=40):
+    samples = bytes(pixels[((y * height // rows) * width + x * width // columns) * 4 + 1] >> 4
+                    for y in range(rows) for x in range(columns))
+    return hashlib.md5(samples).hexdigest()
+
+
+def menu_bar(pixels, width, height):
+    band = range(int(height * 0.004), max(1, int(height * 0.02)))
+    columns = range(int(width * 0.025), int(width * 0.4), 2)
+    lit = sum(1 for y in band for x in columns if max(pixels[(y * width + x) * 4:(y * width + x) * 4 + 3]) > 150)
+    return lit >= 20
+
+
+def glance(capture, width, height):
+    try:
+        pixels = capture()
+    except OSError:
+        return 'unavailable', False
+    return fingerprint(pixels, width, height), sum(1 for value in pixels[::4096] if value > 40) >= 40
+
+
+def steady(look, stable=10, timeout=300, now=time.monotonic, sleep=time.sleep, step='recovery screen'):
+    deadline = now() + timeout
+    last, since = None, now()
+    while now() < deadline:
+        frame, lit = look()
+        if frame != last:
+            last, since = frame, now()
+        elif lit and now() - since >= stable:
+            return frame
+        sleep(1)
+    raise SystemExit(f'the {step} never settled within {timeout}s; see {VOLUME / "runs/recovery.png"}')
+
+
+def advance(look, commit, prime=lambda: None, attempts=3, wait=30, now=time.monotonic, sleep=time.sleep,
+            step='recovery step'):
+    for attempt in range(1, attempts + 1):
+        prime()
+        before = look()[0]
+        commit()
+        deadline = now() + wait
+        while now() < deadline:
+            sleep(1)
+            if look()[0] != before:
+                return attempt
+    raise SystemExit(f'{step} did not respond after {attempts} attempts; see {VOLUME / "runs/recovery.png"}')
+
+
 def warm_up(guest, host_xcode=False):
     guest.boot()
     started = time.monotonic()
@@ -250,42 +299,81 @@ def sip_state(log):
     return state
 
 
-def disable_sip(log):
-    guest = Guest(BASE, {}, log, extra=['--recovery'], recovery_vnc=True)
-    try:
-        password, port = guest.recovery()
+class Recovery:
+    def __init__(self, port, password):
+        self.port, self.password = port, password
+        self.screen = self.connect()
+
+    def connect(self):
         deadline = time.monotonic() + 300
         while True:
             try:
-                screen = RFB(port, password)
-                break
+                return RFB(self.port, self.password)
             except OSError:
                 if time.monotonic() > deadline:
                     raise
                 time.sleep(2)
-        while sum(1 for value in screen.capture().pixels[::4096] if value > 40) < 40:
-            if time.monotonic() > deadline:
-                raise SystemExit('the recovery boot picker never appeared')
-            time.sleep(3)
+
+    def capture(self):
+        try:
+            return self.screen.capture().pixels
+        except OSError:
+            # A recovery display that is not drawing yet never answers the update request; start a clean session.
+            self.screen.close()
+            self.screen = self.connect()
+            raise
+
+    def look(self):
+        return glance(self.capture, self.screen.width, self.screen.height)
+
+    def shows_menu_bar(self):
+        try:
+            return menu_bar(self.capture(), self.screen.width, self.screen.height)
+        except OSError:
+            return False
+
+    def at(self, name):
+        return point(name, self.screen.width, self.screen.height)
+
+    def run(self):
+        steady(self.look, step='boot picker')
+        advance(self.look, lambda: self.screen.key('return'),
+                prime=lambda: (self.screen.key('right').key('right'), time.sleep(1)), step='Options in the boot picker')
+        steady(self.look, step='first recovery screen')
+        if not self.shows_menu_bar():
+            advance(self.look, lambda: self.screen.key('return'), step='the Language chooser')
+            steady(self.look, step='recovery app')
+        if not self.shows_menu_bar():
+            raise SystemExit(f'the recovery app never showed its menu bar; see {VOLUME / "runs/recovery.png"}')
+        advance(self.look, lambda: self.screen.click(*self.at('terminal')),
+                prime=lambda: (self.screen.click(*self.at('utilities')), time.sleep(2)), step='Utilities > Terminal')
+        time.sleep(3)
+        self.screen.type('csrutil disable').key('return')
         time.sleep(5)
-        screen.key('right').key('right').key('return')
-        time.sleep(45)
-        screen.click(*point('utilities', screen.width, screen.height))
-        time.sleep(2)
-        screen.click(*point('terminal', screen.width, screen.height))
-        time.sleep(8)
-        screen.type('csrutil disable').key('return')
-        time.sleep(5)
-        screen.type('y').key('return')
+        self.screen.type('y').key('return')
         time.sleep(4)
-        screen.type(GUEST_PASSWORD).key('return')
+        self.screen.type(GUEST_PASSWORD).key('return')
         time.sleep(10)
-        screen.capture(VOLUME / 'runs/recovery.png')
-        screen.type('halt').key('return')
-        screen.close()
+        self.screen.capture(VOLUME / 'runs/recovery.png')
+        self.screen.type('halt').key('return')
+
+
+def disable_sip(log):
+    guest = Guest(BASE, {}, log, extra=['--recovery'], recovery_vnc=True)
+    started = time.monotonic()
+    try:
+        password, port = guest.recovery()
+        recovery = Recovery(port, password)
+        try:
+            recovery.run()
+        except SystemExit:
+            recovery.screen.capture(VOLUME / 'runs/recovery.png')
+            raise
+        recovery.screen.close()
         guest.process.wait(timeout=180)
     finally:
         guest.stop()
+    progress(f'recovery finished after {time.monotonic() - started:.0f}s')
 
 
 def configure(args, log):
