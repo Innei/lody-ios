@@ -9,7 +9,13 @@ class LodyMacUITestCase: XCTestCase {
   }
 
   override func tearDown() async throws {
-    if (testRun?.totalFailureCount ?? 0) > 0 { attach("failure-\(name)") }
+    if (testRun?.totalFailureCount ?? 0) > 0, app.state != .notRunning {
+      attach("failure-\(name)")
+      let tree = XCTAttachment(string: app.debugDescription)
+      tree.name = "failure-tree-\(name)"
+      tree.lifetime = .keepAlways
+      add(tree)
+    }
     app.terminate()
   }
 
@@ -36,10 +42,10 @@ class LodyMacUITestCase: XCTestCase {
 
   func value(_ element: XCUIElement) -> String { element.value as? String ?? "" }
 
-  func eventually(_ message: String, timeout: TimeInterval = 5, _ condition: () -> Bool) {
+  func eventually(_ message: @autoclosure () -> String, timeout: TimeInterval = 5, _ condition: () -> Bool) {
     let deadline = Date().addingTimeInterval(timeout)
     while !condition() {
-      if Date() > deadline { return XCTFail(message) }
+      if Date() > deadline { return XCTFail(message()) }
       RunLoop.current.run(until: Date().addingTimeInterval(0.1))
     }
   }
