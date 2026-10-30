@@ -96,7 +96,7 @@ extension SessionController {
       subagentPage = page
       page.onActivity = { [weak self, weak page] entry, item in self?.activity(entryId: entry, itemId: item, from: page) }
       page.onFile = { [weak self, weak page] path, line in self?.openFile(path, line: line, from: page) }
-      let title = String(localized: "native.chat.transcript.subtask", bundle: .lody)
+      let title = page.pageTitle
       if source is ProcessController, let modal = source?.navigationController, modal.presentingViewController != nil {
         // Activity is transient; its selected task belongs to the session's detail stack.
         modal.dismiss(animated: true) { [weak self] in

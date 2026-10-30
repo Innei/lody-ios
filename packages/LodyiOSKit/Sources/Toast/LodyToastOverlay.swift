@@ -16,12 +16,16 @@ enum LodyToastOverlay {
       message: String,
       kind: String,
       actionTitle: String? = nil,
-      action: (() -> Void)? = nil
+      action: (() -> Void)? = nil,
+      below anchor: UIView? = nil
     ) {
       guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
       attachIfNeeded()
       window?.isHidden = false
       window?.layoutIfNeeded()
+      canvas.anchorBottom = anchor.flatMap { view in
+        view.window.map { view.convert(view.bounds, to: $0.screen.coordinateSpace).maxY }
+      }
       canvas.enqueue(message, kind: kind, actionTitle: actionTitle, action: action)
     }
 
@@ -62,6 +66,7 @@ enum LodyToastOverlay {
     private var bannerTimer: Timer?
     private var banner: LodySessionBannerView?
     private var dragOffset: CGFloat = 0
+    var anchorBottom: CGFloat?
 
     override init(frame: CGRect) {
       super.init(frame: frame)
@@ -192,12 +197,13 @@ enum LodyToastOverlay {
       let reduced = UIAccessibility.isReduceMotionEnabled
       let band = toastBand
       let size = front.fittedSize(maxWidth: min(band.width - 32, 360))
+      let anchorY = anchorBottom.flatMap { y in window.map { convert(CGPoint(x: 0, y: y), from: $0.screen.coordinateSpace).y } } ?? 0
       for (index, pill) in pills.reversed().enumerated() {
         let depth = CGFloat(index)
         let scale = 1 - depth * 0.05
         let center = CGPoint(
           x: band.midX,
-          y: safeAreaInsets.top + 8 + size.height / 2 + depth * 6 + dragOffset
+          y: max(safeAreaInsets.top, anchorY) + 8 + size.height / 2 + depth * 6 + dragOffset
         )
         pill.isUserInteractionEnabled = index == 0
         pill.showsContent = index == 0

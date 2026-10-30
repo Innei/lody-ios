@@ -66,7 +66,7 @@ task = ui.element('preview-answer:task')['frame']
 reply = ui.element('preview-answer:reply')['frame']
 assert process['y'] + process['height'] <= task['y'] + 1 and task['y'] + task['height'] <= reply['y'] + 1, \
     'Sub-agent rows hang under the process row, above the answer'
-assert task['height'] in (30, 40) and process['height'] == 40, f'Process {process} and sub-agent {task} rows use the compact 30 / 40 pt rail heights'
+assert task['height'] in (30, 40) and process['height'] == 40 + 16, f'Process {process} (40 pt plus the 16 pt gap under the bubble) and sub-agent {task} rows use the compact 30 / 40 pt rail heights'
 ui.capture('native-process-rail')
 ui.axe('tap', '-x', str(process['x'] + 60), '-y', str(process['y'] + process['height'] / 2), '--post-delay', '.5')
 assert ui.element('preview-answer:edit')['type'] == 'Button'
@@ -83,11 +83,15 @@ assert 'unwatch' not in probe().split(','), 'Closing tool details stopped the ow
 
 # Subagent details consume the same feed and expose their result and copy action.
 ui.axe('tap', '--id', 'preview-answer:task', '--post-delay', '.5')
-assert 'Native task summary: all checks passed.' in spoken(ui.element('subagent-detail-result'))
+wait_text('Verify the native session')
+assert not any(item.get('AXUniqueId') == 'subagent-header' for item in ui.state()), 'The sub-agent page reads like the chat, not a grouped list'
+copy = ui.element('subagent-detail-copy')
+assert copy['type'] == 'Button' and copy['frame']['y'] < 140, f"Copy result is a navigation bar button: {copy['frame']}"
+assert any('Native task summary: all checks passed.' in spoken(item) for item in ui.state()), 'The result reads as reply text'
 subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input='before subagent copy', text=True, check=True)
 ui.axe('tap', '--id', 'subagent-detail-copy', '--post-delay', '.3')
-wait_clipboard('Native task summary: all checks passed.')
 ui.capture('native-subagent')
+wait_clipboard('Native task summary: all checks passed.')
 ui.axe('tap', '--wait-timeout', '5', '--id', 'BackButton', '--post-delay', '.6')
 ui.element('preview-answer:task')
 assert probe().split(',').count('watch') == 1
@@ -107,7 +111,11 @@ ui.capture('native-browser-preview')
 ui.axe('tap', '--id', 'session-input', '--post-delay', '.3')
 ui.type_into('session-input', 'Keep this draft')
 original_draft = ui.element('session-input').get('AXValue') or ''
-tap_label('PR #31')
+title = ui.element('chat-navigation-title')
+assert 'PR #31' in (title.get('AXLabel') or ''), f"The caption carries the PR beside the branch: {title.get('AXLabel')}"
+assert not any(item.get('AXLabel') == 'PR #31' and item.get('type') == 'Button' for item in ui.state()), 'The PR is no longer a bar button'
+ui.axe('tap', '--id', 'chat-navigation-title', '--post-delay', '.6')
+tap_menu_item('Open PR #31')
 ui.element('pr-title')
 ui.axe('tap', '--id', 'pr-checks', '--post-delay', '.4')
 ui.element('pr-check-1')

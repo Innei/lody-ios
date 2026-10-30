@@ -8365,23 +8365,6 @@
         }
       }
     },
-    "subagent.detail.lastTool": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最近工具"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Last tool"
-          }
-        }
-      }
-    },
     "detail.exitCode": {
       "extractionState": "manual",
       "localizations": {
@@ -17325,23 +17308,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Open PR #%lld"
-          }
-        }
-      }
-    },
-    "subagent.detail.finished": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已完成"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Finished"
           }
         }
       }

@@ -6,7 +6,12 @@ final class SubagentTaskController: UIViewController {
   let itemId: String
   private var item: [String: Any]
   private let chat = LodyChatView(frame: .zero)
-  private let list = LodyGroupedList(frame: .zero)
+  private lazy var copyItem: UIBarButtonItem = {
+    let copy = UIBarButtonItem(image: UIImage(systemName: "doc.on.doc"), primaryAction: UIAction { [weak self] _ in self?.copyResult() })
+    copy.accessibilityIdentifier = "subagent-detail-copy"
+    copy.accessibilityLabel = String(localized: "subagent.detail.copy", bundle: .lody)
+    return copy
+  }()
   var onActivity: ((String, String) -> Void)?
   var onFile: ((String, Int) -> Void)?
 
@@ -26,59 +31,82 @@ final class SubagentTaskController: UIViewController {
   }
   @available(*, unavailable)
   required init?(coder: NSCoder) { fatalError() }
+
+  var pageTitle: String {
+    (item["description"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? actor
+  }
+
   override func viewDidLoad() {
     super.viewDidLoad()
-    for child in [chat, list] as [UIView] {
-      child.frame = view.bounds; child.autoresizingMask = [.flexibleWidth, .flexibleHeight]; view.addSubview(child)
-    }
-    list.forwarded = { [weak self] name, body in
-      guard name == "rowPress", body["id"] as? String == "subagent-detail-copy", let self else { return }
-      UIPasteboard.general.string = result
-      LodyToastOverlay.shared.show(message: String(localized: "subagent.detail.copied", bundle: .lody), kind: "info")
-    }
+    chat.frame = view.bounds; chat.autoresizingMask = [.flexibleWidth, .flexibleHeight]; view.addSubview(chat)
     render()
   }
+
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    applyHeader()
+  }
+
   func update(_ json: String) {
     if let next = SessionController.item(in: json, entryId: entryId, itemId: itemId) { item = next }
     if isViewLoaded { render() }
   }
-  private var result: String { (item[item["status"] as? String == "failed" ? "error" : "summary"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines) }
-  private func render() {
-    let actor = (item["actor"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? String(localized: "native.chat.transcript.subtask", bundle: .lody)
-    let description = (item["description"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? actor
-    let status = item["status"] as? String ?? ""
+
+  private var actor: String {
+    (item["actor"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? String(localized: "native.chat.transcript.subtask", bundle: .lody)
+  }
+
+  private var status: String { item["status"] as? String ?? "" }
+
+  private var result: String {
+    (item[status == "failed" ? "error" : "summary"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private var caption: String {
     let key = ["pending": "pending", "in_progress": "running", "completed": "completed", "failed": "failed"][status]
     var labels = [actor]
     if let key { labels.append(String(localized: String.LocalizationValue("native.chat.subagent." + key), bundle: .lody)) }
     if item["isBackgrounded"] as? Bool == true { labels.append(String(localized: "native.chat.subagent.background", bundle: .lody)) }
-    let subtitle = labels.joined(separator: " · ")
+    if item["run"] == nil, let tool = item["lastToolName"] as? String, !tool.isEmpty {
+      labels.append(String.localizedStringWithFormat(String(localized: "subagent.detail.lastToolInline", bundle: .lody), tool))
+    }
+    return labels.joined(separator: " · ")
+  }
+
+  private func applyHeader() {
+    let host = parent ?? self
+    let header = LodyNavigationHeader.of(host.navigationItem)
+    header.title = pageTitle
+    host.navigationItem.subtitle = caption
+    let items = result.isEmpty ? [] : [copyItem]
+    if header.rightItems != items { header.rightItems = items }
+  }
+
+  private func copyResult() {
+    UIPasteboard.general.string = result
+    LodyToastOverlay.shared.show(
+      message: String(localized: "subagent.detail.copied", bundle: .lody), kind: "info",
+      below: navigationController?.navigationBar
+    )
+  }
+
+  private func render() {
+    var items: [[String: Any]]
+    var state: String
     if let run = item["run"] as? [String: Any] {
-      var items = run["items"] as? [[String: Any]] ?? []
-      if !result.isEmpty, !items.contains(where: { $0["type"] as? String == "text" && ($0["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) == result }) {
-        items.append(["itemId": itemId + ":result", "type": "text", "text": result])
-      }
-      items.insert(["itemId": itemId + ":header", "type": "text", "text": subtitle + "\n\n" + description], at: 0)
-      let state = run["state"] as? String ?? ""
-      let entry: [String: Any] = ["id": entryId, "role": "assistant", "status": state,
-        "finished": !["pending", "running", "in_progress"].contains(state), "items": items]
-      let data = try! JSONSerialization.data(withJSONObject: [entry])
-      chat.setEntries(String(decoding: data, as: UTF8.self)); chat.scheduleUpdate()
-      list.isHidden = true; chat.isHidden = false
-      return
+      items = run["items"] as? [[String: Any]] ?? []
+      state = run["state"] as? String ?? ""
+    } else {
+      items = []
+      state = status == "in_progress" ? "running" : status
     }
-    chat.isHidden = true; list.isHidden = false
-    var section = LodyListSection(); section.id = "task"
-    var header = LodyListRow(); header.id = "subagent-header"; header.title = description; header.subtitle = subtitle
-    section.rows = [header]
-    if !result.isEmpty {
-      var body = LodyListRow(); body.id = "subagent-detail-result"; body.title = result
-      var copy = LodyListRow(); copy.id = "subagent-detail-copy"; copy.title = String(localized: "subagent.detail.copy", bundle: .lody); copy.action = true
-      section.rows += [body, copy]
+    if !result.isEmpty, !items.contains(where: { $0["type"] as? String == "text" && ($0["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) == result }) {
+      items.append(["itemId": itemId + ":result", "type": "text", "text": result])
     }
-    if let name = item["lastToolName"] as? String, !name.isEmpty {
-      var tool = LodyListRow(); tool.id = "subagent-last-tool"; tool.title = String(localized: "subagent.detail.lastTool", bundle: .lody); tool.value = name
-      section.rows.append(tool)
-    }
-    list.setSections([section])
+    let entry: [String: Any] = ["id": entryId, "role": "assistant", "status": state,
+      "finished": !["pending", "running", "in_progress"].contains(state), "items": items]
+    let data = try! JSONSerialization.data(withJSONObject: [entry])
+    chat.setEntries(String(decoding: data, as: UTF8.self)); chat.scheduleUpdate()
+    if isViewLoaded, view.window != nil { applyHeader() }
   }
 }
