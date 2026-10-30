@@ -239,7 +239,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
   let processGlyph = LodyStatusGlyphView(kind: .done)
   let processTitle = UILabel()
   let processDetail = UILabel()
-  let processChevron = UIImageView()
+  let processDot = UIView()
   let processTree = CAShapeLayer()
   var row: ChatRow?
   var onInteraction: (() -> Void)?
@@ -276,13 +276,9 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
     processDetail.numberOfLines = 1
     processDetail.lineBreakMode = .byTruncatingTail
     processTitle.lineBreakMode = .byTruncatingTail
-    processChevron.contentMode = .center
-    processChevron.tintColor = .lodyTertiary
-    processChevron.image = UIImage(
-      systemName: "chevron.right",
-      withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
-    )
-    for view in [processGlyph, processTitle, processDetail, processChevron] as [UIView] {
+    processDot.backgroundColor = .lodyTertiary
+    processDot.layer.cornerRadius = 4
+    for view in [processGlyph, processDot, processTitle, processDetail] as [UIView] {
       view.isAccessibilityElement = false
       view.isUserInteractionEnabled = false
       view.isHidden = true
@@ -345,10 +341,11 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
 
   private func applyProcess(_ row: ChatRow) {
     let rail = row.kind == "duration"
-    processGlyph.isHidden = !rail
+    let settled = rail && !row.running && !row.attention
+    processGlyph.isHidden = !rail || settled
+    processDot.isHidden = !settled
     processTitle.isHidden = !rail
     processDetail.isHidden = !rail || row.detail.isEmpty
-    processChevron.isHidden = !(row.actionable && (rail || row.kind == "summary"))
     icon.isHidden = rail
     guard rail else {
       processTree.path = nil
@@ -357,7 +354,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
     processGlyph.kind = Self.glyphKind(row)
     processTitle.attributedText = Self.processTitle(row, traits: traitCollection)
     processDetail.font = Self.detailFont(traitCollection)
-    processDetail.textColor = .lodySecondary
+    processDetail.textColor = .lodyTertiary
     processDetail.text = row.detail
   }
 
@@ -367,17 +364,15 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
   }
 
   static func processTitle(_ row: ChatRow, traits: UITraitCollection) -> NSAttributedString {
+    let font = LodyDesign.font(.subheadline, size: 14, compatibleWith: traits)
     let title = NSMutableAttributedString(string: row.text, attributes: [
-      .font: LodyDesign.font(.subheadline, size: 14, weight: .semibold, compatibleWith: traits),
-      .foregroundColor: row.running ? UIColor.lodyAccent : .lodyInk,
+      .font: font,
+      .foregroundColor: UIColor.lodySecondary,
     ])
     guard let duration = row.workDurationMs else { return title }
     let range = (row.text as NSString).range(of: ChatWorkDuration.label(duration), options: .backwards)
     guard range.location != NSNotFound else { return title }
-    title.addAttributes([
-      .font: LodyDesign.mono(12, compatibleWith: traits),
-      .foregroundColor: UIColor.lodySecondary,
-    ], range: range)
+    title.addAttribute(.font, value: font.withTabularNumbers(), range: range)
     return title
   }
 
@@ -386,7 +381,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
   }
 
   private static func processLines(_ row: ChatRow, traits: UITraitCollection) -> (title: CGFloat, detail: CGFloat) {
-    let title = ceil(LodyDesign.font(.subheadline, size: 14, weight: .semibold, compatibleWith: traits).lineHeight)
+    let title = ceil(LodyDesign.font(.subheadline, size: 14, compatibleWith: traits).lineHeight)
     let detail = row.detail.isEmpty ? 0 : ceil(detailFont(traits).lineHeight) + 2
     return (title, detail)
   }
@@ -402,7 +397,6 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
     return row.actionable || row.kind == "pending" ? 44 : 0
   }
 
-  private static let chevronSlot: CGFloat = 24
   private static let summaryDot: CGFloat = 20
   private static let summaryText: CGFloat = 30
   private static var railCenter: CGFloat { LodyDesign.Rail.center - ChatReadingColumn.cellMargin }
@@ -411,16 +405,17 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
     let height = contentView.bounds.height
     let lines = Self.processLines(row, traits: traitCollection)
     let x = LodyDesign.Rail.text - ChatReadingColumn.cellMargin
-    let textWidth = max(1, width - x - (processChevron.isHidden ? 0 : Self.chevronSlot))
+    let textWidth = max(1, width - x)
     let top = floor((height - lines.title - lines.detail) / 2)
     processTitle.frame = CGRect(x: x, y: top, width: textWidth, height: lines.title)
     processDetail.frame = CGRect(x: x, y: processTitle.frame.maxY + 2, width: textWidth, height: lines.detail - 2)
     let glyph = LodyDesign.Rail.glyph
     processGlyph.frame = CGRect(x: Self.railCenter - glyph / 2, y: processTitle.frame.midY - glyph / 2, width: glyph, height: glyph)
-    processChevron.frame = CGRect(x: width - 16, y: (height - 16) / 2, width: 16, height: 16)
+    processDot.frame = CGRect(x: Self.railCenter - 4, y: processTitle.frame.midY - 4, width: 8, height: 8)
+    let mark = processDot.isHidden ? processGlyph.frame : processDot.frame
     let path = UIBezierPath()
     if row.treeDown {
-      path.move(to: CGPoint(x: Self.railCenter, y: processGlyph.frame.maxY + 3))
+      path.move(to: CGPoint(x: Self.railCenter, y: mark.maxY + 3))
       path.addLine(to: CGPoint(x: Self.railCenter, y: height))
     }
     CATransaction.begin()
@@ -499,7 +494,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
   }
 
   static func messageFont(for row: ChatRow, compatibleWith traits: UITraitCollection) -> UIFont {
-    let sizes: [String: CGFloat] = ["user": 17, "summary": 12.5]
+    let sizes: [String: CGFloat] = ["user": 17, "summary": 14]
     let font = UIFont.dynamic(of: sizes[row.kind] ?? 13, compatibleWith: traits)
     if row.kind == "duration" || row.kind == "summary" {
       return font.withTabularNumbers()
@@ -546,7 +541,6 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
   static func textWidth(_ row: ChatRow, width: CGFloat) -> CGFloat {
     if row.kind == "user" { return max(1, width * 0.84 - 26) }
     if row.kind == "delivery" { return max(1, width * 0.84) }
-    if row.kind == "summary" && row.actionable { return max(1, width - leading(row) - chevronSlot) }
     return max(1, width - leading(row))
   }
 
@@ -618,7 +612,6 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
         ? (label.lineAdvances(width: textWidth).first ?? height)
         : height
       icon.frame = Self.iconFrame(for: row, textY: y, textHeight: markHeight)
-      processChevron.frame = CGRect(x: width - 16, y: icon.frame.midY - 8, width: 16, height: 16)
     }
   }
 

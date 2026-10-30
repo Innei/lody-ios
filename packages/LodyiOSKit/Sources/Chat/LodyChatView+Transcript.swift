@@ -483,7 +483,8 @@ extension LodyChatView {
 private func textColor(for row: ChatRow) -> UIColor {
   if row.kind == "chat_failed" { return .systemRed }
   if row.attention { return .systemOrange }
-  if row.kind == "changes" || row.kind == "file" || (row.kind == "summary" && row.running) { return .lodyAccent }
+  if row.kind == "changes" || row.kind == "file" { return .lodyAccent }
+  if row.kind == "summary" { return .lodySecondary }
   if row.kind == "user" { return .label }
   return .secondaryLabel
 }

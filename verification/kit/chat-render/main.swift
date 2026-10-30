@@ -114,9 +114,12 @@ processCell.configure(processRow, text: NSAttributedString(string: processRow.te
 processCell.layoutIfNeeded()
 let railCenter = LodyDesign.Rail.center - ChatReadingColumn.cellMargin
 let railText = LodyDesign.Rail.text - ChatReadingColumn.cellMargin
-precondition(!processCell.processGlyph.isHidden && abs(processCell.processGlyph.frame.midX - railCenter) < 0.5,
-  "The process glyph must sit on the rail center")
-precondition(processCell.processGlyph.kind == .done, "A finished process must draw the done glyph")
+precondition(processCell.processGlyph.isHidden && !processCell.processDot.isHidden,
+  "A finished process row marks the rail with a dot, not the done check")
+precondition(processCell.processDot.frame.size == CGSize(width: 8, height: 8) && abs(processCell.processDot.frame.midX - railCenter) < 0.5
+  && abs(processCell.processDot.frame.midY - processCell.processTitle.frame.midY) < 0.5,
+  "The 8 pt dot sits on the rail center beside line one")
+precondition(processCell.processDot.backgroundColor == .lodyTertiary, "The finished dot is tertiary")
 precondition(abs(processCell.processTitle.frame.minX - railText) < 0.5, "Process line one must start at the rail text column")
 precondition(processCell.label.isHidden && processCell.numericText.isHidden, "The rail row replaces the plain duration label")
 precondition(processCell.processDetail.text == processRow.detail && processCell.processDetail.numberOfLines == 1,
@@ -128,26 +131,28 @@ let titleText = processCell.processTitle.attributedText!
 let titleFont = titleText.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
 let titleWeight = (titleFont.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any])?[.weight] as? CGFloat ?? 0
 let titleSize = LodyDesign.font(.subheadline, size: 14, compatibleWith: processCell.traitCollection).pointSize
-precondition(abs(titleFont.pointSize - titleSize) < 0.1 && titleWeight >= UIFont.Weight.semibold.rawValue - 0.01,
-  "Line one uses 14 pt semibold, got \(titleFont.pointSize) weight \(titleWeight)")
+precondition(abs(titleFont.pointSize - titleSize) < 0.1 && abs(titleWeight - UIFont.Weight.regular.rawValue) < 0.01,
+  "Line one uses 14 pt regular, got \(titleFont.pointSize) weight \(titleWeight)")
+let titleColor = titleText.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor
+precondition(titleColor == .lodySecondary, "Line one is secondary")
+precondition(processCell.processDetail.textColor == .lodyTertiary, "Line two is tertiary")
 precondition(abs(processCell.processDetail.font.pointSize - LodyDesign.font(.footnote, size: 12, compatibleWith: processCell.traitCollection).pointSize) < 0.1,
   "Line two uses 12 pt")
 let durationLabel = ChatWorkDuration.label(64_000)
 let durationRange = (titleText.string as NSString).range(of: durationLabel, options: .backwards)
 precondition(durationRange.location != NSNotFound, "Line one must carry the duration")
 let durationRunFont = titleText.attribute(.font, at: durationRange.location, effectiveRange: nil) as! UIFont
-precondition(durationRunFont.fontDescriptor.symbolicTraits.contains(.traitMonoSpace) && abs(durationRunFont.pointSize - LodyDesign.mono(12, compatibleWith: processCell.traitCollection).pointSize) < 0.1,
-  "The duration uses 12 pt mono")
-precondition(!processCell.processChevron.isHidden && processCell.processChevron.frame.maxX <= 358,
-  "An actionable process row shows a trailing chevron")
-precondition(processCell.processTitle.frame.maxX <= processCell.processChevron.frame.minX, "Text must clear the chevron")
+precondition(!durationRunFont.fontDescriptor.symbolicTraits.contains(.traitMonoSpace) && abs(durationRunFont.pointSize - titleSize) < 0.1
+  && !(durationRunFont.fontDescriptor.object(forKey: .featureSettings) as? [[UIFontDescriptor.FeatureKey: Any]] ?? []).isEmpty,
+  "The duration shares line one's face with tabular digits")
+precondition(abs(processCell.processTitle.frame.maxX - 358) < 0.5, "An actionable process row reserves no chevron slot")
 let separatorColor = UIColor.separator.resolvedColor(with: processCell.traitCollection).cgColor
 precondition(!processCell.contentView.subviews.contains {
   !$0.isHidden && $0.backgroundColor?.resolvedColor(with: processCell.traitCollection).cgColor == separatorColor
 }, "The process row draws no hairline")
 let trunk = processCell.processTree.path?.boundingBoxOfPath ?? .null
 precondition(!trunk.isNull && abs(trunk.midX - railCenter) < 0.5 && abs(trunk.maxY - processHeight) < 0.5
-  && trunk.minY >= processCell.processGlyph.frame.maxY,
+  && trunk.minY >= processCell.processDot.frame.maxY,
   "A process row with sub-agents draws a trunk from below its glyph to the row bottom")
 precondition(processCell.accessibilityLabel == processRow.text + ", " + processRow.detail,
   "VoiceOver reads both process lines")
@@ -160,9 +165,8 @@ liveCell.configure(durationRow, text: NSAttributedString(string: durationRow.tex
 liveCell.layoutIfNeeded()
 precondition(liveCell.processGlyph.kind == .live, "A running process draws the live glyph")
 let liveTitleColor = liveCell.processTitle.attributedText!.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor
-precondition(liveTitleColor?.resolvedColor(with: liveCell.traitCollection) == UIColor.lodyAccent.resolvedColor(with: liveCell.traitCollection),
-  "A running process names its work in the accent")
-precondition(liveCell.processChevron.isHidden, "A process row that cannot open hides the chevron")
+precondition(liveTitleColor == .lodySecondary, "A running process names its work in secondary, not the accent")
+precondition(!liveCell.processGlyph.isHidden && liveCell.processDot.isHidden, "A running process keeps the live glyph")
 precondition(liveCell.processDetail.isHidden, "A process row without a summary hides line two")
 precondition(liveCell.processTree.path == nil, "A process row without sub-agents draws no trunk")
 precondition(abs(liveCell.processTitle.frame.midY - liveHeight / 2) < 1, "One-line process text is centered")
@@ -335,10 +339,10 @@ precondition(doneSummary.icon.frame.width == 8, "The process pip slot must match
 precondition(abs(doneSummary.icon.frame.midY - doneSummary.label.frame.midY) <= 0.5,
   "The process pip must sit on the text baseline")
 precondition(doneSummary.label.frame.minX == 30 - ChatReadingColumn.cellMargin, "Summary text starts at x = 30")
-precondition(!doneSummary.processChevron.isHidden && doneSummary.label.frame.maxX <= doneSummary.processChevron.frame.minX,
-  "Summary rows open the activity through a trailing chevron")
-precondition(ChatCell.messageFont(for: doneSummary.row!, compatibleWith: traits).pointSize == 12.5 * UIFont.dynamicScale(compatibleWith: traits),
-  "Summary rows use 12.5 pt text")
+precondition(abs(doneSummary.label.frame.maxX - doneSummary.contentView.bounds.width) < 0.5,
+  "Summary rows open the activity without a trailing chevron")
+precondition(ChatCell.messageFont(for: doneSummary.row!, compatibleWith: traits).pointSize == 14 * UIFont.dynamicScale(compatibleWith: traits),
+  "Summary rows use the quiet 14 pt process type")
 
 let wrappedSummary = ChatCell(frame: CGRect(x: 0, y: 0, width: 320, height: 80))
 window.addSubview(wrappedSummary)
