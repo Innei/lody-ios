@@ -23,6 +23,7 @@ final class MacSceneHost {
   }
 
   func reset() {
+    MacAccent.system.apply()
     guard let current else { return }
     open(current)
   }

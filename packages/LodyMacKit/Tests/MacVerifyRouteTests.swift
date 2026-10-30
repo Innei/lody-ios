@@ -112,3 +112,14 @@ final class MacSnapshotTests: XCTestCase {
     XCTAssertEqual(child["inWindow"] as? [Double], [40, 150, 100, 20])
   }
 }
+
+@MainActor
+final class MacSceneResetTests: XCTestCase {
+  func testResetRestoresTheSystemAccent() {
+    let previous = MacAccent.current()
+    defer { previous.save() }
+    MacAccent.orange.save()
+    MacSceneHost.shared.reset()
+    XCTAssertEqual(MacAccent.current(), .system)
+  }
+}
