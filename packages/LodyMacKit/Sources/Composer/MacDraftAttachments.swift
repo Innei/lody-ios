@@ -14,12 +14,13 @@ struct MacDraftAttachment: Equatable {
   let url: URL
   let isImage: Bool
   let bytes: Int
+  let thumbnail: CGImage?
 
   var attachment: CKAttachment {
-    CKAttachment(id: id, name: name, bytes: bytes, symbol: isImage ? "photo" : "doc", thumbnail: isImage ? Self.thumbnail(url) : nil)
+    CKAttachment(id: id, name: name, bytes: bytes, symbol: isImage ? "photo" : "doc", thumbnail: thumbnail)
   }
 
-  private static func thumbnail(_ url: URL) -> CGImage? {
+  static func thumbnail(_ url: URL) -> CGImage? {
     guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
     return CGImageSourceCreateThumbnailAtIndex(source, 0, [
       kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -73,7 +74,9 @@ struct MacDraftAttachments {
     if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: options) as? [URL], !urls.isEmpty {
       return add(urls: urls)
     }
-    guard let image = NSImage(pasteboard: pasteboard), let tiff = image.tiffRepresentation,
+    let text: [NSPasteboard.PasteboardType] = [.string, .rtf, .rtfd, .html]
+    guard !(pasteboard.types ?? []).contains(where: text.contains),
+          let image = NSImage(pasteboard: pasteboard), let tiff = image.tiffRepresentation,
           let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { return nil }
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
     guard (try? png.write(to: url)) != nil else { return [.unsupported(Self.pastedImageName)] }
@@ -90,7 +93,10 @@ struct MacDraftAttachments {
     let image = Self.isImage(name)
     guard fits(image: image) else { return .tooMany }
     guard let copy = Self.store(url, name: name) else { return .unsupported(name) }
-    items.append(MacDraftAttachment(id: UUID().uuidString.lowercased(), name: name, url: copy, isImage: image, bytes: size))
+    items.append(MacDraftAttachment(
+      id: UUID().uuidString.lowercased(), name: name, url: copy, isImage: image, bytes: size,
+      thumbnail: image ? MacDraftAttachment.thumbnail(copy) : nil
+    ))
     return nil
   }
 

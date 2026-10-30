@@ -66,6 +66,34 @@ final class MacDraftAttachmentsTests: XCTestCase {
     XCTAssertTrue(FileManager.default.fileExists(atPath: item.url.path))
   }
 
+  func testAnImageDraftDecodesItsThumbnailOnce() throws {
+    var draft = MacDraftAttachments()
+    let url = folder.appendingPathComponent("shot.png")
+    let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 8, pixelsHigh: 8, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: url)
+    XCTAssertEqual(draft.add(urls: [url]), [])
+    let first = try XCTUnwrap(draft.items.first?.attachment.thumbnail)
+    let second = try XCTUnwrap(draft.items.first?.attachment.thumbnail)
+    XCTAssertTrue(first === second)
+  }
+
+  func testTextCopiedWithAnImageRenditionPastesAsText() {
+    var draft = MacDraftAttachments()
+    let board = NSPasteboard(name: .init("lody-tests-\(UUID().uuidString)"))
+    defer { board.releaseGlobally() }
+    board.clearContents()
+    let image = NSImage(size: NSSize(width: 4, height: 4))
+    image.lockFocus()
+    NSColor.systemTeal.setFill()
+    NSRect(x: 0, y: 0, width: 4, height: 4).fill()
+    image.unlockFocus()
+    board.declareTypes([.string, .tiff], owner: nil)
+    board.setString("Q3 revenue", forType: .string)
+    board.setData(image.tiffRepresentation, forType: .tiff)
+    XCTAssertNil(draft.add(pasteboard: board))
+    XCTAssertTrue(draft.items.isEmpty)
+  }
+
   func testPlainTextOnThePasteboardIsNotAnAttachment() {
     var draft = MacDraftAttachments()
     let board = NSPasteboard(name: .init("lody-tests-\(UUID().uuidString)"))

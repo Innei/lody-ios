@@ -1,5 +1,6 @@
 import AppKit
 import ChatAppKit
+import ChatKitCore
 import LodyData
 import XCTest
 @testable import LodyMacKit
@@ -85,6 +86,35 @@ final class MacTranscriptTableTests: XCTestCase {
       landed.fulfill()
     }
     wait(for: [landed], timeout: 3)
+  }
+
+  func testASendWithFilesLandsItsFirstRowAtTheTop() throws {
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 500), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    let transcript = MacTranscriptView(frame: NSRect(x: 0, y: 0, width: 700, height: 500))
+    window.contentView = transcript
+    var model = MacTranscriptModel(entriesJSON: "[]")
+    model.items = (0..<3).map { .user(id: "u\($0)", text: "Message \($0)") }
+    transcript.render(model)
+    window.layoutIfNeeded()
+    transcript.noteSend()
+    let file = MacAttachmentItem(id: "f", name: "notes.txt", bytes: 3, image: false, media: CKMediaRef(id: "f"), progress: 0.2)
+    model.items += [.attachments(id: "p1:user", files: [file]), .user(id: "p1:user-text", text: "Ship it")]
+    transcript.render(model)
+    let landed = expectation(description: "landed")
+    Task { @MainActor in
+      while abs(self.top(ofStripIn: transcript) - 7) > 1 { try? await Task.sleep(for: .milliseconds(20)) }
+      landed.fulfill()
+    }
+    wait(for: [landed], timeout: 3)
+  }
+
+  private func top(ofStripIn transcript: MacTranscriptView) -> CGFloat {
+    guard let scroll = transcript.descendants(NSScrollView.self).first,
+          let row = transcript.rowViews.first(where: { $0 is MacTranscriptAttachmentsView })
+    else { return .greatestFiniteMagnitude }
+    return row.convert(row.bounds, to: scroll.contentView).minY - scroll.contentView.bounds.minY
   }
 
   private func top(of text: String, in transcript: MacTranscriptView) -> CGFloat {

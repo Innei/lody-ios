@@ -56,7 +56,7 @@ final class MacTranscriptImageView: NSView {
   override func mouseDown(with event: NSEvent) {}
 
   override func mouseUp(with event: NSEvent) {
-    guard photo.frame.contains(convert(event.locationInWindow, from: nil)) else { return }
+    guard event.clickCount <= 1, photo.frame.contains(convert(event.locationInWindow, from: nil)) else { return }
     onPreview?(media)
   }
 
@@ -84,12 +84,14 @@ final class MacTranscriptImageView: NSView {
 final class MacTranscriptAttachmentsView: NSView {
   let strip = CKAttachmentStripView()
   var onPreview: ((CKMediaRef) -> Void)?
+  private let provider: CKMediaProvider?
   private var files: [MacAttachmentItem]
-  private var thumbnails: [String: CGImage] = [:]
-  private var tasks: [Task<Void, Never>] = []
+  private var thumbnails: [CKMediaRef: CGImage] = [:]
+  private var loading: [CKMediaRef: Task<Void, Never>] = [:]
 
   init(files: [MacAttachmentItem], provider: CKMediaProvider?) {
     self.files = files
+    self.provider = provider
     super.init(frame: .zero)
     strip.trailing = true
     strip.labels = .init(
@@ -111,25 +113,42 @@ final class MacTranscriptAttachmentsView: NSView {
       strip.trailingAnchor.constraint(equalTo: trailingAnchor),
     ])
     render()
-    guard let provider else { return }
-    for file in files where file.image {
-      let media = file.media
-      tasks.append(Task { [weak self] in
-        guard let image = try? await provider.image(for: media, pixelSize: CGSize(width: 56, height: 56)), !Task.isCancelled else { return }
-        self?.thumbnails[file.id] = image
-        self?.render()
-      })
-    }
   }
 
   required init?(coder: NSCoder) { nil }
 
-  isolated deinit { tasks.forEach { $0.cancel() } }
+  isolated deinit { loading.values.forEach { $0.cancel() } }
+
+  func update(_ next: [MacAttachmentItem]) {
+    files = next
+    render()
+    loadThumbnails()
+  }
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    loadThumbnails()
+  }
+
+  private func loadThumbnails() {
+    guard let provider, window != nil else { return }
+    for file in files where file.image && thumbnails[file.media] == nil && loading[file.media] == nil {
+      let media = file.media
+      loading[media] = Task { [weak self] in
+        let image = try? await provider.image(for: media, pixelSize: CGSize(width: 56, height: 56))
+        guard let self, !Task.isCancelled else { return }
+        loading[media] = nil
+        guard let image else { return }
+        thumbnails[media] = image
+        render()
+      }
+    }
+  }
 
   private func render() {
     strip.render(files.map { file in
       var attachment = file.attachment
-      attachment.thumbnail = thumbnails[file.id]
+      attachment.thumbnail = thumbnails[file.media]
       return attachment
     })
   }

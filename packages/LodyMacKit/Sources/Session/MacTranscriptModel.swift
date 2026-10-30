@@ -100,7 +100,7 @@ struct MacTranscriptModel {
       case "proposed_plan":
         items.append(.plan(id: row.id, markdown: row.text))
       case "summary":
-        let process = transcript.rows(processEntryID: row.entryID)
+        let process = transcript.rows(processEntryID: row.entryID, processStartID: row.processStartID)
         if process.isEmpty {
           items.append(Self.activity(row))
         } else {

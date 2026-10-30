@@ -94,7 +94,7 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
       rows.append(CKTranscriptRow(id: Self.cardID, kind: "permission", neighbourKey: "permission", version: cardVersion, group: Self.cardID))
     }
     table.apply(rows)
-    if let sent = arrived.last { table.anchor(rowID: sent) }
+    if let sent = arrived.first { table.anchor(rowID: sent) }
   }
 
   var isScrolledToBottom: Bool {
@@ -116,6 +116,10 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
       return view
     }
     if case .image(_, let media, _, _) = item, let view = reused as? MacTranscriptImageView, view.media == media {
+      return view
+    }
+    if case .attachments(_, let files) = item, let view = reused as? MacTranscriptAttachmentsView {
+      view.update(files)
       return view
     }
     return view(for: item)
