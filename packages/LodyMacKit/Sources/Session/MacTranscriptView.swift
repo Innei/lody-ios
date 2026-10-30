@@ -58,6 +58,10 @@ final class MacTranscriptView: NSView, MacFileDropTarget {
     table.follow(.send(queued: false))
   }
 
+  func focus() {
+    window?.makeFirstResponder(table.tableView)
+  }
+
   func dropFiles(_ urls: [URL]) {
     onDropFiles?(urls)
   }

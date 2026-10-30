@@ -48,6 +48,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
   private var readingObserver: NSObjectProtocol?
   var previewURL: URL?
   var transcriptMedia: CKMediaProvider? { source.media }
+  func focusTranscript() { transcript.focus() }
 
   var reading = MacReading.current() {
     didSet {

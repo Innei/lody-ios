@@ -34,6 +34,7 @@ enum MacCatalog {
       Scene(id: "transcript", title: "Transcript") { MacFixtures.workspaceWindow(sessionId: "s-mac") },
       Scene(id: "transcript-history", title: "Transcript · long history") { MacFixtures.workspaceWindow(sessionId: "s-mac", history: 1000) },
       Scene(id: "transcript-media", title: "Transcript · images and files") { MacFixtures.workspaceWindow(sessionId: "s-mac", media: true) },
+      Scene(id: "transcript-history-10k", title: "Transcript · 10,000 entries") { MacFixtures.workspaceWindow(sessionId: "s-mac", history: 10000) },
       Scene(id: "attachments", title: "Composer · attachments") { MacFixtures.workspaceWindow(sessionId: "s-mac", attachments: true) },
       Scene(id: "composer-new", title: "Composer · new session") { MacFixtures.workspaceWindow(sessionId: nil) },
       Scene(id: "composer-reply", title: "Composer · reply") { MacFixtures.workspaceWindow(sessionId: "s-mac") },

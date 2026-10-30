@@ -11,6 +11,8 @@ extension MacSessionController: @preconcurrency QLPreviewPanelDataSource {
         guard let self else { return }
         previewURL = url
         guard let panel = QLPreviewPanel.shared() else { return }
+        focusTranscript()
+        panel.updateController()
         if panel.isVisible {
           panel.reloadData()
         } else {

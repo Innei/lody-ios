@@ -48,6 +48,13 @@ final class MacTranscriptImageView: NSView {
     load()
   }
 
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard let hit = super.hitTest(point) else { return nil }
+    return hit === photo ? self : hit
+  }
+
+  override func mouseDown(with event: NSEvent) {}
+
   override func mouseUp(with event: NSEvent) {
     guard photo.frame.contains(convert(event.locationInWindow, from: nil)) else { return }
     onPreview?(media)
