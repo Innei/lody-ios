@@ -3,16 +3,9 @@ import LodyData
 
 @MainActor
 final class MacHost: LodyHost {
-  private let frontmost: () -> Bool
-
-  init(frontmost: @escaping () -> Bool = { NSApp?.isActive ?? true }) {
-    self.frontmost = frontmost
-  }
-
-  // A Mac app stays live when another app is in front; only the frontmost state changes.
+  // A Mac app stays live when another app is in front.
   var isActive: Bool { true }
   var isBackground: Bool { false }
-  var isFrontmost: Bool { frontmost() }
 
   func open(_ url: URL) async -> Bool {
     NSWorkspace.shared.open(url)

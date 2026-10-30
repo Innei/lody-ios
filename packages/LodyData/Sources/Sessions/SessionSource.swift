@@ -114,41 +114,21 @@ public enum SessionPublished: Sendable {
 
   public static func state() -> SessionListState {
     struct Auth: Decodable {
-      public var account: AuthAccount?
-      public var initialWorkspace: String?
-
-      public init(account: AuthAccount? = nil, initialWorkspace: String? = nil) {
-        self.account = account
-        self.initialWorkspace = initialWorkspace
-      }
+      var account: AuthAccount?
+      var initialWorkspace: String?
     }
     struct Scoped: Decodable {
-      public var workspaceId: String?
-      public var presence: SettingsMachinePresence?
-
-      public init(workspaceId: String? = nil, presence: SettingsMachinePresence? = nil) {
-        self.workspaceId = workspaceId
-        self.presence = presence
-      }
+      var workspaceId: String?
+      var presence: SettingsMachinePresence?
     }
     struct Catalog: Decodable {
-      public var userId: String?
-      public var workspaceId: String?
-      public var loading: Bool?
-      public var connected: Bool?
-      public var catalogRevision: Int?
-      public var presence: Lossy<Scoped>?
-      public var pendingSessions: [Lossy<SessionItem>]?
-
-      public init(userId: String? = nil, workspaceId: String? = nil, loading: Bool? = nil, connected: Bool? = nil, catalogRevision: Int? = nil, presence: Lossy<Scoped>? = nil, pendingSessions: [Lossy<SessionItem>]? = nil) {
-        self.userId = userId
-        self.workspaceId = workspaceId
-        self.loading = loading
-        self.connected = connected
-        self.catalogRevision = catalogRevision
-        self.presence = presence
-        self.pendingSessions = pendingSessions
-      }
+      var userId: String?
+      var workspaceId: String?
+      var loading: Bool?
+      var connected: Bool?
+      var catalogRevision: Int?
+      var presence: Lossy<Scoped>?
+      var pendingSessions: [Lossy<SessionItem>]?
     }
     let auth = try? JSONDecoder().decode(Auth.self, from: Data(AuthSession.published.json.utf8))
     guard let account = auth?.account else { return SessionListState() }

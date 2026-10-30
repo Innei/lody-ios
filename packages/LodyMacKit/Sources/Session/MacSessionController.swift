@@ -38,6 +38,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
   private let composer: NSViewController?
   private let permission: MacPermissionFlow
   private var model = MacTranscriptModel(entriesJSON: "[]")
+  private var parsed = MacTranscriptModel.Parsed("[]")
   private var feed = SessionFeedState()
   private var streaming = false
 
@@ -110,7 +111,8 @@ final class MacSessionController: NSViewController, MacSessionPane {
   }
 
   private func rebuild() {
-    model = MacTranscriptModel(entriesJSON: feed.entriesJSON, pendingJSON: pendingJSON())
+    if parsed.json != feed.entriesJSON { parsed = MacTranscriptModel.Parsed(feed.entriesJSON) }
+    model = MacTranscriptModel(parsed: parsed, pendingJSON: pendingJSON())
     permission.show(model.permission)
     paint()
   }

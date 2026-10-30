@@ -24,9 +24,27 @@ struct MacTranscriptModel {
   var items: [MacTranscriptItem] = []
   var permission: SessionPermission?
 
+  struct Parsed {
+    let json: String
+    let entries: [ChatEntry]?
+    let permission: SessionPermission?
+
+    init(_ json: String) {
+      self.json = json
+      let data = Data(json.utf8)
+      entries = try? JSONDecoder().decode([ChatEntry].self, from: data)
+      let raw = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] ?? []
+      permission = entries == nil ? nil : try? SessionPermission.first(in: raw)
+    }
+  }
+
   init(entriesJSON: String, pendingJSON: String = "") {
-    let data = Data(entriesJSON.utf8)
-    guard let entries = try? JSONDecoder().decode([ChatEntry].self, from: data) else { return }
+    self.init(parsed: Parsed(entriesJSON), pendingJSON: pendingJSON)
+  }
+
+  init(parsed: Parsed, pendingJSON: String = "") {
+    guard let entries = parsed.entries else { return }
+    permission = parsed.permission
     let transcript = ChatTranscript(entries: entries)
     var rows = transcript.rows()
     if let pending = try? JSONDecoder().decode(ChatPendingSend.self, from: Data(pendingJSON.utf8)) {
@@ -68,8 +86,6 @@ struct MacTranscriptModel {
         continue
       }
     }
-    let raw = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] ?? []
-    permission = try? SessionPermission.first(in: raw)
   }
 
   private static func processItem(_ row: ChatRow) -> MacTranscriptItem {
