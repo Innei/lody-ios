@@ -1038,6 +1038,23 @@
         }
       }
     },
+    "mac.settings.machines.ownerOnly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only the owner can rename this machine"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只有所有者可以重命名这台机器"
+          }
+        }
+      }
+    },
     "mac.settings.machines.refresh": {
       "extractionState": "manual",
       "localizations": {
@@ -1136,6 +1153,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "离线"
+          }
+        }
+      }
+    },
+    "mac.settings.ok": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好"
           }
         }
       }
@@ -1476,6 +1510,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "所有者"
+          }
+        }
+      }
+    },
+    "mac.settings.save": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
           }
         }
       }

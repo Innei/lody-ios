@@ -23,6 +23,7 @@ struct MacMachineRow: Equatable, Identifiable {
   var id: String { machine.id }
   var name: String { machine.name.isEmpty ? machine.id : machine.name }
   var owned: Bool { machine.readOnly == false }
+  var canRename: Bool { owned }
 }
 
 @MainActor
@@ -64,9 +65,12 @@ struct MacMachineServices {
 final class MacMachineList {
   @ObservationIgnored private let services: MacMachineServices
   private var machines: [MacMachine] = []
+  private var cache: [String: [MacMachine]] = [:]
+  private var workspaceId = ""
   private var presence: SettingsMachinePresence
   private(set) var loading = false
   private(set) var failed = false
+  var renameFailed = false
 
   init(services: MacMachineServices) {
     self.services = services
@@ -79,17 +83,38 @@ final class MacMachineList {
 
   var owned: [MacMachineRow] { rows.filter(\.owned) }
 
+  func show(workspaceId: String) {
+    self.workspaceId = workspaceId
+    machines = cache[workspaceId] ?? []
+  }
+
   func load(workspaceId: String) async {
+    show(workspaceId: workspaceId)
     loading = true
     defer { loading = false }
     do {
-      machines = try await services.load(workspaceId)
+      store(try await services.load(workspaceId), for: workspaceId)
       failed = false
     } catch {
-      machines = []
-      failed = true
+      failed = cache[workspaceId] == nil
     }
     presence = services.presence()
+  }
+
+  func rename(_ row: MacMachineRow, to name: String, workspaceId: String) async {
+    let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard row.canRename, !trimmed.isEmpty, trimmed != row.machine.name else { return }
+    do {
+      store(try await services.rename(workspaceId, row.machine, trimmed), for: workspaceId)
+      failed = false
+    } catch {
+      renameFailed = true
+    }
+  }
+
+  private func store(_ next: [MacMachine], for workspace: String) {
+    cache[workspace] = next
+    if workspace == workspaceId { machines = next }
   }
 
   func refreshPresence() {
