@@ -138,7 +138,7 @@ struct MacThemeThumbnail: View {
     .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
     .overlay(
       RoundedRectangle(cornerRadius: 7, style: .continuous)
-        .strokeBorder(selected ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: selected ? 3 : 1)
+        .strokeBorder(selected ? AnyShapeStyle(.tint) : AnyShapeStyle(Color(nsColor: .separatorColor)), lineWidth: selected ? 3 : 1)
     )
   }
 }
@@ -154,7 +154,7 @@ private struct MacThemeWindow: View {
       VStack(alignment: .leading, spacing: 5) {
         Capsule().fill(line).frame(width: 34, height: 4)
         Capsule().fill(line).frame(width: 46, height: 4)
-        Capsule().fill(Color.accentColor).frame(width: 22, height: 4)
+        Capsule().fill(.tint).frame(width: 22, height: 4)
       }
       .padding(8)
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

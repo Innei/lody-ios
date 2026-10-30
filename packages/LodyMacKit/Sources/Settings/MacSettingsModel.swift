@@ -45,17 +45,25 @@ final class MacSettingsModel {
   var query = ""
   var confirmingSignOut = false
   var page: MacSettingsPage
+  private(set) var accent: MacAccent
 
   init(services: MacSettingsServices, defaults: UserDefaults = .standard) {
     self.services = services
     self.defaults = defaults
     state = services.source.state
     page = MacSettingsPage.restored(defaults)
+    accent = services.appearance.accent()
     observers = services.source.changes.map { name in
       NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
         MainActor.assumeIsolated { self?.refresh() }
       }
     }
+    observers.append(NotificationCenter.default.addObserver(forName: .lodyMacAccentDidChange, object: nil, queue: .main) { [weak self] _ in
+      MainActor.assumeIsolated {
+        guard let self else { return }
+        self.accent = self.services.appearance.accent()
+      }
+    })
   }
 
   isolated deinit {

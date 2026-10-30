@@ -8,6 +8,7 @@ struct MacSettingsView: View {
     NavigationSplitView {
       List(selection: $model.selection) {
         MacSettingsAccountCard(state: model.state)
+          .modifier(MacSettingsRowHighlight(selected: model.selection == .account))
           .tag(MacSettingsPage.account)
           .accessibilityIdentifier("settings-account")
         ForEach(model.sections) { group in
@@ -18,6 +19,7 @@ struct MacSettingsView: View {
               } icon: {
                 MacSettingsTile(page: page)
               }
+              .modifier(MacSettingsRowHighlight(selected: model.selection == page))
               .tag(page)
               .accessibilityIdentifier("settings-\(page.rawValue)")
             }
@@ -27,13 +29,14 @@ struct MacSettingsView: View {
         }
       }
       .listStyle(.sidebar)
-      .tint(Color(nsColor: .systemGray))
+      .background(MacSidebarHighlightProbe())
       .searchable(text: $model.query, placement: .sidebar, prompt: Text(String(localized: "mac.settings.search", bundle: .lodyMac)))
       .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
     } detail: {
       MacSettingsDetail(model: model)
         .navigationTitle(model.shownPage.title)
     }
+    .tint(model.accent == .system ? nil : Color(nsColor: model.accent.color))
   }
 }
 
