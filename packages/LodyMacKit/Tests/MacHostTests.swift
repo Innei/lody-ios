@@ -16,4 +16,16 @@ final class MacHostTests: XCTestCase {
     XCTAssertNotNil(token)
     if let token { host.endSendAllowance(token) }
   }
+
+  func testMemoryPressureWarningsReachTheRuntime() {
+    let host = MacHost()
+    var posted = 0
+    let observer = NotificationCenter.default.addObserver(forName: .lodyHostDidReceiveMemoryWarning, object: nil, queue: nil) { _ in posted += 1 }
+    defer { NotificationCenter.default.removeObserver(observer) }
+    host.memoryPressure(.normal)
+    XCTAssertEqual(posted, 0)
+    host.memoryPressure(.warning)
+    host.memoryPressure(.critical)
+    XCTAssertEqual(posted, 2)
+  }
 }

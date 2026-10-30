@@ -3,9 +3,26 @@ import LodyData
 
 @MainActor
 final class MacHost: LodyHost {
+  private var pressure: DispatchSourceMemoryPressure?
+
   // A Mac app stays live when another app is in front.
   var isActive: Bool { true }
   var isBackground: Bool { false }
+
+  func watchMemoryPressure() {
+    let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
+    source.setEventHandler { [weak self, weak source] in
+      guard let event = source?.data else { return }
+      MainActor.assumeIsolated { self?.memoryPressure(event) }
+    }
+    source.resume()
+    pressure = source
+  }
+
+  func memoryPressure(_ event: DispatchSource.MemoryPressureEvent) {
+    guard !event.isDisjoint(with: [.warning, .critical]) else { return }
+    NotificationCenter.default.post(name: .lodyHostDidReceiveMemoryWarning, object: nil)
+  }
 
   func open(_ url: URL) async -> Bool {
     NSWorkspace.shared.open(url)

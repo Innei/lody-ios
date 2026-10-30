@@ -13,6 +13,7 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
   public func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.mainMenu = MacMainMenu.make(target: self)
     LodyHosting.current = host
+    host.watchMemoryPressure()
     NSWindow.allowsAutomaticWindowTabbing = true
     if LodyUIVerify.enabled {
       URLProtocol.registerClass(OfflineProbe.self)
