@@ -55,8 +55,10 @@
 - The Mac app is a cloud client only. `LodyMacKit` owns AppKit UI and implements `LodyHost` as `MacHost`: the runtime never suspends when Lody is not frontmost, and closing the last window keeps it syncing. It never registers `lody://`, which the official desktop app owns.
 - Mac storage lives under `~/Library/Application Support/app.innei.lody.mac` (`LodyStorage.root`); never write to the shared `Lody` folder the official desktop app uses. Credentials stay in this Mac's Keychain.
 - Mac UI strings live in `packages/LodyMacKit/Sources/Resources/Localizable.xcstrings` (`bundle: .lodyMac`); `pnpm i18n:check` covers them.
-- Debug builds register `lodymacverify://` only: `case/<name>` opens an offline UI catalog scene built from production controllers, plus `reset`, `appearance/light|dark` and `dump?out=<absolute .json>` (in-process view state). The Debug page is in the app menu and Settings.
-- Build with `pnpm mac:build`; verify UI with `pnpm verify:mac [--case <name>]`, which drives the app through the auv TypeScript SDK pinned to the installed `/opt/homebrew/bin/auv`. Clicks need foreground input and briefly take focus; assert on the view dump first and OCR only for visible text (no CJK OCR in light mode).
+- Debug builds register `lodymacverify://` only: `case/<name>` opens an offline UI catalog scene built from production controllers, plus `reset`, `appearance/light|dark` and `dump?out=<absolute .json>` (in-process view state); `--ui-verify-open <url>` applies the same routes at launch. The Debug page is in the app menu and Settings.
+- Build with `pnpm mac:build`. Mac UI verification never touches the host's screen, pointer or keyboard: never run XCUITest, auv or a windowed VM on the host.
+- Everyday checks: `pnpm verify:mac [--case <name>]` drives controls in-process and asserts on view dumps; `--ui-verify-offscreen` keeps every window beyond all displays and out of the Dock.
+- Final gate before a Mac feature is done: `pnpm verify:mac:vm [--case <name>] [--in-process]` builds for testing on the host, then runs the `LodyMacUITests` XCUITest target (real clicks, menus and typing, light and dark screenshots) in a disposable headless Tart clone of a macOS 27.2 guest and exports screenshots to `.artifacts/mac-verify-vm`. UI tests open scenes with launch routes, never `XCUIApplication.open`. `pnpm verify:mac:vm prepare` builds the base VM once; its data lives in the APFS sparse bundle `/Volumes/WD/lody-vm.sparsebundle`.
 
 ## Share Extension
 
