@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 import LodyData
 @testable import LodyMacKit
@@ -27,5 +28,23 @@ final class MacHostTests: XCTestCase {
     host.memoryPressure(.warning)
     host.memoryPressure(.critical)
     XCTAssertEqual(posted, 2)
+  }
+
+  func testAlertsWithoutAWindowWaitForTheNextKeyWindow() {
+    var window: NSWindow?
+    var shown: [String] = []
+    var finish: (() -> Void)?
+    let host = MacHost(keyWindow: { window }, present: { alert, _, done in
+      shown.append(alert.messageText)
+      finish = done
+    })
+    host.alert(title: "Couldn't send", message: "Offline")
+    host.alert(title: "Still offline", message: "Retry later")
+    XCTAssertEqual(shown, [])
+    window = NSWindow()
+    NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: window)
+    XCTAssertEqual(shown, ["Couldn't send"])
+    finish?()
+    XCTAssertEqual(shown, ["Couldn't send", "Still offline"])
   }
 }

@@ -3,7 +3,28 @@ import LodyData
 
 @MainActor
 final class MacHost: LodyHost {
+  typealias Present = (NSAlert, NSWindow, @escaping () -> Void) -> Void
   private var pressure: DispatchSourceMemoryPressure?
+  private let keyWindow: () -> NSWindow?
+  private let present: Present
+  private var alerts: [NSAlert] = []
+  private var presenting = false
+  private var keyObserver: NSObjectProtocol?
+
+  init(
+    keyWindow: @escaping () -> NSWindow? = { NSApp.keyWindow ?? NSApp.mainWindow },
+    present: @escaping Present = { alert, window, done in alert.beginSheetModal(for: window) { _ in done() } }
+  ) {
+    self.keyWindow = keyWindow
+    self.present = present
+    keyObserver = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] _ in
+      MainActor.assumeIsolated { self?.presentNextAlert() }
+    }
+  }
+
+  isolated deinit {
+    if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
+  }
 
   // A Mac app stays live when another app is in front.
   var isActive: Bool { true }
@@ -48,10 +69,16 @@ final class MacHost: LodyHost {
     let alert = NSAlert()
     alert.messageText = title
     alert.informativeText = message
-    if let window = NSApp.keyWindow ?? NSApp.mainWindow {
-      alert.beginSheetModal(for: window)
-    } else {
-      alert.runModal()
+    alerts.append(alert)
+    presentNextAlert()
+  }
+
+  private func presentNextAlert() {
+    guard !presenting, !alerts.isEmpty, let window = keyWindow() else { return }
+    presenting = true
+    present(alerts.removeFirst(), window) { [weak self] in
+      self?.presenting = false
+      self?.presentNextAlert()
     }
   }
 
