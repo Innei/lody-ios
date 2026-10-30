@@ -133,6 +133,8 @@ struct MacSettingsDetail: View {
       MacGeneralPage(model: model.general)
     case .appearance:
       MacAppearancePage(model: model.appearance)
+    case .keyboard:
+      MacKeyboardPage(groups: NSApp.mainMenu.map { MacShortcutList.groups(from: $0) } ?? [])
     #if DEBUG
     case .debug:
       MacSettingsDebugPage()
