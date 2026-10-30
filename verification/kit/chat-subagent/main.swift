@@ -55,6 +55,8 @@ precondition(sameColor(attributed.attribute(.foregroundColor, at: 0, effectiveRa
 precondition(sameColor(attributed.attribute(.foregroundColor, at: attributed.length - 1, effectiveRange: nil) as? UIColor, .lodySecondary, traits: traits))
 precondition(title.numberOfLines == 1 && title.lineBreakMode == .byTruncatingTail)
 precondition(cell.bounds.height == 30, "Rows without detail are 30 pt, got \(cell.bounds.height)")
+let statusWords = ["pending", "running", "completed", "failed"].map { String(localized: String.LocalizationValue("native.chat.subagent." + $0), bundle: .lody) }
+precondition(!labels.contains { !$0.isHidden && statusWords.contains($0.text ?? "") }, "The rail glyph already shows the state, so no status word is drawn")
 let lastPath = treePath()!
 precondition(abs(lastPath.boundingBoxOfPath.minX - (24 - 16)) < 1.5, "The child tree must continue the process trunk")
 var curved = false
@@ -104,10 +106,8 @@ row.subagent?.status = "failed"
 row.subagent?.background = true
 render(row)
 precondition(glyph.kind == .failed)
-let status = labels.first {
-  $0.text == String(localized: "native.chat.subagent.failed", bundle: .lody) + " · " + String(localized: "native.chat.subagent.background", bundle: .lody)
-}!
-precondition(sameColor(status.textColor, .lodyFailure, traits: traits))
+let status = labels.first { $0.text == String(localized: "native.chat.subagent.background", bundle: .lody) }!
+precondition(!status.isHidden && sameColor(status.textColor, .lodyTertiary, traits: traits), "Background stays as the only trailing note")
 precondition(abs(status.font.pointSize - LodyDesign.mono(11.5, compatibleWith: traits).pointSize) < 0.01)
 precondition(status.frame.minX >= title.frame.maxX && status.frame.maxX <= cell.bounds.width, "Trailing status must not overlap the title")
 precondition(sameColor(detail.textColor, .lodySecondary, traits: traits), "Failure details retain the secondary text color")
@@ -118,7 +118,7 @@ row.actionable = false
 cell.prepareForReuse()
 render(row)
 precondition(glyph.kind == .done && cell.bounds.height == 30 && detail.isHidden)
-precondition(sameColor(status.textColor, .lodyTertiary, traits: traits))
+precondition(status.isHidden || (status.text ?? "").isEmpty, "A finished foreground task has no trailing text")
 precondition(cell.accessibilityTraits == .staticText)
 row.subagent?.status = "pending"
 render(row)

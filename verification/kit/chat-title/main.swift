@@ -99,6 +99,10 @@ precondition(!button.menuGlyph.isHidden, "A title with a menu shows a down chevr
 button.layoutIfNeeded()
 let titleTextWidth = ("Session title" as NSString).size(withAttributes: [.font: UIFont.preferredFont(forTextStyle: .headline)]).width
 precondition(button.menuGlyph.frame.minX >= button.titleHost.frame.minX + titleTextWidth, "The chevron follows the title")
+let glyphImage = button.menuGlyph.image!.size
+precondition(abs(button.menuGlyph.frame.width - glyphImage.width) < 0.01 && abs(button.menuGlyph.frame.height - glyphImage.height) < 0.01 && glyphImage.width > glyphImage.height,
+  "The menu chevron keeps the symbol's own proportions: \(button.menuGlyph.frame.size) vs \(glyphImage)")
+precondition(button.menuGlyph.frame.height <= 8, "The menu chevron stays small beside the title: \(button.menuGlyph.frame.size)")
 ChatNavigationTitle.configureButton(button, title: "Session title", subtitle: "Project name", machine: "Studio", branch: "main", machineState: "offline")
 precondition(subtitleText(button).contains("main") && subtitleText(button).contains(String(localized: "devices.offline", bundle: .lody)),
   "An offline machine stays visible in the caption")

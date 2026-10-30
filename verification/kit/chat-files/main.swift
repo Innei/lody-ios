@@ -66,6 +66,16 @@ precondition(!views.contains { ($0 as? UIImageView)?.image != nil }, "File rows 
 let rowCounts = views.compactMap { $0 as? UILabel }.first { $0.attributedText?.string == "+18 −6" }
 precondition(rowCounts != nil && abs(rowCounts!.font.pointSize - LodyDesign.font(.footnote, size: 12).pointSize) < 0.01
   && !rowCounts!.font.fontDescriptor.symbolicTraits.contains(.traitMonoSpace), "Row counts are 12 pt system tabular")
+let foldHeader = ChatFileCell(frame: CGRect(x: 0, y: 0, width: 360, height: 42))
+foldHeader.contentConfiguration = ChatFileCell.headerContent(for: "2 files changed")
+for open in [false, true] {
+  foldHeader.accessories = ChatFileCell.headerAccessories(add: 33, del: 7, open: open)
+  foldHeader.layoutIfNeeded()
+  let fold = descendants(foldHeader).compactMap { $0 as? UIImageView }.first { $0.image?.isSymbolImage == true }!
+  precondition(fold.transform == .identity && abs(fold.frame.width - fold.image!.size.width) < 0.01 && abs(fold.frame.height - fold.image!.size.height) < 0.01,
+    "The fold chevron is drawn at the symbol's own size, never stretched: \(fold.frame.size) vs \(fold.image!.size)")
+  precondition(open == (fold.frame.width > fold.frame.height), "Open shows chevron.down, closed chevron.right: \(fold.frame.size)")
+}
 precondition(ChatFileCell.reviewAccessories().isEmpty, "Review all changes opens a sheet, so it has no disclosure chevron")
 let label = views.compactMap { $0 as? UILabel }.first { $0.attributedText?.string == pathTitle.string }!
 let font = label.attributedText!.attribute(.font, at: 0, effectiveRange: nil) as! UIFont

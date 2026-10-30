@@ -63,14 +63,13 @@ final class ChatSubagentCell: UICollectionViewCell, ChatGapCell {
       title.append(NSAttributedString(string: actor, attributes: [.font: font, .foregroundColor: color]))
     }
     titleLabel.attributedText = title
-    var status = Self.statusText(card.status)
-    if card.status == "in_progress", !card.detail.isEmpty { status = card.detail }
-    if card.background {
-      status += " · " + String(localized: "native.chat.subagent.background", bundle: .lody)
-    }
-    statusLabel.text = status
+    var notes: [String] = []
+    if card.status == "in_progress", !card.detail.isEmpty { notes.append(card.detail) }
+    if card.background { notes.append(String(localized: "native.chat.subagent.background", bundle: .lody)) }
+    statusLabel.text = notes.joined(separator: " · ")
+    statusLabel.isHidden = notes.isEmpty
     statusLabel.font = LodyDesign.mono(11.5, compatibleWith: traitCollection)
-    statusLabel.textColor = card.status == "failed" ? .lodyFailure : .lodyTertiary
+    statusLabel.textColor = .lodyTertiary
     detailLabel.text = Self.detailText(card)
     detailLabel.font = Self.detailFont(traitCollection)
     detailLabel.isHidden = Self.detailText(card).isEmpty
@@ -126,7 +125,7 @@ final class ChatSubagentCell: UICollectionViewCell, ChatGapCell {
     let text = row.treeChild ? LodyDesign.Rail.childText : LodyDesign.Rail.text
     let x = text - ChatReadingColumn.cellMargin
     let available = max(0, width - x)
-    let statusWidth = min(ceil(statusLabel.sizeThatFits(CGSize(width: width, height: line.height)).width), available * 0.45)
+    let statusWidth = statusLabel.isHidden ? 0 : min(ceil(statusLabel.sizeThatFits(CGSize(width: width, height: line.height)).width), available * 0.45)
     let statusHeight = ceil(statusLabel.font.lineHeight)
     let midY = line.top + line.height / 2
     statusLabel.frame = CGRect(x: width - statusWidth, y: midY - statusHeight / 2, width: statusWidth, height: statusHeight)
