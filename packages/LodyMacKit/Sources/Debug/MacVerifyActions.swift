@@ -29,6 +29,7 @@ enum MacVerifyActions {
           return nil
         }
       }
+      if MacAccessibilityTree.press(text, in: root) { return nil }
       return "no click target \(text)"
     case .choose(let current, let option):
       guard let popup = views.compactMap({ $0 as? NSPopUpButton }).first(where: { $0.titleOfSelectedItem == current && $0.isEnabled }),

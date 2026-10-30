@@ -18,6 +18,7 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
     if LodyUIVerify.enabled {
       URLProtocol.registerClass(OfflineProbe.self)
       #if DEBUG
+      MacAccessibilityTree.enable()
       let routes = MacVerifyRoute.launch(ProcessInfo.processInfo.arguments)
       if LodyUIVerify.offscreen {
         NSApp.setActivationPolicy(.accessory)

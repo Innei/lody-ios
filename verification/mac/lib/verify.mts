@@ -15,6 +15,16 @@ export interface Session {
   close: () => Promise<void>;
 }
 
+export interface AXElement {
+  role?: string;
+  identifier?: string;
+  label?: string;
+  value?: string;
+  selected?: boolean;
+  enabled?: boolean;
+  elements?: AXElement[];
+}
+
 export interface ViewNode {
   class: string;
   identifier?: string;
@@ -23,6 +33,7 @@ export interface ViewNode {
   hidden?: boolean;
   enabled?: boolean;
   inWindow?: [number, number, number, number];
+  elements?: AXElement[];
   children?: ViewNode[];
 }
 
@@ -152,6 +163,28 @@ export async function waitForDump(
 export function nodes(root: ViewNode | undefined): ViewNode[] {
   if (!root) return [];
   return [root, ...(root.children ?? []).flatMap(nodes)];
+}
+
+function flatten(items: AXElement[] | undefined): AXElement[] {
+  return (items ?? []).flatMap((item) => [item, ...flatten(item.elements)]);
+}
+
+export function elements(dump: Dump) {
+  return dump.windows
+    .filter((w) => w.identifier === 'catalog-scene')
+    .flatMap((w) => nodes(w.root))
+    .flatMap((node) => flatten(node.elements));
+}
+
+export function element(dump: Dump, identifier: string): AXElement | undefined {
+  const hosted = dump.windows
+    .filter((w) => w.identifier === 'catalog-scene')
+    .flatMap((w) => nodes(w.root))
+    .find((node) => !node.hidden && node.identifier === identifier);
+  return (
+    elements(dump).find((item) => item.identifier === identifier) ??
+    (hosted && { identifier, enabled: hosted.enabled })
+  );
 }
 
 export function scene(dump: Dump) {

@@ -16,7 +16,7 @@ enum MacViewDump {
         entry["tabs"] = tabs.map(\.title)
         entry["badges"] = tabs.map { $0.tab.accessoryView?.accessibilityIdentifier() ?? "" }
       }
-      if let content = window.contentView { entry["root"] = node(content) }
+      if let content = window.contentView { entry["root"] = node(content, visit: MacAccessibilityTree.Visit()) }
       return entry
     }
     let data = try JSONSerialization.data(withJSONObject: ["windows": windows, "accent": MacAccent.current().rawValue, "action": MacVerifyActions.last], options: [.prettyPrinted, .sortedKeys])
@@ -33,7 +33,7 @@ enum MacViewDump {
     try data.write(to: url, options: .atomic)
   }
 
-  static func node(_ view: NSView) -> [String: Any] {
+  static func node(_ view: NSView, visit: MacAccessibilityTree.Visit = .init()) -> [String: Any] {
     var entry: [String: Any] = ["class": String(describing: type(of: view)), "frame": frame(view.frame)]
     if !view.accessibilityIdentifier().isEmpty { entry["identifier"] = view.accessibilityIdentifier() }
     if view.isHidden { entry["hidden"] = true }
@@ -53,8 +53,25 @@ enum MacViewDump {
       }
     }
     if view.window?.firstResponder === view { entry["firstResponder"] = true }
-    let children = view.subviews.map(node)
+    let elements = MacAccessibilityTree.elements(of: view, visit: visit).map { element($0, in: view.window, visit: visit) }
+    if !elements.isEmpty { entry["elements"] = elements }
+    let children = view.subviews.map { node($0, visit: visit) }
     if !children.isEmpty { entry["children"] = children }
+    return entry
+  }
+
+  private static func element(_ element: MacAccessibilityTree.Element, in window: NSWindow?, visit: MacAccessibilityTree.Visit) -> [String: Any] {
+    var entry: [String: Any] = ["role": element.role ?? "", "enabled": element.enabled]
+    if let identifier = element.identifier, !identifier.isEmpty { entry["identifier"] = identifier }
+    if let label = element.label, !label.isEmpty { entry["label"] = label }
+    if element.selected { entry["selected"] = true }
+    if let value = element.value { entry["value"] = "\(value)" }
+    if let window, let screen = element.frame, screen.minX.isFinite, screen.minY.isFinite, screen.width.isFinite, screen.height.isFinite {
+      let rect = window.convertFromScreen(screen)
+      entry["inWindow"] = frame(NSRect(x: rect.minX, y: window.frame.height - rect.maxY, width: rect.width, height: rect.height))
+    }
+    let children = MacAccessibilityTree.children(of: element, visit: visit).map { self.element($0, in: window, visit: visit) }
+    if !children.isEmpty { entry["elements"] = children }
     return entry
   }
 

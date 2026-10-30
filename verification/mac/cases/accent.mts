@@ -1,5 +1,13 @@
 import type { Session } from '../lib/verify.mts';
-import { capture, expect, openScene, waitForDump } from '../lib/verify.mts';
+import {
+  capture,
+  clickText,
+  element,
+  expect,
+  openScene,
+  route,
+  waitForDump,
+} from '../lib/verify.mts';
 
 export async function accent(session: Session) {
   for (const appearance of ['light', 'dark'] as const) {
@@ -8,9 +16,13 @@ export async function accent(session: Session) {
       session,
       (dump) =>
         dump.windows.filter((window) => window.identifier === 'catalog-scene')
-          .length === 2,
+          .length === 2 && !!element(dump, 'settings-appearance-accent-orange'),
     );
     expect(ready.accent === 'system', 'the scene starts on the system accent');
+    await clickText(session, 'settings-appearance-accent-orange');
+    await waitForDump(session, (dump) => dump.accent === 'orange');
     await capture(session, `accent-${appearance}`);
   }
+  await route(session, 'reset');
+  await waitForDump(session, (dump) => dump.accent === 'system');
 }
