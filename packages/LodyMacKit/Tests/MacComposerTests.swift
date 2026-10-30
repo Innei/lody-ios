@@ -51,3 +51,36 @@ final class MacComposerTests: XCTestCase {
     XCTAssertFalse(MacComposerModel.isFullAccess("acceptEdits"))
   }
 }
+
+@MainActor
+final class MacComposerLayoutTests: XCTestCase {
+  func testABlockedNewSessionKeepsItsChipsAndNoticeInsideTheComposer() throws {
+    var model = MacComposerModel(mode: .newSession)
+    let handbook = CreateProject(id: "p3", machineId: "", name: "handbook")
+    model.form = CreateSessionForm(userId: "u", workspaceId: "w", projects: [handbook])
+    model.form.open(projectId: nil, context: nil)
+    model.form.selectProject(handbook)
+    model.text = "Ship the Mac sidebar"
+    XCTAssertEqual(model.missing, .machine)
+    let composer = MacComposerView(frame: NSRect(x: 0, y: 0, width: 452, height: 160))
+    composer.translatesAutoresizingMaskIntoConstraints = false
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 452, height: 300), styleMask: [.titled], backing: .buffered, defer: true)
+    let root = NSView()
+    window.contentView = root
+    root.addSubview(composer)
+    NSLayoutConstraint.activate([
+      composer.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+      composer.widthAnchor.constraint(equalToConstant: 452),
+      composer.topAnchor.constraint(equalTo: root.topAnchor),
+    ])
+    composer.render(model, reply: ("", "", ""))
+    root.layoutSubtreeIfNeeded()
+    XCTAssertFalse(composer.notice.isHidden)
+    for view in [composer.project, composer.machine, composer.agent, composer.notice] {
+      let frame = view.convert(view.bounds, to: composer)
+      XCTAssertLessThanOrEqual(frame.maxX, 452 - 10 + 0.5, "\(view.accessibilityIdentifier()) stays inside the trailing padding")
+      XCTAssertGreaterThanOrEqual(frame.minX, 4, "\(view.accessibilityIdentifier()) keeps its leading padding")
+    }
+  }
+}
+

@@ -34,7 +34,7 @@
     "verify:clean": "python3 verification/clean.py"
   },
   "devDependencies": {
-    "@auv-js/sdk": "0.0.35",
+    "@auv-js/sdk": "0.0.39",
     "esbuild": "0.25.12",
     "prettier": "3.9.6",
     "typescript": "~6.0.3",

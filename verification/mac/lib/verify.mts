@@ -33,6 +33,7 @@ export interface ViewNode {
   placeholder?: string;
   hidden?: boolean;
   enabled?: boolean;
+  inWindow?: [number, number, number, number];
   children?: ViewNode[];
 }
 
@@ -155,7 +156,19 @@ export async function window(session: Session): Promise<WindowClient> {
   const target = scenes.find((w) => w.key) ?? scenes[scenes.length - 1];
   if (!target) throw new Error('no catalog scene window is open');
   if (!session.runner) throw new Error('auv is not running in-process mode');
-  return session.runner.windows.resolve({
+  const runner = session.runner;
+  const deadline = performance.now() + 3000;
+  // A reopened scene's old window keeps its title through the close animation.
+  while (performance.now() < deadline) {
+    const all = await runner.windows.list();
+    const matches = all.filter(
+      (w) =>
+        w.window.applicationId === bundleId && w.window.title === target.title,
+    );
+    if (matches.length === 1) break;
+    await sleep(100);
+  }
+  return runner.windows.resolve({
     applicationId: bundleId,
     title: target.title,
   });
@@ -233,13 +246,39 @@ export async function waitForText(
     const target = await window(session);
     const deadline = performance.now() + timeoutMs;
     while (true) {
-      const result = await target.findText(text, {});
-      if (result.matches.length > 0) return result.matches[0]!;
+      const match = await findMatch(target, text);
+      if (match) return match;
       if (performance.now() > deadline)
         throw new Error(`text "${text}" not visible within ${timeoutMs} ms`);
       await sleep(100);
     }
   });
+}
+
+type Rect = { x: number; y: number; width: number; height: number };
+
+// OCR reads a typographic ellipsis as three periods.
+const ocrQuery = (text: string) => text.replaceAll('…', '...');
+
+function pick<T extends { text: string }>(matches: readonly T[], text: string) {
+  return matches.find((m) => m.text.trim() === ocrQuery(text)) ?? matches[0];
+}
+
+async function findMatch(target: Pick<WindowClient, 'findText'>, text: string) {
+  const { matches } = await target.findText(ocrQuery(text), {});
+  return pick(matches, text);
+}
+
+function contains(outer: Rect | undefined, inner: Rect | undefined) {
+  if (!outer || !inner) return false;
+  const x = inner.x + inner.width / 2;
+  const y = inner.y + inner.height / 2;
+  return (
+    x >= outer.x &&
+    x <= outer.x + outer.width &&
+    y >= outer.y &&
+    y <= outer.y + outer.height
+  );
 }
 
 async function act(
@@ -261,10 +300,9 @@ export async function clickText(session: Session, text: string) {
   if (session.inProcess) return act(session, 'click', { text });
   return step(session, `click "${text}"`, async () => {
     const target = await window(session);
-    const result = await target.findText(text, {});
-    if (result.matches.length === 0)
-      throw new Error(`no click target "${text}"`);
-    return target.click(result.matches[0]!, {
+    const match = await findMatch(target, text);
+    if (!match) throw new Error(`no click target "${text}"`);
+    return target.click(match, {
       policy: InputPolicy.FOREGROUND_PREFERRED,
     });
   });
@@ -282,9 +320,9 @@ export async function typeInto(session: Session, field: string, text: string) {
       .catch(() => false);
     const target = await window(session);
     if (!focused) {
-      const result = await target.findText(field, {});
-      if (result.matches.length === 0) throw new Error(`no input "${field}"`);
-      await target.click(result.matches[0]!, {
+      const match = await findMatch(target, field);
+      if (!match) throw new Error(`no input "${field}"`);
+      await target.click(match, {
         policy: InputPolicy.FOREGROUND_PREFERRED,
       });
     }
@@ -301,22 +339,63 @@ export async function choose(
   option: string,
 ) {
   if (session.inProcess) return act(session, 'choose', { current, option });
-  await clickText(session, current);
-  await sleep(250);
+  const runner = session.runner!;
+  const untitled = async () =>
+    (await runner.windows.list()).filter(
+      (w) => w.window.applicationId === bundleId && !w.window.title,
+    );
+  const frameKey = (w: WindowClient) => JSON.stringify(w.window.frame);
+  const before = new Set((await untitled()).map(frameKey));
+  await step(session, `open "${current}"`, async () => {
+    const target = await window(session);
+    const popup = find(
+      await dump(session),
+      (n) => n.class === 'NSPopUpButton' && n.text === current,
+    )[0];
+    const frame = target.window.frame;
+    if (!popup?.inWindow || !frame) throw new Error(`no popup "${current}"`);
+    const [x, y, width, height] = popup.inWindow;
+    return target.click(
+      { bounds: { x: frame.x + x, y: frame.y + y, width, height } },
+      { policy: InputPolicy.FOREGROUND_PREFERRED },
+    );
+  });
   return step(session, `choose "${option}"`, async () => {
-    const all = await session.runner!.windows.list();
-    const menus = all.filter((w) => w.window.applicationId === bundleId);
-    for (const menu of menus) {
-      const result = await menu
-        .findText(option, {})
-        .catch(() => ({ matches: [] as never[] }));
-      if (result.matches.length > 0) {
-        return menu.click(result.matches[0]!, {
-          policy: InputPolicy.FOREGROUND_PREFERRED,
-        });
+    const deadline = performance.now() + 3000;
+    // Open menus resolve through neither titles nor AX, so items are found and clicked on the display.
+    while (performance.now() < deadline) {
+      const menus = (await untitled()).filter((w) => !before.has(frameKey(w)));
+      const { matches } = await runner.displays.findText(
+        undefined,
+        ocrQuery(option),
+      );
+      const inside = matches.filter((m) =>
+        menus.some((w) => contains(w.window.frame, m.bounds)),
+      );
+      const match = pick(inside, option);
+      if (match) {
+        await runner.input.click({ bounds: match.bounds });
+        const closing = performance.now() + 800;
+        while (performance.now() < closing) {
+          const open = (await untitled()).filter(
+            (w) => !before.has(frameKey(w)),
+          );
+          if (open.length === 0) return;
+          await sleep(100);
+        }
+        continue;
       }
+      await sleep(100);
     }
-    throw new Error(`no menu item "${option}"`);
+    const seen = (await untitled()).map(frameKey);
+    const { matches } = await runner.displays.findText(
+      undefined,
+      ocrQuery(option),
+    );
+    await runner.input.pressKey('escape').catch(() => {});
+    throw new Error(
+      `no menu item "${option}" before=${JSON.stringify([...before])} untitled=${JSON.stringify(seen)} ocr=${JSON.stringify(matches.map((m) => [m.text, m.bounds?.x, m.bounds?.y]))}`,
+    );
   });
 }
 

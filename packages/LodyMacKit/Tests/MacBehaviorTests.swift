@@ -5,13 +5,28 @@ import LodyData
 
 final class MacAccentTests: XCTestCase {
   func testAccentChoicesFollowTheSystemAndNeverOfferGreenOrRed() {
-    XCTAssertEqual(MacAccent.allCases.map(\.rawValue), ["system", "blue", "purple", "pink", "orange", "graphite"])
-    for accent in MacAccent.allCases where accent != .system {
-      guard let color = accent.color.usingColorSpace(.sRGB), color.saturationComponent > 0.15 else { continue }
-      let hue = color.hueComponent * 360
-      XCTAssertFalse((80...170).contains(hue), "\(accent) reads as green")
-      XCTAssertFalse(hue < 12 || hue > 348, "\(accent) reads as red")
+    XCTAssertEqual(MacAccent.allCases.map(\.rawValue), ["system", "blue", "purple", "orange", "graphite"])
+    for name in [NSAppearance.Name.aqua, .darkAqua] {
+      NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
+        let red = Self.hue(.systemRed)!
+        let green = Self.hue(.systemGreen)!
+        for accent in MacAccent.allCases where accent != .system {
+          guard let hue = Self.hue(accent.color) else { continue }
+          XCTAssertGreaterThan(Self.distance(hue, green), 30, "\(accent) reads as green in \(name.rawValue)")
+          XCTAssertGreaterThan(Self.distance(hue, red), 12, "\(accent) reads as red in \(name.rawValue)")
+        }
+      }
     }
+  }
+
+  private static func hue(_ color: NSColor) -> Double? {
+    guard let color = color.usingColorSpace(.sRGB), color.saturationComponent > 0.15 else { return nil }
+    return color.hueComponent * 360
+  }
+
+  private static func distance(_ a: Double, _ b: Double) -> Double {
+    let d = abs(a - b).truncatingRemainder(dividingBy: 360)
+    return min(d, 360 - d)
   }
 
   func testTheChoiceIsStoredAndUnknownValuesFallBackToSystem() {

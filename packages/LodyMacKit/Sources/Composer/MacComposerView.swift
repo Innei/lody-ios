@@ -38,7 +38,10 @@ final class MacComposerView: NSView {
     notice.font = .systemFont(ofSize: 11)
     notice.textColor = .secondaryLabelColor
     notice.setAccessibilityIdentifier("composer-notice")
-    tray.setViews([project, machine, agent, context, notice], in: .leading)
+    notice.lineBreakMode = .byWordWrapping
+    notice.maximumNumberOfLines = 2
+    notice.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    tray.setViews([project, machine, agent, context], in: .leading)
     tray.spacing = 4
     input.font = .systemFont(ofSize: 13)
     input.isRichText = false
@@ -66,7 +69,7 @@ final class MacComposerView: NSView {
     let controls = NSStackView()
     controls.setViews([mode], in: .leading)
     controls.setViews([modelPicker, effort, send], in: .trailing)
-    let stack = NSStackView(views: [tray, scroll, controls])
+    let stack = NSStackView(views: [tray, notice, scroll, controls])
     stack.orientation = .vertical
     stack.alignment = .leading
     stack.spacing = 6
@@ -83,6 +86,8 @@ final class MacComposerView: NSView {
       stack.leadingAnchor.constraint(equalTo: fill.leadingAnchor),
       stack.trailingAnchor.constraint(equalTo: fill.trailingAnchor),
       stack.bottomAnchor.constraint(equalTo: fill.bottomAnchor),
+      tray.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor, constant: -22),
+      notice.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor, constant: -26),
       scroll.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -22),
       controls.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -22),
       inputHeight,

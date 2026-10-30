@@ -100,4 +100,15 @@ final class MacSnapshotTests: XCTestCase {
     let image = try XCTUnwrap(NSImage(contentsOf: out))
     XCTAssertGreaterThanOrEqual(image.size.width, 320)
   }
+
+  func testDumpedControlsCarryTheirRectFromTheWindowTopLeft() throws {
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 200), styleMask: [.borderless], backing: .buffered, defer: true)
+    let root = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 200))
+    let popup = NSPopUpButton(frame: NSRect(x: 40, y: 30, width: 100, height: 20))
+    root.addSubview(popup)
+    window.contentView = root
+    let node = MacViewDump.node(root)
+    let child = try XCTUnwrap((node["children"] as? [[String: Any]])?.first)
+    XCTAssertEqual(child["inWindow"] as? [Double], [40, 150, 100, 20])
+  }
 }

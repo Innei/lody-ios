@@ -118,3 +118,28 @@ final class MacWindowTabTests: XCTestCase {
     XCTAssertEqual(titles, ["Catalog · Build the AppKit sidebar", "Catalog · Landing page copy", "Catalog · Q4 roadmap"])
   }
 }
+
+@MainActor
+final class MacSidebarLayoutTests: XCTestCase {
+  func testSectionHeadersSitCentredInShorterRows() throws {
+    let sidebar = SidebarViewController(source: .fixture(MacFixtures.listState))
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 800), styleMask: [.titled], backing: .buffered, defer: true)
+    window.contentViewController = sidebar
+    window.layoutIfNeeded()
+    let outline = try XCTUnwrap(sidebar.view.descendants(NSOutlineView.self).first)
+    outline.layoutSubtreeIfNeeded()
+    var headers = 0
+    for row in 0..<outline.numberOfRows where outline.isExpandable(outline.item(atRow: row)) {
+      let cell = try XCTUnwrap(outline.view(atColumn: 0, row: row, makeIfNecessary: true))
+      cell.superview?.layoutSubtreeIfNeeded()
+      let label = try XCTUnwrap(([cell] + cell.descendants(NSTextField.self)).compactMap { $0 as? NSTextField }.first { !$0.stringValue.isEmpty })
+      let labelMid = label.convert(label.bounds, to: outline).midY
+      let rect = outline.rect(ofRow: row)
+      XCTAssertEqual(label.frame.height, label.intrinsicContentSize.height, accuracy: 1, "\(label.stringValue) keeps its text height")
+      XCTAssertEqual(labelMid, rect.midY, accuracy: 2, "\(label.stringValue) is centred in its row")
+      XCTAssertLessThan(rect.height, outline.rect(ofRow: row + 1).height, "\(label.stringValue) row is shorter than a session row")
+      headers += 1
+    }
+    XCTAssertEqual(headers, 3)
+  }
+}

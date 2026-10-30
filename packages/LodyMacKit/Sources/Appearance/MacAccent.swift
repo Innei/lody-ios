@@ -1,7 +1,7 @@
 import AppKit
 
 enum MacAccent: String, CaseIterable, Sendable {
-  case system, blue, purple, pink, orange, graphite
+  case system, blue, purple, orange, graphite
 
   static let key = "lody.mac.accent"
 
@@ -14,7 +14,6 @@ enum MacAccent: String, CaseIterable, Sendable {
     case .system: .controlAccentColor
     case .blue: .systemBlue
     case .purple: .systemPurple
-    case .pink: .systemPink
     case .orange: .systemOrange
     case .graphite: .systemGray
     }
@@ -25,7 +24,6 @@ enum MacAccent: String, CaseIterable, Sendable {
     case .system: String(localized: "mac.accent.system", bundle: .lodyMac)
     case .blue: String(localized: "mac.accent.blue", bundle: .lodyMac)
     case .purple: String(localized: "mac.accent.purple", bundle: .lodyMac)
-    case .pink: String(localized: "mac.accent.pink", bundle: .lodyMac)
     case .orange: String(localized: "mac.accent.orange", bundle: .lodyMac)
     case .graphite: String(localized: "mac.accent.graphite", bundle: .lodyMac)
     }

@@ -186,10 +186,23 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
     guard let node = item as? Node else { return nil }
     if let row = node.row { return SidebarSessionCell(row: row) }
+    let cell = NSTableCellView()
     let label = NSTextField(labelWithString: node.title)
     label.font = .systemFont(ofSize: 11, weight: .semibold)
     label.textColor = .secondaryLabelColor
-    return label
+    label.lineBreakMode = .byTruncatingTail
+    label.translatesAutoresizingMaskIntoConstraints = false
+    cell.addSubview(label)
+    NSLayoutConstraint.activate([
+      label.leadingAnchor.constraint(equalTo: cell.leadingAnchor),
+      label.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor),
+      label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+    ])
+    return cell
+  }
+
+  func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
+    (item as? Node)?.row == nil ? 26 : outlineView.rowHeight
   }
 
   func outlineViewSelectionDidChange(_ notification: Notification) {

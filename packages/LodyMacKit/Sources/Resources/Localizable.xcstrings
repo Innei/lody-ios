@@ -52,23 +52,6 @@
         }
       }
     },
-    "mac.accent.pink": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pink"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "粉色"
-          }
-        }
-      }
-    },
     "mac.accent.purple": {
       "extractionState": "manual",
       "localizations": {

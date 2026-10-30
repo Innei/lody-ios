@@ -32,7 +32,7 @@ enum MacViewDump {
     try data.write(to: url, options: .atomic)
   }
 
-  private static func node(_ view: NSView) -> [String: Any] {
+  static func node(_ view: NSView) -> [String: Any] {
     var entry: [String: Any] = ["class": String(describing: type(of: view)), "frame": frame(view.frame)]
     if !view.accessibilityIdentifier().isEmpty { entry["identifier"] = view.accessibilityIdentifier() }
     if view.isHidden { entry["hidden"] = true }
@@ -44,7 +44,13 @@ enum MacViewDump {
     if let placeholder = (view as? MacComposerTextView)?.placeholder ?? (view as? NSTextField)?.placeholderString, !placeholder.isEmpty {
       entry["placeholder"] = placeholder
     }
-    if let control = view as? NSControl { entry["enabled"] = control.isEnabled }
+    if let control = view as? NSControl {
+      entry["enabled"] = control.isEnabled
+      if let window = view.window {
+        let rect = view.convert(view.bounds, to: nil)
+        entry["inWindow"] = frame(NSRect(x: rect.minX, y: window.frame.height - rect.maxY, width: rect.width, height: rect.height))
+      }
+    }
     if view.window?.firstResponder === view { entry["firstResponder"] = true }
     let children = view.subviews.map(node)
     if !children.isEmpty { entry["children"] = children }

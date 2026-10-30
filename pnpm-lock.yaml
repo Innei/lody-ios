@@ -49,8 +49,8 @@ importers:
         version: 3.25.76
     devDependencies:
       '@auv-js/sdk':
-        specifier: 0.0.35
-        version: 0.0.35
+        specifier: 0.0.39
+        version: 0.0.39
       esbuild:
         specifier: 0.25.12
         version: 0.25.12
@@ -127,11 +127,11 @@ importers:
 
 packages:
 
-  '@auv-js/api-client@0.0.35':
-    resolution: {integrity: sha512-j/rabi302zvGzmIwl8H3e6I+0FwcYD32d4qMobwH+BPxzizBz1zqW2gwJvnNrtMEeDmokpj3nCCApHNRHwi2ew==}
+  '@auv-js/api-client@0.0.39':
+    resolution: {integrity: sha512-V5X8gIWwviy1sJBW3lcw/SZouDqB63ZzFbskEt+cIBnoKzM88F/jl73GHK3PC+t4V6yL/JrhqI5yA2JAsgCG8w==}
 
-  '@auv-js/sdk@0.0.35':
-    resolution: {integrity: sha512-RWwZ9E0j+Dvhs7YvCjDuTCmF5XGR4VttpyxR6eKZ5Wr+8Ur4M5MjtUycX6OFjrbF3jeWLaBUfKXpnaOycp+GTA==}
+  '@auv-js/sdk@0.0.39':
+    resolution: {integrity: sha512-wnk5eEZcCydgo/imdVVGcCShPUsAhtXzh9ZCA/nXMtbahQaa9ayMtECjIfR3xzReQQZ9ld/7wfIMJgAJQ9n4eA==}
 
   '@bufbuild/protobuf@2.13.0':
     resolution: {integrity: sha512-acq7c49vxfm1ggJ95P70TX7ABDM0vxr1SYD3BB0o0jnBLB4OAqeHyKuN+cD3w80gXEDQ2zxHpR6CUeA+O/aU9g==}
@@ -1015,11 +1015,11 @@ packages:
 
 snapshots:
 
-  '@auv-js/api-client@0.0.35': {}
+  '@auv-js/api-client@0.0.39': {}
 
-  '@auv-js/sdk@0.0.35':
+  '@auv-js/sdk@0.0.39':
     dependencies:
-      '@auv-js/api-client': 0.0.35
+      '@auv-js/api-client': 0.0.39
       '@bufbuild/protobuf': 2.13.0
       '@grpc/grpc-js': 1.14.4
       '@moeru/std': 0.1.0-beta.20

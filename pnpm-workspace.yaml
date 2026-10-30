@@ -6,3 +6,5 @@ allowBuilds:
 nodeLinker: hoisted
 minimumReleaseAgeExclude:
   - '@rien7/anchored-overlay-kit@0.3.0'
+  - '@auv-js/api-client@0.0.39'
+  - '@auv-js/sdk@0.0.39'
