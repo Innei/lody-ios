@@ -10,7 +10,7 @@ import sys
 import tempfile
 import time
 
-from vm_vnc import VNC_PORT, Forwarder, pick_port, vnc_endpoint, vnc_line
+from vm_vnc import VNC_PORT, Forwarder, exposed, pick_port, recovery_line, vnc_endpoint, vnc_line
 
 ROOT = Path(__file__).resolve().parents[2]
 PROJECT = ROOT / 'Lody.xcodeproj'
@@ -23,7 +23,8 @@ IPSW = VOLUME / 'ipsw/UniversalMac_27.2_26B123_Restore.ipsw'
 IPSW_URL = ('https://updates.cdn-apple.com/2026FallFCS/c9671975-52db-4fb5-9af2-00217169ba8d/'
             'UniversalMac_27.2_26B123_Restore.ipsw')
 XCODE = Path(os.environ.get('LODY_VM_XCODE', '/Applications/Xcode-27.1.0.app'))
-GUEST_XCODE = '/Volumes/My Shared Files/Xcode.app'
+GUEST_XCODE = f'/Applications/{XCODE.name}'
+SHARED_XCODE = '/Volumes/My Shared Files/Xcode.app'
 KEY = VOLUME / 'ssh/id_ed25519'
 GUEST_USER = 'admin'
 GUEST_PASSWORD = 'admin'
@@ -114,14 +115,14 @@ class Alive:
 
 
 class Guest:
-    def __init__(self, name, shares, log, extra=()):
+    def __init__(self, name, shares, log, extra=(), recovery_vnc=False):
         self.name = name
         self.log = log
         dirs = [f'--dir={tag}:{path}' for tag, path in shares.items()]
         binary = shutil.which('tart') or str(Path.home() / '.local/bin/tart')
-        # With --no-graphics Tart only prints the VNC URL; without it Tart would open Screen Sharing on the host.
+        vnc = ['--vnc-experimental'] if recovery_vnc else []
         self.process = subprocess.Popen(
-            [binary, 'run', '--no-graphics', '--no-audio', '--vnc-experimental', *extra, *dirs, name],
+            [binary, 'run', '--no-graphics', '--no-audio', *vnc, *extra, *dirs, name],
             env={**os.environ, 'TART_HOME': str(TART_HOME)},
             stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
         )
@@ -135,19 +136,31 @@ class Guest:
         return guest
 
     def expose(self, args):
-        deadline = time.monotonic() + 60
-        while not (endpoint := vnc_endpoint(Path(self.log.name).read_text(errors='replace'))):
-            if self.process.poll() is not None or time.monotonic() > deadline:
-                raise SystemExit(f'the VM never reported its VNC server; see {self.log.name}')
-            time.sleep(0.2)
-        password, upstream = endpoint
+        found = tart('ip', self.name, '--wait', '180', check=False)
+        if found.returncode:
+            raise SystemExit(f'the VM never got an address; see {self.log.name}')
+        self.ip = found.stdout.strip()
         port = pick_port(args.vnc_port or VNC_PORT, fixed=args.vnc_port is not None)
-        self.forwarder = Forwarder(port, upstream)
-        line = vnc_line(password, port)
+        self.forwarder = Forwarder(port, (self.ip, 5900))
+        line = vnc_line(port)
         progress(line)
         output = Path(args.output).resolve()
         output.mkdir(parents=True, exist_ok=True)
         (output / 'vnc.txt').write_text(line + '\n')
+        listeners = [exposed(subprocess.run(['lsof', '-nP', '-a', '-iTCP', '-sTCP:LISTEN', '-p', str(pid)],
+                                            capture_output=True, text=True).stdout)
+                     for pid in (self.process.pid, os.getpid())]
+        if any(listeners):
+            raise SystemExit(f'refusing to run with a listener off loopback: {", ".join(sum(listeners, []))}')
+
+    def recovery(self):
+        deadline = time.monotonic() + 60
+        while not (endpoint := vnc_endpoint(Path(self.log.name).read_text(errors='replace'))):
+            if self.process.poll() is not None or time.monotonic() > deadline:
+                raise SystemExit(f'the recovery boot never reported its VNC server; see {self.log.name}')
+            time.sleep(0.2)
+        progress(recovery_line(*endpoint))
+        return endpoint
 
     def boot(self, timeout=600, password=False):
         deadline = time.monotonic() + timeout
@@ -196,25 +209,17 @@ def build(log):
     command = ['xcodebuild', '-project', str(PROJECT), '-scheme', 'LodyMac', '-configuration', 'Debug',
                '-destination', 'platform=macOS']
     progress('building LodyMac and LodyMacUITests for testing')
+    started = time.monotonic()
     with log.open('w') as handle:
         result = subprocess.run(command + ['build-for-testing'], cwd=ROOT, stdout=handle, stderr=subprocess.STDOUT)
     if result.returncode:
         errors = [line for line in log.read_text().splitlines() if 'error:' in line]
         raise SystemExit('\n'.join(errors[-20:]) + f'\nbuild-for-testing failed; log {log}')
+    progress(f'host build-for-testing: {time.monotonic() - started:.0f}s')
     settings = subprocess.run(command + ['-showBuildSettings'], cwd=ROOT, capture_output=True, text=True,
                               check=True).stdout
     values = dict(line.strip().partition(' = ')[::2] for line in settings.splitlines() if ' = ' in line)
     return Path(values['BUILD_DIR'])
-
-
-def warm_up(guest):
-    guest.boot()
-    started = time.monotonic()
-    healthy = guest.ssh(f"for i in $(seq 30); do [ -d '{GUEST_XCODE}' ] && break; sleep 1; done; "
-                        'xcodebuild -version', check=False, timeout=900)
-    if healthy.returncode:
-        raise SystemExit(f'the guest cannot run the shared Xcode at {XCODE}\n{healthy.stdout.strip()}')
-    progress(f'guest Xcode ready after {time.monotonic() - started:.0f}s (first launch scans the share)')
 
 
 def stage(products, target, in_process):
@@ -276,9 +281,11 @@ def collect(out, output, started, status):
     return 0 if status == 0 and summary.get('result') == 'Passed' else 1
 
 
-def test_command(cases):
+def test_command(cases, host_xcode=False):
     only = [f'-only-testing:LodyMacUITests/{CASES[case]}' for case in cases]
+    developer = [f"export DEVELOPER_DIR='{SHARED_XCODE}/Contents/Developer';"] if host_xcode else []
     return ' '.join([
+        *developer,
         f"rm -rf ~/run && mkdir ~/run && (cd '{SHARED}/products' && tar --no-mac-metadata -cf - .) | (cd ~/run && tar -xpf -) &&",
         'xcodebuild test-without-building -xctestrun ~/run/LodyMac.xctestrun -destination platform=macOS',
         '-resultBundlePath ~/run/LodyMac.xcresult', *only,
@@ -297,7 +304,9 @@ def in_process_command(cases):
 
 def run_tests(guest, args):
     progress('running XCUITest in the guest')
-    finished = guest.ssh(test_command(args.case), check=False, timeout=args.timeout)
+    started = time.monotonic()
+    finished = guest.ssh(test_command(args.case, args.host_xcode), check=False, timeout=args.timeout)
+    progress(f'guest XCUITest: {time.monotonic() - started:.0f}s')
     if finished.stdout.strip():
         progress(finished.stdout.strip())
     status = finished.returncode

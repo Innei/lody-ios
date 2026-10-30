@@ -17,8 +17,8 @@ import sys
 import time
 from types import SimpleNamespace
 
-from vm_guest import (BASE, LOCK, VOLUME, XCODE, Alive, Guest, attempt, build, collect, exclusive, progress, run_tests,
-                      stage, tart, vms, warm_up)
+from vm_base import warm_up
+from vm_guest import BASE, LOCK, VOLUME, Alive, Guest, attempt, build, collect, exclusive, progress, run_tests, stage, tart, vms
 from vm_vnc import hold
 
 RUNNER = 'lody-verify-runner'
@@ -130,7 +130,7 @@ def clear(directory):
 
 
 def shares():
-    return {'products': HOME / 'products', 'out': HOME / 'out', 'Xcode.app': f'{XCODE}:ro'}
+    return {'products': HOME / 'products', 'out': HOME / 'out'}
 
 
 def stop_keeper():
@@ -159,7 +159,7 @@ def start_keeper(args):
     with (HOME / 'keeper.log').open('w') as log:
         keeper = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                                   start_new_session=True)
-    deadline = time.monotonic() + 90
+    deadline = time.monotonic() + 240
     while not VNC.exists():
         if keeper.poll() is not None or time.monotonic() > deadline:
             raise SystemExit(f'the runner keeper did not start the VM; see {HOME / "keeper.log"}')

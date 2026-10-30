@@ -4,6 +4,7 @@ import os
 import re
 import signal
 import socket
+import subprocess
 import tempfile
 import threading
 import time
@@ -21,6 +22,8 @@ vnc = load('vm_vnc')
 vm = load('vm')
 guest = load('vm_guest')
 runner = load('vm_runner')
+base = load('vm_base')
+rfb = load('vm_rfb')
 
 
 class VncTests(unittest.TestCase):
@@ -39,17 +42,32 @@ class VncTests(unittest.TestCase):
             vnc.pick_port(6000, fixed=True, free=lambda port: False)
         self.assertEqual(vnc.pick_port(6000, fixed=True, free=lambda port: True), 6000)
 
-    def test_the_viewing_line_carries_the_url_and_observe_hint(self):
-        line = vnc.vnc_line('bold-tide-mint-oak', 5905)
-        self.assertTrue(line.startswith('VNC: vnc://localhost:5905 '))
-        self.assertIn('password bold-tide-mint-oak', line)
-        self.assertIn('no username', line)
-        self.assertIn('vnc.txt', line)
+    def test_the_viewing_line_names_the_screen_sharing_login_and_observe_mode(self):
+        line = vnc.vnc_line(5905)
+        self.assertTrue(line.startswith('VNC: vnc://admin@localhost:5905 '))
+        self.assertIn('admin / admin', line)
         self.assertIn('Observe', line)
 
-    def test_arguments_default_to_port_5905_without_holding(self):
+    def test_the_recovery_vnc_warns_that_it_is_reachable_from_the_lan(self):
+        line = vnc.recovery_line('bold-tide-mint-oak', 51702)
+        self.assertIn('vnc://:bold-tide-mint-oak@127.0.0.1:51702', line)
+        self.assertIn('LAN', line)
+
+    def test_only_loopback_listeners_pass_the_exposure_check(self):
+        output = '\n'.join([
+            'COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME',
+            'Python 10 me 3u IPv4 0x1 0t0 TCP 127.0.0.1:5905 (LISTEN)',
+            'Python 10 me 4u IPv6 0x2 0t0 TCP [::1]:5905 (LISTEN)',
+            'tart 11 me 9u IPv4 0x3 0t0 TCP *:51702 (LISTEN)',
+            'tart 11 me 9u IPv4 0x3 0t0 TCP 192.168.1.4:6000 (LISTEN)',
+        ])
+        self.assertEqual(vnc.exposed(output), ['tart *:51702', 'tart 192.168.1.4:6000'])
+        self.assertEqual(vnc.exposed(''), [])
+
+    def test_arguments_default_to_port_5905_without_holding_or_recovery_vnc(self):
         args = vm.parser.parse_args([])
-        self.assertEqual((args.vnc_port, args.hold), (None, False))
+        self.assertEqual((args.vnc_port, args.hold, args.recovery_vnc, args.repair_xcode, args.host_xcode),
+                         (None, False, False, False, False))
         args = vm.parser.parse_args(['--vnc-port', '6100', '--hold'])
         self.assertEqual((args.vnc_port, args.hold), (6100, True))
 
@@ -83,7 +101,7 @@ class VncTests(unittest.TestCase):
         upstream = socket.socket()
         upstream.bind(('127.0.0.1', 0))
         upstream.listen()
-        forwarder = vnc.Forwarder(0, upstream.getsockname()[1])
+        forwarder = vnc.Forwarder(0, upstream.getsockname())
         try:
             self.assertEqual(forwarder.address[0], '127.0.0.1')
             client = socket.create_connection(forwarder.address, timeout=5)
@@ -180,6 +198,85 @@ class RunnerTests(unittest.TestCase):
         self.assertFalse(vm.parser.parse_args([]).fresh)
         self.assertTrue(vm.parser.parse_args(['--fresh']).fresh)
         self.assertEqual(vm.parser.parse_args(['reset']).command, 'reset')
+
+
+class BaseTests(unittest.TestCase):
+    def test_every_disabled_service_names_its_domain_and_a_reason_once(self):
+        labels = [label for _, label, _ in base.SERVICES]
+        self.assertEqual(len(labels), len(set(labels)))
+        for domain, label, reason in base.SERVICES:
+            self.assertIn(domain, ('system', 'gui'))
+            self.assertTrue(label.startswith('com.apple.'), label)
+            self.assertTrue(reason.strip(), label)
+
+    def test_services_the_runner_needs_are_never_disabled(self):
+        needed = ['WindowServer', 'tccd', 'sshd', 'screensharing', 'testmanagerd', 'ReportCrash', 'osanalyticshelper',
+                  'mDNSResponder', 'configd', 'syspolicyd', 'xprotectd', 'mobileassetd', 'automationmode', 'cfprefsd',
+                  'coreservicesd', 'lsd', 'runningboardd', 'trustd', 'securityd', 'notifyd', 'logd']
+        for _, label, _ in base.SERVICES:
+            parts = label.lower().split('.')
+            for name in needed:
+                self.assertNotIn(name.lower(), parts)
+
+    def test_services_are_disabled_and_booted_out_in_their_domain(self):
+        script = base.service_commands([('system', 'com.apple.backupd', 'Time Machine'),
+                                        ('gui', 'com.apple.gamed', 'Game Center')])
+        self.assertIn('sudo launchctl disable system/com.apple.backupd', script)
+        self.assertIn('sudo launchctl bootout system/com.apple.backupd', script)
+        self.assertIn('sudo launchctl disable gui/501/com.apple.gamed', script)
+        self.assertIn('sudo launchctl bootout gui/501/com.apple.gamed', script)
+
+    def test_the_integrity_check_verifies_xcode_signatures_quarantine_and_sip(self):
+        command = base.integrity_command('/Applications/Xcode-27.1.0.app')
+        for path in ['Contents/Developer/usr/bin/xcodebuild', 'Library/Xcode/Agents/xctest', 'XCTest.framework',
+                     'DVTFoundation.framework']:
+            self.assertIn(path, command)
+        self.assertIn('codesign --verify --strict', command)
+        self.assertIn('com.apple.quarantine', command)
+        self.assertIn('csrutil status', command)
+
+    @unittest.skipUnless(guest.XCODE.exists(), 'needs the host Xcode')
+    def test_the_integrity_check_passes_on_a_healthy_xcode_under_the_guest_shell(self):
+        output = subprocess.run(['zsh', '-c', base.integrity_command(str(guest.XCODE))], capture_output=True,
+                                text=True, timeout=60).stdout
+        report = base.integrity(output)
+        self.assertEqual(report.broken, [])
+        self.assertIn(report.sip, ('enabled', 'disabled'))
+
+    def test_integrity_output_reports_broken_paths_quarantine_and_sip(self):
+        healthy = base.integrity('System Integrity Protection status: disabled.\n')
+        self.assertEqual((healthy.broken, healthy.quarantined, healthy.sip), ([], False, 'disabled'))
+        self.assertTrue(healthy.ok)
+        broken = base.integrity('BROKEN Contents/Developer/usr/bin/xcodebuild\nQUARANTINED\n'
+                                'System Integrity Protection status: enabled.\n')
+        self.assertEqual(broken.broken, ['Contents/Developer/usr/bin/xcodebuild'])
+        self.assertTrue(broken.quarantined)
+        self.assertEqual(broken.sip, 'enabled')
+        self.assertFalse(broken.ok)
+        self.assertIn('--repair-xcode', base.integrity_failure(broken))
+
+    def test_screen_sharing_is_enabled_with_its_capture_and_input_grants(self):
+        script = base.SCREEN_SHARING
+        self.assertIn('launchctl enable system/com.apple.screensharing', script)
+        for client in ['com.apple.screensharing.agent', 'com.apple.screensharing.daemon']:
+            self.assertIn(client, script)
+        for service in ['kTCCServiceScreenCapture', 'kTCCServicePostEvent', 'kTCCServiceListenEvent']:
+            self.assertIn(service, script)
+
+    def test_the_host_xcode_fallback_points_the_guest_tools_at_the_share(self):
+        self.assertNotIn('DEVELOPER_DIR', guest.test_command(['sign-in']))
+        self.assertIn("DEVELOPER_DIR='/Volumes/My Shared Files/Xcode.app/Contents/Developer'",
+                      guest.test_command(['sign-in'], host_xcode=True))
+
+    def test_recovery_clicks_scale_with_the_framebuffer(self):
+        self.assertEqual(base.point('utilities', 3360, 2100), (480, 28))
+        self.assertEqual(base.point('utilities', 1680, 1050), (240, 14))
+
+    def test_macos_account_login_encrypts_both_credentials_and_sends_the_public_key(self):
+        prime = (23).to_bytes(4, 'big')
+        payload = rfb.ard_credentials('admin', 'admin', prime, (5).to_bytes(2, 'big'), (8).to_bytes(4, 'big'), private=6)
+        self.assertEqual(len(payload), 128 + 4)
+        self.assertEqual(int.from_bytes(payload[128:], 'big'), pow(5, 6, 23))
 
 
 if __name__ == '__main__':

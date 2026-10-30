@@ -1,7 +1,9 @@
 """Watch a verification VM over VNC without touching the host display.
 
-Tart's Virtualization.framework VNC server picks a random port; ``Forwarder``
+The guest's own Screen Sharing listens on the host-only NAT network; ``Forwarder``
 republishes it on a fixed loopback port so a Screen Sharing bookmark keeps working.
+Virtualization.framework's VNC server listens on every interface, so it is only
+used for recovery-mode work behind ``--recovery-vnc``.
 """
 import re
 import signal
@@ -36,9 +38,26 @@ def pick_port(preferred, fixed, free=port_free):
     raise SystemExit(f'VNC port {preferred} is in use' if fixed else f'no free VNC port from {preferred}')
 
 
-def vnc_line(password, port):
-    return (f'VNC: vnc://localhost:{port}  password {password} (no username; paste it from vnc.txt). '
+def vnc_line(port):
+    return (f'VNC: vnc://admin@localhost:{port}  login admin / admin. '
             'Screen Sharing → View → Observe keeps your mouse and keyboard out of the run')
+
+
+def recovery_line(password, port):
+    return (f'Recovery VNC: vnc://:{password}@127.0.0.1:{port}. Warning: Virtualization.framework listens on every '
+            'interface, so this port is reachable from the LAN until the recovery boot ends')
+
+
+def exposed(lsof):
+    listeners = []
+    for line in lsof.splitlines()[1:]:
+        fields = line.split()
+        if len(fields) < 2 or '(LISTEN)' not in line:
+            continue
+        address = fields[-2]
+        if not address.startswith(('127.0.0.1:', '[::1]:', 'localhost:')):
+            listeners.append(f'{fields[0]} {address}')
+    return listeners
 
 
 def pump(source, target):
@@ -69,7 +88,8 @@ class Forwarder:
             except OSError:
                 return
             try:
-                upstream = socket.create_connection(('127.0.0.1', self.upstream))
+                upstream = socket.create_connection(self.upstream, timeout=10)
+                upstream.settimeout(None)
             except OSError:
                 client.close()
                 continue
