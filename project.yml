@@ -396,6 +396,7 @@ targets:
         PRODUCT_NAME: Lody
         PRODUCT_MODULE_NAME: LodyMacApp
         PRODUCT_BUNDLE_IDENTIFIER: app.innei.lody.mac
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_FILE: macOS/Info.plist
         CODE_SIGN_ENTITLEMENTS: macOS/Lody.entitlements
         ENABLE_HARDENED_RUNTIME: 'YES'

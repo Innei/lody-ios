@@ -163,6 +163,7 @@ const targets = [
       license: 'AGPL-3.0-only',
       url: 'https://github.com/Innei/lody-ios',
       file: 'LICENSE',
+      heading: 'Lody for Mac',
     },
     components: macComponents,
   },
@@ -307,6 +308,13 @@ function canonicalText(manifest, id) {
   return '';
 }
 
+/** The repository LICENSE opens with the iOS app's name; each app shows its own. */
+function retitle(text, heading) {
+  if (!heading) return text;
+  const [, ...rest] = text.split('\n');
+  return [heading, ...rest].join('\n');
+}
+
 function buildEntries({ firstParty, components }) {
   const entries = [];
   for (const [dir, manifest] of collectPackages()) {
@@ -334,7 +342,10 @@ function buildEntries({ firstParty, components }) {
       license: component.license,
       url: component.url,
       firstParty: component === firstParty,
-      text: readFileSync(path.join(root, component.file), 'utf8').trim(),
+      text: retitle(
+        readFileSync(path.join(root, component.file), 'utf8').trim(),
+        component.heading,
+      ),
     });
   }
   // The same package can be installed more than once (workspace links, nested
