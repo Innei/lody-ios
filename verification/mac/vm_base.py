@@ -4,9 +4,10 @@ import re
 import subprocess
 import time
 
-from vm_guest import (BASE, GUEST_PASSWORD, GUEST_USER, GUEST_XCODE, IPSW, IPSW_URL, KEY, SHARED, SHARED_XCODE, TART_HOME,
-                      VOLUME, XCODE, Guest, exclusive, mount, progress, tart, vms)
+from vm_guest import (BASE, GUEST_PASSWORD, GUEST_USER, GUEST_XCODE, HISTORY, IPSW, IPSW_URL, KEY, SHARED, SHARED_XCODE,
+                      STATUS, TART_HOME, VOLUME, XCODE, Guest, exclusive, mount, progress, tart, vms)
 from vm_rfb import RFB
+import vm_status
 
 ARCHIVES = VOLUME / 'xcode'
 RUNTIMES = VOLUME / 'runtimes'
@@ -204,13 +205,15 @@ def advance(look, commit, prime=lambda: None, attempts=3, wait=30, now=time.mono
 
 
 def warm_up(guest, host_xcode=False):
-    guest.boot()
+    with vm_status.current.step('boot'):
+        guest.boot()
     started = time.monotonic()
     xcode = SHARED_XCODE if host_xcode else GUEST_XCODE
     wait = f"for i in $(seq 30); do [ -d '{xcode}' ] && break; sleep 1; done; " if host_xcode else ''
     developer = f"DEVELOPER_DIR='{xcode}/Contents/Developer' " if host_xcode else ''
-    result = guest.ssh(f'{wait}{integrity_command(xcode)}; {developer}xcodebuild -version >/dev/null 2>&1 '
-                       '|| echo "BROKEN xcodebuild -version"', check=False, timeout=900)
+    with vm_status.current.step('Xcode integrity'):
+        result = guest.ssh(f'{wait}{integrity_command(xcode)}; {developer}xcodebuild -version >/dev/null 2>&1 '
+                           '|| echo "BROKEN xcodebuild -version"', check=False, timeout=900)
     report = integrity(result.stdout)
     if not report.ok:
         raise SystemExit(integrity_failure(report))
@@ -262,7 +265,8 @@ xcrun simctl list runtimes | grep "^iOS $version "
 def step(guest, label, script, timeout=3600):
     started = time.monotonic()
     progress(f'{label}...')
-    guest.ssh(script, timeout=timeout)
+    with vm_status.current.step(label):
+        guest.ssh(script, timeout=timeout)
     progress(f'{label}: {time.monotonic() - started:.0f}s')
 
 
@@ -411,6 +415,32 @@ def settle(args, log):
         guest.stop()
 
 
+def build_base(args, log):
+    phase = vm_status.current.step
+    if BASE in vms() and args.force:
+        tart('delete', BASE)
+    (VOLUME / 'runs' / f'{BASE}.ready').unlink(missing_ok=True)
+    if BASE not in vms():
+        with phase('install'):
+            install(args, log)
+    with phase('SIP check'):
+        state = sip_state(log)
+    if state != 'disabled':
+        if not args.recovery_vnc:
+            raise SystemExit('SIP is on in the base. Turning it off boots recovery with Virtualization.framework '
+                             'VNC, which listens on every interface for a few minutes; rerun with --recovery-vnc')
+        progress('turning SIP off in recovery')
+        with phase('recovery'):
+            disable_sip(log)
+        with phase('SIP check'):
+            state = sip_state(log)
+        if state != 'disabled':
+            raise SystemExit(f'SIP is still on; see {VOLUME / "runs/recovery.png"}')
+    configure(args, log)
+    with phase('settle'):
+        settle(args, log)
+
+
 def prepare(args):
     mount()
     TART_HOME.mkdir(exist_ok=True)
@@ -425,20 +455,13 @@ def prepare(args):
         subprocess.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'lody-mac-verify', '-f', str(KEY)],
                        check=True)
     with exclusive(), (VOLUME / 'runs/prepare.log').open('w') as log:
-        if BASE in vms() and args.force:
-            tart('delete', BASE)
-        ready.unlink(missing_ok=True)
-        if BASE not in vms():
-            install(args, log)
-        if sip_state(log) != 'disabled':
-            if not args.recovery_vnc:
-                raise SystemExit('SIP is on in the base. Turning it off boots recovery with Virtualization.framework '
-                                 'VNC, which listens on every interface for a few minutes; rerun with --recovery-vnc')
-            progress('turning SIP off in recovery')
-            disable_sip(log)
-            if sip_state(log) != 'disabled':
-                raise SystemExit(f'SIP is still on; see {VOLUME / "runs/recovery.png"}')
-        configure(args, log)
-        settle(args, log)
+        vm_status.current = vm_status.Progress(STATUS, HISTORY)
+        vm_status.current.begin('prepare', [], VOLUME / 'runs/prepare.log')
+        try:
+            build_base(args, log)
+        except BaseException as failure:
+            vm_status.current.end(vm_status.failure(failure))
+            raise
+        vm_status.current.end('passed')
     ready.touch()
     progress(f'{BASE} is ready')

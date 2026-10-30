@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 
+import vm_status
 from vm_vnc import VNC_PORT, Forwarder, exposed, pick_port, recovery_line, vnc_endpoint, vnc_line
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -18,6 +19,8 @@ OUTPUT = ROOT / '.artifacts/mac-verify-vm'
 BUNDLE = Path(os.environ.get('LODY_VM_BUNDLE', '/Volumes/WD/lody-vm.sparsebundle'))
 VOLUME = Path(os.environ.get('LODY_VM_VOLUME', '/Volumes/LodyVM'))
 TART_HOME = VOLUME / 'tart'
+STATUS = VOLUME / 'runs/status.json'
+HISTORY = VOLUME / 'runs/history.jsonl'
 BASE = 'lody-macos-27.2'
 IPSW = VOLUME / 'ipsw/UniversalMac_27.2_26B123_Restore.ipsw'
 IPSW_URL = ('https://updates.cdn-apple.com/2026FallFCS/c9671975-52db-4fb5-9af2-00217169ba8d/'
@@ -210,7 +213,7 @@ def build(log):
                '-destination', 'platform=macOS']
     progress('building LodyMac and LodyMacUITests for testing')
     started = time.monotonic()
-    with log.open('w') as handle:
+    with vm_status.current.step('host build'), log.open('w') as handle:
         result = subprocess.run(command + ['build-for-testing'], cwd=ROOT, stdout=handle, stderr=subprocess.STDOUT)
     if result.returncode:
         errors = [line for line in log.read_text().splitlines() if 'error:' in line]
@@ -305,12 +308,14 @@ def in_process_command(cases):
 def run_tests(guest, args):
     progress('running XCUITest in the guest')
     started = time.monotonic()
-    finished = guest.ssh(test_command(args.case, args.host_xcode), check=False, timeout=args.timeout)
+    with vm_status.current.step('XCUITest'):
+        finished = guest.ssh(test_command(args.case, args.host_xcode), check=False, timeout=args.timeout)
     progress(f'guest XCUITest: {time.monotonic() - started:.0f}s')
     if finished.stdout.strip():
         progress(finished.stdout.strip())
     status = finished.returncode
     if args.in_process:
         progress('running the in-process suite in the guest')
-        status = status or guest.ssh(in_process_command(args.case), check=False, timeout=args.timeout).returncode
+        with vm_status.current.step('in-process'):
+            status = status or guest.ssh(in_process_command(args.case), check=False, timeout=args.timeout).returncode
     return finished.returncode, status

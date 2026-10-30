@@ -19,8 +19,9 @@ import time
 from types import SimpleNamespace
 
 from vm_base import warm_up
-from vm_guest import (BASE, GUEST_PASSWORD, GUEST_USER, LOCK, VOLUME, Alive, Guest, attempt, build, collect, exclusive,
-                      progress, run_tests, stage, tart, vms)
+from vm_guest import (BASE, GUEST_PASSWORD, GUEST_USER, HISTORY, LOCK, STATUS, VOLUME, Alive, Guest, attempt, build,
+                      collect, exclusive, progress, run_tests, stage, tart, vms)
+import vm_status
 from vm_vnc import hold
 
 RUNNER = 'lody-verify-runner'
@@ -183,13 +184,15 @@ def launch(args):
 
 
 def ready(args, output):
-    keeper = launch(args)
+    with vm_status.current.step('start VM'):
+        keeper = launch(args)
     line = VNC.read_text().strip()
     progress(line)
     (output / 'vnc.txt').write_text(line + '\n')
     guest = Guest.attach(RUNNER, SimpleNamespace(name=str(TART_LOG)), keeper)
     warm_up(guest)
-    guest.ssh(reset_command(), check=False, timeout=60)
+    with vm_status.current.step('reset'):
+        guest.ssh(reset_command(), check=False, timeout=60)
     return guest
 
 
@@ -230,6 +233,64 @@ def watch(args):
     subprocess.run(['open', url], check=True)
 
 
+def holder():
+    with attempt(LOCK) as free:
+        if free:
+            return None
+    pid = vm_status.lock_owner(LOCK.read_text()) if LOCK.exists() else None
+    if not pid:
+        return {'pid': '?', 'started': 'unknown', 'tty': None, 'command': 'unknown', 'cwd': None}
+    info = subprocess.run(['ps', '-o', 'lstart=,tty=,command=', '-p', str(pid)], capture_output=True, text=True).stdout
+    fields = info.strip()[24:].split(None, 1)
+    cwd = subprocess.run(['lsof', '-a', '-p', str(pid), '-d', 'cwd', '-Fn'], capture_output=True, text=True).stdout
+    return {'pid': pid, 'started': info.strip()[:24] or 'unknown', 'tty': fields[0] if fields else None,
+            'command': fields[1] if len(fields) > 1 else 'exited', 'cwd': next(
+                (line[1:] for line in cwd.splitlines() if line.startswith('n')), None)}
+
+
+def read(path):
+    return Path(path).read_text(errors='replace') if path and Path(path).exists() else None
+
+
+def snapshot():
+    now = time.time()
+    state = vm_status.runner_state(running(), keeper_pid() is not None, VNC.exists())
+    lock = holder()
+    try:
+        record = json.loads(STATUS.read_text())
+    except (OSError, ValueError):
+        record = {}
+    run = None
+    if vm_status.live(record):
+        tests, in_process = read(record.get('log')), read(record.get('in_process_log'))
+        run = {**record, 'tests': vm_status.parse_tests(tests) if tests is not None else None,
+               'in_process': vm_status.parse_in_process(in_process) if in_process is not None else None}
+    idle = None
+    if state == 'up' and not lock and MARKER.exists():
+        idle = vm_status.idle_left(now, MARKER.stat().st_mtime, IDLE_SECONDS)
+    line = read(VNC) if state == 'up' else read(run and Path(run['output']) / 'vnc.txt')
+    found = re.search(r'vnc://admin@localhost:\d+', line or '')
+    return {
+        'now': now, 'lock': lock, 'run': run, 'history': vm_status.history(read(HISTORY) or ''),
+        'runner': {'name': RUNNER, 'state': state, 'idle_left': idle, 'paused': bool(lock) and state == 'up',
+                   'vnc': found[0] if found else None},
+    }
+
+
+def status(args):
+    HOME.mkdir(exist_ok=True)
+    if not args.follow:
+        print(vm_status.render(snapshot()))
+        return
+    try:
+        while True:
+            started = time.monotonic()
+            print('\033[H\033[2J' + vm_status.render(snapshot()), flush=True)
+            time.sleep(max(0.0, 1 - (time.monotonic() - started)))
+    except KeyboardInterrupt:
+        pass
+
+
 def session(args, output):
     base = ensure()
     clear(HOME / 'products')
@@ -264,10 +325,18 @@ def run(args, output):
     HOME.mkdir(exist_ok=True)
     with exclusive():
         MARKER.touch()
+        vm_status.current = vm_status.Progress(STATUS, HISTORY)
+        vm_status.current.begin('run', args.case, output, log=str(HOME / 'out/test.log'),
+                                in_process_log=str(HOME / 'out/in-process.log'))
         try:
-            return session(args, output)
+            code = session(args, output)
+        except BaseException as failure:
+            vm_status.current.end(vm_status.failure(failure))
+            raise
         finally:
             MARKER.touch()
+        vm_status.current.end('passed' if code == 0 else 'failed')
+        return code
 
 
 def reset():
