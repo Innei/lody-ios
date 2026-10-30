@@ -270,7 +270,7 @@ extension LodyChatView {
           let width = ChatReadingColumn.itemWidth(in: collection.bounds.width)
           let height = rowHeight(row, width: width)
           deliveryExits[row.id] = height
-          rowHeights[row.id] = (height, 0, width)
+          rowHeights[row.id] = (height, deliveryExitTarget(row), width)
         }
         if rowHeights[row.id] != nil { projected.insert(row, at: index) }
       }
@@ -359,7 +359,7 @@ extension LodyChatView {
     store.nonAnimatedRows = Set(projected.filter { catchingUpEntries.contains($0.entryID) }.map(\.id))
     prepareRowHeights(projected, previous: previous, animate: !folding && delivered == nil)
     for (id, height) in deliveryExits where rowHeights[id] == nil {
-      rowHeights[id] = (height, 0, ChatReadingColumn.itemWidth(in: collection.bounds.width))
+      rowHeights[id] = (height, rows[id].map(deliveryExitTarget) ?? 0, ChatReadingColumn.itemWidth(in: collection.bounds.width))
     }
     rows = Dictionary(projected.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
     let settlingDelivery = hasPositionedContent && window != nil && !insertingHistory && catchingUpEntries.isEmpty

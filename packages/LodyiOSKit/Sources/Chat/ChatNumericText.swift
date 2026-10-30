@@ -10,6 +10,7 @@ final class ChatNumericTextModel {
 }
 
 struct ChatNumericTextBridge: View {
+  static let shineStops: [CGFloat] = [0.4, 0.5, 0.6]
   var model: ChatNumericTextModel
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -21,9 +22,9 @@ struct ChatNumericTextBridge: View {
       Text(model.attributed)
         .foregroundStyle(LinearGradient(
           stops: [
-            .init(color: model.color, location: 0.25),
-            .init(color: highlight, location: 0.5),
-            .init(color: model.color, location: 0.75),
+            .init(color: model.color, location: Self.shineStops[0]),
+            .init(color: highlight, location: Self.shineStops[1]),
+            .init(color: model.color, location: Self.shineStops[2]),
           ],
           startPoint: UnitPoint(x: -1 + 2 * progress, y: 0),
           endPoint: UnitPoint(x: 2 * progress, y: 0)

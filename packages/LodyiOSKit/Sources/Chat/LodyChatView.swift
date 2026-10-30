@@ -191,6 +191,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var movingLayout = false
   var hasPositionedContent = false
   var deliveryExits: [String: CGFloat] = [:]
+  var itemAccessibilityIDs: [String: String] = [:]
   var rowHeights: [String: (current: CGFloat, target: CGFloat, width: CGFloat)] = [:]
   var historyLoadStarted = 0.0
   var historyFirstContent = 0.0
@@ -344,6 +345,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       guard let self, let row = self.rows[id] else { return nil }
       let cell = self.transcriptCell(collection, index: index, id: id, row: row)
       (cell as? ChatGapCell)?.gapAbove = ChatRowPadding.above(kind: row.kind, previousKind: self.kind(before: id))
+      if let identifier = self.itemAccessibilityIDs[row.itemID] { cell?.accessibilityIdentifier = identifier }
       return cell
     }
     LodyScrollEdges.chat(collection)

@@ -311,8 +311,9 @@ extension LodyChatView {
       restoreAnchor(anchor)
       for (id, originalHeight) in deliveryExits {
         if let index = dataSource.indexPath(for: id), let cell = collection.cellForItem(at: index) {
-          let height = rowHeights[id]?.current ?? 0
-          cell.contentView.alpha = max(0, height / max(1, originalHeight))
+          let target = rows[id].map(deliveryExitTarget) ?? 0
+          let height = rowHeights[id]?.current ?? target
+          cell.contentView.alpha = max(0, (height - target) / max(1, originalHeight - target))
         }
       }
     }
@@ -419,10 +420,11 @@ extension LodyChatView {
 
   func collectionView(_ collectionView: UICollectionView, layout: UICollectionViewLayout, insetForSectionAt section: Int) -> UIEdgeInsets {
     let inset = ChatReadingColumn.horizontalInset(in: collectionView.bounds.width)
+    // Row gaps come from ChatRowPadding; per-entry section insets would stack on top of them.
     return UIEdgeInsets(
-      top: ChatReadingColumn.sectionTop,
+      top: section == 0 ? ChatReadingColumn.sectionTop : 0,
       left: inset,
-      bottom: ChatReadingColumn.sectionBottom,
+      bottom: section == collectionView.numberOfSections - 1 ? ChatReadingColumn.sectionBottom : 0,
       right: inset
     )
   }
@@ -438,7 +440,7 @@ extension LodyChatView {
       return CGSize(width: width, height: height.current)
     }
     rowHeights[id] = nil
-    if deliveryExits[id] != nil { return CGSize(width: width, height: 0) }
+    if deliveryExits[id] != nil { return CGSize(width: width, height: deliveryExitTarget(row)) }
     return CGSize(width: width, height: rowHeight(row, width: width))
   }
 
@@ -474,6 +476,10 @@ extension LodyChatView {
       return max(ChatCell.messageFont(for: row, compatibleWith: traitCollection).lineHeight, measuredHeight)
     }
     return measuredHeight
+  }
+
+  func deliveryExitTarget(_ row: ChatRow) -> CGFloat {
+    ChatRowPadding.deliveryExitReserve(previousKind: kind(before: row.id))
   }
 
   func kind(before id: String) -> String? {

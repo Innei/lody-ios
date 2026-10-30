@@ -87,7 +87,7 @@ wait_text('Verify the native session')
 assert not any(item.get('AXUniqueId') == 'subagent-header' for item in ui.state()), 'The sub-agent page reads like the chat, not a grouped list'
 copy = ui.element('subagent-detail-copy')
 assert copy['type'] == 'Button' and copy['frame']['y'] < 140, f"Copy result is a navigation bar button: {copy['frame']}"
-assert any('Native task summary: all checks passed.' in spoken(item) for item in ui.state()), 'The result reads as reply text'
+assert 'Native task summary: all checks passed.' in spoken(ui.element('subagent-detail-result')), 'The result reads as reply text'
 subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input='before subagent copy', text=True, check=True)
 ui.axe('tap', '--id', 'subagent-detail-copy', '--post-delay', '.3')
 ui.capture('native-subagent')

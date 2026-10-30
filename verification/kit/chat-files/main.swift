@@ -110,4 +110,19 @@ let fold = descendants(header).compactMap { $0 as? UIImageView }.first { $0.imag
 precondition(fold != nil, "The header keeps a tertiary fold glyph")
 precondition(headerLabel.textColor == .lodyInk, "The header must use the ink token")
 precondition(descendants(header).contains { $0.frame.height == 0.5 && !$0.isHidden }, "The header must separate its title from the first file")
+let gapped = ChatFileCell(frame: CGRect(x: 16, y: 100, width: 358, height: 40 + 6))
+window.addSubview(gapped)
+let longPath = "packages/cloud-runtime/src/replication/really-long-file-name-for-wrapping-checks.ts"
+gapped.contentConfiguration = ChatFileCell.rowContent(for: longPath)
+gapped.accessories = ChatFileCell.rowAccessories(add: 18, del: 6)
+gapped.gapAbove = 6
+gapped.apply(group: "only", selected: false)
+gapped.layoutIfNeeded()
+let gappedTitle = descendants(gapped).compactMap { $0 as? UILabel }.first { $0.attributedText?.string.hasPrefix("really-long") == true }!
+let gappedCounts = descendants(gapped).compactMap { $0 as? UILabel }.first { $0.attributedText?.string == "+18 −6" }!
+let titleMid = gappedTitle.convert(gappedTitle.bounds, to: gapped).midY
+let countsMid = gappedCounts.convert(gappedCounts.bounds, to: gapped).midY
+precondition(abs(titleMid - countsMid) < 1 && abs(titleMid - (6 + 20)) < 1.5, "Accessories stay centered with the name below the gap: \(titleMid) \(countsMid)")
+precondition(gappedTitle.convert(gappedTitle.bounds, to: gapped).maxX <= gappedCounts.convert(gappedCounts.bounds, to: gapped).minX,
+  "A long path stops before the counts")
 print("Chat files: grouped chrome, row heights, monospaced paths, icon removal and inset hairlines passed")

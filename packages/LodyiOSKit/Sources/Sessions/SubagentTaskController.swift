@@ -100,9 +100,12 @@ final class SubagentTaskController: UIViewController {
       items = []
       state = status == "in_progress" ? "running" : status
     }
-    if !result.isEmpty, !items.contains(where: { $0["type"] as? String == "text" && ($0["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) == result }) {
+    let resultItem = items.first { $0["type"] as? String == "text" && ($0["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) == result }
+    if !result.isEmpty, resultItem == nil {
       items.append(["itemId": itemId + ":result", "type": "text", "text": result])
     }
+    let resultID = resultItem?["itemId"] as? String ?? itemId + ":result"
+    chat.itemAccessibilityIDs = result.isEmpty ? [:] : [resultID: "subagent-detail-result"]
     let entry: [String: Any] = ["id": entryId, "role": "assistant", "status": state,
       "finished": !["pending", "running", "in_progress"].contains(state), "items": items]
     let data = try! JSONSerialization.data(withJSONObject: [entry])

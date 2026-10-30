@@ -217,6 +217,8 @@ gapUserCell.configure(gapUser, text: NSAttributedString(string: gapUser.text))
 gapUserCell.layoutIfNeeded()
 precondition(abs(gapUserCell.contentView.frame.minY - 24) < 0.01, "Cells start their content below the gap")
 gapUserCell.removeFromSuperview()
+precondition(ChatRowPadding.deliveryExitReserve(previousKind: "meta") == 20 && ChatRowPadding.deliveryExitReserve(previousKind: "user") == 4,
+  "An exiting status keeps the space its bubble gains once it is removed, so the bubble never snaps")
 print("Chat render: one spacing scale between transcript blocks")
 
 func resolved(_ color: UIColor?, traits: UITraitCollection) -> CGColor? {
@@ -850,6 +852,7 @@ numericHost.apply(text: countText, animated: false, shines: false)
 let shortStill = processSnapshot(shortHost, x: 0, width: shortWidth)
 RunLoop.main.run(until: Date().addingTimeInterval(0.4))
 precondition(shortStill == processSnapshot(shortHost, x: 0, width: shortWidth), "Completed SwiftUI process text must stay still")
+precondition(ChatNumericTextBridge.shineStops == [0.4, 0.5, 0.6], "The SwiftUI band matches the text-label band, a fifth of the width")
 print("Chat render: SwiftUI shine travels across the full process row")
 
 let attentionText = NSAttributedString(string: "思考过程", attributes: [

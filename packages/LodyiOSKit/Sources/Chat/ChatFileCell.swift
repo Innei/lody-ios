@@ -43,8 +43,15 @@ final class ChatFileCell: UICollectionViewListCell, ChatGapCell {
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    layoutGap()
-    chrome.frame = contentView.frame
+    let content = bounds.inset(by: UIEdgeInsets(top: gapAbove, left: 0, bottom: 0, right: 0))
+    for view in subviews where view !== chrome && view !== backgroundView && view !== selectedBackgroundView {
+      if view === contentView {
+        view.frame = CGRect(x: view.frame.minX, y: content.minY, width: view.frame.width, height: content.height)
+      } else {
+        view.center.y = content.midY
+      }
+    }
+    chrome.frame = content
     separator.frame = CGRect(
       x: 14,
       y: chrome.bounds.height - 0.5,

@@ -1,4 +1,4 @@
-"""A multi-file change block starts folded to one summary row and expands in place above the meta row; a later turn sits below a divider."""
+"""A multi-file change block starts folded to one summary row and expands in place above the meta row; turns are separated by spacing alone, with no divider row."""
 import sys
 from driver import UI
 import catalog
@@ -18,7 +18,7 @@ def probe(items):
 
 ui.wait(lambda items: 'settled' in probe(items), 'The streamed reply did not settle')
 first = ui.wait(summary, 'The file summary did not appear')
-assert 41.5 <= first['frame']['height'] <= 42.5, first['frame']['height']
+assert 47.5 <= first['frame']['height'] <= 48.5, f"42 pt summary plus the 6 pt left of the 12 pt gap under reply text: {first['frame']['height']}"
 assert first.get('AXValue') == catalog.text('native.chat.changes.collapsed'), first.get('AXValue')
 assert first['AXLabel'] == catalog.text(
     'native.chat.file.diffStats', text=catalog.plural('native.chat.transcript.fileCount', 3), add=33, **{'del': 7}
@@ -40,10 +40,12 @@ ui.capture('expanded')
 
 follow = ui.element('preview-follow-up:user')
 meta_bottom = model['frame']['y'] + model['frame']['height']
-assert follow['frame']['y'] - meta_bottom >= 40, f"The next turn sits below a divider, gap {follow['frame']['y'] - meta_bottom}"
+assert abs(follow['frame']['y'] - meta_bottom) <= 1, f"The next turn's row starts at the meta row, carrying its 24 pt gap: {follow['frame']['y'] - meta_bottom}"
+assert follow['frame']['height'] >= 24 + 36, f"The user row includes the 24 pt turn gap above its bubble: {follow['frame']}"
+assert not any((i.get('AXUniqueId') or '').endswith(':turn') for i in ui.state()), 'Turns have no divider row'
 
 ui.axe('tap', '--id', 'preview-answer:changes', '--post-delay', '.6')
 ui.wait(lambda items: (summary(items) or {}).get('AXValue') == catalog.text('native.chat.changes.collapsed'), 'The summary did not fold again')
 assert not any(i.get('AXUniqueId') == 'preview-answer:changes:' + files[0] for i in ui.state()), 'Folding hides the files'
 ui.capture('refolded')
-print('Chat thread: file block folds and expands in place; turns are divided')
+print('Chat thread: file block folds and expands in place; turns are separated without a divider')

@@ -30,6 +30,10 @@ enum ChatRowPadding {
     return max(0, gap(before: kind, after: previousKind) - below)
   }
 
+  static func deliveryExitReserve(previousKind: String?) -> CGFloat {
+    max(0, gap(before: "user", after: previousKind) - gap(before: "user", after: "delivery"))
+  }
+
   static func above(kind: String, previousKind: String?) -> CGFloat {
     if prose.contains(kind) || kind == "chat_failed" { return 0 }
     return top(kind: kind, previousKind: previousKind)
