@@ -28,6 +28,7 @@
     "mac:build": "python3 verification/mac/build.py",
     "mac:dist": "python3 scripts/mac-dist.py",
     "verify:mac": "node --experimental-strip-types verification/mac/run.mts",
+    "verify:mac:vm": "python3 verification/mac/vm.py",
     "verify:ui": "python3 verification/ui/run.py",
     "verify:native": "python3 verification/native.py",
     "verify:simulator": "python3 verification/simulator.py",
