@@ -53,4 +53,14 @@ final class MacTranscriptTests: XCTestCase {
     }
     XCTAssertEqual(prose, ["I'll add an outline view.", "The sidebar is in place."])
   }
+
+  @MainActor
+  func testProseReadsAsPlainTextToVoiceOver() {
+    let view = MacMarkdownView(markdown: "I'll add an `NSOutlineView`:\n\n- **Pinned** first")
+    XCTAssertTrue(view.isAccessibilityElement())
+    XCTAssertEqual(view.accessibilityRole(), .staticText)
+    XCTAssertEqual(view.accessibilityValue() as? String, "I'll add an NSOutlineView:\n\n- Pinned first")
+    view.update("Approved. **Pinned** stays on top.")
+    XCTAssertEqual(view.accessibilityValue() as? String, "Approved. Pinned stays on top.")
+  }
 }
