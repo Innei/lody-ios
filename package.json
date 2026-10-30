@@ -23,7 +23,7 @@
     "licenses:check": "node scripts/build-licenses.mjs --check",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --experimental-strip-types --experimental-test-module-mocks --test tests/**/*.test.mjs && python3 verification/ui/runner_test.py && python3 verification/simulator_test.py && python3 verification/build_test.py",
+    "test": "node --experimental-strip-types --experimental-test-module-mocks --test tests/**/*.test.mjs && python3 verification/ui/runner_test.py && python3 verification/simulator_test.py && python3 verification/build_test.py && python3 verification/mac/vm_test.py",
     "verify:build": "python3 verification/build.py",
     "mac:build": "python3 verification/mac/build.py",
     "mac:dist": "python3 scripts/mac-dist.py",

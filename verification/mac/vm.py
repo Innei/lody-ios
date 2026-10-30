@@ -9,7 +9,13 @@ and keyboard are never used.
     pnpm verify:mac:vm                     # all cases
     pnpm verify:mac:vm --case sidebar      # one case
     pnpm verify:mac:vm --in-process        # also run pnpm verify:mac inside the guest
+    pnpm verify:mac:vm --hold              # keep the VM up after the run until Ctrl-C
     pnpm verify:mac:vm prepare             # build the base VM once (about 30 min)
+
+Every boot prints a ``VNC:`` line (also in ``vnc.txt``) for watching the guest:
+Virtualization.framework's VNC server is forwarded to loopback port 5905, or the
+next free port, or ``--vnc-port``. Connect with Screen Sharing in Observe mode so
+the viewer's pointer and keys never reach the run.
 
 VM disks, clones and the IPSW live in an APFS sparse bundle (default
 ``/Volumes/WD/lody-vm.sparsebundle``, mounted at ``/Volumes/LodyVM``) with
@@ -29,6 +35,8 @@ import subprocess
 import sys
 import tempfile
 import time
+
+from vm_vnc import VNC_PORT, Forwarder, hold, pick_port, vnc_endpoint, vnc_line
 
 ROOT = Path(__file__).resolve().parents[2]
 PROJECT = ROOT / 'Lody.xcodeproj'
@@ -100,12 +108,29 @@ class Guest:
         self.log = log
         dirs = [f'--dir={tag}:{path}' for tag, path in shares.items()]
         binary = shutil.which('tart') or str(Path.home() / '.local/bin/tart')
+        # With --no-graphics Tart only prints the VNC URL; without it Tart would open Screen Sharing on the host.
         self.process = subprocess.Popen(
-            [binary, 'run', '--no-graphics', '--no-audio', *extra, *dirs, name],
+            [binary, 'run', '--no-graphics', '--no-audio', '--vnc-experimental', *extra, *dirs, name],
             env={**os.environ, 'TART_HOME': str(TART_HOME)},
             stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
         )
         self.ip = None
+        self.forwarder = None
+
+    def expose(self, args):
+        deadline = time.monotonic() + 60
+        while not (endpoint := vnc_endpoint(Path(self.log.name).read_text(errors='replace'))):
+            if self.process.poll() is not None or time.monotonic() > deadline:
+                raise SystemExit(f'the VM never reported its VNC server; see {self.log.name}')
+            time.sleep(0.2)
+        password, upstream = endpoint
+        port = pick_port(args.vnc_port or VNC_PORT, fixed=args.vnc_port is not None)
+        self.forwarder = Forwarder(port, upstream)
+        line = vnc_line(password, port)
+        progress(line)
+        output = Path(args.output).resolve()
+        output.mkdir(parents=True, exist_ok=True)
+        (output / 'vnc.txt').write_text(line + '\n')
 
     def boot(self, timeout=600, password=False):
         deadline = time.monotonic() + timeout
@@ -146,6 +171,8 @@ class Guest:
                 self.process.wait(timeout=90)
             except subprocess.TimeoutExpired:
                 self.process.kill()
+        if self.forwarder:
+            self.forwarder.close()
 
 
 # ditto and cp fail on symlinks crossing virtiofs ("Too many levels of symbolic links"); tar copies them intact.
@@ -203,6 +230,7 @@ def prepare(args):
         guest = Guest(BASE, {'Xcode.app': f'{XCODE}:ro', 'key': f'{KEY.parent}:ro'}, log,
                       extra=[f'--provisioning-opts={options}'])
         try:
+            guest.expose(args)
             progress('waiting for the first boot to provision the admin account')
             guest.boot(timeout=1200, password=True)
             progress('provisioning: passwordless sudo, no sleep or lock, Xcode, automation mode')
@@ -211,15 +239,16 @@ def prepare(args):
             guest.process.wait(timeout=180)
         finally:
             guest.stop()
-        settle(log)
+        settle(log, args)
     ready.touch()
     progress(f'{BASE} is ready')
 
 
-def settle(log):
+def settle(log, args):
     # One more login lets first-run banners (Xcode's extensions notice) fire in the base, not in every clone.
     guest = Guest(BASE, {'Xcode.app': f'{XCODE}:ro'}, log)
     try:
+        guest.expose(args)
         progress('settling a second login')
         guest.boot()
         guest.ssh('sleep 90; sudo shutdown -h now', check=False, timeout=180)
@@ -314,6 +343,7 @@ def run(args):
         started = time.monotonic()
         pool = ThreadPoolExecutor(max_workers=1)
         try:
+            guest.expose(args)
             progress(f'booting {name} headless while the host builds')
             ready = pool.submit(warm_up, guest)
             stage(build(output / 'build.log'), work / 'products', args.in_process)
@@ -339,19 +369,27 @@ def run(args):
                     f"--output '{SHARED}/out/in-process' {cases} > '{SHARED}/out/in-process.log' 2>&1",
                 ]), check=False, timeout=args.timeout).returncode
                 status = status or in_process
+            code = collect(work / 'out', output, started, status)
+            if args.hold:
+                hold(guest.process)
         finally:
             guest.stop()
             pool.shutdown()
             tart('delete', name, check=False)
             log.close()
-        for item in ['test.log', 'LodyMac.xcresult', 'in-process', 'in-process.log']:
-            if (work / 'out' / item).exists():
-                shutil.move(work / 'out' / item, output / item)
-        shutil.move(work / 'tart.log', output / 'tart.log')
-        shutil.rmtree(work, ignore_errors=True)
+            shutil.move(work / 'tart.log', output / 'tart.log')
+            shutil.rmtree(work, ignore_errors=True)
+    raise SystemExit(code)
+
+
+def collect(out, output, started, status):
+    for item in ['test.log', 'LodyMac.xcresult', 'in-process', 'in-process.log']:
+        if (out / item).exists():
+            shutil.move(out / item, output / item)
     result = output / 'LodyMac.xcresult'
     if not result.exists():
-        raise SystemExit(f'the guest produced no result bundle; see {output / "test.log"}')
+        progress(f'the guest produced no result bundle; see {output / "test.log"}')
+        return 1
     summary, files = export(result, output)
     print(json.dumps({
         'result': summary.get('result'),
@@ -361,8 +399,8 @@ def run(args):
         'seconds': round(time.monotonic() - started, 1),
         'output': str(output),
         'attachments': len(files),
-    }, indent=1, ensure_ascii=False))
-    raise SystemExit(0 if status == 0 and summary.get('result') == 'Passed' else 1)
+    }, indent=1, ensure_ascii=False), flush=True)
+    return 0 if status == 0 and summary.get('result') == 'Passed' else 1
 
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -371,6 +409,9 @@ parser.add_argument('--case', action='append', default=[], help=f'one of {", ".j
 parser.add_argument('--output', default=str(OUTPUT))
 parser.add_argument('--in-process', action='store_true',
                     help='also run the in-process suite (pnpm verify:mac) inside the guest')
+parser.add_argument('--vnc-port', type=int, help=f'fixed loopback port for the VNC viewer (default {VNC_PORT}, '
+                    'or the next free one)')
+parser.add_argument('--hold', action='store_true', help='keep the VM and VNC up after the run until Ctrl-C')
 parser.add_argument('--timeout', type=int, default=1800, help='seconds allowed for the guest test run')
 parser.add_argument('--force', action='store_true', help='prepare: reinstall and reprovision the base VM')
 parser.add_argument('--cpu', type=int, default=6)
