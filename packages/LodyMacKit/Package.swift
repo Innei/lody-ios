@@ -19,6 +19,7 @@ let package = Package(
         .product(name: "LodyData", package: "LodyData"),
         .product(name: "LodyCore", package: "lody-core"),
         .product(name: "ChatAppKit", package: "chat-kit"),
+        .product(name: "ChatKitCore", package: "chat-kit"),
         .product(name: "MarkdownView", package: "MarkdownView"),
       ],
       path: "Sources",

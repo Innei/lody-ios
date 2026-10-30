@@ -33,6 +33,7 @@ export interface ViewNode {
   hidden?: boolean;
   enabled?: boolean;
   inWindow?: [number, number, number, number];
+  hasImage?: boolean;
   elements?: AXElement[];
   children?: ViewNode[];
 }

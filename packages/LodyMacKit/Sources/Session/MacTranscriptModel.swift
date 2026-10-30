@@ -1,5 +1,19 @@
+import ChatKitCore
 import Foundation
 import LodyData
+
+struct MacAttachmentItem: Hashable {
+  var id: String
+  var name: String
+  var bytes: Int?
+  var image: Bool
+  var media: CKMediaRef
+  var progress: Double?
+
+  var attachment: CKAttachment {
+    CKAttachment(id: id, name: name, bytes: bytes, symbol: image ? "photo" : "doc", media: media, progress: progress)
+  }
+}
 
 enum MacTranscriptItem: Hashable {
   case user(id: String, text: String)
@@ -10,12 +24,15 @@ enum MacTranscriptItem: Hashable {
   case notice(id: String, text: String)
   case subagent(id: String, title: String, detail: String, running: Bool)
   case failedSend(id: String, text: String)
+  case image(id: String, media: CKMediaRef, name: String, aspect: Double?)
+  case attachments(id: String, files: [MacAttachmentItem])
 
   var id: String {
     switch self {
     case .user(let id, _), .prose(let id, _), .plan(let id, _), .changes(let id, _), .notice(let id, _), .failedSend(let id, _): id
     case .subagent(let id, _, _, _): id
     case .activity(let id, _, _, _, _): id
+    case .image(let id, _, _, _), .attachments(let id, _): id
     }
   }
 
@@ -29,6 +46,8 @@ enum MacTranscriptItem: Hashable {
     case .notice: "notice"
     case .subagent: "subagent"
     case .failedSend: "failedSend"
+    case .image: "image"
+    case .attachments: "attachments"
     }
   }
 }
@@ -96,10 +115,11 @@ struct MacTranscriptModel {
         let title = [card?.actor, card?.description].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
         items.append(.subagent(id: row.id, title: title.isEmpty ? row.text : title, detail: card?.detail ?? "", running: row.running))
       case "attachments":
-        let names = row.attachments.map(\.fileName).joined(separator: ", ")
-        items.append(.activity(id: row.id, symbol: "paperclip", text: names, attention: false, running: row.running))
+        items.append(.attachments(id: row.id, files: row.attachments.map { Self.attachment($0, progress: row.uploadProgress) }))
       case "image":
-        items.append(.activity(id: row.id, symbol: "photo", text: row.image?.fileName ?? "", attention: false, running: false))
+        guard let image = row.image else { continue }
+        let aspect = image.width.flatMap { width in image.height.map { width / max($0, 1) } }
+        items.append(.image(id: row.id, media: Self.media(image), name: image.fileName, aspect: aspect))
       case "delivery":
         items.append(.activity(id: row.id, symbol: "clock", text: row.text, attention: row.attention, running: false))
       case "pending":
@@ -108,6 +128,22 @@ struct MacTranscriptModel {
         continue
       }
     }
+  }
+
+  static func media(_ image: ChatImage) -> CKMediaRef {
+    CKMediaRef(id: image.id, context: ["kind": "image", "name": image.fileName, "session": image.storageSessionId ?? ""])
+  }
+
+  static func attachment(_ file: ChatMessageAttachment, progress: [String: ChatAttachmentUploadProgress]) -> MacAttachmentItem {
+    var context = ["kind": file.image == nil ? "file" : "image", "name": file.fileName, "session": file.storageSessionId ?? ""]
+    if let local = file.localURI { context["local"] = local }
+    if let size = file.sizeBytes { context["size"] = String(size) }
+    let state = progress[file.localID ?? file.id]
+    let fraction = state.flatMap { $0.phase == "complete" ? nil : Double($0.percent ?? 0) / 100 }
+    return MacAttachmentItem(
+      id: file.id, name: file.fileName, bytes: file.sizeBytes, image: file.image != nil,
+      media: CKMediaRef(id: file.image?.id ?? file.id, context: context), progress: fraction
+    )
   }
 
   private static func processItem(_ row: ChatRow) -> MacTranscriptItem {

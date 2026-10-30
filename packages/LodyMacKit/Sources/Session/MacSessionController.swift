@@ -1,4 +1,5 @@
 import AppKit
+import ChatKitCore
 import LodyCore
 import LodyData
 
@@ -8,6 +9,7 @@ struct MacTranscriptSource {
   var stop: @MainActor () -> Void
   var detail: MacPermissionFlow.Detail
   var respond: MacPermissionFlow.Respond
+  var media: CKMediaProvider?
 
   static func live(sessionId: String, state: SessionListState, permission: PermissionService = .live) -> MacTranscriptSource {
     let feed = SessionFeed(sessionId: sessionId, userId: state.userId, workspaceId: state.workspaceId)
@@ -25,7 +27,8 @@ struct MacTranscriptSource {
           sessionId: sessionId, entryId: target.entryId, itemId: target.itemId,
           requestId: target.requestId, optionId: optionId
         ))
-      }
+      },
+      media: MacMediaProvider(workspace: state.workspaceId, session: sessionId)
     )
   }
 }
@@ -43,6 +46,8 @@ final class MacSessionController: NSViewController, MacSessionPane {
   private var streaming = false
   private var composerCap: NSLayoutConstraint?
   private var readingObserver: NSObjectProtocol?
+  var previewURL: URL?
+  var transcriptMedia: CKMediaProvider? { source.media }
 
   var reading = MacReading.current() {
     didSet {
@@ -96,6 +101,8 @@ final class MacSessionController: NSViewController, MacSessionPane {
     composerCap?.isActive = !reading.fillWidth
     transcript.onAnswer = { [weak self] optionId in self?.permission.answer(optionId) }
     transcript.onRetry = { [weak self] in self?.onRetry?() }
+    transcript.media = source.media
+    transcript.onPreview = { [weak self] in self?.preview($0) }
     (composer as? MacComposerController)?.onSend = { [weak transcript] in transcript?.noteSend() }
     view = root
   }

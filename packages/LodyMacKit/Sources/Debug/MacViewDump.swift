@@ -53,6 +53,7 @@ enum MacViewDump {
         entry["inWindow"] = frame(NSRect(x: rect.minX, y: window.frame.height - rect.maxY, width: rect.width, height: rect.height))
       }
     }
+    if (view as? NSImageView)?.image != nil { entry["hasImage"] = true }
     if view.window?.firstResponder === view { entry["firstResponder"] = true }
     let elements = MacAccessibilityTree.elements(of: view, visit: visit).map { element($0, in: view.window, visit: visit) }
     if !elements.isEmpty { entry["elements"] = elements }

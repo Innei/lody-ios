@@ -1,5 +1,6 @@
 import AppKit
 import ChatAppKit
+import ChatKitCore
 import LodyData
 import MarkdownView
 
@@ -12,6 +13,8 @@ final class MacTranscriptView: NSView {
   private var cardVersion = 0
   var onAnswer: ((String) -> Void)?
   var onRetry: (() -> Void)?
+  var onPreview: ((CKMediaRef) -> Void)?
+  var media: CKMediaProvider?
 
   var rowViews: [NSView] {
     table.layoutSubtreeIfNeeded()
@@ -58,7 +61,7 @@ final class MacTranscriptView: NSView {
       renderedCard = card
       cardVersion += 1
     }
-    let arrived = model.items.filter { $0.kind == "user" && items[$0.id] == nil }.map(\.id)
+    let arrived = model.items.filter { ["user", "attachments"].contains($0.kind) && items[$0.id] == nil }.map(\.id)
     items = Dictionary(model.items.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
     var rows = model.items.map { item in
       CKTranscriptRow(
@@ -91,6 +94,9 @@ final class MacTranscriptView: NSView {
       view.update(markdown)
       return view
     }
+    if case .image(_, let media, _, _) = item, let view = reused as? MacTranscriptImageView, view.media == media {
+      return view
+    }
     return view(for: item)
   }
 
@@ -112,6 +118,14 @@ final class MacTranscriptView: NSView {
       let row = MacFailedSendView(text: text)
       row.onRetry = { [weak self] in self?.onRetry?() }
       return row
+    case .image(_, let media, let name, let aspect):
+      let view = MacTranscriptImageView(media: media, name: name, aspect: aspect, provider: self.media)
+      view.onPreview = { [weak self] in self?.onPreview?($0) }
+      return view
+    case .attachments(_, let files):
+      let view = MacTranscriptAttachmentsView(files: files, provider: media)
+      view.onPreview = { [weak self] in self?.onPreview?($0) }
+      return view
     }
   }
 }
