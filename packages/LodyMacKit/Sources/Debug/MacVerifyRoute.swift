@@ -62,6 +62,7 @@ enum MacVerifyAction: Equatable {
   case choose(current: String, option: String)
   case type(field: String, text: String)
   case key(String)
+  case menu(String)
 
   init?(_ verb: String, _ query: [String: String]) {
     switch verb {
@@ -74,6 +75,9 @@ enum MacVerifyAction: Equatable {
     case "type":
       guard let field = query["field"], let text = query["text"] else { return nil }
       self = .type(field: field, text: text)
+    case "menu":
+      guard let title = query["title"], !title.isEmpty else { return nil }
+      self = .menu(title)
     case "key":
       guard query["name"] == "return" else { return nil }
       self = .key("return")

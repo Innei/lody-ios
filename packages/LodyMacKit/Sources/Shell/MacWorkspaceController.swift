@@ -10,6 +10,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   private var streaming = false
   private var observers: [NSObjectProtocol] = []
   private(set) var sessionId: String?
+  private(set) lazy var actions = MacSessionActions(source: environment.sessions, prompts: .live { [weak self] in self?.view.window })
   var isOnScreen: Bool {
     guard let window = view.window else { return false }
     return window.isVisible && !window.isMiniaturized && window.occlusionState.contains(.visible)
@@ -54,6 +55,26 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
       })
     }
     sidebar.onNewSession = { [weak self] in self?.onNewSession?() }
+    sidebar.actions = actions
+    sidebar.onAction = { [weak self] action, id in self?.run(action, id) }
+  }
+
+  private func run(_ action: MacSessionAction, _ id: String?) {
+    Task { await actions.perform(action, sessionId: id) }
+  }
+
+  @objc func performSessionAction(_ sender: NSMenuItem) {
+    guard let action = (sender.representedObject as? String).flatMap(MacSessionAction.init(rawValue:)) else { return }
+    run(action, sessionId)
+  }
+
+  @objc func selectPreviousSession(_ sender: Any?) { step(-1) }
+
+  @objc func selectNextSession(_ sender: Any?) { step(1) }
+
+  private func step(_ offset: Int) {
+    guard let next = sidebar.neighbor(of: sessionId, step: offset) else { return }
+    open(next)
   }
 
   func open(_ id: String?) {
@@ -87,6 +108,23 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   func setStreaming(_ on: Bool) {
     streaming = on
     pane?.setStreaming(on)
+  }
+}
+
+extension MacWorkspaceController: NSMenuItemValidation {
+  func validateMenuItem(_ item: NSMenuItem) -> Bool {
+    switch item.action {
+    case #selector(performSessionAction(_:)):
+      guard let action = (item.representedObject as? String).flatMap(MacSessionAction.init(rawValue:)) else { return false }
+      item.title = actions.title(action, sessionId: sessionId)
+      return actions.isEnabled(action, sessionId: sessionId)
+    case #selector(selectPreviousSession(_:)):
+      return sidebar.neighbor(of: sessionId, step: -1) != nil
+    case #selector(selectNextSession(_:)):
+      return sidebar.neighbor(of: sessionId, step: 1) != nil
+    default:
+      return true
+    }
   }
 }
 

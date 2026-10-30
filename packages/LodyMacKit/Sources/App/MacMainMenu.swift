@@ -8,6 +8,7 @@ enum MacMainMenu {
     bar.addItem(submenu(fileMenu(target: target)))
     bar.addItem(submenu(editMenu()))
     bar.addItem(submenu(viewMenu()))
+    bar.addItem(submenu(sessionMenu()))
     let window = windowMenu()
     bar.addItem(submenu(window))
     NSApp.windowsMenu = window
@@ -72,10 +73,41 @@ enum MacMainMenu {
     return menu
   }
 
+  private static func sessionMenu() -> NSMenu {
+    let menu = NSMenu(title: String(localized: "mac.menu.session", bundle: .lodyMac))
+    let perform = #selector(MacWorkspaceController.performSessionAction(_:))
+    for action in MacSessionAction.menuOrder {
+      menu.addItem(action.menuItem(action.defaultTitle, action: perform))
+    }
+    menu.addItem(.separator())
+    menu.addItem(item(String(localized: "mac.session.previous", bundle: .lodyMac), #selector(MacWorkspaceController.selectPreviousSession(_:)),
+                      String(Character(UnicodeScalar(UInt16(NSUpArrowFunctionKey))!)), [.command, .option]))
+    menu.addItem(item(String(localized: "mac.session.next", bundle: .lodyMac), #selector(MacWorkspaceController.selectNextSession(_:)),
+                      String(Character(UnicodeScalar(UInt16(NSDownArrowFunctionKey))!)), [.command, .option]))
+    menu.addItem(.separator())
+    menu.addItem(MacSessionAction.delete.menuItem(MacSessionAction.delete.defaultTitle, action: perform))
+    return menu
+  }
+
+  private static func tabMenu() -> NSMenu {
+    let menu = NSMenu(title: String(localized: "mac.menu.goToTab", bundle: .lodyMac))
+    for number in 1...9 {
+      let title = number == 9
+        ? String(localized: "mac.menu.lastTab", bundle: .lodyMac)
+        : String(format: String(localized: "mac.menu.tab", bundle: .lodyMac), number)
+      let tab = item(title, #selector(MainWindowController.showTab(_:)), String(number))
+      tab.tag = number
+      menu.addItem(tab)
+    }
+    return menu
+  }
+
   private static func windowMenu() -> NSMenu {
     let menu = NSMenu(title: String(localized: "mac.menu.window", bundle: .lodyMac))
     menu.addItem(item(String(localized: "mac.menu.minimize", bundle: .lodyMac), #selector(NSWindow.performMiniaturize(_:)), "m"))
     menu.addItem(item(String(localized: "mac.menu.zoom", bundle: .lodyMac), #selector(NSWindow.performZoom(_:))))
+    menu.addItem(.separator())
+    menu.addItem(submenu(tabMenu()))
     menu.addItem(.separator())
     menu.addItem(item(String(localized: "mac.menu.bringAllToFront", bundle: .lodyMac), #selector(NSApplication.arrangeInFront(_:))))
     return menu

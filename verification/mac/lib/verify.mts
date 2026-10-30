@@ -46,6 +46,7 @@ export interface Dump {
     key: boolean;
     appearance: string;
     tabs?: string[];
+    selectedTab?: string;
     badges?: string[];
     root?: ViewNode;
   }[];
@@ -239,6 +240,10 @@ export function clickText(session: Session, text: string) {
 
 export function typeInto(session: Session, field: string, text: string) {
   return act(session, 'type', { field, text });
+}
+
+export function menu(session: Session, title: string) {
+  return act(session, 'menu', { title });
 }
 
 export function choose(session: Session, current: string, option: string) {

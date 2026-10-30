@@ -14,6 +14,7 @@ enum MacViewDump {
       ]
       if let tabs = window.tabbedWindows {
         entry["tabs"] = tabs.map(\.title)
+        entry["selectedTab"] = window.tabGroup?.selectedWindow?.title ?? ""
         entry["badges"] = tabs.map { $0.tab.accessoryView?.accessibilityIdentifier() ?? "" }
       }
       if let content = window.contentView { entry["root"] = node(content, visit: MacAccessibilityTree.Visit()) }

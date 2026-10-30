@@ -6,6 +6,7 @@ import { parseArgs } from 'node:util';
 
 import { accent } from './cases/accent.mts';
 import { composerNew, composerReply } from './cases/composer.mts';
+import { sessions } from './cases/sessions.mts';
 import { settings } from './cases/settings.mts';
 import { sidebar } from './cases/sidebar.mts';
 import { signIn } from './cases/sign-in.mts';
@@ -23,6 +24,7 @@ const cases: Record<string, (session: Session) => Promise<void>> = {
   'composer-reply': composerReply,
   accent,
   settings,
+  sessions,
 };
 
 const { values } = parseArgs({

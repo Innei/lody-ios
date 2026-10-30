@@ -121,6 +121,32 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   }
 
   @objc private func newSessionPressed() { workspace?.open(nil) }
+
+  override func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? {
+    guard let workspace, workspace.responds(to: action) else { return super.supplementalTarget(forAction: action, sender: sender) }
+    return workspace
+  }
+
+  static func tabIndex(tag: Int, count: Int) -> Int? {
+    guard count > 0 else { return nil }
+    if tag == 9 { return count - 1 }
+    return (1...count).contains(tag) ? tag - 1 : nil
+  }
+
+  private var tabs: [NSWindow] { window.map { $0.tabbedWindows ?? [$0] } ?? [] }
+
+  @objc func showTab(_ sender: NSMenuItem) {
+    guard let index = Self.tabIndex(tag: sender.tag, count: tabs.count) else { return }
+    window?.tabGroup?.selectedWindow = tabs[index]
+    tabs[index].makeKeyAndOrderFront(nil)
+  }
+}
+
+extension MainWindowController: NSMenuItemValidation {
+  func validateMenuItem(_ item: NSMenuItem) -> Bool {
+    guard item.action == #selector(showTab(_:)) else { return true }
+    return Self.tabIndex(tag: item.tag, count: tabs.count) != nil
+  }
 }
 
 extension NSToolbarItem.Identifier {

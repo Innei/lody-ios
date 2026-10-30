@@ -2,7 +2,7 @@ import AppKit
 import LodyData
 
 @MainActor
-final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSSearchFieldDelegate {
+final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSSearchFieldDelegate, NSMenuDelegate {
   final class Node {
     let id: String
     let title: String
@@ -18,8 +18,11 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
 
   var onSelect: ((String) -> Void)?
   var onNewSession: (() -> Void)?
+  var onAction: ((MacSessionAction, String) -> Void)?
+  weak var actions: MacSessionActions?
   private let source: MacSessionsSource
-  private let outline = NSOutlineView()
+  private let outline = SidebarOutlineView()
+  var outlineView: NSOutlineView { outline }
   private var collapsed: Set<String> = []
   private var approvalQueue: [String] = []
   private var reloading = false
@@ -76,6 +79,12 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     outline.delegate = self
     outline.autosaveExpandedItems = false
     outline.setAccessibilityIdentifier("sidebar-sessions")
+    outline.menu = NSMenu()
+    outline.menu?.delegate = self
+    outline.onReturn = { [weak self] in
+      guard let self, let id = self.selectedId else { return }
+      self.onAction?(.rename, id)
+    }
     let scroll = NSScrollView()
     scroll.documentView = outline
     scroll.drawsBackground = false
@@ -166,6 +175,52 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     select(sessionId: selectedId)
   }
 
+  var visibleIds: [String] { roots.flatMap(\.children).map(\.id) }
+
+  func neighbor(of id: String?, step: Int) -> String? {
+    let ids = visibleIds
+    guard let id, let index = ids.firstIndex(of: id) else { return step > 0 ? ids.first : ids.last }
+    let next = index + step
+    return ids.indices.contains(next) ? ids[next] : nil
+  }
+
+  func contextMenu(for id: String) -> NSMenu {
+    let menu = NSMenu()
+    fill(menu, for: id)
+    return menu
+  }
+
+  private func fill(_ menu: NSMenu, for id: String) {
+    menu.removeAllItems()
+    menu.autoenablesItems = false
+    for action in MacSessionAction.menuOrder {
+      menu.addItem(contextItem(action, id))
+    }
+    menu.addItem(.separator())
+    menu.addItem(contextItem(.delete, id))
+  }
+
+  private func contextItem(_ action: MacSessionAction, _ id: String) -> NSMenuItem {
+    let item = action.menuItem(actions?.title(action, sessionId: id) ?? action.defaultTitle, action: #selector(contextAction(_:)), target: self)
+    item.isEnabled = actions?.isEnabled(action, sessionId: id) ?? true
+    item.identifier = NSUserInterfaceItemIdentifier(id)
+    return item
+  }
+
+  @objc private func contextAction(_ sender: NSMenuItem) {
+    guard let id = sender.identifier?.rawValue,
+          let action = (sender.representedObject as? String).flatMap(MacSessionAction.init(rawValue:)) else { return }
+    onAction?(action, id)
+  }
+
+  func menuNeedsUpdate(_ menu: NSMenu) {
+    guard let node = outline.item(atRow: outline.clickedRow) as? Node, node.row != nil else {
+      menu.removeAllItems()
+      return
+    }
+    fill(menu, for: node.id)
+  }
+
   private static func node(_ row: MacSidebarModel.Row) -> Node { Node(id: row.id, title: row.title, row: row) }
 
   private func find(_ id: String) -> Node? {
@@ -246,6 +301,18 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     let index = workspacePicker.indexOfSelectedItem
     guard workspaceIds.indices.contains(index), workspaceIds[index] != source.read().workspaceId else { return }
     source.selectWorkspace(workspaceIds[index])
+  }
+}
+
+final class SidebarOutlineView: NSOutlineView {
+  var onReturn: (() -> Void)?
+
+  override func keyDown(with event: NSEvent) {
+    if event.keyCode == 36 || event.keyCode == 76, event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty, selectedRow >= 0 {
+      onReturn?()
+      return
+    }
+    super.keyDown(with: event)
   }
 }
 

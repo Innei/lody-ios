@@ -11,7 +11,7 @@ enum MacVerifyActions {
     last = ["seq": seq, "ok": error == nil, "error": error ?? ""]
   }
 
-  static func perform(_ action: MacVerifyAction, in window: NSWindow) -> String? {
+  static func perform(_ action: MacVerifyAction, in window: NSWindow, menu: NSMenu? = NSApp.mainMenu) -> String? {
     guard let root = window.contentView else { return "no content view" }
     let views = descendants(root).filter { !$0.isHiddenOrHasHiddenAncestor }
     switch action {
@@ -45,6 +45,8 @@ enum MacVerifyActions {
       input.selectAll(nil)
       input.insertText(text, replacementRange: input.selectedRange())
       return nil
+    case .menu(let title):
+      return choose(title, in: menu, for: window)
     case .key:
       guard let event = NSEvent.keyEvent(
         with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
@@ -54,6 +56,28 @@ enum MacVerifyActions {
       if !window.performKeyEquivalent(with: event) { window.firstResponder?.keyDown(with: event) }
       return nil
     }
+  }
+
+  // Off-screen scene windows are never key, so menu items are routed through the scene window's own responders.
+  private static func choose(_ title: String, in menu: NSMenu?, for window: NSWindow) -> String? {
+    guard let item = menuItems(menu).first(where: { $0.title == title }), let action = item.action else { return "no menu item \(title)" }
+    var responder: NSResponder? = window.firstResponder ?? window
+    var target: AnyObject? = item.target
+    while target == nil, let current = responder {
+      if current.responds(to: action) {
+        target = current
+      } else if let supplemental = current.supplementalTarget(forAction: action, sender: item) as AnyObject? {
+        target = supplemental
+      }
+      responder = current.nextResponder
+    }
+    guard let target else { return "nothing handles \(title)" }
+    if let validator = target as? NSMenuItemValidation, !validator.validateMenuItem(item) { return "\(title) is disabled" }
+    return NSApp.sendAction(action, to: target, from: item) ? nil : "\(title) was not sent"
+  }
+
+  private static func menuItems(_ menu: NSMenu?) -> [NSMenuItem] {
+    (menu?.items ?? []).flatMap { [$0] + menuItems($0.submenu) }
   }
 
   private static func descendants(_ view: NSView) -> [NSView] {
