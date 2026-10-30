@@ -410,7 +410,21 @@ targets:
         basedOnDependencyAnalysis: false
     dependencies:
       - package: LodyMacKit
-    scheme: {}
+    scheme:
+      testTargets:
+        - LodyMacUITests
+  LodyMacUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - verification/mac/UITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.innei.lody.mac.uitests
+        GENERATE_INFOPLIST_FILE: 'YES'
+        TEST_TARGET_NAME: LodyMac
+    dependencies:
+      - target: LodyMac
 schemes:
   Lody:
     build:
