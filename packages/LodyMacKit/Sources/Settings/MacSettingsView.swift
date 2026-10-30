@@ -139,6 +139,8 @@ struct MacSettingsDetail: View {
       MacMachinesPage(settings: model, list: model.machines)
     case .projects:
       MacProjectsPage(settings: model, model: model.projects)
+    case .about:
+      MacAboutPage(model: model.about)
     case .appearance:
       MacAppearancePage(model: model.appearance)
     case .keyboard:

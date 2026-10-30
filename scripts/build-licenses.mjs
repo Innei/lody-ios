@@ -1,5 +1,6 @@
-// Regenerates `iOS/Resources/Licenses/LodyLicenses.json`, the data behind
-// Settings -> Open Source Licenses. `native:assets` bundles it into the app.
+// Regenerates `iOS/Resources/Licenses/LodyLicenses.json` and
+// `macOS/Resources/LodyLicenses.json`, the data behind each app's open source
+// licenses screen. Each app lists only the components it ships.
 //
 // The list is the production dependency closure of the app (every library that
 // can end up in the shipped build), plus the native and vendored components that
@@ -16,7 +17,6 @@ import { format } from 'prettier';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const repo = root;
-const output = path.join(root, 'iOS/Resources/Licenses/LodyLicenses.json');
 const check = process.argv.includes('--check');
 
 /** Workspace packages whose production dependencies make up the app. */
@@ -107,13 +107,66 @@ const nativeComponents = [
   },
 ];
 
-/** The app's own license, so the notices screen also carries the AGPL text. */
-const firstPartyLicense = {
-  name: 'Lody for iOS',
-  license: 'AGPL-3.0-only',
-  url: 'https://github.com/Innei/lody-ios',
-  file: 'LICENSE',
-};
+/** Swift packages the Mac app links that the iOS list does not name. */
+const macComponents = [
+  ...nativeComponents.filter((component) =>
+    ['MarkdownView', 'Litext'].includes(component.name),
+  ),
+  {
+    name: 'DisplayLink',
+    license: 'MIT',
+    url: 'https://github.com/Lakr233/DisplayLink',
+    file: 'scripts/licenses/DisplayLink-LICENSE.txt',
+  },
+  {
+    name: 'LRUCache',
+    license: 'MIT',
+    url: 'https://github.com/nicklockwood/LRUCache',
+    file: 'scripts/licenses/LRUCache-LICENSE.txt',
+  },
+  {
+    name: 'swift-cmark',
+    license: 'BSD-2-Clause',
+    url: 'https://github.com/swiftlang/swift-cmark',
+    file: 'scripts/licenses/swift-cmark-LICENSE.txt',
+  },
+  {
+    name: 'Swift Collections',
+    license: 'Apache-2.0',
+    url: 'https://github.com/apple/swift-collections',
+    file: 'scripts/licenses/swift-collections-LICENSE.txt',
+  },
+  {
+    name: 'SwiftMath',
+    license: 'MIT',
+    url: 'https://github.com/mgriebling/SwiftMath',
+    file: 'scripts/licenses/SwiftMath-LICENSE.txt',
+  },
+];
+
+/** Each app's own license comes first, so its notices carry the AGPL text. */
+const targets = [
+  {
+    output: 'iOS/Resources/Licenses/LodyLicenses.json',
+    firstParty: {
+      name: 'Lody for iOS',
+      license: 'AGPL-3.0-only',
+      url: 'https://github.com/Innei/lody-ios',
+      file: 'LICENSE',
+    },
+    components: nativeComponents,
+  },
+  {
+    output: 'macOS/Resources/LodyLicenses.json',
+    firstParty: {
+      name: 'Lody for Mac',
+      license: 'AGPL-3.0-only',
+      url: 'https://github.com/Innei/lody-ios',
+      file: 'LICENSE',
+    },
+    components: macComponents,
+  },
+];
 
 /** License ids that npm publishes in inconsistent casing. */
 const licenseCasing = new Map(
@@ -254,7 +307,7 @@ function canonicalText(manifest, id) {
   return '';
 }
 
-function buildEntries() {
+function buildEntries({ firstParty, components }) {
   const entries = [];
   for (const [dir, manifest] of collectPackages()) {
     const id = licenseId(manifest);
@@ -274,13 +327,13 @@ function buildEntries() {
       text,
     });
   }
-  for (const component of [firstPartyLicense, ...nativeComponents]) {
+  for (const component of [firstParty, ...components]) {
     entries.push({
       name: component.name,
       version: '',
       license: component.license,
       url: component.url,
-      firstParty: component === firstPartyLicense,
+      firstParty: component === firstParty,
       text: readFileSync(path.join(root, component.file), 'utf8').trim(),
     });
   }
@@ -329,30 +382,34 @@ function buildEntries() {
   return { packages, texts };
 }
 
-async function render() {
+async function render(target) {
   const config = readJson(path.join(repo, '.prettierrc.json'));
-  return format(JSON.stringify(buildEntries()), {
+  return format(JSON.stringify(buildEntries(target)), {
     ...config,
-    filepath: output,
+    filepath: path.join(root, target.output),
   });
 }
 
-const rendered = await render();
-const existing = existsSync(output) ? readFileSync(output, 'utf8') : '';
-if (check) {
-  if (rendered !== existing) {
-    console.error(
-      'LodyLicenses.json is stale. Run: pnpm --filter @lody-ios/ios licenses:build',
-    );
-    process.exit(1);
+let stale = false;
+for (const target of targets) {
+  const output = path.join(root, target.output);
+  const rendered = await render(target);
+  const existing = existsSync(output) ? readFileSync(output, 'utf8') : '';
+  if (check) {
+    if (rendered !== existing) {
+      console.error(`${target.output} is stale. Run: pnpm licenses:build`);
+      stale = true;
+    } else {
+      console.log(`${target.output} is up to date`);
+    }
+  } else if (rendered !== existing) {
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    await mkdir(path.dirname(output), { recursive: true });
+    await writeFile(output, rendered);
+    const size = (Buffer.byteLength(rendered) / 1024).toFixed(0);
+    console.log(`Wrote ${target.output} (${size} KB)`);
+  } else {
+    console.log(`${target.output} unchanged`);
   }
-  console.log('LodyLicenses.json is up to date');
-} else if (rendered !== existing) {
-  const { mkdir, writeFile } = await import('node:fs/promises');
-  await mkdir(path.dirname(output), { recursive: true });
-  await writeFile(output, rendered);
-  const size = (Buffer.byteLength(rendered) / 1024).toFixed(0);
-  console.log(`Wrote ${path.relative(repo, output)} (${size} KB)`);
-} else {
-  console.log('LodyLicenses.json unchanged');
 }
+if (stale) process.exit(1);

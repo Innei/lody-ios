@@ -390,7 +390,6 @@ targets:
       - path: .generated/Resources
         excludes:
           - DebugHome.json
-      - path: iOS/Resources/Licenses
     settings:
       base:
         PRODUCT_NAME: Lody

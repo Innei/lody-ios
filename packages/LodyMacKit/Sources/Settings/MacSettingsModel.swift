@@ -12,6 +12,7 @@ struct MacSettingsServices {
   var machines: MacMachineServices = .live
   var workspace: MacWorkspaceServices = .live
   var projects: MacProjectServices = .live
+  var about: MacAboutServices = .live
 
   static var live: MacSettingsServices {
     MacSettingsServices(
@@ -40,6 +41,7 @@ final class MacSettingsModel {
   @ObservationIgnored lazy var machines = MacMachineList(services: services.machines)
   @ObservationIgnored lazy var workspace = MacWorkspaceModel(services: services.workspace)
   @ObservationIgnored lazy var projects = MacProjectsModel(services: services.projects)
+  @ObservationIgnored lazy var about = MacAboutModel(services: services.about)
   var query = ""
   var confirmingSignOut = false
   var page: MacSettingsPage

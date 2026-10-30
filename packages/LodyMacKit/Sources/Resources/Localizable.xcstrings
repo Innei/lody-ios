@@ -868,6 +868,23 @@
         }
       }
     },
+    "mac.settings.diagnostics.count": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld events since Lody opened"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自 Lody 打开以来 %lld 条事件"
+          }
+        }
+      }
+    },
     "mac.settings.diagnostics.export": {
       "extractionState": "manual",
       "localizations": {
@@ -881,6 +898,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "导出…"
+          }
+        }
+      }
+    },
+    "mac.settings.done": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
           }
         }
       }
@@ -949,6 +983,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "开源许可"
+          }
+        }
+      }
+    },
+    "mac.settings.licenses.show": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看…"
           }
         }
       }
@@ -1935,6 +1986,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "版本"
+          }
+        }
+      }
+    },
+    "mac.settings.version.value": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本 %@"
           }
         }
       }
