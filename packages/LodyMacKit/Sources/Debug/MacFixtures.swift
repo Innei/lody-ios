@@ -30,13 +30,15 @@ enum MacFixtures {
     return state
   }
 
-  static var environment: MacEnvironment {
+  static var environment: MacEnvironment { environment(history: 0) }
+
+  static func environment(history: Int) -> MacEnvironment {
     let sessions = MacSessionsSource.fixture(listState)
     return MacEnvironment(
       sessions: sessions,
       pane: { sessionId in
         guard sessionId == "s-mac" else { return MacSessionSummaryPane(sessionId: sessionId, sessions: sessions) }
-        let transcript = MacTranscriptFixture()
+        let transcript = MacTranscriptFixture(history: history)
         var model = MacComposerModel(mode: .reply)
         model.replyReady = true
         model.replyCapability = MacComposerFixture.capability
@@ -66,8 +68,8 @@ enum MacFixtures {
     )
   }
 
-  static func workspaceWindow(sessionId: String?) -> [NSWindow] {
-    let controller = MainWindowController(environment: environment, sessionId: sessionId)
+  static func workspaceWindow(sessionId: String?, history: Int = 0) -> [NSWindow] {
+    let controller = MainWindowController(environment: environment(history: history), sessionId: sessionId)
     if let workspace = controller.workspace { MacTabCoordinator.shared.select(workspace) }
     return controller.window.map { [$0] } ?? []
   }

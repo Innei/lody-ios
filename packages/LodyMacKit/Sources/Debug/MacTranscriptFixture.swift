@@ -7,6 +7,14 @@ final class MacTranscriptFixture {
   private var answered: String?
   private var replies: [String] = []
   private var changed: (@MainActor (SessionFeedState) -> Void)?
+  private let earlier: String
+
+  init(history: Int = 0) {
+    earlier = (0..<history).map { index in
+      let role = index.isMultiple(of: 2) ? "user" : "assistant"
+      return #"{"id":"h\#(index)","role":"\#(role)","status":"completed","finished":true,"items":[{"itemId":"t","type":"text","text":"Earlier turn \#(index)"}]},"#
+    }.joined()
+  }
 
   var source: MacTranscriptSource {
     MacTranscriptSource(
@@ -45,7 +53,7 @@ final class MacTranscriptFixture {
       : #","status":"completed""#
     let reply = answered == nil ? "" : #",{"itemId":"done","type":"text","text":"Approved. The sidebar now groups sessions by project, with **Pinned** on top."}"#
     return """
-    [{"id":"u1","role":"user","status":"completed","finished":true,"items":[{"itemId":"q","type":"text","text":"Add a sidebar like the Codex desktop app: pinned sessions, then projects."}]},
+    [\(earlier){"id":"u1","role":"user","status":"completed","finished":true,"items":[{"itemId":"q","type":"text","text":"Add a sidebar like the Codex desktop app: pinned sessions, then projects."}]},
      {"id":"a1","role":"assistant","status":"completed","finished":true,"items":[
       {"itemId":"think","type":"thought","text":"Reading the window shell first"},
       {"itemId":"read","type":"tool_call","kind":"read","title":"Read MainWindowController.swift","status":"completed"},

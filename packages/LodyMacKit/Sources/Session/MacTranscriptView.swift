@@ -10,7 +10,9 @@ final class MacTranscriptView: NSView {
   private var items: [String: MacTranscriptItem] = [:]
   private var renderedCard: MacPermissionFlow.Card?
   private var cardVersion = 0
-  private var pinned = true
+  private var pinned = true {
+    didSet { table.following = pinned }
+  }
   private var userScrolling = false
   private var observers: [NSObjectProtocol] = []
   var onAnswer: ((String) -> Void)?
@@ -18,7 +20,7 @@ final class MacTranscriptView: NSView {
 
   var rowViews: [NSView] {
     table.layoutSubtreeIfNeeded()
-    return table.instantiatedContentViews.filter { !($0 is MacPermissionCard) }
+    return table.instantiatedContentViews.filter { !($0 is MacPermissionCard || $0 is CKHistoryHeaderView) }
   }
 
   var reading = MacReading.current() {
@@ -33,6 +35,10 @@ final class MacTranscriptView: NSView {
     super.init(frame: frameRect)
     table.readingWidth = reading.fillWidth ? nil : 780
     table.tableView.setAccessibilityIdentifier("transcript")
+    table.historyHeader.labels = .init(
+      more: String(localized: "mac.transcript.history.more", bundle: .lodyMac),
+      start: String(localized: "mac.transcript.history.start", bundle: .lodyMac)
+    )
     table.cell = { [weak self] row, reused in
       self?.cell(for: row, reused: reused) ?? NSView()
     }

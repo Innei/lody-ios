@@ -264,6 +264,10 @@ export function capture(session: Session, name: string) {
   });
 }
 
+export function scrollToTop(session: Session, field: string) {
+  return act(session, 'scroll', { field, to: 'top' });
+}
+
 export function pressReturn(session: Session) {
   return act(session, 'key', { name: 'return' });
 }

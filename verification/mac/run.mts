@@ -12,6 +12,7 @@ import { sidebar } from './cases/sidebar.mts';
 import { signIn } from './cases/sign-in.mts';
 import { tabs } from './cases/tabs.mts';
 import { transcript } from './cases/transcript.mts';
+import { transcriptHistory } from './cases/transcript-history.mts';
 import { capture, dump, launch, route, startSession } from './lib/verify.mts';
 import type { Session } from './lib/verify.mts';
 
@@ -20,6 +21,7 @@ const cases: Record<string, (session: Session) => Promise<void>> = {
   sidebar,
   tabs,
   transcript,
+  'transcript-history': transcriptHistory,
   'composer-new': composerNew,
   'composer-reply': composerReply,
   accent,

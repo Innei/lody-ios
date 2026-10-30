@@ -3112,6 +3112,40 @@
         }
       }
     },
+    "mac.transcript.history.more": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load Earlier"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加载更早的消息"
+          }
+        }
+      }
+    },
+    "mac.transcript.history.start": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beginning of Session"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话开始"
+          }
+        }
+      }
+    },
     "mac.transcript.plan": {
       "extractionState": "manual",
       "localizations": {

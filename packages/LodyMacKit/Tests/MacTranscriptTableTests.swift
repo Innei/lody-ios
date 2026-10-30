@@ -1,4 +1,5 @@
 import AppKit
+import ChatAppKit
 import LodyData
 import XCTest
 @testable import LodyMacKit
@@ -38,5 +39,43 @@ final class MacTranscriptTableTests: XCTestCase {
     transcript.render(model, card: nil)
     window.layoutIfNeeded()
     XCTAssertTrue(transcript.descendants(MacPermissionCard.self).isEmpty)
+  }
+
+  func testALongHistoryOpensOnTheLatestPageAndPagesEarlierTurnsInFromTheTop() {
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 500), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    let transcript = MacTranscriptView(frame: NSRect(x: 0, y: 0, width: 700, height: 500))
+    window.contentView = transcript
+    var model = MacTranscriptModel(entriesJSON: "[]")
+    model.items = (0..<1000).map { .user(id: "u\($0)", text: "Message \($0)") }
+    transcript.render(model)
+    window.layoutIfNeeded()
+    XCTAssertFalse(texts(in: transcript).contains("Message 900"))
+    scrollToTop(transcript)
+    XCTAssertEqual(transcript.descendants(CKHistoryHeaderView.self).first?.labels.more, String(localized: "mac.transcript.history.more", bundle: .lodyMac))
+    XCTAssertTrue(texts(in: transcript).contains("Message 950"))
+    let paged = expectation(description: "earlier page")
+    Task { @MainActor in
+      while !texts(in: transcript).contains("Message 900") {
+        scrollToTop(transcript)
+        try? await Task.sleep(for: .milliseconds(20))
+      }
+      paged.fulfill()
+    }
+    wait(for: [paged], timeout: 5)
+  }
+
+  private func scrollToTop(_ transcript: MacTranscriptView) {
+    guard let scroll = transcript.descendants(NSScrollView.self).first else { return }
+    NotificationCenter.default.post(name: NSScrollView.willStartLiveScrollNotification, object: scroll)
+    scroll.contentView.scroll(to: NSPoint(x: 0, y: -scroll.contentInsets.top))
+    scroll.reflectScrolledClipView(scroll.contentView)
+    NotificationCenter.default.post(name: NSScrollView.didEndLiveScrollNotification, object: scroll)
+    transcript.layoutSubtreeIfNeeded()
+  }
+
+  private func texts(in transcript: MacTranscriptView) -> [String] {
+    transcript.rowViews.flatMap { $0.descendants(NSTextField.self) }.map(\.stringValue)
   }
 }

@@ -47,6 +47,13 @@ enum MacVerifyActions {
       return nil
     case .menu(let title):
       return choose(title, in: menu, for: window)
+    case .scrollToTop(let field):
+      guard let scroll = views.first(where: { $0.accessibilityIdentifier() == field })?.enclosingScrollView else { return "no scroll view \(field)" }
+      NotificationCenter.default.post(name: NSScrollView.willStartLiveScrollNotification, object: scroll)
+      scroll.contentView.scroll(to: NSPoint(x: 0, y: -scroll.contentInsets.top))
+      scroll.reflectScrolledClipView(scroll.contentView)
+      NotificationCenter.default.post(name: NSScrollView.didEndLiveScrollNotification, object: scroll)
+      return nil
     case .key:
       guard let event = NSEvent.keyEvent(
         with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
