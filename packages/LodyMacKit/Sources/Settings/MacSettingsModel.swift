@@ -9,6 +9,7 @@ struct MacSettingsServices {
   var signIn: @MainActor () -> Void
   var general: MacGeneralServices = .live
   var appearance: MacAppearanceServices = .live
+  var machines: MacMachineServices = .live
 
   static var live: MacSettingsServices {
     MacSettingsServices(
@@ -34,7 +35,9 @@ final class MacSettingsModel {
   private(set) var state: SettingsState
   @ObservationIgnored lazy var general = MacGeneralModel(services: services.general)
   @ObservationIgnored lazy var appearance = MacAppearanceModel(services: services.appearance)
+  @ObservationIgnored lazy var machines = MacMachineList(services: services.machines)
   var query = ""
+  var confirmingSignOut = false
   var page: MacSettingsPage
 
   init(services: MacSettingsServices, defaults: UserDefaults = .standard) {
@@ -83,7 +86,25 @@ final class MacSettingsModel {
     services.selectWorkspace(id)
   }
 
+  func signIn() {
+    services.signIn()
+  }
+
+  func requestSignOut() {
+    confirmingSignOut = true
+  }
+
+  func cancelSignOut() {
+    confirmingSignOut = false
+  }
+
+  func confirmSignOut() async {
+    confirmingSignOut = false
+    await services.source.logout()
+  }
+
   func refresh() {
     state = services.source.state
+    machines.refreshPresence()
   }
 }

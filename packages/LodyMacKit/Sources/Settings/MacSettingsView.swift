@@ -131,6 +131,8 @@ struct MacSettingsDetail: View {
     switch model.shownPage {
     case .general:
       MacGeneralPage(model: model.general)
+    case .account:
+      MacAccountPage(model: model)
     case .appearance:
       MacAppearancePage(model: model.appearance)
     case .keyboard:

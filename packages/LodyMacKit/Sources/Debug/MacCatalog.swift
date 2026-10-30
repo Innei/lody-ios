@@ -71,7 +71,8 @@ extension MacSettingsServices {
       selectWorkspace: { _ in },
       signIn: {},
       general: .fixture,
-      appearance: .fixture
+      appearance: .fixture,
+      machines: .fixture
     )
   }
 }
@@ -124,6 +125,36 @@ extension MacGeneralServices {
         openSystemSettings: {}
       )
     )
+  }
+}
+
+extension MacMachineServices {
+  static var fixture: MacMachineServices {
+    let machines = [
+      MacMachine(id: "m-studio", name: "Mac Studio", detail: "macOS 27", readOnly: false),
+      MacMachine(id: "m-mini", name: "Mac mini", detail: "macOS 27", readOnly: false),
+      MacMachine(id: "m-build", name: "Build Box", detail: "Ubuntu 26.04", readOnly: true),
+    ]
+    let names = MachineNames()
+    return MacMachineServices(
+      load: { _ in machines.map { names.apply($0) } },
+      rename: { _, machine, name in
+        names.values[machine.id] = name
+        return machines.map { names.apply($0) }
+      },
+      presence: { SettingsMachinePresence(state: "live", onlineMachineIds: ["m-studio", "m-build"]) }
+    )
+  }
+
+  @MainActor
+  private final class MachineNames {
+    var values: [String: String] = [:]
+
+    func apply(_ machine: MacMachine) -> MacMachine {
+      var renamed = machine
+      renamed.name = values[machine.id] ?? machine.name
+      return renamed
+    }
   }
 }
 
