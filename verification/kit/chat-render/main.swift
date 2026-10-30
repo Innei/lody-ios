@@ -53,16 +53,30 @@ let exposedByScrolling = draw()
 precondition(initiallyClipped == exposedByScrolling, "Text drawing must not depend on the current scroll position")
 print("Chat render: offscreen lines remain drawn across scrolling")
 
+func luminance(_ png: Data) -> [Int] {
+  let image = UIImage(data: png)!.cgImage!
+  var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
+  let context = CGContext(data: &pixels, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: image.width * 4,
+    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+  context.setFillColor(UIColor.white.cgColor)
+  context.fill(CGRect(x: 0, y: 0, width: image.width, height: image.height))
+  context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+  return stride(from: 0, to: pixels.count, by: 4).map { Int(pixels[$0]) * 299 + Int(pixels[$0 + 1]) * 587 + Int(pixels[$0 + 2]) * 114 }
+}
+func movesTowardInk(_ frame: Data, from rest: Data, light: Bool) -> Bool {
+  zip(luminance(frame), luminance(rest)).allSatisfy { light ? $0 <= $1 + 2_000 : $0 + 2_000 >= $1 }
+}
 let shineView = CKTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 20))
 window.addSubview(shineView)
+shineView.shineColor = .lodyInk
 shineView.setText(NSAttributedString(string: "正在处理", attributes: [
   .font: UIFont.systemFont(ofSize: 13),
-  .foregroundColor: UIColor.systemBlue,
+  .foregroundColor: UIColor.lodySecondary,
 ]))
 @MainActor func shineSnapshot() -> Data {
-  UIGraphicsImageRenderer(size: shineView.bounds.size).image { context in
-    UIColor.white.setFill()
-    context.fill(shineView.bounds)
+  let format = UIGraphicsImageRendererFormat.preferred()
+  format.opaque = false
+  return UIGraphicsImageRenderer(size: shineView.bounds.size, format: format).image { _ in
     shineView.draw(shineView.bounds)
   }.pngData()!
 }
@@ -77,6 +91,7 @@ let frames = (0..<10).map { _ in
 if !UIAccessibility.isReduceMotionEnabled {
   precondition(frames.contains { $0 != rest }, "Shine must change glyph brightness")
   precondition(Set(frames).count > 1, "Shine must travel across glyphs")
+  precondition(frames.allSatisfy { movesTowardInk($0, from: rest, light: true) }, "Shine lifts glyphs toward ink and never dims them")
 }
 shineView.setShine(false)
 let still = shineSnapshot()
@@ -818,6 +833,7 @@ if !UIAccessibility.isReduceMotionEnabled {
   precondition(suffixFrames.contains { $0 != suffixRest }, "Shine must cross the full process row suffix")
   precondition(Set(suffixFrames).count > 1, "Shine must travel through the full process row suffix")
   precondition(suffixFrames.contains { sameProcessPixels($0, suffixRest) }, "The full-row suffix keeps its normal color outside the shine")
+  precondition(shortFrames.allSatisfy { movesTowardInk($0, from: shortRest, light: true) }, "SwiftUI shine lifts toward ink, never toward white")
 }
 shortHost.apply(text: shortText, animated: false, shines: false)
 numericHost.apply(text: countText, animated: false, shines: false)
