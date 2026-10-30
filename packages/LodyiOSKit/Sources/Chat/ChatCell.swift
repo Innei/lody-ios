@@ -120,8 +120,8 @@ final class ChatMetaCell: UICollectionViewCell, ChatGapCell {
 
   private func apply() {
     guard let row else { return }
-    let font = UIFont.preferredFont(forTextStyle: .footnote, compatibleWith: traitCollection)
-    let color = UIColor.secondaryLabel.resolvedColor(with: traitCollection)
+    let font = Self.font(compatibleWith: traitCollection)
+    let color = UIColor.lodyTertiary.resolvedColor(with: traitCollection)
     let text = Self.displayText(row, detailsEnabled: !detailsButton.isHidden)
     modelLabel.attributedText = Self.attributedText(
       text, image: Self.iconImage(named: row.imageAsset), font: font, color: color
@@ -141,9 +141,9 @@ final class ChatMetaCell: UICollectionViewCell, ChatGapCell {
     configuration.baseForegroundColor = color
     configuration.contentInsets = NSDirectionalEdgeInsets(
       top: 0,
-      leading: max(0, 44 - ceil(glyph?.size.width ?? symbolSize)),
+      leading: max(0, 44 - Self.trailingInset - ceil(glyph?.size.width ?? symbolSize)),
       bottom: 0,
-      trailing: 0
+      trailing: Self.trailingInset
     )
     actionButton.configuration = configuration
     actionButton.tintColor = color
@@ -156,6 +156,12 @@ final class ChatMetaCell: UICollectionViewCell, ChatGapCell {
     modelLabel.frame = CGRect(x: 0, y: 4, width: max(1, area.width - 52), height: area.height - 8)
     detailsButton.frame = CGRect(x: 0, y: 0, width: max(44, area.width - 52), height: area.height)
     actionButton.frame = CGRect(x: area.width - 44, y: 0, width: 44, height: area.height)
+  }
+
+  private static let trailingInset: CGFloat = 14
+
+  static func font(compatibleWith traits: UITraitCollection) -> UIFont {
+    LodyDesign.font(.footnote, size: 12, compatibleWith: traits).withTabularNumbers()
   }
 
   static func iconImage(named asset: String) -> UIImage? {
@@ -192,12 +198,11 @@ final class ChatMetaCell: UICollectionViewCell, ChatGapCell {
 
   private static func displayText(_ row: ChatRow, detailsEnabled: Bool) -> String {
     guard detailsEnabled else { return row.text }
-    let text = row.text.isEmpty ? String(localized: "message.details.title", bundle: .lody) : row.text
-    return text + "  ⓘ"
+    return row.text.isEmpty ? String(localized: "message.details.title", bundle: .lody) : row.text
   }
 
   static func height(for row: ChatRow, width: CGFloat, traits: UITraitCollection, detailsEnabled: Bool) -> CGFloat {
-    let font = UIFont.preferredFont(forTextStyle: .footnote, compatibleWith: traits)
+    let font = Self.font(compatibleWith: traits)
     let text = attributedText(displayText(row, detailsEnabled: detailsEnabled), image: iconImage(named: row.imageAsset), font: font)
     let textHeight = text.boundingRect(
       with: CGSize(width: max(1, width - 52), height: .greatestFiniteMagnitude),

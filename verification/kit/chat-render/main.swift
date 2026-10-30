@@ -485,7 +485,7 @@ retryCell.onActivate = { activatedRetry = true }
 precondition(retryCell.accessibilityActivate() && activatedRetry, "Accessible status rows must invoke their retry/reconnect action")
 print("Chat render: accessible status actions remain available with expandable messages")
 
-let metaFont = UIFont.preferredFont(forTextStyle: .footnote)
+let metaFont = ChatMetaCell.font(compatibleWith: .current)
 let providerMark = UIGraphicsImageRenderer(size: CGSize(width: 24, height: 24)).image { _ in
   UIColor.black.setFill()
   UIRectFill(CGRect(x: 0, y: 0, width: 24, height: 24))
@@ -522,6 +522,16 @@ func modelLabel(_ root: UIView) -> UILabel? {
   return root.subviews.compactMap(modelLabel).first
 }
 precondition(modelLabel(metaCell)?.accessibilityLabel == "GPT-5.6 Sol · High", "VoiceOver reads the model line without the mark")
+precondition(abs(metaFont.pointSize - LodyDesign.font(.footnote, size: 12).pointSize) < 0.01
+  && !(metaFont.fontDescriptor.object(forKey: .featureSettings) as? [[UIFontDescriptor.FeatureKey: Any]] ?? []).isEmpty,
+  "The meta line is 12 pt with tabular digits")
+let metaLineColor = modelLabel(metaCell)?.attributedText?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor
+precondition(metaLineColor == UIColor.lodyTertiary.resolvedColor(with: metaCell.traitCollection), "The meta line is tertiary")
+metaCell.detailsButton.isHidden = false
+metaCell.configure(metaRow)
+precondition(modelLabel(metaCell)?.attributedText?.string.contains("ⓘ") == false, "The whole line opens details, so it carries no ⓘ")
+metaCell.detailsButton.isHidden = true
+metaCell.configure(metaRow)
 
 func lowestInkRow(_ image: UIImage) -> Int {
   guard let cgImage = image.cgImage else { return -1 }
@@ -647,8 +657,8 @@ precondition(
   "The action glyph is no larger than the model type"
 )
 precondition(
-  trailingPad <= 1,
-  "The action glyph sits on the trailing edge so button padding does not inset it from the type"
+  abs(trailingPad - 14) <= 1,
+  "The action glyph ends on the file block's inner trailing column, 14 pt in, got \(trailingPad)"
 )
 precondition(
   ink.blue <= ink.red + 24 && ink.blue <= ink.green + 24,
