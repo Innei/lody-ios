@@ -133,7 +133,7 @@ final class ChatNavigationTitleButton: UIButton {
   let captionLabel = UILabel()
   let menuGlyph = UIImageView(image: UIImage(
     systemName: "chevron.down",
-    withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+    withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .bold)
   ))
   var refreshCaption: (() -> Void)?
 
@@ -151,7 +151,7 @@ final class ChatNavigationTitleButton: UIButton {
     captionLabel.backgroundColor = .clear
     captionLabel.isUserInteractionEnabled = false
     captionLabel.isAccessibilityElement = false
-    menuGlyph.tintColor = .lodyTertiary
+    menuGlyph.tintColor = .lodySecondary
     menuGlyph.isHidden = true
     menuGlyph.isUserInteractionEnabled = false
     addSubview(titleHost)

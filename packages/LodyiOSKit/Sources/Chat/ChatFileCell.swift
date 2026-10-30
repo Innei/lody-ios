@@ -98,8 +98,8 @@ final class ChatFileCell: UICollectionViewListCell, ChatGapCell {
   }
 
   static func headerAccessories(add: Int, del: Int, open: Bool) -> [UICellAccessory] {
-    let fold = UIImageView(image: UIImage(systemName: "chevron.right", withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)))
-    fold.tintColor = .lodyTertiary
+    let fold = UIImageView(image: UIImage(systemName: "chevron.right", withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .bold)))
+    fold.tintColor = .lodySecondary
     fold.transform = open ? CGAffineTransform(rotationAngle: .pi / 2) : .identity
     return [
       .customView(configuration: .init(customView: counts(add: add, del: del, size: 13), placement: .trailing(), reservedLayoutWidth: .actual)),

@@ -115,8 +115,10 @@ title = ui.element('chat-navigation-title')
 assert 'PR #31' in (title.get('AXLabel') or ''), f"The caption carries the PR beside the branch: {title.get('AXLabel')}"
 assert not any(item.get('AXLabel') == 'PR #31' and item.get('type') == 'Button' for item in ui.state()), 'The PR is no longer a bar button'
 ui.axe('tap', '--id', 'chat-navigation-title', '--post-delay', '.6')
+ui.capture('native-title-menu')
 tap_menu_item('Open PR #31')
 ui.element('pr-title')
+ui.capture('native-pr-page')
 ui.axe('tap', '--id', 'pr-checks', '--post-delay', '.4')
 ui.element('pr-check-1')
 tap_label(catalog.text('pr.investigate'))
