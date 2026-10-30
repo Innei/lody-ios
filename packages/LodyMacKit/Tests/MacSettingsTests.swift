@@ -99,3 +99,62 @@ final class MacSettingsModelTests: XCTestCase {
   }
 }
 
+
+@MainActor
+final class MacGeneralSettingsTests: XCTestCase {
+  private final class Box {
+    var queued = "queue"
+    var notifications = false
+    var grant = true
+    var login = MacLoginItem.Status.disabled
+    var calls: [String] = []
+  }
+
+  private func model(_ box: Box) -> MacGeneralModel {
+    MacGeneralModel(services: MacGeneralServices(
+      queued: { box.queued },
+      saveQueued: { box.queued = $0 },
+      notifications: { box.notifications },
+      setNotifications: { on in
+        box.notifications = on && box.grant
+        return box.notifications
+      },
+      loginItem: MacLoginItem(
+        status: { box.login },
+        register: { box.calls.append("register"); box.login = .requiresApproval },
+        unregister: { box.calls.append("unregister"); box.login = .disabled },
+        openSystemSettings: { box.calls.append("open") }
+      )
+    ))
+  }
+
+  func testSteerSavesGuide() {
+    let box = Box()
+    let model = model(box)
+    XCTAssertFalse(model.steer)
+    model.steer = true
+    XCTAssertEqual(box.queued, "guide")
+    XCTAssertTrue(model.steer)
+  }
+
+  func testDeniedNotificationsLeaveTheSwitchOff() async {
+    let box = Box()
+    box.grant = false
+    let model = model(box)
+    await model.setNotifications(true)
+    XCTAssertFalse(model.notifications)
+  }
+
+  func testLoginItemRegistersAndSurfacesApproval() {
+    let box = Box()
+    let model = model(box)
+    model.setLogin(true)
+    XCTAssertEqual(box.calls, ["register"])
+    XCTAssertTrue(model.login)
+    XCTAssertTrue(model.needsApproval)
+    model.openLoginItems()
+    model.setLogin(false)
+    XCTAssertEqual(box.calls, ["register", "open", "unregister"])
+    XCTAssertFalse(model.login)
+  }
+}

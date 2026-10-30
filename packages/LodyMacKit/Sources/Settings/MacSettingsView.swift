@@ -129,6 +129,8 @@ struct MacSettingsDetail: View {
 
   var body: some View {
     switch model.shownPage {
+    case .general:
+      MacGeneralPage(model: model.general)
     #if DEBUG
     case .debug:
       MacSettingsDebugPage()

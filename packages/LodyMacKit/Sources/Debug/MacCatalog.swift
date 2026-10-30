@@ -69,7 +69,8 @@ extension MacSettingsServices {
     return MacSettingsServices(
       source: SettingsSource(changes: [], read: { state }, refresh: {}, logout: {}),
       selectWorkspace: { _ in },
-      signIn: {}
+      signIn: {},
+      general: .fixture
     )
   }
 }
@@ -103,5 +104,32 @@ extension SignInService {
 private final class FixtureBox {
   var code: String?
   init(code: String?) { self.code = code }
+}
+extension MacGeneralServices {
+  static var fixture: MacGeneralServices {
+    let box = MacGeneralFixture()
+    return MacGeneralServices(
+      queued: { box.queued },
+      saveQueued: { box.queued = $0 },
+      notifications: { box.notifications },
+      setNotifications: { on in
+        box.notifications = on
+        return on
+      },
+      loginItem: MacLoginItem(
+        status: { box.login ? .enabled : .disabled },
+        register: { box.login = true },
+        unregister: { box.login = false },
+        openSystemSettings: {}
+      )
+    )
+  }
+}
+
+@MainActor
+private final class MacGeneralFixture {
+  var queued = "queue"
+  var notifications = true
+  var login = false
 }
 #endif

@@ -7,6 +7,7 @@ struct MacSettingsServices {
   var source: SettingsSource
   var selectWorkspace: @MainActor (String) -> Void
   var signIn: @MainActor () -> Void
+  var general: MacGeneralServices = .live
 
   static var live: MacSettingsServices {
     MacSettingsServices(
@@ -30,6 +31,7 @@ final class MacSettingsModel {
   @ObservationIgnored let defaults: UserDefaults
   @ObservationIgnored private var observers: [NSObjectProtocol] = []
   private(set) var state: SettingsState
+  @ObservationIgnored lazy var general = MacGeneralModel(services: services.general)
   var query = ""
   var page: MacSettingsPage
 
