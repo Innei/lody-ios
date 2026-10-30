@@ -13,10 +13,14 @@ import Foundation
     guard try AuthKeychain.read() == token,
           let user = (session?["user"] as? [String: Any])?["id"] as? String, !user.isEmpty else { throw GitHubCloud.failure() }
     var role: String?
+    if args["page"] as? String == "members" {
+      let organization = try await GitHubCloud.request(organizationURL(workspace), token: token)
+      guard try AuthKeychain.read() == token else { throw GitHubCloud.failure() }
+      let value = try WorkspaceMembers.project(organization, workspace: workspace, user: user)
+      return String(decoding: try JSONSerialization.data(withJSONObject: value), as: UTF8.self)
+    }
     if args["page"] as? String == "github" {
-      var url = URLComponents(string: "https://backend.lody.ai/api/auth/organization/get-full-organization")!
-      url.queryItems = [URLQueryItem(name: "organizationId", value: workspace)]
-      let organization = try? await GitHubCloud.request(url.url!.absoluteString, token: token) as? [String: Any]
+      let organization = try? await GitHubCloud.request(organizationURL(workspace), token: token) as? [String: Any]
       if organization?["id"] as? String == workspace,
          let members = organization?["members"] as? [[String: Any]] {
         role = members.first(where: { $0["userId"] as? String == user })?["role"] as? String
@@ -28,6 +32,12 @@ import Foundation
     }
     guard try AuthKeychain.read() == token else { throw GitHubCloud.failure() }
     return String(decoding: try JSONSerialization.data(withJSONObject: value), as: UTF8.self)
+  }
+
+  private static func organizationURL(_ workspace: String) -> String {
+    var url = URLComponents(string: "https://backend.lody.ai/api/auth/organization/get-full-organization")!
+    url.queryItems = [URLQueryItem(name: "organizationId", value: workspace)]
+    return url.url!.absoluteString
   }
 
   public static func projectRows(_ value: Any) throws -> [[String: Any]] {

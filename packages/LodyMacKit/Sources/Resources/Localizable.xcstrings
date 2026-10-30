@@ -1429,6 +1429,57 @@
         }
       }
     },
+    "mac.settings.role.admin": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Admin"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理员"
+          }
+        }
+      }
+    },
+    "mac.settings.role.member": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Member"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "成员"
+          }
+        }
+      }
+    },
+    "mac.settings.role.owner": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Owner"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有者"
+          }
+        }
+      }
+    },
     "mac.settings.search": {
       "extractionState": "manual",
       "localizations": {
@@ -1850,6 +1901,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "名称"
+          }
+        }
+      }
+    },
+    "mac.settings.workspace.readOnly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only owners and admins can change the name and icon."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只有所有者和管理员可以修改名称和图标。"
           }
         }
       }

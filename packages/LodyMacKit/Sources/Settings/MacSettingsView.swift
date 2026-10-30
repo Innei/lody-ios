@@ -133,6 +133,8 @@ struct MacSettingsDetail: View {
       MacGeneralPage(model: model.general)
     case .account:
       MacAccountPage(model: model)
+    case .workspace:
+      MacWorkspacePage(settings: model, model: model.workspace)
     case .appearance:
       MacAppearancePage(model: model.appearance)
     case .keyboard:

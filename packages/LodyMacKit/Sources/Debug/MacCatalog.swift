@@ -72,7 +72,8 @@ extension MacSettingsServices {
       signIn: {},
       general: .fixture,
       appearance: .fixture,
-      machines: .fixture
+      machines: .fixture,
+      workspace: .fixture
     )
   }
 }
@@ -155,6 +156,17 @@ extension MacMachineServices {
       renamed.name = values[machine.id] ?? machine.name
       return renamed
     }
+  }
+}
+
+extension MacWorkspaceServices {
+  static var fixture: MacWorkspaceServices {
+    let members = WorkspaceMembers(members: [
+      .init(id: "u-fixture", name: "Innei", email: "i@innei.dev", role: "owner"),
+      .init(id: "u-ada", name: "Ada Park", email: "ada@example.com", role: "admin"),
+      .init(id: "u-sam", name: "", email: "sam@example.com", role: "member"),
+    ], role: "owner")
+    return MacWorkspaceServices(members: { _ in members }, rename: { _, _ in }, setIcon: { _, _ in }, pickIcon: { nil })
   }
 }
 
