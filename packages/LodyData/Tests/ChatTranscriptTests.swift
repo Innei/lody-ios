@@ -50,45 +50,22 @@ final class ChatTranscriptTests: XCTestCase {
   {"id":"a2","role":"assistant","status":"done","finished":true,"items":[{"itemId":"r2","type":"text","text":"two"}]}]
   """
 
-  func testADividerSeparatesTurnsButNotTheFirst() throws {
+  func testTurnsAreSeparatedWithoutDividerRows() throws {
     let rows = try transcript(twoTurns).rows()
-    let turns = rows.filter { $0.kind == "turn" }
-    XCTAssertEqual(turns.map(\.id), ["u2:turn"])
-    let index = try XCTUnwrap(rows.firstIndex { $0.kind == "turn" })
-    XCTAssertEqual(rows[index + 1].id, "u2:user")
-    XCTAssertFalse(turns[0].text.isEmpty)
+    XCTAssertTrue(rows.allSatisfy { $0.kind != "turn" })
+    XCTAssertTrue(rows.contains { $0.id == "u2:user" })
   }
 
-  func testSteersInsideARunGetNoDivider() throws {
-    let steered = twoTurns.replacingOccurrences(of: #""id":"u2","role":"user","status":"done""#, with: #""id":"u2","role":"user","status":"done","delivery":"accepted""#)
-    XCTAssertTrue(try transcript(steered).rows().allSatisfy { $0.kind != "turn" })
-  }
-
-  func testTurnLabelsShowTimeTodayAndNameYesterday() {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = TimeZone(identifier: "UTC")!
-    let now = Date(timeIntervalSince1970: 1_793_330_000).timeIntervalSince1970 * 1000
-    let today = now - 60_000
-    let todayLabel = ChatTranscript.turnLabel(today, now: now, calendar: calendar)
-    XCTAssertEqual(todayLabel, Date(timeIntervalSince1970: today / 1000).formatted(date: .omitted, time: .shortened))
-    let yesterday = now - 86_400_000
-    let yesterdayLabel = ChatTranscript.turnLabel(yesterday, now: now, calendar: calendar)
-    XCTAssertTrue(yesterdayLabel.contains(Date(timeIntervalSince1970: yesterday / 1000).formatted(date: .omitted, time: .shortened)))
-    XCTAssertNotEqual(yesterdayLabel, Date(timeIntervalSince1970: yesterday / 1000).formatted(date: .omitted, time: .shortened))
-    let older = now - 5 * 86_400_000
-    XCTAssertEqual(ChatTranscript.turnLabel(older, now: now, calendar: calendar),
-                   Date(timeIntervalSince1970: older / 1000).formatted(date: .abbreviated, time: .shortened))
-  }
-
-  func testAPendingSendOpensItsTurnWithADivider() throws {
+  func testAPendingSendOpensWithoutADivider() throws {
     let entries = try JSONDecoder().decode([ChatEntry].self, from: Data(twoTurns.utf8))
     let pending = ChatPendingSend(id: "u3", text: "third", attachments: [], status: "")
-    let rows = pending.rows(entries: entries)
-    XCTAssertEqual(rows.first?.kind, "turn")
-    XCTAssertEqual(rows.first?.id, "u3:turn")
-    var guide = pending
-    guide.guide = true
-    XCTAssertTrue(guide.rows(entries: entries).allSatisfy { $0.kind != "turn" })
+    XCTAssertTrue(pending.rows(entries: entries).allSatisfy { $0.kind != "turn" })
+  }
+
+  func testStreamingReplyTextDoesNotShineButThoughtsDo() {
+    XCTAssertFalse(ChatRow(id: "r", entryID: "a", kind: "text", text: "partial", running: true).shines)
+    XCTAssertTrue(ChatRow(id: "t", entryID: "a", kind: "thought", text: "thinking", running: true).shines)
+    XCTAssertTrue(ChatRow(id: "s", entryID: "a", kind: "summary", text: "Working", running: true).shines)
   }
 
   private func changed(_ files: [String]) -> String {
@@ -114,21 +91,17 @@ final class ChatTranscriptTests: XCTestCase {
     XCTAssertEqual(file.group, "only")
   }
 
-  func testAPendingStatusSitsBelowItsTurnDivider() throws {
+  func testAPendingStatusSitsAboveItsUserRow() throws {
     let entries = try JSONDecoder().decode([ChatEntry].self, from: Data(twoTurns.utf8))
     let pending = ChatPendingSend(id: "u3", text: "third", attachments: [], status: "Sending")
     let merged = ChatPendingSend.merging(pending.rows(entries: entries), into: try transcript(twoTurns).rows())
     let tail = merged.filter { $0.entryID == "u3" }.map(\.kind)
-    XCTAssertEqual(tail, ["turn", "delivery", "user"])
+    XCTAssertEqual(tail, ["delivery", "user"])
   }
 
-  func testAnExitingStatusReturnsBelowTheDivider() throws {
+  func testAnExitingStatusReturnsToItsUserRow() throws {
     let rows = try transcript(twoTurns).rows()
     let index = try XCTUnwrap(ChatPendingSend.deliveryIndex(in: rows, entryID: "u2"))
     XCTAssertEqual(rows[index].id, "u2:user")
-  }
-
-  func testSessionPreviewsLeaveOutTurnDividers() {
-    XCTAssertTrue(ChatTranscript.previewRows(from: twoTurns).allSatisfy { $0.kind != "turn" })
   }
 }

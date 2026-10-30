@@ -223,7 +223,7 @@ public struct ChatRow: Equatable, Sendable {
   public var treeLast = false
   public var treeDown = false
   public var parentLive = false
-  public var shines: Bool { running && kind != "duration" }
+  public var shines: Bool { running && kind != "duration" && kind != "text" }
   /// `only` / `first` / `middle` / `last` for consecutive file rows in one group.
   public var group = ""
 
@@ -404,10 +404,10 @@ public struct ChatTranscript: Sendable {
     guard let data = cache.data(using: .utf8) else { return [] }
     if let envelope = try? JSONDecoder().decode(CachedEnvelope.self, from: data),
        let entries = envelope.entries {
-      return ChatTranscript(entries: entries).rows().filter { $0.kind != "meta" && $0.kind != "turn" }
+      return ChatTranscript(entries: entries).rows().filter { $0.kind != "meta" }
     }
     if let entries = try? JSONDecoder().decode([ChatEntry].self, from: data) {
-      return ChatTranscript(entries: entries).rows().filter { $0.kind != "meta" && $0.kind != "turn" }
+      return ChatTranscript(entries: entries).rows().filter { $0.kind != "meta" }
     }
     return []
   }
@@ -440,7 +440,7 @@ public struct ChatTranscript: Sendable {
     }
     let ordinary = Dictionary(grouping: entryRows(now: now, turnStartedAt: turnStartedAt), by: \.entryID)
     var emitted = Set<String>()
-    return ChatTranscript.dividingTurns(entries.flatMap { entry -> [ChatRow] in
+    return entries.flatMap { entry -> [ChatRow] in
       if let groupID = entry.executionId, let members = groups[groupID],
          let tail = members.last(where: { $0.role == "assistant" }),
          tail.executionFinished == true, members.filter({ $0.role == "assistant" }).allSatisfy(\.finished), !executionResultIDs(tail).isEmpty {
@@ -478,7 +478,7 @@ public struct ChatTranscript: Sendable {
         return ChatTranscript.hangSubagents(ordinary[entry.id] ?? [])
       }
       return ChatTranscript.hangSubagents(result)
-    }, entries: entries, now: now)
+    }
   }
 
   private func executionResultIDs(_ entry: ChatEntry) -> Set<String> {
@@ -750,39 +750,6 @@ public struct ChatTranscript: Sendable {
 }
 
 extension ChatTranscript {
-  public static func turnLabel(_ milliseconds: Double, now: Double, calendar: Calendar = .current) -> String {
-    let date = Date(timeIntervalSince1970: milliseconds / 1000)
-    let current = Date(timeIntervalSince1970: now / 1000)
-    let time = date.formatted(date: .omitted, time: .shortened)
-    if calendar.isDate(date, inSameDayAs: current) { return time }
-    if let yesterday = calendar.date(byAdding: .day, value: -1, to: current), calendar.isDate(date, inSameDayAs: yesterday) {
-      return String.localizedStringWithFormat(String(localized: "native.chat.turn.yesterday", bundle: .lodyData), time)
-    }
-    return date.formatted(date: .abbreviated, time: .shortened)
-  }
-
-  static func turnRow(entryID: String, at milliseconds: Double?, now: Double) -> ChatRow {
-    ChatRow(id: entryID + ":turn", entryID: entryID, kind: "turn", text: milliseconds.map { turnLabel($0, now: now) } ?? "")
-  }
-
-  static func dividingTurns(_ rows: [ChatRow], entries: [ChatEntry], now: Double) -> [ChatRow] {
-    let users = Dictionary(entries.filter { $0.role == "user" }.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-    var seen = Set<String>()
-    var runs = Set<String>()
-    var result: [ChatRow] = []
-    for row in rows {
-      if let entry = users[row.entryID], seen.insert(entry.id).inserted {
-        let steer = entry.delivery != nil || entry.executionId.map { runs.contains($0) } == true
-        if seen.count > 1, !steer {
-          result.append(turnRow(entryID: entry.id, at: ChatWorkDuration.startMilliseconds(for: entry), now: now))
-        }
-        if let run = entry.executionId { runs.insert(run) }
-      }
-      result.append(row)
-    }
-    return result
-  }
-
   public static func hangSubagents(_ rows: [ChatRow]) -> [ChatRow] {
     var tasks = rows.filter { $0.kind == "subagent_task" }
     var result = rows.filter { $0.kind != "subagent_task" }
@@ -924,7 +891,7 @@ private func planPrefix(_ status: String?) -> String {
 
 extension ChatPendingSend {
   public static func deliveryIndex(in rows: [ChatRow], entryID: String) -> Int? {
-    rows.firstIndex { $0.entryID == entryID && $0.kind != "turn" }
+    rows.firstIndex { $0.entryID == entryID }
   }
 
   public static func merging(_ pending: [ChatRow], into projected: [ChatRow]) -> [ChatRow] {
@@ -952,14 +919,6 @@ extension ChatPendingSend {
   }
 
   public func rows(entries: [ChatEntry]) -> [ChatRow] {
-    let body = bodyRows(entries: entries)
-    let opensTurn = guide != true && !entries.contains { $0.id == id } && entries.contains { $0.role == "user" }
-    guard opensTurn, body.contains(where: { $0.kind == "user" || $0.kind == "attachments" }) else { return body }
-    let now = Date().timeIntervalSince1970 * 1000
-    return [ChatTranscript.turnRow(entryID: id, at: startedAt ?? now, now: now)] + body
-  }
-
-  private func bodyRows(entries: [ChatEntry]) -> [ChatRow] {
     guard (queue != true || failed == true), !entries.contains(where: { $0.id == id && $0.isQueued }) else { return [] }
     var result: [ChatRow] = []
     if !entries.contains(where: { $0.id == id }) {

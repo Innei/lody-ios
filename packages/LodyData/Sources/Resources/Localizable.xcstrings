@@ -22807,23 +22807,6 @@
         }
       }
     },
-    "native.chat.turn.yesterday": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "昨天 %@"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yesterday %@"
-          }
-        }
-      }
-    },
     "native.chat.changes.reviewAll": {
       "extractionState": "manual",
       "localizations": {
