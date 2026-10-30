@@ -20,6 +20,8 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   var onNewSession: (() -> Void)?
   private let source: MacSessionsSource
   private let outline = NSOutlineView()
+  private var collapsed: Set<String> = []
+  private var reloading = false
   private let search = NSSearchField()
   private let workspacePicker = NSPopUpButton()
   private var workspaceIds: [String] = []
@@ -138,8 +140,10 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     }
     next += model.groups.map { Node(id: "project:" + $0.id, title: $0.title, children: $0.rows.map(Self.node)) }
     roots = next
+    reloading = true
     outline.reloadData()
-    for node in roots { outline.expandItem(node) }
+    for node in roots where !search.stringValue.isEmpty || !collapsed.contains(node.id) { outline.expandItem(node) }
+    reloading = false
     approvals.title = String(localized: "mac.sidebar.approvals \(model.needsApproval)", bundle: .lodyMac)
     approvals.contentTintColor = model.needsApproval > 0 ? .systemOrange : .secondaryLabelColor
     let ids = state.workspaces.map(\.id)
@@ -203,6 +207,16 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
 
   func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
     (item as? Node)?.row == nil ? 26 : outlineView.rowHeight
+  }
+
+  func outlineViewItemDidCollapse(_ notification: Notification) {
+    guard !reloading, let node = notification.userInfo?["NSObject"] as? Node else { return }
+    collapsed.insert(node.id)
+  }
+
+  func outlineViewItemDidExpand(_ notification: Notification) {
+    guard !reloading, let node = notification.userInfo?["NSObject"] as? Node else { return }
+    collapsed.remove(node.id)
   }
 
   func outlineViewSelectionDidChange(_ notification: Notification) {

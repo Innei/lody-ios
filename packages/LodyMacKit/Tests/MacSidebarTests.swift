@@ -155,3 +155,19 @@ final class MacSidebarLayoutTests: XCTestCase {
     XCTAssertEqual(headers, 3)
   }
 }
+
+@MainActor
+final class MacSidebarExpansionTests: XCTestCase {
+  func testCollapsedGroupsStayCollapsedAcrossReloads() throws {
+    let sidebar = SidebarViewController(source: .fixture(MacFixtures.listState))
+    _ = sidebar.view
+    let outline = try XCTUnwrap(sidebar.view.descendants(NSOutlineView.self).first)
+    let group = try XCTUnwrap((0..<outline.numberOfRows).map { outline.item(atRow: $0) }.first { ($0 as? SidebarViewController.Node)?.id == "project:p-ios" })
+    outline.collapseItem(group)
+    sidebar.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+    let reloaded = try XCTUnwrap((0..<outline.numberOfRows).map { outline.item(atRow: $0) }.first { ($0 as? SidebarViewController.Node)?.id == "project:p-ios" })
+    XCTAssertFalse(outline.isItemExpanded(reloaded))
+    let other = try XCTUnwrap((0..<outline.numberOfRows).map { outline.item(atRow: $0) }.first { ($0 as? SidebarViewController.Node)?.id == "project:p-web" })
+    XCTAssertTrue(outline.isItemExpanded(other))
+  }
+}
