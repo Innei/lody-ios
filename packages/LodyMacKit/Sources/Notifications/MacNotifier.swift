@@ -28,7 +28,7 @@ final class MacNotifier: NSObject, UNUserNotificationCenterDelegate {
   }
 
   private func catalogChanged() {
-    let onScreen = NSApp.isActive ? MacTabCoordinator.shared.streamingSession : nil
+    let onScreen = NSApp.isActive ? MacTabCoordinator.shared.visibleSession : nil
     let decisions = baseline.next(SessionPublished.state(), onScreen: onScreen)
     guard enabled else { return }
     decisions.forEach(post)

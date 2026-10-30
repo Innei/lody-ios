@@ -4,6 +4,7 @@ import LodyData
 @MainActor
 protocol MacStreamingTab: AnyObject {
   var sessionId: String? { get }
+  var isOnScreen: Bool { get }
   func setStreaming(_ on: Bool)
 }
 
@@ -15,6 +16,7 @@ final class MacTabCoordinator {
   private weak var selected: MacStreamingTab?
 
   var streamingSession: String? { selected?.sessionId }
+  var visibleSession: String? { selected?.isOnScreen == true ? selected?.sessionId : nil }
 
   func add(_ tab: MacStreamingTab) {
     tabs[ObjectIdentifier(tab)] = { [weak tab] in tab }

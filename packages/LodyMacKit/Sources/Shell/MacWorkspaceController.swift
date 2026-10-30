@@ -10,6 +10,10 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   private var streaming = false
   private var observers: [NSObjectProtocol] = []
   private(set) var sessionId: String?
+  var isOnScreen: Bool {
+    guard let window = view.window else { return false }
+    return window.isVisible && !window.isMiniaturized && window.occlusionState.contains(.visible)
+  }
   var onTitle: ((_ title: String, _ subtitle: String) -> Void)?
   var onBadge: ((MacTabBadge?) -> Void)?
   var onNewSession: (() -> Void)?

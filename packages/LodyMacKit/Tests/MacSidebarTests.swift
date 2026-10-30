@@ -41,8 +41,20 @@ final class MacTabCoordinatorTests: XCTestCase {
   private final class Tab: MacStreamingTab {
     var sessionId: String?
     var streaming = false
+    var isOnScreen = true
     init(_ id: String?) { sessionId = id }
     func setStreaming(_ on: Bool) { streaming = on }
+  }
+
+  func testAMinimizedOrHiddenSelectedTabIsNotOnScreen() {
+    let coordinator = MacTabCoordinator()
+    let tab = Tab("s1")
+    coordinator.add(tab)
+    coordinator.select(tab)
+    XCTAssertEqual(coordinator.visibleSession, "s1")
+    tab.isOnScreen = false
+    XCTAssertEqual(coordinator.streamingSession, "s1")
+    XCTAssertNil(coordinator.visibleSession)
   }
 
   func testOnlyTheSelectedTabStreams() {
