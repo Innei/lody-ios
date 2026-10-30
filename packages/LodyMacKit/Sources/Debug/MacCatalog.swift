@@ -24,11 +24,10 @@ enum MacCatalog {
 
   static var scenes: [Scene] {
     [
-      Scene(id: "sign-in", title: "Sign in", size: NSSize(width: 560, height: 440)) {
-        SignInViewController(service: .fixture(code: nil))
-      },
-      Scene(id: "sign-in-code", title: "Sign in · device code", size: NSSize(width: 560, height: 440)) {
-        SignInViewController(service: .fixture(code: "WXYZ-1234"))
+      Scene(id: "sign-in", title: "Sign in") { [signInWindow(code: nil, title: "Sign in")] },
+      Scene(id: "sign-in-code", title: "Sign in · device code") { [signInWindow(code: "WXYZ-1234", title: "Sign in · device code")] },
+      Scene(id: "sign-in-done", title: "Sign in · signed in") {
+        [signInWindow(code: "WXYZ-1234", title: "Sign in · signed in", finished: "Innei")]
       },
       Scene(id: "sidebar", title: "Sidebar") { MacFixtures.workspaceWindow(sessionId: "s-mac") },
       Scene(id: "tabs", title: "Tabs") { MacFixtures.tabbedWindows() },
@@ -47,6 +46,14 @@ enum MacCatalog {
   }
 
   static func scene(_ id: String) -> Scene? { scenes.first { $0.id == id } }
+
+  static func signInWindow(code: String?, title: String, finished: String? = nil) -> NSWindow {
+    let controller = SignInViewController(service: .fixture(code: code))
+    let window = MacSceneHost.window(controller, title: title, size: MacOnboardingChrome.size)
+    MacOnboardingChrome.enter(window)
+    if let finished { controller.finish(name: finished) {} }
+    return window
+  }
 
   static func settingsWindow(page: MacSettingsPage) -> NSWindow {
     let suite = "lody.mac.settings.catalog"

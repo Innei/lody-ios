@@ -113,6 +113,12 @@ const macComponents = [
     ['MarkdownView', 'Litext'].includes(component.name),
   ),
   {
+    name: 'Lody (sign-in jellyfish shader)',
+    license: 'Apache-2.0',
+    url: 'https://github.com/LodyAI/Lody',
+    file: 'scripts/licenses/Lody-LICENSE.txt',
+  },
+  {
     name: 'DisplayLink',
     license: 'MIT',
     url: 'https://github.com/Lakr233/DisplayLink',

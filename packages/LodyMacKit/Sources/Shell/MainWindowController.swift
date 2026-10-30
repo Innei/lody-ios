@@ -9,6 +9,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   private(set) var workspace: MacWorkspaceController?
   private var observer: NSObjectProtocol?
   private var signedIn: Bool?
+  private var onboarding: MacOnboardingChrome.Saved?
 
   init(environment: MacEnvironment = .live, sessionId: String? = nil) {
     self.environment = environment
@@ -31,7 +32,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     toolbar.displayMode = .iconOnly
     window.toolbar = toolbar
     if environment.requiresAccount {
-      observer = NotificationCenter.default.addObserver(forName: .lodyAuthDidChange, object: nil, queue: .main) { [weak self] _ in
+      observer = NotificationCenter.default.addObserver(forName: environment.authChanges, object: nil, queue: .main) { [weak self] _ in
         MainActor.assumeIsolated { self?.render() }
       }
     }
@@ -51,7 +52,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
   }
 
   private func render() {
-    let next = !environment.requiresAccount || AuthSession.shared.snapshot.account != nil
+    let account = environment.requiresAccount ? environment.account() : nil
+    let next = !environment.requiresAccount || account != nil
     guard next != signedIn else { return }
     signedIn = next
     if let workspace { MacTabCoordinator.shared.remove(workspace) }
@@ -59,9 +61,23 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     guard next else {
       window?.title = "Lody"
       window?.subtitle = ""
-      window?.contentViewController = SignInViewController()
+      guard let window else { return }
+      let saved = onboarding ?? MacOnboardingChrome.Saved(frame: window.frame, minSize: window.minSize)
+      window.contentViewController = environment.signIn()
+      onboarding = MacOnboardingChrome.enter(window, keeping: saved)
       return
     }
+    guard let signIn = window?.contentViewController as? SignInViewController, let user = account?.user else {
+      showWorkspace()
+      return
+    }
+    signIn.finish(name: user.name.isEmpty ? user.email : user.name) { [weak self] in
+      guard self?.signedIn == true, self?.workspace == nil else { return }
+      self?.showWorkspace()
+    }
+  }
+
+  private func showWorkspace() {
     let workspace = MacWorkspaceController(environment: environment)
     let prefix = environment.titlePrefix
     workspace.onTitle = { [weak self] title, subtitle in
@@ -74,6 +90,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     workspace.onNewSession = { [weak self] in self?.workspace?.open(nil) }
     self.workspace = workspace
     window?.contentViewController = workspace
+    if let window, onboarding != nil || window.titlebarAppearsTransparent {
+      MacOnboardingChrome.leave(window, restoring: onboarding)
+      onboarding = nil
+    }
     window?.title = environment.titlePrefix + "Lody"
     MacTabCoordinator.shared.add(workspace)
     if window?.isKeyWindow == true { MacTabCoordinator.shared.select(workspace) }

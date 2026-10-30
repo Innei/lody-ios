@@ -2840,19 +2840,172 @@
         }
       }
     },
-    "mac.signIn.detail": {
+    "mac.signIn.confirm": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sign in with your Lody Cloud account in the browser. Your credentials stay in this Mac's Keychain."
+            "value": "Confirm in Your Browser"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在浏览器中使用 Lody Cloud 账户登录。凭据只保存在这台 Mac 的钥匙串中。"
+            "value": "在浏览器中确认"
+          }
+        }
+      }
+    },
+    "mac.signIn.confirm.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your browser opened the sign-in page. When its code matches this one, approve the sign-in."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已在浏览器中打开登录页。页面上的验证码和下面一致后，批准登录即可。"
+          }
+        }
+      }
+    },
+    "mac.signIn.continue": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue in Browser"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在浏览器中继续"
+          }
+        }
+      }
+    },
+    "mac.signIn.copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Code"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制验证码"
+          }
+        }
+      }
+    },
+    "mac.signIn.done": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signed in as %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已登录为 %@"
+          }
+        }
+      }
+    },
+    "mac.signIn.done.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opening your workspace…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在打开你的工作区…"
+          }
+        }
+      }
+    },
+    "mac.signIn.expired": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The code expired. Start again to get a new one."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "验证码已过期，重新开始以获取新的验证码。"
+          }
+        }
+      }
+    },
+    "mac.signIn.legal": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "By continuing, you agree to the %1$@ and %2$@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续即表示你同意我们的%1$@和%2$@。"
+          }
+        }
+      }
+    },
+    "mac.signIn.privacy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy Policy"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐私政策"
+          }
+        }
+      }
+    },
+    "mac.signIn.providers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use GitHub, Google, Apple, Discord or email."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以用 GitHub、Google、Apple、Discord 或邮箱登录。"
           }
         }
       }
@@ -2874,36 +3027,36 @@
         }
       }
     },
-    "mac.signIn.start": {
+    "mac.signIn.restart": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sign In with Browser"
+            "value": "Start Again"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用浏览器登录"
+            "value": "重新开始"
           }
         }
       }
     },
-    "mac.signIn.title": {
+    "mac.signIn.terms": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sign in to Lody"
+            "value": "Terms of Service"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "登录 Lody"
+            "value": "用户协议"
           }
         }
       }
@@ -2914,13 +3067,47 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Enter this code in the browser to continue."
+            "value": "Waiting for confirmation… The code expires in %lld min."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在浏览器中输入此代码以继续。"
+            "value": "等待确认… 验证码 %lld 分钟后过期。"
+          }
+        }
+      }
+    },
+    "mac.signIn.welcome": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Welcome to Lody"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "欢迎使用 Lody"
+          }
+        }
+      }
+    },
+    "mac.signIn.welcome.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in to continue to your workspace."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录以继续访问你的工作区。"
           }
         }
       }

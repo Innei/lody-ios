@@ -15,6 +15,9 @@ struct MacEnvironment {
   var windowIdentifier = "main"
   var titlePrefix = ""
   var windowClass: NSWindow.Type = NSWindow.self
+  var account: @MainActor () -> AuthAccount? = { AuthSession.shared.snapshot.account }
+  var authChanges: Notification.Name = .lodyAuthDidChange
+  var signIn: @MainActor () -> SignInViewController = { SignInViewController() }
 
   static var live: MacEnvironment {
     MacEnvironment(
