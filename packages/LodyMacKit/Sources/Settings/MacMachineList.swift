@@ -1,3 +1,4 @@
+import Foundation
 import LodyCore
 import LodyData
 import Observation
@@ -70,6 +71,7 @@ final class MacMachineList {
   private var presence: SettingsMachinePresence
   private(set) var loading = false
   private(set) var failed = false
+  private(set) var waiting = false
   var renameFailed = false
 
   init(services: MacMachineServices) {
@@ -95,10 +97,22 @@ final class MacMachineList {
     do {
       store(try await services.load(workspaceId), for: workspaceId)
       failed = false
+      waiting = false
     } catch {
-      failed = cache[workspaceId] == nil
+      waiting = Self.notReady(error)
+      failed = !waiting && cache[workspaceId] == nil
     }
     presence = services.presence()
+  }
+
+  func retryIfWaiting() async {
+    guard waiting, !loading, !workspaceId.isEmpty else { return }
+    await load(workspaceId: workspaceId)
+  }
+
+  private static func notReady(_ error: Error) -> Bool {
+    let error = error as NSError
+    return error.domain == "LodyKit.DataRuntime" && error.localizedDescription.hasPrefix("not_ready:")
   }
 
   func rename(_ row: MacMachineRow, to name: String, workspaceId: String) async {

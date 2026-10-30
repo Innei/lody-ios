@@ -1055,6 +1055,23 @@
         }
       }
     },
+    "mac.settings.login.failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lody couldn't change its login item. Check Login Items in System Settings."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lody 无法修改登录项。请在系统设置的“登录项”中检查。"
+          }
+        }
+      }
+    },
     "mac.settings.login.openSettings": {
       "extractionState": "manual",
       "localizations": {

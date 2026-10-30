@@ -112,5 +112,6 @@ final class MacSettingsModel {
   func refresh() {
     state = services.source.state
     machines.refreshPresence()
+    Task { await machines.retryIfWaiting() }
   }
 }

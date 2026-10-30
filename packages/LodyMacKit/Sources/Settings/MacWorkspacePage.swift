@@ -35,6 +35,7 @@ struct MacWorkspaceServices {
 final class MacWorkspaceModel {
   @ObservationIgnored private let services: MacWorkspaceServices
   private var loaded: WorkspaceMembers?
+  private var current = ""
   private(set) var loading = false
   private(set) var failed = false
   private(set) var error: String?
@@ -47,15 +48,14 @@ final class MacWorkspaceModel {
   var canEdit: Bool { loaded?.canEdit ?? false }
 
   func load(workspaceId: String) async {
+    if current != workspaceId { loaded = nil }
+    current = workspaceId
     loading = true
-    defer { loading = false }
-    do {
-      loaded = try await services.members(workspaceId)
-      failed = false
-    } catch {
-      loaded = nil
-      failed = true
-    }
+    let result = await Result { try await services.members(workspaceId) }
+    guard current == workspaceId else { return }
+    loading = false
+    loaded = try? result.get()
+    failed = loaded == nil
   }
 
   func rename(_ workspaceId: String, to name: String) async {

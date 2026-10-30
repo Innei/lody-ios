@@ -53,7 +53,7 @@ struct MacOwnedMachines: View {
   let list: MacMachineList
 
   var body: some View {
-    if list.loading && list.owned.isEmpty {
+    if (list.loading || list.waiting) && list.owned.isEmpty {
       ProgressView().controlSize(.small).frame(maxWidth: .infinity)
     } else if list.failed {
       Text(String(localized: "mac.settings.failed", bundle: .lodyMac)).foregroundStyle(.secondary)

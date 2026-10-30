@@ -54,12 +54,23 @@ final class MacGeneralModel {
   private(set) var notifications: Bool
   private var queued: String
   private var loginStatus: MacLoginItem.Status
+  private(set) var loginFailed = false
+  @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
   init(services: MacGeneralServices) {
     self.services = services
     queued = services.queued()
     notifications = services.notifications()
     loginStatus = services.loginItem.status()
+    observers = [NSApplication.didBecomeActiveNotification, .lodyPreferencesDidChange].map { name in
+      NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+        MainActor.assumeIsolated { self?.refresh() }
+      }
+    }
+  }
+
+  isolated deinit {
+    for observer in observers { NotificationCenter.default.removeObserver(observer) }
   }
 
   var steer: Bool {
@@ -79,10 +90,15 @@ final class MacGeneralModel {
   }
 
   func setLogin(_ on: Bool) {
-    if on {
-      try? services.loginItem.register()
-    } else {
-      try? services.loginItem.unregister()
+    do {
+      if on {
+        try services.loginItem.register()
+      } else {
+        try services.loginItem.unregister()
+      }
+      loginFailed = false
+    } catch {
+      loginFailed = true
     }
     loginStatus = services.loginItem.status()
   }
@@ -128,6 +144,9 @@ struct MacGeneralPage: View {
           Text(String(localized: "mac.settings.login.detail", bundle: .lodyMac))
         }
         .accessibilityIdentifier("settings-general-login")
+        if model.loginFailed {
+          Text(String(localized: "mac.settings.login.failed", bundle: .lodyMac)).foregroundStyle(.secondary)
+        }
         if model.needsApproval {
           LabeledContent(String(localized: "mac.settings.login.approval", bundle: .lodyMac)) {
             Button(String(localized: "mac.settings.login.openSettings", bundle: .lodyMac)) { model.openLoginItems() }
@@ -136,6 +155,5 @@ struct MacGeneralPage: View {
       }
     }
     .formStyle(.grouped)
-    .onReceive(NotificationCenter.default.publisher(for: .lodyPreferencesDidChange)) { _ in model.refresh() }
   }
 }

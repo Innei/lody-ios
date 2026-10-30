@@ -12,7 +12,7 @@ struct MacMachinesPage: View {
       Section {
         if list.failed {
           Text(String(localized: "mac.settings.failed", bundle: .lodyMac)).foregroundStyle(.secondary)
-        } else if list.loading && list.rows.isEmpty {
+        } else if (list.loading || list.waiting) && list.rows.isEmpty {
           ProgressView().controlSize(.small).frame(maxWidth: .infinity)
         } else if list.rows.isEmpty {
           Text(String(localized: "mac.settings.machines.empty", bundle: .lodyMac)).foregroundStyle(.secondary)

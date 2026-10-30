@@ -97,6 +97,7 @@ final class MacProjectsModel {
   @ObservationIgnored private let services: MacProjectServices
   private var workspace: SettingsWorkspace
   private var visibility: MacVisibility?
+  private var current = ""
   private(set) var loading = false
   private(set) var failed = false
   private(set) var saving: Set<String> = []
@@ -117,15 +118,14 @@ final class MacProjectsModel {
 
   func load(workspaceId: String) async {
     refreshCatalog()
+    if current != workspaceId { visibility = nil }
+    current = workspaceId
     loading = true
-    defer { loading = false }
-    do {
-      visibility = try await services.list(workspaceId)
-      failed = false
-    } catch {
-      visibility = nil
-      failed = true
-    }
+    let result = await Result { try await services.list(workspaceId) }
+    guard current == workspaceId else { return }
+    loading = false
+    visibility = try? result.get()
+    failed = visibility == nil
   }
 
   func setShared(_ row: MacProjectRow, _ shared: Bool, workspaceId: String) async {
@@ -133,9 +133,11 @@ final class MacProjectsModel {
     saving.insert(row.id)
     defer { saving.remove(row.id) }
     visibility = Self.with(previous, row, shared)
-    do {
-      visibility = try await services.share(workspaceId, row, shared)
-    } catch {
+    let result = await Result { try await services.share(workspaceId, row, shared) }
+    guard current == workspaceId else { return }
+    switch result {
+    case .success(let next): visibility = next
+    case .failure:
       visibility = Self.with(visibility ?? previous, row, !shared)
       shareFailed = true
     }
