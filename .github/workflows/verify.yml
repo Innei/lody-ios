@@ -143,10 +143,12 @@ jobs:
         run: |
           command -v xcodegen >/dev/null || brew install xcodegen
           pnpm prebuild
-      - name: Shared data and Mac kit tests
+      - name: Shared data and Mac app tests
         run: |
           swift test --package-path packages/LodyData
-          swift test --package-path packages/LodyMacKit
+          xcodebuild -project Lody.xcodeproj -scheme LodyMac -configuration Debug \
+            -destination 'platform=macOS' -only-testing:LodyMacTests \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= test
       - name: Build Mac app
         run: |
           APP=$(pnpm --silent mac:build --adhoc)

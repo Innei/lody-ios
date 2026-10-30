@@ -214,7 +214,7 @@ class Guest:
 def build(log):
     command = ['xcodebuild', '-project', str(PROJECT), '-scheme', 'LodyMac', '-configuration', 'Debug',
                '-destination', 'platform=macOS']
-    progress('building LodyMac and LodyMacUITests for testing')
+    progress('building LodyMac, app behavior tests and UI tests')
     started = time.monotonic()
     with vm_status.current.step('host build'), log.open('w') as handle:
         result = subprocess.run(command + ['build-for-testing'], cwd=ROOT, stdout=handle, stderr=subprocess.STDOUT)
@@ -288,7 +288,11 @@ def collect(out, output, started, status):
 
 
 def test_command(cases, host_xcode=False):
-    only = [f'-only-testing:LodyMacUITests/{CASES[case]}' for case in cases]
+    only = ['-only-testing:LodyMacTests']
+    if cases:
+        only += [f'-only-testing:LodyMacUITests/{CASES[case]}' for case in cases]
+    else:
+        only.append('-only-testing:LodyMacUITests')
     developer = [f"export DEVELOPER_DIR='{SHARED_XCODE}/Contents/Developer';"] if host_xcode else []
     return ' '.join([
         *developer,

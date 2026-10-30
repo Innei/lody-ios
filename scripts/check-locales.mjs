@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = path.join(import.meta.dirname, '..');
-const kit = path.resolve(root, 'packages/LodyiOSKit/Sources');
+const app = path.resolve(root, 'iOS');
+const shared = path.resolve(root, 'Shared/UIKit');
 const data = path.resolve(root, 'packages/LodyData/Sources');
-const mac = path.resolve(root, 'packages/LodyMacKit/Sources');
+const mac = path.resolve(root, 'macOS');
 const problems = [];
 
 function signature(value) {
@@ -57,22 +58,21 @@ for (const key of [
   if (!(key in info)) problems.push(`InfoPlist.xcstrings: missing ${key}`);
 }
 
-for (const base of [kit, data, path.join(root, 'Extensions'), mac]) {
+for (const base of [app, shared, data, path.join(root, 'Extensions'), mac]) {
   if (!fs.existsSync(base)) continue;
   const known = base === mac ? { ...strings, ...macStrings } : strings;
-  for (const file of fs.globSync('**/*.swift', {
-    cwd: base,
-    exclude: (name) => name === 'debug',
-  })) {
+  for (const file of fs.globSync('**/*.swift', { cwd: base })) {
     const source = fs.readFileSync(path.join(base, file), 'utf8');
     for (const match of source.matchAll(/String\(localized: "([^"\\]+)"/g)) {
       if (!(match[1] in known))
         problems.push(`${file}: missing catalog key ${match[1]}`);
     }
-    source.split('\n').forEach((line, index) => {
-      if (/[㐀-鿿豈-﫿！-｠]/.test(line))
-        problems.push(`${file}:${index + 1}: hardcoded copy`);
-    });
+    if (base !== app || !file.split(path.sep).includes('Debug')) {
+      source.split('\n').forEach((line, index) => {
+        if (/[㐀-鿿豈-﫿！-｠]/.test(line))
+          problems.push(`${file}:${index + 1}: hardcoded copy`);
+      });
+    }
   }
 }
 

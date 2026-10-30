@@ -1,7 +1,7 @@
 # Swift → Rust interoperability probe
 
 Verified on 2026-09-06 in a signed Debug build on the iOS 26.5 arm64 simulator.
-This is a standalone verification app, not an integration into LodyiOSKit's production module.
+This is a standalone verification app, not an integration into the production App target.
 
 ## Result
 

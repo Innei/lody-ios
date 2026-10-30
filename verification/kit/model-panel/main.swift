@@ -1,12 +1,12 @@
 import UIKit
 import MetalKit
 
-let shaderURL = Bundle.main.url(forResource: "LodyKitShaders", withExtension: "bundle")!
+let shaderURL = Bundle.main.url(forResource: "ComposerShaders", withExtension: "bundle")!
 let shaderBundle = Bundle(url: shaderURL)!
 let device = MTLCreateSystemDefaultDevice()!
 let library = try device.makeDefaultLibrary(bundle: shaderBundle)
 precondition(library.makeFunction(name: "heatVertex") != nil && library.makeFunction(name: "heatFragment") != nil, "Packaged Metal library must expose the renderer entry points")
-let panel = ChatComposerModelPanel()
+let panel = ComposerOptionsController()
 panel.loadViewIfNeeded()
 let options = try JSONDecoder().decode(ChatComposerOptions.self, from: Data(#"{"modelId":"gpt","models":[{"id":"gpt","title":"GPT"}],"effort":"medium","efforts":[{"id":"medium","title":"Medium"},{"id":"ultra","title":"Ultra"}]}"#.utf8))
 panel.render(options)

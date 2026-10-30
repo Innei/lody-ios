@@ -96,6 +96,34 @@ test('skips when the generated native project is absent', async () => {
   }
 });
 
+test('rejects shared UIKit sources omitted from the generated project', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'lody-shared-sources-'));
+  try {
+    await write(join(directory, 'pnpm-workspace.yaml'), 'packages: []\n');
+    for (const folder of ['iOS', 'macOS', 'Extensions']) {
+      await mkdir(join(directory, folder), { recursive: true });
+    }
+    await write(
+      join(directory, 'Shared/UIKit/Composer/Composer.swift'),
+      'struct Composer {}',
+    );
+    const project = join(directory, 'Lody.xcodeproj/project.pbxproj');
+    await write(project, '// Empty source phase');
+    const missing = run(directory);
+    assert.equal(missing.status, 1);
+    assert.match(
+      missing.stderr,
+      /Shared UIKit compile: Composer\/Composer\.swift/,
+    );
+
+    await write(project, '/* Composer.swift in Sources */');
+    const linked = run(directory);
+    assert.equal(linked.status, 0, linked.stderr);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('rejects a broken shared source link even when the project lists it', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'lody-native-sources-'));
   try {

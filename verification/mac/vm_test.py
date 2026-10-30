@@ -271,6 +271,17 @@ class BaseTests(unittest.TestCase):
         for service in ['kTCCServiceScreenCapture', 'kTCCServicePostEvent', 'kTCCServiceListenEvent']:
             self.assertIn(service, script)
 
+    def test_app_behavior_tests_run_alongside_selected_ui_cases(self):
+        command = guest.test_command(['sign-in'])
+        self.assertIn('-only-testing:LodyMacTests', command)
+        self.assertIn('-only-testing:LodyMacUITests/SignInTests', command)
+        self.assertNotIn('-only-testing:LodyMacUITests/SidebarTests', command)
+
+    def test_full_run_includes_both_app_behavior_and_ui_tests(self):
+        command = guest.test_command([])
+        self.assertIn('-only-testing:LodyMacTests ', command)
+        self.assertIn('-only-testing:LodyMacUITests ', command)
+
     def test_the_host_xcode_fallback_points_the_guest_tools_at_the_share(self):
         self.assertNotIn('DEVELOPER_DIR', guest.test_command(['sign-in']))
         self.assertIn("DEVELOPER_DIR='/Volumes/My Shared Files/Xcode.app/Contents/Developer'",

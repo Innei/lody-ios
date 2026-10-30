@@ -49,7 +49,7 @@ Requires iOS 26 or later. Beta builds track `main` and update automatically; the
 
 **Lody iOS** is an independent open-source client crafted for iPhone, providing a lightweight and secure bridge between remote Lody services and local workspaces.
 
-The application UI and native state run in Swift and UIKit. LodyiOSKit owns navigation, screens, authentication, catalog projections and durable sends. A Swift-managed offscreen WebView runs the bundled Loro/Flock protocol engine; React Native, Expo, Hermes and Metro are no longer app dependencies.
+The application UI and native state run in Swift and UIKit. The iOS App target owns navigation, screens and platform integration; LodyData owns shared authentication, catalog projections and durable sends. A Swift-managed offscreen WebView runs the bundled Loro/Flock protocol engine; React Native, Expo, Hermes and Metro are no longer app dependencies.
 
 ---
 
@@ -74,7 +74,7 @@ What that week actually looked like:
 ### Authentic Apple HIG Native Experience
 
 - **Human Interface Guidelines Compliance**: Native adoption of iOS semantic colors, automatic light and dark mode adaptation, and Dynamic Type with SF Pro and SF Mono.
-- **Native Navigation**: The UIKit shell owns navigation controllers, transparent headers, and automatic scroll edge effects. Home uses an adaptive native split with session and inspector navigation. Transient flows open as native sheets through `LodyShell.presentNative`, and system grouped rows use UIKit `UICollectionViewListCell` via `LodyGroupedList`.
+- **Native Navigation**: The UIKit shell owns navigation controllers, transparent headers, and automatic scroll edge effects. Home uses an adaptive native split with session and inspector navigation. Transient flows open as native sheets through `LodyShell.present`, and system grouped rows use UIKit `UICollectionViewListCell` via `LodyGroupedList`.
 - **Bilingual by Default**: English and Simplified Chinese product copy lives in `packages/LodyData/Sources/Resources/Localizable.xcstrings`. Swift uses `String(localized:)`, Xcode compiles the catalog, and CI checks translation coverage and format arguments. Permission prompts live in `iOS/InfoPlist.xcstrings`.
 
 ### High-Performance Native Streaming Chat
@@ -87,7 +87,7 @@ What that week actually looked like:
 ### Code Diffs & Workspace File Browsing
 
 - **Turn Changes Overview**: Automatically summarizes file changes for each conversation turn, with one-tap access to all modified files.
-- **Word-Level Diff Highlighting**: File, workspace and tool-detail diffs render natively in LodyiOSKit.
+- **Word-Level Diff Highlighting**: File, workspace and tool-detail diffs render natively in the iOS App target.
 - **Remote Workspace File Tree**: Browse project directories and files on remote Macs or servers at any time, with previews via native code view `LodyCodeView` or system Quick Look.
 
 **Agent Conversation Sync** in Settings lists supported local projects and agents on your own computers. Refresh their history, select conversations to import, and explicitly confirm any conflict replacement. Imports run in batches and retain partial progress; this is a manual history import, not automatic device-to-device mirroring.
@@ -129,30 +129,50 @@ flowchart TB
 ## Directory Structure
 
 The Xcode navigator includes app sources, extensions, runtime inputs, scripts and
-verification files. `Shared Extension Sources` groups the LodyiOSKit files compiled
-by extensions; their single source of truth remains the local Swift package.
+verification files. Application code compiles directly into the iOS App target.
+`Shared/UIKit`, `Shared/ShareSupport` and `Shared/LiveActivity` hold the
+sources shared with extensions; `project.yml` declares each target's membership.
 Generated runtime assets and build configuration live under `.generated`.
 
 ```text
 Lody.xcodeproj              # Generated Xcode project
-project.yml                # XcodeGen: app, extensions and verify hosts
-iOS/                       # UIKit entry, plist, entitlements and app assets
+project.yml                # XcodeGen: targets, membership and iOS dependencies
+iOS/Application/           # AppDelegate, SceneDelegate, lifecycle and service wiring
+iOS/Navigation/            # Page factories and navigation coordination
+iOS/ViewControllers/       # Feature pages, container controllers and Debug controllers
+iOS/Views/                 # App-only rendering and controls
+iOS/Models/                # Presentation state, list sections and layout models
+iOS/Services/              # App-specific I/O and data adapters
+iOS/Platform/              # iOS host, notifications, sharing and previews
+iOS/Debug/                 # Offline scene assembly, fixtures and development views
 iOS/Resources/             # Images, file icons and dependency notices
+macOS/Application/         # Mac entry, lifecycle, menus and live assembly
+macOS/ViewControllers/     # AppKit controllers grouped by feature, including Debug
+macOS/WindowControllers/   # Main window and settings window construction
+macOS/Views/               # AppKit views, SwiftUI settings and styling
+macOS/Models/              # Mac presentation state and projections
+macOS/Services/            # Mac service adapters
+macOS/Platform/            # Mac host, notifications and localization bundle
+macOS/Navigation/          # Window tabs, session assembly and onboarding chrome
+macOS/Debug/               # Offline scenes, fixtures and verification
+macOS/Resources/           # Mac String Catalog and dependency notices
 Extensions/                # Share, notification service and Live Activity
+Shared/UIKit/              # Shared ViewControllers, Views, Models and styling
+Shared/ShareSupport/       # Credential-free App Group snapshot and share inbox
+Shared/LiveActivity/       # Types shared with activity extensions and verify hosts
+Libraries/SimulatorTransport/ # Pinned native data channel build and generated vendor files
 .generated/                # Generated plist, XcodeGen input and runtime assets
 runtime/decoder/           # Browser-safe decoding adapter
 scripts/                   # Asset generation and source checks
 verification/kit/          # Native behavior checks
 verification/ui/           # Offline UI verification
+verification/mac/          # Hosted app tests, offscreen checks and VM UI tests
 tests/                     # Protocol and tooling Node tests
-packages/LodyiOSKit/Package.swift      # LodyiOSKit library, dependencies and Metal resources
-packages/LodyiOSKit/Sources/    # UIKit UI, native state and coordinators
-packages/LodyData/Sources/Resources/ # Native String Catalog
-packages/LodyiOSKit/DataChannel/        # Pinned native transport build
-packages/cloud-runtime/              # Bundled browser-safe protocol and contract
-packages/lody-core/                  # Swift wire types and routing policies
-packages/chat-kit/                   # Native chat core
-packages/lexical-swift/              # Native editor
+packages/LodyData/         # Shared auth, catalog, outbox, runtime and String Catalog
+packages/cloud-runtime/    # Bundled browser-safe protocol and contract
+packages/lody-core/        # Swift wire types and routing policies
+packages/chat-kit/         # Native chat core
+packages/lexical-swift/    # Native editor
 ```
 
 ---
@@ -189,8 +209,11 @@ packages/lexical-swift/              # Native editor
    Swift packages directly. Select a simulator and Run. `pnpm start` opens the
    existing project. App, extensions and offline verification hosts come from
    `project.yml`; rerun `pnpm prebuild` after changing those sources.
-   LodyiOSKit is a local Swift package in `packages/LodyiOSKit`; SwiftPM discovers its
-   sources automatically and bundles its Metal shaders.
+   App sources live in `iOS/`; shared extension sources live in `Shared/`.
+   Page factories and Debug scene factories are separate; custom controllers live
+   under each target scope's `ViewControllers/` directory.
+   Xcode compiles the App's Metal shader from `iOS/Resources/Shaders`.
+   Shared data and native dependencies remain Swift packages.
 
 3. **Update native assets**:
 

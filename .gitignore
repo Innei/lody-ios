@@ -6,10 +6,8 @@ dist/
 .env.*.local
 Lody.xcodeproj/
 .generated/
-packages/LodyiOSKit/Vendor/
-packages/LodyiOSKit/DataChannel/.build/
-packages/LodyiOSKit/.build/
-packages/LodyiOSKit/.swiftpm/
+Libraries/SimulatorTransport/Vendor/
+Libraries/SimulatorTransport/DataChannel/.build/
 .superpowers/
 
 

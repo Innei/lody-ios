@@ -9,7 +9,7 @@ import tempfile
 from simulator import run_with_simulator, SimulatorPool
 
 root = Path(__file__).resolve().parents[1]
-kit = root / 'packages/LodyiOSKit'
+transport = root / 'Libraries/SimulatorTransport'
 data = root / 'packages/LodyData/Sources'
 
 
@@ -18,7 +18,7 @@ def source(file):
     if path.is_absolute():
         return path
     shared = data / path
-    return shared if shared.exists() else kit / 'Sources' / path
+    return shared if shared.exists() else root / path
 
 checks_root = root / 'verification/kit'
 parser = argparse.ArgumentParser(description=__doc__)
@@ -34,115 +34,121 @@ if args.udid is None:
     raise SystemExit(run_with_simulator(SimulatorPool(), 'Native', command))
 sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'], text=True).strip()
 checks = {
-    'home-layout': ['Chrome/LodyHomeLayout.swift'],
-    'fold-host': ['Chrome/LodyFoldHost.swift'],
+    'home-layout': ['iOS/Models/Home/LodyHomeLayout.swift'],
+    'fold-host': ['iOS/Navigation/Home/LodyFoldHost.swift', 'iOS/ViewControllers/Home/ArrangementController.swift'],
     'session-feed': ['Sessions/SessionFeed.swift', 'Sessions/SessionEnvelope.swift', 'Sessions/SessionPermission.swift'],
     'session-simulator': ['Sessions/SessionSimulator.swift'],
-    'preview-feedback': ['Outbox/OutboxRecord.swift', 'Outbox/OutboxStore.swift', 'HTMLPreview/PreviewFeedback.swift'],
-    'pull-request': ['PullRequests/PullRequestStore.swift'],
-    'item-details': ['ItemDetails/ItemDetailStore.swift'],
-    'message-details': ['LodyLocalization.swift', 'List/LodyListModels.swift', 'Settings/LodyListState.swift', 'Chat/ChatTurnMetadata.swift', 'Messages/MessageDetailsSections.swift'],
-    'html-preview': ['LodyLocalization.swift', 'HTMLPreview/HTMLPreviewResource.swift', 'HTMLPreview/HTMLPreviewText.swift'],
-    'simulator-transport': ['LodyLocalization.swift', 'SimulatorStream/SimulatorDeviceView.swift', 'SimulatorStream/SimulatorRemote.swift', 'SimulatorStream/SimulatorRTCFrame.swift', 'SimulatorStream/SimulatorRTC.swift', 'SimulatorStream/SimulatorTransport.swift'],
+    'preview-feedback': ['Outbox/OutboxRecord.swift', 'Outbox/OutboxStore.swift', 'iOS/Views/Files/HTMLPreview/PreviewFeedback.swift'],
+    'pull-request': ['iOS/Services/PullRequests/PullRequestStore.swift'],
+    'item-details': ['iOS/Services/Sessions/ItemDetails/ItemDetailStore.swift'],
+    'message-details': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Models/List/LodyListModels.swift', 'iOS/Views/List/LodyListState.swift', 'Chat/ChatTurnMetadata.swift', 'iOS/Models/Sessions/Messages/MessageDetailsSections.swift'],
+    'html-preview': ['Shared/UIKit/Localization/LodyLocalization.swift', 'iOS/Views/Files/HTMLPreview/HTMLPreviewResource.swift', 'iOS/Views/Files/HTMLPreview/HTMLPreviewText.swift'],
+    'simulator-transport': ['Shared/UIKit/Localization/LodyLocalization.swift', 'iOS/Views/Simulator/SimulatorDeviceView.swift', 'iOS/Services/Simulator/SimulatorRemote.swift', 'iOS/Models/Simulator/SimulatorRTCFrame.swift', 'iOS/Services/Simulator/SimulatorRTC.swift', 'iOS/Services/Simulator/SimulatorTransport.swift'],
     'chat-kit': [],
     'lexical-swift': [],
-    'scroll-edges': ['Chrome/LodyScrollEdges.swift', 'LodyTint.swift', 'Chrome/LodyEdgeFade.swift'],
+    'scroll-edges': ['Shared/UIKit/Chrome/LodyScrollEdges.swift', 'Shared/UIKit/Styling/LodyTint.swift', 'Shared/UIKit/Chrome/LodyEdgeFade.swift'],
     'glass-transition': [],
     'github-mentions': ['Cloud/GitHubMentions.swift'],
     'github-pr': ['Cloud/GitHubPullRequests.swift'],
     'session-sharing': ['Cloud/SessionSharing.swift'],
-    'settings': ['Cloud/WorkspaceSettingsCloud.swift', 'Cloud/WorkspaceUsage.swift'],
-    'workspace-settings-pages': ['LodyLocalization.swift', 'List/LodyListModels.swift', 'Settings/SettingsWorkspace.swift', 'Settings/SettingsText.swift', 'Settings/ProjectVisibilitySections.swift', 'Settings/GitHubSettingsSections.swift'],
-    'settings-runtime-pages': ['LodyLocalization.swift', 'List/LodyListModels.swift', 'Settings/LodyListState.swift', 'Settings/MemorySettingsSections.swift', 'Settings/PublishedSharesSections.swift'],
-    'remote-settings': ['LodyLocalization.swift', 'List/LodyListModels.swift', 'Settings/LodyListState.swift', 'Settings/SettingsWorkspace.swift', 'Settings/SettingsText.swift', 'Settings/RemoteSettingsSections.swift'],
-    'session-rows': ['LodyLocalization.swift', 'List/LodyListModels.swift', 'Settings/LodyListState.swift', 'Sessions/SessionCatalog.swift', 'Sessions/SessionDeletion.swift', 'Sessions/SessionRows.swift', 'Sessions/InboxSections.swift', 'Sessions/SessionEnvelope.swift', 'Sessions/SessionPermission.swift'],
-    'ai-usage': ['LodyLocalization.swift', 'List/LodyListModels.swift', 'Settings/LodyListState.swift', 'Settings/AIUsageModels.swift', 'Settings/AIUsageSections.swift'],
-    'settings-roles': ['LodyLocalization.swift', 'List/LodyListModels.swift', 'Settings/PromptShortcutSections.swift', 'Settings/AgentRoleSections.swift'],
-    'notifications': ['Notifications/PushPermissionLaunchRequest.swift', 'Notifications/PushClickBuffer.swift'],
+    'settings': ['Cloud/WorkspaceSettingsCloud.swift', 'Cloud/WorkspaceUsage.swift', 'Cloud/WorkspaceMembers.swift'],
+    'workspace-settings-pages': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Models/List/LodyListModels.swift', 'Settings/SettingsWorkspace.swift', 'iOS/Views/Settings/SettingsText.swift', 'iOS/Models/Settings/ProjectVisibilitySections.swift', 'iOS/Models/Settings/GitHubSettingsSections.swift'],
+    'settings-runtime-pages': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Models/List/LodyListModels.swift', 'iOS/Views/List/LodyListState.swift', 'iOS/Models/Settings/MemorySettingsSections.swift', 'iOS/Models/Settings/PublishedSharesSections.swift'],
+    'remote-settings': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Models/List/LodyListModels.swift', 'iOS/Views/List/LodyListState.swift', 'Settings/SettingsWorkspace.swift', 'iOS/Views/Settings/SettingsText.swift', 'iOS/Models/Settings/RemoteSettingsSections.swift'],
+    'session-rows': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Models/List/LodyListModels.swift', 'iOS/Views/List/LodyListState.swift', 'Sessions/SessionCatalog.swift', 'Sessions/SessionDeletion.swift', 'iOS/Models/Sessions/SessionRows.swift', 'iOS/Models/Home/Inbox/InboxSections.swift', 'Sessions/SessionEnvelope.swift', 'Sessions/SessionPermission.swift'],
+    'ai-usage': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Models/List/LodyListModels.swift', 'iOS/Views/List/LodyListState.swift', 'Settings/AIUsageModels.swift', 'iOS/Models/Settings/AIUsageSections.swift'],
+    'settings-roles': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Models/List/LodyListModels.swift', 'iOS/Models/Settings/PromptShortcutSections.swift', 'iOS/Models/Settings/AgentRoleSections.swift'],
+    'notifications': ['iOS/Platform/Notifications/PushPermissionLaunchRequest.swift', 'iOS/Platform/Notifications/PushClickBuffer.swift'],
     'diagnostics': ['Diagnostics/DiagnosticsStore.swift'],
-    'file-link': ['Chat/ChatFileLink.swift'],
-    'strings': ['LodyLocalization.swift'],
-    'auth': ['LodyLocalization.swift', 'Auth/AuthAPI.swift'],
+    'file-link': ['iOS/Views/Sessions/Transcript/ChatFileLink.swift'],
+    'strings': ['Shared/UIKit/Localization/LodyLocalization.swift'],
+    'auth': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Auth/AuthAPI.swift'],
     'session-permission': ['Sessions/PermissionProjection.swift', 'Sessions/SessionPermission.swift', 'Sessions/SessionEnvelope.swift'],
-    'session-decisions': ['LodyLocalization.swift', 'Sessions/SessionEnvelope.swift', 'Sessions/SessionPermission.swift', 'Sessions/SessionDecisions.swift'],
+    'session-decisions': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Sessions/SessionEnvelope.swift', 'Sessions/SessionPermission.swift', 'Sessions/SessionDecisions.swift'],
     'outbox': ['Outbox/OutboxRecord.swift', 'Outbox/OutboxStore.swift', 'Outbox/OutboxDispatcher.swift', 'Outbox/OutboxForeground.swift', 'Sessions/SessionEnvelope.swift', 'Sessions/SessionPermission.swift'],
-    'chat': ['LodyLocalization.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatMessageShare.swift', 'Chat/ChatStream.swift', 'Chat/ChatHaptics.swift', 'Chat/ChatImagePreviewGeometry.swift', 'Chat/ChatImageGallery.swift'],
-    'markdown-repair': ['Chat/ChatMarkdownRepair.swift'],
+    'chat': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'iOS/Views/Sessions/Transcript/ChatMessageShare.swift', 'Chat/ChatStream.swift', 'iOS/Views/Sessions/Transcript/ChatHaptics.swift', 'iOS/Views/Sessions/Transcript/ChatImagePreviewGeometry.swift', 'iOS/Views/Sessions/Transcript/ChatImageGallery.swift'],
+    'markdown-repair': ['iOS/Views/Sessions/Transcript/ChatMarkdownRepair.swift'],
     'watchdog': [],
-    'local-store': ['Cloud/LocalStore.swift', 'Cloud/SessionProse.swift', 'Text/MarkdownPlainText.swift', 'Text/MarkdownRuby.swift', 'Text/TextSearch.swift', 'LodyLocalization.swift'],
+    'local-store': ['Cloud/LocalStore.swift', 'Cloud/SessionProse.swift', 'Text/MarkdownPlainText.swift', 'Text/MarkdownRuby.swift', 'Text/TextSearch.swift', 'Shared/UIKit/Localization/LodyLocalization.swift'],
     'content-store': ['Cloud/ContentStore.swift'],
-    'chat-render': ['LodyLocalization.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Appearance/LodyDesign.swift', 'List/LodyStatusGlyph.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatThrowCurve.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatCell.swift', 'Chat/ChatUserMentions.swift'],
-    'chat-subagent': ['LodyLocalization.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Appearance/LodyDesign.swift', 'List/LodyStatusGlyph.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatThrowCurve.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatCell.swift', 'Chat/ChatUserMentions.swift', 'Chat/ChatSubagentCell.swift'],
-    'chat-files': ['LodyLocalization.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Appearance/LodyDesign.swift', 'List/LodyStatusGlyph.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatThrowCurve.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatCell.swift', 'Chat/ChatUserMentions.swift', 'Chat/ChatFileCell.swift'],
-    'chat-chrome': ['LodyLocalization.swift', 'Chat/ChatOverlay.swift'],
-    'context-chip': ['LodyLocalization.swift', 'Chat/ChatQuickReplies.swift'],
-    'model-panel': ['LodyLocalization.swift', 'LodyTint.swift', 'UIFont+Dynamic.swift', 'Chat/ChatComposerModelPanel.swift'],
-    'composer': ['Chrome/LodyScrollEdges.swift', 'Chrome/LodyEdgeFade.swift', 'LodyLocalization.swift', 'UIFont+Dynamic.swift', 'Chat/ChatAttachments.swift', 'Chat/ChatRecentPhotosView.swift', 'Chat/ChatAttachmentMenu.swift', 'Chat/ChatCameraCapture.swift', 'Chat/ChatAttachmentOverlayCameraView.swift', 'Chat/ChatCameraPage.swift', 'Chat/ChatComposerSurfaceLayout.swift', 'Chat/ChatComposerLiquidGlassSurfaceLayout.swift', 'Chat/ChatComposerAttachmentStack.swift', 'Chat/ChatComposerGrabber.swift', 'Chat/ChatMentionPanel.swift', 'Chat/ChatComposerModelPanel.swift', 'Chat/ChatComposerView.swift', 'Chat/ChatReferenceNode.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Chat/ChatSendHandoff.swift', 'Chat/ChatNumericText.swift', 'Chat/ChatThrowCurve.swift', 'LodyTint.swift', 'Toast/LodyToastOverlay.swift', 'Toast/LodyToastPillView.swift', 'Toast/LodySessionBannerView.swift'],
-    'attachments': ['LodyLocalization.swift', 'Diagnostics/DiagnosticsStore.swift', 'Cloud/SessionAttachments.swift'],
-    'inline-diff': ['UIFont+Dynamic.swift', 'Diff/InlineDiffModel.swift', 'Diff/InlineDiffRenderer.swift', 'Diff/DiffDocumentModel.swift', 'Diff/DiffDocumentLayout.swift'],
+    'chat-render': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Styling/LodyTint.swift', 'Shared/UIKit/Styling/UIFont+Dynamic.swift', 'Shared/UIKit/Styling/LodyDesign.swift', 'Shared/UIKit/Views/List/LodyStatusGlyph.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Shared/UIKit/Views/Composer/ChatThrowCurve.swift', 'Shared/UIKit/Views/Composer/ChatAttachments.swift', 'Shared/UIKit/Views/Composer/ChatSendHandoff.swift', 'Shared/UIKit/Views/Composer/ChatNumericText.swift', 'iOS/Views/Sessions/Transcript/ChatCell.swift', 'iOS/Views/Sessions/Transcript/ChatUserMentions.swift'],
+    'chat-subagent': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Styling/LodyTint.swift', 'Shared/UIKit/Styling/UIFont+Dynamic.swift', 'Shared/UIKit/Styling/LodyDesign.swift', 'Shared/UIKit/Views/List/LodyStatusGlyph.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Shared/UIKit/Views/Composer/ChatThrowCurve.swift', 'Shared/UIKit/Views/Composer/ChatAttachments.swift', 'Shared/UIKit/Views/Composer/ChatSendHandoff.swift', 'Shared/UIKit/Views/Composer/ChatNumericText.swift', 'iOS/Views/Sessions/Transcript/ChatCell.swift', 'iOS/Views/Sessions/Transcript/ChatUserMentions.swift', 'iOS/Views/Sessions/Transcript/ChatSubagentCell.swift'],
+    'chat-files': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Styling/LodyTint.swift', 'Shared/UIKit/Styling/UIFont+Dynamic.swift', 'Shared/UIKit/Styling/LodyDesign.swift', 'Shared/UIKit/Views/List/LodyStatusGlyph.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Shared/UIKit/Views/Composer/ChatThrowCurve.swift', 'Shared/UIKit/Views/Composer/ChatAttachments.swift', 'Shared/UIKit/Views/Composer/ChatSendHandoff.swift', 'Shared/UIKit/Views/Composer/ChatNumericText.swift', 'iOS/Views/Sessions/Transcript/ChatCell.swift', 'iOS/Views/Sessions/Transcript/ChatUserMentions.swift', 'iOS/Views/Sessions/Transcript/ChatFileCell.swift'],
+    'chat-chrome': ['Shared/UIKit/Localization/LodyLocalization.swift', 'iOS/Views/Sessions/Transcript/ChatOverlay.swift'],
+    'context-chip': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Views/Composer/ChatQuickReplies.swift'],
+    'model-panel': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Styling/LodyTint.swift', 'Shared/UIKit/Styling/UIFont+Dynamic.swift', 'Shared/UIKit/ViewControllers/Composer/ComposerOptionsController.swift'],
+    'composer': ['Shared/UIKit/Chrome/LodyScrollEdges.swift', 'Shared/UIKit/Chrome/LodyEdgeFade.swift', 'Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Styling/UIFont+Dynamic.swift', 'Shared/UIKit/Views/Composer/ChatAttachments.swift', 'iOS/Views/Composer/ChatRecentPhotosView.swift', 'iOS/Views/Composer/ChatAttachmentMenu.swift', 'Shared/UIKit/Views/Composer/ChatCameraCapture.swift', 'iOS/Views/Composer/ChatAttachmentOverlayCameraView.swift', 'iOS/Views/Composer/ChatCameraPage.swift', 'Shared/UIKit/Views/Composer/ChatComposerSurfaceLayout.swift', 'Shared/UIKit/Views/Composer/ChatComposerLiquidGlassSurfaceLayout.swift', 'Shared/UIKit/Views/Composer/ChatComposerAttachmentStack.swift', 'Shared/UIKit/Views/Composer/ChatComposerGrabber.swift', 'Shared/UIKit/Views/Composer/ChatMentionPanel.swift', 'Shared/UIKit/ViewControllers/Composer/ComposerOptionsController.swift', 'Shared/UIKit/Views/Composer/ChatComposerView.swift', 'Shared/UIKit/Views/Composer/ChatReferenceNode.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'Shared/UIKit/Views/Composer/ChatSendHandoff.swift', 'Shared/UIKit/Views/Composer/ChatNumericText.swift', 'Shared/UIKit/Views/Composer/ChatThrowCurve.swift', 'Shared/UIKit/Styling/LodyTint.swift', 'Shared/UIKit/Feedback/LodyToastOverlay.swift', 'Shared/UIKit/Feedback/LodyToastPillView.swift', 'Shared/UIKit/Feedback/LodySessionBannerView.swift'],
+    'attachments': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Diagnostics/DiagnosticsStore.swift', 'Cloud/SessionAttachments.swift'],
+    'inline-diff': ['Shared/UIKit/Styling/UIFont+Dynamic.swift', 'iOS/Models/Files/Diff/InlineDiffModel.swift', 'iOS/Views/Files/Diff/InlineDiffRenderer.swift', 'iOS/Models/Files/Diff/DiffDocumentModel.swift', 'iOS/Models/Files/Diff/DiffDocumentLayout.swift'],
     'list': [
-        'Chrome/LodyMenuButtonStyle.swift',
-        'List/LodyRowDensity.swift',
-        'List/LodyListCellBackground.swift',
-        'List/LodyListPhoto.swift',
-        'List/LodyListSectionAnimation.swift',
-        'List/LodyUnreadNavigationHold.swift',
-        'List/LodySessionRowView.swift',
-        'List/LodyProjectRowView.swift',
-        'Appearance/LodyDesign.swift',
-        'List/LodyStatusGlyph.swift',
-        'List/LodyFlatRows.swift',
+        'iOS/Views/Chrome/LodyMenuButtonStyle.swift',
+        'Shared/UIKit/Views/List/LodyRowDensity.swift',
+        'Shared/UIKit/Views/List/LodyListCellBackground.swift',
+        'Shared/UIKit/Views/List/LodyListPhoto.swift',
+        'Shared/UIKit/Views/List/LodyListSectionAnimation.swift',
+        'Shared/UIKit/Views/List/LodyUnreadNavigationHold.swift',
+        'Shared/UIKit/Views/List/LodySessionRowView.swift',
+        'Shared/UIKit/Views/List/LodyProjectRowView.swift',
+        'Shared/UIKit/Styling/LodyDesign.swift',
+        'Shared/UIKit/Views/List/LodyStatusGlyph.swift',
+        'Shared/UIKit/Views/List/LodyFlatRows.swift',
         'Text/TextSearch.swift',
     ],
-    'list-snapshots': ['List/LodyListModels.swift'],
+    'list-snapshots': ['Shared/UIKit/Models/List/LodyListModels.swift'],
     'banner': [
-        'LodyLocalization.swift',
-        'Toast/LodySessionBannerView.swift',
+        'Shared/UIKit/Localization/LodyLocalization.swift',
+        'Shared/UIKit/Feedback/LodySessionBannerView.swift',
     ],
-    'chat-title': ['LodyLocalization.swift', 'Debug/LodyUIVerify.swift', 'LodyTint.swift', 'Chrome/LodyNavigationHeader.swift', 'Chrome/LodyNavigationSearch.swift', 'Chat/ChatNavigationTitle.swift'],
-    'live-activity-registration': ['Notifications/LiveActivityRegistration.swift'],
-    'live-activity': ['LiveActivity/LodyActivityAttributes.swift', 'LiveActivity/LiveActivityCatalog.swift'],
-    'page-progress': ['List/LodyPageProgress.swift'],
-    'create-session': ['LodyLocalization.swift', 'CreateSession/CreateSessionForm.swift'],
-    'unified-patch': ['Diff/UnifiedPatch.swift'],
-    'create-draft': ['LodyLocalization.swift', 'CreateSession/CreateSessionForm.swift', 'Outbox/OutboxRecord.swift', 'CreateSession/CreateDraftRecord.swift'],
-    'share-ingest': ['LodyLocalization.swift', 'Chat/ChatAttachments.swift', 'CreateSession/CreateSessionForm.swift', 'CreateSession/ShareStore.swift', str(root / 'Extensions/Share/ShareIngest.swift')],
-    'share': ['LodyLocalization.swift', 'CreateSession/CreateSessionForm.swift', 'CreateSession/ShareStore.swift'],
-    'design': ['LodyTint.swift'],
-    'form': ['LodyTint.swift', 'UIFont+Dynamic.swift', 'Chrome/LodyScrollEdges.swift', 'Chrome/LodyEdgeFade.swift', 'Settings/LodyForm.swift'],
+    'chat-title': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Debug/LodyUIVerify.swift', 'Shared/UIKit/Styling/LodyTint.swift', 'iOS/Views/Chrome/LodyNavigationHeader.swift', 'iOS/Views/Chrome/LodyNavigationSearch.swift', 'iOS/Views/Sessions/Transcript/ChatNavigationTitle.swift'],
+    'live-activity-registration': ['iOS/Platform/Notifications/LiveActivityRegistration.swift'],
+    'live-activity': ['Shared/LiveActivity/LodyActivityAttributes.swift', 'Shared/LiveActivity/LiveActivityCatalog.swift'],
+    'page-progress': ['Shared/UIKit/Views/List/LodyPageProgress.swift'],
+    'create-session': ['Shared/UIKit/Localization/LodyLocalization.swift', 'CreateSession/CreateSessionForm.swift'],
+    'unified-patch': ['iOS/Models/Files/Diff/UnifiedPatch.swift'],
+    'create-draft': ['Shared/UIKit/Localization/LodyLocalization.swift', 'CreateSession/CreateSessionForm.swift', 'Outbox/OutboxRecord.swift', 'CreateSession/CreateDraftRecord.swift'],
+    'share-ingest': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Shared/UIKit/Views/Composer/ChatAttachments.swift', 'CreateSession/CreateSessionForm.swift', 'Shared/ShareSupport/ShareStore.swift', str(root / 'Extensions/Share/ShareIngest.swift')],
+    'share': ['Shared/UIKit/Localization/LodyLocalization.swift', 'CreateSession/CreateSessionForm.swift', 'Shared/ShareSupport/ShareStore.swift'],
+    'design': ['Shared/UIKit/Styling/LodyTint.swift'],
+    'form': ['Shared/UIKit/Styling/LodyTint.swift', 'Shared/UIKit/Styling/UIFont+Dynamic.swift', 'Shared/UIKit/Chrome/LodyScrollEdges.swift', 'Shared/UIKit/Chrome/LodyEdgeFade.swift', 'iOS/Views/Form/LodyForm.swift'],
 }
 if args.case:
     if args.case not in checks:
         parser.error(f'Unknown check {args.case}; choose from {", ".join(checks)}')
     checks = {args.case: checks[args.case]}
 for files in checks.values():
-    if files and 'LodyLocalization.swift' not in files:
-        files.append('LodyLocalization.swift')
+    if 'Shared/UIKit/ViewControllers/Composer/ComposerOptionsController.swift' in files:
+        files += ['Shared/UIKit/Models/ComposerOptions.swift', 'Shared/UIKit/Views/Composer/ChatEffortSlider.swift']
+    if 'iOS/Views/Form/LodyForm.swift' in files:
+        files.append('iOS/ViewControllers/Base/FormController.swift')
+    if 'Shared/UIKit/Views/Composer/ChatAttachments.swift' in files:
+        files.append('Shared/UIKit/ViewControllers/Attachments/AttachmentPreviewController.swift')
+    if files and 'Shared/UIKit/Localization/LodyLocalization.swift' not in files:
+        files.append('Shared/UIKit/Localization/LodyLocalization.swift')
     if files and 'LodyDataBundle.swift' not in files:
         files.append('LodyDataBundle.swift')
-    if 'LodyTint.swift' in files and 'Preferences/LodyAppearanceChoices.swift' not in files:
+    if 'Shared/UIKit/Styling/LodyTint.swift' in files and 'Preferences/LodyAppearanceChoices.swift' not in files:
         files.append('Preferences/LodyAppearanceChoices.swift')
-    if 'List/LodyStatusGlyph.swift' in files and 'List/LodyTentacle.swift' not in files:
-        files.append('List/LodyTentacle.swift')
-    if 'LodyTint.swift' in files and 'Appearance/LodyDesign.swift' not in files:
-        files.append('Appearance/LodyDesign.swift')
-    if 'Chat/ChatComposerView.swift' in files:
-        files.append('Chat/ChatQuickReplies.swift')
-        files.append('Chat/ChatComposerFormatBar.swift')
+    if 'Shared/UIKit/Views/List/LodyStatusGlyph.swift' in files and 'Shared/UIKit/Views/List/LodyTentacle.swift' not in files:
+        files.append('Shared/UIKit/Views/List/LodyTentacle.swift')
+    if 'Shared/UIKit/Styling/LodyTint.swift' in files and 'Shared/UIKit/Styling/LodyDesign.swift' not in files:
+        files.append('Shared/UIKit/Styling/LodyDesign.swift')
+    if 'Shared/UIKit/Views/Composer/ChatComposerView.swift' in files:
+        files.append('Shared/UIKit/Views/Composer/ChatQuickReplies.swift')
+        files.append('Shared/UIKit/Views/Composer/ChatComposerFormatBar.swift')
     if ('Cloud/LocalStore.swift' in files or 'Diagnostics/DiagnosticsStore.swift' in files) and 'LodyStorage.swift' not in files:
         files.append('LodyStorage.swift')
     if 'Chat/ChatTranscript.swift' in files:
         files.append('Chat/ChatPendingSend.swift')
         files.append('Chat/ChatTurnMetadata.swift')
-    if 'Chat/ChatSendHandoff.swift' in files or 'Chat/ChatMentionPanel.swift' in files:
+    if 'Shared/UIKit/Views/Composer/ChatSendHandoff.swift' in files or 'Shared/UIKit/Views/Composer/ChatMentionPanel.swift' in files:
         files.insert(0, 'Debug/LodyUIVerify.swift')
 if 'markdown-repair' in checks:
     subprocess.run(['node', str(root / 'scripts/build-decoder.mjs')], cwd=root, check=True, timeout=120)
 with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
-    shader_bundle = Path(output) / 'LodyKitShaders.bundle'
+    shader_bundle = Path(output) / 'ComposerShaders.bundle'
     shader_bundle.mkdir()
     air = str(Path(output) / 'ChatEffortHeat.air')
-    subprocess.run(['xcrun', '--sdk', 'iphonesimulator', 'metal', '-c', '-target', 'air64-apple-ios26.0-simulator', '-isysroot', sdk, str(kit / 'Sources/Chat/Shaders/ChatEffortHeat.metal'), '-o', air], check=True, timeout=120)
+    subprocess.run(['xcrun', '--sdk', 'iphonesimulator', 'metal', '-c', '-target', 'air64-apple-ios26.0-simulator', '-isysroot', sdk, str(root / 'iOS/Resources/Shaders/ChatEffortHeat.metal'), '-o', air], check=True, timeout=120)
     subprocess.run(['xcrun', '--sdk', 'iphonesimulator', 'metallib', air, '-o', str(shader_bundle / 'default.metallib')], check=True, timeout=120)
     # Build the extracted modules from their production sources. Core remains
     # host-testable; UIKit checks link the same package module as the app.
@@ -206,8 +212,8 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
         if name in ['message-details', 'list-snapshots', 'ai-usage', 'workspace-settings-pages', 'settings-roles', 'settings-runtime-pages', 'remote-settings', 'session-rows']:
             command += ['-D', 'LODY_SHARE_EXTENSION']
         if name == 'simulator-transport':
-            subprocess.run(['/bin/bash', str(kit / 'DataChannel/build.sh')], check=True)
-            command += ['-F', str(kit / 'Vendor/LodyDataChannel.xcframework/ios-arm64_x86_64-simulator'),
+            subprocess.run(['/bin/bash', str(transport / 'DataChannel/build.sh')], check=True)
+            command += ['-F', str(transport / 'Vendor/LodyDataChannel.xcframework/ios-arm64_x86_64-simulator'),
                         '-framework', 'LodyDataChannel']
         if simulator:
             arch = 'arm64' if platform.machine() == 'arm64' else 'x86_64'

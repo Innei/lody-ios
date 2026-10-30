@@ -266,7 +266,7 @@ for index, name in [(2, 'photo.png'), (3, 'document.pdf')]:
     link(index)
     quicklook_loaded()
     items = ui.state()
-    assert not any((i.get('AXUniqueId') or '') == 'chat-image-preview' for i in items), 'Inline file links must not open ChatImagePreview'
+    assert not any((i.get('AXUniqueId') or '') == 'chat-image-preview' for i in items), 'Inline file links must not open ImagePreviewController'
     assert not any(i.get('AXLabel') == catalog.text('native.chat.image.closePreview') for i in items), 'Inline file links must not use the image lightbox'
     extension = name.split('.')[-1]
     ui.capture('quicklook-loaded-' + extension)

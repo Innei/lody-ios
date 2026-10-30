@@ -17,7 +17,9 @@ def back():
     # AX includes Debug's Back behind the sheet; use the foreground stack's button.
     item = ui.wait(lambda items: max((i for i in items if i.get('type') == 'Button' and i.get('AXLabel') in ['Back', catalog.text('create.title')]), key=lambda i: i['frame']['y'], default=None), 'Back button missing')
     f = item['frame']
-    ui.axe('tap', '-x', str(f['x'] + f['width'] / 2), '-y', str(f['y'] + f['height'] / 2), '--post-delay', '1')
+    # UIKit can expose the back/title glass group as one wide accessibility frame.
+    # Its leading control is the back action; the group's center can hit the title.
+    ui.axe('tap', '-x', str(f['x'] + min(f['width'], 44) / 2), '-y', str(f['y'] + f['height'] / 2), '--tap-style', 'physical', '--post-delay', '1')
     ui.element('create-session-input')
 
 

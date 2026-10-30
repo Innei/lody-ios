@@ -1,5 +1,7 @@
 # 离屏数据运行时 POC
 
+> 本文保留 RN 迁移阶段的实现与验证记录。当前工程结构、页面入口和所有权以 [iOS 工程结构](architecture.md) 与源码为准。
+
 ## 实现范围
 
 - Swift `DataRuntime` 持有一个活动 WKWebView。RN 通过 `subscribeCatalog` 订阅工作区目录；每个订阅有独立 owner，旧 owner 的取消不会关闭新订阅。

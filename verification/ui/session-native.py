@@ -46,12 +46,12 @@ wait_probe('live', 'Live envelope was not delivered')
 wait_text('Live reply with a needle')
 assert not any('Cached reply' in spoken(i) for i in ui.state()), 'The live revision must replace the cached history'
 title = ui.element('chat-navigation-title')
-assert 'Native session preview' in spoken(title), title
+assert 'Session preview' in spoken(title), title
 wait_text('src/App.tsx')
 ui.capture('live')
 
 ui.axe('tap', '--id', 'preview-answer:meta:details', '--post-delay', '.5')
-assert 'Native fixture model' in spoken(ui.element('model'))
+assert 'Fixture model' in spoken(ui.element('model'))
 ui.capture('message-details')
 tap_label(catalog.text('common.done'))
 assert probe().split(',').count('watch') == 1, 'Opening details started another runtime subscription'
@@ -71,7 +71,7 @@ ui.capture('native-process-rail')
 ui.axe('tap', '-x', str(process['x'] + 60), '-y', str(process['y'] + process['height'] / 2), '--post-delay', '.5')
 assert ui.element('preview-answer:edit')['type'] == 'Button'
 ui.axe('tap', '--id', 'preview-answer:edit')
-wait_text('Native session tool detail')
+wait_text('Session tool detail')
 ui.capture('native-item-details')
 tap_label(catalog.text('common.done'))
 ui.element('preview-answer:edit')
@@ -87,11 +87,11 @@ wait_text('Verify the native session')
 assert not any(item.get('AXUniqueId') == 'subagent-header' for item in ui.state()), 'The sub-agent page reads like the chat, not a grouped list'
 copy = ui.element('subagent-detail-copy')
 assert copy['type'] == 'Button' and copy['frame']['y'] < 140, f"Copy result is a navigation bar button: {copy['frame']}"
-assert 'Native task summary: all checks passed.' in spoken(ui.element('subagent-detail-result')), 'The result reads as reply text'
+assert 'Task summary: all checks passed.' in spoken(ui.element('subagent-detail-result')), 'The result reads as reply text'
 subprocess.run(['xcrun', 'simctl', 'pbcopy', ui.udid], input='before subagent copy', text=True, check=True)
 ui.axe('tap', '--id', 'subagent-detail-copy', '--post-delay', '.3')
 ui.capture('native-subagent')
-wait_clipboard('Native task summary: all checks passed.')
+wait_clipboard('Task summary: all checks passed.')
 ui.axe('tap', '--wait-timeout', '5', '--id', 'BackButton', '--post-delay', '.6')
 ui.element('preview-answer:task')
 assert probe().split(',').count('watch') == 1
@@ -124,8 +124,9 @@ ui.element('pr-check-1')
 tap_label(catalog.text('pr.investigate'))
 wait_text(catalog.text('pr.draftAdded'))
 tap_label(catalog.text('common.ok'))
-for _ in range(2):
+for destination in ['pr-checks', 'session-input']:
     ui.axe('drag', '--start-x', '2', '--start-y', '450', '--end-x', '365', '--end-y', '450', '--duration', '.5', '--post-delay', '.7')
+    ui.element(destination)
 draft = ui.element('session-input').get('AXValue') or ''
 assert draft.startswith(original_draft + '\n\n') and 'github.com/Innei/lody-ios/pull/31' in draft, draft
 ui.capture('native-pr-draft')

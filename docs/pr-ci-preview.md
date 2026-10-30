@@ -1,5 +1,7 @@
 # PR / CI 界面预览
 
+> 本文保留 RN 迁移阶段的实现与验证记录。当前工程结构、页面入口和所有权以 [iOS 工程结构](architecture.md) 与源码为准。
+
 入口：Settings → Debug → GitHub PR / CI 预览。使用真实 NativeChat、
 LodyGroupedList、原生 Stack / Toolbar；PR → 检查 → 单项检查逐层 push。
 正式会话的右上角现已接入关联 PR；单 PR 直接进入，多 PR 用原生菜单选择。

@@ -6,7 +6,7 @@ prebuild time (an empty value disables initialization). No REST API key or APNs
 private key is shipped in the app.
 
 OneSignal iOS **5.5.1 Stable**, selected from the official
-https://onesignal.github.io/sdk-releases/releases.json, is pinned in `project.yml` and resolved by Swift Package Manager. LodyiOSKit owns initialization, identity, subscription observation, click
+https://onesignal.github.io/sdk-releases/releases.json, is pinned in `project.yml` and resolved by Swift Package Manager. The iOS app owns initialization, identity, subscription observation, click
 buffering and foreground policy. The Notification Service Extension uses the same
 SDK version and App Group `group.app.innei.lody`.
 
@@ -17,7 +17,7 @@ SDK version and App Group `group.app.innei.lody`.
    and the App Group for the app, and the same group for the NSE identifier
    `app.innei.lody.notification-service` and the widget extension identifier
    `app.innei.lody.live-activity`.
-3. Run `pnpm prebuild`. XcodeGen creates the app, LodyiOSKit, NSE, Share and Live Activity targets.
+3. Run `pnpm prebuild`. XcodeGen creates the app, NSE, Share and Live Activity targets.
 4. Open the project with `pnpm ios` and Run in Xcode, or use `xcodebuild` with normal signing.
    The app embeds `LodyNotificationService.appex` and `LodyLiveActivity.appex`. Changing the OneSignal App ID or
    native configuration requires a new native build, not an OTA update.
@@ -208,7 +208,7 @@ production page in English/light/dark, real file export and system sharing,
 failure recovery, clear cancellation and the signed-out Settings entry. The
 fixture never initializes OneSignal or uses user/cloud credentials.
 
-LodyiOSKit writes persistent `notice` events to Apple's unified log under subsystem
+The iOS app writes persistent `notice` events to Apple's unified log under subsystem
 `app.innei.lody`, category `live-activity`. In macOS Console, select the attached
 iPhone, start streaming, and filter by that subsystem/category before reproducing.
 Keep the phone locked/backgrounded through the failure; record the wall-clock time

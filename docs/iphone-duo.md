@@ -126,16 +126,16 @@ placement="left" | "right"`, `Stack.SearchBar` and `Stack.Screen` options regist
 
 ## Where it lives
 
-All paths below are under `packages/LodyiOSKit/Sources`.
+Paths below are relative to the repository root.
 
-| Concern                                  | File                                                  |
-| ---------------------------------------- | ----------------------------------------------------- |
-| Available-space and posture policy       | `Chrome/LodyHomeLayout.swift`                         |
-| Split, fold, Sheet and popover ownership | `Shell/HomeController.swift`, `Shell/LodyShell.swift` |
-| Native arrangement and hinge             | `Chrome/LodyFoldHost.swift`                           |
-| Page close and rehosting lifecycle       | `Shell/LodyPageController.swift`                      |
-| Chat safe area                           | `Chat/LodyChatView.swift`                             |
-| Toast band and canvas                    | `Toast/LodyToastOverlay.swift`                        |
+| Concern                                  | File                                                                              |
+| ---------------------------------------- | --------------------------------------------------------------------------------- |
+| Available-space and posture policy       | `iOS/Models/Home/LodyHomeLayout.swift`                                            |
+| Split, fold, Sheet and popover ownership | `iOS/ViewControllers/Home/HomeController.swift`, `iOS/Navigation/LodyShell.swift` |
+| Native arrangement and hinge             | `iOS/Navigation/Home/LodyFoldHost.swift`                                          |
+| Page close and rehosting lifecycle       | `iOS/ViewControllers/Base/PageContainerController.swift`                          |
+| Chat safe area                           | `iOS/Views/Sessions/Transcript/LodyChatView.swift`                                |
+| Toast band and canvas                    | `Shared/UIKit/Feedback/LodyToastOverlay.swift`                                    |
 
 The approved design is in `docs/superpowers/specs/2026-10-28-duo-ipad-native-layout.md`.
 

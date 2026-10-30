@@ -8,7 +8,7 @@ import test from 'node:test';
 test('String Catalog checks accept reordered arguments and reject broken translations and missing keys', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'lody-localization-'));
   const app = root;
-  const kit = path.join(root, 'packages/LodyiOSKit/Sources');
+  const kit = path.join(root, 'Shared/UIKit');
   const data = path.join(root, 'packages/LodyData/Sources');
   const entry = (en, zh = en) => ({
     localizations: Object.fromEntries(
@@ -93,7 +93,7 @@ test('String Catalog checks accept reordered arguments and reject broken transla
     assert.match(result.stderr, /missing catalog key status/);
 
     await save(catalog, { summary: entry('Summary'), status: entry('Status') });
-    const mac = path.join(root, 'packages/LodyMacKit/Sources');
+    const mac = path.join(root, 'macOS');
     await mkdir(path.join(mac, 'Resources'), { recursive: true });
     await writeFile(
       path.join(mac, 'Menu.swift'),
@@ -109,6 +109,35 @@ test('String Catalog checks accept reordered arguments and reject broken transla
     });
     result = run();
     assert.equal(result.status, 0, result.stderr);
+    for (const directory of [
+      path.join(app, 'iOS/Features/Home'),
+      path.join(app, 'Shared/UIKit/Composer'),
+    ]) {
+      await mkdir(directory, { recursive: true });
+      const source = path.join(directory, 'Title.swift');
+      await writeFile(
+        source,
+        'let title = String(localized: "missing.title", bundle: .lody)',
+      );
+      result = run();
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /missing catalog key missing\.title/);
+      await rm(source);
+    }
+    for (const directory of ['iOS/Debug', 'iOS/ViewControllers/Debug']) {
+      await mkdir(path.join(app, directory), { recursive: true });
+      await writeFile(
+        path.join(app, directory, 'Fixture.swift'),
+        'let title = "调试场景"',
+      );
+      result = run();
+      assert.equal(result.status, 0, result.stderr);
+    }
+
+    await writeFile(path.join(app, 'iOS/Page.swift'), 'let title = "页面"');
+    result = run();
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Page\.swift:1: hardcoded copy/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

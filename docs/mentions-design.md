@@ -30,7 +30,7 @@ silently resolve the same token to a global skill.
 GitHub categories require a GitHub project (`github:owner/repo`). Native code
 exchanges the Keychain login session for a short-lived Convex JWT, then calls
 the official client repository-token action. Login sessions are not CLI tokens.
-All three credentials stay native; only open issue/PR display rows reach RN.
+All three credentials stay native; only open issue/PR display rows reach the UIKit picker.
 
 Verification covers reference insertion in both production hosts, direct `$` and
 `/`, cancellation, missing optional sources, truncation, and the actual outbound

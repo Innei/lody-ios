@@ -2,14 +2,14 @@
 
 ## 1. Project summary
 
-UIKit iOS app in iOS/; UI, state and coordinators live in LodyiOSKit.
+UIKit iOS app with application wiring, navigation, ViewControllers, Views and platform adapters in iOS/. Shared extension UI lives in Shared/UIKit; cross-platform data lives in LodyData.
 
 ## 2. Environment
 
-Generate with `pnpm prebuild` and `pnpm --filter @lody-ios/ios pods`.
+Generate with `pnpm prebuild`.
 Use `pnpm verify:build` for a signed simulator build. `pnpm start` opens Xcode;
 there is no JavaScript development server. Runtime asset changes require
-`pnpm --filter @lody-ios/ios native:assets` before rebuilding.
+`pnpm native:assets` before rebuilding.
 
 ## 3. Auth
 

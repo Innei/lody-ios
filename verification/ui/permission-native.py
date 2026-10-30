@@ -24,7 +24,7 @@ def fixture(action):
 
 
 def fresh():
-    ui.open_case('permission-native-preview')
+    ui.open_case('permission-preview')
     ui.wait(lambda items: any(i.get('AXUniqueId') == 'permission-preview-probe' and not i.get('AXValue') for i in items),
             'Fresh permission session did not appear')
 
@@ -141,7 +141,7 @@ assert 'submit:request-1:2' in probe, probe
 assert ui.element('session-input').get('AXValue') == '12345', 'Answering questions lost the draft'
 ui.capture('answered')
 checkpoint('question answers and retry')
-ui.open_case('permission-native-waiting')
+ui.open_case('permission-waiting')
 wait_text(catalog.text('permission.waiting'))
 ui.capture('waiting')
 wait_text('Allow once')

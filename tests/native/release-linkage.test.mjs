@@ -117,7 +117,7 @@ test('native builds reject stale framework references without Pods', async () =>
     assert.notEqual(runGuard(buildModeGuard, [directory]).status, 0);
     await writeFile(
       join(directory, 'Lody.xcodeproj/project.pbxproj'),
-      'LodyiOSKit.framework in Frameworks',
+      'LodyData.framework in Frameworks',
     );
     assert.equal(runGuard(buildModeGuard, [directory]).status, 0);
   } finally {

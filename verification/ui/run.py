@@ -46,7 +46,7 @@ PREVIEW = {
     'session-simulator': 'session-preview-live',
     'session-taps': 'session-preview-tasks',
     'chat-thread': 'session-preview-tasks',
-    'permission-native': 'permission-native-preview',
+    'permission-native': 'permission-preview',
     'native-diff': 'file-diff-preview',
     'native-workspace-changes': 'workspace-changes-preview',
     'native-file-content': 'file-content-preview',

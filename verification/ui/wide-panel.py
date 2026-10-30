@@ -98,7 +98,7 @@ try:
             tap(labeled(close_settings)['frame'])
             ui.wait(lambda items: not any(item.get('AXUniqueId') == 'account' for item in items) or None, 'Settings did not close')
             ui.element('diff-toolbar-stats')
-            ui.open_case('home-native-alert')
+            ui.open_case('home-layout-alert')
             labeled('Layout verification')
             rotate(ui, 'landscape')
             labeled('Layout verification')

@@ -9,7 +9,8 @@ options:
           iOS,
           macOS,
           Extensions,
-          Shared Extension Sources,
+          Shared,
+          Libraries,
           Packages,
           runtime,
           scripts,
@@ -34,6 +35,8 @@ fileGroups:
   - iOS
   - macOS
   - Extensions
+  - Shared
+  - Libraries
   - runtime
   - .generated
   - project.yml
@@ -52,8 +55,6 @@ settings:
     MARKETING_VERSION: '0.2.0'
     CURRENT_PROJECT_VERSION: '1'
 packages:
-  LodyiOSKit:
-    path: packages/LodyiOSKit
   LodyCore:
     path: 'packages/lody-core'
   LodyData:
@@ -62,8 +63,20 @@ packages:
     path: 'packages/chat-kit'
   Lexical:
     path: 'packages/lexical-swift'
-  LodyMacKit:
-    path: 'packages/LodyMacKit'
+  AnchoredOverlayKit:
+    path: node_modules/@rien7/anchored-overlay-kit
+  MarkdownView:
+    url: https://github.com/Lakr233/MarkdownView.git
+    exactVersion: 4.6.5
+  BeautifulMermaid:
+    url: https://github.com/lukilabs/beautiful-mermaid-swift.git
+    exactVersion: 1.0.4
+  SwiftCollections:
+    url: https://github.com/apple/swift-collections.git
+    exactVersion: 1.7.1
+  Litext:
+    url: https://github.com/Lakr233/Litext.git
+    exactVersion: 3.6.2
   OneSignal:
     url: https://github.com/OneSignal/OneSignal-XCFramework.git
     exactVersion: 5.5.1
@@ -78,6 +91,11 @@ targets:
           - Lody.entitlements
           - '**/*.md'
       - path: .generated/Resources
+      - path: Shared/UIKit
+        excludes:
+          - '**/*.md'
+      - Shared/ShareSupport
+      - Shared/LiveActivity
       - Extensions/LiveActivity/AgentIcons.xcassets
       - path: scripts
         buildPhase: none
@@ -103,15 +121,45 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: Aqua
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        OTHER_LDFLAGS: '$(inherited) -lsqlite3 -lc++'
     preBuildScripts:
       - name: Verify native sources
         script: python3 "${SRCROOT}/scripts/check-native-sources.py"
         basedOnDependencyAnalysis: false
     dependencies:
-      # The app owns embedding the dynamic SDK used by LodyiOSKit and the notification extension.
+      # The app owns embedding the dynamic SDK used by the notification extension.
       - package: OneSignal
         product: OneSignalFramework
-      - package: LodyiOSKit
+      - package: LodyCore
+        product: LodyCore
+      - package: LodyCore
+        product: LodyRuntime
+      - package: LodyData
+      - package: ChatKit
+        product: ChatKit
+      - package: Lexical
+        product: Lexical
+      - package: Lexical
+        product: LexicalListPlugin
+      - package: Lexical
+        product: LexicalLinkPlugin
+      - package: Lexical
+        product: LexicalMarkdown
+      - package: Lexical
+        product: EditorHistoryPlugin
+      - package: Lexical
+        product: LexicalHTML
+      - package: AnchoredOverlayKit
+      - package: MarkdownView
+        product: MarkdownView
+      - package: MarkdownView
+        product: MarkdownParser
+      - package: BeautifulMermaid
+      - package: SwiftCollections
+        product: OrderedCollections
+      - package: Litext
+      - framework: Libraries/SimulatorTransport/Vendor/LodyDataChannel.xcframework
+        embed: false
       - target: LodyShare
       - target: LodyNotificationService
       - target: LodyLiveActivity
@@ -120,66 +168,12 @@ targets:
     platform: iOS
     sources:
       - Extensions/Share
-      - path: packages/LodyiOSKit/Sources
-        group: Shared Extension Sources
-        createIntermediateGroups: false
-        includes:
-          - LodyAppearanceView.swift
-          - LodyLocalization.swift
-          - LodyTint.swift
-          - Appearance/LodyDesign.swift
-          - UIFont+Dynamic.swift
-          - CreateSession/LodyUIVerify+Branches.swift
-          - Chrome/LodyScrollEdges.swift
-          - Chrome/LodyEdgeFade.swift
-          - List/LodyGroupedList.swift
-          - List/LodyListModels.swift
-          - List/LodyPagedList.swift
-          - List/LodyPageSectionRail.swift
-          - List/LodyPageProgress.swift
-          - List/LiquidGlassSegmentedControl.swift
-          - List/LodyListCellBackground.swift
-          - List/LodyFlatRows.swift
-          - List/LodyListPhoto.swift
-          - List/LodyListRowInteractions.swift
-          - List/LodyListSectionAnimation.swift
-          - List/LodyProgressRowView.swift
-          - List/LodyProjectRowView.swift
-          - List/LodyRowDensity.swift
-          - List/LodySessionRowView.swift
-          - List/LodyStatusGlyph.swift
-          - List/LodyTentacle.swift
-          - List/LodyStepStrip.swift
-          - List/LodyUnreadNavigationHold.swift
-          - List/LodyListStatus.swift
-          - List/LodyListVisualView.swift
-          - Chat/ChatAttachments.swift
-          - Chat/ChatAttachmentSheet.swift
-          - Chat/ChatCameraCapture.swift
-          - Chat/ChatAttachmentCamera.swift
-          - Chat/ChatComposerView.swift
-          - Chat/ChatComposerFormatBar.swift
-          - Chat/ChatReferenceNode.swift
-          - Chat/ChatComposerModelPanel.swift
-          - Chat/ChatComposerSurfaceLayout.swift
-          - Chat/ChatComposerLiquidGlassSurfaceLayout.swift
-          - Chat/ChatComposerAttachmentStack.swift
-          - Chat/ChatComposerGrabber.swift
-          - Chat/ChatQuickReplies.swift
-          - Chat/ChatMentionPanel.swift
-          - Chat/ChatSendHandoff.swift
-          - Chat/ChatThrowCurve.swift
-          - Chat/ChatNumericText.swift
-          - Toast/LodyToastOverlay.swift
-          - Toast/LodyToastPillView.swift
-          - Toast/LodySessionBannerView.swift
-          - CreateSession/CreateSessionSections.swift
-          - CreateSession/CreateModelOptions+Rows.swift
-          - CreateSession/CreateSessionController.swift
-          - CreateSession/CreateSessionPickers.swift
-          - CreateSession/ShareStore.swift
+      - path: Shared/UIKit
+        excludes:
+          - '**/*.md'
+      - Shared/ShareSupport
       - path: packages/LodyData/Sources
-        group: Shared Extension Sources
+        group: Shared Data Sources
         createIntermediateGroups: false
         includes:
           - LodyDataBundle.swift
@@ -247,7 +241,7 @@ targets:
     sources:
       - Extensions/NotificationService
       - path: packages/LodyData/Sources
-        group: Shared Extension Sources
+        group: Shared Data Sources
         createIntermediateGroups: false
         includes:
           - Diagnostics/DiagnosticsStore.swift
@@ -281,12 +275,7 @@ targets:
     platform: iOS
     sources:
       - Extensions/LiveActivity
-      - path: packages/LodyiOSKit/Sources
-        group: Shared Extension Sources
-        createIntermediateGroups: false
-        includes:
-          - LiveActivity/LodyActivityAttributes.swift
-          - LiveActivity/LiveActivityCatalog.swift
+      - Shared/LiveActivity
     info:
       path: '.generated/LodyLiveActivity/Info.plist'
       properties:
@@ -312,12 +301,7 @@ targets:
     deploymentTarget: '26.0'
     sources:
       - 'verification/ui/activity-host/App.swift'
-      - path: packages/LodyiOSKit/Sources
-        group: Shared Extension Sources
-        createIntermediateGroups: false
-        includes:
-          - LiveActivity/LodyActivityAttributes.swift
-          - LiveActivity/LiveActivityCatalog.swift
+      - Shared/LiveActivity
       - Extensions/LiveActivity/LiveActivityViews.swift
       - Extensions/LiveActivity/SmallActivityView.swift
       - Extensions/LiveActivity/LiveActivityFixtures.swift
@@ -352,12 +336,7 @@ targets:
     deploymentTarget: '26.0'
     sources:
       - 'verification/ui/activity-host/WatchApp.swift'
-      - path: packages/LodyiOSKit/Sources
-        group: Shared Extension Sources
-        createIntermediateGroups: false
-        includes:
-          - LiveActivity/LodyActivityAttributes.swift
-          - LiveActivity/LiveActivityCatalog.swift
+      - Shared/LiveActivity
       - Extensions/LiveActivity/LiveActivityViews.swift
       - Extensions/LiveActivity/SmallActivityView.swift
       - Extensions/LiveActivity/LiveActivityFixtures.swift
@@ -410,10 +389,26 @@ targets:
         script: python3 "${SRCROOT}/scripts/check-native-sources.py"
         basedOnDependencyAnalysis: false
     dependencies:
-      - package: LodyMacKit
-    scheme:
-      testTargets:
-        - LodyMacUITests
+      - package: LodyData
+      - package: LodyCore
+        product: LodyCore
+      - package: ChatKit
+        product: ChatAppKit
+      - package: ChatKit
+        product: ChatKitCore
+      - package: MarkdownView
+  LodyMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - verification/mac/Tests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.innei.lody.mac.tests
+        GENERATE_INFOPLIST_FILE: 'YES'
+        TEST_HOST: '$(BUILT_PRODUCTS_DIR)/Lody.app/Contents/MacOS/Lody'
+    dependencies:
+      - target: LodyMac
   LodyMacUITests:
     type: bundle.ui-testing
     platform: macOS
@@ -427,6 +422,20 @@ targets:
     dependencies:
       - target: LodyMac
 schemes:
+  LodyMac:
+    build:
+      targets:
+        LodyMac: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      commandLineArguments:
+        '--ui-verify': true
+        '--ui-verify-offscreen': true
+      targets:
+        - LodyMacTests
+        - LodyMacUITests
   Lody:
     build:
       targets:

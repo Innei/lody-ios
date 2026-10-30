@@ -34,12 +34,12 @@ def hold_settings():
 
 
 hold_settings()
-ui.element('permission-native-preview')
+ui.element('permission-preview')
 assert not any(i.get('AXUniqueId') == 'account' for i in ui.state())
 ui.capture('debug')
 ui.axe('tap', '--id', 'BackButton', '--post-delay', '1')
 home_ready()
-assert not any(i.get('AXUniqueId') == 'permission-native-preview' for i in ui.state())
+assert not any(i.get('AXUniqueId') == 'permission-preview' for i in ui.state())
 
 
 def tap_sheet_back():

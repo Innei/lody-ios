@@ -8,6 +8,27 @@ RESOURCE_MARK = ' in Resources */'
 
 TARGETS = (
     {
+        'name': 'Shared UIKit',
+        'root': Path('Shared/UIKit'),
+        'compile': {'.swift', '.metal'},
+        'resources': set(),
+        'optional': True,
+    },
+    {
+        'name': 'Shared activity',
+        'root': Path('Shared/LiveActivity'),
+        'compile': {'.swift'},
+        'resources': set(),
+        'optional': True,
+    },
+    {
+        'name': 'Share support',
+        'root': Path('Shared/ShareSupport'),
+        'compile': {'.swift'},
+        'resources': set(),
+        'optional': True,
+    },
+    {
         'name': 'Lody',
         'root': Path('iOS'),
         'compile': {'.swift', '.m', '.metal'},
@@ -69,6 +90,8 @@ def main() -> int:
     for target in TARGETS:
         directory = root / target['root']
         if not directory.is_dir():
+            if target.get('optional'):
+                continue
             missing.append(f"{target['name']}: source directory {target['root']} is missing")
             continue
         for path in sources(directory, target['compile']):

@@ -1,0 +1,256 @@
+import UIKit
+import MetalKit
+
+private struct ChatEffortHeatUniforms {
+  var track: SIMD4<Float>
+  var accent: SIMD4<Float>
+  var violet: SIMD4<Float>
+  var dotOff: SIMD4<Float>
+  var frame: SIMD4<Float>
+  var clock: SIMD4<Float>
+  var thumb: SIMD4<Float>
+}
+
+private extension UIColor {
+  func shaderColor(_ traits: UITraitCollection) -> SIMD4<Float> {
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    resolvedColor(with: traits).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    return SIMD4(Float(red), Float(green), Float(blue), Float(alpha))
+  }
+}
+
+// Draws the whole slider because the heat haze bends the slider's own pixels.
+// The display link runs only while the thumb spring, a state fade or visible Ultra/Fast energy needs frames.
+private final class ChatEffortHeat: MTKView, MTKViewDelegate {
+  static let violet = UIColor { traits in
+    traits.userInterfaceStyle == .dark
+      ? UIColor(red: 0.70, green: 0.61, blue: 0.91, alpha: 1)
+      : UIColor(red: 0.48, green: 0.36, blue: 0.70, alpha: 1)
+  }
+  private static let renderer: (MTLDevice, MTLCommandQueue, MTLRenderPipelineState)? = {
+    guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else { return nil }
+    do {
+      let owner = Bundle(for: ComposerOptionsController.self)
+      let bundle = owner.url(forResource: "ComposerShaders", withExtension: "bundle").flatMap(Bundle.init(url:)) ?? owner
+      let library = try device.makeDefaultLibrary(bundle: bundle)
+      let descriptor = MTLRenderPipelineDescriptor()
+      descriptor.vertexFunction = library.makeFunction(name: "heatVertex")
+      descriptor.fragmentFunction = library.makeFunction(name: "heatFragment")
+      descriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
+      return (device, queue, try device.makeRenderPipelineState(descriptor: descriptor))
+    } catch {
+      NSLog("Effort heat shader unavailable: %@", String(describing: error))
+      return nil
+    }
+  }()
+  static var isAvailable: Bool { renderer != nil }
+
+  var fraction: Float = 0 { didSet { if fraction != oldValue { wake() } } }
+  var steps: Float = 1 { didSet { if steps != oldValue { wake() } } }
+  var ultra = false { didSet { if ultra != oldValue { wake() } } }
+  var fast = false { didSet { if fast != oldValue { wake() } } }
+  var motion = false { didSet { if motion != oldValue { wake() } } }
+  private var thumb: Float?
+  private var velocity: Float = 0
+  private var ultraAmount: Float = 0
+  private var fastAmount: Float = 0
+  private var flow: Float = 0
+  private var lastFrame: CFTimeInterval?
+
+  init() {
+    super.init(frame: .zero, device: Self.renderer?.0)
+    isOpaque = false
+    backgroundColor = .clear
+    clearColor = MTLClearColorMake(0, 0, 0, 0)
+    isUserInteractionEnabled = false
+    isAccessibilityElement = false
+    preferredFramesPerSecond = 60
+    isPaused = true
+    delegate = self
+    registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (view: ChatEffortHeat, _) in
+      view.wake()
+    }
+  }
+  required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    if window == nil { isPaused = true } else { wake() }
+  }
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    wake()
+  }
+  func wake() {
+    guard window != nil, isPaused, Self.renderer != nil else { return }
+    lastFrame = nil
+    isPaused = false
+  }
+
+  func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
+  func draw(in view: MTKView) {
+    guard let (_, queue, pipeline) = Self.renderer, bounds.width > 32 else {
+      isPaused = true
+      return
+    }
+    let now = CACurrentMediaTime()
+    let dt = Float(min(1.0 / 20, lastFrame.map { now - $0 } ?? 1.0 / 60))
+    lastFrame = now
+    let settled = advance(dt)
+    if let descriptor = currentRenderPassDescriptor, let drawable = currentDrawable,
+      let command = queue.makeCommandBuffer(), let encoder = command.makeRenderCommandEncoder(descriptor: descriptor)
+    {
+      var uniforms = makeUniforms()
+      encoder.setRenderPipelineState(pipeline)
+      encoder.setFragmentBytes(&uniforms, length: MemoryLayout<ChatEffortHeatUniforms>.stride, index: 0)
+      encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+      encoder.endEncoding()
+      command.present(drawable)
+      command.commit()
+    }
+    if settled { isPaused = true }
+  }
+
+  private var target: Float { 16 + fraction * max(0, Float(bounds.width) - 32) }
+
+  private func advance(_ dt: Float) -> Bool {
+    let goal = target
+    let goalUltra: Float = ultra ? 1 : 0
+    let goalFast: Float = fast ? 1 : 0
+    guard motion, var position = thumb else {
+      thumb = goal
+      velocity = 0
+      ultraAmount = goalUltra
+      fastAmount = goalFast
+      return !(motion && (ultra || fast))
+    }
+    let stiffness: Float = 520
+    let damping = 2 * stiffness.squareRoot() * 0.62
+    for _ in 0..<4 {
+      velocity += (stiffness * (goal - position) - damping * velocity) * dt / 4
+      position += velocity * dt / 4
+    }
+    let springing = abs(goal - position) > 0.05 || abs(velocity) > 0.5
+    if !springing {
+      position = goal
+      velocity = 0
+    }
+    thumb = position
+    let ease = 1 - exp(-dt * 7)
+    ultraAmount += (goalUltra - ultraAmount) * ease
+    fastAmount += (goalFast - fastAmount) * ease
+    let fading = abs(goalUltra - ultraAmount) > 0.002 || abs(goalFast - fastAmount) > 0.002
+    if !fading {
+      ultraAmount = goalUltra
+      fastAmount = goalFast
+    }
+    // Float noise inputs lose precision as flow grows; wrapping costs one pattern jump every few minutes of animation.
+    flow = (flow + dt * (1 + 1.4 * fastAmount)).truncatingRemainder(dividingBy: 600)
+    return !springing && !fading && !ultra && !fast
+  }
+
+  private func makeUniforms() -> ChatEffortHeatUniforms {
+    let width = Float(bounds.width)
+    let position = thumb ?? target
+    return ChatEffortHeatUniforms(
+      track: UIColor.tertiarySystemFill.shaderColor(traitCollection),
+      accent: UIColor.lodyAccent.shaderColor(traitCollection),
+      violet: Self.violet.shaderColor(traitCollection),
+      dotOff: UIColor.tertiaryLabel.shaderColor(traitCollection),
+      frame: SIMD4(width, Float(bounds.height), Float(drawableSize.width) / width, 0),
+      clock: SIMD4(flow, ultraAmount, fastAmount, steps),
+      thumb: SIMD4(position, (position - 16) / max(1, width - 32), min(1500, max(-1500, velocity)), 0)
+    )
+  }
+}
+
+final class ChatEffortSlider: UIControl {
+  static var ultraColor: UIColor { ChatEffortHeat.violet }
+  var steps = 1 { didSet { heat.steps = Float(steps); setNeedsDisplay() } }
+  var value: Float = 0 { didSet { heat.fraction = value; setNeedsDisplay() } }
+  var isFast = false { didSet { heat.fast = isFast } }
+  var isUltra = false { didSet { heat.ultra = isUltra; setNeedsDisplay() } }
+  private let heat = ChatEffortHeat()
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    backgroundColor = .clear
+    isOpaque = false
+    isAccessibilityElement = true
+    accessibilityTraits = .adjustable
+    heat.isHidden = !ChatEffortHeat.isAvailable
+    addSubview(heat)
+    for name in [UIAccessibility.reduceMotionStatusDidChangeNotification, UIApplication.didBecomeActiveNotification, UIApplication.willResignActiveNotification] {
+      NotificationCenter.default.addObserver(self, selector: #selector(energyEnvironmentChanged(_:)), name: name, object: nil)
+    }
+  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  deinit { NotificationCenter.default.removeObserver(self) }
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    updateEnergy()
+  }
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    heat.frame = bounds
+    updateEnergy()
+  }
+  @objc private func energyEnvironmentChanged(_ notification: Notification) {
+    updateEnergy(suspended: notification.name == UIApplication.willResignActiveNotification)
+  }
+  private func updateEnergy(suspended: Bool = false) {
+    heat.motion = window != nil && !isHidden && !suspended && window?.windowScene?.activationState == .foregroundActive && !UIAccessibility.isReduceMotionEnabled
+  }
+
+  override func draw(_ rect: CGRect) {
+    guard !ChatEffortHeat.isAvailable else { return }
+    let track = CGRect(x: 0, y: (bounds.height - 28) / 2, width: bounds.width, height: 28)
+    let thumbX = 16 + CGFloat(value) * max(0, bounds.width - 32)
+    let path = UIBezierPath(roundedRect: track, cornerRadius: 14)
+    UIColor.tertiarySystemFill.setFill()
+    path.fill()
+    let context = UIGraphicsGetCurrentContext()
+    context?.saveGState()
+    path.addClip()
+    (isUltra ? ChatEffortHeat.violet : UIColor.lodyAccent).setFill()
+    UIRectFill(CGRect(x: 0, y: track.minY, width: thumbX, height: track.height))
+    for index in 0...steps {
+      let x = 16 + CGFloat(index) / CGFloat(steps) * max(0, bounds.width - 32)
+      (x <= thumbX ? UIColor.white.withAlphaComponent(0.4) : UIColor.tertiaryLabel).setFill()
+      UIBezierPath(ovalIn: CGRect(x: x - 2.5, y: bounds.midY - 2.5, width: 5, height: 5)).fill()
+    }
+    context?.restoreGState()
+    context?.saveGState()
+    context?.setShadow(offset: CGSize(width: 0, height: 1), blur: 3, color: UIColor.black.withAlphaComponent(0.12).cgColor)
+    UIColor.white.setFill()
+    UIBezierPath(ovalIn: CGRect(x: thumbX - 16, y: bounds.midY - 16, width: 32, height: 32)).fill()
+    context?.restoreGState()
+
+  }
+
+  private func move(to point: CGPoint) {
+    let fraction = max(0, min(1, (point.x - 16) / max(1, bounds.width - 32)))
+    setStep(Int((fraction * CGFloat(steps)).rounded()))
+  }
+  private func setStep(_ step: Int) {
+    let next = Float(min(steps, max(0, step))) / Float(steps)
+    guard value != next else { return }
+    value = next
+    sendActions(for: .valueChanged)
+  }
+  override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+    move(to: touch.location(in: self))
+    return true
+  }
+  override func continueTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+    move(to: touch.location(in: self))
+    return true
+  }
+  override func endTracking(_ touch: UITouch?, with event: UIEvent?) {
+    if let touch { move(to: touch.location(in: self)) }
+  }
+  override func accessibilityIncrement() { setStep(Int((value * Float(steps)).rounded()) + 1) }
+  override func accessibilityDecrement() { setStep(Int((value * Float(steps)).rounded()) - 1) }
+}
