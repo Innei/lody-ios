@@ -37,8 +37,8 @@ def pick_port(preferred, fixed, free=port_free):
 
 
 def vnc_line(password, port):
-    return (f'VNC: vnc://:{password}@localhost:{port} '
-            '(Screen Sharing → View → Observe keeps your mouse and keyboard out of the run)')
+    return (f'VNC: vnc://localhost:{port}  password {password} (no username; paste it from vnc.txt). '
+            'Screen Sharing → View → Observe keeps your mouse and keyboard out of the run')
 
 
 def pump(source, target):

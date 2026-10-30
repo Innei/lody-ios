@@ -37,7 +37,10 @@ class VncTests(unittest.TestCase):
 
     def test_the_viewing_line_carries_the_url_and_observe_hint(self):
         line = vnc.vnc_line('bold-tide-mint-oak', 5905)
-        self.assertTrue(line.startswith('VNC: vnc://:bold-tide-mint-oak@localhost:5905 '))
+        self.assertTrue(line.startswith('VNC: vnc://localhost:5905 '))
+        self.assertIn('password bold-tide-mint-oak', line)
+        self.assertIn('no username', line)
+        self.assertIn('vnc.txt', line)
         self.assertIn('Observe', line)
 
     def test_arguments_default_to_port_5905_without_holding(self):
