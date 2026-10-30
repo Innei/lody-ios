@@ -1,3 +1,4 @@
+#if DEBUG
 import AppKit
 
 @MainActor
@@ -68,3 +69,4 @@ enum MacViewDump {
     [rect.origin.x, rect.origin.y, rect.width, rect.height].map { Double($0) }
   }
 }
+#endif

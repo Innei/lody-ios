@@ -1,3 +1,4 @@
+#if DEBUG
 import AppKit
 import LodyData
 
@@ -77,3 +78,4 @@ private final class FixtureBox {
   var code: String?
   init(code: String?) { self.code = code }
 }
+#endif

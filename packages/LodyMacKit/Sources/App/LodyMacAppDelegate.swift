@@ -17,7 +17,9 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
     NSWindow.allowsAutomaticWindowTabbing = true
     if LodyUIVerify.enabled {
       URLProtocol.registerClass(OfflineProbe.self)
+      #if DEBUG
       showDebug()
+      #endif
       return
     }
     DataRuntime.current = runtime
@@ -47,6 +49,7 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
     #endif
   }
 
+  #if DEBUG
   private func route(_ url: URL) {
     guard let route = MacVerifyRoute(url) else { return }
     switch route {
@@ -68,6 +71,7 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
       }
     }
   }
+  #endif
 
   func showMain() {
     let controller = MainWindowController.frontmost ?? MainWindowController()
@@ -85,11 +89,13 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
     controller.showWindow(nil)
   }
 
+  #if DEBUG
   @objc func showDebug(_ sender: Any? = nil) {
     let controller = debug ?? Self.window(MacDebugController(), title: "Debug", id: "debug")
     debug = controller
     controller.showWindow(nil)
   }
+  #endif
 
   private static func window(_ content: NSViewController, title: String, id: String) -> NSWindowController {
     let window = NSWindow(contentViewController: content)

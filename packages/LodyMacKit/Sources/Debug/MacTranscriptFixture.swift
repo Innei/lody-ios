@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 import LodyData
 
@@ -54,3 +55,4 @@ final class MacTranscriptFixture {
     """
   }
 }
+#endif

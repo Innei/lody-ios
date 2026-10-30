@@ -1,3 +1,4 @@
+#if DEBUG
 import AppKit
 import LodyData
 
@@ -75,3 +76,4 @@ final class MacDebugController: NSViewController, NSTableViewDataSource, NSTable
   @objc private func restartRuntime() { DataRuntime.current?.debugRestart() }
   @objc private func hangRuntime() { DataRuntime.current?.debugHang() }
 }
+#endif

@@ -1,3 +1,4 @@
+#if DEBUG
 import AppKit
 import LodyCore
 import LodyData
@@ -78,3 +79,4 @@ enum MacFixtures {
     return [first, second, third].compactMap(\.window)
   }
 }
+#endif

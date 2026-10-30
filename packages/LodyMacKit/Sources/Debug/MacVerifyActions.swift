@@ -1,3 +1,4 @@
+#if DEBUG
 import AppKit
 
 // Drives controls in-process so behavior checks still run while the screen is locked and auv cannot click.
@@ -58,3 +59,4 @@ enum MacVerifyActions {
     [view] + view.subviews.flatMap(descendants)
   }
 }
+#endif

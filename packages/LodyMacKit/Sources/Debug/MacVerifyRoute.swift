@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 
 enum MacVerifyRoute: Equatable {
@@ -74,3 +75,4 @@ enum MacVerifyAction: Equatable {
     }
   }
 }
+#endif

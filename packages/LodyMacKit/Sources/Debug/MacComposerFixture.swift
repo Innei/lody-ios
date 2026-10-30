@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 import LodyCore
 import LodyData
@@ -29,3 +30,4 @@ enum MacComposerFixture {
     )
   }
 }
+#endif

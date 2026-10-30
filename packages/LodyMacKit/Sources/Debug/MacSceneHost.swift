@@ -1,3 +1,4 @@
+#if DEBUG
 import AppKit
 
 @MainActor
@@ -49,3 +50,4 @@ final class MacSceneHost {
     return window
   }
 }
+#endif
