@@ -4,10 +4,14 @@ import XCTest
 final class OffscreenTests: LodyMacUITestCase {
   func testInProcessModeKeepsEveryWindowOffTheDisplays() {
     let edge = NSScreen.screens.map(\.frame.maxX).max() ?? 0
-    for name in ["sign-in", "tabs", "accent", "composer-new"] {
-      if app.state != .notRunning { app.terminate() }
-      app.launchArguments = ["--ui-verify", "--ui-verify-offscreen", "--ui-verify-open", "lodymacverify://case/\(name)"]
-      app.launch()
+    if app.state != .notRunning { app.terminate() }
+    for (index, name) in ["sign-in", "tabs", "accent", "composer-new"].enumerated() {
+      if index == 0 {
+        app.launchArguments = ["--ui-verify", "--ui-verify-offscreen", "--ui-verify-open", "lodymacverify://case/\(name)"]
+        app.launch()
+      } else {
+        send(["lodymacverify://case/\(name)"])
+      }
       let windows = app.windows.matching(identifier: "catalog-scene")
       XCTAssertTrue(windows.firstMatch.waitForExistence(timeout: 10), "scene \(name) opens")
       for window in windows.allElementsBoundByIndex {

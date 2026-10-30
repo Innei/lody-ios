@@ -7,6 +7,9 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
   private let runtime = DataRuntime(localStore: .shared)
   private var settings: NSWindowController?
   private var debug: NSWindowController?
+  #if DEBUG
+  private var inbox: MacVerifyInbox?
+  #endif
 
   override public init() { super.init() }
 
@@ -19,6 +22,8 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
       URLProtocol.registerClass(OfflineProbe.self)
       #if DEBUG
       MacAccessibilityTree.enable()
+      inbox = MacVerifyInbox { [weak self] in self?.route($0) }
+      inbox?.listen()
       let routes = MacVerifyRoute.launch(ProcessInfo.processInfo.arguments)
       if LodyUIVerify.offscreen {
         NSApp.setActivationPolicy(.accessory)

@@ -2,6 +2,7 @@ import XCTest
 
 @MainActor
 class LodyMacUITestCase: XCTestCase {
+  private static var sequence = 0
   let app = XCUIApplication()
 
   override func setUp() async throws {
@@ -15,21 +16,40 @@ class LodyMacUITestCase: XCTestCase {
       tree.name = "failure-tree-\(name)"
       tree.lifetime = .keepAlways
       add(tree)
+      app.terminate()
     }
-    app.terminate()
+  }
+
+  nonisolated override class func tearDown() {
+    MainActor.assumeIsolated { XCUIApplication().terminate() }
+    super.tearDown()
   }
 
   var scene: XCUIElement { app.windows.matching(identifier: "catalog-scene").firstMatch }
 
   func open(_ name: String, _ appearance: String) {
-    if app.state != .notRunning { app.terminate() }
-    app.launchArguments = [
-      "--ui-verify",
-      "--ui-verify-open", "lodymacverify://appearance/\(appearance)",
-      "--ui-verify-open", "lodymacverify://case/\(name)",
-    ]
-    app.launch()
+    let routes = ["lodymacverify://appearance/\(appearance)", "lodymacverify://case/\(name)"]
+    if app.state == .notRunning {
+      app.launchArguments = ["--ui-verify"] + routes.flatMap { ["--ui-verify-open", $0] }
+      app.launch()
+    } else {
+      send(["lodymacverify://reset"] + routes)
+    }
     XCTAssertTrue(scene.waitForExistence(timeout: 10), "scene \(name) opens")
+  }
+
+  func send(_ routes: [String]) {
+    Self.sequence += 1
+    let seq = String(Self.sequence)
+    let center = DistributedNotificationCenter.default()
+    let opened = XCTNSNotificationExpectation(
+      name: Notification.Name("app.innei.lody.mac.verify.opened"), object: seq, notificationCenter: center
+    )
+    center.postNotificationName(
+      Notification.Name("app.innei.lody.mac.verify.open"), object: ([seq] + routes).joined(separator: " "),
+      userInfo: nil, deliverImmediately: true
+    )
+    wait(for: [opened], timeout: 10)
   }
 
   func attach(_ name: String, _ element: XCUIElement? = nil) {
