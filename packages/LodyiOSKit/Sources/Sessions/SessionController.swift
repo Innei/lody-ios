@@ -164,6 +164,8 @@ class SessionController: UIViewController {
     chat.setNavigationMachine(machine.isEmpty ? String(localized: "session.title.machine", bundle: .lody) : machine)
     chat.setNavigationMachineState(machineState)
     chat.setNavigationBranch(session.branchName ?? "")
+    let pullRequest = Self.pullRequestCaption(session.pullRequests)
+    chat.setNavigationPullRequest(pullRequest.label, failing: pullRequest.failing)
     chat.setTitleMenu(titleMenu(session, machine: machine, machineState: machineState))
     chat.mentionRepository = session.projectId.hasPrefix("github:") ? String(session.projectId.dropFirst(7)) : ""
     renderMentions(state, session)
@@ -202,7 +204,15 @@ class SessionController: UIViewController {
   }
 
   private func titleMenu(_ session: SessionItem, machine: String, machineState: String) -> String {
-    var items: [[String: Any]] = []
+    var items: [[String: Any]] = session.pullRequests.enumerated().map { index, reference in
+      var subtitle = [String(localized: String.LocalizationValue("pr.state." + reference.status), bundle: .lody)]
+      if Self.ciFailing(reference) { subtitle.append(String(localized: "session.title.checksFailed", bundle: .lody)) }
+      return [
+        "id": "pr:\(index)",
+        "title": String.localizedStringWithFormat(String(localized: "session.title.openPullRequest", bundle: .lody), reference.number),
+        "subtitle": subtitle.joined(separator: " · "), "symbol": "arrow.triangle.pull", "group": -1,
+      ]
+    }
     if browsable {
       items.append([
         "id": "files", "title": String(localized: "session.action.projectFiles", bundle: .lody),
@@ -256,8 +266,7 @@ class SessionController: UIViewController {
     ])
     moreItem = more
     let header = LodyNavigationHeader.of(navigationItem)
-    let items = [pullRequestItem(session), more].compactMap { $0 }
-    if header.rightItems != items { header.rightItems = items }
+    if header.rightItems != [more] { header.rightItems = [more] }
   }
 
   private func wireEvents() {
@@ -266,6 +275,11 @@ class SessionController: UIViewController {
   }
 
   private func titleMenuSelected(_ id: String) {
+    if id.hasPrefix("pr:"), let index = Int(id.dropFirst(3)),
+       let references = source.state.catalog.session(sessionId)?.pullRequests, references.indices.contains(index) {
+      openPullRequest(references[index])
+      return
+    }
     switch id {
     case "branch":
       guard let branch = source.state.catalog.session(sessionId)?.branchName else { return }

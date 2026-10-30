@@ -105,6 +105,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   private var navigationMachine = ""
   private var navigationMachineState = ""
   private var navigationBranch = ""
+  private var navigationPullRequest = ""
+  private var navigationPullRequestFailing = false
   private var titleDisappearing = false
   private let navigation = ChatNavigationController()
   let findClip = CALayer()
@@ -477,6 +479,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       })
     })
     titleButton.showsMenuAsPrimaryAction = !items.isEmpty
+    updateTitleButton()
   }
 
   func setNavigationSubtitle(_ subtitle: String) {
@@ -503,8 +506,16 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     updateTitleButton()
   }
 
+  func setNavigationPullRequest(_ label: String, failing: Bool) {
+    guard navigationPullRequest != label || navigationPullRequestFailing != failing else { return }
+    navigationPullRequest = label
+    navigationPullRequestFailing = failing
+    updateTitleButton()
+  }
+
   private func titleSubtitle() -> String {
-    ChatNavigationTitle.plainSubtitle(project: navigationSubtitle, machine: navigationMachine, branch: navigationBranch)
+    ChatNavigationTitle.plainSubtitle(project: navigationSubtitle, branch: navigationBranch,
+      pullRequest: navigationPullRequest, offline: navigationMachineState == "offline")
   }
 
   private func updateTitleButton() {
@@ -514,7 +525,10 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       subtitle: navigationSubtitle,
       machine: navigationMachine,
       branch: navigationBranch,
-      machineState: navigationMachineState
+      machineState: navigationMachineState,
+      pullRequest: navigationPullRequest,
+      pullRequestFailing: navigationPullRequestFailing,
+      menu: titleButton.menu != nil
     )
     attachTitle()
   }

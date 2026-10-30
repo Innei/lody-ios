@@ -64,22 +64,16 @@ extension SessionController {
   }
   private func toolError(_ error: Error) { LodyToastOverlay.shared.show(message: error.localizedDescription, kind: "error") }
 
-  func pullRequestItem(_ session: SessionItem) -> UIBarButtonItem? {
-    let references = session.pullRequests
-    guard !references.isEmpty else { return nil }
-    let item: UIBarButtonItem
-    if references.count == 1 {
-      let reference = references[0]
-      item = UIBarButtonItem(title: "PR #\(reference.number)", primaryAction: UIAction { [weak self] _ in self?.openPullRequest(reference) })
-    } else {
-      item = UIBarButtonItem(title: "PR · \(references.count)", menu: UIMenu(children: references.map { reference in
-        UIAction(title: "\(reference.repository) #\(reference.number) · \(String(localized: String.LocalizationValue("pr.state." + reference.status), bundle: .lody))") { [weak self] _ in self?.openPullRequest(reference) }
-      }))
-      item.accessibilityLabel = String(localized: "pr.pullRequests", bundle: .lody)
-    }
-    item.tintColor = references.contains { ["f", "e"].contains($0.ci ?? "") } ? .systemOrange : .systemBlue
-    return item
+  static func ciFailing(_ reference: SessionPullRequest) -> Bool {
+    ["f", "e"].contains(reference.ci ?? "")
   }
+
+  static func pullRequestCaption(_ references: [SessionPullRequest]) -> (label: String, failing: Bool) {
+    guard let first = references.first else { return ("", false) }
+    let label = references.count > 1 ? "#\(first.number) +\(references.count - 1)" : "#\(first.number)"
+    return (label, references.contains(where: ciFailing))
+  }
+
   static func livePullRequest(_ reference: SessionPullRequest, _ state: SessionListState) -> PullRequestController {
     let scope = SettingsActor.live(["workspaceId": state.workspaceId, "userId": state.userId])
     let store = PullRequestStore(repository: reference.repository, number: reference.number, scope: scope,
@@ -87,7 +81,7 @@ extension SessionController {
     return PullRequestController(store: store)
   }
 
-  private func openPullRequest(_ reference: SessionPullRequest) {
+  func openPullRequest(_ reference: SessionPullRequest) {
     let state = source.state
     let page = pullRequestPage(reference, state)
     page.investigate = { [weak self] text in

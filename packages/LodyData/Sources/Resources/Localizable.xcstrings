@@ -14230,23 +14230,6 @@
         }
       }
     },
-    "pr.pullRequests": {
-      "extractionState": "manual",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "关联的 PR"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Linked pull requests"
-          }
-        }
-      }
-    },
     "pr.investigatePrompt": {
       "extractionState": "manual",
       "localizations": {
@@ -17308,6 +17291,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "Computer"
+          }
+        }
+      }
+    },
+    "session.title.checksFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查未通过"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checks failed"
+          }
+        }
+      }
+    },
+    "session.title.openPullRequest": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 PR #%lld"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open PR #%lld"
+          }
+        }
+      }
+    },
+    "subagent.detail.finished": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finished"
+          }
+        }
+      }
+    },
+    "subagent.detail.lastToolInline": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最后工具 %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "last tool %@"
           }
         }
       }

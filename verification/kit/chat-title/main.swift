@@ -59,12 +59,12 @@ func titleSnapshot(_ host: UIView) -> Data {
 }
 
 precondition(
-  ChatNavigationTitle.plainSubtitle(project: "Project name", machine: "Studio") == "Project name · Studio",
-  "Plain subtitle joins project and computer names"
+  ChatNavigationTitle.plainSubtitle(project: "Project name", branch: "feature/chat", pullRequest: "#31") == "feature/chat · PR #31",
+  "The plain caption pairs the branch with its PR"
 )
 precondition(
-  ChatNavigationTitle.plainSubtitle(project: "Project name", machine: "") == "Project name",
-  "A missing computer name must not leave a dangling separator"
+  ChatNavigationTitle.plainSubtitle(project: "Project name", branch: "") == "Project name",
+  "Without a branch the caption falls back to the project"
 )
 
 let button = ChatNavigationTitleButton()
@@ -74,28 +74,36 @@ precondition(button.displayedTitle == "Session title", "First line shows the ses
 precondition(button.configuration?.title == nil, "First line must not be a static configuration title")
 precondition(button.titleHost.superview === button, "First line renders through the numeric-text host")
 let item = UINavigationItem(title: "Session title")
-ChatNavigationTitle.apply(title: "Session title", subtitle: "Project name · Studio", button: button, to: item)
+ChatNavigationTitle.apply(title: "Session title", subtitle: "Project name", button: button, to: item)
 
 precondition(item.style == .browser, "Browser style keeps the two-line title")
 precondition(item.titleView === button, "Title stays tappable")
-precondition(subtitleText(button).contains("Project name"), "Settled titleView shows the project name")
-precondition(subtitleText(button).contains("Studio"), "Settled titleView shows the computer name")
-precondition(subtitleAttachments(button) == 2, "Subtitle must show folder and computer symbols")
+precondition(subtitleText(button).contains("Project name"), "Without a branch the caption shows the project")
+precondition(!subtitleText(button).contains("Studio"), "The machine lives in the title menu, not the caption")
+precondition(subtitleAttachments(button) == 1, "The project keeps its folder symbol")
 precondition(button.accessibilityLabel?.contains("Project name") == true)
-precondition(button.accessibilityLabel?.contains("Studio") == true)
 precondition(button.accessibilityLabel?.contains("m1") != true, "The title must not speak a machine id")
 
-// Branch changes update the shared caption and accessibility without renaming the session.
-ChatNavigationTitle.configureButton(button, title: "Session title", subtitle: "Project name", machine: "Studio", branch: "feature/chat")
-precondition(subtitleText(button).contains("feature/chat"))
-precondition(button.captionLabel.lineBreakMode == .byTruncatingTail, "Narrow headers preserve the leading branch indicator")
-precondition(subtitleAttachments(button) == 3, "Branch has a symbol alongside project and machine")
-precondition(button.accessibilityLabel?.contains("feature/chat") == true)
-precondition(ChatNavigationTitle.plainSubtitle(project: "", machine: "", branch: "main") == "main")
-ChatNavigationTitle.configureButton(button, title: "Session title", subtitle: "Project name", machine: "Studio", branch: "main")
-precondition(!subtitleText(button).contains("feature/chat") && subtitleText(button).contains("main"))
+ChatNavigationTitle.configureButton(button, title: "Session title", subtitle: "Project name", machine: "Studio", branch: "feature/chat",
+  pullRequest: "#31", pullRequestFailing: true, menu: true)
+precondition(subtitleText(button).contains("feature/chat") && !subtitleText(button).contains("Project name"), "A branch replaces the project in the caption")
+precondition(subtitleAttachments(button) == 2, "Branch symbol plus the PR chip")
+precondition(button.captionLabel.lineBreakMode == .byTruncatingMiddle, "Long branches truncate in the middle so the PR chip stays")
+precondition(button.accessibilityLabel?.contains("feature/chat") == true && button.accessibilityLabel?.contains("PR #31") == true
+  && button.accessibilityLabel?.contains(String(localized: "session.title.checksFailed", bundle: .lody)) == true,
+  "VoiceOver reads the branch, the PR and its failing checks")
+let chip = ChatNavigationTitle.pullRequestChip("#31", failing: true, traits: button.traitCollection)
+let calmChip = ChatNavigationTitle.pullRequestChip("#31", failing: false, traits: button.traitCollection)
+precondition(chip.size.width > calmChip.size.width, "A failing PR adds an attention dot to its chip")
+precondition(!button.menuGlyph.isHidden, "A title with a menu shows a down chevron")
+button.layoutIfNeeded()
+let titleTextWidth = ("Session title" as NSString).size(withAttributes: [.font: UIFont.preferredFont(forTextStyle: .headline)]).width
+precondition(button.menuGlyph.frame.minX >= button.titleHost.frame.minX + titleTextWidth, "The chevron follows the title")
+ChatNavigationTitle.configureButton(button, title: "Session title", subtitle: "Project name", machine: "Studio", branch: "main", machineState: "offline")
+precondition(subtitleText(button).contains("main") && subtitleText(button).contains(String(localized: "devices.offline", bundle: .lody)),
+  "An offline machine stays visible in the caption")
+precondition(button.menuGlyph.isHidden, "No menu, no chevron")
 ChatNavigationTitle.configureButton(button, title: "Session title", subtitle: "Project name", machine: "Studio")
-precondition(!subtitleText(button).contains("main") && subtitleAttachments(button) == 2)
 
 let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
 let root = UIViewController()
@@ -113,8 +121,7 @@ nav.view.layoutIfNeeded()
 session.view.layoutIfNeeded()
 
 precondition(containsText(nav.navigationBar, "Project name"), "Nav bar must show the project name")
-precondition(containsText(nav.navigationBar, "Studio"), "Nav bar must show the computer name")
-precondition(subtitleAttachments(button) == 2, "Folder and computer symbols must survive layout")
+precondition(subtitleAttachments(button) == 1, "The folder symbol must survive layout")
 
 ChatNavigationTitle.setDisappearing(true, on: session.navigationItem)
 ChatNavigationTitle.preserveSubtitle("Project name · Studio", on: session.navigationItem)
@@ -130,10 +137,6 @@ precondition(
 precondition(
   containsText(nav.navigationBar, "Project name"),
   "Project name must stay visible after titleView is cleared"
-)
-precondition(
-  containsText(nav.navigationBar, "Studio"),
-  "Computer name must stay visible after titleView is cleared"
 )
 
 ChatNavigationTitle.setDisappearing(false, on: session.navigationItem)
@@ -353,16 +356,12 @@ precondition(
   "Title descenders must not collide with the subtitle (gap=\(descenderGap))"
 )
 
-// Device liveness stays with the computer, preserving the existing caption order.
 ChatNavigationTitle.configureButton(button, title: "Session", subtitle: "Project", machine: "Studio", branch: "feature/a-very-long-branch-name", machineState: "online")
-let onlineSubtitle = subtitleText(button)
-precondition(onlineSubtitle.range(of: "Studio")!.lowerBound > onlineSubtitle.range(of: "feature/")!.lowerBound,
-  "Device status must not reorder the conversation context")
-precondition(button.captionLabel.lineBreakMode == .byTruncatingMiddle,
-  "A long branch still leaves the trailing device state visible")
-precondition(button.accessibilityLabel!.contains(String(localized: "devices.online", bundle: .lody)), "VoiceOver states device liveness")
+precondition(!subtitleText(button).contains("Studio") && !subtitleText(button).contains(String(localized: "devices.online", bundle: .lody)),
+  "An online machine stays out of the caption")
+precondition(button.captionLabel.lineBreakMode == .byTruncatingMiddle, "A long branch truncates in the middle")
 ChatNavigationTitle.configureButton(button, title: "Session", subtitle: "Project", machine: "Studio", branch: "feature/a-very-long-branch-name", machineState: "offline")
 precondition(subtitleText(button).contains(String(localized: "devices.offline", bundle: .lody)), "Offline is visible text, not color alone")
-precondition(!button.accessibilityLabel!.contains(String(localized: "devices.online", bundle: .lody)), "VoiceOver does not retain the previous state")
+precondition(button.accessibilityLabel!.contains(String(localized: "devices.offline", bundle: .lody)), "VoiceOver states an offline machine")
 precondition(button.sizeThatFits(CGSize(width: 220, height: 44)).height == 44, "Device status adds no navigation row")
-print("PASS: chat navigation subtitle shows project and computer names")
+print("PASS: chat navigation caption shows the branch, its PR chip, or the project, and an offline machine")

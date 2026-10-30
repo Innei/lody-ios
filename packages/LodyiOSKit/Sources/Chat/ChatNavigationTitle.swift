@@ -131,6 +131,11 @@ final class ChatTitleTransitionProbe: NSObject {
 final class ChatNavigationTitleButton: UIButton {
   let titleHost = ChatNavigationTitleHost()
   let captionLabel = UILabel()
+  let menuGlyph = UIImageView(image: UIImage(
+    systemName: "chevron.down",
+    withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+  ))
+  var refreshCaption: (() -> Void)?
 
   var displayedTitle: String { titleHost.text }
 
@@ -146,8 +151,15 @@ final class ChatNavigationTitleButton: UIButton {
     captionLabel.backgroundColor = .clear
     captionLabel.isUserInteractionEnabled = false
     captionLabel.isAccessibilityElement = false
+    menuGlyph.tintColor = .lodyTertiary
+    menuGlyph.isHidden = true
+    menuGlyph.isUserInteractionEnabled = false
     addSubview(titleHost)
     addSubview(captionLabel)
+    addSubview(menuGlyph)
+    registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (button: ChatNavigationTitleButton, _) in
+      button.refreshCaption?()
+    }
     titleHost.onTransitionReport = { [weak self] report in self?.accessibilityValue = report }
   }
 
@@ -158,6 +170,7 @@ final class ChatNavigationTitleButton: UIButton {
       let alpha: CGFloat = isHighlighted ? 0.4 : 1
       titleHost.alpha = alpha
       captionLabel.alpha = alpha
+      menuGlyph.alpha = alpha
     }
   }
 
@@ -169,7 +182,8 @@ final class ChatNavigationTitleButton: UIButton {
     let titleFont = UIFont.preferredFont(forTextStyle: .headline)
     let titleWidth = (titleHost.text as NSString).size(withAttributes: [.font: titleFont]).width
     let subtitleWidth = captionLabel.attributedText?.size().width ?? 0
-    return CGSize(width: ceil(8 + max(titleWidth, subtitleWidth)), height: 44)
+    let glyph: CGFloat = menuGlyph.isHidden ? 0 : Self.menuSlot
+    return CGSize(width: ceil(8 + max(titleWidth + glyph, subtitleWidth)), height: 44)
   }
 
   override func layoutSubviews() {
@@ -197,8 +211,17 @@ final class ChatNavigationTitleButton: UIButton {
     let spacing: CGFloat = titleLine > 0 && subtitleLine > 0 ? 8 : 0
     let stackHeight = titleInk + spacing + subtitleHeight - captionInkPad
     let y = max(0, (bounds.height - stackHeight) / 2)
-    titleHost.frame = CGRect(x: x, y: y, width: width, height: titleHeight)
+    let glyph: CGFloat = menuGlyph.isHidden ? 0 : Self.menuSlot
+    titleHost.frame = CGRect(x: x, y: y, width: max(0, width - glyph), height: titleHeight)
     titleHost.isHidden = titleHeight == 0
+    let titleWidth = ceil((titleHost.text as NSString).size(withAttributes: [.font: titleFont]).width)
+    let glyphSize = menuGlyph.intrinsicContentSize
+    menuGlyph.frame = CGRect(
+      x: x + min(titleWidth, max(0, width - glyph)) + 4,
+      y: y + (titleLine - glyphSize.height) / 2,
+      width: glyphSize.width,
+      height: glyphSize.height
+    )
     captionLabel.frame = CGRect(
       x: x,
       y: y + titleInk + spacing - captionInkPad,
@@ -206,28 +229,68 @@ final class ChatNavigationTitleButton: UIButton {
       height: subtitleHeight
     )
   }
+
+  private static let menuSlot: CGFloat = 16
 }
 
 @MainActor
 enum ChatNavigationTitle {
-  static func plainSubtitle(project: String, machine: String, branch: String = "") -> String {
-    [branch, project, machine].filter { !$0.isEmpty }.joined(separator: " · ")
+  static func plainSubtitle(project: String, branch: String, pullRequest: String = "", offline: Bool = false) -> String {
+    [
+      branch.isEmpty ? project : branch,
+      pullRequest.isEmpty ? "" : "PR " + pullRequest,
+      offline ? String(localized: "devices.offline", bundle: .lody) : "",
+    ].filter { !$0.isEmpty }.joined(separator: " · ")
   }
 
-  static func configureButton(_ button: ChatNavigationTitleButton, title: String, subtitle: String, machine: String = "", branch: String = "", machineState: String = "") {
+  static func configureButton(
+    _ button: ChatNavigationTitleButton, title: String, subtitle: String, machine: String = "", branch: String = "",
+    machineState: String = "", pullRequest: String = "", pullRequestFailing: Bool = false, menu: Bool = false
+  ) {
     button.titleHost.apply(title, animated: true)
-    button.captionLabel.lineBreakMode = branch.isEmpty || !machineState.isEmpty ? .byTruncatingMiddle : .byTruncatingTail
-    if let attributed = attributedSubtitle(project: subtitle, machine: machine, branch: branch, machineState: machineState) {
-      button.captionLabel.attributedText = NSAttributedString(attributed)
-      button.captionLabel.isHidden = false
-    } else {
-      button.captionLabel.attributedText = nil
-      button.captionLabel.isHidden = true
+    button.menuGlyph.isHidden = !menu
+    button.captionLabel.lineBreakMode = .byTruncatingMiddle
+    let caption = { [weak button] in
+      guard let button else { return }
+      let attributed = attributedSubtitle(project: subtitle, branch: branch, machineState: machineState,
+        pullRequest: pullRequest, failing: pullRequestFailing, traits: button.traitCollection)
+      button.captionLabel.attributedText = attributed
+      button.captionLabel.isHidden = attributed == nil
     }
-    let status = machineState.isEmpty ? "" : String(localized: String.LocalizationValue("devices." + machineState), bundle: .lody)
-    button.accessibilityLabel = [title, branch, subtitle, machine, status].filter { !$0.isEmpty }.joined(separator: ", ")
+    button.refreshCaption = caption
+    caption()
+    let offline = machineState == "offline" ? String(localized: "devices.offline", bundle: .lody) : ""
+    let failing = pullRequestFailing ? String(localized: "session.title.checksFailed", bundle: .lody) : ""
+    let pr = pullRequest.isEmpty ? "" : "PR " + pullRequest
+    button.accessibilityLabel = [title, branch.isEmpty ? subtitle : branch, pr, failing, offline].filter { !$0.isEmpty }.joined(separator: ", ")
     button.sizeToFit()
     button.bounds.size.height = 44
+  }
+
+  static func pullRequestChip(_ label: String, failing: Bool, traits: UITraitCollection) -> UIImage {
+    let font = UIFont.preferredFont(forTextStyle: .caption1, compatibleWith: traits)
+    let ink = UIColor.lodyInk.resolvedColor(with: traits)
+    let symbolSize = max(1, font.pointSize - 2)
+    let symbol = UIImage(
+      systemName: "arrow.triangle.pull",
+      withConfiguration: UIImage.SymbolConfiguration(pointSize: symbolSize, weight: .medium, scale: .small)
+    )?.withTintColor(ink, renderingMode: .alwaysOriginal)
+    let text = NSAttributedString(string: label, attributes: [.font: font, .foregroundColor: ink])
+    let textSize = text.size()
+    let dot: CGFloat = failing ? 6 : 0
+    let height = ceil(font.lineHeight) + 2
+    let width = ceil(6 + symbolSize + 3 + textSize.width + (failing ? 4 + dot : 0) + 7)
+    let format = UIGraphicsImageRendererFormat(for: traits)
+    format.opaque = false
+    return UIGraphicsImageRenderer(size: CGSize(width: width, height: height), format: format).image { _ in
+      UIColor.lodyInset.resolvedColor(with: traits).setFill()
+      UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: width, height: height), cornerRadius: height / 2).fill()
+      symbol?.draw(in: CGRect(x: 6, y: (height - symbolSize) / 2, width: symbolSize, height: symbolSize))
+      text.draw(at: CGPoint(x: 6 + symbolSize + 3, y: (height - textSize.height) / 2))
+      guard failing else { return }
+      UIColor.lodyAttention.resolvedColor(with: traits).setFill()
+      UIBezierPath(ovalIn: CGRect(x: width - 7 - dot, y: (height - dot) / 2, width: dot, height: dot)).fill()
+    }
   }
 
   static func apply(title: String, subtitle: String, button: UIButton, to item: UINavigationItem) {
@@ -260,8 +323,10 @@ enum ChatNavigationTitle {
     }
   }
 
-  private static func attributedSubtitle(project: String, machine: String, branch: String, machineState: String) -> AttributedString? {
-    let font = UIFont.preferredFont(forTextStyle: .caption1)
+  private static func attributedSubtitle(
+    project: String, branch: String, machineState: String, pullRequest: String, failing: Bool, traits: UITraitCollection
+  ) -> NSAttributedString? {
+    let font = UIFont.preferredFont(forTextStyle: .caption1, compatibleWith: traits)
     let color = UIColor.secondaryLabel
     let attributes: [NSAttributedString.Key: Any] = [
       .font: font,
@@ -270,30 +335,30 @@ enum ChatNavigationTitle {
     let text = NSMutableAttributedString()
     func append(_ name: String, symbol: String) {
       guard !name.isEmpty else { return }
-      if text.length > 0 {
-        text.append(NSAttributedString(string: " · ", attributes: attributes))
-      }
       if let attachment = symbolAttachment(symbol, font: font, color: color) {
         text.append(NSAttributedString(attachment: attachment))
         text.append(NSAttributedString(string: " ", attributes: attributes))
       }
       text.append(NSAttributedString(string: name, attributes: attributes))
     }
-    append(branch, symbol: "arrow.triangle.branch")
-    append(project, symbol: "folder")
-    append(machine, symbol: "desktopcomputer")
-    if !machine.isEmpty && !machineState.isEmpty {
-      text.append(NSAttributedString(string: " ", attributes: attributes))
-      let symbol = machineState == "unknown" ? "circle" : "circle.fill"
-      let tint: UIColor = machineState == "online" ? .systemBlue : .secondaryLabel
-      if let dot = symbolAttachment(symbol, font: UIFont.systemFont(ofSize: 10), color: tint) {
-        text.append(NSAttributedString(attachment: dot))
-      }
-      if machineState == "offline" {
-        text.append(NSAttributedString(string: " · " + String(localized: "devices.offline", bundle: .lody), attributes: attributes))
-      }
+    if branch.isEmpty {
+      append(project, symbol: "folder")
+    } else {
+      append(branch, symbol: "arrow.triangle.branch")
     }
-    return text.length == 0 ? nil : AttributedString(text)
+    if !pullRequest.isEmpty {
+      let chip = pullRequestChip(pullRequest, failing: failing, traits: traits)
+      let attachment = NSTextAttachment()
+      attachment.image = chip
+      attachment.bounds = CGRect(x: 0, y: (font.capHeight - chip.size.height) / 2, width: chip.size.width, height: chip.size.height)
+      if text.length > 0 { text.append(NSAttributedString(string: "  ", attributes: attributes)) }
+      text.append(NSAttributedString(attachment: attachment))
+    }
+    if machineState == "offline" {
+      if text.length > 0 { text.append(NSAttributedString(string: " · ", attributes: attributes)) }
+      text.append(NSAttributedString(string: String(localized: "devices.offline", bundle: .lody), attributes: attributes))
+    }
+    return text.length == 0 ? nil : text
   }
 
   private static func symbolAttachment(_ name: String, font: UIFont, color: UIColor) -> NSTextAttachment? {
