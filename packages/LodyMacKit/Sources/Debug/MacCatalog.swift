@@ -73,7 +73,8 @@ extension MacSettingsServices {
       general: .fixture,
       appearance: .fixture,
       machines: .fixture,
-      workspace: .fixture
+      workspace: .fixture,
+      projects: .fixture
     )
   }
 }
@@ -167,6 +168,35 @@ extension MacWorkspaceServices {
       .init(id: "u-sam", name: "", email: "sam@example.com", role: "member"),
     ], role: "owner")
     return MacWorkspaceServices(members: { _ in members }, rename: { _, _ in }, setIcon: { _, _ in }, pickIcon: { nil })
+  }
+}
+
+extension MacProjectServices {
+  static var fixture: MacProjectServices {
+    let catalog = SettingsCatalog(
+      projects: [
+        SettingsProject(id: "m-studio:local:p1", machineId: "m-studio", name: "lody-ios", rootPath: "~/git/lody-ios"),
+        SettingsProject(id: "m-studio:local:p2", machineId: "m-studio", name: "handbook", rootPath: "~/git/handbook"),
+        SettingsProject(id: "m-build:local:p3", machineId: "m-build", name: "infra", rootPath: "/srv/infra"),
+      ],
+      machineNames: ["m-studio": "Mac Studio", "m-build": "Build Box"]
+    )
+    var visibility = MacVisibility(userId: "u-fixture", rows: [
+      .init(machineId: "m-studio", localProjectId: "p1", ownerUserId: "u-fixture", sharedWithTeam: true, updatedAt: 0),
+      .init(machineId: "m-studio", localProjectId: "p2", ownerUserId: "u-fixture", sharedWithTeam: false, updatedAt: 0),
+      .init(machineId: "m-build", localProjectId: "p3", ownerUserId: "u-ada", sharedWithTeam: true, updatedAt: 0),
+    ])
+    let presence = SettingsMachinePresence(state: "live", onlineMachineIds: ["m-studio", "m-build"])
+    return MacProjectServices(
+      workspace: { SettingsWorkspace(userId: "u-fixture", workspaceId: "w-lab", presence: presence, catalog: catalog) },
+      list: { _ in visibility },
+      share: { _, row, shared in
+        for index in visibility.rows.indices where visibility.rows[index].localProjectId == row.localProjectId {
+          visibility.rows[index].sharedWithTeam = shared
+        }
+        return visibility
+      }
+    )
   }
 }
 

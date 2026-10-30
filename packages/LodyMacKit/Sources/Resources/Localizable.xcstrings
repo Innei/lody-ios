@@ -1361,6 +1361,23 @@
         }
       }
     },
+    "mac.settings.projects.footer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn a project on to share it with everyone in this workspace. Only its owner can change this."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开开关即可与此工作区的所有人共享项目。只有项目所有者可以修改。"
+          }
+        }
+      }
+    },
     "mac.settings.projects.otherMachines": {
       "extractionState": "manual",
       "localizations": {
@@ -1378,6 +1395,23 @@
         }
       }
     },
+    "mac.settings.projects.private": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Private"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "私有"
+          }
+        }
+      }
+    },
     "mac.settings.projects.share": {
       "extractionState": "manual",
       "localizations": {
@@ -1391,6 +1425,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "与团队共享"
+          }
+        }
+      }
+    },
+    "mac.settings.projects.shared": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已共享"
           }
         }
       }
