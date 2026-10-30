@@ -22,6 +22,18 @@ final class MacVerifyRouteTests: XCTestCase {
     XCTAssertNil(route("lodymacverify://dump?out=/tmp/state.txt"))
   }
 
+  func testLaunchArgumentsCarryRoutesInOrder() {
+    let arguments = [
+      "/Applications/Lody.app/Contents/MacOS/Lody", "--ui-verify",
+      "--ui-verify-open", "lodymacverify://appearance/dark",
+      "--ui-verify-open", "lodymacverify://case/sidebar",
+      "--ui-verify-open", "lody://case/sign-in",
+      "--ui-verify-open",
+    ]
+    XCTAssertEqual(MacVerifyRoute.launch(arguments), [.appearance("dark"), .scene("sidebar")])
+    XCTAssertEqual(MacVerifyRoute.launch(["Lody", "--ui-verify"]), [])
+  }
+
   @MainActor
   func testEveryCatalogSceneBuildsWithoutAnAccount() {
     MacOffscreen.enabled = true

@@ -43,6 +43,13 @@ enum MacVerifyRoute: Equatable {
 }
 
 extension MacVerifyRoute {
+  static func launch(_ arguments: [String]) -> [MacVerifyRoute] {
+    zip(arguments, arguments.dropFirst()).compactMap { flag, value in
+      guard flag == "--ui-verify-open", let url = URL(string: value) else { return nil }
+      return MacVerifyRoute(url)
+    }
+  }
+
   private static func output(_ url: URL, suffix: String) -> URL? {
     let out = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "out" }?.value
     guard let out, out.hasPrefix("/"), out.hasSuffix(suffix), !out.contains("/../") else { return nil }

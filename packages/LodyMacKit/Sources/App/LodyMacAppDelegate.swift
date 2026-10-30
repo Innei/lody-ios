@@ -18,11 +18,13 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
     if LodyUIVerify.enabled {
       URLProtocol.registerClass(OfflineProbe.self)
       #if DEBUG
+      let routes = MacVerifyRoute.launch(ProcessInfo.processInfo.arguments)
       if LodyUIVerify.offscreen {
         NSApp.setActivationPolicy(.accessory)
-      } else {
+      } else if routes.isEmpty {
         showDebug()
       }
+      routes.forEach(route)
       #endif
       return
     }
@@ -55,7 +57,10 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
 
   #if DEBUG
   private func route(_ url: URL) {
-    guard let route = MacVerifyRoute(url) else { return }
+    MacVerifyRoute(url).map(route)
+  }
+
+  private func route(_ route: MacVerifyRoute) {
     switch route {
     case .scene(let id): MacSceneHost.shared.open(id)
     case .reset: MacSceneHost.shared.reset()
