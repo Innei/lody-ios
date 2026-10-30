@@ -2,8 +2,8 @@
 """Run the Lody Mac XCUITest suite inside a disposable macOS VM.
 
 The host builds once with ``xcodebuild build-for-testing``; a Tart clone of the
-prepared base VM boots headless, runs ``test-without-building`` over SSH, and is
-deleted afterwards. Nothing appears on the host display and the host's pointer
+prepared base VM boots headless, runs ``test-without-building`` over SSH with the
+host's Xcode shared read-only, and is deleted afterwards. Nothing appears on the host display and the host's pointer
 and keyboard are never used.
 
     pnpm verify:mac:vm                     # all cases
@@ -17,6 +17,7 @@ VM disks, clones and the IPSW live in an APFS sparse bundle (default
 ``.artifacts/mac-verify-vm``.
 """
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 import fcntl
 import json
@@ -40,6 +41,7 @@ IPSW = VOLUME / 'ipsw/UniversalMac_27.2_26B123_Restore.ipsw'
 IPSW_URL = ('https://updates.cdn-apple.com/2026FallFCS/c9671975-52db-4fb5-9af2-00217169ba8d/'
             'UniversalMac_27.2_26B123_Restore.ipsw')
 XCODE = Path(os.environ.get('LODY_VM_XCODE', '/Applications/Xcode-27.1.0.app'))
+GUEST_XCODE = '/Volumes/My Shared Files/Xcode.app'
 KEY = VOLUME / 'ssh/id_ed25519'
 GUEST_USER = 'admin'
 GUEST_PASSWORD = 'admin'
@@ -53,6 +55,7 @@ CASES = {
     'composer-reply': 'ComposerReplyTests',
     'accent': 'AccentTests',
     'offscreen': 'OffscreenTests',
+    'settings': 'SettingsTests',
 }
 
 
@@ -159,10 +162,8 @@ defaults -currentHost write com.apple.screensaver idleTime 0
 sysadminctl -screenLock off -password {GUEST_PASSWORD} 2>/dev/null || true
 sudo mdutil -a -i off >/dev/null || true
 sudo softwareupdate --schedule off >/dev/null 2>&1 || true
-sudo rm -rf /Applications/Xcode.app && sudo mkdir /Applications/Xcode.app
-(cd '{SHARED}/xcode' && tar --no-mac-metadata -cf - .) | (cd /Applications/Xcode.app && sudo tar -xpf -)
-codesign --verify --strict /Applications/Xcode.app
-sudo xcode-select -s /Applications/Xcode.app
+sudo rm -rf /Applications/Xcode.app
+sudo xcode-select -s '{GUEST_XCODE}'
 sudo xcodebuild -license accept
 sudo xcodebuild -runFirstLaunch
 sudo DevToolsSecurity -enable
@@ -199,7 +200,7 @@ def prepare(args):
     options = ','.join(['fullName=Lody Verify', f'username={GUEST_USER}', f'password={GUEST_PASSWORD}',
                         'logsInAutomatically=true', 'enablesRemoteLogin=true'])
     with (VOLUME / 'runs/prepare.log').open('w') as log:
-        guest = Guest(BASE, {'xcode': f'{XCODE}:ro', 'key': f'{KEY.parent}:ro'}, log,
+        guest = Guest(BASE, {'Xcode.app': f'{XCODE}:ro', 'key': f'{KEY.parent}:ro'}, log,
                       extra=[f'--provisioning-opts={options}'])
         try:
             progress('waiting for the first boot to provision the admin account')
@@ -217,7 +218,7 @@ def prepare(args):
 
 def settle(log):
     # One more login lets first-run banners (Xcode's extensions notice) fire in the base, not in every clone.
-    guest = Guest(BASE, {}, log)
+    guest = Guest(BASE, {'Xcode.app': f'{XCODE}:ro'}, log)
     try:
         progress('settling a second login')
         guest.boot()
@@ -242,11 +243,20 @@ def build(log):
     return Path(values['BUILD_DIR'])
 
 
+def warm_up(guest):
+    guest.boot()
+    started = time.monotonic()
+    healthy = guest.ssh(f"for i in $(seq 30); do [ -d '{GUEST_XCODE}' ] && break; sleep 1; done; "
+                        'xcodebuild -version', check=False, timeout=900)
+    if healthy.returncode:
+        raise SystemExit(f'the guest cannot run the shared Xcode at {XCODE}\n{healthy.stdout.strip()}')
+    progress(f'guest Xcode ready after {time.monotonic() - started:.0f}s (first launch scans the share)')
+
+
 def stage(products, target, in_process):
     runs = sorted(products.glob('LodyMac_*.xctestrun'), key=lambda path: path.stat().st_mtime)
     if not runs:
         raise SystemExit(f'no LodyMac .xctestrun in {products}')
-    target.mkdir(parents=True)
     shutil.copy2(runs[-1], target / 'LodyMac.xctestrun')
     for name in ['Lody.app', 'LodyMacUITests-Runner.app', 'PackageFrameworks']:
         source = products / 'Debug' / name
@@ -293,19 +303,21 @@ def run(args):
     output = Path(args.output).resolve()
     shutil.rmtree(output, ignore_errors=True)
     output.mkdir(parents=True)
-    products = build(output / 'build.log')
     with locked():
         name = f'lody-verify-{os.getpid()}'
         work = VOLUME / 'runs' / name
-        stage(products, work / 'products', args.in_process)
+        (work / 'products').mkdir(parents=True)
         (work / 'out').mkdir()
         tart('clone', BASE, name)
         log = (work / 'tart.log').open('w')
-        guest = Guest(name, {'products': work / 'products', 'out': work / 'out'}, log)
+        guest = Guest(name, {'products': work / 'products', 'out': work / 'out', 'Xcode.app': f'{XCODE}:ro'}, log)
         started = time.monotonic()
+        pool = ThreadPoolExecutor(max_workers=1)
         try:
-            progress(f'booting {name} headless')
-            guest.boot()
+            progress(f'booting {name} headless while the host builds')
+            ready = pool.submit(warm_up, guest)
+            stage(build(output / 'build.log'), work / 'products', args.in_process)
+            ready.result()
             only = [f'-only-testing:LodyMacUITests/{CASES[case]}' for case in args.case]
             test = ' '.join([
                 f"rm -rf ~/run && mkdir ~/run && (cd '{SHARED}/products' && tar --no-mac-metadata -cf - .) | (cd ~/run && tar -xpf -) &&",
@@ -329,6 +341,7 @@ def run(args):
                 status = status or in_process
         finally:
             guest.stop()
+            pool.shutdown()
             tart('delete', name, check=False)
             log.close()
         for item in ['test.log', 'LodyMac.xcresult', 'in-process', 'in-process.log']:
