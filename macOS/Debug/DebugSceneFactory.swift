@@ -29,7 +29,7 @@ enum DebugSceneFactory {
       Scene(id: "sign-in-done", title: "Sign in · signed in") {
         [signInWindow(code: "WXYZ-1234", title: "Sign in · signed in", finished: "Innei")]
       },
-      Scene(id: "sidebar", title: "Sidebar") { MacFixtures.workspaceWindow(sessionId: "s-mac") },
+      Scene(id: "sidebar", title: "Sidebar") { MacFixtures.workspaceWindow(sessionId: "s-mac", shell: true) },
       Scene(id: "tabs", title: "Tabs") { MacFixtures.tabbedWindows() },
       Scene(id: "transcript", title: "Transcript") { MacFixtures.workspaceWindow(sessionId: "s-mac") },
       Scene(id: "transcript-history", title: "Transcript · long history") { MacFixtures.workspaceWindow(sessionId: "s-mac", history: 1000) },

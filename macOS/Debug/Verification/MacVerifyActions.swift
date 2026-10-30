@@ -40,6 +40,14 @@ enum MacVerifyActions {
       popup.sendAction(popup.action, to: popup.target)
       return nil
     case .type(let field, let text):
+      if let search = views.compactMap({ $0 as? NSSearchField }).first(where: {
+        $0.accessibilityIdentifier() == field || $0.placeholderString == field
+      }) {
+        window.makeFirstResponder(search)
+        search.stringValue = text
+        search.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: search))
+        return nil
+      }
       guard let input = views.compactMap({ $0 as? NSTextView }).first(where: {
         ($0 as? MacComposerTextView)?.placeholder == field || $0.accessibilityIdentifier() == field
       }) else { return "no input \(field)" }

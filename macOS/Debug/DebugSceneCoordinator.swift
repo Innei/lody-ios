@@ -29,6 +29,12 @@ final class DebugSceneCoordinator {
     open(current)
   }
 
+  func showSettings(_ page: MacSettingsPage) {
+    let window = DebugSceneFactory.settingsWindow(page: page)
+    windows.append(window)
+    window.makeKeyAndOrderFront(nil)
+  }
+
   private func close() {
     for window in windows { window.close() }
     windows = []

@@ -19,19 +19,26 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   var onSelect: ((String) -> Void)?
   var onNewSession: (() -> Void)?
   var onAction: ((MacSessionAction, String) -> Void)?
+  var onOpenTab: ((String) -> Void)?
+  var onOpenWindow: ((String) -> Void)?
+  var onShowSettings: ((MacSettingsPage) -> Void)?
+  var onWorkspaceChange: ((SessionListState) -> Void)?
+  var onVisibleSessionsChange: (() -> Void)?
   weak var actions: MacSessionActions?
   private let source: MacSessionsSource
   private let outline = SidebarOutlineView()
   var outlineView: NSOutlineView { outline }
-  private var collapsed: Set<String> = []
-  private var approvalQueue: [String] = []
+  private var collapsed: Set<String> = ["settled"]
   private var reloading = false
   private let search = NSSearchField()
-  private let workspacePicker = NSPopUpButton()
-  private var workspaceIds: [String] = []
-  private let approvals = NSButton()
-  private let account = NSTextField(labelWithString: "")
-  private let machines = NSTextField(labelWithString: "")
+  private let filter = NSPopUpButton(frame: .zero, pullsDown: true)
+  private let scroll = NSScrollView()
+  private let empty = NSTextField(labelWithString: "")
+  private var projectId: String?
+  private var spacerHeight: CGFloat = 1
+  private var machineButton: NSButton?
+  private(set) lazy var topAccessory = makeTopAccessory()
+  private(set) lazy var bottomAccessory = makeBottomAccessory()
   private var roots: [Node] = []
   private var observers: [NSObjectProtocol] = []
   private var selectedId: String?
@@ -48,26 +55,12 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   }
 
   override func loadView() {
-    let newSession = SidebarActionButton(title: String(localized: "mac.sidebar.newSession", bundle: .lodyMac), symbol: "square.and.pencil")
-    newSession.target = self
-    newSession.action = #selector(newSessionPressed)
-    workspacePicker.isBordered = false
-    workspacePicker.font = .systemFont(ofSize: 13, weight: .semibold)
-    workspacePicker.target = self
-    workspacePicker.action = #selector(workspaceChanged)
-    workspacePicker.setAccessibilityIdentifier("sidebar-workspace")
     search.placeholderString = String(localized: "mac.sidebar.search", bundle: .lodyMac)
+    search.setAccessibilityIdentifier("sidebar-search")
     search.delegate = self
     search.controlSize = .regular
-    approvals.bezelStyle = .accessoryBarAction
-    approvals.isBordered = false
-    approvals.image = NSImage(systemSymbolName: "hand.raised", accessibilityDescription: nil)
-    approvals.imagePosition = .imageLeading
-    approvals.alignment = .left
-    approvals.contentTintColor = .secondaryLabelColor
-    approvals.setAccessibilityIdentifier("sidebar-approvals")
-    approvals.target = self
-    approvals.action = #selector(approvalsPressed)
+    search.sendsSearchStringImmediately = true
+    search.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     let column = NSTableColumn(identifier: .init("session"))
     outline.addTableColumn(column)
     outline.outlineTableColumn = column
@@ -75,6 +68,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     outline.style = .sourceList
     outline.floatsGroupRows = false
     outline.rowSizeStyle = .default
+    outline.indentationPerLevel = 0
     outline.dataSource = self
     outline.delegate = self
     outline.autosaveExpandedItems = false
@@ -85,46 +79,91 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
       guard let self, let id = self.selectedId else { return }
       self.onAction?(.rename, id)
     }
-    let scroll = NSScrollView()
     scroll.documentView = outline
     scroll.drawsBackground = false
     scroll.hasVerticalScroller = true
-    account.font = .systemFont(ofSize: 12, weight: .medium)
-    account.lineBreakMode = .byTruncatingTail
-    machines.font = .systemFont(ofSize: 11)
-    machines.textColor = .secondaryLabelColor
-    machines.setAccessibilityIdentifier("sidebar-machines")
-    let footer = NSStackView(views: [account, machines])
-    footer.orientation = .vertical
-    footer.alignment = .leading
-    footer.spacing = 2
-    let top = NSStackView(views: [workspacePicker, newSession, search, approvals])
-    top.orientation = .vertical
-    top.alignment = .leading
-    top.spacing = 6
-    let root = NSView(frame: NSRect(x: 0, y: 0, width: 260, height: 600))
-    for view in [top, scroll, footer] {
+    empty.font = .systemFont(ofSize: 12)
+    empty.textColor = .secondaryLabelColor
+    empty.alignment = .center
+    empty.setAccessibilityIdentifier("sidebar-empty")
+    let root = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 680))
+    for view in [scroll, empty] {
       view.translatesAutoresizingMaskIntoConstraints = false
       root.addSubview(view)
     }
     NSLayoutConstraint.activate([
-      top.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor, constant: 8),
-      top.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
-      top.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
-      search.widthAnchor.constraint(equalTo: top.widthAnchor),
-      scroll.topAnchor.constraint(equalTo: top.bottomAnchor, constant: 8),
+      scroll.topAnchor.constraint(equalTo: root.topAnchor),
       scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor),
       scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-      footer.topAnchor.constraint(equalTo: scroll.bottomAnchor, constant: 8),
-      footer.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
-      footer.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
-      footer.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -12),
+      scroll.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+      empty.centerXAnchor.constraint(equalTo: root.safeAreaLayoutGuide.centerXAnchor),
+      empty.centerYAnchor.constraint(equalTo: root.safeAreaLayoutGuide.centerYAnchor),
+      empty.widthAnchor.constraint(lessThanOrEqualTo: root.widthAnchor, constant: -32),
     ])
     view = root
   }
 
+  private func makeTopAccessory() -> NSSplitViewItemAccessoryViewController {
+    filter.isBordered = false
+    filter.imagePosition = .imageOnly
+    filter.controlSize = .small
+    filter.setAccessibilityIdentifier("sidebar-filter")
+    filter.setAccessibilityLabel(String(localized: "mac.sidebar.filterProjects", bundle: .lodyMac))
+    filter.toolTip = String(localized: "mac.sidebar.filterProjects", bundle: .lodyMac)
+    filter.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      filter.widthAnchor.constraint(equalToConstant: 32),
+      filter.heightAnchor.constraint(equalToConstant: 28),
+    ])
+    let projects = MacSidebarChrome.button("folder", title: String(localized: "mac.settings.page.projects", bundle: .lodyMac),
+                                         id: "sidebar-projects", target: self, action: #selector(showProjects))
+    let controls = MacSidebarChrome.group([filter, projects])
+    let new = MacSidebarChrome.button("square.and.pencil", title: String(localized: "mac.sidebar.newSession", bundle: .lodyMac),
+                                    id: "sidebar-new-session", target: self, action: #selector(newSessionPressed), glass: true)
+    new.contentTintColor = .lodyAccent
+    new.bezelColor = .lodyAccent
+    new.tintProminence = .secondary
+    return MacSidebarChrome.accessory([search, controls, new])
+  }
+
+  private func makeBottomAccessory() -> NSSplitViewItemAccessoryViewController {
+    let settings = MacSidebarChrome.button("gearshape", title: String(localized: "mac.menu.settings", bundle: .lodyMac),
+                                         id: "sidebar-settings", target: self, action: #selector(showSettings))
+    let machines = MacSidebarChrome.button("desktopcomputer", title: String(localized: "mac.settings.page.machines", bundle: .lodyMac),
+                                         id: "sidebar-machines", target: self, action: #selector(showMachines))
+    machineButton = machines
+    let projects = MacSidebarChrome.button("folder", title: String(localized: "mac.settings.page.projects", bundle: .lodyMac),
+                                         id: "sidebar-manage-projects", target: self, action: #selector(showProjects))
+    let utilities = MacSidebarChrome.group([settings, machines, projects])
+    let about = MacSidebarChrome.button("info", title: String(localized: "mac.settings.page.about", bundle: .lodyMac),
+                                      id: "sidebar-about", target: self, action: #selector(showAbout), glass: true)
+    return MacSidebarChrome.accessory([utilities, NSView(), about])
+  }
+
+  override func viewDidLayout() {
+    super.viewDidLayout()
+    guard let index = (0..<outline.numberOfRows).first(where: { (outline.item(atRow: $0) as? Node)?.id == "spacer" }) else { return }
+    let occupied = (0..<outline.numberOfRows).reduce(CGFloat(0)) { height, row in
+      guard row != index else { return height }
+      return height + outline.rect(ofRow: row).height + outline.intercellSpacing.height
+    }
+    let available = scroll.contentView.bounds.height - scroll.contentInsets.top - scroll.contentInsets.bottom
+    let next = max(1, available - occupied - 8)
+    guard abs(next - spacerHeight) > 1 else { return }
+    spacerHeight = next
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = 0
+      context.allowsImplicitAnimation = false
+      outline.noteHeightOfRows(withIndexesChanged: IndexSet(integer: index))
+      outline.needsLayout = true
+      outline.layoutSubtreeIfNeeded()
+    }
+  }
+
   override func viewDidLoad() {
     super.viewDidLoad()
+    _ = topAccessory
+    _ = bottomAccessory
     for name in source.changes {
       observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
         MainActor.assumeIsolated { self?.reload() }
@@ -134,10 +173,15 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   }
 
   func select(sessionId: String?) {
+    let changed = selectedId != sessionId
     selectedId = sessionId
     guard let sessionId, let node = find(sessionId) else {
       outline.deselectAll(nil)
       return
+    }
+    if changed, let group = roots.first(where: { $0.children.contains { $0.id == sessionId } }) {
+      collapsed.remove(group.id)
+      outline.expandItem(group)
     }
     let row = outline.row(forItem: node)
     if row >= 0 { outline.selectRowIndexes([row], byExtendingSelection: false) }
@@ -145,37 +189,67 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
 
   private func reload() {
     let state = source.read()
-    let model = MacSidebarModel(state: state, query: search.stringValue)
-    var next: [Node] = []
-    if !model.pinned.isEmpty {
-      next.append(Node(id: "pinned", title: String(localized: "mac.sidebar.pinned", bundle: .lodyMac), children: model.pinned.map(Self.node)))
+    if let projectId, !state.catalog.projects.contains(where: { $0.id == projectId }) { self.projectId = nil }
+    let model = MacSidebarModel(state: state, query: search.stringValue, projectId: projectId)
+    var next = model.pinned.map(Self.node)
+    let searching = !search.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    if searching {
+      next += model.groups.flatMap(\.rows).map(Self.node)
+    } else {
+      next += (model.groups.first { $0.id == "active" }?.rows ?? []).map(Self.node)
+      next.append(Node(id: "spacer", title: ""))
+      next += model.groups.filter { $0.id != "active" }.map { Node(id: $0.id, title: $0.title, children: $0.rows.map(Self.node)) }
     }
-    next += model.groups.map { Node(id: "project:" + $0.id, title: $0.title, children: $0.rows.map(Self.node)) }
-    roots = next
+    let count = model.pinned.count + model.groups.flatMap(\.rows).count
+    roots = count == 0 ? [] : next
+    empty.isHidden = count != 0
+    empty.stringValue = String(localized: searching || projectId != nil ? "mac.sidebar.noMatches" : "mac.sidebar.empty", bundle: .lodyMac)
     reloading = true
     outline.reloadData()
-    for node in roots where !search.stringValue.isEmpty || !collapsed.contains(node.id) { outline.expandItem(node) }
+    for node in roots where node.row == nil && node.id != "spacer" && !collapsed.contains(node.id) { outline.expandItem(node) }
     reloading = false
-    approvals.title = String(localized: "mac.sidebar.approvals \(model.needsApproval)", bundle: .lodyMac)
-    approvals.contentTintColor = model.needsApproval > 0 ? .systemOrange : .secondaryLabelColor
-    approvals.isEnabled = model.needsApproval > 0
-    approvalQueue = model.approvals
-    let ids = state.workspaces.map(\.id)
-    if ids != workspaceIds {
-      workspaceIds = ids
-      workspacePicker.removeAllItems()
-      workspacePicker.addItems(withTitles: state.workspaces.map(\.name))
-    }
-    workspacePicker.isHidden = ids.count < 2
-    if let index = ids.firstIndex(of: state.workspaceId) { workspacePicker.selectItem(at: index) }
-    let user = AuthSession.shared.snapshot.account?.user
-    account.stringValue = state.workspace?.name ?? user?.name ?? ""
+    rebuildProjectMenu(state)
     let online = state.presence.onlineMachineIds.count
-    machines.stringValue = String(localized: "mac.sidebar.machines \(online)", bundle: .lodyMac)
+    let presence = String(localized: "mac.sidebar.machines \(online)", bundle: .lodyMac)
+    machineButton?.setAccessibilityLabel(presence)
+    machineButton?.toolTip = presence
+    onWorkspaceChange?(state)
     select(sessionId: selectedId)
+    view.needsLayout = true
+    onVisibleSessionsChange?()
   }
 
-  var visibleIds: [String] { roots.flatMap(\.children).map(\.id) }
+  private func rebuildProjectMenu(_ state: SessionListState) {
+    let menu = NSMenu()
+    menu.autoenablesItems = false
+    let head = NSMenuItem(title: String(localized: "mac.sidebar.filterProjects", bundle: .lodyMac), action: nil, keyEquivalent: "")
+    head.image = NSImage(systemSymbolName: "line.3.horizontal.decrease", accessibilityDescription: nil)
+    menu.addItem(head)
+    let all = NSMenuItem(title: String(localized: "mac.sidebar.allProjects", bundle: .lodyMac), action: #selector(chooseProject(_:)), keyEquivalent: "")
+    all.representedObject = ""
+    all.target = self
+    all.state = projectId == nil ? .on : .off
+    menu.addItem(all)
+    menu.addItem(.separator())
+    for project in state.catalog.projects.sorted(by: { $0.name.localizedStandardCompare($1.name) == .orderedAscending }) {
+      let item = NSMenuItem(title: project.name, action: #selector(chooseProject(_:)), keyEquivalent: "")
+      item.representedObject = project.id
+      item.target = self
+      item.state = project.id == projectId ? .on : .off
+      item.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
+      menu.addItem(item)
+    }
+    menu.addItem(.separator())
+    let manage = NSMenuItem(title: String(localized: "mac.sidebar.manageProjects", bundle: .lodyMac), action: #selector(showProjects), keyEquivalent: "")
+    manage.target = self
+    menu.addItem(manage)
+    filter.menu = menu
+    filter.contentTintColor = projectId == nil ? .secondaryLabelColor : .lodyAccent
+  }
+
+  var visibleIds: [String] {
+    (0..<outline.numberOfRows).compactMap { (outline.item(atRow: $0) as? Node)?.row?.id }
+  }
 
   func neighbor(of id: String?, step: Int) -> String? {
     let ids = visibleIds
@@ -193,6 +267,18 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   private func fill(_ menu: NSMenu, for id: String) {
     menu.removeAllItems()
     menu.autoenablesItems = false
+    for (title, action, enabled) in [
+      (String(localized: "mac.sidebar.openTab", bundle: .lodyMac), #selector(openTab(_:)), onOpenTab != nil),
+      (String(localized: "mac.sidebar.openWindow", bundle: .lodyMac), #selector(openWindow(_:)), onOpenWindow != nil),
+    ] {
+      let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+      item.target = self
+      item.identifier = NSUserInterfaceItemIdentifier(id)
+      item.isEnabled = enabled
+      item.image = NSImage(systemSymbolName: "macwindow", accessibilityDescription: nil)
+      menu.addItem(item)
+    }
+    menu.addItem(.separator())
     for action in MacSessionAction.menuOrder {
       menu.addItem(contextItem(action, id))
     }
@@ -224,7 +310,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   private static func node(_ row: MacSidebarModel.Row) -> Node { Node(id: row.id, title: row.title, row: row) }
 
   private func find(_ id: String) -> Node? {
-    roots.flatMap(\.children).first { $0.id == id }
+    (roots + roots.flatMap(\.children)).first { $0.id == id }
   }
 
   func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
@@ -236,7 +322,8 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   }
 
   func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
-    (item as? Node)?.row == nil
+    guard let node = item as? Node else { return false }
+    return node.row == nil && node.id != "spacer"
   }
 
   func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool { false }
@@ -249,8 +336,15 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
 
   func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
     guard let node = item as? Node else { return nil }
-    if let row = node.row { return SidebarSessionCell(row: row) }
+    if let row = node.row {
+      let cell = SidebarSessionCell(row: row)
+      cell.menuForRow = { [weak self] in self?.contextMenu(for: row.id) ?? NSMenu() }
+      return cell
+    }
+    if node.id == "spacer" { return NSView() }
     let cell = NSTableCellView()
+    cell.setAccessibilityIdentifier("sidebar-shelf-" + node.id)
+    cell.setAccessibilityLabel(node.title)
     let label = NSTextField(labelWithString: node.title)
     label.font = .systemFont(ofSize: 11, weight: .semibold)
     label.textColor = .secondaryLabelColor
@@ -258,25 +352,38 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     label.translatesAutoresizingMaskIntoConstraints = false
     cell.addSubview(label)
     NSLayoutConstraint.activate([
-      label.leadingAnchor.constraint(equalTo: cell.leadingAnchor),
-      label.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor),
+      label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 18),
+      label.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: -28),
       label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+    ])
+    let count = NSTextField(labelWithString: String(node.children.count))
+    count.font = .systemFont(ofSize: 10)
+    count.textColor = .secondaryLabelColor
+    count.translatesAutoresizingMaskIntoConstraints = false
+    cell.addSubview(count)
+    NSLayoutConstraint.activate([
+      count.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -10),
+      count.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
     ])
     return cell
   }
 
   func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
-    (item as? Node)?.row == nil ? 26 : outlineView.rowHeight
+    guard let node = item as? Node else { return 28 }
+    if node.id == "spacer" { return spacerHeight }
+    return node.row == nil ? 28 : 76
   }
 
   func outlineViewItemDidCollapse(_ notification: Notification) {
     guard !reloading, let node = notification.userInfo?["NSObject"] as? Node else { return }
     collapsed.insert(node.id)
+    onVisibleSessionsChange?()
   }
 
   func outlineViewItemDidExpand(_ notification: Notification) {
     guard !reloading, let node = notification.userInfo?["NSObject"] as? Node else { return }
     collapsed.remove(node.id)
+    onVisibleSessionsChange?()
   }
 
   func outlineViewSelectionDidChange(_ notification: Notification) {
@@ -289,17 +396,17 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
 
   @objc private func newSessionPressed() { onNewSession?() }
 
-  @objc private func approvalsPressed() {
-    guard !approvalQueue.isEmpty else { return }
-    let index = selectedId.flatMap(approvalQueue.firstIndex(of:)).map { ($0 + 1) % approvalQueue.count } ?? 0
-    let id = approvalQueue[index]
-    select(sessionId: id)
-    onSelect?(id)
+  @objc private func chooseProject(_ sender: NSMenuItem) {
+    guard let id = sender.representedObject as? String else { return }
+    projectId = id.isEmpty ? nil : id
+    reload()
   }
 
-  @objc private func workspaceChanged() {
-    let index = workspacePicker.indexOfSelectedItem
-    guard workspaceIds.indices.contains(index), workspaceIds[index] != source.read().workspaceId else { return }
-    source.selectWorkspace(workspaceIds[index])
-  }
+  func focusSearch() { view.window?.makeFirstResponder(search) }
+  @objc private func showSettings() { onShowSettings?(.general) }
+  @objc private func showMachines() { onShowSettings?(.machines) }
+  @objc private func showProjects() { onShowSettings?(.projects) }
+  @objc private func showAbout() { onShowSettings?(.about) }
+  @objc private func openTab(_ sender: NSMenuItem) { sender.identifier.map { onOpenTab?($0.rawValue) } }
+  @objc private func openWindow(_ sender: NSMenuItem) { sender.identifier.map { onOpenWindow?($0.rawValue) } }
 }

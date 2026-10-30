@@ -201,11 +201,13 @@ final class MacWorkspaceChromeTests: XCTestCase {
     var state = MacFixtures.listState
     state.workspaces.append(AuthWorkspace(id: "w-side", name: "Side Projects", slug: nil, image: nil))
     var selected: [String] = []
-    let sidebar = SidebarViewController(source: MacSessionsSource(
-      changes: [], read: { state }, write: { _, _, _ in }, selectWorkspace: { selected.append($0) }
+    let source = MacSessionsSource(changes: [], read: { state }, write: { _, _, _ in }, selectWorkspace: { selected.append($0) })
+    let controller = MainWindowController(environment: MacEnvironment(
+      sessions: source, pane: { MacSessionSummaryController(sessionId: $0, sessions: source) },
+      newSession: { MacPlaceholderController(text: "") }, requiresAccount: false
     ))
-    _ = sidebar.view
-    let picker = try XCTUnwrap(sidebar.view.descendants(NSPopUpButton.self).first { $0.accessibilityIdentifier() == "sidebar-workspace" })
+    defer { controller.window?.close() }
+    let picker = try XCTUnwrap(controller.window?.toolbar?.items.first { $0.itemIdentifier == .lodyWorkspace }?.view as? NSPopUpButton)
     XCTAssertFalse(picker.isHidden)
     XCTAssertEqual(picker.itemTitles, ["Innei Lab", "Side Projects"])
     picker.selectItem(at: 1)

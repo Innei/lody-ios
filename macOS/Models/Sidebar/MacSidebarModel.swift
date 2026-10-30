@@ -8,6 +8,14 @@ struct MacSidebarModel: Equatable {
     let status: String
     let attention: Bool
     let unread: Bool
+    let projectId: String
+    let project: String
+    let branch: String?
+    let machine: String?
+    let agent: String
+    let activityAt: Double?
+    let pinned: Bool
+    let archived: Bool
   }
 
   struct Group: Equatable {
@@ -23,34 +31,48 @@ struct MacSidebarModel: Equatable {
 
   init() {}
 
-  init(state: SessionListState, query: String = "") {
+  init(state: SessionListState, query: String = "", projectId: String? = nil) {
     let catalog = state.catalog
     let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    let names = Dictionary(catalog.projects.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
     let visible = catalog.sessions
-      .filter { !$0.archived && $0.parentSessionId == nil }
-      .filter { trimmed.isEmpty || $0.title.localizedCaseInsensitiveContains(trimmed) }
-      .sorted { ($0.lastMessageAt ?? 0) > ($1.lastMessageAt ?? 0) }
+      .filter { $0.parentSessionId == nil }
+      .filter { projectId == nil || $0.projectId == projectId }
+      .filter { session in
+        trimmed.isEmpty || [session.title, names[session.projectId] ?? "", session.branchName ?? ""]
+          .contains { $0.localizedCaseInsensitiveContains(trimmed) }
+      }
+      .sorted { lhs, rhs in
+        let left = lhs.lastMessageAt ?? 0
+        let right = rhs.lastMessageAt ?? 0
+        if left == right { return lhs.id < rhs.id }
+        return left > right
+      }
     approvals = catalog.sessions
       .compactMap { session in session.archived ? nil : session.awaitingUserSince.map { (session.id, $0) } }
       .sorted { $0.1 < $1.1 }
       .map(\.0)
-    pinned = visible.filter(\.pinned).map(Self.row)
-    var order: [String] = []
-    var rows: [String: [Row]] = [:]
-    for session in visible where !session.pinned {
-      if rows[session.projectId] == nil { order.append(session.projectId) }
-      rows[session.projectId, default: []].append(Self.row(session))
+    func rows(_ sessions: [SessionItem]) -> [Row] {
+      sessions.map { Self.row($0, names: names, machines: catalog.machineNames) }
     }
-    let names = Dictionary(catalog.projects.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
-    groups = order.map { id in
-      let name = names[id].flatMap { $0.isEmpty ? nil : $0 }
-      return Group(id: id, title: name ?? String(localized: "mac.sidebar.noProject", bundle: .lodyMac), rows: rows[id] ?? [])
-    }
+    pinned = rows(visible.filter { $0.pinned && !$0.archived })
+    let unpinned = visible.filter { !$0.pinned && !$0.archived }
+    let working = unpinned.filter { OutboxDispatcher.busy.contains($0.status) && $0.awaitingUserSince == nil }
+    let workingIds = Set(working.map(\.id))
+    groups = [
+      Group(id: "active", title: "", rows: rows(unpinned.filter { !workingIds.contains($0.id) })),
+      Group(id: "working", title: String(localized: "mac.sidebar.working", bundle: .lodyMac), rows: rows(working)),
+      Group(id: "settled", title: String(localized: "mac.sidebar.settled", bundle: .lodyMac), rows: rows(visible.filter(\.archived))),
+    ]
   }
 
-  private static func row(_ session: SessionItem) -> Row {
+  private static func row(_ session: SessionItem, names: [String: String], machines: [String: String]) -> Row {
     let title = session.title.isEmpty ? String(localized: "mac.sidebar.untitled", bundle: .lodyMac) : session.title
     let unread = (session.lastMessageAt ?? 0) > max(session.lastReadAt ?? 0, session.lastViewedMessageAt ?? 0)
-    return Row(id: session.id, title: title, status: session.status, attention: session.awaitingUserSince != nil, unread: unread)
+    let project = names[session.projectId].flatMap { $0.isEmpty ? nil : $0 }
+      ?? String(localized: "mac.sidebar.noProject", bundle: .lodyMac)
+    return Row(id: session.id, title: title, status: session.status, attention: session.awaitingUserSince != nil, unread: unread,
+               projectId: session.projectId, project: project, branch: session.branchName, machine: machines[session.machineId],
+               agent: session.agentType, activityAt: session.lastMessageAt, pinned: session.pinned, archived: session.archived)
   }
 }

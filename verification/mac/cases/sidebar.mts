@@ -37,32 +37,31 @@ export async function sidebar(session: Session) {
       order(
         [
           'session-s-plan',
-          'session-s-mac',
+          'session-s-landing',
           'session-s-review',
           'session-s-tabs',
-          'session-s-landing',
+          'session-s-deploy',
+          'session-s-mac',
         ],
         ids,
       ),
-      `pinned first, then projects by recency: ${ids.join(', ')}`,
+      `pinned and active precede the working shelf: ${ids.join(', ')}`,
+    );
+    expect(
+      find(
+        ready,
+        (node) => node.identifier === 'sidebar-new-session' && node.enabled,
+      ).length === 1,
+      'the sidebar provides a native new-session action',
     );
     expect(
       find(
         ready,
         (node) =>
-          node.identifier === 'sidebar-approvals' &&
-          node.text === 'Needs Approval · 1',
+          node.identifier === 'sidebar-search' &&
+          node.class === 'NSSearchField',
       ).length === 1,
-      'the approval shortcut counts the waiting session',
-    );
-    expect(
-      find(
-        ready,
-        (node) =>
-          node.identifier === 'sidebar-machines' &&
-          node.text === 'Machines online: 2',
-      ).length === 1,
-      'the footer reports machine presence',
+      'search uses the native AppKit search field',
     );
     await capture(session, `sidebar-${appearance}`);
   }

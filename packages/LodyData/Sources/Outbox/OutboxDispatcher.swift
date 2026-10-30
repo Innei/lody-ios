@@ -61,7 +61,7 @@ public final class OutboxDispatcher {
   public static let maxSessionReserves = 8
   private static let occupying: Set<String> = ["creating", "sending", "unknown", "uploaded"]
   private static let settled: Set<String> = ["accepted", "queued", "failed"]
-  public static let busy: Set<String> = ["running", "initializing", "processing", "in_progress", "queued", "requestPermission", "waiting"]
+  public nonisolated static let busy: Set<String> = ["running", "initializing", "processing", "in_progress", "queued", "requestPermission", "waiting"]
 
   public let inflight: OutboxInflight
   public var settled: (() -> Void)?

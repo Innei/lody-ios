@@ -19,8 +19,8 @@ final class MacDetailController: NSViewController {
     view.addSubview(next.view)
     NSLayoutConstraint.activate([
       next.view.topAnchor.constraint(equalTo: view.topAnchor),
-      next.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      next.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      next.view.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
+      next.view.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
       next.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
     ])
     current = next

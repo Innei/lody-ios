@@ -34,12 +34,16 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   override func viewDidLoad() {
     super.viewDidLoad()
     let side = NSSplitViewItem(sidebarWithViewController: sidebar)
-    side.minimumThickness = 220
+    side.minimumThickness = 280
     side.maximumThickness = 380
+    side.preferredThicknessFraction = 0.27
     side.canCollapse = true
+    side.addTopAlignedAccessoryViewController(sidebar.topAccessory)
+    side.addBottomAlignedAccessoryViewController(sidebar.bottomAccessory)
     addSplitViewItem(side)
     let content = NSSplitViewItem(viewController: detail)
     content.minimumThickness = 420
+    content.automaticallyAdjustsSafeAreaInsets = true
     addSplitViewItem(content)
     sidebar.onSelect = { [weak self] id in self?.open(id) }
     observers.append(NotificationCenter.default.addObserver(forName: .lodyMacOpenSession, object: nil, queue: .main) { [weak self] note in
@@ -55,6 +59,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
       })
     }
     sidebar.onNewSession = { [weak self] in self?.onNewSession?() }
+    sidebar.onShowSettings = environment.showSettings
     sidebar.actions = actions
     sidebar.onAction = { [weak self] action, id in self?.run(action, id) }
   }
@@ -71,6 +76,7 @@ final class MacWorkspaceController: NSSplitViewController, MacStreamingTab {
   @objc func selectPreviousSession(_ sender: Any?) { step(-1) }
 
   @objc func selectNextSession(_ sender: Any?) { step(1) }
+  @objc func findSessions(_ sender: Any?) { sidebar.focusSearch() }
 
   private func step(_ offset: Int) {
     guard let next = sidebar.neighbor(of: sessionId, step: offset) else { return }
