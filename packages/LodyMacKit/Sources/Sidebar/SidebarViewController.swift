@@ -21,6 +21,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   private let source: MacSessionsSource
   private let outline = NSOutlineView()
   private var collapsed: Set<String> = []
+  private var approvalQueue: [String] = []
   private var reloading = false
   private let search = NSSearchField()
   private let workspacePicker = NSPopUpButton()
@@ -62,6 +63,8 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     approvals.alignment = .left
     approvals.contentTintColor = .secondaryLabelColor
     approvals.setAccessibilityIdentifier("sidebar-approvals")
+    approvals.target = self
+    approvals.action = #selector(approvalsPressed)
     let column = NSTableColumn(identifier: .init("session"))
     outline.addTableColumn(column)
     outline.outlineTableColumn = column
@@ -146,6 +149,8 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     reloading = false
     approvals.title = String(localized: "mac.sidebar.approvals \(model.needsApproval)", bundle: .lodyMac)
     approvals.contentTintColor = model.needsApproval > 0 ? .systemOrange : .secondaryLabelColor
+    approvals.isEnabled = model.needsApproval > 0
+    approvalQueue = model.approvals
     let ids = state.workspaces.map(\.id)
     if ids != workspaceIds {
       workspaceIds = ids
@@ -228,6 +233,14 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   func controlTextDidChange(_ obj: Notification) { reload() }
 
   @objc private func newSessionPressed() { onNewSession?() }
+
+  @objc private func approvalsPressed() {
+    guard !approvalQueue.isEmpty else { return }
+    let index = selectedId.flatMap(approvalQueue.firstIndex(of:)).map { ($0 + 1) % approvalQueue.count } ?? 0
+    let id = approvalQueue[index]
+    select(sessionId: id)
+    onSelect?(id)
+  }
 
   @objc private func workspaceChanged() {
     let index = workspacePicker.indexOfSelectedItem

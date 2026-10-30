@@ -16,7 +16,8 @@ struct MacSidebarModel: Equatable {
     var rows: [Row]
   }
 
-  var needsApproval = 0
+  var approvals: [String] = []
+  var needsApproval: Int { approvals.count }
   var pinned: [Row] = []
   var groups: [Group] = []
 
@@ -29,7 +30,10 @@ struct MacSidebarModel: Equatable {
       .filter { !$0.archived && $0.parentSessionId == nil }
       .filter { trimmed.isEmpty || $0.title.localizedCaseInsensitiveContains(trimmed) }
       .sorted { ($0.lastMessageAt ?? 0) > ($1.lastMessageAt ?? 0) }
-    needsApproval = catalog.sessions.filter { !$0.archived && $0.awaitingUserSince != nil }.count
+    approvals = catalog.sessions
+      .compactMap { session in session.archived ? nil : session.awaitingUserSince.map { (session.id, $0) } }
+      .sorted { $0.1 < $1.1 }
+      .map(\.0)
     pinned = visible.filter(\.pinned).map(Self.row)
     var order: [String] = []
     var rows: [String: [Row]] = [:]

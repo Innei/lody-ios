@@ -171,3 +171,35 @@ final class MacSidebarExpansionTests: XCTestCase {
     XCTAssertTrue(outline.isItemExpanded(other))
   }
 }
+
+@MainActor
+final class MacSidebarApprovalTests: XCTestCase {
+  private func state() -> SessionListState {
+    var catalog = SessionCatalog()
+    catalog.sessions = [
+      SessionItem(id: "late", title: "Late", awaitingUserSince: 30),
+      SessionItem(id: "calm", title: "Calm"),
+      SessionItem(id: "early", title: "Early", awaitingUserSince: 10),
+      SessionItem(id: "gone", title: "Gone", archived: true, awaitingUserSince: 5),
+    ]
+    return SessionListState(userId: "u", workspaceId: "w", catalog: catalog)
+  }
+
+  func testApprovalsQueueByLongestWait() {
+    XCTAssertEqual(MacSidebarModel(state: state()).approvals, ["early", "late"])
+  }
+
+  func testTheApprovalsButtonCyclesThroughWaitingSessions() throws {
+    let current = state()
+    let sidebar = SidebarViewController(source: MacSessionsSource(changes: [], read: { current }, write: { _, _, _ in }, selectWorkspace: { _ in }))
+    var opened: [String?] = []
+    sidebar.onSelect = { opened.append($0) }
+    _ = sidebar.view
+    let button = try XCTUnwrap(sidebar.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "sidebar-approvals" })
+    XCTAssertTrue(button.isEnabled)
+    button.performClick(nil)
+    button.performClick(nil)
+    button.performClick(nil)
+    XCTAssertEqual(opened, ["early", "late", "early"])
+  }
+}
