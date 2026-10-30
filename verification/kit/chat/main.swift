@@ -344,14 +344,21 @@ let completedWithNotice = """
 let noticeEntries = try JSONDecoder().decode([ChatEntry].self, from: Data(completedWithNotice.utf8))
 let noticeTranscript = ChatTranscript(entries: noticeEntries)
 assert(!noticeEntries.contains(where: \.isRunning), "A system notice is not an active assistant turn")
-assert(noticeTranscript.rows().map(\.kind) == ["summary", "text", "meta", "changesHeader", "changes"])
-assert(noticeTranscript.rows().last?.fileDiff?.path == "docs/.diff-check.md")
-assert(noticeTranscript.rows().last?.fileDiff?.add == 1)
-assert(noticeTranscript.rows().last?.group == "last")
-assert(noticeTranscript.rows().first { $0.kind == "changesHeader" }?.group == "first", "The header opens the file block")
+assert(noticeTranscript.rows().map(\.kind) == ["summary", "text", "changes", "meta"], "One changed file is a single row above the meta row")
+let noticeFile = noticeTranscript.rows().first { $0.kind == "changes" }
+assert(noticeFile?.fileDiff?.path == "docs/.diff-check.md")
+assert(noticeFile?.fileDiff?.add == 1)
+assert(noticeFile?.group == "only")
+let twoChangedFiles = ChatTranscript(entries: try JSONDecoder().decode([ChatEntry].self, from: Data(completedWithNotice.replacingOccurrences(
+  of: #"[{"path":"docs/.diff-check.md","add":1,"del":1}]"#,
+  with: #"[{"path":"docs/.diff-check.md","add":1,"del":1},{"path":"src/App.tsx","add":2,"del":0}]"#
+).utf8)))
+assert(twoChangedFiles.rows().map(\.kind) == ["summary", "text", "changesHeader", "changes", "changes", "meta"])
+assert(twoChangedFiles.rows().first { $0.kind == "changesHeader" }?.group == "first", "The header opens the file block")
+assert(twoChangedFiles.rows().last { $0.kind == "changes" }?.group == "last")
 // A CLI harness has no compiled catalog, so plural rows fall back to the key;
 // the strings check covers the Foundation substitution itself.
-assert(noticeTranscript.rows().contains { $0.kind == "changesHeader" && $0.text == "native.chat.transcript.fileCount" })
+assert(twoChangedFiles.rows().contains { $0.kind == "changesHeader" && $0.text == "native.chat.transcript.fileCount" })
 assert(noticeTranscript.rows(processEntryID: "warning").isEmpty)
 assert(!noticeTranscript.rows(processEntryID: "done").contains { $0.kind == "changes" || $0.kind == "changesHeader" })
 let cachedNotice = completedWithNotice.replacingOccurrences(of: ",\"name\":\"agent_warning\"", with: "")

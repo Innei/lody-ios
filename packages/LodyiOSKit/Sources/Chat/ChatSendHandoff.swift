@@ -7,7 +7,9 @@ final class ChatMessageContent: UIView {
   let numericText = ChatNumericTextHost()
   static let maximumCollapsedHeight: CGFloat = 140
   static let bubbleRadius: CGFloat = 19
+  static let tailRadius: CGFloat = 6
   let bubble = UIView()
+  private let tail = UIView()
   let disclosure = UIButton(type: .system)
   private let fade = CAGradientLayer()
   var folded: Bool { expandable && !expanded }
@@ -31,6 +33,12 @@ final class ChatMessageContent: UIView {
     clipsToBounds = true
     bubble.backgroundColor = .lodyUserBubble
     Self.applyBubbleCorners(to: bubble.layer, size: .zero)
+    tail.isUserInteractionEnabled = false
+    tail.autoresizingMask = [.flexibleLeftMargin, .flexibleTopMargin]
+    tail.layer.cornerCurve = .circular
+    tail.layer.maskedCorners = [.layerMaxXMaxYCorner]
+    tail.layer.cornerRadius = Self.tailRadius
+    bubble.addSubview(tail)
     addSubview(bubble)
     addSubview(label)
     numericText.isHidden = true
@@ -47,6 +55,9 @@ final class ChatMessageContent: UIView {
     bubble.frame = bounds
     bubble.backgroundColor = .lodyUserBubble
     Self.applyBubbleCorners(to: bubble.layer, size: bounds.size)
+    let corner = bubble.layer.cornerRadius
+    tail.frame = CGRect(x: bounds.width - corner, y: bounds.height - corner, width: corner, height: corner)
+    tail.backgroundColor = bubble.backgroundColor
     // Process rows own the label frame so the chevron keeps its 8pt gap.
     // Bubble insets are only for the user send handoff.
     guard !bubble.isHidden else { return }

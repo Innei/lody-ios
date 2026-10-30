@@ -76,4 +76,7 @@ extension UIColor {
   static let lodyBandPressed = LodyDesign.wash(light: 0.09, dark: 0.13)
   static let lodyAttention = LodyDesign.dynamic(light: 0xC47208, dark: 0xF2A33A, lightHigh: 0x9A5800, darkHigh: 0xFFB54D)
   static let lodyFailure = UIColor.systemRed
+  static let lodySignal = LodyDesign.dynamic(light: 0x3550D4, dark: 0x8195FF, lightHigh: 0x2A40B0, darkHigh: 0xA3B2FF)
+  static let lodySignalTail = LodyDesign.dynamic(light: 0x1FA797, dark: 0x39C6AE, lightHigh: 0x13806F, darkHigh: 0x5DD8C2)
+  static let lodySignalOnAccent = LodyDesign.dynamic(light: 0xFFFFFF, dark: 0x0C0F24, lightHigh: 0xFFFFFF, darkHigh: 0x000000)
 }

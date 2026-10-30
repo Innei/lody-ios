@@ -85,6 +85,8 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var imageSharingEnabled = false
   var onFilePress: ([String: Any]) -> Void = { _ in }
   var onTurnChangesPress: ([String: Any]) -> Void = { _ in }
+  var onReviewChanges: () -> Void = {}
+  var canReviewChanges: () -> Bool = { false }
   var onReconnect: ([String: Any]) -> Void = { _ in }
   var onRetrySend: ([String: Any]) -> Void = { _ in }
   var onTitlePress: ([String: Any]) -> Void = { _ in }
@@ -128,6 +130,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   var expandedPlans = Set<String>()
   var expandedMessages = Set<String>()
   var expandedAttachments = Set<String>()
+  var expandedChanges = Set<String>()
   var collapsedMessageHeights: [String: CGFloat] = [:]
   var imageWorkspace = ""
   var imageSession = ""
@@ -208,24 +211,54 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   private var lastAcknowledgedDraftToken = 0
   private var lastRestoredDraftToken = 0
   private let fileHeaderRegistration = UICollectionView.CellRegistration<ChatFileCell, ChatRow> { cell, _, row in
-    let content = ChatFileCell.headerContent(for: row.text)
+    var content = ChatFileCell.headerContent(for: row.text)
+    content.image = UIImage(systemName: "plus.forwardslash.minus")
+    content.imageProperties.tintColor = .lodySecondary
+    content.imageProperties.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 13, weight: .medium)
+    content.imageToTextPadding = 8
     cell.directionalLayoutMargins.leading = content.directionalLayoutMargins.leading
     cell.directionalLayoutMargins.trailing = content.directionalLayoutMargins.trailing
     cell.contentConfiguration = content
+    let open = row.group == "first"
     cell.apply(group: row.group, selected: false)
     cell.accessories = []
+    let chevron = UIImageView(image: UIImage(systemName: "chevron.right", withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)))
+    chevron.tintColor = .lodyTertiary
+    chevron.transform = open ? CGAffineTransform(rotationAngle: .pi / 2) : .identity
     if let file = row.fileDiff {
       let counts = UILabel()
       counts.font = LodyDesign.mono(12, compatibleWith: cell.traitCollection)
-      let value = NSMutableAttributedString(string: "+\(file.add ?? 0)", attributes: [.foregroundColor: UIColor.systemGreen])
-      value.append(NSAttributedString(string: "  −\(file.del ?? 0)", attributes: [.foregroundColor: UIColor.systemRed]))
-      counts.attributedText = value
-      cell.accessories = [.customView(configuration: .init(customView: counts, placement: .trailing()))]
+      counts.attributedText = ChatFileCell.stat(add: file.add ?? 0, del: file.del ?? 0)
+      let summary = ChatFileCell.summaryAccessory(squares: ChatDiffstatView(add: file.add ?? 0, del: file.del ?? 0), counts: counts)
+      cell.accessories = [
+        .customView(configuration: .init(customView: summary, placement: .trailing(), reservedLayoutWidth: .actual)),
+        .customView(configuration: .init(customView: chevron, placement: .trailing())),
+      ]
       cell.accessibilityLabel = String.localizedStringWithFormat(String(localized: "native.chat.file.diffStats", bundle: .lody), String(describing: file.add ?? 0), String(describing: file.del ?? 0), String(describing: row.text))
     }
     cell.isAccessibilityElement = true
     cell.accessibilityIdentifier = row.id
-    cell.accessibilityTraits = .header
+    cell.accessibilityTraits = .button
+    cell.accessibilityValue = String(localized: open ? "native.chat.changes.expanded" : "native.chat.changes.collapsed", bundle: .lody)
+  }
+  private let reviewRegistration = UICollectionView.CellRegistration<ChatFileCell, ChatRow> { cell, _, row in
+    var content = ChatFileCell.rowContent()
+    content.text = row.text
+    content.attributedText = nil
+    content.textProperties.font = LodyDesign.font(.footnote, size: 13, weight: .medium)
+    content.textProperties.color = .lodyAccent
+    cell.directionalLayoutMargins.leading = content.directionalLayoutMargins.leading
+    cell.directionalLayoutMargins.trailing = content.directionalLayoutMargins.leading
+    cell.contentConfiguration = content
+    cell.apply(group: row.group, selected: cell.isHighlighted || cell.isSelected)
+    cell.accessories = [.disclosureIndicator()]
+    cell.configurationUpdateHandler = { cell, state in
+      (cell as? ChatFileCell)?.apply(group: row.group, selected: state.isHighlighted || state.isSelected)
+    }
+    cell.isAccessibilityElement = true
+    cell.accessibilityIdentifier = row.id
+    cell.accessibilityLabel = row.text
+    cell.accessibilityTraits = .button
   }
   private let fileRegistration = UICollectionView.CellRegistration<ChatFileCell, ChatRow> { cell, _, row in
     guard let file = row.fileDiff else { return }
@@ -236,9 +269,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     cell.apply(group: row.group, selected: cell.isHighlighted || cell.isSelected)
     let counts = UILabel()
     counts.font = LodyDesign.mono(12, compatibleWith: cell.traitCollection)
-    let value = NSMutableAttributedString(string: "+\(file.add ?? 0)", attributes: [.foregroundColor: UIColor.systemGreen])
-    value.append(NSAttributedString(string: "  −\(file.del ?? 0)", attributes: [.foregroundColor: UIColor.systemRed]))
-    counts.attributedText = value
+    counts.attributedText = ChatFileCell.stat(add: file.add ?? 0, del: file.del ?? 0)
     cell.accessories = [.customView(configuration: .init(customView: counts, placement: .trailing())), .disclosureIndicator()]
     cell.configurationUpdateHandler = { cell, state in
       (cell as? ChatFileCell)?.apply(group: row.group, selected: state.isHighlighted || state.isSelected)
@@ -318,6 +349,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     collection.register(ChatSubagentCell.self, forCellWithReuseIdentifier: "subagent")
     collection.register(ChatCell.self, forCellWithReuseIdentifier: "message")
     collection.register(ChatMetaCell.self, forCellWithReuseIdentifier: "meta")
+    collection.register(ChatTurnCell.self, forCellWithReuseIdentifier: "turn")
     collection.register(ChatPlanCell.self, forCellWithReuseIdentifier: "proposed-plan")
     collection.register(ChatMarkdownCell.self, forCellWithReuseIdentifier: "markdown")
     dataSource = UICollectionViewDiffableDataSource<String, String>(collectionView: collection) { [weak self] collection, index, id in
@@ -349,8 +381,16 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
         cell.actionButton.menu = messageMenu(entryID: row.entryID, source: cell.actionButton)
         return cell
       }
+      if row.kind == "turn" {
+        let cell = collection.dequeueReusableCell(withReuseIdentifier: "turn", for: index) as! ChatTurnCell
+        cell.configure(row)
+        return cell
+      }
       if row.kind == "changesHeader" {
         return collection.dequeueConfiguredReusableCell(using: self.fileHeaderRegistration, for: index, item: row)
+      }
+      if row.kind == "changesReview" {
+        return collection.dequeueConfiguredReusableCell(using: self.reviewRegistration, for: index, item: row)
       }
       if row.kind == "changes" {
         return collection.dequeueConfiguredReusableCell(using: self.fileRegistration, for: index, item: row)
@@ -458,6 +498,7 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
       guard let self else { return }
       self.onActivityPress([
         "entryId": self.transcript.entries.last(where: { $0.role == "assistant" })?.id ?? "",
+        "itemId": "",
         "processStartId": ChatOverlay.tasksProcessStartID,
       ])
     }

@@ -5,15 +5,12 @@ final class ChatSubagentCell: UICollectionViewCell {
   private let titleLabel = UILabel()
   private let statusLabel = UILabel()
   private let detailLabel = UILabel()
-  private let tree = CAShapeLayer()
+  private lazy var tree = LodyTentacle(in: contentView.layer)
   private var row: ChatRow?
 
   override init(frame: CGRect) {
     super.init(frame: frame)
-    tree.fillColor = nil
-    tree.lineWidth = 1
-    tree.lineCap = .round
-    contentView.layer.addSublayer(tree)
+    _ = tree
     for view in [glyph, titleLabel, statusLabel, detailLabel] as [UIView] {
       view.isAccessibilityElement = false
       contentView.addSubview(view)
@@ -41,8 +38,7 @@ final class ChatSubagentCell: UICollectionViewCell {
     super.prepareForReuse()
     row = nil
     glyph.kind = .none
-    tree.path = nil
-    tree.isHidden = true
+    tree.apply(UIBezierPath(), live: false, frame: contentView.bounds, traits: traitCollection)
     contentView.alpha = 1
   }
 
@@ -101,12 +97,12 @@ final class ChatSubagentCell: UICollectionViewCell {
   }
 
   private static func detailFont(_ traits: UITraitCollection) -> UIFont {
-    LodyDesign.font(.footnote, size: 12.5, compatibleWith: traits)
+    LodyDesign.font(.footnote, size: 12, compatibleWith: traits)
   }
 
   private static func firstLine(_ traits: UITraitCollection) -> (top: CGFloat, height: CGFloat, row: CGFloat) {
     let height = ceil(titleFont(traits).lineHeight)
-    let row = max(44, height + 16)
+    let row = max(30, height + 12)
     return (floor((row - height) / 2), height, row)
   }
 
@@ -114,7 +110,7 @@ final class ChatSubagentCell: UICollectionViewCell {
     guard let card = row.subagent else { return 0 }
     let line = firstLine(traits)
     if detailText(card).isEmpty { return line.row }
-    return max(LodyDesign.Rail.primaryHeight, line.top + line.height + 2 + ceil(detailFont(traits).lineHeight) + 7)
+    return max(40, line.top + line.height + 1 + ceil(detailFont(traits).lineHeight))
   }
 
   override func layoutSubviews() {
@@ -131,28 +127,16 @@ final class ChatSubagentCell: UICollectionViewCell {
     let midY = line.top + line.height / 2
     statusLabel.frame = CGRect(x: width - statusWidth, y: midY - statusHeight / 2, width: statusWidth, height: statusHeight)
     titleLabel.frame = CGRect(x: x, y: line.top, width: max(0, statusLabel.frame.minX - x - 8), height: line.height)
-    detailLabel.frame = CGRect(x: x, y: titleLabel.frame.maxY + 2, width: available, height: ceil(detailLabel.font.lineHeight))
+    detailLabel.frame = CGRect(x: x, y: titleLabel.frame.maxY + 1, width: available, height: ceil(detailLabel.font.lineHeight))
     let side = LodyDesign.Rail.glyph
     glyph.frame = CGRect(x: center - ChatReadingColumn.cellMargin - side / 2, y: midY - side / 2, width: side, height: side)
-    let path = UIBezierPath()
+    var path = UIBezierPath()
     if row.treeChild {
       let trunk = LodyDesign.Rail.center - ChatReadingColumn.cellMargin
-      let radius: CGFloat = 7
-      path.move(to: CGPoint(x: trunk, y: 0))
-      path.addLine(to: CGPoint(x: trunk, y: midY - radius))
-      path.addQuadCurve(to: CGPoint(x: trunk + radius, y: midY), controlPoint: CGPoint(x: trunk, y: midY))
-      path.addLine(to: CGPoint(x: glyph.frame.minX - 1, y: midY))
-      if !row.treeLast {
-        path.move(to: CGPoint(x: trunk, y: midY - radius))
-        path.addLine(to: CGPoint(x: trunk, y: contentView.bounds.height))
-      }
+      path = LodyTentacle.branch(
+        trunk: trunk, to: CGPoint(x: glyph.frame.minX - 1, y: midY), height: contentView.bounds.height, last: row.treeLast
+      )
     }
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    tree.frame = contentView.bounds
-    tree.strokeColor = UIColor.lodyRail.resolvedColor(with: traitCollection).cgColor
-    tree.path = path.isEmpty ? nil : path.cgPath
-    tree.isHidden = path.isEmpty
-    CATransaction.commit()
+    tree.apply(path, live: row.treeChild && row.parentLive, frame: contentView.bounds, traits: traitCollection)
   }
 }

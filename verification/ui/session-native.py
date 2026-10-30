@@ -66,7 +66,7 @@ task = ui.element('preview-answer:task')['frame']
 reply = ui.element('preview-answer:reply')['frame']
 assert process['y'] + process['height'] <= task['y'] + 1 and task['y'] + task['height'] <= reply['y'] + 1, \
     'Sub-agent rows hang under the process row, above the answer'
-assert task['height'] >= 44 and process['height'] >= 52, f'Process {process} and sub-agent {task} rows keep their rail heights'
+assert task['height'] in (30, 40) and process['height'] == 40, f'Process {process} and sub-agent {task} rows use the compact 30 / 40 pt rail heights'
 ui.capture('native-process-rail')
 ui.axe('tap', '-x', str(process['x'] + 60), '-y', str(process['y'] + process['height'] / 2), '--post-delay', '.5')
 assert ui.element('preview-answer:edit')['type'] == 'Button'

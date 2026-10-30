@@ -107,7 +107,7 @@ let processRow = ChatRow(
   treeDown: true
 )
 let processHeight = ChatCell.processHeight(for: processRow, width: 358, traits: railTraits)
-precondition(processHeight >= LodyDesign.Rail.primaryHeight, "A two-line process row must be at least 52 pt, got \(processHeight)")
+precondition(abs(processHeight - 40) < 0.5, "A two-line process row is 40 pt, got \(processHeight)")
 let processCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 358, height: processHeight))
 window.addSubview(processCell)
 processCell.configure(processRow, text: NSAttributedString(string: processRow.text))
@@ -127,9 +127,11 @@ precondition(processCell.processDetail.frame.minX == processCell.processTitle.fr
 let titleText = processCell.processTitle.attributedText!
 let titleFont = titleText.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
 let titleWeight = (titleFont.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any])?[.weight] as? CGFloat ?? 0
-let titleSize = LodyDesign.font(.subheadline, size: 14.5, compatibleWith: processCell.traitCollection).pointSize
+let titleSize = LodyDesign.font(.subheadline, size: 14, compatibleWith: processCell.traitCollection).pointSize
 precondition(abs(titleFont.pointSize - titleSize) < 0.1 && titleWeight >= UIFont.Weight.semibold.rawValue - 0.01,
-  "Line one uses 14.5 pt semibold, got \(titleFont.pointSize) weight \(titleWeight)")
+  "Line one uses 14 pt semibold, got \(titleFont.pointSize) weight \(titleWeight)")
+precondition(abs(processCell.processDetail.font.pointSize - LodyDesign.font(.footnote, size: 12, compatibleWith: processCell.traitCollection).pointSize) < 0.1,
+  "Line two uses 12 pt")
 let durationLabel = ChatWorkDuration.label(64_000)
 let durationRange = (titleText.string as NSString).range(of: durationLabel, options: .backwards)
 precondition(durationRange.location != NSNotFound, "Line one must carry the duration")
@@ -151,12 +153,15 @@ precondition(processCell.accessibilityLabel == processRow.text + ", " + processR
   "VoiceOver reads both process lines")
 
 let liveHeight = ChatCell.processHeight(for: durationRow, width: 358, traits: railTraits)
-precondition(liveHeight >= 44 && liveHeight < processHeight, "A one-line process row stays one line tall")
+precondition(abs(liveHeight - 30) < 0.5, "A one-line process row is 30 pt, got \(liveHeight)")
 let liveCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 358, height: liveHeight))
 window.addSubview(liveCell)
 liveCell.configure(durationRow, text: NSAttributedString(string: durationRow.text))
 liveCell.layoutIfNeeded()
 precondition(liveCell.processGlyph.kind == .live, "A running process draws the live glyph")
+let liveTitleColor = liveCell.processTitle.attributedText!.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor
+precondition(liveTitleColor?.resolvedColor(with: liveCell.traitCollection) == UIColor.lodyAccent.resolvedColor(with: liveCell.traitCollection),
+  "A running process names its work in the accent")
 precondition(liveCell.processChevron.isHidden, "A process row that cannot open hides the chevron")
 precondition(liveCell.processDetail.isHidden, "A process row without a summary hides line two")
 precondition(liveCell.processTree.path == nil, "A process row without sub-agents draws no trunk")
@@ -307,12 +312,17 @@ precondition((runningSummary.icon.image?.size.width ?? .greatestFiniteMagnitude)
   "The process status pip must be smaller than thought and tool icons")
 precondition((failedLiveSummary.icon.image?.size.width ?? .greatestFiniteMagnitude) < (thoughtCell.icon.image?.size.width ?? 0),
   "The warning mark must stay in the process pip scale")
-precondition(ChatCell.leading(doneSummary.row!) == railText, "Summary text must start at the rail text column")
-precondition(abs(doneSummary.icon.frame.midX - railCenter) < 0.5, "The summary pip must sit on the rail center")
+precondition(ChatCell.leading(doneSummary.row!) == 30 - ChatReadingColumn.cellMargin, "Summary text starts 6 pt after its dot, at x = 30")
+precondition(ChatCell.minimumHeight(for: doneSummary.row!) == 30, "Summary rows are 30 pt")
+precondition(ChatCell.minimumHeight(for: ChatRow(id: "f", entryID: "e", kind: "file", text: "report.txt", actionable: true)) == 44,
+  "Attachment rows keep the 44 pt target")
+precondition(ChatCell.minimumHeight(for: ChatRow(id: "e:pending", entryID: "e", kind: "pending", text: "Resend", actionable: true)) == 44,
+  "The resend row keeps the 44 pt target")
+precondition(abs(doneSummary.icon.frame.midX - (20 - ChatReadingColumn.cellMargin)) < 0.5, "The summary dot aligns its left edge with the text margin")
 precondition(doneSummary.icon.frame.width == 8, "The process pip slot must match the 6-point dot")
 precondition(abs(doneSummary.icon.frame.midY - doneSummary.label.frame.midY) <= 0.5,
   "The process pip must sit on the text baseline")
-precondition(doneSummary.label.frame.minX == railText, "Summary text must start at the rail text column")
+precondition(doneSummary.label.frame.minX == 30 - ChatReadingColumn.cellMargin, "Summary text starts at x = 30")
 precondition(!doneSummary.processChevron.isHidden && doneSummary.label.frame.maxX <= doneSummary.processChevron.frame.minX,
   "Summary rows open the activity through a trailing chevron")
 precondition(ChatCell.messageFont(for: doneSummary.row!, compatibleWith: traits).pointSize == 12.5 * UIFont.dynamicScale(compatibleWith: traits),
@@ -589,7 +599,8 @@ metaCell.frame.size.height = ChatMetaCell.height(for: metaRow, width: 320, trait
 metaCell.configure(metaRow)
 metaCell.layoutIfNeeded()
 let actions = metaCell.actionButton
-precondition(actions.bounds.width >= 44 && actions.bounds.height >= 44, "Message actions keep a 44 pt target")
+precondition(metaCell.bounds.height == 32, "The meta row is 32 pt, got \(metaCell.bounds.height)")
+precondition(actions.bounds.width >= 44 && actions.bounds.height == metaCell.bounds.height, "Message actions fill the meta row and stay 44 pt wide")
 let actionShot = UIGraphicsImageRenderer(size: actions.bounds.size).image { context in
   UIColor.white.setFill()
   context.fill(CGRect(origin: .zero, size: actions.bounds.size))
@@ -879,7 +890,31 @@ precondition(wideBubble.layer.cornerCurve == .circular,
   "User bubbles use circular corners at every width")
 precondition(abs(wideBubble.layer.cornerRadius - ChatMessageContent.bubbleRadius) < 0.01,
   "A wide user bubble keeps the full corner radius")
+let tail = wideBubble.subviews.first { $0.layer.maskedCorners == [.layerMaxXMaxYCorner] }
+precondition(tail != nil && abs(tail!.layer.cornerRadius - 6) < 0.01, "The bubble's bottom-trailing corner is 6 pt")
+precondition(abs(tail!.frame.maxX - wideBubble.bounds.maxX) < 0.01 && abs(tail!.frame.maxY - wideBubble.bounds.maxY) < 0.01,
+  "The tail fills the bottom-trailing corner")
+precondition(tail!.backgroundColor == wideBubble.backgroundColor, "The tail matches the bubble fill")
+precondition(ChatRowPadding.userTop == 4 && ChatRowPadding.afterUser == 10, "User bubbles sit 4 pt below the row top with 10 pt after")
 print("Chat render: short user bubbles stay circular capsules")
+
+@MainActor func descendants(_ view: UIView) -> [UIView] {
+  view.subviews.flatMap { [$0] + descendants($0) }
+}
+precondition(ChatTurnCell.height == 52, "A turn divider is 20 pt with 16 pt above and below")
+let turnCell = ChatTurnCell(frame: CGRect(x: 0, y: 0, width: 358, height: ChatTurnCell.height))
+window.addSubview(turnCell)
+turnCell.configure(ChatRow(id: "u2:turn", entryID: "u2", kind: "turn", text: "10:46"))
+turnCell.layoutIfNeeded()
+precondition(!turnCell.isAccessibilityElement && turnCell.accessibilityElementsHidden, "Turn dividers are hidden from VoiceOver")
+let turnLabel = descendants(turnCell.contentView).compactMap { $0 as? UILabel }.first { $0.text == "10:46" }!
+precondition(turnLabel.font.fontDescriptor.symbolicTraits.contains(.traitMonoSpace), "The turn time is monospaced")
+precondition(turnLabel.textColor == .lodyTertiary && abs(turnLabel.frame.midX - 179) < 0.5, "The turn time is centered in tertiary")
+let rules = descendants(turnCell.contentView).filter { $0.bounds.height == 0.5 && $0.backgroundColor == .lodyLine2 }
+precondition(rules.count == 2 && rules.allSatisfy { abs($0.frame.midY - turnLabel.frame.midY) < 0.5 }, "Hairlines flank the time")
+precondition(rules.map(\.frame.maxX).min()! < turnLabel.frame.minX && rules.map(\.frame.minX).max()! > turnLabel.frame.maxX,
+  "The hairlines stop short of the label")
+print("Chat render: turn dividers draw a centered time between hairlines")
 
 func rgba(_ color: UIColor, style: UIUserInterfaceStyle) -> (CGFloat, CGFloat, CGFloat, CGFloat) {
   var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0

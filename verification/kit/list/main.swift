@@ -184,6 +184,7 @@ struct LodyListRow {
   var parent = false
   var parentId = ""
   var lastChild = false
+  var parentLive = false
   var collapsedValue = ""
   var highlight = ""
   var wrapSubtitle = false
@@ -290,9 +291,9 @@ let childTitle = visibleLabel(child, containing: "Test on macOS")!
 assert(abs(frame(childTitle, in: child).minX - 62) < 0.5, "Child text starts at 62 pt")
 assert((childTitle.attributedText?.string ?? childTitle.text ?? "").contains("· Codex"), "The child names its model after the title")
 assert(abs(child.bounds.height - 40) <= 4, "A child row is about 40 pt: \(child.bounds.height)")
-let trunk = treePath(in: child)!.boundingBox
+let trunk = treePath(in: child)!.boundingBoxOfPath
 assert(trunk.minY <= 0.5 && trunk.maxY >= child.bounds.height - 0.5, "Earlier children carry the trunk through the row")
-assert(abs(trunk.minX - 23.5) <= 1, "The trunk runs at the rail center")
+assert(abs(trunk.minX - 23.5) <= 1.5, "The trunk runs at the rail center")
 assert(LodySessionRowView.textLeading(for: LodyListRow(parentId: "ship"), density: .regular) == 62)
 
 let lastChild = laidOutSessionRow(LodySessionRowContent(
@@ -302,11 +303,30 @@ let elbow = treePath(in: lastChild)!.boundingBox
 assert(elbow.maxY < lastChild.bounds.height - 4, "The last child ends the trunk at its elbow")
 assert(elbow.maxX >= 38, "The elbow reaches the child glyph")
 
+func hasCurve(_ path: CGPath) -> Bool {
+  var curve = false
+  path.applyWithBlock { if $0.pointee.type == .addCurveToPoint { curve = true } }
+  return curve
+}
+func signalTree(in view: UIView) -> CAGradientLayer? {
+  (view.layer.sublayers ?? []).compactMap { $0 as? CAGradientLayer }.first { !$0.isHidden && ($0.mask as? CAShapeLayer)?.path != nil }
+}
+assert(hasCurve(treePath(in: lastChild)!), "Children hang on a tentacle curve, not a square elbow")
+assert(signalTree(in: lastChild) == nil, "A child of an idle parent keeps the neutral rail")
+let liveChild = laidOutSessionRow(LodySessionRowContent(
+  row: LodyListRow(title: "Map catalog cursors", value: "now", imageTint: "blue", parentId: "ship", lastChild: true, parentLive: true)
+))
+assert(treePath(in: liveChild) == nil, "A live parent's tentacle is not drawn in the rail color")
+let liveTentacle = signalTree(in: liveChild)
+assert(liveTentacle != nil && hasCurve((liveTentacle!.mask as! CAShapeLayer).path!), "A live parent's tentacle carries the Signal gradient")
+assert(abs((liveTentacle!.mask as! CAShapeLayer).lineWidth - 1.5) < 0.01, "Live tentacles are 1.5 pt")
+
 let parent = laidOutSessionRow(LodySessionRowContent(
   row: LodyListRow(title: "Ship 0.42 release", subtitle: "lody-ios", value: "6m", imageTint: "blue", collapsedValue: "2"),
   treeDown: true
 ))
-let down = treePath(in: parent)!.boundingBox
+assert(treePath(in: parent) == nil && signalTree(in: parent) != nil, "A live parent starts a Signal trunk")
+let down = ((signalTree(in: parent)!.mask as! CAShapeLayer).path!).boundingBox
 assert(down.minY > frame(statusGlyph(in: parent), in: parent).maxY - 0.5 && down.maxY >= parent.bounds.height - 0.5,
        "An expanded parent starts the trunk below its glyph")
 
@@ -731,7 +751,18 @@ glyph.layoutIfNeeded()
 assert(painted(glyph, .lodyFailure))
 glyph.kind = .live
 glyph.layoutIfNeeded()
-assert(painted(glyph, .lodySecondary) && !painted(glyph, .lodyInk), "The live arc is quiet grey")
+func signalArc(_ view: UIView) -> CAGradientLayer? {
+  (view.layer.sublayers ?? []).compactMap { $0 as? CAGradientLayer }.first { !$0.isHidden && ($0.mask as? CAShapeLayer)?.path != nil }
+}
+let liveArc = signalArc(glyph)
+assert(liveArc != nil, "The live arc is a Signal gradient masked by the arc")
+let signalColors = [UIColor.lodySignal, .lodySignalTail].map { $0.resolvedColor(with: glyph.traitCollection).cgColor }
+assert((liveArc!.colors as? [CGColor]) == signalColors, "The live arc runs from Signal to its teal tail")
+assert(painted(glyph, .lodyLine2) && !painted(glyph, .lodySecondary), "The live track stays neutral")
+glyph.kind = .unread
+glyph.layoutIfNeeded()
+assert(painted(glyph, .lodySignal) && !painted(glyph, .lodyInk), "Unread dots are Signal")
+assert(signalArc(glyph) == nil, "Only live glyphs show the arc")
 glyph.kind = .none
 glyph.layoutIfNeeded()
 assert(shapes(glyph).isEmpty, "A row without state draws nothing")
@@ -742,9 +773,9 @@ let spinner = LodyStatusGlyphView(kind: .live)
 spinner.frame = CGRect(x: 0, y: 0, width: 14, height: 14)
 glyphWindow.addSubview(spinner)
 spinner.layoutIfNeeded()
-assert(shapes(spinner).contains { $0.animationKeys()?.isEmpty == false }, "A live glyph on screen spins")
+assert(signalArc(spinner)?.animationKeys()?.isEmpty == false, "A live glyph on screen spins")
 spinner.removeFromSuperview()
-assert(!shapes(spinner).contains { $0.animationKeys()?.isEmpty == false }, "Leaving the window stops the spin")
+assert(signalArc(spinner)?.animationKeys()?.isEmpty != false, "Leaving the window stops the spin")
 print("PASS: status glyphs map row state, draw distinct shapes and spin only when visible")
 
 assert(LodyFlatRows.sectionHasIcons([LodyListRow(title: "A"), LodyListRow(image: "gear")]), "One symbol row gives the section a rail")

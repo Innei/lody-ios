@@ -39,6 +39,17 @@ extension LodyChatView {
       onTurnChangesPress(["entryId": row.entryID, "path": file.path])
       return
     }
+    if let id = dataSource.itemIdentifier(for: indexPath), let row = rows[id], row.kind == "changesHeader" {
+      collectionView.deselectItem(at: indexPath, animated: false)
+      if !expandedChanges.insert(row.entryID).inserted { expandedChanges.remove(row.entryID) }
+      applyRows()
+      return
+    }
+    if let id = dataSource.itemIdentifier(for: indexPath), let row = rows[id], row.kind == "changesReview" {
+      collectionView.deselectItem(at: indexPath, animated: true)
+      onReviewChanges()
+      return
+    }
     collectionView.deselectItem(at: indexPath, animated: false)
     if let cell = collectionView.cellForItem(at: indexPath) as? ChatCell,
        cell.expandable, !cell.expanded, let row = cell.row {
@@ -443,17 +454,18 @@ extension LodyChatView {
     if row.subagent != nil { return ChatSubagentCell.height(row, width: width, traits: traitCollection) }
     if row.kind == "meta" { return ChatMetaCell.height(for: row, width: width, traits: traitCollection, detailsEnabled: turnInfoEnabled) }
     if row.kind == "duration" { return ChatCell.processHeight(for: row, width: width, traits: traitCollection) }
+    if row.kind == "turn" { return ChatTurnCell.height }
     if row.kind == "changesHeader" { return ChatFileCell.headerHeight }
-    if row.kind == "changes" { return ChatFileCell.rowHeight() }
+    if row.kind == "changes" || row.kind == "changesReview" { return ChatFileCell.rowHeight() }
     let measured = measure(row, width: width)
     if row.kind == "user" {
       return ChatMessageContent.height(textHeight: measured,
         limit: collapsedMessageHeights[row.entryID] ?? ChatMessageContent.maximumCollapsedHeight,
-        expanded: expandedMessages.contains(row.entryID)) + ChatRowPadding.content + 12
+        expanded: expandedMessages.contains(row.entryID)) + ChatRowPadding.userTop + ChatRowPadding.afterUser
     }
-    let tapFloor = row.actionable || row.kind == "summary" || row.kind == "pending"
     let measuredHeight = measured + ChatCell.rowExtra(for: row, previousKind: previousKind ?? kind(before: row.id))
-    if tapFloor { return max(44, measuredHeight) }
+    let floor = ChatCell.minimumHeight(for: row)
+    if floor > 0 { return max(floor, measuredHeight) }
     if row.kind == "delivery" {
       return max(ChatCell.messageFont(for: row, compatibleWith: traitCollection).lineHeight, measuredHeight)
     }

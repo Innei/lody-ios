@@ -99,6 +99,7 @@ final class ChatFadeLabelView: TextLabelView {
   private weak var fadeLayout: ChatFadeLayout?
   private var fadeRect: CGRect?
   private var fadeRectSize: CGSize = .zero
+  private var endedTouch: (id: ObjectIdentifier, timestamp: TimeInterval)?
   var isFading: Bool {
     window != nil && !UIAccessibility.isReduceMotionEnabled && fade.isAnimating(at: CACurrentMediaTime())
   }
@@ -178,6 +179,17 @@ final class ChatFadeLabelView: TextLabelView {
     super.didMoveToWindow()
     if window == nil { finishAnimation() }
     pokeTimer()
+  }
+
+  // When the text interaction's tap-and-a-half recognizer fails, UIKit delivers the
+  // same ended touch again about 0.3 s later; Litext would report the link tap twice.
+  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+    if touches.count == 1, let touch = touches.first {
+      let ended = (id: ObjectIdentifier(touch), timestamp: touch.timestamp)
+      if let endedTouch, endedTouch == ended { return }
+      endedTouch = ended
+    }
+    super.touchesEnded(touches, with: event)
   }
 
   private func pokeTimer() {

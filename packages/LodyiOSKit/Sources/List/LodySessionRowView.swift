@@ -58,7 +58,7 @@ private final class LodyHitButton: UIButton {
 
 final class LodySessionRowView: UIView, UIContentView {
   private let glyph = LodyStatusGlyphView(kind: .none)
-  private let tree = CAShapeLayer()
+  private lazy var tree = LodyTentacle(in: layer)
   private let meta = UILabel()
   private let time = UILabel()
   private let title = UILabel()
@@ -80,10 +80,7 @@ final class LodySessionRowView: UIView, UIContentView {
     super.init(frame: .zero)
     insetsLayoutMarginsFromSafeArea = false
     preservesSuperviewLayoutMargins = false
-    tree.fillColor = nil
-    tree.lineWidth = 1
-    tree.lineCap = .round
-    layer.addSublayer(tree)
+    _ = tree
     registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (view: Self, _) in
       view.setNeedsLayout()
     }
@@ -312,29 +309,17 @@ final class LodySessionRowView: UIView, UIContentView {
     let row = content.row
     let x = Self.trunk(for: content.density)
     let mark = glyph.frame
-    let path = UIBezierPath()
+    var path = UIBezierPath()
+    var live = false
     if !row.parentId.isEmpty {
-      let radius: CGFloat = 7
-      let turn = mark.midY
-      path.move(to: CGPoint(x: x, y: 0))
-      path.addLine(to: CGPoint(x: x, y: turn - radius))
-      path.addQuadCurve(to: CGPoint(x: x + radius, y: turn), controlPoint: CGPoint(x: x, y: turn))
-      path.addLine(to: CGPoint(x: mark.minX - 1, y: turn))
-      if !row.lastChild {
-        path.move(to: CGPoint(x: x, y: turn - radius))
-        path.addLine(to: CGPoint(x: x, y: bounds.height))
-      }
+      path = LodyTentacle.branch(trunk: x, to: CGPoint(x: mark.minX - 1, y: mark.midY), height: bounds.height, last: row.lastChild)
+      live = row.parentLive
     } else if content.treeDown {
       path.move(to: CGPoint(x: x, y: mark.maxY + 3))
       path.addLine(to: CGPoint(x: x, y: bounds.height))
+      live = LodyStatusGlyph.kind(for: row) == .live
     }
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    tree.frame = bounds
-    tree.strokeColor = UIColor.lodyRail.resolvedColor(with: traitCollection).cgColor
-    tree.path = path.isEmpty ? nil : path.cgPath
-    tree.isHidden = path.isEmpty
-    CATransaction.commit()
+    tree.apply(path, live: live, frame: bounds, traits: traitCollection)
   }
 
   private static func fonts(_ density: LodyRowDensity) -> (body: UIFont, mono: UIFont) {

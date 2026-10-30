@@ -5,9 +5,10 @@ import UIKit
 final class SessionPreviewController: SessionController {
   private let fixture: SessionPreviewFixture
   private let probe = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+  private var presentations: NSObjectProtocol?
 
   init(scenario: String) {
-    let fixture = SessionPreviewFixture(offline: scenario == "offline")
+    let fixture = SessionPreviewFixture(offline: scenario == "offline", tasks: scenario == "tasks")
     self.fixture = fixture
     super.init(
       sessionId: SessionPreviewFixture.sessionId, findQuery: scenario == "find" ? "needle" : "",
@@ -18,7 +19,7 @@ final class SessionPreviewController: SessionController {
       feed: SessionFeedService(
         watch: { _, receive in fixture.watch(receive) },
         reconnect: { _ in fixture.reconnect() },
-        cached: { _, _, _ in SessionPreviewFixture.envelope(status: "syncing", revision: 0, reply: "Cached reply") }
+        cached: { _, _, _ in SessionPreviewFixture.envelope(status: "syncing", revision: 0, reply: "Cached reply", tasks: fixture.tasks) }
       ),
       itemDetail: ItemDetailService(load: { params in
         .init(itemId: params.itemId, rev: 1, blocks: [.object([
@@ -40,6 +41,10 @@ final class SessionPreviewController: SessionController {
   @available(*, unavailable)
   required init?(coder: NSCoder) { fatalError() }
 
+  isolated deinit {
+    if let presentations { NotificationCenter.default.removeObserver(presentations) }
+  }
+
   override var persistsDraft: Bool { false }
 
   override func viewDidLoad() {
@@ -48,7 +53,15 @@ final class SessionPreviewController: SessionController {
     super.viewDidLoad()
     view.addSubview(probe)
     fixture.changed = { [weak self] in self?.updateProbe() }
+    presentations = NotificationCenter.default.addObserver(forName: Notification.Name("LodyWillPresent"), object: nil, queue: .main) { [weak self] _ in
+      MainActor.assumeIsolated { self?.fixture.record("present") }
+    }
     updateProbe()
+  }
+
+  override func present(_ controller: UIViewController, animated: Bool, completion: (() -> Void)? = nil) {
+    fixture.record("present")
+    super.present(controller, animated: animated, completion: completion)
   }
 
   private func updateProbe() {
@@ -63,12 +76,14 @@ private final class SessionPreviewFixture {
   private(set) var log: [String] = []
   var changed: (() -> Void)?
   private let offline: Bool
+  let tasks: Bool
   private var catalog: SessionCatalog
   private var receive: (@MainActor (SessionRuntimeEvent) -> Void)?
   private var revision = 1
 
-  init(offline: Bool, now: Double = LodyRelativeTime.now()) {
+  init(offline: Bool, tasks: Bool, now: Double = LodyRelativeTime.now()) {
     self.offline = offline
+    self.tasks = tasks
     catalog = SessionCatalog(
       projects: [SessionProject(id: "preview-lody", name: "Lody", rootPath: "/Users/preview/lody")],
       sessions: [
@@ -127,7 +142,7 @@ private final class SessionPreviewFixture {
 
   private func emit(forceLive: Bool = false) {
     let status = offline && !forceLive ? "offline" : "live"
-    let session = Self.envelope(status: status, revision: revision, reply: "Live reply with a needle")
+    let session = Self.envelope(status: status, revision: revision, reply: "Live reply with a needle", tasks: tasks)
     // Deliver after the cached frame, the way the runtime answers an open.
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
       MainActor.assumeIsolated {
@@ -138,16 +153,52 @@ private final class SessionPreviewFixture {
           receive(SessionRuntimeEvent(generation: 1, state: "live", sessionId: Self.sessionId, session: session))
         }
         self.record(status)
+        if self.tasks, status == "live" { self.stream(phase: 1) }
       }
     }
   }
 
-  private func record(_ entry: String) {
+  private func stream(phase: Int) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+      MainActor.assumeIsolated {
+        guard let self, let receive = self.receive else { return }
+        self.revision += 1
+        let session = Self.envelope(status: "live", revision: self.revision, reply: "Live reply with a needle", tasks: true, phase: phase)
+        receive(SessionRuntimeEvent(generation: 1, state: "live", sessionId: Self.sessionId, session: session))
+        self.record(phase == 1 ? "streaming" : "settled")
+        if phase == 1 { self.stream(phase: 2) }
+      }
+    }
+  }
+
+  func record(_ entry: String) {
     log.append(entry)
     changed?()
   }
 
-  nonisolated static func envelope(status: String, revision: Int, reply: String) -> String? {
+  nonisolated static func envelope(status: String, revision: Int, reply: String, tasks: Bool, phase: Int = 0) -> String? {
+    var plan: [[String: Any]] = []
+    if phase == 1 { plan = [["itemId": "plan", "type": "text", "text": "Wrote the plan to [plan.md](docs/pl"]] }
+    if phase == 2 { plan = [["itemId": "plan", "type": "text", "text": "Wrote the plan to [plan.md](docs/plan.md)."]] }
+    let answer = tasks ? reply + "\n\nUpdated [App.tsx](src/App.tsx) and [notes.md](docs/notes.md#L3).\n\n```swift\nlet session = SessionPreview()\n```" : reply
+    let working: [[String: Any]] = [
+      [
+        "id": "preview-follow-up", "role": "user", "status": "completed", "finished": true, "timestamp": "2026-10-29T10:02:00Z",
+        "items": [
+          ["itemId": "text", "type": "text", "text": "Run the checks again on @src/App.tsx"],
+          ["itemId": "attachment", "type": "file", "file": ["id": "fixture-attachment", "fileName": "checks.txt"]],
+        ],
+      ],
+      [
+        "id": "preview-working", "role": "assistant", "status": phase == 2 ? "completed" : "in_progress", "finished": phase == 2,
+        "items": [
+          ["itemId": "report", "type": "file", "file": ["id": "fixture-report", "fileName": "report.txt"]],
+        ] + plan + [
+          ["itemId": "running-task", "type": "subagent_task", "taskId": "native-running-task", "status": "in_progress",
+           "actor": "test-runner", "description": "Run the native checks"],
+        ],
+      ],
+    ]
     let object: [String: Any] = [
       "v": 1, "status": status, "revision": revision,
       "preview": ["label": "localhost:5173", "active": true],
@@ -159,15 +210,20 @@ private final class SessionPreviewFixture {
         [
           "id": "preview-answer", "role": "assistant", "status": "completed", "finished": true, "endedAt": 1_793_268_064_000,
           "modelInfo": ["name": "Native fixture model", "thoughtLevel": "High"],
+          "fileDiffs": tasks ? [
+            ["path": "src/App.tsx", "add": 3, "del": 1],
+            ["path": "docs/notes.md", "add": 12, "del": 0],
+            ["path": "packages/cloud-runtime/src/replica.ts", "add": 18, "del": 6],
+          ] : [],
           "items": [
             ["itemId": "edit", "rev": 1, "hasDetail": true, "type": "tool_call", "kind": "edit", "status": "completed", "title": "Edit", "path": "src/App.tsx",
              "added": 3, "removed": 1],
             ["itemId": "task", "type": "subagent_task", "taskId": "native-task", "status": "completed",
              "actor": "test-runner", "description": "Verify the native session", "summary": "Native task summary: all checks passed."],
-            ["itemId": "reply", "type": "text", "text": reply],
+            ["itemId": "reply", "type": "text", "text": answer],
           ],
         ],
-      ],
+      ] + (tasks ? working : []),
     ]
     return (try? JSONSerialization.data(withJSONObject: object)).map { String(decoding: $0, as: UTF8.self) }
   }

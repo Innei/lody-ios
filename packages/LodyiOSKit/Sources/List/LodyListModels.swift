@@ -43,6 +43,7 @@ struct LodyListRow {
   var parent: Bool = false
   var parentId: String = ""
   var lastChild: Bool = false
+  var parentLive: Bool = false
   var collapsedValue: String = ""
   var collapsedBadge: String = ""
   var collapsedImageTint: String = ""

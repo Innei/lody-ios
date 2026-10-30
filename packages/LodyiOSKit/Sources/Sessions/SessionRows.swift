@@ -97,6 +97,7 @@ enum SessionRows {
         var item = row(child)
         item.parentId = group.session.id
         item.lastChild = index == group.children.count - 1
+        item.parentLive = SessionState(group.session) == .live
         return item
       }
     }

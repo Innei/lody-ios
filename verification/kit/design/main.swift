@@ -92,7 +92,6 @@ for style in ["soft", "black"] {
 }
 UserDefaults.standard.removeObject(forKey: "darkBackground")
 UserDefaults.standard.removeObject(forKey: "accentColor")
-precondition(LodyAccentChoice.current == .ink, "Installs without a stored accent follow the Ink default")
 precondition(LodyAccentChoice(rawValue: "ink") == .ink && LodyAccentChoice.ink.rawValue == "ink")
 UserDefaults.standard.set("blue", forKey: "accentColor")
 precondition(LodyAccentChoice.current == .blue, "An explicit accent choice survives the new default")
@@ -101,10 +100,30 @@ for traits in [light, dark] {
   precondition(same(LodyAccentChoice.ink.color, .lodyInk, traits), "Ink is the ink token")
   precondition(contrast(LodyAccentChoice.ink.foregroundColor, LodyAccentChoice.ink.color, traits) >= 7,
                "Labels on an Ink fill stay legible")
-  precondition(same(.lodyAccent, .lodyInk, traits))
+  precondition(same(.lodyAccent, .lodySignal, traits), "The unset accent resolves to Signal")
   precondition(same(.lodyUserBubble, .lodyInset, traits), "The user bubble is a neutral inset, not an accent tint")
 }
 UserDefaults.standard.set("pink", forKey: "accentColor")
 precondition(same(.lodyUserBubble, .lodyInset, light), "The bubble stays neutral under any accent")
 UserDefaults.standard.removeObject(forKey: "accentColor")
+func hex(_ color: UIColor, _ traits: UITraitCollection) -> String { LodyAccentChoice.hex(color.resolvedColor(with: traits)) }
+precondition(hex(.lodySignal, light) == "#3550D4" && hex(.lodySignal, dark) == "#8195FF", "Signal is Lody indigo")
+precondition(hex(.lodySignalTail, light) == "#1FA797" && hex(.lodySignalTail, dark) == "#39C6AE", "The Signal tail is the icon teal")
+precondition(hex(.lodySignalOnAccent, light) == "#FFFFFF" && hex(.lodySignalOnAccent, dark) == "#0C0F24", "Labels on Signal")
+for background in ["soft", "black"] {
+  UserDefaults.standard.set(background, forKey: "darkBackground")
+  for traits in [lightHigh, darkHigh] {
+    precondition(contrast(.lodySignal, .lodyGround, traits) >= 4.5, "Increased-contrast Signal reads as text on \(background)")
+  }
+  for traits in [light, dark] {
+    precondition(contrast(.lodySignal, .lodyGround, traits) >= 3, "Signal reads as a glyph on \(background)")
+  }
+}
+UserDefaults.standard.removeObject(forKey: "darkBackground")
+precondition(LodyAccentChoice.current == .lody, "Installs without a stored accent use Lody")
+for traits in [light, dark, lightHigh, darkHigh] {
+  precondition(same(LodyAccentChoice.lody.color, .lodySignal, traits), "The Lody accent is the Signal token")
+  precondition(same(LodyAccentChoice.lody.foregroundColor, .lodySignalOnAccent, traits), "Lody fills carry the on-accent label color")
+  precondition(contrast(LodyAccentChoice.lody.foregroundColor, LodyAccentChoice.lody.color, traits) >= 4.5, "Labels on a Lody fill stay legible")
+}
 print("design ok")

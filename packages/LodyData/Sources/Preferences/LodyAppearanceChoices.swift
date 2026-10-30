@@ -19,11 +19,12 @@ public enum LodyDarkBackground: String, Sendable {
 }
 
 public enum LodyAccentChoice: Equatable, RawRepresentable, Sendable {
-  case ink, blue, indigo, purple, pink
+  case lody, ink, blue, indigo, purple, pink
   case custom(String)
 
   public init?(rawValue: String) {
     switch rawValue {
+    case "lody": self = .lody
     case "ink": self = .ink
     case "blue": self = .blue
     case "indigo": self = .indigo
@@ -37,6 +38,7 @@ public enum LodyAccentChoice: Equatable, RawRepresentable, Sendable {
 
   public var rawValue: String {
     switch self {
+    case .lody: "lody"
     case .ink: "ink"
     case .blue: "blue"
     case .indigo: "indigo"
@@ -55,7 +57,7 @@ public enum LodyAccentChoice: Equatable, RawRepresentable, Sendable {
     #else
     let defaults = UserDefaults.standard
     #endif
-    return Self(rawValue: defaults.string(forKey: "accentColor") ?? "") ?? .ink
+    return Self(rawValue: defaults.string(forKey: "accentColor") ?? "") ?? .lody
   }
 
   public static func mirror() {

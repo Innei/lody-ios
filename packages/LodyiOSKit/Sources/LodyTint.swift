@@ -3,6 +3,7 @@ import UIKit
 extension LodyAccentChoice {
   var color: UIColor {
     switch self {
+    case .lody: .lodySignal
     case .ink: .lodyInk
     case .blue: .systemBlue
     case .indigo: .systemIndigo
@@ -13,6 +14,7 @@ extension LodyAccentChoice {
   }
 
   var foregroundColor: UIColor {
+    if self == .lody { return .lodySignalOnAccent }
     if self == .ink { return .lodyGround }
     guard case .custom = self else { return .white }
     var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
@@ -33,7 +35,7 @@ extension LodyAccentChoice {
   }
 
   static func hex(_ value: String, dark: Bool) -> String {
-    hex((Self(rawValue: value) ?? .ink).color.resolvedColor(with: UITraitCollection(userInterfaceStyle: dark ? .dark : .light)))
+    hex((Self(rawValue: value) ?? .lody).color.resolvedColor(with: UITraitCollection(userInterfaceStyle: dark ? .dark : .light)))
   }
 
   static func hex(_ color: UIColor) -> String {
@@ -159,10 +161,10 @@ func lodyApplyWindowAccent() {
 }
 
 extension UIButton.Configuration {
-  // Prominent glass draws white titles whatever the foreground, and Ink resolves near-white in dark mode.
+  // Prominent glass draws white titles whatever the foreground; Ink and Lody resolve light in dark mode.
   @MainActor static func lodyProminent(font: UIFont? = nil) -> UIButton.Configuration {
     let accent = LodyAccentChoice.current
-    var configuration: UIButton.Configuration = accent == .ink ? .filled() : .prominentGlass()
+    var configuration: UIButton.Configuration = [.ink, .lody].contains(accent) ? .filled() : .prominentGlass()
     configuration.baseBackgroundColor = accent.color
     configuration.baseForegroundColor = accent.foregroundColor
     configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in

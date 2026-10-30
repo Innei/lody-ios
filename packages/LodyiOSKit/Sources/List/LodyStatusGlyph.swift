@@ -18,6 +18,7 @@ final class LodyStatusGlyphView: UIView {
   private static let spinKey = "lody.spin"
   private let base = CAShapeLayer()
   private let arc = CAShapeLayer()
+  private let signal = CAGradientLayer()
 
   var kind: LodyStatusGlyph.Kind {
     didSet {
@@ -35,8 +36,12 @@ final class LodyStatusGlyphView: UIView {
     for shape in [base, arc] {
       shape.lineCap = .round
       shape.lineJoin = .round
-      layer.addSublayer(shape)
     }
+    layer.addSublayer(base)
+    signal.startPoint = CGPoint(x: 0, y: 0)
+    signal.endPoint = CGPoint(x: 1, y: 1)
+    signal.mask = arc
+    layer.addSublayer(signal)
     registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (view: Self, _) in
       view.setNeedsLayout()
     }
@@ -63,9 +68,9 @@ final class LodyStatusGlyphView: UIView {
 
   private func refreshSpin() {
     let spins = Self.rotates(kind: kind, reduceMotion: UIAccessibility.isReduceMotionEnabled, inWindow: window != nil)
-    guard spins != (arc.animation(forKey: Self.spinKey) != nil) else { return }
+    guard spins != (signal.animation(forKey: Self.spinKey) != nil) else { return }
     guard spins else {
-      arc.removeAnimation(forKey: Self.spinKey)
+      signal.removeAnimation(forKey: Self.spinKey)
       return
     }
     let spin = CABasicAnimation(keyPath: "transform.rotation.z")
@@ -74,7 +79,7 @@ final class LodyStatusGlyphView: UIView {
     spin.duration = 1.6
     spin.repeatCount = .infinity
     spin.isRemovedOnCompletion = false
-    arc.add(spin, forKey: Self.spinKey)
+    signal.add(spin, forKey: Self.spinKey)
   }
 
   override func layoutSubviews() {
@@ -82,9 +87,10 @@ final class LodyStatusGlyphView: UIView {
     let scale = min(bounds.width, bounds.height) / LodyDesign.Rail.glyph
     let center = CGPoint(x: bounds.midX, y: bounds.midY)
     base.frame = bounds
-    arc.frame = bounds
+    signal.frame = bounds
+    arc.frame = signal.bounds
     base.fillRule = .nonZero
-    arc.isHidden = true
+    signal.isHidden = true
     func color(_ value: UIColor) -> CGColor { value.resolvedColor(with: traitCollection).cgColor }
     func circle(_ radius: CGFloat) -> UIBezierPath {
       UIBezierPath(arcCenter: center, radius: radius * scale, startAngle: 0, endAngle: .pi * 2, clockwise: true)
@@ -109,14 +115,15 @@ final class LodyStatusGlyphView: UIView {
       base.strokeColor = nil
     case .live:
       stroke(circle(6), .lodyLine2, width: 2)
-      arc.isHidden = false
+      signal.isHidden = false
+      signal.colors = [color(.lodySignal), color(.lodySignalTail)]
       arc.path = UIBezierPath(arcCenter: center, radius: 6 * scale, startAngle: -.pi / 2, endAngle: 0, clockwise: true).cgPath
       arc.fillColor = nil
-      arc.strokeColor = color(.lodySecondary)
+      arc.strokeColor = UIColor.black.cgColor
       arc.lineWidth = 2 * scale
     case .unread:
       base.path = circle(4.5).cgPath
-      base.fillColor = color(.lodyInk)
+      base.fillColor = color(.lodySignal)
       base.strokeColor = nil
     case .failed:
       let path = circle(6)

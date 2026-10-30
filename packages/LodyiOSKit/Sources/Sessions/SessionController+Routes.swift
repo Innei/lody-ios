@@ -15,6 +15,8 @@ extension SessionController {
     chat.onFilePress = { [weak self] body in
       self?.openFile(body["path"] as? String ?? "", line: (body["line"] as? NSNumber)?.intValue ?? 0)
     }
+    chat.onReviewChanges = { [weak self] in self?.openWorkspaceChanges() }
+    chat.canReviewChanges = { [weak self] in self?.reviewable ?? false }
     chat.onTurnChangesPress = { [weak self] body in
       guard let self, let path = body["path"] as? String else { return }
       // Displayed native rows can lag the replica; the diff page validates its target.

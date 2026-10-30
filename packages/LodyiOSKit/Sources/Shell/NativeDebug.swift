@@ -70,6 +70,12 @@ enum NativeDebug {
       }
       content = page
     }
+    // Home hosts sessions in a navigation stack. A sheet host shrinks under the next sheet,
+    // which moves a late repeated touch off the link it would otherwise tap again.
+    if scenario == "session-preview-tasks" {
+      LodyShell.shared.pushRootNative(content, title: "")
+      return
+    }
     let onboarding = content is OnboardingController
     let regular = LodyShell.shared.presenter?.traitCollection.horizontalSizeClass == .regular
     LodyShell.shared.presentNative(content, title: content.title ?? "", detents: [1], grabber: !onboarding,

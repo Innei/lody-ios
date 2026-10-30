@@ -233,13 +233,7 @@ extension LodyChatView {
       }
     }
     if processEntryID.isEmpty, let pendingSend {
-      for row in pendingSend.rows(entries: transcript.entries) {
-        if row.kind == "delivery", let index = projected.firstIndex(where: { $0.entryID == row.entryID }) {
-          projected.insert(row, at: index)
-        } else {
-          projected.append(row)
-        }
-      }
+      projected = ChatPendingSend.merging(pendingSend.rows(entries: transcript.entries), into: projected)
     }
     for index in projected.indices where projected[index].kind == "attachments" {
       let entry = projected[index].entryID
@@ -261,6 +255,7 @@ extension LodyChatView {
       projected,
       inFlight: Set(projected.map(\.entryID).filter { ChatSendHandoff.isInFlight(id: $0) })
     )
+    projected = ChatFileBlock.visible(projected, expanded: expandedChanges, reviewable: canReviewChanges())
     // Keep a confirmed status in the layout while its height and opacity shrink.
     // Remove it only after the adjacent bubble has reached its final position.
     let activeIDs = Set(projected.map(\.id))
@@ -270,7 +265,7 @@ extension LodyChatView {
     }
     if hasPositionedContent && window != nil && !UIAccessibility.isReduceMotionEnabled {
       for row in rows.values where row.kind == "delivery" && !activeIDs.contains(row.id) {
-        guard let index = projected.firstIndex(where: { $0.entryID == row.entryID }) else { continue }
+        guard let index = ChatPendingSend.deliveryIndex(in: projected, entryID: row.entryID) else { continue }
         if deliveryExits[row.id] == nil {
           let width = ChatReadingColumn.itemWidth(in: collection.bounds.width)
           let height = rowHeight(row, width: width)
@@ -285,6 +280,7 @@ extension LodyChatView {
     let entryIDsToRetain = Set(projected.map(\.entryID))
     expandedMessages.formIntersection(entryIDsToRetain)
     expandedAttachments.formIntersection(entryIDsToRetain)
+    expandedChanges.formIntersection(entryIDsToRetain)
     collapsedMessageHeights = collapsedMessageHeights.filter { entryIDsToRetain.contains($0.key) }
     for row in projected where row.kind == "user" && collapsedMessageHeights[row.entryID] == nil {
       if let height = ChatSendHandoff.sourceHeight(id: row.entryID) {

@@ -54,9 +54,19 @@ precondition(abs(titleFont.pointSize - LodyDesign.font(.subheadline, size: 14, c
 precondition(sameColor(attributed.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor, .lodyInk, traits: traits))
 precondition(sameColor(attributed.attribute(.foregroundColor, at: attributed.length - 1, effectiveRange: nil) as? UIColor, .lodySecondary, traits: traits))
 precondition(title.numberOfLines == 1 && title.lineBreakMode == .byTruncatingTail)
-precondition(cell.bounds.height == 44, "Rows without detail keep the 44 pt touch target")
+precondition(cell.bounds.height == 30, "Rows without detail are 30 pt, got \(cell.bounds.height)")
 let lastPath = treePath()!
-precondition(abs(lastPath.boundingBoxOfPath.minX - (24 - 16)) < 0.01, "The child tree must continue the process trunk")
+precondition(abs(lastPath.boundingBoxOfPath.minX - (24 - 16)) < 1.5, "The child tree must continue the process trunk")
+var curved = false
+lastPath.applyWithBlock { if $0.pointee.type == .addCurveToPoint { curved = true } }
+precondition(curved, "Sub-agents hang on a tentacle curve")
+precondition(cell.contentView.layer.sublayers?.contains { ($0 as? CAGradientLayer).map { !$0.isHidden } ?? false } != true, "Idle parents keep the neutral rail")
+row.parentLive = true
+render(row)
+let liveTree = cell.contentView.layer.sublayers?.compactMap { $0 as? CAGradientLayer }.first { !$0.isHidden }
+precondition(liveTree != nil && (liveTree!.mask as? CAShapeLayer)?.path != nil, "A running process draws Signal tentacles")
+row.parentLive = false
+render(row)
 precondition(lastPath.boundingBoxOfPath.minY == 0, "The tree must connect to the preceding row")
 precondition(abs(lastPath.boundingBoxOfPath.maxY - glyph.frame.midY) < 0.01, "The last child's tree must stop at its elbow")
 precondition(abs(lastPath.boundingBoxOfPath.maxX - (glyph.frame.minX - 1)) < 0.01, "The elbow must reach the glyph with the Home tree spacing")
@@ -75,14 +85,14 @@ precondition(abs(treePath()!.boundingBoxOfPath.maxY - cell.bounds.height) < 0.01
 row.subagent?.detail = "Read the routing implementation and report the result. " + String(repeating: "Details ", count: 20)
 row.subagent?.status = "completed"
 render(row)
-precondition(cell.bounds.height > 44 && abs(cell.bounds.height - 52) <= 4, "Detail rows must grow to about 52 pt, got \(cell.bounds.height)")
+precondition(cell.bounds.height == 40, "Detail rows are 40 pt, got \(cell.bounds.height)")
 precondition(glyph.frame.midY == lineOneY, "Detail must not move the elbow away from line one")
 let detail = labels.first { $0.text == row.subagent?.detail }!
 precondition(detail.numberOfLines == 1 && detail.lineBreakMode == .byTruncatingTail, "Detail must occupy one tail-truncated line")
 precondition(detail.frame.minX == title.frame.minX && detail.frame.minY >= title.frame.maxY)
 precondition(detail.frame.maxY <= cell.bounds.height, "The second line must fit within the measured row")
 precondition(sameColor(detail.textColor, .lodySecondary, traits: traits))
-precondition(abs(detail.font.pointSize - LodyDesign.font(.footnote, size: 12.5, compatibleWith: traits).pointSize) < 0.01)
+precondition(abs(detail.font.pointSize - LodyDesign.font(.footnote, size: 12, compatibleWith: traits).pointSize) < 0.01)
 
 row.treeChild = false
 render(row)
@@ -107,7 +117,7 @@ row.subagent?.background = false
 row.actionable = false
 cell.prepareForReuse()
 render(row)
-precondition(glyph.kind == .done && cell.bounds.height == 44 && detail.isHidden)
+precondition(glyph.kind == .done && cell.bounds.height == 30 && detail.isHidden)
 precondition(sameColor(status.textColor, .lodyTertiary, traits: traits))
 precondition(cell.accessibilityTraits == .staticText)
 row.subagent?.status = "pending"
@@ -117,5 +127,5 @@ row.subagent?.status = "in_progress"
 row.subagent?.detail = String.localizedStringWithFormat(String(localized: "native.chat.subagent.runningTool", bundle: .lody), "bash")
 render(row)
 precondition(status.text == row.subagent?.detail, "Running tool activity must appear in the trailing status")
-precondition(detail.isHidden && cell.bounds.height == 44, "Running tool activity must not repeat as a second line")
+precondition(detail.isHidden && cell.bounds.height == 30, "Running tool activity must not repeat as a second line")
 print("Chat subagent: rail geometry, tree continuity, status, detail, reuse and accessibility passed")

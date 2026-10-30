@@ -3,6 +3,8 @@ import UIKit
 
 enum ChatRowPadding {
   static let content: CGFloat = 6
+  static let userTop: CGFloat = 4
+  static let afterUser: CGFloat = 10
   static var durationBottom: CGFloat { content / 2 }
   /// Body copy after the duration hairline needs a full paragraph inset;
   /// process rows keep the tighter half-gap under the rule.
@@ -117,8 +119,8 @@ final class ChatMetaCell: UICollectionViewCell {
   override func layoutSubviews() {
     super.layoutSubviews()
     modelLabel.frame = CGRect(x: 0, y: 4, width: max(1, bounds.width - 52), height: bounds.height - 8)
-    detailsButton.frame = CGRect(x: 0, y: 0, width: max(44, bounds.width - 52), height: max(44, bounds.height))
-    actionButton.frame = CGRect(x: bounds.width - 44, y: (bounds.height - 44) / 2, width: 44, height: 44)
+    detailsButton.frame = CGRect(x: 0, y: 0, width: max(44, bounds.width - 52), height: bounds.height)
+    actionButton.frame = CGRect(x: bounds.width - 44, y: 0, width: 44, height: bounds.height)
   }
 
   static func iconImage(named asset: String) -> UIImage? {
@@ -167,7 +169,7 @@ final class ChatMetaCell: UICollectionViewCell {
       options: [.usesLineFragmentOrigin, .usesFontLeading],
       context: nil
     ).height
-    return max(44, ceil(textHeight - min(0, font.descender)) + 8)
+    return max(32, ceil(textHeight - min(0, font.descender)) + 8)
   }
 }
 
@@ -328,8 +330,8 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
 
   static func processTitle(_ row: ChatRow, traits: UITraitCollection) -> NSAttributedString {
     let title = NSMutableAttributedString(string: row.text, attributes: [
-      .font: LodyDesign.font(.subheadline, size: 14.5, weight: .semibold, compatibleWith: traits),
-      .foregroundColor: UIColor.lodyInk,
+      .font: LodyDesign.font(.subheadline, size: 14, weight: .semibold, compatibleWith: traits),
+      .foregroundColor: row.running ? UIColor.lodyAccent : .lodyInk,
     ])
     guard let duration = row.workDurationMs else { return title }
     let range = (row.text as NSString).range(of: ChatWorkDuration.label(duration), options: .backwards)
@@ -342,22 +344,29 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   }
 
   private static func detailFont(_ traits: UITraitCollection) -> UIFont {
-    LodyDesign.font(.footnote, size: 12.5, compatibleWith: traits)
+    LodyDesign.font(.footnote, size: 12, compatibleWith: traits)
   }
 
   private static func processLines(_ row: ChatRow, traits: UITraitCollection) -> (title: CGFloat, detail: CGFloat) {
-    let title = ceil(LodyDesign.font(.subheadline, size: 14.5, weight: .semibold, compatibleWith: traits).lineHeight)
+    let title = ceil(LodyDesign.font(.subheadline, size: 14, weight: .semibold, compatibleWith: traits).lineHeight)
     let detail = row.detail.isEmpty ? 0 : ceil(detailFont(traits).lineHeight) + 2
     return (title, detail)
   }
 
   static func processHeight(for row: ChatRow, width: CGFloat, traits: UITraitCollection) -> CGFloat {
     let lines = processLines(row, traits: traits)
-    if lines.detail == 0 { return max(44, lines.title + 16) }
-    return max(LodyDesign.Rail.primaryHeight, lines.title + lines.detail + 16)
+    if lines.detail == 0 { return max(30, lines.title + 12) }
+    return max(40, lines.title + lines.detail + 6)
+  }
+
+  static func minimumHeight(for row: ChatRow) -> CGFloat {
+    if row.kind == "summary" { return 30 }
+    return row.actionable || row.kind == "pending" ? 44 : 0
   }
 
   private static let chevronSlot: CGFloat = 24
+  private static let summaryDot: CGFloat = 20
+  private static let summaryText: CGFloat = 30
   private static var railCenter: CGFloat { LodyDesign.Rail.center - ChatReadingColumn.cellMargin }
 
   private func layoutProcess(_ row: ChatRow, width: CGFloat) {
@@ -379,7 +388,9 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     processTree.frame = contentView.bounds
-    processTree.strokeColor = UIColor.lodyRail.resolvedColor(with: traitCollection).cgColor
+    let trunkColor = row.running ? UIColor.lodySignal.withAlphaComponent(0.75) : .lodyRail
+    processTree.strokeColor = trunkColor.resolvedColor(with: traitCollection).cgColor
+    processTree.lineWidth = row.running ? 1.5 : 1
     processTree.path = path.isEmpty ? nil : path.cgPath
     CATransaction.commit()
   }
@@ -468,7 +479,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   static func leading(_ row: ChatRow) -> CGFloat {
     switch row.kind {
     case "text", "user", "duration", "delivery": return 0
-    case "summary": return LodyDesign.Rail.text - ChatReadingColumn.cellMargin
+    case "summary": return summaryText - ChatReadingColumn.cellMargin
     default: return 24
     }
   }
@@ -487,7 +498,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
   static func iconFrame(for row: ChatRow, textY: CGFloat, textHeight: CGFloat) -> CGRect {
     if row.kind == "summary" {
       let size: CGFloat = 8
-      return CGRect(x: railCenter - size / 2, y: textY + (textHeight - size) / 2, width: size, height: size)
+      return CGRect(x: summaryDot - ChatReadingColumn.cellMargin - size / 2, y: textY + (textHeight - size) / 2, width: size, height: size)
     }
     return CGRect(x: 2, y: textY, width: 20, height: min(textHeight, 20))
   }
@@ -529,7 +540,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
       accessibilityValue = expandable ? String(localized: String.LocalizationValue(disclosureKey), bundle: .lody) : nil
       let height = ChatMessageContent.height(textHeight: size.height, limit: collapsedHeight, expanded: expanded)
       let bubbleWidth = expandable ? width * 0.84 : size.width + 26
-      messageContent.frame = CGRect(x: width - bubbleWidth, y: ChatRowPadding.content, width: bubbleWidth, height: height)
+      messageContent.frame = CGRect(x: width - bubbleWidth, y: ChatRowPadding.userTop, width: bubbleWidth, height: height)
       messageContent.setNeedsLayout()
       messageContent.layoutIfNeeded()
     } else {
