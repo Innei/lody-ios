@@ -16,8 +16,12 @@ final class SidebarTests: LodyMacUITestCase {
       XCTAssertEqual(value(scene.staticTexts["sidebar-machines"]), "Machines online: 2", "the footer reports machine presence")
       attach("sidebar-\(appearance)", scene)
     }
-    scene.outlines["sidebar-sessions"].cells["Landing page copy"].click()
-    eventually("selecting a session opens it") { scene.title.hasPrefix("Catalog · Landing page copy") }
-    attach("sidebar-selected-dark", scene)
+    let approvals = scene.buttons["sidebar-approvals"]
+    XCTAssertTrue(approvals.isEnabled, "the shortcut is live while a session waits")
+    approvals.click()
+    eventually("the shortcut opens the waiting session") { scene.title.hasPrefix("Catalog · Landing page copy") }
+    attach("sidebar-approval-dark", scene)
+    scene.outlines["sidebar-sessions"].cells["Native window tabs"].click()
+    eventually("selecting a session opens it") { scene.title.hasPrefix("Catalog · Native window tabs") }
   }
 }
