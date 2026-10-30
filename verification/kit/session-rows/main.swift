@@ -78,8 +78,8 @@ precondition([recent, pinned].sorted(by: SessionRows.byActivity).map(\.id) == ["
 pinned.pinned = false
 precondition([pinned, recent].sorted(by: SessionRows.byActivity).map(\.id) == ["recent", "pinned"])
 
-precondition(SessionRows.deletionTargets(catalog.sessions, id: "root").map(\.id) == ["root", "tab"])
-precondition(!SessionRows.deletionBlocked([root, child]) && SessionRows.deletionBlocked([live]))
+precondition(SessionDeletion.targets(catalog.sessions, id: "root").map(\.id) == ["root", "tab"])
+precondition(!SessionDeletion.blocked([root, child]) && SessionDeletion.blocked([live]))
 precondition(SessionRows.projectId(ofRow: "toggle:p") == "p" && SessionRows.projectId(ofRow: "project:p") == "p")
 precondition(["chat", "toggle:pinned", "view:x", "root"].allSatisfy { SessionRows.projectId(ofRow: $0) == nil })
 precondition(SessionRows.projectMenu(SessionProject(id: "p", rootPath: "/x")).map(\.id) == ["newSession", "open", "copyPath"])

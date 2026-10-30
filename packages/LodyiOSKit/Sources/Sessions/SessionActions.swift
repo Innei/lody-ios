@@ -113,12 +113,12 @@ final class SessionActions {
   }
 
   private func confirmDeletion(_ session: SessionItem, in state: SessionListState, from controller: UIViewController) {
-    let targets = SessionRows.deletionTargets(state.catalog.sessions, id: session.id)
+    let targets = SessionDeletion.targets(state.catalog.sessions, id: session.id)
     let ids = targets.map(\.id)
     let keys = ids.map { "\(state.workspaceId):\($0)" }
     guard Self.deleting.isDisjoint(with: keys) else { return }
     let title = String(localized: "session.delete.title", bundle: .lody)
-    if SessionRows.deletionBlocked(targets) {
+    if SessionDeletion.blocked(targets) {
       let alert = UIAlertController(title: title, message: String(localized: "session.delete.busy", bundle: .lody), preferredStyle: .alert)
       alert.addAction(UIAlertAction(title: String(localized: "common.ok", bundle: .lody), style: .default))
       controller.present(alert, animated: true)
@@ -127,7 +127,7 @@ final class SessionActions {
     var message = targets.count > 1
       ? String.localizedStringWithFormat(String(localized: "session.delete.withTabs", bundle: .lody), String(describing: targets.count - 1), String(describing: session.title))
       : String.localizedStringWithFormat(String(localized: "session.delete.message", bundle: .lody), String(describing: session.title))
-    if !SessionRows.isChat(session.projectId) { message += "\n\n" + String(localized: "session.delete.worktree", bundle: .lody) }
+    if SessionDeletion.removesWorktree(session) { message += "\n\n" + String(localized: "session.delete.worktree", bundle: .lody) }
     let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
     alert.addAction(UIAlertAction(title: String(localized: "common.cancel", bundle: .lody), style: .cancel))
     alert.addAction(UIAlertAction(title: String(localized: "session.action.delete", bundle: .lody), style: .destructive) { [weak self] _ in

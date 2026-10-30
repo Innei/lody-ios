@@ -144,14 +144,6 @@ enum SessionRows {
     return order.compactMap { groups[$0] }
   }
 
-  static func deletionTargets(_ sessions: [SessionItem], id: String) -> [SessionItem] {
-    sessions.filter { $0.id == id || $0.parentSessionId == id }
-  }
-
-  static func deletionBlocked(_ sessions: [SessionItem]) -> Bool {
-    sessions.contains { !$0.archived && !["idle", "pending", "completed", "error"].contains($0.status) }
-  }
-
   static func projectMenu(_ project: SessionProject) -> [LodyListAction] {
     var actions = [action("open", "project.action.open", "folder")]
     if !isChat(project.id) { actions.insert(action("newSession", "session.action.newSession", "square.and.pencil"), at: 0) }
