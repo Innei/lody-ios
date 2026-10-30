@@ -80,8 +80,8 @@ class Forwarder:
         self.server.close()
 
 
-def hold(process):
-    print('holding the VM for inspection; press Ctrl-C to stop and delete it', file=sys.stderr, flush=True)
+def hold(process, message='holding the VM for inspection; press Ctrl-C to stop and delete it'):
+    print(message, file=sys.stderr, flush=True)
 
     def interrupt(signum, frame):
         raise KeyboardInterrupt

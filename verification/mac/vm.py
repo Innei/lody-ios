@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
-"""Run the Lody Mac XCUITest suite inside a disposable macOS VM.
+"""Run the Lody Mac XCUITest suite inside a headless macOS VM.
 
-The host builds once with ``xcodebuild build-for-testing``; a Tart clone of the
-prepared base VM boots headless, runs ``test-without-building`` over SSH with the
-host's Xcode shared read-only, and is deleted afterwards. Nothing appears on the host display and the host's pointer
-and keyboard are never used.
+The host builds once with ``xcodebuild build-for-testing`` while the warm runner
+VM ``lody-verify-runner`` boots (or is already up); the guest resets Lody's state
+and runs ``test-without-building`` over SSH with the host's Xcode shared read-only.
+The runner stops after 30 idle minutes and is re-cloned from the base only when
+the base changes, after an infrastructure failure, or on ``reset``. Nothing
+appears on the host display and the host's pointer and keyboard are never used.
 
-    pnpm verify:mac:vm                     # all cases
+    pnpm verify:mac:vm                     # all cases on the warm runner
     pnpm verify:mac:vm --case sidebar      # one case
     pnpm verify:mac:vm --in-process        # also run pnpm verify:mac inside the guest
-    pnpm verify:mac:vm --hold              # keep the VM up after the run until Ctrl-C
+    pnpm verify:mac:vm --hold              # keep the run's lock until Ctrl-C
+    pnpm verify:mac:vm --fresh             # use a disposable clone instead of the runner
+    pnpm verify:mac:vm reset               # delete the runner; the next run clones a new one
     pnpm verify:mac:vm prepare             # build the base VM once (about 30 min)
 
-Every boot prints a ``VNC:`` line (also in ``vnc.txt``) for watching the guest:
+The runner prints a ``VNC:`` line (also in ``vnc.txt``) for watching the guest:
 Virtualization.framework's VNC server is forwarded to loopback port 5905, or the
-next free port, or ``--vnc-port``. Connect with Screen Sharing in Observe mode so
-the viewer's pointer and keys never reach the run.
+next free port, or ``--vnc-port``, for as long as the VM is up. Connect with
+Screen Sharing in Observe mode so the viewer's pointer and keys never reach the run.
 
 VM disks, clones and the IPSW live in an APFS sparse bundle (default
 ``/Volumes/WD/lody-vm.sparsebundle``, mounted at ``/Volumes/LodyVM``) with
@@ -24,156 +28,17 @@ VM disks, clones and the IPSW live in an APFS sparse bundle (default
 """
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
-import fcntl
-import json
 import os
-import re
 from pathlib import Path
 import shutil
 import subprocess
-import sys
-import tempfile
 import time
 
-from vm_vnc import VNC_PORT, Forwarder, hold, pick_port, vnc_endpoint, vnc_line
-
-ROOT = Path(__file__).resolve().parents[2]
-PROJECT = ROOT / 'Lody.xcodeproj'
-OUTPUT = ROOT / '.artifacts/mac-verify-vm'
-BUNDLE = Path(os.environ.get('LODY_VM_BUNDLE', '/Volumes/WD/lody-vm.sparsebundle'))
-VOLUME = Path(os.environ.get('LODY_VM_VOLUME', '/Volumes/LodyVM'))
-TART_HOME = VOLUME / 'tart'
-BASE = 'lody-macos-27.2'
-IPSW = VOLUME / 'ipsw/UniversalMac_27.2_26B123_Restore.ipsw'
-IPSW_URL = ('https://updates.cdn-apple.com/2026FallFCS/c9671975-52db-4fb5-9af2-00217169ba8d/'
-            'UniversalMac_27.2_26B123_Restore.ipsw')
-XCODE = Path(os.environ.get('LODY_VM_XCODE', '/Applications/Xcode-27.1.0.app'))
-GUEST_XCODE = '/Volumes/My Shared Files/Xcode.app'
-KEY = VOLUME / 'ssh/id_ed25519'
-GUEST_USER = 'admin'
-GUEST_PASSWORD = 'admin'
-SHARED = '/Volumes/My Shared Files'
-CASES = {
-    'sign-in': 'SignInTests',
-    'sidebar': 'SidebarTests',
-    'tabs': 'TabsTests',
-    'transcript': 'TranscriptTests',
-    'composer-new': 'ComposerNewTests',
-    'composer-reply': 'ComposerReplyTests',
-    'accent': 'AccentTests',
-    'offscreen': 'OffscreenTests',
-    'settings': 'SettingsTests',
-}
-
-
-def progress(message):
-    print(message, file=sys.stderr, flush=True)
-
-
-def tart(*args, check=True, capture=True, timeout=None):
-    binary = shutil.which('tart') or str(Path.home() / '.local/bin/tart')
-    env = {**os.environ, 'TART_HOME': str(TART_HOME)}
-    result = subprocess.run([binary, *args], env=env, text=True, capture_output=capture, timeout=timeout)
-    if check and result.returncode:
-        raise SystemExit(f'tart {" ".join(args)} failed: {(result.stderr or "").strip()}')
-    return result
-
-
-def mount():
-    if VOLUME.is_dir():
-        return
-    if not BUNDLE.exists():
-        raise SystemExit(f'no VM bundle at {BUNDLE}; create it with: hdiutil create -size 200g -type SPARSEBUNDLE '
-                         f'-fs APFS -volname {VOLUME.name} {BUNDLE}')
-    subprocess.run(['hdiutil', 'attach', '-nobrowse', '-owners', 'on', str(BUNDLE)], check=True,
-                   stdout=subprocess.DEVNULL)
-
-
-@contextmanager
-def locked():
-    VOLUME.joinpath('runs').mkdir(exist_ok=True)
-    with open(VOLUME / 'runs/.lock', 'w') as handle:
-        fcntl.flock(handle, fcntl.LOCK_EX)
-        yield
-
-
-def vms():
-    return {vm['Name'] for vm in json.loads(tart('list', '--format', 'json').stdout)}
-
-
-class Guest:
-    def __init__(self, name, shares, log, extra=()):
-        self.name = name
-        self.log = log
-        dirs = [f'--dir={tag}:{path}' for tag, path in shares.items()]
-        binary = shutil.which('tart') or str(Path.home() / '.local/bin/tart')
-        # With --no-graphics Tart only prints the VNC URL; without it Tart would open Screen Sharing on the host.
-        self.process = subprocess.Popen(
-            [binary, 'run', '--no-graphics', '--no-audio', '--vnc-experimental', *extra, *dirs, name],
-            env={**os.environ, 'TART_HOME': str(TART_HOME)},
-            stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
-        )
-        self.ip = None
-        self.forwarder = None
-
-    def expose(self, args):
-        deadline = time.monotonic() + 60
-        while not (endpoint := vnc_endpoint(Path(self.log.name).read_text(errors='replace'))):
-            if self.process.poll() is not None or time.monotonic() > deadline:
-                raise SystemExit(f'the VM never reported its VNC server; see {self.log.name}')
-            time.sleep(0.2)
-        password, upstream = endpoint
-        port = pick_port(args.vnc_port or VNC_PORT, fixed=args.vnc_port is not None)
-        self.forwarder = Forwarder(port, upstream)
-        line = vnc_line(password, port)
-        progress(line)
-        output = Path(args.output).resolve()
-        output.mkdir(parents=True, exist_ok=True)
-        (output / 'vnc.txt').write_text(line + '\n')
-
-    def boot(self, timeout=600, password=False):
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            if self.process.poll() is not None:
-                raise SystemExit(f'the VM exited during boot; see {self.log.name}')
-            if not self.ip:
-                found = tart('ip', self.name, '--wait', '5', check=False)
-                self.ip = found.stdout.strip() if found.returncode == 0 else None
-            if self.ip and self.ssh('true', check=False, timeout=15, password=password).returncode == 0:
-                return self
-            time.sleep(3)
-        raise SystemExit(f'the VM did not accept SSH within {timeout}s')
-
-    def ssh(self, command, check=True, timeout=None, password=False, stdout=None):
-        options = ['-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null', '-o', 'LogLevel=ERROR',
-                   '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=15']
-        env = dict(os.environ)
-        if password:
-            askpass = Path(tempfile.mkdtemp()) / 'askpass'
-            askpass.write_text(f'#!/bin/sh\necho {GUEST_PASSWORD}\n')
-            askpass.chmod(0o700)
-            env.update(SSH_ASKPASS=str(askpass), SSH_ASKPASS_REQUIRE='force', DISPLAY=':0')
-            options += ['-o', 'PubkeyAuthentication=no', '-o', 'PreferredAuthentications=password,keyboard-interactive']
-        else:
-            options += ['-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes', '-i', str(KEY)]
-        result = subprocess.run(['ssh', *options, f'{GUEST_USER}@{self.ip}', command], env=env, text=True,
-                                stdin=subprocess.DEVNULL, stdout=stdout or subprocess.PIPE,
-                                stderr=subprocess.STDOUT, timeout=timeout)
-        if check and result.returncode:
-            raise SystemExit(f'guest command failed ({result.returncode}): {command}\n{result.stdout or ""}')
-        return result
-
-    def stop(self):
-        if self.process.poll() is None:
-            tart('stop', self.name, '--timeout', '60', check=False)
-            try:
-                self.process.wait(timeout=90)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
-        if self.forwarder:
-            self.forwarder.close()
-
+from vm_guest import (BASE, CASES, GUEST_PASSWORD, GUEST_USER, IPSW, IPSW_URL, KEY, OUTPUT, SHARED, TART_HOME, VOLUME,
+                      XCODE, GUEST_XCODE, Guest, build, collect, exclusive, mount, progress, run_tests, stage, tart,
+                      vms, warm_up)
+import vm_runner
+from vm_vnc import VNC_PORT, hold
 
 # ditto and cp fail on symlinks crossing virtiofs ("Too many levels of symbolic links"); tar copies them intact.
 PROVISION = f'''
@@ -257,69 +122,6 @@ def settle(log, args):
         guest.stop()
 
 
-def build(log):
-    command = ['xcodebuild', '-project', str(PROJECT), '-scheme', 'LodyMac', '-configuration', 'Debug',
-               '-destination', 'platform=macOS']
-    progress('building LodyMac and LodyMacUITests for testing')
-    with log.open('w') as handle:
-        result = subprocess.run(command + ['build-for-testing'], cwd=ROOT, stdout=handle, stderr=subprocess.STDOUT)
-    if result.returncode:
-        errors = [line for line in log.read_text().splitlines() if 'error:' in line]
-        raise SystemExit('\n'.join(errors[-20:]) + f'\nbuild-for-testing failed; log {log}')
-    settings = subprocess.run(command + ['-showBuildSettings'], cwd=ROOT, capture_output=True, text=True,
-                              check=True).stdout
-    values = dict(line.strip().partition(' = ')[::2] for line in settings.splitlines() if ' = ' in line)
-    return Path(values['BUILD_DIR'])
-
-
-def warm_up(guest):
-    guest.boot()
-    started = time.monotonic()
-    healthy = guest.ssh(f"for i in $(seq 30); do [ -d '{GUEST_XCODE}' ] && break; sleep 1; done; "
-                        'xcodebuild -version', check=False, timeout=900)
-    if healthy.returncode:
-        raise SystemExit(f'the guest cannot run the shared Xcode at {XCODE}\n{healthy.stdout.strip()}')
-    progress(f'guest Xcode ready after {time.monotonic() - started:.0f}s (first launch scans the share)')
-
-
-def stage(products, target, in_process):
-    runs = sorted(products.glob('LodyMac_*.xctestrun'), key=lambda path: path.stat().st_mtime)
-    if not runs:
-        raise SystemExit(f'no LodyMac .xctestrun in {products}')
-    shutil.copy2(runs[-1], target / 'LodyMac.xctestrun')
-    for name in ['Lody.app', 'LodyMacUITests-Runner.app', 'PackageFrameworks']:
-        source = products / 'Debug' / name
-        if source.exists():
-            subprocess.run(['ditto', str(source), str(target / 'Debug' / name)], check=True)
-    if in_process:
-        node = shutil.which('node')
-        if not node:
-            raise SystemExit('--in-process needs node on the host to copy into the guest')
-        shutil.copy2(Path(node).resolve(), target / 'node')
-        for name in ['run.mts', 'lib', 'cases']:
-            subprocess.run(['ditto', str(ROOT / 'verification/mac' / name), str(target / 'mac' / name)], check=True)
-
-
-def export(result, output):
-    attachments = output / 'attachments'
-    subprocess.run(['xcrun', 'xcresulttool', 'export', 'attachments', '--path', str(result),
-                    '--output-path', str(attachments)], check=True, stdout=subprocess.DEVNULL)
-    manifest = json.loads((attachments / 'manifest.json').read_text())
-    named = []
-    for test in manifest:
-        for attachment in test.get('attachments', []):
-            source = attachments / attachment['exportedFileName']
-            human = Path(attachment.get('suggestedHumanReadableName') or source.name).stem
-            stem = re.sub(r'_\d+_[0-9A-F-]{36}$', '', human).replace('/', '-')
-            target = output / f'{stem}{source.suffix}'
-            shutil.move(source, target)
-            named.append(target.name)
-    shutil.rmtree(attachments)
-    summary = json.loads(subprocess.run(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path',
-                                         str(result)], capture_output=True, text=True, check=True).stdout)
-    return summary, sorted(named)
-
-
 def run(args):
     if not shutil.which('tart') and not (Path.home() / '.local/bin/tart').exists():
         raise SystemExit('tart is not installed; put the signed release from github.com/cirruslabs/tart on PATH')
@@ -332,7 +134,16 @@ def run(args):
     output = Path(args.output).resolve()
     shutil.rmtree(output, ignore_errors=True)
     output.mkdir(parents=True)
-    with locked():
+    raise SystemExit(run_fresh(args, output) if args.fresh else vm_runner.run(args, output))
+
+
+def reset(args):
+    mount()
+    vm_runner.reset()
+
+
+def run_fresh(args, output):
+    with exclusive():
         name = f'lody-verify-{os.getpid()}'
         work = VOLUME / 'runs' / name
         (work / 'products').mkdir(parents=True)
@@ -348,27 +159,7 @@ def run(args):
             ready = pool.submit(warm_up, guest)
             stage(build(output / 'build.log'), work / 'products', args.in_process)
             ready.result()
-            only = [f'-only-testing:LodyMacUITests/{CASES[case]}' for case in args.case]
-            test = ' '.join([
-                f"rm -rf ~/run && mkdir ~/run && (cd '{SHARED}/products' && tar --no-mac-metadata -cf - .) | (cd ~/run && tar -xpf -) &&",
-                'xcodebuild test-without-building -xctestrun ~/run/LodyMac.xctestrun -destination platform=macOS',
-                '-resultBundlePath ~/run/LodyMac.xcresult', *only,
-                f"> '{SHARED}/out/test.log' 2>&1; code=$?;",
-                f"(cd ~/run && tar --no-mac-metadata -cf - LodyMac.xcresult) | (cd '{SHARED}/out' && tar -xf -); exit $code",
-            ])
-            progress('running XCUITest in the guest')
-            finished = guest.ssh(test, check=False, timeout=args.timeout)
-            status = finished.returncode
-            if finished.stdout.strip():
-                progress(finished.stdout.strip())
-            if args.in_process:
-                progress('running the in-process suite in the guest')
-                cases = ' '.join(f'--case {case}' for case in args.case)
-                in_process = guest.ssh(' '.join([
-                    '~/run/node --experimental-strip-types ~/run/mac/run.mts --app ~/run/Debug/Lody.app',
-                    f"--output '{SHARED}/out/in-process' {cases} > '{SHARED}/out/in-process.log' 2>&1",
-                ]), check=False, timeout=args.timeout).returncode
-                status = status or in_process
+            _, status = run_tests(guest, args)
             code = collect(work / 'out', output, started, status)
             if args.hold:
                 hold(guest.process)
@@ -379,32 +170,11 @@ def run(args):
             log.close()
             shutil.move(work / 'tart.log', output / 'tart.log')
             shutil.rmtree(work, ignore_errors=True)
-    raise SystemExit(code)
-
-
-def collect(out, output, started, status):
-    for item in ['test.log', 'LodyMac.xcresult', 'in-process', 'in-process.log']:
-        if (out / item).exists():
-            shutil.move(out / item, output / item)
-    result = output / 'LodyMac.xcresult'
-    if not result.exists():
-        progress(f'the guest produced no result bundle; see {output / "test.log"}')
-        return 1
-    summary, files = export(result, output)
-    print(json.dumps({
-        'result': summary.get('result'),
-        'passed': summary.get('passedTests'),
-        'failed': summary.get('failedTests'),
-        'failures': [f"{item.get('testName')}: {item.get('failureText')}" for item in summary.get('testFailures', [])],
-        'seconds': round(time.monotonic() - started, 1),
-        'output': str(output),
-        'attachments': len(files),
-    }, indent=1, ensure_ascii=False), flush=True)
-    return 0 if status == 0 and summary.get('result') == 'Passed' else 1
+    return code
 
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument('command', nargs='?', default='run', choices=['run', 'prepare'])
+parser.add_argument('command', nargs='?', default='run', choices=['run', 'prepare', 'reset'])
 parser.add_argument('--case', action='append', default=[], help=f'one of {", ".join(CASES)}; repeatable')
 parser.add_argument('--output', default=str(OUTPUT))
 parser.add_argument('--in-process', action='store_true',
@@ -412,6 +182,7 @@ parser.add_argument('--in-process', action='store_true',
 parser.add_argument('--vnc-port', type=int, help=f'fixed loopback port for the VNC viewer (default {VNC_PORT}, '
                     'or the next free one)')
 parser.add_argument('--hold', action='store_true', help='keep the VM and VNC up after the run until Ctrl-C')
+parser.add_argument('--fresh', action='store_true', help='run in a disposable clone instead of the warm runner')
 parser.add_argument('--timeout', type=int, default=1800, help='seconds allowed for the guest test run')
 parser.add_argument('--force', action='store_true', help='prepare: reinstall and reprovision the base VM')
 parser.add_argument('--cpu', type=int, default=6)
@@ -420,4 +191,4 @@ parser.add_argument('--display', default='1680x1050')
 
 if __name__ == '__main__':
     arguments = parser.parse_args()
-    prepare(arguments) if arguments.command == 'prepare' else run(arguments)
+    {'prepare': prepare, 'reset': reset, 'run': run}[arguments.command](arguments)
