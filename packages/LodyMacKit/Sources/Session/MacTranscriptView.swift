@@ -5,7 +5,7 @@ import LodyData
 import MarkdownView
 
 @MainActor
-final class MacTranscriptView: NSView {
+final class MacTranscriptView: NSView, MacFileDropTarget {
   private let table = CKTranscriptTable()
   private var scroll: NSScrollView { table.scrollView }
   private var items: [String: MacTranscriptItem] = [:]
@@ -14,6 +14,7 @@ final class MacTranscriptView: NSView {
   var onAnswer: ((String) -> Void)?
   var onRetry: (() -> Void)?
   var onPreview: ((CKMediaRef) -> Void)?
+  var onDropFiles: (([URL]) -> Void)?
   var media: CKMediaProvider?
 
   var rowViews: [NSView] {
@@ -33,6 +34,7 @@ final class MacTranscriptView: NSView {
     super.init(frame: frameRect)
     table.readingWidth = reading.fillWidth ? nil : 780
     table.tableView.setAccessibilityIdentifier("transcript")
+    registerForDraggedTypes([.fileURL])
     table.historyHeader.labels = .init(
       more: String(localized: "mac.transcript.history.more", bundle: .lodyMac),
       start: String(localized: "mac.transcript.history.start", bundle: .lodyMac)
@@ -54,6 +56,21 @@ final class MacTranscriptView: NSView {
 
   func noteSend() {
     table.follow(.send(queued: false))
+  }
+
+  func dropFiles(_ urls: [URL]) {
+    onDropFiles?(urls)
+  }
+
+  override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+    onDropFiles == nil || MacComposerView.fileURLs(sender.draggingPasteboard).isEmpty ? [] : .copy
+  }
+
+  override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+    let urls = MacComposerView.fileURLs(sender.draggingPasteboard)
+    guard !urls.isEmpty, onDropFiles != nil else { return false }
+    dropFiles(urls)
+    return true
   }
 
   func render(_ model: MacTranscriptModel, card: MacPermissionFlow.Card? = nil) {

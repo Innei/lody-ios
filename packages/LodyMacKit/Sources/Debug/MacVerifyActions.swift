@@ -16,7 +16,9 @@ enum MacVerifyActions {
     let views = descendants(root).filter { !$0.isHiddenOrHasHiddenAncestor }
     switch action {
     case .click(let text):
-      if let button = views.compactMap({ $0 as? NSButton }).first(where: { !($0 is NSPopUpButton) && $0.title == text && $0.isEnabled }) {
+      if let button = views.compactMap({ $0 as? NSButton }).first(where: {
+        !($0 is NSPopUpButton) && ($0.title == text || $0.accessibilityIdentifier() == text || $0.accessibilityLabel() == text) && $0.isEnabled
+      }) {
         button.performClick(nil)
         return nil
       }
@@ -54,6 +56,23 @@ enum MacVerifyActions {
       scroll.reflectScrolledClipView(scroll.contentView)
       NotificationCenter.default.post(name: NSScrollView.didEndLiveScrollNotification, object: scroll)
       return nil
+    case .paste(let field):
+      guard let input = views.compactMap({ $0 as? MacComposerTextView }).first(where: { $0.placeholder == field || $0.accessibilityIdentifier() == field }) else {
+        return "no input \(field)"
+      }
+      let board = NSPasteboard(name: .init("lody-verify-paste"))
+      board.clearContents()
+      board.writeObjects([NSImage(cgImage: MacFixtureMedia.swatch(seed: "paste", size: CGSize(width: 64, height: 48)), size: .zero)])
+      return input.onPasteAttachments?(board) == true ? nil : "nothing pasted into \(field)"
+    case .drop(let field):
+      guard let target = views.first(where: { $0.accessibilityIdentifier() == field }) as? MacFileDropTarget
+        ?? views.first(where: { $0.accessibilityIdentifier() == field })?.ancestor(MacFileDropTarget.self) else {
+        return "no drop target \(field)"
+      }
+      let file = FileManager.default.temporaryDirectory.appendingPathComponent("lody-verify-dropped.txt")
+      guard (try? Data("dropped".utf8).write(to: file)) != nil else { return "no drop fixture" }
+      target.dropFiles([file])
+      return nil
     case .key:
       guard let event = NSEvent.keyEvent(
         with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
@@ -89,6 +108,17 @@ enum MacVerifyActions {
 
   private static func descendants(_ view: NSView) -> [NSView] {
     [view] + view.subviews.flatMap(descendants)
+  }
+}
+
+extension NSView {
+  fileprivate func ancestor<T>(_ type: T.Type) -> T? {
+    var view = superview
+    while let current = view {
+      if let match = current as? T { return match }
+      view = current.superview
+    }
+    return nil
   }
 }
 #endif

@@ -12,6 +12,8 @@ struct MacComposerModel {
   var replyReady = false
   var replyCapability: Capability?
   var replyChoice = ModelChoice()
+  var attachments = MacDraftAttachments()
+  var attachmentNotice = ""
 
   init(mode: Mode) { self.mode = mode }
 
@@ -25,7 +27,7 @@ struct MacComposerModel {
   }
 
   var canSend: Bool {
-    guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+    guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty else { return false }
     switch mode {
     case .newSession: return missing == nil && form.canSend
     case .reply: return replyReady
@@ -48,6 +50,6 @@ struct MacComposerModel {
   }
 
   func payload(id: String, now: Date = Date()) -> [String: Any] {
-    ["id": id, "text": text, "startedAt": Int(now.timeIntervalSince1970 * 1000), "attachments": [Any]()]
+    ["id": id, "text": text, "startedAt": Int(now.timeIntervalSince1970 * 1000), "attachments": attachments.payload]
   }
 }

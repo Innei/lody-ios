@@ -32,7 +32,7 @@ enum MacFixtures {
 
   static var environment: MacEnvironment { environment(history: 0) }
 
-  static func environment(history: Int, media: Bool = false) -> MacEnvironment {
+  static func environment(history: Int, media: Bool = false, attachments: Bool = false) -> MacEnvironment {
     let sessions = MacSessionsSource.fixture(listState)
     return MacEnvironment(
       sessions: sessions,
@@ -43,10 +43,20 @@ enum MacFixtures {
         model.replyReady = true
         model.replyCapability = MacComposerFixture.capability
         model.replyChoice = ModelChoice(modelId: "opus", effort: "high", modeId: "default")
-        let composer = MacComposerController(model: model, service: MacComposerService(
+        let failing = MacComposerFixture.Failing()
+        var service = MacComposerService(
           options: { _, _ in throw OutboxError.scopeExpired }, create: { _, _ in },
-          reply: { payload, _ in transcript.reply(payload["text"] as? String ?? "") }
-        ))
+          reply: { payload, _ in
+            if attachments, !((payload["attachments"] as? [Any]) ?? []).isEmpty {
+              Task { @MainActor in failing.composer?.restoreDraft() }
+              return
+            }
+            transcript.reply(payload["text"] as? String ?? "")
+          }
+        )
+        if attachments { service.pick = { _, picked in picked(MacComposerFixture.pickedFiles()) } }
+        let composer = MacComposerController(model: model, service: service)
+        failing.composer = composer
         composer.replyContext = ("lody-ios", "mac-client", "Mac Studio")
         composer.onReplyChoice = { [weak composer] body in
           guard let composer else { return }
@@ -68,8 +78,8 @@ enum MacFixtures {
     )
   }
 
-  static func workspaceWindow(sessionId: String?, history: Int = 0, media: Bool = false) -> [NSWindow] {
-    let controller = MainWindowController(environment: environment(history: history, media: media), sessionId: sessionId)
+  static func workspaceWindow(sessionId: String?, history: Int = 0, media: Bool = false, attachments: Bool = false) -> [NSWindow] {
+    let controller = MainWindowController(environment: environment(history: history, media: media, attachments: attachments), sessionId: sessionId)
     if let workspace = controller.workspace { MacTabCoordinator.shared.select(workspace) }
     return controller.window.map { [$0] } ?? []
   }

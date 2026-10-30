@@ -103,7 +103,10 @@ final class MacSessionController: NSViewController, MacSessionPane {
     transcript.onRetry = { [weak self] in self?.onRetry?() }
     transcript.media = source.media
     transcript.onPreview = { [weak self] in self?.preview($0) }
-    (composer as? MacComposerController)?.onSend = { [weak transcript] in transcript?.noteSend() }
+    if let replies = composer as? MacComposerController {
+      replies.onSend = { [weak transcript] in transcript?.noteSend() }
+      transcript.onDropFiles = { [weak replies] in replies?.addFiles($0) }
+    }
     view = root
   }
 

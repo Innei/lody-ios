@@ -22,14 +22,16 @@ extension MacSessionController: @preconcurrency QLPreviewPanelDataSource {
     }
   }
 
-  override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool { previewURL != nil }
+  override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+    MainActor.assumeIsolated { previewURL != nil }
+  }
 
   override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
-    panel.dataSource = self
+    MainActor.assumeIsolated { panel.dataSource = self }
   }
 
   override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
-    panel.dataSource = nil
+    MainActor.assumeIsolated { panel.dataSource = nil }
   }
 
   func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int { previewURL == nil ? 0 : 1 }

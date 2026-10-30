@@ -86,6 +86,23 @@
         }
       }
     },
+    "mac.attachments.attach": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attach Files…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加附件…"
+          }
+        }
+      }
+    },
     "mac.attachments.failed": {
       "extractionState": "manual",
       "localizations": {
@@ -103,6 +120,23 @@
         }
       }
     },
+    "mac.attachments.limit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can attach up to 8 images and 8 files."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最多可添加 8 张图片和 8 个文件。"
+          }
+        }
+      }
+    },
     "mac.attachments.remove": {
       "extractionState": "manual",
       "localizations": {
@@ -116,6 +150,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "移除"
+          }
+        }
+      }
+    },
+    "mac.attachments.tooLarge %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” is larger than 100 MB."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”超过 100 MB。"
+          }
+        }
+      }
+    },
+    "mac.attachments.unsupported %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” can’t be attached."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法添加“%@”。"
           }
         }
       }

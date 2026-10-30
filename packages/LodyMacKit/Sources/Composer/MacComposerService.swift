@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import LodyCore
 import LodyData
 
@@ -7,6 +7,24 @@ struct MacComposerService {
   var options: @MainActor (_ workspaceId: String, _ projectId: String?) async throws -> CreationOptions
   var create: @MainActor (_ draft: CreateSessionDraft, _ payload: [String: Any]) -> Void
   var reply: @MainActor (_ payload: [String: Any], _ choice: ModelChoice) -> Void = { _, _ in }
+  var pick: @MainActor (_ window: NSWindow?, _ picked: @escaping @MainActor ([URL]) -> Void) -> Void = Self.openPanel
+
+  static func openPanel(_ window: NSWindow?, _ picked: @escaping @MainActor ([URL]) -> Void) {
+    let panel = NSOpenPanel()
+    panel.allowsMultipleSelection = true
+    panel.canChooseDirectories = false
+    panel.canChooseFiles = true
+    panel.prompt = String(localized: "mac.attachments.attach", bundle: .lodyMac)
+    let finish: (NSApplication.ModalResponse) -> Void = { response in
+      guard response == .OK else { return }
+      MainActor.assumeIsolated { picked(panel.urls) }
+    }
+    if let window {
+      panel.beginSheetModal(for: window, completionHandler: finish)
+    } else {
+      panel.begin(completionHandler: finish)
+    }
+  }
 
   static var live: MacComposerService {
     MacComposerService(

@@ -265,6 +265,14 @@ export function capture(session: Session, name: string) {
   });
 }
 
+export function pasteInto(session: Session, field: string) {
+  return act(session, 'paste', { field });
+}
+
+export function dropFiles(session: Session, field: string) {
+  return act(session, 'drop', { field });
+}
+
 export function scrollToTop(session: Session, field: string) {
   return act(session, 'scroll', { field, to: 'top' });
 }

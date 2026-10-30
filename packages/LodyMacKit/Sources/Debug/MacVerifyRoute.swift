@@ -64,6 +64,8 @@ enum MacVerifyAction: Equatable {
   case key(String)
   case menu(String)
   case scrollToTop(String)
+  case paste(String)
+  case drop(String)
 
   init?(_ verb: String, _ query: [String: String]) {
     switch verb {
@@ -79,6 +81,12 @@ enum MacVerifyAction: Equatable {
     case "menu":
       guard let title = query["title"], !title.isEmpty else { return nil }
       self = .menu(title)
+    case "paste":
+      guard let field = query["field"], !field.isEmpty else { return nil }
+      self = .paste(field)
+    case "drop":
+      guard let field = query["field"], !field.isEmpty else { return nil }
+      self = .drop(field)
     case "scroll":
       guard let field = query["field"], !field.isEmpty, query["to"] == "top" else { return nil }
       self = .scrollToTop(field)

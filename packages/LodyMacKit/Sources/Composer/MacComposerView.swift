@@ -1,9 +1,10 @@
 import AppKit
+import ChatAppKit
 import LodyCore
 import LodyData
 
 @MainActor
-final class MacComposerView: NSView {
+final class MacComposerView: NSView, MacFileDropTarget {
   let project = NSPopUpButton()
   let machine = NSPopUpButton()
   let agent = NSPopUpButton()
@@ -14,7 +15,10 @@ final class MacComposerView: NSView {
   let effort = NSPopUpButton()
   let send = NSButton()
   let notice = NSTextField(labelWithString: "")
+  let attach = NSButton()
+  let strip = CKAttachmentStripView()
   var onSend: (() -> Void)?
+  var onDropFiles: (([URL]) -> Void)?
   private let tray = NSStackView()
   private let inputHeight: NSLayoutConstraint
   private var readingObserver: NSObjectProtocol?
@@ -71,10 +75,24 @@ final class MacComposerView: NSView {
     send.action = #selector(sendPressed)
     send.setAccessibilityIdentifier("composer-send")
     send.setAccessibilityLabel(String(localized: "mac.composer.send", bundle: .lodyMac))
+    attach.bezelStyle = .accessoryBarAction
+    attach.isBordered = false
+    attach.image = NSImage(systemSymbolName: "paperclip", accessibilityDescription: String(localized: "mac.attachments.attach", bundle: .lodyMac))
+    attach.setAccessibilityLabel(String(localized: "mac.attachments.attach", bundle: .lodyMac))
+    attach.setAccessibilityIdentifier("composer-attach")
+    attach.toolTip = String(localized: "mac.attachments.attach", bundle: .lodyMac)
+    strip.editable = true
+    strip.setAccessibilityIdentifier("composer-attachments")
+    strip.labels = .init(
+      remove: String(localized: "mac.attachments.remove", bundle: .lodyMac),
+      failed: String(localized: "mac.attachments.failed", bundle: .lodyMac),
+      uploading: { String(localized: "mac.attachments.uploading \($0)", bundle: .lodyMac) }
+    )
+    registerForDraggedTypes([.fileURL])
     let controls = NSStackView()
-    controls.setViews([mode], in: .leading)
+    controls.setViews([attach, mode], in: .leading)
     controls.setViews([modelPicker, effort, send], in: .trailing)
-    let stack = NSStackView(views: [tray, notice, scroll, controls])
+    let stack = NSStackView(views: [tray, notice, strip, scroll, controls])
     stack.orientation = .vertical
     stack.alignment = .leading
     stack.spacing = 6
@@ -93,6 +111,7 @@ final class MacComposerView: NSView {
       stack.bottomAnchor.constraint(equalTo: fill.bottomAnchor),
       tray.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor, constant: -22),
       notice.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor, constant: -26),
+      strip.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -22),
       scroll.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -22),
       controls.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -22),
       inputHeight,
@@ -126,12 +145,14 @@ final class MacComposerView: NSView {
       let agents = form.current.agents
       fill(agent, agents.map(\.name), selected: agents.firstIndex { $0.key == form.current.agentKey },
            empty: String(localized: "mac.composer.noAgent", bundle: .lodyMac))
-      notice.stringValue = Self.notice(model)
-      notice.isHidden = notice.stringValue.isEmpty
+      notice.stringValue = model.attachmentNotice.isEmpty ? Self.notice(model) : model.attachmentNotice
     } else {
       context.stringValue = [reply.project, reply.branch, reply.machine].filter { !$0.isEmpty }.joined(separator: "  ·  ")
-      notice.isHidden = true
+      notice.stringValue = model.attachmentNotice
     }
+    notice.isHidden = notice.stringValue.isEmpty
+    strip.render(model.attachments.items.map(\.attachment))
+    strip.isHidden = model.attachments.isEmpty
     let choice = model.choice
     fill(mode, model.modes.map(\.name), selected: model.modes.firstIndex { $0.id == choice.modeId } ?? (model.modes.isEmpty ? nil : 0))
     mode.isHidden = model.modes.isEmpty
@@ -168,11 +189,42 @@ final class MacComposerView: NSView {
   }
 
   @objc private func sendPressed() { onSend?() }
+
+  override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+    Self.fileURLs(sender.draggingPasteboard).isEmpty ? [] : .copy
+  }
+
+  override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+    let urls = Self.fileURLs(sender.draggingPasteboard)
+    guard !urls.isEmpty else { return false }
+    dropFiles(urls)
+    return true
+  }
+
+  func dropFiles(_ urls: [URL]) { onDropFiles?(urls) }
+
+  static func fileURLs(_ pasteboard: NSPasteboard) -> [URL] {
+    pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+  }
 }
 
 @MainActor
 final class MacComposerTextView: NSTextView {
   var onSubmit: (() -> Void)?
+  var onPasteAttachments: ((NSPasteboard) -> Bool)?
+  var onDropFiles: (([URL]) -> Void)?
+
+  override func paste(_ sender: Any?) {
+    if onPasteAttachments?(.general) == true { return }
+    super.paste(sender)
+  }
+
+  override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+    let urls = MacComposerView.fileURLs(sender.draggingPasteboard)
+    guard !urls.isEmpty, let onDropFiles else { return super.performDragOperation(sender) }
+    onDropFiles(urls)
+    return true
+  }
   var placeholder = "" { didSet { needsDisplay = true } }
 
   override func keyDown(with event: NSEvent) {

@@ -70,6 +70,8 @@ final class MacVerifyActionTests: XCTestCase {
     XCTAssertNil(route("lodymacverify://act/key?seq=1&name=escape"))
     XCTAssertEqual(route("lodymacverify://act/scroll?seq=7&field=transcript&to=top"), .act(7, .scrollToTop("transcript")))
     XCTAssertNil(route("lodymacverify://act/scroll?seq=8&field=transcript&to=bottom"))
+    XCTAssertEqual(route("lodymacverify://act/paste?seq=9&field=Reply%E2%80%A6"), .act(9, .paste("Reply…")))
+    XCTAssertEqual(route("lodymacverify://act/drop?seq=10&field=transcript"), .act(10, .drop("transcript")))
   }
 
   func testActionsDriveTheControlsOfAWindow() throws {

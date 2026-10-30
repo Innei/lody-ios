@@ -27,6 +27,12 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     view = view1
     view1.input.delegate = self
     view1.onSend = { [weak self] in self?.send() }
+    view1.onDropFiles = { [weak self] in self?.addFiles($0) }
+    view1.input.onDropFiles = { [weak self] in self?.addFiles($0) }
+    view1.input.onPasteAttachments = { [weak self] in self?.paste($0) ?? false }
+    view1.attach.target = self
+    view1.attach.action = #selector(pickFiles)
+    view1.strip.onRemove = { [weak self] in self?.removeAttachment($0.id) }
     view1.project.target = self
     view1.project.action = #selector(projectChanged)
     view1.machine.target = self
@@ -58,10 +64,34 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   }
 
   func restoreDraft() {
-    guard let text = draft.restore(current: view1.input.string) else { return }
-    view1.input.string = text
-    model.text = text
+    guard let restored = draft.restore(current: view1.input.string, hasAttachments: !model.attachments.isEmpty) else { return }
+    view1.input.string = restored.text
+    model.text = restored.text
+    model.attachments.restore(restored.attachments)
     render()
+  }
+
+  func addFiles(_ urls: [URL]) {
+    let rejections = model.attachments.add(urls: urls)
+    model.attachmentNotice = rejections.first?.message ?? ""
+    render()
+  }
+
+  func paste(_ pasteboard: NSPasteboard) -> Bool {
+    guard let rejections = model.attachments.add(pasteboard: pasteboard) else { return false }
+    model.attachmentNotice = rejections.first?.message ?? ""
+    render()
+    return true
+  }
+
+  func removeAttachment(_ id: String) {
+    model.attachments.remove(id: id)
+    model.attachmentNotice = ""
+    render()
+  }
+
+  @objc private func pickFiles() {
+    service.pick(view.window) { [weak self] in self?.addFiles($0) }
   }
 
   func clearDraft() { draft.clear() }
@@ -139,7 +169,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
       clearInput()
       service.create(created, payload)
     case .reply:
-      draft.sent(text)
+      draft.sent(text, attachments: model.attachments.items)
       clearInput()
       onSend?()
       service.reply(payload, model.replyChoice)
@@ -149,6 +179,8 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   private func clearInput() {
     view1.input.string = ""
     model.text = ""
+    _ = model.attachments.take()
+    model.attachmentNotice = ""
     render()
   }
 

@@ -1,10 +1,25 @@
 #if DEBUG
-import Foundation
+import AppKit
 import LodyCore
 import LodyData
 
 @MainActor
 enum MacComposerFixture {
+  final class Failing {
+    weak var composer: MacComposerController?
+  }
+
+  static func pickedFiles() -> [URL] {
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("lody-verify-picked", isDirectory: true)
+    try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    let notes = folder.appendingPathComponent("notes.txt")
+    let diagram = folder.appendingPathComponent("diagram.png")
+    try? Data("Sidebar notes".utf8).write(to: notes)
+    let image = NSBitmapImageRep(cgImage: MacFixtureMedia.swatch(seed: "diagram", size: CGSize(width: 96, height: 64)))
+    try? image.representation(using: .png, properties: [:])?.write(to: diagram)
+    return [notes, diagram]
+  }
+
   static let capability = Capability(
     machineId: "m-studio", cliType: "builtin", agentType: "claude",
     models: [CapabilityChoice(id: "opus", name: "Opus 5.5"), CapabilityChoice(id: "sonnet", name: "Sonnet 5.5")],

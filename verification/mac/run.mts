@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { accent } from './cases/accent.mts';
+import { attachments } from './cases/attachments.mts';
 import { composerNew, composerReply } from './cases/composer.mts';
 import { sessions } from './cases/sessions.mts';
 import { settings } from './cases/settings.mts';
@@ -26,6 +27,7 @@ const cases: Record<string, (session: Session) => Promise<void>> = {
   'transcript-media': transcriptMedia,
   'composer-new': composerNew,
   'composer-reply': composerReply,
+  attachments,
   accent,
   settings,
   sessions,
