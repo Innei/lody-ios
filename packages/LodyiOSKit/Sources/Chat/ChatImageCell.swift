@@ -1,7 +1,10 @@
 import UIKit
 
 /// A separate row keeps image geometry out of text measurement and message bubbles.
-final class ChatImageCell: UICollectionViewCell {
+final class ChatImageCell: UICollectionViewCell, ChatGapCell {
+  var gapAbove: CGFloat = 0 {
+    didSet { if gapAbove != oldValue { setNeedsLayout() } }
+  }
   private var photo = UIImageView()
   var compact = false
   private let spinner = UIActivityIndicatorView(style: .medium)
@@ -139,6 +142,7 @@ final class ChatImageCell: UICollectionViewCell {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    layoutGap()
     guard let image else { return }
     photo.layer.borderColor = UIColor.separator.resolvedColor(with: traitCollection).cgColor
     let size = compact ? contentView.bounds.size : Self.size(image, width: contentView.bounds.width)

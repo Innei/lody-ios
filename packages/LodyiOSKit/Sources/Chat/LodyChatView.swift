@@ -349,109 +349,12 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     collection.register(ChatSubagentCell.self, forCellWithReuseIdentifier: "subagent")
     collection.register(ChatCell.self, forCellWithReuseIdentifier: "message")
     collection.register(ChatMetaCell.self, forCellWithReuseIdentifier: "meta")
-    collection.register(ChatTurnCell.self, forCellWithReuseIdentifier: "turn")
     collection.register(ChatPlanCell.self, forCellWithReuseIdentifier: "proposed-plan")
     collection.register(ChatMarkdownCell.self, forCellWithReuseIdentifier: "markdown")
     dataSource = UICollectionViewDiffableDataSource<String, String>(collectionView: collection) { [weak self] collection, index, id in
       guard let self, let row = self.rows[id] else { return nil }
-      if row.kind == "chat_failed" {
-        let cell = collection.dequeueReusableCell(withReuseIdentifier: "error", for: index) as! ChatErrorCell
-        cell.configure(row)
-        cell.onDetail = { [weak self] in self?.onActivityPress(["entryId": row.entryID, "itemId": row.itemID]) }
-        cell.onRetry = { [weak self] in self?.onErrorRetry(["entryId": row.entryID, "itemId": row.itemID, "id": UUID().uuidString.lowercased()]) }
-        return cell
-      }
-      if row.subagent != nil {
-        let cell = collection.dequeueReusableCell(withReuseIdentifier: "subagent", for: index) as! ChatSubagentCell
-        cell.configure(row)
-        return cell
-      }
-      if row.kind == "meta" {
-        let cell = collection.dequeueReusableCell(withReuseIdentifier: "meta", for: index) as! ChatMetaCell
-        cell.detailsButton.isHidden = !turnInfoEnabled
-        cell.configure(row)
-        cell.detailsButton.removeAction(identifiedBy: .init("turn-info"), for: .touchUpInside)
-        cell.detailsButton.addAction(UIAction(identifier: .init("turn-info")) { [weak self] _ in
-          guard let self else { return }
-          let page = MessageDetailsController(entryId: row.entryID, entry: self.transcript.entries.first { $0.id == row.entryID })
-          self.messageDetailsPage = page
-          LodyShell.shared.presentNative(page, title: String(localized: "message.details.title", bundle: .lody), detents: [0.75, 1], grabber: true)
-          self.onTurnInfoPress(["entryId": row.entryID])
-        }, for: .touchUpInside)
-        cell.actionButton.menu = messageMenu(entryID: row.entryID, source: cell.actionButton)
-        return cell
-      }
-      if row.kind == "turn" {
-        let cell = collection.dequeueReusableCell(withReuseIdentifier: "turn", for: index) as! ChatTurnCell
-        cell.configure(row)
-        return cell
-      }
-      if row.kind == "changesHeader" {
-        return collection.dequeueConfiguredReusableCell(using: self.fileHeaderRegistration, for: index, item: row)
-      }
-      if row.kind == "changesReview" {
-        return collection.dequeueConfiguredReusableCell(using: self.reviewRegistration, for: index, item: row)
-      }
-      if row.kind == "changes" {
-        return collection.dequeueConfiguredReusableCell(using: self.fileRegistration, for: index, item: row)
-      }
-      if row.kind == "attachments" {
-        let cell = collection.dequeueReusableCell(withReuseIdentifier: "attachments", for: index) as! ChatMessageAttachmentsCell
-        cell.canEdit = { [weak self] in self?.editableMessageID == row.entryID }
-        cell.onEdit = { [weak self] in self?.onEditMessage(["entryId": row.entryID]) }
-        cell.configure(row, workspace: self.imageWorkspace, session: self.imageSession, expanded: self.expandedAttachments.contains(row.entryID))
-        cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
-        cell.onPreview = { [weak self] attachment, image in
-          guard let self else { return }
-          if let image, let id = image.accessibilityIdentifier, !id.isEmpty {
-            self.openImageGallery(id: id, source: image)
-            return
-          }
-          self.openAttachment(attachment)
-        }
-        return cell
-      }
-      if row.image != nil {
-        let cell = collection.dequeueReusableCell(withReuseIdentifier: "image", for: index) as! ChatImageCell
-        cell.configure(row, workspace: self.imageWorkspace, session: self.imageSession)
-        return cell
-      }
-      if row.kind == "proposed_plan" {
-        let cell = collection.dequeueReusableCell(withReuseIdentifier: "proposed-plan", for: index) as! ChatPlanCell
-        let width = max(1, ChatReadingColumn.itemWidth(in: collection.bounds.width) - 32)
-        let markdown = self.store.view(id: id, text: row.text, secondary: false, streaming: row.streaming, width: width)
-        markdown.onLink = { [weak self] in self?.openMessageLink($0) }
-        cell.configure(row, markdown: markdown, expanded: self.expandedPlans.contains(id))
-        cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
-        cell.onDecision = { [weak self] action in self?.onPlanDecision(["entryId": row.entryID, "itemId": row.itemID, "action": action, "id": UUID().uuidString.lowercased()]) }
-        cell.onReview = { [weak self] in self?.onActivityPress(["entryId": row.entryID, "itemId": row.planPermissionItemID]) }
-        return cell
-      }
-      if row.kind == "text" || row.kind == "thought" {
-        let cell = collection.dequeueReusableCell(withReuseIdentifier: "markdown", for: index) as! ChatMarkdownCell
-        let secondary = row.kind == "thought"
-        cell.onLink = { [weak self] in self?.openMessageLink($0) }
-        let width = ChatCell.textWidth(row, width: ChatReadingColumn.itemWidth(in: collection.bounds.width))
-        cell.configure(
-          row,
-          markdown: self.store.view(id: id, text: row.text, secondary: secondary, streaming: row.streaming, width: width),
-          previousKind: self.kind(before: id)
-        )
-        return cell
-      }
-      let cell = collection.dequeueReusableCell(withReuseIdentifier: "message", for: index) as! ChatCell
-      cell.onInteraction = { [weak self] in self?.pauseTracking() }
-      cell.canEdit = { [weak self] in self?.editableMessageID == row.entryID && row.kind == "user" }
-      cell.onEdit = { [weak self] in self?.onEditMessage(["entryId": row.entryID]) }
-      cell.label.onLink = row.kind == "user" ? { [weak self] in self?.openMessageLink($0) } : nil
-      cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
-      cell.onActivate = { [weak self] in
-        guard let self, let index = self.dataSource.indexPath(for: row.id) else { return }
-        self.collectionView(self.collection, didSelectItemAt: index)
-      }
-      cell.expanded = self.expandedMessages.contains(row.entryID)
-      cell.collapsedHeight = self.collapsedMessageHeights[row.entryID] ?? ChatMessageContent.maximumCollapsedHeight
-      cell.configure(row, text: self.text(for: row))
+      let cell = self.transcriptCell(collection, index: index, id: id, row: row)
+      (cell as? ChatGapCell)?.gapAbove = ChatRowPadding.above(kind: row.kind, previousKind: self.kind(before: id))
       return cell
     }
     LodyScrollEdges.chat(collection)
@@ -1000,4 +903,103 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
   }
   func setComposerOptions(_ json: String) { composer.setComposerOptions(json) }
   func setEmptyText(_ text: String) { empty.text = text }
+}
+
+extension LodyChatView {
+  fileprivate func transcriptCell(_ collection: UICollectionView, index: IndexPath, id: String, row: ChatRow) -> UICollectionViewCell? {
+    if row.kind == "chat_failed" {
+      let cell = collection.dequeueReusableCell(withReuseIdentifier: "error", for: index) as! ChatErrorCell
+      cell.configure(row)
+      cell.onDetail = { [weak self] in self?.onActivityPress(["entryId": row.entryID, "itemId": row.itemID]) }
+      cell.onRetry = { [weak self] in self?.onErrorRetry(["entryId": row.entryID, "itemId": row.itemID, "id": UUID().uuidString.lowercased()]) }
+      return cell
+    }
+    if row.subagent != nil {
+      let cell = collection.dequeueReusableCell(withReuseIdentifier: "subagent", for: index) as! ChatSubagentCell
+      cell.configure(row)
+      return cell
+    }
+    if row.kind == "meta" {
+      let cell = collection.dequeueReusableCell(withReuseIdentifier: "meta", for: index) as! ChatMetaCell
+      cell.detailsButton.isHidden = !turnInfoEnabled
+      cell.configure(row)
+      cell.detailsButton.removeAction(identifiedBy: .init("turn-info"), for: .touchUpInside)
+      cell.detailsButton.addAction(UIAction(identifier: .init("turn-info")) { [weak self] _ in
+        guard let self else { return }
+        let page = MessageDetailsController(entryId: row.entryID, entry: self.transcript.entries.first { $0.id == row.entryID })
+        self.messageDetailsPage = page
+        LodyShell.shared.presentNative(page, title: String(localized: "message.details.title", bundle: .lody), detents: [0.75, 1], grabber: true)
+        self.onTurnInfoPress(["entryId": row.entryID])
+      }, for: .touchUpInside)
+      cell.actionButton.menu = messageMenu(entryID: row.entryID, source: cell.actionButton)
+      return cell
+    }
+    if row.kind == "changesHeader" {
+      return collection.dequeueConfiguredReusableCell(using: self.fileHeaderRegistration, for: index, item: row)
+    }
+    if row.kind == "changesReview" {
+      return collection.dequeueConfiguredReusableCell(using: self.reviewRegistration, for: index, item: row)
+    }
+    if row.kind == "changes" {
+      return collection.dequeueConfiguredReusableCell(using: self.fileRegistration, for: index, item: row)
+    }
+    if row.kind == "attachments" {
+      let cell = collection.dequeueReusableCell(withReuseIdentifier: "attachments", for: index) as! ChatMessageAttachmentsCell
+      cell.canEdit = { [weak self] in self?.editableMessageID == row.entryID }
+      cell.onEdit = { [weak self] in self?.onEditMessage(["entryId": row.entryID]) }
+      cell.configure(row, workspace: self.imageWorkspace, session: self.imageSession, expanded: self.expandedAttachments.contains(row.entryID))
+      cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
+      cell.onPreview = { [weak self] attachment, image in
+        guard let self else { return }
+        if let image, let id = image.accessibilityIdentifier, !id.isEmpty {
+          self.openImageGallery(id: id, source: image)
+          return
+        }
+        self.openAttachment(attachment)
+      }
+      return cell
+    }
+    if row.image != nil {
+      let cell = collection.dequeueReusableCell(withReuseIdentifier: "image", for: index) as! ChatImageCell
+      cell.configure(row, workspace: self.imageWorkspace, session: self.imageSession)
+      return cell
+    }
+    if row.kind == "proposed_plan" {
+      let cell = collection.dequeueReusableCell(withReuseIdentifier: "proposed-plan", for: index) as! ChatPlanCell
+      let width = max(1, ChatReadingColumn.itemWidth(in: collection.bounds.width) - 32)
+      let markdown = self.store.view(id: id, text: row.text, secondary: false, streaming: row.streaming, width: width)
+      markdown.onLink = { [weak self] in self?.openMessageLink($0) }
+      cell.configure(row, markdown: markdown, expanded: self.expandedPlans.contains(id))
+      cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
+      cell.onDecision = { [weak self] action in self?.onPlanDecision(["entryId": row.entryID, "itemId": row.itemID, "action": action, "id": UUID().uuidString.lowercased()]) }
+      cell.onReview = { [weak self] in self?.onActivityPress(["entryId": row.entryID, "itemId": row.planPermissionItemID]) }
+      return cell
+    }
+    if row.kind == "text" || row.kind == "thought" {
+      let cell = collection.dequeueReusableCell(withReuseIdentifier: "markdown", for: index) as! ChatMarkdownCell
+      let secondary = row.kind == "thought"
+      cell.onLink = { [weak self] in self?.openMessageLink($0) }
+      let width = ChatCell.textWidth(row, width: ChatReadingColumn.itemWidth(in: collection.bounds.width))
+      cell.configure(
+        row,
+        markdown: self.store.view(id: id, text: row.text, secondary: secondary, streaming: row.streaming, width: width),
+        previousKind: self.kind(before: id)
+      )
+      return cell
+    }
+    let cell = collection.dequeueReusableCell(withReuseIdentifier: "message", for: index) as! ChatCell
+    cell.onInteraction = { [weak self] in self?.pauseTracking() }
+    cell.canEdit = { [weak self] in self?.editableMessageID == row.entryID && row.kind == "user" }
+    cell.onEdit = { [weak self] in self?.onEditMessage(["entryId": row.entryID]) }
+    cell.label.onLink = row.kind == "user" ? { [weak self] in self?.openMessageLink($0) } : nil
+    cell.onToggle = { [weak self] in self?.toggleExpansion(row) }
+    cell.onActivate = { [weak self] in
+      guard let self, let index = self.dataSource.indexPath(for: row.id) else { return }
+      self.collectionView(self.collection, didSelectItemAt: index)
+    }
+    cell.expanded = self.expandedMessages.contains(row.entryID)
+    cell.collapsedHeight = self.collapsedMessageHeights[row.entryID] ?? ChatMessageContent.maximumCollapsedHeight
+    cell.configure(row, text: self.text(for: row))
+    return cell
+  }
 }

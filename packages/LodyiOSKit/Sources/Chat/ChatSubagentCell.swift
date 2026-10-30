@@ -1,6 +1,9 @@
 import UIKit
 
-final class ChatSubagentCell: UICollectionViewCell {
+final class ChatSubagentCell: UICollectionViewCell, ChatGapCell {
+  var gapAbove: CGFloat = 0 {
+    didSet { if gapAbove != oldValue { setNeedsLayout() } }
+  }
   private let glyph = LodyStatusGlyphView(kind: .done)
   private let titleLabel = UILabel()
   private let statusLabel = UILabel()
@@ -115,6 +118,7 @@ final class ChatSubagentCell: UICollectionViewCell {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    layoutGap()
     guard let row, row.subagent != nil else { return }
     let width = contentView.bounds.width
     let line = Self.firstLine(traitCollection)

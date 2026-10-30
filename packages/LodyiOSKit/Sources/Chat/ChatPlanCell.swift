@@ -1,6 +1,9 @@
 import UIKit
 
-final class ChatPlanCell: UICollectionViewCell {
+final class ChatPlanCell: UICollectionViewCell, ChatGapCell {
+  var gapAbove: CGFloat = 0 {
+    didSet { if gapAbove != oldValue { setNeedsLayout() } }
+  }
   static let previewHeight: CGFloat = 240
   private let card = UIView()
   private let icon = UIImageView(image: UIImage(systemName: "doc.text"))
@@ -136,6 +139,7 @@ final class ChatPlanCell: UICollectionViewCell {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    layoutGap()
     guard let markdown else { return }
     let width = contentView.bounds.width
     markdown.measure(width: max(1, width - 32))

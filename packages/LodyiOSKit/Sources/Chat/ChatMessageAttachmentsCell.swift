@@ -10,7 +10,10 @@ private final class ChatAttachmentAccessibilityElement: UIAccessibilityElement {
 }
 
 /// One stable attachment grid for local sends and authoritative history.
-final class ChatMessageAttachmentsCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
+final class ChatMessageAttachmentsCell: UICollectionViewCell, UIContextMenuInteractionDelegate, ChatGapCell {
+  var gapAbove: CGFloat = 0 {
+    didSet { if gapAbove != oldValue { setNeedsLayout() } }
+  }
   var canEdit: (() -> Bool)?
   var onEdit: (() -> Void)?
   func updateEditAccessibility() {
@@ -177,6 +180,7 @@ final class ChatMessageAttachmentsCell: UICollectionViewCell, UIContextMenuInter
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    layoutGap()
     let width = contentView.bounds.width
     let columns = Self.columns(width: width)
     let overflow = rendered.count > columns
@@ -201,7 +205,7 @@ final class ChatMessageAttachmentsCell: UICollectionViewCell, UIContextMenuInter
     if expanded {
       toggle.setTitle(String(localized: "native.chat.message.collapse", bundle: .lody), for: .normal)
       toggle.accessibilityLabel = String(localized: "native.chat.attachments.collapse", bundle: .lody)
-      toggle.frame = CGRect(x: width * 0.16, y: bounds.height - 44, width: width * 0.84, height: 44)
+      toggle.frame = CGRect(x: width * 0.16, y: contentView.bounds.height - 44, width: width * 0.84, height: 44)
     } else {
       let hidden = rendered.count - count
       toggle.setTitle("+\(hidden)", for: .normal)

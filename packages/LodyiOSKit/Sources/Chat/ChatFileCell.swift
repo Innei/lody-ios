@@ -1,6 +1,9 @@
 import UIKit
 
-final class ChatFileCell: UICollectionViewListCell {
+final class ChatFileCell: UICollectionViewListCell, ChatGapCell {
+  var gapAbove: CGFloat = 0 {
+    didSet { if gapAbove != oldValue { setNeedsLayout() } }
+  }
   static let headerHeight: CGFloat = 42
 
   private let chrome = UIView()
@@ -40,11 +43,12 @@ final class ChatFileCell: UICollectionViewListCell {
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    chrome.frame = bounds
+    layoutGap()
+    chrome.frame = contentView.frame
     separator.frame = CGRect(
       x: 14,
-      y: bounds.height - 0.5,
-      width: max(0, bounds.width - 28),
+      y: chrome.bounds.height - 0.5,
+      width: max(0, chrome.bounds.width - 28),
       height: 0.5
     )
   }

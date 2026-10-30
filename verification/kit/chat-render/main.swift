@@ -173,20 +173,32 @@ precondition(liveCell.processGlyph.kind == .attention, "A process that needs att
 print("Chat render: process rows draw the rail glyph, two lines, chevron and sub-agent trunk")
 
 let answerRow = ChatRow(id: "reply:answer", entryID: "reply", kind: "text", text: "计时完成。")
-precondition(
-  ChatRowPadding.top(kind: "text", previousKind: "duration") == ChatRowPadding.textBelowDuration,
-  "Body copy under the duration hairline must use a full paragraph inset"
-)
-precondition(
-  ChatCell.rowExtra(for: answerRow, previousKind: "duration")
-    == ChatRowPadding.textBelowDuration + ChatRowPadding.content,
-  "A text row after duration must grow by that inset, not the 44 pt button floor"
-)
-precondition(
-  ChatCell.rowExtra(for: answerRow, previousKind: "summary") == ChatRowPadding.content * 2,
-  "Ordinary body copy keeps the compact text padding"
-)
-print("Chat render: text below the duration rule uses a paragraph inset")
+let gapTable: [(String?, String, CGFloat)] = [
+  ("user", "duration", 16), ("user", "summary", 16), ("user", "text", 16),
+  ("duration", "text", 16), ("summary", "text", 16), ("subagent_task", "text", 16),
+  ("text", "text", 12), ("text", "changesHeader", 12), ("text", "changes", 12),
+  ("changesHeader", "changes", 0), ("changes", "changes", 0), ("changes", "meta", 8), ("text", "meta", 8),
+  ("meta", "user", 24), ("text", "user", 24), ("meta", "attachments", 24), ("meta", "delivery", 24),
+  ("user", "user", 8), ("attachments", "user", 8), ("delivery", "user", 4),
+  ("duration", "subagent_task", 0), ("duration", "summary", 0),
+]
+for (previous, kind, gap) in gapTable {
+  precondition(ChatRowPadding.gap(before: kind, after: previous) == gap, "\(previous ?? "nil") → \(kind) is \(gap) pt")
+}
+precondition(ChatRowPadding.top(kind: "text", previousKind: "duration") == 16, "Reply text sits 16 pt under the process block")
+precondition(ChatRowPadding.top(kind: "changesHeader", previousKind: "text") == 6, "Text keeps 6 pt below itself, so the file block adds 6")
+precondition(ChatRowPadding.top(kind: "user", previousKind: "meta") == 24, "A new turn starts 24 pt below the meta row")
+precondition(ChatCell.rowExtra(for: answerRow, previousKind: "duration") == 16 + ChatRowPadding.content,
+  "A text row after a process block grows by the 16 pt gap and its 6 pt bottom")
+let gapUser = ChatRow(id: "u2:user", entryID: "u2", kind: "user", text: "Also cover the ceiling path.")
+let gapUserCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 358, height: 120))
+window.addSubview(gapUserCell)
+gapUserCell.gapAbove = 24
+gapUserCell.configure(gapUser, text: NSAttributedString(string: gapUser.text))
+gapUserCell.layoutIfNeeded()
+precondition(abs(gapUserCell.contentView.frame.minY - 24) < 0.01, "Cells start their content below the gap")
+gapUserCell.removeFromSuperview()
+print("Chat render: one spacing scale between transcript blocks")
 
 func resolved(_ color: UIColor?, traits: UITraitCollection) -> CGColor? {
   color?.resolvedColor(with: traits).cgColor
@@ -895,26 +907,11 @@ precondition(tail != nil && abs(tail!.layer.cornerRadius - 6) < 0.01, "The bubbl
 precondition(abs(tail!.frame.maxX - wideBubble.bounds.maxX) < 0.01 && abs(tail!.frame.maxY - wideBubble.bounds.maxY) < 0.01,
   "The tail fills the bottom-trailing corner")
 precondition(tail!.backgroundColor == wideBubble.backgroundColor, "The tail matches the bubble fill")
-precondition(ChatRowPadding.userTop == 4 && ChatRowPadding.afterUser == 10, "User bubbles sit 4 pt below the row top with 10 pt after")
 print("Chat render: short user bubbles stay circular capsules")
 
 @MainActor func descendants(_ view: UIView) -> [UIView] {
   view.subviews.flatMap { [$0] + descendants($0) }
 }
-precondition(ChatTurnCell.height == 52, "A turn divider is 20 pt with 16 pt above and below")
-let turnCell = ChatTurnCell(frame: CGRect(x: 0, y: 0, width: 358, height: ChatTurnCell.height))
-window.addSubview(turnCell)
-turnCell.configure(ChatRow(id: "u2:turn", entryID: "u2", kind: "turn", text: "10:46"))
-turnCell.layoutIfNeeded()
-precondition(!turnCell.isAccessibilityElement && turnCell.accessibilityElementsHidden, "Turn dividers are hidden from VoiceOver")
-let turnLabel = descendants(turnCell.contentView).compactMap { $0 as? UILabel }.first { $0.text == "10:46" }!
-precondition(turnLabel.font.fontDescriptor.symbolicTraits.contains(.traitMonoSpace), "The turn time is monospaced")
-precondition(turnLabel.textColor == .lodyTertiary && abs(turnLabel.frame.midX - 179) < 0.5, "The turn time is centered in tertiary")
-let rules = descendants(turnCell.contentView).filter { $0.bounds.height == 0.5 && $0.backgroundColor == .lodyLine2 }
-precondition(rules.count == 2 && rules.allSatisfy { abs($0.frame.midY - turnLabel.frame.midY) < 0.5 }, "Hairlines flank the time")
-precondition(rules.map(\.frame.maxX).min()! < turnLabel.frame.minX && rules.map(\.frame.minX).max()! > turnLabel.frame.maxX,
-  "The hairlines stop short of the label")
-print("Chat render: turn dividers draw a centered time between hairlines")
 
 func rgba(_ color: UIColor, style: UIUserInterfaceStyle) -> (CGFloat, CGFloat, CGFloat, CGFloat) {
   var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0

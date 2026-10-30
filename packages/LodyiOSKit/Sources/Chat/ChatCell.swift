@@ -3,16 +3,46 @@ import UIKit
 
 enum ChatRowPadding {
   static let content: CGFloat = 6
-  static let userTop: CGFloat = 4
-  static let afterUser: CGFloat = 10
   static var durationBottom: CGFloat { content / 2 }
-  /// Body copy after the duration hairline needs a full paragraph inset;
-  /// process rows keep the tighter half-gap under the rule.
-  static var textBelowDuration: CGFloat { content * 2 }
+  private static let userish: Set<String> = ["user", "attachments", "delivery"]
+  private static let fileBlock: Set<String> = ["changesHeader", "changes", "changesReview"]
+  private static let prose: Set<String> = ["text", "thought"]
+
+  static func gap(before kind: String, after previous: String?) -> CGFloat {
+    guard let previous else {
+      if userish.contains(kind) { return 4 }
+      return prose.contains(kind) ? content : 0
+    }
+    if userish.contains(kind) {
+      if previous == "delivery" { return 4 }
+      return userish.contains(previous) ? 8 : 24
+    }
+    if userish.contains(previous) { return 16 }
+    if fileBlock.contains(kind) { return fileBlock.contains(previous) ? 0 : 12 }
+    if kind == "meta" { return 8 }
+    if prose.contains(kind) { return prose.contains(previous) ? 12 : 16 }
+    if kind == "duration" || kind == "summary" { return prose.contains(previous) ? 12 : 0 }
+    return 0
+  }
 
   static func top(kind: String, previousKind: String?) -> CGFloat {
-    if kind == "text" && previousKind == "duration" { return textBelowDuration }
-    return content
+    let below = previousKind.map { prose.contains($0) } == true ? content : 0
+    return max(0, gap(before: kind, after: previousKind) - below)
+  }
+
+  static func above(kind: String, previousKind: String?) -> CGFloat {
+    if prose.contains(kind) || kind == "chat_failed" { return 0 }
+    return top(kind: kind, previousKind: previousKind)
+  }
+}
+
+@MainActor protocol ChatGapCell: UICollectionViewCell {
+  var gapAbove: CGFloat { get set }
+}
+
+extension ChatGapCell {
+  func layoutGap() {
+    contentView.frame = CGRect(x: 0, y: gapAbove, width: bounds.width, height: max(0, bounds.height - gapAbove))
   }
 }
 
@@ -51,7 +81,10 @@ final class ChatCollectionLayout: UICollectionViewFlowLayout {
   }
 }
 
-final class ChatMetaCell: UICollectionViewCell {
+final class ChatMetaCell: UICollectionViewCell, ChatGapCell {
+  var gapAbove: CGFloat = 0 {
+    didSet { if gapAbove != oldValue { setNeedsLayout() } }
+  }
   private let modelLabel = UILabel()
   let detailsButton = UIButton(type: .system)
   let actionButton = UIButton(type: .system)
@@ -118,9 +151,11 @@ final class ChatMetaCell: UICollectionViewCell {
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    modelLabel.frame = CGRect(x: 0, y: 4, width: max(1, bounds.width - 52), height: bounds.height - 8)
-    detailsButton.frame = CGRect(x: 0, y: 0, width: max(44, bounds.width - 52), height: bounds.height)
-    actionButton.frame = CGRect(x: bounds.width - 44, y: 0, width: 44, height: bounds.height)
+    layoutGap()
+    let area = contentView.bounds
+    modelLabel.frame = CGRect(x: 0, y: 4, width: max(1, area.width - 52), height: area.height - 8)
+    detailsButton.frame = CGRect(x: 0, y: 0, width: max(44, area.width - 52), height: area.height)
+    actionButton.frame = CGRect(x: area.width - 44, y: 0, width: 44, height: area.height)
   }
 
   static func iconImage(named asset: String) -> UIImage? {
@@ -192,7 +227,10 @@ final class ChatMarkView: UIImageView {
   }
 }
 
-final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
+final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, ChatGapCell {
+  var gapAbove: CGFloat = 0 {
+    didSet { if gapAbove != oldValue { setNeedsLayout() } }
+  }
   let messageContent = ChatMessageContent(frame: .zero)
   var label: CKTextView { messageContent.label }
   var numericText: ChatNumericTextHost { messageContent.numericText }
@@ -473,7 +511,10 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
     if row.kind == "delivery" { return 0 }
     if row.kind == "user" { return 44 }
     if row.kind == "duration" { return ChatRowPadding.content + ChatRowPadding.durationBottom }
-    return ChatRowPadding.top(kind: row.kind, previousKind: previousKind) + ChatRowPadding.content
+    if row.kind == "text" || row.kind == "thought" {
+      return ChatRowPadding.top(kind: row.kind, previousKind: previousKind) + ChatRowPadding.content
+    }
+    return ChatRowPadding.content * 2
   }
 
   static func leading(_ row: ChatRow) -> CGFloat {
@@ -511,6 +552,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    layoutGap()
     guard let row else { return }
     let width = contentView.bounds.width
     if row.kind == "duration" {
@@ -540,7 +582,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
       accessibilityValue = expandable ? String(localized: String.LocalizationValue(disclosureKey), bundle: .lody) : nil
       let height = ChatMessageContent.height(textHeight: size.height, limit: collapsedHeight, expanded: expanded)
       let bubbleWidth = expandable ? width * 0.84 : size.width + 26
-      messageContent.frame = CGRect(x: width - bubbleWidth, y: ChatRowPadding.userTop, width: bubbleWidth, height: height)
+      messageContent.frame = CGRect(x: width - bubbleWidth, y: 0, width: bubbleWidth, height: height)
       messageContent.setNeedsLayout()
       messageContent.layoutIfNeeded()
     } else {
@@ -568,7 +610,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate {
       } else if row.kind == "text" || row.kind == "thought" || row.kind == "duration" {
         y = ChatRowPadding.content
       } else {
-        y = max(ChatRowPadding.content, (bounds.height - height) / 2)
+        y = max(ChatRowPadding.content, (contentView.bounds.height - height) / 2)
       }
       label.frame = CGRect(x: row.kind == "delivery" ? width - textWidth : inset, y: y, width: textWidth, height: height)
       numericText.frame = label.frame

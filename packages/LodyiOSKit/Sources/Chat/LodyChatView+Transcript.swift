@@ -388,7 +388,12 @@ extension LodyChatView {
         snapshot.appendItems(entryRows.map(\.id), toSection: id)
       }
     }
-    snapshot.reconfigureItems(projected.filter { previous[$0.id] != nil && previous[$0.id] != $0 }.map(\.id))
+    let shown = dataSource.snapshot().itemIdentifiers
+    let shownBefore = Dictionary(uniqueKeysWithValues: zip(shown.dropFirst(), shown.map { previous[$0]?.kind ?? "" }))
+    let projectedBefore = Dictionary(uniqueKeysWithValues: zip(projected.dropFirst().map(\.id), projected.map(\.kind)))
+    snapshot.reconfigureItems(projected.filter { row in
+      previous[row.id] != nil && (previous[row.id] != row || shownBefore[row.id] != projectedBefore[row.id])
+    }.map(\.id))
     empty.isHidden = !projected.isEmpty
     let updateLayout = { [self] in
       // Queue/attachment removal changes the composer's intrinsic height and

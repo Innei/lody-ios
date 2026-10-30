@@ -443,6 +443,11 @@ extension LodyChatView {
   }
 
   func rowHeight(_ row: ChatRow, width: CGFloat, previousKind: String? = nil) -> CGFloat {
+    let previous = previousKind ?? kind(before: row.id)
+    return contentHeight(row, width: width, previousKind: previous) + ChatRowPadding.above(kind: row.kind, previousKind: previous)
+  }
+
+  private func contentHeight(_ row: ChatRow, width: CGFloat, previousKind: String?) -> CGFloat {
     if row.kind == "proposed_plan" {
       let body = store.height(id: row.id, text: row.text, secondary: false, streaming: row.streaming, width: max(1, width - 32))
       return ChatPlanCell.height(body: body, expanded: expandedPlans.contains(row.id), review: !row.planPermissionItemID.isEmpty, decision: row.planDecision)
@@ -454,16 +459,15 @@ extension LodyChatView {
     if row.subagent != nil { return ChatSubagentCell.height(row, width: width, traits: traitCollection) }
     if row.kind == "meta" { return ChatMetaCell.height(for: row, width: width, traits: traitCollection, detailsEnabled: turnInfoEnabled) }
     if row.kind == "duration" { return ChatCell.processHeight(for: row, width: width, traits: traitCollection) }
-    if row.kind == "turn" { return ChatTurnCell.height }
     if row.kind == "changesHeader" { return ChatFileCell.headerHeight }
     if row.kind == "changes" || row.kind == "changesReview" { return ChatFileCell.rowHeight() }
     let measured = measure(row, width: width)
     if row.kind == "user" {
       return ChatMessageContent.height(textHeight: measured,
         limit: collapsedMessageHeights[row.entryID] ?? ChatMessageContent.maximumCollapsedHeight,
-        expanded: expandedMessages.contains(row.entryID)) + ChatRowPadding.userTop + ChatRowPadding.afterUser
+        expanded: expandedMessages.contains(row.entryID))
     }
-    let measuredHeight = measured + ChatCell.rowExtra(for: row, previousKind: previousKind ?? kind(before: row.id))
+    let measuredHeight = measured + ChatCell.rowExtra(for: row, previousKind: previousKind)
     let floor = ChatCell.minimumHeight(for: row)
     if floor > 0 { return max(floor, measuredHeight) }
     if row.kind == "delivery" {
