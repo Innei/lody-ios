@@ -96,6 +96,7 @@ final class MacSessionController: NSViewController, MacSessionPane {
     composerCap?.isActive = !reading.fillWidth
     transcript.onAnswer = { [weak self] optionId in self?.permission.answer(optionId) }
     transcript.onRetry = { [weak self] in self?.onRetry?() }
+    (composer as? MacComposerController)?.onSend = { [weak transcript] in transcript?.noteSend() }
     view = root
   }
 

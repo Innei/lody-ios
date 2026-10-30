@@ -10,11 +10,6 @@ final class MacTranscriptView: NSView {
   private var items: [String: MacTranscriptItem] = [:]
   private var renderedCard: MacPermissionFlow.Card?
   private var cardVersion = 0
-  private var pinned = true {
-    didSet { table.following = pinned }
-  }
-  private var userScrolling = false
-  private var observers: [NSObjectProtocol] = []
   var onAnswer: ((String) -> Void)?
   var onRetry: (() -> Void)?
 
@@ -50,44 +45,12 @@ final class MacTranscriptView: NSView {
       table.trailingAnchor.constraint(equalTo: trailingAnchor),
       table.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
-    table.tableView.postsFrameChangedNotifications = true
-    scroll.contentView.postsFrameChangedNotifications = true
-    scroll.contentView.postsBoundsChangedNotifications = true
-    // Markdown rows settle their height after render and title bar insets arrive late, so the pin follows geometry.
-    let geometry: [(NSNotification.Name, NSView)] = [
-      (NSView.frameDidChangeNotification, table.tableView),
-      (NSView.frameDidChangeNotification, scroll.contentView),
-      (NSView.boundsDidChangeNotification, scroll.contentView),
-    ]
-    for (name, view) in geometry {
-      observers.append(NotificationCenter.default.addObserver(forName: name, object: view, queue: .main) { [weak self] _ in
-        MainActor.assumeIsolated { self?.followBottom() }
-      })
-    }
-    let live: [(NSNotification.Name, Bool)] = [(NSScrollView.willStartLiveScrollNotification, true), (NSScrollView.didEndLiveScrollNotification, false)]
-    for (name, scrolling) in live {
-      observers.append(NotificationCenter.default.addObserver(forName: name, object: scroll, queue: .main) { [weak self] _ in
-        MainActor.assumeIsolated {
-          guard let self else { return }
-          self.userScrolling = scrolling
-          if !scrolling { self.pinned = self.isScrolledToBottom }
-        }
-      })
-    }
   }
 
   required init?(coder: NSCoder) { nil }
 
-  isolated deinit {
-    for observer in observers { NotificationCenter.default.removeObserver(observer) }
-  }
-
-  private func followBottom() {
-    guard pinned, !userScrolling, let document = scroll.documentView else { return }
-    let target = max(-scroll.contentInsets.top, document.frame.height - scroll.contentView.bounds.height + scroll.contentInsets.bottom)
-    guard abs(scroll.contentView.bounds.origin.y - target) > 0.5 else { return }
-    scroll.contentView.scroll(to: NSPoint(x: 0, y: target))
-    scroll.reflectScrolledClipView(scroll.contentView)
+  func noteSend() {
+    table.follow(.send(queued: false))
   }
 
   func render(_ model: MacTranscriptModel, card: MacPermissionFlow.Card? = nil) {
@@ -95,25 +58,24 @@ final class MacTranscriptView: NSView {
       renderedCard = card
       cardVersion += 1
     }
+    let arrived = model.items.filter { $0.kind == "user" && items[$0.id] == nil }.map(\.id)
     items = Dictionary(model.items.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
     var rows = model.items.map { item in
-      CKTranscriptRow(id: item.id, kind: item.kind, neighbourKey: item.kind, version: item.hashValue, group: model.groups[item.id] ?? item.id)
+      CKTranscriptRow(
+        id: item.id, kind: item.kind, neighbourKey: item.kind, version: item.hashValue,
+        group: model.groups[item.id] ?? item.id, deferrable: model.streaming.contains(item.id)
+      )
     }
     if card != nil {
       rows.append(CKTranscriptRow(id: Self.cardID, kind: "permission", neighbourKey: "permission", version: cardVersion, group: Self.cardID))
     }
     table.apply(rows)
-    if pinned { scrollToBottom() }
+    if let sent = arrived.last { table.anchor(rowID: sent) }
   }
 
   var isScrolledToBottom: Bool {
     guard let document = scroll.documentView else { return true }
     return scroll.contentView.bounds.maxY - scroll.contentInsets.bottom >= document.frame.height - 24
-  }
-
-  private func scrollToBottom() {
-    layoutSubtreeIfNeeded()
-    followBottom()
   }
 
   private static let cardID = "permission-card"

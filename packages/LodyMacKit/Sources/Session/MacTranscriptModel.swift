@@ -36,6 +36,7 @@ enum MacTranscriptItem: Hashable {
 struct MacTranscriptModel {
   var items: [MacTranscriptItem] = []
   var groups: [String: String] = [:]
+  var streaming = Set<String>()
   var permission: SessionPermission?
 
   struct Parsed {
@@ -66,7 +67,12 @@ struct MacTranscriptModel {
     }
     for row in rows {
       let before = items.count
-      defer { for item in items[before...] { groups[item.id] = row.entryID } }
+      defer {
+        for item in items[before...] {
+          groups[item.id] = row.entryID
+          if row.streaming { streaming.insert(item.id) }
+        }
+      }
       switch row.kind {
       case "user":
         items.append(.user(id: row.id, text: row.text))

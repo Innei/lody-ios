@@ -92,9 +92,12 @@ export async function composerReply(session: Session) {
   await typeInto(session, 'Reply…', 'Ship it');
   await waitForDump(session, sendEnabled(true));
   await pressReturn(session);
-  await waitForDump(
-    session,
-    (dump) =>
-      find(dump, (node) => node.identifier === 'transcript-user').length === 2,
-  );
+  await waitForDump(session, (dump) => {
+    const sent = find(
+      dump,
+      (node) => node.text === 'Ship it' && !!node.inWindow,
+    );
+    return sent.length === 1 && sent[0].inWindow![1] < 140;
+  });
+  await capture(session, 'composer-reply-landed-dark');
 }

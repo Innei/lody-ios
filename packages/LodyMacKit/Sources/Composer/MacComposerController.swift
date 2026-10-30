@@ -10,6 +10,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   private var optionsTask: Task<Void, Never>?
   private var draft = MacDraftHandoff()
   var onReplyChoice: (([String: Any]) -> Void)?
+  var onSend: (() -> Void)?
   var replyContext: (project: String, branch: String, machine: String) = ("", "", "") {
     didSet { render() }
   }
@@ -140,6 +141,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     case .reply:
       draft.sent(text)
       clearInput()
+      onSend?()
       service.reply(payload, model.replyChoice)
     }
   }

@@ -54,6 +54,22 @@ final class MacComposerTests: XCTestCase {
 
 @MainActor
 final class MacComposerLayoutTests: XCTestCase {
+  func testAReplySendTellsTheTranscriptBeforeTheServiceRuns() throws {
+    final class Events { var log: [String] = [] }
+    let events = Events()
+    var model = MacComposerModel(mode: .reply)
+    model.replyReady = true
+    model.text = "Ship it"
+    let controller = MacComposerController(model: model, service: MacComposerService(
+      options: { _, _ in throw OutboxError.scopeExpired }, create: { _, _ in },
+      reply: { _, _ in events.log.append("reply") }
+    ))
+    controller.onSend = { events.log.append("send") }
+    let input = try XCTUnwrap(controller.view.descendants(MacComposerTextView.self).first)
+    input.onSubmit?()
+    XCTAssertEqual(events.log, ["send", "reply"])
+  }
+
   func testABlockedNewSessionKeepsItsChipsAndNoticeInsideTheComposer() throws {
     var model = MacComposerModel(mode: .newSession)
     let handbook = CreateProject(id: "p3", machineId: "", name: "handbook")
