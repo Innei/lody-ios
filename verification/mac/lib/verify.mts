@@ -255,8 +255,6 @@ export async function waitForText(
   });
 }
 
-type Rect = { x: number; y: number; width: number; height: number };
-
 // OCR reads a typographic ellipsis as three periods.
 const ocrQuery = (text: string) => text.replaceAll('…', '...');
 
@@ -267,18 +265,6 @@ function pick<T extends { text: string }>(matches: readonly T[], text: string) {
 async function findMatch(target: Pick<WindowClient, 'findText'>, text: string) {
   const { matches } = await target.findText(ocrQuery(text), {});
   return pick(matches, text);
-}
-
-function contains(outer: Rect | undefined, inner: Rect | undefined) {
-  if (!outer || !inner) return false;
-  const x = inner.x + inner.width / 2;
-  const y = inner.y + inner.height / 2;
-  return (
-    x >= outer.x &&
-    x <= outer.x + outer.width &&
-    y >= outer.y &&
-    y <= outer.y + outer.height
-  );
 }
 
 async function act(
@@ -365,13 +351,16 @@ export async function choose(
     // Open menus resolve through neither titles nor AX, so items are found and clicked on the display.
     while (performance.now() < deadline) {
       const menus = (await untitled()).filter((w) => !before.has(frameKey(w)));
-      const { matches } = await runner.displays.findText(
-        undefined,
-        ocrQuery(option),
-      );
-      const inside = matches.filter((m) =>
-        menus.some((w) => contains(w.window.frame, m.bounds)),
-      );
+      const inside = [];
+      for (const menu of menus) {
+        // Whole-display OCR on a 5K screen misses menu-sized text.
+        const { matches } = await runner.displays.findText(
+          undefined,
+          ocrQuery(option),
+          { screenRegion: menu.window.frame },
+        );
+        inside.push(...matches);
+      }
       const match = pick(inside, option);
       if (match) {
         await runner.input.click({ bounds: match.bounds });
@@ -388,13 +377,9 @@ export async function choose(
       await sleep(100);
     }
     const seen = (await untitled()).map(frameKey);
-    const { matches } = await runner.displays.findText(
-      undefined,
-      ocrQuery(option),
-    );
     await runner.input.pressKey('escape').catch(() => {});
     throw new Error(
-      `no menu item "${option}" before=${JSON.stringify([...before])} untitled=${JSON.stringify(seen)} ocr=${JSON.stringify(matches.map((m) => [m.text, m.bounds?.x, m.bounds?.y]))}`,
+      `no menu item "${option}" before=${JSON.stringify([...before])} untitled=${JSON.stringify(seen)}`,
     );
   });
 }
