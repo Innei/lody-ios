@@ -38,14 +38,40 @@ enum MacCatalog {
       Scene(id: "accent", title: "Accent") {
         MacAccent.system.apply()
         let workspace = MacFixtures.workspaceWindow(sessionId: "s-mac")
-        let settings = MacSceneHost.window(MacSettingsController(), title: "Accent", size: NSSize(width: 520, height: 300))
+        let settings = settingsWindow(page: .appearance)
         if let frame = workspace.first?.frame { settings.setFrameTopLeftPoint(NSPoint(x: frame.maxX - 300, y: frame.maxY - 60)) }
         return workspace + [settings]
       },
+      Scene(id: "settings", title: "Settings") { [settingsWindow(page: .general)] },
     ]
   }
 
   static func scene(_ id: String) -> Scene? { scenes.first { $0.id == id } }
+
+  static func settingsWindow(page: MacSettingsPage) -> NSWindow {
+    let suite = "lody.mac.settings.catalog"
+    UserDefaults().removePersistentDomain(forName: suite)
+    let model = MacSettingsModel(services: .fixture, defaults: UserDefaults(suiteName: suite) ?? .standard)
+    model.selection = page
+    let window = MacSettingsWindow.make(model: model, windowClass: MacOffscreen.windowClass).window ?? NSWindow()
+    window.setFrameAutosaveName("")
+    window.identifier = NSUserInterfaceItemIdentifier("catalog-scene")
+    window.center()
+    return window
+  }
+}
+
+extension MacSettingsServices {
+  static var fixture: MacSettingsServices {
+    let user = AuthUser(id: "u-fixture", name: "Innei", email: "i@innei.dev", image: nil)
+    let workspaces = MacFixtures.listState.workspaces + [AuthWorkspace(id: "w-side", name: "Side Projects", slug: "side", image: nil)]
+    let state = SettingsState(account: AuthAccount(user: user, workspaces: workspaces), workspace: workspaces.first)
+    return MacSettingsServices(
+      source: SettingsSource(changes: [], read: { state }, refresh: {}, logout: {}),
+      selectWorkspace: { _ in },
+      signIn: {}
+    )
+  }
 }
 
 extension SignInService {

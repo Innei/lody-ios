@@ -93,7 +93,7 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc func showSettings(_ sender: Any?) {
-    let controller = settings ?? Self.window(MacSettingsController(), title: String(localized: "mac.settings.title", bundle: .lodyMac), id: "settings")
+    let controller = settings ?? MacSettingsWindow.make(model: MacSettingsModel(services: .live))
     settings = controller
     controller.showWindow(nil)
   }

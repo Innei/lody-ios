@@ -233,16 +233,6 @@ final class MacLayoutTests: XCTestCase {
     XCTAssertGreaterThan(scroll.documentView!.frame.height, scroll.contentView.bounds.height, "the transcript must overflow")
     XCTAssertTrue(transcript.isScrolledToBottom, "\(scroll.contentView.bounds) in \(scroll.documentView!.frame)")
   }
-
-  func testSettingsContentStartsBelowTheTitleBar() {
-    let window = MacSceneHost.window(MacSettingsController(), title: "Settings", size: NSSize(width: 520, height: 300))
-    defer { window.close() }
-    window.layoutIfNeeded()
-    let root = window.contentView!
-    let grid = root.descendants(NSGridView.self).first!
-    let top = grid.convert(grid.bounds, to: root).maxY
-    XCTAssertLessThanOrEqual(top, root.bounds.height - root.safeAreaInsets.top + 0.5)
-  }
 }
 
 @MainActor

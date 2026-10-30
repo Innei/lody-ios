@@ -39,7 +39,8 @@ enum MacSettingsPage: String, CaseIterable, Identifiable {
   }
 
   var title: String {
-    String(localized: String.LocalizationValue("mac.settings.page.\(rawValue)"), bundle: .lodyMac)
+    let key = "mac.settings.page." + rawValue
+    return String(localized: String.LocalizationValue(key), bundle: .lodyMac)
   }
 
   var symbol: String {
