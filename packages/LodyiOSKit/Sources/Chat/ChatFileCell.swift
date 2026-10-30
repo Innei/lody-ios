@@ -58,12 +58,12 @@ final class ChatFileCell: UICollectionViewListCell, ChatGapCell {
     let name = (normalized as NSString).lastPathComponent
     let directory = String(normalized.dropLast(name.count))
     let title = NSMutableAttributedString(string: name, attributes: [
-      .font: LodyDesign.mono(12.5, weight: .medium),
+      .font: LodyDesign.mono(13),
       .foregroundColor: UIColor.lodyInk,
     ])
     guard !directory.isEmpty else { return title }
     title.append(NSAttributedString(string: "  " + directory, attributes: [
-      .font: LodyDesign.font(.footnote, size: 11.5),
+      .font: LodyDesign.font(.footnote, size: 12.5),
       .foregroundColor: UIColor.lodyTertiary,
     ]))
     return title
@@ -82,29 +82,37 @@ final class ChatFileCell: UICollectionViewListCell, ChatGapCell {
     return result
   }
 
-  static func summaryAccessory(squares: UIView, counts: UILabel) -> UIView {
-    let stack = UIStackView(arrangedSubviews: [squares, counts])
-    stack.axis = .horizontal
-    stack.alignment = .center
-    stack.spacing = 8
-    squares.setContentHuggingPriority(.required, for: .horizontal)
-    counts.setContentCompressionResistancePriority(.required, for: .horizontal)
-    stack.frame.size = stack.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
-    stack.layoutIfNeeded()
-    return stack
+  static func counts(add: Int, del: Int, size: CGFloat) -> UILabel {
+    let label = UILabel()
+    label.font = LodyDesign.font(.footnote, size: size).withTabularNumbers()
+    label.attributedText = stat(add: add, del: del)
+    label.sizeToFit()
+    return label
   }
 
-  static func diffstat(add: Int, del: Int) -> Int {
-    let total = add + del
-    guard total > 0 else { return 0 }
-    return Int((5 * Double(add) / Double(total)).rounded())
+  static func headerAccessories(add: Int, del: Int, open: Bool) -> [UICellAccessory] {
+    let fold = UIImageView(image: UIImage(systemName: "chevron.right", withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)))
+    fold.tintColor = .lodyTertiary
+    fold.transform = open ? CGAffineTransform(rotationAngle: .pi / 2) : .identity
+    return [
+      .customView(configuration: .init(customView: counts(add: add, del: del, size: 13), placement: .trailing(), reservedLayoutWidth: .actual)),
+      .customView(configuration: .init(customView: fold, placement: .trailing())),
+    ]
+  }
+
+  static func rowAccessories(add: Int, del: Int) -> [UICellAccessory] {
+    [.customView(configuration: .init(customView: counts(add: add, del: del, size: 12), placement: .trailing()))]
+  }
+
+  static func reviewAccessories() -> [UICellAccessory] {
+    []
   }
 
   static func headerContent(for text: String) -> UIListContentConfiguration {
     var content = UIListContentConfiguration.cell()
     content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14)
     content.text = text
-    content.textProperties.font = LodyDesign.font(.subheadline, size: 14, weight: .semibold)
+    content.textProperties.font = LodyDesign.font(.subheadline, size: 14, weight: .medium)
     content.textProperties.color = .lodyInk
     content.textProperties.numberOfLines = 1
     content.textProperties.lineBreakMode = .byTruncatingTail
@@ -115,7 +123,7 @@ final class ChatFileCell: UICollectionViewListCell, ChatGapCell {
     var content = UIListContentConfiguration.cell()
     content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14)
     content.attributedText = title(for: path)
-    content.textProperties.font = LodyDesign.mono(12.5)
+    content.textProperties.font = LodyDesign.mono(13)
     content.textProperties.color = .lodyInk
     content.textProperties.numberOfLines = 1
     content.textProperties.lineBreakMode = .byTruncatingTail
@@ -125,27 +133,6 @@ final class ChatFileCell: UICollectionViewListCell, ChatGapCell {
   static func rowHeight() -> CGFloat {
     40
   }
-}
-
-final class ChatDiffstatView: UIView {
-  private let squares = (0..<5).map { _ in UIView() }
-
-  init(add: Int, del: Int) {
-    super.init(frame: CGRect(x: 0, y: 0, width: 43, height: 7))
-    let green = ChatFileCell.diffstat(add: add, del: del)
-    for (index, square) in squares.enumerated() {
-      square.frame = CGRect(x: CGFloat(index) * 9, y: 0, width: 7, height: 7)
-      square.layer.cornerRadius = 2
-      square.backgroundColor = index < green ? .systemGreen : .systemRed
-      addSubview(square)
-    }
-    isAccessibilityElement = false
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) { nil }
-
-  override var intrinsicContentSize: CGSize { CGSize(width: 43, height: 7) }
 }
 
 enum ChatFileBlock {

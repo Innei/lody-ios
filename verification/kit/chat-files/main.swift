@@ -21,24 +21,22 @@ let pathTitle = ChatFileCell.title(for: path)
 precondition(pathTitle.string.hasPrefix("Transcript.swift"), "File rows lead with the file name")
 let nameFont = pathTitle.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
 let nameWeight = (nameFont.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any])?[.weight] as? CGFloat ?? 0
-precondition(nameWeight >= UIFont.Weight.medium.rawValue - 0.01, "The file name is medium weight")
+precondition(abs(nameWeight - UIFont.Weight.regular.rawValue) < 0.01 && nameFont.fontDescriptor.symbolicTraits.contains(.traitMonoSpace),
+  "The file name is regular monospace")
 let directoryAt = (pathTitle.string as NSString).range(of: "Sources/Chat/").location
 precondition(directoryAt != NSNotFound, "The directory follows the name")
 precondition((pathTitle.attribute(.foregroundColor, at: directoryAt, effectiveRange: nil) as? UIColor) == .lodyTertiary, "The directory is tertiary")
 let directoryFont = pathTitle.attribute(.font, at: directoryAt, effectiveRange: nil) as! UIFont
-precondition(abs(directoryFont.pointSize - LodyDesign.font(.footnote, size: 11.5, compatibleWith: window.traitCollection).pointSize) < 0.01, "The directory is 11.5 pt")
+precondition(abs(directoryFont.pointSize - LodyDesign.font(.footnote, size: 12.5, compatibleWith: window.traitCollection).pointSize) < 0.01
+  && !directoryFont.fontDescriptor.symbolicTraits.contains(.traitMonoSpace), "The directory is 12.5 pt proportional")
 precondition(ChatFileCell.stat(add: 12, del: 0).string == "+12" && ChatFileCell.stat(add: 0, del: 3).string == "−3"
   && ChatFileCell.stat(add: 18, del: 6).string == "+18 −6", "Counts omit a zero side")
-let summaryCounts = UILabel()
-summaryCounts.attributedText = ChatFileCell.stat(add: 33, del: 7)
-let squaresView = ChatDiffstatView(add: 33, del: 7)
-let summaryView = ChatFileCell.summaryAccessory(squares: squaresView, counts: summaryCounts)
-summaryView.layoutIfNeeded()
-precondition(summaryCounts.frame.minX - squaresView.frame.maxX >= 8, "The diffstat squares and the totals keep an 8 pt gap")
-precondition(summaryCounts.frame.width >= summaryCounts.intrinsicContentSize.width - 0.01 && summaryView.bounds.width >= summaryCounts.frame.maxX - 0.01,
-  "The totals are not clipped")
-precondition(ChatFileCell.diffstat(add: 155, del: 36) == 4 && ChatFileCell.diffstat(add: 0, del: 9) == 0 && ChatFileCell.diffstat(add: 0, del: 0) == 0,
-  "The diffstat gives green squares in proportion to additions")
+let summaryCounts = ChatFileCell.counts(add: 33, del: 7, size: 13)
+precondition(summaryCounts.attributedText?.string == "+33 −7", "The summary shows only the totals")
+precondition(!summaryCounts.font.fontDescriptor.symbolicTraits.contains(.traitMonoSpace)
+  && !(summaryCounts.font.fontDescriptor.object(forKey: .featureSettings) as? [[UIFontDescriptor.FeatureKey: Any]] ?? []).isEmpty,
+  "Totals use the system face with tabular digits")
+precondition(abs(summaryCounts.font.pointSize - LodyDesign.font(.footnote, size: 13).pointSize) < 0.01, "Totals are 13 pt")
 
 func fileRow(_ id: String, _ kind: String, _ group: String) -> ChatRow {
   var row = ChatRow(id: id, entryID: "e", kind: kind, text: id, actionable: true)
@@ -60,15 +58,20 @@ precondition(closed.map(\.id) == ["h", "a", "b", "m"] && closed[2].group == "las
 let single = [fileRow("only", "changes", "only")]
 precondition(ChatFileBlock.visible(single, expanded: [], reviewable: true).map(\.id) == ["only"], "A single file always shows")
 cell.contentConfiguration = ChatFileCell.rowContent(for: path)
+cell.accessories = ChatFileCell.rowAccessories(add: 18, del: 6)
 cell.apply(group: "first", selected: false)
 cell.layoutIfNeeded()
 let views = descendants(cell)
-precondition(!views.contains { ($0 as? UIImageView)?.image != nil }, "File rows must not display a leading image")
+precondition(!views.contains { ($0 as? UIImageView)?.image != nil }, "File rows show no leading image and no chevron")
+let rowCounts = views.compactMap { $0 as? UILabel }.first { $0.attributedText?.string == "+18 −6" }
+precondition(rowCounts != nil && abs(rowCounts!.font.pointSize - LodyDesign.font(.footnote, size: 12).pointSize) < 0.01
+  && !rowCounts!.font.fontDescriptor.symbolicTraits.contains(.traitMonoSpace), "Row counts are 12 pt system tabular")
+precondition(ChatFileCell.reviewAccessories().isEmpty, "Review all changes opens a sheet, so it has no disclosure chevron")
 let label = views.compactMap { $0 as? UILabel }.first { $0.attributedText?.string == pathTitle.string }!
 let font = label.attributedText!.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
 precondition(font.fontDescriptor.symbolicTraits.contains(.traitMonoSpace), "File paths must be monospaced")
-let expectedSize = LodyDesign.mono(12.5, weight: .medium, compatibleWith: cell.traitCollection).pointSize
-precondition(abs(font.pointSize - expectedSize) < 0.01, "File paths must use scaled 12.5 pt type, got \(font.pointSize), expected \(expectedSize)")
+let expectedSize = LodyDesign.mono(13, compatibleWith: cell.traitCollection).pointSize
+precondition(abs(font.pointSize - expectedSize) < 0.01, "File names use scaled 13 pt type, got \(font.pointSize), expected \(expectedSize)")
 let chrome = cell.subviews.first { $0.layer.masksToBounds && $0.layer.cornerCurve == .continuous }!
 precondition(chrome.layer.cornerRadius == 12, "The block must have a 12 pt radius")
 precondition(chrome.layer.maskedCorners == [.layerMinXMinYCorner, .layerMaxXMinYCorner], "The first row rounds only the top corners")
@@ -94,13 +97,17 @@ let header = ChatFileCell(frame: CGRect(x: 16, y: 40, width: 358, height: ChatFi
 window.addSubview(header)
 let headerText = String.localizedStringWithFormat(String(localized: "native.chat.transcript.fileCount", bundle: .lody), 2)
 header.contentConfiguration = ChatFileCell.headerContent(for: headerText)
+header.accessories = ChatFileCell.headerAccessories(add: 33, del: 7, open: true)
 header.apply(group: "first", selected: false)
 header.layoutIfNeeded()
 let headerLabel = descendants(header).compactMap { $0 as? UILabel }.first { $0.text == headerText }!
 let headerFont = headerLabel.font!
 let headerWeight = (headerFont.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any])?[.weight] as? CGFloat ?? 0
-precondition(abs(headerFont.pointSize - LodyDesign.font(.subheadline, size: 14, compatibleWith: header.traitCollection).pointSize) < 0.01 && headerWeight >= UIFont.Weight.semibold.rawValue - 0.01, "The header must use scaled 14 pt semibold type")
+precondition(abs(headerFont.pointSize - LodyDesign.font(.subheadline, size: 14, compatibleWith: header.traitCollection).pointSize) < 0.01
+  && abs(headerWeight - UIFont.Weight.medium.rawValue) < 0.01, "The header uses scaled 14 pt medium type")
+precondition(!descendants(header).contains { $0.bounds.size == CGSize(width: 7, height: 7) }, "The header draws no diffstat squares")
+let fold = descendants(header).compactMap { $0 as? UIImageView }.first { $0.image != nil && $0.tintColor == .lodyTertiary }
+precondition(fold != nil, "The header keeps a tertiary fold glyph")
 precondition(headerLabel.textColor == .lodyInk, "The header must use the ink token")
-precondition(header.accessories.isEmpty, "The header must have no navigation chevron")
 precondition(descendants(header).contains { $0.frame.height == 0.5 && !$0.isHidden }, "The header must separate its title from the first file")
 print("Chat files: grouped chrome, row heights, monospaced paths, icon removal and inset hairlines passed")
