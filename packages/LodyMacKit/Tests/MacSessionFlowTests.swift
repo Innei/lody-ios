@@ -133,7 +133,11 @@ final class MacCreateFailureTests: XCTestCase {
 @MainActor
 final class MacTranscriptReuseTests: XCTestCase {
   func testStreamingUpdatesKeepEarlierRowsAndGrowProseInPlace() {
-    let view = MacTranscriptView()
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 400), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    let view = MacTranscriptView(frame: NSRect(x: 0, y: 0, width: 700, height: 400))
+    window.contentView = view
     var model = MacTranscriptModel(entriesJSON: "[]")
     model.items = [.user(id: "u", text: "Hi"), .prose(id: "p", markdown: "Hel")]
     view.render(model)

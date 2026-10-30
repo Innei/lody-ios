@@ -1,68 +1,55 @@
 import AppKit
+import ChatAppKit
 import LodyData
 import MarkdownView
 
 @MainActor
 final class MacTranscriptView: NSView {
-  private let scroll = NSScrollView()
-  private let column = NSStackView()
-  private var rendered: [MacTranscriptItem] = []
-  private var rows: [String: (item: MacTranscriptItem, view: NSView)] = [:]
+  private let table = CKTranscriptTable()
+  private var scroll: NSScrollView { table.scrollView }
+  private var items: [String: MacTranscriptItem] = [:]
   private var renderedCard: MacPermissionFlow.Card?
-  private var cardView: MacPermissionCard?
+  private var cardVersion = 0
   private var pinned = true
   private var userScrolling = false
   private var observers: [NSObjectProtocol] = []
-  private var widthCap: NSLayoutConstraint!
   var onAnswer: ((String) -> Void)?
   var onRetry: (() -> Void)?
 
-  var rowViews: [NSView] { column.arrangedSubviews.filter { $0 !== cardView } }
+  var rowViews: [NSView] {
+    table.layoutSubtreeIfNeeded()
+    return table.instantiatedContentViews.filter { !($0 is MacPermissionCard) }
+  }
 
   var reading = MacReading.current() {
     didSet {
-      widthCap.isActive = !reading.fillWidth
+      table.readingWidth = reading.fillWidth ? nil : 780
       guard reading.textSize != oldValue.textSize else { return }
-      rows = [:]
-      place(rendered)
+      table.reloadAll()
     }
   }
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
-    column.orientation = .vertical
-    column.alignment = .leading
-    column.spacing = 14
-    column.edgeInsets = NSEdgeInsets(top: 20, left: 16, bottom: 20, right: 16)
-    column.translatesAutoresizingMaskIntoConstraints = false
-    column.setAccessibilityIdentifier("transcript")
-    let document = MacFlippedView()
-    document.translatesAutoresizingMaskIntoConstraints = false
-    document.addSubview(column)
-    scroll.documentView = document
-    scroll.hasVerticalScroller = true
-    scroll.drawsBackground = false
-    scroll.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(scroll)
-    widthCap = column.widthAnchor.constraint(lessThanOrEqualToConstant: 780)
+    table.readingWidth = reading.fillWidth ? nil : 780
+    table.tableView.setAccessibilityIdentifier("transcript")
+    table.cell = { [weak self] row, reused in
+      self?.cell(for: row, reused: reused) ?? NSView()
+    }
+    table.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(table)
     NSLayoutConstraint.activate([
-      scroll.topAnchor.constraint(equalTo: topAnchor),
-      scroll.leadingAnchor.constraint(equalTo: leadingAnchor),
-      scroll.trailingAnchor.constraint(equalTo: trailingAnchor),
-      scroll.bottomAnchor.constraint(equalTo: bottomAnchor),
-      document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
-      column.topAnchor.constraint(equalTo: document.topAnchor),
-      column.bottomAnchor.constraint(equalTo: document.bottomAnchor),
-      column.centerXAnchor.constraint(equalTo: document.centerXAnchor),
-      column.widthAnchor.constraint(equalTo: document.widthAnchor).withPriority(.defaultHigh),
+      table.topAnchor.constraint(equalTo: topAnchor),
+      table.leadingAnchor.constraint(equalTo: leadingAnchor),
+      table.trailingAnchor.constraint(equalTo: trailingAnchor),
+      table.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
-    widthCap.isActive = !reading.fillWidth
-    document.postsFrameChangedNotifications = true
+    table.tableView.postsFrameChangedNotifications = true
     scroll.contentView.postsFrameChangedNotifications = true
     scroll.contentView.postsBoundsChangedNotifications = true
     // Markdown rows settle their height after render and title bar insets arrive late, so the pin follows geometry.
     let geometry: [(NSNotification.Name, NSView)] = [
-      (NSView.frameDidChangeNotification, document),
+      (NSView.frameDidChangeNotification, table.tableView),
       (NSView.frameDidChangeNotification, scroll.contentView),
       (NSView.boundsDidChangeNotification, scroll.contentView),
     ]
@@ -98,52 +85,19 @@ final class MacTranscriptView: NSView {
   }
 
   func render(_ model: MacTranscriptModel, card: MacPermissionFlow.Card? = nil) {
-    if model.items != rendered {
-      rendered = model.items
-      place(model.items)
-    }
     if card != renderedCard {
       renderedCard = card
-      cardView?.removeFromSuperview()
-      cardView = card.map { card in
-        let view = MacPermissionCard(card: card)
-        view.onAnswer = { [weak self] in self?.onAnswer?($0) }
-        add(view)
-        return view
-      }
+      cardVersion += 1
     }
+    items = Dictionary(model.items.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+    var rows = model.items.map { item in
+      CKTranscriptRow(id: item.id, kind: item.kind, neighbourKey: item.kind, version: item.hashValue, group: model.groups[item.id] ?? item.id)
+    }
+    if card != nil {
+      rows.append(CKTranscriptRow(id: Self.cardID, kind: "permission", neighbourKey: "permission", version: cardVersion, group: Self.cardID))
+    }
+    table.apply(rows)
     if pinned { scrollToBottom() }
-  }
-
-  private func place(_ items: [MacTranscriptItem]) {
-    var next: [String: (item: MacTranscriptItem, view: NSView)] = [:]
-    var used = Set<ObjectIdentifier>()
-    let views = items.map { item -> NSView in
-      let reused = reuse(item).flatMap { used.contains(ObjectIdentifier($0)) ? nil : $0 }
-      let view = reused ?? self.view(for: item)
-      used.insert(ObjectIdentifier(view))
-      next[item.id] = (item, view)
-      return view
-    }
-    rows = next
-    for view in rowViews where !used.contains(ObjectIdentifier(view)) { view.removeFromSuperview() }
-    for (index, view) in views.enumerated() {
-      let current = column.arrangedSubviews
-      if index < current.count, current[index] === view { continue }
-      view.removeFromSuperview()
-      column.insertArrangedSubview(view, at: index)
-      view.widthAnchor.constraint(equalTo: column.widthAnchor, constant: -32).isActive = true
-    }
-  }
-
-  private func reuse(_ item: MacTranscriptItem) -> NSView? {
-    guard let old = rows[item.id] else { return nil }
-    if old.item == item { return old.view }
-    if case .prose(_, let markdown) = item, let view = old.view as? MacMarkdownView {
-      view.update(markdown)
-      return view
-    }
-    return nil
   }
 
   var isScrolledToBottom: Bool {
@@ -156,9 +110,20 @@ final class MacTranscriptView: NSView {
     followBottom()
   }
 
-  private func add(_ view: NSView) {
-    column.addArrangedSubview(view)
-    view.widthAnchor.constraint(equalTo: column.widthAnchor, constant: -32).isActive = true
+  private static let cardID = "permission-card"
+
+  private func cell(for row: CKTranscriptRow, reused: NSView?) -> NSView {
+    if row.id == Self.cardID, let card = renderedCard {
+      let view = MacPermissionCard(card: card)
+      view.onAnswer = { [weak self] in self?.onAnswer?($0) }
+      return view
+    }
+    guard let item = items[row.id] else { return reused ?? NSView() }
+    if case .prose(_, let markdown) = item, let view = reused as? MacMarkdownView, view.size == reading.textSize {
+      view.update(markdown)
+      return view
+    }
+    return view(for: item)
   }
 
   private func view(for item: MacTranscriptItem) -> NSView {
@@ -183,10 +148,6 @@ final class MacTranscriptView: NSView {
   }
 }
 
-final class MacFlippedView: NSView {
-  override var isFlipped: Bool { true }
-}
-
 extension NSLayoutConstraint {
   func withPriority(_ priority: NSLayoutConstraint.Priority) -> NSLayoutConstraint {
     self.priority = priority
@@ -200,8 +161,10 @@ final class MacMarkdownView: NSView {
   private var height: NSLayoutConstraint!
 
   var bodyFont: NSFont { markdown.theme.fonts.body }
+  let size: Double
 
   init(markdown text: String, size: Double = MacReading.standard.textSize) {
+    self.size = size
     super.init(frame: .zero)
     var theme = markdown.theme
     theme.align(to: size)

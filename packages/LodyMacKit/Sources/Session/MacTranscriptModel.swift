@@ -1,7 +1,7 @@
 import Foundation
 import LodyData
 
-enum MacTranscriptItem: Equatable {
+enum MacTranscriptItem: Hashable {
   case user(id: String, text: String)
   case prose(id: String, markdown: String)
   case plan(id: String, markdown: String)
@@ -18,10 +18,24 @@ enum MacTranscriptItem: Equatable {
     case .activity(let id, _, _, _, _): id
     }
   }
+
+  var kind: String {
+    switch self {
+    case .user: "user"
+    case .prose: "prose"
+    case .plan: "plan"
+    case .activity: "activity"
+    case .changes: "changes"
+    case .notice: "notice"
+    case .subagent: "subagent"
+    case .failedSend: "failedSend"
+    }
+  }
 }
 
 struct MacTranscriptModel {
   var items: [MacTranscriptItem] = []
+  var groups: [String: String] = [:]
   var permission: SessionPermission?
 
   struct Parsed {
@@ -51,6 +65,8 @@ struct MacTranscriptModel {
       rows += pending.rows(entries: entries)
     }
     for row in rows {
+      let before = items.count
+      defer { for item in items[before...] { groups[item.id] = row.entryID } }
       switch row.kind {
       case "user":
         items.append(.user(id: row.id, text: row.text))
