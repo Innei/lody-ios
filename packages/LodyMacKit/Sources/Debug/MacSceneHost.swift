@@ -35,7 +35,7 @@ final class MacSceneHost {
   }
 
   static func window(_ content: NSViewController, title: String, size: NSSize) -> NSWindow {
-    let window = NSWindow(
+    let window = MacOffscreen.windowClass.init(
       contentRect: NSRect(origin: .zero, size: size),
       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
       backing: .buffered, defer: false

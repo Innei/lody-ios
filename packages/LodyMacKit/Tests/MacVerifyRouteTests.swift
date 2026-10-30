@@ -24,6 +24,8 @@ final class MacVerifyRouteTests: XCTestCase {
 
   @MainActor
   func testEveryCatalogSceneBuildsWithoutAnAccount() {
+    MacOffscreen.enabled = true
+    defer { MacOffscreen.enabled = false }
     let ids = MacCatalog.scenes.map(\.id)
     XCTAssertTrue(ids.contains("sign-in"))
     XCTAssertTrue(ids.contains("accent"))

@@ -9,6 +9,7 @@ public enum LodyUIVerify: Sendable {
   public static var home: Bool { enabled && has("--ui-verify-home") }
   public static var mentions: Bool { enabled && has("--ui-verify-mentions") }
   public static var throwProbe: Bool { enabled && has("--ui-verify-throw") }
+  public static var offscreen: Bool { enabled && has("--ui-verify-offscreen") }
   public static var scroll: Bool {
     enabled && (has("--ui-verify-scroll") || has("--ui-verify-opening"))
   }

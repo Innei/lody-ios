@@ -12,7 +12,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
 
   init(environment: MacEnvironment = .live, sessionId: String? = nil) {
     self.environment = environment
-    let window = NSWindow(
+    let window = environment.windowClass.init(
       contentRect: NSRect(x: 0, y: 0, width: 1100, height: 720),
       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
       backing: .buffered, defer: false

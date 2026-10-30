@@ -14,6 +14,7 @@ struct MacEnvironment {
   var requiresAccount = true
   var windowIdentifier = "main"
   var titlePrefix = ""
+  var windowClass: NSWindow.Type = NSWindow.self
 
   static var live: MacEnvironment {
     MacEnvironment(

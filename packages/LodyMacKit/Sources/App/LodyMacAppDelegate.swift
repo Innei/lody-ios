@@ -18,7 +18,11 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
     if LodyUIVerify.enabled {
       URLProtocol.registerClass(OfflineProbe.self)
       #if DEBUG
-      showDebug()
+      if LodyUIVerify.offscreen {
+        NSApp.setActivationPolicy(.accessory)
+      } else {
+        showDebug()
+      }
       #endif
       return
     }

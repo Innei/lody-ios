@@ -61,7 +61,8 @@ enum MacFixtures {
       newSession: { MacNewSessionController(source: .fixture(listState), service: MacComposerFixture.service) },
       requiresAccount: false,
       windowIdentifier: "catalog-scene",
-      titlePrefix: "Catalog · "
+      titlePrefix: "Catalog · ",
+      windowClass: MacOffscreen.windowClass
     )
   }
 
