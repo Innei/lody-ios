@@ -28,6 +28,7 @@ public final class LodyMacAppDelegate: NSObject, NSApplicationDelegate {
       #endif
       return
     }
+    NSApp.appearance = MacTheme.current().appearance
     DataRuntime.current = runtime
     AuthSession.shared.stopRuntime = { [weak self] in self?.runtime.stop() }
     OutboxSession.shared.attach(runtime)

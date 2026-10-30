@@ -919,6 +919,23 @@
         }
       }
     },
+    "mac.settings.fillWidth.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let conversations use the whole window instead of a centred reading column."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让对话占满整个窗口，而不是居中的阅读栏。"
+          }
+        }
+      }
+    },
     "mac.settings.licenses": {
       "extractionState": "manual",
       "localizations": {
@@ -1646,6 +1663,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "对话文字大小"
+          }
+        }
+      }
+    },
+    "mac.settings.textSize.value": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld pt"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld pt"
           }
         }
       }

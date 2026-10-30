@@ -17,6 +17,11 @@ final class MacComposerView: NSView {
   var onSend: (() -> Void)?
   private let tray = NSStackView()
   private let inputHeight: NSLayoutConstraint
+  private var readingObserver: NSObjectProtocol?
+
+  var reading = MacReading.current() {
+    didSet { input.font = .systemFont(ofSize: reading.textSize) }
+  }
 
   override init(frame frameRect: NSRect) {
     let scroll = NSScrollView()
@@ -43,7 +48,7 @@ final class MacComposerView: NSView {
     notice.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     tray.setViews([project, machine, agent, context], in: .leading)
     tray.spacing = 4
-    input.font = .systemFont(ofSize: 13)
+    input.font = .systemFont(ofSize: reading.textSize)
     input.isRichText = false
     input.drawsBackground = false
     input.textContainerInset = NSSize(width: 2, height: 6)
@@ -95,9 +100,16 @@ final class MacComposerView: NSView {
       send.heightAnchor.constraint(equalToConstant: 28),
     ])
     setAccessibilityIdentifier("composer")
+    readingObserver = NotificationCenter.default.addObserver(forName: .lodyMacReadingDidChange, object: nil, queue: .main) { [weak self] _ in
+      MainActor.assumeIsolated { self?.reading = .current() }
+    }
   }
 
   required init?(coder: NSCoder) { nil }
+
+  isolated deinit {
+    readingObserver.map(NotificationCenter.default.removeObserver)
+  }
 
   func render(_ model: MacComposerModel, reply: (project: String, branch: String, machine: String)) {
     let newSession = model.mode == .newSession

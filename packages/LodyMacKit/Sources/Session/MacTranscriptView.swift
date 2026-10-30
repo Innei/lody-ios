@@ -13,10 +13,20 @@ final class MacTranscriptView: NSView {
   private var pinned = true
   private var userScrolling = false
   private var observers: [NSObjectProtocol] = []
+  private var widthCap: NSLayoutConstraint!
   var onAnswer: ((String) -> Void)?
   var onRetry: (() -> Void)?
 
   var rowViews: [NSView] { column.arrangedSubviews.filter { $0 !== cardView } }
+
+  var reading = MacReading.current() {
+    didSet {
+      widthCap.isActive = !reading.fillWidth
+      guard reading.textSize != oldValue.textSize else { return }
+      rows = [:]
+      place(rendered)
+    }
+  }
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
@@ -34,6 +44,7 @@ final class MacTranscriptView: NSView {
     scroll.drawsBackground = false
     scroll.translatesAutoresizingMaskIntoConstraints = false
     addSubview(scroll)
+    widthCap = column.widthAnchor.constraint(lessThanOrEqualToConstant: 780)
     NSLayoutConstraint.activate([
       scroll.topAnchor.constraint(equalTo: topAnchor),
       scroll.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -43,9 +54,9 @@ final class MacTranscriptView: NSView {
       column.topAnchor.constraint(equalTo: document.topAnchor),
       column.bottomAnchor.constraint(equalTo: document.bottomAnchor),
       column.centerXAnchor.constraint(equalTo: document.centerXAnchor),
-      column.widthAnchor.constraint(lessThanOrEqualToConstant: 780),
       column.widthAnchor.constraint(equalTo: document.widthAnchor).withPriority(.defaultHigh),
     ])
+    widthCap.isActive = !reading.fillWidth
     document.postsFrameChangedNotifications = true
     scroll.contentView.postsFrameChangedNotifications = true
     scroll.contentView.postsBoundsChangedNotifications = true
@@ -152,9 +163,9 @@ final class MacTranscriptView: NSView {
 
   private func view(for item: MacTranscriptItem) -> NSView {
     switch item {
-    case .user(_, let text): return MacUserTurnView(text: text)
-    case .prose(_, let markdown): return MacMarkdownView(markdown: markdown)
-    case .plan(_, let markdown): return MacPlanView(markdown: markdown)
+    case .user(_, let text): return MacUserTurnView(text: text, size: reading.textSize)
+    case .prose(_, let markdown): return MacMarkdownView(markdown: markdown, size: reading.textSize)
+    case .plan(_, let markdown): return MacPlanView(markdown: markdown, size: reading.textSize)
     case .activity(_, let symbol, let text, let attention, let running):
       return MacActivityLine(symbol: symbol, text: text, attention: attention, running: running)
     case .changes(_, let text): return MacActivityLine(symbol: "plusminus", text: text, attention: false, running: false, diff: true)
@@ -188,8 +199,13 @@ final class MacMarkdownView: NSView {
   private let markdown = MarkdownTextView()
   private var height: NSLayoutConstraint!
 
-  init(markdown text: String) {
+  var bodyFont: NSFont { markdown.theme.fonts.body }
+
+  init(markdown text: String, size: Double = MacReading.standard.textSize) {
     super.init(frame: .zero)
+    var theme = markdown.theme
+    theme.align(to: size)
+    markdown.theme = theme
     markdown.translatesAutoresizingMaskIntoConstraints = false
     addSubview(markdown)
     height = heightAnchor.constraint(equalToConstant: 20)
@@ -201,12 +217,21 @@ final class MacMarkdownView: NSView {
       height,
     ])
     markdown.setMarkdown(text)
+    setAccessibilityElement(true)
+    setAccessibilityRole(.staticText)
+    setAccessibilityValue(Self.plain(text))
     setAccessibilityIdentifier("transcript-prose")
   }
 
   func update(_ text: String) {
     markdown.setMarkdown(text)
+    setAccessibilityValue(Self.plain(text))
     needsLayout = true
+  }
+
+  private static func plain(_ markdown: String) -> String {
+    let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+    return (try? AttributedString(markdown: markdown, options: options)).map { String($0.characters) } ?? markdown
   }
 
   required init?(coder: NSCoder) { nil }
@@ -220,7 +245,7 @@ final class MacMarkdownView: NSView {
 
 @MainActor
 final class MacPlanView: NSView {
-  init(markdown: String) {
+  init(markdown: String, size: Double = MacReading.standard.textSize) {
     super.init(frame: .zero)
     wantsLayer = true
     layer?.cornerRadius = 10
@@ -228,7 +253,7 @@ final class MacPlanView: NSView {
     let label = NSTextField(labelWithString: String(localized: "mac.transcript.plan", bundle: .lodyMac))
     label.font = .systemFont(ofSize: 11, weight: .semibold)
     label.textColor = .secondaryLabelColor
-    let body = MacMarkdownView(markdown: markdown)
+    let body = MacMarkdownView(markdown: markdown, size: size)
     let stack = NSStackView(views: [label, body])
     stack.orientation = .vertical
     stack.alignment = .leading

@@ -3,12 +3,12 @@ import LodyData
 
 @MainActor
 final class MacUserTurnView: NSView {
-  init(text: String) {
+  init(text: String, size: Double = MacReading.standard.textSize) {
     super.init(frame: .zero)
     let bubble = MacFillView(fill: .quaternarySystemFill, radius: 12)
     let label = NSTextField(wrappingLabelWithString: text)
     label.isSelectable = true
-    label.font = .systemFont(ofSize: 13)
+    label.font = .systemFont(ofSize: size)
     label.translatesAutoresizingMaskIntoConstraints = false
     bubble.addSubview(label)
     bubble.translatesAutoresizingMaskIntoConstraints = false

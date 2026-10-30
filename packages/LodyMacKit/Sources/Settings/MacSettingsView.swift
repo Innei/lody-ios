@@ -131,6 +131,8 @@ struct MacSettingsDetail: View {
     switch model.shownPage {
     case .general:
       MacGeneralPage(model: model.general)
+    case .appearance:
+      MacAppearancePage(model: model.appearance)
     #if DEBUG
     case .debug:
       MacSettingsDebugPage()

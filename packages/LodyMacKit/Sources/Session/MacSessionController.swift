@@ -41,6 +41,15 @@ final class MacSessionController: NSViewController, MacSessionPane {
   private var parsed = MacTranscriptModel.Parsed("[]")
   private var feed = SessionFeedState()
   private var streaming = false
+  private var composerCap: NSLayoutConstraint?
+  private var readingObserver: NSObjectProtocol?
+
+  var reading = MacReading.current() {
+    didSet {
+      transcript.reading = reading
+      composerCap?.isActive = !reading.fillWidth
+    }
+  }
 
   init(sessionId: String, source: MacTranscriptSource, composer: NSViewController? = nil) {
     self.sessionId = sessionId
@@ -49,9 +58,16 @@ final class MacSessionController: NSViewController, MacSessionPane {
     permission = MacPermissionFlow(detail: source.detail, respond: source.respond)
     super.init(nibName: nil, bundle: nil)
     permission.changed = { [weak self] in self?.paint() }
+    readingObserver = NotificationCenter.default.addObserver(forName: .lodyMacReadingDidChange, object: nil, queue: .main) { [weak self] _ in
+      MainActor.assumeIsolated { self?.reading = .current() }
+    }
   }
 
   required init?(coder: NSCoder) { nil }
+
+  isolated deinit {
+    readingObserver.map(NotificationCenter.default.removeObserver)
+  }
 
   override func loadView() {
     let root = NSView(frame: NSRect(x: 0, y: 0, width: 760, height: 620))
@@ -69,7 +85,6 @@ final class MacSessionController: NSViewController, MacSessionPane {
       constraints += [
         transcript.bottomAnchor.constraint(equalTo: composer.view.topAnchor),
         composer.view.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-        composer.view.widthAnchor.constraint(lessThanOrEqualToConstant: 780),
         composer.view.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -32).withPriority(.defaultHigh),
         composer.view.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16),
       ]
@@ -77,6 +92,8 @@ final class MacSessionController: NSViewController, MacSessionPane {
       constraints.append(transcript.bottomAnchor.constraint(equalTo: root.bottomAnchor))
     }
     NSLayoutConstraint.activate(constraints)
+    composerCap = composer?.view.widthAnchor.constraint(lessThanOrEqualToConstant: 780)
+    composerCap?.isActive = !reading.fillWidth
     transcript.onAnswer = { [weak self] optionId in self?.permission.answer(optionId) }
     transcript.onRetry = { [weak self] in self?.onRetry?() }
     view = root

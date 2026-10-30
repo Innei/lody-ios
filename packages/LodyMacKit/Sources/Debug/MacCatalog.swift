@@ -70,7 +70,8 @@ extension MacSettingsServices {
       source: SettingsSource(changes: [], read: { state }, refresh: {}, logout: {}),
       selectWorkspace: { _ in },
       signIn: {},
-      general: .fixture
+      general: .fixture,
+      appearance: .fixture
     )
   }
 }
@@ -124,6 +125,23 @@ extension MacGeneralServices {
       )
     )
   }
+}
+
+extension MacAppearanceServices {
+  static var fixture: MacAppearanceServices {
+    let box = MacAppearanceFixture()
+    return MacAppearanceServices(
+      theme: { box.theme }, setTheme: { box.theme = $0 },
+      accent: { .current() }, setAccent: { $0.apply() },
+      reading: { box.reading }, setReading: { box.reading = $0 }
+    )
+  }
+}
+
+@MainActor
+private final class MacAppearanceFixture {
+  var theme = MacTheme.system
+  var reading = MacReading.standard
 }
 
 @MainActor
