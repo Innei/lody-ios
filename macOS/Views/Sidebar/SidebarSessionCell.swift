@@ -13,7 +13,7 @@ final class SidebarSessionCell: NSTableCellView {
     super.init(frame: .zero)
     let title = NSTextField(labelWithString: row.title)
     title.lineBreakMode = .byTruncatingTail
-    title.font = .systemFont(ofSize: 13, weight: row.unread ? .semibold : .regular)
+    title.font = .systemFont(ofSize: 13, weight: row.unread ? .medium : .regular)
     title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     textField = title
     title.translatesAutoresizingMaskIntoConstraints = false
@@ -105,7 +105,6 @@ final class SidebarSessionCell: NSTableCellView {
   @objc private func showMenu() {
     menuForRow?().popUp(positioning: nil, at: NSPoint(x: bounds.maxX - 12, y: bounds.midY), in: self)
   }
-
 }
 
 @MainActor

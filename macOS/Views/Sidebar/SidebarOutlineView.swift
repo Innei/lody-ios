@@ -38,11 +38,29 @@ final class SidebarRowView: NSTableRowView {
 final class SidebarActionButton: NSButton {
   convenience init(title: String, symbol: String) {
     self.init(frame: .zero)
+    cell = SidebarActionCell(textCell: title)
     self.title = title
     image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
     imagePosition = .imageLeading
     isBordered = false
     alignment = .left
     font = .systemFont(ofSize: 13)
+    symbolConfiguration = .init(pointSize: 14, weight: .regular)
+    attributedTitle = NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.labelColor])
+    bezelStyle = .accessoryBarAction
+  }
+}
+
+// Keep AppKit's button drawing and accessibility while sharing the list's icon/text columns.
+private final class SidebarActionCell: NSButtonCell {
+  override func imageRect(forBounds rect: NSRect) -> NSRect {
+    NSRect(x: rect.minX, y: rect.midY - 8, width: 16, height: 16)
+  }
+
+  override func titleRect(forBounds rect: NSRect) -> NSRect {
+    var title = super.titleRect(forBounds: rect)
+    title.origin.x = rect.minX + 24
+    title.size.width = max(0, rect.width - 24)
+    return title
   }
 }

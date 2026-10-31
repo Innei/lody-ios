@@ -14,7 +14,7 @@ final class SidebarTests: LodyMacUITestCase {
       XCTAssertTrue(outline.waitForExistence(timeout: 5))
       XCTAssertEqual(titles(outline), Array(sessionTitles.prefix(6)))
       XCTAssertTrue(scene.buttons["sidebar-new-session"].exists)
-      XCTAssertTrue(scene.buttons["sidebar-search-action"].exists)
+      XCTAssertTrue(scene.searchFields["sidebar-search"].exists)
       XCTAssertTrue(scene.menuButtons["sidebar-workspace"].exists)
       XCTAssertTrue(scene.buttons["sidebar-archive"].exists)
       scene.textViews["composer-input"].click()

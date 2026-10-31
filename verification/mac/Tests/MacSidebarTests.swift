@@ -77,6 +77,24 @@ final class MacSidebarChromeTests: XCTestCase {
     XCTAssertEqual(opened, 1)
   }
 
+  func testFocusingSearchKeepsTheProjectListInPlace() throws {
+    let (sidebar, window) = host()
+    defer { window.close() }
+    let search = try XCTUnwrap(window.contentView?.descendants(NSSearchField.self).first { $0.accessibilityIdentifier() == "sidebar-search" })
+    XCTAssertFalse(search.isHidden, "search is directly available without another navigation step")
+    let outline = sidebar.outlineView
+    let row = try XCTUnwrap((0..<outline.numberOfRows).first { (outline.item(atRow: $0) as? SidebarViewController.Node)?.id == "s-mac" })
+    let before = outline.convert(outline.rect(ofRow: row), to: sidebar.view).minY
+    sidebar.focusSearch()
+    window.layoutIfNeeded()
+    let after = outline.convert(outline.rect(ofRow: row), to: sidebar.view).minY
+    XCTAssertNotNil(search.currentEditor(), "the Find command focuses the existing native search field")
+    XCTAssertEqual(before, after, accuracy: 1, "focusing search must not push the project list down")
+    search.stringValue = "Landing"
+    sidebar.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+    XCTAssertEqual(sidebar.visibleIds, ["s-landing"])
+  }
+
   func testChoosingAProjectFiltersTheVisibleSessions() throws {
     let (sidebar, window) = host()
     defer { window.close() }

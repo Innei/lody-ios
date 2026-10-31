@@ -43,7 +43,6 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   private let account: @MainActor () -> AuthAccount?
   private let workspacePicker = NSPopUpButton(frame: .zero, pullsDown: true)
   private let archive = NSButton()
-  private var searchContainer: NSStackView?
 
   private(set) lazy var topAccessory = makeTopAccessory()
   private(set) lazy var bottomAccessory = makeBottomAccessory()
@@ -93,6 +92,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     scroll.documentView = outline
     scroll.drawsBackground = false
     scroll.hasVerticalScroller = true
+    scroll.autohidesScrollers = true
     empty.font = .systemFont(ofSize: 12)
     empty.textColor = .secondaryLabelColor
     empty.alignment = .center
@@ -120,24 +120,16 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     new.target = self
     new.action = #selector(newSessionPressed)
     new.setAccessibilityIdentifier("sidebar-new-session")
-    let find = SidebarActionButton(title: String(localized: "mac.sidebar.searchAction", bundle: .lodyMac), symbol: "magnifyingglass")
-    find.contentTintColor = .labelColor
-    find.target = self
-    find.action = #selector(searchPressed)
-    find.setAccessibilityIdentifier("sidebar-search-action")
-    let stack = NSStackView(views: [new, find, search])
+    // One persistent native search field; Find only changes focus, never layout.
+    let stack = NSStackView(views: [new, search])
     stack.orientation = .vertical
     stack.alignment = .leading
-    stack.spacing = 2
-    stack.edgeInsets = NSEdgeInsets(top: 8, left: 20, bottom: 16, right: 16)
-    search.isHidden = true
-    for button in [new, find] {
-      button.translatesAutoresizingMaskIntoConstraints = false
-      button.heightAnchor.constraint(equalToConstant: 34).isActive = true
-      button.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -36).isActive = true
-    }
-    search.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -36).isActive = true
-    searchContainer = stack
+    stack.spacing = 8
+    stack.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 12, right: 12)
+    new.translatesAutoresizingMaskIntoConstraints = false
+    new.heightAnchor.constraint(equalToConstant: 32).isActive = true
+    new.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24).isActive = true
+    search.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24).isActive = true
     let accessory = NSSplitViewItemAccessoryViewController()
     accessory.view = stack
     if #available(macOS 26.1, *) { accessory.preferredScrollEdgeEffectStyle = .soft }
@@ -388,6 +380,8 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     } else if roots.first(where: { $0.kind == .machine }) === node {
       filter.isBordered = false
       filter.imagePosition = .imageOnly
+      filter.symbolConfiguration = .init(pointSize: 14, weight: .regular)
+      (filter.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
       filter.setAccessibilityIdentifier("sidebar-filter")
       filter.setAccessibilityLabel(String(localized: "mac.sidebar.filterProjects", bundle: .lodyMac))
       filter.translatesAutoresizingMaskIntoConstraints = false
@@ -439,12 +433,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     reload()
   }
 
-  func focusSearch() {
-    search.isHidden = false
-    searchContainer?.layoutSubtreeIfNeeded()
-    view.window?.makeFirstResponder(search)
-  }
-  @objc private func searchPressed() { focusSearch() }
+  func focusSearch() { view.window?.makeFirstResponder(search) }
   @objc private func toggleArchive() {
     archived.toggle()
     search.stringValue = ""
