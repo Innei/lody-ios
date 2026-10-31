@@ -21,3 +21,4 @@ apps/macos/Resources/Generated/
 **/xcuserdata/
 .build/
 
+.auv
