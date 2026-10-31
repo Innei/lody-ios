@@ -31,6 +31,7 @@ final class LodyProjectRowView: UIView, UIContentView {
   private let count = UILabel()
   private let fold = UIImageView()
   private var glyphCenter: NSLayoutConstraint!
+  private var height: NSLayoutConstraint!
   private var detailAfterName: NSLayoutConstraint!
   private var withFold: [NSLayoutConstraint] = []
 
@@ -74,10 +75,11 @@ final class LodyProjectRowView: UIView, UIContentView {
       addSubview(view)
     }
     let margin = layoutMarginsGuide
+    height = heightAnchor.constraint(equalToConstant: 48)
     glyphCenter = glyph.centerXAnchor.constraint(equalTo: leadingAnchor)
     detailAfterName = detail.leadingAnchor.constraint(equalTo: name.trailingAnchor, constant: 8)
     NSLayoutConstraint.activate([
-      heightAnchor.constraint(equalToConstant: 44),
+      height,
       glyphCenter,
       glyph.widthAnchor.constraint(equalToConstant: LodyDesign.Rail.glyph),
       glyph.heightAnchor.constraint(equalToConstant: LodyDesign.Rail.glyph),
@@ -121,6 +123,7 @@ final class LodyProjectRowView: UIView, UIContentView {
     )
     backgroundColor = content.highlighted ? .lodyBandPressed : .lodyBand
     layer.cornerRadius = compact ? 10 : 0
+    height.constant = compact ? 44 : 48
     glyphCenter.constant = compact ? LodyDesign.Rail.compactCenter : LodyDesign.Rail.center
     let url = LodyListPhoto.url(row.image)
     let image = url == nil && !row.image.isEmpty ? UIImage(systemName: row.image) : nil

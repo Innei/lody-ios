@@ -272,7 +272,7 @@ assert(
   "The glyph sits on the title line"
 )
 assert(statusGlyph(in: primary).kind == .live)
-assert(abs(primary.bounds.height - 52) <= 4, "A primary row is about 52 pt: \(primary.bounds.height)")
+assert(abs(primary.bounds.height - 60) <= 1, "A primary row is 60 pt: \(primary.bounds.height)")
 let metaText = primaryMeta.attributedText!
 let projectFont = metaText.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
 let modelFont = metaText.attribute(.font, at: (metaText.string as NSString).range(of: "Opus").location, effectiveRange: nil) as! UIFont
@@ -290,7 +290,7 @@ assert(abs(childGlyph.midX - 46) < 0.5, "A child glyph centers at 46 pt")
 let childTitle = visibleLabel(child, containing: "Test on macOS")!
 assert(abs(frame(childTitle, in: child).minX - 62) < 0.5, "Child text starts at 62 pt")
 assert((childTitle.attributedText?.string ?? childTitle.text ?? "").contains("· Codex"), "The child names its model after the title")
-assert(abs(child.bounds.height - 40) <= 4, "A child row is about 40 pt: \(child.bounds.height)")
+assert(abs(child.bounds.height - 44) <= 1, "A child row is 44 pt: \(child.bounds.height)")
 let trunk = treePath(in: child)!.boundingBoxOfPath
 assert(trunk.minY <= 0.5 && trunk.maxY >= child.bounds.height - 0.5, "Earlier children carry the trunk through the row")
 assert(abs(trunk.minX - 23.5) <= 1.5, "The trunk runs at the rail center")
@@ -344,7 +344,7 @@ assert(review.bounds.height < 44 && review.point(inside: CGPoint(x: review.bound
        "Review draws small but hit-tests at 44 pt")
 assert(frame(review, in: attention).maxX <= 390 - 16 + 0.5)
 assert(abs(frame(review, in: attention).midY - attention.bounds.midY) < 0.5, "Review centers on the row")
-assert(abs(attention.bounds.height - 52) <= 4, "Review keeps the primary row height: \(attention.bounds.height)")
+assert(abs(attention.bounds.height - 60) <= 1, "Review keeps the primary row height: \(attention.bounds.height)")
 assert(visibleLabel(attention, containing: "2m")?.attributedText?.string.contains("lody-cloud") == true, "The time moves to line two beside Review")
 let attentionTitle = frame(visibleLabel(attention, containing: "Migrate auth middleware")!, in: attention)
 assert(attentionTitle.maxX <= frame(review, in: attention).minX - 8 + 0.5, "The title never runs under Review")
@@ -391,6 +391,9 @@ let densityRow = LodyListRow(title: "Review sidebar", subtitle: "feature/sidebar
 let sessionContent = LodySessionRowContent(row: densityRow)
 let densitySession = LodySessionRowView(sessionContent)
 let groupedSessionHeight = fittedHeight(densitySession)
+assert(abs(groupedSessionHeight - 60) <= 1, "A two-line phone session row is 60 pt: \(groupedSessionHeight)")
+let childRowHeight = fittedHeight(LodySessionRowView(LodySessionRowContent(row: LodyListRow(title: "Test on macOS", modelName: "Codex", value: "3m", parentId: "ship"))))
+assert(abs(childRowHeight - 44) <= 1, "A phone child row is 44 pt: \(childRowHeight)")
 let groupedSessionLabel = densitySession.accessibilityLabel
 let groupedTitleFont = sessionLabel(densitySession, densityRow.title).font!
 var sidebarSession = sessionContent
@@ -428,7 +431,7 @@ let projectWeight = (railProjectName.font.fontDescriptor.object(forKey: .traits)
 assert((projectWeight ?? 0) >= UIFont.Weight.semibold.rawValue, "The project name is semibold")
 let band = railProject.backgroundColor?.resolvedColor(with: railProject.traitCollection)
 assert(band == UIColor.lodyBand.resolvedColor(with: railProject.traitCollection), "A project header is a full-width band")
-assert(abs(railProject.bounds.height - 44) <= 0.5, "A project band is one 44 pt line: \(railProject.bounds.height)")
+assert(abs(railProject.bounds.height - 48) <= 0.5, "A phone project band is one 48 pt line: \(railProject.bounds.height)")
 let railProjectPath = visibleLabel(railProject, containing: "~/git/lody-ios")!
 assert(abs(midY(railProjectPath, in: railProject) - midY(railProjectName, in: railProject)) < 1, "The path rides the name line")
 assert(frame(railProjectPath, in: railProject).minX > frame(railProjectName, in: railProject).maxX, "The path follows the name")

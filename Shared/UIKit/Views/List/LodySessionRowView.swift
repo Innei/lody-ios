@@ -216,7 +216,7 @@ final class LodySessionRowView: UIView, UIContentView {
     let child = !row.parentId.isEmpty
     let kind = LodyStatusGlyph.kind(for: row)
     let compact = content.density == .compact
-    var vertical: CGFloat = child ? 11 : 8
+    var vertical: CGFloat = child ? 13 : 12
     if compact { vertical = 5 }
     let trailing = compact ? 10 : LodyDesign.Rail.trailing
     directionalLayoutMargins = .init(
