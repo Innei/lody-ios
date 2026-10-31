@@ -17,7 +17,7 @@ final class MacComposerOptionsController: NSViewController, NSTableViewDataSourc
   private var listing = false
 
   override func loadView() {
-    view = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 132))
+    view = NSView(frame: NSRect(x: 0, y: 0, width: 296, height: 116))
     view.setAccessibilityIdentifier("composer-options-panel")
     view.setAccessibilityRole(.group)
     view.setAccessibilityElement(true)
@@ -65,10 +65,10 @@ final class MacComposerOptionsController: NSViewController, NSTableViewDataSourc
 
   override func viewDidLayout() {
     super.viewDidLayout()
-    let leading: CGFloat = fast.isHidden ? 24 : 56
-    heading.frame = NSRect(x: leading, y: view.bounds.height - 72, width: view.bounds.width - leading - 24, height: 56)
-    fast.frame = NSRect(x: 12, y: view.bounds.height - 66, width: 40, height: 44)
-    slider.frame = NSRect(x: 24, y: 16, width: view.bounds.width - 48, height: 44)
+    let leading: CGFloat = fast.isHidden ? 12 : 48
+    heading.frame = NSRect(x: leading, y: view.bounds.height - 64, width: view.bounds.width - leading - 12, height: 56)
+    fast.frame = NSRect(x: 4, y: view.bounds.height - 58, width: 40, height: 44)
+    slider.frame = NSRect(x: 12, y: 8, width: view.bounds.width - 24, height: 44)
     back.frame = NSRect(x: 16, y: view.bounds.height - 44, width: view.bounds.width - 32, height: 32)
     scroll.frame = NSRect(x: 8, y: 8, width: view.bounds.width - 16, height: view.bounds.height - 56)
   }
@@ -145,9 +145,9 @@ final class MacComposerOptionsController: NSViewController, NSTableViewDataSourc
     slider.isHidden = listing || model.efforts.isEmpty
     back.isHidden = !listing
     scroll.isHidden = !listing
-    var height: CGFloat = model.efforts.isEmpty ? 88 : 132
+    var height: CGFloat = model.efforts.isEmpty ? 72 : 116
     if listing { height = min(364, CGFloat(model.models.count + 1) * 44 + 56) }
-    preferredContentSize = NSSize(width: 320, height: height)
+    preferredContentSize = NSSize(width: 296, height: height)
     onResize?(preferredContentSize)
     view.needsLayout = true
   }
