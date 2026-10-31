@@ -69,6 +69,7 @@ checks = {
     'outbox': ['Outbox/OutboxRecord.swift', 'Outbox/OutboxStore.swift', 'Outbox/OutboxDispatcher.swift', 'Outbox/OutboxForeground.swift', 'Sessions/SessionEnvelope.swift', 'Sessions/SessionPermission.swift'],
     'chat': ['Shared/UIKit/Localization/LodyLocalization.swift', 'Chat/LodyAgentIcon.swift', 'Chat/ChatTranscript.swift', 'iOS/Views/Sessions/Transcript/ChatMessageShare.swift', 'Chat/ChatStream.swift', 'iOS/Views/Sessions/Transcript/ChatHaptics.swift', 'iOS/Views/Sessions/Transcript/ChatImagePreviewGeometry.swift', 'iOS/Views/Sessions/Transcript/ChatImageGallery.swift'],
     'markdown-repair': ['iOS/Views/Sessions/Transcript/ChatMarkdownRepair.swift'],
+    'mermaid': ['iOS/Views/Markdown/Mermaid/MermaidEngine.swift', 'iOS/Views/Markdown/Mermaid/MermaidSVG.swift', 'iOS/Views/Markdown/Mermaid/MermaidRaster.swift'],
     'watchdog': [],
     'local-store': ['Cloud/LocalStore.swift', 'Cloud/SessionProse.swift', 'Text/MarkdownPlainText.swift', 'Text/MarkdownRuby.swift', 'Text/TextSearch.swift', 'Shared/UIKit/Localization/LodyLocalization.swift'],
     'content-store': ['Cloud/ContentStore.swift'],
@@ -207,7 +208,7 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
             subprocess.run(['swift', 'run', '--package-path', str(package), '--scratch-path', str(root / '.artifacts/native-local-store')], check=True, timeout=600)
             continue
         binary = str(Path(output) / name)
-        simulator = name in ['fold-host', 'message-details', 'simulator-transport', 'share-ingest', 'chat-kit', 'scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'context-chip', 'attachments', 'inline-diff', 'list', 'list-snapshots', 'ai-usage', 'workspace-settings-pages', 'settings-roles', 'settings-runtime-pages', 'remote-settings', 'session-rows', 'project-index', 'banner', 'chat-title', 'live-activity', 'chat-chrome', 'design', 'form', 'chat-subagent', 'chat-files']
+        simulator = name in ['fold-host', 'message-details', 'simulator-transport', 'share-ingest', 'chat-kit', 'scroll-edges', 'glass-transition', 'model-panel', 'chat-render', 'composer', 'context-chip', 'attachments', 'inline-diff', 'list', 'list-snapshots', 'ai-usage', 'workspace-settings-pages', 'settings-roles', 'settings-runtime-pages', 'remote-settings', 'session-rows', 'project-index', 'banner', 'chat-title', 'live-activity', 'chat-chrome', 'design', 'form', 'chat-subagent', 'chat-files', 'mermaid']
         command = ['xcrun', '--sdk', 'iphonesimulator', 'swiftc'] if simulator else ['xcrun', 'swiftc']
         command += ['-swift-version', '6']
         if name in ['message-details', 'list-snapshots', 'ai-usage', 'workspace-settings-pages', 'settings-roles', 'settings-runtime-pages', 'remote-settings', 'session-rows', 'project-index']:
@@ -277,6 +278,8 @@ with tempfile.TemporaryDirectory(prefix='lody-native-verify-') as output:
                                                                        'SIMCTL_CHILD_OS_ACTIVITY_DT_MODE': 'enable'})
                 finally:
                     server.terminate()
+        elif name == 'mermaid':
+            subprocess.run([*command, str(root / 'iOS/Resources/Mermaid/pele.js')], check=True, timeout=120)
         elif name == 'strings':
             resources = Path(output) / 'Localization.bundle'
             resources.mkdir()

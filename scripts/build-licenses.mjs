@@ -70,16 +70,10 @@ const nativeComponents = [
     file: 'iOS/Resources/Licenses/MarkdownView-LICENSE.txt',
   },
   {
-    name: 'Beautiful Mermaid Swift',
+    name: 'Pele',
     license: 'MIT',
-    url: 'https://github.com/lukilabs/beautiful-mermaid-swift',
-    file: 'iOS/Resources/Licenses/BeautifulMermaid-LICENSE.txt',
-  },
-  {
-    name: 'ElkSwift',
-    license: 'EPL-2.0',
-    url: 'https://github.com/lukilabs/elk-swift',
-    file: 'iOS/Resources/Licenses/ElkSwift-LICENSE.txt',
+    url: 'https://github.com/obsidianmd/pele',
+    file: 'iOS/Resources/Licenses/Pele-LICENSE.txt',
   },
   {
     name: 'Lexical iOS',

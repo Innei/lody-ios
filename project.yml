@@ -68,9 +68,6 @@ packages:
   MarkdownView:
     url: https://github.com/Lakr233/MarkdownView.git
     exactVersion: 4.6.5
-  BeautifulMermaid:
-    url: https://github.com/lukilabs/beautiful-mermaid-swift.git
-    exactVersion: 1.0.4
   SwiftCollections:
     url: https://github.com/apple/swift-collections.git
     exactVersion: 1.7.1
@@ -154,7 +151,6 @@ targets:
         product: MarkdownView
       - package: MarkdownView
         product: MarkdownParser
-      - package: BeautifulMermaid
       - package: SwiftCollections
         product: OrderedCollections
       - package: Litext

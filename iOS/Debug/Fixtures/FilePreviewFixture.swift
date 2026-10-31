@@ -61,7 +61,9 @@ enum FilePreviewFixture {
     case "preview.js":
       body = Data("document.getElementById('next').onclick=()=>{document.getElementById('page').textContent='Second page'};document.getElementById('dynamic').onclick=()=>{const img=document.createElement('img');img.src='./assets/dynamic-missing.svg';img.alt='Dynamic missing resource';document.body.appendChild(img)};".utf8)
     case "mermaid.md":
-      body = Data("# Mermaid document\n\nBefore the diagram.\n\n```mermaid\ngraph TD\n    A[Start] --> B{Ready?}\n    B -->|Yes| C[Done]\n    B -->|No| A\n```\n\nAfter the diagram.\n".utf8)
+      body = Data("# Mermaid document\n\nBefore the diagram.\n\n```mermaid\ngraph TD\n    A[Start] --> B{Ready?}\n    B -->|Yes| C[Done]\n    B -->|No| A\n```\n\nA pie chart.\n\n```mermaid\npie\n    \"Swift\" : 60\n    \"TypeScript\" : 40\n```\n\nAfter the diagrams.\n".utf8)
+    case "mermaid-invalid.md":
+      body = Data("# Broken diagram\n\nBefore the diagram.\n\n```mermaid\ngraph TD\n    A[Start] --> B{Ready?\n    B -->|Yes| C[Done]\n```\n\nAfter the diagram.\n".utf8)
     case "report.md":
       body = Data("# Performance report\n\nA **rendered document**, with a table and a related file.\n\nRuby: <ruby>Tokyo<rt>toh-kee-oh</rt></ruby>.\n\n| Run | FPS |\n| --- | --- |\n| Light | 60 |\n| Dark | 60 |\n\n[Source](sample.swift#L2)\n".utf8)
     case "SKILL.md" where path == "skills/review/SKILL.md":

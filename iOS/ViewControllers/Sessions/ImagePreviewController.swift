@@ -97,6 +97,11 @@ final class ImagePreviewController: UIViewController, UIGestureRecognizerDelegat
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+  func updateCurrentImage(_ image: UIImage) {
+    guard items.indices.contains(page) else { return }
+    updateItems(items, placeholders: [items[page].id: image])
+  }
+
   func updateItems(_ items: [ChatImagePreviewItem], placeholders: [String: UIImage] = [:]) {
     let current = self.items.indices.contains(page) ? self.items[page].id : nil
     self.items = items

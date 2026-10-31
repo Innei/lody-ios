@@ -21,7 +21,7 @@ CHAT = ROOT / 'verification/kit/chat'
 # Each retained scene owns its services in Swift and exercises production controllers.
 BATCHES = {
     'pages': ['onboarding', 'home', 'home-settings', 'home-workspace', 'home-states', 'home-project-bar', 'home-project-index', 'navigation', 'licenses', 'create-parity', 'model-memory', 'project-picker', 'branch-picker', 'project-history', 'project-history-entry', 'directory', 'project', 'activity', 'notifications', 'diagnostics', 'live-activity', 'settings-baseline', 'appearance', 'queued-message-behavior'],
-    'send': ['send', 'send-queue', 'send-guide', 'send-interrupt', 'send-rounds', 'send-scroll-guide', 'send-scroll-queue', 'send-scroll-normal', 'session-native', 'session-taps', 'chat-thread', 'session-simulator', 'permission-native', 'item-details', 'edit-message', 'session-share', 'agent-error', 'native-diff', 'native-workspace-changes', 'native-file-content'],
+    'send': ['send', 'send-queue', 'send-guide', 'send-interrupt', 'send-rounds', 'send-scroll-guide', 'send-scroll-queue', 'send-scroll-normal', 'session-native', 'session-taps', 'chat-thread', 'session-simulator', 'permission-native', 'item-details', 'edit-message', 'session-share', 'agent-error', 'native-diff', 'native-workspace-changes', 'native-file-content', 'mermaid'],
     'settings': ['agents-settings', 'prompt-shortcuts', 'project-visibility', 'github-settings', 'ai-usage', 'mcp-settings', 'memory-settings', 'memory-states', 'published-shares', 'published-share-states', 'agent-roles', 'archived-sessions'],
 }
 SUITES = {
@@ -63,7 +63,7 @@ PREVIEW = {
     'settings-form-backgrounds': 'settings-forms-preview',
     'machine-settings': 'machine-settings-preview',
     'settings-baseline': 'settings-baseline-live',
-    'mermaid': 'mermaid-preview',
+    'mermaid': 'file-content-preview',
     'workspace-changes': 'simulator-preview',
     'simulator-preview': 'simulator-preview',
     'item-details': 'item-detail-preview',
@@ -185,7 +185,7 @@ READY = {
     'settings-form-backgrounds': 'form-machine',
     'machine-settings': 'list-notice-action',
     'settings-baseline': 'settings-baseline-ready',
-    'mermaid': 'mermaid-preview:text',
+    'mermaid': 'file:mermaid.md',
     'item-details': 'item-detail-retry-item',
     'message-details': 'paper-reply:meta:details',
     'free-turn-notice': 'free-turn-24',
@@ -643,9 +643,6 @@ try:
                     # Includes a real 61-second dismissal wait plus lock/unlock
                     # and Dynamic Island transitions; 180s cuts off deep links.
                     check_timeout = 480
-                elif case == 'mermaid':
-                    # Six graph types, fallbacks, plan expansion and document copy.
-                    check_timeout = 300
                 elif case in ['file-preview', 'html-preview']:
                     # Browser/chat/process selection plus image/PDF reopen and dismissal.
                     check_timeout = 600

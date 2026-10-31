@@ -13,6 +13,8 @@ final class FileContentPreviewController: UIViewController {
 
   private static let fixtures = [
     Fixture(id: "file:report.md", title: "Markdown", path: "docs/report.md"),
+    Fixture(id: "file:mermaid.md", title: "Mermaid", path: "docs/mermaid.md"),
+    Fixture(id: "file:mermaid-invalid.md", title: "Mermaid failure", path: "docs/mermaid-invalid.md"),
     Fixture(id: "file:sample.swift", title: "Source line 120", path: "docs/sample.swift", line: 120),
     Fixture(id: "file:missing.txt", title: "Missing file", path: "docs/missing.txt"),
     Fixture(id: "file:rpc-error.md", title: "Read failure", path: "rpc-error.md"),

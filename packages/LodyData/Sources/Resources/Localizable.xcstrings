@@ -1,6 +1,40 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "native.chat.mermaid.failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法渲染图表"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can’t render diagram"
+          }
+        }
+      }
+    },
+    "native.chat.mermaid.tooLarge": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图表过大，无法渲染"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This diagram is too large to render"
+          }
+        }
+      }
+    },
     "native.chat.editAction": {
       "extractionState": "manual",
       "localizations": {
