@@ -14,16 +14,6 @@ enum InboxSort: String, CaseIterable, Sendable {
   case name, activity, urgency
 }
 
-struct InboxProjectChip: Equatable, Sendable {
-  var id: String
-  var title: String
-  var image = ""
-  var monogram = ""
-  var symbol = ""
-  var state: SessionState?
-  var count = 0
-}
-
 enum InboxSections {
   static let chatId = "chat"
   static let pinnedId = "pinned"
