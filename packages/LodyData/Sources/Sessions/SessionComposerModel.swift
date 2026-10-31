@@ -132,11 +132,13 @@ public final class SessionComposerModel {
     hydrated = true
     if let permission = body["permissionId"] as? String {
       choice = CreateLogic.withPermissionMode(capability, active, value: permission)
-    } else if let fast = body["fast"] as? Bool {
-      choice = CreateLogic.withFastMode(capability, active, enabled: fast)
     } else {
-      choice.modelId = (body["modelId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-      choice.effort = (body["effort"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+      let fast = body["fast"] as? Bool
+      if let fast { choice = CreateLogic.withFastMode(capability, active, enabled: fast) }
+      if fast == nil || body["modelId"] != nil || body["effort"] != nil {
+        choice.modelId = (body["modelId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        choice.effort = (body["effort"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+      }
     }
     changed?()
   }

@@ -96,7 +96,7 @@ final class MacComposerOptionsController: NSViewController {
     ])
     heading.setAccessibilityLabel(model.effortTitle + ", " + model.modelTitle)
     effort.stringValue = model.effortTitle
-    effort.textColor = model.choice.effort?.lowercased() == "ultra" ? .systemPurple : .lodyAccent
+    effort.textColor = .labelColor
     let isFast = CreateLogic.fastMode(model.capability, model.choice)?.enabled ?? false
     fast.state = isFast ? .on : .off
     fast.image = NSImage(systemSymbolName: isFast ? "bolt.fill" : "bolt", accessibilityDescription: nil)

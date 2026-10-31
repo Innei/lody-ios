@@ -234,6 +234,57 @@ final class MacNewSessionCatalogTests: XCTestCase {
 
 @MainActor
 final class MacComposerOptionsTests: XCTestCase {
+  func testReplyStateAppliesFastAndModelDefaultsInOneChange() throws {
+    let capability = Capability(machineId: "m", cliType: "builtin", agentType: "codex", configOptions: [
+      ConfigOption(id: "fast", name: "Fast", type: "boolean", currentValue: .bool(false)),
+    ])
+    let state = SessionComposerModel(choice: ModelChoice(modelId: "a", effort: "high", modeId: "ask", configOptionValues: [
+      "fast": .bool(true), "verbosity": .string("detailed"),
+    ]), service: SessionComposerService(options: { _, _ in
+      CreationOptions(sessionId: "s", agents: [], capabilities: [capability])
+    }, tier: { _, _ in nil }))
+    let loaded = expectation(description: "capability loaded")
+    state.changed = { loaded.fulfill() }
+    state.load(workspaceId: "w", projectId: "p", session: SessionItem(id: "s", title: "S", machineId: "m", cliType: "builtin", agentType: "codex"))
+    wait(for: [loaded], timeout: 2)
+    var notifications = 0
+    state.changed = { notifications += 1 }
+    state.change(["fast": false])
+    XCTAssertEqual(state.active.modelId, "a", "Fast alone preserves the explicit model")
+    XCTAssertEqual(state.active.effort, "high")
+    state.change(["fast": true])
+    notifications = 0
+    state.change(["modelId": "", "effort": "", "fast": false])
+    XCTAssertNil(state.active.modelId, "one reset must clear the explicit model as well as Fast")
+    XCTAssertNil(state.active.effort)
+    XCTAssertEqual(CreateLogic.fastMode(state.capability, state.active)?.enabled, false)
+    XCTAssertEqual(state.active.modeId, "ask")
+    XCTAssertEqual(state.active.configOptionValues?["verbosity"], .string("detailed"))
+    XCTAssertEqual(notifications, 1, "the combined change is published atomically")
+  }
+
+  func testEffortTitleRemainsReadableOnCapturedPopoverBackdrops() throws {
+    for (name, background) in [(NSAppearance.Name.aqua, 0.92), (.darkAqua, 0.38)] {
+      let appearance = try XCTUnwrap(NSAppearance(named: name))
+      let panel = MacComposerOptionsController()
+      var model = MacComposerModel(mode: .reply)
+      model.replyChoice = ModelChoice(effort: "medium")
+      var resolved: NSColor?
+      appearance.performAsCurrentDrawingAppearance {
+        panel.render(model)
+        resolved = panel.view.descendants(NSTextField.self).first { $0.stringValue == "Medium" }?.textColor?.usingColorSpace(.deviceRGB)
+      }
+      let color = try XCTUnwrap(resolved)
+      func linear(_ value: Double) -> Double { value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4) }
+      let alpha = Double(color.alphaComponent)
+      let rgb = [color.redComponent, color.greenComponent, color.blueComponent].map { Double($0) * alpha + background * (1 - alpha) }
+      let foreground = linear(rgb[0]) * 0.2126 + linear(rgb[1]) * 0.7152 + linear(rgb[2]) * 0.0722
+      let backdrop = linear(background)
+      let contrast = (max(foreground, backdrop) + 0.05) / (min(foreground, backdrop) + 0.05)
+      XCTAssertGreaterThanOrEqual(contrast, 4.5, "current effort must be readable over the real light/dark popover backdrop range")
+    }
+  }
+
   func testEchoedDefaultFastValueDoesNotLeaveResetEnabled() throws {
     let panel = MacComposerOptionsController()
     var model = MacComposerModel(mode: .reply)

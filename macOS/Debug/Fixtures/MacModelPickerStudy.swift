@@ -1,6 +1,7 @@
 #if DEBUG
 import AppKit
 import LodyCore
+import LodyData
 
 /// Offline design alternatives. The approved production composer is left intact.
 @MainActor
@@ -29,15 +30,17 @@ enum MacModelPickerStudy {
     let capability = Capability(machineId: "offline", cliType: "fixture", agentType: "reference", models: models,
       reasoningEfforts: ["": ["low", "medium", "high", "xhigh"]],
       configOptions: [ConfigOption(id: "fast", name: "Fast", type: "boolean", currentValue: .bool(false))])
-    composer.onReplyChoice = { [weak composer] body in
-      guard let composer else { return }
-      var choice = composer.model.replyChoice
-      if let id = body["modelId"] as? String { choice.modelId = id }
-      if let effort = body["effort"] as? String { choice.effort = effort }
-      if let fast = body["fast"] as? Bool { choice = CreateLogic.withFastMode(capability, choice, enabled: fast) }
-      composer.updateReply(ready: true, capability: capability, choice: choice)
+    let choice = ModelChoice(modelId: "reference-1", effort: "medium")
+    let state = SessionComposerModel(choice: choice, service: SessionComposerService(options: { _, _ in
+      CreationOptions(sessionId: "reference", agents: [], capabilities: [capability])
+    }, tier: { _, _ in nil }))
+    state.changed = { [weak composer, weak state] in
+      guard let state else { return }
+      composer?.updateReply(ready: true, capability: state.capability, choice: state.active)
     }
-    composer.updateReply(ready: true, capability: capability, choice: ModelChoice(modelId: "reference-1", effort: "medium"))
+    composer.onReplyChoice = { body in state.change(body) }
+    state.load(workspaceId: "offline", projectId: "reference", session: SessionItem(id: "reference", machineId: "offline", cliType: "fixture", agentType: "reference"))
+    composer.updateReply(ready: true, capability: capability, choice: choice)
     return windows
   }
 
