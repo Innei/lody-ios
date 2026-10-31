@@ -26,7 +26,7 @@ final class LodyMenuButton: UIView {
   private var photoURL: URL?
   private var photo: UIImage?
   private var label = ""
-  private var detail = ""
+  private var presence = LodyPresenceMark.none
 
   @available(*, unavailable)
   required init?(coder: NSCoder) { fatalError() }
@@ -71,9 +71,12 @@ final class LodyMenuButton: UIView {
     apply()
   }
 
-  func setDetail(_ value: String) {
-    detail = value
-    apply()
+  func setPresence(_ value: LodyPresenceMark) {
+    guard value != presence else { return }
+    presence = value
+    UIView.transition(with: button, duration: 0.2, options: [.transitionCrossDissolve, .allowUserInteraction]) {
+      self.apply()
+    }
   }
 
   func setItems(_ value: [LodyMenuItem]) {
@@ -118,12 +121,12 @@ final class LodyMenuButton: UIView {
     let tint = lodyTint(avatar.color)
     LodyMenuButtonStyle.apply(
       label: label,
-      detail: detail,
       avatar: LodyMenuButtonStyle.avatarImage(
         text: avatar.text,
         fill: tint ?? .lodyAccent,
         foreground: tint == nil ? LodyAccentChoice.current.foregroundColor : .white,
-        photo: photo
+        photo: photo,
+        presence: presence
       ),
       to: button
     )

@@ -33,6 +33,22 @@ LodyMenuButtonStyle.apply(label: "Innei", avatar: loaded, to: shortMenu)
 assert(abs(LodyMenuButtonStyle.unconstrainedWidth(for: shortMenu) - shortWidth) < 1,
        "Loading the avatar must not resize the workspace button")
 
+assert(LodyPresenceMark(online: 0, total: 0, known: true) == .none, "No machines draw no mark")
+assert(LodyPresenceMark(online: 1, total: 1, known: false) == .none, "Unknown presence draws no mark")
+assert(LodyPresenceMark(online: 1, total: 1, known: true) == .dot(online: true), "One machine is a corner dot")
+assert(LodyPresenceMark(online: 0, total: 1, known: true) == .dot(online: false))
+assert(LodyPresenceMark(online: 2, total: 3, known: true) == .segments(online: 2, total: 3), "Several machines are ring segments")
+assert(LodyPresenceMark(online: 4, total: 6, known: true) == .segments(online: 4, total: 6), "Six machines still count as segments")
+assert(LodyPresenceMark(online: 7, total: 12, known: true) == .share(online: 7, total: 12), "Seven or more machines become a share arc")
+let plainTitle = UIButton(type: .system)
+LodyMenuButtonStyle.apply(label: "Design states", avatar: letter, to: plainTitle)
+assert(plainTitle.configuration?.attributedTitle.map { String($0.characters) } == "Design states", "The workspace title carries no chevron")
+assert(plainTitle.configuration?.attributedSubtitle == nil, "The workspace capsule is one line")
+let ringed = LodyMenuButtonStyle.avatarImage(text: "I", fill: .systemIndigo, photo: nil, presence: .segments(online: 2, total: 3))
+let dotted = LodyMenuButtonStyle.avatarImage(text: "I", fill: .systemIndigo, photo: nil, presence: .dot(online: true))
+assert(ringed.size.width == LodyMenuButtonStyle.avatarSide && dotted.size.width == LodyMenuButtonStyle.avatarSide, "Presence never resizes the avatar")
+assert(ringed.pngData() != letter.pngData() && dotted.pngData() != letter.pngData() && ringed.pngData() != dotted.pngData(), "Each presence mark draws differently")
+
 func ink(_ image: UIImage) -> CGFloat {
   let width = Int(image.size.width.rounded(.up) * 3), height = Int(image.size.height.rounded(.up) * 3)
   var pixels = [UInt8](repeating: 0, count: width * height * 4)
@@ -71,28 +87,15 @@ assert(alpha(of: squareAvatar, at: CGPoint(x: 4, y: 4)) < 60, "The monogram is a
 assert(alpha(of: squareAvatar, at: CGPoint(x: 16, y: 1.5)) > 200 && alpha(of: squareAvatar, at: CGPoint(x: 1.5, y: 16)) > 200,
        "The circle fills the avatar side")
 let headerMenu = UIButton(type: .system)
-LodyMenuButtonStyle.apply(label: "Innei", detail: "3 machines · 2 running", avatar: squareAvatar, to: headerMenu)
-let headerDetail = NSAttributedString(headerMenu.configuration!.attributedSubtitle!)
-assert(headerDetail.string == "3 machines · 2 running", "The status line sits under the workspace name")
-let headerDetailFont = headerDetail.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
-assert(headerDetailFont.fontDescriptor.symbolicTraits.contains(.traitMonoSpace), "The status line is monospaced")
+LodyMenuButtonStyle.apply(label: "Innei", avatar: squareAvatar, to: headerMenu)
 let headerTitle = NSAttributedString(headerMenu.configuration!.attributedTitle!)
-assert(headerTitle.string.hasPrefix("Innei"))
+assert(headerTitle.string == "Innei")
 let headerTitleFont = headerTitle.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
 let headerWeight = (headerTitleFont.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any])?[.weight] as? CGFloat
 assert(abs(headerTitleFont.pointSize - 17) <= 0.5 && (headerWeight ?? 0) >= UIFont.Weight.semibold.rawValue, "The name is 17 pt semibold")
-assert(headerTitle.containsAttachments(in: NSRange(location: 0, length: headerTitle.length)), "A chevron follows the name")
-var headerChevron: UIImage?
-headerTitle.enumerateAttribute(.attachment, in: NSRange(location: 0, length: headerTitle.length)) { value, _, _ in
-  headerChevron = headerChevron ?? (value as? NSTextAttachment)?.image
-}
-assert(ink(headerChevron!) > ink(boldChevron), "The header chevron is heavier than a bold 10 pt chevron beside the semibold name")
-LodyMenuButtonStyle.apply(label: "Design states", detail: "2 online / 2 devices · 3 running", avatar: squareAvatar, to: headerMenu)
-let narrowHeader = headerMenu.sizeThatFits(CGSize(width: 200, height: CGFloat.greatestFiniteMagnitude))
-assert(narrowHeader.height <= LodyMenuButtonStyle.height, "A long status line truncates instead of wrapping: \(narrowHeader.height)")
-LodyMenuButtonStyle.apply(label: "Innei", avatar: squareAvatar, to: headerMenu)
-assert(headerMenu.configuration?.attributedSubtitle == nil, "No status leaves a single-line button")
-print("PASS: the workspace header draws a square monogram, a semibold name with chevron and a mono status line")
+assert(!headerTitle.containsAttachments(in: NSRange(location: 0, length: headerTitle.length)), "No chevron follows the name")
+assert(headerMenu.configuration?.attributedSubtitle == nil, "The workspace capsule is a single line")
+print("PASS: the workspace header draws a circular monogram with its presence mark and a single semibold name")
 
 var swipedState = UICellConfigurationState(traitCollection: UITraitCollection())
 swipedState.isSwiped = true

@@ -6,7 +6,6 @@ final class InboxChrome {
     var workspaces: [AuthWorkspace]
     var selected: AuthWorkspace?
     var devices: InboxDevices
-    var running = 0
     var mode: Int
     var sort: InboxSort
   }
@@ -90,10 +89,7 @@ final class InboxChrome {
     avatar.image = model.selected?.image ?? ""
     workspace.setAvatar(avatar)
     workspace.setLabel(name)
-    let running = model.running > 0
-      ? String.localizedStringWithFormat(String(localized: "inbox.header.running", bundle: .lody), model.running)
-      : ""
-    workspace.setDetail([model.devices.summary, running].filter { !$0.isEmpty }.joined(separator: " · "))
+    workspace.setPresence(model.devices.presence)
     workspace.setItems(menuItems(model))
     layout()
     let left = [workspaceItem ?? UIBarButtonItem(customView: workspaceSlot)]

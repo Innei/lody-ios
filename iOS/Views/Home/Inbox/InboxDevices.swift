@@ -6,10 +6,12 @@ struct InboxDevices {
   let status: String
   let summary: String
   let menu: LodyMenuItem
+  let presence: LodyPresenceMark
 
   init(catalog: SessionCatalog, presence: SettingsMachinePresence) {
     let online = catalog.machineIds.filter { presence.status(of: $0) == "online" }.count
     let live = presence.state == "live"
+    self.presence = LodyPresenceMark(online: online, total: catalog.machineIds.count, known: live)
     if live {
       status = online > 0 ? "online" : "offline"
       summary = String.localizedStringWithFormat(String(localized: "devices.summary", bundle: .lody), String(describing: online), String(describing: catalog.machineIds.count))
