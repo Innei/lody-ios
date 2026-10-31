@@ -96,7 +96,10 @@ final class MacComposerView: NSView, MacFileDropTarget {
     scroll.hasVerticalScroller = true
     scroll.autohidesScrollers = true
     send.bezelStyle = .circular
-    send.image = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: String(localized: "mac.composer.send", bundle: .lodyMac))
+    let arrow = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: String(localized: "mac.composer.send", bundle: .lodyMac))?
+      .withSymbolConfiguration(.init(paletteColors: [.white]))
+    arrow?.isTemplate = false
+    send.image = arrow
     send.title = ""
     send.bezelColor = .lodyAccent
     send.contentTintColor = .white
