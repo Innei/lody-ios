@@ -341,6 +341,43 @@ final class MacWindowTabTests: XCTestCase {
 
 @MainActor
 final class MacSidebarLayoutTests: XCTestCase {
+  func testTopCommandsUseTheSameRailTypographyAndRowRhythmAsSessions() throws {
+    let controller = MainWindowController(environment: MacFixtures.environment, sessionId: "s-mac")
+    let window = try XCTUnwrap(controller.window)
+    defer { window.close() }
+    window.layoutIfNeeded()
+    let sidebar = try XCTUnwrap(controller.workspace?.sidebar)
+    let outline = sidebar.outlineView
+    let row = try XCTUnwrap((0..<outline.numberOfRows).first { (outline.item(atRow: $0) as? SidebarViewController.Node)?.id == "s-tabs" })
+    let cell = try XCTUnwrap(outline.view(atColumn: 0, row: row, makeIfNecessary: true) as? NSTableCellView)
+    cell.layoutSubtreeIfNeeded()
+    let title = try XCTUnwrap(cell.textField)
+    let root = try XCTUnwrap(window.contentView)
+    let new = try XCTUnwrap(root.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "sidebar-new-session" })
+    let newTitle = try XCTUnwrap(new.descendants(NSTextField.self).first)
+    let search = try XCTUnwrap(root.descendants(NSTextField.self).first { $0.accessibilityIdentifier() == "sidebar-search" })
+    let searchRow = try XCTUnwrap(search.superview)
+    let expectedHeight = outline.rect(ofRow: row).height
+    XCTAssertEqual(new.convert(new.bounds, to: root).minX, cell.convert(cell.bounds, to: root).minX, accuracy: 0.5)
+    XCTAssertEqual(search.convert(search.bounds, to: root).minX, title.convert(title.bounds, to: root).minX, accuracy: 0.5)
+    XCTAssertEqual(search.frame.height, title.frame.height, accuracy: 0.5, "native text fields share an intrinsic height and baseline")
+    XCTAssertEqual(newTitle.convert(newTitle.bounds, to: root).minX, title.convert(title.bounds, to: root).minX, accuracy: 0.5)
+    XCTAssertEqual(newTitle.firstBaselineOffsetFromTop, title.firstBaselineOffsetFromTop, accuracy: 0.5)
+    XCTAssertEqual(search.firstBaselineOffsetFromTop, title.firstBaselineOffsetFromTop, accuracy: 0.5)
+    let referenceFont = try XCTUnwrap(title.font)
+    for candidate in [newTitle.font, search.font] {
+      let font = try XCTUnwrap(candidate)
+      XCTAssertEqual(font.pointSize, referenceFont.pointSize)
+      XCTAssertEqual(NSFontManager.shared.weight(of: font), NSFontManager.shared.weight(of: referenceFont))
+    }
+    XCTAssertEqual(search.textColor, title.textColor)
+    XCTAssertEqual(newTitle.textColor, title.textColor)
+    XCTAssertEqual(search.placeholderAttributedString?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor, title.textColor)
+    XCTAssertEqual(new.frame.height, expectedHeight, accuracy: 0.5)
+    XCTAssertEqual(searchRow.frame.height, expectedHeight, accuracy: 0.5)
+    XCTAssertEqual(abs(new.convert(new.bounds, to: root).midY - searchRow.convert(searchRow.bounds, to: root).midY), expectedHeight, accuracy: 0.5)
+  }
+
   func testProjectAndSessionTextShareARailWithoutExtraIndentation() throws {
     let sidebar = SidebarViewController(source: .fixture(MacFixtures.listState))
     let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 800), styleMask: [.titled], backing: .buffered, defer: false)

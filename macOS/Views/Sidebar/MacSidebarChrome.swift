@@ -1,6 +1,38 @@
 import AppKit
 
 @MainActor
+enum SidebarRowLayout {
+  static let font = NSFont.preferredFont(forTextStyle: .body)
+
+  static func installTitle(_ title: NSTextField, in row: NSView, unread: Bool = false) {
+    title.font = unread ? .systemFont(ofSize: 13, weight: .medium) : font
+    title.textColor = .labelColor
+    title.lineBreakMode = .byTruncatingTail
+    title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    title.translatesAutoresizingMaskIntoConstraints = false
+    row.addSubview(title)
+    NSLayoutConstraint.activate([
+      title.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 36),
+      title.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -36),
+      title.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+    ])
+  }
+
+  static func installIcon(_ icon: NSImageView, in row: NSView) {
+    icon.contentTintColor = .secondaryLabelColor
+    icon.setAccessibilityElement(false)
+    icon.translatesAutoresizingMaskIntoConstraints = false
+    row.addSubview(icon)
+    NSLayoutConstraint.activate([
+      icon.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 12),
+      icon.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+      icon.widthAnchor.constraint(equalToConstant: 16),
+      icon.heightAnchor.constraint(equalToConstant: 16),
+    ])
+  }
+}
+
+@MainActor
 enum MacSidebarChrome {
   static func button(_ symbol: String, title: String, id: String, target: AnyObject, action: Selector, glass: Bool = false) -> NSButton {
     let button = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: nil) ?? NSImage(), target: target, action: action)
@@ -57,7 +89,7 @@ final class SidebarSearchField: NSTextField {
     isBezeled = false
     drawsBackground = false
     focusRingType = .none
-    font = .systemFont(ofSize: 13)
+    font = SidebarRowLayout.font
     cell?.usesSingleLineMode = true
     setAccessibilitySubrole(.searchField)
   }
@@ -77,8 +109,8 @@ final class SidebarSearchSurface: NSView {
     self.field = field
     super.init(frame: .zero)
     let icon = NSImageView(image: NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil) ?? NSImage())
-    icon.contentTintColor = .secondaryLabelColor
-    icon.setAccessibilityElement(false)
+    SidebarRowLayout.installIcon(icon, in: self)
+    SidebarRowLayout.installTitle(field, in: self)
     clear.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: nil)
     clear.isBordered = false
     clear.contentTintColor = .secondaryLabelColor
@@ -87,20 +119,11 @@ final class SidebarSearchSurface: NSView {
     clear.action = #selector(clearPressed)
     clear.setAccessibilityIdentifier("sidebar-search-clear")
     clear.setAccessibilityLabel(String(localized: "mac.sidebar.clearSearch", bundle: .lodyMac))
-    for view in [icon, field, clear] {
-      view.translatesAutoresizingMaskIntoConstraints = false
-      addSubview(view)
-    }
+    clear.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(clear)
     translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
       heightAnchor.constraint(equalToConstant: 32),
-      icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-      icon.centerYAnchor.constraint(equalTo: centerYAnchor),
-      icon.widthAnchor.constraint(equalToConstant: 14), icon.heightAnchor.constraint(equalToConstant: 14),
-      field.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 32),
-      field.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -32),
-      field.centerYAnchor.constraint(equalTo: centerYAnchor),
-      field.heightAnchor.constraint(equalToConstant: 22),
       clear.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
       clear.centerYAnchor.constraint(equalTo: centerYAnchor),
       clear.widthAnchor.constraint(equalToConstant: 24), clear.heightAnchor.constraint(equalToConstant: 24),

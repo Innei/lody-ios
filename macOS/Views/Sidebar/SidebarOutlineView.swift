@@ -44,6 +44,9 @@ final class SidebarActionButton: NSButton {
 
   override func mouseEntered(with event: NSEvent) { hovered = true }
   override func mouseExited(with event: NSEvent) { hovered = false }
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    super.hitTest(point).map { _ in self }
+  }
 
   override func draw(_ dirtyRect: NSRect) {
     if hovered || isHighlighted {
@@ -55,29 +58,14 @@ final class SidebarActionButton: NSButton {
 
   convenience init(title: String, symbol: String) {
     self.init(frame: .zero)
-    cell = SidebarActionCell(textCell: title)
-    self.title = title
-    image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
-    imagePosition = .imageLeading
+    self.title = ""
+    setAccessibilityLabel(title)
     isBordered = false
-    alignment = .left
-    font = .systemFont(ofSize: 13, weight: .medium)
-    symbolConfiguration = .init(pointSize: 14, weight: .regular)
-    attributedTitle = NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .medium), .foregroundColor: NSColor.labelColor])
+    font = SidebarRowLayout.font
     bezelStyle = .accessoryBarAction
-  }
-}
-
-// Keep AppKit's button drawing and accessibility while sharing the list's icon/text columns.
-private final class SidebarActionCell: NSButtonCell {
-  override func imageRect(forBounds rect: NSRect) -> NSRect {
-    NSRect(x: rect.minX + 8, y: rect.midY - 8, width: 16, height: 16)
-  }
-
-  override func titleRect(forBounds rect: NSRect) -> NSRect {
-    var title = super.titleRect(forBounds: rect)
-    title.origin.x = rect.minX + 32
-    title.size.width = max(0, rect.width - 32)
-    return title
+    let label = NSTextField(labelWithString: title)
+    label.setAccessibilityElement(false)
+    SidebarRowLayout.installTitle(label, in: self)
+    SidebarRowLayout.installIcon(NSImageView(image: NSImage(systemSymbolName: symbol, accessibilityDescription: nil) ?? NSImage()), in: self)
   }
 }

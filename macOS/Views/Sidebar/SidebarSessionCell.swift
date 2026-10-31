@@ -12,12 +12,8 @@ final class SidebarSessionCell: NSTableCellView {
   init(row: MacSidebarModel.Row) {
     super.init(frame: .zero)
     let title = NSTextField(labelWithString: row.title)
-    title.lineBreakMode = .byTruncatingTail
-    title.font = .systemFont(ofSize: 13, weight: row.unread ? .medium : .regular)
-    title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     textField = title
-    title.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(title)
+    SidebarRowLayout.installTitle(title, in: self, unread: row.unread)
     let state = NSImageView()
     state.translatesAutoresizingMaskIntoConstraints = false
     state.symbolConfiguration = .init(pointSize: 12, weight: .regular)
@@ -59,9 +55,6 @@ final class SidebarSessionCell: NSTableCellView {
     more.translatesAutoresizingMaskIntoConstraints = false
     addSubview(more)
     NSLayoutConstraint.activate([
-      title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 36),
-      title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -36),
-      title.centerYAnchor.constraint(equalTo: centerYAnchor),
       unread.centerXAnchor.constraint(equalTo: leadingAnchor, constant: 20),
       unread.centerYAnchor.constraint(equalTo: centerYAnchor),
       unread.widthAnchor.constraint(equalToConstant: 8),

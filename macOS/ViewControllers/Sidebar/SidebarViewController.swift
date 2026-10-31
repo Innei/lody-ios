@@ -65,6 +65,9 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
 
   override func loadView() {
     search.placeholderString = String(localized: "mac.sidebar.search", bundle: .lodyMac)
+    search.placeholderAttributedString = NSAttributedString(string: search.placeholderString ?? "", attributes: [
+      .font: SidebarRowLayout.font, .foregroundColor: NSColor.labelColor,
+    ])
     search.setAccessibilityIdentifier("sidebar-search")
     search.delegate = self
     search.controlSize = .regular
@@ -124,13 +127,14 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     let stack = NSStackView(views: [new, searchSurface])
     stack.orientation = .vertical
     stack.alignment = .leading
-    stack.spacing = 4
-    stack.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 12, right: 12)
+    stack.spacing = 0
+    stack.edgeInsets = NSEdgeInsets(top: 4, left: 8, bottom: 12, right: 8)
     new.translatesAutoresizingMaskIntoConstraints = false
     new.heightAnchor.constraint(equalToConstant: 32).isActive = true
-    new.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24).isActive = true
-    searchSurface.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24).isActive = true
+    new.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -16).isActive = true
+    searchSurface.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -16).isActive = true
     let accessory = NSSplitViewItemAccessoryViewController()
+    accessory.automaticallyAppliesContentInsets = false
     accessory.view = stack
     if #available(macOS 26.1, *) { accessory.preferredScrollEdgeEffectStyle = .soft }
     return accessory
@@ -370,26 +374,10 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     cell.setAccessibilityIdentifier("sidebar-" + node.id)
     cell.setAccessibilityLabel(node.title)
     let label = NSTextField(labelWithString: node.title)
-    label.font = .systemFont(ofSize: node.kind == .machine ? 12 : 13, weight: node.kind == .machine ? .medium : .regular)
-    label.textColor = node.kind == .machine ? .secondaryLabelColor : .labelColor
-    label.lineBreakMode = .byTruncatingTail
-    label.translatesAutoresizingMaskIntoConstraints = false
-    cell.addSubview(label)
-    NSLayoutConstraint.activate([
-      label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: node.kind == .machine ? 12 : 36),
-      label.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: node.kind == .machine ? -72 : -36),
-      label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-    ])
     if node.kind == .project {
+      SidebarRowLayout.installTitle(label, in: cell)
       let folder = NSImageView(image: NSImage(systemSymbolName: "folder", accessibilityDescription: nil) ?? NSImage())
-      folder.contentTintColor = .secondaryLabelColor
-      folder.translatesAutoresizingMaskIntoConstraints = false
-      cell.addSubview(folder)
-      NSLayoutConstraint.activate([
-        folder.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 12),
-        folder.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-        folder.widthAnchor.constraint(equalToConstant: 16), folder.heightAnchor.constraint(equalToConstant: 16),
-      ])
+      SidebarRowLayout.installIcon(folder, in: cell)
       let toggle = NSButton(image: NSImage(), target: self, action: #selector(toggleProject(_:)))
       toggle.isBordered = false
       toggle.identifier = NSUserInterfaceItemIdentifier(node.id)
@@ -404,7 +392,19 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         toggle.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
         toggle.widthAnchor.constraint(equalToConstant: 28), toggle.heightAnchor.constraint(equalToConstant: 28),
       ])
-    } else if roots.first(where: { $0.kind == .machine }) === node {
+    } else {
+      label.font = .systemFont(ofSize: 12, weight: .medium)
+      label.textColor = .secondaryLabelColor
+      label.lineBreakMode = .byTruncatingTail
+      label.translatesAutoresizingMaskIntoConstraints = false
+      cell.addSubview(label)
+      NSLayoutConstraint.activate([
+        label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 12),
+        label.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: -72),
+        label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+      ])
+    }
+    if node.kind == .machine, roots.first(where: { $0.kind == .machine }) === node {
       filter.isBordered = false
       filter.imagePosition = .imageOnly
       filter.symbolConfiguration = .init(pointSize: 14, weight: .regular)
