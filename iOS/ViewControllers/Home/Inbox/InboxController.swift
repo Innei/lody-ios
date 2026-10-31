@@ -5,6 +5,8 @@ final class InboxController: UIViewController {
   let list = SessionListView()
   let source: SessionSource
   private let chrome = InboxChrome()
+  private let projectBar = InboxProjectBar()
+  private let projectIndex = InboxProjectIndex()
   private lazy var actions = SessionActions(source: source)
   private var mode = InboxController.storedIndex("inboxView")
   private var sort = InboxSort.allCases[InboxController.storedIndex("inboxProjectSort")]
@@ -41,6 +43,8 @@ final class InboxController: UIViewController {
     list.forwarded = { [weak self] name, body in self?.event(name, body) }
     view.addSubview(list)
     wireChrome()
+    projectBar.selected = { [weak self] id in self?.setFilter(id) }
+    wireIndex()
     observers = (source.changes + [UIApplication.didBecomeActiveNotification]).map { name in
       NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
         MainActor.assumeIsolated { self?.render() }
@@ -56,6 +60,7 @@ final class InboxController: UIViewController {
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     chrome.layout()
+    layoutIndex()
   }
 
   override func didMove(toParent parent: UIViewController?) {
@@ -89,14 +94,28 @@ final class InboxController: UIViewController {
     list.setPreviewWorkspaceId(state.workspaceId)
     let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
     guard term.isEmpty else {
+      projectIndex.enabled = false
+      list.setTopAccessory(nil, height: 0)
       renderSearch(term, state: state, catalog: catalog)
       return
     }
     list.setPlaceholder(listPlaceholder(state))
     let pinOrder = pinOrder(state, catalog: catalog)
     if mode == 0 {
-      list.setSections(InboxSections.projects(catalog, expanded: expanded, sort: sort, pinOrder: pinOrder))
+      let chips = InboxSections.chips(catalog, sort: sort)
+      let shown = chips.count > 1 && traitCollection.horizontalSizeClass != .regular
+      let stored = storedFilter(state)
+      let filter = shown && chips.contains { $0.id == stored } ? stored : InboxSections.allFilter
+      projectBar.update(chips, selected: filter)
+      list.setTopAccessory(shown ? projectBar : nil, height: InboxProjectBar.height)
+      let sections = InboxSections.projects(catalog, expanded: expanded, sort: sort, pinOrder: pinOrder, filter: filter)
+      list.setSections(sections)
+      projectIndex.update(InboxProjectIndexModel.items(sectionIds: sections.map(\.id), chips: chips))
+      projectIndex.enabled = shown && filter == InboxSections.allFilter
+      view.setNeedsLayout()
     } else {
+      projectIndex.enabled = false
+      list.setTopAccessory(nil, height: 0)
       list.setSections(InboxSections.inbox(catalog, chatOnly: mode == 2, pinOrder: pinOrder))
     }
   }
@@ -229,6 +248,47 @@ final class InboxController: UIViewController {
       return true
     }
     return InboxSections.isChatRow(id)
+  }
+
+  private func wireIndex() {
+    view.addSubview(projectIndex)
+    let grouped = list.groupedList
+    grouped.scrollPhase = { [weak self] scrolling in self?.projectIndex.setScrolling(scrolling) }
+    grouped.scrolled = { [weak self, weak grouped] in
+      guard let self, let grouped, self.projectIndex.shown else { return }
+      self.projectIndex.setCurrent(InboxProjectIndexModel.current(grouped.sectionTops(), edge: grouped.contentTop))
+    }
+    projectIndex.jump = { [weak grouped] id in grouped?.scrollToSection(id) }
+    projectIndex.visibilityChanged = { [weak self] shown in
+      self?.list.groupedList.setTrailingInset(shown ? InboxProjectIndex.room : 0)
+      self?.list.layoutIfNeeded()
+    }
+  }
+
+  private func layoutIndex() {
+    let grouped = list.groupedList
+    let top = grouped.contentTop + 8
+    let bottom = view.bounds.height - view.safeAreaInsets.bottom - 8
+    let height = min(bottom - top, projectIndex.height(available: bottom - top))
+    let center = projectIndex.center
+    projectIndex.bounds = CGRect(x: 0, y: 0, width: InboxProjectIndex.width, height: max(0, height))
+    projectIndex.center = CGPoint(x: view.bounds.width - view.safeAreaInsets.right - InboxProjectIndex.width / 2 - 2, y: (top + bottom) / 2)
+    if center != projectIndex.center { projectIndex.layoutIfNeeded() }
+  }
+
+  private func filterKey(_ state: SessionListState) -> String {
+    "inboxProjectFilter.\(state.userId).\(state.workspaceId)"
+  }
+
+  private func storedFilter(_ state: SessionListState) -> String {
+    UserDefaults.standard.string(forKey: filterKey(state)) ?? InboxSections.allFilter
+  }
+
+  private func setFilter(_ id: String) {
+    let state = source.state
+    guard !state.workspaceId.isEmpty else { return }
+    UserDefaults.standard.set(id, forKey: filterKey(state))
+    render()
   }
 
   private func setView(_ next: Int) {

@@ -30,6 +30,8 @@ final class SessionListView: UIView {
   }
   var sidebarScrollView: UIScrollView { sidebar.scrollView }
   func setContentStyle(_ value: Bool) { grouped.setContentStyle(value) }
+  func setTopAccessory(_ view: UIView?, height: CGFloat) { grouped.setTopAccessory(view, height: height) }
+  var groupedList: LodyGroupedList { grouped }
   func setPreviewUserId(_ value: String) { grouped.setPreviewUserId(value); sidebar.previewUserId = value }
   func setPreviewWorkspaceId(_ value: String) { grouped.setPreviewWorkspaceId(value); sidebar.previewWorkspaceId = value }
   func setPlaceholder(_ value: String) { grouped.setPlaceholder(value); sidebar.setPlaceholder(value) }

@@ -97,6 +97,11 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   private let searchField = UISearchTextField()
   private weak var searchHeader: SearchHeaderCell?
   private let segmentContainer = UIView()
+  private let accessoryContainer = UIView()
+  private var accessoryHeight: CGFloat = 0
+  private var trailingInset: CGFloat = 0
+  var scrollPhase: ((Bool) -> Void)?
+  var scrolled: (() -> Void)?
   private var scopeSearch: UISearchController?
   private var segmentLabels: [String] = []
   private var segmentsUseSearchScope = false
@@ -631,6 +636,12 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     interaction.scrollView = collection
     interaction.edge = .top
     segmentContainer.addInteraction(interaction)
+    let accessoryEdge = UIScrollEdgeElementContainerInteraction()
+    accessoryEdge.scrollView = collection
+    accessoryEdge.edge = .top
+    accessoryContainer.addInteraction(accessoryEdge)
+    accessoryContainer.isHidden = true
+    addSubview(accessoryContainer)
     appearance.view = UIView(frame: .zero)
     appearance.view.isUserInteractionEnabled = false
     appearance.onWillAppear = { [weak self] animated, coordinator in
@@ -643,7 +654,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    collection.frame = bounds
+    collection.frame = bounds.inset(by: UIEdgeInsets(top: 0, left: 0, bottom: 0, right: trailingInset))
     updateBottomInset()
     let insets = collection.adjustedContentInset
     if !segmentContainer.isHidden {
@@ -653,6 +664,11 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
       segments.frame = segmentContainer.bounds.insetBy(dx: 20, dy: Self.stripInset)
       steps.frame = segments.frame
     }
+    if !accessoryContainer.isHidden {
+      let top = max(0, insets.top - collection.contentInset.top)
+      accessoryContainer.frame = CGRect(x: 0, y: top, width: bounds.width, height: accessoryHeight)
+      accessoryContainer.subviews.first?.frame = accessoryContainer.bounds
+    }
     placeholder.frame = bounds.inset(by: UIEdgeInsets(top: insets.top + 24, left: 32, bottom: insets.bottom + 24, right: 32))
     unavailableView?.frame = bounds.inset(by: UIEdgeInsets(top: insets.top, left: 0, bottom: insets.bottom, right: 0))
     attachScrollOwner()
@@ -661,9 +677,11 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   private func updateEdgeFades() {
     let fades = contentStyle && !transparent
-    topFade.isHidden = !fades
+    let accessory = !accessoryContainer.isHidden
+    topFade.isHidden = !fades || accessory
     bottomFade.isHidden = !fades
-    collection.topEdgeEffect.isHidden = fades
+    collection.topEdgeEffect.isHidden = fades && !accessory
+    collection.topEdgeEffect.style = accessory ? .hard : .soft
     collection.bottomEdgeEffect.isHidden = fades
     guard fades else { return }
     let insets = collection.adjustedContentInset
@@ -675,6 +693,48 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
   }
 
   func scrollViewDidChangeAdjustedContentInset(_ scrollView: UIScrollView) {
+    setNeedsLayout()
+  }
+
+  func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    scrolled?()
+  }
+
+  func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+    scrollPhase?(true)
+  }
+
+  func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+    if !decelerate { scrollPhase?(false) }
+  }
+
+  func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+    scrollPhase?(false)
+  }
+
+  var contentTop: CGFloat { collection.frame.minY + collection.adjustedContentInset.top }
+
+  func sectionTops() -> [(id: String, y: CGFloat)] {
+    let ids = dataSource.snapshot().sectionIdentifiers
+    return ids.enumerated().compactMap { index, id in
+      guard collection.numberOfItems(inSection: index) > 0,
+        let frame = collection.layoutAttributesForItem(at: IndexPath(item: 0, section: index))?.frame else { return nil }
+      return (id, frame.minY - collection.contentOffset.y + collection.frame.minY)
+    }
+  }
+
+  func scrollToSection(_ id: String) {
+    guard let index = dataSource.snapshot().indexOfSection(id), collection.numberOfItems(inSection: index) > 0,
+      let frame = collection.layoutAttributesForItem(at: IndexPath(item: 0, section: index))?.frame else { return }
+    let inset = collection.adjustedContentInset
+    let limit = max(-inset.top, collection.contentSize.height + inset.bottom - collection.bounds.height)
+    let y = min(limit, max(-inset.top, frame.minY - inset.top))
+    collection.setContentOffset(CGPoint(x: collection.contentOffset.x, y: y), animated: true)
+  }
+
+  func setTrailingInset(_ value: CGFloat) {
+    guard value != trailingInset else { return }
+    trailingInset = value
     setNeedsLayout()
   }
 
@@ -735,7 +795,7 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
 
   /// Include the segment strip in the scroll view inset so UIKit covers it with the scroll edge effect.
   private func syncSegmentInset() {
-    let wanted = segmentContainer.isHidden ? 0 : segmentBarHeight
+    let wanted = (segmentContainer.isHidden ? 0 : segmentBarHeight) + (accessoryContainer.isHidden ? 0 : accessoryHeight)
     guard collection.contentInset.top != wanted else { return }
     collection.contentInset.top = wanted
     collection.verticalScrollIndicatorInsets.top = wanted
@@ -1015,6 +1075,20 @@ final class LodyGroupedList: LodyAppearanceView, UICollectionViewDelegate, UISea
     lodyAppearanceDidChange()
     collection.collectionViewLayout.invalidateLayout()
     collection.reloadData()
+    setNeedsLayout()
+  }
+
+  // The accessory sits in the top inset so UIKit draws the hard scroll edge under it, not under the bar alone.
+  func setTopAccessory(_ view: UIView?, height: CGFloat) {
+    let current = accessoryContainer.subviews.first
+    guard view !== current || accessoryHeight != height || accessoryContainer.isHidden != (view == nil) else { return }
+    if view !== current {
+      current?.removeFromSuperview()
+      if let view { accessoryContainer.addSubview(view) }
+    }
+    accessoryHeight = view == nil ? 0 : height
+    accessoryContainer.isHidden = view == nil
+    syncSegmentInset()
     setNeedsLayout()
   }
 

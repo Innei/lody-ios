@@ -20,6 +20,7 @@ enum HomeFixture {
 
   private static var catalog: [String: Any] = [:]
   private static var statesCatalog: [String: Any] = [:]
+  private static var otherCatalog: [String: Any] = [:]
   private static var workspaces: [[String: Any]] = []
   private static var selected = "ui-home"
   private static var rejectedDelete = false
@@ -29,12 +30,16 @@ enum HomeFixture {
     let fixture = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as! [String: Any]
     catalog = fixture["catalog"] as! [String: Any]
     statesCatalog = relative(fixture["statesCatalog"] as! [String: Any], now: Date().timeIntervalSince1970 * 1000)
+    otherCatalog = relative(fixture["otherCatalog"] as! [String: Any], now: Date().timeIntervalSince1970 * 1000)
     workspaces = fixture["workspaces"] as! [[String: Any]]
     for case let (photo, source as String) in fixture["photoCache"] as? [String: Any] ?? [:] {
       if let url = URL(string: photo), let data = URL(string: source) { LodyListPhoto.prime(url, from: data) }
     }
     selected = "ui-home"; rejectedDelete = false
-    for key in ["inboxView", "inboxProjectSort", "inboxExpansion", "inboxPinOrder.ui-home.ui-home"] {
+    // An AX snapshot takes about a second; the index must outlive one after scrolling stops.
+    InboxProjectIndex.hideDelay = 3
+    for key in ["inboxView", "inboxProjectSort", "inboxExpansion", "inboxPinOrder.ui-home.ui-home",
+      "inboxProjectFilter.ui-home.ui-home", "inboxProjectFilter.ui-home.ui-states", "inboxProjectFilter.ui-home.ui-other"] {
       UserDefaults.standard.removeObject(forKey: key)
     }
     let catalogJSON = SessionController.json(["catalog": catalog, "syncedAt": 0])
@@ -101,7 +106,7 @@ enum HomeFixture {
   }
 
   private static func publish() {
-    let catalogs = ["ui-home": catalog, "ui-states": statesCatalog]
+    let catalogs = ["ui-home": catalog, "ui-states": statesCatalog, "ui-other": otherCatalog]
     let empty: [String: Any] = ["projects": [], "sessions": [], "machineIds": []]
     let payload: [String: Any] = ["account": ["user": ["id": "ui-home", "name": "UI Preview", "email": ""], "workspaces": workspaces],
       "workspaceId": selected, "catalog": catalogs[selected] ?? empty,
