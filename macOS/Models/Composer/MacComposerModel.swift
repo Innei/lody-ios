@@ -53,3 +53,25 @@ struct MacComposerModel {
     ["id": id, "text": text, "startedAt": Int(now.timeIntervalSince1970 * 1000), "attachments": attachments.payload]
   }
 }
+
+extension MacComposerModel {
+  var modelTitle: String {
+    models.first { $0.id == choice.modelId }?.name ?? choice.modelId.flatMap { $0.isEmpty ? nil : $0 }
+      ?? String(localized: "mac.composer.defaultModel", bundle: .lodyMac)
+  }
+  var effortTitle: String {
+    guard let effort = choice.effort, !effort.isEmpty else { return String(localized: "mac.composer.defaultEffort", bundle: .lodyMac) }
+    if effort.lowercased() == "xhigh" { return String(localized: "mac.composer.extraHigh", bundle: .lodyMac) }
+    return effort.replacingOccurrences(of: "_", with: " ").capitalized
+  }
+  var orderedEfforts: [String] {
+    let rank = ["off": 0, "none": 0, "minimal": 1, "low": 2, "medium": 3, "high": 4, "xhigh": 5, "max": 6, "ultra": 7]
+    return efforts.enumerated().sorted { lhs, rhs in
+      let left = rank[lhs.element.lowercased()], right = rank[rhs.element.lowercased()]
+      if let left, let right { return left < right }
+      if left != nil { return true }
+      if right != nil { return false }
+      return lhs.offset < rhs.offset
+    }.map(\.element)
+  }
+}

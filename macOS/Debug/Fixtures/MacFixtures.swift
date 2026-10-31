@@ -63,8 +63,8 @@ enum MacFixtures {
           guard let composer else { return }
           var choice = composer.model.replyChoice
           if let mode = body["permissionId"] as? String { choice.modeId = mode }
-          if let modelId = body["modelId"] as? String, !modelId.isEmpty { choice.modelId = modelId }
-          if let effort = body["effort"] as? String, !effort.isEmpty { choice.effort = effort }
+          if let modelId = body["modelId"] as? String { choice.modelId = modelId }
+          if let effort = body["effort"] as? String { choice.effort = effort }
           composer.updateReply(ready: true, capability: MacComposerFixture.capability, choice: choice)
         }
         let pane = MacSessionController(sessionId: sessionId, source: transcript.source, composer: composer)

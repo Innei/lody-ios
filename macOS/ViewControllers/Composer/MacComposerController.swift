@@ -9,6 +9,8 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   private let view1 = MacComposerView()
   private var optionsTask: Task<Void, Never>?
   private var draft = MacDraftHandoff()
+  private let optionsPanel = MacComposerOptionsController()
+  private let optionsPopover = NSPopover()
   var onReplyChoice: (([String: Any]) -> Void)?
   var onSend: (() -> Void)?
   var replyContext: (project: String, branch: String, machine: String) = ("", "", "") {
@@ -42,9 +44,20 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     view1.mode.target = self
     view1.mode.action = #selector(choiceChanged)
     view1.modelPicker.target = self
-    view1.modelPicker.action = #selector(choiceChanged)
-    view1.effort.target = self
-    view1.effort.action = #selector(choiceChanged)
+    view1.modelPicker.action = #selector(showOptions)
+    optionsPopover.behavior = .transient
+    optionsPopover.contentViewController = optionsPanel
+    optionsPanel.onResize = { [weak self] size in self?.optionsPopover.contentSize = size }
+    optionsPanel.onFast = { [weak self] enabled in
+      guard let self else { return }
+      if model.mode == .newSession {
+        model.form.updateChoice(CreateLogic.withFastMode(model.capability, model.choice, enabled: enabled))
+      } else {
+        onReplyChoice?(["fast": enabled])
+      }
+      render()
+    }
+    optionsPanel.onChange = { [weak self] choice in self?.applyChoice(choice) }
     render()
     if model.mode == .newSession { loadOptions() }
   }
@@ -143,16 +156,28 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     render()
   }
 
+  @objc private func showOptions() {
+    if optionsPopover.isShown { optionsPopover.performClose(nil); return }
+    optionsPanel.render(model)
+    optionsPopover.show(relativeTo: view1.modelPicker.bounds, of: view1.modelPicker, preferredEdge: .maxY)
+  }
+
   @objc private func choiceChanged() {
     var choice = model.choice
-    let modes = model.modes, models = model.models, efforts = model.efforts
-    if modes.indices.contains(view1.mode.indexOfSelectedItem) { choice.modeId = modes[view1.mode.indexOfSelectedItem].id }
-    if models.indices.contains(view1.modelPicker.indexOfSelectedItem) { choice.modelId = models[view1.modelPicker.indexOfSelectedItem].id }
-    if efforts.indices.contains(view1.effort.indexOfSelectedItem) { choice.effort = efforts[view1.effort.indexOfSelectedItem] }
+    let modes = model.modes
+    guard modes.indices.contains(view1.mode.indexOfSelectedItem) else { return }
+    choice.modeId = modes[view1.mode.indexOfSelectedItem].id
     if model.mode == .newSession {
       model.form.updateChoice(choice)
-    } else if choice.modeId != model.replyChoice.modeId, let modeId = choice.modeId {
+    } else if let modeId = choice.modeId {
       onReplyChoice?(["permissionId": modeId])
+    }
+    render()
+  }
+
+  private func applyChoice(_ choice: ModelChoice) {
+    if model.mode == .newSession {
+      model.form.updateChoice(choice)
     } else {
       onReplyChoice?(["modelId": choice.modelId ?? "", "effort": choice.effort ?? ""])
     }
@@ -187,5 +212,7 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
   private func render() {
     guard isViewLoaded else { return }
     view1.render(model, reply: replyContext)
+    optionsPanel.render(model)
+    if model.models.isEmpty { optionsPopover.performClose(nil) }
   }
 }

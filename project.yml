@@ -370,6 +370,7 @@ targets:
       - path: .generated/Resources
         excludes:
           - DebugHome.json
+      - path: iOS/Resources/Shaders/ChatEffortHeat.metal
     settings:
       base:
         PRODUCT_NAME: Lody

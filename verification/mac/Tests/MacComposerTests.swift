@@ -202,3 +202,66 @@ final class MacNewSessionCatalogTests: XCTestCase {
     XCTAssertEqual(picker.titleOfSelectedItem, "lody-ios")
   }
 }
+
+@MainActor
+final class MacComposerOptionsTests: XCTestCase {
+  func testChangingModelsResetsEffortAndReplacesItsAvailableStops() throws {
+    let panel = MacComposerOptionsController()
+    var model = MacComposerModel(mode: .reply)
+    model.replyCapability = Capability(machineId: "m", cliType: "builtin", agentType: "claude", models: [
+      CapabilityChoice(id: "a", name: "Opus"), CapabilityChoice(id: "b", name: "Sonnet"),
+    ], reasoningEfforts: ["a": ["ultra", "high", "low"], "b": ["medium", "low"]])
+    model.replyChoice = ModelChoice(modelId: "a", effort: "ultra")
+    var changed: ModelChoice?
+    panel.onChange = { changed = $0 }
+    panel.render(model)
+    panel.selectModel("b")
+    XCTAssertEqual(changed?.modelId, "b")
+    XCTAssertEqual(changed?.effort, "", "an old model's effort must not leak into the new model")
+    model.replyChoice = try XCTUnwrap(changed)
+    panel.render(model)
+    panel.slider.doubleValue = 1
+    panel.changeEffort()
+    XCTAssertEqual(changed?.effort, "medium", "the full end is the highest supported effort regardless of server ordering")
+    model.replyChoice = try XCTUnwrap(changed)
+    panel.render(model)
+    panel.slider.doubleValue = 0
+    panel.changeEffort()
+    XCTAssertEqual(changed?.effort, "", "Default stays distinct from explicit efforts")
+  }
+
+  func testFastOnlyEmitsWhenTheCapabilitySupportsIt() {
+    let panel = MacComposerOptionsController()
+    var model = MacComposerModel(mode: .reply)
+    var picked: Bool?
+    panel.onFast = { picked = $0 }
+    panel.render(model)
+    panel.toggleFast()
+    XCTAssertNil(picked)
+    model.replyCapability = Capability(machineId: "m", cliType: "builtin", agentType: "claude", configOptions: [ConfigOption(id: "fast-mode", name: "Fast", type: "boolean", currentValue: .bool(false))])
+    panel.render(model)
+    panel.toggleFast()
+    XCTAssertEqual(picked, true)
+    XCTAssertFalse(panel.fast.isHidden)
+    model.replyChoice = CreateLogic.withFastMode(model.capability, model.choice, enabled: true)
+    panel.render(model)
+    XCTAssertEqual(panel.fast.state, .on)
+  }
+
+  func testReplacingCapabilitiesHidesUnsupportedEffortAndRejectsStaleModelChoices() {
+    let panel = MacComposerOptionsController()
+    var model = MacComposerModel(mode: .reply)
+    model.replyCapability = Capability(machineId: "m", cliType: "builtin", agentType: "codex", models: [CapabilityChoice(id: "gpt", name: "GPT")], reasoningEfforts: ["gpt": ["high", "low"]])
+    model.replyChoice = ModelChoice(modelId: "gpt", effort: "high")
+    panel.render(model)
+    XCTAssertFalse(panel.slider.isHidden)
+    var changes = 0
+    panel.onChange = { _ in changes += 1 }
+    model.replyCapability = nil
+    panel.render(model)
+    XCTAssertTrue(panel.slider.isHidden)
+    panel.selectModel("gpt")
+    panel.changeEffort()
+    XCTAssertEqual(changes, 0, "a panel kept open during a capability change cannot send unavailable choices")
+  }
+}

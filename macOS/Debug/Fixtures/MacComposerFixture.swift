@@ -25,7 +25,7 @@ enum MacComposerFixture {
     models: [CapabilityChoice(id: "opus", name: "Opus 5.5"), CapabilityChoice(id: "sonnet", name: "Sonnet 5.5")],
     modes: [CapabilityChoice(id: "default", name: "Ask first"), CapabilityChoice(id: "acceptEdits", name: "Accept edits"),
             CapabilityChoice(id: "bypassPermissions", name: "Full access")],
-    reasoningEfforts: ["opus": ["low", "medium", "high"], "sonnet": ["low", "medium", "high"]]
+    reasoningEfforts: ["opus": ["low", "medium", "high", "ultra"], "sonnet": ["low", "medium", "high"]]
   )
 
   static var service: MacComposerService {

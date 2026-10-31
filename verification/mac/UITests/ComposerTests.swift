@@ -19,6 +19,17 @@ final class ComposerNewTests: LodyMacUITestCase {
         XCTAssertTrue(app.menuItems["Claude Code"].waitForExistence(timeout: 3), "the context gear opens the native agent menu")
         attach("composer-new-agent-menu-light", scene)
         app.typeKey(.escape, modifierFlags: [])
+        scene.buttons["composer-model"].click()
+        XCTAssertTrue(app.buttons["composer-model-list"].waitForExistence(timeout: 3))
+        app.buttons["composer-model-list"].click()
+        app.staticTexts["Opus 5.5"].click()
+        let effort = app.sliders["composer-effort-slider"]
+        XCTAssertTrue(effort.waitForExistence(timeout: 3))
+        effort.adjust(toNormalizedSliderPosition: 1)
+        eventually("new-session choices use the same popover") { scene.buttons["composer-model"].label.contains("Opus 5.5, Ultra") }
+        attach("composer-new-options-light", app.groups["composer-options-panel"])
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertFalse(scene.buttons["composer-send"].isEnabled, "model selection never sends an empty draft")
       }
     }
     let input = scene.textViews["composer-input"]
@@ -53,10 +64,18 @@ final class ComposerReplyTests: LodyMacUITestCase {
       XCTAssertFalse(scene.buttons["composer-send"].isEnabled)
       attach("composer-reply-\(appearance)", scene)
     }
-    choose("Sonnet 5.5", in: scene.popUpButtons["composer-model"])
-    eventually("the native model menu applies") { value(scene.popUpButtons["composer-model"]) == "Sonnet 5.5" }
-    choose("Medium", in: scene.popUpButtons["composer-effort"])
-    eventually("the native effort menu applies") { value(scene.popUpButtons["composer-effort"]) == "Medium" }
+    scene.buttons["composer-model"].click()
+    XCTAssertTrue(app.sliders["composer-effort-slider"].waitForExistence(timeout: 3))
+    attach("composer-options-dark", app.groups["composer-options-panel"])
+    app.buttons["composer-model-list"].click()
+    XCTAssertTrue(app.tables["composer-model-choices"].waitForExistence(timeout: 3))
+    attach("composer-models-dark", app.groups["composer-options-panel"])
+    app.staticTexts["Sonnet 5.5"].click()
+    eventually("the popover applies the model and resets effort") { scene.buttons["composer-model"].label.contains("Sonnet 5.5, Default") }
+    let slider = app.sliders["composer-effort-slider"]
+    slider.adjust(toNormalizedSliderPosition: 0.67)
+    eventually("the native slider applies effort") { scene.buttons["composer-model"].label.contains("Medium") }
+    app.typeKey(.escape, modifierFlags: [])
     choose("Full access", in: scene.popUpButtons["composer-mode"])
     eventually("the mode menu applies") { value(scene.popUpButtons["composer-mode"]) == "Full access" }
     attach("composer-reply-full-access-dark", scene)
@@ -70,6 +89,30 @@ final class ComposerReplyTests: LodyMacUITestCase {
     eventually("the composer clears") { value(input).isEmpty }
   }
 
+  func testModelPopoverAndHeatSliderInBothAppearances() {
+    for appearance in ["light", "dark"] {
+      open("composer-reply", appearance)
+      scene.buttons["composer-model"].click()
+      let slider = app.sliders["composer-effort-slider"]
+      XCTAssertTrue(slider.waitForExistence(timeout: 3))
+      XCTAssertTrue(app.groups["composer-options-panel"].waitForExistence(timeout: 3), "the native popover exposes its content group")
+      attach("composer-options-\(appearance)", app.groups["composer-options-panel"])
+      slider.adjust(toNormalizedSliderPosition: 1)
+      eventually("Ultra updates the summary") { scene.buttons["composer-model"].label.contains("Ultra") }
+      attach("composer-options-ultra-\(appearance)", app.groups["composer-options-panel"])
+      app.typeKey(.escape, modifierFlags: [])
+      eventually("Escape dismisses the transient popover") { !slider.exists }
+      scene.buttons["composer-model"].click()
+      XCTAssertTrue(app.sliders["composer-effort-slider"].waitForExistence(timeout: 3))
+      XCTAssertTrue(scene.buttons["composer-model"].label.contains("Ultra"), "reopening preserves the chosen effort")
+      app.buttons["composer-model-list"].click()
+      app.tables["composer-model-choices"].typeKey(.downArrow, modifierFlags: [])
+      app.tables["composer-model-choices"].typeKey(.return, modifierFlags: [])
+      eventually("the model list also supports keyboard confirmation") { scene.buttons["composer-model"].label.contains("Sonnet 5.5, Default") }
+      app.typeKey(.escape, modifierFlags: [])
+    }
+  }
+
   func testCodexComposerDraftAndNaturalWrappingInBothAppearances() {
     for appearance in ["light", "dark"] {
       open("composer-reply", appearance)
@@ -77,7 +120,7 @@ final class ComposerReplyTests: LodyMacUITestCase {
       XCTAssertTrue(input.waitForExistence(timeout: 5))
       let empty = input.frame.height
       input.click()
-      input.typeText(String(repeating: "Keep the native controls and align the sidebar rows. ", count: 5))
+      input.typeText(String(repeating: "Keep the native controls and align the sidebar rows. ", count: 8))
       eventually("the editor grows with wrapped text") { input.frame.height > empty + 10 }
       choose("Full access", in: scene.popUpButtons["composer-mode"])
       attach("composer-codex-draft-\(appearance)", scene)

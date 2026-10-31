@@ -10,8 +10,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
   let agent = NSPopUpButton()
   let input = MacComposerTextView()
   let mode = NSPopUpButton()
-  let modelPicker = NSPopUpButton()
-  let effort = NSPopUpButton()
+  let modelPicker = NSButton()
   let send = NSButton()
   let notice = NSTextField(labelWithString: "")
   let attach = NSButton()
@@ -33,7 +32,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
 
   var reading = MacReading.current() {
     didSet {
-      input.font = .systemFont(ofSize: reading.textSize)
+      input.font = .systemFont(ofSize: NSFont.preferredFont(forTextStyle: .body).pointSize + reading.textSize - MacReading.standard.textSize)
       needsLayout = true
     }
   }
@@ -48,16 +47,15 @@ final class MacComposerView: NSView, MacFileDropTarget {
     surface.setContentHuggingPriority(.init(1), for: .horizontal)
     if #available(macOS 27, *) { surface.effectIsInteractive = true }
     surface.setAccessibilityIdentifier("composer-surface")
-    for popup in [project, machine, agent, mode, modelPicker, effort] {
+    for popup in [project, machine, agent, mode] {
       popup.isBordered = false
       popup.controlSize = .regular
       popup.font = .preferredFont(forTextStyle: .body)
       popup.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     }
-    for popup in [project, machine, agent, modelPicker] {
+    for popup in [project, machine, agent] {
       (popup.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
     }
-    effort.contentTintColor = .secondaryLabelColor
     agent.imagePosition = .imageOnly
     agent.symbolConfiguration = .init(pointSize: 14, weight: .regular)
     project.setAccessibilityIdentifier("composer-project")
@@ -65,8 +63,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
     agent.setAccessibilityIdentifier("composer-agent")
     mode.setAccessibilityIdentifier("composer-mode")
     modelPicker.setAccessibilityIdentifier("composer-model")
-    effort.setAccessibilityIdentifier("composer-effort")
-    notice.font = .systemFont(ofSize: 11)
+    notice.font = .preferredFont(forTextStyle: .caption1)
     notice.textColor = .secondaryLabelColor
     notice.setAccessibilityIdentifier("composer-notice")
     notice.lineBreakMode = .byWordWrapping
@@ -75,17 +72,18 @@ final class MacComposerView: NSView, MacFileDropTarget {
     tray.setViews([project, machine], in: .leading)
     tray.setViews([agent], in: .trailing)
     tray.spacing = 8
-    tray.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 16, right: 12)
-    contextSurface.material = .headerView
+    tray.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 20, right: 12)
+    contextSurface.material = .popover
+    contextSurface.state = .active
     contextSurface.blendingMode = .withinWindow
     contextSurface.wantsLayer = true
     contextSurface.layer?.cornerRadius = 16
     contextSurface.layer?.masksToBounds = true
     contextSurface.setAccessibilityIdentifier("composer-context-bar")
-    input.font = .systemFont(ofSize: reading.textSize)
+    input.font = .systemFont(ofSize: NSFont.preferredFont(forTextStyle: .body).pointSize + reading.textSize - MacReading.standard.textSize)
     input.isRichText = false
     input.drawsBackground = false
-    input.textContainerInset = NSSize(width: 0, height: 8)
+    input.textContainerInset = .zero
     input.textContainer?.lineFragmentPadding = 0
     input.allowsUndo = true
     input.isVerticallyResizable = true
@@ -122,14 +120,18 @@ final class MacComposerView: NSView, MacFileDropTarget {
       uploading: { String(localized: "mac.attachments.uploading \($0)", bundle: .lodyMac) }
     )
     registerForDraggedTypes([.fileURL])
-    let modelChoices = NSStackView(views: [modelPicker, effort])
-    modelChoices.spacing = 0
+    modelPicker.isBordered = false
+    modelPicker.bezelStyle = .accessoryBarAction
+    modelPicker.font = .preferredFont(forTextStyle: .body)
+    modelPicker.image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)
+    modelPicker.imagePosition = .imageTrailing
+    modelPicker.symbolConfiguration = .init(pointSize: 10, weight: .medium)
     let spring = NSView()
     spring.translatesAutoresizingMaskIntoConstraints = false
     spring.setContentHuggingPriority(.init(1), for: .horizontal)
     spring.widthAnchor.constraint(greaterThanOrEqualToConstant: 0).isActive = true
     spring.widthAnchor.constraint(equalToConstant: 0).withPriority(.init(1)).isActive = true
-    let controls = NSStackView(views: [attach, mode, spring, modelChoices, send])
+    let controls = NSStackView(views: [attach, mode, spring, modelPicker, send])
     controls.distribution = .fill
     controls.spacing = 8
     controls.alignment = .centerY
@@ -137,7 +139,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
     body.orientation = .vertical
     body.alignment = .leading
     body.spacing = 8
-    body.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+    body.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
     noticeRow.addArrangedSubview(notice)
     noticeRow.edgeInsets = NSEdgeInsets(top: 0, left: 8, bottom: 0, right: 8)
     for flexible in [controls, body, noticeRow, tray] {
@@ -166,9 +168,9 @@ final class MacComposerView: NSView, MacFileDropTarget {
       agent.widthAnchor.constraint(equalToConstant: 32),
       agent.heightAnchor.constraint(equalToConstant: 32),
       notice.widthAnchor.constraint(lessThanOrEqualTo: noticeRow.widthAnchor, constant: -16),
-      strip.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -24),
-      scroll.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -24),
-      controls.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -24),
+      strip.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -32),
+      scroll.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -32),
+      controls.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -32),
       controls.heightAnchor.constraint(greaterThanOrEqualToConstant: 32),
       inputHeight,
       attach.widthAnchor.constraint(equalToConstant: 32),
@@ -227,11 +229,13 @@ final class MacComposerView: NSView, MacFileDropTarget {
       item.image?.size = NSSize(width: 14, height: 14)
     }
     mode.contentTintColor = full ? .systemOrange : .secondaryLabelColor
-    fill(modelPicker, model.models.map(\.name), selected: model.models.firstIndex { $0.id == choice.modelId } ?? (model.models.isEmpty ? nil : 0))
+    let summary = NSMutableAttributedString(string: model.modelTitle, attributes: [.font: NSFont.preferredFont(forTextStyle: .body), .foregroundColor: NSColor.labelColor])
+    if !model.efforts.isEmpty {
+      summary.append(NSAttributedString(string: "  " + model.effortTitle, attributes: [.font: NSFont.preferredFont(forTextStyle: .body), .foregroundColor: NSColor.secondaryLabelColor]))
+    }
+    modelPicker.attributedTitle = summary
+    modelPicker.setAccessibilityLabel(model.modelTitle + ", " + model.effortTitle)
     modelPicker.isHidden = model.models.isEmpty
-    fill(effort, model.efforts.map(\.capitalized), selected: model.efforts.firstIndex { $0 == choice.effort })
-    effort.isHidden = model.efforts.isEmpty
-    (modelPicker.cell as? NSPopUpButtonCell)?.arrowPosition = model.efforts.isEmpty ? .arrowAtCenter : .noArrow
     send.isEnabled = model.canSend
     send.alphaValue = model.canSend ? 1 : 0.4
     needsLayout = true
