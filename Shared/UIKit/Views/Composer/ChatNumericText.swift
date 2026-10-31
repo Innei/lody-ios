@@ -10,7 +10,7 @@ final class ChatNumericTextModel {
 }
 
 struct ChatNumericTextBridge: View {
-  static let shineStops: [CGFloat] = [0.4, 0.5, 0.6]
+  static let shineStops: [CGFloat] = [0.25, 0.5, 0.75]
   var model: ChatNumericTextModel
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -18,7 +18,7 @@ struct ChatNumericTextBridge: View {
     TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !model.shines || reduceMotion)) { context in
       let period = 1.5
       let progress = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
-      let highlight = model.shines && !reduceMotion ? Color(uiColor: .lodyInk) : model.color
+      let highlight = model.shines && !reduceMotion ? model.color.mix(with: .white, by: 0.64) : model.color
       Text(model.attributed)
         .foregroundStyle(LinearGradient(
           stops: [

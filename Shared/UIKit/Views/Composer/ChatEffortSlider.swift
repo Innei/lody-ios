@@ -3,7 +3,7 @@ import MetalKit
 
 private struct ChatEffortHeatUniforms {
   var track: SIMD4<Float>
-  var accent: SIMD4<Float>
+  var start: SIMD4<Float>
   var violet: SIMD4<Float>
   var dotOff: SIMD4<Float>
   var frame: SIMD4<Float>
@@ -154,7 +154,7 @@ private final class ChatEffortHeat: MTKView, MTKViewDelegate {
     let position = thumb ?? target
     return ChatEffortHeatUniforms(
       track: UIColor.tertiarySystemFill.shaderColor(traitCollection),
-      accent: UIColor.lodyAccent.shaderColor(traitCollection),
+      start: UIColor.systemBlue.shaderColor(traitCollection),
       violet: Self.violet.shaderColor(traitCollection),
       dotOff: UIColor.tertiaryLabel.shaderColor(traitCollection),
       frame: SIMD4(width, Float(bounds.height), Float(drawableSize.width) / width, 0),
@@ -214,7 +214,7 @@ final class ChatEffortSlider: UIControl {
     let context = UIGraphicsGetCurrentContext()
     context?.saveGState()
     path.addClip()
-    (isUltra ? ChatEffortHeat.violet : UIColor.lodyAccent).setFill()
+    (isUltra ? ChatEffortHeat.violet : UIColor.systemBlue).setFill()
     UIRectFill(CGRect(x: 0, y: track.minY, width: thumbX, height: track.height))
     for index in 0...steps {
       let x = 16 + CGFloat(index) / CGFloat(steps) * max(0, bounds.width - 32)

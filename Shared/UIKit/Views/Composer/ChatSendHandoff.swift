@@ -31,7 +31,6 @@ final class ChatMessageContent: UIView {
   override init(frame: CGRect) {
     super.init(frame: frame)
     clipsToBounds = true
-    label.shineColor = .lodyInk
     bubble.backgroundColor = .lodyUserBubble
     Self.applyBubbleCorners(to: bubble.layer, size: .zero)
     tail.isUserInteractionEnabled = false

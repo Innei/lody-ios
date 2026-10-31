@@ -3,10 +3,13 @@ import UIKit
 
 enum ChatRowPadding {
   static let content: CGFloat = 6
+  static let paragraph: CGFloat = 8
   static var durationBottom: CGFloat { content / 2 }
   private static let userish: Set<String> = ["user", "attachments", "delivery"]
   private static let fileBlock: Set<String> = ["changesHeader", "changes", "changesReview"]
   private static let prose: Set<String> = ["text", "thought"]
+  private static let process: Set<String> = ["duration", "summary"]
+  private static let processLike: Set<String> = ["duration", "summary", "subagent_task"]
 
   static func gap(before kind: String, after previous: String?) -> CGFloat {
     guard let previous else {
@@ -20,14 +23,30 @@ enum ChatRowPadding {
     if userish.contains(previous) { return 16 }
     if fileBlock.contains(kind) { return fileBlock.contains(previous) ? 0 : 12 }
     if kind == "meta" { return 8 }
-    if prose.contains(kind) { return prose.contains(previous) ? 12 : 16 }
-    if kind == "duration" || kind == "summary" { return prose.contains(previous) ? 12 : 0 }
+    if prose.contains(kind) {
+      if prose.contains(previous) { return 12 }
+      return processLike.contains(previous) ? paragraph : 16
+    }
+    if process.contains(kind) { return prose.contains(previous) ? paragraph : 0 }
     return 0
   }
 
-  static func top(kind: String, previousKind: String?) -> CGFloat {
-    let below = previousKind.map { prose.contains($0) } == true ? content : 0
+  static func top(kind: String, previousKind: String?, previousBottom: CGFloat? = nil) -> CGFloat {
+    let afterProcess = prose.contains(kind) && previousKind.map { processLike.contains($0) } == true
+    let below: CGFloat
+    if afterProcess {
+      below = previousBottom ?? content
+    } else {
+      below = previousKind.map { prose.contains($0) } == true ? content : 0
+    }
     return max(0, gap(before: kind, after: previousKind) - below)
+  }
+
+  // A process row under prose moves its own text up instead of adding a gap,
+  // because its centered 30 pt slot already leaves more air than a paragraph break.
+  static func processLead(kind: String, previousKind: String?) -> CGFloat? {
+    guard process.contains(kind), let previousKind, prose.contains(previousKind) else { return nil }
+    return top(kind: kind, previousKind: previousKind)
   }
 
   static func deliveryExitReserve(previousKind: String?) -> CGFloat {
@@ -36,6 +55,7 @@ enum ChatRowPadding {
 
   static func above(kind: String, previousKind: String?) -> CGFloat {
     if prose.contains(kind) || kind == "chat_failed" { return 0 }
+    if processLead(kind: kind, previousKind: previousKind) != nil { return 0 }
     return top(kind: kind, previousKind: previousKind)
   }
 }
@@ -240,6 +260,9 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
   var gapAbove: CGFloat = 0 {
     didSet { if gapAbove != oldValue { setNeedsLayout() } }
   }
+  var processLead: CGFloat? {
+    didSet { if processLead != oldValue { setNeedsLayout() } }
+  }
   let messageContent = ChatMessageContent(frame: .zero)
   var label: CKTextView { messageContent.label }
   var numericText: ChatNumericTextHost { messageContent.numericText }
@@ -338,6 +361,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
   override func prepareForReuse() {
     super.prepareForReuse()
     markReady = false
+    processLead = nil
     icon.cancelMarkEffects()
     label.setShine(false)
     label.isHidden = false
@@ -395,10 +419,26 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
     return (title, detail)
   }
 
-  static func processHeight(for row: ChatRow, width: CGFloat, traits: UITraitCollection) -> CGFloat {
+  static func processHeight(for row: ChatRow, width: CGFloat, traits: UITraitCollection, lead: CGFloat? = nil) -> CGFloat {
     let lines = processLines(row, traits: traits)
+    return processFrame(text: lines.title + lines.detail, nominal: nominalProcessHeight(lines), lead: lead).height
+  }
+
+  static func processBottom(for row: ChatRow, traits: UITraitCollection) -> CGFloat {
+    let lines = processLines(row, traits: traits)
+    let nominal = nominalProcessHeight(lines)
+    return nominal - processFrame(text: lines.title + lines.detail, nominal: nominal, lead: nil).top - lines.title - lines.detail
+  }
+
+  private static func nominalProcessHeight(_ lines: (title: CGFloat, detail: CGFloat)) -> CGFloat {
     if lines.detail == 0 { return max(30, lines.title + 12) }
     return max(40, lines.title + lines.detail + 6)
+  }
+
+  static func processFrame(text: CGFloat, nominal: CGFloat, lead: CGFloat?) -> (top: CGFloat, height: CGFloat) {
+    let top = floor((nominal - text) / 2)
+    guard let lead else { return (top, nominal) }
+    return (lead, nominal - top + lead)
   }
 
   static func minimumHeight(for row: ChatRow) -> CGFloat {
@@ -406,19 +446,18 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
     return row.actionable || row.kind == "pending" ? 44 : 0
   }
 
-  private static let summaryDot: CGFloat = 20
-  private static let summaryText: CGFloat = 30
-  private static var railCenter: CGFloat { LodyDesign.Rail.center - ChatReadingColumn.cellMargin }
+  private static var railCenter: CGFloat { LodyDesign.Rail.chatCenter - ChatReadingColumn.cellMargin }
+  private static var railText: CGFloat { LodyDesign.Rail.chatText - ChatReadingColumn.cellMargin }
 
   private func layoutProcess(_ row: ChatRow, width: CGFloat) {
     let height = contentView.bounds.height
     let lines = Self.processLines(row, traits: traitCollection)
-    let x = LodyDesign.Rail.text - ChatReadingColumn.cellMargin
+    let x = Self.railText
     let textWidth = max(1, width - x)
-    let top = floor((height - lines.title - lines.detail) / 2)
+    let top = Self.processFrame(text: lines.title + lines.detail, nominal: Self.nominalProcessHeight(lines), lead: processLead).top
     processTitle.frame = CGRect(x: x, y: top, width: textWidth, height: lines.title)
     processDetail.frame = CGRect(x: x, y: processTitle.frame.maxY + 2, width: textWidth, height: lines.detail - 2)
-    let glyph = LodyDesign.Rail.glyph
+    let glyph = LodyDesign.Rail.chatGlyph
     processGlyph.frame = CGRect(x: Self.railCenter - glyph / 2, y: processTitle.frame.midY - glyph / 2, width: glyph, height: glyph)
     processDot.frame = CGRect(x: Self.railCenter - 4, y: processTitle.frame.midY - 4, width: 8, height: 8)
     let mark = processDot.isHidden ? processGlyph.frame : processDot.frame
@@ -511,12 +550,12 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
     return font
   }
 
-  static func rowExtra(for row: ChatRow, previousKind: String? = nil) -> CGFloat {
+  static func rowExtra(for row: ChatRow, previousKind: String? = nil, previousBottom: CGFloat? = nil) -> CGFloat {
     if row.kind == "delivery" { return 0 }
     if row.kind == "user" { return 44 }
     if row.kind == "duration" { return ChatRowPadding.content + ChatRowPadding.durationBottom }
     if row.kind == "text" || row.kind == "thought" {
-      return ChatRowPadding.top(kind: row.kind, previousKind: previousKind) + ChatRowPadding.content
+      return ChatRowPadding.top(kind: row.kind, previousKind: previousKind, previousBottom: previousBottom) + ChatRowPadding.content
     }
     return ChatRowPadding.content * 2
   }
@@ -524,7 +563,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
   static func leading(_ row: ChatRow) -> CGFloat {
     switch row.kind {
     case "text", "user", "duration", "delivery": return 0
-    case "summary": return summaryText - ChatReadingColumn.cellMargin
+    case "summary": return railText
     default: return 24
     }
   }
@@ -543,7 +582,7 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
   static func iconFrame(for row: ChatRow, textY: CGFloat, textHeight: CGFloat) -> CGRect {
     if row.kind == "summary" {
       let size: CGFloat = 8
-      return CGRect(x: summaryDot - ChatReadingColumn.cellMargin - size / 2, y: textY + (textHeight - size) / 2, width: size, height: size)
+      return CGRect(x: railCenter - size / 2, y: textY + (textHeight - size) / 2, width: size, height: size)
     }
     return CGRect(x: 2, y: textY, width: 20, height: min(textHeight, 20))
   }
@@ -612,6 +651,8 @@ final class ChatCell: UICollectionViewCell, UIContextMenuInteractionDelegate, Ch
         y = 0
       } else if row.kind == "text" || row.kind == "thought" || row.kind == "duration" {
         y = ChatRowPadding.content
+      } else if row.kind == "summary", let processLead {
+        y = processLead
       } else {
         y = max(ChatRowPadding.content, (contentView.bounds.height - height) / 2)
       }

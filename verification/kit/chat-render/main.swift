@@ -53,30 +53,16 @@ let exposedByScrolling = draw()
 precondition(initiallyClipped == exposedByScrolling, "Text drawing must not depend on the current scroll position")
 print("Chat render: offscreen lines remain drawn across scrolling")
 
-func luminance(_ png: Data) -> [Int] {
-  let image = UIImage(data: png)!.cgImage!
-  var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
-  let context = CGContext(data: &pixels, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: image.width * 4,
-    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-  context.setFillColor(UIColor.white.cgColor)
-  context.fill(CGRect(x: 0, y: 0, width: image.width, height: image.height))
-  context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-  return stride(from: 0, to: pixels.count, by: 4).map { Int(pixels[$0]) * 299 + Int(pixels[$0 + 1]) * 587 + Int(pixels[$0 + 2]) * 114 }
-}
-func movesTowardInk(_ frame: Data, from rest: Data, light: Bool) -> Bool {
-  zip(luminance(frame), luminance(rest)).allSatisfy { light ? $0 <= $1 + 2_000 : $0 + 2_000 >= $1 }
-}
 let shineView = CKTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 20))
 window.addSubview(shineView)
-shineView.shineColor = .lodyInk
 shineView.setText(NSAttributedString(string: "正在处理", attributes: [
   .font: UIFont.systemFont(ofSize: 13),
-  .foregroundColor: UIColor.lodySecondary,
+  .foregroundColor: UIColor.systemBlue,
 ]))
 @MainActor func shineSnapshot() -> Data {
-  let format = UIGraphicsImageRendererFormat.preferred()
-  format.opaque = false
-  return UIGraphicsImageRenderer(size: shineView.bounds.size, format: format).image { _ in
+  UIGraphicsImageRenderer(size: shineView.bounds.size).image { context in
+    UIColor.white.setFill()
+    context.fill(shineView.bounds)
     shineView.draw(shineView.bounds)
   }.pngData()!
 }
@@ -91,7 +77,6 @@ let frames = (0..<10).map { _ in
 if !UIAccessibility.isReduceMotionEnabled {
   precondition(frames.contains { $0 != rest }, "Shine must change glyph brightness")
   precondition(Set(frames).count > 1, "Shine must travel across glyphs")
-  precondition(frames.allSatisfy { movesTowardInk($0, from: rest, light: true) }, "Shine lifts glyphs toward ink and never dims them")
 }
 shineView.setShine(false)
 let still = shineSnapshot()
@@ -127,8 +112,8 @@ let processCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 358, height: process
 window.addSubview(processCell)
 processCell.configure(processRow, text: NSAttributedString(string: processRow.text))
 processCell.layoutIfNeeded()
-let railCenter = LodyDesign.Rail.center - ChatReadingColumn.cellMargin
-let railText = LodyDesign.Rail.text - ChatReadingColumn.cellMargin
+let railCenter = LodyDesign.Rail.chatCenter - ChatReadingColumn.cellMargin
+let railText = LodyDesign.Rail.chatText - ChatReadingColumn.cellMargin
 precondition(processCell.processGlyph.isHidden && !processCell.processDot.isHidden,
   "A finished process row marks the rail with a dot, not the done check")
 precondition(processCell.processDot.frame.size == CGSize(width: 8, height: 8) && abs(processCell.processDot.frame.midX - railCenter) < 0.5
@@ -142,6 +127,13 @@ precondition(processCell.processDetail.text == processRow.detail && processCell.
 precondition(processCell.processDetail.frame.minY >= processCell.processTitle.frame.maxY - 0.5,
   "Line two must sit below line one")
 precondition(processCell.processDetail.frame.minX == processCell.processTitle.frame.minX, "Both lines share the text column")
+let twoLineBottom = ChatCell.processBottom(for: processRow, traits: railTraits)
+precondition(abs(processCell.bounds.height - processCell.processDetail.frame.maxY - twoLineBottom) < 0.5,
+  "processBottom reports the space the two-line row leaves under its detail line")
+precondition(abs(twoLineBottom + ChatRowPadding.top(kind: "text", previousKind: "duration", previousBottom: twoLineBottom) - ChatRowPadding.paragraph) < 0.01,
+  "Reply text under a two-line process row still sits one paragraph break below its detail line")
+precondition(ChatRowPadding.top(kind: "text", previousKind: "subagent_task", previousBottom: 1) == 7,
+  "A two-line sub-agent row leaves 1 pt, so the reply adds 7")
 let titleText = processCell.processTitle.attributedText!
 let titleFont = titleText.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
 let titleWeight = (titleFont.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any])?[.weight] as? CGFloat ?? 0
@@ -194,7 +186,8 @@ print("Chat render: process rows draw the rail glyph, two lines, chevron and sub
 let answerRow = ChatRow(id: "reply:answer", entryID: "reply", kind: "text", text: "计时完成。")
 let gapTable: [(String?, String, CGFloat)] = [
   ("user", "duration", 16), ("user", "summary", 16), ("user", "text", 16),
-  ("duration", "text", 16), ("summary", "text", 16), ("subagent_task", "text", 16),
+  ("duration", "text", 8), ("summary", "text", 8), ("subagent_task", "text", 8),
+  ("text", "summary", 8), ("text", "duration", 8), ("thought", "summary", 8),
   ("text", "text", 12), ("text", "changesHeader", 12), ("text", "changes", 12),
   ("changesHeader", "changes", 0), ("changes", "changes", 0), ("changes", "meta", 8), ("text", "meta", 8),
   ("meta", "user", 24), ("text", "user", 24), ("meta", "attachments", 24), ("meta", "delivery", 24),
@@ -204,11 +197,20 @@ let gapTable: [(String?, String, CGFloat)] = [
 for (previous, kind, gap) in gapTable {
   precondition(ChatRowPadding.gap(before: kind, after: previous) == gap, "\(previous ?? "nil") → \(kind) is \(gap) pt")
 }
-precondition(ChatRowPadding.top(kind: "text", previousKind: "duration") == 16, "Reply text sits 16 pt under the process block")
+precondition(ChatRowPadding.paragraph == 8, "Process rows and reply text sit one markdown paragraph break apart")
+precondition(ChatRowPadding.top(kind: "text", previousKind: "duration") == 2, "Process rows keep 6 pt below their text, so reply text adds 2")
+precondition(ChatRowPadding.processLead(kind: "summary", previousKind: "text") == 2
+  && ChatRowPadding.above(kind: "summary", previousKind: "text") == 0,
+  "A summary under prose starts its text 2 pt down instead of adding a gap above")
+precondition(ChatRowPadding.processLead(kind: "summary", previousKind: "summary") == nil
+  && ChatRowPadding.processLead(kind: "summary", previousKind: "user") == nil,
+  "Stacked process rows and rows under a user bubble keep the centered 30 pt slot")
+precondition(ChatCell.processFrame(text: 17, nominal: 30, lead: 2) == (top: 2, height: 26),
+  "A led process row keeps its 7 pt bottom and drops the extra top")
 precondition(ChatRowPadding.top(kind: "changesHeader", previousKind: "text") == 6, "Text keeps 6 pt below itself, so the file block adds 6")
 precondition(ChatRowPadding.top(kind: "user", previousKind: "meta") == 24, "A new turn starts 24 pt below the meta row")
-precondition(ChatCell.rowExtra(for: answerRow, previousKind: "duration") == 16 + ChatRowPadding.content,
-  "A text row after a process block grows by the 16 pt gap and its 6 pt bottom")
+precondition(ChatCell.rowExtra(for: answerRow, previousKind: "duration") == 2 + ChatRowPadding.content,
+  "A text row after a process block grows by its 2 pt lead and its 6 pt bottom")
 let gapUser = ChatRow(id: "u2:user", entryID: "u2", kind: "user", text: "Also cover the ceiling path.")
 let gapUserCell = ChatCell(frame: CGRect(x: 0, y: 0, width: 358, height: 120))
 window.addSubview(gapUserCell)
@@ -345,17 +347,19 @@ precondition((runningSummary.icon.image?.size.width ?? .greatestFiniteMagnitude)
   "The process status pip must be smaller than thought and tool icons")
 precondition((failedLiveSummary.icon.image?.size.width ?? .greatestFiniteMagnitude) < (thoughtCell.icon.image?.size.width ?? 0),
   "The warning mark must stay in the process pip scale")
-precondition(ChatCell.leading(doneSummary.row!) == 30 - ChatReadingColumn.cellMargin, "Summary text starts 6 pt after its dot, at x = 30")
+precondition(ChatCell.leading(doneSummary.row!) == LodyDesign.Rail.chatText - ChatReadingColumn.cellMargin,
+  "Summary text shares the process row's rail text column")
 precondition(ChatCell.minimumHeight(for: doneSummary.row!) == 30, "Summary rows are 30 pt")
 precondition(ChatCell.minimumHeight(for: ChatRow(id: "f", entryID: "e", kind: "file", text: "report.txt", actionable: true)) == 44,
   "Attachment rows keep the 44 pt target")
 precondition(ChatCell.minimumHeight(for: ChatRow(id: "e:pending", entryID: "e", kind: "pending", text: "Resend", actionable: true)) == 44,
   "The resend row keeps the 44 pt target")
-precondition(abs(doneSummary.icon.frame.midX - (20 - ChatReadingColumn.cellMargin)) < 0.5, "The summary dot aligns its left edge with the text margin")
+precondition(abs(doneSummary.icon.frame.midX - (LodyDesign.Rail.chatCenter - ChatReadingColumn.cellMargin)) < 0.5,
+  "The summary dot sits on the same rail center as the process glyph")
 precondition(doneSummary.icon.frame.width == 8, "The process pip slot must match the 6-point dot")
 precondition(abs(doneSummary.icon.frame.midY - doneSummary.label.frame.midY) <= 0.5,
   "The process pip must sit on the text baseline")
-precondition(doneSummary.label.frame.minX == 30 - ChatReadingColumn.cellMargin, "Summary text starts at x = 30")
+precondition(doneSummary.label.frame.minX == LodyDesign.Rail.chatText - ChatReadingColumn.cellMargin, "Summary text starts on the chat rail text column")
 precondition(abs(doneSummary.label.frame.maxX - doneSummary.contentView.bounds.width) < 0.5,
   "Summary rows open the activity without a trailing chevron")
 precondition(ChatCell.messageFont(for: doneSummary.row!, compatibleWith: traits).pointSize == 14 * UIFont.dynamicScale(compatibleWith: traits),
@@ -845,14 +849,13 @@ if !UIAccessibility.isReduceMotionEnabled {
   precondition(suffixFrames.contains { $0 != suffixRest }, "Shine must cross the full process row suffix")
   precondition(Set(suffixFrames).count > 1, "Shine must travel through the full process row suffix")
   precondition(suffixFrames.contains { sameProcessPixels($0, suffixRest) }, "The full-row suffix keeps its normal color outside the shine")
-  precondition(shortFrames.allSatisfy { movesTowardInk($0, from: shortRest, light: true) }, "SwiftUI shine lifts toward ink, never toward white")
 }
 shortHost.apply(text: shortText, animated: false, shines: false)
 numericHost.apply(text: countText, animated: false, shines: false)
 let shortStill = processSnapshot(shortHost, x: 0, width: shortWidth)
 RunLoop.main.run(until: Date().addingTimeInterval(0.4))
 precondition(shortStill == processSnapshot(shortHost, x: 0, width: shortWidth), "Completed SwiftUI process text must stay still")
-precondition(ChatNumericTextBridge.shineStops == [0.4, 0.5, 0.6], "The SwiftUI band matches the text-label band, a fifth of the width")
+precondition(ChatNumericTextBridge.shineStops == [0.25, 0.5, 0.75], "The SwiftUI band matches the text-label band, half the width")
 print("Chat render: SwiftUI shine travels across the full process row")
 
 let attentionText = NSAttributedString(string: "思考过程", attributes: [

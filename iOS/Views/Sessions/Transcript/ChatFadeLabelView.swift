@@ -8,7 +8,6 @@ final class ChatFadeLayout: TextLabel.Layout {
   var fades: () -> [CKTextFade.RangeFade] = { [] }
   var shines: () -> Bool = { false }
   var displayScale: () -> CGFloat = { 1 }
-  var traits: () -> UITraitCollection = { .current }
 
   override func draw(in context: CGContext, visibleRect: CGRect?) {
     super.draw(in: context, visibleRect: visibleRect)
@@ -28,10 +27,12 @@ final class ChatFadeLayout: TextLabel.Layout {
       scale: displayScale(),
       overlay: overlay
     ) else { return }
-    let color = UIColor.lodyInk.resolvedColor(with: traits()).cgColor
-    CKTextShine.highlight(in: context, bounds: bounds, mask: mask, color: color) {
-      super.draw(in: context, visibleRect: visibleRect)
-    }
+    context.saveGState()
+    context.clip(to: bounds, mask: mask)
+    context.setBlendMode(.copy)
+    context.setAlpha(0.32)
+    super.draw(in: context, visibleRect: visibleRect)
+    context.restoreGState()
   }
 
   override func draw(line: CTLine, at index: Int, in context: CGContext) {
@@ -150,7 +151,6 @@ final class ChatFadeLabelView: TextLabelView {
       self?.shineEnabled == true && !UIAccessibility.isReduceMotionEnabled
     }
     layout.displayScale = { [weak self] in max(1, self?.traitCollection.displayScale ?? 1) }
-    layout.traits = { [weak self] in self?.traitCollection ?? .current }
     return layout
   }
 

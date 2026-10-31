@@ -114,8 +114,8 @@ assert not any(item.get('AXUniqueId') == 'duration-preview:process' for item in 
     'Completion must absorb the process row into the work duration'
 )
 assert answer['frame']['y'] >= finished['frame']['y'] + finished['frame']['height'] - 1
-assert answer['frame']['height'] >= 36, (
-    'Body copy under the process rail row must keep a paragraph inset: '
+assert answer['frame']['height'] >= 26, (
+    'Body copy under the process rail row keeps a paragraph break, not a section gap: '
     + str(answer['frame'])
 )
 model = ui.element('duration-preview:meta:details')

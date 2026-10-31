@@ -319,7 +319,9 @@ final class LodyChatView: LodyAppearanceView, UICollectionViewDelegateFlowLayout
     dataSource = UICollectionViewDiffableDataSource<String, String>(collectionView: collection) { [weak self] collection, index, id in
       guard let self, let row = self.rows[id] else { return nil }
       let cell = self.transcriptCell(collection, index: index, id: id, row: row)
-      (cell as? ChatGapCell)?.gapAbove = ChatRowPadding.above(kind: row.kind, previousKind: self.kind(before: id))
+      let previousKind = self.kind(before: id)
+      (cell as? ChatGapCell)?.gapAbove = ChatRowPadding.above(kind: row.kind, previousKind: previousKind)
+      (cell as? ChatCell)?.processLead = ChatRowPadding.processLead(kind: row.kind, previousKind: previousKind)
       if let identifier = self.itemAccessibilityIDs[row.itemID] { cell?.accessibilityIdentifier = identifier }
       return cell
     }
@@ -961,7 +963,8 @@ extension LodyChatView {
       cell.configure(
         row,
         markdown: self.store.view(id: id, text: row.text, secondary: secondary, streaming: row.streaming, width: width),
-        previousKind: self.kind(before: id)
+        previousKind: self.kind(before: id),
+        previousBottom: self.processBottom(self.row(before: id))
       )
       return cell
     }

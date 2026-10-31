@@ -5,7 +5,7 @@ struct HeatVertex { float4 position [[position]]; };
 
 struct HeatUniforms {
   float4 track;
-  float4 accent;
+  float4 start;
   float4 violet;
   float4 dotOff;
   float4 frame;
@@ -55,7 +55,7 @@ static float cover(float d, constant HeatUniforms &u) { return sat(0.5 - d * u.f
 static float4 over(float4 dst, float3 rgb, float alpha) { return float4(rgb * alpha, alpha) + dst * (1.0 - alpha); }
 
 static float3 heatColor(float t, constant HeatUniforms &u) {
-  float3 c = mix(u.accent.rgb, u.violet.rgb, smoothstep(0.15, 0.6, t));
+  float3 c = mix(u.start.rgb, u.violet.rgb, smoothstep(0.15, 0.6, t));
   c = mix(c, float3(0.92, 0.22, 0.32), smoothstep(0.55, 0.85, t));
   c = mix(c, float3(1.0, 0.55, 0.12), smoothstep(0.8, 1.05, t));
   return mix(c, float3(1.0, 0.93, 0.7), smoothstep(1.02, 1.25, t));

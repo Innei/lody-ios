@@ -22,7 +22,7 @@ enum ChatMarkdownTheme {
     theme.colors.codeBlockBackground = .lodyInset
     theme.colors.codeBlockBarBackground = .clear
     theme.colors.selectionBackground = nil
-    theme.spacings.paragraph = 8
+    theme.spacings.paragraph = ChatRowPadding.paragraph
     theme.spacings.headingBefore = 12
     theme.spacings.final = 0
     return theme

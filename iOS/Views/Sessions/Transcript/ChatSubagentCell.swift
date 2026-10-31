@@ -115,14 +115,25 @@ final class ChatSubagentCell: UICollectionViewCell, ChatGapCell {
     return max(40, line.top + line.height + 1 + ceil(detailFont(traits).lineHeight))
   }
 
+  static func hasDetail(_ row: ChatRow) -> Bool {
+    row.subagent.map { !detailText($0).isEmpty } ?? false
+  }
+
+  static func bottomInset(_ row: ChatRow, traits: UITraitCollection) -> CGFloat {
+    guard let card = row.subagent else { return 0 }
+    let line = firstLine(traits)
+    let detail = detailText(card).isEmpty ? 0 : 1 + ceil(detailFont(traits).lineHeight)
+    return height(row, width: 0, traits: traits) - line.top - line.height - detail
+  }
+
   override func layoutSubviews() {
     super.layoutSubviews()
     layoutGap()
     guard let row, row.subagent != nil else { return }
     let width = contentView.bounds.width
     let line = Self.firstLine(traitCollection)
-    let center = row.treeChild ? LodyDesign.Rail.childCenter : LodyDesign.Rail.center
-    let text = row.treeChild ? LodyDesign.Rail.childText : LodyDesign.Rail.text
+    let center = row.treeChild ? LodyDesign.Rail.chatChildCenter : LodyDesign.Rail.chatCenter
+    let text = row.treeChild ? LodyDesign.Rail.chatChildText : LodyDesign.Rail.chatText
     let x = text - ChatReadingColumn.cellMargin
     let available = max(0, width - x)
     let statusWidth = statusLabel.isHidden ? 0 : min(ceil(statusLabel.sizeThatFits(CGSize(width: width, height: line.height)).width), available * 0.45)
@@ -131,11 +142,11 @@ final class ChatSubagentCell: UICollectionViewCell, ChatGapCell {
     statusLabel.frame = CGRect(x: width - statusWidth, y: midY - statusHeight / 2, width: statusWidth, height: statusHeight)
     titleLabel.frame = CGRect(x: x, y: line.top, width: max(0, statusLabel.frame.minX - x - 8), height: line.height)
     detailLabel.frame = CGRect(x: x, y: titleLabel.frame.maxY + 1, width: available, height: ceil(detailLabel.font.lineHeight))
-    let side = LodyDesign.Rail.glyph
+    let side = LodyDesign.Rail.chatGlyph
     glyph.frame = CGRect(x: center - ChatReadingColumn.cellMargin - side / 2, y: midY - side / 2, width: side, height: side)
     var path = UIBezierPath()
     if row.treeChild {
-      let trunk = LodyDesign.Rail.center - ChatReadingColumn.cellMargin
+      let trunk = LodyDesign.Rail.chatCenter - ChatReadingColumn.cellMargin
       path = LodyTentacle.branch(
         trunk: trunk, to: CGPoint(x: glyph.frame.minX - 1, y: midY), height: contentView.bounds.height, last: row.treeLast
       )

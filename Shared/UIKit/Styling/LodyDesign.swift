@@ -10,6 +10,11 @@ enum LodyDesign {
     static let compactText: CGFloat = 22
     static let compactChildCenter: CGFloat = 28
     static let compactChildText: CGFloat = 40
+    static let chatCenter: CGFloat = 22
+    static let chatText: CGFloat = 34
+    static let chatChildCenter: CGFloat = 40
+    static let chatChildText: CGFloat = 52
+    static let chatGlyph: CGFloat = 12
     static let trailing: CGFloat = 16
     static let primaryHeight: CGFloat = 52
     static let childHeight: CGFloat = 40

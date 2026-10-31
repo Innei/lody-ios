@@ -43,11 +43,11 @@ render(row)
 let views = descendants(cell.contentView)
 precondition(views.contains { $0 is LodyStatusGlyphView }, "Sub-agent rows must render a native rail glyph")
 let glyph = views.compactMap { $0 as? LodyStatusGlyphView }.first!
-precondition(abs(glyph.frame.midX - (46 - 16)) < 0.01, "Child glyphs must align with the child rail")
+precondition(abs(glyph.frame.midX - (LodyDesign.Rail.chatChildCenter - 16)) < 0.01, "Child glyphs must align with the child rail")
 precondition(glyph.kind == .live, "Running tasks must show the live glyph")
 let labels = views.compactMap { $0 as? UILabel }
 let title = labels.first { $0.attributedText?.string == "Inspect routing · Researcher" }!
-precondition(abs(title.frame.minX - (62 - 16)) < 0.01, "Child titles must align with the child text column")
+precondition(abs(title.frame.minX - (LodyDesign.Rail.chatChildText - 16)) < 0.01, "Child titles must align with the child text column")
 let attributed = title.attributedText!
 let titleFont = attributed.attribute(.font, at: 0, effectiveRange: nil) as! UIFont
 precondition(abs(titleFont.pointSize - LodyDesign.font(.subheadline, size: 14, compatibleWith: traits).pointSize) < 0.01)
@@ -58,7 +58,7 @@ precondition(cell.bounds.height == 30, "Rows without detail are 30 pt, got \(cel
 let statusWords = ["pending", "running", "completed", "failed"].map { String(localized: String.LocalizationValue("native.chat.subagent." + $0), bundle: .lody) }
 precondition(!labels.contains { !$0.isHidden && statusWords.contains($0.text ?? "") }, "The rail glyph already shows the state, so no status word is drawn")
 let lastPath = treePath()!
-precondition(abs(lastPath.boundingBoxOfPath.minX - (24 - 16)) < 1.5, "The child tree must continue the process trunk")
+precondition(abs(lastPath.boundingBoxOfPath.minX - (LodyDesign.Rail.chatCenter - 16)) < 1.5, "The child tree must continue the process trunk")
 var curved = false
 lastPath.applyWithBlock { if $0.pointee.type == .addCurveToPoint { curved = true } }
 precondition(curved, "Sub-agents hang on a tentacle curve")
@@ -98,8 +98,8 @@ precondition(abs(detail.font.pointSize - LodyDesign.font(.footnote, size: 12, co
 
 row.treeChild = false
 render(row)
-precondition(abs(glyph.frame.midX - (24 - 16)) < 0.01, "Top-level glyphs must use the primary rail")
-precondition(abs(title.frame.minX - (46 - 16)) < 0.01, "Top-level titles must use the primary text column")
+precondition(abs(glyph.frame.midX - (LodyDesign.Rail.chatCenter - 16)) < 0.01, "Top-level glyphs must use the primary rail")
+precondition(abs(title.frame.minX - (LodyDesign.Rail.chatText - 16)) < 0.01, "Top-level titles must use the primary text column")
 precondition(treePath() == nil, "Reusing a child as a top-level row must clear the tree")
 
 row.subagent?.status = "failed"

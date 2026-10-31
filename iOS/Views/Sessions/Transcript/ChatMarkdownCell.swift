@@ -19,9 +19,9 @@ final class ChatMarkdownCell: UICollectionViewCell {
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-  func configure(_ row: ChatRow, markdown: ChatMarkdownView, previousKind: String? = nil) {
+  func configure(_ row: ChatRow, markdown: ChatMarkdownView, previousKind: String? = nil, previousBottom: CGFloat? = nil) {
     self.row = row
-    topInset = ChatRowPadding.top(kind: row.kind, previousKind: previousKind)
+    topInset = ChatRowPadding.top(kind: row.kind, previousKind: previousKind, previousBottom: previousBottom)
     if self.markdown !== markdown {
       if self.markdown?.superview === contentView {
         self.markdown?.clearSelection()

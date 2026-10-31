@@ -389,8 +389,8 @@ extension LodyChatView {
       }
     }
     let shown = dataSource.snapshot().itemIdentifiers
-    let shownBefore = Dictionary(uniqueKeysWithValues: zip(shown.dropFirst(), shown.map { previous[$0]?.kind ?? "" }))
-    let projectedBefore = Dictionary(uniqueKeysWithValues: zip(projected.dropFirst().map(\.id), projected.map(\.kind)))
+    let shownBefore = Dictionary(uniqueKeysWithValues: zip(shown.dropFirst(), shown.map { previous[$0].map(gapKey) ?? "" }))
+    let projectedBefore = Dictionary(uniqueKeysWithValues: zip(projected.dropFirst().map(\.id), projected.map(gapKey)))
     snapshot.reconfigureItems(projected.filter { row in
       previous[row.id] != nil && (previous[row.id] != row || shownBefore[row.id] != projectedBefore[row.id])
     }.map(\.id))
@@ -480,11 +480,15 @@ extension LodyChatView {
   }
 }
 
+private func gapKey(_ row: ChatRow) -> String {
+  row.detail.isEmpty && !ChatSubagentCell.hasDetail(row) ? row.kind : row.kind + "+detail"
+}
+
 private func textColor(for row: ChatRow) -> UIColor {
   if row.kind == "chat_failed" { return .systemRed }
   if row.attention { return .systemOrange }
   if row.kind == "changes" || row.kind == "file" { return .lodyAccent }
-  if row.kind == "summary" { return .lodySecondary }
+  if row.kind == "summary" { return row.running ? .lodyAccent : .lodySecondary }
   if row.kind == "user" { return .label }
   return .secondaryLabel
 }
@@ -577,8 +581,7 @@ extension LodyChatView {
       // next step if individual huge messages dominate, rather than history size.
       repeat {
         let row = rows[next]
-        let previousKind = next > 0 ? rows[next - 1].kind : nil
-        _ = self.rowHeight(row, width: width, previousKind: previousKind)
+        _ = self.rowHeight(row, width: width, after: next > 0 ? rows[next - 1] : nil)
         self.preparedHistory[row.id] = row
         next += 1
       } while next < rows.count && CACurrentMediaTime() < deadline
