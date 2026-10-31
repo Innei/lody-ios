@@ -5,6 +5,39 @@ import XCTest
 
 @MainActor
 final class MacTranscriptPerfTests: XCTestCase {
+  func testTenThousandSidebarSessionsOnlyInstantiateVisibleCells() throws {
+    var state = MacFixtures.listState
+    state.catalog.projects = (0..<100).map {
+      var project = SessionProject(id: "project-\($0)", name: "Repository \($0)")
+      project.machineId = "m-studio"
+      return project
+    }
+    state.catalog.sessions = (0..<10000).map {
+      SessionItem(id: "task-\($0)", title: "Task \($0)", projectId: "project-\($0 % 100)", lastMessageAt: Double(10000 - $0), machineId: "m-studio")
+    }
+    let opening = Date()
+    let sidebar = SidebarViewController(source: .fixture(state))
+    let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 720), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    window.contentViewController = sidebar
+    window.layoutIfNeeded()
+    let outline = sidebar.outlineView
+    let opened = Date().timeIntervalSince(opening)
+    XCTAssertEqual(sidebar.visibleIds.count, 10000)
+    XCTAssertLessThan(sidebar.view.descendants(SidebarSessionCell.self).count, 80)
+    let scrolling = Date()
+    for row in [1000, 5000, 9999, 0] {
+      outline.scrollRowToVisible(row)
+      sidebar.view.layoutSubtreeIfNeeded()
+      XCTAssertLessThan(sidebar.view.descendants(SidebarSessionCell.self).count, 80)
+    }
+    let scrolled = Date().timeIntervalSince(scrolling)
+    XCTAssertLessThan(opened, 2)
+    XCTAssertLessThan(scrolled, 0.5)
+    print(String(format: "PERF sidebar-10k open %.0f ms, four distant scrolls %.0f ms, %d cells retained", opened * 1000, scrolled * 1000, sidebar.view.descendants(SidebarSessionCell.self).count))
+  }
+
   func testATenThousandEntryTranscriptOpensAndScrollsWithinBudget() throws {
     var json = ""
     MacTranscriptFixture(history: 10000).source.start { json = $0.entriesJSON }
