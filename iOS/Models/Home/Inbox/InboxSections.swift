@@ -14,9 +14,20 @@ enum InboxSort: String, CaseIterable, Sendable {
   case name, activity, urgency
 }
 
+struct InboxProjectChip: Equatable, Sendable {
+  var id: String
+  var title: String
+  var image = ""
+  var monogram = ""
+  var symbol = ""
+  var state: SessionState?
+  var count = 0
+}
+
 enum InboxSections {
   static let chatId = "chat"
   static let pinnedId = "pinned"
+  static let allFilter = ""
   private static let groups = ["attention", "pinned", "live", "unread", "today", "yesterday", "week", "month", "older"]
   private static let day = 86_400_000.0
 
@@ -50,8 +61,11 @@ enum InboxSections {
 
   static func projects(
     _ catalog: SessionCatalog, expanded: [String: Bool] = [:], sort: InboxSort = .name, pinOrder: [String] = [],
-    now: Double = LodyRelativeTime.now()
+    filter: String? = nil, now: Double = LodyRelativeTime.now()
   ) -> [LodyListSection] {
+    if let filter, filter != allFilter, let section = filtered(catalog, id: filter, pinOrder: pinOrder, now: now) {
+      return [section]
+    }
     let unpinned = catalog.sessions.filter { !$0.pinned && !$0.archived }
     let pinned = orderPinned(catalog.sessions.filter { $0.pinned && !$0.archived }, pinOrder: pinOrder)
     var sections = sortProjects(catalog.projects, sessions: unpinned, sort: sort).map { project in
@@ -67,14 +81,7 @@ enum InboxSections {
     let chats = unpinned.filter { SessionRows.isChat($0.projectId) }.sorted(by: SessionRows.byActivity)
     if !chats.isEmpty {
       let open = expanded[chatId] ?? true
-      var parent = LodyListRow()
-      parent.id = "toggle:\(chatId)"
-      parent.parent = true
-      parent.image = "bubble.left"
-      parent.title = String(localized: "inbox.section.chat", bundle: .lody)
-      parent.action = true
-      parent.menuActions = [SessionRows.newChat()]
-      trailing(&parent, sessions: chats, open: open)
+      let parent = chatParent(chats, open: open)
       var group = sessionGroup(chatId, parent: parent, sessions: chats, all: catalog.sessions, now: now, moreId: "view:\(chatId)")
       group.headerExpanded = open
       group.gap = .group
@@ -84,6 +91,27 @@ enum InboxSections {
     let rows = SessionRows.treeRows(pinned, all: catalog.sessions) { SessionRows.row($0, now: now) }
     if !sections.isEmpty { sections[0].gap = .group }
     return [pinnedSection(rows, expanded: expanded)] + sections
+  }
+
+  static func chips(_ catalog: SessionCatalog, sort: InboxSort = .name) -> [InboxProjectChip] {
+    let open = catalog.sessions.filter { !$0.archived }
+    var chips = sortProjects(catalog.projects, sessions: open.filter { !$0.pinned }, sort: sort).compactMap { project -> InboxProjectChip? in
+      let sessions = open.filter { $0.projectId == project.id }
+      guard !sessions.isEmpty else { return nil }
+      var chip = InboxProjectChip(id: project.id, title: project.name)
+      chip.image = ownerAvatar(project.repoFullName ?? "")
+      chip.monogram = String(project.name.prefix(1))
+      rank(&chip, sessions: sessions)
+      return chip
+    }
+    let chats = open.filter { SessionRows.isChat($0.projectId) }
+    if !chats.isEmpty {
+      var chip = InboxProjectChip(id: chatId, title: String(localized: "inbox.section.chat", bundle: .lody))
+      chip.symbol = "bubble.left"
+      rank(&chip, sessions: chats)
+      chips.append(chip)
+    }
+    return chips
   }
 
   static func search(
@@ -255,6 +283,44 @@ enum InboxSections {
       row.imageTint = state.tint
       return
     }
+  }
+
+  private static func rank(_ chip: inout InboxProjectChip, sessions: [SessionItem]) {
+    let states = sessions.map(SessionState.init)
+    for state in [SessionState.failed, .attention, .live] {
+      let count = states.filter { $0 == state }.count
+      guard count > 0 else { continue }
+      chip.state = state
+      chip.count = count
+      return
+    }
+  }
+
+  // A filtered project is the whole point of the filter, so it shows every session and cannot fold.
+  private static func filtered(_ catalog: SessionCatalog, id: String, pinOrder: [String], now: Double) -> LodyListSection? {
+    let open = catalog.sessions.filter { !$0.archived }
+    let owned = id == chatId ? open.filter { SessionRows.isChat($0.projectId) } : open.filter { $0.projectId == id }
+    let project = catalog.projects.first { $0.id == id && !SessionRows.isChat($0.id) }
+    guard !owned.isEmpty, id == chatId || project != nil else { return nil }
+    var parent = project.map { projectRow($0, sessions: owned, open: true) } ?? chatParent(owned, open: true)
+    parent.action = false
+    let ordered = orderPinned(owned.filter(\.pinned), pinOrder: pinOrder) + owned.filter { !$0.pinned }.sorted(by: SessionRows.byActivity)
+    let rows = SessionRows.treeRows(ordered, all: catalog.sessions) { SessionRows.row($0, now: now) }
+    var group = section(id, rows: [parent] + rows)
+    group.headerExpanded = true
+    return group
+  }
+
+  private static func chatParent(_ chats: [SessionItem], open: Bool) -> LodyListRow {
+    var parent = LodyListRow()
+    parent.id = "toggle:\(chatId)"
+    parent.parent = true
+    parent.image = "bubble.left"
+    parent.title = String(localized: "inbox.section.chat", bundle: .lody)
+    parent.action = true
+    parent.menuActions = [SessionRows.newChat()]
+    trailing(&parent, sessions: chats, open: open)
+    return parent
   }
 
   private static func sessionGroup(

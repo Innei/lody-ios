@@ -138,6 +138,21 @@ precondition(InboxSections.projects(unpinnedCatalog, now: midday).filter { $0.id
 let zetaParent = InboxSections.projects(urgent, now: midday).first { $0.id == "z" }!.rows[0]
 precondition(zetaParent.value == "inbox.project.attention" && zetaParent.imageTint == "warning")
 
+var filtering = urgent
+filtering.sessions.append(item("pz", "error", project: "z") { $0.pinned = true })
+let chips = InboxSections.chips(filtering, sort: .urgency)
+precondition(chips.map(\.id) == ["z", "p", "chat"], "Chips follow the list order without Pinned or empty projects: \(chips.map(\.id))")
+precondition(chips[0].title == "zeta" && chips[0].state == .failed && chips[0].count == 1, "Failed outranks attention, pinned sessions count: \(chips[0])")
+precondition(chips[1].state == nil && chips[1].count == 0 && chips[1].monogram == "l")
+precondition(chips[2].symbol == "bubble.left" && chips[2].title == "inbox.section.chat")
+let filtered = InboxSections.projects(many, expanded: ["p": false], filter: "p", now: midday)
+precondition(filtered.map(\.id) == ["p"], "A filter keeps only its section: \(filtered.map(\.id))")
+precondition(filtered[0].headerExpanded == true && !filtered[0].rows[0].action, "A filtered band stays open and inert")
+precondition(filtered[0].rows.dropFirst().map(\.id) == ["pin", "s0", "s1", "s2", "s3", "s4", "s5"], "A filtered project shows every session, pinned first: \(filtered[0].rows.map(\.id))")
+precondition(InboxSections.projects(many, filter: "chat", now: midday).map(\.id) == ["chat"])
+precondition(InboxSections.projects(many, filter: "gone", now: midday).map(\.id) == projects.map(\.id), "An unknown filter shows everything")
+precondition(InboxSections.projects(many, filter: InboxSections.allFilter, now: midday).map(\.id) == projects.map(\.id))
+
 precondition(InboxSections.reconcilePinOrder(["b", "gone", "a"], pinned: ["a", "b", "c", "d"]) { ["c": 1, "d": 2][$0] ?? 0 } == ["d", "c", "b", "a"])
 precondition(InboxSections.orderPinned([item("x") { $0.pinned = true }, item("y", at: midday + 1) { $0.pinned = true }], pinOrder: ["x"]).map(\.id) == ["x", "y"])
 
