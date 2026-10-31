@@ -34,7 +34,7 @@ enum SidebarRowLayout {
 
 @MainActor
 enum MacSidebarChrome {
-  static func button(_ symbol: String, title: String, id: String, target: AnyObject, action: Selector, glass: Bool = false) -> NSButton {
+  static func button(_ symbol: String, title: String, id: String, target: AnyObject, action: Selector, glass: Bool = false, size: CGFloat = 28) -> NSButton {
     let button = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: nil) ?? NSImage(), target: target, action: action)
     button.title = ""
     button.bezelStyle = .accessoryBarAction
@@ -50,20 +50,21 @@ enum MacSidebarChrome {
     button.setAccessibilityLabel(title)
     button.setAccessibilityIdentifier(id)
     button.translatesAutoresizingMaskIntoConstraints = false
-    let size: CGFloat = glass ? 32 : 28
+    let extent: CGFloat = glass ? 32 : size
     NSLayoutConstraint.activate([
-      button.widthAnchor.constraint(equalToConstant: size),
-      button.heightAnchor.constraint(equalToConstant: size),
+      button.widthAnchor.constraint(equalToConstant: extent),
+      button.heightAnchor.constraint(equalToConstant: extent),
     ])
     return button
   }
 
   static func group(_ controls: [NSView]) -> NSView {
     let stack = NSStackView(views: controls)
-    stack.spacing = 2
-    stack.edgeInsets = NSEdgeInsets(top: 2, left: 4, bottom: 2, right: 4)
+    stack.spacing = 0
+    stack.edgeInsets = NSEdgeInsets(top: 4, left: 4, bottom: 4, right: 4)
     let glass = NSGlassEffectView()
-    glass.cornerRadius = 18
+    glass.style = .regular
+    glass.cornerRadius = 22
     glass.contentView = stack
     if #available(macOS 27, *) { glass.effectIsInteractive = true }
     return glass

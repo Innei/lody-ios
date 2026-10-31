@@ -144,13 +144,13 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     workspacePicker.isBordered = false
     workspacePicker.bezelStyle = .accessoryBarAction
     workspacePicker.contentTintColor = .labelColor
-    workspacePicker.font = .systemFont(ofSize: 13, weight: .medium)
+    workspacePicker.font = .preferredFont(forTextStyle: .body)
     workspacePicker.symbolConfiguration = .init(pointSize: 18, weight: .regular)
     (workspacePicker.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
     workspacePicker.setAccessibilityIdentifier("sidebar-workspace")
     workspacePicker.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     let help = MacSidebarChrome.button("questionmark.circle", title: String(localized: "mac.settings.page.about", bundle: .lodyMac),
-                                     id: "sidebar-about", target: self, action: #selector(showAbout))
+                                     id: "sidebar-about", target: self, action: #selector(showAbout), size: 32)
     archive.image = NSImage(systemSymbolName: "archivebox", accessibilityDescription: nil)
     archive.isBordered = true
     archive.bezelStyle = .accessoryBarAction
@@ -161,14 +161,18 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     archive.setAccessibilityLabel(archive.toolTip)
     archive.setAccessibilityIdentifier("sidebar-archive")
     archive.translatesAutoresizingMaskIntoConstraints = false
-    archive.widthAnchor.constraint(equalToConstant: 28).isActive = true
-    archive.heightAnchor.constraint(equalToConstant: 28).isActive = true
+    archive.widthAnchor.constraint(equalToConstant: 32).isActive = true
+    archive.heightAnchor.constraint(equalToConstant: 32).isActive = true
+    workspacePicker.heightAnchor.constraint(equalToConstant: 32).isActive = true
     let settings = MacSidebarChrome.button("gearshape", title: String(localized: "mac.menu.settings", bundle: .lodyMac),
-                                         id: "sidebar-settings", target: self, action: #selector(showSettings))
-    let accessory = MacSidebarChrome.accessory([workspacePicker, NSView(), help, archive, settings])
+                                         id: "sidebar-settings", target: self, action: #selector(showSettings), size: 32)
+    let accountGroup = MacSidebarChrome.group([workspacePicker])
+    let toolsGroup = MacSidebarChrome.group([help, archive, settings])
+    let accessory = MacSidebarChrome.accessory([accountGroup, NSView(), toolsGroup])
+    accessory.automaticallyAppliesContentInsets = false
     if let stack = accessory.view as? NSStackView {
-      stack.edgeInsets = NSEdgeInsets(top: 10, left: 8, bottom: 10, right: 8)
-      stack.spacing = 6
+      stack.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 12, right: 12)
+      stack.spacing = 8
     }
     return accessory
   }
