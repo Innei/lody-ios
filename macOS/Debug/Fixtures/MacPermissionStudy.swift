@@ -75,6 +75,45 @@ enum MacPermissionStudy {
     return windows
   }
 
+  static func glassWindows(questions: Bool = false) -> [NSWindow] {
+    let windows = MacFixtures.workspaceWindow(sessionId: "s-mac", shell: true)
+    guard let window = windows.first else { return windows }
+    window.setContentSize(NSSize(width: 1100, height: 720))
+    window.layoutIfNeeded()
+    guard let composer = descendants(window.contentView).compactMap({ $0 as? MacComposerView }).first,
+      let parent = composer.superview else { return windows }
+    composer.widthAnchor.constraint(equalToConstant: 748).isActive = true
+    composer.input.string = "Keep the native controls and align the sidebar rows."
+    composer.input.didChangeText()
+    let controls = descendants(composer).compactMap { $0 as? NSControl }.map { ($0, $0.isEnabled) }
+    composer.input.isEditable = false
+    composer.input.isSelectable = false
+    composer.input.setAccessibilityEnabled(false)
+    controls.forEach { $0.0.isEnabled = false }
+    // This surface replaces the editor at the same coordinates. There is one glass layer.
+    composer.alphaValue = 0
+    let panel = MacInterruptionStudy(content: questions ? .questions : .approval)
+    panel.translatesAutoresizingMaskIntoConstraints = false
+    parent.addSubview(panel, positioned: .above, relativeTo: composer)
+    NSLayoutConstraint.activate([
+      panel.leadingAnchor.constraint(equalTo: composer.leadingAnchor),
+      panel.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
+      panel.bottomAnchor.constraint(equalTo: composer.bottomAnchor),
+    ])
+    panel.onFinish = { [weak composer, weak panel] in
+      panel?.removeFromSuperview()
+      guard let composer else { return }
+      composer.alphaValue = 1
+      composer.input.isEditable = true
+      composer.input.isSelectable = true
+      composer.input.setAccessibilityEnabled(true)
+      controls.forEach { $0.0.isEnabled = $0.1 }
+      composer.window?.makeFirstResponder(composer.input)
+    }
+    window.layoutIfNeeded()
+    return windows
+  }
+
   private static func descendants(_ view: NSView?) -> [NSView] {
     guard let view else { return [] }
     return [view] + view.subviews.flatMap { descendants($0) }

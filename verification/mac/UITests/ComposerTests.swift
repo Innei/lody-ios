@@ -115,12 +115,39 @@ final class ComposerReplyTests: LodyMacUITestCase {
 
   func testPermissionInterruptionDesignStudies() {
     for appearance in ["light", "dark"] {
-      for variant in ["a", "b"] {
-        open("permission-study-\(variant)", appearance)
-        XCTAssertTrue(scene.buttons["permission-study-allow"].waitForExistence(timeout: 3))
-        XCTAssertFalse(scene.textViews["composer-input"].isEnabled, "the study makes the interrupted editor unavailable")
-        attach("permission-study-\(variant)-\(appearance)", scene)
-      }
+      open("permission-study-a", appearance)
+      let next = scene.buttons["permission-study-allow"]
+      XCTAssertTrue(next.waitForExistence(timeout: 3))
+      XCTAssertFalse(scene.textViews["composer-input"].isEnabled)
+      XCTAssertFalse(next.isEnabled, "permission needs an explicit choice")
+      attach("permission-glass-empty-\(appearance)", scene)
+      let allow = scene.radioButtons["permission-study-option-0"]
+      XCTAssertTrue(allow.exists, "options use native radio controls")
+      allow.click()
+      eventually("choosing an answer enables Continue") { next.isEnabled }
+      attach("permission-study-a-\(appearance)", scene)
+      next.click()
+      eventually("the preserved draft returns") { scene.textViews["composer-input"].isEnabled }
+      XCTAssertEqual(value(scene.textViews["composer-input"]), "Keep the native controls and align the sidebar rows.")
+      attach("permission-glass-restored-\(appearance)", scene)
+
+      open("permission-question-glass", appearance)
+      XCTAssertTrue(scene.radioButtons["permission-study-option-0"].waitForExistence(timeout: 3))
+      scene.radioButtons["permission-study-option-0"].click()
+      attach("question-glass-selected-\(appearance)", scene)
+      scene.buttons["permission-study-allow"].click()
+      let custom = scene.textFields["permission-study-custom"]
+      XCTAssertTrue(custom.waitForExistence(timeout: 3))
+      custom.click()
+      custom.typeText("Keep activity visible only for running sessions.")
+      attach("question-glass-custom-\(appearance)", scene)
+      scene.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Question 1")).firstMatch.click()
+      XCTAssertEqual((scene.radioButtons["permission-study-option-0"].value as? NSNumber)?.intValue, 1, "changing question preserves the answer")
+      scene.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Question 2")).firstMatch.click()
+      XCTAssertEqual(value(scene.textFields["permission-study-custom"]), "Keep activity visible only for running sessions.")
+      scene.buttons["permission-study-allow"].click()
+      eventually("answering restores the editor") { scene.textViews["composer-input"].isEnabled }
+      XCTAssertEqual(value(scene.textViews["composer-input"]), "Keep the native controls and align the sidebar rows.")
     }
   }
 

@@ -294,3 +294,34 @@ final class MacComposerOptionsTests: XCTestCase {
     XCTAssertEqual(changes, 0, "a panel kept open during a capability change cannot send unavailable choices")
   }
 }
+
+@MainActor
+final class MacInterruptionStudyTests: XCTestCase {
+  func testNativeChoiceCenterIsAnInteractiveRadioTarget() throws {
+    let study = MacInterruptionStudy(content: .approval)
+    let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 780, height: 600), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    let root = NSView()
+    window.contentView = root
+    study.translatesAutoresizingMaskIntoConstraints = false
+    root.addSubview(study)
+    NSLayoutConstraint.activate([
+      study.widthAnchor.constraint(equalToConstant: 748),
+      study.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+      study.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+    ])
+    root.layoutSubtreeIfNeeded()
+    window.layoutIfNeeded()
+    root.layoutSubtreeIfNeeded()
+    let option = try XCTUnwrap(study.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "permission-study-option-0" })
+    let center = NSPoint(x: option.bounds.midX, y: option.bounds.midY)
+    XCTAssertTrue(root.hitTest(option.convert(center, to: root)) === option, "the native option must not be covered by its row container")
+    let event = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: option.convert(center, to: nil), modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+    let hit = try XCTUnwrap(option.cell).hitTest(for: event, in: option.bounds, of: option)
+    XCTAssertTrue(hit.contains(.trackableArea), "the center must land on native radio content, rather than empty stretched bounds")
+    option.performClick(nil)
+    let next = try XCTUnwrap(study.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "permission-study-allow" })
+    XCTAssertTrue(next.isEnabled)
+  }
+}

@@ -45,7 +45,8 @@ enum DebugSceneFactory {
       Scene(id: "attachments", title: "Composer · attachments") { MacFixtures.workspaceWindow(sessionId: "s-mac", attachments: true) },
       Scene(id: "composer-new", title: "Composer · new session") { MacFixtures.workspaceWindow(sessionId: nil) },
       Scene(id: "composer-reply", title: "Composer · reply") { MacFixtures.workspaceWindow(sessionId: "s-mac") },
-      Scene(id: "permission-study-a", title: "Permission study · A") { MacPermissionStudy.windows("a") },
+      Scene(id: "permission-study-a", title: "Permission study · Glass") { MacPermissionStudy.glassWindows() },
+      Scene(id: "permission-question-glass", title: "Question study · Glass") { MacPermissionStudy.glassWindows(questions: true) },
       Scene(id: "permission-study-b", title: "Permission study · B") { MacPermissionStudy.windows("b") },
       Scene(id: "accent", title: "Accent") {
         MacAccent.system.apply()
