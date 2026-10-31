@@ -145,7 +145,7 @@ final class MacComposerView: NSView, MacFileDropTarget {
     body.orientation = .vertical
     body.alignment = .leading
     body.spacing = 8
-    body.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
+    body.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 8, right: 16)
     noticeRow.addArrangedSubview(notice)
     noticeRow.edgeInsets = NSEdgeInsets(top: 0, left: 8, bottom: 0, right: 8)
     for flexible in [controls, body, noticeRow, tray] {
