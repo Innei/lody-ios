@@ -113,6 +113,17 @@ final class ComposerReplyTests: LodyMacUITestCase {
     }
   }
 
+  func testPermissionInterruptionDesignStudies() {
+    for appearance in ["light", "dark"] {
+      for variant in ["a", "b"] {
+        open("permission-study-\(variant)", appearance)
+        XCTAssertTrue(scene.buttons["permission-study-allow"].waitForExistence(timeout: 3))
+        XCTAssertFalse(scene.textViews["composer-input"].isEnabled, "the study makes the interrupted editor unavailable")
+        attach("permission-study-\(variant)-\(appearance)", scene)
+      }
+    }
+  }
+
   func testCodexComposerDraftAndNaturalWrappingInBothAppearances() {
     for appearance in ["light", "dark"] {
       open("composer-reply", appearance)
