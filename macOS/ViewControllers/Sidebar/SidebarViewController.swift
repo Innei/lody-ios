@@ -2,7 +2,7 @@ import AppKit
 import LodyData
 
 @MainActor
-final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSSearchFieldDelegate, NSMenuDelegate {
+final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSTextFieldDelegate, NSMenuDelegate {
   enum Kind { case machine, project, session, gap }
 
   final class Node {
@@ -34,7 +34,8 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   var outlineView: NSOutlineView { outline }
   private var collapsed: Set<String> = []
   private var reloading = false
-  private let search = NSSearchField()
+  private let search = SidebarSearchField()
+  private lazy var searchSurface = SidebarSearchSurface(field: search)
   private let filter = NSPopUpButton(frame: .zero, pullsDown: true)
   private let scroll = NSScrollView()
   private let empty = NSTextField(labelWithString: "")
@@ -67,7 +68,6 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     search.setAccessibilityIdentifier("sidebar-search")
     search.delegate = self
     search.controlSize = .regular
-    search.sendsSearchStringImmediately = true
     search.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     let column = NSTableColumn(identifier: .init("session"))
     outline.addTableColumn(column)
@@ -116,12 +116,12 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
 
   private func makeTopAccessory() -> NSSplitViewItemAccessoryViewController {
     let new = SidebarActionButton(title: String(localized: "mac.sidebar.newChat", bundle: .lodyMac), symbol: "square.and.pencil")
-    new.contentTintColor = .lodyAccent
+    new.contentTintColor = .labelColor
     new.target = self
     new.action = #selector(newSessionPressed)
     new.setAccessibilityIdentifier("sidebar-new-session")
     // One persistent native search field; Find only changes focus, never layout.
-    let stack = NSStackView(views: [new, search])
+    let stack = NSStackView(views: [new, searchSurface])
     stack.orientation = .vertical
     stack.alignment = .leading
     stack.spacing = 8
@@ -129,7 +129,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     new.translatesAutoresizingMaskIntoConstraints = false
     new.heightAnchor.constraint(equalToConstant: 32).isActive = true
     new.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24).isActive = true
-    search.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24).isActive = true
+    searchSurface.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24).isActive = true
     let accessory = NSSplitViewItemAccessoryViewController()
     accessory.view = stack
     if #available(macOS 26.1, *) { accessory.preferredScrollEdgeEffectStyle = .soft }
@@ -138,13 +138,19 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
 
   private func makeBottomAccessory() -> NSSplitViewItemAccessoryViewController {
     workspacePicker.isBordered = false
-    workspacePicker.font = .systemFont(ofSize: 13)
+    workspacePicker.bezelStyle = .accessoryBarAction
+    workspacePicker.contentTintColor = .labelColor
+    workspacePicker.font = .systemFont(ofSize: 13, weight: .medium)
+    workspacePicker.symbolConfiguration = .init(pointSize: 18, weight: .regular)
+    (workspacePicker.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
     workspacePicker.setAccessibilityIdentifier("sidebar-workspace")
     workspacePicker.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     let help = MacSidebarChrome.button("questionmark.circle", title: String(localized: "mac.settings.page.about", bundle: .lodyMac),
                                      id: "sidebar-about", target: self, action: #selector(showAbout))
     archive.image = NSImage(systemSymbolName: "archivebox", accessibilityDescription: nil)
-    archive.isBordered = false
+    archive.isBordered = true
+    archive.bezelStyle = .accessoryBarAction
+    archive.showsBorderOnlyWhileMouseInside = true
     archive.target = self
     archive.action = #selector(toggleArchive)
     archive.toolTip = String(localized: "mac.sidebar.archive", bundle: .lodyMac)
@@ -155,7 +161,12 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     archive.heightAnchor.constraint(equalToConstant: 28).isActive = true
     let settings = MacSidebarChrome.button("gearshape", title: String(localized: "mac.menu.settings", bundle: .lodyMac),
                                          id: "sidebar-settings", target: self, action: #selector(showSettings))
-    return MacSidebarChrome.accessory([workspacePicker, NSView(), help, archive, settings])
+    let accessory = MacSidebarChrome.accessory([workspacePicker, NSView(), help, archive, settings])
+    if let stack = accessory.view as? NSStackView {
+      stack.edgeInsets = NSEdgeInsets(top: 10, left: 8, bottom: 10, right: 8)
+      stack.spacing = 6
+    }
+    return accessory
   }
 
   override func viewDidLoad() {
@@ -191,6 +202,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   }
 
   private func reload() {
+    searchSurface.updateValue()
     let state = source.read()
     if let projectId, !state.catalog.projects.contains(where: { $0.id == projectId }) { self.projectId = nil }
     let model = MacSidebarModel(state: state, query: search.stringValue, projectId: projectId, archived: archived)
@@ -222,6 +234,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     reloading = false
     rebuildProjectMenu(state)
     rebuildWorkspaceMenu(state)
+    archive.state = archived ? .on : .off
     archive.contentTintColor = archived ? .lodyAccent : .secondaryLabelColor
     archive.setAccessibilityValue(archived ? "1" : "0")
     onWorkspaceChange?(state)
@@ -364,7 +377,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     cell.addSubview(label)
     NSLayoutConstraint.activate([
       label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: node.kind == .machine ? 12 : 36),
-      label.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: node.kind == .machine ? -72 : -12),
+      label.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: node.kind == .machine ? -72 : -36),
       label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
     ])
     if node.kind == .project {
@@ -376,6 +389,20 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         folder.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 12),
         folder.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
         folder.widthAnchor.constraint(equalToConstant: 16), folder.heightAnchor.constraint(equalToConstant: 16),
+      ])
+      let toggle = NSButton(image: NSImage(), target: self, action: #selector(toggleProject(_:)))
+      toggle.isBordered = false
+      toggle.identifier = NSUserInterfaceItemIdentifier(node.id)
+      toggle.setAccessibilityIdentifier("sidebar-project-toggle-" + node.id)
+      toggle.symbolConfiguration = .init(pointSize: 10, weight: .medium)
+      toggle.contentTintColor = .secondaryLabelColor
+      configureDisclosure(toggle, node: node)
+      toggle.translatesAutoresizingMaskIntoConstraints = false
+      cell.addSubview(toggle)
+      NSLayoutConstraint.activate([
+        toggle.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
+        toggle.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+        toggle.widthAnchor.constraint(equalToConstant: 28), toggle.heightAnchor.constraint(equalToConstant: 28),
       ])
     } else if roots.first(where: { $0.kind == .machine }) === node {
       filter.isBordered = false
@@ -406,15 +433,38 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   }
 
   func outlineViewItemDidCollapse(_ notification: Notification) {
-    guard !reloading, let node = notification.userInfo?["NSObject"] as? Node else { return }
+    guard let node = notification.userInfo?["NSObject"] as? Node else { return }
+    refreshDisclosure(node)
+    guard !reloading else { return }
     collapsed.insert(node.id)
     onVisibleSessionsChange?()
   }
 
   func outlineViewItemDidExpand(_ notification: Notification) {
-    guard !reloading, let node = notification.userInfo?["NSObject"] as? Node else { return }
+    guard let node = notification.userInfo?["NSObject"] as? Node else { return }
+    refreshDisclosure(node)
+    guard !reloading else { return }
     collapsed.remove(node.id)
     onVisibleSessionsChange?()
+  }
+
+  private func configureDisclosure(_ button: NSButton, node: Node) {
+    let expanded = outline.isItemExpanded(node)
+    button.image = NSImage(systemSymbolName: expanded ? "chevron.down" : "chevron.right", accessibilityDescription: nil)
+    let key = expanded ? "mac.sidebar.collapseProject" : "mac.sidebar.expandProject"
+    button.setAccessibilityLabel(String(localized: String.LocalizationValue(key), bundle: .lodyMac) + " " + node.title)
+  }
+
+  private func refreshDisclosure(_ node: Node) {
+    guard node.kind == .project else { return }
+    let row = outline.row(forItem: node)
+    guard row >= 0, let cell = outline.view(atColumn: 0, row: row, makeIfNecessary: false) else { return }
+    for button in cell.subviews.compactMap({ $0 as? NSButton }) { configureDisclosure(button, node: node) }
+  }
+
+  @objc private func toggleProject(_ sender: NSButton) {
+    guard let id = sender.identifier?.rawValue, let node = find(id) else { return }
+    if outline.isItemExpanded(node) { outline.collapseItem(node) } else { outline.expandItem(node) }
   }
 
   func outlineViewSelectionDidChange(_ notification: Notification) {
@@ -424,6 +474,8 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   }
 
   func controlTextDidChange(_ obj: Notification) { reload() }
+  func controlTextDidBeginEditing(_ obj: Notification) { searchSurface.focused = true }
+  func controlTextDidEndEditing(_ obj: Notification) { searchSurface.focused = false }
 
   @objc private func newSessionPressed() { onNewSession?() }
 
@@ -448,7 +500,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     var name = state.workspaces.first { $0.id == state.workspaceId }?.name ?? "Lody"
     if let user, !user.name.isEmpty { name = user.name }
     let head = NSMenuItem(title: name, action: nil, keyEquivalent: "")
-    head.image = NSImage(systemSymbolName: "person.crop.circle", accessibilityDescription: nil)
+    head.image = NSImage(systemSymbolName: "person.crop.circle.fill", accessibilityDescription: nil)
     menu.addItem(head)
     let accountItem = NSMenuItem(title: String(localized: "mac.settings.page.account", bundle: .lodyMac), action: #selector(showAccount), keyEquivalent: "")
     accountItem.target = self

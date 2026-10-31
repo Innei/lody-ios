@@ -6,7 +6,8 @@ enum MacSidebarChrome {
     let button = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: nil) ?? NSImage(), target: target, action: action)
     button.title = ""
     button.bezelStyle = .accessoryBarAction
-    button.isBordered = false
+    button.isBordered = true
+    button.showsBorderOnlyWhileMouseInside = true
     button.controlSize = .regular
     if glass {
       button.bezelStyle = .glass
@@ -45,5 +46,85 @@ enum MacSidebarChrome {
     controller.view = stack
     if #available(macOS 26.1, *) { controller.preferredScrollEdgeEffectStyle = .soft }
     return controller
+  }
+}
+
+@MainActor
+final class SidebarSearchField: NSTextField {
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    isBordered = false
+    isBezeled = false
+    drawsBackground = false
+    focusRingType = .none
+    font = .systemFont(ofSize: 13)
+    cell?.usesSingleLineMode = true
+    setAccessibilitySubrole(.searchField)
+  }
+
+  required init?(coder: NSCoder) { nil }
+}
+
+@MainActor
+final class SidebarSearchSurface: NSView {
+  var focused = false { didSet { needsDisplay = true } }
+  private let field: NSTextField
+  private let clear = NSButton()
+
+  init(field: NSTextField) {
+    self.field = field
+    super.init(frame: .zero)
+    let icon = NSImageView(image: NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil) ?? NSImage())
+    icon.contentTintColor = .secondaryLabelColor
+    icon.setAccessibilityElement(false)
+    clear.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: nil)
+    clear.isBordered = false
+    clear.contentTintColor = .secondaryLabelColor
+    clear.symbolConfiguration = .init(pointSize: 11, weight: .regular)
+    clear.target = self
+    clear.action = #selector(clearPressed)
+    clear.setAccessibilityIdentifier("sidebar-search-clear")
+    clear.setAccessibilityLabel(String(localized: "mac.sidebar.clearSearch", bundle: .lodyMac))
+    for view in [icon, field, clear] {
+      view.translatesAutoresizingMaskIntoConstraints = false
+      addSubview(view)
+    }
+    translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      heightAnchor.constraint(equalToConstant: 32),
+      icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+      icon.centerYAnchor.constraint(equalTo: centerYAnchor),
+      icon.widthAnchor.constraint(equalToConstant: 14), icon.heightAnchor.constraint(equalToConstant: 14),
+      field.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 32),
+      field.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -32),
+      field.centerYAnchor.constraint(equalTo: centerYAnchor),
+      field.heightAnchor.constraint(equalToConstant: 22),
+      clear.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+      clear.centerYAnchor.constraint(equalTo: centerYAnchor),
+      clear.widthAnchor.constraint(equalToConstant: 24), clear.heightAnchor.constraint(equalToConstant: 24),
+    ])
+    updateValue()
+  }
+
+  required init?(coder: NSCoder) { nil }
+
+  func updateValue() { clear.isHidden = field.stringValue.isEmpty }
+
+  @objc private func clearPressed() {
+    field.stringValue = ""
+    field.currentEditor()?.string = ""
+    updateValue()
+    field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
+    window?.makeFirstResponder(field)
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    NSColor.controlBackgroundColor.withAlphaComponent(0.55).setFill()
+    let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7)
+    path.fill()
+    let border = focused ? NSColor.lodyAccent.withAlphaComponent(0.7) : NSColor.separatorColor
+    border.setStroke()
+    path.lineWidth = 1
+    path.stroke()
   }
 }

@@ -11,13 +11,7 @@ final class SidebarOutlineView: NSOutlineView {
     return rect
   }
 
-  override func frameOfOutlineCell(atRow row: Int) -> NSRect {
-    guard let node = item(atRow: row) as? SidebarViewController.Node, node.kind == .project else { return .zero }
-    var rect = super.frameOfOutlineCell(atRow: row)
-    rect.origin.x = 7
-    rect.size.width = 10
-    return rect
-  }
+  override func frameOfOutlineCell(atRow row: Int) -> NSRect { .zero }
 
   override func keyDown(with event: NSEvent) {
     if event.keyCode == 36 || event.keyCode == 76, event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty, selectedRow >= 0 {
@@ -36,6 +30,28 @@ final class SidebarRowView: NSTableRowView {
 }
 
 final class SidebarActionButton: NSButton {
+  private var hover: NSTrackingArea?
+  private var hovered = false { didSet { needsDisplay = true } }
+
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    if let hover { removeTrackingArea(hover) }
+    let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self, userInfo: nil)
+    addTrackingArea(area)
+    hover = area
+  }
+
+  override func mouseEntered(with event: NSEvent) { hovered = true }
+  override func mouseExited(with event: NSEvent) { hovered = false }
+
+  override func draw(_ dirtyRect: NSRect) {
+    if hovered || isHighlighted {
+      NSColor.quaternaryLabelColor.setFill()
+      NSBezierPath(roundedRect: bounds, xRadius: 6, yRadius: 6).fill()
+    }
+    super.draw(dirtyRect)
+  }
+
   convenience init(title: String, symbol: String) {
     self.init(frame: .zero)
     cell = SidebarActionCell(textCell: title)
@@ -44,9 +60,9 @@ final class SidebarActionButton: NSButton {
     imagePosition = .imageLeading
     isBordered = false
     alignment = .left
-    font = .systemFont(ofSize: 13)
+    font = .systemFont(ofSize: 13, weight: .medium)
     symbolConfiguration = .init(pointSize: 14, weight: .regular)
-    attributedTitle = NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.labelColor])
+    attributedTitle = NSAttributedString(string: title, attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .medium), .foregroundColor: NSColor.labelColor])
     bezelStyle = .accessoryBarAction
   }
 }

@@ -80,7 +80,7 @@ final class MacSidebarChromeTests: XCTestCase {
   func testFocusingSearchKeepsTheProjectListInPlace() throws {
     let (sidebar, window) = host()
     defer { window.close() }
-    let search = try XCTUnwrap(window.contentView?.descendants(NSSearchField.self).first { $0.accessibilityIdentifier() == "sidebar-search" })
+    let search = try XCTUnwrap(window.contentView?.descendants(NSTextField.self).first { $0.accessibilityIdentifier() == "sidebar-search" })
     XCTAssertFalse(search.isHidden, "search is directly available without another navigation step")
     let outline = sidebar.outlineView
     let row = try XCTUnwrap((0..<outline.numberOfRows).first { (outline.item(atRow: $0) as? SidebarViewController.Node)?.id == "s-mac" })
@@ -90,9 +90,34 @@ final class MacSidebarChromeTests: XCTestCase {
     let after = outline.convert(outline.rect(ofRow: row), to: sidebar.view).minY
     XCTAssertNotNil(search.currentEditor(), "the Find command focuses the existing native search field")
     XCTAssertEqual(before, after, accuracy: 1, "focusing search must not push the project list down")
-    search.stringValue = "Landing"
-    sidebar.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+    XCTAssertNil(MacVerifyActions.perform(.type(field: "sidebar-search", text: "Landing"), in: window))
     XCTAssertEqual(sidebar.visibleIds, ["s-landing"])
+  }
+
+  func testClearingSearchRestoresSessionsAndKeepsTheEditorFocused() throws {
+    let (sidebar, window) = host()
+    defer { window.close() }
+    let search = try XCTUnwrap(window.contentView?.descendants(NSTextField.self).first { $0.accessibilityIdentifier() == "sidebar-search" })
+    sidebar.focusSearch()
+    XCTAssertNil(MacVerifyActions.perform(.type(field: "sidebar-search", text: "Landing"), in: window))
+    XCTAssertEqual(sidebar.visibleIds, ["s-landing"])
+    let clear = try XCTUnwrap(window.contentView?.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "sidebar-search-clear" })
+    clear.performClick(nil)
+    XCTAssertEqual(search.stringValue, "")
+    XCTAssertEqual(sidebar.visibleIds.count, 6)
+    XCTAssertNotNil(search.currentEditor())
+  }
+
+  func testMachineExpansionKeepsItsHeaderActionsLabeledCorrectly() throws {
+    let (sidebar, window) = host()
+    defer { window.close() }
+    let outline = sidebar.outlineView
+    let machine = try XCTUnwrap((0..<outline.numberOfRows).compactMap { outline.item(atRow: $0) as? SidebarViewController.Node }.first { $0.kind == .machine })
+    outline.collapseItem(machine)
+    _ = outline.view(atColumn: 0, row: outline.row(forItem: machine), makeIfNecessary: true)
+    outline.expandItem(machine)
+    let manage = try XCTUnwrap(sidebar.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "sidebar-manage-projects" })
+    XCTAssertEqual(manage.accessibilityLabel(), String(localized: "mac.sidebar.manageProjects", bundle: .lodyMac))
   }
 
   func testChoosingAProjectFiltersTheVisibleSessions() throws {
@@ -309,6 +334,24 @@ final class MacSidebarExpansionTests: XCTestCase {
     XCTAssertFalse(outline.isItemExpanded(try project()))
     XCTAssertFalse(sidebar.visibleIds.contains("s-mac"))
     outline.expandItem(try project())
+    XCTAssertTrue(sidebar.visibleIds.contains("s-mac"))
+  }
+
+  func testTrailingProjectButtonExpandsAndCollapsesItsSessions() throws {
+    let sidebar = SidebarViewController(source: .fixture(MacFixtures.listState))
+    let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 800), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    window.contentViewController = sidebar
+    window.layoutIfNeeded()
+    let toggle = try XCTUnwrap(sidebar.view.descendants(NSButton.self).first { $0.accessibilityLabel() == "Collapse lody-ios" })
+    let header = try XCTUnwrap(toggle.superview)
+    let title = try XCTUnwrap(header.descendants(NSTextField.self).first { $0.stringValue == "lody-ios" })
+    XCTAssertGreaterThan(toggle.frame.minX, title.frame.maxX, "the disclosure control follows the project title")
+    toggle.performClick(nil)
+    XCTAssertFalse(sidebar.visibleIds.contains("s-mac"))
+    XCTAssertEqual(toggle.accessibilityLabel(), "Expand lody-ios")
+    toggle.performClick(nil)
     XCTAssertTrue(sidebar.visibleIds.contains("s-mac"))
   }
 

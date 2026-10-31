@@ -57,10 +57,7 @@ export async function sidebar(session: Session) {
     expect(
       find(
         ready,
-        (node) =>
-          node.identifier === 'sidebar-search' &&
-          node.class === 'NSSearchField' &&
-          node.enabled,
+        (node) => node.identifier === 'sidebar-search' && node.enabled,
       ).length === 1,
       'native search is directly available',
     );

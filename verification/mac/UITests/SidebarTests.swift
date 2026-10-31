@@ -41,6 +41,10 @@ final class SidebarTests: LodyMacUITestCase {
     search.typeKey("a", modifierFlags: .command)
     search.typeText(XCUIKeyboardKey.delete.rawValue)
     eventually("clearing search restores projects") { titles(outline).count == 6 }
+    search.typeText("Landing")
+    eventually("search filters the project list") { titles(outline) == ["Landing page copy"] }
+    scene.buttons["sidebar-search-clear"].click()
+    eventually("the clear button restores sessions") { titles(outline).count == 6 }
     let filter = scene.menuButtons["sidebar-filter"]
     filter.click()
     XCTAssertTrue(app.menuItems["lody-web"].waitForExistence(timeout: 3))
@@ -54,10 +58,10 @@ final class SidebarTests: LodyMacUITestCase {
     XCTAssertTrue(app.menuItems["Open in New Tab"].waitForExistence(timeout: 3))
     attach("sidebar-context-menu-light", scene)
     app.typeKey(XCUIKeyboardKey.escape, modifierFlags: [])
-    outline.disclosureTriangles.firstMatch.click()
+    outline.buttons["Collapse lody-ios"].click()
     eventually("collapsing a project hides its sessions") { !titles(outline).contains("Build the AppKit sidebar") }
     attach("sidebar-project-collapsed-light", scene)
-    outline.disclosureTriangles.firstMatch.click()
+    outline.buttons["Expand lody-ios"].click()
     eventually("expanding restores its sessions") { titles(outline).contains("Build the AppKit sidebar") }
     scene.buttons["sidebar-archive"].click()
     eventually("archive contains only archived sessions") { titles(outline) == ["Archived spike"] }
