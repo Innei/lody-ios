@@ -3,16 +3,18 @@ import LodyCore
 
 /// The same two-level model/effort interaction as the iOS composer, in an AppKit popover.
 @MainActor
-final class MacComposerOptionsController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
+final class MacComposerOptionsController: NSViewController {
   var onFast: ((Bool) -> Void)?
   let fast = NSButton()
   var onChange: ((ModelChoice) -> Void)?
   var onResize: ((NSSize) -> Void)?
   let slider = MacEffortSlider()
   private let heading = NSButton()
+  private let effort = NSTextField(labelWithString: "")
+  private let reset = NSButton()
+  private let listTitle = NSTextField(labelWithString: "")
   private let back = NSButton()
-  private let table = MacModelTable()
-  private let scroll = NSScrollView()
+  private let choices = MacModelChoicesView()
   private var model = MacComposerModel(mode: .reply)
   private var listing = false
 
@@ -23,54 +25,63 @@ final class MacComposerOptionsController: NSViewController, NSTableViewDataSourc
     view.setAccessibilityElement(true)
     heading.isBordered = false
     heading.bezelStyle = .accessoryBarAction
+    heading.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
+    heading.imagePosition = .imageTrailing
+    heading.symbolConfiguration = .init(pointSize: 10, weight: .medium)
     heading.target = self
     heading.action = #selector(showModels)
     heading.setAccessibilityIdentifier("composer-model-list")
     fast.isBordered = false
     fast.bezelStyle = .accessoryBarAction
+    fast.setButtonType(.toggle)
     fast.target = self
     fast.action = #selector(toggleFast)
     fast.setAccessibilityIdentifier("composer-fast")
     fast.setAccessibilityLabel(String(localized: "mac.composer.fast", bundle: .lodyMac))
-    back.title = String(localized: "mac.composer.model", bundle: .lodyMac)
+    fast.toolTip = String(localized: "mac.composer.fast", bundle: .lodyMac)
+    effort.font = .preferredFont(forTextStyle: .headline)
+    effort.alignment = .center
+    reset.isBordered = false
+    reset.bezelStyle = .accessoryBarAction
+    reset.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil)
+    reset.contentTintColor = .secondaryLabelColor
+    reset.symbolConfiguration = .init(pointSize: 14, weight: .regular)
+    reset.target = self
+    reset.action = #selector(resetOptions)
+    reset.toolTip = String(localized: "mac.composer.resetModelOptions", bundle: .lodyMac)
+    reset.setAccessibilityLabel(reset.toolTip)
+    reset.setAccessibilityIdentifier("composer-options-reset")
+    listTitle.stringValue = String(localized: "mac.composer.selectModel", bundle: .lodyMac)
+    listTitle.font = .preferredFont(forTextStyle: .body)
+    listTitle.textColor = .secondaryLabelColor
     back.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: nil)
-    back.imagePosition = .imageLeading
     back.isBordered = false
-    back.font = .preferredFont(forTextStyle: .headline)
+    back.contentTintColor = .secondaryLabelColor
+    back.symbolConfiguration = .init(pointSize: 14, weight: .regular)
+    back.setAccessibilityLabel(String(localized: "mac.composer.backToEffort", bundle: .lodyMac))
+    back.setAccessibilityIdentifier("composer-options-back")
     back.target = self
     back.action = #selector(showOptions)
     slider.target = self
     slider.action = #selector(changeEffort)
     slider.setAccessibilityIdentifier("composer-effort-slider")
     slider.setAccessibilityLabel(String(localized: "mac.composer.effort", bundle: .lodyMac))
-    let column = NSTableColumn(identifier: .init("model"))
-    table.addTableColumn(column)
-    table.headerView = nil
-    table.rowHeight = 44
-    table.intercellSpacing = .zero
-    table.backgroundColor = .clear
-    table.style = .plain
-    table.delegate = self
-    table.dataSource = self
-    table.target = self
-    table.action = #selector(pickModel)
-    table.onConfirm = { [weak self] in self?.pickModel() }
-    table.setAccessibilityIdentifier("composer-model-choices")
-    scroll.documentView = table
-    scroll.drawsBackground = false
-    scroll.hasVerticalScroller = true
-    scroll.autohidesScrollers = true
-    for child in [heading, back, slider, scroll, fast] { view.addSubview(child) }
+    choices.onPick = { [weak self] in self?.selectModel($0) }
+    for child in [heading, effort, back, listTitle, slider, choices, fast, reset] { view.addSubview(child) }
   }
 
   override func viewDidLayout() {
     super.viewDidLayout()
-    let leading: CGFloat = fast.isHidden ? 12 : 48
-    heading.frame = NSRect(x: leading, y: view.bounds.height - 64, width: view.bounds.width - leading - 12, height: 56)
-    fast.frame = NSRect(x: 4, y: view.bounds.height - 58, width: 40, height: 44)
-    slider.frame = NSRect(x: 12, y: 8, width: view.bounds.width - 24, height: 44)
-    back.frame = NSRect(x: 16, y: view.bounds.height - 44, width: view.bounds.width - 32, height: 32)
-    scroll.frame = NSRect(x: 8, y: 8, width: view.bounds.width - 16, height: view.bounds.height - 56)
+    let width = view.bounds.width, height = view.bounds.height
+    let headingWidth = min(width - 88, heading.fittingSize.width)
+    heading.frame = NSRect(x: (width - headingWidth) / 2, y: height - 64, width: headingWidth, height: 24)
+    effort.frame = NSRect(x: 44, y: height - 36, width: width - 88, height: 24)
+    fast.frame = NSRect(x: 8, y: height - 40, width: 32, height: 32)
+    reset.frame = NSRect(x: width - 40, y: height - 40, width: 32, height: 32)
+    slider.frame = NSRect(x: 12, y: 8, width: width - 24, height: 44)
+    back.frame = NSRect(x: 8, y: height - 40, width: 28, height: 32)
+    listTitle.frame = NSRect(x: 40, y: height - 36, width: width - 56, height: 24)
+    choices.frame = NSRect(x: 4, y: 8, width: width - 8, height: height - 52)
   }
 
   override func viewDidAppear() { super.viewDidAppear(); slider.resume() }
@@ -79,29 +90,25 @@ final class MacComposerOptionsController: NSViewController, NSTableViewDataSourc
   func render(_ model: MacComposerModel) {
     self.model = model
     loadViewIfNeeded()
-    let style = NSMutableParagraphStyle()
-    style.alignment = .center
-    let title = NSMutableAttributedString(string: model.effortTitle + " ›\n", attributes: [
-      .font: NSFont.preferredFont(forTextStyle: .headline), .paragraphStyle: style,
-      .foregroundColor: model.choice.effort?.lowercased() == "ultra" ? NSColor.systemPurple : NSColor.controlAccentColor,
-    ])
-    title.append(NSAttributedString(string: model.modelTitle, attributes: [
-      .font: NSFont.preferredFont(forTextStyle: .subheadline), .paragraphStyle: style,
+    heading.attributedTitle = NSAttributedString(string: model.modelTitle, attributes: [
+      .font: NSFont.preferredFont(forTextStyle: .body),
       .foregroundColor: NSColor.secondaryLabelColor,
-    ]))
-    heading.attributedTitle = title
+    ])
     heading.setAccessibilityLabel(model.effortTitle + ", " + model.modelTitle)
+    effort.stringValue = model.effortTitle
+    effort.textColor = model.choice.effort?.lowercased() == "ultra" ? .systemPurple : .lodyAccent
     let isFast = CreateLogic.fastMode(model.capability, model.choice)?.enabled ?? false
     fast.state = isFast ? .on : .off
     fast.image = NSImage(systemSymbolName: isFast ? "bolt.fill" : "bolt", accessibilityDescription: nil)
     fast.contentTintColor = isFast ? .controlAccentColor : .secondaryLabelColor
+    fast.symbolConfiguration = .init(pointSize: 14, weight: .regular)
+    let fastChanged = CreateLogic.fastMode(model.capability, model.choice)?.enabled != CreateLogic.fastMode(model.capability, ModelChoice())?.enabled
+    reset.isEnabled = model.choice.modelId?.isEmpty == false || model.choice.effort?.isEmpty == false || fastChanged
     let efforts = model.orderedEfforts
     let index = efforts.firstIndex(of: model.choice.effort ?? "").map { $0 + 1 } ?? 0
     slider.render(value: Double(index) / Double(max(1, efforts.count)), steps: max(1, efforts.count), ultra: model.choice.effort?.lowercased() == "ultra", fast: isFast)
     slider.setAccessibilityValueDescription(model.effortTitle)
-    table.reloadData()
-    let selected = model.models.firstIndex { $0.id == model.choice.modelId }.map { $0 + 1 } ?? 0
-    table.selectRowIndexes(IndexSet(integer: selected), byExtendingSelection: false)
+    choices.render(models: model.models, selectedId: model.choice.modelId)
     updateVisibility()
   }
 
@@ -131,52 +138,32 @@ final class MacComposerOptionsController: NSViewController, NSTableViewDataSourc
     onChange?(choice)
   }
 
-  @objc private func showModels() { listing = true; updateVisibility(); view.window?.makeFirstResponder(table) }
-  @objc private func showOptions() { listing = false; updateVisibility() }
-  @objc private func pickModel() {
-    let row = table.selectedRow
-    guard row >= 0, row <= model.models.count else { return }
-    selectModel(row == 0 ? "" : model.models[row - 1].id)
+  @objc private func resetOptions() {
+    var choice = model.choice
+    choice.modelId = ""
+    choice.effort = ""
+    if let fast = CreateLogic.fastMode(model.capability, model.choice) {
+      choice.configOptionValues?.removeValue(forKey: fast.id)
+    }
+    onChange?(choice)
   }
+
+  @objc private func showModels() { listing = true; updateVisibility(); choices.focus() }
+  @objc private func showOptions() { listing = false; updateVisibility() }
 
   private func updateVisibility() {
     fast.isHidden = listing || CreateLogic.fastMode(model.capability, model.choice) == nil
     heading.isHidden = listing
+    effort.isHidden = listing
+    reset.isHidden = listing
     slider.isHidden = listing || model.efforts.isEmpty
     back.isHidden = !listing
-    scroll.isHidden = !listing
+    listTitle.isHidden = !listing
+    choices.isHidden = !listing
     var height: CGFloat = model.efforts.isEmpty ? 72 : 116
-    if listing { height = min(364, CGFloat(model.models.count + 1) * 44 + 56) }
+    if listing { height = min(364, choices.contentHeight + 52) }
     preferredContentSize = NSSize(width: 296, height: height)
     onResize?(preferredContentSize)
     view.needsLayout = true
-  }
-
-  func numberOfRows(in tableView: NSTableView) -> Int { model.models.count + 1 }
-  func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-    let title = row == 0 ? String(localized: "mac.composer.defaultModel", bundle: .lodyMac) : model.models[row - 1].name
-    let label = NSTextField(labelWithString: title)
-    label.font = .preferredFont(forTextStyle: .body)
-    label.lineBreakMode = .byTruncatingTail
-    label.setAccessibilityIdentifier("composer-model-choice-\(row)")
-    let cell = NSTableCellView()
-    cell.textField = label
-    label.translatesAutoresizingMaskIntoConstraints = false
-    cell.addSubview(label)
-    NSLayoutConstraint.activate([
-      label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 12),
-      label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -12),
-      label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-    ])
-    return cell
-  }
-}
-
-@MainActor
-private final class MacModelTable: NSTableView {
-  var onConfirm: (() -> Void)?
-  override func keyDown(with event: NSEvent) {
-    if event.keyCode == 36 || event.keyCode == 76 { onConfirm?(); return }
-    super.keyDown(with: event)
   }
 }

@@ -179,7 +179,12 @@ final class MacComposerController: NSViewController, NSTextViewDelegate {
     if model.mode == .newSession {
       model.form.updateChoice(choice)
     } else {
-      onReplyChoice?(["modelId": choice.modelId ?? "", "effort": choice.effort ?? ""])
+      var body: [String: Any] = ["modelId": choice.modelId ?? "", "effort": choice.effort ?? ""]
+      if let previous = CreateLogic.fastMode(model.capability, model.choice),
+        let next = CreateLogic.fastMode(model.capability, choice), previous.enabled != next.enabled {
+        body["fast"] = next.enabled
+      }
+      onReplyChoice?(body)
     }
     render()
   }

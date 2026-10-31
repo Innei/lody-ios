@@ -234,6 +234,71 @@ final class MacNewSessionCatalogTests: XCTestCase {
 
 @MainActor
 final class MacComposerOptionsTests: XCTestCase {
+  func testEchoedDefaultFastValueDoesNotLeaveResetEnabled() throws {
+    let panel = MacComposerOptionsController()
+    var model = MacComposerModel(mode: .reply)
+    model.replyCapability = Capability(machineId: "m", cliType: "builtin", agentType: "codex", configOptions: [
+      ConfigOption(id: "fast", name: "Fast", type: "boolean", currentValue: .bool(false)),
+    ])
+    model.replyChoice = ModelChoice(modelId: "", effort: "", configOptionValues: ["fast": .bool(false)])
+    panel.render(model)
+    let reset = try XCTUnwrap(panel.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "composer-options-reset" })
+    XCTAssertFalse(reset.isEnabled, "reply projections store the effective Fast value, including the agent default")
+  }
+
+  func testUnchangedProjectionPreservesAKeyboardBrowsedModelUntilConfirmation() throws {
+    let choices = MacModelChoicesView()
+    let models = [CapabilityChoice(id: "a", name: "A"), CapabilityChoice(id: "b", name: "B")]
+    choices.render(models: models, selectedId: "a")
+    let table = try XCTUnwrap(choices.documentView as? NSTableView)
+    table.selectRowIndexes(IndexSet(integer: 2), byExtendingSelection: false)
+    choices.render(models: models, selectedId: "a")
+    XCTAssertEqual(table.selectedRow, 2, "an unchanged live projection must not reset keyboard browsing")
+    choices.render(models: [models[0]], selectedId: "a")
+    XCTAssertEqual(table.selectedRow, 1, "a capability change drops a pending choice that is no longer offered")
+  }
+
+  func testResetRestoresAgentDefaultsWithoutChangingPermissionOrOtherOptions() throws {
+    let panel = MacComposerOptionsController()
+    var model = MacComposerModel(mode: .reply)
+    model.replyCapability = Capability(machineId: "m", cliType: "builtin", agentType: "codex",
+      models: [CapabilityChoice(id: "a", name: "A")], reasoningEfforts: ["a": ["high"]],
+      configOptions: [ConfigOption(id: "fast", name: "Fast", type: "boolean", currentValue: .bool(false))])
+    model.replyChoice = ModelChoice(modelId: "a", effort: "high", modeId: "ask", configOptionValues: [
+      "fast": .bool(true), "verbosity": .string("detailed"),
+    ])
+    var changed: ModelChoice?
+    panel.onChange = { changed = $0 }
+    panel.render(model)
+    let reset = try XCTUnwrap(panel.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "composer-options-reset" }, "the production panel needs its native reset action")
+    reset.performClick(nil)
+    let defaults = try XCTUnwrap(changed)
+    XCTAssertEqual(defaults.modelId, "")
+    XCTAssertEqual(defaults.effort, "")
+    XCTAssertEqual(defaults.modeId, "ask")
+    XCTAssertEqual(defaults.configOptionValues?["verbosity"], .string("detailed"))
+    XCTAssertNil(defaults.configOptionValues?["fast"], "reset removes the Fast override instead of pinning another override")
+    XCTAssertEqual(CreateLogic.fastMode(model.capability, defaults)?.enabled, false)
+    model.replyChoice = defaults
+    panel.render(model)
+    XCTAssertFalse(reset.isEnabled, "a second reset would have no effect")
+  }
+
+  func testResetUsesAnEnabledAgentFastDefault() throws {
+    let panel = MacComposerOptionsController()
+    var model = MacComposerModel(mode: .reply)
+    model.replyCapability = Capability(machineId: "m", cliType: "builtin", agentType: "codex", configOptions: [
+      ConfigOption(id: "fast-mode", name: "Fast", type: "boolean", currentValue: .bool(true)),
+    ])
+    model.replyChoice = ModelChoice(configOptionValues: ["fast-mode": .bool(false)])
+    var changed: ModelChoice?
+    panel.onChange = { changed = $0 }
+    panel.render(model)
+    let reset = try XCTUnwrap(panel.view.descendants(NSButton.self).first { $0.accessibilityIdentifier() == "composer-options-reset" })
+    reset.performClick(nil)
+    XCTAssertEqual(CreateLogic.fastMode(model.capability, try XCTUnwrap(changed))?.enabled, true)
+  }
+
   func testChangingModelsResetsEffortAndReplacesItsAvailableStops() throws {
     let panel = MacComposerOptionsController()
     var model = MacComposerModel(mode: .reply)

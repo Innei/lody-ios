@@ -28,6 +28,8 @@ final class ComposerNewTests: LodyMacUITestCase {
         effort.adjust(toNormalizedSliderPosition: 1)
         eventually("new-session choices use the same popover") { scene.buttons["composer-model"].label.contains("Opus 5.5, Ultra") }
         attach("composer-new-options-light", app.groups["composer-options-panel"])
+        app.buttons["composer-options-reset"].click()
+        eventually("new-session reset uses the existing choice persistence") { scene.buttons["composer-model"].label == "Default model, Default" }
         app.typeKey(.escape, modifierFlags: [])
         XCTAssertFalse(scene.buttons["composer-send"].isEnabled, "model selection never sends an empty draft")
       }
@@ -54,6 +56,89 @@ final class ComposerNewTests: LodyMacUITestCase {
 }
 
 final class ComposerReplyTests: LodyMacUITestCase {
+  func testReferenceModelPickerKeepsSelectionSeparateFromHover() {
+    for appearance in ["light", "dark"] {
+      open("model-picker-reference", appearance)
+      XCTAssertEqual(scene.buttons["composer-model"].label, "GPT-6 Astra, Medium")
+      scene.buttons["composer-model"].click()
+      let panel = app.groups["composer-options-panel"]
+      XCTAssertTrue(panel.waitForExistence(timeout: 3))
+      attach("reference-effort-\(appearance)", panel)
+      attach("reference-effort-desktop-\(appearance)")
+      let fast = app.descendants(matching: .any).matching(identifier: "composer-fast").firstMatch
+      fast.click()
+      XCTAssertEqual((fast.value as? NSNumber)?.intValue, 1)
+      fast.click()
+      app.buttons["composer-model-list"].click()
+      let table = app.tables["composer-model-choices"]
+      XCTAssertTrue(table.waitForExistence(timeout: 3))
+      XCTAssertTrue(table.staticTexts["Use the agent’s default model"].exists)
+      table.staticTexts["GPT-5.6 Sol"].hover()
+      XCTAssertEqual(scene.buttons["composer-model"].label, "GPT-6 Astra, Medium", "hover never changes the selected model")
+      attach("reference-models-\(appearance)", panel)
+      attach("reference-models-desktop-\(appearance)")
+      table.typeKey(.downArrow, modifierFlags: [])
+      table.typeKey(.return, modifierFlags: [])
+      eventually("keyboard confirmation applies the model and clears its old effort") {
+        scene.buttons["composer-model"].label == "GPT-6.1 Terra, Default"
+      }
+      app.sliders["composer-effort-slider"].adjust(toNormalizedSliderPosition: 1)
+      eventually("the native slider changes the current model's effort") {
+        scene.buttons["composer-model"].label == "GPT-6.1 Terra, Extra High"
+      }
+      fast.click()
+      XCTAssertEqual((fast.value as? NSNumber)?.intValue, 1)
+      app.buttons["composer-options-reset"].click()
+      XCTAssertEqual((fast.value as? NSNumber)?.intValue, 0, "reply reset persists Fast through the real host callback")
+      XCTAssertEqual(scene.buttons["composer-model"].label, "Default model, Default")
+      XCTAssertFalse(app.buttons["composer-options-reset"].isEnabled, "reset is unavailable when already using agent defaults")
+      app.buttons["composer-model-list"].click()
+      app.buttons["composer-options-back"].click()
+      XCTAssertEqual(scene.buttons["composer-model"].label, "Default model, Default", "Back preserves the choice")
+      app.typeKey(.escape, modifierFlags: [])
+      eventually("Escape closes the single transient popover") { !panel.exists }
+    }
+  }
+
+  func testModelPickerDesignStudies() {
+    for appearance in ["light", "dark"] {
+      for variant in ["a", "b", "c"] {
+        open("model-picker-\(variant)", appearance)
+        scene.buttons["composer-model"].click()
+        let panel = app.groups["model-study-panel"]
+        XCTAssertTrue(panel.waitForExistence(timeout: 3))
+        attach("model-study-\(variant)-\(appearance)", scene)
+        attach("model-study-\(variant)-panel-\(appearance)", panel)
+        attach("model-study-\(variant)-desktop-\(appearance)")
+        if variant == "b" {
+          app.buttons["model-study-heading"].click()
+          XCTAssertTrue(app.tables["model-study-choices"].waitForExistence(timeout: 3))
+          attach("model-study-b-list-\(appearance)", scene)
+          attach("model-study-b-list-panel-\(appearance)", panel)
+          attach("model-study-b-list-desktop-\(appearance)")
+        }
+        if variant == "c" {
+          app.popUpButtons["model-study-popup"].click()
+          XCTAssertTrue(app.menuItems["Sonnet 5.5"].waitForExistence(timeout: 3))
+          attach("model-study-c-menu-\(appearance)", scene)
+          attach("model-study-c-menu-desktop-\(appearance)")
+          app.menuItems["Sonnet 5.5"].click()
+        } else {
+          app.tables["model-study-choices"].staticTexts["Sonnet 5.5"].click()
+        }
+        eventually("each alternative applies the model and clears its old effort") {
+          scene.buttons["composer-model"].label == "Sonnet 5.5, Default"
+        }
+        app.sliders["model-study-effort"].adjust(toNormalizedSliderPosition: 1)
+        eventually("effort is restricted to the chosen model") {
+          scene.buttons["composer-model"].label == "Sonnet 5.5, High"
+        }
+        app.typeKey(.escape, modifierFlags: [])
+        eventually("the study remains a dismissible native popover") { !panel.exists }
+      }
+    }
+  }
+
   func testReplyKeepsTheWritingSurfaceCompactAndSendsWithReturn() {
     for appearance in ["light", "dark"] {
       open("composer-reply", appearance)
