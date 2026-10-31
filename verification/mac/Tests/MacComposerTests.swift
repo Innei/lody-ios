@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 import LodyCore
 import LodyData
@@ -76,11 +77,59 @@ final class MacComposerLayoutTests: XCTestCase {
     model.form = CreateSessionForm(userId: "u", workspaceId: "w", projects: [CreateProject(id: "p", machineId: "m", name: "lody-ios")])
     model.form.open(projectId: nil, context: nil)
     composer.render(model, reply: ("", "", ""))
-    let surface = try XCTUnwrap(composer.descendants(MacFillView.self).first)
+    let surface = try XCTUnwrap(composer.descendants(NSGlassEffectView.self).first)
     XCTAssertFalse(composer.project.isDescendant(of: surface), "project choices describe the draft context outside the editor")
     XCTAssertTrue(composer.input.isDescendant(of: surface))
     composer.layoutSubtreeIfNeeded()
-    XCTAssertGreaterThanOrEqual(composer.input.enclosingScrollView?.frame.height ?? 0, 80, "a new task starts with room to write several lines")
+    XCTAssertGreaterThanOrEqual(composer.input.enclosingScrollView?.frame.height ?? 0, 36, "the writing area accommodates more than one native text line")
+  }
+
+  func testSoftWrappedDraftGrowsAndShrinksWithoutChangingItsText() throws {
+    let composer = MacComposerView()
+    composer.translatesAutoresizingMaskIntoConstraints = false
+    let window = MacOffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: 680, height: 500), styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    let root = NSView()
+    window.contentView = root
+    root.addSubview(composer)
+    let width = composer.widthAnchor.constraint(equalToConstant: 400)
+    NSLayoutConstraint.activate([
+      composer.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+      composer.topAnchor.constraint(equalTo: root.topAnchor), width,
+    ])
+    var model = MacComposerModel(mode: .reply)
+    composer.render(model, reply: ("lody-ios", "main", "Mac Studio"))
+    root.layoutSubtreeIfNeeded()
+    let scroll = try XCTUnwrap(composer.input.enclosingScrollView)
+    let emptyHeight = scroll.frame.height
+    let draft = String(repeating: "Keep the native controls and align the sidebar rows. ", count: 8)
+    composer.input.string = draft
+    model.text = draft
+    composer.render(model, reply: ("lody-ios", "main", "Mac Studio"))
+    root.layoutSubtreeIfNeeded()
+    let narrowHeight = scroll.frame.height
+    XCTAssertGreaterThan(narrowHeight, emptyHeight + 20, "wrapping must grow the editor even without explicit newlines")
+    width.constant = 680
+    root.layoutSubtreeIfNeeded()
+    window.layoutIfNeeded()
+    let resized = expectation(description: "native text layout settles after resizing")
+    Task { @MainActor in
+      while scroll.frame.height >= narrowHeight {
+        root.layoutSubtreeIfNeeded()
+        try? await Task.sleep(for: .milliseconds(10))
+      }
+      resized.fulfill()
+    }
+    wait(for: [resized], timeout: 2)
+    XCTAssertLessThan(scroll.frame.height, narrowHeight, "a wider editor needs fewer wrapped lines")
+    XCTAssertEqual(composer.input.string, draft)
+    composer.input.string = ""
+    model.text = ""
+    composer.render(model, reply: ("lody-ios", "main", "Mac Studio"))
+    root.layoutSubtreeIfNeeded()
+    window.layoutIfNeeded()
+    XCTAssertEqual(scroll.frame.height, emptyHeight, accuracy: 1)
   }
 
   func testABlockedNewSessionKeepsItsChipsAndNoticeInsideTheComposer() throws {

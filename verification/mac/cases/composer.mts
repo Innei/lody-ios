@@ -72,9 +72,11 @@ export async function composerReply(session: Session) {
     await waitForText(session, 'Reply…');
     const ready = await waitForDump(session, sendEnabled(false));
     expect(
-      text(ready, 'composer-context') ===
-        'lody-ios  ·  mac-client  ·  Mac Studio',
-      `the reply tray is read-only context: ${text(ready, 'composer-context')}`,
+      find(
+        ready,
+        (node) => node.identifier === 'composer-project' && !node.hidden,
+      ).length === 0,
+      'replying uses a single writing surface without the new-task context bar',
     );
     expect(
       text(ready, 'composer-mode') === 'Ask first',
