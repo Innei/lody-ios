@@ -42,7 +42,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   private var projectId: String?
   private var archived = false
   private let account: @MainActor () -> AuthAccount?
-  private let workspacePicker = NSPopUpButton(frame: .zero, pullsDown: true)
+  private let workspacePicker = MacAccountButton(frame: .zero, pullsDown: true)
   private let archive = NSButton()
 
   private(set) lazy var topAccessory = makeTopAccessory()
@@ -141,6 +141,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
   }
 
   private func makeBottomAccessory() -> NSSplitViewItemAccessoryViewController {
+    workspacePicker.alignment = .left
     workspacePicker.isBordered = false
     workspacePicker.bezelStyle = .accessoryBarAction
     workspacePicker.contentTintColor = .labelColor

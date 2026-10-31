@@ -169,3 +169,12 @@ final class SidebarSearchSurface: NSView {
     }
   }
 }
+
+/// Optical trailing space belongs to the native menu button's hit target.
+@MainActor
+final class MacAccountButton: NSPopUpButton {
+  override var intrinsicContentSize: NSSize {
+    let size = super.intrinsicContentSize
+    return NSSize(width: size.width + 10, height: size.height)
+  }
+}
